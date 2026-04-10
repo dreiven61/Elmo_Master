@@ -1,0 +1,1579 @@
+﻿<Window
+	x:Class="PmasApiWpfTestApp.MainWindow"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	Title="LASAL TCP/IP WPF Test App (Dummy)"
+	Width="1600"
+	Height="980"
+	MinWidth="1360"
+	MinHeight="840">
+	<DockPanel Margin="10">
+		<GroupBox
+			Margin="0,0,0,8"
+			DockPanel.Dock="Top"
+			Header="Connection / Load / Diagnostics">
+			<Grid Margin="8">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="*" />
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="Auto" />
+				</Grid.RowDefinitions>
+				<StackPanel
+					Grid.Row="0"
+					Grid.Column="0"
+					Margin="0,0,12,6">
+					<TextBlock Text="Remote IP" />
+					<TextBox x:Name="TextRemoteIp" Text="10.10.150.1" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="0"
+					Grid.Column="1"
+					Margin="0,0,12,6">
+					<TextBlock Text="Remote Port" />
+					<TextBox x:Name="TextRemotePort" Text="4000" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="0"
+					Grid.Column="2"
+					Margin="0,0,12,6">
+					<TextBlock Text="Local IP" />
+					<TextBox x:Name="TextLocalIp" Text="10.10.150.13" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="0"
+					Grid.Column="3"
+					Margin="0,0,0,6">
+					<TextBlock Text="Local Port" />
+					<TextBox x:Name="TextLocalPort" Text="5000" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="1"
+					Grid.Column="0"
+					Margin="0,0,12,6">
+					<TextBlock Text="Event Mask" />
+					<TextBox x:Name="TextEventMask" Text="0xFFFFFFFF" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="1"
+					Grid.Column="1"
+					Margin="0,0,12,6">
+					<TextBlock Text="Axis Name" />
+					<TextBox x:Name="TextAxisName" Text="g01" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="1"
+					Grid.Column="2"
+					Margin="0,0,12,6">
+					<TextBlock Text="Group Name" />
+					<TextBox x:Name="TextGroupName" Text="Group1" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="1"
+					Grid.Column="3"
+					Margin="0,0,0,6">
+					<TextBlock Text="Group Axes (CSV)" />
+					<TextBox x:Name="TextGroupAxes" Text="X,Y,Aux" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="2"
+					Grid.Column="0"
+					Margin="0,0,12,6">
+					<TextBlock Text="Error Code" />
+					<TextBox x:Name="TextErrorCode" Text="0" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="2"
+					Grid.Column="1"
+					Margin="0,0,12,6">
+					<TextBlock Text="Error Type" />
+					<TextBox x:Name="TextErrorType" Text="0" />
+				</StackPanel>
+				<StackPanel
+					Grid.Row="2"
+					Grid.Column="2"
+					Grid.ColumnSpan="2"
+					Margin="0,0,0,10">
+					<TextBlock
+						VerticalAlignment="Bottom"
+						Text="{Binding Context.StatusSummary}"
+						TextWrapping="Wrap" />
+					<TextBlock
+						Margin="0,3,0,0"
+						Foreground="#AA6A0000"
+						Text="축/그룹 이름은 MDS Resource의 실제 이름과 완전히 일치해야 합니다."
+						TextWrapping="Wrap" />
+				</StackPanel>
+				<WrapPanel
+					Grid.Row="3"
+					Grid.Column="0"
+					Grid.ColumnSpan="4">
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,4"
+						Click="ButtonConnect_Click"
+						Content="MMC_RpcInitConnection" />
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,4"
+						Click="ButtonCloseConnection_Click"
+						Content="MMC_CloseConnection" />
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,4"
+						Click="ButtonOpenUdpChannel_Click"
+						Content="MMC_OpenUdpChannelCmdEx" />
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,4"
+						Click="ButtonGetAxisByName_Click"
+						Content="MMC_GetAxisByNameCmd" />
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,4"
+						Click="ButtonGetGroupByName_Click"
+						Content="MMC_GetGroupByNameCmd" />
+					<Button
+						Padding="10,4"
+						Click="ButtonGetErrorDescription_Click"
+						Content="MMC_GetErrorCodeDescriptionByID" />
+				</WrapPanel>
+			</Grid>
+		</GroupBox>
+		<GroupBox
+			Height="220"
+			Margin="0,8,0,0"
+			DockPanel.Dock="Bottom"
+			Header="Execution Log">
+			<DockPanel Margin="8">
+				<WrapPanel Margin="0,0,0,6" DockPanel.Dock="Top">
+					<Button
+						Margin="0,0,8,0"
+						Padding="10,3"
+						Click="ButtonCopyExecutionLog_Click"
+						Content="Copy All" />
+					<Button
+						Padding="10,3"
+						Click="ButtonClearExecutionLog_Click"
+						Content="Clear" />
+				</WrapPanel>
+				<TextBox
+					x:Name="TextExecutionLog"
+					AcceptsReturn="True"
+					FontFamily="Consolas"
+					HorizontalScrollBarVisibility="Auto"
+					IsReadOnly="True"
+					Text="{Binding Context.LogText, Mode=OneWay}"
+					TextWrapping="NoWrap"
+					VerticalScrollBarVisibility="Auto" />
+			</DockPanel>
+		</GroupBox>
+		<TabControl>
+			<TabItem Header="Overview">
+				<DockPanel Margin="8">
+					<TextBlock
+						Margin="0,0,0,8"
+						DockPanel.Dock="Top"
+						Text="SIGMATEK TCP/IP 더미 백엔드 기준 매핑 현황입니다. Status가 Mapped면 이 앱에서 테스트 가능하고, 실제 통신 API 연동 전 검증용 더미 동작입니다."
+						TextWrapping="Wrap" />
+					<DataGrid
+						AutoGenerateColumns="False"
+						IsReadOnly="True"
+						ItemsSource="{Binding CoverageItems}">
+						<DataGrid.Columns>
+							<DataGridTextColumn
+								Width="220"
+								Binding="{Binding FunctionName}"
+								Header="Function" />
+							<DataGridTextColumn
+								Width="110"
+								Binding="{Binding Status}"
+								Header="Status" />
+							<DataGridTextColumn
+								Width="260"
+								Binding="{Binding Wrapper}"
+								Header="Wrapper" />
+							<DataGridTextColumn
+								Width="130"
+								Binding="{Binding Area}"
+								Header="Area" />
+							<DataGridTextColumn
+								Width="*"
+								Binding="{Binding Notes}"
+								Header="Notes" />
+						</DataGrid.Columns>
+					</DataGrid>
+				</DockPanel>
+			</TabItem>
+			<TabItem Header="Single Axis">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="State / Mode">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Buffered Mode" />
+									<ComboBox x:Name="ComboBufferedMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Operation Mode" />
+									<ComboBox x:Name="ComboOpMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Execution Mode" />
+									<ComboBox x:Name="ComboExecutionMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Init Mode Value" />
+									<TextBox x:Name="TextInitialOpModeValue" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,0,6">
+									<TextBlock Text="Set Position Request" />
+									<DockPanel>
+										<TextBox
+											x:Name="TextSetPosition"
+											Width="120"
+											Margin="0,0,8,0"
+											Text="0" />
+										<ComboBox x:Name="ComboSetPositionMode" Width="180" />
+									</DockPanel>
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonPowerOn_Click"
+										Content="MMC_PowerCmd On" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonPowerOff_Click"
+										Content="MMC_PowerCmd Off" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReset_Click"
+										Content="MMC_Reset" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonStop_Click"
+										Content="MMC_StopCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonChangeOpMode_Click"
+										Content="MMC_ChngOpMode" />
+									<Button
+										Padding="10,4"
+										Click="ButtonSetPosition_Click"
+										Content="MMC_SetPositionCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Parameters / Status">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="120" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="120" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Parameter" />
+									<ComboBox x:Name="ComboParameter" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Param Index" />
+									<TextBox x:Name="TextParameterIndex" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Param Value" />
+									<TextBox x:Name="TextParameterValue" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Bool Index" />
+									<TextBox x:Name="TextBoolParameterIndex" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Bool Parameter" />
+									<ComboBox x:Name="ComboBoolParameter" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Bool Result" />
+									<TextBox x:Name="TextBoolParameterResult" IsReadOnly="True" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadParameter_Click"
+										Content="MMC_ReadParameter" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonWriteParameter_Click"
+										Content="MMC_WriteParameter" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadBoolParameter_Click"
+										Content="MMC_ReadBoolParameter" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadActualPosition_Click"
+										Content="MMC_ReadActualPositionCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadStatus_Click"
+										Content="MMC_ReadStatusCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonGetStatusRegister_Click"
+										Content="MMC_GetStatusRegisterCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Motion / Override">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Absolute Position" />
+									<TextBox x:Name="TextAbsPosition" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Relative Distance" />
+									<TextBox x:Name="TextRelDistance" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Velocity" />
+									<TextBox x:Name="TextVelocity" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Acceleration" />
+									<TextBox x:Name="TextMotionAcceleration" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Deceleration" />
+									<TextBox x:Name="TextMotionDeceleration" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,12,6">
+									<TextBlock Text="Jerk" />
+									<TextBox x:Name="TextMotionJerk" Text="100000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="6"
+									Margin="0,0,0,6">
+									<TextBlock Text="Direction" />
+									<ComboBox x:Name="ComboDirection" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Override Velocity Factor" />
+									<TextBox x:Name="TextOverrideVelocity" Text="1.0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Override Acc Factor" />
+									<TextBox x:Name="TextOverrideAcceleration" Text="1.0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Override Jerk Factor" />
+									<TextBox x:Name="TextOverrideJerk" Text="1.0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Override Index" />
+									<TextBox x:Name="TextOverrideIndex" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="7">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveAbsoluteEx_Click"
+										Content="MMC_MoveAbsoluteExCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveRelativeEx_Click"
+										Content="MMC_MoveRelativeExCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveVelocityEx_Click"
+										Content="MMC_MoveVelocityExCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonSetOverride_Click"
+										Content="MMC_SetOverrideCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="SDO">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Object Index" />
+									<TextBox x:Name="TextSdoIndex" Text="0x6040" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Sub Index" />
+									<TextBox x:Name="TextSdoSubIndex" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Value Type" />
+									<ComboBox x:Name="ComboSdoType" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Value" />
+									<TextBox x:Name="TextSdoValue" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonSendSdoRead_Click"
+										Content="MMC_SendSdoCmd Read" />
+									<Button
+										Padding="10,4"
+										Click="ButtonSendSdoWrite_Click"
+										Content="MMC_SendSdoCmd Write" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Header="Home DS402 Ex">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="150" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,8,6">
+									<TextBlock Text="Method" />
+									<TextBox x:Name="TextHomeMethod" Text="34" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,8,6">
+									<TextBlock Text="Home Position" />
+									<TextBox x:Name="TextHomePosition" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,8,6">
+									<TextBlock Text="Velocity High" />
+									<TextBox x:Name="TextHomeVelocityHigh" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,8,6">
+									<TextBlock Text="Velocity Low" />
+									<TextBox x:Name="TextHomeVelocityLow" Text="100" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,8,6">
+									<TextBlock Text="Acceleration" />
+									<TextBox x:Name="TextHomeAccel" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,8,6">
+									<TextBlock Text="Distance Limit" />
+									<TextBox x:Name="TextHomeDistanceLimit" Text="100000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="6"
+									Margin="0,0,8,6">
+									<TextBlock Text="Torque Limit" />
+									<TextBox x:Name="TextHomeTorqueLimit" Text="100" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="7"
+									Margin="0,0,8,6">
+									<TextBlock Text="Time Limit" />
+									<TextBox x:Name="TextHomeTimeLimit" Text="10000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="8"
+									Margin="0,0,8,6">
+									<TextBlock Text="Detect Velocity Limit" />
+									<TextBox x:Name="TextHomeDetectionVelocityLimit" Text="10" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="9"
+									Margin="0,0,0,6">
+									<TextBlock Text="Detect Time Limit" />
+									<TextBox x:Name="TextHomeDetectionTimeLimit" Text="1000" />
+								</StackPanel>
+								<Button
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="10"
+									Padding="10,4"
+									HorizontalAlignment="Left"
+									Click="ButtonHomeDs402Ex_Click"
+									Content="MMC_HomeDS402ExCmd" />
+							</Grid>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="Group">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Group State">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Buffered Mode" />
+									<ComboBox x:Name="ComboGroupBufferedMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Stop Deceleration" />
+									<TextBox x:Name="TextGroupStopDeceleration" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Stop Jerk" />
+									<TextBox x:Name="TextGroupStopJerk" Text="100000" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupReadStatus_Click"
+										Content="MMC_GroupReadStatusCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupEnable_Click"
+										Content="MMC_GroupEnableCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupDisable_Click"
+										Content="MMC_GroupDisableCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupReset_Click"
+										Content="MMC_GroupResetCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupStop_Click"
+										Content="MMC_GroupStopCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupGetStatusRegister_Click"
+										Content="MMC_GetStatusRegisterCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonGetGroupMembersInfo_Click"
+										Content="MMC_GetGroupMembersInfo" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Group Motion / Kinematics">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="120" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Velocity" />
+									<TextBox x:Name="TextGroupVelocity" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Acceleration" />
+									<TextBox x:Name="TextGroupAcceleration" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Deceleration" />
+									<TextBox x:Name="TextGroupDeceleration" Text="1000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Jerk" />
+									<TextBox x:Name="TextGroupJerk" Text="100000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="End Point (CSV)" />
+									<TextBox x:Name="TextGroupEndPoint" Text="1000,2000,3000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,12,6">
+									<TextBlock Text="Transition Params (CSV)" />
+									<TextBox x:Name="TextGroupTransitionParams" Text="1,1,0,0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="6"
+									Margin="0,0,12,6">
+									<TextBlock Text="Superimposed" />
+									<TextBox x:Name="TextGroupSuperimposed" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Coord System" />
+									<ComboBox x:Name="ComboGroupCoordSystem" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Transition Mode" />
+									<ComboBox x:Name="ComboGroupTransitionMode" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="8">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveLinearAbsolute_Click"
+										Content="MMC_MoveLinearAbsoluteCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveLinearRelative_Click"
+										Content="MMC_MoveLinearRelativeCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonMoveLinearAbsoluteEx_Click"
+										Content="MMC_MoveLinearAbsoluteExCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonSetKinTransform_Click"
+										Content="MMC_SetKinTransform" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Header="Wait Until Condition">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="160" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Reference Value" />
+									<TextBox x:Name="TextConditionReference" Text="1" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Param ID" />
+									<TextBox x:Name="TextConditionParamId" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Param Index" />
+									<TextBox x:Name="TextConditionParamIndex" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Condition" />
+									<ComboBox x:Name="ComboConditionOperation" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Source Axis Ref" />
+									<TextBox x:Name="TextConditionSourceAxisRef" Text="1" />
+								</StackPanel>
+								<Button
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="6"
+									Padding="10,4"
+									HorizontalAlignment="Left"
+									Click="ButtonWaitUntilCondition_Click"
+									Content="MMC_WaitUntilConditionFB" />
+							</Grid>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="PI / Bulk">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Processing Image">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="120" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Alias" />
+									<TextBox x:Name="TextPiAlias" Text="" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Index" />
+									<TextBox x:Name="TextPiIndex" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Direction" />
+									<ComboBox x:Name="ComboPiDirection" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="USHORT Value" />
+									<TextBox x:Name="TextPiValue" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGetPIVarInfoByAlias_Click"
+										Content="MMC_GetPIVarInfoByAlias" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadPIVarUShort_Click"
+										Content="MMC_ReadPIVarUShort" />
+									<Button
+										Padding="10,4"
+										Click="ButtonWritePIVarUShort_Click"
+										Content="MMC_WritePIVarUShort" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Header="Bulk Read">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Node Refs (CSV)" />
+									<TextBox x:Name="TextBulkNodeRefs" Text="1,2,3" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Bulk Config" />
+									<ComboBox x:Name="ComboBulkConfig" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Bulk Preset" />
+									<ComboBox x:Name="ComboBulkPreset" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Custom Values (CSV)" />
+									<TextBox x:Name="TextBulkCustomValues" Text="0" />
+								</StackPanel>
+								<CheckBox
+									x:Name="CheckBulkUsePreset"
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,24,0,0"
+									Content="Use preset instead of custom values"
+									IsChecked="True" />
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonConfigBulkRead_Click"
+										Content="MMC_ConfigBulkReadCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonPerformBulkRead_Click"
+										Content="MMC_PerformBulkReadCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="Cycle Test">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Motion Profile">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Base Position (mm)" />
+									<TextBox x:Name="TextCycleBasePosition" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Move Distance (mm)" />
+									<TextBox x:Name="TextCycleMoveDistanceMm" Text="250" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Velocity (mm/s)" />
+									<TextBox x:Name="TextCycleVelocity" Text="4000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Acceleration (mm/s^2)" />
+									<TextBox x:Name="TextCycleAcceleration" Text="64000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Deceleration (mm/s^2)" />
+									<TextBox x:Name="TextCycleDeceleration" Text="64000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Jerk (mm/s^3)" />
+									<TextBox x:Name="TextCycleJerk" Text="100000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Cycle Count" />
+									<TextBox x:Name="TextCycleCount" Text="10000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="In-position Tolerance (mm)" />
+									<TextBox x:Name="TextCycleTolerance" Text="1" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Move Timeout (ms)" />
+									<TextBox x:Name="TextCycleMoveTimeoutMs" Text="1500" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Poll Interval (ms)" />
+									<TextBox x:Name="TextCyclePollIntervalMs" Text="5" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Stable Samples" />
+									<TextBox x:Name="TextCycleStableSamples" Text="3" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Drop Threshold (ms)" />
+									<TextBox x:Name="TextCycleDropThresholdMs" Text="50" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<CheckBox
+										x:Name="CheckCycleStopOnTimeout"
+										Margin="0,2,16,0"
+										Content="Stop on timeout"
+										IsChecked="False" />
+									<CheckBox
+										x:Name="CheckCycleStopOnError"
+										Margin="0,2,16,0"
+										Content="Stop on axis error/exception"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleHighPriorityThread"
+										Margin="0,2,16,0"
+										Content="Use high-priority worker thread"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleHighPrecisionWait"
+										Margin="0,2,16,0"
+										Content="Use high-precision wait (yield/spin)"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleUse1msTimerResolution"
+										Margin="0,2,0,0"
+										Content="Request 1ms system timer resolution"
+										IsChecked="True" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Control">
+							<StackPanel Margin="8">
+								<TextBlock
+									Margin="0,0,0,8"
+									Foreground="#AA6A0000"
+									Text="Profile은 Base -&gt; (Base + Move Distance) -&gt; Base 입니다. Velocity/Acceleration/Deceleration/Jerk는 수동 입력값이 그대로 적용됩니다."
+									TextWrapping="Wrap" />
+								<WrapPanel>
+									<Button
+										x:Name="ButtonStartCycleTest"
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonStartCycleTest_Click"
+										Content="Start 10,000 Cycle Test" />
+									<Button
+										x:Name="ButtonStopCycleTest"
+										Padding="10,4"
+										Click="ButtonStopCycleTest_Click"
+										Content="Stop"
+										IsEnabled="False" />
+								</WrapPanel>
+							</StackPanel>
+						</GroupBox>
+						<GroupBox Header="Result">
+							<StackPanel Margin="8">
+								<ProgressBar
+									x:Name="ProgressCycleTest"
+									Height="20"
+									Maximum="100"
+									Minimum="0"
+									Value="0" />
+								<TextBox
+									x:Name="TextCycleRunStatus"
+									Margin="0,8,0,8"
+									IsReadOnly="True"
+									Text="Idle" />
+								<TextBox
+									x:Name="TextCycleSummary"
+									Height="220"
+									AcceptsReturn="True"
+									FontFamily="Consolas"
+									HorizontalScrollBarVisibility="Auto"
+									IsReadOnly="True"
+									TextWrapping="NoWrap"
+									VerticalScrollBarVisibility="Auto" />
+								<Grid Margin="0,8,0,0">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="120" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="220" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										Grid.Column="0"
+										Margin="0,5,8,0"
+										Text="Save Folder" />
+									<TextBox
+										x:Name="TextCycleSaveFolder"
+										Grid.Column="1"
+										Text="C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\Reports\CycleResults" />
+									<WrapPanel Grid.Column="2" Margin="8,0,0,0">
+										<CheckBox
+											x:Name="CheckCycleAutoSaveResult"
+											Margin="0,5,8,0"
+											Content="Auto Save"
+											IsChecked="False" />
+										<Button
+											x:Name="ButtonSaveCycleResult"
+											Padding="10,3"
+											Click="ButtonSaveCycleResult_Click"
+											Content="Save Result (.xlsx)"
+											IsEnabled="False" />
+									</WrapPanel>
+								</Grid>
+							</StackPanel>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="Cycle Test2">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Motion Profile (No In-position Wait)">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Base Position (mm)" />
+									<TextBox x:Name="TextCycle2BasePosition" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Move Distance (mm)" />
+									<TextBox x:Name="TextCycle2MoveDistanceMm" Text="250" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Velocity (mm/s)" />
+									<TextBox x:Name="TextCycle2Velocity" Text="4000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Acceleration (mm/s^2)" />
+									<TextBox x:Name="TextCycle2Acceleration" Text="64000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Deceleration (mm/s^2)" />
+									<TextBox x:Name="TextCycle2Deceleration" Text="64000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Jerk (mm/s^3)" />
+									<TextBox x:Name="TextCycle2Jerk" Text="100000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Cycle Count" />
+									<TextBox x:Name="TextCycle2Count" Text="10000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Command Interval (ms)" />
+									<TextBox x:Name="TextCycle2PollIntervalMs" Text="5" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Drop Threshold (ms)" />
+									<TextBox x:Name="TextCycle2DropThresholdMs" Text="50" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<CheckBox
+										x:Name="CheckCycle2StopOnError"
+										Margin="0,2,16,0"
+										Content="Stop on axis error/exception"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycle2HighPriorityThread"
+										Margin="0,2,16,0"
+										Content="Use high-priority worker thread"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycle2HighPrecisionWait"
+										Margin="0,2,16,0"
+										Content="Use high-precision wait (yield/spin)"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycle2Use1msTimerResolution"
+										Margin="0,2,0,0"
+										Content="Request 1ms system timer resolution"
+										IsChecked="True" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Control">
+							<StackPanel Margin="8">
+								<TextBlock
+									Margin="0,0,0,8"
+									Foreground="#AA6A0000"
+									Text="In-position 확인 없이 Base -&gt; (Base + Move Distance) -&gt; Base MoveAbsoluteEx를 연속 발행합니다."
+									TextWrapping="Wrap" />
+								<WrapPanel>
+									<Button
+										x:Name="ButtonStartCycleTest2"
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonStartCycleTest2_Click"
+										Content="Start 10,000 Cycle Test2" />
+									<Button
+										x:Name="ButtonStopCycleTest2"
+										Padding="10,4"
+										Click="ButtonStopCycleTest2_Click"
+										Content="Stop"
+										IsEnabled="False" />
+								</WrapPanel>
+							</StackPanel>
+						</GroupBox>
+						<GroupBox Header="Result">
+							<StackPanel Margin="8">
+								<ProgressBar
+									x:Name="ProgressCycleTest2"
+									Height="20"
+									Maximum="100"
+									Minimum="0"
+									Value="0" />
+								<TextBox
+									x:Name="TextCycle2RunStatus"
+									Margin="0,8,0,8"
+									IsReadOnly="True"
+									Text="Idle" />
+								<TextBox
+									x:Name="TextCycle2Summary"
+									Height="220"
+									AcceptsReturn="True"
+									FontFamily="Consolas"
+									HorizontalScrollBarVisibility="Auto"
+									IsReadOnly="True"
+									TextWrapping="NoWrap"
+									VerticalScrollBarVisibility="Auto" />
+								<Grid Margin="0,8,0,0">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="120" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="220" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										Grid.Column="0"
+										Margin="0,5,8,0"
+										Text="Save Folder" />
+									<TextBox
+										x:Name="TextCycle2SaveFolder"
+										Grid.Column="1"
+										Text="C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\Reports\CycleResults2" />
+									<WrapPanel Grid.Column="2" Margin="8,0,0,0">
+										<CheckBox
+											x:Name="CheckCycle2AutoSaveResult"
+											Margin="0,5,8,0"
+											Content="Auto Save"
+											IsChecked="False" />
+										<Button
+											x:Name="ButtonSaveCycleResult2"
+											Padding="10,3"
+											Click="ButtonSaveCycleResult2_Click"
+											Content="Save Result (.xlsx)"
+											IsEnabled="False" />
+									</WrapPanel>
+								</Grid>
+							</StackPanel>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="Recorder">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Recording Control">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="300" />
+									<ColumnDefinition Width="300" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Gap" />
+									<TextBox x:Name="TextRecorderGap" Text="1" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Data Length" />
+									<TextBox x:Name="TextRecorderLength" Text="64" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Signal Bit Mask" />
+									<TextBox x:Name="TextRecorderMask" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Signal IDs (CSV)" />
+									<TextBox x:Name="TextRecorderSignalIds" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Recorder Params (CSV)" />
+									<TextBox x:Name="TextRecorderParams" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonBeginRecording_Click"
+										Content="MMC_BeginRecordingCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonRecStatus_Click"
+										Content="MMC_RecStatusCmd" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonStopRecording_Click"
+										Content="MMC_StopRecordingCmd" />
+									<Button
+										Padding="10,4"
+										Click="ButtonUploadDataHeader_Click"
+										Content="MMC_UploadDataHeaderCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Header="Upload Data">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="From" />
+									<TextBox x:Name="TextRecorderFrom" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="To" />
+									<TextBox x:Name="TextRecorderTo" Text="63" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Buffer Index" />
+									<TextBox x:Name="TextRecorderBufferIndex" Text="0" />
+								</StackPanel>
+								<Button
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="4"
+									Padding="10,4"
+									HorizontalAlignment="Left"
+									Click="ButtonUploadData_Click"
+									Content="MMC_UploadDataCmd" />
+							</Grid>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+		</TabControl>
+	</DockPanel>
+</Window>
