@@ -24,6 +24,8 @@ NetHelp/
 PMAS_TEST/
 Lasal32dll/
 tmp/
+MaestroLibraries292/
+EtherCAT Controller(Master)*.xlsx
 
 # Archive/manual files kept only for local reference
 *.zip
