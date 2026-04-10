@@ -1,0 +1,34 @@
+# Visual Studio / .NET build artifacts
+.vs/
+**/.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local caches / logs
+*.cache
+*.log
+build_cycle2.log
+
+# Large reference bundles and downloaded vendor packages
+**/downloads/
+MMCLibDotNET Libs V3.0.0.7/
+MMCLibDotNET Test App_V3.0.0.7/
+MAESTRO DEVELOPER STUDIO/
+VISUAL STUDIO LIBRARY/
+Maestro_275/
+NetHelp/
+PMAS_TEST/
+Lasal32dll/
+tmp/
+
+# Archive/manual files kept only for local reference
+*.zip
+*.rar
+*.pdf
+
+# Temporary scraped files
+_tmp_*
