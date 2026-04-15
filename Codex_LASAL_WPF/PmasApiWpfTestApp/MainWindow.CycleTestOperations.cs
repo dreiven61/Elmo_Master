@@ -17,6 +17,7 @@ namespace PmasApiWpfTestApp
     public partial class MainWindow
     {
         private const int MaxPositionReadSamplesToSave = 300000;
+        private const int DefaultWarmupCycles = 10;
         private CancellationTokenSource _cycleTestCancellation;
         private bool _isCycleTestRunning;
         private CycleTestSnapshot _lastCycleTestSnapshot;
@@ -27,6 +28,7 @@ namespace PmasApiWpfTestApp
         private sealed class CycleTestOptions
         {
             public int RequestedCycles { get; set; }
+            public int WarmupCycles { get; set; }
             public double BasePosition { get; set; }
             public double MoveDistanceMm { get; set; }
             public int MoveTimeoutMs { get; set; }
@@ -188,11 +190,12 @@ namespace PmasApiWpfTestApp
                 ResetCycleTestOutput();
                 SetCycleTestStatus(string.Format(
                     CultureInfo.InvariantCulture,
-                    "Running... Base={0}, Forward={1}, Distance={2}mm, Cycles={3}, Vel={4:F3}, Acc={5:F3}, Dec={6:F3}, Jerk={7:F3}",
+                    "Running... Base={0}, Forward={1}, Distance={2}mm, Cycles={3}, Warmup={4}, Vel={5:F3}, Acc={6:F3}, Dec={7:F3}, Jerk={8:F3}",
                     options.BasePosition,
                     options.ForwardPosition,
                     options.MoveDistanceMm,
                     options.RequestedCycles,
+                    options.WarmupCycles,
                     options.Velocity,
                     options.Acceleration,
                     options.Deceleration,
@@ -200,7 +203,7 @@ namespace PmasApiWpfTestApp
 
                 Context.Log(string.Format(
                     CultureInfo.InvariantCulture,
-                    "CycleTest started: base={0}, forward={1}, distanceMm={2}, vel={3}, acc={4}, dec={5}, jerk={6}, cycles={7}, tol={8}, timeoutMs={9}, pollMs={10}, highPriority={11}, highPrecisionWait={12}, timer1ms={13}",
+                    "CycleTest started: base={0}, forward={1}, distanceMm={2}, vel={3}, acc={4}, dec={5}, jerk={6}, cycles={7}, warmupCycles={8}, tol={9}, timeoutMs={10}, pollMs={11}, highPriority={12}, highPrecisionWait={13}, timer1ms={14}",
                     options.BasePosition,
                     options.ForwardPosition,
                     options.MoveDistanceMm,
@@ -209,6 +212,7 @@ namespace PmasApiWpfTestApp
                     options.Deceleration,
                     options.Jerk,
                     options.RequestedCycles,
+                    options.WarmupCycles,
                     options.InPositionTolerance,
                     options.MoveTimeoutMs,
                     options.PollIntervalMs,
@@ -328,11 +332,12 @@ namespace PmasApiWpfTestApp
                 ResetCycleTest2Output();
                 SetCycleTest2Status(string.Format(
                     CultureInfo.InvariantCulture,
-                    "Running... Base={0}, Forward={1}, Distance={2}mm, Cycles={3}, Vel={4:F3}, Acc={5:F3}, Dec={6:F3}, Jerk={7:F3}",
+                    "Running... Base={0}, Forward={1}, Distance={2}mm, Cycles={3}, Warmup={4}, Vel={5:F3}, Acc={6:F3}, Dec={7:F3}, Jerk={8:F3}",
                     options.BasePosition,
                     options.ForwardPosition,
                     options.MoveDistanceMm,
                     options.RequestedCycles,
+                    options.WarmupCycles,
                     options.Velocity,
                     options.Acceleration,
                     options.Deceleration,
@@ -340,7 +345,7 @@ namespace PmasApiWpfTestApp
 
                 Context.Log(string.Format(
                     CultureInfo.InvariantCulture,
-                    "CycleTest2 started(no in-position wait): base={0}, forward={1}, distanceMm={2}, vel={3}, acc={4}, dec={5}, jerk={6}, cycles={7}, commandIntervalMs={8}, highPriority={9}, highPrecisionWait={10}, timer1ms={11}",
+                    "CycleTest2 started(no in-position wait): base={0}, forward={1}, distanceMm={2}, vel={3}, acc={4}, dec={5}, jerk={6}, cycles={7}, warmupCycles={8}, commandIntervalMs={9}, highPriority={10}, highPrecisionWait={11}, timer1ms={12}",
                     options.BasePosition,
                     options.ForwardPosition,
                     options.MoveDistanceMm,
@@ -349,6 +354,7 @@ namespace PmasApiWpfTestApp
                     options.Deceleration,
                     options.Jerk,
                     options.RequestedCycles,
+                    options.WarmupCycles,
                     options.PollIntervalMs,
                     options.UseHighPriorityWorkerThread,
                     options.UseHighPrecisionWait,
@@ -442,6 +448,7 @@ namespace PmasApiWpfTestApp
         private CycleTestOptions BuildCycleTest2Options()
         {
             var options = new CycleTestOptions();
+            options.WarmupCycles = DefaultWarmupCycles;
             options.BasePosition = ParseDouble(TextCycle2BasePosition.Text);
             options.MoveDistanceMm = ParseDouble(TextCycle2MoveDistanceMm.Text);
             options.Velocity = ParseDouble(TextCycle2Velocity.Text);
@@ -508,6 +515,7 @@ namespace PmasApiWpfTestApp
         private CycleTestOptions BuildCycleTestOptions()
         {
             var options = new CycleTestOptions();
+            options.WarmupCycles = DefaultWarmupCycles;
             options.BasePosition = ParseDouble(TextCycleBasePosition.Text);
             options.MoveDistanceMm = ParseDouble(TextCycleMoveDistanceMm.Text);
             options.Velocity = ParseDouble(TextCycleVelocity.Text);
@@ -588,12 +596,28 @@ namespace PmasApiWpfTestApp
 
         private CycleTestMetrics ExecuteCycleTest(CycleTestOptions options, CancellationToken token)
         {
-            var metrics = new CycleTestMetrics();
+            CycleTestMetrics metrics = new CycleTestMetrics();
             var totalStopwatch = Stopwatch.StartNew();
             var currentThread = Thread.CurrentThread;
             var previousPriority = currentThread.Priority;
             metrics.TestStartedAt = DateTime.Now;
             metrics.TestStartedTick = Stopwatch.GetTimestamp();
+            var warmupCycles = Math.Max(0, options.WarmupCycles);
+            var totalCycles = options.RequestedCycles + warmupCycles;
+            var measurementStarted = warmupCycles == 0;
+
+            if (measurementStarted)
+            {
+                metrics.TestStartedAt = DateTime.Now;
+                metrics.TestStartedTick = Stopwatch.GetTimestamp();
+            }
+            else
+            {
+                Context.Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "CycleTest warm-up started: cycles={0} (excluded from recording)",
+                    warmupCycles));
+            }
 
             try
             {
@@ -606,10 +630,24 @@ namespace PmasApiWpfTestApp
                     ? HighResolutionTimerScope.TryCreate(1, Context)
                     : null)
                 {
-                    for (int cycleIndex = 1; cycleIndex <= options.RequestedCycles; cycleIndex++)
+                    for (int cycleIndex = 1; cycleIndex <= totalCycles; cycleIndex++)
                     {
+                        var isWarmup = cycleIndex <= warmupCycles;
+                        var recordedCycleIndex = isWarmup ? cycleIndex : cycleIndex - warmupCycles;
+                        var phaseLabel = isWarmup ? "Warm-up" : "Cycle";
+
+                        if (!measurementStarted && !isWarmup)
+                        {
+                            metrics = new CycleTestMetrics();
+                            metrics.TestStartedAt = DateTime.Now;
+                            metrics.TestStartedTick = Stopwatch.GetTimestamp();
+                            totalStopwatch.Restart();
+                            measurementStarted = true;
+                            Context.Log("CycleTest measurement recording started after warm-up.");
+                        }
+
                         token.ThrowIfCancellationRequested();
-                        metrics.AttemptedCycles = cycleIndex;
+                        metrics.AttemptedCycles = recordedCycleIndex;
 
                         var cycleStopwatch = Stopwatch.StartNew();
                         bool cyclePassed = true;
@@ -617,7 +655,7 @@ namespace PmasApiWpfTestApp
                         try
                         {
                             IssueCycleMove(options.ForwardPosition, options);
-                            var forwardResult = WaitForInPosition(options.ForwardPosition, options, metrics, cycleIndex, "Forward", token);
+                            var forwardResult = WaitForInPosition(options.ForwardPosition, options, metrics, recordedCycleIndex, "Forward", token);
                             metrics.ForwardSettleMs.Add(forwardResult.SettleMilliseconds);
                             if (forwardResult.PositionError > metrics.MaxInPositionError)
                             {
@@ -630,19 +668,22 @@ namespace PmasApiWpfTestApp
                                 cyclePassed = false;
                                 Context.Log(string.Format(
                                     CultureInfo.InvariantCulture,
-                                    "Cycle {0}: forward timeout (target={1}, error={2:F6})",
-                                    cycleIndex,
+                                    "{0} {1}: forward timeout (target={2}, error={3:F6})",
+                                    phaseLabel,
+                                    recordedCycleIndex,
                                     options.ForwardPosition,
                                     forwardResult.PositionError));
                                 if (options.StopOnTimeout)
                                 {
-                                    metrics.StopReason = "Stopped: forward timeout";
+                                    metrics.StopReason = isWarmup
+                                        ? "Stopped during warm-up: forward timeout"
+                                        : "Stopped: forward timeout";
                                     break;
                                 }
                             }
 
                             IssueCycleMove(options.ReturnPosition, options);
-                            var returnResult = WaitForInPosition(options.ReturnPosition, options, metrics, cycleIndex, "Return", token);
+                            var returnResult = WaitForInPosition(options.ReturnPosition, options, metrics, recordedCycleIndex, "Return", token);
                             metrics.ReturnSettleMs.Add(returnResult.SettleMilliseconds);
                             if (returnResult.PositionError > metrics.MaxInPositionError)
                             {
@@ -655,13 +696,16 @@ namespace PmasApiWpfTestApp
                                 cyclePassed = false;
                                 Context.Log(string.Format(
                                     CultureInfo.InvariantCulture,
-                                    "Cycle {0}: return timeout (target={1}, error={2:F6})",
-                                    cycleIndex,
+                                    "{0} {1}: return timeout (target={2}, error={3:F6})",
+                                    phaseLabel,
+                                    recordedCycleIndex,
                                     options.ReturnPosition,
                                     returnResult.PositionError));
                                 if (options.StopOnTimeout)
                                 {
-                                    metrics.StopReason = "Stopped: return timeout";
+                                    metrics.StopReason = isWarmup
+                                        ? "Stopped during warm-up: return timeout"
+                                        : "Stopped: return timeout";
                                     break;
                                 }
                             }
@@ -674,13 +718,16 @@ namespace PmasApiWpfTestApp
                                 cyclePassed = false;
                                 Context.Log(string.Format(
                                     CultureInfo.InvariantCulture,
-                                    "Cycle {0}: axis error detected (AxisError={1}, EmergencyCode=0x{2:X})",
-                                    cycleIndex,
+                                    "{0} {1}: axis error detected (AxisError={2}, EmergencyCode=0x{3:X})",
+                                    phaseLabel,
+                                    recordedCycleIndex,
                                     axisError,
                                     emergencyCode));
                                 if (options.StopOnAxisError)
                                 {
-                                    metrics.StopReason = "Stopped: axis error";
+                                    metrics.StopReason = isWarmup
+                                        ? "Stopped during warm-up: axis error"
+                                        : "Stopped: axis error";
                                     break;
                                 }
                             }
@@ -692,8 +739,9 @@ namespace PmasApiWpfTestApp
                             metrics.LastError = ex.Message;
                             Context.Log(string.Format(
                                 CultureInfo.InvariantCulture,
-                                "Cycle {0}: MMCException Command={1}, LibraryError={2}, MMCError={3}, Status={4}, AxisRef={5}",
-                                cycleIndex,
+                                "{0} {1}: MMCException Command={2}, LibraryError={3}, MMCError={4}, Status={5}, AxisRef={6}",
+                                phaseLabel,
+                                recordedCycleIndex,
                                 ex.CommandID,
                                 ex.LibraryError,
                                 ex.MMCError,
@@ -702,7 +750,9 @@ namespace PmasApiWpfTestApp
 
                             if (options.StopOnAxisError)
                             {
-                                metrics.StopReason = "Stopped: MMCException";
+                                metrics.StopReason = isWarmup
+                                    ? "Stopped during warm-up: MMCException"
+                                    : "Stopped: MMCException";
                                 break;
                             }
                         }
@@ -713,29 +763,43 @@ namespace PmasApiWpfTestApp
                             metrics.LastError = ex.Message;
                             Context.Log(string.Format(
                                 CultureInfo.InvariantCulture,
-                                "Cycle {0}: Exception {1}",
-                                cycleIndex,
+                                "{0} {1}: Exception {2}",
+                                phaseLabel,
+                                recordedCycleIndex,
                                 ex.Message));
 
                             if (options.StopOnAxisError)
                             {
-                                metrics.StopReason = "Stopped: exception";
+                                metrics.StopReason = isWarmup
+                                    ? "Stopped during warm-up: exception"
+                                    : "Stopped: exception";
                                 break;
                             }
                         }
                         finally
                         {
                             cycleStopwatch.Stop();
-                            metrics.CycleTimeMs.Add(cycleStopwatch.Elapsed.TotalMilliseconds);
-                            if (cyclePassed)
+                            if (!isWarmup)
                             {
-                                metrics.SuccessfulCycles++;
+                                metrics.CycleTimeMs.Add(cycleStopwatch.Elapsed.TotalMilliseconds);
+                                if (cyclePassed)
+                                {
+                                    metrics.SuccessfulCycles++;
+                                }
                             }
                         }
 
-                        if (cycleIndex % 10 == 0 || cycleIndex == options.RequestedCycles)
+                        if (!isWarmup && (recordedCycleIndex % 10 == 0 || recordedCycleIndex == options.RequestedCycles))
                         {
                             UpdateCycleTestUi(options, metrics);
+                        }
+                        else if (isWarmup && (recordedCycleIndex % 10 == 0 || recordedCycleIndex == warmupCycles))
+                        {
+                            SetCycleTestStatus(string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Warm-up... {0}/{1} cycles (recording not started)",
+                                recordedCycleIndex,
+                                warmupCycles));
                         }
                     }
                 }
@@ -743,6 +807,12 @@ namespace PmasApiWpfTestApp
             finally
             {
                 currentThread.Priority = previousPriority;
+            }
+
+            if (!measurementStarted)
+            {
+                metrics.AttemptedCycles = 0;
+                metrics.SuccessfulCycles = 0;
             }
 
             totalStopwatch.Stop();
@@ -753,11 +823,22 @@ namespace PmasApiWpfTestApp
 
         private CycleTestMetrics ExecuteCycleTest2(CycleTestOptions options, CancellationToken token)
         {
-            var metrics = new CycleTestMetrics();
+            CycleTestMetrics metrics = new CycleTestMetrics();
             var totalStopwatch = Stopwatch.StartNew();
             var currentThread = Thread.CurrentThread;
             var previousPriority = currentThread.Priority;
             long previousCommandTick = 0;
+            var warmupCycles = Math.Max(0, options.WarmupCycles);
+            var totalCycles = options.RequestedCycles + warmupCycles;
+            var measurementStarted = warmupCycles == 0;
+
+            if (!measurementStarted)
+            {
+                Context.Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "CycleTest2 warm-up started: cycles={0} (excluded from recording)",
+                    warmupCycles));
+            }
 
             try
             {
@@ -770,10 +851,23 @@ namespace PmasApiWpfTestApp
                     ? HighResolutionTimerScope.TryCreate(1, Context)
                     : null)
                 {
-                    for (int cycleIndex = 1; cycleIndex <= options.RequestedCycles; cycleIndex++)
+                    for (int cycleIndex = 1; cycleIndex <= totalCycles; cycleIndex++)
                     {
+                        var isWarmup = cycleIndex <= warmupCycles;
+                        var recordedCycleIndex = isWarmup ? cycleIndex : cycleIndex - warmupCycles;
+                        var phaseLabel = isWarmup ? "Warm-up" : "Cycle2";
+
+                        if (!measurementStarted && !isWarmup)
+                        {
+                            metrics = new CycleTestMetrics();
+                            totalStopwatch.Restart();
+                            previousCommandTick = 0;
+                            measurementStarted = true;
+                            Context.Log("CycleTest2 measurement recording started after warm-up.");
+                        }
+
                         token.ThrowIfCancellationRequested();
-                        metrics.AttemptedCycles = cycleIndex;
+                        metrics.AttemptedCycles = recordedCycleIndex;
 
                         var cycleStopwatch = Stopwatch.StartNew();
                         bool cyclePassed = true;
@@ -793,13 +887,16 @@ namespace PmasApiWpfTestApp
                                 cyclePassed = false;
                                 Context.Log(string.Format(
                                     CultureInfo.InvariantCulture,
-                                    "Cycle2 {0}: axis error detected (AxisError={1}, EmergencyCode=0x{2:X})",
-                                    cycleIndex,
+                                    "{0} {1}: axis error detected (AxisError={2}, EmergencyCode=0x{3:X})",
+                                    phaseLabel,
+                                    recordedCycleIndex,
                                     axisError,
                                     emergencyCode));
                                 if (options.StopOnAxisError)
                                 {
-                                    metrics.StopReason = "Stopped: axis error";
+                                    metrics.StopReason = isWarmup
+                                        ? "Stopped during warm-up: axis error"
+                                        : "Stopped: axis error";
                                     break;
                                 }
                             }
@@ -811,8 +908,9 @@ namespace PmasApiWpfTestApp
                             metrics.LastError = ex.Message;
                             Context.Log(string.Format(
                                 CultureInfo.InvariantCulture,
-                                "Cycle2 {0}: MMCException Command={1}, LibraryError={2}, MMCError={3}, Status={4}, AxisRef={5}",
-                                cycleIndex,
+                                "{0} {1}: MMCException Command={2}, LibraryError={3}, MMCError={4}, Status={5}, AxisRef={6}",
+                                phaseLabel,
+                                recordedCycleIndex,
                                 ex.CommandID,
                                 ex.LibraryError,
                                 ex.MMCError,
@@ -821,7 +919,9 @@ namespace PmasApiWpfTestApp
 
                             if (options.StopOnAxisError)
                             {
-                                metrics.StopReason = "Stopped: MMCException";
+                                metrics.StopReason = isWarmup
+                                    ? "Stopped during warm-up: MMCException"
+                                    : "Stopped: MMCException";
                                 break;
                             }
                         }
@@ -832,29 +932,43 @@ namespace PmasApiWpfTestApp
                             metrics.LastError = ex.Message;
                             Context.Log(string.Format(
                                 CultureInfo.InvariantCulture,
-                                "Cycle2 {0}: Exception {1}",
-                                cycleIndex,
+                                "{0} {1}: Exception {2}",
+                                phaseLabel,
+                                recordedCycleIndex,
                                 ex.Message));
 
                             if (options.StopOnAxisError)
                             {
-                                metrics.StopReason = "Stopped: exception";
+                                metrics.StopReason = isWarmup
+                                    ? "Stopped during warm-up: exception"
+                                    : "Stopped: exception";
                                 break;
                             }
                         }
                         finally
                         {
                             cycleStopwatch.Stop();
-                            metrics.CycleTimeMs.Add(cycleStopwatch.Elapsed.TotalMilliseconds);
-                            if (cyclePassed)
+                            if (!isWarmup)
                             {
-                                metrics.SuccessfulCycles++;
+                                metrics.CycleTimeMs.Add(cycleStopwatch.Elapsed.TotalMilliseconds);
+                                if (cyclePassed)
+                                {
+                                    metrics.SuccessfulCycles++;
+                                }
                             }
                         }
 
-                        if (cycleIndex % 10 == 0 || cycleIndex == options.RequestedCycles)
+                        if (!isWarmup && (recordedCycleIndex % 10 == 0 || recordedCycleIndex == options.RequestedCycles))
                         {
                             UpdateCycleTest2Ui(options, metrics);
+                        }
+                        else if (isWarmup && (recordedCycleIndex % 10 == 0 || recordedCycleIndex == warmupCycles))
+                        {
+                            SetCycleTest2Status(string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Warm-up... {0}/{1} cycles (recording not started)",
+                                recordedCycleIndex,
+                                warmupCycles));
                         }
                     }
                 }
@@ -862,6 +976,12 @@ namespace PmasApiWpfTestApp
             finally
             {
                 currentThread.Priority = previousPriority;
+            }
+
+            if (!measurementStarted)
+            {
+                metrics.AttemptedCycles = 0;
+                metrics.SuccessfulCycles = 0;
             }
 
             totalStopwatch.Stop();
@@ -895,16 +1015,26 @@ namespace PmasApiWpfTestApp
             metrics.ResponseLatencyMs.Add(commandStopwatch.Elapsed.TotalMilliseconds);
         }
 
-        private void IssueCycleMove(double targetPosition, CycleTestOptions options)
+        private int IssueCycleMove(double targetPosition, CycleTestOptions options)
         {
-            Context.SingleAxis.MoveAbsoluteEx(
-                targetPosition,
-                options.Velocity,
-                options.Acceleration,
-                options.Deceleration,
-                options.Jerk,
+            var result = Context.SingleAxis.MoveAbsolute(
+                ParseScaledLongForMove(targetPosition),
+                ParseScaledLongForMove(options.Velocity),
+                ParseScaledLongForMove(options.Acceleration),
+                ParseScaledLongForMove(options.Deceleration),
+                ParseScaledLongForMove(options.Jerk),
                 options.Direction,
                 options.BufferedMode);
+
+            if (result != 0)
+            {
+                Context.Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "MoveAbsolute returned non-zero code: {0}",
+                    result));
+            }
+
+            return result;
         }
 
         private static MC_DIRECTION_ENUM NormalizeDirectionForAbsoluteMove(MC_DIRECTION_ENUM direction)
@@ -929,6 +1059,8 @@ namespace PmasApiWpfTestApp
             long previousTick = 0;
             int stableCounter = 0;
             double lastError = double.MaxValue;
+            var scaledTargetPosition = ParseScaledLongForMove(targetPosition);
+            var scaledTolerance = Math.Abs(options.InPositionTolerance) * 10000.0;
 
             while (waitStopwatch.ElapsedMilliseconds <= options.MoveTimeoutMs)
             {
@@ -952,13 +1084,13 @@ namespace PmasApiWpfTestApp
                 var readLatencyMs = (readEndTick - readStartTick) * 1000.0 / Stopwatch.Frequency;
                 metrics.ResponseLatencyMs.Add(readLatencyMs);
 
-                lastError = Math.Abs(targetPosition - actualPosition);
-                var inTolerance = lastError <= options.InPositionTolerance;
+                lastError = Math.Abs(scaledTargetPosition - actualPosition);
+                var inTolerance = lastError <= scaledTolerance;
                 AppendPositionReadSample(
                     metrics,
                     cycleIndex,
                     phase,
-                    targetPosition,
+                    scaledTargetPosition,
                     actualPosition,
                     lastError,
                     inTolerance,
@@ -1160,6 +1292,10 @@ namespace PmasApiWpfTestApp
                 options.Request1msTimerResolution));
             builder.AppendLine(string.Format(
                 CultureInfo.InvariantCulture,
+                "Warm-up cycles (excluded): {0}",
+                options.WarmupCycles));
+            builder.AppendLine(string.Format(
+                CultureInfo.InvariantCulture,
                 "Cycles: attempted={0}, successful={1}, target={2}",
                 metrics.AttemptedCycles,
                 metrics.SuccessfulCycles,
@@ -1307,6 +1443,10 @@ namespace PmasApiWpfTestApp
                 options.Request1msTimerResolution));
             builder.AppendLine(string.Format(
                 CultureInfo.InvariantCulture,
+                "Warm-up cycles (excluded): {0}",
+                options.WarmupCycles));
+            builder.AppendLine(string.Format(
+                CultureInfo.InvariantCulture,
                 "Cycles: attempted={0}, successful={1}, target={2}",
                 metrics.AttemptedCycles,
                 metrics.SuccessfulCycles,
@@ -1444,6 +1584,7 @@ namespace PmasApiWpfTestApp
             rows.Add(new List<string> { "AxisName", snapshot.AxisName });
             rows.Add(new List<string> { "RemoteIp", snapshot.RemoteIp });
             rows.Add(new List<string> { "RequestedCycles", snapshot.Options.RequestedCycles.ToString(CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "WarmupCycles", snapshot.Options.WarmupCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "AttemptedCycles", snapshot.Metrics.AttemptedCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "SuccessfulCycles", snapshot.Metrics.SuccessfulCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "StopReason", snapshot.Metrics.StopReason ?? "-" });
@@ -1490,6 +1631,7 @@ namespace PmasApiWpfTestApp
             rows.Add(new List<string> { "AxisName", snapshot.AxisName });
             rows.Add(new List<string> { "RemoteIp", snapshot.RemoteIp });
             rows.Add(new List<string> { "RequestedCycles", snapshot.Options.RequestedCycles.ToString(CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "WarmupCycles", snapshot.Options.WarmupCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "AttemptedCycles", snapshot.Metrics.AttemptedCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "SuccessfulCycles", snapshot.Metrics.SuccessfulCycles.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "StopReason", snapshot.Metrics.StopReason ?? "-" });
