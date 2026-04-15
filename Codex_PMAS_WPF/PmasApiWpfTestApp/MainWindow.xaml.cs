@@ -37,6 +37,9 @@ namespace PmasApiWpfTestApp
         {
             FillCombo(ComboBufferedMode, typeof(MC_BUFFERED_MODE_ENUM));
             FillCombo(ComboGroupBufferedMode, typeof(MC_BUFFERED_MODE_ENUM));
+            SelectDefaultAbortingMode(ComboBufferedMode);
+            SelectDefaultAbortingMode(ComboGroupBufferedMode);
+
             FillCombo(ComboDirection, typeof(MC_DIRECTION_ENUM));
             ComboDirection.SelectedItem = MC_DIRECTION_ENUM.MC_SHORTEST_WAY;
             FillCombo(ComboOpMode, typeof(OPM402));
@@ -74,6 +77,23 @@ namespace PmasApiWpfTestApp
             if (combo.Items.Count > 0)
             {
                 combo.SelectedIndex = 0;
+            }
+        }
+
+        private static void SelectDefaultAbortingMode(ComboBox combo)
+        {
+            var abortingMode = combo.Items
+                .Cast<object>()
+                .FirstOrDefault(item =>
+                {
+                    var name = Convert.ToString(item, CultureInfo.InvariantCulture);
+                    return string.Equals(name, "MC_ABORTING", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(name, "MC_ABORTING_MODE", StringComparison.OrdinalIgnoreCase);
+                });
+
+            if (abortingMode != null)
+            {
+                combo.SelectedItem = abortingMode;
             }
         }
 

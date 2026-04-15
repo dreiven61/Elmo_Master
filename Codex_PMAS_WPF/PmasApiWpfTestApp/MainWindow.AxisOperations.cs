@@ -142,7 +142,7 @@ namespace PmasApiWpfTestApp
             ExecuteAction("MMC_MoveAbsoluteExCmd", delegate
             {
                 Context.EnsureAxis();
-                Context.SingleAxis.MoveAbsoluteEx(
+                var result = Context.SingleAxis.MoveAbsoluteEx(
                     ParseDouble(TextAbsPosition.Text),
                     ParseDouble(TextVelocity.Text),
                     ParseDouble(TextMotionAcceleration.Text),
@@ -150,6 +150,11 @@ namespace PmasApiWpfTestApp
                     ParseDouble(TextMotionJerk.Text),
                     (MC_DIRECTION_ENUM)ComboDirection.SelectedItem,
                     (MC_BUFFERED_MODE_ENUM)ComboBufferedMode.SelectedItem);
+
+                if (result != 0)
+                {
+                    Context.Log("MoveAbsoluteEx return code = " + result.ToString(CultureInfo.InvariantCulture));
+                }
             });
         }
 
