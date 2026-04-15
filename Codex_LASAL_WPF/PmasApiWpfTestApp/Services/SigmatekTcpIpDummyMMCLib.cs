@@ -473,7 +473,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
                         {
                             Handle = handle,
                             IsUDPChannelOpened = true,
-                            CbUdpPort = localPort > 0 ? localPort : 5000,
+                            CbUdpPort = localPort > 0 ? localPort : 5001,
                             RemoteIp = remoteAddress.ToString(),
                             LocalIp = bindAddress.ToString()
                         }
@@ -703,9 +703,10 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
         private const ushort PowerOffCommandId = 0x2082;
         private const ushort ResetCommandId = 0x2083;
         private const ushort StopCommandId = 0x2084;
-        private const ushort GetActualPositionCommandId = 0x00E0;
+        private const ushort GetActualPositionCommandId = 0x202E;
         private const ushort MoveAbsoluteExCommandId = 0x209F;
         private readonly DummyAxisState _state;
+        private double _lastReadActualPositionAuxiliary;
 
         public MMCSingleAxis(string axisName, int handle)
         {
@@ -778,9 +779,11 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
                 24,
                 30);
 
-            long positionFromResponse;
-            if (TryParseGetActualPositionResponse(responseFrame, AxisReference, out positionFromResponse))
+            double positionFromResponse;
+            double auxiliaryFromResponse;
+            if (TryParseGetActualPositionResponse(responseFrame, out positionFromResponse, out auxiliaryFromResponse))
             {
+                _lastReadActualPositionAuxiliary = auxiliaryFromResponse;
                 return positionFromResponse;
             }
 
@@ -799,7 +802,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             endMotionReason = 0;
         }
 
-        public void MoveAbsoluteEx(
+        public int MoveAbsoluteEx(
             double position,
             double velocity,
             double acceleration,
@@ -814,10 +817,10 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             var decelerationLong = ToInt64Parameter(deceleration, nameof(deceleration));
             var jerkLong = ToInt64Parameter(jerk, nameof(jerk));
 
-            MoveAbsolute(positionLong, velocityLong, accelerationLong, decelerationLong, jerkLong, direction, bufferMode);
+            return MoveAbsolute(positionLong, velocityLong, accelerationLong, decelerationLong, jerkLong, direction, bufferMode);
         }
 
-        public void MoveAbsolute(
+        public int MoveAbsolute(
             long position,
             long velocity,
             long acceleration,
@@ -840,6 +843,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
             var speed = ToSimulationSpeed(velocity);
             _state.IssueAbsoluteMove(position, speed);
+            return 0;
         }
 
         public void MoveRelativeEx(
@@ -1133,13 +1137,14 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
         private static byte[] BuildGetActualPositionRequestFrame(ushort axisRef)
         {
-            // 8-byte fixed frame:
-            // [0..1]=Command(0x00E0), [2..3]=AxisRef, [4..7]=PayloadLength(0).
-            var frame = new byte[8];
+            // 9-byte fixed frame observed on wire:
+            // [0..1]=Command(0x202E), [2..3]=AxisRef, [4..7]=1, [8]=0.
+            var frame = new byte[9];
             axisRef = ResolveCommandAxisRef(axisRef);
             WriteUInt16LE(frame, 0, GetActualPositionCommandId);
             WriteUInt16LE(frame, 2, axisRef);
-            WriteUInt32LE(frame, 4, 0u);
+            WriteUInt32LE(frame, 4, 1u);
+            frame[8] = 0;
             return frame;
         }
 
@@ -1187,34 +1192,83 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             return axisRef;
         }
 
-        private static bool TryParseGetActualPositionResponse(byte[] responseFrame, ushort expectedAxisRef, out long position)
+        private static bool TryParseGetActualPositionResponse(byte[] responseFrame, out double position, out double auxiliaryValue)
         {
-            position = 0L;
-            if (responseFrame == null || responseFrame.Length < 16)
+            position = 0.0;
+            auxiliaryValue = 0.0;
+            if (responseFrame == null || responseFrame.Length < 12)
             {
                 return false;
             }
 
-            // Expected response:
-            // [0..1]=Command(0x00E0), [2..3]=AxisRef, [4..7]=PayloadLength(8), [8..15]=Int64 position.
-            var command = ReadUInt16LE(responseFrame, 0);
-            var axisRef = ReadUInt16LE(responseFrame, 2);
-            var payloadLength = ReadUInt32LE(responseFrame, 4);
-            if (command != GetActualPositionCommandId || axisRef != expectedAxisRef || payloadLength < 8u)
+            // Common envelope:
+            // [0..1]=command/marker, [2..3]=payloadLength, [4..7]=reserved
+            // Payload starts at offset 8.
+            // We support all observed variants:
+            //  - payload=8  : position only
+            //  - payload=12 : position + status/error (Elmo API style)
+            //  - payload=16 : position + auxiliary value
+            ushort payloadLength = BitConverter.ToUInt16(responseFrame, 2);
+            int requiredLength = payloadLength + 8;
+            if (payloadLength > 0 && responseFrame.Length >= requiredLength)
             {
-                // Fallback: if response is long enough, use the last 8 bytes as position.
-                if (responseFrame.Length < 8)
+                position = ReadPositionValue(responseFrame, 8, payloadLength);
+
+                if (payloadLength >= 16 && responseFrame.Length >= 24)
                 {
-                    return false;
+                    auxiliaryValue = ReadPositionValue(responseFrame, 16, payloadLength - 8);
                 }
 
-                var fallbackOffset = responseFrame.Length - 8;
-                position = ReadInt64LE(responseFrame, fallbackOffset);
                 return true;
             }
 
-            position = ReadInt64LE(responseFrame, 8);
-            return true;
+            // Fallback for short/invalid headers.
+            if (responseFrame.Length >= 16)
+            {
+                position = ReadPositionValue(responseFrame, 8, responseFrame.Length - 8);
+                return true;
+            }
+
+            if (responseFrame.Length >= 12)
+            {
+                position = ReadPositionValue(responseFrame, 8, 4);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static double ReadPositionValue(byte[] source, int offset, int availableBytes)
+        {
+            if (availableBytes < 4 || source == null || offset < 0 || offset + 4 > source.Length)
+            {
+                return 0.0;
+            }
+
+            // Prefer int32 first for LASAL response compatibility.
+            int asInt32 = ReadInt32LE(source, offset);
+            if (availableBytes < 8 || offset + 8 > source.Length)
+            {
+                return asInt32;
+            }
+
+            // If upper 32-bit is sign extension of int32, treat as int32 payload and skip extra parsing.
+            var upperDword = ReadUInt32LE(source, offset + 4);
+            if (upperDword == 0u || upperDword == 0xFFFFFFFFu)
+            {
+                return asInt32;
+            }
+
+            // Some integrations encode position as int64 counts while others use double.
+            // Keep both as fallback when payload provides 8 bytes.
+            var asDouble = ReadDoubleLE(source, offset);
+            var asInt64 = ReadInt64LE(source, offset);
+            if (Math.Abs(asDouble) < 1e-200 && Math.Abs(asInt64) > 1000L)
+            {
+                return asInt64;
+            }
+
+            return asDouble;
         }
 
         private static long ToInt64Parameter(double value, string parameterName)
@@ -1302,6 +1356,14 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
                 ((uint)source[offset + 3] << 24);
         }
 
+        private static int ReadInt32LE(byte[] source, int offset)
+        {
+            unchecked
+            {
+                return (int)ReadUInt32LE(source, offset);
+            }
+        }
+
         private static long ReadInt64LE(byte[] source, int offset)
         {
             unchecked
@@ -1310,6 +1372,19 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
                 uint high = ReadUInt32LE(source, offset + 4);
                 return ((long)high << 32) | low;
             }
+        }
+
+        private static double ReadDoubleLE(byte[] source, int offset)
+        {
+            if (BitConverter.IsLittleEndian)
+            {
+                return BitConverter.ToDouble(source, offset);
+            }
+
+            var bytes = new byte[8];
+            Buffer.BlockCopy(source, offset, bytes, 0, 8);
+            Array.Reverse(bytes);
+            return BitConverter.ToDouble(bytes, 0);
         }
     }
 

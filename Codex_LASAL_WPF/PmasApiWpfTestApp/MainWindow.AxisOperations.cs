@@ -142,12 +142,12 @@ namespace PmasApiWpfTestApp
             ExecuteAction("MMC_MoveAbsoluteExCmd", delegate
             {
                 Context.EnsureAxis();
-                Context.SingleAxis.MoveAbsoluteEx(
-                    ParseDouble(TextAbsPosition.Text),
-                    ParseDouble(TextVelocity.Text),
-                    ParseDouble(TextMotionAcceleration.Text),
-                    ParseDouble(TextMotionDeceleration.Text),
-                    ParseDouble(TextMotionJerk.Text),
+                Context.SingleAxis.MoveAbsolute(
+                    ParseScaledLongForMove(TextAbsPosition.Text),
+                    ParseScaledLongForMove(TextVelocity.Text),
+                    ParseScaledLongForMove(TextMotionAcceleration.Text),
+                    ParseScaledLongForMove(TextMotionDeceleration.Text),
+                    ParseScaledLongForMove(TextMotionJerk.Text),
                     (MC_DIRECTION_ENUM)ComboDirection.SelectedItem,
                     (MC_BUFFERED_MODE_ENUM)ComboBufferedMode.SelectedItem);
             });
@@ -297,6 +297,25 @@ namespace PmasApiWpfTestApp
                     1,
                     new byte[8]);
             });
+        }
+
+        private long ParseScaledLongForMove(string rawText)
+        {
+            var value = ParseDouble(rawText);
+            return ParseScaledLongForMove(value);
+        }
+
+        private long ParseScaledLongForMove(double value)
+        {
+            const double scale = 10000.0;
+            var scaled = value * scale;
+
+            if (double.IsNaN(scaled) || double.IsInfinity(scaled) || scaled > long.MaxValue || scaled < long.MinValue)
+            {
+                throw new OverflowException("Move input scaled value is out of Int64 range.");
+            }
+
+            return Convert.ToInt64(Math.Round(scaled, MidpointRounding.AwayFromZero), CultureInfo.InvariantCulture);
         }
     }
 }

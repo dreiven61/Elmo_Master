@@ -180,8 +180,12 @@ namespace PmasApiWpfTestApp.Services
                 throw new ArgumentException("Invalid local IP address.", nameof(localIp));
             }
 
+            // Wireshark maps TCP/5000 to gsm_ipa by default, which makes PMAS-like binary frames appear as RSL.
+            // Shift to 5001 automatically so captures remain plain TCP data without manual Decode As.
+            var effectiveLocalPort = localPort == 5000 ? 5001 : localPort;
+
             int handle;
-            var result = MMCConnection.ConnectRPC(remoteAddress, remotePort, localAddress, localPort, _userCallback, eventMask, out handle);
+            var result = MMCConnection.ConnectRPC(remoteAddress, remotePort, localAddress, effectiveLocalPort, _userCallback, eventMask, out handle);
             if (result != 0)
             {
                 var libraryError = Enum.IsDefined(typeof(LibraryErrors), result)
@@ -206,6 +210,15 @@ namespace PmasApiWpfTestApp.Services
             MMCConnection.RegisterEndMotionEventCallback(handle, _motionEndCallback);
             MMCConnection.RegisterEndHomingEventCallback(handle, _homingEndCallback);
             MMCConnection.RegisterErrorStateCallback(handle, _errorStateCallback);
+
+            if (effectiveLocalPort != localPort)
+            {
+                Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Local port {0} remapped to {1} to avoid Wireshark gsm_ipa/RSL auto-decode on tcp/5000.",
+                    localPort,
+                    effectiveLocalPort));
+            }
 
             Log("SIGMATEK TCP/IP dummy connection established.");
         }
