@@ -34,3 +34,6 @@ EtherCAT Controller(Master)*.xlsx
 
 # Temporary scraped files
 _tmp_*
+
+# Office lock/temp files
+~$*.xlsx
