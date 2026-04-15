@@ -30,7 +30,7 @@
 					Grid.Column="0"
 					Margin="0,0,12,6">
 					<TextBlock Text="Remote IP" />
-					<TextBox x:Name="TextRemoteIp" Text="10.10.150.1" />
+					<TextBox x:Name="TextRemoteIp" Text="192.168.1.3" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="0"
@@ -44,7 +44,7 @@
 					Grid.Column="2"
 					Margin="0,0,12,6">
 					<TextBlock Text="Local IP" />
-					<TextBox x:Name="TextLocalIp" Text="10.10.150.13" />
+					<TextBox x:Name="TextLocalIp" Text="192.168.1.13" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="0"
@@ -65,7 +65,7 @@
 					Grid.Column="1"
 					Margin="0,0,12,6">
 					<TextBlock Text="Axis Name" />
-					<TextBox x:Name="TextAxisName" Text="g01" />
+					<TextBox x:Name="TextAxisName" Text="a01" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="1"
@@ -418,42 +418,42 @@
 									Grid.Column="0"
 									Margin="0,0,12,6">
 									<TextBlock Text="Absolute Position" />
-									<TextBox x:Name="TextAbsPosition" Text="1000" />
+									<TextBox x:Name="TextAbsPosition" Text="360" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="Relative Distance" />
-									<TextBox x:Name="TextRelDistance" Text="1000" />
+									<TextBox x:Name="TextRelDistance" Text="360" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Velocity" />
-									<TextBox x:Name="TextVelocity" Text="1000" />
+									<TextBox x:Name="TextVelocity" Text="2100" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="3"
 									Margin="0,0,12,6">
 									<TextBlock Text="Acceleration" />
-									<TextBox x:Name="TextMotionAcceleration" Text="1000" />
+									<TextBox x:Name="TextMotionAcceleration" Text="210000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="4"
 									Margin="0,0,12,6">
 									<TextBlock Text="Deceleration" />
-									<TextBox x:Name="TextMotionDeceleration" Text="1000" />
+									<TextBox x:Name="TextMotionDeceleration" Text="210000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="5"
 									Margin="0,0,12,6">
 									<TextBlock Text="Jerk" />
-									<TextBox x:Name="TextMotionJerk" Text="100000" />
+									<TextBox x:Name="TextMotionJerk" Text="2100000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
@@ -1082,77 +1082,77 @@
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="Move Distance (mm)" />
-									<TextBox x:Name="TextCycleMoveDistanceMm" Text="250" />
+									<TextBox x:Name="TextCycleMoveDistanceMm" Text="360" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Velocity (mm/s)" />
-									<TextBox x:Name="TextCycleVelocity" Text="4000" />
+									<TextBox x:Name="TextCycleVelocity" Text="2100" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="3"
 									Margin="0,0,12,6">
 									<TextBlock Text="Acceleration (mm/s^2)" />
-									<TextBox x:Name="TextCycleAcceleration" Text="64000" />
+									<TextBox x:Name="TextCycleAcceleration" Text="210000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="4"
 									Margin="0,0,12,6">
 									<TextBlock Text="Deceleration (mm/s^2)" />
-									<TextBox x:Name="TextCycleDeceleration" Text="64000" />
+									<TextBox x:Name="TextCycleDeceleration" Text="210000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="5"
 									Margin="0,0,0,6">
 									<TextBlock Text="Jerk (mm/s^3)" />
-									<TextBox x:Name="TextCycleJerk" Text="100000" />
+									<TextBox x:Name="TextCycleJerk" Text="2100000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="0"
 									Margin="0,0,12,6">
 									<TextBlock Text="Cycle Count" />
-									<TextBox x:Name="TextCycleCount" Text="10000" />
+									<TextBox x:Name="TextCycleCount" Text="100" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="In-position Tolerance (mm)" />
-									<TextBox x:Name="TextCycleTolerance" Text="1" />
+									<TextBox x:Name="TextCycleTolerance" Text="0.05" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Move Timeout (ms)" />
-									<TextBox x:Name="TextCycleMoveTimeoutMs" Text="1500" />
+									<TextBox x:Name="TextCycleMoveTimeoutMs" Text="5000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="3"
 									Margin="0,0,12,6">
 									<TextBlock Text="Poll Interval (ms)" />
-									<TextBox x:Name="TextCyclePollIntervalMs" Text="5" />
+									<TextBox x:Name="TextCyclePollIntervalMs" Text="1" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="4"
 									Margin="0,0,12,6">
 									<TextBlock Text="Stable Samples" />
-									<TextBox x:Name="TextCycleStableSamples" Text="3" />
+									<TextBox x:Name="TextCycleStableSamples" Text="1" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="1"
 									Grid.Column="5"
 									Margin="0,0,0,6">
 									<TextBlock Text="Drop Threshold (ms)" />
-									<TextBox x:Name="TextCycleDropThresholdMs" Text="50" />
+									<TextBox x:Name="TextCycleDropThresholdMs" Text="5000" />
 								</StackPanel>
 								<WrapPanel
 									Grid.Row="2"
@@ -1244,7 +1244,7 @@
 									<TextBox
 										x:Name="TextCycleSaveFolder"
 										Grid.Column="1"
-										Text="C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\Reports\CycleResults" />
+										Text="C:\work\Elmo\Elmo_Master\Codex_LASAL_WPF\Reports\CycleResults" />
 									<WrapPanel Grid.Column="2" Margin="8,0,0,0">
 										<CheckBox
 											x:Name="CheckCycleAutoSaveResult"
@@ -1430,7 +1430,7 @@
 									<TextBox
 										x:Name="TextCycle2SaveFolder"
 										Grid.Column="1"
-										Text="C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\Reports\CycleResults2" />
+										Text="C:\work\Elmo\Elmo_Master\Codex_LASAL_WPF\Reports\CycleResults2" />
 									<WrapPanel Grid.Column="2" Margin="8,0,0,0">
 										<CheckBox
 											x:Name="CheckCycle2AutoSaveResult"
