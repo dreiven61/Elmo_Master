@@ -407,6 +407,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
         public int Handle { get; set; }
         public MMCConnectionObject ConnectionObject { get; set; }
         public TcpClient RpcClient { get; set; }
+        public readonly object IoSync = new object();
         public cbFunc UserCallback { get; set; }
         public MotionEndEvent EndMotionCallback { get; set; }
         public HomingEndEvent EndHomingCallback { get; set; }
@@ -706,6 +707,8 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
         private const ushort GetActualPositionCommandId = 0x202E;
         private const ushort MoveAbsoluteExCommandId = 0x209F;
         private readonly DummyAxisState _state;
+        private readonly byte[] _getActualPositionRequestFrame;
+        private readonly byte[] _getActualPositionResponseBuffer = new byte[64];
         private double _lastReadActualPositionAuxiliary;
 
         public MMCSingleAxis(string axisName, int handle)
@@ -714,6 +717,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             AxisName = _state.Name;
             AxisReference = _state.AxisReference;
             DriveID = _state.DriveId;
+            _getActualPositionRequestFrame = BuildGetActualPositionRequestFrame(AxisReference);
         }
 
         public string AxisName { get; private set; }
@@ -771,17 +775,20 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
         public double GetActualPosition()
         {
-            var requestFrame = BuildGetActualPositionRequestFrame(AxisReference);
-            var responseFrame = SendFrameAndTryRead(
+            var responseLength = SendFrameAndTryRead(
                 GetActualPositionCommandId,
-                requestFrame,
+                _getActualPositionRequestFrame,
                 "GetActualPosition",
-                24,
+                _getActualPositionResponseBuffer,
                 30);
 
             double positionFromResponse;
             double auxiliaryFromResponse;
-            if (TryParseGetActualPositionResponse(responseFrame, out positionFromResponse, out auxiliaryFromResponse))
+            if (TryParseGetActualPositionResponse(
+                _getActualPositionResponseBuffer,
+                responseLength,
+                out positionFromResponse,
+                out auxiliaryFromResponse))
             {
                 _lastReadActualPositionAuxiliary = auxiliaryFromResponse;
                 return positionFromResponse;
@@ -979,12 +986,15 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
         private void SendFrame(ushort commandId, byte[] frame, string operationName)
         {
-            var stream = GetWritableStreamOrThrow(commandId, operationName);
+            var connection = GetConnectionOrThrow(commandId);
+            var stream = connection.RpcClient.GetStream();
 
             try
             {
-                stream.Write(frame, 0, frame.Length);
-                stream.Flush();
+                lock (connection.IoSync)
+                {
+                    stream.Write(frame, 0, frame.Length);
+                }
             }
             catch (Exception ex)
             {
@@ -999,69 +1009,86 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             }
         }
 
-        private byte[] SendFrameAndTryRead(
+        private int SendFrameAndTryRead(
             ushort commandId,
             byte[] frame,
             string operationName,
-            int maxReadBytes,
+            byte[] responseBuffer,
             int readTimeoutMs)
         {
-            var stream = GetWritableStreamOrThrow(commandId, operationName);
-
-            try
+            if (responseBuffer == null || responseBuffer.Length == 0)
             {
-                stream.Write(frame, 0, frame.Length);
-                stream.Flush();
-            }
-            catch (Exception ex)
-            {
-                throw new MMCException(
-                    "Failed to send " + operationName + " request over TCP/IP: " + ex.Message,
-                    commandId,
-                    LibraryErrors.InternalError,
-                    MMCErrors.NC_UNSUITABLE_NODE_STATE,
-                    16,
-                    AxisReference,
-                    AxisName);
+                return 0;
             }
 
-            var previousReadTimeout = stream.ReadTimeout;
-            try
-            {
-                stream.ReadTimeout = readTimeoutMs;
-                var buffer = new byte[Math.Max(8, maxReadBytes)];
-                var read = stream.Read(buffer, 0, buffer.Length);
-                if (read <= 0)
-                {
-                    return null;
-                }
+            var connection = GetConnectionOrThrow(commandId);
+            var stream = connection.RpcClient.GetStream();
 
-                var result = new byte[read];
-                Buffer.BlockCopy(buffer, 0, result, 0, read);
-                return result;
-            }
-            catch (IOException)
-            {
-                return null;
-            }
-            catch (SocketException)
-            {
-                return null;
-            }
-            finally
+            lock (connection.IoSync)
             {
                 try
                 {
-                    stream.ReadTimeout = previousReadTimeout;
+                    stream.Write(frame, 0, frame.Length);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore timeout restore failures.
+                    throw new MMCException(
+                        "Failed to send " + operationName + " request over TCP/IP: " + ex.Message,
+                        commandId,
+                        LibraryErrors.InternalError,
+                        MMCErrors.NC_UNSUITABLE_NODE_STATE,
+                        16,
+                        AxisReference,
+                        AxisName);
+                }
+
+                var previousReadTimeout = stream.ReadTimeout;
+                try
+                {
+                    stream.ReadTimeout = readTimeoutMs;
+
+                    var totalRead = 0;
+                    while (totalRead < responseBuffer.Length)
+                    {
+                        var read = stream.Read(responseBuffer, totalRead, responseBuffer.Length - totalRead);
+                        if (read <= 0)
+                        {
+                            break;
+                        }
+
+                        totalRead += read;
+
+                        if (!stream.DataAvailable)
+                        {
+                            break;
+                        }
+                    }
+
+                    return totalRead;
+                }
+                catch (IOException)
+                {
+                    return 0;
+                }
+                catch (SocketException)
+                {
+                    return 0;
+                }
+                finally
+                {
+                    try
+                    {
+                        stream.ReadTimeout = previousReadTimeout;
+                    }
+                    catch
+                    {
+                        // Ignore timeout restore failures.
+                    }
                 }
             }
         }
 
-        private NetworkStream GetWritableStreamOrThrow(ushort commandId, string operationName)
+        private DummyConnectionState GetConnectionOrThrow(ushort commandId)
         {
             var connection = DummyBackend.GetConnectionOrThrow(_state.Handle);
             if (connection.RpcClient == null || !connection.RpcClient.Connected)
@@ -1076,20 +1103,7 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
                     AxisName);
             }
 
-            var stream = connection.RpcClient.GetStream();
-            if (!stream.CanWrite)
-            {
-                throw new MMCException(
-                    operationName + " stream is not writable.",
-                    commandId,
-                    LibraryErrors.InternalError,
-                    MMCErrors.NC_UNSUITABLE_NODE_STATE,
-                    16,
-                    AxisReference,
-                    AxisName);
-            }
-
-            return stream;
+            return connection;
         }
 
         private static byte[] BuildPowerFrame(ushort commandId, ushort axisRef, bool powerOn, MC_BUFFERED_MODE_ENUM bufferedMode)
@@ -1192,11 +1206,11 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             return axisRef;
         }
 
-        private static bool TryParseGetActualPositionResponse(byte[] responseFrame, out double position, out double auxiliaryValue)
+        private static bool TryParseGetActualPositionResponse(byte[] responseFrame, int responseLength, out double position, out double auxiliaryValue)
         {
             position = 0.0;
             auxiliaryValue = 0.0;
-            if (responseFrame == null || responseFrame.Length < 12)
+            if (responseFrame == null || responseLength < 12)
             {
                 return false;
             }
@@ -1210,11 +1224,11 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             //  - payload=16 : position + auxiliary value
             ushort payloadLength = BitConverter.ToUInt16(responseFrame, 2);
             int requiredLength = payloadLength + 8;
-            if (payloadLength > 0 && responseFrame.Length >= requiredLength)
+            if (payloadLength > 0 && responseLength >= requiredLength)
             {
                 position = ReadPositionValue(responseFrame, 8, payloadLength);
 
-                if (payloadLength >= 16 && responseFrame.Length >= 24)
+                if (payloadLength >= 16 && responseLength >= 24)
                 {
                     auxiliaryValue = ReadPositionValue(responseFrame, 16, payloadLength - 8);
                 }
@@ -1223,13 +1237,13 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             }
 
             // Fallback for short/invalid headers.
-            if (responseFrame.Length >= 16)
+            if (responseLength >= 16)
             {
-                position = ReadPositionValue(responseFrame, 8, responseFrame.Length - 8);
+                position = ReadPositionValue(responseFrame, 8, responseLength - 8);
                 return true;
             }
 
-            if (responseFrame.Length >= 12)
+            if (responseLength >= 12)
             {
                 position = ReadPositionValue(responseFrame, 8, 4);
                 return true;

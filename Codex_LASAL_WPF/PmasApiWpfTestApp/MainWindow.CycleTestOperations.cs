@@ -128,7 +128,7 @@ namespace PmasApiWpfTestApp
                 PollPeriodMs = new RunningMetric();
                 ForwardSettleMs = new RunningMetric();
                 ReturnSettleMs = new RunningMetric();
-                PositionReadSamples = new List<PositionReadSample>();
+                PositionReadSamples = new List<PositionReadSample>(MaxPositionReadSamplesToSave);
                 StopReason = "Completed";
             }
 
