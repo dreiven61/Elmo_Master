@@ -30,7 +30,7 @@
 					Grid.Column="0"
 					Margin="0,0,12,6">
 					<TextBlock Text="Remote IP" />
-					<TextBox x:Name="TextRemoteIp" Text="192.168.1.3" />
+					<TextBox x:Name="TextRemoteIp" Text="192.168.99.20" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="0"
@@ -44,7 +44,7 @@
 					Grid.Column="2"
 					Margin="0,0,12,6">
 					<TextBlock Text="Local IP" />
-					<TextBox x:Name="TextLocalIp" Text="192.168.1.13" />
+					<TextBox x:Name="TextLocalIp" Text="192.168.99.13" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="0"

@@ -561,6 +561,13 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
     public static class MMCConnection
     {
+        private static string _lastConnectErrorDetail;
+
+        public static string LastConnectErrorDetail
+        {
+            get { return _lastConnectErrorDetail; }
+        }
+
         public static int ConnectRPC(
             IPAddress destination,
             int remotePort,
@@ -571,14 +578,16 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             out int handle)
         {
             handle = 0;
+            _lastConnectErrorDetail = null;
             try
             {
                 var state = DummyBackend.Connect(destination, remotePort, localIp, localPort, callback);
                 handle = state.Handle;
                 return (int)LibraryErrors.NoError;
             }
-            catch
+            catch (Exception ex)
             {
+                _lastConnectErrorDetail = ex.GetType().Name + ": " + ex.Message;
                 return (int)LibraryErrors.InternalError;
             }
         }

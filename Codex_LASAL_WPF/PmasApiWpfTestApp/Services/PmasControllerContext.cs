@@ -194,13 +194,18 @@ namespace PmasApiWpfTestApp.Services
                 var mmcError = Enum.IsDefined(typeof(MMCErrors), result)
                     ? ((MMCErrors)result).ToString()
                     : "Unknown";
+                var connectDetail = MMCConnection.LastConnectErrorDetail;
+                var detailText = string.IsNullOrWhiteSpace(connectDetail)
+                    ? string.Empty
+                    : " Detail: " + connectDetail;
                 throw new InvalidOperationException(
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "SIGMATEK TCP/IP dummy Connect returned {0} (LibraryErrors={1}, MMCErrors={2}). Check Remote IP/Port and Local IP settings.",
+                        "SIGMATEK TCP/IP dummy Connect returned {0} (LibraryErrors={1}, MMCErrors={2}). Check Remote IP/Port and Local IP settings.{3}",
                         result,
                         libraryError,
-                        mmcError));
+                        mmcError,
+                        detailText));
             }
 
             Handle = handle;
