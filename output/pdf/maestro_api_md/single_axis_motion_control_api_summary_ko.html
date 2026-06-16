@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>single_axis_motion_control_api_summary_ko</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; }
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; }
+code span.at { color: #7d9029; }
+code span.bn { color: #40a070; }
+code span.bu { color: #008000; }
+code span.cf { color: #007020; font-weight: bold; }
+code span.ch { color: #4070a0; }
+code span.cn { color: #880000; }
+code span.co { color: #60a0b0; font-style: italic; }
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; }
+code span.do { color: #ba2121; font-style: italic; }
+code span.dt { color: #902000; }
+code span.dv { color: #40a070; }
+code span.er { color: #ff0000; font-weight: bold; }
+code span.ex { }
+code span.fl { color: #40a070; }
+code span.fu { color: #06287e; }
+code span.im { color: #008000; font-weight: bold; }
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; }
+code span.kw { color: #007020; font-weight: bold; }
+code span.op { color: #666666; }
+code span.ot { color: #007020; }
+code span.pp { color: #bc7a00; }
+code span.sc { color: #4070a0; }
+code span.ss { color: #bb6688; }
+code span.st { color: #4070a0; }
+code span.va { color: #19177c; }
+code span.vs { color: #4070a0; }
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
+</style>
+
+<style id="md-pandoc-exporter-clean-print-style">
+@page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+html {
+  background: #fff !important;
+  color: #222;
+  font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #222;
+  overflow-wrap: break-word;
+}
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 28px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 28px 0 18px;
+  font-weight: 700;
+}
+h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 26px 0 14px;
+  font-weight: 700;
+}
+p { margin: 0 0 14px; }
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  page-break-inside: auto;
+  table-layout: auto !important;
+}
+thead { display: table-header-group; }
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+th,
+td {
+  border: 1px solid #d9d9d9 !important;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+th {
+  font-weight: 700;
+  background: #fff;
+}
+tbody { border: 0 !important; }
+code {
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 0.84em;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+ul,
+ol {
+  margin: 0 0 14px 24px;
+  padding: 0;
+}
+li { margin: 3px 0; }
+@media print {
+  body { font-size: 14px !important; }
+  h2,
+  h3,
+  h4 { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="single-axis-motion-control---api-분석">6.1 Single Axis Motion
+Control - API 분석</h1>
+<ul>
+<li>원본 장:
+<code>Chapter 6 Motion and Administrative - Single Axis</code></li>
+<li>시작 PDF 페이지: 313</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-313">6.1
+Single Axis Motion Control</a></li>
+<li>언어: 한국어 요약. 함수명, 구조체명, 필드명은 원문 API 식별자를
+그대로 유지했습니다.</li>
+</ul>
+<h2 id="api-목록">API 목록</h2>
+<table>
+<thead>
+<tr>
+<th>절</th>
+<th style="text-align: right;">페이지</th>
+<th>API/항목</th>
+<th>기능 요약</th>
+<th>지원/모드</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>6.1.1</code></td>
+<td style="text-align: right;">315</td>
+<td><code>MMC_HaltCmd</code></td>
+<td>축을 정상 운전 조건에서 제어 정지시키는 API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.2</code></td>
+<td style="text-align: right;">319</td>
+<td><code>MMC_HomeCmd</code></td>
+<td>축 홈 동작을 수행하는 API입니다.</td>
+<td>Motion Mode NC - Not Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.3</code></td>
+<td style="text-align: right;">335</td>
+<td><code>MMC_HomeDS402Cmd</code></td>
+<td>DS-402 홈 동작을 수행하는 API입니다.</td>
+<td>Motion Mode NC - Not Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.4</code></td>
+<td style="text-align: right;">340</td>
+<td><code>MMC_HomeDS402ExCmd</code></td>
+<td>확장 DS-402 홈 동작을 수행하는 API입니다.</td>
+<td>Motion Mode NC - Not Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.5</code></td>
+<td style="text-align: right;">345</td>
+<td><code>MMC_MoveAbsoluteCmd</code></td>
+<td>지정한 절대 위치로 축을 이동시키는 모션 API입니다.</td>
+<td>Motion Mode NC - All Buffering modes are supported. Distributed -
+Only MC_ABORTING_MODE Buffered mode is supported.</td>
+</tr>
+<tr>
+<td><code>6.1.6</code></td>
+<td style="text-align: right;">351</td>
+<td><code>MMC_MoveAdditiveCmd</code></td>
+<td>마지막 명령 위치를 기준으로 가산 거리 이동을 수행하는 모션
+API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.7</code></td>
+<td style="text-align: right;">356</td>
+<td><code>MMC_MoveRelativeCmd</code></td>
+<td>현재 위치 또는 실행 시점 기준 상대 거리로 축을 이동시키는 모션
+API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.8</code></td>
+<td style="text-align: right;">361</td>
+<td><code>MMC_MoveVelocityCmd</code></td>
+<td>지정 속도로 연속 이동을 수행하는 모션 API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.9</code></td>
+<td style="text-align: right;">366</td>
+<td><code>MMC_MoveTorqueCmd</code></td>
+<td>지정 토크로 연속 동작을 수행하는 모션 API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.10</code></td>
+<td style="text-align: right;">369</td>
+<td><code>MMC_MoveContinuousCmd</code></td>
+<td>연속 이동 명령을 수행하는 모션 API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+<tr>
+<td><code>6.1.11</code></td>
+<td style="text-align: right;">373</td>
+<td><code>MMC_MoveAbsoluteRepetitiveCmd</code></td>
+<td>지정한 절대 위치로 축을 이동시키는 모션 API입니다.</td>
+<td>Motion Mode NC - All Buffering modes are supported. Distributed -
+Not supported.</td>
+</tr>
+<tr>
+<td><code>6.1.12</code></td>
+<td style="text-align: right;">378</td>
+<td><code>MMC_MoveRelativeRepetitiveCmd</code></td>
+<td>현재 위치 또는 실행 시점 기준 상대 거리로 축을 이동시키는 모션
+API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Not supported</td>
+</tr>
+<tr>
+<td><code>6.1.13</code></td>
+<td style="text-align: right;">383</td>
+<td><code>MMC_MoveAdditiveRepetitiveCmd</code></td>
+<td>마지막 명령 위치를 기준으로 가산 거리 이동을 수행하는 모션
+API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Not supported</td>
+</tr>
+<tr>
+<td><code>6.1.14</code></td>
+<td style="text-align: right;">388</td>
+<td><code>MMC_StopCmd</code></td>
+<td>축 또는 동작을 정지 상태로 전환하는 API입니다.</td>
+<td>Motion Mode NC - Supported Distributed - Supported</td>
+</tr>
+</tbody>
+</table>
+<h2 id="공통-호출-인자-해석">공통 호출 인자 해석</h2>
+<ul>
+<li><code>hConn</code>: Maestro 연결 핸들입니다. Init Connection 계열
+함수에서 얻은 값을 사용합니다.</li>
+<li><code>hAxisRef</code>: 대상 축 또는 그룹 참조 핸들입니다.</li>
+<li><code>pInParam</code>: API별 입력 구조체 포인터입니다.</li>
+<li><code>pOutParam</code>: API별 출력 구조체 포인터입니다.</li>
+<li>반환값 <code>int</code>: 라이브러리 호출 결과입니다. 오류 시
+매뉴얼의 Error ID/Status를 같이 확인해야 합니다.</li>
+</ul>
+<h2 id="상세-api">상세 API</h2>
+<h3 id="mmc_halt">6.1.1 MMC_Halt</h3>
+<ul>
+<li>PDF 페이지: 315</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-315">6.1.1
+MMC_Halt</a></li>
+<li>기능 설명: 축을 정상 운전 조건에서 제어 정지시키는 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처">시그니처</h4>
+<div class="sourceCode" id="cb1"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_HaltCmd<span class="op">(</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>IN MMC_HALT_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_HALT_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자">구조체/인자</h4>
+<h5 id="mmc_halt_in"><code>MMC_HALT_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_halt_out"><code>MMC_HALT_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short usErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_home">6.1.2 MMC_Home</h3>
+<ul>
+<li>PDF 페이지: 319</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-319">6.1.2
+MMC_Home</a></li>
+<li>기능 설명: 축 홈 동작을 수행하는 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Not Supported Distributed -
+Supported</li>
+</ul>
+<h4 id="시그니처-1">시그니처</h4>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_HomeCmd<span class="op">(</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>IN MMC_HOME_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_HOME_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-1">구조체/인자</h4>
+<h5 id="mmc_home_in"><code>MMC_HOME_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbPosition;</code></td>
+<td>위치 값입니다. 보통 technical unit <code>[u]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDistanceLimit;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fTorqueLimit;</code></td>
+<td>토크 관련 값입니다.</td>
+</tr>
+<tr>
+<td><code>MMC_HOME_MODE_ENUM eHomingMode;</code></td>
+<td>홈 동작 방식 또는 홈 관련 파라미터입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>MC_HOME_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_SWITCH_MODE_ENUM eSwitchMode;</code></td>
+<td>동작 모드 값입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiTimeLimit;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_home_out"><code>MMC_HOME_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_homeds402">6.1.3 MMC_HomeDS402</h3>
+<ul>
+<li>PDF 페이지: 335</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-335">6.1.3
+MMC_HomeDS402</a></li>
+<li>기능 설명: DS-402 홈 동작을 수행하는 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Not Supported Distributed -
+Supported</li>
+</ul>
+<h4 id="시그니처-2">시그니처</h4>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_HomeDS402Cmd<span class="op">(</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>IN MMC_HOMEDS402_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_HOME_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-2">구조체/인자</h4>
+<h5 id="mmc_homeds402_in"><code>MMC_HOMEDS402_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbPosition;</code></td>
+<td>위치 값입니다. 보통 technical unit <code>[u]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDistanceLimit;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fTorqueLimit;</code></td>
+<td>토크 관련 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>int uiHomingMethod;</code></td>
+<td>홈 동작 방식 또는 홈 관련 파라미터입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiTimeLimit;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_home_out-1"><code>MMC_HOME_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_homeds402ex">6.1.4 MMC_HomeDS402Ex</h3>
+<ul>
+<li>PDF 페이지: 340</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-340">6.1.4
+MMC_HomeDS402Ex</a></li>
+<li>기능 설명: 확장 DS-402 홈 동작을 수행하는 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Not Supported Distributed -
+Supported</li>
+</ul>
+<h4 id="시그니처-3">시그니처</h4>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_HomeDS402ExCmd<span class="op">(</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>IN MMC_HOMEDS402EX_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_HOME_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-3">구조체/인자</h4>
+<h5 id="mmc_homeds402ex_in"><code>MMC_HOMEDS402EX_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbPosition;</code></td>
+<td>위치 값입니다. 보통 technical unit <code>[u]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDetectionVelocityLimit;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocityHi;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocityLo;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDistanceLimit;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fTorqueLimit;</code></td>
+<td>토크 관련 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>int uiHomingMethod;</code></td>
+<td>홈 동작 방식 또는 홈 관련 파라미터입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiTimeLimit;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiDetectionTimeLimit;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_home_out-2"><code>MMC_HOME_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moveabsolute">6.1.5 MMC_MoveAbsolute</h3>
+<ul>
+<li>PDF 페이지: 345</li>
+<li>원문 위치: <a href="../chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md#pdf-page-345">6.1.5
+MMC_MoveAbsolute</a></li>
+<li>기능 설명: 지정한 절대 위치로 축을 이동시키는 모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - All Buffering modes are supported.
+Distributed - Only MC_ABORTING_MODE Buffered mode is supported.</li>
+</ul>
+<h4 id="시그니처-4">시그니처</h4>
+<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveAbsoluteCmd<span class="op">(</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEABSOLUTE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEABSOLUTE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-4">구조체/인자</h4>
+<h5 id="mmc_moveabsolute_in"><code>MMC_MOVEABSOLUTE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbPosition;</code></td>
+<td>위치 값입니다. 보통 technical unit <code>[u]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moveabsolute_out"><code>MMC_MOVEABSOLUTE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moveadditive">6.1.6 MMC_MoveAdditive</h3>
+<ul>
+<li>PDF 페이지: 351</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-351">6.1.6
+MMC_MoveAdditive</a></li>
+<li>기능 설명: 마지막 명령 위치를 기준으로 가산 거리 이동을 수행하는
+모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-5">시그니처</h4>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveAdditiveCmd<span class="op">(</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEADDITIVE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEADDITIVE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-5">구조체/인자</h4>
+<h5 id="mmc_moveadditive_in"><code>MMC_MOVEADDITIVE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDistance;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moveadditive_out"><code>MMC_MOVEADDITIVE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moverelative">6.1.7 MMC_MoveRelative</h3>
+<ul>
+<li>PDF 페이지: 356</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-356">6.1.7
+MMC_MoveRelative</a></li>
+<li>기능 설명: 현재 위치 또는 실행 시점 기준 상대 거리로 축을 이동시키는
+모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-6">시그니처</h4>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> MMC_MoveRelativeCmd<span class="op">(</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVERELATIVE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVERELATIVE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-6">구조체/인자</h4>
+<h5 id="mmc_moverelative_in"><code>MMC_MOVERELATIVE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDistance;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moverelative_out"><code>MMC_MOVERELATIVE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_movevelocitymmc_movevelocityex">6.1.8
+MMC_MoveVelocity/MMC_MoveVelocityEx</h3>
+<ul>
+<li>PDF 페이지: 361</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-361">6.1.8
+MMC_MoveVelocity/MMC_MoveVelocityEx</a></li>
+<li>기능 설명: 지정 속도로 연속 이동을 수행하는 모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-7">시그니처</h4>
+<div class="sourceCode" id="cb8"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveVelocityCmd<span class="op">(</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEVELOCITY_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEVELOCITY_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveVelocityExCmd<span class="op">(</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEVELOCITYEX_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEVELOCITYEX_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-7">구조체/인자</h4>
+<h5 id="mmc_movevelocity_in"><code>MMC_MOVEVELOCITY_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_movevelocity_out"><code>MMC_MOVEVELOCITY_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_movetorque">6.1.9 MMC_MoveTorque</h3>
+<ul>
+<li>PDF 페이지: 366</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-366">6.1.9
+MMC_MoveTorque</a></li>
+<li>기능 설명: 지정 토크로 연속 동작을 수행하는 모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-8">시그니처</h4>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveTorqueCmd<span class="op">(</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVETORQUE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVETORQUE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-8">구조체/인자</h4>
+<h5 id="mmc_movetorque_in"><code>MMC_MOVETORQUE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbTargetTorque;</code></td>
+<td>토크 관련 값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbTorquetVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>double dbTorqueAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_movetorque_out"><code>MMC_MOVETORQUE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short usErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_movecontinuous">6.1.10 MMC_MoveContinuous</h3>
+<ul>
+<li>PDF 페이지: 369</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-369">6.1.10
+MMC_MoveContinuous</a></li>
+<li>기능 설명: 연속 이동 명령을 수행하는 모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-9">시그니처</h4>
+<div class="sourceCode" id="cb11"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveContinuousCmd<span class="op">(</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVECONTINUOUS_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVECONTINUOUS_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-9">구조체/인자</h4>
+<h5 id="mmc_movecontinuous_in"><code>MMC_MOVECONTINUOUS_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDistance;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fEndVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_movecontinuous_out"><code>MMC_MOVECONTINUOUS_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moveabsoluterepetitive">6.1.11
+MMC_MoveAbsoluteRepetitive</h3>
+<ul>
+<li>PDF 페이지: 373</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-373">6.1.11
+MMC_MoveAbsoluteRepetitive</a></li>
+<li>기능 설명: 지정한 절대 위치로 축을 이동시키는 모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - All Buffering modes are supported.
+Distributed - Not supported.</li>
+</ul>
+<h4 id="시그니처-10">시그니처</h4>
+<div class="sourceCode" id="cb12"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveAbsoluteRepetitiveCmd<span class="op">(</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEABSOLUTEREPETITIVE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEABSOLUTEREPETITIVE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-10">구조체/인자</h4>
+<h5 id="mmc_moveabsoluterepetitive_in"><code>MMC_MOVEABSOLUTEREPETITIVE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbPosition;</code></td>
+<td>위치 값입니다. 보통 technical unit <code>[u]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiExecDelayMs;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moveabsoluterepetitive_out"><code>MMC_MOVEABSOLUTEREPETITIVE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moverelativerepetitive">6.1.12
+MMC_MoveRelativeRepetitive</h3>
+<ul>
+<li>PDF 페이지: 378</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-378">6.1.12
+MMC_MoveRelativeRepetitive</a></li>
+<li>기능 설명: 현재 위치 또는 실행 시점 기준 상대 거리로 축을 이동시키는
+모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Not
+supported</li>
+</ul>
+<h4 id="시그니처-11">시그니처</h4>
+<div class="sourceCode" id="cb13"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveRelativeRepetitiveCmd<span class="op">(</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVERELATIVEREPETITIVE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVERELATIVEREPETITIVE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-11">구조체/인자</h4>
+<h5 id="mmc_moverelativerepetitive_in"><code>MMC_MOVERELATIVEREPETITIVE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDistance;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiExecDelayMs;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moverelativerepetitive_out"><code>MMC_MOVERELATIVEREPETITIVE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_moveadditiverepetitive">6.1.13
+MMC_MoveAdditiveRepetitive</h3>
+<ul>
+<li>PDF 페이지: 383</li>
+<li>원문 위치: <a href="../chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md#pdf-page-383">6.1.13
+MMC_MoveAdditiveRepetitive</a></li>
+<li>기능 설명: 마지막 명령 위치를 기준으로 가산 거리 이동을 수행하는
+모션 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Not
+supported</li>
+</ul>
+<h4 id="시그니처-12">시그니처</h4>
+<div class="sourceCode" id="cb14"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_MoveAdditiveRepetitiveCmd<span class="op">(</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>IN MMC_MOVEADDITIVEREPETITIVE_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_MOVEADDITIVEREPETITIVE_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-12">구조체/인자</h4>
+<h5 id="mmc_moveadditiverepetitive_in"><code>MMC_MOVEADDITIVEREPETITIVE_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>double dbDistance;</code></td>
+<td>이동 거리 값입니다. 보통 technical unit <code>[u]</code>
+단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fVelocity;</code></td>
+<td>속도 값입니다. 보통 <code>[u/s]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fAcceleration;</code></td>
+<td>가속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_DIRECTION_ENUM eDirection;</code></td>
+<td>동작 방향 지정 값입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned int uiExecDelayMs;</code></td>
+<td>시간 제한, 주기 또는 지연 시간 값입니다. 문맥에 따라 ms 단위일 수
+있습니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_moveadditiverepetitive_out"><code>MMC_MOVEADDITIVEREPETITIVE_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mmc_stop">6.1.14 MMC_Stop</h3>
+<ul>
+<li>PDF 페이지: 388</li>
+<li>원문 위치: <a href="../chunks/018_p0388-p0425_6.1.14-MMC_Stop.md#pdf-page-388">6.1.14
+MMC_Stop</a></li>
+<li>기능 설명: 축 또는 동작을 정지 상태로 전환하는 API입니다.</li>
+<li>지원/모드: Motion Mode NC - Supported Distributed - Supported</li>
+</ul>
+<h4 id="시그니처-13">시그니처</h4>
+<div class="sourceCode" id="cb15"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>MMC_LIB_API <span class="dt">int</span> MMC_StopCmd<span class="op">(</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>IN MMC_CONNECT_HNDL hConn<span class="op">,</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>IN MMC_AXIS_REF_HNDL hAxisRef<span class="op">,</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>IN MMC_STOP_IN<span class="op">*</span> pInParam<span class="op">,</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>OUT MMC_STOP_OUT<span class="op">*</span> pOutParam</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="op">);</span></span></code></pre></div>
+<h4 id="구조체인자-13">구조체/인자</h4>
+<h5 id="mmc_stop_in"><code>MMC_STOP_IN</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned char ucExecute;</code></td>
+<td>실행 트리거입니다. 상승 에지에서 명령을 시작하는 TRUE/FALSE
+값입니다.</td>
+</tr>
+<tr>
+<td><code>float fDeceleration;</code></td>
+<td>감속도 값입니다. 보통 <code>[u/s2]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>float fJerk;</code></td>
+<td>저크 값입니다. 보통 <code>[u/s3]</code> 단위입니다.</td>
+</tr>
+<tr>
+<td><code>MC_BUFFERED_MODE_ENUM eBufferMode;</code></td>
+<td>버퍼링/블렌딩 동작 모드입니다.</td>
+</tr>
+</tbody>
+</table>
+<h5 id="mmc_stop_out"><code>MMC_STOP_OUT</code></h5>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>해석</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unsigned int uiHndl;</code></td>
+<td>함수 블록 또는 리소스 핸들입니다.</td>
+</tr>
+<tr>
+<td><code>unsigned short usStatus;</code></td>
+<td>명령 또는 장치 상태 값입니다.</td>
+</tr>
+<tr>
+<td><code>short sErrorID;</code></td>
+<td>오류 ID입니다.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,896 @@
+level,title,match_type,match_key,original_page_1based,fixed_page_1based,changed
+0,Chapter 1 Introduction,chapter,1,29,29,NO
+1,1.1 What the API Does,section,1.1,29,29,NO
+1,1.2 Maestro over (Go) Standard,section,1.2,30,30,NO
+1,1.3 Terminology,section,1.3,30,30,NO
+1,1.4 How to Use this Document,section,1.4,35,35,NO
+0,Chapter 2 Maestro Overview,chapter,2,40,40,NO
+1,2.1 Using the EASII Application,section,2.1,45,45,NO
+1,2.2 Maestro Operation Modes,section,2.2,45,45,NO
+2,2.2.1 NC Motions,section,2.2.1,46,46,NO
+2,2.2.2 Distributed / Standard DS-402 (stand-alone) Drive,section,2.2.2,46,46,NO
+2,2.2.3 Maestro Axes and Node Definitions,section,2.2.3,46,46,NO
+2,2.2.4 Maestro to Servo Drive Interfaces,section,2.2.4,48,48,NO
+0,Chapter 3 Maestro Hardware Connections,chapter,3,49,49,NO
+1,3.1 Maestro USB Connection,section,3.1,49,49,NO
+2,3.1.1 Connection Procedure,section,3.1.1,50,50,NO
+2,3.1.2 ipaddr – Maestro IP Address ,section,3.1.2,51,51,NO
+2,3.1.3 ipmask – Maestro IP Subnet Mask ,section,3.1.3,52,52,NO
+2,3.1.4 defgateway – Maestro Default Gateway ,section,3.1.4,53,53,NO
+1,3.2 Maestro Network Configuration,section,3.2,53,53,NO
+2,3.2.1 Windows 7 and 10 Setup,section,3.2.1,54,54,NO
+1,3.3 Maestro Master –Slave Hot Plug,section,3.3,63,63,NO
+0,Chapter 4 Error Handling,chapter,4,65,65,NO
+1,4.1 Function Block Errors,section,4.1,65,65,NO
+1,4.2 Buffered Errors,section,4.2,66,66,NO
+1,4.3  Maestro Error IDs,section,4.3,66,66,NO
+2,4.3.1 Error correction error IDs,section,4.3.1,1,83,YES
+2,4.3.2 Continued Maestro Error IDs,section,4.3.2,1,85,YES
+2,4.3.3 Maestro PVT/ECAM Motion Error IDs,section,4.3.3,1,95,YES
+2,4.3.4 Continued Maestro Error IDs,section,4.3.4,1,97,YES
+1,4.4 Drive Warning IDs,section,4.4,1,133,YES
+1,4.5 Drive Warning IDs,section,4.5,1,135,YES
+1,4.6 NC Profiler Error IDs,section,4.6,1,136,YES
+1,4.7 NC Profiler Caution IDs,section,4.7,1,145,YES
+1,4.8 Maestro Caution IDs,section,4.8,1,147,YES
+1,4.9 Internal Library Error IDs,section,4.9,1,148,YES
+1,4.10 Internal Library Warning IDs,section,4.10,1,153,YES
+1,4.11 EtherNetIP Communication Error IDs,section,4.11,1,154,YES
+1,4.12 Maestro Emergency Error IDs Originating from the Gold Servo Drive,section,4.12,1,156,YES
+1,4.13 Maestro Abort Error IDs Originating from the Gold Servo Drive,section,4.13,1,165,YES
+1,4.14 Gold Line ELMO Error Codes,section,4.14,1,167,YES
+1,4.15 Functional and Communication Error Handling,section,4.15,1,173,YES
+2,4.15.1 General,section,4.15.1,1,174,YES
+2,4.15.2 Detecting Connection Errors,section,4.15.2,1,177,YES
+2,4.15.3 Detecting EtherCAT Application Level (AL) Errors,section,4.15.3,1,178,YES
+2,4.15.4 DS-402 Status Word Error,section,4.15.4,1,179,YES
+2,4.15.5 Handling Errors – Resolution,section,4.15.5,1,180,YES
+2,4.15.6 Policy Functions,section,4.15.6,1,181,YES
+2,4.15.7 MMC_RegErrPolicy,section,4.15.7,1,182,YES
+2,4.15.8 MMC_GetErrPolicy,section,4.15.8,1,188,YES
+2,4.15.9 MMC_ResetSystem,section,4.15.9,1,193,YES
+0,Chapter 5 Motion and Administrative - Description,chapter,5,1,196,YES
+1,5.1 Compliance and Portability,section,5.1,1,196,YES
+1,5.2 Function Block States,section,5.2,1,196,YES
+2,5.2.1 Single Axis,section,5.2.1,1,196,YES
+2,5.2.2 Group of Axes,section,5.2.2,1,199,YES
+2,5.2.3 Function Block Status Bit Masks,section,5.2.3,1,201,YES
+1,5.3 Motion Profiles,section,5.3,1,202,YES
+2,5.3.1 Cubic Polynomial and Sinusoidal Acceleration Profilers,section,5.3.1,1,203,YES
+1,"5.4 Axis, Group, Global, Parameters",section,5.4,1,207,YES
+2,5.4.1 Legend,section,5.4.1,1,208,YES
+2,5.4.2 Parameters Tables,section,5.4.2,1,209,YES
+2,5.4.3 Axis Parameters (Explanations),section,5.4.3,1,224,YES
+1,5.5 Axis Status,section,5.5,1,238,YES
+2,5.5.1 Blended Behavior Mechanism,section,5.5.1,1,241,YES
+2,5.5.2 Special function block insertion mechanism,section,5.5.2,1,242,YES
+1,5.6 Function Block Execution Order,section,5.6,1,243,YES
+2,5.6.1 Classification,section,5.6.1,1,244,YES
+2,5.6.2 Flags,section,5.6.2,1,245,YES
+2,5.6.3 Examples,section,5.6.3,1,246,YES
+1,5.7 DS-402 Homing Description and Methods,section,5.7,1,247,YES
+2,5.7.1 Error Situations,section,5.7.1,1,248,YES
+2,5.7.2 Method 1: Homing on RLS and Index Pulse,section,5.7.2,1,249,YES
+2,5.7.3 Method 2: Homing on FLS and Index Pulse,section,5.7.3,1,250,YES
+2,5.7.4 Method 3: Homing on Positive Home Switch and Index Pulse,section,5.7.4,1,251,YES
+2,5.7.5 Method 4: Forward Homing on Positive Home Switch and Index Pulse,section,5.7.5,1,252,YES
+2,5.7.6 Method 5: Forward Homing on Negative Home Switch and Index Pulse,section,5.7.6,1,253,YES
+2,5.7.7 Method 6: Reverse Homing on Negative Home Switch And Index Pulse,section,5.7.7,1,254,YES
+2,5.7.8 Method 7: Reverse Homing on Home Switch/FLS and Index Pulse,section,5.7.8,1,255,YES
+2,5.7.9 Method 8: Forward Homing on Home Switch/FLS and Index Pulse,section,5.7.9,1,256,YES
+2,5.7.10 Method 9: Reverse Homing on Positive Home Switch/FLS and Index Pulse,section,5.7.10,1,257,YES
+2,5.7.11 Method 10: Forward Homing on Negative Home Switch/FLS and Index Pulse,section,5.7.11,1,258,YES
+2,5.7.12 Method 11: Forward Homing on Negative Home Switch/RLS and Index Pulse,section,5.7.12,1,259,YES
+2,5.7.13 Method 12: Reverse Homing on Positive Home Switch/RLS and Index Pulse,section,5.7.13,1,260,YES
+2,5.7.14 Method 13: Forward Homing on Positive Home Switch/RLS and Index Pulse,section,5.7.14,1,261,YES
+2,5.7.15 Method 14: Reverse Homing on Negative Home Switch/RLS and Index Pulse,section,5.7.15,1,262,YES
+2,5.7.16 Methods 15 and 16: Reserved,section,5.7.16,1,263,YES
+2,5.7.17 Method 17: Homing on RLS,section,5.7.17,1,264,YES
+2,5.7.18 Method 18: Homing on FLS,section,5.7.18,1,265,YES
+2,5.7.19 Method 19: Reverse Homing on Negative Home Switch,section,5.7.19,1,266,YES
+2,5.7.20 Method 20: Forward Homing on Positive Home Switch ,section,5.7.20,1,267,YES
+2,5.7.21 Method 21: Forward Homing on Negative Home Switch,section,5.7.21,1,268,YES
+2,5.7.22 Method 22: Reverse Homing on Positive Home Switch,section,5.7.22,1,269,YES
+2,5.7.23 Method 23: Reverse Homing on Negative Home Switch/FLS,section,5.7.23,1,270,YES
+2,5.7.24 Method 24: Forward Homing on Positive Home Switch/FLS,section,5.7.24,1,271,YES
+2,5.7.25 Method 25: Reverse Homing on Positive Home Switch/FLS,section,5.7.25,1,272,YES
+2,5.7.26 Method 26: Forward Homing on Negative Home Switch/FLS,section,5.7.26,1,273,YES
+2,5.7.27 Method 27: Forward Homing on Negative Home Switch/RLS,section,5.7.27,1,274,YES
+2,5.7.28 Method 28: Reverse Homing on Positive Home Switch/RLS,section,5.7.28,1,275,YES
+2,5.7.29 Method 29: Forward Homing on Positive Home Switch/RLS,section,5.7.29,1,276,YES
+2,5.7.30 Method 30: Reverse Homing on Negative Home Switch/RLS,section,5.7.30,1,277,YES
+2,5.7.31 Methods 31 and 32: Reserved,section,5.7.31,1,278,YES
+2,5.7.32 Methods 33 and 34: Homing on the Index Pulse,section,5.7.32,1,279,YES
+2,5.7.33 Method 35: Homing on the Current Position(Obsolete),section,5.7.33,1,280,YES
+2,5.7.34 Method 37: Homing on the Current Position,section,5.7.34,1,281,YES
+2,5.7.35 Methods -1 and -2: PLC open Home on Block,section,5.7.35,1,282,YES
+2,5.7.36 Methods -3 and -4: PLC open Home on Block and index,section,5.7.36,1,284,YES
+1,5.8 Administrative Function Block Handling(for both Single and Multiple Axis),section,5.8,1,285,YES
+2,5.8.1 Source Value,section,5.8.1,1,286,YES
+2,5.8.2 Reference Value,section,5.8.2,1,287,YES
+2,5.8.3 Logic Operation,section,5.8.3,1,288,YES
+2,5.8.4 Function Usage Situations,section,5.8.4,1,289,YES
+2,5.8.5 Download Firmware and Errors,section,5.8.5,1,291,YES
+1,5.9 User Units,section,5.9,1,292,YES
+2,5.9.1 System Flow Forward,section,5.9.1,1,293,YES
+2,5.9.2 System Flow Backward ,section,5.9.2,1,294,YES
+2,5.9.3 Practical Interface,section,5.9.3,1,296,YES
+1,5.10 Profile Conditioning,section,5.10,1,297,YES
+2,5.10.1 Interface,section,5.10.1,1,298,YES
+2,5.10.2 C Functions,section,5.10.2,1,299,YES
+2,5.10.3 C++ Functions,section,5.10.3,1,300,YES
+1,5.11 Maestro Hardware and Software Limits Handling,section,5.11,1,301,YES
+2,5.11.1 Introduction,section,5.11.1,1,302,YES
+2,5.11.2 Interfaces,section,5.11.2,1,303,YES
+2,5.11.3 Function Block Pre-Insertion Behavior,section,5.11.3,1,307,YES
+2,5.11.4 Real Time Behavior,section,5.11.4,1,310,YES
+2,5.11.5 System Constraints And Limitations,section,5.11.5,1,311,YES
+0,Chapter 6 Motion and Administrative – Single Axis,chapter,6,1,313,YES
+1,6.1 Single Axis Motion Control,section,6.1,1,313,YES
+2,6.1.1 MMC_Halt,section,6.1.1,1,315,YES
+2,6.1.2 MMC_Home,section,6.1.2,1,319,YES
+2,6.1.3 MMC_HomeDS402,section,6.1.3,1,335,YES
+2,6.1.4 MMC_HomeDS402Ex,section,6.1.4,1,340,YES
+2,6.1.5 MMC_MoveAbsolute,section,6.1.5,1,345,YES
+2,6.1.6 MMC_MoveAdditive,section,6.1.6,1,351,YES
+2,6.1.7 MMC_MoveRelative,section,6.1.7,1,356,YES
+2,6.1.8 MMC_MoveVelocity/MMC_MoveVelocityEx,section,6.1.8,1,361,YES
+2,6.1.9 MMC_MoveTorque,section,6.1.9,1,366,YES
+2,6.1.10 MMC_MoveContinuous,section,6.1.10,1,369,YES
+2,6.1.11 MMC_MoveAbsoluteRepetitive,section,6.1.11,1,373,YES
+2,6.1.12 MMC_MoveRelativeRepetitive,section,6.1.12,1,378,YES
+2,6.1.13 MMC_MoveAdditiveRepetitive,section,6.1.13,1,383,YES
+2,6.1.14 MMC_Stop,section,6.1.14,1,388,YES
+1,6.2 Single Axis Administrative Control,section,6.2,1,393,YES
+2,6.2.1 SuperImposed Motion,section,6.2.1,1,394,YES
+2,6.2.2 Special Function,section,6.2.2,1,395,YES
+2,6.2.3 MMC_AxisLink,section,6.2.3,1,396,YES
+2,6.2.4 MMC_AxisUnLink,section,6.2.4,1,399,YES
+2,6.2.5 MMC_KillMotion,section,6.2.5,1,401,YES
+2,6.2.6 MMC_KillRepetitive,section,6.2.6,1,403,YES
+2,6.2.7 MMC_Dwell,section,6.2.7,1,405,YES
+2,6.2.8 MMC_GetFBDepth,section,6.2.8,1,407,YES
+2,6.2.9 MMC_MarkFbFree,section,6.2.9,1,410,YES
+2,6.2.10 MMC_GetTotalFbDepth,section,6.2.10,1,413,YES
+2,6.2.11 MMC_Power,section,6.2.11,1,416,YES
+2,6.2.12 MMC_PositionProfile,section,6.2.12,1,420,YES
+2,6.2.13 MMC_ReadActualPosition,section,6.2.13,1,423,YES
+2,6.2.14 MMC_ReadActualTorque,section,6.2.14,1,426,YES
+2,6.2.15 MMC_ReadActualVelocity,section,6.2.15,1,429,YES
+2,6.2.16 MMC_ReadAxisError,section,6.2.16,1,432,YES
+2,6.2.17 MMC_ReadBoolParameter,section,6.2.17,1,435,YES
+2,6.2.18 MMC_GlobalReadBoolParameter,section,6.2.18,1,438,YES
+2,6.2.19 MMC_ReadDigitalInput(s),section,6.2.19,1,441,YES
+2,6.2.20 MMC_ReadDigitalOutputs,section,6.2.20,1,445,YES
+2,6.2.21 MMC_ReadDigitalOutputs32Bit,section,6.2.21,1,448,YES
+2,6.2.22 MMC_ReadParameter,section,6.2.22,1,451,YES
+2,6.2.23 MMC_GlobalReadParameter,section,6.2.23,1,454,YES
+2,6.2.24 MMC_ReadStatus,section,6.2.24,1,457,YES
+2,6.2.25 MMC_Reset,section,6.2.25,1,460,YES
+2,6.2.26 MMC_ResetAsync,section,6.2.26,1,462,YES
+2,6.2.27 MMC_SetOverride,section,6.2.27,1,464,YES
+2,6.2.28 MMC_SetPosition,section,6.2.28,1,467,YES
+2,6.2.29 MMC_TouchProbeEnable,section,6.2.29,1,469,YES
+2,6.2.30 MMC_TouchProbeDisable,section,6.2.30,1,471,YES
+2,6.2.31 MMC_WriteBoolParameter,section,6.2.31,1,473,YES
+2,6.2.32 MMC_GlobalWriteBoolParameter,section,6.2.32,1,476,YES
+2,6.2.33 MMC_WriteDigitalOutputs,section,6.2.33,1,479,YES
+2,6.2.34 MMC_WriteDigitalOutputs32Bit,section,6.2.34,1,482,YES
+2,6.2.35 MMC_WriteParameter,section,6.2.35,1,485,YES
+2,6.2.36 MMC_GlobalWriteParameter,section,6.2.36,1,488,YES
+2,6.2.37 MMC_ChngOpMode,section,6.2.37,1,491,YES
+2,6.2.38 MMC_ChangeOpModeEx,section,6.2.38,1,494,YES
+2,6.2.39 MMC_SetProfileConditioning,section,6.2.39,1,497,YES
+2,6.2.40 MMC_GetProfileConditioning,section,6.2.40,1,500,YES
+0,Chapter 7 Motion and Administrative – Multi-Axis,chapter,7,1,504,YES
+1,7.1 Coordinate System and kinematic transformation,section,7.1,1,504,YES
+2,7.1.1 Coordinated Motion,section,7.1.1,1,505,YES
+1,7.2 ACS - Axes Coordinate System,section,7.2,1,505,YES
+1,7.3 MCS - Machine Coordinate System,section,7.3,1,505,YES
+2,7.3.1 Transition in MCS,section,7.3.1,1,511,YES
+1,7.4 PCS - Product Coordinate System,section,7.4,1,511,YES
+2,7.4.1 Tracking in Dynamic Coordinate Transformations,section,7.4.1,1,513,YES
+2,7.4.2 Using the function MMC_SetKinTransformEx,section,7.4.2,1,514,YES
+2,7.4.3 Implementation,section,7.4.3,1,517,YES
+2,7.4.4 General Example,section,7.4.4,1,518,YES
+2,7.4.5 Example of Set Kinematic,section,7.4.5,1,519,YES
+2,7.4.6 Example - ACS Motion,section,7.4.6,1,520,YES
+2,7.4.7 Example - MCS Motion ,section,7.4.7,1,521,YES
+1,7.5 Special Robot Transformations,section,7.5,1,157,YES
+2,7.5.1 Delta Robot kinematic,section,7.5.1,1,523,YES
+2,7.5.2 SCARA Robot kinematic,section,7.5.2,1,532,YES
+2,7.5.3 Three Link Robot Kinematic,section,7.5.3,1,536,YES
+2,7.5.4 Dual Head Robot Kinematic,section,7.5.4,1,540,YES
+2,7.5.5 Hexapod Platform Kinematic,section,7.5.5,1,541,YES
+2,7.5.6 Robot Tansformations Error IDs,section,7.5.6,1,544,YES
+2,7.5.7 Tracking System Functions,section,7.5.7,1,547,YES
+2,7.5.8 MC_TrackConveyorBelt Function Description,section,7.5.8,1,549,YES
+2,7.5.9 Tracking Workpiece Processing on a Conveyor Belt,section,7.5.9,1,550,YES
+2,7.5.10 MC_TrackRotaryTable Function Description,section,7.5.10,1,552,YES
+2,7.5.11 Tracking Work Part Processing on a Rotary Table,section,7.5.11,1,553,YES
+2,7.5.12 Multiple Axes Motion Control - Transition and Buffer Modes,section,7.5.12,1,554,YES
+2,7.5.13 Single Axis Buffer Modes,section,7.5.13,1,555,YES
+2,7.5.14 Multi-Axes Transitions,section,7.5.14,1,556,YES
+2,7.5.15 Matrix of Available Transition Modes,section,7.5.15,1,557,YES
+2,7.5.16 Obtaining the ‘S’ Position of a Vertex using Transition Modes 18 & 19,section,7.5.16,1,583,YES
+1,7.6 Multiple Axes Motion Control - Circular Modes,section,7.6,1,588,YES
+2,7.6.1 Border mode,section,7.6.1,1,589,YES
+2,7.6.2 Center mode,section,7.6.2,1,590,YES
+2,7.6.3 Radius mode,section,7.6.3,1,591,YES
+2,7.6.4 Angle Mode,section,7.6.4,1,592,YES
+2,7.6.5 PathChoice Data verification in MoveCircular functions,section,7.6.5,1,593,YES
+2,7.6.6 Move Polynomial Function Block,section,7.6.6,1,594,YES
+1,7.7 Multiple Axes Motion Control - Normalcy Modes,section,7.7,1,596,YES
+2,7.7.1 Modes of Operation,section,7.7.1,1,597,YES
+2,7.7.2 Normalcy Mode Functions,section,7.7.2,1,599,YES
+2,7.7.3 MMC_SetNormalcyMode,section,7.7.3,1,600,YES
+2,7.7.4 MMC_SetNormalcyOff,section,7.7.4,1,604,YES
+2,7.7.5 MMC_GetNormalcyMode,section,7.7.5,1,606,YES
+2,7.7.6 Normalcy Code Example,section,7.7.6,1,609,YES
+1,7.8 Multiple Axes Motion Control - Splines,section,7.8,1,612,YES
+2,7.8.1 Spline Mode MC_SPLINE_MODE_FT = 1,section,7.8.1,1,613,YES
+2,7.8.2 Spline mode MC_SPLINE_MODE_V_AC_DC = 2,section,7.8.2,1,614,YES
+2,7.8.3 Spline mode MC_SPLINE_MODE_NP = 3,section,7.8.3,1,616,YES
+2,7.8.4 Spline mode MC_SPLINE_MODE_CV = 7,section,7.8.4,1,618,YES
+2,7.8.5 Online Splines,section,7.8.5,1,620,YES
+2,7.8.6 Implementing the Spline Motion,section,7.8.6,1,626,YES
+1,7.9 Multiple Axes Motion Control – Functions,section,7.9,1,627,YES
+2,7.9.1 Function Block Status Bit Masks,section,7.9.1,1,628,YES
+2,7.9.2 MMC_GroupStop,section,7.9.2,1,629,YES
+2,7.9.3 MMC_GroupHalt,section,7.9.3,1,633,YES
+2,7.9.4 MMC_MoveCircularAbsolute,section,7.9.4,1,637,YES
+2,7.9.5 MMC_MoveCircularAbsoluteCenter,section,7.9.5,1,645,YES
+2,7.9.6 MMC_MoveCircularAbsoluteBorder,section,7.9.6,1,651,YES
+2,7.9.7 MMC_MoveCircularAbsoluteRadius,section,7.9.7,1,657,YES
+2,7.9.8 MMC_MoveCircularAbsoluteAngle,section,7.9.8,1,664,YES
+2,7.9.9 MMC_MoveAngle,section,7.9.9,1,670,YES
+2,7.9.10 MMC_MoveLinearAbsolute,section,7.9.10,1,675,YES
+2,7.9.11 MMC_MoveLinearRelative,section,7.9.11,1,682,YES
+2,7.9.12 MMC_MoveLinearAdditive,section,7.9.12,1,689,YES
+2,7.9.13 MMC_MoveLinearAdditiveEx,section,7.9.13,1,694,YES
+2,7.9.14 MMC_MoveLinearAbsoluteRepetitive,section,7.9.14,1,699,YES
+2,7.9.15 MMC_MoveLinearRelativeRepetitive,section,7.9.15,1,705,YES
+2,7.9.16 MMC_MovePolynomAbsolute,section,7.9.16,1,710,YES
+2,7.9.17 MMC_PathSelect,section,7.9.17,1,714,YES
+2,7.9.18 MMC_MovePath,section,7.9.18,1,717,YES
+2,7.9.19 MMC_PathUnselect,section,7.9.19,1,724,YES
+1,7.10 Multiple Axes Administrative Control,section,7.10,1,726,YES
+2,7.10.1 Coordinated System and Kinematic Transformation Definitions,section,7.10.1,1,727,YES
+2,7.10.2 MC_KIN_NODE_DEF,section,7.10.2,1,729,YES
+2,7.10.3 MC_KIN_REF_CARTESIAN,section,7.10.3,1,731,YES
+2,7.10.4 MC_KIN_REF_DELTA,section,7.10.4,1,732,YES
+2,7.10.5 MC_KIN_REF_SCARA,section,7.10.5,1,734,YES
+2,7.10.6 MC_KIN_REF_THREE_LINK,section,7.10.6,1,736,YES
+2,7.10.7 MC_KIN_REF_DUAL_HEAD,section,7.10.7,1,738,YES
+2,7.10.8 MC_KIN_REF_HXPD,section,7.10.8,1,740,YES
+2,7.10.9 MC_KIN_REF UNION,section,7.10.9,1,744,YES
+2,7.10.10 NC_MCS_Info_Struct,section,7.10.10,1,745,YES
+2,7.10.11 NC_MCS_Kin_Ref_Struct,section,7.10.11,1,747,YES
+2,7.10.12 MMC_SetKinTransform,section,7.10.12,1,748,YES
+2,7.10.13 MMC_SetKinTransformEx,section,7.10.13,1,754,YES
+2,7.10.14 MMC_SetCartesianTransform,section,7.10.14,1,761,YES
+2,7.10.15 MMC_TrackConveyorBelt,section,7.10.15,1,765,YES
+2,7.10.16 MMC_TrackRotaryTable,section,7.10.16,1,771,YES
+2,7.10.17 MMC_TrackSyncOut,section,7.10.17,1,777,YES
+2,7.10.18 MMC_SetKinTransformDelta,section,7.10.18,1,782,YES
+2,7.10.19 MMC_SetKinTransformCartesian,section,7.10.19,1,785,YES
+2,7.10.20 MMC_SetKinTransformScara,section,7.10.20,1,788,YES
+2,7.10.21 MMC_SetKinTransformThreeLink,section,7.10.21,1,791,YES
+2,7.10.22 MMC_SetKinTransformHxpd,section,7.10.22,1,794,YES
+2,7.10.23 MMC_GetMotionInfo,section,7.10.23,1,797,YES
+2,7.10.24 MMC_AddAxisToGroup,section,7.10.24,1,800,YES
+2,7.10.25 MMC_GroupDisable,section,7.10.25,1,803,YES
+2,7.10.26 MMC_GroupEnable,section,7.10.26,1,806,YES
+2,7.10.27 MMC_GroupReadActualPosition,section,7.10.27,1,808,YES
+2,7.10.28 MMC_GroupReadActualVelocity,section,7.10.28,1,811,YES
+2,7.10.29 MMC_GroupReadError,section,7.10.29,1,814,YES
+2,7.10.30 MMC_GroupReadStatus,section,7.10.30,1,817,YES
+2,7.10.31 MMC_GroupReset,section,7.10.31,1,820,YES
+2,7.10.32 MMC_GroupSetOverride,section,7.10.32,1,823,YES
+2,7.10.33 MMC_GroupSetPosition,section,7.10.33,1,827,YES
+2,7.10.34 MMC_RemoveAxisFromGroup,section,7.10.34,1,832,YES
+2,7.10.35 MMC_GroupReadParameter,section,7.10.35,1,835,YES
+2,7.10.36 MMC_GroupReadBoolParameter,section,7.10.36,1,837,YES
+2,7.10.37 MMC_GroupWriteParameter,section,7.10.37,1,839,YES
+2,7.10.38 MMC_GroupWriteBoolParameter,section,7.10.38,1,841,YES
+2,7.10.39 MMC_GetGroupMembersInfo,section,7.10.39,1,843,YES
+0,"Chapter 8 Position, Velocity, Time (PVT) Motion",chapter,8,1,847,YES
+1,8.1 Overview,section,8.1,1,847,YES
+1,"8.2 PV, PVT Profiler",section,8.2,1,847,YES
+1,8.3 PVT Interpolation Mode,section,8.3,1,847,YES
+1,8.4 Polynomial Interpolation Functions,section,8.4,1,848,YES
+2,8.4.1 Cubic polynomial – Polynomial Order 3 (eCUBIC_POLYNOM),section,8.4.1,1,848,YES
+2,8.4.2 Quintic polynomial – Polynomial Order 5 (eQUINTIC_ON_CUBIC),section,8.4.2,1,849,YES
+2,8.4.3 Septic polynomial - Polynomial Order 7 (eSEPTIC_ON_CUBIC),section,8.4.3,1,849,YES
+2,8.4.4 Sinusoidal interpolation functions,section,8.4.4,1,850,YES
+1,8.5 Data loading,section,8.5,1,852,YES
+1,8.6 PVT motion,section,8.6,1,853,YES
+1,8.7 On-The-Fly Mode,section,8.7,1,853,YES
+2,8.7.1 Initializing Table,section,8.7.1,1,853,YES
+2,8.7.2 Loading Data,section,8.7.2,1,854,YES
+2,8.7.3 Cyclic Mode,section,8.7.3,1,854,YES
+1,8.8 File example,section,8.8,1,854,YES
+1,8.9 Table Functions,section,8.9,1,855,YES
+2,8.9.1 MMC_TABLE_LIST_OUT,section,8.9.1,1,856,YES
+2,8.9.2 MMC_TABLE_LIST_IN,section,8.9.2,1,857,YES
+2,8.9.3 MMC_TABLE_DATA_OUT,section,8.9.3,1,858,YES
+2,8.9.4 MMC_TABLE_DATA_IN,section,8.9.4,1,859,YES
+2,8.9.5 MMC_GetTableList,section,8.9.5,1,860,YES
+2,8.9.6 MMC_GetTableInfo,section,8.9.6,1,862,YES
+1,8.10 PVT Functions,section,8.10,1,864,YES
+2,8.10.1 MMC_InitTable,section,8.10.1,1,865,YES
+2,8.10.2 MMC_InitTableEx,section,8.10.2,1,870,YES
+2,8.10.3 MMC_LoadTableFromFile,section,8.10.3,1,875,YES
+2,8.10.4 MMC_UnloadTable,section,8.10.4,1,880,YES
+2,8.10.5 MMC_MoveTable,section,8.10.5,1,882,YES
+2,8.10.6 MMC_AppendPointsToTable,section,8.10.6,1,886,YES
+2,8.10.7 MMC_GetTableIndex,section,8.10.7,1,890,YES
+0,Chapter 9 Electronic CAM,chapter,9,1,894,YES
+1,9.1 Overview,section,9.1,1,894,YES
+1,9.2 CAM Table,section,9.2,1,894,YES
+2,9.2.1 CAM Table File Format,section,9.2.1,1,895,YES
+2,9.2.2 CAM Table Loading,section,9.2.2,1,896,YES
+1,9.3 Interpolation Options (Curve Types),section,9.3,1,897,YES
+2,9.3.1 Polynomial interpolation functions ,section,9.3.1,1,897,YES
+2,9.3.2 Sinusoidal interpolation functions,section,9.3.2,1,900,YES
+1,9.4 Basic flow for CAM process,section,9.4,1,903,YES
+2,9.4.1 Using an An array in User Program,section,9.4.1,1,903,YES
+2,9.4.2 Using a File,section,9.4.2,1,903,YES
+1,9.5 Examples,section,9.5,1,903,YES
+2,9.5.1 Slave Relative,section,9.5.1,1,904,YES
+2,9.5.2 Slave Absolute,section,9.5.2,1,905,YES
+1,9.6 ECAM Functions,section,9.6,1,906,YES
+2,9.6.1 MMC_CamTableInit,section,9.6.1,1,907,YES
+2,9.6.2 MMC_CamTableSelect,section,9.6.2,1,911,YES
+2,9.6.3 MMC_CamTableUnload,section,9.6.3,1,915,YES
+2,9.6.4 MMC_CamTableAdd,section,9.6.4,1,917,YES
+2,9.6.5 MMC_CamTableAddEx,section,9.6.5,1,920,YES
+2,9.6.6 MC_CamTableSet,section,9.6.6,1,922,YES
+2,9.6.7 MMC_CamIn,section,9.6.7,1,925,YES
+2,9.6.8 MMC_CamOut,section,9.6.8,1,930,YES
+2,9.6.9 MMC_CamStatus,section,9.6.9,1,932,YES
+2,9.6.10 MMC_CamSetProperty,section,9.6.10,1,934,YES
+2,9.6.11 MMC_GearIn,section,9.6.11,1,938,YES
+2,9.6.12 MMC_GearInPos,section,9.6.12,1,942,YES
+2,9.6.13 MMC_GearOut,section,9.6.13,1,946,YES
+1,9.7 Application Example,section,9.7,1,947,YES
+2,9.7.1 Master/Slave Offset,section,9.7.1,1,949,YES
+2,9.7.2 Periodicity Modes of Operation,section,9.7.2,1,951,YES
+0,Chapter 10 API Services and Operations,chapter,10,1,956,YES
+1,10.1 Wait Condition Function Block,section,10.1,1,958,YES
+1,10.2 Main Configuration Function Blocks,section,10.2,1,959,YES
+2,10.2.1 MMC_ChangeToPreOPMode,section,10.2.1,1,960,YES
+2,10.2.2 MMC_ChangeToOperationMode,section,10.2.2,1,962,YES
+2,10.2.3 MMC_ClearNodeFbList,section,10.2.3,1,964,YES
+2,10.2.4 MMC_CmdStatus,section,10.2.4,1,966,YES
+2,10.2.5 MMC_CloseConnection,section,10.2.5,1,969,YES
+2,10.2.6 MMC_Config,section,10.2.6,1,970,YES
+2,10.2.7 MMC_CreateSYNCTimer,section,10.2.7,1,972,YES
+2,10.2.8 MMC_DestroySYNCTimer,section,10.2.8,1,973,YES
+2,10.2.9 MMC_DownloadFoE,section,10.2.9,1,974,YES
+2,10.2.10 MMC_Exit,section,10.2.10,1,980,YES
+2,10.2.11 MMC_FreeFbStat,section,10.2.11,1,982,YES
+2,10.2.12 MMC_GetActiveVectorsNum,section,10.2.12,1,985,YES
+2,10.2.13 MMC_GetErrorCodeDescriptionByID,section,10.2.13,1,987,YES
+2,10.2.14 MMC_GetFoEStatus,section,10.2.14,1,990,YES
+2,10.2.15 MMC_GetEnquireFbStatus,section,10.2.15,1,997,YES
+2,10.2.16 MMC_GetAxisByName,section,10.2.16,1,999,YES
+2,10.2.17 MMC_GetGroupByName,section,10.2.17,1,1001,YES
+2,10.2.18 MMC_GetGMASOperationMode,section,10.2.18,1,1004,YES
+2,10.2.19 MMC_GetStatusRegister,section,10.2.19,1,1007,YES
+2,10.2.20 MMC_GetResList,section,10.2.20,1,1010,YES
+2,10.2.21 MMC_GetResSnapshot,section,10.2.21,1,1013,YES
+2,10.2.22 MMC_GetVersion,section,10.2.22,1,1016,YES
+2,10.2.23 MMC_GetVersionEx,section,10.2.23,1,1019,YES
+2,10.2.24 MMC_GetLastError,section,10.2.24,1,1022,YES
+2,10.2.25 MMC_InitConnection,section,10.2.25,1,1023,YES
+2,10.2.26 MMC_RpcInitConnection,section,10.2.26,1,1025,YES
+2,10.2.27 MMC_RpcInitConnectionEx,section,10.2.27,1,1027,YES
+2,10.2.28 MMC_IPCInitConnection,section,10.2.28,1,1029,YES
+2,10.2.29 MMC_LoadParam,section,10.2.29,1,1031,YES
+2,10.2.30 MMC_ResetMultiAxisControl,section,10.2.30,1,1033,YES
+2,10.2.31 MMC_ResExportFile,section,10.2.31,1,1036,YES
+2,10.2.32 MMC_ResImportFile,section,10.2.32,1,1039,YES
+2,10.2.33 MMC_SaveParam,section,10.2.33,1,1042,YES
+2,10.2.34 MMC_SetEnquireFbStatus,section,10.2.34,1,1045,YES
+2,10.2.35 MMC_SetDefaultParameters,section,10.2.35,1,1047,YES
+2,10.2.36 MMC_SetDefaultParametersGlobal,section,10.2.36,1,1049,YES
+2,10.2.37 MMC_SetIsToLoadGlobalParams,section,10.2.37,1,1051,YES
+2,10.2.38 MMC_ShowNodeStat,section,10.2.38,1,1053,YES
+2,10.2.39 MMC_GetActiveAxesNum,section,10.2.39,1,1056,YES
+2,10.2.40 MMC_ToggleConsoleOutput,section,10.2.40,1,1058,YES
+2,10.2.41 MMC_GetCyclesCounter,section,10.2.41,1,1060,YES
+2,10.2.42 MMC_WriteGroupOfParameters,section,10.2.42,1,1062,YES
+2,10.2.43 MMC_WriteGroupOfParametersEx,section,10.2.43,1,1066,YES
+2,10.2.44 MMC_ReadGroupOfParameters,section,10.2.44,1,1071,YES
+2,10.2.45 MMC_WaitUntilConditionFB,section,10.2.45,1,1074,YES
+2,10.2.46 MMC_WaitUntilConditionFBEx,section,10.2.46,1,1077,YES
+2,10.2.47 MMC_WriteMemoryRange,section,10.2.47,1,1081,YES
+2,10.2.48 MMC_ReadMemoryRange,section,10.2.48,1,1083,YES
+2,10.2.49 MMC_SetDefaultResources,section,10.2.49,1,1085,YES
+2,10.2.50 MMC_UserCommandControl,section,10.2.50,1,1087,YES
+2,10.2.51 MMC_SetAllFbExeModeImm,section,10.2.51,1,1090,YES
+2,10.2.52 MMC_GetVerPath,section,10.2.52,1,1092,YES
+2,10.2.53 MMC_DownloadVersion,section,10.2.53,1,1092,YES
+2,10.2.54 MMC_ReadDownloadVersionStatus,section,10.2.54,1,1092,YES
+2,10.2.55 MMC_SetVerPath,section,10.2.55,1,1092,YES
+0,Chapter 11 Process Image(PI),chapter,11,1,1093,YES
+1,11.1 Introduction,section,11.1,1,1093,YES
+1,11.2 Variable Types,section,11.2,1,1093,YES
+1,11.3 PI User Functions,section,11.3,1,1095,YES
+1,11.4 Read/Write RAW Data,section,11.4,1,1095,YES
+1,11.5 Recorder PI Mechanism Support,section,11.5,1,1096,YES
+2,11.5.1 Differentiation Between Regular Signal and PI Signal,section,11.5.1,1,1096,YES
+2,11.5.2 Determining the Recorded Signals Length,section,11.5.2,1,1097,YES
+2,11.5.3 Recording Large PI Variables,section,11.5.3,1,1097,YES
+2,11.5.4 Non-standard Variable Types,section,11.5.4,1,1098,YES
+1,11.6 PI Functions,section,11.6,1,1099,YES
+2,11.6.1 MMC_BeginRecordingEx,section,11.6.1,1,1100,YES
+2,11.6.2 MMC_ReadPIVarBOOL,section,11.6.2,1,1104,YES
+2,11.6.3 MMC_ReadPIVarChar,section,11.6.3,1,1107,YES
+2,11.6.4 MMC_ReadPIVarUChar,section,11.6.4,1,1110,YES
+2,11.6.5 MMC_ReadPIVarShort,section,11.6.5,1,1113,YES
+2,11.6.6 MMC_ReadPIVarUShort,section,11.6.6,1,1116,YES
+2,11.6.7 MMC_ReadPIVarInt,section,11.6.7,1,1119,YES
+2,11.6.8 MMC_ReadPIVarUInt,section,11.6.8,1,1122,YES
+2,11.6.9 MMC_ReadPIVarFloat,section,11.6.9,1,1125,YES
+2,11.6.10 MMC_ReadPIVarRaw,section,11.6.10,1,1128,YES
+2,11.6.11 MMC_ReadPIVarLongLong,section,11.6.11,1,1132,YES
+2,11.6.12 MMC_ReadPIVarULongLong,section,11.6.12,1,1134,YES
+2,11.6.13 MMC_ReadPIVarDouble,section,11.6.13,1,1136,YES
+2,11.6.14 MMC_ReadLargePIVarRaw,section,11.6.14,1,1138,YES
+2,11.6.15 MMC_WritePIVarBool,section,11.6.15,1,1140,YES
+2,11.6.16 MMC_WritePIVarChar,section,11.6.16,1,1143,YES
+2,11.6.17 MMC_WritePIVarUChar,section,11.6.17,1,1146,YES
+2,11.6.18 MMC_WritePIVarUShort,section,11.6.18,1,1149,YES
+2,11.6.19 MMC_WritePIVarShort,section,11.6.19,1,1152,YES
+2,11.6.20 MMC_WritePIVarUInt,section,11.6.20,1,1155,YES
+2,11.6.21 MMC_WritePIVarInt,section,11.6.21,1,1158,YES
+2,11.6.22 MMC_WritePIVarFloat,section,11.6.22,1,1161,YES
+2,11.6.23 MMC_WritePIVarRaw,section,11.6.23,1,1164,YES
+2,11.6.24 MMC_WritePIVarULongLong,section,11.6.24,1,1168,YES
+2,11.6.25 MMC_WritePIVarLongLong,section,11.6.25,1,1170,YES
+2,11.6.26 MMC_WritePIVarDouble,section,11.6.26,1,1172,YES
+2,11.6.27 MMC_WriteLargePIVarRaw,section,11.6.27,1,1174,YES
+2,11.6.28 MMC_GetPIVarInfo,section,11.6.28,1,1176,YES
+2,11.6.29 MMC_GetPIVarInfoByAlias,section,11.6.29,1,1181,YES
+2,11.6.30 MMC_GetPIVarsRangeInfo,section,11.6.30,1,1186,YES
+2,11.6.31 MMC_GePIMemOffset,section,11.6.31,1,1190,YES
+1,11.7 PI Bulk Read User Functions,section,11.7,1,1194,YES
+2,11.7.1 MMC_ConfigureBulkReadPI,section,11.7.1,1,1195,YES
+2,11.7.2 MMC_PerformBulkReadCmdPI,section,11.7.2,1,1198,YES
+1,11.8 PI Functions and Implementation Examples,section,11.8,1,1201,YES
+2,11.8.1 C++ Example,section,11.8.1,1,1201,YES
+2,11.8.2 General PI Test IEC Example,section,11.8.2,1,1206,YES
+2,"11.8.3 PI Full Example in C, and IEC with EtherCAT Configuration Settings",section,11.8.3,1,1206,YES
+0,Chapter 12 Data Recording,chapter,12,1,1207,YES
+1,12.1 Triggering a Recording,section,12.1,1,1207,YES
+1,12.2 Active Range Support,section,12.2,1,1208,YES
+1,12.3 Using Data Recording in the Maestro,section,12.3,1,1208,YES
+2,12.3.1 Excluding Triggers,section,12.3.1,1,1208,YES
+2,12.3.2 Including Triggers,section,12.3.2,1,1209,YES
+1,12.4 Recording Definitions and Parameters,section,12.4,1,1101,YES
+2,12.4.1 Recording Data Signals Bitmask Definitions,section,12.4.1,1,1210,YES
+2,12.4.2 Recording Parameters,section,12.4.2,1,1210,YES
+2,12.4.3 Recording Signal Parameters,section,12.4.3,1,1211,YES
+2,12.4.4 Trigger Modes,section,12.4.4,1,1220,YES
+1,12.5 Data Recording Functions,section,12.5,1,1222,YES
+2,12.5.1 MMC_BeginRecording,section,12.5.1,1,1222,YES
+2,12.5.2 MMC_StopRecording,section,12.5.2,1,1226,YES
+2,12.5.3 MMC_UploadData,section,12.5.3,1,1228,YES
+2,12.5.4 MMC_RecStatus,section,12.5.4,1,1231,YES
+2,12.5.5 MMC_UploadDataHeader,section,12.5.5,1,1234,YES
+0,Chapter 13 Bulk Parameters Reading,chapter,13,1,1238,YES
+1,13.1 Bulk Reading Functions,section,13.1,1,1238,YES
+2,13.1.1 MMC_ConfigBulkRead,section,13.1.1,1,1239,YES
+2,13.1.2 MMC_PerformBulkRead,section,13.1.2,1,1246,YES
+0,Chapter 14 API Events (C & C++),chapter,14,1,1252,YES
+1,14.1 Communication Byte Order,section,14.1,1,1253,YES
+1,14.2 Communication ASYNC Replies (Events) From Drives,section,14.2,1,1253,YES
+1,14.3 Download Firmware Notifications,section,14.3,1,1255,YES
+1,14.4 Emergency Event (C & C++),section,14.4,1,1255,YES
+2,14.4.1 EmergencyEvent_Received (C++),section,14.4.1,1,1256,YES
+1,14.5 Motion Ended Event,section,14.5,1,1256,YES
+1,14.6 HeartBeat Event,section,14.6,1,1256,YES
+1,14.7 PDO Receive Event,section,14.7,1,1257,YES
+2,14.7.1 Event Group equals to 5 or 6,section,14.7.1,1,1258,YES
+2,14.7.2 Event Group equals to 11,section,14.7.2,1,1258,YES
+2,14.7.3 Event Group Equals to 16 or 17,section,14.7.3,1,1258,YES
+2,"14.7.4 Event Group equals to 1 – 15 besides 5, 6, 11, 16 and 17",section,14.7.4,1,1259,YES
+1,14.8 Home Ended Event (C & C++),section,14.8,1,1259,YES
+2,14.8.1 HomeEnded_Received (C++),section,14.8.1,1,1259,YES
+1,14.9 Modbus Write Event,section,14.9,1,1260,YES
+1,14.10 Touch Probe Ended Event,section,14.10,1,1260,YES
+1,14.11 Node Connected Event,section,14.11,1,1260,YES
+1,14.12 Node Initialization Completed Event,section,14.12,1,1261,YES
+2,14.12.1 NodeInitEvent_Received (C++),section,14.12.1,1,1261,YES
+1,14.13 Node Error Event (C & C++),section,14.13,1,1262,YES
+2,14.13.1 NodeErrorEvent_Received (C++),section,14.13.1,1,1263,YES
+1,14.14 Stop On Limit Event (C & C++),section,14.14,1,1264,YES
+2,14.14.1 StopOnLimit_Received (C++),section,14.14.1,1,1265,YES
+1,14.15 Table Underflow Event,section,14.15,1,1267,YES
+1,14.16 Global Async Reply Event,section,14.16,1,1267,YES
+2,14.16.1 GlobalAsyncReply_Received (C++),section,14.16.1,1,1268,YES
+1,14.17 Notification Function Block Event (C & C++),section,14.17,1,1269,YES
+2,14.17.1 FBNotifyEvent_Received (C++),section,14.17.1,1,1270,YES
+1,14.18 Policy Ended Event (C & C++),section,14.18,1,1271,YES
+2,14.18.1 PolicyEndedEvent_Received (C++),section,14.18.1,1,1272,YES
+1,14.19 Communication Event Mechanism,section,14.19,1,1273,YES
+1,14.20 Events Mask and Enumeration,section,14.20,1,1274,YES
+1,14.21 Asynchronous Events Callback (C & C++),section,14.21,1,1275,YES
+2,14.21.1 Callback Prototype,section,14.21.1,1,1275,YES
+2,14.21.2 Data Structure,section,14.21.2,1,1275,YES
+2,14.21.3 Event Extraction Example,section,14.21.3,1,1275,YES
+2,14.21.4 Net To local Conversion,section,14.21.4,1,1280,YES
+2,14.21.5 AsyncReplyEvent_Received (C++),section,14.21.5,1,1281,YES
+1,14.22 Notification and Event Function Blocks in C,section,14.22,1,1284,YES
+2,14.22.1 MMC_InsertNotificationFb,section,14.22.1,1,1285,YES
+2,14.22.2 MMC_ClearEventsMask,section,14.22.2,1,1288,YES
+2,14.22.3 MMC_DisableMotionEndedEvent,section,14.22.3,1,1291,YES
+2,14.22.4 MMC_EnableMotionEndedEvent,section,14.22.4,1,1294,YES
+2,14.22.5 MMC_GetEventsMask,section,14.22.5,1,1297,YES
+2,14.22.6 MMC_SetEventsMask,section,14.22.6,1,1300,YES
+0,Chapter 15 Error Correction Mechanism,chapter,15,1,1303,YES
+1,15.1 2-D Error Correction,section,15.1,1,1303,YES
+1,15.2 3-D Error Correction,section,15.2,1,1305,YES
+1,15.3 Data Representation,section,15.3,1,1306,YES
+2,15.3.1 1-D Representation ,section,15.3.1,1,1307,YES
+2,15.3.2 2-D Representation,section,15.3.2,1,1308,YES
+2,15.3.3 3-D Representation,section,15.3.3,1,1310,YES
+1,15.4 Error Correction Functions,section,15.4,1,1311,YES
+2,15.4.1 MMC_LoadErrorCorrTable,section,15.4.1,1,1312,YES
+2,15.4.2 MMC_EnableErrorCorrTable,section,15.4.2,1,1315,YES
+2,15.4.3 MMC_GetErrorTableStatus,section,15.4.3,1,1318,YES
+2,15.4.4 MMC_DisableErrorCorrTable,section,15.4.4,1,1321,YES
+2,15.4.5 MMC_UnloadErrorCorrTable,section,15.4.5,1,1324,YES
+0,Chapter 16 Saving Maestro User Program Parameters,chapter,16,1,1327,YES
+1,16.1 Introduction,section,16.1,1,1327,YES
+1,16.2 The MMCUserParams C++ Class,section,16.2,1,1328,YES
+2,16.2.1 Open,section,16.2.1,1,1330,YES
+2,16.2.2 Close,section,16.2.2,1,1331,YES
+2,16.2.3 Read,section,16.2.3,1,1332,YES
+2,16.2.4 GetXmlFileRoot,section,16.2.4,1,1335,YES
+2,16.2.5 GetXmlFileDescrp,section,16.2.5,1,1336,YES
+2,16.2.6 SetSpeakDbgLvl,section,16.2.6,1,1337,YES
+2,16.2.7 UPXML Functions Code Examples,section,16.2.7,1,1338,YES
+2,16.2.8 UpxmlEg.xml - Input File Example,section,16.2.8,1,1341,YES
+2,16.2.9 Program output example,section,16.2.9,1,1343,YES
+0,Chapter 17 Network Connectivity and Configuration,chapter,17,1,1344,YES
+1,17.1 Network Function Blocks,section,17.1,1,1344,YES
+2,17.1.1 MMC_CloseUdpChannel,section,17.1.1,1,1345,YES
+2,17.1.2 MMC_GetDefGateway,section,17.1.2,1,1348,YES
+2,17.1.3 MMC_GetDhcp,section,17.1.3,1,1351,YES
+2,17.1.4 IMMC_GetIpAddr,section,17.1.4,1,1353,YES
+2,17.1.5 MMC_GetIpMask,section,17.1.5,1,1356,YES
+2,17.1.6 MMC_GetServerIp,section,17.1.6,1,1359,YES
+2,17.1.7 MMC_NetworkInfo,section,17.1.7,1,1362,YES
+2,17.1.8 MMC_NetworkScan,section,17.1.8,1,1367,YES
+2,17.1.9 MMC_OpenUdpChannel,section,17.1.9,1,1370,YES
+2,17.1.10 MMC_SetDefGateway,section,17.1.10,1,1373,YES
+2,17.1.11 MMC_SetDhcp,section,17.1.11,1,1375,YES
+2,17.1.12 MMC_SetIpAddr,section,17.1.12,1,1378,YES
+2,17.1.13 MMC_SetIpMask,section,17.1.13,1,1381,YES
+2,17.1.14 MMC_SetServerIp,section,17.1.14,1,1384,YES
+0,Chapter 18 Host Communication,chapter,18,1,1387,YES
+1,18.1 Modbus Communication Function Blocks,section,18.1,1,1387,YES
+2,18.1.1 MMC_MbusIsRunning,section,18.1.1,1,1388,YES
+2,18.1.2 MMC_MbusReadCoilsTable,section,18.1.2,1,1390,YES
+2,18.1.3 MMC_MbusReadHoldingRegisterTable,section,18.1.3,1,1393,YES
+2,18.1.4 MMC_MbusReadInputsTable,section,18.1.4,1,1396,YES
+2,18.1.5 MMC_MbusStartServer,section,18.1.5,1,1399,YES
+2,18.1.6 MMC_MbusStopServer,section,18.1.6,1,1401,YES
+2,18.1.7 MMC_MbusWriteCoilsTable,section,18.1.7,1,1404,YES
+2,18.1.8 MMC_MbusWriteHoldingRegisterTable,section,18.1.8,1,1407,YES
+0,Chapter 19 CANbus Drive Communication,chapter,19,1,1410,YES
+1,19.1 Master – Slave Relations,section,19.1,1,1410,YES
+1,19.2 CANopen DS-402 Modes of Operation,section,19.2,1,1411,YES
+1,19.3 PDO Mapping,section,19.3,1,1412,YES
+1,19.4 Using Event Groups 16 and 17,section,19.4,1,1413,YES
+1,19.5 Servo Drive Sub-Index,section,19.5,1,1415,YES
+1,19.6 SYNC and Time Stamp,section,19.6,1,1415,YES
+1,19.7 CAN Bulk Upload,section,19.7,1,1415,YES
+1,"19.8 CAN – PDO, SDO Configurator",section,19.8,1,1416,YES
+1,19.9 CANbus Function Blocks ,section,19.9,1,1416,YES
+2,19.9.1 MMC_CancelVirtualEncoder,section,19.9.1,1,1417,YES
+2,19.9.2 MMC_CancelParamEvPDO3,section,19.9.2,1,1419,YES
+2,19.9.3 MMC_CancelParamEvPDO4,section,19.9.3,1,1422,YES
+2,19.9.4 MMC_CfgRegParamEvPDO3,section,19.9.4,1,1425,YES
+2,19.9.5 MMC_CfgRegParamEvPDO4,section,19.9.5,1,1429,YES
+2,19.9.6 MMC_CfgUserParamEvPDO3,section,19.9.6,1,1433,YES
+2,19.9.7 MMC_CfgUserParamEvPDO4,section,19.9.7,1,1438,YES
+2,19.9.8 MMC_ChangeDefaultPDOConfiguration,section,19.9.8,1,1443,YES
+2,19.9.9 MMC_ConfigEventModePDO3,section,19.9.9,1,1446,YES
+2,19.9.10 MMC_ConfigEventModePDO4,section,19.9.10,1,1449,YES
+2,19.9.11 MMC_ConfigVirtualEncoder,section,19.9.11,1,1452,YES
+2,19.9.12 MMC_GetAxisByCanId,section,19.9.12,1,1455,YES
+2,19.9.13 MMC_GetPDOInfo,section,19.9.13,1,1458,YES
+2,19.9.14 MMC_GetSyncTime,section,19.9.14,1,1462,YES
+2,19.9.15 MMC_PDOGeneralRead,section,19.9.15,1,1465,YES
+2,19.9.16 MMC_PDOGeneralWrite,section,19.9.16,1,1468,YES
+2,19.9.17 MMC_ReceiveCANRawData,section,19.9.17,1,1470,YES
+2,19.9.18 MMC_SendCANRawData,section,19.9.18,1,1473,YES
+2,19.9.19 MMC_SendandReceiveCANRawData,section,19.9.19,1,1476,YES
+2,19.9.20 MMC_SendCmd,section,19.9.20,1,1479,YES
+2,19.9.21 MMC_SetHeartBeatConsumer,section,19.9.21,1,1481,YES
+2,19.9.22 MMC_SetSyncTime,section,19.9.22,1,1484,YES
+2,19.9.23 MMC_StartBulkUpload,section,19.9.23,1,1486,YES
+2,19.9.24 MMC_GetBulkUploadStatus,section,19.9.24,1,1488,YES
+2,19.9.25 MMC_GetBulkUploadData,section,19.9.25,1,1491,YES
+2,19.9.26 MMC_ResetCommStatistics,section,19.9.26,1,1493,YES
+2,19.9.27 MMC_SendSDO,section,19.9.27,1,1496,YES
+2,19.9.28 MMC_SendSDOEx,section,19.9.28,1,1501,YES
+2,19.9.29 MMC_SendSdoAsync,section,19.9.29,1,1505,YES
+2,19.9.30 MMC_RetrieveSDOAsync,section,19.9.30,1,1508,YES
+2,19.9.31 MMC_SendSdoAsyncEx,section,19.9.31,1,1510,YES
+0,Chapter 20 DS-401 CANbus I/O Communications,chapter,20,1,1513,YES
+1,20.1 DS-401 Function Blocks ,section,20.1,1,1513,YES
+2,20.1.1 MMC_CancelGeneralRPDO3,section,20.1.1,1,1514,YES
+2,20.1.2 MMC_CancelGeneralRPDO4,section,20.1.2,1,1516,YES
+2,20.1.3 MMC_CancelGeneralTPDO3,section,20.1.3,1,1519,YES
+2,20.1.4 MMC_CancelGeneralTPDO4,section,20.1.4,1,1521,YES
+2,20.1.5 MMC_ConfigGeneralRPDO3,section,20.1.5,1,1524,YES
+2,20.1.6 MMC_ConfigGeneralRPDO4,section,20.1.6,1,1526,YES
+2,20.1.7 MMC_ConfigGeneralTPDO3,section,20.1.7,1,1529,YES
+2,20.1.8 MMC_ConfigGeneralTPDO4,section,20.1.8,1,1531,YES
+2,20.1.9 MMC_DisableDS401DIChangedEvent,section,20.1.9,1,1534,YES
+2,20.1.10 MMC_EnableDS401DIChangedEvent,section,20.1.10,1,1537,YES
+2,20.1.11 MMC_ReadDS401DIGroup,section,20.1.11,1,1540,YES
+2,20.1.12 MMC_ReadDS401DInput,section,20.1.12,1,1543,YES
+2,20.1.13 MMC_WriteDS401DOGroup,section,20.1.13,1,1546,YES
+2,20.1.14 MMC_WriteDS401DOutput,section,20.1.14,1,1549,YES
+0,Chapter 21 EtherCAT Drive Communication,chapter,21,1,1552,YES
+1,21.1 Elmo EtherCAT,section,21.1,1,1553,YES
+1,21.2 Elmo Slave Drives,section,21.2,1,1554,YES
+1,21.3 EtherCAT with Maestro,section,21.3,1,1555,YES
+1,21.4 EtherCAT Gateway,section,21.4,1,1556,YES
+1,21.5 EtherCAT Redundancy in the Platinum Maestro,section,21.5,1,1556,YES
+2,21.5.1 Introduction,section,21.5.1,1,1557,YES
+2,21.5.2 Description,section,21.5.2,1,1558,YES
+2,21.5.3 Redundancy Functionality,section,21.5.3,1,1559,YES
+2,21.5.4 EAS Configuration,section,21.5.4,1,1563,YES
+2,21.5.5 Platinum Maestro API,section,21.5.5,1,1564,YES
+1,21.6 EtherCAT Aliasing support in the Platinum Maestro,section,21.6,1,1566,YES
+2,21.6.1 Introduction,section,21.6.1,1,1566,YES
+2,21.6.2 Description,section,21.6.2,1,1566,YES
+2,21.6.3 Supported Device Identification Methods,section,21.6.3,1,1568,YES
+2,21.6.4 EAS EtherCAT Configuration Tool Support,section,21.6.4,1,1569,YES
+2,21.6.5 Platinum Maestro API,section,21.6.5,1,1570,YES
+1,21.7 EtherCAT Function Blocks,section,21.7,1,1571,YES
+2,21.7.1 MMC_DisableEthercatConfigMode,section,21.7.1,1,1572,YES
+2,21.7.2 MMC_EnableEthercatConfigMode,section,21.7.2,1,1574,YES
+2,21.7.3 MMC_ECATIODisableDIChangedEvent,section,21.7.3,1,1576,YES
+2,21.7.4 MMC_ECATIOEnableDIChangedEvent,section,21.7.4,1,1578,YES
+2,21.7.5 MMC_ECATIOReadDigitalInput,section,21.7.5,1,1580,YES
+2,21.7.6 MMC_ECATIOReadAnalogInput,section,21.7.6,1,1583,YES
+2,21.7.7 MMC_ECATIOWriteAnalogOutput,section,21.7.7,1,1586,YES
+2,21.7.8 MMC_ECATIOWriteDigitalOutput,section,21.7.8,1,1588,YES
+2,21.7.9 MMC_GetCommStatistics,section,21.7.9,1,1590,YES
+2,21.7.10 MMC_GetEthercatCommStatistics,section,21.7.10,1,1594,YES
+2,21.7.11 MMC_GetCommDiagnostics,section,21.7.11,1,1602,YES
+2,21.7.12 MMC_GetReactorStatistics,section,21.7.12,1,1605,YES
+2,21.7.13 MMC_IsEthercatConfigMode,section,21.7.13,1,1608,YES
+2,21.7.14 MMC_ResetCommDiagnostics,section,21.7.14,1,1610,YES
+2,21.7.15 MMC_ResetCommStatistics,section,21.7.15,1,1613,YES
+0,Chapter 22 Interpreter Command Functions,chapter,22,1,1615,YES
+1,22.1 Get Function – Asynchronous Mode,section,22.1,1,1616,YES
+1,22.2 MMC_ElmoExecuteLabel,section,22.2,1,1617,YES
+2,22.2.1 Function Code Example,section,22.2.1,1,1619,YES
+1,22.3 MMC_ElmoSetParameter,section,22.3,1,1620,YES
+2,22.3.1 Function Code Example,section,22.3.1,1,1622,YES
+1,22.4 MMC_ElmoGetParameter,section,22.4,1,1623,YES
+2,22.4.1 Function Code Example,section,22.4.1,1,1625,YES
+1,22.5 MMC_ElmoGetAn array,section,22.5,1,1626,YES
+2,22.5.1 Function Code Example,section,22.5.1,1,1628,YES
+1,22.6 MMC_ElmoGetAn arrayAndRetrieveData,section,22.6,1,1629,YES
+2,22.6.1 Function Code Example,section,22.6.1,1,1631,YES
+1,22.7 MMC_ElmoGetParameterAndRetrieveData,section,22.7,1,1632,YES
+2,22.7.1 Function Code Example,section,22.7.1,1,1634,YES
+1,22.8 MMC_ElmoSetAn array,section,22.8,1,1635,YES
+2,22.8.1 Function Code Example,section,22.8.1,1,1637,YES
+1,22.9 MMC_ElmoQueryOperationFIFOIndex,section,22.9,1,1638,YES
+2,22.9.1 Function Code Example,section,22.9.1,1,1639,YES
+1,22.10 MMC_ElmoQueryOperationFIFORetrieveData,section,22.10,1,1640,YES
+2,22.10.1 Function Code Example,section,22.10.1,1,1641,YES
+1,22.11 MMC_ElmoQueryOperationFIFOIndexReset,section,22.11,1,1642,YES
+2,22.11.1 Function Code Example,section,22.11.1,1,1643,YES
+1,22.12 MMC_ElmoCall,section,22.12,1,1644,YES
+2,22.12.1 Function Block Code Example,section,22.12.1,1,1646,YES
+0,Chapter 23 EtherNetIP Communication,chapter,23,1,1647,YES
+1,23.1 Terminology,section,23.1,1,1647,YES
+2,23.1.1 Assemblies,section,23.1.1,1,1648,YES
+2,23.1.2 Tags,section,23.1.2,1,1649,YES
+2,23.1.3 Data Types,section,23.1.3,1,1650,YES
+1,23.2 Configuring the Ethernet IP Device as Adapter,section,23.2,1,1650,YES
+2,23.2.1 Assembly Setting Data,section,23.2.1,1,1653,YES
+2,23.2.2 New Assembly Received Event,section,23.2.2,1,1654,YES
+2,23.2.3 Timeouts and errors,section,23.2.3,1,1656,YES
+1,23.3 Ethernet/IP Setup,section,23.3,1,1657,YES
+2,23.3.1 XML Structure,section,23.3.1,1,1658,YES
+1,23.4 EtherNetIP Functions,section,23.4,1,1661,YES
+2,23.4.1 EipGetAdpTagRefByName,section,23.4.1,1,1662,YES
+2,23.4.2 EipWriteAdpTag,section,23.4.2,1,1664,YES
+2,23.4.3 EipReadAdpTag,section,23.4.3,1,1666,YES
+2,23.4.4 EipGetAssemblyRefByInstance,section,23.4.4,1,1668,YES
+2,23.4.5 EipGetAssemblyRefByName,section,23.4.5,1,1670,YES
+2,23.4.6 EipSetAssembly,section,23.4.6,1,1672,YES
+2,23.4.7 EipGetAssembly,section,23.4.7,1,1674,YES
+2,23.4.8 EipGetDevTagRefByName,section,23.4.8,1,1676,YES
+2,23.4.9 EipSetDevTag,section,23.4.9,1,1678,YES
+2,23.4.10 EipGetDevTag,section,23.4.10,1,1680,YES
+2,23.4.11 EipReadDevTagData,section,23.4.11,1,1682,YES
+2,23.4.12 EipSyncGetDevTag,section,23.4.12,1,1684,YES
+2,23.4.13 EipCheckDevTagReply,section,23.4.13,1,1686,YES
+2,23.4.14 EipOpenSession,section,23.4.14,1,1688,YES
+2,23.4.15 EIPCloseSession,section,23.4.15,1,1692,YES
+2,23.4.16 EipCreate,section,23.4.16,1,1694,YES
+2,23.4.17 EipDestroy,section,23.4.17,1,1696,YES
+2,23.4.18 Functions and Implementation Example,section,23.4.18,1,1698,YES
+0,Chapter 24 Programming in C++,chapter,24,1,1705,YES
+1,24.1 Introduction,section,24.1,1,1705,YES
+2,24.1.1 MMCException,section,24.1.1,1,1706,YES
+1,24.2 The MMCPPGlobal class,section,24.2,1,1707,YES
+2,24.2.1 MMCPPGlobal Class Functions Code Example,section,24.2.1,1,1710,YES
+2,24.2.2 RegisterRTE,section,24.2.2,1,1723,YES
+2,24.2.3 RegisterWarningClbk,section,24.2.3,1,1724,YES
+2,24.2.4 SetThrowFlag,section,24.2.4,1,1725,YES
+2,24.2.5 SetThrowWarningFlag,section,24.2.5,1,1726,YES
+2,24.2.6 SetPrintErrorFlag,section,24.2.6,1,1727,YES
+2,24.2.7 SetPrintWarningFlag,section,24.2.7,1,1728,YES
+2,24.2.8 ThrowMessage,section,24.2.8,1,1729,YES
+2,24.2.9 GetConnectionType,section,24.2.9,1,1730,YES
+2,24.2.10 SetConnectionType,section,24.2.10,1,1731,YES
+2,24.2.11 SetMessageFileName,section,24.2.11,1,1732,YES
+2,24.2.12 GetSyncTime,section,24.2.12,1,1733,YES
+2,24.2.13 SetSyncTime,section,24.2.13,1,1734,YES
+2,24.2.14 CreateSYNCTimer,section,24.2.14,1,1735,YES
+2,24.2.15 DestroySYNCTimer,section,24.2.15,1,1736,YES
+2,24.2.16 GetConnectionReg,section,24.2.16,1,1737,YES
+2,24.2.17 ConfigBulkRead,section,24.2.17,1,1738,YES
+2,24.2.18 PerformBulkRead,section,24.2.18,1,1740,YES
+2,24.2.19 UserCommandControl,section,24.2.19,1,1742,YES
+2,24.2.20 RegErrPolicy,section,24.2.20,1,1743,YES
+2,24.2.21 GetErrPolicy,section,24.2.21,1,1744,YES
+2,24.2.22 ResetSystem,section,24.2.22,1,1745,YES
+2,24.2.23 RunSineGenrator,section,24.2.23,1,1746,YES
+2,24.2.24 RegisterConnection,section,24.2.24,1,1747,YES
+2,24.2.25 GetConnectionReg ClearConnectionReg,section,24.2.25,1,1748,YES
+2,24.2.26 UserCommandControl,section,24.2.26,1,1749,YES
+2,24.2.27 GetLibVersion,section,24.2.27,1,1750,YES
+2,24.2.28 GetProfileConditioning,section,24.2.28,1,1751,YES
+1,24.3 The MMCSingleAxis class,section,24.3,1,1754,YES
+2,24.3.1 Function Code Examples,section,24.3.1,1,1757,YES
+2,24.3.2 MMCSingleAxis Class Functions Code Example 1,section,24.3.2,1,1761,YES
+2,24.3.3 MMCSingleAxis Class Functions Code Example 2,section,24.3.3,1,1766,YES
+2,24.3.4 MMCSingleAxis Class Functions Code Example 3,section,24.3.4,1,1782,YES
+2,24.3.5 SetDefaultParams,section,24.3.5,1,1795,YES
+2,24.3.6 SetDefaultHomeDS402Params,section,24.3.6,1,1800,YES
+2,24.3.7 SetDefaultHomeDS402ExParams,section,24.3.7,1,1801,YES
+2,24.3.8 Home,section,24.3.8,1,1802,YES
+2,24.3.9 HomeDS402,section,24.3.9,1,1803,YES
+2,24.3.10 HomeDS402Ex,section,24.3.10,1,1806,YES
+2,24.3.11 MoveAbsolute,section,24.3.11,1,1808,YES
+2,24.3.12 MoveAbsoluteEx,section,24.3.12,1,1810,YES
+2,24.3.13 MoveAdditive,section,24.3.13,1,1812,YES
+2,24.3.14 MoveAdditiveEx,section,24.3.14,1,1816,YES
+2,24.3.15 MoveRelative,section,24.3.15,1,1818,YES
+2,24.3.16 MoveRelativeEx,section,24.3.16,1,1822,YES
+2,24.3.17 MoveVelocity,section,24.3.17,1,1824,YES
+2,24.3.18 MoveVelocityEx,section,24.3.18,1,1826,YES
+2,24.3.19 MoveAbsoluteRepetitive,section,24.3.19,1,1828,YES
+2,24.3.20 MoveAbsoluteRepetitiveEx,section,24.3.20,1,1832,YES
+2,24.3.21 MoveRelativeRepetitive,section,24.3.21,1,1835,YES
+2,24.3.22 MoveRelativeRepetitiveEx,section,24.3.22,1,1839,YES
+2,24.3.23 MoveAdditiveRepetitive,section,24.3.23,1,1842,YES
+2,24.3.24 MoveAdditiveRepetitiveEx,section,24.3.24,1,1846,YES
+2,24.3.25 MoveTorque,section,24.3.25,1,1849,YES
+2,24.3.26 MoveTorqueEx,section,24.3.26,1,1851,YES
+2,24.3.27 PositionProfile,section,24.3.27,1,1853,YES
+2,24.3.28 GetTouchProbeData,section,24.3.28,1,1854,YES
+2,24.3.29 TouchProbeDisable,section,24.3.29,1,1859,YES
+2,24.3.30 TouchProbeDisableEx,section,24.3.30,1,1860,YES
+2,24.3.31 TouchProbeEnable,section,24.3.31,1,1862,YES
+2,24.3.32 TouchProbeEnableEx,section,24.3.32,1,1863,YES
+2,24.3.33 SetOpMode,section,24.3.33,1,1865,YES
+2,24.3.34 SetOpModeEx,section,24.3.34,1,1866,YES
+2,24.3.35 GetOpMode,section,24.3.35,1,1867,YES
+2,24.3.36 PowerOn,section,24.3.36,1,1870,YES
+2,24.3.37 PowerOff,section,24.3.37,1,1870,YES
+2,24.3.38 SendCmdViaSdoDownload,section,24.3.38,1,1872,YES
+2,24.3.39 SendCmdViaSdoUpload,section,24.3.39,1,1873,YES
+2,24.3.40 GetActualPosition,section,24.3.40,1,1877,YES
+2,24.3.41 GetActualVelocity,section,24.3.41,1,1877,YES
+2,24.3.42 GetActualTorque,section,24.3.42,1,1879,YES
+2,24.3.43 Halt,section,24.3.43,1,1880,YES
+2,24.3.44 Stop,section,24.3.44,1,1882,YES
+2,24.3.45 GetDigInput[s],section,24.3.45,1,1883,YES
+2,24.3.46 GetDigOutputs32Bit,section,24.3.46,1,1884,YES
+2,24.3.47 GetDigOutputs,section,24.3.47,1,1884,YES
+2,24.3.48 SetDigOutputs32Bit,section,24.3.48,1,1886,YES
+2,24.3.49 SetDigOutputs,section,24.3.49,1,1887,YES
+2,24.3.50 SetOverride,section,24.3.50,1,1888,YES
+2,24.3.51 ConfigPDO,section,24.3.51,1,1889,YES
+2,24.3.52 CancelPDO,section,24.3.52,1,1891,YES
+2,24.3.53 ChangeDefaultPDOConfig,section,24.3.53,1,1892,YES
+2,24.3.54 ElmoSetAsyncAn array,section,24.3.54,1,1893,YES
+2,24.3.55 ElmoSetAsyncParam,section,24.3.55,1,1894,YES
+2,24.3.56 ElmoGetAsyncIntParam,section,24.3.56,1,1896,YES
+2,24.3.57 ElmoGetAsyncFloatParam,section,24.3.57,1,1898,YES
+2,24.3.58 ElmoGetAsyncIntAn array ,section,24.3.58,1,1899,YES
+2,24.3.59 ElmoGetAsyncFloatAn array,section,24.3.59,1,1900,YES
+2,24.3.60 ElmoGetSyncParam,section,24.3.60,1,1901,YES
+2,24.3.61 ElmoGetSyncAn array,section,24.3.61,1,1902,YES
+2,24.3.62 ElmoCallAsync,section,24.3.62,1,1903,YES
+2,24.3.63 ElmoExecute,section,24.3.63,1,1904,YES
+2,24.3.64 ElmoIsReplyAwaiting,section,24.3.64,1,1905,YES
+2,24.3.65 ElmoGetReply,section,24.3.65,1,1905,YES
+2,24.3.66 ConfigVirtualEncoder,section,24.3.66,1,1906,YES
+2,24.3.67 CancelVirtualEncoder,section,24.3.67,1,1908,YES
+2,24.3.68 SetPosition,section,24.3.68,1,1908,YES
+2,24.3.69 SetParameter,section,24.3.69,1,1910,YES
+2,24.3.70 AxisLink,section,24.3.70,1,1911,YES
+2,24.3.71 AxisUnLink,section,24.3.71,1,1912,YES
+2,24.3.72 GetBoolParameter,section,24.3.72,1,1912,YES
+2,24.3.73 SetBoolParameter,section,24.3.73,1,1914,YES
+2,24.3.74 GetParameter,section,24.3.74,1,1915,YES
+2,24.3.75 SetProfileConditioning,section,24.3.75,1,1916,YES
+2,24.3.76 GetFbDepth,section,24.3.76,1,1919,YES
+2,24.3.77 GetStatusRegister,section,24.3.77,1,1923,YES
+1,24.4 The MMCNode class,section,24.4,1,1925,YES
+2,24.4.1 CMMCNode Class Functions Code Example 1,section,24.4.1,1,1926,YES
+2,24.4.2 ConfigPDOEventMode,section,24.4.2,1,1942,YES
+2,24.4.3 EtherCATPIVarInfo,section,24.4.3,1,1943,YES
+2,24.4.4 EtherCATReadMemoryRange,section,24.4.4,1,1945,YES
+2,24.4.5 EtherCATWriteMemoryRange,section,24.4.5,1,1946,YES
+2,24.4.6 EtherCATReadPIVar,section,24.4.6,1,1947,YES
+2,24.4.7 EtherCATWritePIVar,section,24.4.7,1,1952,YES
+2,24.4.8 Reset,section,24.4.8,1,1957,YES
+2,24.4.9 ReadStatus,section,24.4.9,1,1958,YES
+2,24.4.10 SendSDO,section,24.4.10,1,1960,YES
+2,24.4.11 SendSDOEx,section,24.4.11,1,1962,YES
+2,24.4.12 SendSdoAsyncEx,section,24.4.12,1,1963,YES
+2,24.4.13 SendSDODownloadEx,section,24.4.13,1,1966,YES
+2,24.4.14 SendSDOUpload,section,24.4.14,1,1968,YES
+2,24.4.15 SendSDOUploadEx,section,24.4.15,1,1969,YES
+2,24.4.16 SendSDOUploadAsync,section,24.4.16,1,1971,YES
+2,24.4.17 SendSDOUploadAsyncEx,section,24.4.17,1,1972,YES
+2,24.4.18 RetreiveSDOUploadAsync,section,24.4.18,1,1974,YES
+2,24.4.19 PDOGeneralRead,section,24.4.19,1,1974,YES
+2,24.4.20 PDOGeneralWrite,section,24.4.20,1,1976,YES
+2,24.4.21 GetPDOInfo,section,24.4.21,1,1977,YES
+2,24.4.22 SetBoolParameter,section,24.4.22,1,1978,YES
+2,24.4.23 SetParameter,section,24.4.23,1,1979,YES
+2,24.4.24 GetBoolParameter,section,24.4.24,1,1980,YES
+2,24.4.25 GetParameter,section,24.4.25,1,1981,YES
+2,24.4.26 GetAxisError/ReadAxisError,section,24.4.26,1,1982,YES
+1,24.5 The MMCAxis class,section,24.5,1,1984,YES
+2,24.5.1 DisableMotionEndedEvent,section,24.5.1,1,1985,YES
+1,24.6 The MMCMotionAxis class,section,24.6,1,1993,YES
+1,24.7 The DLLMMCPP_API MMC_MOTIONPARAMS_GROUP class,section,24.7,1,2050,YES
+1,24.8 The MMCGroupAxis class,section,24.8,1,2055,YES
+1,24.9 The MMCDS401Axis class,section,24.9,1,2190,YES
+1,24.10 The MMCDS406Axis class,section,24.10,1,2200,YES
+1,24.11 The MMCECATIO class,section,24.11,1,2203,YES
+1,24.12 The MMCConnection class,section,24.12,1,2210,YES
+1,24.13 The MMCNetwork class,section,24.13,1,2269,YES
+1,24.14 The MMCHostComm class,section,24.14,1,2286,YES
+1,24.15 The CMMCModbusBuffer class,section,24.15,1,2313,YES
+1,24.16 The CMMCModbusSwapBuffer class,section,24.16,1,2314,YES
+1,24.17 The MMCErrorCorr class,section,24.17,1,2315,YES
+1,24.18 The CMMCBulkRead class,section,24.18,1,2323,YES
+1,24.19 The MMCUserParams class,section,24.19,1,2329,YES
+1,24.20 The MMCEIPSession class,section,24.20,1,2333,YES
+1,24.21 The MMCEIPDataType class,section,24.21,1,2338,YES
+1,24.22 Functions TCP/IP and UDP/IP C++ User Libraries,section,24.22,1,2352,YES
+1,24.23 The MMCUDP class,section,24.23,1,2353,YES
+1,24.24 The MMCTCP class,section,24.24,1,2383,YES
+1,24.25 The MMCEoE Class,section,24.25,1,2393,YES
+0,Chapter 25 IEC 61131-3 Special Functions,chapter,25,1,2423,YES
+1,25.1 ElmoIECLibVers,section,25.1,1,2423,YES
+1,25.2 ElmoIECRTVers,section,25.2,1,2423,YES
+1,25.3 Elmo_RetainLoad,section,25.3,1,2424,YES
+1,25.4 Elmo_RetainSave,section,25.4,1,2425,YES
+1,25.5 MMC_SetImmediateExec,section,25.5,1,2426,YES
+0,Chapter 26 Python Functions,chapter,26,1,2432,YES
+1,26.1 Simplicity of MultiThreading,section,26.1,1,2432,YES
+1,26.2 Python Editor/Debugger,section,26.2,1,2433,YES
+1,26.3 Python Functions,section,26.3,1,2434,YES

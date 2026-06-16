@@ -1,0 +1,120 @@
+# Maestro Administrative and Motion API - Markdown Extract
+
+## Source
+- PDF: `C:\work\Elmo\Elmo_Master\output\pdf\Maestro Administrative and Motion API_2022_12_v2.012_bookmarks_fixed.pdf`
+- Title: `Maestro Administrative and Motion`
+- Subject: `Maestro Administrative and Motion API`
+- Document number: `MAN-MAESTRO-API`
+- Version: `2.012`
+- Release month: `December`
+- PDF pages: 2435
+- Bookmark entries: 895
+
+## Extraction Notes
+- This is a text-first Markdown extraction for AI/context reading.
+- Splitting target: about 40 PDF pages per normal chunk, aligned to PDF bookmark boundaries where possible. Front matter is split into smaller 10-page chunks because the table of contents is dense.
+- Repeated headers, footers, page numbers, and recurring Word/PDF field-code noise were removed or marked where identifiable.
+- Figures and embedded diagrams are not converted to images. Text captions remain when extractable.
+- Page numbers below are physical PDF pages, not necessarily printed manual page numbers.
+
+## Files
+- [analysis_summary.md](analysis_summary.md): high-level structure and recommended read order.
+- [single_axis_motion_control_api_summary_ko.md](single_axis_motion_control_api_summary_ko.md): Chapter 6.1 Single Axis Motion Control API list and argument summary.
+- [api_parts_ko/](api_parts_ko/): Korean API analysis files split by API part.
+- [ethercat_controller_master_required_api_analysis_ko.md](ethercat_controller_master_required_api_analysis_ko.md): API explanation report generated from `EtherCAT Controller(Master) 요구 사양.xlsx`.
+- [outline.md](outline.md): full bookmark outline with links to chunks.
+- [api_function_index.md](api_function_index.md): API-oriented bookmark index for Chapters 6-26.
+- [chunks/](chunks/): extracted text chunks.
+
+## Chunk List
+- [p. 1-10 - Front matter](chunks/000_p0001-p0010_Front-matter.md)
+- [p. 11-20 - Front matter](chunks/001_p0011-p0020_Front-matter.md)
+- [p. 21-28 - Front matter](chunks/002_p0021-p0028_Front-matter.md)
+- [p. 29-39 - Chapter 1 Introduction](chunks/003_p0029-p0039_Chapter-1-Introduction.md)
+- [p. 40-48 - Chapter 2 Maestro Overview](chunks/004_p0040-p0048_Chapter-2-Maestro-Overview.md)
+- [p. 49-64 - Chapter 3 Maestro Hardware Connections](chunks/005_p0049-p0064_Chapter-3-Maestro-Hardware-Connections.md)
+- [p. 65-96 - 4.1 Function Block Errors](chunks/006_p0065-p0096_4.1-Function-Block-Errors.md)
+- [p. 97-135 - 4.3.4 Continued Maestro Error IDs](chunks/007_p0097-p0135_4.3.4-Continued-Maestro-Error-IDs.md)
+- [p. 136-173 - 4.6 NC Profiler Error IDs](chunks/008_p0136-p0173_4.6-NC-Profiler-Error-IDs.md)
+- [p. 174-192 - 4.15.1 General](chunks/009_p0174-p0192_4.15.1-General.md)
+- [p. 193-195 - 4.15.9 MMC_ResetSystem](chunks/010_p0193-p0195_4.15.9-MMC_ResetSystem.md)
+- [p. 196-223 - 5.2.1 Single Axis](chunks/011_p0196-p0223_5.2.1-Single-Axis.md)
+- [p. 224-263 - 5.4.3 Axis Parameters (Explanations)](chunks/012_p0224-p0263_5.4.3-Axis-Parameters-Explanations.md)
+- [p. 264-302 - 5.7.17 Method 17: Homing on RLS](chunks/013_p0264-p0302_5.7.17-Method-17-Homing-on-RLS.md)
+- [p. 303-310 - 5.11.2 Interfaces](chunks/014_p0303-p0310_5.11.2-Interfaces.md)
+- [p. 311-312 - 5.11.5 System Constraints And Limitations](chunks/015_p0311-p0312_5.11.5-System-Constraints-And-Limitations.md)
+- [p. 313-350 - 6.1 Single Axis Motion Control](chunks/016_p0313-p0350_6.1-Single-Axis-Motion-Control.md)
+- [p. 351-387 - 6.1.6 MMC_MoveAdditive](chunks/017_p0351-p0387_6.1.6-MMC_MoveAdditive.md)
+- [p. 388-425 - 6.1.14 MMC_Stop](chunks/018_p0388-p0425_6.1.14-MMC_Stop.md)
+- [p. 426-463 - 6.2.14 MMC_ReadActualTorque](chunks/019_p0426-p0463_6.2.14-MMC_ReadActualTorque.md)
+- [p. 464-499 - 6.2.27 MMC_SetOverride](chunks/020_p0464-p0499_6.2.27-MMC_SetOverride.md)
+- [p. 500-503 - 6.2.40 MMC_GetProfileConditioning](chunks/021_p0500-p0503_6.2.40-MMC_GetProfileConditioning.md)
+- [p. 504-543 - 7.1 Coordinate System and kinematic transformation](chunks/022_p0504-p0543_7.1-Coordinate-System-and-kinematic-transformation.md)
+- [p. 544-582 - 7.5.6 Robot Tansformations Error IDs](chunks/023_p0544-p0582_7.5.6-Robot-Tansformations-Error-IDs.md)
+- [p. 583-619 - 7.5.16 Obtaining the 'S' Position of a Vertex using Transition Modes 18 & 19](chunks/024_p0583-p0619_7.5.16-Obtaining-the-S-Position-of-a-Vertex-using-Transition-Modes-18-19.md)
+- [p. 620-656 - 7.8.5 Online Splines](chunks/025_p0620-p0656_7.8.5-Online-Splines.md)
+- [p. 657-693 - 7.9.7 MMC_MoveCircularAbsoluteRadius](chunks/026_p0657-p0693_7.9.7-MMC_MoveCircularAbsoluteRadius.md)
+- [p. 694-733 - 7.9.13 MMC_MoveLinearAdditiveEx](chunks/027_p0694-p0733_7.9.13-MMC_MoveLinearAdditiveEx.md)
+- [p. 734-770 - 7.10.5 MC_KIN_REF_SCARA](chunks/028_p0734-p0770_7.10.5-MC_KIN_REF_SCARA.md)
+- [p. 771-810 - 7.10.16 MMC_TrackRotaryTable](chunks/029_p0771-p0810_7.10.16-MMC_TrackRotaryTable.md)
+- [p. 811-842 - 7.10.28 MMC_GroupReadActualVelocity](chunks/030_p0811-p0842_7.10.28-MMC_GroupReadActualVelocity.md)
+- [p. 843-846 - 7.10.39 MMC_GetGroupMembersInfo](chunks/031_p0843-p0846_7.10.39-MMC_GetGroupMembersInfo.md)
+- [p. 847-885 - 8.3 PVT Interpolation Mode](chunks/032_p0847-p0885_8.3-PVT-Interpolation-Mode.md)
+- [p. 886-889 - 8.10.6 MMC_AppendPointsToTable](chunks/033_p0886-p0889_8.10.6-MMC_AppendPointsToTable.md)
+- [p. 890-893 - 8.10.7 MMC_GetTableIndex](chunks/034_p0890-p0893_8.10.7-MMC_GetTableIndex.md)
+- [p. 894-933 - 9.2 CAM Table](chunks/035_p0894-p0933_9.2-CAM-Table.md)
+- [p. 934-950 - 9.6.10 MMC_CamSetProperty](chunks/036_p0934-p0950_9.6.10-MMC_CamSetProperty.md)
+- [p. 951-955 - 9.7.2 Periodicity Modes of Operation](chunks/037_p0951-p0955_9.7.2-Periodicity-Modes-of-Operation.md)
+- [p. 956-989 - Chapter 10 API Services and Operations](chunks/038_p0956-p0989_Chapter-10-API-Services-and-Operations.md)
+- [p. 990-1028 - 10.2.14 MMC_GetFoEStatus](chunks/039_p0990-p1028_10.2.14-MMC_GetFoEStatus.md)
+- [p. 1029-1065 - 10.2.28 MMC_IPCInitConnection](chunks/040_p1029-p1065_10.2.28-MMC_IPCInitConnection.md)
+- [p. 1066-1091 - 10.2.43 MMC_WriteGroupOfParametersEx](chunks/041_p1066-p1091_10.2.43-MMC_WriteGroupOfParametersEx.md)
+- [p. 1092-1092 - 10.2.55 MMC_SetVerPath](chunks/042_p1092-p1092_10.2.55-MMC_SetVerPath.md)
+- [p. 1093-1131 - 11.2 Variable Types](chunks/043_p1093-p1131_11.2-Variable-Types.md)
+- [p. 1132-1171 - 11.6.11 MMC_ReadPIVarLongLong](chunks/044_p1132-p1171_11.6.11-MMC_ReadPIVarLongLong.md)
+- [p. 1172-1205 - 11.6.26 MMC_WritePIVarDouble](chunks/045_p1172-p1205_11.6.26-MMC_WritePIVarDouble.md)
+- [p. 1206-1206 - 11.8.3 PI Full Example in C, and IEC with EtherCAT Configuration Settings](chunks/046_p1206-p1206_11.8.3-PI-Full-Example-in-C-and-IEC-with-EtherCAT-Configuration-Settings.md)
+- [p. 1207-1237 - Chapter 12 Data Recording](chunks/047_p1207-p1237_Chapter-12-Data-Recording.md)
+- [p. 1238-1251 - Chapter 13 Bulk Parameters Reading](chunks/048_p1238-p1251_Chapter-13-Bulk-Parameters-Reading.md)
+- [p. 1252-1290 - Chapter 14 API Events (C & C++)](chunks/049_p1252-p1290_Chapter-14-API-Events-C-C++.md)
+- [p. 1291-1299 - 14.22.3 MMC_DisableMotionEndedEvent](chunks/050_p1291-p1299_14.22.3-MMC_DisableMotionEndedEvent.md)
+- [p. 1300-1302 - 14.22.6 MMC_SetEventsMask](chunks/051_p1300-p1302_14.22.6-MMC_SetEventsMask.md)
+- [p. 1303-1326 - Chapter 15 Error Correction Mechanism](chunks/052_p1303-p1326_Chapter-15-Error-Correction-Mechanism.md)
+- [p. 1327-1343 - Chapter 16 Saving Maestro User Program Parameters](chunks/053_p1327-p1343_Chapter-16-Saving-Maestro-User-Program-Parameters.md)
+- [p. 1344-1383 - 17.1 Network Function Blocks](chunks/054_p1344-p1383_17.1-Network-Function-Blocks.md)
+- [p. 1384-1386 - 17.1.14 MMC_SetServerIp](chunks/055_p1384-p1386_17.1.14-MMC_SetServerIp.md)
+- [p. 1387-1409 - Chapter 18 Host Communication](chunks/056_p1387-p1409_Chapter-18-Host-Communication.md)
+- [p. 1410-1448 - 19.1 Master - Slave Relations](chunks/057_p1410-p1448_19.1-Master-Slave-Relations.md)
+- [p. 1449-1487 - 19.9.10 MMC_ConfigEventModePDO4](chunks/058_p1449-p1487_19.9.10-MMC_ConfigEventModePDO4.md)
+- [p. 1488-1509 - 19.9.24 MMC_GetBulkUploadStatus](chunks/059_p1488-p1509_19.9.24-MMC_GetBulkUploadStatus.md)
+- [p. 1510-1512 - 19.9.31 MMC_SendSdoAsyncEx](chunks/060_p1510-p1512_19.9.31-MMC_SendSdoAsyncEx.md)
+- [p. 1513-1551 - Chapter 20 DS-401 CANbus I/O Communications](chunks/061_p1513-p1551_Chapter-20-DS-401-CANbus-I-O-Communications.md)
+- [p. 1552-1589 - Chapter 21 EtherCAT Drive Communication](chunks/062_p1552-p1589_Chapter-21-EtherCAT-Drive-Communication.md)
+- [p. 1590-1612 - 21.7.9 MMC_GetCommStatistics](chunks/063_p1590-p1612_21.7.9-MMC_GetCommStatistics.md)
+- [p. 1613-1614 - 21.7.15 MMC_ResetCommStatistics](chunks/064_p1613-p1614_21.7.15-MMC_ResetCommStatistics.md)
+- [p. 1615-1646 - Chapter 22 Interpreter Command Functions](chunks/065_p1615-p1646_Chapter-22-Interpreter-Command-Functions.md)
+- [p. 1647-1685 - 23.1 Terminology](chunks/066_p1647-p1685_23.1-Terminology.md)
+- [p. 1686-1697 - 23.4.13 EipCheckDevTagReply](chunks/067_p1686-p1697_23.4.13-EipCheckDevTagReply.md)
+- [p. 1698-1704 - 23.4.18 Functions and Implementation Example](chunks/068_p1698-p1704_23.4.18-Functions-and-Implementation-Example.md)
+- [p. 1705-1744 - 24.1 Introduction](chunks/069_p1705-p1744_24.1-Introduction.md)
+- [p. 1745-1781 - 24.2.22 ResetSystem](chunks/070_p1745-p1781_24.2.22-ResetSystem.md)
+- [p. 1782-1821 - 24.3.4 MMCSingleAxis Class Functions Code Example 3](chunks/071_p1782-p1821_24.3.4-MMCSingleAxis-Class-Functions-Code-Example-3.md)
+- [p. 1822-1861 - 24.3.16 MoveRelativeEx](chunks/072_p1822-p1861_24.3.16-MoveRelativeEx.md)
+- [p. 1862-1901 - 24.3.31 TouchProbeEnable](chunks/073_p1862-p1901_24.3.31-TouchProbeEnable.md)
+- [p. 1902-1941 - 24.3.61 ElmoGetSyncAn array](chunks/074_p1902-p1941_24.3.61-ElmoGetSyncAn-array.md)
+- [p. 1942-1981 - 24.4.2 ConfigPDOEventMode](chunks/075_p1942-p1981_24.4.2-ConfigPDOEventMode.md)
+- [p. 1982-1992 - 24.4.26 GetAxisError/ReadAxisError](chunks/076_p1982-p1992_24.4.26-GetAxisError-ReadAxisError.md)
+- [p. 1993-2032 - 24.6 The MMCMotionAxis class](chunks/077_p1993-p2032_24.6-The-MMCMotionAxis-class.md)
+- [p. 2033-2054 - Continuation - 24.6 The MMCMotionAxis class](chunks/078_p2033-p2054_Continuation-24.6-The-MMCMotionAxis-class.md)
+- [p. 2055-2094 - 24.8 The MMCGroupAxis class](chunks/079_p2055-p2094_24.8-The-MMCGroupAxis-class.md)
+- [p. 2095-2134 - Continuation - 24.8 The MMCGroupAxis class](chunks/080_p2095-p2134_Continuation-24.8-The-MMCGroupAxis-class.md)
+- [p. 2135-2174 - Continuation - 24.8 The MMCGroupAxis class](chunks/081_p2135-p2174_Continuation-24.8-The-MMCGroupAxis-class.md)
+- [p. 2175-2209 - Continuation - 24.8 The MMCGroupAxis class](chunks/082_p2175-p2209_Continuation-24.8-The-MMCGroupAxis-class.md)
+- [p. 2210-2249 - 24.12 The MMCConnection class](chunks/083_p2210-p2249_24.12-The-MMCConnection-class.md)
+- [p. 2250-2285 - Continuation - 24.12 The MMCConnection class](chunks/084_p2250-p2285_Continuation-24.12-The-MMCConnection-class.md)
+- [p. 2286-2322 - 24.14 The MMCHostComm class](chunks/085_p2286-p2322_24.14-The-MMCHostComm-class.md)
+- [p. 2323-2352 - 24.18 The CMMCBulkRead class](chunks/086_p2323-p2352_24.18-The-CMMCBulkRead-class.md)
+- [p. 2353-2392 - 24.23 The MMCUDP class](chunks/087_p2353-p2392_24.23-The-MMCUDP-class.md)
+- [p. 2393-2422 - 24.25 The MMCEoE Class](chunks/088_p2393-p2422_24.25-The-MMCEoE-Class.md)
+- [p. 2423-2431 - Chapter 25 IEC 61131-3 Special Functions](chunks/089_p2423-p2431_Chapter-25-IEC-61131-3-Special-Functions.md)
+- [p. 2432-2435 - Chapter 26 Python Functions](chunks/090_p2432-p2435_Chapter-26-Python-Functions.md)
