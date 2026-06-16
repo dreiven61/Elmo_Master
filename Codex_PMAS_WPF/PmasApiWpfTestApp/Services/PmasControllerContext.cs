@@ -268,6 +268,11 @@ namespace PmasApiWpfTestApp.Services
                 string.IsNullOrWhiteSpace(groupAxisNames) ? "-" : groupAxisNames));
         }
 
+        public void UpdateGroupAxisNames(string groupAxisNames)
+        {
+            GroupAxisNames = groupAxisNames;
+        }
+
         public MMCConnectionObject GetConnectionObject()
         {
             EnsureConnected();

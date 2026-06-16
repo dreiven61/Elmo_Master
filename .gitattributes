@@ -1,0 +1,26 @@
+* text=auto
+
+.gitattributes text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.sln text eol=crlf
+*.csproj text eol=crlf
+*.config text eol=crlf
+*.cs text eol=crlf
+*.xaml text eol=crlf
+
+*.dll binary
+*.exe binary
+*.pdb binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.zip binary
+*.rar binary

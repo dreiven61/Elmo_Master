@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Collections.Generic;
@@ -47,10 +47,24 @@ namespace PmasApiWpfTestApp
             FillCombo(ComboParameter, typeof(MMC_PARAMETER_LIST_ENUM));
             FillCombo(ComboBoolParameter, typeof(MMC_BOOLEAN_PARAMETER_LIST_ENUM));
             FillCombo(ComboPiDirection, typeof(PIVarDirection));
-            FillCombo(ComboBulkConfig, typeof(NC_BULKREAD_CONFIG_ENUM));
+            ComboPiVarType.Items.Add(VAR_TYPE.S_BYTE);
+            ComboPiVarType.Items.Add(VAR_TYPE.BYTE);
+            ComboPiVarType.Items.Add(VAR_TYPE.SHORT);
+            ComboPiVarType.Items.Add(VAR_TYPE.USHORT);
+            ComboPiVarType.Items.Add(VAR_TYPE.INT);
+            ComboPiVarType.Items.Add(VAR_TYPE.UINT);
+            ComboPiVarType.Items.Add(VAR_TYPE.FLOAT);
+            SelectComboItemByName(ComboPiVarType, "USHORT");
+            FillFilteredCombo(ComboBulkConfig, typeof(NC_BULKREAD_CONFIG_ENUM), IsSelectableBulkConfig);
+            SelectComboItemByName(ComboBulkConfig, "eBULKREAD_CONFIG_2", "eBULKREAD_CONFIG_1");
             FillCombo(ComboBulkPreset, typeof(NC_BULKREAD_PRESET_ENUM));
+            FillCombo(ComboPiBulkDirection, typeof(PIVarDirection));
+            FillFilteredCombo(ComboPiBulkConfig, typeof(NC_BULKREAD_CONFIG_PI_ENUM), IsSelectableBulkConfig);
+            SelectComboItemByName(ComboPiBulkConfig, "eBULKREAD_CONFIG_PI_1");
             FillCombo(ComboGroupTransitionMode, typeof(NC_TRANSITION_MODE_ENUM));
             FillCombo(ComboGroupCoordSystem, typeof(MC_COORD_SYSTEM_ENUM));
+            SelectComboItemByName(ComboGroupCoordSystem, "MC_MCS_COORD");
+            SelectComboItemByName(ComboGroupTransitionMode, "MC_TM_NONE_MODE");
             FillCombo(ComboConditionOperation, typeof(MC_CONDITIONFB_OPERATION_TYPE));
 
             ComboSetPositionMode.Items.Add("Absolute");
@@ -78,6 +92,29 @@ namespace PmasApiWpfTestApp
             {
                 combo.SelectedIndex = 0;
             }
+        }
+
+        private static void FillFilteredCombo(ComboBox combo, Type enumType, Func<object, bool> predicate)
+        {
+            foreach (var value in Enum.GetValues(enumType))
+            {
+                if (predicate(value))
+                {
+                    combo.Items.Add(value);
+                }
+            }
+
+            if (combo.Items.Count > 0)
+            {
+                combo.SelectedIndex = 0;
+            }
+        }
+
+        private static bool IsSelectableBulkConfig(object value)
+        {
+            var name = Convert.ToString(value, CultureInfo.InvariantCulture);
+            return name.IndexOf("NONE", StringComparison.OrdinalIgnoreCase) < 0
+                && name.IndexOf("MAX", StringComparison.OrdinalIgnoreCase) < 0;
         }
 
         private static void SelectDefaultAbortingMode(ComboBox combo)
@@ -130,6 +167,63 @@ namespace PmasApiWpfTestApp
                 {
                     MessageBox.Show(
                         BuildNodeNotFoundMessage(functionName),
+                        functionName,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                var mmcErrorName = Convert.ToString(mmcException.MMCError, CultureInfo.InvariantCulture);
+                if (string.Equals(mmcErrorName, "NC_ONE_GRP_MEMBER_IS_DISABLED", StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        "NC_ONE_GRP_MEMBER_IS_DISABLED: 그룹 멤버 중 하나 이상이 Disabled 상태입니다.\n\nGroup 탭에서 Read Member Status로 멤버 상태를 확인하고, Power On Members 또는 Prepare Group MCS를 먼저 실행하세요.",
+                        functionName,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.Equals(mmcErrorName, "NC_COORD_SYSTEM_TYPE_OUT_OF_RANGE", StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        "NC_COORD_SYSTEM_TYPE_OUT_OF_RANGE: 현재 그룹에 요청한 좌표계가 유효하지 않습니다.\n\nGroup Axes CSV가 실제 멤버명과 맞는지 확인하고, MMC_GetGroupMembersInfo로 축 목록을 자동 반영한 뒤 MMC_SetKinTransform 또는 Prepare Group MCS를 실행하세요.",
+                        functionName,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.Equals(mmcErrorName, "NC_ALL_AXES_SHOULD_BE_IN_KINEMATIC", StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        "NC_ALL_AXES_SHOULD_BE_IN_KINEMATIC: 그룹 멤버 전체가 kinematic 정의에 포함되어야 합니다.\n\n현재 프로그램은 a01->X, a02->Y, a03->Z, a04->U, 이후 축은 V,W,N1..N9로 포함합니다. 최신 빌드로 다시 실행하고, 4축 그룹이면 End Point를 X,Y,Z,U 순서로 입력하세요.",
+                        functionName,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.Equals(mmcErrorName, "NC_GROUP_ISNOT_ENABLED", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_ERR_KINEMATIC_WAS_NOT_DEFINED", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_MCS_COORD_SYSTEM_IS_NOT_SET", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_COORD_SYSTEM_NOT_ENABLE", StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        mmcErrorName + ": 그룹 모션 준비가 완료되지 않았습니다.\n\nPrepare Group MCS를 다시 실행하세요. 순서는 PowerOn members -> SetKinTransform -> GroupEnable 입니다.",
+                        functionName,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.Equals(mmcErrorName, "NC_MOTION_FORBIDDEN_ON_MCS_SW_LIMIT", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_MOTION_FORBIDDEN_ON_ACS_SW_LIMIT", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_MA_MOTION_TOWARD_SW_LIMIT_FORBIDDEN", StringComparison.Ordinal)
+                    || string.Equals(mmcErrorName, "NC_MOTION_FORBIDDEN_ON_HW_LIMIT", StringComparison.Ordinal))
+                {
+                    MessageBox.Show(
+                        mmcErrorName + ": 요청 위치가 limit 방향이거나 soft/hard limit에 걸렸습니다.\n\nRead Group Pos로 현재 위치를 확인하고, Absolute 대신 작은 Relative 이동으로 먼저 테스트하세요.",
                         functionName,
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);

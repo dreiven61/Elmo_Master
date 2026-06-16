@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using PmasApiWpfTestApp.Models;
 
 namespace PmasApiWpfTestApp
@@ -30,8 +30,10 @@ namespace PmasApiWpfTestApp
                 new ApiCoverageItem { FunctionName = "MMC_SetPositionCmd", Status = "NotExposed", Wrapper = "No public MMCLibDotNET wrapper", Area = "Single Axis", Notes = "Public .NET wrapper v3.0.0.7 has no single-axis SetPosition method" },
                 new ApiCoverageItem { FunctionName = "MMC_HomeDS402ExCmd", Status = "Mapped", Wrapper = "MMCSingleAxis.HomeDS402Ex", Area = "Single Axis", Notes = "Extended DS402 homing path" },
                 new ApiCoverageItem { FunctionName = "MMC_GetPIVarInfoByAlias", Status = "Mapped", Wrapper = "MMCSingleAxis.GetPIVarInfoByAlias", Area = "PI", Notes = "PI alias lookup" },
-                new ApiCoverageItem { FunctionName = "MMC_WritePIVarUShort", Status = "Mapped", Wrapper = "MMCSingleAxis.WritePIVar(VAR_TYPE.USHORT)", Area = "PI", Notes = "USHORT PI write" },
-                new ApiCoverageItem { FunctionName = "MMC_ReadPIVarUShort", Status = "Mapped", Wrapper = "MMCSingleAxis.ReadPIVar(VAR_TYPE.USHORT)", Area = "PI", Notes = "USHORT PI read" },
+                new ApiCoverageItem { FunctionName = "MMC_WritePIVar*", Status = "Mapped", Wrapper = "MMCSingleAxis.WritePIVar(selected VAR_TYPE)", Area = "PI", Notes = "Typed PI write through PI Type combo" },
+                new ApiCoverageItem { FunctionName = "MMC_ReadPIVar*", Status = "Mapped", Wrapper = "MMCSingleAxis.ReadPIVar(selected VAR_TYPE)", Area = "PI", Notes = "Typed PI read through PI Type combo" },
+                new ApiCoverageItem { FunctionName = "MMC_ConfigureBulkReadPI", Status = "Mapped", Wrapper = "MMCPIBulkRead.AddEntry", Area = "PI Bulk Read", Notes = "Configures native PI bulk read entries" },
+                new ApiCoverageItem { FunctionName = "MMC_PerformBulkReadCmdPI", Status = "Mapped", Wrapper = "MMCPIBulkRead.Upload / GetEntry", Area = "PI Bulk Read", Notes = "Reads configured PI entries" },
                 new ApiCoverageItem { FunctionName = "MMC_WriteParameter", Status = "Mapped", Wrapper = "MMCSingleAxis.SetParameter", Area = "Single Axis", Notes = "Vendor-specific numeric parameter write" },
                 new ApiCoverageItem { FunctionName = "MMC_SetKinTransform", Status = "Mapped", Wrapper = "MMCGroupAxis.SetKinTransformCartesian", Area = "Group", Notes = "Cartesian transform builder included" },
                 new ApiCoverageItem { FunctionName = "MMC_GroupStopCmd", Status = "Mapped", Wrapper = "MMCGroupAxis.GroupStop", Area = "Group", Notes = "Controlled stop for motion group" },

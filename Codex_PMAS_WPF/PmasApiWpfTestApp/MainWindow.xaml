@@ -1,4 +1,4 @@
-﻿<Window
+<Window
 	x:Class="PmasApiWpfTestApp.MainWindow"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -44,7 +44,7 @@
 					Grid.Column="2"
 					Margin="0,0,12,6">
 					<TextBlock Text="Local IP" />
-					<TextBox x:Name="TextLocalIp" Text="192.168.99.13" />
+					<TextBox x:Name="TextLocalIp" Text="192.168.99.14" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="0"
@@ -72,14 +72,14 @@
 					Grid.Column="2"
 					Margin="0,0,12,6">
 					<TextBlock Text="Group Name" />
-					<TextBox x:Name="TextGroupName" Text="Group1" />
+					<TextBox x:Name="TextGroupName" Text="v01" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="1"
 					Grid.Column="3"
 					Margin="0,0,0,6">
 					<TextBlock Text="Group Axes (CSV)" />
-					<TextBox x:Name="TextGroupAxes" Text="X,Y,Aux" />
+					<TextBox x:Name="TextGroupAxes" Text="a01,a02,a03,a04" />
 				</StackPanel>
 				<StackPanel
 					Grid.Row="2"
@@ -702,14 +702,14 @@
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="Stop Deceleration" />
-									<TextBox x:Name="TextGroupStopDeceleration" Text="1000" />
+									<TextBox x:Name="TextGroupStopDeceleration" Text="838860800" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Stop Jerk" />
-									<TextBox x:Name="TextGroupStopJerk" Text="100000" />
+									<TextBox x:Name="TextGroupStopJerk" Text="8388608000" />
 								</StackPanel>
 								<WrapPanel
 									Grid.Row="1"
@@ -746,9 +746,34 @@
 										Click="ButtonGroupGetStatusRegister_Click"
 										Content="MMC_GetStatusRegisterCmd" />
 									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonGroupReadPosition_Click"
+										Content="Read Group Pos" />
+									<Button
 										Padding="10,4"
 										Click="ButtonGetGroupMembersInfo_Click"
 										Content="MMC_GetGroupMembersInfo" />
+									<Button
+										Margin="8,0,0,0"
+										Padding="10,4"
+										Click="ButtonGroupReadMemberStatus_Click"
+										Content="Read Member Status" />
+									<Button
+										Margin="8,0,0,0"
+										Padding="10,4"
+										Click="ButtonGroupPowerOnMembers_Click"
+										Content="Power On Members" />
+									<Button
+										Margin="8,0,0,0"
+										Padding="10,4"
+										Click="ButtonGroupPowerOffMembers_Click"
+										Content="Power Off Members" />
+									<Button
+										Margin="8,0,0,0"
+										Padding="10,4"
+										Click="ButtonPrepareGroupMcs_Click"
+										Content="Prepare Group MCS" />
 								</WrapPanel>
 							</Grid>
 						</GroupBox>
@@ -774,35 +799,35 @@
 									Grid.Column="0"
 									Margin="0,0,12,6">
 									<TextBlock Text="Velocity" />
-									<TextBox x:Name="TextGroupVelocity" Text="1000" />
+									<TextBox x:Name="TextGroupVelocity" Text="8388608" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="Acceleration" />
-									<TextBox x:Name="TextGroupAcceleration" Text="1000" />
+									<TextBox x:Name="TextGroupAcceleration" Text="8388608000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Deceleration" />
-									<TextBox x:Name="TextGroupDeceleration" Text="1000" />
+									<TextBox x:Name="TextGroupDeceleration" Text="8388608000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="3"
 									Margin="0,0,12,6">
 									<TextBlock Text="Jerk" />
-									<TextBox x:Name="TextGroupJerk" Text="100000" />
+									<TextBox x:Name="TextGroupJerk" Text="8388608000000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="4"
 									Margin="0,0,12,6">
-									<TextBlock Text="End Point (CSV)" />
-									<TextBox x:Name="TextGroupEndPoint" Text="1000,2000,3000" />
+									<TextBlock Text="End Point (CSV: X,Y,Z,U,V,W,N1...)" />
+									<TextBox x:Name="TextGroupEndPoint" Text="8388608,8388608,8388608,8388608" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
@@ -855,6 +880,11 @@
 										Padding="10,4"
 										Click="ButtonSetKinTransform_Click"
 										Content="MMC_SetKinTransform" />
+									<Button
+										Margin="8,0,0,0"
+										Padding="10,4"
+										Click="ButtonApplySafeGroupDefaults_Click"
+										Content="Apply Test Defaults" />
 								</WrapPanel>
 							</Grid>
 						</GroupBox>
@@ -927,7 +957,8 @@
 							<Grid Margin="8">
 								<Grid.ColumnDefinitions>
 									<ColumnDefinition Width="220" />
-									<ColumnDefinition Width="120" />
+									<ColumnDefinition Width="110" />
+									<ColumnDefinition Width="130" />
 									<ColumnDefinition Width="220" />
 									<ColumnDefinition Width="220" />
 									<ColumnDefinition Width="*" />
@@ -941,7 +972,7 @@
 									Grid.Column="0"
 									Margin="0,0,12,6">
 									<TextBlock Text="Alias" />
-									<TextBox x:Name="TextPiAlias" Text="" />
+									<TextBox x:Name="TextPiAlias" Text="I0x6041.0" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
@@ -954,20 +985,27 @@
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
-									<TextBlock Text="Direction" />
-									<ComboBox x:Name="ComboPiDirection" />
+									<TextBlock Text="PI Type" />
+									<ComboBox x:Name="ComboPiVarType" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="3"
 									Margin="0,0,12,6">
-									<TextBlock Text="USHORT Value" />
+									<TextBlock Text="Direction" />
+									<ComboBox x:Name="ComboPiDirection" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="PI Value" />
 									<TextBox x:Name="TextPiValue" Text="0" />
 								</StackPanel>
 								<WrapPanel
 									Grid.Row="1"
 									Grid.Column="0"
-									Grid.ColumnSpan="5">
+									Grid.ColumnSpan="6">
 									<Button
 										Margin="0,0,8,0"
 										Padding="10,4"
@@ -976,16 +1014,21 @@
 									<Button
 										Margin="0,0,8,0"
 										Padding="10,4"
-										Click="ButtonReadPIVarUShort_Click"
-										Content="MMC_ReadPIVarUShort" />
+										Click="ButtonGetPIVarInfo_Click"
+										Content="MMC_GetPIVarInfo" />
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonReadPIVar_Click"
+										Content="MMC_ReadPIVar" />
 									<Button
 										Padding="10,4"
-										Click="ButtonWritePIVarUShort_Click"
-										Content="MMC_WritePIVarUShort" />
+										Click="ButtonWritePIVar_Click"
+										Content="MMC_WritePIVar" />
 								</WrapPanel>
 							</Grid>
 						</GroupBox>
-						<GroupBox Header="Bulk Read">
+						<GroupBox Margin="0,0,0,8" Header="Parameter Bulk Read">
 							<Grid Margin="8">
 								<Grid.ColumnDefinitions>
 									<ColumnDefinition Width="220" />
@@ -1002,8 +1045,8 @@
 									Grid.Row="0"
 									Grid.Column="0"
 									Margin="0,0,12,6">
-									<TextBlock Text="Node Refs (CSV)" />
-									<TextBox x:Name="TextBulkNodeRefs" Text="1,2,3" />
+									<TextBlock Text="Axis Refs (CSV)" />
+									<TextBox x:Name="TextBulkNodeRefs" Text="0,1,2,3" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
@@ -1046,6 +1089,63 @@
 										Padding="10,4"
 										Click="ButtonPerformBulkRead_Click"
 										Content="MMC_PerformBulkReadCmd" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Header="PI Bulk Read">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="260" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Axis Names (CSV)" />
+									<TextBox x:Name="TextPiBulkAxisNames" Text="a01,a02,a03,a04" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="PI Indexes (CSV)" />
+									<TextBox x:Name="TextPiBulkIndexes" Text="0,1" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Direction" />
+									<ComboBox x:Name="ComboPiBulkDirection" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="PI Bulk Config" />
+									<ComboBox x:Name="ComboPiBulkConfig" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="5">
+									<Button
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonConfigPiBulkRead_Click"
+										Content="MMC_ConfigureBulkReadPI" />
+									<Button
+										Padding="10,4"
+										Click="ButtonPerformPiBulkRead_Click"
+										Content="MMC_PerformBulkReadCmdPI" />
 								</WrapPanel>
 							</Grid>
 						</GroupBox>
