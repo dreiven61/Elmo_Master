@@ -1,0 +1,93 @@
+4.15.7 MMC_RegErrPolicy | This function registers and defines an error policy.
+4.15.8 MMC_GetErrPolicy | This function return the current error policies statues.
+4.15.9 MMC_ResetSystem | This function resets the entire system errors, including error counters of PHY, cyclic and missed frames errors. In addition it changes all nodes to INIT and then to OPERATIONAL state, resulting in motor off of all drives. In addition this function might reset Maestro fatal errors and return it to fully operational status.
+5.10.2 MMC_SetProfileConditioning | Profile conditioning C functions used to set or get profile conditioning configuration for vibration reduction.
+5.10.2 MMC_GetProfileConditioning | Profile conditioning C functions used to set or get profile conditioning configuration for vibration reduction.
+5.10.2 GetProfileConditioning | Profile conditioning C functions used to set or get profile conditioning configuration for vibration reduction.
+5.10.2 SetProfileConditioning | Profile conditioning C functions used to set or get profile conditioning configuration for vibration reduction.
+6.1.1 MMC_Halt | Call this function to command a controlled motion stop for a specific axis.
+6.1.2 MMC_Home | Commands the axis to perform the Search Home sequence.
+6.1.3 MMC_HomeDS402 | This function sends a command to perform the Search Home sequence for a specific Axis, and can be set by the axes parameters.
+6.1.4 MMC_HomeDS402Ex | Commands the axis to perform the Search Home DS402 sequence for a spec ific Axis, and can be set by the axes parameters. This function supports Velocity Hi\Lo, DetectionTimeLimit and DetectionVelocityLimit.
+6.1.5 MMC_MoveAbsolute | Commands a discreet controlled motion for a single axis to a specified absolute position.
+6.1.6 MMC_MoveAdditive | Commands a controlled motion of a specified relative distance additional to the most recent commanded position in the discrete motion state.
+6.1.7 MMC_MoveRelative | Commands a discreet controlled motion of a specified distance relative to the set position at the time of the execution.
+6.1.7.2 Implementation | The following figure shows the example of the combination of two rela tive move function blocks. 33. 1. The left part of timing diagram illustrates the case if the second function block is called after
+6.1.9 MMC_MoveTorque | Commands a continuous controlled motion at a specified torque.
+6.1.10 MMC_MoveContinuous | This function sends a Move Continuous command to MMC server for a specific Axis.
+6.1.11 MMC_MoveAbsoluteRepetitive | This function receives as one of the input arguments, the command to move to the absolute target position. The axis moves between the current and target position until interrupted by any allowed function block in Aborted mode.
+6.1.12 MMC_MoveRelativeRepetitive | This function receives as one of the input arguments, the command to mo ve to a distance relative to the current position. The axis moves between the current and target position until interrupted by any allowed function block in Aborting mode.
+6.1.13 MMC_MoveAdditiveRepetitive | This function receives as one of the input arguments, the command to move to a distance relative to the final position of the last command. The axis moves between the current and target position until interrupted by any allowed function block in Aborting mode.
+6.1.14 MMC_Stop | Commands a controlled motion stop and transfers the axis to the state Stopping.
+6.2.3 MMC_AxisLink | This function links between physically axis to virtual axis.
+6.2.4 MMC_AxisUnLink | This function breaks the link between two axes defined as master (Primary) and slave (Minor).
+6.2.5 MMC_KillMotion | This function stops the repetitive motion after the current function block.
+6.2.6 MMC_KillRepetitive | This function stops the repetitive motion after the current function block.
+6.2.7 MMC_Dwell | This function sends a temporary halt status command to the Maestro.
+6.2.8 MMC_GetFBDepth | Sends a command to get the number of function blocks in the Node Queue waiting to be activated, or presently activated. The function blocks included in the count will not have a status of Done or Abort.
+6.2.9 MMC_MarkFbFree | Marks a function block as free.
+6.2.10 MMC_GetTotalFbDepth | Sends a command to receive the total number of function blocks in the Node Queue, wai ting to be activated, presently activated, and previously activated but not released to the function block pool.
+6.2.11 MMC_Power | Controls the power stage (On or Off).
+6.2.12 MMC_PositionProfile | Describes the position profile of an axis.
+6.2.13 MMC_ReadActualPosition | Returns the actual position of the controlled axis.
+6.2.14 MMC_ReadActualTorque | Returns the actual torque value or force for a controlled axis, as long as Enable is set.
+6.2.15 MMC_ReadActualVelocity | Returns the actual velocity value, as long as Enable is set.
+6.2.16 MMC_ReadAxisError | Displays general axis errors not relating to the function blocks e.g. axis errors, drive errors, communication errors.
+6.2.17 MMC_ReadBoolParameter | Returns the value of a vendor specific with datatype unsigned long or un signed int.
+6.2.18 MMC_GlobalReadBoolParameter | Returns the value of a vendor global Boolean parameter with datatype unsigned long or un signed int.
+6.2.18.1 Function | int rc ; MMC_READBOOLPARAMETER_IN stReadBoolParam_in; MMC_READBOOLPARAMETER_OUT stReadBoolParam_out;
+6.2.20 MMC_ReadDigitalOutputs | Reads the actual digital outputs for the specific node.
+6.2.21 MMC_ReadDigitalOutputs32Bit | Reads the actual 32 bit digital outputsGet for the specific node
+6.2.22 MMC_ReadParameter | Returns the value of a vendor specific parameter.
+6.2.23 MMC_GlobalReadParameter | Returns the value of a vendor global parameter.
+6.2.24 MMC_ReadStatus | Returns details of the state diagram status for the selected axis.
+6.2.25 MMC_Reset | Provides a method to perform transition from the state ErrorStop to StandStill or Disabled by resetting all internal axis-related errors, and returns immediately.
+6.2.26 MMC_ResetAsync | Produces the transition from the state ErrorStop to StandStill or Disabled by resetting all internal axis - related errors. This function waits until the procedure is fully completed. An event is then sent once the
+6.2.27 MMC_SetOverride | Sets the values of override for the whole axis, including all functions that are operating on that axis.
+6.2.28 MMC_SetPosition | Sends the Set Position command to the Maestro for ac specific axis.
+6.2.29 MMC_TouchProbeEnable | Enables the touch probe to record an axis position at a trigger event.
+6.2.30 MMC_TouchProbeDisable | Disables the touch probe to record an axis position at a trigger event.
+6.2.31 MMC_WriteBoolParameter | Modifies the value of a vendor specific parameter of type BOOL.
+6.2.32 MMC_GlobalWriteBoolParameter | Modifies the value of a vendor global parameter of type BOOL.
+6.2.33 MMC_WriteDigitalOutputs | None
+6.2.34 MMC_WriteDigitalOutputs32Bit | Writes a value to the 32-bit digital output referenced by the single argument Output (with rising edge of Execute).
+6.2.35 MMC_WriteParameter | Modifies the value of a vendor specific parameter.
+6.2.36 MMC_GlobalWriteParameter | Modifies the value of a vendor global parameter.
+6.2.37 MMC_ChngOpMode | Changes the motion mode between NC and Distributed. This is previous determined in the DS -402 mode.
+6.2.38 MMC_ChangeOpModeEx | Changes the motion mode between NC and Distributed. This is previous determined in the PLC DS -402 mode.
+6.2.39 MMC_SetProfileConditioning | This method sets Profile Conditioning mode of operation. It switches on(1)/off(0) the mode and sets other input parameters.
+6.2.40 MMC_GetProfileConditioning | This method obtains the Profile Conditioning mode of operation data for axes on which this mode of operation is enabled.
+7.7.3 MMC_SetNormalcyMode | For multi-axis systems. Set normalcy mode of operation in specific selected plane (xy/xz/yz) .
+7.7.3.1 Function | None
+7.7.4 MMC_SetNormalcyOff | For multi-axis systems. Set normalcy Off disables normalcy mode.
+7.7.5 MMC_GetNormalcyMode | For multi-axis systems. Set normalcy Off disables normalcy mode.
+7.9.2 MMC_GroupStop | For multi-axis systems. Brings a group of axes to stop status.
+7.9.3 MMC_GroupHalt | For multi-axis systems. Brings a group of axes to Halt status.
+7.9.4 MMC_MoveCircularAbsolute | For multi-axis systems. Commands an interpolated circular movement on an axes group from the actual position of the TCP.
+7.9.5 MMC_MoveCircularAbsoluteCenter | For multi-axis systems. Commands an interpolated circular center movement on an a xes group from the actual position of the TCP.
+7.9.6 MMC_MoveCircularAbsoluteBorder | For multi-axis systems. Commands an interpolated circular border movement on an axes group from the actual position of the TCP.
+7.9.7 MMC_MoveCircularAbsoluteRadius | For multi-axis systems. Commands an interpolated circular movement radius on an axes group from the actual position of the TCP.
+7.9.8 MMC_MoveCircularAbsoluteAngle | For multi-axis systems. Commands an interpolated circular angle movement on an axes group from the actual position of the TCP. The movement may be in either positive or negative direction without restriction.
+7.9.9 MMC_MoveAngle | Allows a user to specify a certain plane for the arc motion, where the arc motion will only be performed in one of the planes perpendicular to each other in space (XY, XZ, or YZ).
+7.9.10 MMC_MoveLinearAbsolute | For multi-axis systems. Commands an interpolated linear movement on an axes group from the actual position of the TCP to an absolute position in the specified coordinate system.
+7.9.11 MMC_MoveLinearRelative | For multi-axis systems. Commands an interpolated linear movement on an axes group from the actual position of the TCP to a relative distance in the specified coordinate system.
+7.9.12 MMC_MoveLinearAdditive | For multi-axis systems. Commands an interpolated linear movement on an axes group from the actual position of the TCP to an additive position in the specified coordinate system.
+7.9.13 MMC_MoveLinearAdditiveEx | For multi-axis systems. Commands an extended interpolated linear movement on an axes group from the actual position of the TCP to an additive accurate position in the specified coordinate system.
+7.9.14 MMC_MoveLinearAbsoluteRepetitive | For multi-axis systems. Commands an interpolated repetitive linear movement on an axes group vector to an absolute point given as an input in the specified coordinate system.
+7.9.15 MMC_MoveLinearRelativeRepetitive | For multi-axis systems. Commands an interpolated repetitive linear movement on an axes group vector to a relative distance from actual position given as an input in the specified coordinate system.
+7.9.16 MMC_MovePolynomAbsolute | For multi-axis systems and complex motion sequences where the Polynomial expression is relevant. This function sends a Move Polynom Absolute command to the MMC server for specific Vect or. Refer to the
+7.9.17 MMC_PathSelect | For multi-axis systems. Reads splines data from a file and calculates the optimal path.
+7.9.18 MMC_MovePath | For multi-axis systems. Moves a group of drives along a previously defined spline path.
+7.9.19 MMC_PathUnselect | For multi-axis systems. This function unloads the spline data table from the Maestro.
+7.10.12 MMC_SetKinTransform | Sets a kinematic transformation between the ACS and MCS based on the predefined kinemati c model for multi-axes. Refer to the section 7.1Coordinate System and kinematic transformation for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions onwards for
+7.10.13 MMC_SetKinTransformEx | Sets a kinematic transformation between the ACS and MCS based on the predefined kinematic model for group multi-axes. Refer to the section Coordinate System and kinematic transformation for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions
+7.10.14 MMC_SetCartesianTransform | Sets a group's cartesian transformation between MCS and PCS parameters based on the predefined kinematic model for group multi-axes. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transforma tion Definitions onwards for
+7.10.15 MMC_TrackConveyorBelt | The MMC_TrackConveyorBelt function executes a smooth RAMP-IN motion from any robot position (in MCS), on to the Part located on a moving conveyor belt (in PCS). As soon as the robot reaches the target point on the conveyor belt it moves synchronously with the conveyor belt (in PCS), that is to say, it tracks the conveyor belt while performing a motion in PCS.
+7.10.16 MMC_TrackRotaryTable | The MMC_TrackRotaryTable function executes a smooth RAMP-IN motion from any robot position (in MCS), on to the Part located on a moving Rotatory Table (in PCS). As soon as the robot reache s the target point on the Rotatory Table it moves synchronously with the Rotatory Table (in PCS), that is to say, it tracks the Rotatory Table while performing motion in PCS.
+7.10.17 MMC_TrackSyncOut | The MMC_TrackSyncOut function executes a smooth RAMP Out motion from a synchronized PCS motion to an MCS target position until halted.
+7.10.18 MMC_SetKinTransformDelta | Sets a kinematic transformation between the ACS and MCS based on the predefined kinematic model for group multi-axes with the Delta robot. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions
+7.10.19 MMC_SetKinTransformCartesian | Sets the parameters kinematic transformation (MSC to ACS) for Cartesian system based on the predefined kinematic model for group multi-axes. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions
+7.10.20 MMC_SetKinTransformScara | Sets the parameters kinematic transformation (MSC to ACS) for SCARA robot based on the predefined kinematic model for group multi-axes. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions
+7.10.21 MMC_SetKinTransformThreeLink | Sets the parameters kinematic transformation (MSC to ACS) for THREELINK robot based on the predefined kinematic model for group multi-axes. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sectionsCoordinated System and Kinematic Transformation Definitions
+7.10.22 MMC_SetKinTransformHxpd | Sets the parameters kinematic transformation (MSC to ACS) for THREELINK robot based on the predefined kinematic model for group multi-axes. Refer to the section PCS - Product Coordinate System for a further detailed explanation. Refer to sections Coordinated System and Kinematic Transformation Definitions
+7.10.23 MMC_GetMotionInfo |
