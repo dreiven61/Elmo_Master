@@ -368,7 +368,7 @@ TO_UDINT(10), "StateTransitionBehaviour", TO_UDINT(2#110),//|HW_Network.EtherCAT
 TO_UDINT(10), "StateTransitionTimeout", TO_UDINT(20000),//|HW_Network.EtherCAT_PLC1.StateTransitionTimeout;
 TO_UDINT(10), "SynchronizationMode", TO_UDINT(0),//|HW_Network.EtherCAT_PLC1.SynchronizationMode;
 TO_UDINT(10), "PhaseRegDamping", TO_UDINT(0),//|HW_Network.EtherCAT_PLC1.PhaseRegDamping;
-TO_UDINT(10), "MissingFrameBehaviour", TO_UDINT(20),//|HW_Network.EtherCAT_PLC1.MissingFrameBehaviour;
+TO_UDINT(10), "MissingFrameBehaviour", TO_UDINT(3),//|HW_Network.EtherCAT_PLC1.MissingFrameBehaviour;
 TO_UDINT(14), "UdpSafetyPort", TO_UDINT(10823),//|HW_Network.HwControl1.UdpSafetyPort;
 TO_UDINT(14), "InterfaceNo", TO_UDINT(1),//|HW_Network.HwControl1.InterfaceNo;
 TO_UDINT(14), "RtTaskSync", TO_UDINT(0),//|HW_Network.HwControl1.RtTaskSync;

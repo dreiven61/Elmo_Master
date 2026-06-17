@@ -2527,7 +2527,7 @@
 			Position   = "(5400,750)"
 			Visualized = "true"
 			Remotely   = "true"
-			RealTime   = "1 ms">
+			CyclicTime = "1 ms">
 			<Channels>
 				<Server Name="Control"/>
 				<Server Name="ErrorCode"/>
@@ -3827,8 +3827,7 @@
 			GUID       = "{24D754E7-92FE-441C-AB95-543E8132A88F}"
 			Class      = "TCPMotionInterface"
 			Position   = "(6960,60)"
-			Visualized = "false"
-			RealTime   = "1 ms">
+			Visualized = "false">
 			<Channels>
 				<Server Name="acc"/>
 				<Server Name="AxisRef"/>
@@ -3850,6 +3849,11 @@
 				<Server Name="Power"/>
 				<Server Name="ReadPos"/>
 				<Server Name="Reserved"/>
+				<Server Name="RetCode"/>
+				<Server Name="RobotLock"/>
+				<Server Name="RobotPowerOff"/>
+				<Server Name="RobotPowerOn"/>
+				<Server Name="RobotUnLock"/>
 				<Server Name="State"/>
 				<Server Name="velo"/>
 				<Client Name="_StdLib"/>

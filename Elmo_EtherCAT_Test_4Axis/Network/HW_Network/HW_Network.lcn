@@ -112,7 +112,7 @@
 				<Client Name="ENIFile"/>
 				<Client Name="IsoStartPoint" Value="80"/>
 				<Client Name="MasterID" Value="1"/>
-				<Client Name="MissingFrameBehaviour" Value="20"/>
+				<Client Name="MissingFrameBehaviour" Value="3"/>
 				<Client Name="PhaseRegDamping" Value="0"/>
 				<Client Name="StateTransitionBehaviour" Value="2#110"/>
 				<Client Name="StateTransitionTimeout" Value="20000"/>
@@ -141,7 +141,7 @@
 								<Client Name="ENIFile"/>
 								<Client Name="IsoStartPoint" Value="80"/>
 								<Client Name="MasterID" Value="1"/>
-								<Client Name="MissingFrameBehaviour" Value="20"/>
+								<Client Name="MissingFrameBehaviour" Value="3"/>
 								<Client Name="PhaseRegDamping" Value="0"/>
 								<Client Name="StateTransitionBehaviour" Value="2#110"/>
 								<Client Name="StateTransitionTimeout" Value="20000"/>

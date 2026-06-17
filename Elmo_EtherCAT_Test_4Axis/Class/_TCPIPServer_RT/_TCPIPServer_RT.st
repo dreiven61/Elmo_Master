@@ -189,6 +189,10 @@ FUNCTION VIRTUAL GLOBAL _TCPIPServer_RT::CyWork
 		state (EAX) 	: UDINT;
 	END_VAR
 
+  if (bdStatus.CyclicTask = true) then
+    CyclicCall();
+  end_if;
+  
 	state := READY;
 
 END_FUNCTION

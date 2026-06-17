@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <Breakpoints>
-	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="70" LineOffset="235" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
-	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="207" LineOffset="235" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
-	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="214" LineOffset="235" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
+	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="84" LineOffset="359" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
+	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="221" LineOffset="359" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
+	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="228" LineOffset="359" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
+	<BP ClassName="TCPMotionInterface" SrcName=".\Class\TCPMotionInterface\TCPMotionInterface.st" Line="299" LineOffset="359" OffsetAddr="-1" State="65536" ObjectCondition="" Condition="" ConditionCount="0"/>
 </Breakpoints>
