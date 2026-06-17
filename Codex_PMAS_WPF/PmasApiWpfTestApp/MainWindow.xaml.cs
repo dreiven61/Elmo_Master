@@ -65,6 +65,12 @@ namespace PmasApiWpfTestApp
             FillCombo(ComboGroupCoordSystem, typeof(MC_COORD_SYSTEM_ENUM));
             SelectComboItemByName(ComboGroupCoordSystem, "MC_MCS_COORD");
             SelectComboItemByName(ComboGroupTransitionMode, "MC_TM_NONE_MODE");
+            FillCombo(ComboCycleGroup1BufferedMode, typeof(MC_BUFFERED_MODE_ENUM));
+            FillCombo(ComboCycleGroup1TransitionMode, typeof(NC_TRANSITION_MODE_ENUM));
+            FillCombo(ComboCycleGroup1CoordSystem, typeof(MC_COORD_SYSTEM_ENUM));
+            SelectComboItemByName(ComboCycleGroup1BufferedMode, "MC_ABORTING_MODE", "MC_ABORTING");
+            SelectComboItemByName(ComboCycleGroup1CoordSystem, "MC_MCS_COORD");
+            SelectComboItemByName(ComboCycleGroup1TransitionMode, "MC_TM_NONE_MODE");
             FillCombo(ComboConditionOperation, typeof(MC_CONDITIONFB_OPERATION_TYPE));
 
             ComboSetPositionMode.Items.Add("Absolute");

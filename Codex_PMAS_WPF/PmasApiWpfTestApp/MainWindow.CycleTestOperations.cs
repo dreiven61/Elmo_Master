@@ -220,6 +220,12 @@ namespace PmasApiWpfTestApp
                 return;
             }
 
+            if (_isCycleTestGroup1Running)
+            {
+                MessageBox.Show("Cycle Test Group1 is running. Stop it first.", "Cycle Test", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             try
             {
                 Context.EnsureAxis();
@@ -374,6 +380,12 @@ namespace PmasApiWpfTestApp
                 return;
             }
 
+            if (_isCycleTestGroup1Running)
+            {
+                MessageBox.Show("Cycle Test Group1 is running. Stop it first.", "Cycle Test2", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             try
             {
                 Context.EnsureAxis();
@@ -521,6 +533,12 @@ namespace PmasApiWpfTestApp
             if (_isCycleTest4Running)
             {
                 MessageBox.Show("Cycle Test4 is running. Stop it first.", "Cycle Test3", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_isCycleTestGroup1Running)
+            {
+                MessageBox.Show("Cycle Test Group1 is running. Stop it first.", "Cycle Test3", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -676,6 +694,12 @@ namespace PmasApiWpfTestApp
             if (_isCycleTest3Running)
             {
                 MessageBox.Show("Cycle Test3 is running. Stop it first.", "Cycle Test4", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_isCycleTestGroup1Running)
+            {
+                MessageBox.Show("Cycle Test Group1 is running. Stop it first.", "Cycle Test4", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
