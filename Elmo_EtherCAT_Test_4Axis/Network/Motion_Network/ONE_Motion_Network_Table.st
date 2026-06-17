@@ -10,8 +10,8 @@
 
 
 #define _LMCAXIS_NORMOVERRIDE         1000    // Dieser Override-Wert entspricht 100%.
-#define _LMCAXIS_MAXOVERRIDE	        1000		// Maximalwert fï¿½r Override im LMCAXISBASE (kann mit SetParameter verï¿½ndert werden.)
-#define _LMCAXIS_MINOVERRIDE	           0		// Minimalwert fï¿½r Override im _LMCAxisBase --> damit man mit Minuswerten nicht in die falsche Richtung fahren kann
+#define _LMCAXIS_MAXOVERRIDE	        1000		// Maximalwert für Override im LMCAXISBASE (kann mit SetParameter verändert werden.)
+#define _LMCAXIS_MINOVERRIDE	           0		// Minimalwert für Override im _LMCAxisBase --> damit man mit Minuswerten nicht in die falsche Richtung fahren kann
 
 #define _LMCAXIS_MIN_POS       -16#07000000    // default MINPOS when INITvalue=0
 #define _LMCAXIS_MAX_POS        16#07000000    // default MAXPOS when INITvalue=0
@@ -38,23 +38,23 @@
 #define _LMCAXIS_Poly_Pos_C     1.0
 
 #define LMC_POLYNOM_V0          0                     // CoupleGearPolynom wenn Slave steht
-#define LMC_POLYNOM_V           1                     // CoupleGearPolynom wenn Slave fï¿½hrt
+#define LMC_POLYNOM_V           1                     // CoupleGearPolynom wenn Slave fährt
 
 //////////////////////
 // Bewegungsrichtungen
 #define _LMCAXIS_MOVE_ANY_WAY              0       // beide Richtungen
 #define _LMCAXIS_MOVE_NEG_DIR              1       // nur negative Bewegungsrichtung
-#define _LMCAXIS_MOVE_SHORTEST_WAY         2       // kï¿½rzester Weg (beide Richtungen)
+#define _LMCAXIS_MOVE_SHORTEST_WAY         2       // kürzester Weg (beide Richtungen)
 #define _LMCAXIS_MOVE_POS_DIR              3       // nur positive Bewegungsrichtung
 
 //////////////////////
 // Mutex
-#define MUTEX_NAME_MAX_LENGTH_LMCAXIS     32   //maximale Anzahl an Zeichen fï¿½r den Mutexnamen
+#define MUTEX_NAME_MAX_LENGTH_LMCAXIS     32   //maximale Anzahl an Zeichen für den Mutexnamen
 #define MUTEX_NAME_END_LENGTH_LMCAXIS      3
 #define STR_MUTEX_NAME_SEPERATOR_LMCAXIS ".."
 
 
-#define _LMCAXIS_WAITTIMEPOWERON           90sec    // Wartezeit bei PowerOn bis TimeOut entsteht (maximale Kommutierungszeitdauer beim DiasDrive fï¿½r Linearmotoren sind 86sec)
+#define _LMCAXIS_WAITTIMEPOWERON           90sec    // Wartezeit bei PowerOn bis TimeOut entsteht (maximale Kommutierungszeitdauer beim DiasDrive für Linearmotoren sind 86sec)
 #define _LMCAXIS_WAITTIMEPOWEROFF           1sec    // Wartezeit bei PowerOff bis TimeOut entsteht
 
 
@@ -286,7 +286,7 @@
 #define LMC_NUMERIC_TOLERANCE   (0.000000001)
 #define LMC_RESOLVE_TOLERANCE       (0.000000001)
 
-// 25ï¿½sec fï¿½r ein repeat auf ARM CP 111
+// 25µsec für ein repeat auf ARM CP 111
 #define LMC_MAX_REPEAT      25
 
 // Geschwindigkeit wird auf 1 interne Einheit genau iteriert
