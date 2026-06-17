@@ -1413,8 +1413,14 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
     public sealed class MMCGroupAxis
     {
+        private const ushort GroupReadStatusCommandId = 0x2045;
+        private const ushort MoveLinearAbsoluteExCommandId = 0x20A4;
+        private const double LasalInternalUnitsPerUnit = 10000.0;
+        private static readonly bool ForceZeroGroupRefForCommands = true;
         private readonly int _handle;
         private readonly string _groupName;
+        private readonly byte[] _groupReadStatusResponseBuffer = new byte[64];
+        private readonly byte[] _moveResponseBuffer = new byte[64];
 
         public MMCGroupAxis(string groupName, int handle)
         {
@@ -1432,6 +1438,26 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
         public uint GroupReadStatus(ref ushort errorId)
         {
             errorId = 0;
+            var frame = BuildGroupReadStatusFrame(AxisReference);
+            var responseLength = SendFrameAndTryRead(
+                GroupReadStatusCommandId,
+                frame,
+                "GroupReadStatus",
+                _groupReadStatusResponseBuffer,
+                30);
+
+            uint state;
+            ushort groupErrorId;
+            if (TryParseGroupReadStatusResponse(
+                _groupReadStatusResponseBuffer,
+                responseLength,
+                out state,
+                out groupErrorId))
+            {
+                errorId = groupErrorId;
+                return state;
+            }
+
             return 0x0007u;
         }
 
@@ -1470,7 +1496,18 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
 
         public void MoveLinearAbsolute(float velocity, double[] position, MC_BUFFERED_MODE_ENUM bufferedMode)
         {
-            DummyBackend.GetConnectionOrThrow(_handle);
+            MoveLinearAbsoluteEx(
+                velocity,
+                velocity,
+                velocity,
+                0.0,
+                position,
+                bufferedMode,
+                MC_COORD_SYSTEM_ENUM.MCS,
+                NC_TRANSITION_MODE_ENUM.NONE,
+                new double[0],
+                0,
+                1);
         }
 
         public void MoveLinearRelative(float velocity, double[] distance, MC_BUFFERED_MODE_ENUM bufferedMode)
@@ -1491,7 +1528,26 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             byte superimposed,
             byte execute)
         {
-            DummyBackend.GetConnectionOrThrow(_handle);
+            var frame = BuildMoveLinearAbsoluteExFrame(
+                AxisReference,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                position,
+                bufferedMode,
+                coordSystem,
+                transitionMode,
+                transitionParams,
+                superimposed,
+                execute);
+
+            SendFrameAndTryRead(
+                MoveLinearAbsoluteExCommandId,
+                frame,
+                "MoveLinearAbsoluteEx",
+                _moveResponseBuffer,
+                30);
         }
 
         public void SetKinTransformCartesian(MC_KIN_REF_CARTESIAN kin)
@@ -1508,6 +1564,309 @@ namespace ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET
             byte execute)
         {
             Thread.Sleep(1);
+        }
+
+        private int SendFrameAndTryRead(
+            ushort commandId,
+            byte[] frame,
+            string operationName,
+            byte[] responseBuffer,
+            int readTimeoutMs)
+        {
+            if (responseBuffer == null || responseBuffer.Length == 0)
+            {
+                SendFrame(commandId, frame, operationName);
+                return 0;
+            }
+
+            Array.Clear(responseBuffer, 0, responseBuffer.Length);
+            var connection = GetConnectionOrThrow(commandId);
+            var stream = connection.RpcClient.GetStream();
+
+            lock (connection.IoSync)
+            {
+                try
+                {
+                    stream.Write(frame, 0, frame.Length);
+                }
+                catch (Exception ex)
+                {
+                    throw new MMCException(
+                        "Failed to send " + operationName + " request over TCP/IP: " + ex.Message,
+                        commandId,
+                        LibraryErrors.InternalError,
+                        MMCErrors.NC_UNSUITABLE_NODE_STATE,
+                        16,
+                        AxisReference,
+                        AxisName);
+                }
+
+                var previousReadTimeout = stream.ReadTimeout;
+                try
+                {
+                    stream.ReadTimeout = readTimeoutMs;
+
+                    var totalRead = 0;
+                    while (totalRead < responseBuffer.Length)
+                    {
+                        var read = stream.Read(responseBuffer, totalRead, responseBuffer.Length - totalRead);
+                        if (read <= 0)
+                        {
+                            break;
+                        }
+
+                        totalRead += read;
+
+                        if (!stream.DataAvailable)
+                        {
+                            break;
+                        }
+                    }
+
+                    return totalRead;
+                }
+                catch (IOException)
+                {
+                    return 0;
+                }
+                catch (SocketException)
+                {
+                    return 0;
+                }
+                finally
+                {
+                    try
+                    {
+                        stream.ReadTimeout = previousReadTimeout;
+                    }
+                    catch
+                    {
+                        // Ignore timeout restore failures.
+                    }
+                }
+            }
+        }
+
+        private void SendFrame(ushort commandId, byte[] frame, string operationName)
+        {
+            var connection = GetConnectionOrThrow(commandId);
+            var stream = connection.RpcClient.GetStream();
+
+            try
+            {
+                lock (connection.IoSync)
+                {
+                    stream.Write(frame, 0, frame.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new MMCException(
+                    "Failed to send " + operationName + " frame over TCP/IP: " + ex.Message,
+                    commandId,
+                    LibraryErrors.InternalError,
+                    MMCErrors.NC_UNSUITABLE_NODE_STATE,
+                    16,
+                    AxisReference,
+                    AxisName);
+            }
+        }
+
+        private DummyConnectionState GetConnectionOrThrow(ushort commandId)
+        {
+            var connection = DummyBackend.GetConnectionOrThrow(_handle);
+            if (connection.RpcClient == null || !connection.RpcClient.Connected)
+            {
+                throw new MMCException(
+                    "RPC socket is not connected.",
+                    commandId,
+                    LibraryErrors.InvalidHandle,
+                    MMCErrors.NC_NODE_NOT_FOUND,
+                    16,
+                    AxisReference,
+                    AxisName);
+            }
+
+            return connection;
+        }
+
+        private static byte[] BuildGroupReadStatusFrame(ushort groupRef)
+        {
+            var frame = new byte[16];
+            groupRef = ResolveCommandGroupRef(groupRef);
+
+            WriteUInt16LE(frame, 0, GroupReadStatusCommandId);
+            WriteUInt16LE(frame, 2, groupRef);
+            WriteUInt16LE(frame, 4, 8);
+            WriteUInt16LE(frame, 6, 0x0100);
+            WriteUInt32LE(frame, 8, 0x00000100u);
+            WriteUInt32LE(frame, 12, 1u);
+
+            return frame;
+        }
+
+        private static byte[] BuildMoveLinearAbsoluteExFrame(
+            ushort groupRef,
+            double velocity,
+            double acceleration,
+            double deceleration,
+            double jerk,
+            double[] position,
+            MC_BUFFERED_MODE_ENUM bufferedMode,
+            MC_COORD_SYSTEM_ENUM coordSystem,
+            NC_TRANSITION_MODE_ENUM transitionMode,
+            double[] transitionParams,
+            byte superimposed,
+            byte execute)
+        {
+            var frame = new byte[312];
+            groupRef = ResolveCommandGroupRef(groupRef);
+
+            WriteUInt16LE(frame, 0, MoveLinearAbsoluteExCommandId);
+            WriteUInt16LE(frame, 2, groupRef);
+            WriteUInt16LE(frame, 4, 0x0130);
+            WriteUInt16LE(frame, 6, 0x0100);
+
+            WriteScaledLasalUnitVector(frame, 8, position, 16);
+            WriteDoubleLE(frame, 136, ScaleLasalUnitToInternalUnit(velocity));
+            WriteDoubleLE(frame, 144, ScaleLasalUnitToInternalUnit(acceleration));
+            WriteDoubleLE(frame, 152, ScaleLasalUnitToInternalUnit(deceleration));
+            WriteDoubleLE(frame, 160, ScaleLasalUnitToInternalUnit(jerk));
+            WriteDoubleVector(frame, 168, transitionParams, 16);
+
+            WriteInt32LE(frame, 296, (int)bufferedMode);
+            WriteInt32LE(frame, 300, (int)coordSystem);
+            WriteInt32LE(frame, 304, (int)transitionMode);
+            frame[308] = superimposed;
+            frame[309] = execute;
+            frame[310] = 0;
+            frame[311] = 0;
+
+            return frame;
+        }
+
+        private static void WriteScaledLasalUnitVector(byte[] frame, int offset, double[] values, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var value = values != null && i < values.Length ? values[i] : 0.0;
+                WriteDoubleLE(frame, offset + (i * 8), ScaleLasalUnitToInternalUnit(value));
+            }
+        }
+
+        private static double ScaleLasalUnitToInternalUnit(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Motion value must be finite.");
+            }
+
+            return value * LasalInternalUnitsPerUnit;
+        }
+
+        private static void WriteDoubleVector(byte[] frame, int offset, double[] values, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var value = values != null && i < values.Length ? values[i] : 0.0;
+                WriteDoubleLE(frame, offset + (i * 8), value);
+            }
+        }
+
+        private static ushort ResolveCommandGroupRef(ushort groupRef)
+        {
+            if (ForceZeroGroupRefForCommands)
+            {
+                return 0;
+            }
+
+            return groupRef;
+        }
+
+        private static bool TryParseGroupReadStatusResponse(
+            byte[] responseFrame,
+            int responseLength,
+            out uint state,
+            out ushort groupErrorId)
+        {
+            state = 0;
+            groupErrorId = 0;
+
+            if (responseFrame == null || responseLength < 12)
+            {
+                return false;
+            }
+
+            var payloadLength = ReadUInt16LE(responseFrame, 2);
+            if (payloadLength >= 12 && responseLength >= 20)
+            {
+                state = ReadUInt32LE(responseFrame, 8);
+                groupErrorId = ReadUInt16LE(responseFrame, 16);
+                return true;
+            }
+
+            if (responseLength >= 12)
+            {
+                state = ReadUInt32LE(responseFrame, 8);
+                if (responseLength >= 18)
+                {
+                    groupErrorId = ReadUInt16LE(responseFrame, 16);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void WriteUInt16LE(byte[] target, int offset, ushort value)
+        {
+            target[offset] = (byte)(value & 0xFF);
+            target[offset + 1] = (byte)((value >> 8) & 0xFF);
+        }
+
+        private static void WriteUInt32LE(byte[] target, int offset, uint value)
+        {
+            target[offset] = (byte)(value & 0xFF);
+            target[offset + 1] = (byte)((value >> 8) & 0xFF);
+            target[offset + 2] = (byte)((value >> 16) & 0xFF);
+            target[offset + 3] = (byte)((value >> 24) & 0xFF);
+        }
+
+        private static void WriteInt32LE(byte[] target, int offset, int value)
+        {
+            unchecked
+            {
+                target[offset] = (byte)(value & 0xFF);
+                target[offset + 1] = (byte)((value >> 8) & 0xFF);
+                target[offset + 2] = (byte)((value >> 16) & 0xFF);
+                target[offset + 3] = (byte)((value >> 24) & 0xFF);
+            }
+        }
+
+        private static void WriteDoubleLE(byte[] target, int offset, double value)
+        {
+            var bytes = BitConverter.GetBytes(value);
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes);
+            }
+
+            Buffer.BlockCopy(bytes, 0, target, offset, 8);
+        }
+
+        private static ushort ReadUInt16LE(byte[] source, int offset)
+        {
+            return (ushort)(source[offset] | (source[offset + 1] << 8));
+        }
+
+        private static uint ReadUInt32LE(byte[] source, int offset)
+        {
+            return
+                (uint)source[offset] |
+                ((uint)source[offset + 1] << 8) |
+                ((uint)source[offset + 2] << 16) |
+                ((uint)source[offset + 3] << 24);
         }
     }
 

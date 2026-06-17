@@ -774,35 +774,35 @@
 									Grid.Column="0"
 									Margin="0,0,12,6">
 									<TextBlock Text="Velocity" />
-									<TextBox x:Name="TextGroupVelocity" Text="1000" />
+									<TextBox x:Name="TextGroupVelocity" Text="360" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="1"
 									Margin="0,0,12,6">
 									<TextBlock Text="Acceleration" />
-									<TextBox x:Name="TextGroupAcceleration" Text="1000" />
+									<TextBox x:Name="TextGroupAcceleration" Text="360000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="2"
 									Margin="0,0,12,6">
 									<TextBlock Text="Deceleration" />
-									<TextBox x:Name="TextGroupDeceleration" Text="1000" />
+									<TextBox x:Name="TextGroupDeceleration" Text="360000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="3"
 									Margin="0,0,12,6">
 									<TextBlock Text="Jerk" />
-									<TextBox x:Name="TextGroupJerk" Text="100000" />
+									<TextBox x:Name="TextGroupJerk" Text="360000000" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
 									Grid.Column="4"
 									Margin="0,0,12,6">
 									<TextBlock Text="End Point (CSV)" />
-									<TextBox x:Name="TextGroupEndPoint" Text="1000,2000,3000" />
+									<TextBox x:Name="TextGroupEndPoint" Text="360,360,360,360" />
 								</StackPanel>
 								<StackPanel
 									Grid.Row="0"
@@ -1441,6 +1441,315 @@
 											x:Name="ButtonSaveCycleResult2"
 											Padding="10,3"
 											Click="ButtonSaveCycleResult2_Click"
+											Content="Save Result (.xlsx)"
+											IsEnabled="False" />
+									</WrapPanel>
+								</Grid>
+							</StackPanel>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+			<TabItem Header="Cycle Test Group1">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="8">
+						<GroupBox Margin="0,0,0,8" Header="Group Points">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="P1 Vector CSV" />
+									<TextBox x:Name="TextCycleGroup1P1" Text="0,0,0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,0,6">
+									<TextBlock Text="P2 Vector CSV" />
+									<TextBox x:Name="TextCycleGroup1P2" Text="720,360,360,720" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Margin="0,0,12,0">
+									<TextBlock Text="P3 Vector CSV" />
+									<TextBox x:Name="TextCycleGroup1P3" Text="360,720,720,360" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="1">
+									<TextBlock Text="P4 Vector CSV" />
+									<TextBox x:Name="TextCycleGroup1P4" Text="720,1080,1080,720" />
+								</StackPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Group Motion Parameters">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="220" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Velocity" />
+									<TextBox x:Name="TextCycleGroup1Velocity" Text="3600" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Acceleration" />
+									<TextBox x:Name="TextCycleGroup1Acceleration" Text="360000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Deceleration" />
+									<TextBox x:Name="TextCycleGroup1Deceleration" Text="360000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Jerk" />
+									<TextBox x:Name="TextCycleGroup1Jerk" Text="3600000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Buffered Mode" />
+									<ComboBox x:Name="ComboCycleGroup1BufferedMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Coord System" />
+									<ComboBox x:Name="ComboCycleGroup1CoordSystem" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Transition Mode" />
+									<ComboBox x:Name="ComboCycleGroup1TransitionMode" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="2"
+									Grid.ColumnSpan="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Transition Params CSV" />
+									<TextBox x:Name="TextCycleGroup1TransitionParams" Text="1,1,0,0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Superimposed" />
+									<TextBox x:Name="TextCycleGroup1Superimposed" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<CheckBox
+										x:Name="CheckCycleGroup1QueueBlend"
+										Margin="0,2,16,0"
+										Content="Queue points for transition/blending"
+										IsChecked="False" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Cycle and Status">
+							<Grid Margin="8">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="180" />
+									<ColumnDefinition Width="*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Cycle Count" />
+									<TextBox x:Name="TextCycleGroup1Count" Text="100" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Warmup Cycles" />
+									<TextBox x:Name="TextCycleGroup1WarmupCycles" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Move Timeout (ms)" />
+									<TextBox x:Name="TextCycleGroup1MoveTimeoutMs" Text="5000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="3"
+									Margin="0,0,12,6">
+									<TextBlock Text="Poll Interval (ms)" />
+									<TextBox x:Name="TextCycleGroup1PollIntervalMs" Text="1" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="4"
+									Margin="0,0,12,6">
+									<TextBlock Text="Stable Samples" />
+									<TextBox x:Name="TextCycleGroup1StableSamples" Text="3" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="0"
+									Grid.Column="5"
+									Margin="0,0,0,6">
+									<TextBlock Text="Drop Threshold (ms)" />
+									<TextBox x:Name="TextCycleGroup1DropThresholdMs" Text="5000" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="1"
+									Grid.Column="0"
+									Grid.ColumnSpan="2"
+									Margin="0,0,12,6">
+									<TextBlock Text="Group In-position Mask (hex)" />
+									<TextBox x:Name="TextCycleGroup1InPositionMask" Text="0x00020000" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="2"
+									Grid.Column="0"
+									Grid.ColumnSpan="6">
+									<CheckBox
+										x:Name="CheckCycleGroup1StopOnTimeout"
+										Margin="0,2,16,0"
+										Content="Stop on timeout"
+										IsChecked="False" />
+									<CheckBox
+										x:Name="CheckCycleGroup1StopOnError"
+										Margin="0,2,16,0"
+										Content="Stop on group error/exception"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleGroup1HighPriorityThread"
+										Margin="0,2,16,0"
+										Content="Use high-priority worker thread"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleGroup1HighPrecisionWait"
+										Margin="0,2,16,0"
+										Content="Use high-precision wait (yield/spin)"
+										IsChecked="True" />
+									<CheckBox
+										x:Name="CheckCycleGroup1Use1msTimerResolution"
+										Margin="0,2,0,0"
+										Content="Request 1ms system timer resolution"
+										IsChecked="True" />
+								</WrapPanel>
+							</Grid>
+						</GroupBox>
+						<GroupBox Margin="0,0,0,8" Header="Control">
+							<StackPanel Margin="8">
+								<TextBlock
+									Margin="0,0,0,8"
+									Foreground="#AA6A0000"
+									Text="Normal mode waits for GroupReadStatus standby mask after each point. Queue mode sends P1, P2, P3, P4, P1 first, then waits for final standby."
+									TextWrapping="Wrap" />
+								<WrapPanel>
+									<Button
+										x:Name="ButtonStartCycleTestGroup1"
+										Margin="0,0,8,0"
+										Padding="10,4"
+										Click="ButtonStartCycleTestGroup1_Click"
+										Content="Start Cycle Test Group1" />
+									<Button
+										x:Name="ButtonStopCycleTestGroup1"
+										Padding="10,4"
+										Click="ButtonStopCycleTestGroup1_Click"
+										Content="Stop"
+										IsEnabled="False" />
+								</WrapPanel>
+							</StackPanel>
+						</GroupBox>
+						<GroupBox Header="Result">
+							<StackPanel Margin="8">
+								<ProgressBar
+									x:Name="ProgressCycleTestGroup1"
+									Height="20"
+									Maximum="100"
+									Minimum="0"
+									Value="0" />
+								<TextBox
+									x:Name="TextCycleGroup1RunStatus"
+									Margin="0,8,0,8"
+									IsReadOnly="True"
+									Text="Idle" />
+								<TextBox
+									x:Name="TextCycleGroup1Summary"
+									Height="220"
+									AcceptsReturn="True"
+									FontFamily="Consolas"
+									HorizontalScrollBarVisibility="Auto"
+									IsReadOnly="True"
+									TextWrapping="NoWrap"
+									VerticalScrollBarVisibility="Auto" />
+								<Grid Margin="0,8,0,0">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="120" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="220" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										Grid.Column="0"
+										Margin="0,5,8,0"
+										Text="Save Folder" />
+									<TextBox
+										x:Name="TextCycleGroup1SaveFolder"
+										Grid.Column="1"
+										Text="C:\work\Elmo\Elmo_Master\Codex_LASAL_WPF\Reports\CycleResultsGroup1" />
+									<WrapPanel Grid.Column="2" Margin="8,0,0,0">
+										<CheckBox
+											x:Name="CheckCycleGroup1AutoSaveResult"
+											Margin="0,5,8,0"
+											Content="Auto Save"
+											IsChecked="False" />
+										<Button
+											x:Name="ButtonSaveCycleGroup1Result"
+											Padding="10,3"
+											Click="ButtonSaveCycleGroup1Result_Click"
 											Content="Save Result (.xlsx)"
 											IsEnabled="False" />
 									</WrapPanel>

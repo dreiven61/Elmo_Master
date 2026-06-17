@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using ElmoMotionControl.GMAS.EASComponents.MMCLibDotNET;
 
@@ -220,6 +221,32 @@ namespace PmasApiWpfTestApp
             position = ParseDoubleArray(TextGroupEndPoint.Text, 16);
             transitionParams = ParseDoubleArray(TextGroupTransitionParams.Text, 16);
             superimposed = ParseByte(TextGroupSuperimposed.Text);
+        }
+
+        private void EnsureGroupLoadedFromText()
+        {
+            Context.EnsureConnected();
+
+            var groupName = NormalizeNumeric(TextGroupName.Text);
+            var groupAxes = NormalizeNumeric(TextGroupAxes.Text);
+            if (Context.GroupAxis == null
+                || !string.Equals(Context.GroupName, groupName, StringComparison.Ordinal)
+                || !string.Equals(Context.GroupAxisNames, groupAxes, StringComparison.Ordinal))
+            {
+                Context.LoadGroup(groupName, groupAxes);
+            }
+        }
+
+        private static string FormatVector(double[] values)
+        {
+            if (values == null)
+            {
+                return "<null>";
+            }
+
+            return string.Join(",", values
+                .Take(16)
+                .Select(value => value.ToString("0.###", CultureInfo.InvariantCulture)));
         }
     }
 }

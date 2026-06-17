@@ -71,6 +71,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="MainWindow.AxisOperations.cs" />
+    <Compile Include="MainWindow.CycleTestGroupOperations.cs" />
     <Compile Include="MainWindow.CycleTestOperations.cs" />
     <Compile Include="MainWindow.Coverage.cs" />
     <Compile Include="MainWindow.GroupOperations.cs" />
