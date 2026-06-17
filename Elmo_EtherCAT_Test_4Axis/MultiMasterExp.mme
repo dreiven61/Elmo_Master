@@ -607,6 +607,814 @@
 		<RemoteServer Name="_LMCAxis4.JMax" Name_DESC="Name" GUID_Svr="{F40EF8AA-6964-4819-9DA6-F1FBB2CBF180}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{36641238-C276-4350-BE64-4649B8745498}" GUID_Obj_DESC="GUID of the object" Comment="Defines the maximal jerk of the axis [Application units / sec^3 / 1000]&#13;&#10;&#13;&#10;for MoveType=_JERK_PROFILE only&#13;&#10;&#13;&#10;If this value equals 0, then the maximal jerk is computed by Amax / TJerk." Comment_DESC="Comment of server"/>
 		<RemoteServer Name="_LMCAxis4.SafeAxisState" Name_DESC="Name" GUID_Svr="{5E791631-FB9C-4D2A-A438-488E91177476}" GUID_Svr_DESC="GUID of the server" DataType="_LMCAxisBase::t_s_LMCAxis_SafetyState" DataType_DESC="DataType" GUID_Obj="{36641238-C276-4350-BE64-4649B8745498}" GUID_Obj_DESC="GUID of the object" MMType="BDINT" MMType_DESC="Type of the multimaster server" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="The server shows the general safety info of the connected hardware axis. The server only shows the basic info and not the detailed information.&#13;&#10;Bit 1 ... SafeAxis - Connected axis supports safety features&#13;&#10;Bit 2 ... SpeedLimited - Safety limits the maximum allowed speed of the axis&#13;&#10;Bit 3 ... AxisReady - Axis can be enabled&#13;&#10;Bit 4 ... AxisOperational - Safety is fully operational - normal functional behaviour&#13;&#10;Bit 5 ... AxisError - Safety FW of drive is in error state&#13;&#10;Bit 6 ... ServiceModePending - Service mode will be activated soon&#13;&#10;Bit 7 ... SafeErrorQuitPending - Drive is doing a safety error quit before functional error quit&#13;&#10;Bit 8 ... AxisVerified - Connected axis verified or doesn&apos;t need to be verified&#13;&#10;Bit 9 ... AxisVerifyFailed - Verify or clear verification of axis failed&#13;&#10;Bit 10 ... AxisReferenced - Connected axis referenced or doesn&apos;t need to be referenced&#13;&#10;Bit 11 ... AxisReferenceActive - Axis reference movement is currently active. Bit is only set, when safe reference movement is done via _LMCAxis.&#13;&#10;Bit 12 ... AxisReferenceNeeded - Connected axis must be safe referenced. The reference state is available on bit AxisReferenced&#13;&#10;Bit 13 ... AxisReferenceFailed - Reference or clear reference of axis failed&#13;&#10;Bit 14 ... SBTAvailable - Connected axis supports SBT&#13;&#10;Bit 15 ... SBTActive - Automatic SBT is currently active&#13;&#10;Bit 16 ... SBTFailed - Automatic SBT failed" Comment_DESC="Comment of server"/>
 		<RemoteServer Name="_LMCAxis4.AbsEncoder" Name_DESC="Name" GUID_Svr="{67A9C60B-7109-4A29-B034-0B874C9F507E}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{36641238-C276-4350-BE64-4649B8745498}" GUID_Obj_DESC="GUID of the object" Comment="With this server absolute&#13;&#10;encoder-values can be read in" Comment_DESC="Comment of server"/>
+		<RemoteServer
+			Name                = "_LMCRobotBase1.Control"
+			Name_DESC           = "Name"
+			GUID_Svr            = "{85FC2FCB-E70A-45C9-8EE4-9A9C0977DE2E}"
+			GUID_Svr_DESC       = "GUID of the server"
+			Class               = "_LMCProfileBase"
+			Class_DESC          = "Class"
+			DataType            = "ProfileCommandStatus"
+			DataType_DESC       = "DataType"
+			GUID_Obj            = "{A01C18CD-FE1E-432E-B14F-EF0871CE3576}"
+			GUID_Obj_DESC       = "GUID of the object"
+			Type                = "Object Channel"
+			Type_DESC           = "Type"
+			HasNewInst          = "true"
+			HasNewInst_DESC     = "Multimaster server has NewInst commands"
+			WriteProtected      = "true"
+			WriteProtected_DESC = "Write protection of multimaster server"
+			Comment             = "Serves an interface for the LMCProfile class to call the application methods &#13;&#10;and displays the actual status of the LMCProfile class&#13;&#10;============================================================================&#13;&#10;&#13;&#10;PassiveProfile:&#13;&#10;Axis are unlocked in passive mode&#13;&#10;&#13;&#10;IdleProfile:&#13;&#10;Axis are locked in idle mode - no motion sequences are available&#13;&#10;&#13;&#10;IdleProfileRestart:&#13;&#10;Restart or Start at Line Number is active&#13;&#10;&#13;&#10;RunProfile:&#13;&#10;Axes are in motion to generate a profile&#13;&#10;&#13;&#10;ErrorProfile:&#13;&#10;An error occured&#13;&#10;&#13;&#10;IdleProfileRestart:&#13;&#10;waiting for end of restart&#13;&#10;&#13;&#10;WaitProfileRestart:&#13;&#10;waiting for end of delay time after calling ContinueNCProg()&#13;&#10;&#13;&#10;WaitProfileForAxInPos:&#13;&#10;Profile is waiting for the actual axis positions to be in position at an exact stop"
+			Comment_DESC        = "Comment of server">
+			<NewInst>
+				<Function Name="IPRSetBasicParameter">
+					<InputParameter>
+						<Parameter Name="Vmax"/>
+						<Parameter Name="AMax"/>
+						<Parameter Name="JMax"/>
+						<Parameter Name="TangError"/>
+						<Parameter Name="PosOffset1"/>
+						<Parameter Name="PosOffset2"/>
+						<Parameter Name="PosOffset3"/>
+						<Parameter Name="PosOffset4"/>
+						<Parameter Name="PosOffset5"/>
+						<Parameter Name="PosOffset6"/>
+						<Parameter Name="PosOffset7"/>
+						<Parameter Name="PosOffset8"/>
+						<Parameter Name="PosOffset9"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLockProfile">
+					<InputParameter>
+						<Parameter Name="Axis1"/>
+						<Parameter Name="Axis2"/>
+						<Parameter Name="Axis3"/>
+						<Parameter Name="Axis4"/>
+						<Parameter Name="Axis5"/>
+						<Parameter Name="Axis6"/>
+						<Parameter Name="Axis7"/>
+						<Parameter Name="Axis8"/>
+						<Parameter Name="Axis9"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRUnlockProfile">
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRMoveLiniare">
+					<InputParameter>
+						<Parameter Name="End1"/>
+						<Parameter Name="End2"/>
+						<Parameter Name="End3"/>
+						<Parameter Name="End4"/>
+						<Parameter Name="End5"/>
+						<Parameter Name="End6"/>
+						<Parameter Name="End7"/>
+						<Parameter Name="End8"/>
+						<Parameter Name="End9"/>
+						<Parameter Name="CmdConfig"/>
+						<Parameter Name="Velocity"/>
+						<Parameter Name="Accel"/>
+						<Parameter Name="Decel"/>
+						<Parameter Name="TransMode"/>
+						<Parameter Name="Radius"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRMoveCircle">
+					<InputParameter>
+						<Parameter Name="End1"/>
+						<Parameter Name="End2"/>
+						<Parameter Name="End3"/>
+						<Parameter Name="End4"/>
+						<Parameter Name="End5"/>
+						<Parameter Name="End6"/>
+						<Parameter Name="MP1"/>
+						<Parameter Name="MP2"/>
+						<Parameter Name="MP3"/>
+						<Parameter Name="CircleDef"/>
+						<Parameter Name="Mode"/>
+						<Parameter Name="Speed"/>
+						<Parameter Name="Accel"/>
+						<Parameter Name="Decel"/>
+						<Parameter Name="TransMode"/>
+						<Parameter Name="TransRadius"/>
+						<Parameter Name="pEndPos9Axis"/>
+						<Parameter Name="pInterPoint"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfileInPos">
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadPos">
+					<InputParameter>
+						<Parameter Name="Nr"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Position"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfileFinished">
+					<OutputParameter>
+						<Parameter Name="state"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRInitPosWin">
+					<InputParameter>
+						<Parameter Name="PosWin1"/>
+						<Parameter Name="PosWin2"/>
+						<Parameter Name="PosWin3"/>
+						<Parameter Name="PosWin4"/>
+						<Parameter Name="PosWin5"/>
+						<Parameter Name="PosWin6"/>
+						<Parameter Name="PosWin7"/>
+						<Parameter Name="PosWin8"/>
+						<Parameter Name="PosWin9"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfAxisFinished">
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfAxisInPos">
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRPofChkType" Comment="returns type of connected profile class&#13;&#10;">
+					<OutputParameter>
+						<Parameter Name="ClassType" Comment="_PROF_TYPE_CNCProfile   : class CNCProfile&#13;&#10;_PROF_TYPE_LMCCNCProfile: class LMCCNCProfile"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRPRofReadActError" Comment="returns the errorcode">
+					<OutputParameter>
+						<Parameter Name="ActError" Comment="errorcode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfReadLastIndex" Comment="returns the last index">
+					<OutputParameter>
+						<Parameter Name="LastIndex" Comment="last index used"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfDefMoveCircle" Comment="axes which perform the circular movement are specified">
+					<InputParameter>
+						<Parameter Name="Axis1" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+						<Parameter Name="Axis2" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+						<Parameter Name="Axis3" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+						<Parameter Name="Axis4" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+						<Parameter Name="Axis5" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+						<Parameter Name="Axis6" Comment="0 --&gt; Linear movement&#13;&#10;1 --&gt; Circular movement"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRProfMoveFinished" Comment="Checks, if motion command is finished">
+					<OutputParameter>
+						<Parameter Name="State" Comment="TRUE: motion command is finished&#13;&#10;FALSE: motion command is moving."/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfGetStartpos" Comment="Returns the start positions of all axes [Application units]">
+					<OutputParameter>
+						<Parameter Name="Start1" Comment="Startposition axis 1"/>
+						<Parameter Name="Start2" Comment="Startposition axis 2"/>
+						<Parameter Name="Start3" Comment="Startposition axis 3"/>
+						<Parameter Name="Start4" Comment="Startposition axis 4"/>
+						<Parameter Name="Start5" Comment="Startposition axis 5"/>
+						<Parameter Name="Start6" Comment="Startposition axis 6"/>
+						<Parameter Name="Start7"/>
+						<Parameter Name="Start8"/>
+						<Parameter Name="Start9"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfGetFreeLines" Comment="Returns the number of free lines in the profile buffer">
+					<OutputParameter>
+						<Parameter Name="FreeLines" Comment="Number of free lines"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfGetResidualPath" Comment="Returns the path distance remaining">
+					<OutputParameter>
+						<Parameter Name="ResidualPath"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfStopMove" Comment="Stops an NC-program without damaging the contour.">
+				</Function>
+				<Function Name="IPRProfRestartMove" Comment="Restarts a stopped NC-program.">
+				</Function>
+				<Function Name="IPRProfIsProfileStopped" Comment="Returns TRUE if an NC-program is stopped and FALSE otherwise.">
+					<OutputParameter>
+						<Parameter Name="ProfileIsStopped"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfReadActPosition" Comment="Returns the actual positions of all axes">
+					<OutputParameter>
+						<Parameter Name="ActPostion1"/>
+						<Parameter Name="ActPostion2"/>
+						<Parameter Name="ActPostion3"/>
+						<Parameter Name="ActPostion4"/>
+						<Parameter Name="ActPostion5"/>
+						<Parameter Name="ActPostion6"/>
+						<Parameter Name="ActPosition7"/>
+						<Parameter Name="ActPosition8"/>
+						<Parameter Name="ActPosition9"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfSetOverride" Comment="Sets a new override value.">
+					<InputParameter>
+						<Parameter Name="Override" Comment="New override"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="actOverride"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfReadOverride" Comment="Returns the actual override. In case of reverse drive negative value is returned.">
+					<OutputParameter>
+						<Parameter Name="actOverride"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfReadEntryIndex">
+					<OutputParameter>
+						<Parameter Name="EntryIndex"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfReadActSubError">
+					<OutputParameter>
+						<Parameter Name="SubErrorNo"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetAxisParameter">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="ParNo"/>
+						<Parameter Name="Value"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetProfileParameter">
+					<InputParameter>
+						<Parameter Name="ParNo"/>
+						<Parameter Name="Value"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleGearAbsolute">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="DeltaPos"/>
+						<Parameter Name="pMaster"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleGearRelative">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="pMaster"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleGearVelocity">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="pMaster"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRCoupleCurveTab">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="DeltaPos"/>
+						<Parameter Name="pMaster"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+						<Parameter Name="Mode"/>
+						<Parameter Name="pCurveData"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleUserPos">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="pMasterPos"/>
+						<Parameter Name="DeltaPos"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleProfilePos">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRCoupleGearPolynom">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="CoupleMode"/>
+						<Parameter Name="MaxVel"/>
+						<Parameter Name="MaxAcc"/>
+						<Parameter Name="pMaster"/>
+						<Parameter Name="GearMul"/>
+						<Parameter Name="GearDiv"/>
+						<Parameter Name="sMaster"/>
+						<Parameter Name="sSlave"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRReadAxisState">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="AxisState"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetBrakePositions">
+					<InputParameter>
+						<Parameter Name="pPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetLinBrakePoint">
+					<InputParameter>
+						<Parameter Name="pPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetRotBrakePoint">
+					<InputParameter>
+						<Parameter Name="pPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadCmdIndex">
+					<InputParameter>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Index"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadProfileActValues" Comment="Calls the method ReadProfileActValues()">
+					<InputParameter>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="ActualValue"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetMoveFinished">
+					<InputParameter>
+						<Parameter Name="Index"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadResidualTime">
+					<InputParameter>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="ResidualTime"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetBufferData" Comment="Calls the method GetBufferData()">
+					<InputParameter>
+						<Parameter Name="Index"/>
+						<Parameter Name="pMoveData"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadTimebase" Comment="Read the RtWork() cycle time [ms]">
+					<OutputParameter>
+						<Parameter Name="Timebase"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfileMoveRelative" Comment="Move axes linearly by the specified distance.">
+					<InputParameter>
+						<Parameter Name="DistanceAxis1"/>
+						<Parameter Name="DistanceAxis2"/>
+						<Parameter Name="DistanceAxis3"/>
+						<Parameter Name="DistanceAxis4"/>
+						<Parameter Name="DistanceAxis5"/>
+						<Parameter Name="DistanceAxis6"/>
+						<Parameter Name="DistanceAxis7"/>
+						<Parameter Name="DistanceAxis8"/>
+						<Parameter Name="DistanceAxis9"/>
+						<Parameter Name="CmdConfig"/>
+						<Parameter Name="Velocity"/>
+						<Parameter Name="Accel"/>
+						<Parameter Name="Decel"/>
+						<Parameter Name="TransMode"/>
+						<Parameter Name="TransRadius"/>
+						<Parameter Name="Jerk"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLockProfileRestart" Comment="Initiates a simulation run for a restart.">
+					<InputParameter>
+						<Parameter Name="Axis1"/>
+						<Parameter Name="Axis2"/>
+						<Parameter Name="Axis3"/>
+						<Parameter Name="Axis4"/>
+						<Parameter Name="Axis5"/>
+						<Parameter Name="Axis6"/>
+						<Parameter Name="Axis7"/>
+						<Parameter Name="Axis8"/>
+						<Parameter Name="Axis9"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLockProfileStartLineNo" Comment="Initiates a simulation run for a start at the specified line number.">
+					<InputParameter>
+						<Parameter Name="Axis1"/>
+						<Parameter Name="Axis2"/>
+						<Parameter Name="Axis3"/>
+						<Parameter Name="Axis4"/>
+						<Parameter Name="Axis5"/>
+						<Parameter Name="Axis6"/>
+						<Parameter Name="Axis7"/>
+						<Parameter Name="Axis8"/>
+						<Parameter Name="Axis9"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetRestartPointIPR" Comment="Interpreter sets the restart point data.">
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadRestartPos" Comment="Read axes positions at the restart point [Application units]">
+					<InputParameter>
+						<Parameter Name="pPositions"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRContinueNCProg" Comment="Continue NC-program execution at the start point or restart point.">
+					<InputParameter>
+						<Parameter Name="PosWindow"/>
+						<Parameter Name="DelayTime"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="enRetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadRestartInfo" Comment="Read the restart information.">
+					<InputParameter>
+						<Parameter Name="psRestart"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRProfGetStartposRestart" Comment="Returns the original start positions of all axes [Application units]">
+					<OutputParameter>
+						<Parameter Name="pPos"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadCommonCalcParas" Comment="Read common calculation parameters">
+					<InputParameter>
+						<Parameter Name="pCalcParas"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLockProfileStartFileOffset" Comment="NC-program starts at the specified file offset without a simulation run.">
+					<InputParameter>
+						<Parameter Name="Axis1"/>
+						<Parameter Name="Axis2"/>
+						<Parameter Name="Axis3"/>
+						<Parameter Name="Axis4"/>
+						<Parameter Name="Axis5"/>
+						<Parameter Name="Axis6"/>
+						<Parameter Name="Axis7"/>
+						<Parameter Name="Axis8"/>
+						<Parameter Name="Axis9"/>
+						<Parameter Name="pStartPos"/>
+						<Parameter Name="PathOffset"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLockProfileRestartFileOffset" Comment="Restart of NC-program at the specified file offset without a simulation run.">
+					<InputParameter>
+						<Parameter Name="Axis1"/>
+						<Parameter Name="Axis2"/>
+						<Parameter Name="Axis3"/>
+						<Parameter Name="Axis4"/>
+						<Parameter Name="Axis5"/>
+						<Parameter Name="Axis6"/>
+						<Parameter Name="Axis7"/>
+						<Parameter Name="Axis8"/>
+						<Parameter Name="Axis9"/>
+						<Parameter Name="pStartPos"/>
+						<Parameter Name="PathOffset"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="State"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetRestartPoint" Comment="Application sets the restart point data and requests the restart positions.">
+					<InputParameter>
+						<Parameter Name="PathOffset"/>
+						<Parameter Name="pRestartPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetAxesPositionsG92" Comment="Set the start position(s) for the following moves.&#13;&#10;&#13;&#10;This function is used by the interpreter when performing a SetAxesPositions from the cyclic task. In this case a buffer entry with the command type &quot;_LMCMT_SetProfPos&quot; and the given start positions is inserted into the profile buffer.">
+					<InputParameter>
+						<Parameter Name="pAxPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="enRetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetAxesPositionsG92Live" Comment="Set the positions and internal variables of the affected axes objects.&#13;&#10;&#13;&#10;This function is used by the interpreter when performing a SetAxesPositions from the realtime task. In this case SetPosition() and SetParameter() is called at the locked axes.">
+					<InputParameter>
+						<Parameter Name="pAxPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="enRetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetProfileInPos" Comment="TRUE ... actual position is used for exact stop&#13;&#10;FALSE ... set position is used for exact stop (default)">
+					<InputParameter>
+						<Parameter Name="Value"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadProfileActValuesLREAL" Comment="Calls the method ReadProfileActValuesLREAL()">
+					<InputParameter>
+						<Parameter Name="Mode"/>
+						<Parameter Name="pActualValue"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRActivateCmdByLMCCNCIpr">
+					<InputParameter>
+						<Parameter Name="UserBufferIndex"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRSetLMCCNCIprMode">
+					<InputParameter>
+						<Parameter Name="bLMCCNCIprMode"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRIsRestartPointReached">
+					<OutputParameter>
+						<Parameter Name="usRestartPointFound"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRReadLastPathLength">
+					<OutputParameter>
+						<Parameter Name="LastPathLength"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRFinishCmd">
+					<InputParameter>
+						<Parameter Name="UserBufferIndex"/>
+						<Parameter Name="Value"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRGetDestinationPos" Comment="Returns the current moves Destination positions as 9*DINT values.&#13;&#10;aData[0] = Pos1&#13;&#10;aData[4] = Pos2&#13;&#10;etc.&#13;&#10;&#13;&#10;Called from the CNCInterpreter to update the current position after asynchronous M-Command is finished.">
+					<OutputParameter>
+						<Parameter Name="Destination1"/>
+						<Parameter Name="Destination2"/>
+						<Parameter Name="Destination3"/>
+						<Parameter Name="Destination4"/>
+						<Parameter Name="Destination5"/>
+						<Parameter Name="Destination6"/>
+						<Parameter Name="Destination7"/>
+						<Parameter Name="Destination8"/>
+						<Parameter Name="Destination9"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRStopMoveEndOfMovement" Comment="Stops the profile at the end of a movement with an exact stop. The movement where the exact stop is performed is determined by calculating the brake distance that is needed to stop with the handed over deceleration or the maximum deceleration. The remaining buffer entries after the stop are removed.">
+					<InputParameter>
+						<Parameter Name="Decel"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="StopCmdNo"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRRecalcVelocity">
+					<InputParameter>
+						<Parameter Name="IntValue"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetValue"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRSetAxesPositionsG92Immediate" Comment="This function inserts a buffer entry with the command type &quot;_LMCMT_SetProfPos&quot; and the given start positions into the profile buffer. Additionally the axes positions are set immediately with SetPosition() and SetParameter(). &#13;&#10;This function can be used if the position of one or more locked axes have to be set to a defined position immediately.   ">
+					<InputParameter>
+						<Parameter Name="pAxPos"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="enRetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRTangAxisConfig" Comment="This function is used to configure the tangential axis.">
+					<InputParameter>
+						<Parameter Name="TangAxisIdx" Comment="Index of the tangential axis."/>
+						<Parameter Name="FirstAxisIdx" Comment="Index of first transversal axis."/>
+						<Parameter Name="SecondAxisIdx" Comment="Index of second transversal axis."/>
+						<Parameter Name="AngleOffset" Comment="Offset of the tangential axis to the tangental direction defined by the two transversal axes."/>
+						<Parameter Name="MaxDeltaAngle" Comment="Maximum change of the angle of the transversal axis before an additional move command gets included."/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Success" Comment="Configuration of the tangential axis succeeded."/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRTangAxisActivate" Comment="This function activates the tangential axis.">
+					<InputParameter>
+						<Parameter Name="TangAxis" Comment="Index of the specificied tangential axis."/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Success" Comment="Activation succeeded."/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRTangAxisDeactivate" Comment="This function deactivates the tangential axis.">
+					<InputParameter>
+						<Parameter Name="TangAxis"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Success" Comment="Deactivation succeeded."/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetMaxBufferSize">
+					<InputParameter>
+						<Parameter Name="bufferType"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="maxBufferSize"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRMoveSpline" Comment="Spline movement will be executed.&#13;&#10;The points that are to be driven are defined in an external MoveSplineTable.">
+				</Function>
+				<Function Name="IPRGetNoMainAxes" Comment="Number of connected axes to the first three clients of the profile object.">
+				</Function>
+				<Function Name="IPRProfStopMoveDecel">
+					<InputParameter>
+						<Parameter Name="Decel"/>
+						<Parameter Name="Jerk"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="Index"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRLimitProfileDynamics">
+					<InputParameter>
+						<Parameter Name="Mode"/>
+						<Parameter Name="VLimit"/>
+						<Parameter Name="ALimit"/>
+						<Parameter Name="DLimit"/>
+						<Parameter Name="Distance"/>
+					</InputParameter>
+				</Function>
+				<Function Name="IPRDynamicPositionCorrection">
+					<InputParameter>
+						<Parameter Name="AxisNo"/>
+						<Parameter Name="PressureCorrectionFactor"/>
+						<Parameter Name="Mode"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetBufferData_EndPos" Comment="Get the end positions out of an entry from the user buffer">
+					<InputParameter>
+						<Parameter Name="Index"/>
+						<Parameter Name="pData"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+				<Function Name="IPRGetBufferData_VMax" Comment="Get the vmax out of an entry from the user buffer">
+					<InputParameter>
+						<Parameter Name="Index"/>
+						<Parameter Name="pData"/>
+					</InputParameter>
+					<OutputParameter>
+						<Parameter Name="RetCode"/>
+					</OutputParameter>
+				</Function>
+			</NewInst>
+		</RemoteServer>
+		<RemoteServer Name="_LMCRobotBase1.ProfileStatus" Name_DESC="Name" GUID_Svr="{E057A4C3-5546-4C75-BBC3-9962453C9B57}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROFILESTATES" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" MMType="BDINT" MMType_DESC="Type of the multimaster server" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="bit field displaying various information about the profile state" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ActCmd" Name_DESC="Name" GUID_Svr="{3E9BF934-F95B-4283-98B1-92183FD09AE3}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROFCMDTYPES" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Display of move-commands:&#13;&#10;======================&#13;&#10;&#13;&#10;CMD_Nothing&#13;&#10;No command registered in the Buffer&#13;&#10;&#13;&#10;CMD_Linear&#13;&#10;Linear Movement&#13;&#10;&#13;&#10;CMD_CircleCW&#13;&#10;Clockwise Circular Movement in 2D&#13;&#10;&#13;&#10;CMD_CircleCCW&#13;&#10;Counter-clockwise Circular Movement in 2D&#13;&#10;&#13;&#10;CMD_Circle3D&#13;&#10;Circular Movement in 3D&#13;&#10;&#13;&#10;CMD_SetProfPos&#13;&#10;Set the profile positions. (Waiting for a new move command to execute.)&#13;&#10;&#13;&#10;CMD_MoveCurve&#13;&#10;Evasive movement with MoveCurve()" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ActCmdNo" Name_DESC="Name" GUID_Svr="{AE8D6138-2B18-4F63-B41C-23D76FBB21E6}" GUID_Svr_DESC="GUID of the server" DataType="UDINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Index of the current move command" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.SumIndex" Name_DESC="Name" GUID_Svr="{3F650052-A8F9-47BB-BA36-08F1B3D4FF51}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Number of entries in the UserBuffer remaining to be traversed." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ProfileError" Name_DESC="Name" GUID_Svr="{07832EB3-E99C-437C-93E6-E4EBB2D9829D}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROFERRORTYPES" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Errormessages:&#13;&#10;=======================================================================================================================================&#13;&#10;_LMCPROF_NoError              - No error occured&#13;&#10;_LMCPROF_INIT_ERROR           - Not enough memory for the profile buffer&#13;&#10;_LMCPROF_MOVECMD_ERROR        - Unknown move command&#13;&#10;_LMCPROF_INT_POINTER_ERROR    - Internal pointer error&#13;&#10;_LMCPROF_JUMP_CMD_ERROR       - After a jump active command there is no active entry in the buffer&#13;&#10;_LMCPROF_POS_OVERRUN_ERROR    - Set position overrun&#13;&#10;_LMCPROF_AXIS_ERROR           - One of the coupled axes has an error&#13;&#10;_LMCPROF_SWE_ERROR            - SW end position violation while loading the command&#13;&#10;_LMCPROF_CIRDEF_ERROR         - The circle definition is wrong&#13;&#10;_LMCPROF_NO_POS_CHANGE        - Move command without any axes travel&#13;&#10;_LMCPROF_GROUP_ERROR          - Change Command to this Group is not possible because the Set Group has no Distance / SubError: Set GroupNr&#13;&#10;_LMCPROF_KOFAC_ERROR          - Division error in the calculation of the coupling factors / Sub error shows the axis number&#13;&#10;_LMCPROF_VEL_CMD_ERROR        - Movement speed &lt; 1&#13;&#10;_LMCPROF_ACC_CMD_ERROR        - Movement acceleration / deceleration &lt; 1&#13;&#10;_LMCPROF_JERK_CMD_ERROR       - Movement jerk &lt; 1&#13;&#10;_LMCPROF_RESOLUTION_ERROR     - Error occured while loading the command,the entries are bigger than 2^31 when multiplied by the resolution factor.&#13;&#10;_LMCPROF_SAFETY_ZONES_REACHED - User has reached a safety zone&#13;&#10;_LMCPROF_INSERT_ERROR         - The profile buffer is full&#13;&#10;_LMCPROF_AXIS_NOT_CONNECTED   - Selected axis was not found or is not connected&#13;&#10;_LMCPROF_GROUP_NOT_FOUND      - Selected group is not configured in the system&#13;&#10;_LMCPROF_PARAMETER_NOT_FOUND  - Selected parameter was not found in the settings&#13;&#10;_LMCPROF_PARAMETER_ERROR      - Enable/disable of the selected function is impossible&#13;&#10;_LMCPROF_ERROR_BUSY           - Changeing a parameter is not allowed in this mode&#13;&#10;_LMCPROF_OUT_OF_RANGE         - Set value was too big or too small&#13;&#10;_LMCPROF_RADIUS_ERROR         - Circle radius is out of range (radius &gt; 2^31 - 1 [internal units]).&#13;&#10;_LMCPROF_ARCLEN_ERROR         - Circle arc length is out of range (arc length &gt; 2^31 - 1 [internal units]).&#13;&#10;_LMCPROF_RES_PATHLEN_ERROR    - The residual path length is out of range (residual path length &gt; 2^31 - 1 [internal units]).&#13;&#10;_LMCPROF_ENDPOS_ERROR       - The end position of a move is out of range (end position &gt; 2^31 - 1 [Internal units]).&#13;&#10;_LMCPROF_AXTRAVEL_ERROR       - The axis travel distance is out of range (end position - start position &gt; 2^31 - 1 [Internal units]).&#13;&#10;_LMCPROF_AX_COUPLE_ERROR      - Some axis coupling command (CoupleGearAbsolute etc.) returned an error.&#13;&#10;_LMCPROF_PLAINEDEF_ERROR      - The Plaine of the Circle is not defined&#13;&#10;_LMCPROF_VEC_ERROR       - Coordinates of Vecotrs used for Calcualtion of a Circle are out of Range&#13;&#10;_LMCPROF_LOCKGROUP_ERROR      - Slave-Group of an Axis is undefined.&#13;&#10;" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Override" Name_DESC="Name" GUID_Svr="{C6DBEFFA-6BB6-4FCD-B978-3E828C45EF40}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="This server is used to adjust the actual speed (1000 corresponds to 100%).&#13;&#10;By default, the range is defined between 0 - 100%. This can also be adjusted with the SetProfileParameter() method." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.OpMode" Name_DESC="Name" GUID_Svr="{94EC5842-EA0F-4DE5-B309-9D73F54F1B55}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROF_OPMODE" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="AUTOMATIC:&#13;&#10;In the automatic mode, a movement is processed and set values for the individual axes are calculated as soon as it is loaded.&#13;&#10;&#13;&#10;MANUAL&#13;&#10;In manual operation, the loaded movement-commands are not started automatically. A command to the start must be given. &#13;&#10;Once given, the axes moves to the next end point and stops according to the command mode.&#13;&#10;If the axes are in idle status, a new start command must be sent in order to continue." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Start" Name_DESC="Name" GUID_Svr="{D7035C4C-EFD0-4473-8E26-0723D6AC757B}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="An input of &quot;1&quot; into this server initiates the movement. &#13;&#10;If a point is approached, whereby the speed of all axes is zero, a new start command must be sent.&#13;&#10;The type of the next move command is shown on the server ActCmd, the index of the command on server ActCmdNo.&#13;&#10;&#13;&#10;This server is active in manual mode only." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position1" Name_DESC="Name" GUID_Svr="{DCA68108-72D5-4FEE-9D3C-B382E6E4313B}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 1 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position2" Name_DESC="Name" GUID_Svr="{8793CC89-67FE-4CC0-A44B-56E6B8051A84}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 2 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position3" Name_DESC="Name" GUID_Svr="{A3897541-7A87-494E-BE47-7CB24A383073}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 3 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position4" Name_DESC="Name" GUID_Svr="{267D81D8-E234-4751-9A00-FECF71F67648}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 4 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position5" Name_DESC="Name" GUID_Svr="{BA365A76-A746-41FE-BA44-6C3B1EADD5AA}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 5 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position6" Name_DESC="Name" GUID_Svr="{5810250B-D27B-49E2-86C1-94DF7029E5B5}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 6 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position7" Name_DESC="Name" GUID_Svr="{6D00E686-F7B3-48DC-9F40-1DFE0C461173}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 7 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position8" Name_DESC="Name" GUID_Svr="{E61AABC7-BF52-4F1E-8D5D-2534E998784B}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 8 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Position9" Name_DESC="Name" GUID_Svr="{5EC9D165-75FA-4C50-90E4-E649B3B528FF}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated position set value of axis 9 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination1" Name_DESC="Name" GUID_Svr="{F66B706C-3047-4CF5-8579-5A739AA0943D}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 1 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination2" Name_DESC="Name" GUID_Svr="{853A6AAF-DDBB-43B6-BE8A-5573C51460E5}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 2 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination3" Name_DESC="Name" GUID_Svr="{2E33DC49-5CBA-4DB5-BEBC-0B06950BBF85}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 3 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination4" Name_DESC="Name" GUID_Svr="{E09384B4-5250-482E-9B9F-55B1B3B2A15D}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 4 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination5" Name_DESC="Name" GUID_Svr="{EA6285EE-B626-4485-AD87-85CC4D5D2D7B}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 5 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination6" Name_DESC="Name" GUID_Svr="{D01889CA-3DF2-449B-9D8D-4D646B72D5F6}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 6 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination7" Name_DESC="Name" GUID_Svr="{E813B2B9-964C-45AD-9815-9EB9CDC3399B}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 7 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination8" Name_DESC="Name" GUID_Svr="{FE5329CF-3B1B-4669-BF24-D1111443585D}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 8 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Destination9" Name_DESC="Name" GUID_Svr="{657CBEE9-2800-4232-89A5-0627E7A93BC1}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Actual calculated target position of axis 9 [Application units]." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.Resolution" Name_DESC="Name" GUID_Svr="{9AEB3D1A-07D8-4EE6-BA95-4809B3656348}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="The resolution factor, which is applied to position, speed and acceleration values, is read over this server.&#13;&#10;All inputs are internally multiplied with this resolution factor. The LMCProfile class and the connected LMCAxis objects must have the same resolution factor.&#13;&#10;This server must be initialized." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.MoveType" Name_DESC="Name" GUID_Svr="{79C05DC3-6DB8-4C6F-987B-542F38196821}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROFMOVEPROFILE" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="With this server a motion-type can be selected:&#13;&#10;RAMP_PROFILE -&gt; the motion is defined by a ramp limiting velocity and acceleraation / deceleration&#13;&#10;JERK_PROFILE -&gt; the motion is defined by a smooth function limiting velocity, acceleraation / deceleration and jerk &#13;&#10;This server must be initialized.&#13;&#10; " Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ErrorConfig" Name_DESC="Name" GUID_Svr="{C926A1B5-3FE9-495F-8D16-6690F0A1CF2E}" GUID_Svr_DESC="GUID of the server" DataType="_LMCPROFERRWARNCONFIG" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" MMType="BDINT" MMType_DESC="Type of the multimaster server" Comment="By setting or clearing individual bits, error messages can be enabled or&#13;&#10;disabled. This server must be initialized.&#13;&#10;============================================================================&#13;&#10;&#13;&#10;Case: a movement-command carries out no movement of the axis&#13;&#10;Bit 1: bPosChangeWarning&#13;&#10;FALSE ... error is ignored&#13;&#10;TRUE  ... a warning is displayed&#13;&#10;&#13;&#10;Case: while calculating a parameter with the intern resolution-factor, an overflow error occurred&#13;&#10;Bit 2: bResolutionError&#13;&#10;TRUE  ... an error is displayed&#13;&#10;FALSE ... a warning is displayed&#13;&#10;&#13;&#10;Case: an axis has achieved a limiting position or a Safety-Position&#13;&#10;Bit 3: bPosLimitError&#13;&#10;TRUE  ... an error is displayed&#13;&#10;FALSE ... a warning is displayed&#13;&#10;&#13;&#10;Case: the definition of circle-parameters is erroneous &#13;&#10;Bit 4: bCircleError&#13;&#10;TRUE  ... an error is displayed&#13;&#10;FALSE ... a warning is displayed&#13;&#10;&#13;&#10;Case: one of the parameters: Velocity, Acceleration or Jerk is less than 1  &#13;&#10;Bit 5: bCmdLimitError&#13;&#10;TRUE  ... an error is displayed&#13;&#10;FALSE ... a warning is displayed&#13;&#10;&#13;&#10;Case: while calculating the coupling-factors of an axis, an overflow error occurred&#13;&#10;Bit 6: bKoFacError&#13;&#10;TRUE  ... an error is displayed&#13;&#10;FALSE ... a warning is displayed&#13;&#10;&#13;&#10;Case: the endpoint of a movement is inside of a safety zone&#13;&#10;Bit 7: bSafetyZonesError&#13;&#10;FALSE: a warning is issued when the endpoint of a movement is inside of a safety zone&#13;&#10;TRUE : an error is issued when the endpoint of a movement is inside of a safety zone" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ResidualPath" Name_DESC="Name" GUID_Svr="{59F4AC50-1674-4403-B5FB-86361EF27BDF}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Residual path is the sum of all loaded path length minus &#13;&#10;the distance travelled so far." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ActProfileVelocity" Name_DESC="Name" GUID_Svr="{A05E320B-3AFF-4631-98CE-97C6E633B93C}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="The velocity of the profile is announced in mm/sec" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.ActiveCoordSystem" Name_DESC="Name" GUID_Svr="{630C7F19-2906-4C76-B3DE-DF8474D0B19D}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Displaying the CoordSystem of the active movement." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.SetCoordSystem" Name_DESC="Name" GUID_Svr="{651BA6FC-61A6-45A3-9ACE-2C3286956105}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="Choose the coordinate system for commiting new commands." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.SimulateMode" Name_DESC="Name" GUID_Svr="{8A8CEEFE-DC00-4E31-9476-ED1260FB8181}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="1: turn on the simulation mode on all motor axes&#13;&#10;0: turn off the simulation mode on all motor axes" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.RobotStatus" Name_DESC="Name" GUID_Svr="{6D9C5EAA-83F1-4F0F-9AC9-71295B71E7B3}" GUID_Svr_DESC="GUID of the server" DataType="_LMCRobotBase::_ROBOT_STATUS" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" MMType="BDINT" MMType_DESC="Type of the multimaster server" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="state flags of the robot" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.RobotMode" Name_DESC="Name" GUID_Svr="{48378796-1B06-4519-8D2D-C0F0B571B515}" GUID_Svr_DESC="GUID of the server" DataType="_LMCRobotBase::_ROBOT_MODE" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Displaying the active operating mode or state of the robot." Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.VMax" Name_DESC="Name" GUID_Svr="{5BE22F26-EB0F-48CD-A7C7-140FF0E2CCAE}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="velocity for SetBasicParameter [Application units / s]" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.AMax" Name_DESC="Name" GUID_Svr="{E86AF423-8FA3-4EA4-9DA0-CAAA1B1FDE8C}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="acceleration for SetBasicParameter [Application units / s²]" Comment_DESC="Comment of server"/>
+		<RemoteServer Name="_LMCRobotBase1.JMax" Name_DESC="Name" GUID_Svr="{6A23534D-2066-4D4C-AA68-D275DD2CF723}" GUID_Svr_DESC="GUID of the server" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{A01C18CD-FE1E-432E-B14F-EF0871CE3576}" GUID_Obj_DESC="GUID of the object" Comment="jerk for SetBasicParameter [Application units / s³ / 1000]" Comment_DESC="Comment of server"/>
 		<RemoteServer Name="_TCPIPServer1.TaskName" Name_DESC="Name" GUID_Svr="{5EB28875-F879-47BA-ACF8-71CCF5F07236}" GUID_Svr_DESC="GUID of the server" DataType="UDINT" DataType_DESC="DataType" GUID_Obj="{42E82217-EDCD-47A0-BF97-FCBD9C009436}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="shows task information&#13;&#10;-) use object in cyclic task&#13;&#10;-) use object in async task&#13;&#10;-) task deactivated&#13;&#10;-) async task error status (error creating async task)&#13;&#10;&#13;&#10;In case of using the object in async task, this name is also listed in PLCTraceView" Comment_DESC="Comment of server"/>
 		<RemoteServer Name="_TCPIPServer1.SemaName01" Name_DESC="Name" GUID_Svr="{1B197424-5725-42AD-AE85-11C19399AC62}" GUID_Svr_DESC="GUID of the server" DataType="UDINT" DataType_DESC="DataType" GUID_Obj="{42E82217-EDCD-47A0-BF97-FCBD9C009436}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="name of mutex to save the internal connection buffer&#13;&#10;&#13;&#10;This name is also listed in PLCTraceView" Comment_DESC="Comment of server"/>
 		<RemoteServer Name="_TCPIPServer1.SemaName02" Name_DESC="Name" GUID_Svr="{373DFDFC-0E2C-4CF0-955D-86E61C7F6941}" GUID_Svr_DESC="GUID of the server" DataType="UDINT" DataType_DESC="DataType" GUID_Obj="{42E82217-EDCD-47A0-BF97-FCBD9C009436}" GUID_Obj_DESC="GUID of the object" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="name of mutex to save the internal connection settings (socket options)&#13;&#10;&#13;&#10;This name is also listed in PLCTraceView" Comment_DESC="Comment of server"/>

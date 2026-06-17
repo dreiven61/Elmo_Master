@@ -112,6 +112,9 @@
 		<File Path=".\Class\_TCPIPServer\SalamanderDelay.h"/>
 		<File Path=".\Class\PLC_Info\XRegs.h"/>
 		<File Path=".\Source\interfaces\lsl_st_xadc.h"/>
+		<File Path=".\Class\_LMCProfileBase\C_MathProfile.h"/>
+		<File Path=".\Class\_LMCProfileBase\LMCProfileDefines.h" Global="true"/>
+		<File Path=".\Class\Ram\Ram.h" Global="true"/>
 	</HeaderFiles>
 	<ClassFiles>
 		<File Path=".\Class\_SyncMeasureECAT\_64BitTimestamp.c"/>
@@ -224,6 +227,27 @@
 		<File Path=".\Class\Elmo_2\Elmo_2.st"/>
 		<File Path=".\Class\Elmo_3\Elmo_3.st"/>
 		<File Path=".\Class\Elmo_4\Elmo_4.st"/>
+		<File Path=".\Class\_LMCProfileBase\C_MathProfile.cpp"/>
+		<File Path=".\Class\_LMCBaseCoord\_LMCBaseCoord.st"/>
+		<File Path=".\Class\_LMCBeltAxis\_LMCBeltAxis.st"/>
+		<File Path=".\Class\_LMCCalcModelBase\_LMCCalcModelBase.st"/>
+		<File Path=".\Class\_LMCCalcModelController\_LMCCalcModelController.st"/>
+		<File Path=".\Class\_LMCMath_SO3\_LMCMath_SO3.st"/>
+		<File Path=".\Class\_LMCProfile\_LMCProfile.st"/>
+		<File Path=".\Class\_LMCProfileBase\_LMCProfileBase.st"/>
+		<File Path=".\Class\_LMCProfileBuffer\_LMCProfileBuffer.st"/>
+		<File Path=".\Class\_LMCProfileLog\_LMCProfileLog.st"/>
+		<File Path=".\Class\_LMCProfileVis\_LMCProfileVis.st"/>
+		<File Path=".\Class\_LMCProfileVisAxis\_LMCProfileVisAxis.st"/>
+		<File Path=".\Class\_LMCProfileVisInt\_LMCProfileVisInt.st"/>
+		<File Path=".\Class\_LMCProfileVisMovePara\_LMCProfileVisMovePara.st"/>
+		<File Path=".\Class\_LMCRobotBase\_LMCRobotBase.st"/>
+		<File Path=".\Class\_LMCRobotLog\_LMCRobotLog.st"/>
+		<File Path=".\Class\_LMCSplineBuffer\_LMCSplineBuffer.st"/>
+		<File Path=".\Class\_LMCTableBuffer\_LMCTableBuffer.st"/>
+		<File Path=".\Class\_LMCTool\_LMCTool.st"/>
+		<File Path=".\Class\MoveSplineTable\MoveSplineTable.st"/>
+		<File Path=".\Class\Merker\Merker.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
@@ -244,6 +268,7 @@
 	</LibraryFiles>
 	<DocuFiles>
 		<File Path=".\Class\_LMCAxis\_LMCAxis.vov"/>
+		<File Path=".\Class\_LMCProfile\_LMCProfile.vov"/>
 	</DocuFiles>
 	<Options>
 		<Target UseFPU="true" Processor="ARM">
@@ -336,6 +361,7 @@
 		</Folder>
 		<Folder Name="System">
 			<Folder Name="Memory">
+				<Class Name="Merker"/>
 				<Class Name="MerkerEx"/>
 				<Class Name="String"/>
 				<Class Name="StringInternal"/>
@@ -366,10 +392,12 @@
 			<Folder Name="Motion">
 				<Class Name="_LMCAxis"/>
 				<Class Name="_LMCModuleBase"/>
+				<Class Name="_LMCProfile"/>
 				<Folder Name="_Internal">
 					<Class Name="_LMCMathFunctions"/>
 					<Class Name="_LMCPublisher"/>
 					<Class Name="Controller"/>
+					<Class Name="MoveSplineTable"/>
 					<Folder Name="_LMCAxisInternal">
 						<Class Name="_AxisBase"/>
 						<Class Name="_LMCABSEncoder"/>
@@ -384,6 +412,29 @@
 						<Class Name="_LMCRefBase"/>
 						<Class Name="_LMCSafety"/>
 					</Folder>
+					<Folder Name="_LMCProfileInternal">
+						<Class Name="_LMCProfileBase"/>
+						<Class Name="_LMCProfileBuffer"/>
+						<Class Name="_LMCProfileLog"/>
+						<Class Name="_LMCProfileVis"/>
+						<Class Name="_LMCProfileVisAxis"/>
+						<Class Name="_LMCProfileVisInt"/>
+						<Class Name="_LMCProfileVisMovePara"/>
+						<Class Name="_LMCSplineBuffer"/>
+						<Class Name="_LMCTableBuffer"/>
+					</Folder>
+					<Folder Name="_LMCRoboticInternal">
+						<Class Name="_LMCBeltAxis"/>
+						<Class Name="_LMCCalcModelController"/>
+						<Class Name="_LMCMath_SO3"/>
+						<Class Name="_LMCRobotLog"/>
+					</Folder>
+				</Folder>
+				<Folder Name="_LMCRobotic">
+					<Class Name="_LMCBaseCoord"/>
+					<Class Name="_LMCCalcModelBase"/>
+					<Class Name="_LMCRobotBase"/>
+					<Class Name="_LMCTool"/>
 				</Folder>
 				<Folder Name="Controller">
 					<Class Name="PosController"/>
@@ -431,6 +482,36 @@
 				<Type Name="_LMCAXIS_TUNE_MODE"/>
 			</Folder>
 			<Folder Name="_LMCProfile">
+				<Type Name="_LMCCommonCalcParas"/>
+				<Type Name="_LMCPROF_ACTUALVALUES"/>
+				<Type Name="_LMCPROF_CIRCLEPOINT"/>
+				<Type Name="_LMCPROF_CMDINDEX"/>
+				<Type Name="_LMCPROF_EXECUTE"/>
+				<Type Name="_LMCPROF_MoveData"/>
+				<Type Name="_LMCPROF_OBSTACLE"/>
+				<Type Name="_LMCPROF_OPMODE"/>
+				<Type Name="_LMCPROF_POS"/>
+				<Type Name="_LMCPROF_POSITIONS"/>
+				<Type Name="_LMCPROF_RECOUPLEMODE"/>
+				<Type Name="_LMCPROF_RESTIME_CALCMODE"/>
+				<Type Name="_LMCPROF_SETPOS_MODE"/>
+				<Type Name="_LMCPROFCIRCLEDEF"/>
+				<Type Name="_LMCPROFCMDCONFIG"/>
+				<Type Name="_LMCPROFCMDTYPES"/>
+				<Type Name="_LMCPROFCMDTYPES_INTERN"/>
+				<Type Name="_LMCPROFERRORDEF"/>
+				<Type Name="_LMCPROFERRORTYPES"/>
+				<Type Name="_LMCPROFERRWARNCONFIG"/>
+				<Type Name="_LMCPROFILESTATES"/>
+				<Type Name="_LMCPROFINPOSTYPES"/>
+				<Type Name="_LMCPROFINTCMDCONFIG"/>
+				<Type Name="_LMCPROFINTCMDCONFIG_THREADSAFE"/>
+				<Type Name="_LMCPROFMOVEPROFILE"/>
+				<Type Name="_LMCPROFPARAMETER"/>
+				<Type Name="_LMCPROFPARAMETERAXIS"/>
+				<Type Name="_LMCPROFPARAMETERGROUPS"/>
+				<Type Name="_LMCPROFSETTINGS"/>
+				<Type Name="_LMCPROFTRANSMODES"/>
 				<Type Name="ProfileCommandStatus"/>
 			</Folder>
 			<Folder Name="old">

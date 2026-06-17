@@ -13,6 +13,15 @@
 *.log
 build_cycle2.log
 
+# Test outputs and packet captures
+**/Reports/
+**/downloads/
+*.pcapng
+*.pcap
+*.etl
+*.xlsx
+!EtherCAT Controller(Master) 요구 사양.xlsx
+
 # Large reference bundles and downloaded vendor packages
 **/downloads/
 MMCLibDotNET Libs V3.0.0.7/
@@ -31,6 +40,28 @@ EtherCAT Controller(Master)*.xlsx
 *.zip
 *.rar
 *.pdf
+
+# LASAL / SIGMATEK IDE generated or local-state files
+# Keep source files (*.st, *.h, *.cpp, *.c), selected project/network files, and docs
+# under Git unless they are explicitly classified as generated.
+# .gitignore does not hide files already tracked by Git.
+**/ProjectInternal/
+*.lba
+*.lob
+*.ldi
+*.lhd
+*.lcc
+*.lst
+*.map
+*.err
+*.tmp
+*.temp
+*.bak
+*.lock
+*.copycomplete
+*.up2date
+*.o
+*.bin
 
 # Temporary scraped files
 _tmp_*

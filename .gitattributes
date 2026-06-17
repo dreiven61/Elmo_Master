@@ -1,6 +1,7 @@
 * text=auto
 
 .gitattributes text eol=lf
+.gitignore text eol=lf
 *.md text eol=lf
 *.json text eol=lf
 *.txt text eol=lf
@@ -9,6 +10,10 @@
 *.xml text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+*.st text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.c text eol=lf
 
 *.sln text eol=crlf
 *.csproj text eol=crlf
@@ -16,6 +21,16 @@
 *.cs text eol=crlf
 *.xaml text eol=crlf
 
+*.lcp binary
+*.lcb binary
+*.lcn binary
+*.lba binary
+*.lob binary
+*.ldi binary
+*.vov binary
+*.mme binary
+*.mmc binary
+*.ico binary
 *.dll binary
 *.exe binary
 *.pdb binary
