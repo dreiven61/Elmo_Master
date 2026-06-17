@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<HWClassInfo>
+  <HWDevice ModuleID="1" SubModuleID="1" ModType="M_ETHERCAT" Desc="ETHERCAT MODULE">
+    <Types>
+      <Device Name="ECAT_Slave_Base" ClassName="ECAT_Slave_Base" Visible="false" Default="true" >
+      </Device>
+    </Types>
+  </HWDevice>
+  <Class Name="ECAT_Slave_Base">
+    <Uplink Name="toMaster" BusType="Ethercat_ETHERNET" TransparentClient="SlaveIndex"/>
+    <!-- General -->
+    <Property Name="Required" Channel="Required" Editor="Combo:1=Module is required;0=Module is not required" Desc="0=module is not required 1=module is required (CPU will crash if module is missing)" />
+    <IOState Name="Class State" Channel="ClassState" Desc="This server shows the status of the hardware class. If the state is not equal than _ClassOK, an error has occurred "/>
+    <IOState Name="EtherCAT State" Channel="EtherCATState" Desc="Shows the current EtherCAT state of the module. "/>
+    <IOState Name="Slave State" Channel="SlaveState" Desc="0x002_ = Invalid vendorId, productCode read
+&#13;&#10;0x004_ = Initialization error occurred
+&#13;&#10;0x010_ = Slave not present
+&#13;&#10;0x020_ = Slave signals link error
+&#13;&#10;0x040_ = Slave signals missing link
+&#13;&#10;0x080_ = Slave signals unexpected link
+&#13;&#10;0x100_ = Communication port A
+&#13;&#10;0x200_ = Communication port B
+&#13;&#10;0x400_ = Communication port C
+&#13;&#10;0x800_ = Communication port D"/>
+    <IOState Name="Device Address" Channel="DeviceAdress" Desc="Shows the device address of the module."/>
+    <IOState Name="Vendor ID" Channel="VendorID" Desc="Shows the vendor ID of the module."/>
+    <IOState Name="Product Code" Channel="ProductCode" Desc="Shows the product code of the module."/>
+    <IOState Name="Revision No" Channel="RevisionNo" Desc="Shows the revision number of the module."/>
+    <IOState Name="Serial No" Channel="SerialNo" Desc="Shows the serial number of the module."/>
+    <IOState Name="Device Name" Channel="DeviceName" Desc="Shows the device name of the module."/>
+    <IOState Name="Product Revision" Channel="ProductRevision" Desc="Shows the product revision of the module."/>
+    <IOState Name="AL StatusCode" Channel="AL_StatusCode" Desc="Shows the AL State code of the slave.
+&#13;&#10;
+&#13;&#10;0x0000 ... No error
+&#13;&#10;0x0001 ... Unspecified error
+&#13;&#10;0x0002 ... No Memory
+&#13;&#10;0x0003 ... Invalid Device Setup
+&#13;&#10;0x0004 ... Invalid Revision
+&#13;&#10;0x0006 ... SII/EEPROM information does not match firmware (SII … Slave information interface)
+&#13;&#10;0x0007 ... Firmware update not successful. Old firmware still running
+&#13;&#10;0x000E ... License Error
+&#13;&#10;0x0011 ... Invalid requested state change
+&#13;&#10;0x0012 ... Unknown requested state
+&#13;&#10;0x0013 ... Bootstrap not supported
+&#13;&#10;0x0014 ... No valid firmware
+&#13;&#10;0x0015 ... Invalid mailbox configuration (State change INIT => PREOP)
+&#13;&#10;0x0016 ... Invalid mailbox configuration (State change INIT => BOOT)
+&#13;&#10;0x0017 ... Invalid sync manager configuration
+&#13;&#10;0x0018 ... No valid inputs available
+&#13;&#10;0x0019 ... No valid outputs
+&#13;&#10;0x001A ... Synchronization error
+&#13;&#10;0x001B ... Sync manager watchdog
+&#13;&#10;0x001C ... Invalid Sync Manager Types
+&#13;&#10;0x001D ... Invalid Output Configuration
+&#13;&#10;0x001E ... Invalid Input Configuration
+&#13;&#10;0x001F ... Invalid Watchdog Configuration
+&#13;&#10;0x0020 ... Slave needs cold start
+&#13;&#10;0x0021 ... Slave needs INIT
+&#13;&#10;0x0022 ... Slave need PREOP
+&#13;&#10;0x0023 ... Slave needs SAFEOP
+&#13;&#10;0x0024 ... Invalid Input Mapping
+&#13;&#10;0x0025 ... Invalid Output Mapping
+&#13;&#10;0x0026 ... Inconsistent Settings
+&#13;&#10;0x0027 ... Freerun not supported
+&#13;&#10;0x0028 ... Synchronization not supported
+&#13;&#10;0x0029 ... Freerun needs 3 Buffer Mode
+&#13;&#10;0x002A ... Background Watchdog
+&#13;&#10;0x002B ... No valid inputs and outputs
+&#13;&#10;0x002C ... Fatal Sync Error
+&#13;&#10;0x002D ... No Sync Error
+&#13;&#10;0x002E ... Cycle time too small
+&#13;&#10;0x0030 ... Invald DC Sync Configuration
+&#13;&#10;0x0031 ... Invalid DC Latch Configuration
+&#13;&#10;0x0032 ... PLL Error
+&#13;&#10;0x0033 ... DC Sync IO Error
+&#13;&#10;0x0034 ... DC Sync Timeout Error
+&#13;&#10;0x0035 ... DC Invalid Sync Cycle Time
+&#13;&#10;0x0036 ... DC Sync0 Cycle Time
+&#13;&#10;0x0037 ... DC Sync1 Cycle Time
+&#13;&#10;
+&#13;&#10;0x0041 ... MBX_AOE
+&#13;&#10;0x0042 ... MBX_EOE
+&#13;&#10;0x0043 ... MBX_COE
+&#13;&#10;0x0044 ... MBX_FOE
+&#13;&#10;0x0045 ... MBX_SOE
+&#13;&#10;0x004F ... MBX_VOE
+&#13;&#10;
+&#13;&#10;0x0050 ... EEPROM no access
+&#13;&#10;0x0051 ... EEPROM Error
+&#13;&#10;0x0052 ... External hardware not ready
+&#13;&#10;
+&#13;&#10;0x0060 ... Slave restarted locally
+&#13;&#10;0x0061 ... Device identification value updated
+&#13;&#10;
+&#13;&#10;0x0070 ... Detected module ident list does not match
+&#13;&#10;0x0080 ... Supply voltage too low
+&#13;&#10;0x0081 ... Supply voltage too high
+&#13;&#10;0x0082 ... Temperature too low
+&#13;&#10;0x0083 ... Temperature too high
+&#13;&#10;0x00F0 ... Application Controller available
+&#13;&#10;
+&#13;&#10;other codes &lt; 0x8000 ... reserved
+&#13;&#10;0x8000 - 0xFFFF ... vendor specific"/>
+    
+    <IOState Name="Online" Channel="Online" Desc="Displays if the class is ready to work with the application."/>
+  </Class>
+</HWClassInfo>

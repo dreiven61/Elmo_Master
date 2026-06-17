@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<OpenViews>
+	<View Key="Motion_Network" Type="0"/>
+	<View Key="TCPMotionInterface" Type="2" LineNr="167"/>
+	<View Key="Elmo_1" Type="2" LineNr="1"/>
+	<View Key="Hardware Editor" Type="12"/>
+	<View Key="HW_Network" Type="0"/>
+	<View Key="Motion_Network" Type="0"/>
+	<Setting Variable="OutputDebugger" Value=""/>
+	<Setting Variable="CodeAnalysis" Value=""/>
+</OpenViews>

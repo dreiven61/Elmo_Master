@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="HW_Network" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name       = "CP313_IOs1"
+			GUID       = "{497B385D-9838-4142-ABB3-D6A101CCAFB9}"
+			Class      = "CP313_IOs"
+			Position   = "(1500,1170)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="CAN_1_Connect"/>
+				<Server Name="ClassState"/>
+				<Server Name="Ethernet_1_Connect"/>
+				<Server Name="USB_1_Connect"/>
+				<Client Name="To_HwControl"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{59EFB136-357A-4D62-9B79-941517CB9D67}" Class="XXXBase_IOs">
+							<Channels>
+								<Server Name="CAN_1_Connect"/>
+								<Server Name="CAN_2_Connect"/>
+								<Server Name="ClassState"/>
+								<Server Name="COM_1_Connect"/>
+								<Server Name="COM_2_Connect"/>
+								<Server Name="COM_3_Connect"/>
+								<Server Name="Ethernet_1_Connect"/>
+								<Server Name="Ethernet_2_Connect"/>
+								<Server Name="Ethernet_3_Connect"/>
+								<Server Name="Ethernet_4_Connect"/>
+								<Server Name="USB_1_Connect"/>
+								<Client Name="To_HwControl"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_CanLib1" GUID="{99F54FB9-50C4-4B09-9754-D88D3CAD66E4}" Class="_CanLib">
+											<Channels>
+												<Server Name="CanBus" Value="1"/>
+												<Server Name="Command"/>
+												<Client Name="To_Can"/>
+											</Channels>
+										</Object>
+										<Object Name="_CanLib2" GUID="{AE619A04-D25E-4D1A-A696-5DECE6B25694}" Class="_CanLib">
+											<Channels>
+												<Server Name="CanBus" Value="2"/>
+												<Server Name="Command"/>
+												<Client Name="To_Can"/>
+											</Channels>
+										</Object>
+										<Object Name="_SerLib1" GUID="{20E65384-3D3B-4ACE-BEEE-0C43CE37B814}" Class="_SerLib">
+											<Channels>
+												<Server Name="Com" Value="1"/>
+												<Server Name="Command"/>
+											</Channels>
+										</Object>
+										<Object Name="_SerLib2" GUID="{4164A4B8-81D1-4134-8792-127DF657E364}" Class="_SerLib">
+											<Channels>
+												<Server Name="Com" Value="2"/>
+												<Server Name="Command"/>
+											</Channels>
+										</Object>
+										<Object Name="_SerLib3" GUID="{6D7A9FC0-9DDD-45A0-8169-90CDF9145BFC}" Class="_SerLib">
+											<Channels>
+												<Server Name="Com" Value="3"/>
+												<Server Name="Command"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<AdditionalData>
+				<Entry Name="DeviceType" Value="CP313 IOs"/>
+				<Entry Name="HWKey" Value="HWD:OnboardIO:1294:0:0"/>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "EtherCAT_PLC1"
+			GUID       = "{52EAFA73-AB9C-4D0B-8B19-F533C65655D5}"
+			Class      = "EtherCAT_PLC"
+			Position   = "(1500,2250)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Act_RtTime"/>
+				<Server Name="ClassState"/>
+				<Server Name="EtherCatOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="FrameTimeMaxTask0"/>
+				<Server Name="FrameTimeTask0"/>
+				<Server Name="Max_RtTime"/>
+				<Server Name="Min_RtTime"/>
+				<Server Name="MissedFrameCounter"/>
+				<Server Name="SoftwareVersion"/>
+				<Server Name="Synchron"/>
+				<Client Name="CoreSelect" Value="0"/>
+				<Client Name="ENIFile"/>
+				<Client Name="IsoStartPoint" Value="80"/>
+				<Client Name="MasterID" Value="1"/>
+				<Client Name="MissingFrameBehaviour" Value="20"/>
+				<Client Name="PhaseRegDamping" Value="0"/>
+				<Client Name="StateTransitionBehaviour" Value="2#110"/>
+				<Client Name="StateTransitionTimeout" Value="20000"/>
+				<Client Name="SynchronizationMode" Value="0"/>
+				<Client Name="ToHwControl"/>
+				<Parameter KeyName="EtherCATBusCycleTime" Value="1000"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{85FB5D5E-6C85-4854-868E-5A0D78B5564A}" Class="ECAT_Master_Base">
+							<Channels>
+								<Server Name="Act_RtTime"/>
+								<Server Name="ClassState"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="FrameTimeMaxTask0"/>
+								<Server Name="FrameTimeTask0"/>
+								<Server Name="Max_RtTime"/>
+								<Server Name="Min_RtTime"/>
+								<Server Name="MissedFrameCounter"/>
+								<Server Name="SoftwareVersion"/>
+								<Server Name="Synchron"/>
+								<Client Name="CoreSelect" Value="0"/>
+								<Client Name="ENIFile"/>
+								<Client Name="IsoStartPoint" Value="80"/>
+								<Client Name="MasterID" Value="1"/>
+								<Client Name="MissingFrameBehaviour" Value="20"/>
+								<Client Name="PhaseRegDamping" Value="0"/>
+								<Client Name="StateTransitionBehaviour" Value="2#110"/>
+								<Client Name="StateTransitionTimeout" Value="20000"/>
+								<Client Name="SynchronizationMode" Value="0"/>
+								<Client Name="ToHwControl"/>
+								<Client Name="toMultiTask"/>
+								<Client Name="toStdLib"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_SyncMeasureECAT1" GUID="{415E0AF8-BF80-42E0-A922-10810BA9504A}" Class="_SyncMeasureECAT">
+											<Channels>
+												<Server Name="ClassSvr"/>
+												<Server Name="divisor" Value="4"/>
+												<Server Name="Frame_sendOffset"/>
+												<Server Name="IFilterFakt"/>
+												<Server Name="Offset"/>
+												<Server Name="ShiftedPhase"/>
+												<Server Name="Synchron"/>
+												<Server Name="SyncRegulationEnable"/>
+												<Server Name="SystemTimeMaster"/>
+												<Server Name="SystemTimeOwn"/>
+												<Client Name="PhaseRegDamping" Value="0"/>
+												<Client Name="SigCLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6B61C05A-E099-4752-9889-EA509948FB1B}" Class="_SyncMeasure">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Server Name="Synchron"/>
+																<Server Name="SyncRegulationEnable"/>
+																<Server Name="SystemTimeMaster"/>
+																<Server Name="SystemTimeOwn"/>
+																<Client Name="PhaseRegDamping" Value="0"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="GetCILInterfacePLL" GUID="{426141B2-336D-45E6-BFC2-727CBE6F0C0B}" Class="GetCILInterface">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="GetCILInterface_ECAT" GUID="{4340C880-BE66-4F86-86CC-C2B5AFDD2A5E}" Class="GetCILInterface">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+										<Object Name="strSoftwareVersion" GUID="{B562F7D9-8CC4-4155-9695-83BA51C68876}" Class="String">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base1" GUID="{FA56EC45-FD54-45FF-972D-96E7D4C85161}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name        = "HwControl1"
+			GUID        = "{406A4ED8-33F6-4556-ADF2-F23B00CC917F}"
+			Class       = "HwControl"
+			Position    = "(330,270)"
+			Visualized  = "true"
+			Remotely    = "true"
+			RealTime    = "1 ms"
+			CyclicTime  = "1 ms"
+			RealIndex   = "0"
+			CyclicIndex = "2147483392">
+			<Channels>
+				<Server Name="Control">
+					<AdditionalData>
+						<Section Name="HardwareEditor">
+							<Entry Name="BusType:PlaceCount:MULTIVARAN" Value="1"/>
+						</Section>
+					</AdditionalData>
+				</Server>
+				<Server Name="DiasMaster"/>
+				<Server Name="SafetyState"/>
+				<Server Name="State"/>
+				<Client Name="InterfaceNo" Value="1"/>
+				<Client Name="RtDebug"/>
+				<Client Name="RtTaskSync" Value="0"/>
+				<Client Name="SafetyDomainTimeout"/>
+				<Client Name="UdpSafetyPort" Value="10823"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{4EF772E0-592A-4829-B661-2E7E0E1B8913}" Class="HwControlBase">
+							<Channels>
+								<Server Name="Control"/>
+								<Server Name="DiasMaster"/>
+								<Server Name="State"/>
+								<Client Name="RtDebug"/>
+								<Client Name="To_StdLib"/>
+								<Client Name="To_TaskObjectControl"/>
+							</Channels>
+						</Object>
+						<Object Name="HwcLogging" GUID="{3532143A-BD06-42EA-B855-9758BF64895A}" Class="HwcLogging">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="OverrideSpamProtection"/>
+								<Client Name="To_SigCLib"/>
+							</Channels>
+						</Object>
+						<Object
+							Name      = "HWRtPostScan"
+							GUID      = "{2898FBA7-3B52-4F51-87F4-0F7670C09C64}"
+							Class     = "HWRtPostScan"
+							RealTime  = "1 ms"
+							RealIndex = "1073741824">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="toHwControlBase"/>
+							</Channels>
+						</Object>
+						<Object
+							Name       = "SafetyManager"
+							GUID       = "{4545C840-4FB2-4C80-B150-345DF08208A7}"
+							Class      = "SafetyManager"
+							CyclicTime = "10 ms">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Server Name="InitFault"/>
+								<Server Name="InitSSM"/>
+								<Server Name="LoginCnt"/>
+								<Server Name="MaxSyncDuration"/>
+								<Server Name="MinSyncDuration"/>
+								<Server Name="sControl"/>
+								<Server Name="sErrorCount"/>
+								<Server Name="sLastErrorMessage"/>
+								<Server Name="sLastErrorNoOS"/>
+								<Server Name="sTReceive"/>
+								<Server Name="SyncDuration"/>
+								<Client Name="InterfaceNo" Value="1"/>
+								<Client Name="SafetyDomainTimeout"/>
+								<Client Name="To_HwControl"/>
+								<Client Name="To_MultiTask"/>
+								<Client Name="To_OSKernel"/>
+								<Client Name="UdpSafetyPort" Value="10823"/>
+								<Client Name="UdpSafetyRequestCycle" Value="UDP_MIN_REQUEST_TIME"/>
+								<Client Name="UdpSafetyResponseTimeout" Value="UDP_MIN_RESPONSE_TIMEOUT"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{3632CBBA-7E99-4714-B216-B99B262A49F9}" Class="SafetyUDP">
+											<Channels>
+												<Server Name="ClassState"/>
+												<Server Name="InitFault"/>
+												<Server Name="InitSSM"/>
+												<Server Name="sControl"/>
+												<Server Name="sErrorCount"/>
+												<Server Name="sLastErrorMessage"/>
+												<Server Name="sLastErrorNoOS"/>
+												<Server Name="sTReceive"/>
+												<Client Name="InterfaceNo" Value="1"/>
+												<Client Name="To_StdLib"/>
+												<Client Name="UdpSafetyPort" Value="10823"/>
+											</Channels>
+										</Object>
+										<Object Name="UdpReceiveData" GUID="{AEB21C96-66F3-41BB-AF8B-4D8748F3E760}" Class="CriticalSection">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+										<Object Name="UdpSendData" GUID="{4D3B3492-CD23-4D10-950E-7B1E0CD8A442}" Class="CriticalSection">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<AdditionalData>
+				<Section Name="BusTypeEnableFlag">
+					<Entry Name="OnBoardIO" Value="1"/>
+				</Section>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "SdiasPLC1"
+			GUID       = "{43AA458B-5C1E-470D-AC43-542AFEF91F6F}"
+			Class      = "SdiasPLC"
+			Position   = "(1500,390)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ClassState"/>
+				<Server Name="FirmwareVersion"/>
+				<Server Name="InterfaceState"/>
+				<Server Name="IsoRdTaskDuration"/>
+				<Server Name="IsoRdTaskMaxDuration"/>
+				<Server Name="IsoWrTaskDuration"/>
+				<Server Name="IsoWrTaskMaxDuration"/>
+				<Server Name="ManagerOptionBits"/>
+				<Server Name="ManagerProtocolVersion"/>
+				<Server Name="RetryCounter"/>
+				<Server Name="SdiasOut_1"/>
+				<Client Name="AutoFarMem" Value="0"/>
+				<Client Name="CoreSelect"/>
+				<Client Name="CycleTime" Value="1000"/>
+				<Client Name="IsoStartPoint" Value="80"/>
+				<Client Name="ToHwControl"/>
+				<Parameter KeyName="CableLength" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{0876B3F6-7B0D-4DDD-A261-E4AFE2F441AA}" Class="BusInterfaceSDIASInternal">
+							<Channels>
+								<Server Name="CallCommand"/>
+								<Server Name="InterfaceState"/>
+								<Client Name="CoreSelect"/>
+								<Client Name="CycleTime" Value="1000"/>
+								<Client Name="IsoStartPoint" Value="80"/>
+								<Client Name="ToHwControl"/>
+								<Client Name="ToOSKernel"/>
+								<Client Name="ToStdLib"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="SdiasHubBase1" GUID="{0E4AC654-3AAF-47F8-801F-8E6412D5D92B}" Class="SdiasHubBase">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="ToNextSDIAS"/>
+							</Channels>
+						</Object>
+						<Object Name="SdiasManager1" GUID="{A6CE8FF7-1B3C-49A6-976D-ED8995566590}" Class="SdiasManager">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Server Name="FirmwareVersion"/>
+								<Server Name="IsoRdTaskDuration"/>
+								<Server Name="IsoRdTaskMaxDuration"/>
+								<Server Name="IsoTaskErrorCount"/>
+								<Server Name="IsoWrTaskDuration"/>
+								<Server Name="IsoWrTaskMaxDuration"/>
+								<Server Name="ManagerOptionBits"/>
+								<Server Name="ManagerProtocolVersion"/>
+								<Server Name="RetryCounter"/>
+								<Client Name="AutoFarMem" Value="0"/>
+								<Client Name="DeviceID" Value="0"/>
+								<Client Name="ToBusInterface"/>
+								<Client Name="ToMultiTask"/>
+								<Client Name="ToStdLib"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="SdiasPLC1.ToHwControl" Destination="HwControl1.Control" Vertices="(1500,480),(1008,360),"/>
+		<Connection Source="EtherCAT_PLC1.ToHwControl" Destination="HwControl1.Control" Vertices="(1500,2340),(1008,360),"/>
+		<Connection Source="CP313_IOs1.To_HwControl" Destination="HwControl1.Control" Vertices="(1500,1260),(1008,360),"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>

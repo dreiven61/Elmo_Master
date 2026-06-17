@@ -1,0 +1,11 @@
+#ifndef HWCONTROLPARAMETERS_H
+#pragma once
+#define HWCONTROLPARAMETERS_H
+
+#define HWC_PARA_IDX_SAFETY                   0
+#define HWC_PARA_SUBIDX_SAFETY_UDP_TIME       0
+#define HWC_PARA_SUBIDX_SAFETY_UDP_TIMEOUT    1
+
+
+
+#endif // HWCONTROLPARAMETERS_H
