@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="ISO-8859-1" ?>
-<OpenViews>
-	<View Key="Motion_Network" Type="0"/>
-	<View Key="TCPMotionInterface" Type="2" LineNr="348"/>
-	<View Key="Motion_Network" Type="0"/>
-	<Setting Variable="OutputDebugger" Value=""/>
-	<Setting Variable="CodeAnalysis" Value=""/>
-</OpenViews>

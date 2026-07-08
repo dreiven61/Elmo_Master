@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="UDPComNet" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name           = "_UDPTransceiver1"
+			GUID           = "{4BF48E7F-EC93-4007-833C-36CD969CECD7}"
+			Class          = "_UDPTransceiver"
+			Position       = "(630,660)"
+			Visualized     = "true"
+			Remotely       = "true"
+			CyclicTime     = "1 ms"
+			BackgroundTime = "always">
+			<Channels>
+				<Server Name="sControl"/>
+				<Server Name="sError"/>
+				<Server Name="sErrorMessage"/>
+				<Server Name="sErrorNoOS"/>
+				<Client Name="coStdLib"/>
+				<Client Name="cSizeOfRXBuffer" Value="100 kb"/>
+				<Client Name="cSizeOfTXBuffer" Value="100 kb"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="CriticalSection_UDP" GUID="{D8DDA55A-6280-48B7-8480-F4EE0A40AF15}" Class="CriticalSection">
+							<Channels>
+								<Server Name="ClassSvr"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "String1"
+			GUID       = "{4C5F5B18-CA07-40D3-99F8-A313F6CD25EF}"
+			Class      = "String"
+			Position   = "(1440,870)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Data" Value="&quot;192.168.111.101&quot;"/>
+				<Client Name="SingleRealloc" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="DataBuffer"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+											<Channels>
+												<Server Name="Data"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+							<Channels>
+								<Server Name="m_udLength"/>
+								<Client Name="ThreadSafe" Value="0"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "UDPTransmission1"
+			GUID       = "{6DA5A5C2-64AE-436A-8785-926E45475F03}"
+			Class      = "UDPTransmission"
+			Position   = "(2340,660)"
+			Visualized = "true"
+			Remotely   = "true"
+			CyclicTime = "10 ms">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Server Name="Dbg_RecMsg"/>
+				<Server Name="Dbg_SendMsg"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ErrorMessage"/>
+				<Server Name="ErrorState"/>
+				<Server Name="RecMsg32"/>
+				<Server Name="State"/>
+				<Server Name="TransError"/>
+				<Server Name="TransState"/>
+				<Client Name="_UDPTransceiver"/>
+				<Client Name="IPAddr"/>
+				<Client Name="Port" Value="8877"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{059D987D-C42A-4904-982D-E1447F9AAFCA}" Class="_UDPTransceiverInterface">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ErrorMessage"/>
+								<Server Name="ErrorState"/>
+								<Server Name="State"/>
+								<Client Name="_UDPTransceiver"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="CriticalSection_UDP" GUID="{B1B566A0-B518-4936-A317-15F2BC3FB4A2}" Class="CriticalSection">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+		<Comment Position="(390,450)" Size="(2670,960)"/>
+		<Comment Position="(390,450)" Size="(720,150)" Text="Example with UDP. Stack is read in cyWork instead of BG"/>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="UDPTransmission1._UDPTransceiver" Destination="_UDPTransceiver1.sControl" Vertices="(2340,750),(1126,750),"/>
+		<Connection Source="UDPTransmission1.IPAddr" Destination="String1.Data" Vertices="(2340,810),(1756,960),"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>

@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="TCPComNet" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name       = "_SigTCPDataManager1"
+			GUID       = "{952F2B1C-4294-417D-9612-E4B6335874CB}"
+			Class      = "_SigTCPDataManager"
+			Position   = "(630,690)"
+			Visualized = "true"
+			Remotely   = "true"
+			CyclicTime = "10 ms">
+			<Channels>
+				<Server Name="AcceptOfflineJobs" Value="1"/>
+				<Server Name="ClassSvr"/>
+				<Server Name="ComPort" Value="500"/>
+				<Server Name="DeactivateCom" Value="0"/>
+				<Server Name="DeleteJobs"/>
+				<Server Name="LogEnable" Value="0"/>
+				<Server Name="NoEntries"/>
+				<Server Name="Online"/>
+				<Server Name="ResetLogBuffer"/>
+				<Server Name="TCPComm"/>
+				<Client Name="ErrRuntime"/>
+				<Client Name="InternConnection"/>
+				<Client Name="IPtoConnect"/>
+				<Client Name="LogFilter" Value="0"/>
+				<Client Name="SizeOfComBufferRecv" Value="100 kB"/>
+				<Client Name="SizeOfComBuffers" Value="100 kB"/>
+				<Client Name="StationToConnect"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{72F0681B-4CCD-412D-B85D-9A20F9B6274A}" Class="DataManager">
+							<Channels>
+								<Server Name="AcceptOfflineJobs" Value="1"/>
+								<Server Name="ClassSvr"/>
+								<Server Name="DeleteJobs"/>
+								<Server Name="NoEntries"/>
+								<Client Name="coTCPCommunication"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="DataManagerPriority" GUID="{F66E14FC-FECF-46E8-BBE1-25C0080190DD}" Class="DataManagerPriority">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="DataManagerFiFo_Prio0" GUID="{410A7E98-F4BC-4D2A-9667-2E0A9B2445E9}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio1" GUID="{CFB038E3-BF62-448D-AEC1-D9452C565639}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio2" GUID="{AB731EA0-4DC4-40C7-8351-142249B53EB0}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio3" GUID="{D6CDA938-A7D1-4B0F-BB7F-6A708E365941}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio4" GUID="{C0BD85B8-9938-47A7-AB1D-6DB2F56379E6}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio5" GUID="{2F117BA7-2BFA-4F53-99BD-FAB8DA8FE053}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio6" GUID="{F68D520C-55B8-45BB-B849-0533851C55D2}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio7" GUID="{DB6F91C6-E533-473B-8AB2-861A984C0FCA}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio8" GUID="{01EE92DB-17E7-486E-9987-E8E419ADB6FF}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="DataManagerFiFo_Prio9" GUID="{B358BDC1-9AC6-489D-9907-BB5660059620}" Class="DataManagerFIFO">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Client Name="StdLib"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="Section" GUID="{0F29AD40-A242-4A68-B0F2-590F2BF91363}" Class="CriticalSection">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object
+											Name           = "DataMngGetTaskHandle1"
+											GUID           = "{97BB1F6B-F2E8-400B-B2D4-711F9B36FFFE}"
+											Class          = "GetTaskHandle"
+											RealTime       = "1000 ms"
+											CyclicTime     = "1000 ms"
+											BackgroundTime = "1000 ms">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="TCPCommunication" GUID="{F20B32FE-6DCC-4A88-A937-9BF75135FA3E}" Class="TCPCommunication">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="ComPort" Value="500"/>
+								<Server Name="ConnectionType"/>
+								<Server Name="DeactivateCom" Value="0"/>
+								<Server Name="ErrorRecive"/>
+								<Server Name="ErrorSend"/>
+								<Server Name="InitError"/>
+								<Server Name="LogEnable" Value="0"/>
+								<Server Name="Online"/>
+								<Server Name="ResetLogBuffer"/>
+								<Server Name="TaskName"/>
+								<Server Name="TimeLastReceive"/>
+								<Server Name="TimeLastSend"/>
+								<Server Name="TransferRateReceive"/>
+								<Server Name="TransferRateSend"/>
+								<Client Name="coDataMng"/>
+								<Client Name="coIntern"/>
+								<Client Name="coIpToConnect"/>
+								<Client Name="coLogFilter" Value="0"/>
+								<Client Name="coMultiTask"/>
+								<Client Name="coSigCLib"/>
+								<Client Name="coStationToConnect"/>
+								<Client Name="coStdLib"/>
+								<Client Name="ErrRuntime"/>
+								<Client Name="SizeOfComBufferRecv" Value="100 kB"/>
+								<Client Name="SizeOfComBuffers" Value="100 kB"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="CheckSum" GUID="{65B879CD-70B3-42EF-9FC2-6B8ED605F75C}" Class="_CheckSum">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+										<Object Name="RamRingBuffer" GUID="{934BB221-E441-4435-9182-6931ACC68BAE}" Class="RamRingBuffer">
+											<Channels>
+												<Server Name="ClassSvr"/>
+												<Client Name="Data"/>
+											</Channels>
+										</Object>
+										<Object Name="RamRingMerkerEx" GUID="{640F1BCA-1105-4F9F-9E84-21CF2149312E}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+										<Object Name="ThreadName" GUID="{1FDFC61E-D18A-4637-A64F-E7649BD741FD}" Class="String">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "TCP_MotionIF_Dummy1"
+			GUID       = "{D7B14961-E7BE-4B1C-BD79-D10674D07804}"
+			Class      = "TCP_MotionIF_Dummy"
+			Position   = "(2700,690)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Server Name="RecvCnt"/>
+				<Server Name="SourceID" Value="1"/>
+				<Client Name="_SigTCPDataManager"/>
+				<Client Name="MotionControlIF" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{79A0A0C7-8E61-4DFE-B794-F14A23EF234B}" Class="_SigTCPComReceive">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="RecvCnt"/>
+								<Server Name="SourceID" Value="1"/>
+								<Client Name="_SigTCPDataManager"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+		<Comment Position="(2040,270)" Size="(1260,750)"/>
+		<Comment Position="(2040,270)" Size="(540,330)" Text="Interface for TCP-CMDs via API.&#13;&#10;"/>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="TCP_MotionIF_Dummy1._SigTCPDataManager" Destination="_SigTCPDataManager1.ClassSvr" Vertices="(2700,780),(1324,780),"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<HwVisualConfigManager>
+	<HwVisualConfig Key="__HW_MAIN_PLC__" DeviceType="CP313" Top="20" Left="20"/>
+	<HwVisualConfig Key="CP313_IOs1" Top="20" Left="20"/>
+	<HwVisualConfig Key="VaranManager_11" Top="556.8" Left="20"/>
+	<HwVisualConfig Key="WELCON_11" Top="128.8" Left="20"/>
+	<HwVisualConfig Key="WELCON_21" Top="235.8" Left="20"/>
+	<HwVisualConfig Key="WELCON_31" Top="342.8" Left="20"/>
+	<HwVisualConfig Key="WELCON_41" Top="449.8" Left="20"/>
+	<HwVisualConnection Source="WELCON_11.toMaster" Destination="EtherCAT_PLC1.EtherCATOut_1" Vertices="(34.8,122),(41,122),(41,87.97),"/>
+	<HwVisualConnection Source="WELCON_21.toMaster" Destination="WELCON_11.EtherCATOut_1" Vertices="(34.8,229),(73,229),(73,144.88),"/>
+	<HwVisualConnection Source="WELCON_31.toMaster" Destination="WELCON_21.EtherCATOut_1" Vertices="(34.8,336),(73,336),(73,251.88),"/>
+	<HwVisualConnection Source="WELCON_41.toMaster" Destination="WELCON_31.EtherCATOut_1" Vertices="(34.8,443),(73,443),(73,358.88),"/>
+</HwVisualConfigManager>

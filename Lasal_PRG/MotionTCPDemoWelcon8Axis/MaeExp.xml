@@ -1,0 +1,988 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<File CRC="FDC96EA8" Version="1.1" SubVersion="2">
+	<Types>
+		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="PowerOff" BitNo="1"/>
+				<Type Name="NoReference" BitNo="2"/>
+				<Type Name="HWError" BitNo="3"/>
+				<Type Name="ActPosError" BitNo="4"/>
+				<Type Name="ContouringError" BitNo="5"/>
+				<Type Name="CommandError" BitNo="6"/>
+				<Type Name="SWMinError" BitNo="7"/>
+				<Type Name="SWMaxError" BitNo="8"/>
+				<Type Name="vError" BitNo="9"/>
+				<Type Name="aError" BitNo="10"/>
+				<Type Name="HWMinError" BitNo="11"/>
+				<Type Name="HWMaxError" BitNo="12"/>
+				<Type Name="DirError" BitNo="13"/>
+				<Type Name="EmergencyError" BitNo="14"/>
+				<Type Name="ResolutionError" BitNo="15"/>
+				<Type Name="GlobalError" BitNo="16"/>
+				<Type Name="JError" BitNo="17"/>
+				<Type Name="SafeError" BitNo="18"/>
+				<Type Name="AutoTuneError" BitNo="19"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_ERROR" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="HwError" BitNo="1"/>
+				<Type Name="SwMinError" BitNo="2"/>
+				<Type Name="SwMaxError" BitNo="3"/>
+				<Type Name="HwMinError" BitNo="4"/>
+				<Type Name="HwMaxError" BitNo="5"/>
+				<Type Name="ReferenceError" BitNo="6"/>
+				<Type Name="ContouringError" BitNo="7"/>
+				<Type Name="ActPosError" BitNo="8"/>
+				<Type Name="AbsOffsetError" BitNo="9"/>
+				<Type Name="OverFlowError" BitNo="10"/>
+				<Type Name="EmergencyError" BitNo="11"/>
+				<Type Name="ResolutionError" BitNo="12"/>
+				<Type Name="PowerOnError" BitNo="13"/>
+				<Type Name="PowerOffError" BitNo="14"/>
+				<Type Name="GlobErr" BitNo="16"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_ERROR_CONFIG" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="vError" BitNo="1"/>
+				<Type Name="aError" BitNo="2"/>
+				<Type Name="SWMinError" BitNo="3"/>
+				<Type Name="SWMaxError" BitNo="4"/>
+				<Type Name="CommandError" BitNo="5"/>
+				<Type Name="EmergencyError" BitNo="6"/>
+				<Type Name="CoupleMonitoring" BitNo="7"/>
+				<Type Name="JError" BitNo="8"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_MOVE_RELATIVE_MODE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_MOVE_RELATIVE_TO_DESTINATION" Value="0"/>
+				<Type Name="LMCAXIS_MOVE_RELATIVE_TO_POSITION" Value="1"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_MOVEDIRECTION" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_MOVE_ANY_WAY" Value="0"/>
+				<Type Name="LMCAXIS_MOVE_NEG_DIR" Value="1"/>
+				<Type Name="LMCAXIS_MOVE_SHORTEST_WAY" Value="2"/>
+				<Type Name="LMCAXIS_MOVE_POS_DIR" Value="3"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_MOVEPROFILE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="_RAMP_PROFILE" Value="0"/>
+				<Type Name="_SCURVE_PROFILE" Value="1"/>
+				<Type Name="_JERK_PROFILE" Value="10"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_OPMODE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="PASSIVE_LMCAXIS" Value="0"/>
+				<Type Name="WAITIDLE_LMCAXIS" Value="1"/>
+				<Type Name="IDLE_LMCAXIS" Value="2"/>
+				<Type Name="MOVE_LMCAXIS" Value="3"/>
+				<Type Name="FOLLOW_LMCAXIS" Value="4"/>
+				<Type Name="STOPED_LMCAXIS" Value="5"/>
+				<Type Name="LOCKED_LMCAXIS" Value="6"/>
+				<Type Name="REFRUN_LMCAXIS" Value="7"/>
+				<Type Name="TUNEPOS_LMCAXIS" Value="8"/>
+				<Type Name="TUNENEG_LMCAXIS" Value="9"/>
+				<Type Name="ERROR_LMCAXIS" Value="10"/>
+				<Type Name="WAITPASSIVE_LMCAXIS" Value="11"/>
+				<Type Name="SBT_LMCAXIS" Value="12"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_POSMODE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="_Positioning" Value="0"/>
+				<Type Name="_NCPositioning" Value="1"/>
+				<Type Name="_StdSyncPositioning" Value="2"/>
+				<Type Name="_UserSyncPositioning" Value="3"/>
+				<Type Name="_CAMSyncPositioning" Value="4"/>
+				<Type Name="_ProfileSyncPositioning" Value="5"/>
+				<Type Name="_SyncVelocity" Value="6"/>
+				<Type Name="_StartPolynomPositioning" Value="7"/>
+				<Type Name="_SyncPolynomPositioning" Value="8"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_POWER_OFF_MODE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_IMMEDIATE_STOPP" Value="0"/>
+				<Type Name="LMCAXIS_SMOOTH_STOPP" Value="1"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_REFMODE" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="NoZImpulse" BitNo="1"/>
+				<Type Name="NoEndSwitch" BitNo="2"/>
+				<Type Name="RefDirection" BitNo="3"/>
+				<Type Name="NoTurnOnSwitch" BitNo="4"/>
+				<Type Name="ESEqualRef" BitNo="5"/>
+				<Type Name="NoSet" BitNo="6"/>
+				<Type Name="RefLatchPos" BitNo="7"/>
+				<Type Name="RefFirstEdge" BitNo="8"/>
+				<Type Name="SafeReferenceAxis" BitNo="9"/>
+				<Type Name="SafeReferenceOnly" BitNo="10"/>
+				<Type Name="SafeInvRefDirection" BitNo="11"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_SETPARAMETER" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_PAR_SET_COUPLING_MODE" Value="0"/>
+				<Type Name="LMCAXIS_PAR_SET_DESTINATION" Value="1"/>
+				<Type Name="LMCAXIS_PAR_SET_OVERRIDE" Value="2"/>
+				<Type Name="LMCAXIS_PAR_SET_LOGMODE" Value="3"/>
+				<Type Name="LMCAXIS_PAR_RESET_REF_STATE" Value="4"/>
+				<Type Name="LMCAXIS_PAR_SET_CHANGE_SW_LIMITS" Value="5"/>
+				<Type Name="LMCAXIS_PAR_SET_JERK_LIMITATION" Value="6"/>
+				<Type Name="LMCAXIS_PAR_SET_SHIFT_BREAKPOS" Value="7"/>
+				<Type Name="LMCAXIS_PAR_SET_OVERFLOW_POS" Value="8"/>
+				<Type Name="LMCAXIS_PAR_SET_MIN_POSITION" Value="9"/>
+				<Type Name="LMCAXIS_PAR_SET_MAX_POSITION" Value="10"/>
+				<Type Name="LMCAXIS_PAR_SET_HARDLOCK" Value="11"/>
+				<Type Name="LMCAXIS_PAR_SET_SWLIM_STANDSTILL" Value="12"/>
+				<Type Name="LMCAXIS_PAR_SET_SWLIM_DIR_CHANGE" Value="13"/>
+				<Type Name="LMCAXIS_PAR_SET_SWLIM_MOVING" Value="14"/>
+				<Type Name="LMCAXIS_PAR_SET_INIT_JERK_FILTER" Value="15"/>
+				<Type Name="LMCAXIS_PAR_SET_BINOFFSET" Value="16"/>
+				<Type Name="LMCAXIS_PAR_SET_VJUMP" Value="17"/>
+				<Type Name="LMCAXIS_PAR_SET_SW_LIMIT_FLAGS" Value="18"/>
+				<Type Name="LMCAXIS_PAR_SET_SW_LIM_WINDOW" Value="19"/>
+				<Type Name="LMCAXIS_PAR_SET_MOVE_DIR" Value="20"/>
+				<Type Name="LMCAXIS_PAR_SET_TIMEBASE" Value="21"/>
+				<Type Name="LMCAXIS_PAR_SET_CONTROLLERPAR" Value="22"/>
+				<Type Name="LMCAXIS_PAR_SET_ACTVELFILTER" Value="23"/>
+				<Type Name="LMCAXIS_PAR_SET_SHAPE_SPLINE" Value="24"/>
+				<Type Name="LMCAXIS_PAR_SET_NO_OVERFLOWERROR" Value="25"/>
+				<Type Name="LMCAXIS_PAR_SET_MASTERPOS_OLD" Value="26"/>
+				<Type Name="LMCAXIS_PAR_SET_MASTER_DELAY" Value="27"/>
+				<Type Name="LMCAXIS_PAR_SET_MAXMODULO" Value="28"/>
+				<Type Name="LMCAXIS_PAR_SET_MAX_OVERRIDE" Value="29"/>
+				<Type Name="LMCAXIS_PAR_SET_NORM_OVERRIDE" Value="30"/>
+				<Type Name="LMCAXIS_PAR_SET_MASTERLOCK_DELAYCYCLES" Value="31"/>
+				<Type Name="LMCAXIS_PAR_SET_ALLOWED_ACC_JUMP" Value="32"/>
+				<Type Name="LMCAXIS_PAR_SET_SIMULATE_MODE" Value="33"/>
+				<Type Name="LMCAXIS_PAR_SET_DEACTIVATE_CALC_BRAKEPOS" Value="34"/>
+				<Type Name="LMCAXIS_PAR_SET_COUPLE_SLAVE_ERROR" Value="35"/>
+				<Type Name="LMCAXIS_PAR_SET_COUPLE_MASTER_ERROR" Value="36"/>
+				<Type Name="LMCAXIS_PAR_SET_COUPLE_MONITOR_CONFIG" Value="37"/>
+				<Type Name="LMCAXIS_PAR_SET_DELAYEDMASTERLOCK_WINDOW" Value="38"/>
+				<Type Name="LMCAXIS_PAR_SET_MASTERVEL_OLD" Value="39"/>
+				<Type Name="LMCAXIS_PAR_SET_POWERON_TIMEOUT" Value="40"/>
+				<Type Name="LMCAXIS_PAR_SET_CHANGECONTROLLERTYPE" Value="41"/>
+				<Type Name="LMCAXIS_PAR_SET_COUPLE_SLAVEOFFSET" Value="42"/>
+				<Type Name="LMCAXIS_PAR_SET_REFPOSOFF" Value="43"/>
+				<Type Name="LMCAXIS_PAR_SET_CALC_BRAKE_DIST_RAMP_125" Value="44"/>
+				<Type Name="LMCAXIS_PAR_SET_CAMCOUPLE_USELREAL" Value="45"/>
+				<Type Name="LMCAXIS_PAR_SET_COUPLE_USERESOLUTION" Value="46"/>
+				<Type Name="LMCAXIS_PAR_SET_SBTATPOWERON" Value="47"/>
+				<Type Name="LMCAXIS_PAR_SET_SBTATPOWERONTIMEOUT" Value="48"/>
+				<Type Name="LMCAXIS_PAR_SET_SBTATPOWERONIGNORE" Value="49"/>
+				<Type Name="LMCAXIS_PAR_SET_SBTATPOWERONERRORREACTION" Value="50"/>
+				<Type Name="LMCAXIS_PAR_SET_AUTOMATICSS2" Value="51"/>
+				<Type Name="LMCAXIS_PAR_SET_MASTERPOINTER" Value="52"/>
+				<Type Name="LMCAXIS_PAR_SET_FOLLOWDRAGVELOCITY_LIMIT" Value="53"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_SETPOSITION" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_SET_ACTPOS_APPUNIT" Value="0"/>
+				<Type Name="LMCAXIS_SET_SETPOS_APPUNIT" Value="1"/>
+				<Type Name="LMCAXIS_SET_ACTPOS_INTUNIT" Value="2"/>
+				<Type Name="LMCAXIS_SET_SETPOS_INTUNIT" Value="3"/>
+				<Type Name="LMCAXIS_SET_SETPOS_INTUNIT_SPEC" Value="4"/>
+				<Type Name="LMCAXIS_SET_ACTPOS_INTUNIT_WO_MOD" Value="5"/>
+				<Type Name="LMCAXIS_SET_SETPOS_INTUNIT_WO_MOD" Value="6"/>
+				<Type Name="LMCAXIS_SET_ACTPOS_INTUNIT_WO_MOD_SW" Value="7"/>
+				<Type Name="LMCAXIS_SET_SETPOS_INTUNIT_WO_MOD_SW" Value="8"/>
+				<Type Name="LMCAXIS_SET_ACTPOS_APPUNIT_DEST" Value="9"/>
+				<Type Name="LMCAXIS_SET_SETPOS_APPUNIT_DEST" Value="10"/>
+				<Type Name="LMCAXIS_SET_ACTPOS_APPUNIT_WO_MOD_SW" Value="11"/>
+				<Type Name="LMCAXIS_SET_SETPOS_APPUNIT_WO_MOD_SW" Value="12"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_SETSWENDPOS" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="LMCAXIS_SET_SWMAX_APPUNIT" Value="0"/>
+				<Type Name="LMCAXIS_SET_SWMIN_APPUNIT" Value="1"/>
+				<Type Name="LMCAXIS_SET_SWMAX_INTUNIT" Value="2"/>
+				<Type Name="LMCAXIS_SET_SWMIN_INTUNIT" Value="3"/>
+				<Type Name="LMCAXIS_SET_SWMAX_INTUNIT_WO_MOD" Value="4"/>
+				<Type Name="LMCAXIS_SET_SWMIN_INTUNIT_WO_MOD" Value="5"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCAXIS_STATUS" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="PowerOn" BitNo="1"/>
+				<Type Name="IsReferenced" BitNo="2"/>
+				<Type Name="InPosition" BitNo="3"/>
+				<Type Name="FiltRdy" BitNo="4"/>
+				<Type Name="Decell" BitNo="5"/>
+				<Type Name="PosLimActive" BitNo="6"/>
+				<Type Name="SetFlg" BitNo="7"/>
+				<Type Name="EnLesFlg" BitNo="8"/>
+				<Type Name="DirFlg" BitNo="9"/>
+				<Type Name="EmergStop" BitNo="10"/>
+				<Type Name="Overflow" BitNo="11"/>
+				<Type Name="MasterLock" BitNo="12"/>
+				<Type Name="DirLock" BitNo="13"/>
+				<Type Name="DynSwLimit" BitNo="14"/>
+				<Type Name="ActDirFlg" BitNo="15"/>
+				<Type Name="HandFlg" BitNo="16"/>
+				<Type Name="ModuloFlg" BitNo="17"/>
+				<Type Name="NCMotion" BitNo="18"/>
+				<Type Name="NoActPosMeth" BitNo="19"/>
+				<Type Name="NoControlMeth" BitNo="20"/>
+				<Type Name="NoRefMeth" BitNo="21"/>
+				<Type Name="NoActPosChk" BitNo="22"/>
+				<Type Name="NoPreRtWork" BitNo="23"/>
+				<Type Name="NoPostRtWork" BitNo="24"/>
+				<Type Name="DelayedMasterLock" BitNo="25"/>
+				<Type Name="Standstill" BitNo="26"/>
+				<Type Name="BrakeForPowerOff" BitNo="27"/>
+				<Type Name="MasterError" BitNo="28"/>
+				<Type Name="SlaveError" BitNo="29"/>
+				<Type Name="ReadyToPowerOn" BitNo="30"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCCONTROLLERTYPE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="_LMCNOCONTROLLER" Value="0"/>
+				<Type Name="_LMCUSERCONTROLLER" Value="1"/>
+				<Type Name="_LMCDUMMYCONTROLLER" Value="2"/>
+				<Type Name="_LMCHYDROCONTROLLER" Value="3"/>
+				<Type Name="_LMCKV_CONTROLLER" Value="4"/>
+				<Type Name="_LMCNCCONTROLLER" Value="5"/>
+				<Type Name="_LMCPOSCONTROLLER" Value="6"/>
+				<Type Name="_LMCDRIVEPOSONTROL" Value="7"/>
+				<Type Name="_LMCSTEPPERCONTROL" Value="8"/>
+				<Type Name="_LMCVFDCONTROL" Value="9"/>
+				<Type Name="_LMCDRIVEPOSCONTROLSAFETY" Value="10"/>
+				<Type Name="_LMCSTEPPERCONTROLST152" Value="11"/>
+				<Type Name="_LMCUSERCONTROLLER_NEW" Value="101"/>
+				<Type Name="_LMCKV_CONTROLLER_NEW" Value="104"/>
+				<Type Name="_LMCPOSCONTROLLER_NEW" Value="106"/>
+				<Type Name="_LMCSIGMATEKCONTROLLER" Value="107"/>
+				<Type Name="_LMCCALCMODEL_CONTROLLER" Value="108"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROF_OPMODE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="_LMC_AUTOMATIC" Value="0"/>
+				<Type Name="_LMC_MANUAL" Value="1"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROFCMDTYPES" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="CMD_Nothing" Value="0"/>
+				<Type Name="CMD_Linear" Value="2"/>
+				<Type Name="CMD_CircleCW" Value="5"/>
+				<Type Name="CMD_CircleCCW" Value="4"/>
+				<Type Name="CMD_MoveCurve" Value="12"/>
+				<Type Name="CMD_Circle3D" Value="13"/>
+				<Type Name="CMD_SetProfPos" Value="20"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROFERRORTYPES" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="_LMCPROF_NoError" Value="0"/>
+				<Type Name="_LMCPROF_INIT_ERROR" Value="1"/>
+				<Type Name="_LMCPROF_MOVECMD_ERROR" Value="2"/>
+				<Type Name="_LMCPROF_INT_POINTER_ERROR" Value="3"/>
+				<Type Name="_LMCPROF_JUMP_CMD_ERROR" Value="4"/>
+				<Type Name="_LMCPROF_POS_OVERRUN_ERROR" Value="5"/>
+				<Type Name="_LMCPROF_AXIS_ERROR" Value="6"/>
+				<Type Name="_LMCPROF_SWE_ERROR" Value="7"/>
+				<Type Name="_LMCPROF_CIRDEF_ERROR" Value="8"/>
+				<Type Name="_LMCPROF_NO_POS_CHANGE" Value="9"/>
+				<Type Name="_LMCPROF_GROUP_ERROR" Value="10"/>
+				<Type Name="_LMCPROF_KOFAC_ERROR" Value="11"/>
+				<Type Name="_LMCPROF_VEL_CMD_ERROR" Value="12"/>
+				<Type Name="_LMCPROF_ACC_CMD_ERROR" Value="13"/>
+				<Type Name="_LMCPROF_JERK_CMD_ERROR" Value="14"/>
+				<Type Name="_LMCPROF_RESOLUTION_ERROR" Value="15"/>
+				<Type Name="_LMCPROF_SAFETY_ZONES_REACHED" Value="16"/>
+				<Type Name="_LMCPROF_INSERT_ERROR" Value="17"/>
+				<Type Name="_LMCPROF_AXIS_NOT_CONNECTED" Value="18"/>
+				<Type Name="_LMCPROF_GROUP_NOT_FOUND" Value="19"/>
+				<Type Name="_LMCPROF_PARAMETER_NOT_FOUND" Value="20"/>
+				<Type Name="_LMCPROF_PARAMETER_ERROR" Value="21"/>
+				<Type Name="_LMCPROF_ERROR_BUSY" Value="22"/>
+				<Type Name="_LMCPROF_OUT_OF_RANGE" Value="23"/>
+				<Type Name="_LMCPROF_RADIUS_ERROR" Value="24"/>
+				<Type Name="_LMCPROF_ARCLEN_ERROR" Value="25"/>
+				<Type Name="_LMCPROF_RES_PATHLEN_ERROR" Value="26"/>
+				<Type Name="_LMCPROF_ENDPOS_ERROR" Value="27"/>
+				<Type Name="_LMCPROF_AXTRAVEL_ERROR" Value="28"/>
+				<Type Name="_LMCPROF_AX_COUPLE_ERROR" Value="29"/>
+				<Type Name="_LMCPROF_PLAINEDEF_ERROR" Value="30"/>
+				<Type Name="_LMCPROF_VEC_ERROR" Value="31"/>
+				<Type Name="_LMCPROF_LOCKGROUP_ERROR" Value="32"/>
+				<Type Name="_LMCPROF_LINEDEF_ERROR" Value="33"/>
+				<Type Name="_LMCPROF_CHORDLEN_ERROR" Value="34"/>
+				<Type Name="_LMCPROF_LOCKGROUP_DIFF_RESTART" Value="35"/>
+				<Type Name="_LMCPROF_REFPOINT_DIFF_RESTART" Value="36"/>
+				<Type Name="_LMCPROF_AXIS_POS_ERROR" Value="37"/>
+				<Type Name="_LMCPROF_INPOSITION_TIMEOUT_ERROR" Value="38"/>
+				<Type Name="_LMCPROF_MATH_ERROR" Value="39"/>
+				<Type Name="_LMCPROF_CALC_ITERATION_ERROR" Value="40"/>
+				<Type Name="_LMCPROF_REVERSE_ONGOING" Value="41"/>
+				<Type Name="_LMCPROF_REVERSE_INSERT_ERROR" Value="42"/>
+				<Type Name="_LMCPROF_REVERSE_RESET_ERROR" Value="43"/>
+				<Type Name="_LMCPROF_TANGAXIS_INVALIDDEFINITION" Value="44"/>
+				<Type Name="_LMCPROF_TANGAXIS_ANGLEERROR" Value="45"/>
+				<Type Name="_LMCPROF_TANGAXIS_MOVEIMM_ERROR" Value="46"/>
+				<Type Name="_LMCPROF_TANGAXIS_NOTCONFIGURED" Value="47"/>
+				<Type Name="_LMCPROF_TANGAXIS_PROFILEINERROR" Value="48"/>
+				<Type Name="_LMCPROF_TANGAXIS_PROFILENOTLOCKED" Value="49"/>
+				<Type Name="_LMCPROF_TANGAXIS_ALREADYACTIVE" Value="50"/>
+				<Type Name="_LMCPROF_TANGAXIS_AXMULTIPLEDEFERROR" Value="51"/>
+				<Type Name="_LMCPROF_TANGAXIS_INVALIDAXNUMBER" Value="52"/>
+				<Type Name="_LMCPROF_TANGAXIS_TANGAXISNOTCONNECTED" Value="53"/>
+				<Type Name="_LMCPROF_TANGAXIS_FIRSTAXISNOTCONNECTED" Value="54"/>
+				<Type Name="_LMCPROF_TANGAXIS_SECONDAXISNOTCONNECTED" Value="55"/>
+				<Type Name="_LMCPROF_NR_MAINLOCKAXES_INVALID" Value="56"/>
+				<Type Name="_LMCPROF_NR_SPLINEPOINTS_INVALID" Value="57"/>
+				<Type Name="_LMCPROF_SPLINE_ACTIVATION_FAILED" Value="58"/>
+				<Type Name="_LMCPROF_SPLINE_CALC_ONGOING" Value="59"/>
+				<Type Name="_LMCPROF_WORKING_AREA_VIOLATED" Value="60"/>
+				<Type Name="_LMCPROF_AXIS_COUPLECHECK" Value="61"/>
+				<Type Name="_LMCROBOT_REF_ERROR" Value="1000"/>
+				<Type Name="_LMCROBOT_AX_COUPLING_ERROR" Value="1001"/>
+				<Type Name="_LMCROBOT_BACKUP_POS_ERROR" Value="1002"/>
+				<Type Name="_LMCROBOT_POWERON_ERROR" Value="1003"/>
+				<Type Name="_LMCROBOT_POS_CHECK_ERROR" Value="1004"/>
+				<Type Name="_LMCROBOT_LINEUP_AX_ERROR" Value="1005"/>
+				<Type Name="_LMCROBOT_COUPLE_TIMEOUT" Value="1006"/>
+				<Type Name="_LMCROBOT_AX_COUPLING_LOST" Value="1007"/>
+				<Type Name="_LMCROBOT_AXIS_ERROR" Value="1008"/>
+				<Type Name="_LMCROBOT_BELTCOUPLING_ERROR" Value="1009"/>
+				<Type Name="_LMCROBOT_COORDSYSTEM_ERROR" Value="1010"/>
+				<Type Name="_LMCROBOT_AX_CMD_ERROR" Value="1011"/>
+				<Type Name="_LMCROBOT_KINEMATIC_ERROR" Value="1012"/>
+				<Type Name="_LMCROBOT_BELTCOUPLING_INVALIDTRANSMODE" Value="1013"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROFERRWARNCONFIG" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="bPosChangeWarning" BitNo="1"/>
+				<Type Name="bResolutionError" BitNo="2"/>
+				<Type Name="bPosLimitError" BitNo="3"/>
+				<Type Name="bCircleError" BitNo="4"/>
+				<Type Name="bCmdLimitError" BitNo="5"/>
+				<Type Name="bKoFacError" BitNo="6"/>
+				<Type Name="bSafetyZonesError" BitNo="7"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROFILESTATES" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="bProfileLocked" BitNo="1"/>
+				<Type Name="bProfileStoped" BitNo="2"/>
+				<Type Name="bProfileBraking" BitNo="3"/>
+				<Type Name="bNoPreRtWork" BitNo="4"/>
+				<Type Name="bNoPostRtWork" BitNo="5"/>
+				<Type Name="bBraketoExactStop" BitNo="6"/>
+				<Type Name="bDynSWLimit" BitNo="7"/>
+				<Type Name="bBraketoDynSWLimit" BitNo="8"/>
+				<Type Name="bDynSWLimitViolation" BitNo="9"/>
+				<Type Name="bRestartActive" BitNo="10"/>
+				<Type Name="bAdaptMovementActive" BitNo="11"/>
+				<Type Name="bReversePositive" BitNo="12"/>
+				<Type Name="bReverseNegative" BitNo="13"/>
+				<Type Name="bCoupleCheckProfileStop" BitNo="14"/>
+			</Elements>
+		</Type>
+		<Type Name="_LMCPROFMOVEPROFILE" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="RAMP_PROFILE" Value="0"/>
+				<Type Name="JERK_PROFILE" Value="1"/>
+			</Elements>
+		</Type>
+		<Type Name="_POSFLAGS" Datatype="BDINT" TypeId="BIT">
+			<Elements>
+				<Type Name="SetSFF" BitNo="1"/>
+				<Type Name="XWCalcInt" BitNo="2"/>
+				<Type Name="WaitPowerOff" BitNo="3"/>
+				<Type Name="SetAFF" BitNo="4"/>
+			</Elements>
+		</Type>
+		<Type Name="ProfileCommandStatus" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="PassiveProfile" Value="0"/>
+				<Type Name="IdleProfile" Value="1"/>
+				<Type Name="RunProfile" Value="2"/>
+				<Type Name="EndProfile" Value="3"/>
+				<Type Name="ErrorProfile" Value="4"/>
+				<Type Name="IdleProfileRestart" Value="5"/>
+				<Type Name="WaitProfileRestart" Value="6"/>
+				<Type Name="WaitProfileForAxInPos" Value="7"/>
+			</Elements>
+		</Type>
+	</Types>
+	<Classes>
+		<Class
+			Name     = "_AxisBase"
+			Datatype = "_LMCAXIS_OPMODE"
+			Size     = "32"
+			Guid     = "F52EA0ED-F06F-4DF2-8326-9B4FEA0E0D45">
+		</Class>
+		<Class
+			Name     = "_LMCABSEncoder"
+			Datatype = "DINT"
+			Size     = "84"
+			Guid     = "A87B03B3-9ACE-407F-A7F0-8A3812C2BC0D">
+			<Servers>
+				<Server Name="PosOffset" Datatype="DINT" Guid="E19365E6-5C80-4796-8D4A-010C2771E122" WriteProtected="false"/>
+				<Server Name="PosOffsetOk" Datatype="DINT" Guid="4CE00223-3F48-4637-9F60-754699D716BF" WriteProtected="false"/>
+				<Server Name="PosCRC32" Datatype="UDINT" Guid="3CDBD60B-E4C9-4226-883F-2EB990DEDE02" WriteProtected="false"/>
+				<Server Name="AbsEncoder" Datatype="DINT" Guid="C7199EBB-1EB3-4291-A2F4-EE6B49682C67" WriteProtected="false"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCAxis"
+			Datatype = "_LMCAXIS_OPMODE"
+			Base     = "_LMCAxisBase"
+			Size     = "7928"
+			Guid     = "BBF26E8B-9881-449D-9540-93990A63ECAD">
+			<Servers>
+				<Server Name="Control" Datatype="_LMCAXIS_OPMODE" Guid="813CA014-8D4F-4BB9-954A-F20F4611CBBF" WriteProtected="true"/>
+				<Server Name="AxisStatus" Datatype="_LMCAXIS_STATUS" Guid="68B6CC31-3184-4BD8-9AEF-5517DF33D4FB" WriteProtected="true"/>
+				<Server Name="PosMode" Datatype="_LMCAXIS_POSMODE" Guid="CDFCD1F3-6AB5-4624-A6A9-C75262DE1C51" WriteProtected="true"/>
+				<Server Name="AxisError" Datatype="_LMCAXIS_ERROR" Guid="D915F1B2-0033-45ED-95CD-98E5AC15454C" WriteProtected="true"/>
+				<Server Name="ActPos" Datatype="DINT" Guid="864367D4-AA4F-4D63-B05E-6A13737A7360" WriteProtected="false"/>
+				<Server Name="SetPos" Datatype="DINT" Guid="A24425E6-4E11-412C-83A7-960537ADB33E" WriteProtected="false"/>
+				<Server Name="Destination" Datatype="DINT" Guid="291661D9-1815-4147-8350-8B61B9B02D38" WriteProtected="true"/>
+				<Server Name="Override" Datatype="DINT" Guid="FF96B1A2-F449-4E94-BD43-CD91AB79A05F" WriteProtected="false"/>
+				<Server Name="ActVelocity" Datatype="DINT" Guid="43EADA72-7000-4485-8C9B-A3472AA6CA4E" WriteProtected="true"/>
+				<Server Name="SetVelocity" Datatype="DINT" Guid="7691CDA2-0D42-445A-8364-865F948A8BAB" WriteProtected="true"/>
+				<Server Name="SimulateMode" Datatype="DINT" Guid="22BE35A3-9C0D-4FF6-B5E2-4ECB033D46B6" WriteProtected="false"/>
+				<Server Name="ExUnits" Datatype="DINT" Guid="9FE2BF63-FF3B-4C14-B568-13EB87B3E07C" WriteProtected="false"/>
+				<Server Name="IntUnits" Datatype="DINT" Guid="FA32FE70-022F-4ED1-8CFE-BDD41F6AD0D7" WriteProtected="false"/>
+				<Server Name="VMax" Datatype="DINT" Guid="26F9E93C-F21E-4BA6-AED9-4EF7C79E11F7" WriteProtected="false"/>
+				<Server Name="AMax" Datatype="DINT" Guid="ADBEB5C9-4395-4FCF-80BA-D40753878DA4" WriteProtected="false"/>
+				<Server Name="Tjerk" Datatype="DINT" Guid="57A5493C-1735-4622-BB13-42B699CCBC9D" WriteProtected="false"/>
+				<Server Name="MoveType" Datatype="_LMCAXIS_MOVEPROFILE" Guid="69DE3781-2054-4C7E-94C1-D8816EBD029B" WriteProtected="false"/>
+				<Server Name="Resolution" Datatype="DINT" Guid="DAF3A77D-F362-45C0-9B72-8734F61E4225" WriteProtected="true"/>
+				<Server Name="Modulo" Datatype="DINT" Guid="384697FA-6383-4042-B2B5-869B06B81AC4" WriteProtected="false"/>
+				<Server Name="SWMinPos" Datatype="DINT" Guid="61F22F0F-46A7-49AA-A29C-03B86C420418" WriteProtected="false"/>
+				<Server Name="SWMaxPos" Datatype="DINT" Guid="BDE8F6A7-C046-4CA2-BA01-A8416D226E14" WriteProtected="false"/>
+				<Server Name="ErrorConfig" Datatype="_LMCAXIS_ERROR_CONFIG" Guid="161823E3-9952-44E8-B3A0-9B1AD627E0F6" WriteProtected="false"/>
+				<Server Name="AEmergency" Datatype="DINT" Guid="804104B7-F4D7-40B5-855F-6D0F785617EC" WriteProtected="false"/>
+				<Server Name="JMax" Datatype="DINT" Guid="F40EF8AA-6964-4819-9DA6-F1FBB2CBF180" WriteProtected="false"/>
+				<Server Name="SafeAxisState" Datatype="_LMCAxisBase::t_s_LMCAxis_SafetyState" Guid="5E791631-FB9C-4D2A-A438-488E91177476" WriteProtected="true"/>
+				<Server Name="AbsEncoder" Datatype="DINT" Guid="67A9C60B-7109-4A29-B034-0B874C9F507E" WriteProtected="false"/>
+			</Servers>
+			<Objects>
+				<Object Name="_LMCABSEncoder1" Datatype="_LMCABSEncoder" Guid="4997BF67-81DA-49B7-8B08-D58CDF069D7E"/>
+				<Object Name="_LMCAxisRef1" Datatype="_LMCAxisRef" Guid="8527575C-8C8D-4427-B640-713377E99444"/>
+				<Object Name="_LMCAxisVis1" Datatype="_LMCAxisVis" Guid="3701FC36-2E16-4B1A-8232-F571CF23D782"/>
+			</Objects>
+		</Class>
+		<Class
+			Name     = "_LMCAxisBase"
+			Datatype = "_LMCAXIS_OPMODE"
+			Base     = "_AxisBase"
+			Size     = "7712"
+			Guid     = "89D13859-4D83-44F4-B03C-BA933605CE62">
+			<Types>
+				<Type Name="_CommandList" Datatype="UDINT" TypeId="ENUM">
+					<Elements>
+						<Type Name="CPowerOn" Value="0"/>
+						<Type Name="CPowerOff" Value="1"/>
+						<Type Name="CInposition" Value="2"/>
+						<Type Name="CMoveHand" Value="3"/>
+						<Type Name="CMoveEndless" Value="4"/>
+						<Type Name="CMoveAbsolut" Value="5"/>
+						<Type Name="CMoveReference" Value="6"/>
+						<Type Name="CMoveRelative" Value="7"/>
+						<Type Name="CStopMove" Value="8"/>
+						<Type Name="CCoupleGearAbsolute" Value="9"/>
+						<Type Name="CCoupleGearRelative" Value="10"/>
+						<Type Name="CCoupleGearVelocity" Value="11"/>
+						<Type Name="CCoupleCurveTab" Value="12"/>
+						<Type Name="CCoupleUserPos" Value="13"/>
+						<Type Name="CCoupleDeltaPos" Value="14"/>
+						<Type Name="CCoupleProfilePos" Value="15"/>
+						<Type Name="CSetPosition" Value="16"/>
+						<Type Name="CSetAutoOffset" Value="17"/>
+						<Type Name="CSetCoupleParameter" Value="18"/>
+						<Type Name="CSetParameter" Value="19"/>
+						<Type Name="CReadPosition" Value="20"/>
+						<Type Name="CSetSWEndPos" Value="21"/>
+						<Type Name="CReadSWEndPos" Value="22"/>
+						<Type Name="CReadAxisError" Value="23"/>
+						<Type Name="CReadAxisStatus" Value="24"/>
+						<Type Name="CReadMasterInfo" Value="25"/>
+						<Type Name="CReadVelocity" Value="26"/>
+						<Type Name="CReadParameter" Value="27"/>
+						<Type Name="CTuneAxis" Value="28"/>
+						<Type Name="CInternModuloOverFlow" Value="29"/>
+						<Type Name="CFollowMode" Value="30"/>
+						<Type Name="CCoupleGearPolynom" Value="31"/>
+						<Type Name="CCoupleAdditivePosDiff" Value="32"/>
+						<Type Name="CCoupleCAM" Value="33"/>
+						<Type Name="CMoveShortestWay" Value="34"/>
+						<Type Name="CCalcMovingTime" Value="35"/>
+						<Type Name="CQuitError" Value="36"/>
+						<Type Name="CCalcMaxSlavePath" Value="37"/>
+						<Type Name="CCalcExtToAppliPos" Value="38"/>
+						<Type Name="CChangeMoveSettings" Value="39"/>
+						<Type Name="CGetPosInfoBeforeRampDown" Value="40"/>
+						<Type Name="CSetDynSWEndPos" Value="41"/>
+						<Type Name="CQuickStop" Value="42"/>
+						<Type Name="CSetSafetyData" Value="43"/>
+						<Type Name="CGetSafetyData" Value="44"/>
+						<Type Name="CCoupleUserPosExtended" Value="45"/>
+						<Type Name="CCoupleDeltaPosExtended" Value="46"/>
+						<Type Name="CCoupleProfilePosExtended" Value="47"/>
+						<Type Name="CStorePosition" Value="1001"/>
+						<Type Name="CDeleteStoredData" Value="1002"/>
+					</Elements>
+				</Type>
+				<Type Name="t_s_LMCAxis_SafetyState" Datatype="BDINT" TypeId="BIT">
+					<Elements>
+						<Type Name="SafeAxis" BitNo="1"/>
+						<Type Name="SpeedLimited" BitNo="2"/>
+						<Type Name="AxisReady" BitNo="3"/>
+						<Type Name="AxisOperational" BitNo="4"/>
+						<Type Name="AxisError" BitNo="5"/>
+						<Type Name="ServiceModePending" BitNo="6"/>
+						<Type Name="SafeErrorQuitPending" BitNo="7"/>
+						<Type Name="AxisVerified" BitNo="8"/>
+						<Type Name="AxisVerifyFailed" BitNo="9"/>
+						<Type Name="AxisReferenced" BitNo="10"/>
+						<Type Name="AxisReferenceActive" BitNo="11"/>
+						<Type Name="AxisReferenceNeeded" BitNo="12"/>
+						<Type Name="AxisReferenceFailed" BitNo="13"/>
+						<Type Name="SBTAvailable" BitNo="14"/>
+						<Type Name="SBTActive" BitNo="15"/>
+						<Type Name="SBTFailed" BitNo="16"/>
+						<Type Name="FSoESetupFailed" BitNo="17"/>
+						<Type Name="AutomaticSS2Active" BitNo="18"/>
+						<Type Name="SS2IsConfigured" BitNo="19"/>
+					</Elements>
+				</Type>
+			</Types>
+		</Class>
+		<Class
+			Name     = "_LMCAxisRef"
+			Datatype = "DINT"
+			Base     = "_LMCRefBase"
+			Size     = "136"
+			Guid     = "04D2AAAB-7F37-4C17-BCEC-EC9C3304C3A1">
+			<Servers>
+				<Server Name="RefInput" Datatype="DINT" Guid="DDD0F2C7-31E3-4572-97EE-F88907467619" WriteProtected="false"/>
+				<Server Name="ZPulseDist" Datatype="DINT" Guid="5A0D5952-8A7D-4EA9-97CB-2960C3076E34" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCAxisVis"
+			Datatype = "DINT"
+			Size     = "132"
+			Guid     = "358DDDE7-4726-486D-A591-7B04200D8EB9">
+			<Servers>
+				<Server Name="ClassSvr" Datatype="DINT" Guid="B5FF3D28-E630-4648-87DF-BE7566AD2117" WriteProtected="false"/>
+			</Servers>
+			<Objects>
+				<Object Name="_LMCAxisVisInt1" Datatype="_LMCAxisVisInt" Guid="751FDDCB-9406-4719-9201-8CD0B1F5487A"/>
+				<Object Name="_LMCAxisVisLogHandle1" Datatype="_LMCAxisVisLogHandle" Guid="579CAA11-CCAF-46C4-9B4C-1691B5014CEB"/>
+				<Object Name="_LMCAxisVisLogViewer1" Datatype="_LMCAxisVisLogViewer" Guid="B293064B-AAFC-4E37-9DA9-594CE2821ABD"/>
+				<Object Name="_LMCAxisVisLogViewer2" Datatype="_LMCAxisVisLogViewer" Guid="E9ED5DC9-6217-4942-91BC-B6B48325142A"/>
+				<Object Name="_LMCAxisVisLogViewer3" Datatype="_LMCAxisVisLogViewer" Guid="D6B21B59-2B16-429B-9FF4-0F38C1D09724"/>
+				<Object Name="_LMCAxisVisLogViewer4" Datatype="_LMCAxisVisLogViewer" Guid="AD6791E0-AEDC-45CE-8D22-5E43317EBA0E"/>
+				<Object Name="_LMCAxisVisLogViewer5" Datatype="_LMCAxisVisLogViewer" Guid="455FAA6C-A801-4F92-9131-D41FDF56CED1"/>
+				<Object Name="_LMCAxisVisPara1" Datatype="_LMCAxisVisPara" Guid="0E6F8B42-A0D3-4291-A11B-F82C004100A2"/>
+			</Objects>
+		</Class>
+		<Class
+			Name     = "_LMCAxisVisInt"
+			Datatype = "DINT"
+			Size     = "744"
+			Guid     = "A99D9DD0-82D4-47B3-B06B-08D3C5018D93">
+			<Servers>
+				<Server Name="Command" Datatype="DINT" Guid="DD647FB6-9E4F-42AB-9575-4562B11197E2" WriteProtected="false"/>
+				<Server Name="ControllerType" Datatype="_LMCCONTROLLERTYPE" Guid="B04F0C2A-3333-4EDE-8290-D057E17D583F" WriteProtected="true"/>
+				<Server Name="UnitSel" Datatype="DINT" Guid="164559CD-8C85-4AF3-B524-38DB3F8F2AEC" WriteProtected="false"/>
+				<Server Name="UnitFactorSel" Datatype="DINT" Guid="D582DDF2-2AF1-42BA-93DC-78B3A7B91D6E" WriteProtected="false"/>
+				<Server Name="UnitFactor" Datatype="DINT" Guid="6AD72B8A-F90E-4BAA-AACB-74E16DBB2558" WriteProtected="false"/>
+				<Server Name="UnitDecPoint" Datatype="DINT" Guid="23B42C57-150B-4783-993E-F8EF51D4CA4C" WriteProtected="false"/>
+				<Server Name="IntUnitsAdjusted" Datatype="DINT" Guid="F2AA206E-C9E7-4D23-9CE3-75B10D2A58EF" WriteProtected="false"/>
+				<Server Name="CommandState" Datatype="_LMCAXIS_CMDERROR" Guid="DF868433-6BD1-476B-AEBF-58998DB47663" WriteProtected="true"/>
+				<Server Name="MovPosSlow" Datatype="DINT" Guid="32A93867-1B55-4BC9-B80F-6407E1041F9C" WriteProtected="false"/>
+				<Server Name="MovPosFast" Datatype="DINT" Guid="045F4A9B-A5B5-42AE-A7EB-0519466FF6CE" WriteProtected="false"/>
+				<Server Name="MovNegSlow" Datatype="DINT" Guid="8AC5D283-236B-438E-AEAF-7E854CFA9B9E" WriteProtected="false"/>
+				<Server Name="MovNegFast" Datatype="DINT" Guid="539FEC67-00B0-4D53-B68F-AF30A0D3A812" WriteProtected="false"/>
+				<Server Name="MovPosFastEndless" Datatype="DINT" Guid="B78E1690-87D8-49DA-8A95-2118AAADE756" WriteProtected="false"/>
+				<Server Name="MovnegFastEndless" Datatype="DINT" Guid="382DB2B3-3864-4322-9132-6E17103A60E7" WriteProtected="false"/>
+				<Server Name="PowerOnOff" Datatype="DINT" Guid="880B4DC3-6857-4048-BD55-38583FE588A4" WriteProtected="false"/>
+				<Server Name="PowerOnMode" Datatype="_LMCAXIS_MOVEDIRECTION" Guid="E1DC992C-B184-4052-8BA0-F5F2AD0F48B7" WriteProtected="false"/>
+				<Server Name="Xw" Datatype="DINT" Guid="5FFC1E55-B7B9-434F-8483-BE35F1AEEC8F" WriteProtected="true"/>
+				<Server Name="XwMax" Datatype="DINT" Guid="AA0288EF-599A-45A2-A74C-7BF6668BF4F0" WriteProtected="true"/>
+				<Server Name="QuitAllError" Datatype="DINT" Guid="FF88E11F-9CFB-4FDD-AD60-D4D1D62A3C8F" WriteProtected="false"/>
+				<Server Name="CtrDraglimit" Datatype="DINT" Guid="4D3537F6-6FBA-4159-9F54-48FF0570C149" WriteProtected="false"/>
+				<Server Name="CtrPosOffset" Datatype="DINT" Guid="AE95C4DE-F8E2-4B8E-9FD0-077474D5F12B" WriteProtected="false"/>
+				<Server Name="CtrDragCalcDelay" Datatype="DINT" Guid="CE343020-401F-4001-9C9A-6A3960397559" WriteProtected="false"/>
+				<Server Name="CtrcMaxSignal" Datatype="DINT" Guid="C0AF341F-C13F-4A4B-823C-BF6BAE44A147" WriteProtected="false"/>
+				<Server Name="CtrcMaxSignalStepper" Datatype="DINT" Guid="64BBD891-D096-4DC9-AE37-B7530703B2FF" WriteProtected="false"/>
+				<Server Name="CtrcOffSignal" Datatype="DINT" Guid="46E6AF17-D232-4755-8876-33984130F59C" WriteProtected="false"/>
+				<Server Name="CtrcMaxSpeed" Datatype="DINT" Guid="18B6D18C-CA03-400D-8236-FC1A1A0A5444" WriteProtected="false"/>
+				<Server Name="CtrvKV" Datatype="DINT" Guid="CD636C86-F0F9-470C-ABD3-B75A42EF5FF8" WriteProtected="false"/>
+				<Server Name="CtrvKVVFDSTepper" Datatype="DINT" Guid="6AAD2DB7-8437-436C-8F27-8CC632E1E65E" WriteProtected="false"/>
+				<Server Name="CtrvVu" Datatype="DINT" Guid="9FC2AC38-DD55-4F3D-932D-F29F5326FDD2" WriteProtected="false"/>
+				<Server Name="CtrvKI" Datatype="DINT" Guid="6E190264-DD1A-47E6-BA2E-2614B1840F93" WriteProtected="false"/>
+				<Server Name="CtrvKD" Datatype="DINT" Guid="FD9825BC-D518-4F0F-A07E-AEEA4DD6B42D" WriteProtected="false"/>
+				<Server Name="CtrcImode" Datatype="DINT" Guid="022AD23A-37B9-4B74-8C93-FE4AB7AF3F80" WriteProtected="false"/>
+				<Server Name="CtrcEmerStop" Datatype="DINT" Guid="2C5581AA-F774-44A1-933E-62B03BA6AB69" WriteProtected="false"/>
+				<Server Name="CtrcXWOffset" Datatype="DINT" Guid="AEA9C05B-63A9-4387-A70C-0193A06B5FC5" WriteProtected="false"/>
+				<Server Name="CtrDeadbandEnable" Datatype="DINT" Guid="FA957266-AF3E-4F94-ADC3-B066D36AE52F" WriteProtected="false"/>
+				<Server Name="CtrDeadbandDisable" Datatype="DINT" Guid="7793456B-5521-4F5D-BCF9-47BA7383F032" WriteProtected="false"/>
+				<Server Name="CtrDisabledIfStopped" Datatype="DINT" Guid="F39298DB-527B-4015-B47C-E140688BC212" WriteProtected="false"/>
+				<Server Name="CtrDraglimitPowerOnDelay" Datatype="DINT" Guid="F539E3E4-A024-4CBD-9B85-D38620811CC0" WriteProtected="false"/>
+				<Server Name="VelHand" Datatype="DINT" Guid="261C309C-6CD0-467D-8DC4-1F9B6B352DA5" WriteProtected="false"/>
+				<Server Name="AccHand" Datatype="DINT" Guid="C335B4CA-4F60-4369-8A9D-D9271E8BFF3C" WriteProtected="false"/>
+				<Server Name="DecHand" Datatype="DINT" Guid="D32AD1A8-6E91-4610-A5B3-A68E0258CE84" WriteProtected="false"/>
+				<Server Name="ErrorConfig" Datatype="_LMCAXIS_ERROR_CONFIG" Guid="C937DD58-2B35-4FF5-B69C-356699C3D199" WriteProtected="false"/>
+				<Server Name="CtrSetConf" Datatype="_POSFLAGS" Guid="A5AC156D-8EF9-47F2-A033-ED1039E48894" WriteProtected="false"/>
+				<Server Name="TriangleMode" Datatype="DINT" Guid="D08C19B6-D86B-4E11-9994-7F05F02B0547" WriteProtected="false"/>
+				<Server Name="OverridePercent" Datatype="DINT" Guid="D18B923D-39A7-4C26-B145-5386DBCA1275" WriteProtected="false"/>
+				<Server Name="MaxOverridePercent" Datatype="DINT" Guid="7E18914F-8470-4DD0-BB2D-9C3D0D108B2B" WriteProtected="false"/>
+				<Server Name="InversControllerDiasDrive" Datatype="DINT" Guid="3708C464-C816-4105-BBCC-FA697F35725E" WriteProtected="false"/>
+				<Server Name="TabState" Datatype="DINT" Guid="CF162332-8E27-4BFC-BF0F-5234AFAEDDFB" WriteProtected="false"/>
+				<Server Name="GlobalTab" Datatype="DINT" Guid="7F8F9B04-F6E1-4900-86FC-4A3C898C1EC2" WriteProtected="false"/>
+				<Server Name="SettingsTab" Datatype="DINT" Guid="BC5C085C-A693-4249-AD4B-F24EDEB4F2D9" WriteProtected="false"/>
+				<Server Name="LogInfoMerker" Datatype="DINT" Guid="6FDE7795-FE21-482B-A76F-CDDD41AC727A" WriteProtected="false"/>
+				<Server Name="StateMerker" Datatype="DINT" Guid="4D1921D8-442F-4ED7-9545-DE8B68E0B41B" WriteProtected="false"/>
+				<Server Name="InitDone" Datatype="DINT" Guid="86A2D2BB-4DB8-4AA3-AABA-3E7EB58CE4D9" WriteProtected="true"/>
+				<Server Name="SetVerify" Datatype="DINT" Guid="AB2954C2-D1D4-40D4-8886-963317DEACAD" WriteProtected="false"/>
+				<Server Name="ClearVerify" Datatype="DINT" Guid="F932C1EE-4B90-453C-A2C0-2D04F01EAC0B" WriteProtected="false"/>
+				<Server Name="ClearSafeReference" Datatype="DINT" Guid="F12F4B58-7827-4426-9140-C34A3AFDDA4D" WriteProtected="false"/>
+				<Server Name="AxisOPMode" Datatype="_LMCAXIS_OPMODE" Guid="AEAE1CF9-462B-4C5D-8184-46ED09909769" WriteProtected="true"/>
+				<Server Name="PowerButtonState" Datatype="DINT" Guid="23C9900E-8248-4DEB-B414-9CEF4A379A0D" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCAxisVisLogHandle"
+			Datatype = "DINT"
+			Size     = "76"
+			Guid     = "9339F4DB-3648-45E7-8349-74B997685850">
+			<Servers>
+				<Server Name="LogMode" Datatype="DINT" Guid="BBE9F988-24AE-4EE6-B4F1-C2540DEB31FD" WriteProtected="false"/>
+				<Server Name="LogOffset" Datatype="DINT" Guid="AFD7152F-F363-4A1E-9DA8-476CA7975946" WriteProtected="false"/>
+				<Server Name="LogOffsetMax" Datatype="DINT" Guid="26C34576-73C1-43E3-A65D-F662922856CD" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCAxisVisLogViewer"
+			Datatype = "DINT"
+			Size     = "172"
+			Guid     = "CD81F08D-C063-49AC-9A2D-FED06A5427CD">
+			<Servers>
+				<Server Name="LogIndexVisu" Datatype="DINT" Guid="A606346E-8F2C-4C31-B2D3-8A2202DA09B6" WriteProtected="true"/>
+				<Server Name="LogCmd" Datatype="_LMCAxisBase::_CommandList" Guid="5C5B6D79-5609-427E-9173-04F53FEE944E" WriteProtected="true"/>
+				<Server Name="LogState" Datatype="_LMCAXIS_CMDERROR" Guid="E02284D9-AC96-40CE-AAF5-F0C9AD2CBEFF" WriteProtected="true"/>
+				<Server Name="LogTimeStamp" Datatype="UDINT" Guid="C2F9F0A8-92A4-4ABE-8F17-8A89D94003A5" WriteProtected="true"/>
+				<Server Name="LogTimeH" Datatype="UDINT" Guid="2161AC99-85B7-4E1C-A8CA-4D3B1DCB136E" WriteProtected="true"/>
+				<Server Name="LogTimeM" Datatype="UDINT" Guid="71031270-2418-4041-82B2-5AEA2BDB000A" WriteProtected="true"/>
+				<Server Name="LogTimeS" Datatype="UDINT" Guid="345BC8B2-7934-4CAC-B458-C516602E779E" WriteProtected="true"/>
+				<Server Name="LogTimeMS" Datatype="UDINT" Guid="4B4F415A-CD36-44F6-8B8A-E82F3B9A5976" WriteProtected="true"/>
+				<Server Name="LogRTStamp" Datatype="UDINT" Guid="DC7192D1-A35B-4880-9E9B-92362A99F896" WriteProtected="true"/>
+				<Server Name="LogValid" Datatype="DINT" Guid="30E72D16-DB15-4249-AFBE-6E0C6F74D8E7" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCAxisVisPara"
+			Datatype = "DINT"
+			Size     = "336"
+			Guid     = "5C8694ED-7458-410B-8EB4-4ED04D8D11E2">
+			<Servers>
+				<Server Name="Velocity" Datatype="DINT" Guid="198EB64A-689B-4604-9BB2-A90294787DE7" WriteProtected="false"/>
+				<Server Name="Accel" Datatype="DINT" Guid="DA434BFC-5DDB-4303-8527-5D12A64D972B" WriteProtected="false"/>
+				<Server Name="Decel" Datatype="DINT" Guid="7D01275C-35A0-4690-A4EF-D4F4C5251AEE" WriteProtected="false"/>
+				<Server Name="Position" Datatype="DINT" Guid="AAB8F33A-2CC6-46CE-A633-396F0A3B2E64" WriteProtected="false"/>
+				<Server Name="MovAbsPos" Datatype="DINT" Guid="F2C022EC-0E19-488F-8464-63A6DE804CD7" WriteProtected="false"/>
+				<Server Name="PowOffMode" Datatype="_LMCAXIS_POWER_OFF_MODE" Guid="8F20A834-DD59-490A-9AEE-A413DAF829B8" WriteProtected="false"/>
+				<Server Name="MovRefMode" Datatype="_LMCAXIS_REFMODE" Guid="B19CD4C1-F5AC-4862-8A29-D2CE8CB3502C" WriteProtected="false"/>
+				<Server Name="MovRefPos" Datatype="DINT" Guid="1130D175-826B-49E5-9D2E-40C0492460A9" WriteProtected="false"/>
+				<Server Name="MovRefVel1" Datatype="DINT" Guid="63AA7699-D7AB-4628-9092-6F37144AE90E" WriteProtected="false"/>
+				<Server Name="MovRefVel2" Datatype="DINT" Guid="3456A407-BE2C-426C-B989-1B51BDE2E05B" WriteProtected="false"/>
+				<Server Name="MovRefAcc" Datatype="DINT" Guid="9A5E06AC-A069-4FE2-90D5-8A67ED0A1D47" WriteProtected="false"/>
+				<Server Name="MovRefPosWindow" Datatype="DINT" Guid="41028867-58C9-4625-8306-57644096F5CC" WriteProtected="false"/>
+				<Server Name="MovRelPos" Datatype="DINT" Guid="52A9BF1D-382C-4254-9712-554AD81323B2" WriteProtected="false"/>
+				<Server Name="MovRelMode" Datatype="_LMCAXIS_MOVE_RELATIVE_MODE" Guid="90BE28BB-984C-42D2-A842-60D1413B4E12" WriteProtected="false"/>
+				<Server Name="TunePos" Datatype="DINT" Guid="8E9A814B-A5C4-4ACC-B27C-41473F26B4D3" WriteProtected="false"/>
+				<Server Name="TuneMode" Datatype="DINT" Guid="80F2266F-E534-4AD2-A4BC-4A2C9BFD043B" WriteProtected="false"/>
+				<Server Name="WaitTime" Datatype="UDINT" Guid="085689B6-611C-4518-AC04-7CD874809DCB" WriteProtected="false"/>
+				<Server Name="SetPosMode" Datatype="_LMCAXIS_SETPOSITION" Guid="6B55045E-F1FF-4331-AD6B-2734D97B2D17" WriteProtected="false"/>
+				<Server Name="SetPosVal" Datatype="DINT" Guid="D75195E1-6BDB-425B-A326-1C568BF13F10" WriteProtected="false"/>
+				<Server Name="SetParNo" Datatype="_LMCAXIS_SETPARAMETER" Guid="7F220B91-6058-42B6-B9CD-918A6CF6D600" WriteProtected="false"/>
+				<Server Name="SetParMode" Datatype="DINT" Guid="B02B8454-8EC0-4DA1-AB0F-22953E8952FD" WriteProtected="false"/>
+				<Server Name="SetParVal" Datatype="DINT" Guid="5573897E-4ECD-4A46-AFC1-44AAF2CA352E" WriteProtected="false"/>
+				<Server Name="SetSWPosMode" Datatype="_LMCAXIS_SETSWENDPOS" Guid="A4C84C9E-4B76-4F52-9808-45253C073C88" WriteProtected="false"/>
+				<Server Name="SetSWPosVal" Datatype="DINT" Guid="B0E4BF6F-97C5-404F-BE52-871E83B6B2E3" WriteProtected="false"/>
+				<Server Name="MovDirection" Datatype="DINT" Guid="C84E72A4-4A17-464D-997B-F2CE28D3BAED" WriteProtected="false"/>
+				<Server Name="Jerk" Datatype="DINT" Guid="1C109A84-45CD-4A2F-8F24-9D76F464CFB1" WriteProtected="false"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCProfile"
+			Datatype = "ProfileCommandStatus"
+			Base     = "_LMCProfileBase"
+			Size     = "13012"
+			Guid     = "BDD4E0AB-79B0-42E1-A673-176317361EF4">
+			<Servers>
+				<Server Name="Control" Datatype="ProfileCommandStatus" Guid="85FC2FCB-E70A-45C9-8EE4-9A9C0977DE2E" WriteProtected="true"/>
+				<Server Name="ProfileStatus" Datatype="_LMCPROFILESTATES" Guid="E057A4C3-5546-4C75-BBC3-9962453C9B57" WriteProtected="true"/>
+				<Server Name="ActCmd" Datatype="_LMCPROFCMDTYPES" Guid="3E9BF934-F95B-4283-98B1-92183FD09AE3" WriteProtected="true"/>
+				<Server Name="ActCmdNo" Datatype="UDINT" Guid="AE8D6138-2B18-4F63-B41C-23D76FBB21E6" WriteProtected="true"/>
+				<Server Name="SumIndex" Datatype="DINT" Guid="3F650052-A8F9-47BB-BA36-08F1B3D4FF51" WriteProtected="true"/>
+				<Server Name="ProfileError" Datatype="_LMCPROFERRORTYPES" Guid="07832EB3-E99C-437C-93E6-E4EBB2D9829D" WriteProtected="true"/>
+				<Server Name="Override" Datatype="DINT" Guid="C6DBEFFA-6BB6-4FCD-B978-3E828C45EF40" WriteProtected="false"/>
+				<Server Name="OpMode" Datatype="_LMCPROF_OPMODE" Guid="94EC5842-EA0F-4DE5-B309-9D73F54F1B55" WriteProtected="false"/>
+				<Server Name="Start" Datatype="DINT" Guid="D7035C4C-EFD0-4473-8E26-0723D6AC757B" WriteProtected="false"/>
+				<Server Name="Position1" Datatype="DINT" Guid="DCA68108-72D5-4FEE-9D3C-B382E6E4313B" WriteProtected="true"/>
+				<Server Name="Position2" Datatype="DINT" Guid="8793CC89-67FE-4CC0-A44B-56E6B8051A84" WriteProtected="true"/>
+				<Server Name="Position3" Datatype="DINT" Guid="A3897541-7A87-494E-BE47-7CB24A383073" WriteProtected="true"/>
+				<Server Name="Position4" Datatype="DINT" Guid="267D81D8-E234-4751-9A00-FECF71F67648" WriteProtected="true"/>
+				<Server Name="Position5" Datatype="DINT" Guid="BA365A76-A746-41FE-BA44-6C3B1EADD5AA" WriteProtected="true"/>
+				<Server Name="Position6" Datatype="DINT" Guid="5810250B-D27B-49E2-86C1-94DF7029E5B5" WriteProtected="true"/>
+				<Server Name="Position7" Datatype="DINT" Guid="6D00E686-F7B3-48DC-9F40-1DFE0C461173" WriteProtected="true"/>
+				<Server Name="Position8" Datatype="DINT" Guid="E61AABC7-BF52-4F1E-8D5D-2534E998784B" WriteProtected="true"/>
+				<Server Name="Position9" Datatype="DINT" Guid="5EC9D165-75FA-4C50-90E4-E649B3B528FF" WriteProtected="true"/>
+				<Server Name="Destination1" Datatype="DINT" Guid="F66B706C-3047-4CF5-8579-5A739AA0943D" WriteProtected="true"/>
+				<Server Name="Destination2" Datatype="DINT" Guid="853A6AAF-DDBB-43B6-BE8A-5573C51460E5" WriteProtected="true"/>
+				<Server Name="Destination3" Datatype="DINT" Guid="2E33DC49-5CBA-4DB5-BEBC-0B06950BBF85" WriteProtected="true"/>
+				<Server Name="Destination4" Datatype="DINT" Guid="E09384B4-5250-482E-9B9F-55B1B3B2A15D" WriteProtected="true"/>
+				<Server Name="Destination5" Datatype="DINT" Guid="EA6285EE-B626-4485-AD87-85CC4D5D2D7B" WriteProtected="true"/>
+				<Server Name="Destination6" Datatype="DINT" Guid="D01889CA-3DF2-449B-9D8D-4D646B72D5F6" WriteProtected="true"/>
+				<Server Name="Destination7" Datatype="DINT" Guid="E813B2B9-964C-45AD-9815-9EB9CDC3399B" WriteProtected="true"/>
+				<Server Name="Destination8" Datatype="DINT" Guid="FE5329CF-3B1B-4669-BF24-D1111443585D" WriteProtected="true"/>
+				<Server Name="Destination9" Datatype="DINT" Guid="657CBEE9-2800-4232-89A5-0627E7A93BC1" WriteProtected="true"/>
+				<Server Name="Resolution" Datatype="DINT" Guid="9AEB3D1A-07D8-4EE6-BA95-4809B3656348" WriteProtected="true"/>
+				<Server Name="MoveType" Datatype="_LMCPROFMOVEPROFILE" Guid="79C05DC3-6DB8-4C6F-987B-542F38196821" WriteProtected="false"/>
+				<Server Name="ErrorConfig" Datatype="_LMCPROFERRWARNCONFIG" Guid="C926A1B5-3FE9-495F-8D16-6690F0A1CF2E" WriteProtected="false"/>
+				<Server Name="ResidualPath" Datatype="DINT" Guid="59F4AC50-1674-4403-B5FB-86361EF27BDF" WriteProtected="true"/>
+				<Server Name="ActProfileVelocity" Datatype="DINT" Guid="A05E320B-3AFF-4631-98CE-97C6E633B93C" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_LMCProfileBase"
+			Datatype = "ProfileCommandStatus"
+			Size     = "12928"
+			Guid     = "9595ABAB-D8E5-450B-829C-8D97E0B260AB">
+		</Class>
+		<Class
+			Name     = "_LMCRefBase"
+			Datatype = "DINT"
+			Size     = "12"
+			Guid     = "DDA02D7F-AF14-499F-90C1-3DCEBCBDC4D9">
+		</Class>
+		<Class
+			Name     = "_SigTCPDataManager"
+			Datatype = "DINT"
+			Base     = "DataManager"
+			Size     = "1460"
+			Guid     = "5F538DFC-61FA-4748-83A5-2BBBDC07804F">
+			<Servers>
+				<Server Name="TCPComm" Datatype="DINT" Guid="D74D586B-E6F7-44C6-AF41-E206D251EB7D" WriteProtected="false"/>
+				<Server Name="ComPort" Datatype="UDINT" Guid="C43EE6EC-E9B6-4E85-AB26-070D60A414FF" WriteProtected="false"/>
+				<Server Name="Online" Datatype="DINT" Guid="6FC2E8F2-0F35-4DC2-84EA-CCC083ADA24C" WriteProtected="true"/>
+				<Server Name="LogEnable" Datatype="DINT" Guid="7BD6337D-190E-4903-BB6C-D94C673ED1B5" WriteProtected="false"/>
+				<Server Name="ResetLogBuffer" Datatype="DINT" Guid="0607D514-E186-434E-8884-DF5BE0C9B4CF" WriteProtected="false"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_UDPTransceiver"
+			Datatype = "_UDPTransceiver::_FSM_UDP_USER"
+			Size     = "132"
+			Guid     = "1DC9A7C7-E021-4C41-B7A4-CEFE5F975B62">
+			<Types>
+				<Type Name="_FSM_UDP_USER" Datatype="UDINT" TypeId="ENUM">
+					<Elements>
+						<Type Name="_STATE_INIT_UDP" Value="0"/>
+						<Type Name="_STATE_IDLE_UDP" Value="1"/>
+						<Type Name="_STATE_SOCK_UDP" Value="2"/>
+						<Type Name="_STATE_BIND_SOCK_UDP" Value="3"/>
+						<Type Name="_STATE_ONLY_SEND_UDP" Value="4"/>
+						<Type Name="_STATE_RECV_UDP" Value="5"/>
+						<Type Name="_STATE_SEND_UDP" Value="6"/>
+						<Type Name="_STATE_SHUTDOWN_UDP" Value="7"/>
+						<Type Name="_STATE_CLOSE_SOCK_UDP" Value="8"/>
+						<Type Name="_STATE_ERROR_UDP" Value="9"/>
+					</Elements>
+				</Type>
+				<Type Name="_UDP_ERROR" Datatype="DINT" TypeId="ENUM">
+					<Elements>
+						<Type Name="_NO_ERROR_UDP_ERROR" Value="0"/>
+						<Type Name="_INIT_TCP_USER_UDP_ERROR" Value="4294967295"/>
+						<Type Name="_NO_IP_ADDRESS_UDP_ERROR" Value="4294967294"/>
+						<Type Name="_NO_MEMORY_SOCKET_UDP_ERROR" Value="4294967293"/>
+						<Type Name="_NO_MEMORY_SENDBUFFER_UDP_ERROR" Value="4294967292"/>
+						<Type Name="_INVALID_HANDLE_UDP_ERROR" Value="4294967291"/>
+						<Type Name="_SHUTDOWN_UDP_ERROR" Value="4294967290"/>
+						<Type Name="_CLOSESOCKET_UDP_ERROR" Value="4294967289"/>
+						<Type Name="_ALLOCATE_SOCKET_UDP_ERROR" Value="4294967288"/>
+						<Type Name="_SET_BIND_UDP_ERROR" Value="4294967287"/>
+						<Type Name="_RECV_UDP_ERROR" Value="4294967286"/>
+						<Type Name="_SEND_UDP_ERROR" Value="4294967285"/>
+						<Type Name="_NO_LOCAL_IP_UDP_ERROR" Value="4294967284"/>
+						<Type Name="_NO_DESTINATION_IP_UDP_ERROR" Value="4294967283"/>
+						<Type Name="_NO_MEMORY_RECVBUFFER_UDP_ERROR" Value="4294967282"/>
+						<Type Name="_INSTALL_CALLBACK_UDP_ERROR" Value="4294967283"/>
+					</Elements>
+				</Type>
+			</Types>
+			<Servers>
+				<Server Name="sControl" Datatype="_UDPTransceiver::_FSM_UDP_USER" Guid="EC8E176D-59FF-4FBB-9FC3-3761C0306EB6" WriteProtected="true"/>
+				<Server Name="sError" Datatype="DINT" Guid="78B4FD40-2202-4C76-991A-03D3A831608C" WriteProtected="true"/>
+				<Server Name="sErrorMessage" Datatype="_UDPTransceiver::_UDP_ERROR" Guid="BF78ABBE-5D26-4106-BC8D-263E5593F747" WriteProtected="true"/>
+				<Server Name="sErrorNoOS" Datatype="DINT" Guid="492ADA87-B5C8-443C-91C3-58899E35EC87" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "_UDPTransceiverInterface"
+			Datatype = "DINT"
+			Size     = "88"
+			Guid     = "53CC0DE8-B200-4882-A4E3-91023A68A217">
+			<Types>
+				<Type Name="_STATE_UDP_INTF" Datatype="UDINT" TypeId="ENUM">
+					<Elements>
+						<Type Name="_STATE_NO_SOCKET" Value="0"/>
+						<Type Name="_STATE_INIT_SOCKET" Value="1"/>
+						<Type Name="_STATE_ADDED_SOCKET" Value="2"/>
+						<Type Name="_STATE_BOUND_SOCKET" Value="3"/>
+						<Type Name="_STATE_CLOSED_SOCKET" Value="4"/>
+					</Elements>
+				</Type>
+			</Types>
+		</Class>
+		<Class
+			Name     = "DataManager"
+			Datatype = "DINT"
+			Size     = "1292"
+			Guid     = "82EA618D-7DDE-40A7-8F95-05DF030231F7">
+		</Class>
+		<Class
+			Name     = "String"
+			Datatype = "UDINT"
+			Base     = "StringInternal"
+			Size     = "60"
+			Guid     = "26C84422-A6E4-4372-A53C-A964595DA01D">
+			<Servers>
+				<Server Name="Data" Datatype="STRING" Guid="81990015-D505-4977-9326-733789F9FEAA" WriteProtected="false"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "StringInternal"
+			Datatype = "UDINT"
+			Base     = "VirtualBaseInit"
+			Size     = "48"
+			Guid     = "2C12408A-7CCA-458A-912B-98C634EE4BD9">
+		</Class>
+		<Class
+			Name     = "UDPTransmission"
+			Datatype = "DINT"
+			Base     = "_UDPTransceiverInterface"
+			Size     = "220"
+			Guid     = "8B6B2AC3-6E54-483E-BC56-E16952F9CAFB">
+			<Servers>
+				<Server Name="State" Datatype="_UDPTransceiverInterface::_STATE_UDP_INTF" Guid="DFE44574-DF07-4E21-B37B-71E610B6AC0D" WriteProtected="true"/>
+				<Server Name="ErrorState" Datatype="_UDPTransceiver::_FSM_UDP_USER" Guid="FE7FA2C7-29A5-47BA-8BDA-2B63C6494600" WriteProtected="true"/>
+				<Server Name="ErrorMessage" Datatype="_UDPTransceiver::_UDP_ERROR" Guid="FD940135-1721-40EF-90E6-6B85265B3896" WriteProtected="true"/>
+				<Server Name="ErrorCode" Datatype="DINT" Guid="C4F1461C-D406-4E22-9C5F-6C9D7F428F41" WriteProtected="true"/>
+			</Servers>
+		</Class>
+		<Class
+			Name     = "VirtualBaseInit"
+			Datatype = "UDINT"
+			Size     = "12"
+			Guid     = "9FBB5A34-CCCF-441F-A614-0CCECBD76648">
+		</Class>
+	</Classes>
+	<Objects>
+		<Object Name="_LMCAxis1" Datatype="_LMCAxis" Guid="3E7AF1DF-A1BB-4302-8A18-6584D666E187"/>
+		<Object Name="_LMCAxis10" Datatype="_LMCAxis" Guid="FCF935E1-D4F0-4D63-BE7F-21605B3C527C"/>
+		<Object Name="_LMCAxis11" Datatype="_LMCAxis" Guid="CD301F28-9DD2-453A-966C-1BDFBD774B26"/>
+		<Object Name="_LMCAxis12" Datatype="_LMCAxis" Guid="ABD6BD3E-68FA-42B1-AB56-A16D3FDDA5D8"/>
+		<Object Name="_LMCAxis2" Datatype="_LMCAxis" Guid="BF365EE8-C502-43E9-9B3F-23B565F86B39"/>
+		<Object Name="_LMCAxis3" Datatype="_LMCAxis" Guid="636AC676-B363-467E-967C-F5AD58E0544D"/>
+		<Object Name="_LMCAxis4" Datatype="_LMCAxis" Guid="9EB762F3-DCD1-457A-8118-24D7BAB51802"/>
+		<Object Name="_LMCAxis5" Datatype="_LMCAxis" Guid="552DA71B-CCBF-4E06-8460-BA4B8997E4B4"/>
+		<Object Name="_LMCAxis6" Datatype="_LMCAxis" Guid="CF5FC4F9-9840-4B50-9156-6DC81D173C6D"/>
+		<Object Name="_LMCAxis7" Datatype="_LMCAxis" Guid="968A82FE-1121-4CC4-994C-A24F23161293"/>
+		<Object Name="_LMCAxis8" Datatype="_LMCAxis" Guid="54324559-75E1-49CD-A2DC-BD44C94449E8"/>
+		<Object Name="_LMCAxis9" Datatype="_LMCAxis" Guid="36405FFE-9466-4DF8-A5E4-A005DCDCBAF2"/>
+		<Object Name="_LMCAxis_Master_6_7_8" Datatype="_LMCAxis" Guid="EE4E3EFE-DE9A-487C-AE81-60BAFD3C143E"/>
+		<Object Name="_LMCRobotBase1" Datatype="_LMCProfile" Guid="C84CFA5E-955F-4078-813B-A3CC0235FEE0"/>
+		<Object Name="_SigTCPDataManager1" Datatype="_SigTCPDataManager" Guid="952F2B1C-4294-417D-9612-E4B6335874CB"/>
+		<Object Name="_UDPTransceiver1" Datatype="_UDPTransceiver" Guid="4BF48E7F-EC93-4007-833C-36CD969CECD7"/>
+		<Object Name="String1" Datatype="String" Guid="4C5F5B18-CA07-40D3-99F8-A313F6CD25EF"/>
+		<Object Name="UDPTransmission1" Datatype="UDPTransmission" Guid="6DA5A5C2-64AE-436A-8785-926E45475F03"/>
+	</Objects>
+	<UnitDefinitions>
+		<UnitGrp Name="Acceleration">
+			<Units>
+				<Unit Name="mmPsec2" Factor="1" Divisor="1"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Angle">
+			<Units>
+				<Unit Name="deg" Factor="1" Divisor="10000"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Area">
+			<Units>
+				<Unit Name="mm2" Factor="1" Divisor="10"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Force">
+			<Units>
+				<Unit Name="kN" Factor="1" Divisor="1000" Base="N"/>
+				<Unit Name="N" Factor="1" Divisor="1"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Length">
+			<Units>
+				<Unit Name="m" Factor="1" Divisor="1000" Base="mm"/>
+				<Unit Name="mm" Factor="1" Divisor="10000"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Memory">
+			<Units>
+				<Unit Name="GB" Factor="1" Divisor="1024" Base="MB"/>
+				<Unit Name="kB" Factor="1" Divisor="1024"/>
+				<Unit Name="MB" Factor="1" Divisor="1024" Base="kB"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Pressure">
+			<Units>
+				<Unit Name="bar" Factor="1" Divisor="1000"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Revolution">
+			<Units>
+				<Unit Name="RPM" Factor="1" Divisor="1000"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Speed">
+			<Units>
+				<Unit Name="mlpmin" Factor="1" Divisor="1"/>
+				<Unit Name="mmpsec" Factor="1" Divisor="10000"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Time">
+			<Units>
+				<Unit Name="hours" Factor="1" Divisor="60" Base="min"/>
+				<Unit Name="min" Factor="1" Divisor="60" Base="secs"/>
+				<Unit Name="ms" Factor="1" Divisor="1"/>
+				<Unit Name="sec" Factor="1" Divisor="1000"/>
+				<Unit Name="secs" Factor="1" Divisor="1000" Base="ms"/>
+			</Units>
+		</UnitGrp>
+		<UnitGrp Name="Volume">
+			<Units>
+				<Unit Name="ccm" Factor="1" Divisor="1"/>
+			</Units>
+		</UnitGrp>
+	</UnitDefinitions>
+</File>

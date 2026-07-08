@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="DS402_Network" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name       = "DriveAxisDS402_Axis2"
+			GUID       = "{57D78E5A-0F24-4CEA-98CB-685C00329666}"
+			Class      = "DriveAxisDS402"
+			Position   = "(820,270)"
+			Visualized = "true"
+			Remotely   = "true"
+			RealTime   = "1 ms">
+			<Channels>
+				<Server Name="ActOpMode"/>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXW"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControllerError"/>
+				<Server Name="ControlWord"/>
+				<Server Name="OperationEnabled"/>
+				<Server Name="SetOpMode" Value="8"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetSpeedOffset"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SetTorqueOffset"/>
+				<Server Name="StateWord"/>
+				<Client Name="CiA_ControlWord"/>
+				<Client Name="CiA_StatusWord"/>
+				<Client Name="FollowingErrorActualValue"/>
+				<Client Name="ModesOfOperation"/>
+				<Client Name="ModesOfOperationDisplay"/>
+				<Client Name="Online"/>
+				<Client Name="PositionActualValue"/>
+				<Client Name="TargetPosition"/>
+				<Client Name="TargetTorque"/>
+				<Client Name="TargetVelocity"/>
+				<Client Name="TorqueActualValue"/>
+				<Client Name="TorqueOffset"/>
+				<Client Name="VelocityActualValue"/>
+				<Client Name="VelocityOffset"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{554D6C6F-E801-406B-9201-480800FB7F31}" Class="DriveAxisDS402_Base">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Client Name="_TaskObjCntrl"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "DriveAxisDS402_Axis4"
+			GUID       = "{07B6D8C2-B311-45BF-873B-C2A61F0E1853}"
+			Class      = "DriveAxisDS402"
+			Position   = "(820,1590)"
+			Visualized = "true"
+			Remotely   = "true"
+			RealTime   = "1 ms">
+			<Channels>
+				<Server Name="ActOpMode"/>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXW"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControllerError"/>
+				<Server Name="ControlWord"/>
+				<Server Name="OperationEnabled"/>
+				<Server Name="SetOpMode" Value="8"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetSpeedOffset"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SetTorqueOffset"/>
+				<Server Name="StateWord"/>
+				<Client Name="CiA_ControlWord"/>
+				<Client Name="CiA_StatusWord"/>
+				<Client Name="FollowingErrorActualValue"/>
+				<Client Name="ModesOfOperation"/>
+				<Client Name="ModesOfOperationDisplay"/>
+				<Client Name="Online"/>
+				<Client Name="PositionActualValue"/>
+				<Client Name="TargetPosition"/>
+				<Client Name="TargetTorque"/>
+				<Client Name="TargetVelocity"/>
+				<Client Name="TorqueActualValue"/>
+				<Client Name="TorqueOffset"/>
+				<Client Name="VelocityActualValue"/>
+				<Client Name="VelocityOffset"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{554D6C6F-E801-406B-9201-480800FB7F31}" Class="DriveAxisDS402_Base">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Client Name="_TaskObjCntrl"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "DriveAxisDS402_Axis6"
+			GUID       = "{86FA5CF8-AABC-444A-A8A2-4706D6E179DF}"
+			Class      = "DriveAxisDS402"
+			Position   = "(2310,270)"
+			Visualized = "true"
+			Remotely   = "true"
+			RealTime   = "1 ms">
+			<Channels>
+				<Server Name="ActOpMode"/>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXW"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControllerError"/>
+				<Server Name="ControlWord"/>
+				<Server Name="OperationEnabled"/>
+				<Server Name="SetOpMode" Value="8"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetSpeedOffset"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SetTorqueOffset"/>
+				<Server Name="StateWord"/>
+				<Client Name="CiA_ControlWord"/>
+				<Client Name="CiA_StatusWord"/>
+				<Client Name="FollowingErrorActualValue"/>
+				<Client Name="ModesOfOperation"/>
+				<Client Name="ModesOfOperationDisplay"/>
+				<Client Name="Online"/>
+				<Client Name="PositionActualValue"/>
+				<Client Name="TargetPosition"/>
+				<Client Name="TargetTorque"/>
+				<Client Name="TargetVelocity"/>
+				<Client Name="TorqueActualValue"/>
+				<Client Name="TorqueOffset"/>
+				<Client Name="VelocityActualValue"/>
+				<Client Name="VelocityOffset"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{554D6C6F-E801-406B-9201-480800FB7F31}" Class="DriveAxisDS402_Base">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Client Name="_TaskObjCntrl"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "DriveAxisDS402_Axis8"
+			GUID       = "{06A9A138-C06A-47A0-9E20-D48622E9AAC3}"
+			Class      = "DriveAxisDS402"
+			Position   = "(2310,1590)"
+			Visualized = "true"
+			Remotely   = "true"
+			RealTime   = "1 ms">
+			<Channels>
+				<Server Name="ActOpMode"/>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXW"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControllerError"/>
+				<Server Name="ControlWord"/>
+				<Server Name="OperationEnabled"/>
+				<Server Name="SetOpMode" Value="8"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetSpeedOffset"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SetTorqueOffset"/>
+				<Server Name="StateWord"/>
+				<Client Name="CiA_ControlWord"/>
+				<Client Name="CiA_StatusWord"/>
+				<Client Name="FollowingErrorActualValue"/>
+				<Client Name="ModesOfOperation"/>
+				<Client Name="ModesOfOperationDisplay"/>
+				<Client Name="Online"/>
+				<Client Name="PositionActualValue"/>
+				<Client Name="TargetPosition"/>
+				<Client Name="TargetTorque"/>
+				<Client Name="TargetVelocity"/>
+				<Client Name="TorqueActualValue"/>
+				<Client Name="TorqueOffset"/>
+				<Client Name="VelocityActualValue"/>
+				<Client Name="VelocityOffset"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{554D6C6F-E801-406B-9201-480800FB7F31}" Class="DriveAxisDS402_Base">
+							<Channels>
+								<Server Name="ClassState"/>
+								<Client Name="_TaskObjCntrl"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="DriveAxisDS402_Axis2.CiA_ControlWord" Destination="WELCON_11.RxPDO9_Controlword2"/>
+		<Connection Source="DriveAxisDS402_Axis2.CiA_StatusWord" Destination="WELCON_11.TxPDO9_Statusword2"/>
+		<Connection Source="DriveAxisDS402_Axis2.ModesOfOperation" Destination="WELCON_11.RxPDO9_ModesOfOperation2"/>
+		<Connection Source="DriveAxisDS402_Axis2.ModesOfOperationDisplay" Destination="WELCON_11.TxPDO9_ModesOfOperationDisplay2"/>
+		<Connection Source="DriveAxisDS402_Axis2.PositionActualValue" Destination="WELCON_11.TxPDO9_PositionActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis2.TargetPosition" Destination="WELCON_11.RxPDO9_TargetPosition2"/>
+		<Connection Source="DriveAxisDS402_Axis2.TargetTorque" Destination="WELCON_11.RxPDO9_TargetTorque2"/>
+		<Connection Source="DriveAxisDS402_Axis2.TargetVelocity" Destination="WELCON_11.RxPDO9_TargetVelocity2"/>
+		<Connection Source="DriveAxisDS402_Axis2.TorqueActualValue" Destination="WELCON_11.TxPDO9_TorqueActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis2.VelocityActualValue" Destination="WELCON_11.TxPDO9_VelocityActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis2.Online" Destination="WELCON_11.Online"/>
+		<Connection Source="DriveAxisDS402_Axis4.CiA_ControlWord" Destination="WELCON_21.RxPDO9_Controlword2"/>
+		<Connection Source="DriveAxisDS402_Axis4.CiA_StatusWord" Destination="WELCON_21.TxPDO9_Statusword2"/>
+		<Connection Source="DriveAxisDS402_Axis4.ModesOfOperation" Destination="WELCON_21.RxPDO9_ModesOfOperation2"/>
+		<Connection Source="DriveAxisDS402_Axis4.ModesOfOperationDisplay" Destination="WELCON_21.TxPDO9_ModesOfOperationDisplay2"/>
+		<Connection Source="DriveAxisDS402_Axis4.PositionActualValue" Destination="WELCON_21.TxPDO9_PositionActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis4.TargetPosition" Destination="WELCON_21.RxPDO9_TargetPosition2"/>
+		<Connection Source="DriveAxisDS402_Axis4.TargetTorque" Destination="WELCON_21.RxPDO9_TargetTorque2"/>
+		<Connection Source="DriveAxisDS402_Axis4.TargetVelocity" Destination="WELCON_21.RxPDO9_TargetVelocity2"/>
+		<Connection Source="DriveAxisDS402_Axis4.TorqueActualValue" Destination="WELCON_21.TxPDO9_TorqueActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis4.VelocityActualValue" Destination="WELCON_21.TxPDO9_VelocityActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis4.Online" Destination="WELCON_21.Online"/>
+		<Connection Source="DriveAxisDS402_Axis8.CiA_ControlWord" Destination="WELCON_41.RxPDO9_Controlword2"/>
+		<Connection Source="DriveAxisDS402_Axis8.CiA_StatusWord" Destination="WELCON_41.TxPDO9_Statusword2"/>
+		<Connection Source="DriveAxisDS402_Axis8.ModesOfOperation" Destination="WELCON_41.RxPDO9_ModesOfOperation2"/>
+		<Connection Source="DriveAxisDS402_Axis8.ModesOfOperationDisplay" Destination="WELCON_41.TxPDO9_ModesOfOperationDisplay2"/>
+		<Connection Source="DriveAxisDS402_Axis8.PositionActualValue" Destination="WELCON_41.TxPDO9_PositionActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis8.TargetPosition" Destination="WELCON_41.RxPDO9_TargetPosition2"/>
+		<Connection Source="DriveAxisDS402_Axis8.TargetTorque" Destination="WELCON_41.RxPDO9_TargetTorque2"/>
+		<Connection Source="DriveAxisDS402_Axis8.TargetVelocity" Destination="WELCON_41.RxPDO9_TargetVelocity2"/>
+		<Connection Source="DriveAxisDS402_Axis8.TorqueActualValue" Destination="WELCON_41.TxPDO9_TorqueActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis8.VelocityActualValue" Destination="WELCON_41.TxPDO9_VelocityActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis8.Online" Destination="WELCON_41.Online"/>
+		<Connection Source="DriveAxisDS402_Axis6.CiA_ControlWord" Destination="WELCON_31.RxPDO9_Controlword2"/>
+		<Connection Source="DriveAxisDS402_Axis6.CiA_StatusWord" Destination="WELCON_31.TxPDO9_Statusword2"/>
+		<Connection Source="DriveAxisDS402_Axis6.ModesOfOperation" Destination="WELCON_31.RxPDO9_ModesOfOperation2"/>
+		<Connection Source="DriveAxisDS402_Axis6.ModesOfOperationDisplay" Destination="WELCON_31.TxPDO9_ModesOfOperationDisplay2"/>
+		<Connection Source="DriveAxisDS402_Axis6.PositionActualValue" Destination="WELCON_31.TxPDO9_PositionActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis6.TargetPosition" Destination="WELCON_31.RxPDO9_TargetPosition2"/>
+		<Connection Source="DriveAxisDS402_Axis6.TargetVelocity" Destination="WELCON_31.RxPDO9_TargetVelocity2"/>
+		<Connection Source="DriveAxisDS402_Axis6.TargetTorque" Destination="WELCON_31.RxPDO9_TargetTorque2"/>
+		<Connection Source="DriveAxisDS402_Axis6.TorqueActualValue" Destination="WELCON_31.TxPDO9_TorqueActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis6.VelocityActualValue" Destination="WELCON_31.TxPDO9_VelocityActualValue2"/>
+		<Connection Source="DriveAxisDS402_Axis6.Online" Destination="WELCON_31.Online"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>
