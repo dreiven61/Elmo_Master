@@ -1,0 +1,81 @@
+LMC LASAL DINT packet map
+All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
+The DLL converts API rev/rps inputs with: value * 360 * 10000.
+Example: 1 rev = 3,600,000 DINT.
+Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
+
+0x209F MoveAbsoluteEx, payload 32 bytes
+[8] Position
+[12] Velocity
+[16] Acceleration
+[20] Deceleration
+[24] Jerk
+[28] Direction
+[32] BufferMode
+[36] Execute
+
+0x20A0 MoveRelativeEx, payload 32 bytes
+Same layout as 0x209F. [8] is relative distance.
+
+0x20A2 MoveVelocityEx, payload 24 bytes
+[8] Velocity
+[12] Acceleration
+[16] Deceleration
+[20] Jerk
+[24] Direction
+[28] Execute
+
+0x20A4 MoveLinearAbsoluteEx, payload 96 bytes
+[8..71] Position[0..15], 4 bytes each
+[72] Velocity
+[76] Acceleration
+[80] Deceleration
+[84] Jerk
+[88] LASAL CoordSystem index
+[92] TransitionMode
+[96] BufferMode
+[100] Execute
+
+0x2022 Stop, payload 16 bytes
+[8] Deceleration
+[12] Jerk
+[16] BufferMode
+[20] Execute
+
+0x2085 GroupStop, payload 16 bytes
+Same layout as Stop.
+
+LASAL 0x209F parser replacement:
+
+_StdLib.MemCpy(dest:=#pos, source:=#ReceiveBuf[8], size:=4);
+_StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[12], size:=4);
+_StdLib.MemCpy(dest:=#acc, source:=#ReceiveBuf[16], size:=4);
+_StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[20], size:=4);
+_StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[24], size:=4);
+_StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[28], size:=4);
+_StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[32], size:=4);
+_StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[36], size:=4);
+
+LMCAxis.MoveAbsolute(
+  Position:=pos,
+  Speed:=velo,
+  Accel:=acc,
+  Decel:=dec,
+  Jerk:=jer
+);
+
+LASAL 0x20A4 parser replacement:
+
+Change the class variable GroupExecute from BYTE to DINT.
+
+_StdLib.MemCpy(dest:=#GroupMovePos, source:=#ReceiveBuf[8], size:=36);
+_StdLib.MemCpy(dest:=#GroupVelocity, source:=#ReceiveBuf[72], size:=4);
+_StdLib.MemCpy(dest:=#GroupAccel, source:=#ReceiveBuf[76], size:=4);
+_StdLib.MemCpy(dest:=#GroupDecel, source:=#ReceiveBuf[80], size:=4);
+_StdLib.MemCpy(dest:=#GroupJerk, source:=#ReceiveBuf[84], size:=4);
+_StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#ReceiveBuf[88], size:=4);
+_StdLib.MemCpy(dest:=#GroupTransitionModeInput, source:=#ReceiveBuf[92], size:=4);
+_StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[96], size:=4);
+_StdLib.MemCpy(dest:=#GroupExecute, source:=#ReceiveBuf[100], size:=4);
+
+No LREAL-to-DINT conversion is required in the PLC.
