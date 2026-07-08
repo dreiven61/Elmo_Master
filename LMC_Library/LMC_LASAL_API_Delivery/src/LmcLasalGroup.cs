@@ -11,9 +11,9 @@ namespace LmcLasalMotionApi
         public LMC_Response LMC_GroupEnableCmd(){return Send(LMC_Frame.Simple(LMC_CommandId.GroupEnable,GroupReference));}
         public LMC_Response LMC_GroupDisableCmd(){return Send(LMC_Frame.Simple(LMC_CommandId.GroupDisable,GroupReference));}
         public LMC_Response LMC_GroupResetCmd(){return Send(LMC_Frame.Simple(LMC_CommandId.GroupReset,GroupReference));}
-        public LMC_Response LMC_GroupStopCmd(double decelerationRps2,double jerkRps3){return Send(LMC_Frame.GroupStop(GroupReference,units.RevolutionToInternal(decelerationRps2),units.RevolutionToInternal(jerkRps3)));}
+        public LMC_Response LMC_GroupStopCmd(double deceleration,double jerk){return Send(LMC_Frame.GroupStop(GroupReference,units.DecelerationToInternal(deceleration),units.JerkToInternal(jerk)));}
         public uint LMC_GroupReadStatusCmd(out LMC_Response response){var raw=connection.Exchange(LMC_Frame.GroupRead(LMC_CommandId.GroupStatus,GroupReference));response=new LMC_Response{Raw=raw};return raw.Length>=12?LMC_Frame.U32(raw,8):0;}
-        public LMC_Response LMC_MoveLinearAbsoluteExCmd(double[] positionRev,double velocityRps,double accelerationRps2,double decelerationRps2,double jerkRps3){return Send(LMC_Frame.MoveLinear(GroupReference,positionRev,velocityRps,accelerationRps2,decelerationRps2,jerkRps3,units));}
+        public LMC_Response LMC_MoveLinearAbsoluteExCmd(double[] position,double velocity,double acceleration,double deceleration,double jerk){return Send(LMC_Frame.MoveLinear(GroupReference,position,velocity,acceleration,deceleration,jerk,units));}
         private LMC_Response Send(byte[] b){return LMCConnection.Parse(connection.Exchange(b));}
     }
 }

@@ -26,10 +26,11 @@
 - `MoveVelocityEx`는 캡처상 header의 payload length와 실제 TCP payload 길이가 일치하지 않는다.
 - 단순히 `8388608 -> 3600000` 같은 고정 변환으로 DLL을 만드는 것은 근거가 부족하다.
 
-판단:
+판단 업데이트:
 
-- LASAL용 DLL을 제대로 만들려면 axis interface에서 External Unit과 Internal Unit 계열 정보를 읽어 축별 변환식을 구성해야 한다.
-- 현재 캡처의 `0x202B AxisInfo` 응답만으로는 그 단위 변환 정보를 확인할 수 없다. 별도 Axis Interface/parameter read 패킷 또는 API 문서 대조가 필요하다.
+- PMAS/MMCLib의 axis interface 단위 정보와 LASAL application unit 체계는 1:1로 대응된다고 보면 안 된다.
+- LASAL 이식 DLL은 우선 LASAL 프로젝트의 `Include/unit.h` define을 기준으로 application unit 값을 DINT로 변환해야 한다.
+- 현재 캡처의 `0x202B AxisInfo` 응답만으로는 LASAL `unit.h` 기준 단위 변환식을 확인할 수 없다. `unit.h`와 실제 `_LMCAxis`/`_LMCRobot` 메서드 인자 단위 주석을 같이 봐야 한다.
 
 ## 공통 헤더
 
@@ -165,11 +166,11 @@ Request 예:
 
 Response는 16 bytes, response payload length는 `8`이다.
 
-캡처만 놓고 보면 `0x202B` 응답에서 External Unit/Internal Unit 스케일을 직접 확인할 수 없다. 따라서 단위 변환을 정확히 구현하려면 아래 중 하나가 추가로 필요하다.
+캡처만 놓고 보면 `0x202B` 응답에서 LASAL `unit.h` 스케일을 직접 확인할 수 없다. 따라서 단위 변환을 정확히 구현하려면 아래 근거를 같이 봐야 한다.
 
-- `0x202B` payload 인자의 의미를 Maestro/MMCLib API 문서에서 확인
-- axis interface 단위 정보를 읽는 별도 command 캡처 확보
-- 기존 PMAS API 호출부가 axis interface 단위를 어디서 읽는지 원본 DLL/API 문서에서 확인
+- LASAL 프로젝트 `Include/unit.h`
+- `_LMCAxis`/`_LMCRobot` 메서드의 인자 단위 주석
+- 필요한 경우 `0x202B` payload 인자의 의미를 Maestro/MMCLib API 문서에서 확인
 
 ## Motion Command Layout
 
@@ -457,9 +458,9 @@ Response:
 
 ## DLL 구현 시 주의점
 
-1. 고정 비율 변환을 DLL에 박으면 안 된다.
+1. PMAS count 기준 고정 비율 변환을 DLL에 박으면 안 된다.
    - 캡처는 PMAS/MMCLib가 축 reference와 axis info를 먼저 얻고 그 뒤 command를 보낸다는 것을 보여준다.
-   - 단위 변환은 axis interface의 External/Internal unit 정보를 기준으로 축별로 해야 한다.
+   - LASAL 이식에서는 `unit.h`에 정의된 application unit scale을 기준으로 변환해야 한다.
 
 2. request와 response parser를 분리해야 한다.
    - request length: offset `[4]`

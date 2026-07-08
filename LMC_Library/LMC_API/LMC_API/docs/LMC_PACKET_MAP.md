@@ -38,40 +38,14 @@
 
 ## 단위
 
-API 호출 입력은 기존 Elmo/PMAS count 기준을 유지한다.
+이 문서는 기존 Elmo/PMAS 패킷 확인용이다. LASAL 전용 단위 변환 기준으로 사용하지 않는다.
 
-```text
-1 rev = 8,388,608 counts
-1 rps = 8,388,608 counts/s
-```
+LASAL 전용 DLL은 `LMC_Library/LMC_LASAL_API_Delivery`를 기준으로 한다. 해당 DLL은 LASAL `unit.h`에서 가져온 `LMC_Units` scale profile을 사용한다.
 
-DLL은 TCP 송신 직전에 motion 값을 LASAL internal 단위로 변환한다.
+주의:
 
-```text
-lasal_internal = count * 360 * 10000 / 8388608
-```
-
-예:
-
-```text
-8388608 count -> 3600000 LASAL internal
-```
-
-적용 대상:
-
-- `LMC_StopCmd` deceleration, jerk
-- `LMC_MoveAbsoluteExCmd` position, velocity, acceleration, deceleration, jerk
-- `LMC_MoveRelativeExCmd` distance, velocity, acceleration, deceleration, jerk
-- `LMC_MoveVelocityExCmd` velocity, acceleration, deceleration, jerk
-- `LMC_GroupStopCmd` deceleration, jerk
-- `LMC_MoveLinearAbsoluteExCmd` position vector, velocity, acceleration, deceleration, jerk
-
-읽기 응답:
-
-- `LMC_ReadActualPositionCmd`
-- `LMC_GroupReadActualPosition`
-
-위 두 응답은 LASAL internal 값을 count 기준으로 역변환해서 반환한다.
+- PMAS count와 LASAL application unit을 고정 비율로 연결하지 않는다.
+- LASAL 위치/속도/가속도/저크 변환은 command별 numeric type과 `unit.h` scale을 같이 봐야 한다.
 
 ## LASAL 대응
 

@@ -12,18 +12,80 @@ namespace LmcLasalMotionApi
         public bool IsSuccess { get { return Status == 0 && ErrorId == 0; } }
     }
 
+    public static class LMC_Units
+    {
+        // Mirrors Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/unit.h.
+        public const int LMC_MMPSEC2 = 1;
+        public const int LMC_DEG = 10000;
+        public const int LMC_MM2 = 10;
+        public const int LMC_KN = 1000;
+        public const int LMC_N = 1;
+        public const int LMC_M = 1000 * 10000;
+        public const int LMC_MM = 10000;
+        public const int LMC_GB = 1024 * 1024 * 1024;
+        public const int LMC_KB = 1024;
+        public const int LMC_MB = 1024 * 1024;
+        public const int LMC_BAR = 1000;
+        public const int LMC_RPM = 1000;
+        public const int LMC_MLPMIN = 1;
+        public const int LMC_MMPSEC = 10000;
+        public const int LMC_HOURS = 60 * 60 * 1000;
+        public const int LMC_MIN = 60 * 1000;
+        public const int LMC_MS = 1;
+        public const int LMC_SEC = 1000;
+        public const int LMC_SECS = 1000;
+        public const int LMC_CCM = 1;
+    }
+
     public sealed class LMC_UnitConverter
     {
-        public int InternalUnitsPerRevolution { get; private set; }
-        public LMC_UnitConverter(int internalUnitsPerRevolution=3600000)
+        public int PositionUnit { get; private set; }
+        public int VelocityUnit { get; private set; }
+        public int AccelerationUnit { get; private set; }
+        public int DecelerationUnit { get; private set; }
+        public int JerkUnit { get; private set; }
+
+        public LMC_UnitConverter()
+            : this(
+                LMC_Units.LMC_MM,
+                LMC_Units.LMC_MMPSEC,
+                LMC_Units.LMC_MMPSEC2,
+                LMC_Units.LMC_MMPSEC2,
+                LMC_Units.LMC_MMPSEC2)
         {
-            if(internalUnitsPerRevolution<=0) throw new ArgumentOutOfRangeException(nameof(internalUnitsPerRevolution));
-            InternalUnitsPerRevolution=internalUnitsPerRevolution;
         }
-        public int RevolutionToInternal(double value)
-        { return checked((int)Math.Round(value*InternalUnitsPerRevolution,MidpointRounding.AwayFromZero)); }
-        public double InternalToRevolution(int value)
-        { return (double)value/InternalUnitsPerRevolution; }
+
+        public LMC_UnitConverter(int positionUnit,int velocityUnit,int accelerationUnit,int decelerationUnit,int jerkUnit)
+        {
+            ValidateUnit(positionUnit,nameof(positionUnit));
+            ValidateUnit(velocityUnit,nameof(velocityUnit));
+            ValidateUnit(accelerationUnit,nameof(accelerationUnit));
+            ValidateUnit(decelerationUnit,nameof(decelerationUnit));
+            ValidateUnit(jerkUnit,nameof(jerkUnit));
+            PositionUnit=positionUnit;
+            VelocityUnit=velocityUnit;
+            AccelerationUnit=accelerationUnit;
+            DecelerationUnit=decelerationUnit;
+            JerkUnit=jerkUnit;
+        }
+
+        public int PositionToInternal(double value){return Scale(value,PositionUnit);}
+        public int VelocityToInternal(double value){return Scale(value,VelocityUnit);}
+        public int AccelerationToInternal(double value){return Scale(value,AccelerationUnit);}
+        public int DecelerationToInternal(double value){return Scale(value,DecelerationUnit);}
+        public int JerkToInternal(double value){return Scale(value,JerkUnit);}
+        public double InternalToPosition(int value){return (double)value/PositionUnit;}
+
+        private static void ValidateUnit(int unit,string name)
+        {
+            if(unit<=0) throw new ArgumentOutOfRangeException(name);
+        }
+
+        private static int Scale(double value,int unit)
+        {
+            if(double.IsNaN(value)||double.IsInfinity(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            return checked((int)Math.Round(value*unit,MidpointRounding.AwayFromZero));
+        }
     }
 
     internal static class LMC_CommandId
@@ -64,7 +126,7 @@ namespace LmcLasalMotionApi
         internal static byte[] GroupRead(ushort command,ushort r)
         { var b=Header(command,r,8);I32(b,8,0);I32(b,12,1);return b; }
         internal static byte[] MoveLinear(ushort r,double[] position,double velocity,double acceleration,double deceleration,double jerk,LMC_UnitConverter units)
-        { var b=Header(LMC_CommandId.MoveLinear,r,96);for(var i=0;i<16;i++)I32(b,8+i*4,units.RevolutionToInternal(position!=null&&i<position.Length?position[i]:0));I32(b,72,units.RevolutionToInternal(velocity));I32(b,76,units.RevolutionToInternal(acceleration));I32(b,80,units.RevolutionToInternal(deceleration));I32(b,84,units.RevolutionToInternal(jerk));I32(b,88,0);I32(b,92,0);I32(b,96,1);I32(b,100,1);return b; }
+        { var b=Header(LMC_CommandId.MoveLinear,r,96);for(var i=0;i<16;i++)I32(b,8+i*4,units.PositionToInternal(position!=null&&i<position.Length?position[i]:0));I32(b,72,units.VelocityToInternal(velocity));I32(b,76,units.AccelerationToInternal(acceleration));I32(b,80,units.DecelerationToInternal(deceleration));I32(b,84,units.JerkToInternal(jerk));I32(b,88,0);I32(b,92,0);I32(b,96,1);I32(b,100,1);return b; }
         internal static ushort U16(byte[] b,int o){return (ushort)(b[o]|b[o+1]<<8);}
         internal static uint U32(byte[] b,int o){return (uint)(b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24);}
         internal static int I32(byte[] b,int o){return unchecked((int)U32(b,o));}

@@ -11,14 +11,13 @@ public static class BasicUsage
                 "192.168.99.14", 5003,
                 0xFFFFFFFF, true);
 
-            // Single axis: API inputs stay in PMAS/controller counts.
-            // The DLL converts motion fields to LASAL internal units before TCP send.
+            // Single axis: this legacy sample is for Elmo/PMAS packet checks.
+            // Use LMC_LASAL_API_Delivery for LASAL unit.h based conversion.
             var axis = new LMCAxis(connection, "a01");
             axis.LMC_PowerCmd(true);
             axis.LMC_MoveAbsoluteExCmd(8388608, 8388608, 8388608, 8388608, 8388608);
 
             // Four-axis group: a01/a02/a03/a04 = X/Y/Z/U.
-            // 8388608 count is sent as 3600000 LASAL internal.
             var group = new LMCGroup(connection, "v01");
             var axes = new[]
             {

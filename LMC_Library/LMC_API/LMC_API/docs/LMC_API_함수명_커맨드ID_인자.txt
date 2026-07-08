@@ -1,11 +1,7 @@
 LMC Motion API 함수명 / Command ID / 인자 정리
 작성 기준: LmcMotionApi 최종 전달본
-API 입력 단위: 위치·속도·가속도·감속도·저크는 기존 컨트롤러 count 기준
-시험 기준: 1 rev = 8,388,608 count
-TCP 송신 단위: DLL 내부에서 LASAL internal 단위로 변환
-변환식: lasal_internal = count * 360 * 10000 / 8388608
-예: 8,388,608 count -> 3,600,000 LASAL internal
-읽기 응답: LASAL internal -> count로 역변환 후 반환
+주의: 이 목록은 기존 Elmo/PMAS 패킷 확인용이다.
+LASAL 전용 단위 변환은 LMC_LASAL_API_Delivery의 unit.h 기반 LMC_Units scale profile을 기준으로 한다.
 
 구분	함수명	Command ID	인자	반환값 / 비고
 연결	LMC_RpcInitConnection	0x8080, 0x405C	remoteAddress, remotePort, localAddress, callbackPort, eventMask, performCapturedHandshake	TCP 연결; handshake=true이면 SessionInit 및 UDP callback 등록

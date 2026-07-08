@@ -1,7 +1,12 @@
 LMC LASAL DINT packet map
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
-The DLL converts API rev/rps inputs with: value * 360 * 10000.
-Example: 1 rev = 3,600,000 DINT.
+The DLL converts API application-unit inputs with the same scales defined in unit.h.
+Default profile:
+  position      value * LMC_MM       (10000)
+  velocity      value * LMC_MMPSEC   (10000)
+  acceleration  value * LMC_MMPSEC2  (1)
+  deceleration  value * LMC_MMPSEC2  (1)
+  jerk          value * LMC_MMPSEC2  (1)
 Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
 
 0x209F MoveAbsoluteEx, payload 32 bytes

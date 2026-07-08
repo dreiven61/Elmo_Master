@@ -4,9 +4,10 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 `LmcMotionApi.dll`
 
 ## 특징
 
-- API 입력 단위: rev, rps, rev/s2, rev/s3 (`double`)
-- API 내부 변환: `double × 360 × 10000 → DINT`
-- 기본 LASAL 내부 단위: `3,600,000 DINT/rev`
+- API 입력 단위: LASAL application unit (`double`)
+- API 내부 변환: `unit.h` define과 같은 scale을 곱해서 DINT로 변환
+- 기본 profile: `position=LMC_MM`, `velocity=LMC_MMPSEC`, `acceleration=LMC_MMPSEC2`, `deceleration=LMC_MMPSEC2`, `jerk=LMC_MMPSEC2`
+- `LMC_Units`에 `unit.h` 기반 상수 추가: `LMC_MM=10000`, `LMC_MMPSEC=10000`, `LMC_MMPSEC2=1`, `LMC_DEG=10000`, `LMC_RPM=1000` 등
 - LASAL PLC는 수신한 DINT를 변환 없이 `_LMCAxis` 또는 `_LMCRobot`에 전달
 - TCP handshake 없이 LASAL 서버에 직접 연결
 
@@ -22,4 +23,4 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 `LmcMotionApi.dll`
 이 DLL은 Maestro의 LREAL 패킷과 호환되지 않습니다. LASAL 전용입니다.
 
 기존 PMAS 기준 `8,388,608 count/rev` 값은 이 DLL의 송신 단위가 아닙니다.
-예: `1 rev -> 3,600,000 LASAL internal DINT`.
+예: 기본 profile에서 `1.0 mm -> 10,000 DINT`, `1.0 mm/s -> 10,000 DINT`, `1.0 mm/s2 -> 1 DINT`.
