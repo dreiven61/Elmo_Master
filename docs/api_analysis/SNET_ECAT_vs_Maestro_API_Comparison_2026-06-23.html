@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>SNET_ECAT_vs_Maestro_API_Comparison_2026-06-23</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+
+<style id="md-pandoc-exporter-clean-print-style">
+@page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+html {
+  background: #fff !important;
+  color: #222;
+  font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #222;
+  overflow-wrap: break-word;
+}
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 28px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 28px 0 18px;
+  font-weight: 700;
+}
+h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 26px 0 14px;
+  font-weight: 700;
+}
+p { margin: 0 0 14px; }
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  page-break-inside: auto;
+  table-layout: auto !important;
+}
+thead { display: table-header-group; }
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+th,
+td {
+  border: 1px solid #d9d9d9 !important;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+th {
+  font-weight: 700;
+  background: #fff;
+}
+tbody { border: 0 !important; }
+code {
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 0.84em;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+ul,
+ol {
+  margin: 0 0 14px 24px;
+  padding: 0;
+}
+li { margin: 3px 0; }
+@media print {
+  body { font-size: 14px !important; }
+  h2,
+  h3,
+  h4 { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="snet-ecat-library-vs-maestro-administrativemotion-api-비교-분석-2026-06-23">SNET-ECAT
+Library vs Maestro Administrative/Motion API 비교 분석 (2026-06-23)</h1>
+<h2 id="전제">전제</h2>
+<ul>
+<li>비교 원본 1: <code>Chapter6_Library_(250508).pdf</code>, 435 pages,
+SNET-P/SNET-ECAT Library, 2025-05-09</li>
+<li>비교 원본 2:
+<code>Maestro Administrative and Motion API_2022_12_v2.012.pdf</code>,
+2435 pages, Maestro Administrative and Motion API v2.012</li>
+<li>이 표의 “성능”은 실측 ms/us 수치가 아니다. 두 문서는 동일 조건의
+benchmark를 제공하지 않는다. 따라서 controller-side execution, PC 왕복
+호출 감소, group/path 처리, trigger/capture 전용성 같은 구조적 성능
+요소로 비교했다.</li>
+</ul>
+<h2 id="한줄-결론">한줄 결론</h2>
+<p>Maestro는 Group Motion, kinematics, PVT/ECAM,
+PI/Bulk/Event/Recording, 통신/관리 기능이 강하다. SNET은 SNET 장치
+계열의 단축/보간 이송, IO, 위치 동기 Trigger/Capture/Latch, ADC/DAC,
+SNET-ECAT 노드 접근이 강하다. 현재 Group Motion P1-P4-P1, transition
+mode, group InPosition 테스트는 Maestro API 모델이 원본 기준이고, SNET
+API에는 직접 대응 기능이 없다.</p>
+<h2 id="기능성능-비교표">기능/성능 비교표</h2>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>SNET-ECAT Library</th>
+<th>Maestro API</th>
+<th>없는 기능/차이</th>
+<th>성능/구현 영향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>제어기 연결/세션</td>
+<td>지원: UDP/TCP 계열 연결 <code>eSnetConnect*</code>, 통신
+설정/응답시간 확인</td>
+<td>지원: RPC/IPC/TCP/UDP 연결, 축/그룹 리소스 로딩, 네트워크 설정</td>
+<td>둘 다 있음. Maestro는 리소스/그룹 객체 기반, SNET은 net/axis 번호
+기반이 더 단순함.</td>
+<td>Maestro는 초기화가 복잡하지만 리소스 관리가 세밀함. SNET은 단순
+호출/응답 확인에 유리함.</td>
+</tr>
+<tr>
+<td>단축 Servo/Home/Move/Status</td>
+<td>지원: Servo On/Off, STEP/Method Homing, 단축 Move,
+상태/에러/위치</td>
+<td>지원: Power, Home/DS402 Home, MoveAbs/Rel/Add/Vel/Torque/Continuous,
+ReadStatus/Position/Torque/Velocity</td>
+<td>둘 다 있음. Maestro는 DS402/PLCopen 형태가 더 풍부함.</td>
+<td>단축 기본 성능 비교는 문서만으로 정량화 불가. API 폭은 Maestro가
+넓음.</td>
+</tr>
+<tr>
+<td>축 파라미터</td>
+<td>지원: <code>Param002</code>, <code>Param010</code> 등 축 파라미터별
+전용 Set/Get가 많음</td>
+<td>지원: generic/global parameter, bool parameter, group parameter,
+resource import/export/save/load</td>
+<td>둘 다 있음. SNET은 전용 함수형, Maestro는 범용
+파라미터/리소스형.</td>
+<td>대량/범용 관리와 자동화는 Maestro 쪽이 유리함. 특정 SNET 파라미터
+접근은 SNET이 명확함.</td>
+</tr>
+<tr>
+<td>Group 객체/Group 상태</td>
+<td>문서상 전용 group object와 <code>GroupReadStatus</code> 등은
+없음</td>
+<td>지원: <code>MMC_AddAxisToGroup</code>,
+<code>MMC_GroupEnable/Disable/Reset</code>,
+<code>MMC_GroupReadStatus</code>,
+<code>MMC_GroupReadActualPosition/Velocity/Error</code></td>
+<td>Maestro에 있음, SNET에는 직접 대응 기능 없음.</td>
+<td>다축 InPosition/standby/error를 그룹 단위로 판정하는 테스트는
+Maestro API가 직접 적합함.</td>
+</tr>
+<tr>
+<td>좌표계/기구학 변환</td>
+<td>문서상 Maestro식 kinematic transform API 없음</td>
+<td>지원: <code>MMC_SetKinTransform*</code>,
+Cartesian/SCARA/ThreeLink/Hxpd, conveyor/rotary tracking</td>
+<td>Maestro에 있음. SNET은 보간 축 지정 중심.</td>
+<td>로봇/기구 좌표계 기반 다축 테스트는 Maestro가 훨씬 강함.</td>
+</tr>
+<tr>
+<td>선형/원호/스플라인 보간</td>
+<td>지원: <code>eSnetMoveLine</code>, <code>MoveLineMultiAxis</code>,
+<code>Arc*</code>, <code>Helical</code>, <code>Spline</code></td>
+<td>지원: <code>MMC_MoveLinear*</code>, <code>MoveCircular*</code>,
+<code>MovePolynomAbsolute</code>, <code>PathSelect/MovePath</code></td>
+<td>둘 다 있음. Maestro는 group/path 모션 체계, SNET은 보간 이송 함수
+체계.</td>
+<td>컨트롤러 측 보간 실행은 양쪽 모두 가능. 블렌딩/전이 제어는 Maestro
+쪽이 명시적임.</td>
+</tr>
+<tr>
+<td>Transition/Buffer/Blending</td>
+<td>문서상 Maestro식 <code>BufferMode</code>,
+<code>TransitionMode</code>, transition parameter 직접 대응 없음</td>
+<td>지원: Group Motion의 buffer/transition 개념, path/repetitive motion,
+kinematic group 명령</td>
+<td>Maestro에 있음. SNET은 연속 보간 job/trigger는 있으나 동일 개념은
+아님.</td>
+<td>P1-P4-P1 블렌딩/InPosition 경계 시험은 Maestro가 직접 대상임. SNET은
+별도 경로/연속 보간 방식으로 재설계 필요.</td>
+</tr>
+<tr>
+<td>연속 경로/큐</td>
+<td>지원: Conti channel/job 생성/시작, job index/result, dwell/output
+trigger</td>
+<td>지원: repetitive motion, path/table/PVT, function-block
+depth/status</td>
+<td>둘 다 있음. 기능 모델이 다름.</td>
+<td>PC 반복 호출 대신 컨트롤러에 경로를 올리는 구조는 양쪽 모두
+가능함.</td>
+</tr>
+<tr>
+<td>PVT</td>
+<td>문서상 PVT 전용 장 없음</td>
+<td>지원: Chapter 8 PVT, table init/load/move/append/index</td>
+<td>Maestro에 있음.</td>
+<td>고밀도 궤적/시간 기반 프로파일은 Maestro가 우세함.</td>
+</tr>
+<tr>
+<td>Electronic CAM/Gearing</td>
+<td>문서상 ECAM/Gear 전용 API 없음</td>
+<td>지원: <code>MMC_Cam*</code>,
+<code>MMC_GearIn/GearInPos/GearOut</code></td>
+<td>Maestro에 있음.</td>
+<td>마스터-슬레이브 CAM/gear 동기 응용은 Maestro가 직접 지원함.</td>
+</tr>
+<tr>
+<td>Gantry</td>
+<td>지원: <code>eSnetEnableGantrySync</code>, Gantry homing 상태</td>
+<td>전용 Gantry 장/함수는 문서상 제한적. group/coupling/kinematic으로
+구현 여지</td>
+<td>SNET에는 명시적 gantry API가 있음.</td>
+<td>단순 gantry sync/homing은 SNET 함수가 바로 보임. Maestro는 프로젝트
+구성 방식 확인 필요.</td>
+</tr>
+<tr>
+<td>Trigger 출력</td>
+<td>강함: 거리/위치/보간 중 trigger, SNET-P/RTEX/ECAT/RTEX-2LAN 별 장
+제공</td>
+<td>TouchProbe/Event/Data Recording/IO는 있으나 SNET식 multi-trigger API
+묶음은 없음</td>
+<td>SNET에 전용 기능이 훨씬 많음.</td>
+<td>고속 위치 기반 출력은 SNET이 API상 더 직접적임. Maestro는 대체 구현
+검토 필요.</td>
+</tr>
+<tr>
+<td>Capture/Latch</td>
+<td>강함: Latch, Position Capture 1/2/3, RTEX/ECAT fieldbus capture</td>
+<td>TouchProbe, Data Recording, PI/event 기반 접근은 있음. SNET식
+capture API 묶음은 없음</td>
+<td>SNET에 명시적 capture/latch가 많음.</td>
+<td>외부 신호 위치 캡처/계측은 SNET이 문서상 더 직접적임.</td>
+</tr>
+<tr>
+<td>I/O</td>
+<td>지원: SNET-P, SNET-P-AD, RTEX Option, RTEX IO Slave, Remote IO,
+SNET-ECAT IO Node, ADC/DAC</td>
+<td>지원: Digital IO, Process Image, DS-401 CAN I/O, EtherCAT IO
+analog/digital, Modbus/EtherNet/IP</td>
+<td>둘 다 강하지만 대상 버스/장치 모델이 다름.</td>
+<td>SNET 보드/노드 I/O는 SNET이 직접적. Maestro는 산업통신/PI와 연동
+폭이 큼.</td>
+</tr>
+<tr>
+<td>EtherCAT/Drive 통신</td>
+<td>지원: SNET-ECAT CoE PDO/SDO, ESC register, state machine, brake</td>
+<td>지원: EtherCAT config/statistics/diagnostics/IO, CANbus PDO/SDO,
+interpreter command</td>
+<td>둘 다 있음. Maestro는 drive/network admin 폭이 넓음.</td>
+<td>진단/통신 상태/드라이브 직접 명령은 Maestro가 더 넓고, SNET-ECAT
+노드 함수는 SNET 쪽이 단순함.</td>
+</tr>
+<tr>
+<td>Process Image/Bulk Read</td>
+<td>전용 PI/Bulk Read 장은 문서상 없음</td>
+<td>지원: PI read/write, PI bulk read, bulk parameter read</td>
+<td>Maestro에 있음.</td>
+<td>고주기 상태 수집/대량 파라미터 읽기는 Maestro 구조가 유리함.</td>
+</tr>
+<tr>
+<td>Recording/Event</td>
+<td>사용자 로그, interrupt event, trigger/capture 상태 확인</td>
+<td>지원: data recording, API events/callback, events mask,
+notifications, error policy</td>
+<td>둘 다 있으나 Maestro는 callback/event/recording 계층이 더 큼.</td>
+<td>장시간 진단/비동기 이벤트 처리는 Maestro가 유리함.</td>
+</tr>
+<tr>
+<td>Firmware/Admin</td>
+<td>API/OS/FPGA version 확인, 통신 설정 중심</td>
+<td>FoE download/status, version path/download, resource
+import/export/save/load, reset system</td>
+<td>Maestro에 admin 기능이 많음.</td>
+<td>장비 운영/배포/복구 자동화는 Maestro가 우세함.</td>
+</tr>
+<tr>
+<td>언어/래퍼</td>
+<td>C/C#/VB 선언 예제가 포함됨</td>
+<td>C API, C++ wrapper, IEC 61131-3 special functions, Python
+functions가 별도 장으로 제공됨</td>
+<td>Maestro 래퍼 문서가 더 방대함.</td>
+<td>PC 자동화/테스트 언어 선택 폭은 Maestro가 넓음.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="성능-구조-비교">성능 구조 비교</h2>
+<table>
+<thead>
+<tr>
+<th>성능 관점</th>
+<th>SNET</th>
+<th>Maestro</th>
+<th>판단</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PC 왕복 호출 지연</td>
+<td>전용 <code>eSnetCheckCommunicationTime</code>로 응답 시간 확인
+가능</td>
+<td>개별 Cmd/Status 구조와 <code>CmdStatus</code>, PI/Bulk Read로
+관리</td>
+<td>동일 조건 실측값은 문서에 없음. 호출 구조만 보면 반복 폴링 최소화는
+Maestro의 PI/Bulk, SNET의 controller-side trigger/capture가 각각
+유리함.</td>
+</tr>
+<tr>
+<td>컨트롤러 측 경로 실행</td>
+<td>연속 보간 job/conti channel 지원</td>
+<td>Path/PVT/Repetitive/Group motion 지원</td>
+<td>둘 다 PC 루프 의존도를 낮출 수 있음. 복잡 경로/블렌딩은 Maestro가 더
+강함.</td>
+</tr>
+<tr>
+<td>고속 출력/캡처</td>
+<td>Trigger/Capture/Latch 전용 장이 많음</td>
+<td>TouchProbe/Event/Recording은 있으나 SNET식 trigger/capture 전용 폭은
+작음</td>
+<td>위치 동기 출력/캡처 계측은 SNET 우세.</td>
+</tr>
+<tr>
+<td>다축 동기/그룹 제어</td>
+<td>보간 다축 이동과 gantry 중심</td>
+<td>Group object, status, kinematics, transition/blending 중심</td>
+<td>GroupReadStatus/InPosition/Transition Mode 테스트는 Maestro
+우세.</td>
+</tr>
+<tr>
+<td>대량 상태 수집</td>
+<td>개별 상태/좌표/파라미터 함수 중심</td>
+<td>Process Image, PI Bulk Read, Bulk Parameter Read 제공</td>
+<td>다수 변수/고주기 모니터링은 Maestro 구조가 우세.</td>
+</tr>
+<tr>
+<td>통신/드라이브 진단</td>
+<td>SNET-ECAT CoE/ESC/state/brake 확인</td>
+<td>EtherCAT/CANbus/DS401/EtherNetIP/Modbus, diagnostics/statistics</td>
+<td>네트워크/드라이브 진단 폭은 Maestro 우세.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="어디에는-있고-어디에는-없는가">어디에는 있고 어디에는
+없는가</h2>
+<table>
+<thead>
+<tr>
+<th>분류</th>
+<th>SNET에 있고 Maestro에 약하거나 직접 없음</th>
+<th>Maestro에 있고 SNET에 직접 없음</th>
+<th>둘 다 있음</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Motion</td>
+<td>명시적 Gantry sync/homing</td>
+<td>Group object/status, kinematics, transition/blending, PVT,
+ECAM/Gear</td>
+<td>단축 이동, homing, status, linear/circular 계열 보간</td>
+</tr>
+<tr>
+<td>I/O/계측</td>
+<td>Trigger 34-41장, Latch, Position Capture, RTEX/ECAT fieldbus
+capture, ADC/DAC</td>
+<td>PI/PI bulk, Data Recording, Event/callback</td>
+<td>Digital IO, EtherCAT/fieldbus 연동</td>
+</tr>
+<tr>
+<td>통신/관리</td>
+<td>SNET-ECAT CoE/ESC/state/brake 전용 함수</td>
+<td>FoE download, resource import/export,
+EtherCAT/CANbus/DS401/EtherNetIP/Modbus, interpreter command</td>
+<td>연결, 버전, 에러, 파라미터 관리</td>
+</tr>
+<tr>
+<td>개발/래퍼</td>
+<td>C/C#/VB 선언 예제</td>
+<td>C/C++/IEC/Python wrapper와 class 문서가 큼</td>
+<td>PC 앱에서 DLL/API 호출 가능</td>
+</tr>
+</tbody>
+</table>
+<h2 id="프로젝트-적용-판단">프로젝트 적용 판단</h2>
+<ul>
+<li><code>Codex_PMAS_WPF</code>의
+<code>MMC_MoveLinearAbsoluteCmd</code>/<code>MMC_GroupReadStatusCmd</code>
+테스트는 Maestro Chapter 7의 Group Motion 모델을 그대로 따른다.</li>
+<li><code>Codex_LASAL_WPF</code>에서 같은 테스트를 흉내 내려면 SNET
+방식이 아니라 LASAL 내부 <code>_LMCRobotBase</code>/Motion Network의
+group 상태를 TCP 프레임으로 매핑해야 한다.</li>
+<li>InPosition 조건, transition mode, blending은 SNET API에서 동일
+명령을 찾는 방식으로는 해결되지 않는다. Maestro group status와 LASAL
+robot/group status 사이의 의미 대응표가 필요하다.</li>
+<li>반대로 trigger/capture/latch/ADC/DAC 계측 기능을 테스트할 때는 SNET
+문서가 더 직접적인 기준이다. Maestro에서는 TouchProbe, Recording, PI,
+EtherCAT IO/event 기반으로 대체 설계를 해야 한다.</li>
+</ul>
+</body>
+</html>

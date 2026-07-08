@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>SNET_ECAT_Library_API_Analysis_2026-06-23</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+
+<style id="md-pandoc-exporter-clean-print-style">
+@page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+html {
+  background: #fff !important;
+  color: #222;
+  font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #222;
+  overflow-wrap: break-word;
+}
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 28px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 28px 0 18px;
+  font-weight: 700;
+}
+h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 26px 0 14px;
+  font-weight: 700;
+}
+p { margin: 0 0 14px; }
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  page-break-inside: auto;
+  table-layout: auto !important;
+}
+thead { display: table-header-group; }
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+th,
+td {
+  border: 1px solid #d9d9d9 !important;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+th {
+  font-weight: 700;
+  background: #fff;
+}
+tbody { border: 0 !important; }
+code {
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 0.84em;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+ul,
+ol {
+  margin: 0 0 14px 24px;
+  padding: 0;
+}
+li { margin: 3px 0; }
+@media print {
+  body { font-size: 14px !important; }
+  h2,
+  h3,
+  h4 { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="snet-ecat-chapter6-library-api-분석-2026-06-23">SNET-ECAT
+Chapter6 Library API 분석 (2026-06-23)</h1>
+<h2 id="분석-대상">분석 대상</h2>
+<ul>
+<li>원본:
+<code>C:/work/자료/EMotion/SNET-ECAT-User-Manual-25.05.08-ko/SNET-ECAT User Manual 25.05.08 ko/Chapter6_Library_(250508).pdf</code></li>
+<li>PDF 정보: 435 pages, title <code>SNET-P</code>, 생성/수정일
+2025-05-09</li>
+<li>추출 기준: PDF 목차/섹션명에서 <code>eSnet*</code> API를 추출했다.
+자동 추출 기준 목차 API 섹션은 300개, 원문 전체의 unique
+<code>eSnet*</code> 심볼은 371개다. 차이는 예제/enum/중복 참조가
+포함되기 때문이다.</li>
+</ul>
+<h2 id="결론">결론</h2>
+<p>SNET API는 <code>net + axis</code> 중심의 장치 제어 라이브러리다.
+단축 이송, 보간 이송, 연속 보간, 위치/속도 override, gantry, IO,
+trigger, capture, EtherCAT CoE/ESC 접근을 폭넓게 제공한다. 특히 위치
+동기 trigger/capture, RTEX/ECAT fieldbus capture, ADC/DAC 같은 장비 I/O
+계측 기능이 강하다.</p>
+<p>반대로 Maestro의 Group Motion처럼 group object를 만들고
+<code>GroupReadStatus</code>, transition mode, kinematic transform으로
+다축을 관리하는 구조는 문서상 직접 대응되지 않는다. SNET은 다축 보간과
+연속 보간이 중심이고, 그룹 상태/블렌딩 의미는 별도 설계가 필요하다.</p>
+<h2 id="api-영역별-정리">API 영역별 정리</h2>
+<table style="width:100%;">
+<thead>
+<tr>
+<th>영역</th>
+<th style="text-align: right;">API 수</th>
+<th>대표 API</th>
+<th>판단</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4. 제어기 연결하기</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetConnect</code>, <code>eSnetDisconnect</code>,
+<code>eSnetConnectEx</code>, <code>eSnetConnectToTcp</code>,
+<code>eSnetConnectToTcpEx</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>5. Dll,Os,Fpga 프로그램 버전 정보 확인</td>
+<td style="text-align: right;">3</td>
+<td><code>eSnetGetApiVersion</code>, <code>eSnetGetOsVersion</code>,
+<code>eSnetGetFpgaVersion</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>6. 로그 정보 남기기</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetSetUserLogSection</code>,
+<code>eSnetGetUserLogSection</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>7. 이더넷 통신 환경 설정하기</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetSetCommunicationConfig</code>,
+<code>eSnetGetCommunicationConfig</code>,
+<code>eSnetSetCommunicationAutoPortChange</code>,
+<code>eSnetGetCommunicationAutoPortChange</code>,
+<code>eSnetCheckCommunicationTime</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>8. 축 파라미터 설정</td>
+<td style="text-align: right;">61</td>
+<td><code>eSnetSetParam002ControlSignal</code>,
+<code>eSnetGetParam002ControlSignal</code>,
+<code>eSnetSetParam003PulseFormat</code>,
+<code>eSnetGetParam003PulseFormat</code>,
+<code>eSnetSetParam010CommandRotation</code>,
+<code>eSnetSetParam011DistanceRotation</code>,
+<code>eSnetGetParam011DistanceRotation</code>,
+<code>eSnetSetParam012FeedbackCommand</code>, … 외 53개</td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>9. 축 알람 상태 해제 및 이송 정지</td>
+<td style="text-align: right;">11</td>
+<td><code>eSnetReset</code>, <code>eSnetResetAll</code>,
+<code>eSnetEmergencyStop</code>, <code>eSnetEmergencyStopAll</code>,
+<code>eSnetSlowStop</code>, <code>eSnetSlowStopAll</code>,
+<code>eSnetSetIoStop</code>, <code>eSnetGetIoStop</code>, … 외 3개</td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>10. 축 상태 정보 확인</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetGetAxisStatus</code>,
+<code>eSnetGetAxisSignalStatus</code>, <code>eSnetGetMotionDone</code>,
+<code>eSnetGetErrorCode</code>, <code>eSnetGetPositionStatus</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>11. 서보 ON/OFF</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetSetServoOn</code>, <code>eSnetGetServoOn</code></td>
+<td>기본 축 제어 기능.</td>
+</tr>
+<tr>
+<td>12. 원점 복귀 (STEP)</td>
+<td style="text-align: right;">8</td>
+<td><code>eSnetAddHomingStep</code>, <code>eSnetGetHomingStep</code>,
+<code>eSnetSetHomingShift</code>, <code>eSnetStartHoming</code>,
+<code>eSnetStopHoming</code>, <code>eSnetGetHomingRate</code>,
+<code>eSnetGetHomingResult</code>,
+<code>eSnetGetIsHomingDone</code></td>
+<td>기본 축 제어 기능.</td>
+</tr>
+<tr>
+<td>13. 원점 복귀 (Method)</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetSetHomingMethod</code>,
+<code>eSnetGetHomingMethod</code>,
+<code>eSnetSetHomingMethodSpeed</code>,
+<code>eSnetGetHomingMethodSpeed</code>,
+<code>eSnetStartHomingMethod</code></td>
+<td>기본 축 제어 기능.</td>
+</tr>
+<tr>
+<td>14. 축 지령 좌표(절대 좌표-Command position) 확인 및 변경</td>
+<td style="text-align: right;">3</td>
+<td><code>eSnetSetCommandPosition</code>,
+<code>eSnetGetCommandPosition</code>,
+<code>eSnetGetTargetPosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>15. 축 현재 좌표(기계 좌표-Actual position) 확인 및 변경</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetSetActualPosition</code>,
+<code>eSnetGetActualPosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>16. 축 지령 좌표(Command position) &amp; 현재 좌표(Actual position)
+변경</td>
+<td style="text-align: right;">1</td>
+<td><code>eSnetSetHomePosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>17. 축 지령 좌표(Command position) &amp; 현재 좌표(Actual position)
+확인</td>
+<td style="text-align: right;">1</td>
+<td><code>eSnetGetPosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>18. 축 상대/절대 좌표 모드 변경</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetSetAbsRelMode</code>,
+<code>eSnetGetAbsRelMode</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>19. 단축 이송</td>
+<td style="text-align: right;">9</td>
+<td><code>eSnetMove</code>, <code>eSnetMoveSingle</code>,
+<code>eSnetMoveSingleEx</code>, <code>eSnetMoveSingleExJog</code>,
+<code>eSnetMoveSingleExIo</code>, <code>eSnetMoveMultiAxis</code>,
+<code>eSnetMoveVelocityAd</code>, <code>eSnetMovePositionAd</code>, … 외
+1개</td>
+<td>기본 축 제어 기능.</td>
+</tr>
+<tr>
+<td>20. 보간 이송</td>
+<td style="text-align: right;">7</td>
+<td><code>eSnetMoveLine</code>, <code>eSnetMoveLineMultiAxis</code>,
+<code>eSnetMoveArcRadius</code>, <code>eSnetMoveArcAngle</code>,
+<code>eSnetMoveArcPoint</code>, <code>eSnetMoveHelical</code>,
+<code>eSnetMoveSpline</code></td>
+<td>컨트롤러 보간 실행. Group object는 아니지만 다축 경로 구현
+가능.</td>
+</tr>
+<tr>
+<td>21. 연속 보간 구동</td>
+<td style="text-align: right;">12</td>
+<td><code>eSnetSetContiCh</code>, <code>eSnetGetContiCh</code>,
+<code>eSnetBeginContiMakeJob</code>, <code>eSnetEndContiMakeJob</code>,
+<code>eSnetGetContiJobIndexCount</code>, <code>eSnetStartConti</code>,
+<code>eSnetGetContiInfoResult</code>,
+<code>eSnetSetContiOutputConfig</code>, … 외 4개</td>
+<td>컨트롤러 보간 실행. Group object는 아니지만 다축 경로 구현
+가능.</td>
+</tr>
+<tr>
+<td>22. 위치/속도 Override</td>
+<td style="text-align: right;">6</td>
+<td><code>eSnetOverrideVelocity</code>,
+<code>eSnetOverrideVelocityEx</code>,
+<code>eSnetOverrideInterpolationVelocity</code>,
+<code>eSnetOverrideVelocityAtMultiPosition</code>,
+<code>eSnetOverrideAccelVelocityDecelAtPosition</code>,
+<code>eSnetOverridePosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>23. Rollover (좌표 재설정)</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetSetRollover</code>, <code>eSnetGetRollover</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>24. 겐트리 동기 구동</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetEnableGantrySync</code>,
+<code>eSnetIsGantrySync</code></td>
+<td>SNET 전용 명시 기능.</td>
+</tr>
+<tr>
+<td>25. 겐트리 원점 검색</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetIsSetGantrySyncHoming</code>,
+<code>eSnetGetGantrySyncHoming</code></td>
+<td>기본 축 제어 기능.</td>
+</tr>
+<tr>
+<td>26. Interrupt Event</td>
+<td style="text-align: right;">9</td>
+<td><code>eSnetGetInterruptEventTable</code>,
+<code>eSnetEraseInterruptEventTable</code>,
+<code>eSnetClearInterruptEventTable</code>,
+<code>eSnetSetInterruptEventFunction</code>,
+<code>eSnetEnableInterruptEvent</code>,
+<code>eSnetIsInterruptEvent</code>,
+<code>eSnetWaitInterruptEvent</code>,
+<code>eSnetReleaseWaitingInterruptEvent</code>, … 외 1개</td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>27. 입/출력 제어 (공통)</td>
+<td style="text-align: right;">1</td>
+<td><code>eSnetGetMcbUserInput</code></td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>28. 입/출력 제어 (SNET-P)</td>
+<td style="text-align: right;">9</td>
+<td><code>eSnetPulseGetUserInput</code>,
+<code>eSnetPulseGetUserInputPortAll</code>,
+<code>eSnetPulseGetUserInputPort</code>,
+<code>eSnetPulseGetUserInputPoint</code>,
+<code>eSnetPulseGetUserOutput</code>,
+<code>eSnetPulseGetUserOutputPortAll</code>,
+<code>eSnetPulseGetUserOutputPort</code>,
+<code>eSnetPulseGetUserOutputPoint</code>, … 외 1개</td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>29. 입/출력 제어 (SNET-P-AD)</td>
+<td style="text-align: right;">8</td>
+<td><code>eSnetPulseExGetIoInput</code>,
+<code>eSnetPulseExGetIoInputPortAll</code>,
+<code>eSnetPulseExGetIoInputPoint</code>,
+<code>eSnetPulseExGetIoOutput</code>,
+<code>eSnetPulseExGetIoOutputPortAll</code>,
+<code>eSnetPulseExGetIoOutputPort</code>,
+<code>eSnetPulseExGetIoOutputPoint</code>,
+<code>eSnetPulseExSetIoOutputPoint</code></td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>30. 입/출력 제어 (SNET-RTEX- Option)</td>
+<td style="text-align: right;">10</td>
+<td><code>eSnetRtexGetIoInput</code>,
+<code>eSnetRtexGetIoInputPortAll</code>,
+<code>eSnetRtexGetIoInputPort</code>,
+<code>eSnetRtexGetIoInputPoint</code>,
+<code>eSnetRtexGetIoOutput</code>,
+<code>eSnetRtexGetIoOutputPortAll</code>,
+<code>eSnetRtexGetIoOutputPort</code>,
+<code>eSnetRtexGetIoOutputPoint</code>, … 외 2개</td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>31. 입/출력 제어 (SNET-RTEX-IO Slave)</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetRtexGetIoSlaveInputPort</code>,
+<code>eSnetRtexGetIoSlaveInputPoint</code>,
+<code>eSnetRtexSetIoSlaveOutputPort</code>,
+<code>eSnetRtexSetIoSlaveOutputPoint</code>,
+<code>eSnetRtexGetIoSlaveOutputPoint</code></td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>32. 입/출력 제어 (Remote IO)</td>
+<td style="text-align: right;">7</td>
+<td><code>eSnetSetRemoteIoConfig</code>,
+<code>eSnetGetRemoteIoConfig</code>,
+<code>eSnetGetRemoteIoPortInOut</code>,
+<code>eSnetGetRemoteIoInputPoint</code>,
+<code>eSnetGetRemoteIoOutputPoint</code>,
+<code>eSnetSetRemoteIoOutputPort</code>,
+<code>eSnetSetRemoteIoOutputPoint</code></td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>33. 입/출력 제어 (SNET-ECAT-IO Node)</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetEcatGetIoNodeInputPortEx</code>,
+<code>eSnetEcatGetIoNodeInputPointEx</code>,
+<code>eSnetEcatSetIoNodeOutputPointEx</code>,
+<code>eSnetEcatGetIoNodeOutputPortEx</code>,
+<code>eSnetEcatGetIoNodeOutputPointEx</code></td>
+<td>SNET-ECAT 노드/CoE/ESC 제어 영역.</td>
+</tr>
+<tr>
+<td>34. Trigger 출력 (SNET-P / EMD) ☞ 일정 거리 간격으로 트리거 신호
+출력</td>
+<td style="text-align: right;">6</td>
+<td><code>eSnetSetTriggerPort</code>, <code>eSnetGetTriggerPort</code>,
+<code>eSnetSetTriggerParameter</code>,
+<code>eSnetGetTriggerParameter</code>,
+<code>eSnetGetTriggerStatus</code>, <code>eSnetStartTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>35. Trigger 출력 (SNET-RTEX) ☞ 일정 거리 간격으로 트리거 신호 출력
+-1</td>
+<td style="text-align: right;">7</td>
+<td><code>eSnetSetTriggerPort</code>, <code>eSnetGetTriggerPort</code>,
+<code>eSnetRtexSetTriggerSource</code>,
+<code>eSnetSetTriggerParameter</code>,
+<code>eSnetGetTriggerParameter</code>,
+<code>eSnetGetTriggerStatus</code>, <code>eSnetStartTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>36. Trigger 출력 (SNET-RTEX) ☞ 일정 거리 간격으로 트리거 신호 출력
+-2</td>
+<td style="text-align: right;">6</td>
+<td><code>eSnetRtexSetTriggerPort</code>,
+<code>eSnetRtexGetTriggerPort</code>,
+<code>eSnetRtexSetTriggerParameter</code>,
+<code>eSnetRtexGetTriggerParameter</code>,
+<code>eSnetRtexGetTriggerStatus</code>,
+<code>eSnetRtexStartTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>37. Trigger 출력 (SNET-ECAT) ☞ 일정 거리 간격으로 트리거 신호
+출력</td>
+<td style="text-align: right;">8</td>
+<td><code>eSnetSetCyclicTriggerPort</code>,
+<code>eSnetGetCyclicTriggerPort</code>,
+<code>eSnetSetCyclicTriggerPortEx</code>,
+<code>eSnetGetCyclicTriggerPortEx</code>,
+<code>eSnetSetCyclicTriggerParameter</code>,
+<code>eSnetGetCyclicTriggerParameter</code>,
+<code>eSnetGetCyclicTriggerStatus</code>,
+<code>eSnetStartCyclicTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>38. Trigger 출력 (SNET-P / RTEX / EMD) ☞ 특정 위치에서 트리거 신호
+출력</td>
+<td style="text-align: right;">4</td>
+<td><code>eSnetSetTriggerTimeLevel</code>,
+<code>eSnetGetTriggerTimeLevel</code>,
+<code>eSnetSetTriggerOnlyAbs</code>, <code>eSnetResetTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>39. Trigger 출력 (SNET-ECAT) - 특정 위치 트리거</td>
+<td style="text-align: right;">6</td>
+<td><code>eSnetSetTriggerTimeLevelEx</code>,
+<code>eSnetGetTriggerTimeLevelEx</code>,
+<code>eSnetSetTriggerTimeLevelNode</code>,
+<code>eSnetGetTriggerTimeLevelNode</code>,
+<code>eSnetSetTriggerOnlyAbs</code>, <code>eSnetResetTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>40. Trigger 출력 (SNET-RTEX-2LAN) ☞ 특정 위치에서 트리거 신호
+출력</td>
+<td style="text-align: right;">4</td>
+<td><code>eSnetSetTriggerTimeLevelEx</code>,
+<code>eSnetGetTriggerTimeLevelEx</code>,
+<code>eSnetSetTriggerOnlyAbsEx</code>,
+<code>eSnetGetTriggerOnlyAbsEx</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>41. Trigger 출력 ☞ 보간 이송 중 트리거 신호 출력</td>
+<td style="text-align: right;">4</td>
+<td><code>eSnetSetInterpolTriggerConfig</code>,
+<code>eSnetGetInterpolTriggerConfig</code>,
+<code>eSnetStartInterpolTrigger</code>,
+<code>eSnetStopInterpolTrigger</code></td>
+<td>위치/거리 기반 출력 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>42. 설정 시간 동안 접점 출력</td>
+<td style="text-align: right;">3</td>
+<td><code>eSnetSetOutputForTime</code>,
+<code>eSnetGetOutputForTimeRun</code>,
+<code>eSnetResetOutputForTime</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>43. Latch 입력</td>
+<td style="text-align: right;">4</td>
+<td><code>eSnetSetLatchInput</code>, <code>eSnetGetLatchInConfig</code>,
+<code>eSnetGetLatchInput</code>, <code>eSnetResetLatchInput</code></td>
+<td>외부 신호 기반 위치 계측 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>44. Position Capture 1 ( SNET-P / RTEX )</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetSetCaptureConfig</code>,
+<code>eSnetGetCaptureConfig</code>, <code>eSnetStartCapture</code>,
+<code>eSnetGetCaptureStatus</code>,
+<code>eSnetGetCapturePosition</code></td>
+<td>외부 신호 기반 위치 계측 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>45. Position Capture 2 ( SNET-RTEX )</td>
+<td style="text-align: right;">3</td>
+<td><code>eSnetRtexStartCapture</code>,
+<code>eSnetRtexGetCaptureStatus</code>,
+<code>eSnetRtexGetCapturePosition</code></td>
+<td>외부 신호 기반 위치 계측 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>46. Position Capture 3 ( SNET-ECAT )</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetSetFieldbusCapture</code>,
+<code>eSnetGetFieldbusCapture</code>,
+<code>eSnetStartFieldbusCapture</code>,
+<code>eSnetGetFieldbusCaptureStatus</code>,
+<code>eSnetGetFieldbusCapturePosition</code></td>
+<td>외부 신호 기반 위치 계측 기능. SNET의 강점 영역.</td>
+</tr>
+<tr>
+<td>47. MPG 이송</td>
+<td style="text-align: right;">2</td>
+<td><code>eSnetRtexSetMpgConfig</code>,
+<code>eSnetRtexGetMpgConfig</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>48. 기구 피치 오차 보정 테이블</td>
+<td style="text-align: right;">5</td>
+<td><code>eSnetGetPositionCompensation</code>,
+<code>eSnetGetPositionCompensationEnable</code>,
+<code>eSnetGetPositionCompensationResult</code>,
+<code>eSnetGetCommandPositionCompensation</code>,
+<code>eSnetGetActualPositionCompensation</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>49. 사용자 지정 기계좌표에서 접점 출력</td>
+<td style="text-align: right;">3</td>
+<td><code>eSnetSetOutAtActualPosition</code>,
+<code>eSnetGetOutAtActualPosition</code>,
+<code>eSnetResetOutAtActualPosition</code></td>
+<td>기본 관리/상태/파라미터 기능.</td>
+</tr>
+<tr>
+<td>50. ADC(Analog-digital converter) / DAC(Digital-analog
+converter)</td>
+<td style="text-align: right;">6</td>
+<td><code>eSnetSetAdcConfig</code>, <code>eSnetGetAdcConfig</code>,
+<code>eSnetGetAdcData</code>, <code>eSnetSetDacConfig</code>,
+<code>eSnetGetDacConfig</code>, <code>eSnetSetDacDigit</code></td>
+<td>장비 I/O 제어 기능이 세분화되어 있음.</td>
+</tr>
+<tr>
+<td>51. 이더켓 (SNET-ECAT)</td>
+<td style="text-align: right;">9</td>
+<td><code>eSnetEcatGetCoePdo</code>, <code>eSnetEcatSetCoePdo</code>,
+<code>eSnetEcatGetCoeSdo</code>, <code>eSnetEcatSetCoeSdo</code>,
+<code>eSnetEcatGetEscRegister</code>,
+<code>eSnetEcatSetEscRegister</code>,
+<code>eSnetEcatGetStateMachine</code>, <code>eSnetEcatGetBrake</code>, …
+외 1개</td>
+<td>SNET-ECAT 노드/CoE/ESC 제어 영역.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="성능-관점">성능 관점</h2>
+<ul>
+<li>정량 latency/throughput benchmark는 이 PDF에 공통 조건으로 제시되어
+있지 않다.</li>
+<li><code>eSnetCheckCommunicationTime</code>이 제공되므로 PC-제어기 응답
+시간 자체는 API 레벨에서 측정할 수 있다.</li>
+<li>고속 위치 동기 동작은 PC polling보다 controller/fieldbus
+trigger/capture API를 쓰는 구조가 성능상 유리하다.</li>
+<li>다축 경로는 <code>eSnetMoveLine*</code>, <code>eSnetMoveArc*</code>,
+<code>eSnetMoveSpline</code>,
+<code>eSnetBeginContiMakeJob</code>/<code>eSnetStartConti</code> 같은
+컨트롤러 실행형 API를 우선 고려해야 한다.</li>
+</ul>
+<h2 id="maestro-대비-snet에-강하게-보이는-기능">Maestro 대비 SNET에
+강하게 보이는 기능</h2>
+<ul>
+<li>거리/위치/보간 중 Trigger 출력: Chapter 34-41</li>
+<li>Latch 및 Position Capture: Chapter 43-46</li>
+<li>SNET-P/RTEX/Remote/SNET-ECAT IO, ADC/DAC: Chapter 27-33, 50</li>
+<li>명시적 Gantry sync/homing: Chapter 24-25</li>
+<li>SNET-ECAT CoE/ESC/state/brake 함수: Chapter 51</li>
+</ul>
+<h2 id="maestro-대비-부족하거나-직접-대응이-없는-기능">Maestro 대비
+부족하거나 직접 대응이 없는 기능</h2>
+<ul>
+<li><code>MMC_GroupReadStatus</code> 같은 group object status API</li>
+<li><code>MMC_SetKinTransform*</code> 같은 기구학/좌표계 transform
+API</li>
+<li>Group Motion의 <code>BufferMode</code>, <code>TransitionMode</code>,
+transition parameter 중심 블렌딩</li>
+<li>PVT table motion, Electronic CAM/Gear 기능</li>
+<li>Process Image, PI Bulk Read, Bulk Parameter Read 계층</li>
+<li>FoE download/resource import/export 등 Maestro administrative
+기능</li>
+</ul>
+</body>
+</html>

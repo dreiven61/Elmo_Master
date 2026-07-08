@@ -1,0 +1,33 @@
+{
+  "Source": "C:\\work\\Elmo\\Elmo_Master\\docs\\history\\Elmo_Master_history_260708.md",
+  "SourceBytes": 44873,
+  "SourceLines": 746,
+  "ChunkLines": 250,
+  "ChunkCount": 3,
+  "SourceSha256": "a0448da548720bcd63e8683555ae6d2312d7a1285f59497b1540e4eca4fe573a",
+  "RejoinedSha256": "a0448da548720bcd63e8683555ae6d2312d7a1285f59497b1540e4eca4fe573a",
+  "ByteRejoinMatchesSource": true,
+  "Chunks": [
+    {
+      "Part": 1,
+      "File": "Elmo_Master_history_260708_part_01_lines_0001_0250.md",
+      "StartLine": 1,
+      "EndLine": 250,
+      "Bytes": 16798
+    },
+    {
+      "Part": 2,
+      "File": "Elmo_Master_history_260708_part_02_lines_0251_0500.md",
+      "StartLine": 251,
+      "EndLine": 500,
+      "Bytes": 16866
+    },
+    {
+      "Part": 3,
+      "File": "Elmo_Master_history_260708_part_03_lines_0501_0746.md",
+      "StartLine": 501,
+      "EndLine": 746,
+      "Bytes": 11209
+    }
+  ]
+}
