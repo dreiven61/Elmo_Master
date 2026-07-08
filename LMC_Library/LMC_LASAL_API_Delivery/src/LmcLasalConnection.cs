@@ -7,14 +7,145 @@ namespace LmcLasalMotionApi
 {
     public sealed class LMCConnection : IDisposable
     {
-        private readonly object sync=new object(); private TcpClient client;
-        public void LMC_RpcInitConnection(string remoteAddress,int remotePort,string localAddress)
-        { LMC_CloseConnection(false);client=new TcpClient(new IPEndPoint(IPAddress.Parse(localAddress),0));client.NoDelay=true;client.ReceiveTimeout=3000;client.SendTimeout=3000;client.Connect(IPAddress.Parse(remoteAddress),remotePort); }
-        public void LMC_CloseConnection(){LMC_CloseConnection(false);}
-        private void LMC_CloseConnection(bool send){if(client==null)return;try{if(send&&client.Connected)Exchange(new byte[]{0x5D,0x40,0,0,1,0,0,0,0});}catch{}finally{client.Close();client=null;}}
-        internal byte[] Exchange(byte[] request){lock(sync){if(client==null||!client.Connected)throw new InvalidOperationException("LMC LASAL connection is not open.");var s=client.GetStream();s.Write(request,0,request.Length);var h=ReadExact(s,8);var n=LMC_Frame.U16(h,2);var p=n==0?new byte[0]:ReadExact(s,n);var all=new byte[8+n];Buffer.BlockCopy(h,0,all,0,8);if(n>0)Buffer.BlockCopy(p,0,all,8,n);return all;}}
-        private static byte[] ReadExact(NetworkStream s,int count){var b=new byte[count];var o=0;while(o<count){var n=s.Read(b,o,count-o);if(n<=0)throw new EndOfStreamException();o+=n;}return b;}
-        internal static LMC_Response Parse(byte[] raw){var r=new LMC_Response{Raw=raw};if(raw!=null&&raw.Length>=12){r.Status=LMC_Frame.U16(raw,raw.Length-4);r.ErrorId=unchecked((short)LMC_Frame.U16(raw,raw.Length-2));}return r;}
-        public void Dispose(){LMC_CloseConnection(false);}
+        private const int ReceiveTimeoutMilliseconds = 3000;
+        private const int SendTimeoutMilliseconds = 3000;
+        private const int ResponseStatusLength = 4;
+        private const int MinimumParsedResponseLength = LMC_Frame.HeaderSize + ResponseStatusLength;
+
+        private static readonly byte[] CloseConnectionRequest =
+        {
+            0x5D, 0x40, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00
+        };
+
+        private readonly object sync = new object();
+        private TcpClient client;
+
+        public void LMC_RpcInitConnection(
+            string remoteAddress,
+            int remotePort,
+            string localAddress)
+        {
+            LMC_CloseConnection(false);
+
+            var localEndPoint = new IPEndPoint(IPAddress.Parse(localAddress), 0);
+
+            client = new TcpClient(localEndPoint)
+            {
+                NoDelay = true,
+                ReceiveTimeout = ReceiveTimeoutMilliseconds,
+                SendTimeout = SendTimeoutMilliseconds
+            };
+
+            client.Connect(IPAddress.Parse(remoteAddress), remotePort);
+        }
+
+        public void LMC_CloseConnection()
+        {
+            LMC_CloseConnection(false);
+        }
+
+        internal byte[] Exchange(byte[] request)
+        {
+            lock (sync)
+            {
+                EnsureConnected();
+
+                var stream = client.GetStream();
+                stream.Write(request, 0, request.Length);
+
+                var header = ReadExact(stream, LMC_Frame.HeaderSize);
+                var payloadLength = LMC_Frame.GetResponsePayloadLength(header);
+                var payload = payloadLength == 0
+                    ? new byte[0]
+                    : ReadExact(stream, payloadLength);
+
+                return CombineResponse(header, payload);
+            }
+        }
+
+        internal static LMC_Response Parse(byte[] raw)
+        {
+            var response = new LMC_Response { Raw = raw };
+
+            if (raw == null || raw.Length < MinimumParsedResponseLength)
+            {
+                return response;
+            }
+
+            response.Status = LMC_Frame.ReadUInt16(raw, raw.Length - 4);
+            response.ErrorId = unchecked((short)LMC_Frame.ReadUInt16(raw, raw.Length - 2));
+
+            return response;
+        }
+
+        public void Dispose()
+        {
+            LMC_CloseConnection(false);
+        }
+
+        private void LMC_CloseConnection(bool sendCloseCommand)
+        {
+            if (client == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (sendCloseCommand && client.Connected)
+                {
+                    Exchange(CloseConnectionRequest);
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                client.Close();
+                client = null;
+            }
+        }
+
+        private void EnsureConnected()
+        {
+            if (client == null || !client.Connected)
+            {
+                throw new InvalidOperationException("LMC LASAL connection is not open.");
+            }
+        }
+
+        private static byte[] ReadExact(NetworkStream stream, int count)
+        {
+            var buffer = new byte[count];
+            var offset = 0;
+
+            while (offset < count)
+            {
+                var bytesRead = stream.Read(buffer, offset, count - offset);
+                if (bytesRead <= 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                offset += bytesRead;
+            }
+
+            return buffer;
+        }
+
+        private static byte[] CombineResponse(byte[] header, byte[] payload)
+        {
+            var response = new byte[header.Length + payload.Length];
+
+            Buffer.BlockCopy(header, 0, response, 0, header.Length);
+
+            if (payload.Length > 0)
+            {
+                Buffer.BlockCopy(payload, 0, response, header.Length, payload.Length);
+            }
+
+            return response;
+        }
     }
 }

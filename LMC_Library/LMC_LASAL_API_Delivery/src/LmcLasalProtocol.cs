@@ -1,15 +1,27 @@
 using System;
+using System.Text;
 
 namespace LmcLasalMotionApi
 {
-    public enum LMC_DIRECTION : int { None=0, Positive=1, Shortest=2, Negative=3, Current=4 }
+    public enum LMC_DIRECTION : int
+    {
+        None = 0,
+        Positive = 1,
+        Shortest = 2,
+        Negative = 3,
+        Current = 4
+    }
 
     public sealed class LMC_Response
     {
         public byte[] Raw { get; internal set; }
         public ushort Status { get; internal set; }
         public short ErrorId { get; internal set; }
-        public bool IsSuccess { get { return Status == 0 && ErrorId == 0; } }
+
+        public bool IsSuccess
+        {
+            get { return Status == 0 && ErrorId == 0; }
+        }
     }
 
     public static class LMC_Units
@@ -39,6 +51,8 @@ namespace LmcLasalMotionApi
 
     public sealed class LMC_UnitConverter
     {
+        private const MidpointRounding RoundingMode = MidpointRounding.AwayFromZero;
+
         public int PositionUnit { get; private set; }
         public int VelocityUnit { get; private set; }
         public int AccelerationUnit { get; private set; }
@@ -55,82 +69,351 @@ namespace LmcLasalMotionApi
         {
         }
 
-        public LMC_UnitConverter(int positionUnit,int velocityUnit,int accelerationUnit,int decelerationUnit,int jerkUnit)
+        public LMC_UnitConverter(
+            int positionUnit,
+            int velocityUnit,
+            int accelerationUnit,
+            int decelerationUnit,
+            int jerkUnit)
         {
-            ValidateUnit(positionUnit,nameof(positionUnit));
-            ValidateUnit(velocityUnit,nameof(velocityUnit));
-            ValidateUnit(accelerationUnit,nameof(accelerationUnit));
-            ValidateUnit(decelerationUnit,nameof(decelerationUnit));
-            ValidateUnit(jerkUnit,nameof(jerkUnit));
-            PositionUnit=positionUnit;
-            VelocityUnit=velocityUnit;
-            AccelerationUnit=accelerationUnit;
-            DecelerationUnit=decelerationUnit;
-            JerkUnit=jerkUnit;
+            ValidateUnit(positionUnit, nameof(positionUnit));
+            ValidateUnit(velocityUnit, nameof(velocityUnit));
+            ValidateUnit(accelerationUnit, nameof(accelerationUnit));
+            ValidateUnit(decelerationUnit, nameof(decelerationUnit));
+            ValidateUnit(jerkUnit, nameof(jerkUnit));
+
+            PositionUnit = positionUnit;
+            VelocityUnit = velocityUnit;
+            AccelerationUnit = accelerationUnit;
+            DecelerationUnit = decelerationUnit;
+            JerkUnit = jerkUnit;
         }
 
-        public int PositionToInternal(double value){return Scale(value,PositionUnit);}
-        public int VelocityToInternal(double value){return Scale(value,VelocityUnit);}
-        public int AccelerationToInternal(double value){return Scale(value,AccelerationUnit);}
-        public int DecelerationToInternal(double value){return Scale(value,DecelerationUnit);}
-        public int JerkToInternal(double value){return Scale(value,JerkUnit);}
-        public double InternalToPosition(int value){return (double)value/PositionUnit;}
-
-        private static void ValidateUnit(int unit,string name)
+        public int PositionToInternal(double value)
         {
-            if(unit<=0) throw new ArgumentOutOfRangeException(name);
+            return Scale(value, PositionUnit);
         }
 
-        private static int Scale(double value,int unit)
+        public int VelocityToInternal(double value)
         {
-            if(double.IsNaN(value)||double.IsInfinity(value)) throw new ArgumentOutOfRangeException(nameof(value));
-            return checked((int)Math.Round(value*unit,MidpointRounding.AwayFromZero));
+            return Scale(value, VelocityUnit);
+        }
+
+        public int AccelerationToInternal(double value)
+        {
+            return Scale(value, AccelerationUnit);
+        }
+
+        public int DecelerationToInternal(double value)
+        {
+            return Scale(value, DecelerationUnit);
+        }
+
+        public int JerkToInternal(double value)
+        {
+            return Scale(value, JerkUnit);
+        }
+
+        public double InternalToPosition(int value)
+        {
+            return (double)value / PositionUnit;
+        }
+
+        private static void ValidateUnit(int unit, string name)
+        {
+            if (unit <= 0)
+            {
+                throw new ArgumentOutOfRangeException(name);
+            }
+        }
+
+        private static int Scale(double value, int unit)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return checked((int)Math.Round(value * unit, RoundingMode));
         }
     }
 
     internal static class LMC_CommandId
     {
-        internal const ushort GetAxisByName=0x103C, GetGroupByName=0x1042;
-        internal const ushort CloseConnection=0x405D, Power=0x2023, Reset=0x2024, Stop=0x2022;
-        internal const ushort AxisInfo=0x202B, ReadStatus=0x2028, ReadPosition=0x202E;
-        internal const ushort MoveAbsolute=0x209F, MoveRelative=0x20A0, MoveVelocity=0x20A2;
-        internal const ushort GetMembers=0x20D2, GroupStatus=0x2045, GroupEnable=0x2047;
-        internal const ushort GroupDisable=0x2048, GroupReset=0x2049, GroupStop=0x2085;
-        internal const ushort GroupPosition=0x2051, MoveLinear=0x20A4;
+        internal const ushort GetAxisByName = 0x103C;
+        internal const ushort GetGroupByName = 0x1042;
+
+        internal const ushort CloseConnection = 0x405D;
+        internal const ushort Power = 0x2023;
+        internal const ushort Reset = 0x2024;
+        internal const ushort Stop = 0x2022;
+
+        internal const ushort AxisInfo = 0x202B;
+        internal const ushort ReadStatus = 0x2028;
+        internal const ushort ReadPosition = 0x202E;
+
+        internal const ushort MoveAbsolute = 0x209F;
+        internal const ushort MoveRelative = 0x20A0;
+        internal const ushort MoveVelocity = 0x20A2;
+
+        internal const ushort GetMembers = 0x20D2;
+        internal const ushort GroupStatus = 0x2045;
+        internal const ushort GroupEnable = 0x2047;
+        internal const ushort GroupDisable = 0x2048;
+        internal const ushort GroupReset = 0x2049;
+        internal const ushort GroupStop = 0x2085;
+        internal const ushort GroupPosition = 0x2051;
+        internal const ushort MoveLinear = 0x20A4;
     }
 
     internal static class LMC_Frame
     {
-        internal static byte[] Header(ushort command,ushort reference,ushort payloadLength)
-        { var b=new byte[8+payloadLength];U16(b,0,command);U16(b,4,payloadLength);U16(b,6,reference);return b; }
-        internal static byte[] Name(ushort command,string name)
-        { var b=Header(command,0,0x50);var s=System.Text.Encoding.ASCII.GetBytes(name??"");Buffer.BlockCopy(s,0,b,8,Math.Min(s.Length,79));return b; }
-        internal static byte[] AxisInfo(ushort r)
-        { var b=Header(LMC_CommandId.AxisInfo,r,12);I32(b,8,5);I32(b,16,1);return b; }
-        internal static byte[] Power(ushort r,bool on)
-        { var b=Header(LMC_CommandId.Power,r,8);I32(b,8,1);b[12]=on?(byte)1:(byte)0;b[13]=1;b[15]=1;return b; }
-        internal static byte[] Simple(ushort command,ushort r)
-        { var b=Header(command,r,1);b[8]=1;return b; }
-        internal static byte[] ReadStatus(ushort r)
-        { var b=Header(LMC_CommandId.ReadStatus,r,8);I32(b,8,r);I32(b,12,1);return b; }
-        internal static byte[] ReadPosition(ushort r)
-        { return Header(LMC_CommandId.ReadPosition,r,1); }
-        internal static byte[] Stop(ushort r,int dec,int jerk)
-        { var b=Header(LMC_CommandId.Stop,r,16);I32(b,8,dec);I32(b,12,jerk);I32(b,16,1);I32(b,20,1);return b; }
-        internal static byte[] GroupStop(ushort r,int dec,int jerk)
-        { var b=Header(LMC_CommandId.GroupStop,r,16);I32(b,8,dec);I32(b,12,jerk);I32(b,16,1);I32(b,20,1);return b; }
-        internal static byte[] AxisMove(ushort command,ushort r,int value,int vel,int acc,int dec,int jerk,LMC_DIRECTION direction)
-        { var b=Header(command,r,32);I32(b,8,value);I32(b,12,vel);I32(b,16,acc);I32(b,20,dec);I32(b,24,jerk);I32(b,28,(int)direction);I32(b,32,1);I32(b,36,1);return b; }
-        internal static byte[] Velocity(ushort r,int vel,int acc,int dec,int jerk,LMC_DIRECTION direction)
-        { var b=Header(LMC_CommandId.MoveVelocity,r,24);I32(b,8,vel);I32(b,12,acc);I32(b,16,dec);I32(b,20,jerk);I32(b,24,(int)direction);I32(b,28,1);return b; }
-        internal static byte[] GroupRead(ushort command,ushort r)
-        { var b=Header(command,r,8);I32(b,8,0);I32(b,12,1);return b; }
-        internal static byte[] MoveLinear(ushort r,double[] position,double velocity,double acceleration,double deceleration,double jerk,LMC_UnitConverter units)
-        { var b=Header(LMC_CommandId.MoveLinear,r,96);for(var i=0;i<16;i++)I32(b,8+i*4,units.PositionToInternal(position!=null&&i<position.Length?position[i]:0));I32(b,72,units.VelocityToInternal(velocity));I32(b,76,units.AccelerationToInternal(acceleration));I32(b,80,units.DecelerationToInternal(deceleration));I32(b,84,units.JerkToInternal(jerk));I32(b,88,0);I32(b,92,0);I32(b,96,1);I32(b,100,1);return b; }
-        internal static ushort U16(byte[] b,int o){return (ushort)(b[o]|b[o+1]<<8);}
-        internal static uint U32(byte[] b,int o){return (uint)(b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24);}
-        internal static int I32(byte[] b,int o){return unchecked((int)U32(b,o));}
-        internal static void U16(byte[] b,int o,ushort v){b[o]=(byte)v;b[o+1]=(byte)(v>>8);}
-        internal static void I32(byte[] b,int o,int v){var x=unchecked((uint)v);b[o]=(byte)x;b[o+1]=(byte)(x>>8);b[o+2]=(byte)(x>>16);b[o+3]=(byte)(x>>24);}
+        internal const int HeaderSize = 8;
+
+        private const int CommandOffset = 0;
+        private const int ResponsePayloadLengthOffset = 2;
+        private const int RequestPayloadLengthOffset = 4;
+        private const int ReferenceOffset = 6;
+
+        private const int NamePayloadLength = 0x50;
+        private const int NameMaxBytes = 79;
+        private const int MaxLinearAxes = 16;
+
+        private const int AxisInfoModeOffset = HeaderSize;
+        private const int AxisInfoEnableOffset = HeaderSize + 8;
+
+        internal static byte[] CreateRequest(ushort command, ushort reference, ushort payloadLength)
+        {
+            var buffer = new byte[HeaderSize + payloadLength];
+
+            WriteUInt16(buffer, CommandOffset, command);
+            WriteUInt16(buffer, RequestPayloadLengthOffset, payloadLength);
+            WriteUInt16(buffer, ReferenceOffset, reference);
+
+            return buffer;
+        }
+
+        internal static ushort GetResponsePayloadLength(byte[] header)
+        {
+            return ReadUInt16(header, ResponsePayloadLengthOffset);
+        }
+
+        internal static byte[] Name(ushort command, string name)
+        {
+            var buffer = CreateRequest(command, 0, NamePayloadLength);
+            var encodedName = Encoding.ASCII.GetBytes(name ?? string.Empty);
+            var byteCount = Math.Min(encodedName.Length, NameMaxBytes);
+
+            Buffer.BlockCopy(encodedName, 0, buffer, HeaderSize, byteCount);
+            return buffer;
+        }
+
+        internal static byte[] AxisInfo(ushort reference)
+        {
+            var buffer = CreateRequest(LMC_CommandId.AxisInfo, reference, 12);
+
+            WriteInt32(buffer, AxisInfoModeOffset, 5);
+            WriteInt32(buffer, AxisInfoEnableOffset, 1);
+
+            return buffer;
+        }
+
+        internal static byte[] Power(ushort reference, bool enabled)
+        {
+            var buffer = CreateRequest(LMC_CommandId.Power, reference, 8);
+
+            WriteInt32(buffer, HeaderSize, 1);
+            buffer[HeaderSize + 4] = enabled ? (byte)1 : (byte)0;
+            buffer[HeaderSize + 5] = 1;
+            buffer[HeaderSize + 7] = 1;
+
+            return buffer;
+        }
+
+        internal static byte[] Simple(ushort command, ushort reference)
+        {
+            var buffer = CreateRequest(command, reference, 1);
+            buffer[HeaderSize] = 1;
+            return buffer;
+        }
+
+        internal static byte[] ReadStatus(ushort reference)
+        {
+            var buffer = CreateRequest(LMC_CommandId.ReadStatus, reference, 8);
+
+            WriteInt32(buffer, HeaderSize, reference);
+            WriteInt32(buffer, HeaderSize + 4, 1);
+
+            return buffer;
+        }
+
+        internal static byte[] ReadPosition(ushort reference)
+        {
+            return CreateRequest(LMC_CommandId.ReadPosition, reference, 1);
+        }
+
+        internal static byte[] Stop(ushort reference, int deceleration, int jerk)
+        {
+            return Stop(LMC_CommandId.Stop, reference, deceleration, jerk);
+        }
+
+        internal static byte[] GroupStop(ushort reference, int deceleration, int jerk)
+        {
+            return Stop(LMC_CommandId.GroupStop, reference, deceleration, jerk);
+        }
+
+        internal static byte[] AxisMove(
+            ushort command,
+            ushort reference,
+            int positionOrDistance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction)
+        {
+            var buffer = CreateRequest(command, reference, 32);
+
+            WriteInt32(buffer, HeaderSize, positionOrDistance);
+            WriteInt32(buffer, HeaderSize + 4, velocity);
+            WriteInt32(buffer, HeaderSize + 8, acceleration);
+            WriteInt32(buffer, HeaderSize + 12, deceleration);
+            WriteInt32(buffer, HeaderSize + 16, jerk);
+            WriteInt32(buffer, HeaderSize + 20, (int)direction);
+            WriteInt32(buffer, HeaderSize + 24, 1);
+            WriteInt32(buffer, HeaderSize + 28, 1);
+
+            return buffer;
+        }
+
+        internal static byte[] Velocity(
+            ushort reference,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction)
+        {
+            var buffer = CreateRequest(LMC_CommandId.MoveVelocity, reference, 24);
+
+            WriteInt32(buffer, HeaderSize, velocity);
+            WriteInt32(buffer, HeaderSize + 4, acceleration);
+            WriteInt32(buffer, HeaderSize + 8, deceleration);
+            WriteInt32(buffer, HeaderSize + 12, jerk);
+            WriteInt32(buffer, HeaderSize + 16, (int)direction);
+            WriteInt32(buffer, HeaderSize + 20, 1);
+
+            return buffer;
+        }
+
+        internal static byte[] GroupRead(ushort command, ushort reference)
+        {
+            var buffer = CreateRequest(command, reference, 8);
+
+            WriteInt32(buffer, HeaderSize, 0);
+            WriteInt32(buffer, HeaderSize + 4, 1);
+
+            return buffer;
+        }
+
+        internal static byte[] MoveLinear(
+            ushort reference,
+            double[] position,
+            double velocity,
+            double acceleration,
+            double deceleration,
+            double jerk,
+            LMC_UnitConverter units)
+        {
+            var buffer = CreateRequest(LMC_CommandId.MoveLinear, reference, 96);
+
+            WriteLinearPositions(buffer, position, units);
+            WriteInt32(buffer, HeaderSize + 64, units.VelocityToInternal(velocity));
+            WriteInt32(buffer, HeaderSize + 68, units.AccelerationToInternal(acceleration));
+            WriteInt32(buffer, HeaderSize + 72, units.DecelerationToInternal(deceleration));
+            WriteInt32(buffer, HeaderSize + 76, units.JerkToInternal(jerk));
+            WriteInt32(buffer, HeaderSize + 80, 0);
+            WriteInt32(buffer, HeaderSize + 84, 0);
+            WriteInt32(buffer, HeaderSize + 88, 1);
+            WriteInt32(buffer, HeaderSize + 92, 1);
+
+            return buffer;
+        }
+
+        internal static ushort ReadUInt16(byte[] buffer, int offset)
+        {
+            return (ushort)(buffer[offset] | (buffer[offset + 1] << 8));
+        }
+
+        internal static uint ReadUInt32(byte[] buffer, int offset)
+        {
+            return
+                buffer[offset]
+                | ((uint)buffer[offset + 1] << 8)
+                | ((uint)buffer[offset + 2] << 16)
+                | ((uint)buffer[offset + 3] << 24);
+        }
+
+        internal static int ReadInt32(byte[] buffer, int offset)
+        {
+            return unchecked((int)ReadUInt32(buffer, offset));
+        }
+
+        internal static void WriteUInt16(byte[] buffer, int offset, ushort value)
+        {
+            buffer[offset] = (byte)value;
+            buffer[offset + 1] = (byte)(value >> 8);
+        }
+
+        internal static void WriteInt32(byte[] buffer, int offset, int value)
+        {
+            var unsignedValue = unchecked((uint)value);
+
+            buffer[offset] = (byte)unsignedValue;
+            buffer[offset + 1] = (byte)(unsignedValue >> 8);
+            buffer[offset + 2] = (byte)(unsignedValue >> 16);
+            buffer[offset + 3] = (byte)(unsignedValue >> 24);
+        }
+
+        private static byte[] Stop(
+            ushort command,
+            ushort reference,
+            int deceleration,
+            int jerk)
+        {
+            var buffer = CreateRequest(command, reference, 16);
+
+            WriteInt32(buffer, HeaderSize, deceleration);
+            WriteInt32(buffer, HeaderSize + 4, jerk);
+            WriteInt32(buffer, HeaderSize + 8, 1);
+            WriteInt32(buffer, HeaderSize + 12, 1);
+
+            return buffer;
+        }
+
+        private static void WriteLinearPositions(
+            byte[] buffer,
+            double[] position,
+            LMC_UnitConverter units)
+        {
+            for (var axisIndex = 0; axisIndex < MaxLinearAxes; axisIndex++)
+            {
+                var requestedPosition = GetPosition(position, axisIndex);
+                var internalPosition = units.PositionToInternal(requestedPosition);
+                var offset = HeaderSize + axisIndex * 4;
+
+                WriteInt32(buffer, offset, internalPosition);
+            }
+        }
+
+        private static double GetPosition(double[] position, int axisIndex)
+        {
+            if (position == null || axisIndex >= position.Length)
+            {
+                return 0;
+            }
+
+            return position[axisIndex];
+        }
     }
 }
