@@ -1,0 +1,51 @@
+LMC Motion API 함수명 / Command ID / 인자 정리
+작성 기준: LmcMotionApi 최종 전달본
+단위: 위치·속도·가속도·감속도·저크는 컨트롤러 count 기준
+시험 기준: 1 rev = 8,388,608 count
+
+구분	함수명	Command ID	인자	반환값 / 비고
+연결	LMC_RpcInitConnection	0x8080, 0x405C	remoteAddress, remotePort, localAddress, callbackPort, eventMask, performCapturedHandshake	TCP 연결; handshake=true이면 SessionInit 및 UDP callback 등록
+연결	LMC_CloseConnection	0x405D	없음	TCP 연결 종료
+
+객체	LMCAxis 생성자	0x103C, 0x202B	connection, axisName	축 이름 조회 후 AxisReference 및 축 정보 확인
+단축	LMC_PowerCmd	0x2023	enable(bool)	true=Servo On, false=Servo Off
+단축	LMC_Reset	0x2024	없음	ErrorStop 상태에서만 사용
+단축	LMC_StopCmd	0x2022	deceleration(float), jerk(float)	단축 정지
+단축	LMC_ReadStatusCmd	0x2028	out response	uint 축 상태 반환; 0x80=StandStill, 0x200=Disabled
+단축	LMC_ReadActualPositionCmd	0x202E	out response	double 실제 위치 반환
+단축	LMC_MoveAbsoluteExCmd	0x209F	position, velocity, acceleration, deceleration, jerk, direction=Shortest	절대 위치 이동
+단축	LMC_MoveRelativeExCmd	0x20A0	distance, velocity, acceleration, deceleration, jerk, direction=Shortest	상대 거리 이동
+단축	LMC_MoveVelocityExCmd	0x20A2	velocity, acceleration, deceleration, jerk, direction	속도 이동; direction은 Positive(1) 또는 Negative(3)
+
+객체	LMCGroup 생성자	0x1042	connection, groupName	그룹 이름 조회 후 GroupReference 획득
+그룹	LMC_GetGroupMembersInfo	0x20D2	out response	그룹 멤버 정보 원본 byte[] 반환
+그룹	LMC_GroupEnableCmd	0x2047	없음	GroupDisabled → GroupStandby
+그룹	LMC_GroupDisableCmd	0x2048	없음	그룹 해제; 단축 제어 전 반드시 실행
+그룹	LMC_GroupResetCmd	0x2049	없음	그룹 ErrorStop 상태 리셋
+그룹	LMC_GroupStopCmd	0x2085	deceleration(float), jerk(float)	그룹 이동 정지; 그룹 자체를 해제하지는 않음
+그룹	LMC_GroupReadStatusCmd	0x2045	out groupErrorId, out response	uint 그룹 상태 반환
+그룹	LMC_GroupReadActualPosition	0x2051	out response	double[16] 그룹 실제 위치 반환
+그룹	LMC_MoveLinearAbsoluteExCmd	0x20A4	position(double[16]), velocity, acceleration, deceleration, jerk	MCS 절대 선형 이동; Coord=MCS(2), Transition=None(0), Buffer=Aborting(1)
+그룹	LMC_SetKinTransform	0x20E7	completeCapturedFrame(byte[])	완전한 SetKinTransform 패킷을 전달
+그룹	LMC_SetKinTransformCartesian4Axis	0x20E7	없음	시험 완료된 a01/a02/a03/a04 → X/Y/Z/U 4축 매핑
+
+보조	LMC_PowerMembers	복합: 0x2023 반복	axes(IEnumerable<LMCAxis>), enable(bool)	각 그룹 멤버에 Power 명령을 순서대로 전송
+보조	LMC_PrepareGroupMCS	복합: 0x2023 → 0x20E7 → 0x2047	axes(IEnumerable<LMCAxis>)	멤버 Power On → Cartesian4Axis 설정 → GroupEnable
+
+열거형	LMC_DIRECTION	해당 없음	None=0, Positive=1, Shortest=2, Negative=3, Current=4	MoveVelocity는 Positive 또는 Negative만 허용
+열거형	LMC_BUFFER_MODE	해당 없음	Aborting=1	현재 전달본에서 시험 완료한 Buffer mode
+
+권장 그룹 시작 순서
+LMC_RpcInitConnection → LMCGroup/LMCAxis 생성 → LMC_GetGroupMembersInfo → 각 축 LMC_PowerCmd(true) → LMC_SetKinTransformCartesian4Axis → LMC_GroupEnableCmd → LMC_MoveLinearAbsoluteExCmd
+
+단축 제어 복귀 순서
+LMC_GroupStopCmd → LMC_GroupDisableCmd → 각 축 LMC_PowerCmd(false) → 대상 축 LMC_PowerCmd(true) → 단축 Move 함수
+
+주요 응답
+Status=0, ErrorId=0	정상
+Status=0, ErrorId=2001	이미 Power On
+Status=0, ErrorId=2000	이미 Power Off
+Status=16, ErrorId=-8	현재 노드 상태에서 해당 명령 사용 불가
+Status=16, ErrorId=-101	그룹 멤버 중 StandStill 조건 불충족
+Status=16, ErrorId=-103	그룹 동기 제어 중 단축 모션 금지; GroupDisable 필요
+Status=16, ErrorId=-115	Buffer mode와 Transition mode 조합 불일치
