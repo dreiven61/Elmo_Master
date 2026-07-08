@@ -16,7 +16,7 @@
       <StackPanel Grid.Column="3" Margin="0,0,8,0"><TextBlock Text="Group"/><TextBox x:Name="GroupName" Text="v01"/></StackPanel>
       <StackPanel Grid.Column="4"><TextBlock Text="API"/><ComboBox x:Name="ApiOperation"/></StackPanel>
     </Grid></GroupBox>
-    <GroupBox DockPanel.Dock="Top" Header="Motion Input (revolution units)" Margin="0,0,0,8"><Grid Margin="8">
+    <GroupBox DockPanel.Dock="Top" Header="Motion Input (rev/rps, DLL sends LASAL internal units)" Margin="0,0,0,8"><Grid Margin="8">
       <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Margin="0,0,8,0"><TextBlock Text="Position/Distance (rev)"/><TextBox x:Name="Position" Text="0.1"/></StackPanel>
       <StackPanel Grid.Column="1" Margin="0,0,8,0"><TextBlock Text="Velocity (rps)"/><TextBox x:Name="Velocity" Text="0.1"/></StackPanel>
@@ -27,7 +27,7 @@
       <StackPanel Grid.Column="6"><TextBlock Text="Group positions (rev CSV)"/><TextBox x:Name="GroupPositions" Text="0.1,0.1,0.1,0.1"/></StackPanel>
     </Grid></GroupBox>
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-      <TextBlock VerticalAlignment="Center" Text="Encoder counts/rev" Margin="0,0,8,0"/><TextBox x:Name="CountsPerRev" Width="130" Text="8388608" Margin="0,0,16,0"/>
+      <TextBlock VerticalAlignment="Center" Text="PMAS counts/rev" Margin="0,0,8,0"/><TextBox x:Name="CountsPerRev" Width="130" Text="8388608" Margin="0,0,16,0"/>
       <Button Width="220" Padding="12,6" Click="Execute_Click" Content="Execute Selected LMC API"/>
       <TextBlock VerticalAlignment="Center" Foreground="#AA660000" Margin="18,0,0,0" Text="MoveVelocity는 Stop 전까지 계속 동작합니다."/>
     </StackPanel>

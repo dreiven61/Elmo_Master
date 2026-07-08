@@ -20,7 +20,11 @@ Elmo DLL 없이 Maestro TCP 패킷으로 제어하는 C# API입니다. 함수 �
 ## 주의사항
 
 - 기본 TCP 포트는 컨트롤러 설정에 맞춰 입력해야 합니다.
-- 축 위치/속도 값은 컨트롤러 count 단위입니다. 현재 시험 기준은 1회전당 `8,388,608 count`입니다.
+- API 입력값은 기존 Elmo/PMAS 기준 count 단위입니다. 현재 시험 기준은 1회전당 `8,388,608 count`입니다.
+- TCP 송신 직전에 DLL이 count 값을 LASAL internal 단위로 변환합니다.
+  - 변환식: `lasal_internal = count * 360 * 10000 / 8388608`
+  - 예: `8388608 count -> 3600000 LASAL internal`
+- 위치 읽기 응답은 반대로 `LASAL internal -> count`로 변환해서 반환합니다.
 - 그룹 제어 전: 멤버 전체 Power On → SetKinTransform → GroupEnable 순서로 호출합니다.
 - 그룹 제어 후 단축 제어로 복귀할 때: GroupStop → GroupDisable → 멤버 Power Off 순서로 그룹을 해제합니다.
 - `ErrorId=2001`은 이미 Power On, `2000`은 이미 Power Off 상태에서 반환될 수 있습니다.

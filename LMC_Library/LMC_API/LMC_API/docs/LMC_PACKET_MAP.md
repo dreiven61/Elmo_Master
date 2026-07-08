@@ -38,12 +38,40 @@
 
 ## 단위
 
-라이브러리는 전달받은 값을 그대로 double/float로 직렬화한다. 현재 장비 기준 변환은 호출자가 수행한다.
+API 호출 입력은 기존 Elmo/PMAS count 기준을 유지한다.
 
 ```text
 1 rev = 8,388,608 counts
 1 rps = 8,388,608 counts/s
 ```
+
+DLL은 TCP 송신 직전에 motion 값을 LASAL internal 단위로 변환한다.
+
+```text
+lasal_internal = count * 360 * 10000 / 8388608
+```
+
+예:
+
+```text
+8388608 count -> 3600000 LASAL internal
+```
+
+적용 대상:
+
+- `LMC_StopCmd` deceleration, jerk
+- `LMC_MoveAbsoluteExCmd` position, velocity, acceleration, deceleration, jerk
+- `LMC_MoveRelativeExCmd` distance, velocity, acceleration, deceleration, jerk
+- `LMC_MoveVelocityExCmd` velocity, acceleration, deceleration, jerk
+- `LMC_GroupStopCmd` deceleration, jerk
+- `LMC_MoveLinearAbsoluteExCmd` position vector, velocity, acceleration, deceleration, jerk
+
+읽기 응답:
+
+- `LMC_ReadActualPositionCmd`
+- `LMC_GroupReadActualPosition`
+
+위 두 응답은 LASAL internal 값을 count 기준으로 역변환해서 반환한다.
 
 ## LASAL 대응
 
