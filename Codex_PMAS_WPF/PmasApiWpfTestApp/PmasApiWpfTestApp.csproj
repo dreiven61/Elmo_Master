@@ -53,11 +53,11 @@
     <Reference Include="System.Xaml" />
     <Reference Include="WindowsBase" />
     <Reference Include="ElmoMotionControlComponents.Common.EASComponents">
-      <HintPath>..\..\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControlComponents.Common.EASComponents.dll</HintPath>
+      <HintPath>..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControlComponents.Common.EASComponents.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="ElmoMotionControlComponents.GMAS.MMCLibDotNET">
-      <HintPath>..\..\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControlComponents.GMAS.MMCLibDotNET.dll</HintPath>
+      <HintPath>..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControlComponents.GMAS.MMCLibDotNET.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
@@ -91,35 +91,35 @@
     <Compile Include="Services\SimpleXlsxExporter.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.GMAS.Cad2Prt.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.GMAS.Cad2Prt.dll">
       <Link>libs\ElmoMotionControl.GMAS.Cad2Prt.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.GMAS.Cad2PrtProxy.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.GMAS.Cad2PrtProxy.dll">
       <Link>libs\ElmoMotionControl.GMAS.Cad2PrtProxy.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.Gmas.RpcClient.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\ElmoMotionControl.Gmas.RpcClient.dll">
       <Link>libs\ElmoMotionControl.Gmas.RpcClient.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\RemoteTea.Net.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\RemoteTea.Net.dll">
       <Link>libs\RemoteTea.Net.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\MatlabDependency.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\MatlabDependency.dll">
       <Link>libs\MatlabDependency.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\MatlabWrapper.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\MatlabWrapper.dll">
       <Link>libs\MatlabWrapper.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\WinSCPnet.dll">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\WinSCPnet.dll">
       <Link>libs\WinSCPnet.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\MMCLibDotNET Libs V3.0.0.7\Lib\WinSCP.exe">
+    <Content Include="..\..\docs\Elmo_Lib\MMCLibDotNET Libs V3.0.0.7\Lib\WinSCP.exe">
       <Link>libs\WinSCP.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

@@ -1169,6 +1169,7 @@
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 								<StackPanel
 									Grid.Row="0"
@@ -1254,8 +1255,22 @@
 									<TextBlock Text="Drop Threshold (ms)" />
 									<TextBox x:Name="TextCycleDropThresholdMs" Text="5000" />
 								</StackPanel>
-								<WrapPanel
+								<StackPanel
 									Grid.Row="2"
+									Grid.Column="0"
+									Margin="0,0,12,6">
+									<TextBlock Text="Forward Actor Delay (ms)" />
+									<TextBox x:Name="TextCycleForwardActorDelayMs" Text="0" />
+								</StackPanel>
+								<StackPanel
+									Grid.Row="2"
+									Grid.Column="1"
+									Margin="0,0,12,6">
+									<TextBlock Text="Return Actor Delay (ms)" />
+									<TextBox x:Name="TextCycleReturnActorDelayMs" Text="0" />
+								</StackPanel>
+								<WrapPanel
+									Grid.Row="3"
 									Grid.Column="0"
 									Grid.ColumnSpan="6">
 									<CheckBox
@@ -1291,7 +1306,7 @@
 								<TextBlock
 									Margin="0,0,0,8"
 									Foreground="#AA6A0000"
-									Text="Profile은 Base -&gt; (Base + Move Distance) -&gt; Base 입니다. Velocity/Acceleration/Deceleration/Jerk는 수동 입력값이 그대로 적용됩니다."
+									Text="Profile은 Base -&gt; (Base + Move Distance) 완료확인 -&gt; Forward Actor Delay -&gt; Base 완료확인 -&gt; Return Actor Delay 입니다. 총 elapsed와 avg part time으로 생산성 비교를 합니다."
 									TextWrapping="Wrap" />
 								<WrapPanel>
 									<Button

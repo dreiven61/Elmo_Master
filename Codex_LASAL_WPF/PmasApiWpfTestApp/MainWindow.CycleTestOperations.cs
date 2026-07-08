@@ -35,6 +35,8 @@ namespace PmasApiWpfTestApp
             public int PollIntervalMs { get; set; }
             public int StableSamplesRequired { get; set; }
             public int DropThresholdMs { get; set; }
+            public int ForwardActorDelayMs { get; set; }
+            public int ReturnActorDelayMs { get; set; }
             public double InPositionTolerance { get; set; }
             public bool StopOnTimeout { get; set; }
             public bool StopOnAxisError { get; set; }
@@ -124,6 +126,7 @@ namespace PmasApiWpfTestApp
             public CycleTestMetrics()
             {
                 CycleTimeMs = new RunningMetric();
+                CommandLatencyMs = new RunningMetric();
                 ResponseLatencyMs = new RunningMetric();
                 PollPeriodMs = new RunningMetric();
                 ForwardSettleMs = new RunningMetric();
@@ -148,6 +151,7 @@ namespace PmasApiWpfTestApp
             public long PositionReadSampleCounter { get; set; }
             public int PositionReadSamplesDropped { get; set; }
             public RunningMetric CycleTimeMs { get; private set; }
+            public RunningMetric CommandLatencyMs { get; private set; }
             public RunningMetric ResponseLatencyMs { get; private set; }
             public RunningMetric PollPeriodMs { get; private set; }
             public RunningMetric ForwardSettleMs { get; private set; }
@@ -528,6 +532,8 @@ namespace PmasApiWpfTestApp
             options.PollIntervalMs = ParseInt32(TextCyclePollIntervalMs.Text);
             options.StableSamplesRequired = ParseInt32(TextCycleStableSamples.Text);
             options.DropThresholdMs = ParseInt32(TextCycleDropThresholdMs.Text);
+            options.ForwardActorDelayMs = ParseInt32(TextCycleForwardActorDelayMs.Text);
+            options.ReturnActorDelayMs = ParseInt32(TextCycleReturnActorDelayMs.Text);
             options.StopOnTimeout = CheckCycleStopOnTimeout.IsChecked == true;
             options.StopOnAxisError = CheckCycleStopOnError.IsChecked == true;
             options.Direction = NormalizeDirectionForAbsoluteMove((MC_DIRECTION_ENUM)ComboDirection.SelectedItem);
@@ -584,6 +590,16 @@ namespace PmasApiWpfTestApp
             if (options.DropThresholdMs <= 0)
             {
                 throw new InvalidOperationException("Drop Threshold must be > 0.");
+            }
+
+            if (options.ForwardActorDelayMs < 0)
+            {
+                throw new InvalidOperationException("Forward Actor Delay must be >= 0.");
+            }
+
+            if (options.ReturnActorDelayMs < 0)
+            {
+                throw new InvalidOperationException("Return Actor Delay must be >= 0.");
             }
 
             if (options.InPositionTolerance <= 0.0)
@@ -654,7 +670,7 @@ namespace PmasApiWpfTestApp
 
                         try
                         {
-                            IssueCycleMove(options.ForwardPosition, options);
+                            IssueCycleMoveWithCommandTiming(options.ForwardPosition, options, metrics);
                             var forwardResult = WaitForInPosition(options.ForwardPosition, options, metrics, recordedCycleIndex, "Forward", token);
                             metrics.ForwardSettleMs.Add(forwardResult.SettleMilliseconds);
                             if (forwardResult.PositionError > metrics.MaxInPositionError)
@@ -682,7 +698,9 @@ namespace PmasApiWpfTestApp
                                 }
                             }
 
-                            IssueCycleMove(options.ReturnPosition, options);
+                            WaitForActorDelay(options.ForwardActorDelayMs, options, token);
+
+                            IssueCycleMoveWithCommandTiming(options.ReturnPosition, options, metrics);
                             var returnResult = WaitForInPosition(options.ReturnPosition, options, metrics, recordedCycleIndex, "Return", token);
                             metrics.ReturnSettleMs.Add(returnResult.SettleMilliseconds);
                             if (returnResult.PositionError > metrics.MaxInPositionError)
@@ -709,6 +727,8 @@ namespace PmasApiWpfTestApp
                                     break;
                                 }
                             }
+
+                            WaitForActorDelay(options.ReturnActorDelayMs, options, token);
 
                             ushort emergencyCode = 0;
                             var axisError = Context.SingleAxis.GetAxisError(ref emergencyCode);
@@ -1037,6 +1057,18 @@ namespace PmasApiWpfTestApp
             return result;
         }
 
+        private int IssueCycleMoveWithCommandTiming(
+            double targetPosition,
+            CycleTestOptions options,
+            CycleTestMetrics metrics)
+        {
+            var commandStartTick = Stopwatch.GetTimestamp();
+            var result = IssueCycleMove(targetPosition, options);
+            var commandEndTick = Stopwatch.GetTimestamp();
+            metrics.CommandLatencyMs.Add((commandEndTick - commandStartTick) * 1000.0 / Stopwatch.Frequency);
+            return result;
+        }
+
         private static MC_DIRECTION_ENUM NormalizeDirectionForAbsoluteMove(MC_DIRECTION_ENUM direction)
         {
             if (direction == MC_DIRECTION_ENUM.MC_NONE_DIRECTION || direction == MC_DIRECTION_ENUM.MC_CURRENT_DIRECTION)
@@ -1115,6 +1147,23 @@ namespace PmasApiWpfTestApp
             }
 
             return new WaitPhaseResult(false, waitStopwatch.Elapsed.TotalMilliseconds, lastError);
+        }
+
+        private static void WaitForActorDelay(
+            int actorDelayMs,
+            CycleTestOptions options,
+            CancellationToken token)
+        {
+            if (actorDelayMs <= 0)
+            {
+                return;
+            }
+
+            WaitForPollInterval(
+                actorDelayMs,
+                options.UseHighPrecisionWait,
+                options.Request1msTimerResolution,
+                token);
         }
 
         private static void AppendPositionReadSample(
@@ -1292,6 +1341,11 @@ namespace PmasApiWpfTestApp
                 options.Request1msTimerResolution));
             builder.AppendLine(string.Format(
                 CultureInfo.InvariantCulture,
+                "Production model: command send + axis movement + done check + actor delays ({0} ms forward, {1} ms return)",
+                options.ForwardActorDelayMs,
+                options.ReturnActorDelayMs));
+            builder.AppendLine(string.Format(
+                CultureInfo.InvariantCulture,
                 "Warm-up cycles (excluded): {0}",
                 options.WarmupCycles));
             builder.AppendLine(string.Format(
@@ -1304,11 +1358,28 @@ namespace PmasApiWpfTestApp
                 CultureInfo.InvariantCulture,
                 "Elapsed: total={0:F1} ms",
                 metrics.TotalElapsedMs));
+            var averagePartTimeMs = metrics.SuccessfulCycles > 0
+                ? metrics.TotalElapsedMs / metrics.SuccessfulCycles
+                : 0.0;
+            var throughputPartsPerMinute = averagePartTimeMs > 0.0
+                ? 60000.0 / averagePartTimeMs
+                : 0.0;
+            builder.AppendLine(string.Format(
+                CultureInfo.InvariantCulture,
+                "Production result: avgPartTime={0:F3} ms/part, throughput={1:F3} parts/min",
+                averagePartTimeMs,
+                throughputPartsPerMinute));
             builder.AppendLine(string.Format(
                 CultureInfo.InvariantCulture,
                 "Cycle time: avg={0:F3} ms, max={1:F3} ms",
                 metrics.CycleTimeMs.Average,
                 metrics.CycleTimeMs.Max));
+            builder.AppendLine(string.Format(
+                CultureInfo.InvariantCulture,
+                "Command latency(MoveAbsolute): avg={0:F3} ms, max={1:F3} ms, samples={2}",
+                metrics.CommandLatencyMs.Average,
+                metrics.CommandLatencyMs.Max,
+                metrics.CommandLatencyMs.Count));
             builder.AppendLine(string.Format(
                 CultureInfo.InvariantCulture,
                 "Response latency(GetActualPosition): avg={0:F3} ms, max={1:F3} ms, samples={2}",
@@ -1601,11 +1672,24 @@ namespace PmasApiWpfTestApp
             rows.Add(new List<string> { "PollInterval(ms)", snapshot.Options.PollIntervalMs.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "StableSamples", snapshot.Options.StableSamplesRequired.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "DropThreshold(ms)", snapshot.Options.DropThresholdMs.ToString(CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "ForwardActorDelay(ms)", snapshot.Options.ForwardActorDelayMs.ToString(CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "ReturnActorDelay(ms)", snapshot.Options.ReturnActorDelayMs.ToString(CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "HighPriorityWorker", snapshot.Options.UseHighPriorityWorkerThread.ToString() });
             rows.Add(new List<string> { "HighPrecisionWait", snapshot.Options.UseHighPrecisionWait.ToString() });
             rows.Add(new List<string> { "TimerResolution1ms", snapshot.Options.Request1msTimerResolution.ToString() });
+            rows.Add(new List<string> { "TotalElapsed(ms)", snapshot.Metrics.TotalElapsedMs.ToString("F6", CultureInfo.InvariantCulture) });
+            var averagePartTimeMs = snapshot.Metrics.SuccessfulCycles > 0
+                ? snapshot.Metrics.TotalElapsedMs / snapshot.Metrics.SuccessfulCycles
+                : 0.0;
+            var throughputPartsPerMinute = averagePartTimeMs > 0.0
+                ? 60000.0 / averagePartTimeMs
+                : 0.0;
+            rows.Add(new List<string> { "AveragePartTime(ms)", averagePartTimeMs.ToString("F6", CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "Throughput(parts/min)", throughputPartsPerMinute.ToString("F6", CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "CycleTimeAvg(ms)", snapshot.Metrics.CycleTimeMs.Average.ToString("F6", CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "CycleTimeMax(ms)", snapshot.Metrics.CycleTimeMs.Max.ToString("F6", CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "CommandLatencyAvg(ms)", snapshot.Metrics.CommandLatencyMs.Average.ToString("F6", CultureInfo.InvariantCulture) });
+            rows.Add(new List<string> { "CommandLatencyMax(ms)", snapshot.Metrics.CommandLatencyMs.Max.ToString("F6", CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "ResponseLatencyAvg(ms)", snapshot.Metrics.ResponseLatencyMs.Average.ToString("F6", CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "ResponseLatencyMax(ms)", snapshot.Metrics.ResponseLatencyMs.Max.ToString("F6", CultureInfo.InvariantCulture) });
             rows.Add(new List<string> { "PollPeriodAvg(ms)", snapshot.Metrics.PollPeriodMs.Average.ToString("F6", CultureInfo.InvariantCulture) });
