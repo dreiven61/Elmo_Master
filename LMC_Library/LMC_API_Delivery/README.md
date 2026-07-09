@@ -25,6 +25,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 - `docs/API_STRUCTURE_DECISION_2026-07-09.md`: 현재 API 구조 결정 기록
 - `docs/RPC_CONNECTION_PACKET_DECISION_2026-07-09.md`: RPC connection 패킷 근거
 - `docs/CALLBACK_LISTENER_DESIGN_2026-07-09.md`: callback listener 소유권과 수명주기
+- `docs/RESPONSE_MODEL_DESIGN_2026-07-09.md`: `LMC_Response` 한계와 응답 parser 재설계 방향
 - `docs/SESSION_MANAGEMENT_DESIGN_2026-07-09.md`: 다중 PC 세션 관리 설계
 
 ## 주의
