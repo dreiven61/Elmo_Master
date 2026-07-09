@@ -8,17 +8,20 @@ This document defines the session-management direction for the LASAL-oriented
 `LasalMotionControlLib` TCP protocol when more than one PC can connect to the
 same controller.
 
-This is not an Elmo PMAS/MMCLib compatibility requirement. The target is a
-LASAL-fit protocol that keeps the current LMC object model:
+This is not a full Elmo PMAS/MMCLib compatibility requirement. The target is a
+LASAL-fit protocol that keeps the current LMC object model while using the
+captured RPC connection prologue:
 
 1. `LMCConnection` owns the TCP connection.
-2. `LMCSingleAxis` and `LMCGroupAxis` resolve a name once.
-3. Motion/read methods use the stored axis or group reference.
+2. `LMCConnection.RpcInitConnection(...)` sends `0x8080` session init and
+   `0x405C` callback registration after TCP connect.
+3. `LMCSingleAxis` and `LMCGroupAxis` resolve a name once.
+4. Motion/read methods use the stored axis or group reference.
 
 ## Verified Current State
 
-- `LMCConnection.RpcInitConnection(...)` opens a `TcpClient`; it does not
-  perform an RPC/session handshake.
+- `LMCConnection.RpcInitConnection(...)` opens a `TcpClient`, sends captured
+  RPC session init `0x8080`, then sends captured callback registration `0x405C`.
 - The current request header is 8 bytes:
   - `[0] UINT CommandId`
   - `[4] UINT PayloadLength`
@@ -46,7 +49,7 @@ With more than one PC, it is not enough:
 
 ## Decision
 
-Use a lightweight LMC session layer, not a full Elmo-style RPC/callback stack.
+Use the captured RPC connection prologue plus a lightweight LMC session layer.
 
 Initial implementation should be socket-scoped:
 
@@ -55,6 +58,7 @@ Initial implementation should be socket-scoped:
 - Use `dSock` as the authoritative lookup key on the LASAL side.
 - Store an optional generated `SessionId` for diagnostics and API visibility,
   but do not add `SessionId` to every motion packet yet.
+- Accept `0x8080`, `0x405C`, and `0x405D` as session lifecycle commands.
 
 This avoids changing every payload offset in `LmcProtocol.cs` and
 `TCPMotionInterface.st`.
@@ -69,6 +73,16 @@ On `ConnSocketInfo(... TCP_SVR_SOCK_INFO_CONNECT ...)`:
 - Assign a monotonically increasing `SessionId`.
 - Store connection state and last activity.
 - Do not assign axis/group ownership yet.
+
+On command `0x8080`:
+
+- Return a normal session-init response.
+- Mark the session as RPC initialized.
+
+On command `0x405C`:
+
+- Store event mask, callback port, and client IPv4 address in the session slot.
+- Return a normal callback-registration response.
 
 ### Request
 
@@ -147,23 +161,29 @@ same commit.
 
 ## Required PC DLL Changes
 
-Minimum:
+Implemented in the PC DLL:
 
-- Add `LMCConnection.SessionId` and `LMCConnection.IsConnected`.
 - Keep `RpcInitConnection(...)` as the public connection entry point.
+- Send `0x8080` after TCP connect.
+- Send `0x405C` callback registration after session init.
+- Make `CloseConnection()` and `Dispose()` send `0x405D`.
+- Expose `IsRpcInitialized`, `CallbackPort`, `EventMask`, and the parsed
+  handshake responses.
+
+Still optional:
+
+- Add a public `SessionId` if LASAL starts returning one.
+- Add a public `IsConnected` wrapper if application code needs it.
+
+Still unchanged:
+
 - Keep motion packets unchanged.
-- Make `CloseConnection()` send `0x405D` once the LASAL close-session handler is
-  implemented.
-
-Optional:
-
-- Send `OpenSession` after TCP connect when the LASAL side supports it.
-- Parse returned protocol version/session id.
 
 ## Required LASAL Changes
 
 Minimum:
 
+- Add handlers for `0x8080`, `0x405C`, and `0x405D`.
 - In `Response(pData, udSize, dSock)`, route responses to the same `dSock` that
   sent the request.
 - Add a session table keyed by `dSock`.
@@ -192,4 +212,3 @@ LASAL side:
   - PC A starts a motion/control command.
   - PC B receives busy for conflicting motion/control on the same axis/group.
   - PC A disconnect releases ownership.
-

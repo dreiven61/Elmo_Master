@@ -26,10 +26,13 @@ namespace LasalMotionControlLib
 
     internal static class LMC_CommandId
     {
+        internal const ushort RpcSessionInit = 0x8080;
+        internal const ushort RpcCallbackRegistration = 0x405C;
+        internal const ushort CloseConnection = 0x405D;
+
         internal const ushort GetAxisByName = 0x103C;
         internal const ushort GetGroupByName = 0x1042;
 
-        internal const ushort CloseConnection = 0x405D;
         internal const ushort Power = 0x2023;
         internal const ushort Reset = 0x2024;
         internal const ushort Stop = 0x2022;
@@ -64,6 +67,7 @@ namespace LasalMotionControlLib
         private const int NamePayloadLength = 0x50;
         private const int NameMaxBytes = 79;
         private const int MaxLinearAxes = 16;
+        private const int IPv4ByteLength = 4;
 
         private const int AxisInfoModeOffset = HeaderSize;
         private const int AxisInfoEnableOffset = HeaderSize + 8;
@@ -82,6 +86,35 @@ namespace LasalMotionControlLib
         internal static ushort GetResponsePayloadLength(byte[] header)
         {
             return ReadUInt16(header, ResponsePayloadLengthOffset);
+        }
+
+        internal static byte[] RpcSessionInit()
+        {
+            return CreateRequest(LMC_CommandId.RpcSessionInit, 0, 1);
+        }
+
+        internal static byte[] RpcCallbackRegistration(
+            uint eventMask,
+            int callbackPort,
+            byte[] localAddressBytes)
+        {
+            if (localAddressBytes == null || localAddressBytes.Length != IPv4ByteLength)
+            {
+                throw new ArgumentException("RPC callback registration requires an IPv4 address.");
+            }
+
+            var buffer = CreateRequest(LMC_CommandId.RpcCallbackRegistration, 0, 12);
+
+            WriteUInt32(buffer, HeaderSize, eventMask);
+            WriteInt32(buffer, HeaderSize + 4, callbackPort);
+            Buffer.BlockCopy(localAddressBytes, 0, buffer, HeaderSize + 8, IPv4ByteLength);
+
+            return buffer;
+        }
+
+        internal static byte[] CloseConnection()
+        {
+            return CreateRequest(LMC_CommandId.CloseConnection, 0, 1);
         }
 
         internal static byte[] Name(ushort command, string name)
@@ -248,6 +281,14 @@ namespace LasalMotionControlLib
         {
             buffer[offset] = (byte)value;
             buffer[offset + 1] = (byte)(value >> 8);
+        }
+
+        internal static void WriteUInt32(byte[] buffer, int offset, uint value)
+        {
+            buffer[offset] = (byte)value;
+            buffer[offset + 1] = (byte)(value >> 8);
+            buffer[offset + 2] = (byte)(value >> 16);
+            buffer[offset + 3] = (byte)(value >> 24);
         }
 
         internal static void WriteInt32(byte[] buffer, int offset, int value)

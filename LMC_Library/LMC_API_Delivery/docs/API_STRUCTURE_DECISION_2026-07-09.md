@@ -25,6 +25,10 @@ LMC session on the LASAL side. Keep the current 8-byte motion header unchanged
 until both the PC DLL and LASAL parser are updated together. See
 `SESSION_MANAGEMENT_DESIGN_2026-07-09.md`.
 
+`LMCConnection.RpcInitConnection(...)` now follows the captured RPC connection
+sequence (`0x8080` session init, then `0x405C` callback registration). See
+`RPC_CONNECTION_PACKET_DECISION_2026-07-09.md`.
+
 ## Unit Policy
 
 Unit conversion is outside the API implementation.

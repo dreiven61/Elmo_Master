@@ -19,7 +19,11 @@ public static class BasicUsage
         using (var connection = new LMCConnection())
         {
             connection.RpcInitConnection(
-                "10.10.150.1", 4000, "10.10.150.14");
+                "10.10.150.1",
+                4000,
+                "10.10.150.14",
+                LMCConnection.DefaultCallbackPort,
+                LMCConnection.DefaultEventMask);
 
             var axis = new LMCSingleAxis(connection, "a01");
             axis.PowerOn();
