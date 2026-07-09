@@ -27,26 +27,26 @@ namespace LmcMotionApi
     public static class LMC_Units
     {
         // Mirrors Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/unit.h.
-        public const int LMC_MMPSEC2 = 1;
-        public const int LMC_DEG = 10000;
-        public const int LMC_MM2 = 10;
-        public const int LMC_KN = 1000;
-        public const int LMC_N = 1;
-        public const int LMC_M = 1000 * 10000;
-        public const int LMC_MM = 10000;
-        public const int LMC_GB = 1024 * 1024 * 1024;
-        public const int LMC_KB = 1024;
-        public const int LMC_MB = 1024 * 1024;
-        public const int LMC_BAR = 1000;
-        public const int LMC_RPM = 1000;
-        public const int LMC_MLPMIN = 1;
-        public const int LMC_MMPSEC = 10000;
-        public const int LMC_HOURS = 60 * 60 * 1000;
-        public const int LMC_MIN = 60 * 1000;
-        public const int LMC_MS = 1;
-        public const int LMC_SEC = 1000;
-        public const int LMC_SECS = 1000;
-        public const int LMC_CCM = 1;
+        public const int MMPSEC2 = 1;
+        public const int DEG = 10000;
+        public const int MM2 = 10;
+        public const int KN = 1000;
+        public const int N = 1;
+        public const int M = 1000 * 10000;
+        public const int MM = 10000;
+        public const int GB = 1024 * 1024 * 1024;
+        public const int KB = 1024;
+        public const int MB = 1024 * 1024;
+        public const int BAR = 1000;
+        public const int RPM = 1000;
+        public const int MLPMIN = 1;
+        public const int MMPSEC = 10000;
+        public const int HOURS = 60 * 60 * 1000;
+        public const int MIN = 60 * 1000;
+        public const int MS = 1;
+        public const int SEC = 1000;
+        public const int SECS = 1000;
+        public const int CCM = 1;
     }
 
     public sealed class LMC_UnitConverter
@@ -61,11 +61,11 @@ namespace LmcMotionApi
 
         public LMC_UnitConverter()
             : this(
-                LMC_Units.LMC_MM,
-                LMC_Units.LMC_MMPSEC,
-                LMC_Units.LMC_MMPSEC2,
-                LMC_Units.LMC_MMPSEC2,
-                LMC_Units.LMC_MMPSEC2)
+                LMC_Units.MM,
+                LMC_Units.MMPSEC,
+                LMC_Units.MMPSEC2,
+                LMC_Units.MMPSEC2,
+                LMC_Units.MMPSEC2)
         {
         }
 

@@ -5,11 +5,11 @@ public static class BasicUsage
     public static void Run()
     {
         var units = new LMC_UnitConverter(
-            LMC_Units.LMC_MM,
-            LMC_Units.LMC_MMPSEC,
-            LMC_Units.LMC_MMPSEC2,
-            LMC_Units.LMC_MMPSEC2,
-            LMC_Units.LMC_MMPSEC2);
+            LMC_Units.MM,
+            LMC_Units.MMPSEC,
+            LMC_Units.MMPSEC2,
+            LMC_Units.MMPSEC2,
+            LMC_Units.MMPSEC2);
 
         using (var connection = new LMCConnection())
         {
