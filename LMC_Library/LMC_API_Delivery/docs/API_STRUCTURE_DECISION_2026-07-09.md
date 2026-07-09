@@ -62,8 +62,10 @@ practical:
 - `Stop`
 
 Legacy `LMCAxis`, `LMCGroup`, and `LMC_*` method names may remain as
-compatibility wrappers, but they must delegate to the primary API and must not
-perform hidden unit conversion.
+compatibility aliases, but public user-facing methods must not call other
+public user-facing methods. Each alias should dispatch to the same private
+command helper or packet builder so the call path stays unambiguous and hidden
+unit conversion cannot be added in one alias only.
 
 Internal packet builders in `LmcProtocol.cs` should name the LASAL-side target
 explicitly. Use names such as `LMCAxisGetByName`, `LMCAxisPower`,

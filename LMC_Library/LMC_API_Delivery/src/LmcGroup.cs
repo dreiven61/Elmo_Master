@@ -19,71 +19,68 @@ namespace LasalMotionControlLib
 
         public LMC_Response GetGroupMembersInfo()
         {
-            return Send(LMC_Frame.LMCGroupGetMembersInfo(GroupReference));
+            return SendGetGroupMembersInfo();
         }
 
         public LMC_Response LMC_GetGroupMembersInfo()
         {
-            return GetGroupMembersInfo();
+            return SendGetGroupMembersInfo();
         }
 
         public LMC_Response GroupEnable()
         {
-            return Send(LMC_Frame.LMCGroupEnable(GroupReference));
+            return SendGroupEnable();
         }
 
         public LMC_Response LMC_GroupEnableCmd()
         {
-            return GroupEnable();
+            return SendGroupEnable();
         }
 
         public LMC_Response GroupDisable()
         {
-            return Send(LMC_Frame.LMCGroupDisable(GroupReference));
+            return SendGroupDisable();
         }
 
         public LMC_Response LMC_GroupDisableCmd()
         {
-            return GroupDisable();
+            return SendGroupDisable();
         }
 
         public LMC_Response GroupReset()
         {
-            return Send(LMC_Frame.LMCGroupReset(GroupReference));
+            return SendGroupReset();
         }
 
         public LMC_Response LMC_GroupResetCmd()
         {
-            return GroupReset();
+            return SendGroupReset();
         }
 
         public LMC_Response GroupStop(int deceleration, int jerk)
         {
-            return Send(LMC_Frame.LMCGroupStop(GroupReference, deceleration, jerk));
+            return SendGroupStop(deceleration, jerk);
         }
 
         public LMC_Response LMC_GroupStopCmd(int deceleration, int jerk)
         {
-            return GroupStop(deceleration, jerk);
+            return SendGroupStop(deceleration, jerk);
         }
 
         public uint GroupReadStatus()
         {
             LMC_Response response;
-            return GroupReadStatus(out response);
+            return ReadGroupStatusValue(out response);
         }
 
         public uint GroupReadStatus(out LMC_Response response)
         {
-            return LMCConnection.ParseUInt32Value(
-                connection.Exchange(
-                    LMC_Frame.LMCGroupReadStatus(GroupReference)),
-                out response);
+            return ReadGroupStatusValue(out response);
         }
 
         public uint LMC_GroupReadStatusCmd(out LMC_Response response)
         {
-            return GroupReadStatus(out response);
+            return ReadGroupStatusValue(out response);
         }
 
         public LMC_Response MoveLinearAbsoluteEx(
@@ -93,14 +90,7 @@ namespace LasalMotionControlLib
             int deceleration,
             int jerk)
         {
-            return Send(
-                LMC_Frame.LMCGroupMoveLinearAbsolute(
-                    GroupReference,
-                    position,
-                    velocity,
-                    acceleration,
-                    deceleration,
-                    jerk));
+            return SendMoveLinearAbsolute(position, velocity, acceleration, deceleration, jerk);
         }
 
         public LMC_Response LMC_MoveLinearAbsoluteExCmd(
@@ -110,12 +100,7 @@ namespace LasalMotionControlLib
             int deceleration,
             int jerk)
         {
-            return MoveLinearAbsoluteEx(
-                position,
-                velocity,
-                acceleration,
-                deceleration,
-                jerk);
+            return SendMoveLinearAbsolute(position, velocity, acceleration, deceleration, jerk);
         }
 
         private ushort ResolveGroupReference(string groupName)
@@ -131,6 +116,56 @@ namespace LasalMotionControlLib
             }
 
             return groupReference;
+        }
+
+        private LMC_Response SendGetGroupMembersInfo()
+        {
+            return Send(LMC_Frame.LMCGroupGetMembersInfo(GroupReference));
+        }
+
+        private LMC_Response SendGroupEnable()
+        {
+            return Send(LMC_Frame.LMCGroupEnable(GroupReference));
+        }
+
+        private LMC_Response SendGroupDisable()
+        {
+            return Send(LMC_Frame.LMCGroupDisable(GroupReference));
+        }
+
+        private LMC_Response SendGroupReset()
+        {
+            return Send(LMC_Frame.LMCGroupReset(GroupReference));
+        }
+
+        private LMC_Response SendGroupStop(int deceleration, int jerk)
+        {
+            return Send(LMC_Frame.LMCGroupStop(GroupReference, deceleration, jerk));
+        }
+
+        private uint ReadGroupStatusValue(out LMC_Response response)
+        {
+            return LMCConnection.ParseUInt32Value(
+                connection.Exchange(
+                    LMC_Frame.LMCGroupReadStatus(GroupReference)),
+                out response);
+        }
+
+        private LMC_Response SendMoveLinearAbsolute(
+            int[] position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk)
+        {
+            return Send(
+                LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    GroupReference,
+                    position,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk));
         }
 
         private LMC_Response Send(byte[] request)
