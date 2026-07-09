@@ -20,6 +20,11 @@ The delivered DLL keeps the PMAS/LMC-style object model:
 The caller should not pass `axisName` or `axisRef` to every motion method.
 The axis object already owns that state.
 
+For multi-PC operation, the TCP session must become an explicit socket-scoped
+LMC session on the LASAL side. Keep the current 8-byte motion header unchanged
+until both the PC DLL and LASAL parser are updated together. See
+`SESSION_MANAGEMENT_DESIGN_2026-07-09.md`.
+
 ## Unit Policy
 
 Unit conversion is outside the API implementation.
