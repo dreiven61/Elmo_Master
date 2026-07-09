@@ -4,11 +4,6 @@ namespace LasalMotionControlLib
 {
     public class LMCGroupAxis
     {
-        private const int LookupReferenceOffset = 12;
-        private const int MinimumLookupResponseLength = 14;
-        private const int ResponseValueOffset = 8;
-        private const int MinimumValueResponseLength = 12;
-
         private readonly LMCConnection connection;
 
         public string GroupName { get; private set; }
@@ -80,17 +75,10 @@ namespace LasalMotionControlLib
 
         public uint GroupReadStatus(out LMC_Response response)
         {
-            var raw = connection.Exchange(
-                LMC_Frame.GroupRead(LMC_CommandId.GroupStatus, GroupReference));
-
-            response = new LMC_Response { Raw = raw };
-
-            if (raw.Length < MinimumValueResponseLength)
-            {
-                return 0;
-            }
-
-            return LMC_Frame.ReadUInt32(raw, ResponseValueOffset);
+            return LMCConnection.ParseUInt32Value(
+                connection.Exchange(
+                    LMC_Frame.GroupRead(LMC_CommandId.GroupStatus, GroupReference)),
+                out response);
         }
 
         public uint LMC_GroupReadStatusCmd(out LMC_Response response)
@@ -132,20 +120,22 @@ namespace LasalMotionControlLib
 
         private ushort ResolveGroupReference(string groupName)
         {
-            var raw = connection.Exchange(
-                LMC_Frame.Name(LMC_CommandId.GetGroupByName, groupName));
+            ushort groupReference;
 
-            if (raw.Length < MinimumLookupResponseLength)
+            if (!LMCConnection.TryParseLookupReference(
+                connection.Exchange(LMC_Frame.Name(LMC_CommandId.GetGroupByName, groupName)),
+                out _,
+                out groupReference))
             {
                 throw new InvalidOperationException("Invalid group lookup response.");
             }
 
-            return LMC_Frame.ReadUInt16(raw, LookupReferenceOffset);
+            return groupReference;
         }
 
         private LMC_Response Send(byte[] request)
         {
-            return LMCConnection.Parse(connection.Exchange(request));
+            return LMCConnection.ParseAcknowledgement(connection.Exchange(request));
         }
     }
 

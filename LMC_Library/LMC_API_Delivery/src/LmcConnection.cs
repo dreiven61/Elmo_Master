@@ -13,9 +13,18 @@ namespace LasalMotionControlLib
 
         private const int ReceiveTimeoutMilliseconds = 3000;
         private const int SendTimeoutMilliseconds = 3000;
-        private const int ResponseStatusLength = 4;
-        private const int MinimumParsedResponseLength = LMC_Frame.HeaderSize + ResponseStatusLength;
         private const int CallbackThreadJoinTimeoutMilliseconds = 500;
+        private const int HeaderStatusOffset = 0;
+        private const int HeaderReservedOffset = 4;
+        private const int ValuePayloadOffset = 0;
+        private const int CommandStatusPayloadOffset = 4;
+        private const int CommandErrorPayloadOffset = 6;
+        private const int LookupReferencePayloadOffset = 4;
+        private const int UInt16ByteLength = 2;
+        private const int UInt32ByteLength = 4;
+        private const int AcknowledgementPayloadLength = 8;
+        private const int LookupPayloadMinimumLength =
+            LookupReferencePayloadOffset + UInt16ByteLength;
 
         private readonly object sync = new object();
         private TcpClient client;
@@ -159,17 +168,97 @@ namespace LasalMotionControlLib
 
         internal static LMC_Response Parse(byte[] raw)
         {
-            var response = new LMC_Response { Raw = raw };
+            var safeRaw = raw ?? new byte[0];
+            var response = new LMC_Response
+            {
+                Raw = safeRaw,
+                Payload = new byte[0]
+            };
 
-            if (raw == null || raw.Length < MinimumParsedResponseLength)
+            if (safeRaw.Length < LMC_Frame.HeaderSize)
             {
                 return response;
             }
 
-            response.Status = LMC_Frame.ReadUInt16(raw, raw.Length - 4);
-            response.ErrorId = unchecked((short)LMC_Frame.ReadUInt16(raw, raw.Length - 2));
+            response.HeaderStatus = LMC_Frame.ReadUInt16(safeRaw, HeaderStatusOffset);
+            response.PayloadLength = LMC_Frame.GetResponsePayloadLength(safeRaw);
+            response.HeaderReserved = LMC_Frame.ReadUInt32(safeRaw, HeaderReservedOffset);
+
+            var expectedLength = LMC_Frame.HeaderSize + response.PayloadLength;
+            response.IsFrameValid = safeRaw.Length == expectedLength;
+
+            if (safeRaw.Length >= expectedLength && response.PayloadLength > 0)
+            {
+                response.Payload = new byte[response.PayloadLength];
+                Buffer.BlockCopy(
+                    safeRaw,
+                    LMC_Frame.HeaderSize,
+                    response.Payload,
+                    0,
+                    response.PayloadLength);
+            }
 
             return response;
+        }
+
+        internal static LMC_Response ParseAcknowledgement(byte[] raw)
+        {
+            var response = Parse(raw);
+
+            if (response.Payload.Length >= AcknowledgementPayloadLength)
+            {
+                response.CommandStatus =
+                    LMC_Frame.ReadUInt16(response.Payload, CommandStatusPayloadOffset);
+                response.ErrorId = unchecked(
+                    (short)LMC_Frame.ReadUInt16(response.Payload, CommandErrorPayloadOffset));
+                response.HasCommandResult = true;
+            }
+
+            return response;
+        }
+
+        internal static bool TryParseLookupReference(
+            byte[] raw,
+            out LMC_Response response,
+            out ushort reference)
+        {
+            reference = 0;
+            response = Parse(raw);
+
+            if (!response.IsSuccess
+                || response.Payload.Length < LookupPayloadMinimumLength)
+            {
+                return false;
+            }
+
+            reference = LMC_Frame.ReadUInt16(
+                response.Payload,
+                LookupReferencePayloadOffset);
+            return true;
+        }
+
+        internal static uint ParseUInt32Value(byte[] raw, out LMC_Response response)
+        {
+            response = Parse(raw);
+
+            if (!response.IsSuccess || response.Payload.Length < UInt32ByteLength)
+            {
+                return 0;
+            }
+
+            return LMC_Frame.ReadUInt32(response.Payload, ValuePayloadOffset);
+        }
+
+        internal static int ParseInt32Value(byte[] raw, out LMC_Response response)
+        {
+            response = Parse(raw);
+
+            if (!response.IsSuccess || response.Payload.Length < UInt32ByteLength)
+            {
+                return 0;
+            }
+
+            return LMC_Frame.ReadInt32(response.Payload, ValuePayloadOffset);
         }
 
         public void Dispose()

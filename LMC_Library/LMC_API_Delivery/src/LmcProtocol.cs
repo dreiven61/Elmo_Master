@@ -16,12 +16,28 @@ namespace LasalMotionControlLib
     public sealed class LMC_Response
     {
         public byte[] Raw { get; internal set; }
-        public ushort Status { get; internal set; }
+        public ushort HeaderStatus { get; internal set; }
+        public ushort PayloadLength { get; internal set; }
+        public uint HeaderReserved { get; internal set; }
+        public byte[] Payload { get; internal set; }
+        public bool IsFrameValid { get; internal set; }
+        public bool HasCommandResult { get; internal set; }
+        public ushort CommandStatus { get; internal set; }
         public short ErrorId { get; internal set; }
+
+        public ushort Status
+        {
+            get { return HasCommandResult ? CommandStatus : HeaderStatus; }
+        }
 
         public bool IsSuccess
         {
-            get { return Status == 0 && ErrorId == 0; }
+            get
+            {
+                return IsFrameValid
+                    && HeaderStatus == 0
+                    && (!HasCommandResult || (CommandStatus == 0 && ErrorId == 0));
+            }
         }
     }
 

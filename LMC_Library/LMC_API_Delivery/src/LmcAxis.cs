@@ -4,11 +4,6 @@ namespace LasalMotionControlLib
 {
     public class LMCSingleAxis
     {
-        private const int LookupReferenceOffset = 12;
-        private const int MinimumLookupResponseLength = 14;
-        private const int ResponseValueOffset = 8;
-        private const int MinimumValueResponseLength = 12;
-
         private readonly LMCConnection connection;
 
         public string AxisName { get; private set; }
@@ -169,15 +164,9 @@ namespace LasalMotionControlLib
 
         public uint ReadStatus(out LMC_Response response)
         {
-            var raw = connection.Exchange(LMC_Frame.ReadStatus(AxisReference));
-            response = new LMC_Response { Raw = raw };
-
-            if (raw.Length < MinimumValueResponseLength)
-            {
-                return 0;
-            }
-
-            return LMC_Frame.ReadUInt32(raw, ResponseValueOffset);
+            return LMCConnection.ParseUInt32Value(
+                connection.Exchange(LMC_Frame.ReadStatus(AxisReference)),
+                out response);
         }
 
         public uint LMC_ReadStatusCmd(out LMC_Response response)
@@ -193,15 +182,9 @@ namespace LasalMotionControlLib
 
         public int GetActualPosition(out LMC_Response response)
         {
-            var raw = connection.Exchange(LMC_Frame.ReadPosition(AxisReference));
-            response = new LMC_Response { Raw = raw };
-
-            if (raw.Length < MinimumValueResponseLength)
-            {
-                return 0;
-            }
-
-            return LMC_Frame.ReadInt32(raw, ResponseValueOffset);
+            return LMCConnection.ParseInt32Value(
+                connection.Exchange(LMC_Frame.ReadPosition(AxisReference)),
+                out response);
         }
 
         public int LMC_ReadActualPositionCmd(out LMC_Response response)
@@ -211,15 +194,17 @@ namespace LasalMotionControlLib
 
         private ushort ResolveAxisReference(string axisName)
         {
-            var raw = connection.Exchange(
-                LMC_Frame.Name(LMC_CommandId.GetAxisByName, axisName));
+            ushort axisReference;
 
-            if (raw.Length < MinimumLookupResponseLength)
+            if (!LMCConnection.TryParseLookupReference(
+                connection.Exchange(LMC_Frame.Name(LMC_CommandId.GetAxisByName, axisName)),
+                out _,
+                out axisReference))
             {
                 throw new InvalidOperationException("Invalid axis lookup response.");
             }
 
-            return LMC_Frame.ReadUInt16(raw, LookupReferenceOffset);
+            return axisReference;
         }
 
         private LMC_Response Move(
@@ -245,7 +230,7 @@ namespace LasalMotionControlLib
 
         private LMC_Response Send(byte[] request)
         {
-            return LMCConnection.Parse(connection.Exchange(request));
+            return LMCConnection.ParseAcknowledgement(connection.Exchange(request));
         }
     }
 

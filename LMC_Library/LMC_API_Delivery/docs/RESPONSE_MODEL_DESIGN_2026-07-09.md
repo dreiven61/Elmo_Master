@@ -194,6 +194,8 @@ Lookup parser:
 
 ### Phase 1: Non-breaking cleanup
 
+Status: implemented on 2026-07-09.
+
 - Expand `LMC_Response` with envelope fields:
   - `HeaderStatus`
   - `PayloadLength`
@@ -209,6 +211,13 @@ Lookup parser:
   - `ParseLookupReference`
   - `ParseInt32Value`
   - `ParseUInt32Value`
+
+Implementation note:
+
+- `Status` remains as a compatibility alias.
+- Acknowledgement-returning command methods now use `ParseAcknowledgement`.
+- Lookup and value methods now use command-specific parser helpers.
+- Typed public result objects are not added in Phase 1.
 
 ### Phase 2: Typed public results
 
@@ -236,4 +245,3 @@ The correct direction is to treat `LMC_Response` as a response envelope and use
 command-specific payload parsing. This keeps the current API usable, prevents
 read values from being misinterpreted as errors, and leaves room for RPC init
 and callback payloads whose structure is not fully decoded yet.
-
