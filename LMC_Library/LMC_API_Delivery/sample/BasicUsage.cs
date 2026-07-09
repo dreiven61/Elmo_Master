@@ -1,21 +1,20 @@
+using System;
 using LasalMotionControlLib;
 
 public static class BasicUsage
 {
+    // User application owns unit constants and conversion policy.
+    private const int MM = 10000;
+    private const int MMPSEC = 10000;
+    private const int MMPSEC2 = 1;
+
     public static void Run()
     {
-        var units = new UnitConverter(
-            Units.MM,
-            Units.MMPSEC,
-            Units.MMPSEC2,
-            Units.MMPSEC2,
-            Units.MMPSEC2);
-
-        var position = units.PositionToInternal(1.0);
-        var velocity = units.VelocityToInternal(1.0);
-        var acceleration = units.AccelerationToInternal(1.0);
-        var deceleration = units.DecelerationToInternal(1.0);
-        var jerk = units.JerkToInternal(0.0);
+        var position = ToDint(1.0, MM);
+        var velocity = ToDint(1.0, MMPSEC);
+        var acceleration = ToDint(1.0, MMPSEC2);
+        var deceleration = ToDint(1.0, MMPSEC2);
+        var jerk = ToDint(0.0, MMPSEC2);
 
         using (var connection = new LMCConnection())
         {
@@ -29,7 +28,7 @@ public static class BasicUsage
             axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
 
             var actualPosition = axis.GetActualPosition();
-            var actualPositionMm = units.InternalToPosition(actualPosition);
+            var actualPositionMm = FromDint(actualPosition, MM);
             System.Console.WriteLine("Actual position mm = " + actualPositionMm);
 
             var group = new MMCGroupAxis(connection, "v01");
@@ -41,5 +40,15 @@ public static class BasicUsage
                 deceleration,
                 jerk);
         }
+    }
+
+    private static int ToDint(double value, int unit)
+    {
+        return checked((int)Math.Round(value * unit, MidpointRounding.AwayFromZero));
+    }
+
+    private static double FromDint(int value, int unit)
+    {
+        return (double)value / unit;
     }
 }

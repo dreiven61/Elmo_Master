@@ -6,12 +6,12 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 
 - API 입력 단위: LASAL PLC가 받을 internal DINT
 - API 내부 변환: 없음
-- 단위 변환: `UnitConverter`를 사용자가 명시적으로 호출해서 수행
-- `Units`에 `unit.h` 기반 상수 제공: `MM=10000`, `MMPSEC=10000`, `MMPSEC2=1`, `DEG=10000`, `RPM=1000` 등
+- 단위 변환: 사용자 프로그램에서 직접 수행
+- `unit.h` 기반 상수 선언도 사용자 프로그램에서 관리
 - LASAL PLC는 수신한 DINT를 변환 없이 `_LMCAxis` 또는 `_LMCRobot`에 전달
 - TCP handshake 없이 LASAL 서버에 직접 연결
 - `MMCSingleAxis`/`MMCGroupAxis` object는 name lookup으로 얻은 reference를 보관하고, 이후 motion/status API 호출 시 해당 reference를 패킷에 자동 삽입
-- `LMCAxis`/`LMCGroup`, `LMC_Units`/`LMC_UnitConverter`, `LMC_*` 메소드는 호환 wrapper입니다.
+- `LMCAxis`/`LMCGroup` 및 `LMC_*` 메소드는 호환 wrapper입니다.
 
 ## 폴더
 
@@ -30,7 +30,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 예:
 
 ```csharp
-var units = new UnitConverter();
-var position = units.PositionToInternal(1.0);
+const int MM = 10000;
+var position = checked((int)Math.Round(1.0 * MM));
 axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
 ```

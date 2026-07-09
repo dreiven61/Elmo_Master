@@ -22,15 +22,15 @@ The axis object already owns that state.
 
 ## Unit Policy
 
-Unit conversion helpers are public user utilities only.
+Unit conversion is outside the API library.
 
-The API implementation must not call the unit conversion helper internally.
 Motion methods accept values that are already in the LASAL/internal DINT unit
-expected by the PLC parser.
+expected by the PLC parser. The API library does not declare unit constants and
+does not provide unit converter classes.
 
 This keeps the conversion responsibility explicit:
 
-- application/user code chooses the unit conversion rule
+- application/user code declares the unit constants and conversion rule
 - API code builds packets from already-converted DINT values
 - PLC code receives DINT values and passes them to LASAL motion blocks
 
@@ -55,17 +55,14 @@ Legacy `LMCAxis`, `LMCGroup`, and `LMC_*` method names may remain as
 compatibility wrappers, but they must delegate to the primary API and must not
 perform hidden unit conversion.
 
-`Units` and `UnitConverter` are the primary user-facing unit helper names.
-Legacy `LMC_Units` and `LMC_UnitConverter` may remain as compatibility aliases.
-
 ## Consequence
 
 If a caller wants to command `1.0 mm`, the caller must convert it before calling
 the API, for example:
 
 ```csharp
-var units = new UnitConverter();
-var position = units.PositionToInternal(1.0);
+const int MM = 10000;
+var position = checked((int)Math.Round(1.0 * MM));
 axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
 ```
 
