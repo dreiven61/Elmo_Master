@@ -1,4 +1,4 @@
-LMC LASAL DINT packet map
+LMC DINT packet map
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The DLL converts API application-unit inputs with the same scales defined in unit.h.
 Default profile:

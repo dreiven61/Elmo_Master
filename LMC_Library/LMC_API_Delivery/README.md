@@ -1,6 +1,6 @@
-# LMC LASAL Motion API
+# LMC Motion API
 
-LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 `LmcMotionApi.dll`과 별도로 사용합니다.
+LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지와 별도로 사용합니다.
 
 ## 특징
 
@@ -13,10 +13,10 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 `LmcMotionApi.dll`
 
 ## 폴더
 
-- `bin/LmcLasalMotionApi.dll`: 최종 DLL
+- `bin/LmcMotionApi.dll`: 최종 DLL
 - `src/`: DLL 전체 C# 소스
 - `sample/BasicUsage.cs`: 단축 및 그룹 사용 예제
-- `docs/LASAL_DINT_PACKET_MAP.txt`: LASAL 파서용 오프셋
+- `docs/DINT_PACKET_MAP.txt`: LASAL 파서용 오프셋
 
 ## 주의
 

@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace LmcLasalMotionApi
+namespace LmcMotionApi
 {
     public enum LMC_DIRECTION : int
     {

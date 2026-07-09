@@ -1,6 +1,6 @@
 using System;
 
-namespace LmcLasalMotionApi
+namespace LmcMotionApi
 {
     public sealed class LMCGroup
     {
@@ -96,7 +96,7 @@ namespace LmcLasalMotionApi
 
             if (raw.Length < MinimumLookupResponseLength)
             {
-                throw new InvalidOperationException("Invalid LASAL group lookup response.");
+                throw new InvalidOperationException("Invalid group lookup response.");
             }
 
             return LMC_Frame.ReadUInt16(raw, LookupReferenceOffset);

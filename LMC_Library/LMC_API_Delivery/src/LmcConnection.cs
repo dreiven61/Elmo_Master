@@ -3,7 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
-namespace LmcLasalMotionApi
+namespace LmcMotionApi
 {
     public sealed class LMCConnection : IDisposable
     {
@@ -111,7 +111,7 @@ namespace LmcLasalMotionApi
         {
             if (client == null || !client.Connected)
             {
-                throw new InvalidOperationException("LMC LASAL connection is not open.");
+                throw new InvalidOperationException("LMC connection is not open.");
             }
         }
 

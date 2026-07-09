@@ -1,4 +1,4 @@
-using LmcLasalMotionApi;
+using LmcMotionApi;
 
 public static class BasicUsage
 {
