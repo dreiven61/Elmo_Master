@@ -3,7 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
-namespace LmcMotionApi
+namespace LasalMotionControlLib
 {
     public sealed class LMCConnection : IDisposable
     {
@@ -20,12 +20,12 @@ namespace LmcMotionApi
         private readonly object sync = new object();
         private TcpClient client;
 
-        public void LMC_RpcInitConnection(
+        public void RpcInitConnection(
             string remoteAddress,
             int remotePort,
             string localAddress)
         {
-            LMC_CloseConnection(false);
+            CloseConnection(false);
 
             var localEndPoint = new IPEndPoint(IPAddress.Parse(localAddress), 0);
 
@@ -39,9 +39,22 @@ namespace LmcMotionApi
             client.Connect(IPAddress.Parse(remoteAddress), remotePort);
         }
 
+        public void LMC_RpcInitConnection(
+            string remoteAddress,
+            int remotePort,
+            string localAddress)
+        {
+            RpcInitConnection(remoteAddress, remotePort, localAddress);
+        }
+
+        public void CloseConnection()
+        {
+            CloseConnection(false);
+        }
+
         public void LMC_CloseConnection()
         {
-            LMC_CloseConnection(false);
+            CloseConnection();
         }
 
         internal byte[] Exchange(byte[] request)
@@ -80,10 +93,10 @@ namespace LmcMotionApi
 
         public void Dispose()
         {
-            LMC_CloseConnection(false);
+            CloseConnection(false);
         }
 
-        private void LMC_CloseConnection(bool sendCloseCommand)
+        private void CloseConnection(bool sendCloseCommand)
         {
             if (client == null)
             {

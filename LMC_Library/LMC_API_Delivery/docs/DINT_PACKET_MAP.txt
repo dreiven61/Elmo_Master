@@ -1,7 +1,8 @@
 LMC DINT packet map
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
-The DLL converts API application-unit inputs with the same scales defined in unit.h.
-Default profile:
+The API writes caller-provided DINT values directly to the packet.
+If application-unit conversion is needed, caller code must run the public unit helper before calling motion APIs.
+Common unit.h-based conversion profile:
   position      value * MM       (10000)
   velocity      value * MMPSEC   (10000)
   acceleration  value * MMPSEC2  (1)

@@ -1,32 +1,45 @@
-using LmcMotionApi;
+using LasalMotionControlLib;
 
 public static class BasicUsage
 {
     public static void Run()
     {
-        var units = new LMC_UnitConverter(
-            LMC_Units.MM,
-            LMC_Units.MMPSEC,
-            LMC_Units.MMPSEC2,
-            LMC_Units.MMPSEC2,
-            LMC_Units.MMPSEC2);
+        var units = new UnitConverter(
+            Units.MM,
+            Units.MMPSEC,
+            Units.MMPSEC2,
+            Units.MMPSEC2,
+            Units.MMPSEC2);
+
+        var position = units.PositionToInternal(1.0);
+        var velocity = units.VelocityToInternal(1.0);
+        var acceleration = units.AccelerationToInternal(1.0);
+        var deceleration = units.DecelerationToInternal(1.0);
+        var jerk = units.JerkToInternal(0.0);
 
         using (var connection = new LMCConnection())
         {
-            connection.LMC_RpcInitConnection(
+            connection.RpcInitConnection(
                 "10.10.150.1", 4000, "10.10.150.14");
 
-            var axis = new LMCAxis(connection, "a01", units);
-            axis.LMC_PowerCmd(true);
+            var axis = new MMCSingleAxis(connection, "a01");
+            axis.PowerOn();
 
-            // Default profile: 1.0 mm -> 10000, 1.0 mm/s -> 10000, 1.0 mm/s2 -> 1.
-            axis.LMC_MoveAbsoluteExCmd(1, 1, 1, 1, 0);
+            // API methods receive already-converted LASAL/internal DINT values.
+            axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
 
-            var group = new LMCGroup(connection, "v01", units);
-            group.LMC_GroupEnableCmd();
-            group.LMC_MoveLinearAbsoluteExCmd(
-                new[] { 1.0, 1.0, 1.0, 1.0 },
-                1, 1, 1, 0);
+            var actualPosition = axis.GetActualPosition();
+            var actualPositionMm = units.InternalToPosition(actualPosition);
+            System.Console.WriteLine("Actual position mm = " + actualPositionMm);
+
+            var group = new MMCGroupAxis(connection, "v01");
+            group.GroupEnable();
+            group.MoveLinearAbsoluteEx(
+                new[] { position, position, position, position },
+                velocity,
+                acceleration,
+                deceleration,
+                jerk);
         }
     }
 }

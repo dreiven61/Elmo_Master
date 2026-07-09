@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{29F66A76-CF36-4D44-B42D-651A532C6715}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>LmcMotionApi</RootNamespace>
-    <AssemblyName>LmcMotionApi</AssemblyName>
+    <RootNamespace>LasalMotionControlLib</RootNamespace>
+    <AssemblyName>LasalMotionControlLib</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <LangVersion>7.3</LangVersion>
   </PropertyGroup>

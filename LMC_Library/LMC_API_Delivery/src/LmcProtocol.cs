@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace LmcMotionApi
+namespace LasalMotionControlLib
 {
     public enum LMC_DIRECTION : int
     {
@@ -24,7 +24,7 @@ namespace LmcMotionApi
         }
     }
 
-    public static class LMC_Units
+    public static class Units
     {
         // Mirrors Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/unit.h.
         public const int MMPSEC2 = 1;
@@ -49,7 +49,31 @@ namespace LmcMotionApi
         public const int CCM = 1;
     }
 
-    public sealed class LMC_UnitConverter
+    public static class LMC_Units
+    {
+        public const int MMPSEC2 = Units.MMPSEC2;
+        public const int DEG = Units.DEG;
+        public const int MM2 = Units.MM2;
+        public const int KN = Units.KN;
+        public const int N = Units.N;
+        public const int M = Units.M;
+        public const int MM = Units.MM;
+        public const int GB = Units.GB;
+        public const int KB = Units.KB;
+        public const int MB = Units.MB;
+        public const int BAR = Units.BAR;
+        public const int RPM = Units.RPM;
+        public const int MLPMIN = Units.MLPMIN;
+        public const int MMPSEC = Units.MMPSEC;
+        public const int HOURS = Units.HOURS;
+        public const int MIN = Units.MIN;
+        public const int MS = Units.MS;
+        public const int SEC = Units.SEC;
+        public const int SECS = Units.SECS;
+        public const int CCM = Units.CCM;
+    }
+
+    public class UnitConverter
     {
         private const MidpointRounding RoundingMode = MidpointRounding.AwayFromZero;
 
@@ -59,17 +83,17 @@ namespace LmcMotionApi
         public int DecelerationUnit { get; private set; }
         public int JerkUnit { get; private set; }
 
-        public LMC_UnitConverter()
+        public UnitConverter()
             : this(
-                LMC_Units.MM,
-                LMC_Units.MMPSEC,
-                LMC_Units.MMPSEC2,
-                LMC_Units.MMPSEC2,
-                LMC_Units.MMPSEC2)
+                Units.MM,
+                Units.MMPSEC,
+                Units.MMPSEC2,
+                Units.MMPSEC2,
+                Units.MMPSEC2)
         {
         }
 
-        public LMC_UnitConverter(
+        public UnitConverter(
             int positionUnit,
             int velocityUnit,
             int accelerationUnit,
@@ -135,6 +159,28 @@ namespace LmcMotionApi
             }
 
             return checked((int)Math.Round(value * unit, RoundingMode));
+        }
+    }
+
+    public sealed class LMC_UnitConverter : UnitConverter
+    {
+        public LMC_UnitConverter()
+        {
+        }
+
+        public LMC_UnitConverter(
+            int positionUnit,
+            int velocityUnit,
+            int accelerationUnit,
+            int decelerationUnit,
+            int jerkUnit)
+            : base(
+                positionUnit,
+                velocityUnit,
+                accelerationUnit,
+                decelerationUnit,
+                jerkUnit)
+        {
         }
     }
 
@@ -318,20 +364,19 @@ namespace LmcMotionApi
 
         internal static byte[] MoveLinear(
             ushort reference,
-            double[] position,
-            double velocity,
-            double acceleration,
-            double deceleration,
-            double jerk,
-            LMC_UnitConverter units)
+            int[] position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk)
         {
             var buffer = CreateRequest(LMC_CommandId.MoveLinear, reference, 96);
 
-            WriteLinearPositions(buffer, position, units);
-            WriteInt32(buffer, HeaderSize + 64, units.VelocityToInternal(velocity));
-            WriteInt32(buffer, HeaderSize + 68, units.AccelerationToInternal(acceleration));
-            WriteInt32(buffer, HeaderSize + 72, units.DecelerationToInternal(deceleration));
-            WriteInt32(buffer, HeaderSize + 76, units.JerkToInternal(jerk));
+            WriteLinearPositions(buffer, position);
+            WriteInt32(buffer, HeaderSize + 64, velocity);
+            WriteInt32(buffer, HeaderSize + 68, acceleration);
+            WriteInt32(buffer, HeaderSize + 72, deceleration);
+            WriteInt32(buffer, HeaderSize + 76, jerk);
             WriteInt32(buffer, HeaderSize + 80, 0);
             WriteInt32(buffer, HeaderSize + 84, 0);
             WriteInt32(buffer, HeaderSize + 88, 1);
@@ -393,20 +438,18 @@ namespace LmcMotionApi
 
         private static void WriteLinearPositions(
             byte[] buffer,
-            double[] position,
-            LMC_UnitConverter units)
+            int[] position)
         {
             for (var axisIndex = 0; axisIndex < MaxLinearAxes; axisIndex++)
             {
-                var requestedPosition = GetPosition(position, axisIndex);
-                var internalPosition = units.PositionToInternal(requestedPosition);
+                var internalPosition = GetPosition(position, axisIndex);
                 var offset = HeaderSize + axisIndex * 4;
 
                 WriteInt32(buffer, offset, internalPosition);
             }
         }
 
-        private static double GetPosition(double[] position, int axisIndex)
+        private static int GetPosition(int[] position, int axisIndex)
         {
             if (position == null || axisIndex >= position.Length)
             {

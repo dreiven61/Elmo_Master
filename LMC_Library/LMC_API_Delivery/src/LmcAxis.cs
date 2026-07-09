@@ -1,8 +1,8 @@
 using System;
 
-namespace LmcMotionApi
+namespace LasalMotionControlLib
 {
-    public sealed class LMCAxis
+    public class MMCSingleAxis
     {
         private const int LookupReferenceOffset = 12;
         private const int MinimumLookupResponseLength = 14;
@@ -10,18 +10,13 @@ namespace LmcMotionApi
         private const int MinimumValueResponseLength = 12;
 
         private readonly LMCConnection connection;
-        private readonly LMC_UnitConverter units;
 
         public string AxisName { get; private set; }
         public ushort AxisReference { get; private set; }
 
-        public LMCAxis(
-            LMCConnection connection,
-            string axisName,
-            LMC_UnitConverter units = null)
+        public MMCSingleAxis(LMCConnection connection, string axisName)
         {
             this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            this.units = units ?? new LMC_UnitConverter();
 
             AxisName = axisName;
             AxisReference = ResolveAxisReference(axisName);
@@ -29,31 +24,47 @@ namespace LmcMotionApi
             connection.Exchange(LMC_Frame.AxisInfo(AxisReference));
         }
 
-        public LMC_Response LMC_PowerCmd(bool enable)
+        public LMC_Response PowerOn()
         {
-            return Send(LMC_Frame.Power(AxisReference, enable));
+            return Send(LMC_Frame.Power(AxisReference, true));
         }
 
-        public LMC_Response LMC_Reset()
+        public LMC_Response PowerOff()
+        {
+            return Send(LMC_Frame.Power(AxisReference, false));
+        }
+
+        public LMC_Response LMC_PowerCmd(bool enable)
+        {
+            return enable ? PowerOn() : PowerOff();
+        }
+
+        public LMC_Response Reset()
         {
             return Send(LMC_Frame.Simple(LMC_CommandId.Reset, AxisReference));
         }
 
-        public LMC_Response LMC_StopCmd(double deceleration, double jerk)
+        public LMC_Response LMC_Reset()
         {
-            return Send(
-                LMC_Frame.Stop(
-                    AxisReference,
-                    units.DecelerationToInternal(deceleration),
-                    units.JerkToInternal(jerk)));
+            return Reset();
         }
 
-        public LMC_Response LMC_MoveAbsoluteExCmd(
-            double position,
-            double velocity,
-            double acceleration,
-            double deceleration,
-            double jerk,
+        public LMC_Response Stop(int deceleration, int jerk)
+        {
+            return Send(LMC_Frame.Stop(AxisReference, deceleration, jerk));
+        }
+
+        public LMC_Response LMC_StopCmd(int deceleration, int jerk)
+        {
+            return Stop(deceleration, jerk);
+        }
+
+        public LMC_Response MoveAbsoluteEx(
+            int position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
             LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
         {
             return Move(
@@ -66,12 +77,29 @@ namespace LmcMotionApi
                 direction);
         }
 
-        public LMC_Response LMC_MoveRelativeExCmd(
-            double distance,
-            double velocity,
-            double acceleration,
-            double deceleration,
-            double jerk,
+        public LMC_Response LMC_MoveAbsoluteExCmd(
+            int position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
+        {
+            return MoveAbsoluteEx(
+                position,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                direction);
+        }
+
+        public LMC_Response MoveRelativeEx(
+            int distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
             LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
         {
             return Move(
@@ -84,24 +112,62 @@ namespace LmcMotionApi
                 direction);
         }
 
-        public LMC_Response LMC_MoveVelocityExCmd(
-            double velocity,
-            double acceleration,
-            double deceleration,
-            double jerk,
+        public LMC_Response LMC_MoveRelativeExCmd(
+            int distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
+        {
+            return MoveRelativeEx(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                direction);
+        }
+
+        public LMC_Response MoveVelocityEx(
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
             LMC_DIRECTION direction)
         {
             return Send(
                 LMC_Frame.Velocity(
                     AxisReference,
-                    units.VelocityToInternal(velocity),
-                    units.AccelerationToInternal(acceleration),
-                    units.DecelerationToInternal(deceleration),
-                    units.JerkToInternal(jerk),
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
                     direction));
         }
 
-        public uint LMC_ReadStatusCmd(out LMC_Response response)
+        public LMC_Response LMC_MoveVelocityExCmd(
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction)
+        {
+            return MoveVelocityEx(
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                direction);
+        }
+
+        public uint ReadStatus()
+        {
+            LMC_Response response;
+            return ReadStatus(out response);
+        }
+
+        public uint ReadStatus(out LMC_Response response)
         {
             var raw = connection.Exchange(LMC_Frame.ReadStatus(AxisReference));
             response = new LMC_Response { Raw = raw };
@@ -114,7 +180,18 @@ namespace LmcMotionApi
             return LMC_Frame.ReadUInt32(raw, ResponseValueOffset);
         }
 
-        public double LMC_ReadActualPositionCmd(out LMC_Response response)
+        public uint LMC_ReadStatusCmd(out LMC_Response response)
+        {
+            return ReadStatus(out response);
+        }
+
+        public int GetActualPosition()
+        {
+            LMC_Response response;
+            return GetActualPosition(out response);
+        }
+
+        public int GetActualPosition(out LMC_Response response)
         {
             var raw = connection.Exchange(LMC_Frame.ReadPosition(AxisReference));
             response = new LMC_Response { Raw = raw };
@@ -124,8 +201,12 @@ namespace LmcMotionApi
                 return 0;
             }
 
-            var internalPosition = LMC_Frame.ReadInt32(raw, ResponseValueOffset);
-            return units.InternalToPosition(internalPosition);
+            return LMC_Frame.ReadInt32(raw, ResponseValueOffset);
+        }
+
+        public int LMC_ReadActualPositionCmd(out LMC_Response response)
+        {
+            return GetActualPosition(out response);
         }
 
         private ushort ResolveAxisReference(string axisName)
@@ -143,28 +224,36 @@ namespace LmcMotionApi
 
         private LMC_Response Move(
             ushort command,
-            double positionOrDistance,
-            double velocity,
-            double acceleration,
-            double deceleration,
-            double jerk,
+            int positionOrDistance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
             LMC_DIRECTION direction)
         {
             return Send(
                 LMC_Frame.AxisMove(
                     command,
                     AxisReference,
-                    units.PositionToInternal(positionOrDistance),
-                    units.VelocityToInternal(velocity),
-                    units.AccelerationToInternal(acceleration),
-                    units.DecelerationToInternal(deceleration),
-                    units.JerkToInternal(jerk),
+                    positionOrDistance,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
                     direction));
         }
 
         private LMC_Response Send(byte[] request)
         {
             return LMCConnection.Parse(connection.Exchange(request));
+        }
+    }
+
+    public sealed class LMCAxis : MMCSingleAxis
+    {
+        public LMCAxis(LMCConnection connection, string axisName)
+            : base(connection, axisName)
+        {
         }
     }
 }
