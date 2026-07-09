@@ -21,7 +21,7 @@ public static class BasicUsage
             connection.RpcInitConnection(
                 "10.10.150.1", 4000, "10.10.150.14");
 
-            var axis = new MMCSingleAxis(connection, "a01");
+            var axis = new LMCSingleAxis(connection, "a01");
             axis.PowerOn();
 
             // API methods receive already-converted LASAL/internal DINT values.
@@ -31,7 +31,7 @@ public static class BasicUsage
             var actualPositionMm = FromDint(actualPosition, MM);
             System.Console.WriteLine("Actual position mm = " + actualPositionMm);
 
-            var group = new MMCGroupAxis(connection, "v01");
+            var group = new LMCGroupAxis(connection, "v01");
             group.GroupEnable();
             group.MoveLinearAbsoluteEx(
                 new[] { position, position, position, position },

@@ -2,7 +2,7 @@ using System;
 
 namespace LasalMotionControlLib
 {
-    public class MMCGroupAxis
+    public class LMCGroupAxis
     {
         private const int LookupReferenceOffset = 12;
         private const int MinimumLookupResponseLength = 14;
@@ -14,7 +14,7 @@ namespace LasalMotionControlLib
         public string GroupName { get; private set; }
         public ushort GroupReference { get; private set; }
 
-        public MMCGroupAxis(LMCConnection connection, string groupName)
+        public LMCGroupAxis(LMCConnection connection, string groupName)
         {
             this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
 
@@ -149,7 +149,7 @@ namespace LasalMotionControlLib
         }
     }
 
-    public sealed class LMCGroup : MMCGroupAxis
+    public sealed class LMCGroup : LMCGroupAxis
     {
         public LMCGroup(LMCConnection connection, string groupName)
             : base(connection, groupName)

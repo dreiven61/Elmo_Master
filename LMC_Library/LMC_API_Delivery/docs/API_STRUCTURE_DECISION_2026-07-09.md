@@ -9,7 +9,7 @@ for the delivered DLL.
 
 ## Packet Model
 
-The delivered DLL keeps the PMAS/MMCLib object model:
+The delivered DLL keeps the PMAS/LMC-style object model:
 
 1. A connection object owns the TCP session.
 2. An axis object is created with an axis name and connection.
@@ -37,11 +37,11 @@ This keeps the conversion responsibility explicit:
 
 ## Naming Policy
 
-Primary public methods should follow the PMAS/MMCLib wrapper style where
+Primary public methods should follow the PMAS/LMC-style wrapper style where
 practical:
 
-- `MMCSingleAxis`
-- `MMCGroupAxis`
+- `LMCSingleAxis`
+- `LMCGroupAxis`
 - `MoveAbsoluteEx`
 - `MoveRelativeEx`
 - `MoveVelocityEx`

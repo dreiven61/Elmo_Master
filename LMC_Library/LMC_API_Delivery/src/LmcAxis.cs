@@ -2,7 +2,7 @@ using System;
 
 namespace LasalMotionControlLib
 {
-    public class MMCSingleAxis
+    public class LMCSingleAxis
     {
         private const int LookupReferenceOffset = 12;
         private const int MinimumLookupResponseLength = 14;
@@ -14,7 +14,7 @@ namespace LasalMotionControlLib
         public string AxisName { get; private set; }
         public ushort AxisReference { get; private set; }
 
-        public MMCSingleAxis(LMCConnection connection, string axisName)
+        public LMCSingleAxis(LMCConnection connection, string axisName)
         {
             this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
 
@@ -249,7 +249,7 @@ namespace LasalMotionControlLib
         }
     }
 
-    public sealed class LMCAxis : MMCSingleAxis
+    public sealed class LMCAxis : LMCSingleAxis
     {
         public LMCAxis(LMCConnection connection, string axisName)
             : base(connection, axisName)
