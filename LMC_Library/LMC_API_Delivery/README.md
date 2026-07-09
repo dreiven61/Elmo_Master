@@ -7,7 +7,8 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 - API 입력 단위: LASAL PLC가 받을 internal DINT
 - API 내부 변환: 없음
 - 단위 변환: 사용자 프로그램에서 직접 수행
-- `unit.h` 기반 상수 선언도 사용자 프로그램에서 관리
+- `LMC_Units`는 `unit.h` 기반 상수 선언만 제공
+- API 내부 코드는 `LMC_Units`를 참조하지 않음
 - LASAL PLC는 수신한 DINT를 변환 없이 `_LMCAxis` 또는 `_LMCRobot`에 전달
 - TCP handshake 없이 LASAL 서버에 직접 연결
 - `MMCSingleAxis`/`MMCGroupAxis` object는 name lookup으로 얻은 reference를 보관하고, 이후 motion/status API 호출 시 해당 reference를 패킷에 자동 삽입

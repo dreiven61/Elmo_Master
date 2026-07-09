@@ -28,6 +28,7 @@
     <Compile Include="LmcConnection.cs" />
     <Compile Include="LmcAxis.cs" />
     <Compile Include="LmcGroup.cs" />
+    <Compile Include="LmcUnits.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

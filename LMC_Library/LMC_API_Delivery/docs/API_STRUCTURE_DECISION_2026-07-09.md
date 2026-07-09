@@ -22,15 +22,16 @@ The axis object already owns that state.
 
 ## Unit Policy
 
-Unit conversion is outside the API library.
+Unit conversion is outside the API implementation.
 
 Motion methods accept values that are already in the LASAL/internal DINT unit
-expected by the PLC parser. The API library does not declare unit constants and
-does not provide unit converter classes.
+expected by the PLC parser. The API library may declare `LMC_Units` constants
+for caller convenience, but packet-building code must not reference them and
+the API library must not provide unit converter classes.
 
 This keeps the conversion responsibility explicit:
 
-- application/user code declares the unit constants and conversion rule
+- application/user code chooses the unit constants and conversion rule
 - API code builds packets from already-converted DINT values
 - PLC code receives DINT values and passes them to LASAL motion blocks
 
