@@ -46,8 +46,9 @@ This keeps the conversion responsibility explicit:
 
 ## Naming Policy
 
-Primary public methods should follow the PMAS/LMC-style wrapper style where
-practical:
+Public methods should expose one method per actual operation. Do not keep a
+second `LMC_*Cmd` or `LMC_*` alias when it only sends the same packet as the
+primary method.
 
 - `LMCSingleAxis`
 - `LMCGroupAxis`
@@ -61,11 +62,10 @@ practical:
 - `Reset`
 - `Stop`
 
-Legacy `LMCAxis`, `LMCGroup`, and `LMC_*` method names may remain as
-compatibility aliases, but public user-facing methods must not call other
-public user-facing methods. Each alias should dispatch to the same private
-command helper or packet builder so the call path stays unambiguous and hidden
-unit conversion cannot be added in one alias only.
+`LMCAxis` and `LMCGroup` class names may remain as short class aliases for
+`LMCSingleAxis` and `LMCGroupAxis`, but method-level duplicates should be
+removed. Public user-facing methods must not call other public user-facing
+methods.
 
 Internal packet builders in `LmcProtocol.cs` should name the LASAL-side target
 explicitly. Use names such as `LMCAxisGetByName`, `LMCAxisPower`,

@@ -29,17 +29,7 @@ namespace LasalMotionControlLib
             return SendPower(false);
         }
 
-        public LMC_Response LMC_PowerCmd(bool enable)
-        {
-            return SendPower(enable);
-        }
-
         public LMC_Response Reset()
-        {
-            return SendReset();
-        }
-
-        public LMC_Response LMC_Reset()
         {
             return SendReset();
         }
@@ -49,23 +39,7 @@ namespace LasalMotionControlLib
             return SendStop(deceleration, jerk);
         }
 
-        public LMC_Response LMC_StopCmd(int deceleration, int jerk)
-        {
-            return SendStop(deceleration, jerk);
-        }
-
         public LMC_Response MoveAbsoluteEx(
-            int position,
-            int velocity,
-            int acceleration,
-            int deceleration,
-            int jerk,
-            LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
-        {
-            return SendMoveAbsolute(position, velocity, acceleration, deceleration, jerk, direction);
-        }
-
-        public LMC_Response LMC_MoveAbsoluteExCmd(
             int position,
             int velocity,
             int acceleration,
@@ -87,28 +61,7 @@ namespace LasalMotionControlLib
             return SendMoveRelative(distance, velocity, acceleration, deceleration, jerk, direction);
         }
 
-        public LMC_Response LMC_MoveRelativeExCmd(
-            int distance,
-            int velocity,
-            int acceleration,
-            int deceleration,
-            int jerk,
-            LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
-        {
-            return SendMoveRelative(distance, velocity, acceleration, deceleration, jerk, direction);
-        }
-
         public LMC_Response MoveVelocityEx(
-            int velocity,
-            int acceleration,
-            int deceleration,
-            int jerk,
-            LMC_DIRECTION direction)
-        {
-            return SendMoveVelocity(velocity, acceleration, deceleration, jerk, direction);
-        }
-
-        public LMC_Response LMC_MoveVelocityExCmd(
             int velocity,
             int acceleration,
             int deceleration,
@@ -129,11 +82,6 @@ namespace LasalMotionControlLib
             return ReadStatusValue(out response);
         }
 
-        public uint LMC_ReadStatusCmd(out LMC_Response response)
-        {
-            return ReadStatusValue(out response);
-        }
-
         public int GetActualPosition()
         {
             LMC_Response response;
@@ -141,11 +89,6 @@ namespace LasalMotionControlLib
         }
 
         public int GetActualPosition(out LMC_Response response)
-        {
-            return ReadActualPositionValue(out response);
-        }
-
-        public int LMC_ReadActualPositionCmd(out LMC_Response response)
         {
             return ReadActualPositionValue(out response);
         }

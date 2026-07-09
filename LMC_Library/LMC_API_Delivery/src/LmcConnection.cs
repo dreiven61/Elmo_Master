@@ -52,7 +52,7 @@ namespace LasalMotionControlLib
             int remotePort,
             string localAddress)
         {
-            RpcInitConnection(
+            OpenRpcConnection(
                 remoteAddress,
                 remotePort,
                 localAddress,
@@ -61,6 +61,26 @@ namespace LasalMotionControlLib
         }
 
         public void RpcInitConnection(
+            string remoteAddress,
+            int remotePort,
+            string localAddress,
+            int callbackPort,
+            uint eventMask)
+        {
+            OpenRpcConnection(
+                remoteAddress,
+                remotePort,
+                localAddress,
+                callbackPort,
+                eventMask);
+        }
+
+        public void CloseConnection()
+        {
+            CloseConnection(true);
+        }
+
+        private void OpenRpcConnection(
             string remoteAddress,
             int remotePort,
             string localAddress,
@@ -112,39 +132,6 @@ namespace LasalMotionControlLib
                 CloseConnection(false);
                 throw;
             }
-        }
-
-        public void LMC_RpcInitConnection(
-            string remoteAddress,
-            int remotePort,
-            string localAddress)
-        {
-            RpcInitConnection(remoteAddress, remotePort, localAddress);
-        }
-
-        public void LMC_RpcInitConnection(
-            string remoteAddress,
-            int remotePort,
-            string localAddress,
-            int callbackPort,
-            uint eventMask)
-        {
-            RpcInitConnection(
-                remoteAddress,
-                remotePort,
-                localAddress,
-                callbackPort,
-                eventMask);
-        }
-
-        public void CloseConnection()
-        {
-            CloseConnection(true);
-        }
-
-        public void LMC_CloseConnection()
-        {
-            CloseConnection();
         }
 
         internal byte[] Exchange(byte[] request)

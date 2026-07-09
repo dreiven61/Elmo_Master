@@ -22,17 +22,7 @@ namespace LasalMotionControlLib
             return SendGetGroupMembersInfo();
         }
 
-        public LMC_Response LMC_GetGroupMembersInfo()
-        {
-            return SendGetGroupMembersInfo();
-        }
-
         public LMC_Response GroupEnable()
-        {
-            return SendGroupEnable();
-        }
-
-        public LMC_Response LMC_GroupEnableCmd()
         {
             return SendGroupEnable();
         }
@@ -42,27 +32,12 @@ namespace LasalMotionControlLib
             return SendGroupDisable();
         }
 
-        public LMC_Response LMC_GroupDisableCmd()
-        {
-            return SendGroupDisable();
-        }
-
         public LMC_Response GroupReset()
         {
             return SendGroupReset();
         }
 
-        public LMC_Response LMC_GroupResetCmd()
-        {
-            return SendGroupReset();
-        }
-
         public LMC_Response GroupStop(int deceleration, int jerk)
-        {
-            return SendGroupStop(deceleration, jerk);
-        }
-
-        public LMC_Response LMC_GroupStopCmd(int deceleration, int jerk)
         {
             return SendGroupStop(deceleration, jerk);
         }
@@ -78,22 +53,7 @@ namespace LasalMotionControlLib
             return ReadGroupStatusValue(out response);
         }
 
-        public uint LMC_GroupReadStatusCmd(out LMC_Response response)
-        {
-            return ReadGroupStatusValue(out response);
-        }
-
         public LMC_Response MoveLinearAbsoluteEx(
-            int[] position,
-            int velocity,
-            int acceleration,
-            int deceleration,
-            int jerk)
-        {
-            return SendMoveLinearAbsolute(position, velocity, acceleration, deceleration, jerk);
-        }
-
-        public LMC_Response LMC_MoveLinearAbsoluteExCmd(
             int[] position,
             int velocity,
             int acceleration,
