@@ -167,8 +167,11 @@ Implemented in the PC DLL:
 - Send `0x8080` after TCP connect.
 - Send `0x405C` callback registration after session init.
 - Make `CloseConnection()` and `Dispose()` send `0x405D`.
+- Start the callback listener before `0x405C` and stop it during close.
 - Expose `IsRpcInitialized`, `CallbackPort`, `EventMask`, and the parsed
   handshake responses.
+
+See `CALLBACK_LISTENER_DESIGN_2026-07-09.md` for callback listener ownership.
 
 Still optional:
 

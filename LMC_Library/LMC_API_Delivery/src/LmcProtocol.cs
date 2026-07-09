@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using System.Text;
 
 namespace LasalMotionControlLib
@@ -22,6 +23,33 @@ namespace LasalMotionControlLib
         {
             get { return Status == 0 && ErrorId == 0; }
         }
+    }
+
+    public sealed class LMCCallbackEventArgs : EventArgs
+    {
+        internal LMCCallbackEventArgs(
+            byte[] payload,
+            IPEndPoint remoteEndPoint,
+            DateTime receivedAtUtc)
+        {
+            Payload = payload ?? new byte[0];
+            RemoteEndPoint = remoteEndPoint;
+            ReceivedAtUtc = receivedAtUtc;
+        }
+
+        public byte[] Payload { get; private set; }
+        public IPEndPoint RemoteEndPoint { get; private set; }
+        public DateTime ReceivedAtUtc { get; private set; }
+    }
+
+    public sealed class LMCCallbackErrorEventArgs : EventArgs
+    {
+        internal LMCCallbackErrorEventArgs(Exception exception)
+        {
+            Exception = exception;
+        }
+
+        public Exception Exception { get; private set; }
     }
 
     internal static class LMC_CommandId

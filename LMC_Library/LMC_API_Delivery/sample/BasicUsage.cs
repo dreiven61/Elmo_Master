@@ -18,6 +18,15 @@ public static class BasicUsage
 
         using (var connection = new LMCConnection())
         {
+            connection.CallbackReceived += delegate(object sender, LMCCallbackEventArgs e)
+            {
+                Console.WriteLine(
+                    "Callback bytes = "
+                    + e.Payload.Length
+                    + ", remote = "
+                    + e.RemoteEndPoint);
+            };
+
             connection.RpcInitConnection(
                 "10.10.150.1",
                 4000,

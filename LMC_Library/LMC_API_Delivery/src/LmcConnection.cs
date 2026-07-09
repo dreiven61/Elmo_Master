@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace LasalMotionControlLib
 {
@@ -14,15 +15,28 @@ namespace LasalMotionControlLib
         private const int SendTimeoutMilliseconds = 3000;
         private const int ResponseStatusLength = 4;
         private const int MinimumParsedResponseLength = LMC_Frame.HeaderSize + ResponseStatusLength;
+        private const int CallbackThreadJoinTimeoutMilliseconds = 500;
 
         private readonly object sync = new object();
         private TcpClient client;
+        private UdpClient callbackListener;
+        private Thread callbackThread;
+        private volatile bool callbackListenerRunning;
 
         public bool IsRpcInitialized { get; private set; }
+        public bool IsCallbackListenerRunning
+        {
+            get { return callbackListenerRunning; }
+        }
+
         public int CallbackPort { get; private set; }
         public uint EventMask { get; private set; }
+        public IPEndPoint CallbackLocalEndPoint { get; private set; }
         public LMC_Response RpcSessionInitResponse { get; private set; }
         public LMC_Response RpcCallbackRegistrationResponse { get; private set; }
+
+        public event EventHandler<LMCCallbackEventArgs> CallbackReceived;
+        public event EventHandler<LMCCallbackErrorEventArgs> CallbackListenerError;
 
         public void RpcInitConnection(
             string remoteAddress,
@@ -69,6 +83,8 @@ namespace LasalMotionControlLib
 
                 RpcSessionInitResponse = Parse(Exchange(LMC_Frame.RpcSessionInit()));
                 EnsureSuccess("RPC session init", RpcSessionInitResponse);
+
+                StartCallbackListener(parsedLocalAddress, callbackPort);
 
                 RpcCallbackRegistrationResponse = Parse(
                     Exchange(
@@ -163,14 +179,11 @@ namespace LasalMotionControlLib
 
         private void CloseConnection(bool sendCloseCommand)
         {
-            if (client == null)
-            {
-                return;
-            }
+            var currentClient = client;
 
             try
             {
-                if (sendCloseCommand && client.Connected)
+                if (sendCloseCommand && currentClient != null && currentClient.Connected)
                 {
                     Exchange(LMC_Frame.CloseConnection());
                 }
@@ -180,8 +193,13 @@ namespace LasalMotionControlLib
             }
             finally
             {
-                client.Close();
+                if (currentClient != null)
+                {
+                    currentClient.Close();
+                }
+
                 client = null;
+                StopCallbackListener();
                 IsRpcInitialized = false;
                 CallbackPort = 0;
                 EventMask = 0;
@@ -195,6 +213,122 @@ namespace LasalMotionControlLib
             if (client == null || !client.Connected)
             {
                 throw new InvalidOperationException("LMC connection is not open.");
+            }
+        }
+
+        private void StartCallbackListener(IPAddress localAddress, int callbackPort)
+        {
+            StopCallbackListener();
+
+            var listener = new UdpClient(new IPEndPoint(localAddress, callbackPort));
+
+            callbackListener = listener;
+            CallbackLocalEndPoint = (IPEndPoint)listener.Client.LocalEndPoint;
+            callbackListenerRunning = true;
+
+            callbackThread = new Thread(ReceiveCallbackLoop)
+            {
+                IsBackground = true,
+                Name = "LMC RPC callback listener"
+            };
+
+            callbackThread.Start();
+        }
+
+        private void StopCallbackListener()
+        {
+            callbackListenerRunning = false;
+
+            var listener = callbackListener;
+            callbackListener = null;
+
+            if (listener != null)
+            {
+                listener.Close();
+            }
+
+            var thread = callbackThread;
+            if (thread != null
+                && thread.IsAlive
+                && Thread.CurrentThread.ManagedThreadId != thread.ManagedThreadId)
+            {
+                thread.Join(CallbackThreadJoinTimeoutMilliseconds);
+            }
+
+            callbackThread = null;
+            CallbackLocalEndPoint = null;
+        }
+
+        private void ReceiveCallbackLoop()
+        {
+            while (callbackListenerRunning)
+            {
+                try
+                {
+                    var listener = callbackListener;
+                    if (listener == null)
+                    {
+                        break;
+                    }
+
+                    var remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                    var payload = listener.Receive(ref remoteEndPoint);
+
+                    OnCallbackReceived(
+                        new LMCCallbackEventArgs(
+                            payload,
+                            remoteEndPoint,
+                            DateTime.UtcNow));
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (SocketException ex)
+                {
+                    if (callbackListenerRunning)
+                    {
+                        OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (callbackListenerRunning)
+                    {
+                        OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
+                    }
+                }
+            }
+        }
+
+        private void OnCallbackReceived(LMCCallbackEventArgs e)
+        {
+            var handler = CallbackReceived;
+            if (handler != null)
+            {
+                try
+                {
+                    handler(this, e);
+                }
+                catch (Exception ex)
+                {
+                    OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
+                }
+            }
+        }
+
+        private void OnCallbackListenerError(LMCCallbackErrorEventArgs e)
+        {
+            var handler = CallbackListenerError;
+            if (handler != null)
+            {
+                try
+                {
+                    handler(this, e);
+                }
+                catch
+                {
+                }
             }
         }
 

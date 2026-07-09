@@ -92,6 +92,9 @@ connection sequence:
 `LMCConnection.CloseConnection()` and `Dispose()` must send `0x405D` before
 closing the socket.
 
+Because `0x405C` advertises a callback endpoint, `LMCConnection` must also own
+and close the callback listener socket. See
+`CALLBACK_LISTENER_DESIGN_2026-07-09.md`.
+
 Motion, axis lookup, and group packets keep the existing 8-byte request header.
 No session id is added to motion frames in this step.
-
