@@ -1,52 +1,85 @@
-# LMC Packet Map
+# LASAL LMC Packet Map
 
-기준 캡처: `C:\Users\user\Desktop\Elmo_API_Packet2\TXT\`
+기준 구현은 `LMC_Library/LMC_API_Delivery/src/LmcProtocol.cs`이다.
 
-모든 다중 바이트 값은 little-endian이다. 기본 요청 헤더는 8바이트다.
+이 문서는 현재 LASAL 전용 DLL이 실제로 생성하는 request frame을 정리한다.
+기존 Elmo/PMAS 패킷의 double/float payload 크기를 그대로 따르지 않는다.
+현재 DLL은 호출자가 이미 변환한 LASAL internal DINT 값을 little-endian
+`Int32`로 쓴다.
+
+## Header
+
+Request header는 8바이트다.
 
 | Offset | Size | 의미 |
 |---:|---:|---|
 | 0 | 2 | Command ID |
-| 2 | 2 | Axis reference |
+| 2 | 2 | 예약 영역. 현재 request builder는 0으로 둔다. |
 | 4 | 2 | Payload length |
-| 6 | 2 | Group reference/flags |
+| 6 | 2 | Axis 또는 group reference |
 
-| LMC API | Command ID | 요청 크기 | 비고 |
-|---|---:|---:|---|
-| `LMC_RpcInitConnection` session | `0x8080` | 9 | 선택적 Maestro handshake |
-| `LMC_RpcInitConnection` UDP register | `0x405C` | 20 | event mask, callback port, local IPv4 |
-| `LMC_CloseConnection` | `0x405D` | 9 | 연결 종료 |
-| Axis name lookup | `0x103C` | 88 | ASCII name 80 bytes |
-| Group name lookup | `0x1042` | 88 | ASCII name 80 bytes |
-| `LMC_PowerCmd` | `0x2023` | 16 | enable + buffered/execute bytes |
-| `LMC_Reset` | `0x2024` | 9 | axis reset |
-| `LMC_ReadStatusCmd` | `0x2028` | 16 | axis state/status response |
-| `LMC_ReadActualPositionCmd` | `0x202E` | 9 | response double at offset 12 |
-| `LMC_StopCmd` | `0x2022` | 24 | float deceleration/jerk |
-| `LMC_MoveAbsoluteExCmd` | `0x209F` | 64 | five doubles + direction/buffer/execute/reserved |
-| `LMC_MoveRelativeExCmd` | `0x20A0` | 64 | five doubles + direction/buffer/execute/reserved |
-| `LMC_MoveVelocityExCmd` | `0x20A2` | 49 | direction은 Positive(1)/Negative(3)만 허용 |
-| `LMC_GetGroupMembersInfo` | `0x20D2` | 9 | group reference at header offset 6 |
-| `LMC_GroupReadStatusCmd` | `0x2045` | 16 | group reference at offset 6 |
-| `LMC_GroupEnableCmd` | `0x2047` | 9 | group administrative command |
-| `LMC_GroupDisableCmd` | `0x2048` | 9 | group administrative command |
-| `LMC_GroupResetCmd` | `0x2049` | 9 | group administrative command |
-| `LMC_GroupReadActualPosition` | `0x2051` | 16 | 16-axis vector response |
-| `LMC_GroupStopCmd` | `0x2085` | 24 | float deceleration/jerk |
-| `LMC_SetKinTransformCartesian4Axis` | `0x20E7` | 1328 | a01..a04 → X/Y/Z/U, coefficient 1/1/0 |
-| `LMC_MoveLinearAbsoluteExCmd` | `0x20A4` | 312 | 16 positions, velocity/acc/dec/jerk, transition fields |
+Response header도 8바이트로 파싱한다.
 
-## 단위
+| Offset | Size | 의미 |
+|---:|---:|---|
+| 0 | 2 | Header status |
+| 2 | 2 | Payload length |
+| 4 | 4 | Header reserved |
 
-이 문서는 기존 Elmo/PMAS 패킷 확인용이다. LASAL 전용 단위 변환 기준으로 사용하지 않는다.
+Payload 시작 offset은 항상 8이다.
 
-LASAL 전용 DLL은 `LMC_Library/LMC_LASAL_API_Delivery`를 기준으로 한다. 해당 DLL은 LASAL `unit.h`에서 가져온 `LMC_Units` scale profile을 사용한다.
+## 구현된 request packet
 
-주의:
+| Public API / 내부 동작 | Command ID | Payload | Request size | Payload layout |
+|---|---:|---:|---:|---|
+| `RpcInitConnection` session init | `0x8080` | 1 | 9 | payload 1 byte, zero |
+| `RpcInitConnection` callback register | `0x405C` | 12 | 20 | `UInt32 eventMask`, `Int32 callbackPort`, IPv4 4 bytes |
+| `CloseConnection` | `0x405D` | 1 | 9 | payload 1 byte, zero |
+| axis name lookup | `0x103C` | 80 | 88 | ASCII axis name, max 79 bytes, zero padded |
+| group name lookup | `0x1042` | 80 | 88 | ASCII group name, max 79 bytes, zero padded |
+| `LMCSingleAxis` constructor axis info | `0x202B` | 12 | 20 | `Int32 mode=5`, reserved, `Int32 enable=1` |
+| `PowerOn` / `PowerOff` | `0x2023` | 8 | 16 | `Int32 1`, enable byte, captured control flag bytes |
+| `Reset` | `0x2024` | 1 | 9 | execute byte `1` |
+| `ReadStatus` | `0x2028` | 8 | 16 | `Int32 axisReference`, `Int32 1` |
+| `GetActualPosition` | `0x202E` | 1 | 9 | payload 1 byte, zero |
+| `Stop` | `0x2022` | 16 | 24 | `Int32 deceleration`, `Int32 jerk`, `Int32 1`, `Int32 1` |
+| `MoveAbsoluteEx` | `0x209F` | 32 | 40 | `Int32 position`, `velocity`, `acceleration`, `deceleration`, `jerk`, `direction`, `1`, `1` |
+| `MoveRelativeEx` | `0x20A0` | 32 | 40 | `Int32 distance`, `velocity`, `acceleration`, `deceleration`, `jerk`, `direction`, `1`, `1` |
+| `MoveVelocityEx` | `0x20A2` | 24 | 32 | `Int32 velocity`, `acceleration`, `deceleration`, `jerk`, `direction`, `1` |
+| `GetGroupMembersInfo` | `0x20D2` | 1 | 9 | execute byte `1` |
+| `GroupReadStatus` | `0x2045` | 8 | 16 | `Int32 0`, `Int32 1` |
+| `GroupEnable` | `0x2047` | 1 | 9 | execute byte `1` |
+| `GroupDisable` | `0x2048` | 1 | 9 | execute byte `1` |
+| `GroupReset` | `0x2049` | 1 | 9 | execute byte `1` |
+| `GroupStop` | `0x2085` | 16 | 24 | `Int32 deceleration`, `Int32 jerk`, `Int32 1`, `Int32 1` |
+| `MoveLinearAbsoluteEx` | `0x20A4` | 96 | 104 | 16 axis positions as `Int32`, `velocity`, `acceleration`, `deceleration`, `jerk`, transition/reserved fields, `1`, `1` |
 
-- PMAS count와 LASAL application unit을 고정 비율로 연결하지 않는다.
-- LASAL 위치/속도/가속도/저크 변환은 command별 numeric type과 `unit.h` scale을 같이 봐야 한다.
+## Response parsing
 
-## LASAL 대응
+`LMC_Response` stores the raw response, header status, payload length, header
+reserved field, payload, and optional command result.
 
-LASAL `TCPMotionInterface.Response`는 헤더/길이만 확인하고 복사한 뒤, 실제 `_LMCAxis`/group 실행은 `RtWork` 큐에서 처리해야 한다. `0x209F`, `0x20A0`, `0x20A2`, `0x20A4`, `0x20E7`의 offset은 이 문서와 `LmcProtocol.cs`를 기준으로 바이트 단위 대조한다.
+Current value parsers:
+
+- `ReadStatus` parses `UInt32` from response payload offset 0.
+- `GetActualPosition` parses `Int32` from response payload offset 0.
+- acknowledgement responses use payload offset 4 as command status and offset 6
+  as error id when the payload is at least 8 bytes.
+
+## 캡처됐지만 현재 DLL 함수가 없는 packet
+
+| Packet | Command ID | 현재 상태 |
+|---|---:|---|
+| `GroupReadActualPosition` | `0x2051` | command 상수만 있음. public API, frame builder, 16-axis vector response parser 없음. |
+| `SetKinTransformCartesian4Axis` | `0x20E7` | public API와 frame builder 없음. LASAL group 운용에서 필요 확정 시 구현. |
+| `PowerMembers` | 없음 | 단일 packet이 아니라 사용자 프로그램이 멤버 축을 순회하며 `PowerOn`/`PowerOff`를 호출하는 helper 동작. |
+
+## 비사용 legacy 기준
+
+이 문서는 현재 LASAL DINT DLL 기준이다. 아래 기준은 더 이상 현재 DLL 완료
+기준으로 쓰지 않는다.
+
+- `LMC_*Cmd` public method name
+- PMAS/Elmo double payload size
+- `Stop`/`GroupStop` float deceleration/jerk payload
+- API 내부 unit converter
