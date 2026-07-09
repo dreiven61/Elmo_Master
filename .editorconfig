@@ -1,0 +1,11 @@
+root = true
+
+[*]
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+[*.{cs,xaml,csproj,sln,config}]
+end_of_line = crlf
+
+[*.{md,json,txt,csv,html,xml,yml,yaml,st,h,cpp,c}]
+end_of_line = lf
