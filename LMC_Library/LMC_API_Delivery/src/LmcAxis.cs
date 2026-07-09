@@ -16,17 +16,17 @@ namespace LasalMotionControlLib
             AxisName = axisName;
             AxisReference = ResolveAxisReference(axisName);
 
-            connection.Exchange(LMC_Frame.AxisInfo(AxisReference));
+            connection.Exchange(LMC_Frame.LMCAxisInfo(AxisReference));
         }
 
         public LMC_Response PowerOn()
         {
-            return Send(LMC_Frame.Power(AxisReference, true));
+            return Send(LMC_Frame.LMCAxisPower(AxisReference, true));
         }
 
         public LMC_Response PowerOff()
         {
-            return Send(LMC_Frame.Power(AxisReference, false));
+            return Send(LMC_Frame.LMCAxisPower(AxisReference, false));
         }
 
         public LMC_Response LMC_PowerCmd(bool enable)
@@ -36,7 +36,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response Reset()
         {
-            return Send(LMC_Frame.Simple(LMC_CommandId.Reset, AxisReference));
+            return Send(LMC_Frame.LMCAxisReset(AxisReference));
         }
 
         public LMC_Response LMC_Reset()
@@ -46,7 +46,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response Stop(int deceleration, int jerk)
         {
-            return Send(LMC_Frame.Stop(AxisReference, deceleration, jerk));
+            return Send(LMC_Frame.LMCAxisStop(AxisReference, deceleration, jerk));
         }
 
         public LMC_Response LMC_StopCmd(int deceleration, int jerk)
@@ -62,14 +62,15 @@ namespace LasalMotionControlLib
             int jerk,
             LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
         {
-            return Move(
-                LMC_CommandId.MoveAbsolute,
-                position,
-                velocity,
-                acceleration,
-                deceleration,
-                jerk,
-                direction);
+            return Send(
+                LMC_Frame.LMCAxisMoveAbsolute(
+                    AxisReference,
+                    position,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    direction));
         }
 
         public LMC_Response LMC_MoveAbsoluteExCmd(
@@ -97,14 +98,15 @@ namespace LasalMotionControlLib
             int jerk,
             LMC_DIRECTION direction = LMC_DIRECTION.Shortest)
         {
-            return Move(
-                LMC_CommandId.MoveRelative,
-                distance,
-                velocity,
-                acceleration,
-                deceleration,
-                jerk,
-                direction);
+            return Send(
+                LMC_Frame.LMCAxisMoveRelative(
+                    AxisReference,
+                    distance,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    direction));
         }
 
         public LMC_Response LMC_MoveRelativeExCmd(
@@ -132,7 +134,7 @@ namespace LasalMotionControlLib
             LMC_DIRECTION direction)
         {
             return Send(
-                LMC_Frame.Velocity(
+                LMC_Frame.LMCAxisMoveVelocity(
                     AxisReference,
                     velocity,
                     acceleration,
@@ -165,7 +167,7 @@ namespace LasalMotionControlLib
         public uint ReadStatus(out LMC_Response response)
         {
             return LMCConnection.ParseUInt32Value(
-                connection.Exchange(LMC_Frame.ReadStatus(AxisReference)),
+                connection.Exchange(LMC_Frame.LMCAxisReadStatus(AxisReference)),
                 out response);
         }
 
@@ -183,7 +185,7 @@ namespace LasalMotionControlLib
         public int GetActualPosition(out LMC_Response response)
         {
             return LMCConnection.ParseInt32Value(
-                connection.Exchange(LMC_Frame.ReadPosition(AxisReference)),
+                connection.Exchange(LMC_Frame.LMCAxisReadPosition(AxisReference)),
                 out response);
         }
 
@@ -197,7 +199,7 @@ namespace LasalMotionControlLib
             ushort axisReference;
 
             if (!LMCConnection.TryParseLookupReference(
-                connection.Exchange(LMC_Frame.Name(LMC_CommandId.GetAxisByName, axisName)),
+                connection.Exchange(LMC_Frame.LMCAxisGetByName(axisName)),
                 out _,
                 out axisReference))
             {
@@ -205,27 +207,6 @@ namespace LasalMotionControlLib
             }
 
             return axisReference;
-        }
-
-        private LMC_Response Move(
-            ushort command,
-            int positionOrDistance,
-            int velocity,
-            int acceleration,
-            int deceleration,
-            int jerk,
-            LMC_DIRECTION direction)
-        {
-            return Send(
-                LMC_Frame.AxisMove(
-                    command,
-                    AxisReference,
-                    positionOrDistance,
-                    velocity,
-                    acceleration,
-                    deceleration,
-                    jerk,
-                    direction));
         }
 
         private LMC_Response Send(byte[] request)

@@ -65,6 +65,13 @@ Legacy `LMCAxis`, `LMCGroup`, and `LMC_*` method names may remain as
 compatibility wrappers, but they must delegate to the primary API and must not
 perform hidden unit conversion.
 
+Internal packet builders in `LmcProtocol.cs` should name the LASAL-side target
+explicitly. Use names such as `LMCAxisGetByName`, `LMCAxisPower`,
+`LMCAxisMoveAbsolute`, `LMCGroupGetByName`, `LMCGroupEnable`, and
+`LMCGroupMoveLinearAbsolute`. Low-level private helpers may stay generic, but
+command-facing builders must not use ambiguous names such as `Power`, `Simple`,
+`Velocity`, or `MoveLinear`.
+
 ## Consequence
 
 If a caller wants to command `1.0 mm`, the caller must convert it before calling

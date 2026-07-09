@@ -19,7 +19,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response GetGroupMembersInfo()
         {
-            return Send(LMC_Frame.Simple(LMC_CommandId.GetMembers, GroupReference));
+            return Send(LMC_Frame.LMCGroupGetMembersInfo(GroupReference));
         }
 
         public LMC_Response LMC_GetGroupMembersInfo()
@@ -29,7 +29,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response GroupEnable()
         {
-            return Send(LMC_Frame.Simple(LMC_CommandId.GroupEnable, GroupReference));
+            return Send(LMC_Frame.LMCGroupEnable(GroupReference));
         }
 
         public LMC_Response LMC_GroupEnableCmd()
@@ -39,7 +39,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response GroupDisable()
         {
-            return Send(LMC_Frame.Simple(LMC_CommandId.GroupDisable, GroupReference));
+            return Send(LMC_Frame.LMCGroupDisable(GroupReference));
         }
 
         public LMC_Response LMC_GroupDisableCmd()
@@ -49,7 +49,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response GroupReset()
         {
-            return Send(LMC_Frame.Simple(LMC_CommandId.GroupReset, GroupReference));
+            return Send(LMC_Frame.LMCGroupReset(GroupReference));
         }
 
         public LMC_Response LMC_GroupResetCmd()
@@ -59,7 +59,7 @@ namespace LasalMotionControlLib
 
         public LMC_Response GroupStop(int deceleration, int jerk)
         {
-            return Send(LMC_Frame.GroupStop(GroupReference, deceleration, jerk));
+            return Send(LMC_Frame.LMCGroupStop(GroupReference, deceleration, jerk));
         }
 
         public LMC_Response LMC_GroupStopCmd(int deceleration, int jerk)
@@ -77,7 +77,7 @@ namespace LasalMotionControlLib
         {
             return LMCConnection.ParseUInt32Value(
                 connection.Exchange(
-                    LMC_Frame.GroupRead(LMC_CommandId.GroupStatus, GroupReference)),
+                    LMC_Frame.LMCGroupReadStatus(GroupReference)),
                 out response);
         }
 
@@ -94,7 +94,7 @@ namespace LasalMotionControlLib
             int jerk)
         {
             return Send(
-                LMC_Frame.MoveLinear(
+                LMC_Frame.LMCGroupMoveLinearAbsolute(
                     GroupReference,
                     position,
                     velocity,
@@ -123,7 +123,7 @@ namespace LasalMotionControlLib
             ushort groupReference;
 
             if (!LMCConnection.TryParseLookupReference(
-                connection.Exchange(LMC_Frame.Name(LMC_CommandId.GetGroupByName, groupName)),
+                connection.Exchange(LMC_Frame.LMCGroupGetByName(groupName)),
                 out _,
                 out groupReference))
             {

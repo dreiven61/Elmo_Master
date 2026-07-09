@@ -161,17 +161,17 @@ namespace LasalMotionControlLib
             return CreateRequest(LMC_CommandId.CloseConnection, 0, 1);
         }
 
-        internal static byte[] Name(ushort command, string name)
+        internal static byte[] LMCAxisGetByName(string axisName)
         {
-            var buffer = CreateRequest(command, 0, NamePayloadLength);
-            var encodedName = Encoding.ASCII.GetBytes(name ?? string.Empty);
-            var byteCount = Math.Min(encodedName.Length, NameMaxBytes);
-
-            Buffer.BlockCopy(encodedName, 0, buffer, HeaderSize, byteCount);
-            return buffer;
+            return NameLookup(LMC_CommandId.GetAxisByName, axisName);
         }
 
-        internal static byte[] AxisInfo(ushort reference)
+        internal static byte[] LMCGroupGetByName(string groupName)
+        {
+            return NameLookup(LMC_CommandId.GetGroupByName, groupName);
+        }
+
+        internal static byte[] LMCAxisInfo(ushort reference)
         {
             var buffer = CreateRequest(LMC_CommandId.AxisInfo, reference, 12);
 
@@ -181,7 +181,7 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        internal static byte[] Power(ushort reference, bool enabled)
+        internal static byte[] LMCAxisPower(ushort reference, bool enabled)
         {
             var buffer = CreateRequest(LMC_CommandId.Power, reference, 8);
 
@@ -193,14 +193,12 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        internal static byte[] Simple(ushort command, ushort reference)
+        internal static byte[] LMCAxisReset(ushort reference)
         {
-            var buffer = CreateRequest(command, reference, 1);
-            buffer[HeaderSize] = 1;
-            return buffer;
+            return ExecuteOnly(LMC_CommandId.Reset, reference);
         }
 
-        internal static byte[] ReadStatus(ushort reference)
+        internal static byte[] LMCAxisReadStatus(ushort reference)
         {
             var buffer = CreateRequest(LMC_CommandId.ReadStatus, reference, 8);
 
@@ -210,46 +208,60 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        internal static byte[] ReadPosition(ushort reference)
+        internal static byte[] LMCAxisReadPosition(ushort reference)
         {
             return CreateRequest(LMC_CommandId.ReadPosition, reference, 1);
         }
 
-        internal static byte[] Stop(ushort reference, int deceleration, int jerk)
-        {
-            return Stop(LMC_CommandId.Stop, reference, deceleration, jerk);
-        }
-
-        internal static byte[] GroupStop(ushort reference, int deceleration, int jerk)
-        {
-            return Stop(LMC_CommandId.GroupStop, reference, deceleration, jerk);
-        }
-
-        internal static byte[] AxisMove(
-            ushort command,
+        internal static byte[] LMCAxisStop(
             ushort reference,
-            int positionOrDistance,
+            int deceleration,
+            int jerk)
+        {
+            return StopWithMotionParameters(LMC_CommandId.Stop, reference, deceleration, jerk);
+        }
+
+        internal static byte[] LMCAxisMoveAbsolute(
+            ushort reference,
+            int position,
             int velocity,
             int acceleration,
             int deceleration,
             int jerk,
             LMC_DIRECTION direction)
         {
-            var buffer = CreateRequest(command, reference, 32);
-
-            WriteInt32(buffer, HeaderSize, positionOrDistance);
-            WriteInt32(buffer, HeaderSize + 4, velocity);
-            WriteInt32(buffer, HeaderSize + 8, acceleration);
-            WriteInt32(buffer, HeaderSize + 12, deceleration);
-            WriteInt32(buffer, HeaderSize + 16, jerk);
-            WriteInt32(buffer, HeaderSize + 20, (int)direction);
-            WriteInt32(buffer, HeaderSize + 24, 1);
-            WriteInt32(buffer, HeaderSize + 28, 1);
-
-            return buffer;
+            return LMCAxisMove(
+                LMC_CommandId.MoveAbsolute,
+                reference,
+                position,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                direction);
         }
 
-        internal static byte[] Velocity(
+        internal static byte[] LMCAxisMoveRelative(
+            ushort reference,
+            int distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction)
+        {
+            return LMCAxisMove(
+                LMC_CommandId.MoveRelative,
+                reference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                direction);
+        }
+
+        internal static byte[] LMCAxisMoveVelocity(
             ushort reference,
             int velocity,
             int acceleration,
@@ -269,9 +281,29 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        internal static byte[] GroupRead(ushort command, ushort reference)
+        internal static byte[] LMCGroupGetMembersInfo(ushort reference)
         {
-            var buffer = CreateRequest(command, reference, 8);
+            return ExecuteOnly(LMC_CommandId.GetMembers, reference);
+        }
+
+        internal static byte[] LMCGroupEnable(ushort reference)
+        {
+            return ExecuteOnly(LMC_CommandId.GroupEnable, reference);
+        }
+
+        internal static byte[] LMCGroupDisable(ushort reference)
+        {
+            return ExecuteOnly(LMC_CommandId.GroupDisable, reference);
+        }
+
+        internal static byte[] LMCGroupReset(ushort reference)
+        {
+            return ExecuteOnly(LMC_CommandId.GroupReset, reference);
+        }
+
+        internal static byte[] LMCGroupReadStatus(ushort reference)
+        {
+            var buffer = CreateRequest(LMC_CommandId.GroupStatus, reference, 8);
 
             WriteInt32(buffer, HeaderSize, 0);
             WriteInt32(buffer, HeaderSize + 4, 1);
@@ -279,7 +311,15 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        internal static byte[] MoveLinear(
+        internal static byte[] LMCGroupStop(
+            ushort reference,
+            int deceleration,
+            int jerk)
+        {
+            return StopWithMotionParameters(LMC_CommandId.GroupStop, reference, deceleration, jerk);
+        }
+
+        internal static byte[] LMCGroupMoveLinearAbsolute(
             ushort reference,
             int[] position,
             int velocity,
@@ -298,6 +338,47 @@ namespace LasalMotionControlLib
             WriteInt32(buffer, HeaderSize + 84, 0);
             WriteInt32(buffer, HeaderSize + 88, 1);
             WriteInt32(buffer, HeaderSize + 92, 1);
+
+            return buffer;
+        }
+
+        private static byte[] NameLookup(ushort command, string name)
+        {
+            var buffer = CreateRequest(command, 0, NamePayloadLength);
+            var encodedName = Encoding.ASCII.GetBytes(name ?? string.Empty);
+            var byteCount = Math.Min(encodedName.Length, NameMaxBytes);
+
+            Buffer.BlockCopy(encodedName, 0, buffer, HeaderSize, byteCount);
+            return buffer;
+        }
+
+        private static byte[] ExecuteOnly(ushort command, ushort reference)
+        {
+            var buffer = CreateRequest(command, reference, 1);
+            buffer[HeaderSize] = 1;
+            return buffer;
+        }
+
+        private static byte[] LMCAxisMove(
+            ushort command,
+            ushort reference,
+            int positionOrDistance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction)
+        {
+            var buffer = CreateRequest(command, reference, 32);
+
+            WriteInt32(buffer, HeaderSize, positionOrDistance);
+            WriteInt32(buffer, HeaderSize + 4, velocity);
+            WriteInt32(buffer, HeaderSize + 8, acceleration);
+            WriteInt32(buffer, HeaderSize + 12, deceleration);
+            WriteInt32(buffer, HeaderSize + 16, jerk);
+            WriteInt32(buffer, HeaderSize + 20, (int)direction);
+            WriteInt32(buffer, HeaderSize + 24, 1);
+            WriteInt32(buffer, HeaderSize + 28, 1);
 
             return buffer;
         }
@@ -345,7 +426,7 @@ namespace LasalMotionControlLib
             buffer[offset + 3] = (byte)(unsignedValue >> 24);
         }
 
-        private static byte[] Stop(
+        private static byte[] StopWithMotionParameters(
             ushort command,
             ushort reference,
             int deceleration,
