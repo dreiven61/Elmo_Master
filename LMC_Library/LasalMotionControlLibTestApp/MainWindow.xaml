@@ -3,14 +3,18 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="LASAL Motion Control Lib Test (No Elmo DLL)"
-    Width="1120"
-    Height="760">
+    Width="1180"
+    Height="820">
     <DockPanel Margin="10">
         <GroupBox
             DockPanel.Dock="Top"
             Header="LMC Connection"
             Margin="0,0,0,8">
             <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="190" />
                     <ColumnDefinition Width="100" />
@@ -41,15 +45,28 @@
 
                 <WrapPanel Grid.Column="4" VerticalAlignment="Bottom">
                     <Button
+                        x:Name="ConnectButton"
                         Padding="12,5"
                         Margin="0,0,8,0"
                         Click="Connect_Click"
                         Content="RpcInitConnection" />
                     <Button
+                        x:Name="CloseButton"
                         Padding="12,5"
                         Click="Close_Click"
                         Content="CloseConnection" />
                 </WrapPanel>
+
+                <StackPanel
+                    Grid.Row="1"
+                    Grid.ColumnSpan="5"
+                    Orientation="Horizontal"
+                    Margin="0,8,0,0">
+                    <TextBlock Text="State: " FontWeight="SemiBold" />
+                    <TextBlock x:Name="ConnectionStateText" Text="Disconnected" />
+                    <TextBlock Text="   Callback: " FontWeight="SemiBold" />
+                    <TextBlock x:Name="CallbackStateText" Text="Stopped" />
+                </StackPanel>
             </Grid>
         </GroupBox>
 
@@ -92,6 +109,48 @@
                     <TextBlock Text="API" />
                     <ComboBox x:Name="ApiOperation" />
                 </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox
+            DockPanel.Dock="Top"
+            Header="Group command options"
+            Margin="0,0,0,8">
+            <Grid Margin="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="190" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="ReadActualPosition coord (MCS captured)" />
+                    <ComboBox x:Name="ReadCoordinateSystem" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                    <TextBlock Text="Move coordinate" />
+                    <ComboBox x:Name="MotionCoordinateSystem" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                    <TextBlock Text="Transition mode" />
+                    <ComboBox x:Name="TransitionMode" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                    <TextBlock Text="Buffer mode" />
+                    <ComboBox x:Name="BufferMode" />
+                </StackPanel>
+
+                <TextBlock
+                    Grid.Column="4"
+                    VerticalAlignment="Bottom"
+                    TextWrapping="Wrap"
+                    Foreground="#AA660000"
+                    Text="SetKinTransformCartesian4Axis uses the first four group members as X/Y/Z/U. The current wire profile is the captured four-axis identity-shift profile." />
             </Grid>
         </GroupBox>
 
@@ -161,10 +220,18 @@
                 Text="8388608"
                 Margin="0,0,16,0" />
             <Button
+                x:Name="ExecuteButton"
                 Width="220"
                 Padding="12,6"
                 Click="Execute_Click"
                 Content="Execute Selected LMC API" />
+            <Button
+                x:Name="CancelButton"
+                Width="100"
+                Padding="12,6"
+                Margin="8,0,0,0"
+                Click="Cancel_Click"
+                Content="Cancel" />
             <TextBlock
                 VerticalAlignment="Center"
                 Foreground="#AA660000"
