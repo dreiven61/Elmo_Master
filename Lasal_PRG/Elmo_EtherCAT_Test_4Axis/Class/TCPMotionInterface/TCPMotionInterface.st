@@ -41,10 +41,10 @@
 		<Server Name="RobotUnLock" GUID="{ADED8B18-F205-4D23-9D6E-A966DCA5605E}" Visualized="false" Initialize="false" WriteProtected="false" Retentive="false"/>
 		<Server Name="velo" GUID="{62BB909C-5656-4232-B799-BE918E89FDFD}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Client Name="_StdLib" Required="false" Internal="false"/>
-		<Client Name="LMCAxis" Required="true" Internal="false"/>
-		<Client Name="LMCAxis2" GUID="{17DE0C72-50DA-41AE-A9C2-013E3260B402}" Required="true" Internal="false"/>
-		<Client Name="LMCAxis3" GUID="{3D979D5B-C3F5-4851-A196-0E2EC1EDD46B}" Required="true" Internal="false"/>
-		<Client Name="LMCAxis4" GUID="{33BA1F7E-A914-4B25-A46A-A35B24322CCE}" Required="true" Internal="false"/>
+		<Client Name="LMCAxis1" Required="true" Internal="false"/>
+		<Client Name="LMCAxis2" Required="true" Internal="false"/>
+		<Client Name="LMCAxis3" Required="true" Internal="false"/>
+		<Client Name="LMCAxis4" Required="true" Internal="false"/>
 		<Client Name="LMCRobot" Required="true" Internal="false"/>
 	</Channels>
 	<Network Name="TCPMotionInterface">
@@ -91,6 +91,56 @@
 
 TCPMotionInterface : CLASS
 : _TCPIPServerInterface
+	TYPE
+	  _TCPMI_QUEUE_STATE :
+	  (
+	    TCPMI_QUEUE_FREE := 0,
+	    TCPMI_QUEUE_WRITING,
+	    TCPMI_QUEUE_READY,
+	    TCPMI_QUEUE_ACTIVE
+	  )$UDINT;
+	  _TCPMI_RT_STATE :
+	  (
+	    TCPMI_RT_FREE := 0,
+	    TCPMI_RT_WRITING,
+	    TCPMI_RT_READY,
+	    TCPMI_RT_ACTIVE,
+	    TCPMI_RT_DONE
+	  )$UDINT;
+	  _TCPMI_REQUEST_ENTRY : STRUCT
+	    State : UDINT;
+	    Sequence : UDINT;
+	    Socket : DINT;
+	    SessionEpoch : UDINT;
+	    CommandId : UINT;
+	    Reference : UINT;
+	    PayloadLength : UINT;
+	    Reserved : UINT;
+	    PayloadData : ARRAY [0..95] OF BYTE;
+	  END_STRUCT;
+	  _TCPMI_RT_REQUEST : STRUCT
+	    State : UDINT;
+	    Sequence : UDINT;
+	    Socket : DINT;
+	    SessionEpoch : UDINT;
+	    CommandId : UINT;
+	    Reference : UINT;
+	    PayloadLength : UINT;
+	    Reserved : UINT;
+	    Args : ARRAY [0..23] OF DINT;
+	  END_STRUCT;
+	  _TCPMI_RT_RESULT : STRUCT
+	    State : UDINT;
+	    Sequence : UDINT;
+	    Socket : DINT;
+	    SessionEpoch : UDINT;
+	    CommandId : UINT;
+	    Reference : UINT;
+	    Status : UINT;
+	    ErrorId : INT;
+	    Value0 : DINT;
+	  END_STRUCT;
+	END_TYPE
   //Servers:
 	CurrentSock 	: SvrCh_DINT;
 	CommandID 	: SvrCh_DINT;
@@ -113,7 +163,7 @@ TCPMotionInterface : CLASS
 	RobotUnLock 	: SvrCh_DINT;
 	RetCode 	: SvrCh__LMCPROFERRORTYPES;
   //Clients:
-	LMCAxis 	: CltChCmd__LMCAxis;
+	LMCAxis1 	: CltChCmd__LMCAxis;
 	LMCAxis2 	: CltChCmd__LMCAxis;
 	LMCAxis3 	: CltChCmd__LMCAxis;
 	LMCAxis4 	: CltChCmd__LMCAxis;
@@ -121,9 +171,28 @@ TCPMotionInterface : CLASS
 	_StdLib 	: CltChCmd__StdLib;
   //Variables:
 		ReceiveBuf : ARRAY [0..1023] OF BYTE;
+
 		ReceiveFill 	: UDINT;
 		ReceiveSocket 	: DINT;
-
+		RequestBuf : ARRAY [0..103] OF BYTE;
+		RequestQueue : ARRAY [0..7] OF _TCPMI_REQUEST_ENTRY;
+		QueueWriteIndex 	: UDINT;
+		QueueReadIndex 	: UDINT;
+		NextSequence 	: UDINT;
+		SessionEpoch 	: UDINT;
+		ActiveRequest : _TCPMI_REQUEST_ENTRY;
+		RtRequest : _TCPMI_RT_REQUEST;
+		RtResult : _TCPMI_RT_RESULT;
+		ActiveRequestValid 	: BOOL;
+		ActiveAwaitingRt 	: BOOL;
+		IngressFaultPending 	: BOOL;
+		IngressBlocked 	: BOOL;
+		IngressFaultCloseRequired 	: BOOL;
+		IngressFaultSocket 	: DINT;
+		IngressFaultEpoch 	: UDINT;
+		IngressFaultError 	: INT;
+		IngressDiscardRemaining 	: UDINT;
+		IngressDiscardSocket 	: DINT;
 		Sendbuf : ARRAY [0..2047] OF BYTE;
 
 		GroupMovePos 	: _LMCPROF_POS;
@@ -155,11 +224,17 @@ TCPMotionInterface : CLASS
 		RpcCallbackEventMask 	: UDINT;
 		RpcCallbackPort 	: DINT;
 		RpcCallbackIPv4 : ARRAY [0..3] OF BYTE;
+
 		AxisObjectName1 : ARRAY [0..255] OF CHAR;
+
 		AxisObjectName2 : ARRAY [0..255] OF CHAR;
+
 		AxisObjectName3 : ARRAY [0..255] OF CHAR;
+
 		AxisObjectName4 : ARRAY [0..255] OF CHAR;
+
 		GroupObjectName : ARRAY [0..255] OF CHAR;
+
 		ObjectRegistryReady 	: BOOL;
 		AxisCommandState 	: _LMCAXIS_CMDERROR;
 		AxisCommandStatus 	: UINT;
@@ -184,6 +259,26 @@ TCPMotionInterface : CLASS
 		END_VAR
 		VAR_OUTPUT
 			state (EAX) 	: UDINT;
+		END_VAR;
+				//! <Function Comment="Limits each TCP read to the free receive accumulator space." Name="DataHandling"/>
+	FUNCTION VIRTUAL GLOBAL DataHandling
+		VAR_INPUT
+			dSocket 	: DINT;
+			udAvailableData 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			udReadAvailableDataBytes 	: UDINT;
+		END_VAR;
+				//! <Function Comment="Sends one ordered response and quarantines the session on a partial or failed send." Name="SendData"/>
+	FUNCTION VIRTUAL GLOBAL SendData
+		VAR_INPUT
+			pData 	: ^void;
+			udSize 	: UDINT;
+			dSocket 	: DINT;
+			bDirect 	: BOOL;
+		END_VAR
+		VAR_OUTPUT
+			dRetcode 	: DINT;
 		END_VAR;
 				//! <Function Comment="This Method is called if Data is received (Overwrite it)&#13;&#10;For receiving a spezial amount of Data you have to use the &#13;&#10;DataHandling Methode." Name="Response"/>
 	FUNCTION VIRTUAL GLOBAL Response
@@ -302,7 +397,7 @@ TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, //Baseclass
 (::TCPMotionInterface.RobotUnLock.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3631835530), "RobotUnLock", 
 (::TCPMotionInterface.RetCode.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3689207556), "RetCode", 
 //Clients:
-(::TCPMotionInterface.LMCAxis.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(546066186), "LMCAxis", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
+(::TCPMotionInterface.LMCAxis1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1663666918), "LMCAxis1", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT,
 (::TCPMotionInterface.LMCAxis2.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4196457308), "LMCAxis2", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT,
 (::TCPMotionInterface.LMCAxis3.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2368203722), "LMCAxis3", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT,
 (::TCPMotionInterface.LMCAxis4.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(323190377), "LMCAxis4", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT,
@@ -340,7 +435,15 @@ FUNCTION TCPMotionInterface::@STD
 	vmt.CmdTable.CyWork		:= #CyWork();
 	vmt.CmdTable.RtWork		:= #RtWork();
 #pragma warning (disable : 74)
+	vmt.UserFcts[0]		:= #DataHandling();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
 	vmt.UserFcts[1]		:= #Response();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[2]		:= #SendData();
 
 #pragma warning (default : 74)
 #pragma warning (disable : 74)
@@ -396,11 +499,120 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::RtWork
 	VAR_OUTPUT
 		state (EAX) 	: UDINT;
 	END_VAR
+	VAR
+		currentEpoch 	: UDINT;
+	END_VAR
 
-  // Build the immutable public-name -> opaque reference table from the
-  // connected LASAL objects.  The PC API never knows or stores PLC pointers.
+  // RtWork executes only the typed mailbox. No parsing, strings, or TCP I/O.
+  if (sigclib_atomic_getU32(pValue:=#RtRequest.State) = TCPMI_RT_READY) &
+     (sigclib_atomic_getU32(pValue:=#RtResult.State) = TCPMI_RT_FREE) then
+    if sigclib_atomic_cmpxchgU32(
+         pValue:=#RtResult.State,
+         cmpVal:=TCPMI_RT_FREE,
+         newVal:=TCPMI_RT_WRITING
+       ) = TCPMI_RT_FREE then
+      if sigclib_atomic_cmpxchgU32(
+           pValue:=#RtRequest.State,
+           cmpVal:=TCPMI_RT_READY,
+           newVal:=TCPMI_RT_ACTIVE
+         ) = TCPMI_RT_READY then
+        RtResult.Sequence := RtRequest.Sequence;
+        RtResult.Socket := RtRequest.Socket;
+        RtResult.SessionEpoch := RtRequest.SessionEpoch;
+        RtResult.CommandId := RtRequest.CommandId;
+        RtResult.Reference := RtRequest.Reference;
+        RtResult.Status := 1;
+        RtResult.ErrorId := -3;
+        RtResult.Value0 := 0;
+
+        currentEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+        if RtRequest.SessionEpoch <> currentEpoch then
+          RtResult.ErrorId := -1;
+        elsif (RtRequest.CommandId = 0x202E) &
+              (RtRequest.PayloadLength = 1) then
+          case RtRequest.Reference of
+            1:
+              if IsClientConnected(#LMCAxis1) = 1 then
+                RtResult.Value0 := LMCAxis1.ReadPosition(
+                  Mode:=LMCAXIS_ACTPOS_APPUNIT);
+                RtResult.Status := 0;
+                RtResult.ErrorId := 0;
+              else
+                RtResult.ErrorId := -2;
+              end_if;
+            2:
+              if IsClientConnected(#LMCAxis2) = 1 then
+                RtResult.Value0 := LMCAxis2.ReadPosition(
+                  Mode:=LMCAXIS_ACTPOS_APPUNIT);
+                RtResult.Status := 0;
+                RtResult.ErrorId := 0;
+              else
+                RtResult.ErrorId := -2;
+              end_if;
+            3:
+              if IsClientConnected(#LMCAxis3) = 1 then
+                RtResult.Value0 := LMCAxis3.ReadPosition(
+                  Mode:=LMCAXIS_ACTPOS_APPUNIT);
+                RtResult.Status := 0;
+                RtResult.ErrorId := 0;
+              else
+                RtResult.ErrorId := -2;
+              end_if;
+            4:
+              if IsClientConnected(#LMCAxis4) = 1 then
+                RtResult.Value0 := LMCAxis4.ReadPosition(
+                  Mode:=LMCAXIS_ACTPOS_APPUNIT);
+                RtResult.Status := 0;
+                RtResult.ErrorId := 0;
+              else
+                RtResult.ErrorId := -2;
+              end_if;
+          else
+          end_case;
+        else
+          RtResult.ErrorId := -5;
+        end_if;
+
+        sigclib_atomic_swpU32(
+          pValue:=#RtRequest.State,
+          swpVal:=TCPMI_RT_FREE
+        );
+        sigclib_atomic_swpU32(
+          pValue:=#RtResult.State,
+          swpVal:=TCPMI_RT_DONE
+        );
+      else
+        sigclib_atomic_swpU32(
+          pValue:=#RtResult.State,
+          swpVal:=TCPMI_RT_FREE
+        );
+        state := READY;
+        RETURN;
+      end_if;
+    end_if;
+  end_if;
+	state := READY;
+
+END_FUNCTION
+
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
+	VAR_INPUT
+		EAX 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		state (EAX) 	: UDINT;
+	END_VAR
+	VAR
+		currentEpoch 	: UDINT;
+		sendRet 	: DINT;
+	END_VAR
+
+  currentEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+
+  // Object discovery belongs to CyWork because it performs string operations.
   if ObjectRegistryReady = FALSE then
-    if (IsClientConnected(#LMCAxis) = 1) &
+    if (IsClientConnected(#LMCAxis1) = 1) &
        (IsClientConnected(#LMCAxis2) = 1) &
        (IsClientConnected(#LMCAxis3) = 1) &
        (IsClientConnected(#LMCAxis4) = 1) &
@@ -411,7 +623,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::RtWork
       _memset(dest:=#AxisObjectName4[0], usByte:=0, cntr:=sizeof(AxisObjectName4));
       _memset(dest:=#GroupObjectName[0], usByte:=0, cntr:=sizeof(GroupObjectName));
 
-      _GetObjName(pThis:=LMCAxis.pCmd, pName:=#AxisObjectName1[0]);
+      _GetObjName(pThis:=LMCAxis1.pCmd, pName:=#AxisObjectName1[0]);
       _GetObjName(pThis:=LMCAxis2.pCmd, pName:=#AxisObjectName2[0]);
       _GetObjName(pThis:=LMCAxis3.pCmd, pName:=#AxisObjectName3[0]);
       _GetObjName(pThis:=LMCAxis4.pCmd, pName:=#AxisObjectName4[0]);
@@ -430,18 +642,149 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::RtWork
         (_strlen(#GroupObjectName[0]) <= 79);
     end_if;
   end_if;
-	state := READY;
 
-END_FUNCTION
+  // Consume one completed RT result. A partial/failed send quarantines the
+  // session; the frame is never blindly retried.
+  if sigclib_atomic_cmpxchgU32(
+       pValue:=#RtResult.State,
+       cmpVal:=TCPMI_RT_DONE,
+       newVal:=TCPMI_RT_ACTIVE
+     ) = TCPMI_RT_DONE then
+    if (ActiveRequestValid = TRUE) & (ActiveAwaitingRt = TRUE) &
+       (RtResult.Sequence = ActiveRequest.Sequence) &
+       (RtResult.Socket = ActiveRequest.Socket) &
+       (RtResult.SessionEpoch = currentEpoch) then
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 8;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$DINT := RtResult.Value0;
+      Sendbuf[12]$UINT := RtResult.Status;
+      Sendbuf[14]$INT := RtResult.ErrorId;
 
+      sendRet := SendData(
+        pData:=#Sendbuf[0],
+        udSize:=16,
+        dSocket:=RtResult.Socket,
+        bDirect:=TRUE
+      );
+      if sendRet = 16 then
+        ActiveRequestValid := FALSE;
+        ActiveAwaitingRt := FALSE;
+        sigclib_atomic_swpU32(
+          pValue:=#RtResult.State,
+          swpVal:=TCPMI_RT_FREE
+        );
+      else
+        ActiveRequestValid := FALSE;
+        ActiveAwaitingRt := FALSE;
+        sigclib_atomic_swpU32(
+          pValue:=#RtResult.State,
+          swpVal:=TCPMI_RT_FREE
+        );
+        state := READY;
+        RETURN;
+      end_if;
+    else
+      ActiveRequestValid := FALSE;
+      ActiveAwaitingRt := FALSE;
+      sigclib_atomic_swpU32(
+        pValue:=#RtResult.State,
+        swpVal:=TCPMI_RT_FREE
+      );
+    end_if;
+  end_if;
 
-FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
-	VAR_INPUT
-		EAX 	: UDINT;
-	END_VAR
-	VAR_OUTPUT
-		state (EAX) 	: UDINT;
-	END_VAR
+  if (ActiveRequestValid = TRUE) &
+     (ActiveRequest.SessionEpoch <> currentEpoch) then
+    ActiveRequestValid := FALSE;
+    ActiveAwaitingRt := FALSE;
+  end_if;
+
+  // Claim at most one request from the SPSC queue.
+  if ActiveRequestValid = FALSE then
+    if sigclib_atomic_cmpxchgU32(
+         pValue:=#RequestQueue[QueueReadIndex$DINT].State,
+         cmpVal:=TCPMI_QUEUE_READY,
+         newVal:=TCPMI_QUEUE_ACTIVE
+       ) = TCPMI_QUEUE_READY then
+      _StdLib.MemCpy(
+        dest:=#ActiveRequest,
+        source:=#RequestQueue[QueueReadIndex$DINT],
+        size:=sizeof(ActiveRequest)
+      );
+      sigclib_atomic_swpU32(
+        pValue:=#RequestQueue[QueueReadIndex$DINT].State,
+        swpVal:=TCPMI_QUEUE_FREE
+      );
+      QueueReadIndex := (QueueReadIndex + 1) mod 8;
+      ActiveRequestValid := TRUE;
+      ActiveAwaitingRt := FALSE;
+    end_if;
+  end_if;
+
+  if (ActiveRequestValid = TRUE) & (ActiveAwaitingRt = FALSE) then
+    if ActiveRequest.SessionEpoch = currentEpoch then
+      _memset(dest:=#RequestBuf, usByte:=0, cntr:=sizeof(RequestBuf));
+      RequestBuf[0]$UINT := ActiveRequest.CommandId;
+      RequestBuf[4]$UINT := ActiveRequest.PayloadLength;
+      RequestBuf[6]$UINT := ActiveRequest.Reference;
+      if ActiveRequest.PayloadLength > 0 then
+        _StdLib.MemCpy(
+          dest:=#RequestBuf[8],
+          source:=#ActiveRequest.PayloadData[0],
+          size:=ActiveRequest.PayloadLength
+        );
+      end_if;
+
+      CommandID := ActiveRequest.CommandId$DINT;
+      AxisRef := ActiveRequest.Reference$DINT;
+      Payload := ActiveRequest.PayloadLength$DINT;
+      CurrentSock := ActiveRequest.Socket;
+      MsgPaser();
+    end_if;
+
+    if ActiveAwaitingRt = FALSE then
+      ActiveRequestValid := FALSE;
+    end_if;
+  end_if;
+
+  // Fault responses are ordered after every request accepted before the fault.
+  if (ActiveRequestValid = FALSE) & (IngressFaultPending = TRUE) &
+     (sigclib_atomic_getU32(
+        pValue:=#RequestQueue[QueueReadIndex$DINT].State) <> TCPMI_QUEUE_READY) then
+    if IngressFaultEpoch <> currentEpoch then
+      IngressFaultPending := FALSE;
+      if (IngressFaultCloseRequired = FALSE) &
+         (IngressDiscardRemaining = 0) then
+        IngressBlocked := FALSE;
+      end_if;
+    else
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 1;
+      Sendbuf[2]$UINT := 4;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$INT := IngressFaultError;
+      sendRet := SendData(
+        pData:=#Sendbuf[0],
+        udSize:=12,
+        dSocket:=IngressFaultSocket,
+        bDirect:=TRUE
+      );
+      if sendRet = 12 then
+        IngressFaultPending := FALSE;
+        if (IngressFaultCloseRequired = FALSE) &
+           (IngressDiscardRemaining = 0) then
+          IngressBlocked := FALSE;
+        end_if;
+      else
+        IngressFaultPending := FALSE;
+        IngressBlocked := TRUE;
+        IngressFaultCloseRequired := TRUE;
+      end_if;
+    end_if;
+  end_if;
 	state := READY;
 
 END_FUNCTION
@@ -457,7 +800,15 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
   case InfoPara1 of
     TCP_SVR_SOCK_INFO_CONNECT :
       ConnectedClients +=1;
-      CurrentSock := dSock;
+      if CurrentSock = 0 then
+        CurrentSock := dSock;
+        sigclib_atomic_incU32(pValue:=#SessionEpoch);
+        IngressBlocked := FALSE;
+        IngressFaultPending := FALSE;
+        IngressFaultCloseRequired := FALSE;
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+      end_if;
 
     TCP_SVR_SOCK_INFO_DISCONNECT :
       ConnectedClients -=1;
@@ -466,6 +817,10 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
       end_if;
       if CurrentSock = dSock then
         CurrentSock := 0;
+        sigclib_atomic_incU32(pValue:=#SessionEpoch);
+        IngressBlocked := FALSE;
+        IngressFaultPending := FALSE;
+        IngressFaultCloseRequired := FALSE;
       end_if;
       if RpcSocket = dSock then
         RpcSocket := 0;
@@ -483,8 +838,92 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         ReceiveSocket := 0;
         _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
       end_if;
+      if IngressFaultSocket = dSock then
+        IngressFaultPending := FALSE;
+        IngressFaultCloseRequired := FALSE;
+        IngressBlocked := FALSE;
+      end_if;
+      if IngressDiscardSocket = dSock then
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+      end_if;
   end_case;
 
+
+END_FUNCTION
+
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::DataHandling
+	VAR_INPUT
+		dSocket 	: DINT;
+		udAvailableData 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		udReadAvailableDataBytes 	: UDINT;
+	END_VAR
+	VAR
+		freeSize 	: UDINT;
+	END_VAR
+
+  udReadAvailableDataBytes := 0;
+  if (IngressDiscardRemaining > 0) &
+     (IngressDiscardSocket = dSocket) then
+    freeSize := IngressDiscardRemaining;
+    if freeSize > sizeof(ReceiveBuf) then
+      freeSize := sizeof(ReceiveBuf);
+    end_if;
+    if udAvailableData < freeSize then
+      udReadAvailableDataBytes := udAvailableData;
+    else
+      udReadAvailableDataBytes := freeSize;
+    end_if;
+  elsif (IngressBlocked = FALSE) & (ReceiveFill < sizeof(ReceiveBuf)) then
+    freeSize := sizeof(ReceiveBuf) - ReceiveFill;
+    if udAvailableData < freeSize then
+      udReadAvailableDataBytes := udAvailableData;
+    else
+      udReadAvailableDataBytes := freeSize;
+    end_if;
+  end_if;
+
+END_FUNCTION
+
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::SendData
+	VAR_INPUT
+		pData 	: ^void;
+		udSize 	: UDINT;
+		dSocket 	: DINT;
+		bDirect 	: BOOL;
+	END_VAR
+	VAR_OUTPUT
+		dRetcode 	: DINT;
+	END_VAR
+
+  dRetcode := _TCPIPServerInterface::SendData(
+    pData:=pData,
+    udSize:=udSize,
+    dSocket:=dSocket,
+    bDirect:=bDirect
+  );
+
+  // A direct partial send cannot be retried without corrupting the stream.
+  // Quarantine the session and require a clean TCP reconnect.
+  if dRetcode <> udSize$DINT then
+    sigclib_atomic_incU32(pValue:=#SessionEpoch);
+    IngressBlocked := TRUE;
+    IngressFaultPending := FALSE;
+    IngressFaultCloseRequired := TRUE;
+    RpcSocket := 0;
+    RpcInitialized := FALSE;
+    RpcCallbackRegistered := FALSE;
+    RpcCallbackEventMask := 0;
+    RpcCallbackPort := 0;
+    RpcCallbackIPv4[0] := 0;
+    RpcCallbackIPv4[1] := 0;
+    RpcCallbackIPv4[2] := 0;
+    RpcCallbackIPv4[3] := 0;
+  end_if;
 
 END_FUNCTION
 
@@ -498,6 +937,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
   VAR
 	usPayloadLength : UINT;
 	usReference : UINT;
+	usCommandId : UINT;
 	udFrameSize : UDINT;
 	udRemainingSize : UDINT;
 	END_VAR
@@ -506,21 +946,34 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
     RETURN;
   end_if;
 
-  // Once RPC is initialized, only the owner socket may enter the accumulator.
-  if (RpcInitialized = TRUE) & (RpcSocket <> dSock) then
-    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-    Sendbuf[0]$UINT := 1;
-    Sendbuf[2]$UINT := 4;
-    Sendbuf[4]$UDINT := 0;
-    Sendbuf[8]$UINT := 1;
-    Sendbuf[10]$INT := -1;
+  // Drain a rejected frame without copying its remaining payload. DataHandling
+  // limits each callback to the exact number of bytes still to discard.
+  if IngressDiscardRemaining > 0 then
+    if IngressDiscardSocket = dSock then
+      if udSize >= IngressDiscardRemaining then
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+        if (IngressFaultPending = FALSE) &
+           (IngressFaultCloseRequired = FALSE) then
+          IngressBlocked := FALSE;
+        end_if;
+      else
+        IngressDiscardRemaining -= udSize;
+      end_if;
+    end_if;
+    RETURN;
+  end_if;
 
-    SendData(
-      pData:=#Sendbuf[0],
-      udSize:=12,
-      dSocket:=dSock,
-      bDirect:=TRUE
-    );
+  // Response is an ingress callback only. It never sends or calls motion APIs.
+  if ((CurrentSock <> 0) & (CurrentSock <> dSock)) |
+     ((RpcInitialized = TRUE) & (RpcSocket <> dSock)) then
+    if IngressFaultPending = FALSE then
+      IngressFaultSocket := dSock;
+      IngressFaultEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+      IngressFaultError := -1;
+      IngressFaultCloseRequired := FALSE;
+      IngressFaultPending := TRUE;
+    end_if;
     RETURN;
   end_if;
 
@@ -536,6 +989,14 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
   end_if;
 
   if udSize > sizeof(ReceiveBuf) - ReceiveFill then
+    if IngressFaultPending = FALSE then
+      IngressFaultSocket := dSock;
+      IngressFaultEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+      IngressFaultError := -8;
+      IngressFaultCloseRequired := TRUE;
+      IngressFaultPending := TRUE;
+    end_if;
+    IngressBlocked := TRUE;
     ReceiveFill := 0;
     ReceiveSocket := 0;
     _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
@@ -554,7 +1015,29 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
     _StdLib.MemCpy(dest:=#usPayloadLength, source:=#ReceiveBuf[4], size:=2);
     udFrameSize := TO_UDINT(usPayloadLength) + 8;
 
-    if udFrameSize > sizeof(ReceiveBuf) then
+    if usPayloadLength > 96 then
+      if IngressFaultPending = FALSE then
+        IngressFaultSocket := ReceiveSocket;
+        IngressFaultEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+        IngressFaultError := -5;
+        IngressFaultPending := TRUE;
+      end_if;
+      IngressBlocked := TRUE;
+      if udFrameSize > ReceiveFill then
+        IngressFaultCloseRequired := FALSE;
+        IngressDiscardRemaining := udFrameSize - ReceiveFill;
+        IngressDiscardSocket := ReceiveSocket;
+      elsif udFrameSize = ReceiveFill then
+        IngressFaultCloseRequired := FALSE;
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+      else
+        // A following frame is already partially buffered. Reconnect is the
+        // only safe P0 resynchronization because its boundary is unknown.
+        IngressFaultCloseRequired := TRUE;
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+      end_if;
       ReceiveFill := 0;
       ReceiveSocket := 0;
       _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
@@ -565,19 +1048,60 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
       RETURN;
     end_if;
 
-    CommandID := 0;
-    AxisRef := 0;
-    Payload := 0;
+    usCommandId := 0;
     usReference := 0;
 
-    _StdLib.MemCpy(dest:=#CommandID, source:=#ReceiveBuf[0], size:=2);
+    _StdLib.MemCpy(dest:=#usCommandId, source:=#ReceiveBuf[0], size:=2);
     _StdLib.MemCpy(dest:=#usReference, source:=#ReceiveBuf[6], size:=2);
 
-    Payload := usPayloadLength$DINT;
-    AxisRef := usReference$DINT;
-    CurrentSock := ReceiveSocket;
-
-    MsgPaser();
+    if sigclib_atomic_cmpxchgU32(
+         pValue:=#RequestQueue[QueueWriteIndex$DINT].State,
+         cmpVal:=TCPMI_QUEUE_FREE,
+         newVal:=TCPMI_QUEUE_WRITING
+       ) = TCPMI_QUEUE_FREE then
+      NextSequence += 1;
+      if NextSequence = 0 then
+        NextSequence := 1;
+      end_if;
+      RequestQueue[QueueWriteIndex$DINT].Sequence := NextSequence;
+      RequestQueue[QueueWriteIndex$DINT].Socket := ReceiveSocket;
+      RequestQueue[QueueWriteIndex$DINT].SessionEpoch :=
+        sigclib_atomic_getU32(pValue:=#SessionEpoch);
+      RequestQueue[QueueWriteIndex$DINT].CommandId := usCommandId;
+      RequestQueue[QueueWriteIndex$DINT].Reference := usReference;
+      RequestQueue[QueueWriteIndex$DINT].PayloadLength := usPayloadLength;
+      RequestQueue[QueueWriteIndex$DINT].Reserved := 0;
+      _memset(
+        dest:=#RequestQueue[QueueWriteIndex$DINT].PayloadData[0],
+        usByte:=0,
+        cntr:=96
+      );
+      if usPayloadLength > 0 then
+        _StdLib.MemCpy(
+          dest:=#RequestQueue[QueueWriteIndex$DINT].PayloadData[0],
+          source:=#ReceiveBuf[8],
+          size:=usPayloadLength
+        );
+      end_if;
+      sigclib_atomic_swpU32(
+        pValue:=#RequestQueue[QueueWriteIndex$DINT].State,
+        swpVal:=TCPMI_QUEUE_READY
+      );
+      QueueWriteIndex := (QueueWriteIndex + 1) mod 8;
+    else
+      if IngressFaultPending = FALSE then
+        IngressFaultSocket := ReceiveSocket;
+        IngressFaultEpoch := sigclib_atomic_getU32(pValue:=#SessionEpoch);
+        IngressFaultError := -8;
+        IngressFaultCloseRequired := ReceiveFill > udFrameSize;
+        IngressFaultPending := TRUE;
+      end_if;
+      IngressBlocked := TRUE;
+      ReceiveFill := 0;
+      ReceiveSocket := 0;
+      _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+      RETURN;
+    end_if;
 
     udRemainingSize := ReceiveFill - udFrameSize;
     if udRemainingSize > 0 then
@@ -629,6 +1153,28 @@ FUNCTION TCPMotionInterface::MsgPaser
     RETURN;
   end_if;
 
+  // Client-channel calls must execute through the typed RT mailbox. Until a
+  // command has an RT executor, reject it instead of calling motion objects
+  // from CyWork or returning a false success.
+  if (CommandID = 0x2023) | (CommandID = 0x2024) |
+     (CommandID = 0x2022) | (CommandID = 0x2028) |
+     (CommandID = 0x209F) | (CommandID = 0x20A0) |
+     (CommandID = 0x20A2) | (CommandID = 0x2047) |
+     (CommandID = 0x2048) | (CommandID = 0x2049) |
+     (CommandID = 0x2085) | (CommandID = 0x20A4) |
+     (CommandID = 0x2045) then
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 0;
+    Sendbuf[2]$UINT := 8;
+    Sendbuf[4]$UDINT := 0;
+    Sendbuf[8]$UDINT := AxisRef$UDINT;
+    Sendbuf[12]$UINT := 1;
+    Sendbuf[14]$INT := -5;
+    SendData(pData:=#Sendbuf[0], udSize:=16,
+             dSocket:=CurrentSock, bDirect:=TRUE);
+    RETURN;
+  end_if;
+
   case CommandID of
 
     // RPC session init. Response payload follows the captured 24-byte shape.
@@ -636,7 +1182,7 @@ FUNCTION TCPMotionInterface::MsgPaser
 
       _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
 
-      if (Payload = 1) & (ReceiveBuf[8] = 0) &
+      if (Payload = 1) & (RequestBuf[8] = 0) &
          ((RpcInitialized = FALSE) | (RpcSocket = CurrentSock)) then
         RpcSocket := CurrentSock;
         RpcInitialized := TRUE;
@@ -685,9 +1231,9 @@ FUNCTION TCPMotionInterface::MsgPaser
 
       if (Payload = 12) & (RpcInitialized = TRUE) &
          (RpcSocket = CurrentSock) then
-        _StdLib.MemCpy(dest:=#RpcCallbackEventMask, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#RpcCallbackPort, source:=#ReceiveBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#ReceiveBuf[16], size:=4);
+        _StdLib.MemCpy(dest:=#RpcCallbackEventMask, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#RpcCallbackPort, source:=#RequestBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#RequestBuf[16], size:=4);
 
         if (RpcCallbackPort > 0) & (RpcCallbackPort <= 65535) then
           RpcCallbackRegistered := TRUE;
@@ -739,6 +1285,7 @@ FUNCTION TCPMotionInterface::MsgPaser
         RpcCallbackIPv4[1] := 0;
         RpcCallbackIPv4[2] := 0;
         RpcCallbackIPv4[3] := 0;
+        sigclib_atomic_incU32(pValue:=#SessionEpoch);
       else
         Sendbuf[8]$UINT := 1;
         Sendbuf[10]$INT := -1;
@@ -757,15 +1304,15 @@ FUNCTION TCPMotionInterface::MsgPaser
 
       AxisRef := 0;
       if (Payload = 80) & (ObjectRegistryReady = TRUE) then
-        ReceiveBuf[87] := 0;
+        RequestBuf[87] := 0;
 
-        if _strcmp(str1:=#ReceiveBuf[8]$CHAR, str2:=#AxisObjectName1[0]) = 0 then
+        if _strcmp(str1:=#RequestBuf[8]$CHAR, str2:=#AxisObjectName1[0]) = 0 then
           AxisRef := 1;
-        elsif _strcmp(str1:=#ReceiveBuf[8]$CHAR, str2:=#AxisObjectName2[0]) = 0 then
+        elsif _strcmp(str1:=#RequestBuf[8]$CHAR, str2:=#AxisObjectName2[0]) = 0 then
           AxisRef := 2;
-        elsif _strcmp(str1:=#ReceiveBuf[8]$CHAR, str2:=#AxisObjectName3[0]) = 0 then
+        elsif _strcmp(str1:=#RequestBuf[8]$CHAR, str2:=#AxisObjectName3[0]) = 0 then
           AxisRef := 3;
-        elsif _strcmp(str1:=#ReceiveBuf[8]$CHAR, str2:=#AxisObjectName4[0]) = 0 then
+        elsif _strcmp(str1:=#RequestBuf[8]$CHAR, str2:=#AxisObjectName4[0]) = 0 then
           AxisRef := 4;
         end_if;
       end_if;
@@ -793,8 +1340,8 @@ FUNCTION TCPMotionInterface::MsgPaser
 
       AxisRef := 0;
       if (Payload = 80) & (ObjectRegistryReady = TRUE) then
-        ReceiveBuf[87] := 0;
-        if _strcmp(str1:=#ReceiveBuf[8]$CHAR, str2:=#GroupObjectName[0]) = 0 then
+        RequestBuf[87] := 0;
+        if _strcmp(str1:=#RequestBuf[8]$CHAR, str2:=#GroupObjectName[0]) = 0 then
           AxisRef := 0x0100;
         end_if;
       end_if;
@@ -843,7 +1390,7 @@ FUNCTION TCPMotionInterface::MsgPaser
     // DINT protocol v1 Power. The enable flag is payload byte 4.
     0x2023:
 
-      if (Payload = 8) & (ReceiveBuf[12] <> 0) then
+      if (Payload = 8) & (RequestBuf[12] <> 0) then
         PowerOn();
       elsif Payload = 8 then
         PowerOff();
@@ -854,7 +1401,7 @@ FUNCTION TCPMotionInterface::MsgPaser
 
     0x2024:
 
-      if (Payload = 1) & (ReceiveBuf[8] = 1) then
+      if (Payload = 1) & (RequestBuf[8] = 1) then
         AxisReset();
       else
         AxisRef := 0;
@@ -864,10 +1411,10 @@ FUNCTION TCPMotionInterface::MsgPaser
     0x2022:
 
       if Payload = 16 then
-        _StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[16], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[20], size:=4);
+        _StdLib.MemCpy(dest:=#dec, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#jer, source:=#RequestBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[16], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[20], size:=4);
         MoveStop();
       else
         AxisRef := 0;
@@ -881,15 +1428,15 @@ FUNCTION TCPMotionInterface::MsgPaser
       PayloadReference := 0;
 
       if Payload = 8 then
-        _StdLib.MemCpy(dest:=#PayloadReference, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#PayloadReference, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[12], size:=4);
       end_if;
 
       if (PayloadReference = AxisRef) & (Exec <> 0) then
         case AxisRef of
           1:
-            AxisStatusValue := LMCAxis.ReadAxisStatus();
-            AxisErrorValue := LMCAxis.ReadAxisError();
+            AxisStatusValue := LMCAxis1.ReadAxisStatus();
+            AxisErrorValue := LMCAxis1.ReadAxisError();
           2:
             AxisStatusValue := LMCAxis2.ReadAxisStatus();
             AxisErrorValue := LMCAxis2.ReadAxisError();
@@ -928,20 +1475,61 @@ FUNCTION TCPMotionInterface::MsgPaser
 
     0x202E:
 
-      ReadActPos();
+      AxisCommandErrorId := -3;
+      if (Payload = 1) & (RequestBuf[8] = 0) &
+         (AxisRef >= 1) & (AxisRef <= 4) then
+        AxisCommandErrorId := -8;
+        if sigclib_atomic_getU32(
+             pValue:=#RtResult.State) = TCPMI_RT_FREE then
+          if sigclib_atomic_cmpxchgU32(
+               pValue:=#RtRequest.State,
+               cmpVal:=TCPMI_RT_FREE,
+               newVal:=TCPMI_RT_WRITING) = TCPMI_RT_FREE then
+            RtRequest.Sequence := ActiveRequest.Sequence;
+            RtRequest.Socket := ActiveRequest.Socket;
+            RtRequest.SessionEpoch := ActiveRequest.SessionEpoch;
+            RtRequest.CommandId := ActiveRequest.CommandId;
+            RtRequest.Reference := ActiveRequest.Reference;
+            RtRequest.PayloadLength := ActiveRequest.PayloadLength;
+            RtRequest.Reserved := 0;
+            _memset(
+              dest:=#RtRequest.Args[0],
+              usByte:=0,
+              cntr:=sizeof(RtRequest.Args)
+            );
+            ActiveAwaitingRt := TRUE;
+            sigclib_atomic_swpU32(
+              pValue:=#RtRequest.State,
+              swpVal:=TCPMI_RT_READY
+            );
+            AxisCommandErrorId := 0;
+          end_if;
+        end_if;
+      end_if;
+
+      if AxisCommandErrorId <> 0 then
+        _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+        Sendbuf[0]$UINT := 1;
+        Sendbuf[2]$UINT := 4;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := AxisCommandErrorId;
+        SendData(pData:=#Sendbuf[0], udSize:=12,
+                 dSocket:=CurrentSock, bDirect:=TRUE);
+      end_if;
 
     0x209F:
 
       AxisCommandInputValid := FALSE;
       if Payload = 32 then
-        _StdLib.MemCpy(dest:=#pos, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#acc, source:=#ReceiveBuf[16], size:=4);
-        _StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[20], size:=4);
-        _StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[24], size:=4);
-        _StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[28], size:=4);
-        _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[32], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[36], size:=4);
+        _StdLib.MemCpy(dest:=#pos, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#velo, source:=#RequestBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#acc, source:=#RequestBuf[16], size:=4);
+        _StdLib.MemCpy(dest:=#dec, source:=#RequestBuf[20], size:=4);
+        _StdLib.MemCpy(dest:=#jer, source:=#RequestBuf[24], size:=4);
+        _StdLib.MemCpy(dest:=#dir, source:=#RequestBuf[28], size:=4);
+        _StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[32], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[36], size:=4);
         AxisCommandInputValid := (dir = 2) & (Exec <> 0);
       end_if;
       MoveAbs();
@@ -950,14 +1538,14 @@ FUNCTION TCPMotionInterface::MsgPaser
 
       AxisCommandInputValid := FALSE;
       if Payload = 32 then
-        _StdLib.MemCpy(dest:=#pos, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#acc, source:=#ReceiveBuf[16], size:=4);
-        _StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[20], size:=4);
-        _StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[24], size:=4);
-        _StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[28], size:=4);
-        _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[32], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[36], size:=4);
+        _StdLib.MemCpy(dest:=#pos, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#velo, source:=#RequestBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#acc, source:=#RequestBuf[16], size:=4);
+        _StdLib.MemCpy(dest:=#dec, source:=#RequestBuf[20], size:=4);
+        _StdLib.MemCpy(dest:=#jer, source:=#RequestBuf[24], size:=4);
+        _StdLib.MemCpy(dest:=#dir, source:=#RequestBuf[28], size:=4);
+        _StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[32], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[36], size:=4);
         AxisCommandInputValid := (dir = 2) & (Exec <> 0);
       end_if;
       MoveAbs();
@@ -967,12 +1555,12 @@ FUNCTION TCPMotionInterface::MsgPaser
       AxisCommandInputValid := FALSE;
       if Payload = 24 then
         pos := 0;
-        _StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#acc, source:=#ReceiveBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[16], size:=4);
-        _StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[20], size:=4);
-        _StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[24], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[28], size:=4);
+        _StdLib.MemCpy(dest:=#velo, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#acc, source:=#RequestBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#dec, source:=#RequestBuf[16], size:=4);
+        _StdLib.MemCpy(dest:=#jer, source:=#RequestBuf[20], size:=4);
+        _StdLib.MemCpy(dest:=#dir, source:=#RequestBuf[24], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[28], size:=4);
         AxisCommandInputValid :=
           (dec = 0) & (Exec <> 0) &
           (((dir = 1) & (velo >= 0)) | ((dir = 3) & (velo <= 0)));
@@ -982,7 +1570,7 @@ FUNCTION TCPMotionInterface::MsgPaser
     0x20D2:
 
       _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-      if (Payload = 1) & (ReceiveBuf[8] = 1) & (AxisRef = 0x0100) &
+      if (Payload = 1) & (RequestBuf[8] = 1) & (AxisRef = 0x0100) &
          (ObjectRegistryReady = TRUE) then
         Sendbuf[0]$UINT := 0;
         Sendbuf[2]$UINT := 1350;
@@ -1022,7 +1610,7 @@ FUNCTION TCPMotionInterface::MsgPaser
     0x2047:
 
       GroupReadErrorId := 1;
-      if (Payload = 1) & (ReceiveBuf[8] = 1) & (AxisRef = 0x0100) then
+      if (Payload = 1) & (RequestBuf[8] = 1) & (AxisRef = 0x0100) then
         GroupReadErrorId := LMCRobot.RobotOn(Mode:=_ACTIVE);
       end_if;
       _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
@@ -1038,7 +1626,7 @@ FUNCTION TCPMotionInterface::MsgPaser
     0x2048:
 
       GroupReadErrorId := 1;
-      if (Payload = 1) & (ReceiveBuf[8] = 1) & (AxisRef = 0x0100) then
+      if (Payload = 1) & (RequestBuf[8] = 1) & (AxisRef = 0x0100) then
         GroupReadErrorId := LMCRobot.RobotOff();
       end_if;
       _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
@@ -1071,15 +1659,15 @@ FUNCTION TCPMotionInterface::MsgPaser
       if (Payload = 96) & (AxisRef = 0x0100) then
         // _LMCPROF_POS has 9 DINT positions. The remaining protocol slots are
         // preserved for future robots but are not copied into this object.
-        _StdLib.MemCpy(dest:=#GroupMovePos, source:=#ReceiveBuf[8], size:=36);
-        _StdLib.MemCpy(dest:=#GroupVelocity, source:=#ReceiveBuf[72], size:=4);
-        _StdLib.MemCpy(dest:=#GroupAccel, source:=#ReceiveBuf[76], size:=4);
-        _StdLib.MemCpy(dest:=#GroupDecel, source:=#ReceiveBuf[80], size:=4);
-        _StdLib.MemCpy(dest:=#GroupJerk, source:=#ReceiveBuf[84], size:=4);
-        _StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#ReceiveBuf[88], size:=4);
-        _StdLib.MemCpy(dest:=#GroupTransitionModeInput, source:=#ReceiveBuf[92], size:=4);
-        _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[96], size:=4);
-        _StdLib.MemCpy(dest:=#GroupExecute, source:=#ReceiveBuf[100], size:=4);
+        _StdLib.MemCpy(dest:=#GroupMovePos, source:=#RequestBuf[8], size:=36);
+        _StdLib.MemCpy(dest:=#GroupVelocity, source:=#RequestBuf[72], size:=4);
+        _StdLib.MemCpy(dest:=#GroupAccel, source:=#RequestBuf[76], size:=4);
+        _StdLib.MemCpy(dest:=#GroupDecel, source:=#RequestBuf[80], size:=4);
+        _StdLib.MemCpy(dest:=#GroupJerk, source:=#RequestBuf[84], size:=4);
+        _StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#RequestBuf[88], size:=4);
+        _StdLib.MemCpy(dest:=#GroupTransitionModeInput, source:=#RequestBuf[92], size:=4);
+        _StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[96], size:=4);
+        _StdLib.MemCpy(dest:=#GroupExecute, source:=#RequestBuf[100], size:=4);
         GroupTransitionRadius := 0;
       end_if;
 
@@ -1107,8 +1695,8 @@ FUNCTION TCPMotionInterface::MsgPaser
       PayloadReference := 0;
       Exec := 0;
       if Payload = 8 then
-        _StdLib.MemCpy(dest:=#PayloadReference, source:=#ReceiveBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#PayloadReference, source:=#RequestBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[12], size:=4);
       end_if;
 
       if (Payload = 8) & (AxisRef = 0x0100) &
@@ -1145,7 +1733,7 @@ FUNCTION TCPMotionInterface::PowerOn
 
   AxisCommandState := 1;
   case AxisRef of
-    1: AxisCommandState := LMCAxis.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+    1: AxisCommandState := LMCAxis1.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
     2: AxisCommandState := LMCAxis2.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
     3: AxisCommandState := LMCAxis3.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
     4: AxisCommandState := LMCAxis4.PowerOn(Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
@@ -1188,7 +1776,7 @@ FUNCTION TCPMotionInterface::PowerOff
 
   AxisCommandState := 1;
   case AxisRef of
-    1: AxisCommandState := LMCAxis.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
+    1: AxisCommandState := LMCAxis1.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
     2: AxisCommandState := LMCAxis2.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
     3: AxisCommandState := LMCAxis3.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
     4: AxisCommandState := LMCAxis4.PowerOff(Mode:=LMCAXIS_SMOOTH_STOPP);
@@ -1234,14 +1822,14 @@ FUNCTION TCPMotionInterface::MoveAbs
       1:
         case CommandID of
           0x209F:
-            AxisCommandState := LMCAxis.MoveShortestWay(
+            AxisCommandState := LMCAxis1.MoveShortestWay(
               Position:=pos, Speed:=velo, Accel:=acc, Decel:=dec, Jerk:=jer);
           0x20A0:
-            AxisCommandState := LMCAxis.MoveRelative(
+            AxisCommandState := LMCAxis1.MoveRelative(
               Position:=pos, Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
               Speed:=velo, Accel:=acc, Decel:=dec, Jerk:=jer);
           0x20A2:
-            AxisCommandState := LMCAxis.MoveEndless(
+            AxisCommandState := LMCAxis1.MoveEndless(
               Speed:=velo, Accel:=acc, Jerk:=jer);
         end_case;
       2:
@@ -1278,7 +1866,7 @@ FUNCTION TCPMotionInterface::MoveAbs
           0x20A0:
             AxisCommandState := LMCAxis4.MoveRelative(
               Position:=pos, Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
-              Speed:=velo, Accel:=acc, Decel:=dec, Jerk:=jer);
+                  Speed:=velo, Accel:=acc, Decel:=dec, Jerk:=jer);
           0x20A2:
             AxisCommandState := LMCAxis4.MoveEndless(
               Speed:=velo, Accel:=acc, Jerk:=jer);
@@ -1327,7 +1915,7 @@ FUNCTION TCPMotionInterface::MoveStop
   AxisCommandState := 1;
   if Exec <> 0 then
     case AxisRef of
-      1: AxisCommandState := LMCAxis.StopMove(Decel:=dec, Jerk:=jer);
+      1: AxisCommandState := LMCAxis1.StopMove(Decel:=dec, Jerk:=jer);
       2: AxisCommandState := LMCAxis2.StopMove(Decel:=dec, Jerk:=jer);
       3: AxisCommandState := LMCAxis3.StopMove(Decel:=dec, Jerk:=jer);
       4: AxisCommandState := LMCAxis4.StopMove(Decel:=dec, Jerk:=jer);
@@ -1370,7 +1958,7 @@ FUNCTION TCPMotionInterface::AxisReset
   AxisCommandState := 1;
   case AxisRef of
     1:
-      LMCAxis.QuitError();
+      LMCAxis1.QuitError();
       AxisCommandState := 0;
     2:
       LMCAxis2.QuitError();
@@ -1419,7 +2007,7 @@ FUNCTION TCPMotionInterface::ReadActPos
   _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
 
   case AxisRef of
-    1: ReadPos := LMCAxis.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
+    1: ReadPos := LMCAxis1.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
     2: ReadPos := LMCAxis2.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
     3: ReadPos := LMCAxis3.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
     4: ReadPos := LMCAxis4.ReadPosition(Mode:=LMCAXIS_ACTPOS_APPUNIT);
@@ -1451,7 +2039,7 @@ END_FUNCTION
 
 FUNCTION TCPMotionInterface::MoveLinearAbsEx
 
-  GroupMoveRetCode := 1;
+  GroupMoveRetCode := _LMCPROF_MOVECMD_ERROR;
 
   if (GroupExecute <> 0) & (AxisRef = 0x0100) & (Payload = 96) then
     GroupMoveRetCode := LMCRobot.MoveLinearCoord(pPositions:=#GroupMovePos,

@@ -172,9 +172,7 @@ FUNCTION VIRTUAL GLOBAL _TCPIPServer_RT::RtWork
 		state (EAX) 	: UDINT;
 	END_VAR
 
-//  if (bdStatus.CyclicTask = true) then
-    CyclicCall();
-//  end_if;
+  // TCP transport is owned by CyWork. RtWork must not execute socket handling.
 
 	state := READY;
 
