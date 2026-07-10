@@ -158,43 +158,49 @@ namespace LasalMotionControlLibTestApp
                             break;
 
                         case "Stop":
-                            response = axis.Stop(U(Deceleration.Text), U(Jerk.Text));
+                            response = axis.Stop(
+                                ToDummyProfileDint(Deceleration.Text),
+                                ToDummyProfileDint(Jerk.Text));
                             break;
 
                         case "ReadStatus":
                             var status = axis.ReadStatus(out response);
+                            EnsureResponseSuccess("ReadStatus", response);
                             Write("Status=0x" + status.ToString("X"));
                             break;
 
                         case "ReadPosition":
                             var position = axis.GetActualPosition(out response);
-                            Write("Position counts=" + position + ", rev=" + (position / Cpr()));
+                            EnsureResponseSuccess("ReadPosition", response);
+                            Write(
+                                "Position dummy-counts=" + position
+                                + ", rev=" + (position / DummyCountsPerRev()));
                             break;
 
                         case "MoveAbsoluteEx":
                             response = axis.MoveAbsoluteEx(
-                                U(Position.Text),
-                                U(Velocity.Text),
-                                U(Acceleration.Text),
-                                U(Deceleration.Text),
-                                U(Jerk.Text));
+                                ToDummyProfileDint(Position.Text),
+                                ToDummyProfileDint(Velocity.Text),
+                                ToDummyProfileDint(Acceleration.Text),
+                                ToDummyProfileDint(Deceleration.Text),
+                                ToDummyProfileDint(Jerk.Text));
                             break;
 
                         case "MoveRelativeEx":
                             response = axis.MoveRelativeEx(
-                                U(Position.Text),
-                                U(Velocity.Text),
-                                U(Acceleration.Text),
-                                U(Deceleration.Text),
-                                U(Jerk.Text));
+                                ToDummyProfileDint(Position.Text),
+                                ToDummyProfileDint(Velocity.Text),
+                                ToDummyProfileDint(Acceleration.Text),
+                                ToDummyProfileDint(Deceleration.Text),
+                                ToDummyProfileDint(Jerk.Text));
                             break;
 
                         case "MoveVelocityEx":
                             response = axis.MoveVelocityEx(
-                                U(Velocity.Text),
-                                U(Acceleration.Text),
-                                U(Deceleration.Text),
-                                U(Jerk.Text),
+                                ToDummyProfileDint(Velocity.Text),
+                                ToDummyProfileDint(Acceleration.Text),
+                                0,
+                                ToDummyProfileDint(Jerk.Text),
                                 (LMC_DIRECTION)Direction.SelectedItem);
                             break;
 
@@ -253,21 +259,27 @@ namespace LasalMotionControlLibTestApp
                             break;
 
                         case "GroupStop":
-                            response = group.GroupStop(U(Deceleration.Text), U(Jerk.Text));
+                            response = group.GroupStop(
+                                ToDummyProfileDint(Deceleration.Text),
+                                ToDummyProfileDint(Jerk.Text));
                             break;
 
                         case "GroupReadStatus":
                             var status = group.GroupReadStatus(out response);
+                            EnsureResponseSuccess("GroupReadStatus", response);
                             Write("GroupStatus=0x" + status.ToString("X"));
                             break;
 
                         case "MoveLinearAbsoluteEx":
                             response = group.MoveLinearAbsoluteEx(
-                                GroupPositions.Text.Split(',').Select(U).ToArray(),
-                                U(Velocity.Text),
-                                U(Acceleration.Text),
-                                U(Deceleration.Text),
-                                U(Jerk.Text));
+                                GroupPositions.Text
+                                    .Split(',')
+                                    .Select(ToDummyProfileDint)
+                                    .ToArray(),
+                                ToDummyProfileDint(Velocity.Text),
+                                ToDummyProfileDint(Acceleration.Text),
+                                ToDummyProfileDint(Deceleration.Text),
+                                ToDummyProfileDint(Jerk.Text));
                             break;
 
                         default:
@@ -282,9 +294,9 @@ namespace LasalMotionControlLibTestApp
         {
             foreach (var axis in axes)
             {
-                LMC_Response response;
-                var state = axis.ReadStatus(out response);
-                Write(axis.AxisName + " Ref=" + axis.AxisReference + " Status=0x" + state.ToString("X"));
+                var result = axis.ReadStatusResult();
+                EnsureReadStatusSuccess("ReadStatus " + axis.AxisName, result);
+                Write(axis.AxisName + " Ref=" + axis.AxisReference + " Status=0x" + result.State.ToString("X"));
             }
         }
 
@@ -310,13 +322,12 @@ namespace LasalMotionControlLibTestApp
             {
                 Thread.Sleep(50);
 
-                LMC_Response response;
-                var state = axis.ReadStatus(out response);
-                var disabled = (state & 0x00000200u) != 0;
+                var result = axis.ReadStatusResult();
+                EnsureReadStatusSuccess("ReadStatus " + axis.AxisName, result);
 
-                if ((enabled && !disabled) || (!enabled && disabled))
+                if (result.IsPowerOn == enabled)
                 {
-                    Write(axis.AxisName + " Power " + (enabled ? "ON" : "OFF") + " verified, Status=0x" + state.ToString("X"));
+                    Write(axis.AxisName + " Power " + (enabled ? "ON" : "OFF") + " verified, Status=0x" + result.State.ToString("X"));
                     return;
                 }
             }
@@ -330,22 +341,25 @@ namespace LasalMotionControlLibTestApp
             {
                 var started = Environment.TickCount;
                 uint lastState = 0;
+                var verified = false;
 
                 while (Environment.TickCount - started < timeoutMs)
                 {
-                    LMC_Response response;
-                    lastState = axis.ReadStatus(out response);
+                    var result = axis.ReadStatusResult();
+                    lastState = result.State;
+                    EnsureReadStatusSuccess("ReadStatus " + axis.AxisName, result);
 
-                    if ((lastState & 0x00000080u) != 0 && (lastState & 0x00000200u) == 0)
+                    if (result.IsPowerOn && result.IsStandstill)
                     {
                         Write(axis.AxisName + " StandStill verified " + stage + ", Status=0x" + lastState.ToString("X"));
+                        verified = true;
                         break;
                     }
 
                     Thread.Sleep(50);
                 }
 
-                if ((lastState & 0x00000080u) == 0 || (lastState & 0x00000200u) != 0)
+                if (!verified)
                 {
                     throw new TimeoutException(
                         axis.AxisName + " is not enabled StandStill " + stage + ", Status=0x" + lastState.ToString("X"));
@@ -365,11 +379,45 @@ namespace LasalMotionControlLibTestApp
                 + ", ErrorId=" + response.ErrorId
                 + ", Bytes=" + (response.Raw == null ? 0 : response.Raw.Length));
 
-            if (response.Status != 0)
+            EnsureResponseSuccess("Controller command", response);
+        }
+
+        private static void EnsureResponseSuccess(
+            string operation,
+            LMC_Response response)
+        {
+            if (response == null)
             {
                 throw new InvalidOperationException(
-                    "Controller rejected command. Status=" + response.Status + ", ErrorId=" + response.ErrorId);
+                    operation + " failed without a response.");
             }
+
+            if (!response.IsFrameValid || !response.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    operation
+                    + " failed. FrameValid=" + response.IsFrameValid
+                    + ", HeaderStatus=" + response.HeaderStatus
+                    + ", CommandStatus=" + response.CommandStatus
+                    + ", ErrorId=" + response.ErrorId);
+            }
+        }
+
+        private static void EnsureReadStatusSuccess(
+            string operation,
+            LMCReadStatusResult result)
+        {
+            if (result == null || !result.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    operation
+                    + " failed. AxisErrorId="
+                    + (result == null ? 0 : result.AxisErrorId)
+                    + ", ErrorId="
+                    + (result == null ? 0 : result.ErrorId));
+            }
+
+            EnsureResponseSuccess(operation, result.Response);
         }
 
         private void Run(string operation, Action action)
@@ -391,14 +439,15 @@ namespace LasalMotionControlLibTestApp
             Log.ScrollToEnd();
         }
 
-        private double Cpr()
+        private double DummyCountsPerRev()
         {
             return D(CountsPerRev.Text);
         }
 
-        private int U(string value)
+        private int ToDummyProfileDint(string value)
         {
-            return checked((int)Math.Round(D(value) * Cpr()));
+            return checked(
+                (int)Math.Round(D(value) * DummyCountsPerRev()));
         }
 
         private static double D(string value)

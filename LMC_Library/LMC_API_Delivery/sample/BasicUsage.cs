@@ -23,7 +23,7 @@ public static class BasicUsage
                 LMCConnection.DefaultCallbackPort,
                 LMCConnection.DefaultEventMask);
 
-            var axis = new LMCSingleAxis(connection, "a01");
+            var axis = new LMCSingleAxis(connection, "_LMCAxis1");
 
             // This default sample does not enable the drive. After application
             // safety checks, call PowerOn(), verify its response, poll
@@ -67,7 +67,7 @@ public static class BasicUsage
         var actualPositionDeg = FromDint(actualPosition, LMC_Units.DEG);
         Console.WriteLine("Actual position deg = " + actualPositionDeg);
 
-        // Group motion is intentionally omitted until the v01 kinematic
+        // Group motion is intentionally omitted until the _LMCRobotBase1 kinematic
         // position/dynamics UNIT profile is approved.
     }
 

@@ -24,8 +24,10 @@
 표시 물리값 = 수신 DINT / UNIT
 ```
 
-기존 PMAS의 `8,388,608 count/rev` 자동 변환이나 DLL 내부 정·역변환은
-이 API에서 사용하지 않는다.
+WPF test app의 `8,388,608 count/rev`는 호출자 측에서 선택한 23-bit encoder
+더미 profile이다. DLL 자동 변환이 아니다. 실제 배포 프로그램은 이 값을
+그대로 복사하지 말고 PLC에 등록된 UNIT 또는 scale을 사용한다. DLL 내부
+정·역변환은 사용하지 않는다.
 
 ## UNIT 선택
 
@@ -36,7 +38,7 @@
 | 용도 | UNIT | 배율 | 주의 |
 |---|---|---:|---:|
 | 직선 위치 | `LMC_Units.MM` | 10000 | 해당 축이 mm profile일 때만 사용 |
-| 회전 application unit | `LMC_Units.DEG` | 10000 | 현재 a01~a04 profile에서 사용 |
+| 회전 application unit | `LMC_Units.DEG` | 10000 | 현재 `_LMCAxis1`~`_LMCAxis4` profile에서 사용 |
 | 직선 path 속도 | `LMC_Units.MMPSEC` | 10000 | mm/s profile에서만 사용 |
 | 직선 가속도 | `LMC_Units.MMPSEC2` | 1 | mm/s2 profile에서만 사용 |
 | 회전수 | `LMC_Units.RPM` | 1000 | PLC 인자가 명시적으로 RPM일 때만 사용 |
@@ -44,7 +46,7 @@
 `_LMCAxis.MoveAbsolute.Speed`는 RPM이 아니라 `Application units / s`다.
 따라서 회전축이라는 이유만으로 `LMC_Units.RPM`을 사용하면 안 된다.
 
-현재 `Elmo_EtherCAT_Test_4Axis`의 a01~a04는 Motion Network에서 아래처럼
+현재 `Elmo_EtherCAT_Test_4Axis`의 `_LMCAxis1..4`는 Motion Network에서 아래처럼
 모두 `deg` macro를 사용한다.
 
 | 항목 | 현재 PLC 설정 | PC 호출 UNIT |
@@ -64,8 +66,8 @@ jerk를 `0`으로 사용한다. 근거 없이 `MMPSEC2`나 고정 배율 `1`을 
 
 | Target | Position | Velocity | Accel | Decel | Jerk |
 |---|---|---|---|---|---|
-| `a01`~`a04` | `DEG` | `DEG` | `DEG` | `DEG` | nonzero 검증 전 `0` |
-| `v01` coordinate | kinematic 축별 확정 필요 | path profile 확정 필요 | 확정 필요 | 확정 필요 | nonzero 검증 전 `0` |
+| `_LMCAxis1`~`_LMCAxis4` | `DEG` | `DEG` | `DEG` | `DEG` | nonzero 검증 전 `0` |
+| `_LMCRobotBase1` coordinate | kinematic 축별 확정 필요 | path profile 확정 필요 | 확정 필요 | 확정 필요 | nonzero 검증 전 `0` |
 
 Group/Robot position 배열은 축별로 단위가 다를 수 있으므로 각 원소를
 해당 축 UNIT으로 개별 변환한다.
@@ -99,7 +101,7 @@ static double FromDint(int internalValue, int unit)
 `checked`를 빼면 큰 값이 DINT 범위를 벗어났을 때 잘못된 값으로 전송될 수
 있다. API 호출 전에 축의 software limit도 별도로 검사해야 한다.
 
-## 현재 a01 회전축 호출 예
+## 현재 `_LMCAxis1` 회전축 호출 예
 
 ```csharp
 var position = ToDint(90.0, LMC_Units.DEG);
@@ -155,7 +157,7 @@ axis.MoveAbsoluteEx(
 ## 근거 파일
 
 - UNIT 상수: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/unit.h`
-- a01~a04 현재 profile:
+- `_LMCAxis1`~`_LMCAxis4` 현재 profile:
   `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st`
 - motion 인자 의미:
   `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_LMCAxis/_LMCAxis.st`

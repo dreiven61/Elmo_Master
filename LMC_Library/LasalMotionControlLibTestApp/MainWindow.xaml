@@ -75,17 +75,17 @@
 
                 <StackPanel Grid.Column="1" Margin="0,0,8,0">
                     <TextBlock Text="Axis" />
-                    <TextBox x:Name="AxisName" Text="a01" />
+                    <TextBox x:Name="AxisName" Text="_LMCAxis1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Margin="0,0,8,0">
                     <TextBlock Text="Group members" />
-                    <TextBox x:Name="MemberNames" Text="a01,a02,a03,a04" />
+                    <TextBox x:Name="MemberNames" Text="_LMCAxis1,_LMCAxis2,_LMCAxis3,_LMCAxis4" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" Margin="0,0,8,0">
                     <TextBlock Text="Group" />
-                    <TextBox x:Name="GroupName" Text="v01" />
+                    <TextBox x:Name="GroupName" Text="_LMCRobotBase1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="4">
@@ -97,7 +97,7 @@
 
         <GroupBox
             DockPanel.Dock="Top"
-            Header="Motion Input (rev/rps, DLL sends LASAL internal units)"
+            Header="Dummy 23-bit encoder profile (app converts rev/rps to raw DINT)"
             Margin="0,0,0,8">
             <Grid Margin="8">
                 <Grid.ColumnDefinitions>
@@ -153,7 +153,7 @@
             Margin="0,0,0,8">
             <TextBlock
                 VerticalAlignment="Center"
-                Text="PMAS counts/rev"
+                Text="Dummy encoder counts/rev (2^23)"
                 Margin="0,0,8,0" />
             <TextBox
                 x:Name="CountsPerRev"
@@ -169,7 +169,7 @@
                 VerticalAlignment="Center"
                 Foreground="#AA660000"
                 Margin="18,0,0,0"
-                Text="MoveVelocity는 Stop 전까지 계속 동작합니다." />
+                Text="예제 전용 프로파일입니다. DLL은 UNIT/CPR 변환을 하지 않습니다. MoveVelocity는 Stop 전까지 계속 동작합니다." />
         </StackPanel>
 
         <TextBox
