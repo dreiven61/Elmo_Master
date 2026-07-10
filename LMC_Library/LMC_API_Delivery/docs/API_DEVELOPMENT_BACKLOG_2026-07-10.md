@@ -374,7 +374,7 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
   반복 object lookup 최소화와 실제 PLC 검증은 남음
 - assembly version `0.9.0.0`과 PC preview release manifest 반영 완료
 - package DLL/EXE를 current source에서 Release rebuild하고 SHA-256 기록 완료;
-  다음 commit에서 ignored `bin` DLL을 명시적으로 추적해야 함
+  release artifact commit에서 ignored `bin` DLL도 명시적으로 추적
 - sample/function TXT/API list/packet map 문서는 current PC API로 교체 완료
 - `LMC_API_Delivery`, package, packet analysis의 링크와 용어 최종 통일
 
@@ -386,9 +386,8 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
   23-command PC public API와 LASAL 미구현 범위에 맞췄다.
 - `0.9.0.0` DLL/EXE를 current Release source에서 재빌드했고
   `RELEASE_MANIFEST.md`에 size와 SHA-256을 기록했다.
-- old tracked binary는 삭제 상태이고 새 이름의 test-app 산출물은 untracked,
-  `bin/LasalMotionControlLib.dll`은 ignore 상태다. 다음 commit에서 새 binary를
-  명시적으로 추가하지 않으면 fresh clone에는 전달 DLL이 없다.
+- old tracked binary를 제거하고 새 이름의 package/Delivery DLL과 test-app
+  DLL/EXE를 release artifact commit에서 명시적으로 추적했다.
 
 현재 산출물은 PC API source/test용 preview다. LASAL/PLC 검증 뒤 실제 release를
 만들 때는 확정 source commit으로 다시 빌드하고 manifest의 source와 SHA-256을

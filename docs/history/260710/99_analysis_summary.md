@@ -66,7 +66,7 @@
   원자적으로 분리해, join timeout 뒤 이전 thread가 재연결 listener를 소비하거나
   새 endpoint/thread 추적값을 지우지 못하게 했다.
 - assembly는 `0.9.0.0`으로 versioning하고 current Release DLL/EXE와 SHA-256을
-  package `RELEASE_MANIFEST.md`에 기록했다. 새 binary 추적은 다음 commit 범위다.
+  package `RELEASE_MANIFEST.md`에 기록하고 release artifact로 추적했다.
 
 현재 구현 완료도는 다음과 같이 판정한다.
 
@@ -87,6 +87,9 @@
 
 관련 commit:
 
+- `16e94c8`: PC API packet, lifecycle와 42개 test
+- `b2da80e`: WPF async/cancel/callback/group UI
+- `b67a96c`: packet/API/backlog/migration 문서
 - `da4a912`: LASAL object dispatcher/DINT handler prototype
 - `adeb631`: typed response, packet validation과 30개 자동 테스트
 - `6dd7eab`: WPF dummy UNIT profile과 response 안전 판정
