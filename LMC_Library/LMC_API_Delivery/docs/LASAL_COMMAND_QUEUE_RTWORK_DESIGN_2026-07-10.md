@@ -3,6 +3,13 @@
 작성일: 2026-07-10
 상태: **설계 전용 / 구현 미승인**
 
+> 2026-07-10 구현 결정: 이 문서는 D0~D15 대안을 보존한 pre-implementation
+> 설계 기록이다. 현재 source-first 최소 구현과 충돌하는 항목은
+> `LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`가 우선한다.
+> 선택된 P0 값은 `Config=0` CyWork transport owner, direct ordered small TX,
+> depth-8/96-byte queue, declared-length bounded discard, `0x202E` typed RtWork
+> first path다. `Config=1 AP`, buffered TX, `SizeOfTXBuffer=4096`은 후속 대안이다.
+
 ## 1. 결론
 
 권장 구조는 아래와 같다.
@@ -483,6 +490,8 @@ channel에서 함께 반영한다.
 
 ### Gate 2: LASAL IDE model만 구성
 
+- `docs/architecture/SIGMATEK_LASAL_programming_error_prevention_guide.md`의
+  기준 프로젝트, ASCII, CodeGenerator, IDE smoke-test 규칙을 먼저 적용한다.
 - queue/mailbox type과 member/channel을 IDE class model에 등록한다.
 - CodeGenerator 재생성 diff를 검토한다.
 - 이 단계에서는 PLC motion을 실행하지 않는다.
@@ -533,14 +542,18 @@ channel에서 함께 반영한다.
 - request payload 96-byte bound와 frame length를 byte offset 단위로 검사
 - payload 96-byte 초과 frame의 drain/discard-only 상태와 stream resync 검사
 - generated XML channel, class member, `@CT_`, `@STD`, user function count 일치
-- C# golden packet/response test와 `git diff --check` 통과
+- Git diff에 새로 추가된 LASAL 구현 라인의 비ASCII 문자 없음
+- C# golden packet/response test와 `git diff --check`,
+  `git diff --cached --check` 통과
 
 ### LASAL IDE
 
 - class/type/network regenerate
-- compile warning/error 0
+- compile error 0, 기존 warning 분류 완료, 새 warning 0
 - AP task 생성, `_MultiTask`/semaphore, task priority와 RtWork core assignment 확인
 - queue/mailbox variable online watch 가능 여부 확인
+- 변경 class의 `Find in Implementation` smoke test와 smoke 시작 이후
+  `Lasal2.log`의 새 `CInvalidArgException` 부재 확인
 
 ### PLC 단계 시험
 
