@@ -196,6 +196,30 @@ Minimum:
 
 Do not rely on one global `CurrentSock` as the identity of the active client.
 
+## Implementation Update 2026-07-10
+
+The tracked `TCPMotionInterface` now contains a phase-1, single-active-session
+implementation:
+
+- validates the 8-byte header and receive-buffer bounds
+- accumulates split TCP segments and drains combined frames for one socket
+- uses the request `dSock` for the immediate response
+- implements `0x8080`, `0x405C`, and `0x405D`
+- stores one callback event mask, UDP port, and IPv4 endpoint
+- rejects lookup/read/motion commands until callback registration completes and
+  rejects non-owner socket commands after initialization
+- clears matching state on close or socket disconnect
+
+This is intentionally not marked as the multi-PC design above. The receive
+accumulator and RPC state each belong to only one socket, and a second socket
+receives an error while one RPC session is active. The session-table, per-socket
+accumulators, and target ownership work remain required before multi-PC use.
+LASAL IDE compilation and PLC verification are also pending.
+
+The exported `.st` declaration is CodeGenerator-owned. The new state variables
+must be added to the LASAL IDE class model and regenerated before this phase is
+considered durable.
+
 ## Verification
 
 PC side:

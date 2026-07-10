@@ -169,12 +169,16 @@ Common parser:
 Acknowledgement parser:
 
 1. Parse the common envelope.
-2. If payload length is at least 8:
+2. If payload length is exactly 4:
+   - payload `[0]` is `CommandStatus`
+   - payload `[2]` is `ErrorId`
+   - mark `HasCommandResult = true`
+3. Otherwise, if payload length is at least 8:
    - payload `[4]` is `CommandStatus`
    - payload `[6]` is `ErrorId`
    - mark `HasCommandResult = true`
-3. If payload length is only 4 or unknown, keep the raw payload and do not mark
-   `HasCommandResult`.
+4. Do not use this generic parser for structured/value payloads solely because
+   they are longer than 8 bytes; select the parser by command schema.
 
 Value parser:
 
@@ -216,6 +220,8 @@ Implementation note:
 
 - `Status` remains as a compatibility alias.
 - Acknowledgement-returning command methods now use `ParseAcknowledgement`.
+- On 2026-07-10, `ParseAcknowledgement` was extended to parse captured 4-byte
+  callback/close-style acknowledgements at payload offsets `0` and `2`.
 - Lookup and value methods now use command-specific parser helpers.
 - Typed public result objects are not added in Phase 1.
 

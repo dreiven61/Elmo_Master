@@ -31,18 +31,44 @@ sequence (`0x8080` session init, then `0x405C` callback registration). See
 
 ## Unit Policy
 
-Unit conversion is outside the API implementation.
+Unit conversion is owned by the PC application that calls the API.
 
 Motion methods accept values that are already in the LASAL/internal DINT unit
 expected by the PLC parser. The API library may declare `LMC_Units` constants
 for caller convenience, but packet-building code must not reference them and
 the API library must not provide unit converter classes.
 
+The normative conversion rule is:
+
+```text
+transmit DINT = physical value x selected LMC_Units constant
+display value = received DINT / the same LMC_Units constant
+```
+
+The caller must select the unit for each axis and parameter, round the result,
+check the signed DINT range, and pass an `int` to the API. The DLL serializes
+that `int` without rescaling. The PLC passes the received DINT to the matching
+LASAL motion block without a second conversion.
+
 This keeps the conversion responsibility explicit:
 
 - application/user code chooses the unit constants and conversion rule
 - API code builds packets from already-converted DINT values
 - PLC code receives DINT values and passes them to LASAL motion blocks
+
+The DLL must not apply the legacy PMAS `8,388,608 count/rev` conversion. This
+decision supersedes earlier proposals that placed forward/reverse conversion
+inside the DLL.
+
+For the current `Elmo_EtherCAT_Test_4Axis` project, a01-a04 are configured with
+the `deg` macro for `IntUnits`, `VMax`, `AMax`, and `JMax`. Therefore current
+single-axis position/speed/accel/decel examples use `LMC_Units.DEG`; `RPM` is
+not a substitute for `_LMCAxis` speed in application units per second. Nonzero
+jerk conversion and the v01 kinematic-axis profile remain explicit approval
+items and must not be guessed by the DLL.
+
+The distribution rule, unit table, overflow handling, and caller examples are
+defined in `UNIT_CONVERSION_MANUAL_2026-07-10.md`.
 
 ## Naming Policy
 
@@ -80,8 +106,7 @@ If a caller wants to command `1.0 mm`, the caller must convert it before calling
 the API, for example:
 
 ```csharp
-const int MM = 10000;
-var position = checked((int)Math.Round(1.0 * MM));
+var position = checked((int)Math.Round(1.0 * LMC_Units.MM));
 axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
 ```
 

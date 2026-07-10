@@ -3,19 +3,8 @@ using LasalMotionControlLib;
 
 public static class BasicUsage
 {
-    // User application owns unit constants and conversion policy.
-    private const int MM = 10000;
-    private const int MMPSEC = 10000;
-    private const int MMPSEC2 = 1;
-
     public static void Run()
     {
-        var position = ToDint(1.0, MM);
-        var velocity = ToDint(1.0, MMPSEC);
-        var acceleration = ToDint(1.0, MMPSEC2);
-        var deceleration = ToDint(1.0, MMPSEC2);
-        var jerk = ToDint(0.0, MMPSEC2);
-
         using (var connection = new LMCConnection())
         {
             connection.CallbackReceived += delegate(object sender, LMCCallbackEventArgs e)
@@ -35,33 +24,85 @@ public static class BasicUsage
                 LMCConnection.DefaultEventMask);
 
             var axis = new LMCSingleAxis(connection, "a01");
-            axis.PowerOn();
 
-            // API methods receive already-converted LASAL/internal DINT values.
-            axis.MoveAbsoluteEx(position, velocity, acceleration, deceleration, jerk);
+            // This default sample does not enable the drive. After application
+            // safety checks, call PowerOn(), verify its response, poll
+            // ReadStatus with the approved ready predicate, and only then call
+            // MoveAfterPowerReadyConfirmed(axis). Always PowerOff/Stop according
+            // to the machine shutdown policy before closing the connection.
+            Console.WriteLine(
+                "RPC and axis lookup completed. Drive remains disabled.");
 
-            var actualPosition = axis.GetActualPosition();
-            var actualPositionMm = FromDint(actualPosition, MM);
-            System.Console.WriteLine("Actual position mm = " + actualPositionMm);
+            // MoveAfterPowerReadyConfirmed(axis);
+        }
+    }
 
-            var group = new LMCGroupAxis(connection, "v01");
-            group.GroupEnable();
-            group.MoveLinearAbsoluteEx(
-                new[] { position, position, position, position },
+    public static void MoveAfterPowerReadyConfirmed(LMCSingleAxis axis)
+    {
+        if (axis == null)
+        {
+            throw new ArgumentNullException("axis");
+        }
+
+        // Caller selects a UNIT and converts before calling the API.
+        var position = ToDint(1.0, LMC_Units.DEG);
+        var velocity = ToDint(1.0, LMC_Units.DEG);
+        var acceleration = ToDint(1.0, LMC_Units.DEG);
+        var deceleration = ToDint(1.0, LMC_Units.DEG);
+        var jerk = 0; // Nonzero jerk conversion requires an approved profile.
+
+        EnsureSuccess(
+            "MoveAbsoluteEx",
+            axis.MoveAbsoluteEx(
+                position,
                 velocity,
                 acceleration,
                 deceleration,
-                jerk);
+                jerk));
+
+        LMC_Response positionResponse;
+        var actualPosition = axis.GetActualPosition(out positionResponse);
+        EnsureSuccess("GetActualPosition", positionResponse);
+
+        var actualPositionDeg = FromDint(actualPosition, LMC_Units.DEG);
+        Console.WriteLine("Actual position deg = " + actualPositionDeg);
+
+        // Group motion is intentionally omitted until the v01 kinematic
+        // position/dynamics UNIT profile is approved.
+    }
+
+    private static void EnsureSuccess(string operation, LMC_Response response)
+    {
+        if (response == null || !response.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                operation
+                + " failed. FrameValid="
+                + (response != null && response.IsFrameValid)
+                + ", Status="
+                + (response == null ? 0 : response.Status)
+                + ", ErrorId="
+                + (response == null ? 0 : response.ErrorId));
         }
     }
 
     private static int ToDint(double value, int unit)
     {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            throw new ArgumentOutOfRangeException("value");
+        }
+
         return checked((int)Math.Round(value * unit, MidpointRounding.AwayFromZero));
     }
 
     private static double FromDint(int value, int unit)
     {
+        if (unit == 0)
+        {
+            throw new ArgumentOutOfRangeException("unit");
+        }
+
         return (double)value / unit;
     }
 }

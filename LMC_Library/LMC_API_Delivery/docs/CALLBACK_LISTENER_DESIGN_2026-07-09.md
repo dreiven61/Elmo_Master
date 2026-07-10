@@ -36,17 +36,13 @@ registration.
 
 ## Transport
 
-The first implementation uses a UDP listener bound to the callback IP and port.
+The callback transport is UDP. This is confirmed by the Maestro API manual:
+the connection parameter names the callback port as `uiCbUdpPort`, and the
+callback function is described as a UDP callback.
 
-Reason:
-
-- The captured `0x405C` payload carries a callback port and IPv4 address.
-- Maestro documents expose UDP-channel operations per RPC/IPC connection.
-- No captured callback payload format is currently available.
-
-If future captures prove that LASAL/Elmo sends callback data over TCP instead,
-the listener implementation must be extended, but the public connection
-ownership model should stay the same.
+The captured `0x405C` frame confirms that the controller receives a PC IPv4
+address and UDP port. No actual callback datagram has been captured yet, so the
+payload remains raw and LASAL event sending is not defined in this phase.
 
 ## Public API
 
@@ -70,8 +66,10 @@ captures exist.
 2. Open command TCP socket.
 3. Send `0x8080`.
 4. Start callback UDP listener on `localAddress:callbackPort`.
-5. Send `0x405C` with the same local address and callback port.
-6. Mark the connection as RPC-initialized.
+5. Read the listener's actual bound port. This differs when the caller requested
+   port `0` and the OS selected an ephemeral port.
+6. Send `0x405C` with the same local address and actual bound port.
+7. Mark the connection as RPC-initialized.
 
 If any step fails, the command socket and callback listener are both closed.
 
@@ -91,7 +89,9 @@ previous session, then starts a new session.
 
 ## Current Limitation
 
-The listener does not interpret callback payloads yet. Consumers can log or
-capture `CallbackReceived.Payload` and `CallbackReceived.RemoteEndPoint` to
-build the parser later.
+The listener does not interpret callback payloads yet. The tracked LASAL phase-1
+handler stores event mask, UDP port, and PC IPv4 but does not send event
+datagrams. Consumers can log or capture `CallbackReceived.Payload` and
+`CallbackReceived.RemoteEndPoint` after a sender is added to build the parser.
 
+See `RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md`.

@@ -1,13 +1,24 @@
 LMC DINT packet map
+Status 2026-07-10: contract proposal, not a deployed/verified PLC implementation.
+The tracked TCPMotionInterface and the untracked _Edit variant do not implement
+this map end-to-end. Do not use the current WPF app for live motion until the
+P0 items in API_DEVELOPMENT_BACKLOG_2026-07-10.md are complete.
+
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The API writes caller-provided DINT values directly to the packet.
-If application-unit conversion is needed, caller code must convert values before calling motion APIs.
-Common unit.h-based conversion profile:
-  position      value * MM       (10000)
-  velocity      value * MMPSEC   (10000)
-  acceleration  value * MMPSEC2  (1)
-  deceleration  value * MMPSEC2  (1)
-  jerk          value * MMPSEC2  (1)
+Caller code must multiply the physical value by the selected LMC_Units constant,
+round/check the DINT range, and pass the converted int to the motion API.
+Read APIs return raw LASAL DINT; caller code divides by the same UNIT for display.
+Current Elmo a01-a04 profile (confirmed in Motion_Network):
+  position      value * DEG      (10000)
+  velocity      value * DEG      (10000), because MoveAbsolute expects app units/s
+  acceleration  value * DEG      (10000)
+  deceleration  value * DEG      (10000)
+  jerk          use 0 until the nonzero physical conversion is approved
+RPM is not the MoveAbsolute velocity UNIT unless the PLC method explicitly
+declares an RPM input. unit.h has no dedicated jerk UNIT, while _LMCAxis defines
+jerk as application units/sec^3/1000.
+See UNIT_CONVERSION_MANUAL_2026-07-10.md.
 Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
 
 0x209F MoveAbsoluteEx, payload 32 bytes
@@ -73,6 +84,9 @@ LMCAxis.MoveAbsolute(
 LASAL 0x20A4 parser replacement:
 
 Change the class variable GroupExecute from BYTE to DINT.
+The C# request carries 16 DINT positions (64 bytes), while the current
+GroupMovePos copy example below copies only 36 bytes (9 positions). The
+canonical LASAL robot/group axis count must be fixed before implementation.
 
 _StdLib.MemCpy(dest:=#GroupMovePos, source:=#ReceiveBuf[8], size:=36);
 _StdLib.MemCpy(dest:=#GroupVelocity, source:=#ReceiveBuf[72], size:=4);

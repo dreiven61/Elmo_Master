@@ -115,6 +115,8 @@ TCPMotionInterface : CLASS
 	_StdLib 	: CltChCmd__StdLib;
   //Variables:
 		ReceiveBuf : ARRAY [0..1023] OF BYTE;
+		ReceiveFill 	: UDINT;
+		ReceiveSocket 	: DINT;
 
 		Sendbuf : ARRAY [0..1023] OF BYTE;
 
@@ -141,6 +143,12 @@ TCPMotionInterface : CLASS
 		GroupReadInPosition 	: DINT;
 		GroupReadState 	: UDINT;
 		GroupReadErrorId 	: UDINT;
+		RpcSocket 	: DINT;
+		RpcInitialized 	: BOOL;
+		RpcCallbackRegistered 	: BOOL;
+		RpcCallbackEventMask 	: UDINT;
+		RpcCallbackPort 	: DINT;
+		RpcCallbackIPv4 : ARRAY [0..3] OF BYTE;
   //Functions:
 	
 	FUNCTION VIRTUAL GLOBAL CyWork
@@ -404,8 +412,24 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
       if ConnectedClients < 0 then
         ConnectedClients :=0;
       end_if;
-      if ConnectedClients = 0 then
+      if CurrentSock = dSock then
         CurrentSock := 0;
+      end_if;
+      if RpcSocket = dSock then
+        RpcSocket := 0;
+        RpcInitialized := FALSE;
+        RpcCallbackRegistered := FALSE;
+        RpcCallbackEventMask := 0;
+        RpcCallbackPort := 0;
+        RpcCallbackIPv4[0] := 0;
+        RpcCallbackIPv4[1] := 0;
+        RpcCallbackIPv4[2] := 0;
+        RpcCallbackIPv4[3] := 0;
+      end_if;
+      if ReceiveSocket = dSock then
+        ReceiveFill := 0;
+        ReceiveSocket := 0;
+        _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
       end_if;
   end_case;
 
@@ -420,19 +444,110 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
 		dSock 	: DINT;
 	END_VAR
   VAR
-	pDest : ^void;
-    retCode : DINT;
-//    savePtr : ^void;
+	usPayloadLength : UINT;
+	usReference : UINT;
+	udFrameSize : UDINT;
+	udRemainingSize : UDINT;
 	END_VAR
 
-  _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+  if udSize = 0 then
+    RETURN;
+  end_if;
 
-  _StdLib.MemCpy(dest:=#ReceiveBuf[0], source:=pData, size:=udSize);
-  _StdLib.MemCpy(dest:=#CommandID, source:=#ReceiveBuf[0], size:=2);
-  _StdLib.MemCpy(dest:=#AxisRef, source:=#ReceiveBuf[2], size:=2);
-  _StdLib.MemCpy(dest:=#Payload, source:=#ReceiveBuf[4], size:=4);
+  // Once RPC is initialized, only the owner socket may enter the accumulator.
+  if (RpcInitialized = TRUE) & (RpcSocket <> dSock) then
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 1;
+    Sendbuf[2]$UINT := 4;
+    Sendbuf[4]$UDINT := 0;
+    Sendbuf[8]$UINT := 1;
+    Sendbuf[10]$INT := -1;
 
-  MsgPaser();
+    SendData(
+      pData:=#Sendbuf[0],
+      udSize:=12,
+      dSocket:=dSock,
+      bDirect:=TRUE
+    );
+    RETURN;
+  end_if;
+
+  if ReceiveFill = 0 then
+    ReceiveSocket := dSock;
+    _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+  elsif ReceiveSocket <> dSock then
+    // Before a session exists, let the latest socket restart the phase-1
+    // accumulator so an abandoned partial frame cannot block initialization.
+    ReceiveFill := 0;
+    ReceiveSocket := dSock;
+    _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+  end_if;
+
+  if udSize > sizeof(ReceiveBuf) - ReceiveFill then
+    ReceiveFill := 0;
+    ReceiveSocket := 0;
+    _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+    RETURN;
+  end_if;
+
+  _StdLib.MemCpy(
+    dest:=#ReceiveBuf[ReceiveFill$DINT],
+    source:=pData,
+    size:=udSize
+  );
+  ReceiveFill += udSize;
+
+  while ReceiveFill >= 8 do
+    usPayloadLength := 0;
+    _StdLib.MemCpy(dest:=#usPayloadLength, source:=#ReceiveBuf[4], size:=2);
+    udFrameSize := TO_UDINT(usPayloadLength) + 8;
+
+    if udFrameSize > sizeof(ReceiveBuf) then
+      ReceiveFill := 0;
+      ReceiveSocket := 0;
+      _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+      RETURN;
+    end_if;
+
+    if ReceiveFill < udFrameSize then
+      RETURN;
+    end_if;
+
+    CommandID := 0;
+    AxisRef := 0;
+    Payload := 0;
+    usReference := 0;
+
+    _StdLib.MemCpy(dest:=#CommandID, source:=#ReceiveBuf[0], size:=2);
+    _StdLib.MemCpy(dest:=#usReference, source:=#ReceiveBuf[6], size:=2);
+
+    Payload := usPayloadLength$DINT;
+    AxisRef := usReference$DINT;
+    CurrentSock := ReceiveSocket;
+
+    MsgPaser();
+
+    udRemainingSize := ReceiveFill - udFrameSize;
+    if udRemainingSize > 0 then
+      _StdLib.MemMove(
+        dest:=#ReceiveBuf[0],
+        source:=#ReceiveBuf[udFrameSize$DINT],
+        size:=udRemainingSize
+      );
+      _memset(
+        dest:=#ReceiveBuf[udRemainingSize$DINT],
+        usByte:=0,
+        cntr:=sizeof(ReceiveBuf) - udRemainingSize
+      );
+    else
+      _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+    end_if;
+
+    ReceiveFill := udRemainingSize;
+    if ReceiveFill = 0 then
+      ReceiveSocket := 0;
+    end_if;
+  end_while;
 
 
 END_FUNCTION
@@ -440,7 +555,149 @@ END_FUNCTION
 
 FUNCTION TCPMotionInterface::MsgPaser
 
+  // Motion/read/lookup commands are accepted only after this socket completed
+  // session init and UDP callback registration.
+  if (CommandID <> 0x8080) & (CommandID <> 0x405C) &
+     (CommandID <> 0x405D) &
+     ((RpcInitialized = FALSE) | (RpcCallbackRegistered = FALSE) |
+      (RpcSocket <> CurrentSock)) then
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 1;
+    Sendbuf[2]$UINT := 4;
+    Sendbuf[4]$UDINT := 0;
+    Sendbuf[8]$UINT := 1;
+    Sendbuf[10]$INT := -1;
+
+    SendData(
+      pData:=#Sendbuf[0],
+      udSize:=12,
+      dSocket:=CurrentSock,
+      bDirect:=TRUE
+    );
+    RETURN;
+  end_if;
+
   case CommandID of
+
+    // RPC session init. Response payload follows the captured 24-byte shape.
+    0x8080:
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+
+      if (Payload = 1) & (ReceiveBuf[8] = 0) &
+         ((RpcInitialized = FALSE) | (RpcSocket = CurrentSock)) then
+        RpcSocket := CurrentSock;
+        RpcInitialized := TRUE;
+        RpcCallbackRegistered := FALSE;
+        RpcCallbackEventMask := 0;
+        RpcCallbackPort := 0;
+        RpcCallbackIPv4[0] := 0;
+        RpcCallbackIPv4[1] := 0;
+        RpcCallbackIPv4[2] := 0;
+        RpcCallbackIPv4[3] := 0;
+
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := 24;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UDINT := 64;  // Captured opaque value; meaning not confirmed.
+
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=32,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+      else
+        Sendbuf[0]$UINT := 1;
+        Sendbuf[2]$UINT := 4;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=12,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+      end_if;
+
+    // Register the PC UDP callback endpoint. Event payload sending is pending
+    // a real callback capture/specification.
+    0x405C:
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 4;
+      Sendbuf[4]$UDINT := 0;
+
+      if (Payload = 12) & (RpcInitialized = TRUE) &
+         (RpcSocket = CurrentSock) then
+        _StdLib.MemCpy(dest:=#RpcCallbackEventMask, source:=#ReceiveBuf[8], size:=4);
+        _StdLib.MemCpy(dest:=#RpcCallbackPort, source:=#ReceiveBuf[12], size:=4);
+        _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#ReceiveBuf[16], size:=4);
+
+        if (RpcCallbackPort > 0) & (RpcCallbackPort <= 65535) then
+          RpcCallbackRegistered := TRUE;
+          Sendbuf[8]$UINT := 0;
+          Sendbuf[10]$INT := 0;
+        else
+          RpcCallbackRegistered := FALSE;
+          Sendbuf[8]$UINT := 1;
+          Sendbuf[10]$INT := -1;
+        end_if;
+      else
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+      end_if;
+
+      SendData(
+        pData:=#Sendbuf[0],
+        udSize:=12,
+        dSocket:=CurrentSock,
+        bDirect:=TRUE
+      );
+
+    // Acknowledge before the PC closes the TCP socket, then clear this session.
+    0x405D:
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 4;
+      Sendbuf[4]$UDINT := 0;
+
+      if (Payload = 1) & (RpcInitialized = TRUE) &
+         (RpcSocket = CurrentSock) then
+        Sendbuf[8]$UINT := 0;
+        Sendbuf[10]$INT := 0;
+
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=12,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+
+        RpcSocket := 0;
+        RpcInitialized := FALSE;
+        RpcCallbackRegistered := FALSE;
+        RpcCallbackEventMask := 0;
+        RpcCallbackPort := 0;
+        RpcCallbackIPv4[0] := 0;
+        RpcCallbackIPv4[1] := 0;
+        RpcCallbackIPv4[2] := 0;
+        RpcCallbackIPv4[3] := 0;
+      else
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=12,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+      end_if;
 
     0x2081:
 

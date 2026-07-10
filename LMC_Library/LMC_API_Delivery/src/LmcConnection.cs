@@ -17,11 +17,14 @@ namespace LasalMotionControlLib
         private const int HeaderStatusOffset = 0;
         private const int HeaderReservedOffset = 4;
         private const int ValuePayloadOffset = 0;
+        private const int ShortCommandStatusPayloadOffset = 0;
+        private const int ShortCommandErrorPayloadOffset = 2;
         private const int CommandStatusPayloadOffset = 4;
         private const int CommandErrorPayloadOffset = 6;
         private const int LookupReferencePayloadOffset = 4;
         private const int UInt16ByteLength = 2;
         private const int UInt32ByteLength = 4;
+        private const int ShortAcknowledgementPayloadLength = 4;
         private const int AcknowledgementPayloadLength = 8;
         private const int LookupPayloadMinimumLength =
             LookupReferencePayloadOffset + UInt16ByteLength;
@@ -43,6 +46,7 @@ namespace LasalMotionControlLib
         public IPEndPoint CallbackLocalEndPoint { get; private set; }
         public LMC_Response RpcSessionInitResponse { get; private set; }
         public LMC_Response RpcCallbackRegistrationResponse { get; private set; }
+        public LMC_Response RpcCloseResponse { get; private set; }
 
         public event EventHandler<LMCCallbackEventArgs> CallbackReceived;
         public event EventHandler<LMCCallbackErrorEventArgs> CallbackListenerError;
@@ -87,7 +91,8 @@ namespace LasalMotionControlLib
             int callbackPort,
             uint eventMask)
         {
-            CloseConnection(false);
+            CloseConnection(true);
+            RpcCloseResponse = null;
 
             if (callbackPort < 0 || callbackPort > 65535)
             {
@@ -96,7 +101,8 @@ namespace LasalMotionControlLib
                     "Callback port must be between 0 and 65535.");
             }
 
-            var parsedLocalAddress = IPAddress.Parse(localAddress);
+            var parsedRemoteAddress = ParseIPv4Address(remoteAddress, "remoteAddress");
+            var parsedLocalAddress = ParseIPv4Address(localAddress, "localAddress");
             var localEndPoint = new IPEndPoint(parsedLocalAddress, 0);
 
             client = new TcpClient(localEndPoint)
@@ -108,22 +114,23 @@ namespace LasalMotionControlLib
 
             try
             {
-                client.Connect(IPAddress.Parse(remoteAddress), remotePort);
+                client.Connect(parsedRemoteAddress, remotePort);
 
                 RpcSessionInitResponse = Parse(Exchange(LMC_Frame.RpcSessionInit()));
                 EnsureSuccess("RPC session init", RpcSessionInitResponse);
 
                 StartCallbackListener(parsedLocalAddress, callbackPort);
+                var registeredCallbackPort = CallbackLocalEndPoint.Port;
 
-                RpcCallbackRegistrationResponse = Parse(
+                RpcCallbackRegistrationResponse = ParseAcknowledgement(
                     Exchange(
                         LMC_Frame.RpcCallbackRegistration(
                             eventMask,
-                            callbackPort,
+                            registeredCallbackPort,
                             parsedLocalAddress.GetAddressBytes())));
                 EnsureSuccess("RPC callback registration", RpcCallbackRegistrationResponse);
 
-                CallbackPort = callbackPort;
+                CallbackPort = registeredCallbackPort;
                 EventMask = eventMask;
                 IsRpcInitialized = true;
             }
@@ -192,7 +199,17 @@ namespace LasalMotionControlLib
         {
             var response = Parse(raw);
 
-            if (response.Payload.Length >= AcknowledgementPayloadLength)
+            if (response.Payload.Length == ShortAcknowledgementPayloadLength)
+            {
+                response.CommandStatus =
+                    LMC_Frame.ReadUInt16(response.Payload, ShortCommandStatusPayloadOffset);
+                response.ErrorId = unchecked(
+                    (short)LMC_Frame.ReadUInt16(
+                        response.Payload,
+                        ShortCommandErrorPayloadOffset));
+                response.HasCommandResult = true;
+            }
+            else if (response.Payload.Length >= AcknowledgementPayloadLength)
             {
                 response.CommandStatus =
                     LMC_Frame.ReadUInt16(response.Payload, CommandStatusPayloadOffset);
@@ -261,7 +278,8 @@ namespace LasalMotionControlLib
             {
                 if (sendCloseCommand && currentClient != null && currentClient.Connected)
                 {
-                    Exchange(LMC_Frame.CloseConnection());
+                    RpcCloseResponse = ParseAcknowledgement(
+                        Exchange(LMC_Frame.CloseConnection()));
                 }
             }
             catch
@@ -290,6 +308,23 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidOperationException("LMC connection is not open.");
             }
+        }
+
+        private static IPAddress ParseIPv4Address(string value, string parameterName)
+        {
+            var address = IPAddress.Parse(value);
+
+            if (address.AddressFamily != AddressFamily.InterNetwork
+                || address.Equals(IPAddress.Any)
+                || address.Equals(IPAddress.Broadcast)
+                || address.Equals(IPAddress.None))
+            {
+                throw new ArgumentException(
+                    "A concrete IPv4 address is required.",
+                    parameterName);
+            }
+
+            return address;
         }
 
         private void StartCallbackListener(IPAddress localAddress, int callbackPort)

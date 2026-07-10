@@ -3,6 +3,8 @@ namespace LasalMotionControlLib
     public static class LMC_Units
     {
         // Mirrors Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/unit.h.
+        // Caller code multiplies/divides with these constants. Packet builders
+        // never apply them automatically.
         public const int MMPSEC2 = 1;
         public const int DEG = 10000;
         public const int MM2 = 10;

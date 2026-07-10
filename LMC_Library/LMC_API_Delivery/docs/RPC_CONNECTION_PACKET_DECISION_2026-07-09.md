@@ -35,7 +35,18 @@ Parsed request:
 | 6 | 2 | `0x0000` | reference |
 | 8 | 1 | `0x00` | init payload byte |
 
-Captured normal response uses response payload length `0x0018`.
+Captured normal response is 32 bytes and uses response payload length `0x0018`:
+
+```text
+00 00 18 00 00 00 00 00
+40 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00
+```
+
+Payload offset `0` is the observed DWORD `64`. It may be a handle, but its
+meaning is not confirmed by one capture. The LASAL phase-1 implementation
+returns the captured shape and uses request `dSock` as the actual session key.
 
 ### Step 2: RPC Callback Registration
 
@@ -57,7 +68,8 @@ Parsed request:
 | 12 | 4 | `5003` | callback port |
 | 16 | 4 | `192.168.99.14` | local IPv4 address bytes |
 
-Captured normal response uses response payload length `0x0004`.
+Captured normal response uses response payload length `0x0004`. The 4-byte
+payload is `UINT16 Status` followed by `INT16 ErrorId`.
 
 ### Close Connection
 
@@ -77,7 +89,8 @@ Parsed request:
 | 6 | 2 | `0x0000` | reference |
 | 8 | 1 | `0x00` | close payload byte |
 
-Captured normal response uses response payload length `0x0004`.
+Captured normal response uses response payload length `0x0004` and the same
+4-byte status/error payload as callback registration.
 
 ## Implementation Decision
 
@@ -98,3 +111,16 @@ and close the callback listener socket. See
 
 Motion, axis lookup, and group packets keep the existing 8-byte request header.
 No session id is added to motion frames in this step.
+
+## Implementation Update 2026-07-10
+
+- PC DLL starts the UDP listener before `0x405C` and advertises the listener's
+  actual bound port, including when the caller requested port `0`.
+- PC DLL parses the 4-byte `0x405C` acknowledgement and rejects nonzero
+  status/error.
+- Reconnect performs a best-effort `0x405D` before creating the new TCP socket.
+- The tracked LASAL `TCPMotionInterface` now validates the request header and
+  implements `0x8080`, `0x405C`, and `0x405D` for one active RPC session.
+- LASAL IDE compilation and real PLC packet verification are still required.
+
+See `RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md`.
