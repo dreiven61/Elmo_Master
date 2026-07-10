@@ -232,8 +232,8 @@ LASAL side:
 - Confirm all `SendData(... dSocket:=...)` response paths use the request socket
   or a session socket derived from it.
 - Test two PC clients:
-  - PC A connects and resolves `a01`.
-  - PC B connects and resolves `a01`.
+  - PC A connects and resolves `_LMCAxis1`.
+  - PC B connects and resolves `_LMCAxis1`.
   - PC A sends a read command and receives its own response.
   - PC B sends a read command and receives its own response.
   - PC A starts a motion/control command.

@@ -2,7 +2,7 @@
 
 Date: 2026-07-10
 
-Baseline: `c65c56a`
+Baseline: `996686d`
 
 Status: Open
 
@@ -11,11 +11,14 @@ Status: Open
 현재 API 개발은 완료 상태가 아니다.
 
 Wireshark 자료에는 고유 command ID 23개가 있고 C# DLL에는 그중 21개의
-request builder 또는 public 호출 경로가 있다. 2026-07-10에 Git 추적 중인
-LASAL `TCPMotionInterface`에 RPC lifecycle phase-1 코드를 반영했지만 LASAL
-IDE compile과 실제 PLC 재캡처가 아직 없다. motion handler와 target
-dispatcher도 현재 DINT 계약과 맞지 않으므로 end-to-end 완료 API는 여전히
-0개다.
+request builder 또는 public 호출 경로가 있다. C# typed response parser와
+30개 C# 자동 테스트와 LASAL static contract suite, tracked LASAL의 RPC
+lifecycle, 실제 object-name lookup,
+opaque descriptor와 4축 DINT dispatcher를 반영했다.
+
+LASAL IDE compile, PLC download와 실제 packet 재캡처는 아직 없다. 따라서
+source 구현과 자동 테스트가 완료된 항목도 PLC end-to-end 검증 완료로
+계산하지 않으며, 검증 완료 API 수는 여전히 0개다.
 
 남은 작업은 `0x2051`과 `0x20E7` 두 함수 추가만이 아니다. 먼저 아래 P0를
 끝내야 한다.
@@ -40,6 +43,15 @@ dispatcher도 현재 DINT 계약과 맞지 않으므로 end-to-end 완료 API는
 - Maestro manual로 callback transport가 UDP임을 확인했다.
 - 실제 callback event payload와 LASAL UDP sender는 캡처/명세가 없어
   의도적으로 구현하지 않았다.
+- `_LMCAxis1..4`와 `_LMCRobotBase1`의 실제 LASAL object name을 startup 때
+  읽어 opaque descriptor를 발급하고, 4개 typed client channel로 dispatch한다.
+- Axis Power/Reset/Stop/Read/Move DINT handler와 Group lookup/members/
+  enable/disable/status/linear handler를 tracked project에 반영했다.
+- GroupReset/GroupStop은 안전한 LASAL 대응 method 확정 전까지 deterministic
+  `-5` error를 반환한다.
+- command별 typed parser, WPF response 안전 판정과 23-bit dummy profile
+  표기, NuGet 없는 .NET Framework 4.8 자동 테스트와 LASAL static contract
+  suite를 추가했다.
 
 ## 분석 기준
 
@@ -77,14 +89,16 @@ C# 구현은 PLC 통합 완료를 의미하지 않는다.
 flowchart LR
     A["WPF 또는 사용자 프로그램"] --> B["LasalMotionControlLib C#"]
     B -->|"8-byte header와 DINT payload"| C["TCPMotionInterface"]
-    C --> D["_LMCAxis1..4 및 _LMCRobot"]
+    C --> D["actual name registry와 opaque descriptor"]
+    D --> F["_LMCAxis1..4 및 _LMCRobotBase1"]
     E["PMAS Wireshark capture"] -. "LREAL/REAL 기준 근거" .-> B
     E -. "legacy wire 기준" .-> C
-    C -. "현재 header, type, command 불일치" .-> B
+    C -. "LASAL IDE/PLC 검증 대기" .-> B
 ```
 
-현재 C#은 LASAL DINT 전용 protocol을 의도하지만 tracked LASAL과 dummy는
-legacy header/LREAL 계열이고 `_Edit`는 두 계약이 섞인 hybrid다.
+tracked canonical project와 delivery C#은 현재 구현 범위에서 LASAL-DINT
+header/payload를 맞췄다. `Codex_LASAL_WPF` dummy와 untracked `_Edit`는
+legacy/hybrid 참고 자료이며 canonical source가 아니다.
 
 ## Command 구현 매트릭스
 
@@ -95,38 +109,38 @@ legacy header/LREAL 계열이고 `_Edit`는 두 계약이 섞인 hybrid다.
 | `0x8080` | Session Init | frame와 응답 대기 구현 | tracked 단일-session response 코드 반영 | P0: LASAL IDE/PLC 검증 대기 |
 | `0x405C` | Callback Register | UDP listener, 실제 bound port, 4B ACK parser | tracked endpoint 저장/ACK 코드 반영 | P0: event 송신 제외, PLC 검증 대기 |
 | `0x405D` | Close | 재연결/종료 frame 구현 | tracked ACK 후 state clear 코드 반영 | P0: PLC 검증 대기 |
-| `0x103C` | Axis lookup | reference parser 구현 | tracked 없음, `_Edit`는 a01~a04 고정 매핑 | P0: canonical mapping 필요 |
-| `0x1042` | Group lookup | reference parser 구현 | 모두 없음 | P0: 모든 Group 생성 차단 |
-| `0x202B` | AxisInfo | request 구현, response 폐기 | tracked 없음, `_Edit` 고정 ACK | P1: response 검증 필요 |
+| `0x103C` | Axis lookup | reference parser 구현 | 실제 object-name registry, descriptor 1..4 | source 반영, IDE/PLC 검증 대기 |
+| `0x1042` | Group lookup | reference parser 구현 | 실제 `_LMCRobotBase1` name, descriptor `0x0100` | source 반영, IDE/PLC 검증 대기 |
+| `0x202B` | AxisInfo | 8B ACK 보존·검증 | descriptor 검증 후 8B ACK | source/자동 테스트 완료, PLC 검증 대기 |
 
 ### Single Axis
 
 | ID | 기능 | C# DLL | tracked / `_Edit` LASAL | 판정 |
 |---:|---|---|---|---|
-| `0x2023` | Power | DINT 16-byte request | tracked는 `0x2081/82`, `_Edit`는 실행 | P0: ID/response/axis dispatch 통일 |
-| `0x2024` | Reset | 9-byte request | tracked는 `0x2083`, `_Edit`는 응답 없음 | P0: timeout과 execute semantics 해결 |
-| `0x2022` | Stop | DINT 24-byte request | tracked는 `0x2084`, `_Edit`는 인자 무시·응답 없음 | P0: 실제 인자와 ACK 구현 |
-| `0x2028` | ReadStatus | value parser 구현 | tracked 없음, `_Edit` 실행 주석 | P0: value/error response 구현 |
-| `0x202E` | ReadPosition | DINT parser 구현 | 모두 구형 response header | P0: stream desync 방지와 DINT response 확정 |
-| `0x209F` | MoveAbsoluteEx | DINT 40-byte request | 모두 LREAL offset 사용 | P0: 오동작/false-success 위험 |
-| `0x20A0` | MoveRelativeEx | DINT 40-byte request | tracked 없음, `_Edit` 실행 주석 | P0: 실제 motion/ACK 구현 |
-| `0x20A2` | MoveVelocityEx | DINT 32-byte request | tracked 없음, `_Edit` 실행 주석 | P0: 실제 motion/ACK 구현 |
+| `0x2023` | Power | DINT 16-byte request | descriptor별 PowerOn/Off와 8B ACK | source 반영, PLC state 검증 대기 |
+| `0x2024` | Reset | 9-byte request | descriptor별 QuitError와 8B ACK | source 반영, PLC 검증 대기 |
+| `0x2022` | Stop | DINT 24-byte request | 전달받은 decel/jerk로 descriptor별 StopMove | source 반영, PLC 검증 대기 |
+| `0x2028` | ReadStatus | 12B typed result | state/axis error/status word DINT response | source/자동 테스트 완료, PLC 재캡처 대기 |
+| `0x202E` | ReadPosition | 8B DINT typed result | descriptor별 DINT position response | contract test 완료, PLC golden 필요 |
+| `0x209F` | MoveAbsoluteEx | DINT 40-byte request | Shortest만 허용, descriptor별 MoveShortestWay | source/argument test 완료, PLC 검증 대기 |
+| `0x20A0` | MoveRelativeEx | DINT 40-byte request | signed distance + Shortest만 허용, descriptor별 MoveRelative | source/argument test 완료, PLC 검증 대기 |
+| `0x20A2` | MoveVelocityEx | DINT 32-byte request | Positive/Negative가 velocity sign을 결정, decel=0만 허용 | source/argument test 완료, PLC 검증 대기 |
 
-두 LASAL 프로젝트 모두 network상 `TCPMotionInterface1.LMCAxis`가
-`_LMCAxis1.Control` 하나에만 연결된다. a02~a04 reference를 lookup해도
-축 2~4로 dispatch되지 않는다.
+tracked canonical network는 `TCPMotionInterface1.LMCAxis/2/3/4`를 각각
+`_LMCAxis1/2/3/4.Control`에 연결한다. LASAL IDE에서 class model을
+재생성하고 실제 routing을 검증해야 한다.
 
 ### Group
 
 | ID | 기능 | C# DLL | tracked / `_Edit` LASAL | 판정 |
 |---:|---|---|---|---|
-| `0x20D2` | GetGroupMembersInfo | request 구현, 잘못된 ACK parser | 모두 없음 | P0/P1: server와 typed parser 필요 |
-| `0x2047` | GroupEnable | request 구현 | tracked 없음, `_Edit` 실행 주석 | P0: no-op 제거 |
-| `0x2048` | GroupDisable | request 구현 | tracked 없음, `_Edit` 실행 주석 | P0: no-op 제거 |
-| `0x2049` | GroupReset | request 구현 | tracked 없음, `_Edit` 실행 주석 | P0: 4-byte ACK error 처리 |
-| `0x2045` | GroupReadStatus | value parser, request payload 첫 DINT=`0` | 고립 handler 있음 | P0: 캡처의 group handle `0x0100`과 계약 결정 |
-| `0x2085` | GroupStop | DINT 24-byte request | tracked 없음, `_Edit` 실행 주석 | P0: 실제 stop/ACK 구현 |
-| `0x20A4` | MoveLinearAbsoluteEx | DINT 104-byte request, mode 고정 | 모두 312-byte LREAL 기대 | P0: no-op false-success 위험 |
+| `0x20D2` | GetGroupMembersInfo | exact 1350B typed parser | descriptor/name 4축 1350B response | source/자동 테스트 완료, PLC 검증 대기 |
+| `0x2047` | GroupEnable | request/ACK parser | `RobotOn(_ACTIVE)`와 8B ACK | source 반영, PLC 검증 대기 |
+| `0x2048` | GroupDisable | request/ACK parser | `RobotOff()`와 8B ACK | source 반영, PLC 검증 대기 |
+| `0x2049` | GroupReset | request/ACK parser | deterministic unsupported `-5` | P0: 승인된 LASAL reset semantics 필요 |
+| `0x2045` | GroupReadStatus | 12B typed result, payload에도 descriptor | group state/error response | source/자동 테스트 완료, PLC 검증 대기 |
+| `0x2085` | GroupStop | DINT 24-byte request | deterministic unsupported `-5` | P0: 승인된 LASAL stop semantics 필요 |
+| `0x20A4` | MoveLinearAbsoluteEx | DINT 104-byte request, mode 고정 | first 9 DINT axes를 `MoveLinearCoord`로 전달 | source 반영, group profile/PLC 검증 대기 |
 | `0x2051` | GroupReadActualPosition | command 상수만 있음 | 모두 없음 | P1: API/builder/vector parser/server 구현 |
 | `0x20E7` | SetKinTransformEx/Cartesian | 상수와 API 없음 | 모두 없음 | P1: 1320-byte serializer/server 구현 |
 
@@ -139,30 +153,22 @@ legacy header/LREAL 계열이고 `_Edit`는 두 계약이 섞인 hybrid다.
    - 8-byte ACK: handle/reserved 뒤 payload offset `4`/`6`
    - command별 구조가 아닌 payload 길이 기반 분기이므로 structured/value
      response를 generic ACK parser에 넣으면 안 된다.
-2. `GetGroupMembersInfo()`가 1350-byte structured response를 ACK로
-   파싱한다.
-   - captured reference `2`/`3`을 CommandStatus/ErrorId로 오인한다.
-   - axis references, device IDs, names와 member count를 반환하지 않는다.
-3. `AxisInfo` response는 생성자에서 완전히 버린다.
-4. `ReadStatus`, `GetActualPosition`, `GroupReadStatus`는 value만 반환하고
-   command/error tail을 충분히 해석하지 않는다.
-5. value parser 실패도 숫자 `0`을 반환해 정상값 0과 구분되지 않는다.
-6. RPC init 24-byte payload의 첫 DWORD `64` 의미는 아직 확정되지 않았고,
+2. `GetGroupMembersInfo`, AxisInfo와 typed read parser는 교정했고 malformed
+   payload는 `InvalidDataException`으로 구분한다.
+3. RPC init 24-byte payload의 첫 DWORD `64` 의미는 아직 확정되지 않았고,
    실제 UDP callback payload도 캡처되지 않았다. close ACK는 파싱·보관하지만
    연결 종료 중 발생한 오류는 현재 호출자에게 throw하지 않는다.
 
 ### WPF test app
 
-1. 모든 motion 값에 기본 `8388608`을 곱한다.
-   - delivery 정책은 caller가 LASAL internal DINT를 넘기는 것이다.
-   - 현재 a01~a04 Motion Network는 position/speed/accel/decel에 `DEG=10000`
-     profile을 사용하며 nonzero jerk 물리 변환은 별도 검증이 필요하다.
-   - group/robot은 kinematic 축별 UNIT profile을 따로 확정해야 한다.
-2. `Result()`는 `response.Status`만 검사하고 `IsFrameValid`, `IsSuccess`,
-   `ErrorId`를 무시한다.
-3. status read 실패값 `0`을 Power ON 성공으로 판단할 수 있다.
-4. callback event/error를 표시하지 않는다.
-5. 모든 네트워크 호출과 polling이 UI thread에서 실행된다.
+1. `8388608` 배율은 caller-side 23-bit encoder dummy profile로 명시했다.
+   DLL 자동 변환이 아니며 production caller는 PLC 설정에 맞는 UNIT/scale로
+   교체해야 한다.
+2. `Result()`와 polling read는 `IsFrameValid`/`IsSuccess`를 검사하며 실패값
+   `0`을 상태 판정에 사용하지 않는다. Power/Standstill 판정도 PMAS mask가
+   아니라 LASAL `_LMCAXIS_STATUS.PowerOn` bit 0과 `Standstill` bit 25를 쓴다.
+3. callback event/error를 표시하지 않는다.
+4. 모든 네트워크 호출과 polling이 UI thread에서 실행된다.
 
 현재 상태로 실제 motion test를 수행하면 잘못된 단위값 전송과 false-success
 판정 위험이 있다.
@@ -177,7 +183,7 @@ legacy header/LREAL 계열이고 `_Edit`는 두 계약이 섞인 hybrid다.
   public 인자가 아니며 현재 `0, 0, 1, 1`로 고정된다.
 - callback port `0`은 UDP listener의 실제 ephemeral port를 registration
   frame에 쓰도록 교정했다.
-- typed result와 자동화 test project가 없다.
+- typed result, 30개 C# 자동 테스트와 LASAL static contract suite가 추가됐다.
 
 ## 캡처에서 추가로 확정한 구조
 
@@ -230,21 +236,35 @@ captured LREAL[16]을 유지할지 PC/PLC 양쪽에서 먼저 결정해야 한�
 | P0-01 | canonical LASAL project 확정 | tracked `Elmo_EtherCAT_Test_4Axis`에 승인된 변경만 반영하고 untracked `_Edit` 의존 제거 |
 | P0-02 | LASAL-DINT protocol v1 명세 고정 | 모든 23 command의 header, request, response, type, error schema 문서화 |
 | P0-03 | RPC lifecycle 구현 | LASAL에 `0x8080`, `0x405C`, `0x405D` handler/response 추가, 요청 `dSock`으로 응답 |
-| P0-04 | target dispatcher 구현 | a01~a04가 `_LMCAxis1~4`, v01이 group/robot 객체로 정확히 route |
+| P0-04 | target dispatcher 구현 | LASAL actual object name lookup 후 opaque descriptor가 `_LMCAxis1~4`/robot으로 정확히 route |
 | P0-05 | 기존 C# command의 LASAL handler 완성 | Power/Reset/Stop/read/move/group command가 DINT contract로 실제 실행되고 미구현 command는 deterministic error 반환 |
 | P0-06 | response parser 교정 | 4B/8B ACK, lookup, value, AxisInfo, 0x20D2를 command별 parser로 처리 |
-| P0-07 | WPF test app 안전 수정 | field별 unit profile, `IsFrameValid`/`IsSuccess` 확인, 실패값 0 사용 금지 |
+| P0-07 | WPF test app 안전 수정 | 23-bit dummy가 caller profile임을 명시, `IsFrameValid`/`IsSuccess` 확인, 실패값 0과 PMAS state mask 사용 금지 |
 | P0-08 | 자동화 test 기반 | request golden bytes, captured response parser, malformed frame, fake TCP server integration test 추가 |
-| P0-09 | LASAL receive 안전성 | `udSize`/payload length/buffer bound 검증, partial/combined frame 처리, no-op success 제거 |
+| P0-09 | LASAL receive/실행 context 안전성 | TCP stack은 non-RT task 하나가 소유하고 callback은 frame 복사/queue까지만 수행하며 실제 `_LMCAxis` 명령은 동일 core `RtWork`에서 실행; bound/partial/combined frame 검증 |
 
 진행 상태:
 
 - P0-01: 이번 변경부터 tracked project를 canonical 변경 대상으로 사용
 - P0-02: UNIT 책임과 RPC packet 문서화 완료, 나머지 command schema 미완료
 - P0-03: PC/LASAL phase-1 코드 반영, LASAL IDE와 PLC E2E 검증 대기
-- P0-06: 4B/8B ACK 분기 완료, `0x20D2`와 typed/value parser 미완료
-- P0-09: receive buffer/header와 단일-socket TCP stream accumulator 반영,
-  socket별 accumulator와 no-op command 제거 미완료
+- P0-04: actual-name registry, descriptor 1..4와 4축 client wiring source 반영,
+  LASAL IDE/PLC 검증 대기
+- P0-05: single-axis와 일부 group DINT handler 반영. 지원하지 않는 direction/
+  velocity decel 조합은 PC와 LASAL 양쪽에서 거부하고 legacy `0x2081..84`도
+  차단했다. GroupReset/GroupStop의 승인된 LASAL semantics는 남음
+- P0-06: exact 4B/8B ACK, typed read, AxisInfo, `0x20D2` parser와 tests 완료
+- P0-07: WPF dummy profile 표기, response 실패 판정, LASAL PowerOn/Standstill
+  mask 교정 완료. UI thread/callback 표시는 후속 품질 작업
+- P0-08: request golden, captured/synthetic parser, malformed frame와 fake RPC/
+  UDP callback 통합 test 30개와 generated table/network/offset static suite 완료
+- P0-09: receive buffer/header와 단일-owner TCP stream accumulator는 반영했다.
+  그러나 `Response()`가 아직 `MsgPaser()`를 직접 호출하므로 motion command를
+  queue로 복사해 동일 core `RtWork`에서 실행하는 작업이 남았다. 이 항목은
+  실제 PLC motion 전 필수다. 구현은 아직 시작하지 않고
+  `LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md`에 pipeline, queue/mailbox,
+  transport task, shared RX/TX buffer, session epoch와 단계별 승인 항목만
+  정리했다.
 
 tracked `.st`는 CodeGenerator export이므로 새 session/accumulator 변수를
 LASAL IDE class model에 등록하고 재생성해야 P0-03 변경이 영구 보존된다.
@@ -256,11 +276,11 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 
 | ID | 작업 | 완료 조건 |
 |---|---|---|
-| P1-01 | `GetGroupMembersInfo` typed API | `LMCGroupMembersInfoResult`가 16축 reference/device/name/count/status/error를 반환 |
+| P1-01 | `GetGroupMembersInfo` typed API (source/test 완료) | `LMCGroupMembersInfoResult`가 16축 reference/device/name/count/status/error를 반환 |
 | P1-02 | `GroupReadActualPosition(0x2051)` | coordinate enum request, vector result, error parser, LASAL handler, tests, WPF 노출 |
 | P1-03 | `SetKinTransformEx/Cartesian(0x20E7)` | explicit 1320-byte serializer, 4축 Cartesian builder, LASAL apply path, ACK parser, tests |
 | P1-04 | group motion mode API | coordinate/transition/buffer/superimposed 정책을 public API와 LASAL semantics에 연결 |
-| P1-05 | typed read/lookup 결과 | 정상값 0과 실패를 구분하고 response/error context 보존 |
+| P1-05 | typed read 결과 (완료), lookup 결과 (부분) | 정상값 0과 실패를 구분하고 response/error context 보존 |
 | P1-06 | session/ownership | dSock session table, axis/group ownership, busy error, disconnect/timeout cleanup |
 | P1-07 | callback 검증 | 실제 transport/payload 캡처 후 typed callback parser와 test app 표시 |
 | P1-08 | 실제 PLC 재캡처 | handshake, lookup, 4축 routing, 성공/실패 ACK, read/motion/group packet 저장 및 문서 갱신 |
@@ -271,8 +291,8 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 ## P2 개발 목록
 
 - configurable timeout, cancellation/async API와 connection state 개선
-- input validation: name encoding/length, direction, array length, enum range
-- Phase 2 typed result와 Phase 3 callback model 완료
+- input validation remaining: group array length, enum and motion numeric range
+- Phase 3 typed callback model 완료
 - test app의 UI-thread blocking 제거와 반복 object lookup 최소화
 - assembly version과 release manifest 추가
 - package DLL/EXE를 current source에서 재빌드하고 SHA-256/source commit 기록
@@ -315,16 +335,19 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 
 ## 권장 실행 순서
 
-1. WPF motion test 중지 및 P0-07 수정
-2. tracked LASAL을 canonical source로 확정
-3. protocol v1 byte map과 golden tests 작성
-4. RPC + lookup + axis dispatch 구현
-5. Power -> ReadStatus -> MoveAbsolute -> Stop 최소 축 경로 E2E
+1. `LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md`의 D0~D15를 함께 확정
+2. TCP receive는 `Config=1` AP async task 하나가 소유하고, `Response()` frame을
+   command queue에 복사해 CyWork coordinator를 거친 뒤 motion 실행을 동일
+   core `RtWork`로 이동
+3. LASAL IDE class model에 새 client/변수를 등록하고 CodeGenerator 재생성
+4. LASAL IDE compile, PLC download, RPC/lookup/descriptor 1..4 재캡처
+5. ReadActualPosition one-slot -> read/admin FIFO -> Power/Stop -> Move 순서 E2E
 6. 나머지 single-axis command E2E
-7. group lookup/members/enable/status/linear/stop E2E
-8. `0x2051` 구현
-9. `0x20E7` 및 Prepare Group MCS 구현
-10. multi-PC/callback/실제 pcap/release package 완료
+7. GroupReset/GroupStop의 승인된 LASAL semantics 구현
+8. group lookup/members/enable/status/linear/stop E2E
+9. 실제 UDP callback payload 캡처 뒤 sender/typed parser 구현
+10. `0x2051`, `0x20E7` 및 Prepare Group MCS 구현
+11. multi-PC ownership, 실제 pcap, release package 완료
 
 ## Definition of Done
 
@@ -357,5 +380,6 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 - [RPC packet decision](RPC_CONNECTION_PACKET_DECISION_2026-07-09.md)
 - [RPC and UDP callback implementation](RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md)
 - [UNIT conversion manual](UNIT_CONVERSION_MANUAL_2026-07-10.md)
+- [LASAL command queue / RtWork design](LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md)
 - [Session management design](SESSION_MANAGEMENT_DESIGN_2026-07-09.md)
 - [History handoff](../../../docs/history/260710/99_analysis_summary.md)

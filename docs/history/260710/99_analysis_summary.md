@@ -11,7 +11,51 @@
 이 문서는 히스토리에 기록된 주장과 현재 저장소에서 다시 확인한 사실을
 구분해, 다음 작업을 바로 재개할 수 있도록 정리한다.
 
-## 결론
+## 2026-07-10 최신 구현 업데이트
+
+아래의 기존 분석 스냅샷 이후 `996686d`를 baseline으로 다음 source 변경을
+목적별 checkpoint commit으로 반영했다. 아래 오래된 "Live LASAL server와의 계약 불일치"
+절은 변경 전 근거이므로 현재 상태 판단에는 이 업데이트와
+`LMC_Library/LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md`를
+우선한다.
+
+- tracked `Elmo_EtherCAT_Test_4Axis`를 canonical source로 확정
+- `_LMCAxis1..4`/`_LMCRobotBase1` 실제 이름을 `_GetObjName`으로 읽고
+  opaque descriptor `1..4`/`0x0100`을 발급하는 LASAL registry 구현
+- `TCPMotionInterface`에 4개 typed axis client를 연결하고 generated client
+  table count를 6으로 교정
+- single-axis DINT Power/Reset/Stop/Read/Move와 group lookup/members/
+  enable/disable/status/linear handler 반영
+- legacy `0x2081..0x2084` 차단, 32-bit axis error 상위 비트 truncation 방지,
+  지원하지 않는 direction/velocity-decel 조합 deterministic 거부
+- C# exact ACK/lookup/typed read/1350-byte group-members parser, short error
+  envelope 보존, strict RPC init/callback shape 검증 구현
+- WPF의 `8,388,608`을 caller-side 23-bit encoder dummy profile로 명시하고
+  DLL에는 UNIT/CPR 변환을 넣지 않음
+- WPF response 실패 판정과 native LASAL PowerOn bit 0/Standstill bit 25 교정
+- Debug/Release 30개 C# test와 LASAL static contract suite 통과
+
+관련 commit:
+
+- `da4a912`: LASAL object dispatcher/DINT handler prototype
+- `adeb631`: typed response, packet validation과 30개 자동 테스트
+- `6dd7eab`: WPF dummy UNIT profile과 response 안전 판정
+- `bcbde89`: obsolete `LmcMotionApiTestApp` 제거
+
+현재 즉시 재개할 작업은 LASAL 추가 구현이 아니라 설계 승인이다.
+
+1. `LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md`의 D0~D15를 함께 확정한다.
+2. 특히 AP task/CyWork/RtWork 배치(D10)와 SIGMATEK RT-safe atomic/barrier(D4)가
+   확인되기 전에는 queue/RtWork 구현을 시작하지 않는다.
+3. 승인 후 `ReadActualPosition` one-slot부터 IDE model, compile, PLC 검증을
+   단계적으로 진행한다.
+
+그 뒤 남은 기능은 승인된 GroupReset/GroupStop semantics, 실제 UDP callback
+sender/payload, `0x2051`, `0x20E7`, multi-PC ownership 순서다. 현재 LASAL
+prototype은 IDE compile/PLC download를 하지 않았고 production 승인 상태가
+아니다.
+
+## 분석 당시 결론 (위 최신 업데이트로 대체됨)
 
 히스토리의 최신 장기 목표는 PMAS/Maestro API 전체 복제가 아니다.
 `LMC_Library/LMC_API_Delivery`를 LASAL 전용 DINT 클라이언트로 유지하고,
