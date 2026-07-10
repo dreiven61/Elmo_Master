@@ -136,5 +136,15 @@ namespace LasalMotionControlLib.Tests
         {
             WriteUInt32(buffer, offset, unchecked((uint)value));
         }
+
+        internal static void WriteDouble(byte[] buffer, int offset, double value)
+        {
+            var bits = unchecked((ulong)BitConverter.DoubleToInt64Bits(value));
+
+            for (var index = 0; index < 8; index++)
+            {
+                buffer[offset + index] = (byte)(bits >> (index * 8));
+            }
+        }
     }
 }

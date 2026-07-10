@@ -18,6 +18,7 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Response.Typed.ReadStatus", TypedReadStatus);
             tests.Add("Response.Typed.ReadActualPosition", TypedReadActualPosition);
             tests.Add("Response.Typed.GroupReadStatus", TypedGroupReadStatus);
+            tests.Add("Response.Typed.GroupReadActualPosition", TypedGroupReadActualPosition);
             tests.Add("Response.Typed.CapturedRawGolden", TypedCapturedRawGolden);
             tests.Add("Response.Typed.GroupMembers", TypedGroupMembers);
             tests.Add("Response.Typed.ShortCommandErrors", TypedShortCommandErrors);
@@ -98,6 +99,34 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(
                 structured.HasCommandResult,
                 "A structured 12-byte payload must not be parsed as an ACK.");
+
+            AssertEx.True(
+                LMCConnection.ParseCommandAcknowledgement(
+                    TestFrame.Response(0, TestFrame.Hex("00 00 00 00")),
+                    "test").IsSuccess);
+            AssertEx.True(
+                LMCConnection.ParseCommandAcknowledgement(
+                    TestFrame.Response(
+                        0,
+                        TestFrame.Hex("34 12 00 00 00 00 00 00")),
+                    "test").IsSuccess);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCommandAcknowledgement(
+                    TestFrame.Response(0, new byte[0]),
+                    "test"));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCommandAcknowledgement(
+                    TestFrame.Response(0, new byte[12]),
+                    "test"));
+
+            AssertEx.True(
+                LMCConnection.ParseShortAcknowledgement(
+                    TestFrame.Response(0, TestFrame.Hex("00 00 00 00")),
+                    "captured-short").IsSuccess);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseShortAcknowledgement(
+                    TestFrame.Response(0, new byte[8]),
+                    "captured-short"));
         }
 
         private static void LookupReference()
@@ -272,6 +301,74 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Response(0, payload));
             AssertEx.False(result.IsSuccess);
             AssertEx.Equal((ushort)99, result.GroupErrorId);
+        }
+
+        private static void TypedGroupReadActualPosition()
+        {
+            var payload = new byte[68];
+            var expected = new[]
+            {
+                1,
+                -2,
+                0x01020304,
+                int.MinValue,
+                int.MaxValue,
+                0,
+                7,
+                -8,
+                9,
+                -10,
+                11,
+                -12,
+                13,
+                -14,
+                15,
+                -16
+            };
+
+            for (var index = 0; index < expected.Length; index++)
+            {
+                TestFrame.WriteInt32(payload, index * 4, expected[index]);
+            }
+
+            TestFrame.WriteUInt16(payload, 64, 0x4000);
+            TestFrame.WriteInt16(payload, 66, 0);
+
+            var result = LMCConnection.ParseGroupReadActualPositionResult(
+                TestFrame.Response(0, payload),
+                LMC_COORD_SYSTEM.Mcs);
+
+            AssertEx.Equal(LMC_COORD_SYSTEM.Mcs, result.CoordinateSystem);
+            AssertEx.Equal((ushort)0x4000, result.FunctionStatus);
+            AssertEx.Equal((short)0, result.ErrorId);
+            AssertEx.True(result.IsSuccess);
+            AssertIntSequence(expected, result.PositionsRaw);
+
+            var clone = result.PositionsRaw;
+            clone[0] = 999;
+            AssertEx.Equal(1, result.PositionsRaw[0]);
+
+            var shortError = LMCConnection.ParseGroupReadActualPositionResult(
+                TestFrame.Response(0, TestFrame.Hex("10 00 FB FF")),
+                LMC_COORD_SYSTEM.Mcs);
+            AssertEx.False(shortError.IsSuccess);
+            AssertEx.True(shortError.HasCommandError);
+            AssertEx.Equal((short)-5, shortError.ErrorId);
+            AssertEx.Equal(16, shortError.PositionsRaw.Length);
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseGroupReadActualPositionResult(
+                    TestFrame.Response(0, new byte[136]),
+                    LMC_COORD_SYSTEM.Mcs),
+                "The LASAL-DINT group parser must reject the legacy LREAL response.");
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseGroupReadActualPositionResult(
+                    TestFrame.Response(0, new byte[67]),
+                    LMC_COORD_SYSTEM.Mcs));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseGroupReadActualPositionResult(
+                    TestFrame.Response(0, new byte[69]),
+                    LMC_COORD_SYSTEM.Mcs));
         }
 
         private static void TypedCapturedRawGolden()
@@ -458,6 +555,17 @@ namespace LasalMotionControlLib.Tests
         {
             var bytes = Encoding.ASCII.GetBytes(value);
             Buffer.BlockCopy(bytes, 0, buffer, offset, bytes.Length);
+        }
+
+        private static void AssertIntSequence(int[] expected, int[] actual)
+        {
+            AssertEx.NotNull(actual);
+            AssertEx.Equal(expected.Length, actual.Length);
+
+            for (var index = 0; index < expected.Length; index++)
+            {
+                AssertEx.Equal(expected[index], actual[index]);
+            }
         }
     }
 }

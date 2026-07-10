@@ -26,6 +26,8 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="LmcProtocol.cs" />
+    <Compile Include="LmcConnectionModels.cs" />
+    <Compile Include="LmcGroupModels.cs" />
     <Compile Include="LmcResults.cs" />
     <Compile Include="LmcConnection.cs" />
     <Compile Include="LmcAxis.cs" />

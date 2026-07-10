@@ -59,6 +59,6 @@ Assert-Match $st 'AxisCommandInputValid\s*:=\s*\(dir = 2\)' 'Shortest-only axis 
 Assert-Match $st '\(dec = 0\).*\(Exec <> 0\)' 'MoveVelocity deceleration/execute validation is missing.'
 Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize, reference\);\s*WriteInt32\(buffer, HeaderSize \+ 4, 1\);' 'C# read-status descriptor payload is missing.'
 Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# group velocity offset is not 64 bytes into payload.'
-Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 92, 1\);' 'C# group execute offset is not 92 bytes into payload.'
+Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 
 Write-Host 'PASS LASAL.StaticContract (6 clients, 4 links, offsets, error guards, legacy block)'

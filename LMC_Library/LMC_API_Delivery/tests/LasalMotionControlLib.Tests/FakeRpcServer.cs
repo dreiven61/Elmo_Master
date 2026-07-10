@@ -18,6 +18,8 @@ namespace LasalMotionControlLib.Tests
         internal ushort Command { get; private set; }
         internal byte[] Response { get; private set; }
         internal int[] ResponseChunks { get; set; }
+        internal int ResponseDelayMilliseconds { get; set; }
+        internal bool AllowClientDisconnectAfterRequest { get; set; }
         internal Action<byte[]> InspectRequest { get; set; }
         internal Action<byte[]> AfterResponse { get; set; }
         internal bool CloseAfterResponse { get; set; }
@@ -117,7 +119,19 @@ namespace LasalMotionControlLib.Tests
                                 step.InspectRequest(request);
                             }
 
-                            WriteResponse(stream, step.Response, step.ResponseChunks);
+                            if (step.ResponseDelayMilliseconds > 0)
+                            {
+                                Thread.Sleep(step.ResponseDelayMilliseconds);
+                            }
+
+                            try
+                            {
+                                WriteResponse(stream, step.Response, step.ResponseChunks);
+                            }
+                            catch (Exception) when (step.AllowClientDisconnectAfterRequest)
+                            {
+                                return;
+                            }
 
                             if (step.AfterResponse != null)
                             {

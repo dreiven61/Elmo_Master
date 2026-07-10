@@ -156,6 +156,52 @@ namespace LasalMotionControlLib
         }
     }
 
+    public sealed class LMCGroupReadActualPositionResult
+    {
+        private readonly int[] positionsRaw;
+
+        internal LMCGroupReadActualPositionResult(
+            LMC_Response response,
+            LMC_COORD_SYSTEM coordinateSystem,
+            int[] positionsRaw,
+            ushort functionStatus,
+            short errorId)
+        {
+            Response = response;
+            CoordinateSystem = coordinateSystem;
+            this.positionsRaw = (int[])positionsRaw.Clone();
+            FunctionStatus = functionStatus;
+            ErrorId = errorId;
+        }
+
+        public LMC_Response Response { get; private set; }
+        public LMC_COORD_SYSTEM CoordinateSystem { get; private set; }
+
+        public int[] PositionsRaw
+        {
+            get { return (int[])positionsRaw.Clone(); }
+        }
+
+        public ushort FunctionStatus { get; private set; }
+        public short ErrorId { get; private set; }
+
+        public bool HasCommandError
+        {
+            get { return LMC_ResultSemantics.HasCommandError(FunctionStatus); }
+        }
+
+        public bool IsSuccess
+        {
+            get
+            {
+                return LMC_ResultSemantics.IsFunctionResultSuccess(
+                    Response,
+                    FunctionStatus,
+                    ErrorId);
+            }
+        }
+    }
+
     public sealed class LMCGroupMemberInfo
     {
         internal LMCGroupMemberInfo(

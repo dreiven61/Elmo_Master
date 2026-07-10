@@ -1,35 +1,118 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LasalMotionControlLib
 {
     public class LMCSingleAxis
     {
         private readonly LMCConnection connection;
+        private readonly long sessionGeneration;
 
         public string AxisName { get; private set; }
         public ushort AxisReference { get; private set; }
         public LMC_Response AxisInfoResponse { get; private set; }
 
+        internal LMCConnection Connection
+        {
+            get { return connection; }
+        }
+
+        internal long SessionGeneration
+        {
+            get { return sessionGeneration; }
+        }
+
         public LMCSingleAxis(LMCConnection connection, string axisName)
         {
             this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            sessionGeneration = connection.SessionGeneration;
+            EnsureCurrentSessionForUse();
 
             AxisName = axisName;
             AxisReference = ResolveAxisReference(axisName);
 
+            EnsureCurrentSessionForUse();
             AxisInfoResponse = LMCConnection.ParseAcknowledgement(
-                connection.Exchange(LMC_Frame.LMCAxisInfo(AxisReference)));
+                connection.Exchange(
+                    LMC_Frame.LMCAxisInfo(AxisReference),
+                    sessionGeneration));
 
-            if (!AxisInfoResponse.IsFrameValid
-                || AxisInfoResponse.PayloadLength != 8
-                || !AxisInfoResponse.HasCommandResult)
+            ValidateAxisInfoResponse(AxisInfoResponse);
+            EnsureSuccess("AxisInfo", AxisInfoResponse);
+        }
+
+        private LMCSingleAxis(
+            LMCConnection connection,
+            string axisName,
+            long sessionGeneration,
+            ushort axisReference,
+            LMC_Response axisInfoResponse)
+        {
+            this.connection = connection;
+            this.sessionGeneration = sessionGeneration;
+            AxisName = axisName;
+            AxisReference = axisReference;
+            AxisInfoResponse = axisInfoResponse;
+        }
+
+        public static async Task<LMCSingleAxis> CreateAsync(
+            LMCConnection connection,
+            string axisName,
+            CancellationToken cancellationToken)
+        {
+            if (connection == null)
+            {
+                throw new ArgumentNullException("connection");
+            }
+
+            var generation = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(generation);
+
+            LMC_Response lookupResponse;
+            ushort axisReference;
+            var lookupRaw = await connection.ExchangeAsync(
+                LMC_Frame.LMCAxisGetByName(axisName),
+                generation,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!LMCConnection.TryParseLookupReference(
+                lookupRaw,
+                out lookupResponse,
+                out axisReference))
+            {
+                throw new InvalidOperationException("Invalid axis lookup response.");
+            }
+
+            var axisInfoResponse = LMCConnection.ParseAcknowledgement(
+                await connection.ExchangeAsync(
+                    LMC_Frame.LMCAxisInfo(axisReference),
+                    generation,
+                    cancellationToken).ConfigureAwait(false));
+
+            ValidateAxisInfoResponse(axisInfoResponse);
+            EnsureSuccess("AxisInfo", axisInfoResponse);
+            connection.EnsureSessionGeneration(generation);
+
+            return new LMCSingleAxis(
+                connection,
+                axisName,
+                generation,
+                axisReference,
+                axisInfoResponse);
+        }
+
+        private static void ValidateAxisInfoResponse(LMC_Response response)
+        {
+            if (response == null
+                || !response.IsFrameValid
+                || response.PayloadLength != 8
+                || !response.HasCommandResult)
             {
                 throw new InvalidDataException(
                     "AxisInfo response must contain an 8-byte acknowledgement payload.");
             }
-
-            EnsureSuccess("AxisInfo", AxisInfoResponse);
         }
 
         public LMC_Response PowerOn()
@@ -37,9 +120,23 @@ namespace LasalMotionControlLib
             return SendPower(true);
         }
 
+        public Task<LMC_Response> PowerOnAsync(CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisPower(AxisReference, true),
+                cancellationToken);
+        }
+
         public LMC_Response PowerOff()
         {
             return SendPower(false);
+        }
+
+        public Task<LMC_Response> PowerOffAsync(CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisPower(AxisReference, false),
+                cancellationToken);
         }
 
         public LMC_Response Reset()
@@ -47,9 +144,26 @@ namespace LasalMotionControlLib
             return SendReset();
         }
 
+        public Task<LMC_Response> ResetAsync(CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisReset(AxisReference),
+                cancellationToken);
+        }
+
         public LMC_Response Stop(int deceleration, int jerk)
         {
             return SendStop(deceleration, jerk);
+        }
+
+        public Task<LMC_Response> StopAsync(
+            int deceleration,
+            int jerk,
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisStop(AxisReference, deceleration, jerk),
+                cancellationToken);
         }
 
         public LMC_Response MoveAbsoluteEx(
@@ -63,6 +177,27 @@ namespace LasalMotionControlLib
             return SendMoveAbsolute(position, velocity, acceleration, deceleration, jerk, direction);
         }
 
+        public Task<LMC_Response> MoveAbsoluteExAsync(
+            int position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction,
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisMoveAbsolute(
+                    AxisReference,
+                    position,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    direction),
+                cancellationToken);
+        }
+
         public LMC_Response MoveRelativeEx(
             int distance,
             int velocity,
@@ -74,6 +209,27 @@ namespace LasalMotionControlLib
             return SendMoveRelative(distance, velocity, acceleration, deceleration, jerk, direction);
         }
 
+        public Task<LMC_Response> MoveRelativeExAsync(
+            int distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction,
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisMoveRelative(
+                    AxisReference,
+                    distance,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    direction),
+                cancellationToken);
+        }
+
         public LMC_Response MoveVelocityEx(
             int velocity,
             int acceleration,
@@ -82,6 +238,25 @@ namespace LasalMotionControlLib
             LMC_DIRECTION direction)
         {
             return SendMoveVelocity(velocity, acceleration, deceleration, jerk, direction);
+        }
+
+        public Task<LMC_Response> MoveVelocityExAsync(
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMC_DIRECTION direction,
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCAxisMoveVelocity(
+                    AxisReference,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    direction),
+                cancellationToken);
         }
 
         public uint ReadStatus()
@@ -97,8 +272,22 @@ namespace LasalMotionControlLib
 
         public LMCReadStatusResult ReadStatusResult()
         {
+            EnsureCurrentSessionForUse();
             return LMCConnection.ParseReadStatusResult(
-                connection.Exchange(LMC_Frame.LMCAxisReadStatus(AxisReference)));
+                connection.Exchange(
+                    LMC_Frame.LMCAxisReadStatus(AxisReference),
+                    sessionGeneration));
+        }
+
+        public async Task<LMCReadStatusResult> ReadStatusResultAsync(
+            CancellationToken cancellationToken)
+        {
+            EnsureCurrentSessionForUse();
+            var raw = await connection.ExchangeAsync(
+                LMC_Frame.LMCAxisReadStatus(AxisReference),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return LMCConnection.ParseReadStatusResult(raw);
         }
 
         public int GetActualPosition()
@@ -114,16 +303,33 @@ namespace LasalMotionControlLib
 
         public LMCReadActualPositionResult GetActualPositionResult()
         {
+            EnsureCurrentSessionForUse();
             return LMCConnection.ParseReadActualPositionResult(
-                connection.Exchange(LMC_Frame.LMCAxisReadPosition(AxisReference)));
+                connection.Exchange(
+                    LMC_Frame.LMCAxisReadPosition(AxisReference),
+                    sessionGeneration));
+        }
+
+        public async Task<LMCReadActualPositionResult> GetActualPositionResultAsync(
+            CancellationToken cancellationToken)
+        {
+            EnsureCurrentSessionForUse();
+            var raw = await connection.ExchangeAsync(
+                LMC_Frame.LMCAxisReadPosition(AxisReference),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return LMCConnection.ParseReadActualPositionResult(raw);
         }
 
         private ushort ResolveAxisReference(string axisName)
         {
+            EnsureCurrentSessionForUse();
             ushort axisReference;
 
             if (!LMCConnection.TryParseLookupReference(
-                connection.Exchange(LMC_Frame.LMCAxisGetByName(axisName)),
+                connection.Exchange(
+                    LMC_Frame.LMCAxisGetByName(axisName),
+                    sessionGeneration),
                 out _,
                 out axisReference))
             {
@@ -221,7 +427,27 @@ namespace LasalMotionControlLib
 
         private LMC_Response Send(byte[] request)
         {
-            return LMCConnection.ParseAcknowledgement(connection.Exchange(request));
+            EnsureCurrentSessionForUse();
+            return LMCConnection.ParseCommandAcknowledgement(
+                connection.Exchange(request, sessionGeneration),
+                "Axis command");
+        }
+
+        private async Task<LMC_Response> SendAsync(
+            byte[] request,
+            CancellationToken cancellationToken)
+        {
+            EnsureCurrentSessionForUse();
+            var raw = await connection.ExchangeAsync(
+                request,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return LMCConnection.ParseCommandAcknowledgement(raw, "Axis command");
+        }
+
+        internal void EnsureCurrentSessionForUse()
+        {
+            connection.EnsureSessionGeneration(sessionGeneration);
         }
 
         private static void EnsureSuccess(string operation, LMC_Response response)

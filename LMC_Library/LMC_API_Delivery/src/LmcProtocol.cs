@@ -61,17 +61,25 @@ namespace LasalMotionControlLib
 
     public sealed class LMCCallbackEventArgs : EventArgs
     {
+        private readonly byte[] payload;
+
         internal LMCCallbackEventArgs(
             byte[] payload,
             IPEndPoint remoteEndPoint,
             DateTime receivedAtUtc)
         {
-            Payload = payload ?? new byte[0];
+            this.payload = payload == null
+                ? new byte[0]
+                : (byte[])payload.Clone();
             RemoteEndPoint = remoteEndPoint;
             ReceivedAtUtc = receivedAtUtc;
         }
 
-        public byte[] Payload { get; private set; }
+        public byte[] Payload
+        {
+            get { return (byte[])payload.Clone(); }
+        }
+
         public IPEndPoint RemoteEndPoint { get; private set; }
         public DateTime ReceivedAtUtc { get; private set; }
     }
@@ -115,6 +123,7 @@ namespace LasalMotionControlLib
         internal const ushort GroupStop = 0x2085;
         internal const ushort GroupPosition = 0x2051;
         internal const ushort MoveLinear = 0x20A4;
+        internal const ushort SetKinTransformEx = 0x20E7;
     }
 
     internal static class LMC_Frame
@@ -130,6 +139,18 @@ namespace LasalMotionControlLib
         private const int NameMaxBytes = 79;
         private const int MaxLinearAxes = 16;
         private const int IPv4ByteLength = 4;
+        private const int SetKinTransformPayloadLength = 1320;
+        private const int KinematicNodeSize = 40;
+        private const int KinematicNodeBackwardRatioOffset = 0;
+        private const int KinematicNodeForwardRatioOffset = 8;
+        private const int KinematicNodeBackwardShiftOffset = 16;
+        private const int KinematicNodeTransformFunctionOffset = 24;
+        private const int KinematicNodeReferenceOffset = 28;
+        private const int KinematicNodeAxisTypeOffset = 32;
+        private const int KinematicAxisCountOffset = 640;
+        private const int KinematicTypeOffset = 1304;
+        private const int KinematicBufferModeOffset = 1308;
+        private const int KinematicExecuteOffset = 1312;
 
         private const int AxisInfoModeOffset = HeaderSize;
         private const int AxisInfoEnableOffset = HeaderSize + 8;
@@ -337,6 +358,20 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
+        internal static byte[] LMCGroupReadActualPosition(
+            ushort reference,
+            LMC_COORD_SYSTEM coordinateSystem)
+        {
+            ValidateCoordinateSystem(coordinateSystem);
+
+            var buffer = CreateRequest(LMC_CommandId.GroupPosition, reference, 8);
+
+            WriteInt32(buffer, HeaderSize, (int)coordinateSystem);
+            buffer[HeaderSize + 4] = 1;
+
+            return buffer;
+        }
+
         internal static byte[] LMCGroupStop(
             ushort reference,
             int deceleration,
@@ -353,6 +388,28 @@ namespace LasalMotionControlLib
             int deceleration,
             int jerk)
         {
+            return LMCGroupMoveLinearAbsolute(
+                reference,
+                position,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                new LMCGroupMotionOptions());
+        }
+
+        internal static byte[] LMCGroupMoveLinearAbsolute(
+            ushort reference,
+            int[] position,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            ValidateGroupPositions(position);
+            ValidateGroupMotionOptions(options);
+
             var buffer = CreateRequest(LMC_CommandId.MoveLinear, reference, 96);
 
             WriteLinearPositions(buffer, position);
@@ -360,10 +417,67 @@ namespace LasalMotionControlLib
             WriteInt32(buffer, HeaderSize + 68, acceleration);
             WriteInt32(buffer, HeaderSize + 72, deceleration);
             WriteInt32(buffer, HeaderSize + 76, jerk);
-            WriteInt32(buffer, HeaderSize + 80, 0);
-            WriteInt32(buffer, HeaderSize + 84, 0);
-            WriteInt32(buffer, HeaderSize + 88, 1);
-            WriteInt32(buffer, HeaderSize + 92, 1);
+            WriteInt32(buffer, HeaderSize + 80, (int)options.CoordinateSystem);
+            WriteInt32(buffer, HeaderSize + 84, (int)options.TransitionMode);
+            WriteInt32(buffer, HeaderSize + 88, (int)options.BufferMode);
+            WriteInt32(buffer, HeaderSize + 92, options.Execute ? 1 : 0);
+
+            return buffer;
+        }
+
+        internal static byte[] LMCGroupSetKinTransformCartesian(
+            ushort reference,
+            LMCCartesianKinematicTransform transform)
+        {
+            ValidateCapturedCartesianTransform(transform);
+
+            var buffer = CreateRequest(
+                LMC_CommandId.SetKinTransformEx,
+                reference,
+                SetKinTransformPayloadLength);
+            var nodes = transform.Nodes;
+
+            for (var index = 0; index < nodes.Length; index++)
+            {
+                var node = nodes[index];
+                var nodeOffset = HeaderSize + index * KinematicNodeSize;
+
+                WriteDouble(
+                    buffer,
+                    nodeOffset + KinematicNodeBackwardRatioOffset,
+                    node.BackwardRatio);
+                WriteDouble(
+                    buffer,
+                    nodeOffset + KinematicNodeForwardRatioOffset,
+                    node.ForwardRatio);
+                WriteDouble(
+                    buffer,
+                    nodeOffset + KinematicNodeBackwardShiftOffset,
+                    node.BackwardShift);
+                WriteInt32(
+                    buffer,
+                    nodeOffset + KinematicNodeTransformFunctionOffset,
+                    (int)node.TransformFunction);
+                WriteUInt32(
+                    buffer,
+                    nodeOffset + KinematicNodeReferenceOffset,
+                    node.NodeReference);
+                WriteInt32(
+                    buffer,
+                    nodeOffset + KinematicNodeAxisTypeOffset,
+                    (int)node.AxisType);
+            }
+
+            WriteInt32(
+                buffer,
+                HeaderSize + KinematicAxisCountOffset,
+                transform.NodeCount);
+            WriteInt32(buffer, HeaderSize + KinematicTypeOffset, 0);
+            WriteInt32(
+                buffer,
+                HeaderSize + KinematicBufferModeOffset,
+                (int)transform.BufferMode);
+            buffer[HeaderSize + KinematicExecuteOffset] = 1;
 
             return buffer;
         }
@@ -508,6 +622,16 @@ namespace LasalMotionControlLib
             buffer[offset + 3] = (byte)(unsignedValue >> 24);
         }
 
+        internal static void WriteDouble(byte[] buffer, int offset, double value)
+        {
+            var bits = unchecked((ulong)BitConverter.DoubleToInt64Bits(value));
+
+            for (var index = 0; index < 8; index++)
+            {
+                buffer[offset + index] = (byte)(bits >> (index * 8));
+            }
+        }
+
         private static byte[] StopWithMotionParameters(
             ushort command,
             ushort reference,
@@ -545,6 +669,92 @@ namespace LasalMotionControlLib
             }
 
             return position[axisIndex];
+        }
+
+        private static void ValidateCoordinateSystem(
+            LMC_COORD_SYSTEM coordinateSystem)
+        {
+            if (!Enum.IsDefined(typeof(LMC_COORD_SYSTEM), coordinateSystem))
+            {
+                throw new ArgumentOutOfRangeException("coordinateSystem");
+            }
+        }
+
+        private static void ValidateGroupPositions(int[] position)
+        {
+            if (position == null)
+            {
+                throw new ArgumentNullException("position");
+            }
+
+            if (position.Length < 1 || position.Length > MaxLinearAxes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "position",
+                    "Group position vectors must contain 1 to 16 DINT values.");
+            }
+        }
+
+        private static void ValidateGroupMotionOptions(
+            LMCGroupMotionOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException("options");
+            }
+
+            ValidateCoordinateSystem(options.CoordinateSystem);
+
+            if (!Enum.IsDefined(
+                typeof(LMC_GROUP_TRANSITION_MODE),
+                options.TransitionMode))
+            {
+                throw new ArgumentOutOfRangeException("options.TransitionMode");
+            }
+
+            if (!Enum.IsDefined(typeof(LMC_BUFFER_MODE), options.BufferMode))
+            {
+                throw new ArgumentOutOfRangeException("options.BufferMode");
+            }
+        }
+
+        private static void ValidateCapturedCartesianTransform(
+            LMCCartesianKinematicTransform transform)
+        {
+            if (transform == null)
+            {
+                throw new ArgumentNullException("transform");
+            }
+
+            if (transform.NodeCount != 4)
+            {
+                throw new ArgumentException(
+                    "The captured 0x20E7 contract supports exactly four Cartesian nodes.",
+                    "transform");
+            }
+
+            if (transform.BufferMode != LMC_BUFFER_MODE.Buffered)
+            {
+                throw new ArgumentException(
+                    "The captured 0x20E7 contract supports Buffered mode only.",
+                    "transform");
+            }
+
+            var nodes = transform.Nodes;
+            for (var index = 0; index < nodes.Length; index++)
+            {
+                if ((int)nodes[index].AxisType != index
+                    || nodes[index].TransformFunction
+                        != LMC_KINEMATIC_TRANSFORM_FUNCTION.Shift
+                    || nodes[index].BackwardRatio != 1.0
+                    || nodes[index].ForwardRatio != 1.0
+                    || nodes[index].BackwardShift != 0.0)
+                {
+                    throw new ArgumentException(
+                        "The captured Cartesian profile requires X/Y/Z/U identity-shift nodes in order.",
+                        "transform");
+                }
+            }
         }
     }
 }

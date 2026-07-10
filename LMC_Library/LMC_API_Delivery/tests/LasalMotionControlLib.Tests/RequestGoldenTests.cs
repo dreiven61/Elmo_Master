@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 using LasalMotionControlLib;
 
@@ -17,6 +18,7 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Request.AxisMotion.GoldenBytes", AxisMotionGoldenBytes);
             tests.Add("Request.GroupControlAndRead.GoldenBytes", GroupControlAndReadGoldenBytes);
             tests.Add("Request.GroupLinear.GoldenBytes", GroupLinearGoldenBytes);
+            tests.Add("Request.GroupPositionAndKinematics.GoldenBytes", GroupPositionAndKinematicsGoldenBytes);
             tests.Add("Request.RawDint.IsNotRescaled", RawDintIsNotRescaled);
         }
 
@@ -205,6 +207,15 @@ namespace LasalMotionControlLib.Tests
 
             AssertEx.SequenceEqual(
                 TestFrame.Request(
+                    0x2051,
+                    Reference,
+                    new byte[] { 2, 0, 0, 0, 1, 0, 0, 0 }),
+                LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    LMC_COORD_SYSTEM.Mcs));
+
+            AssertEx.SequenceEqual(
+                TestFrame.Request(
                     0x2085,
                     Reference,
                     IntPayload(0x01020304, -2, 1, 1)),
@@ -237,6 +248,103 @@ namespace LasalMotionControlLib.Tests
                     20,
                     30,
                     40));
+
+            var options = new LMCGroupMotionOptions
+            {
+                CoordinateSystem = LMC_COORD_SYSTEM.Mcs,
+                TransitionMode = LMC_GROUP_TRANSITION_MODE.SmoothCubic,
+                BufferMode = LMC_BUFFER_MODE.Buffered,
+                Execute = false
+            };
+
+            TestFrame.WriteInt32(payload, 80, 2);
+            TestFrame.WriteInt32(payload, 84, 4);
+            TestFrame.WriteInt32(payload, 88, 2);
+            TestFrame.WriteInt32(payload, 92, 0);
+
+            AssertEx.SequenceEqual(
+                TestFrame.Request(0x20A4, Reference, payload),
+                LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    positions,
+                    10,
+                    20,
+                    30,
+                    40,
+                    options));
+
+            AssertEx.Throws<ArgumentNullException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, null, 1, 1, 1, 1));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new int[17], 1, 1, 1, 1));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    new[] { 1 },
+                    1,
+                    1,
+                    1,
+                    1,
+                    new LMCGroupMotionOptions
+                    {
+                        TransitionMode = (LMC_GROUP_TRANSITION_MODE)1
+                    }));
+        }
+
+        private static void GroupPositionAndKinematicsGoldenBytes()
+        {
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    (LMC_COORD_SYSTEM)4));
+
+            var payload = new byte[1320];
+            for (var index = 0; index < 4; index++)
+            {
+                var nodeOffset = index * 40;
+                TestFrame.WriteDouble(payload, nodeOffset, 1.0);
+                TestFrame.WriteDouble(payload, nodeOffset + 8, 1.0);
+                TestFrame.WriteDouble(payload, nodeOffset + 16, 0.0);
+                TestFrame.WriteInt32(payload, nodeOffset + 24, 1);
+                TestFrame.WriteUInt32(payload, nodeOffset + 28, (uint)index);
+                TestFrame.WriteInt32(payload, nodeOffset + 32, index);
+            }
+
+            TestFrame.WriteInt32(payload, 640, 4);
+            TestFrame.WriteInt32(payload, 1304, 0);
+            TestFrame.WriteInt32(payload, 1308, 2);
+            payload[1312] = 1;
+
+            var expected = TestFrame.Request(0x20E7, 0x0100, payload);
+            var transform = LMCCartesianKinematicTransform.CreateFourAxis(0, 1, 2, 3);
+            var actual = LMC_Frame.LMCGroupSetKinTransformCartesian(
+                0x0100,
+                transform);
+
+            AssertEx.SequenceEqual(expected, actual);
+
+            using (var sha256 = SHA256.Create())
+            {
+                AssertEx.SequenceEqual(
+                    TestFrame.Hex(
+                        "67 8D 48 44 A8 81 E6 97 8F 83 DA DB CF 7E 27 A9 "
+                        + "2B 19 AC 94 0A 99 73 24 1C 70 13 95 6B 2D 34 CF"),
+                    sha256.ComputeHash(actual),
+                    "0x20E7 frame differs from the captured golden frame.");
+            }
+
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_Frame.LMCGroupSetKinTransformCartesian(
+                    Reference,
+                    new LMCCartesianKinematicTransform(
+                        new[]
+                        {
+                            LMCKinematicNode.CreateIdentityShift(
+                                1,
+                                LMC_KINEMATIC_AXIS_TYPE.X)
+                        })));
         }
 
         private static void RawDintIsNotRescaled()
