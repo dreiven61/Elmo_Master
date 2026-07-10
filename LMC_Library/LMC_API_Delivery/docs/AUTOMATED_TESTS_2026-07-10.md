@@ -22,25 +22,58 @@
 - captured PMAS ReadStatus/GroupReadStatus raw golden for envelope/offset
   compatibility; canonical LASAL state-bit semantics are documented separately
 - exact 1350-byte `0x20D2`, count 0..16, name/array defensive copy
+- `0x2051` coordinate request와 exact 68-byte LASAL-DINT
+  `DINT[16]+status/error` typed result, 배열 defensive copy
+- legacy `0x2051` 136-byte LREAL response와 malformed/trailing payload 거부
+- `0x20E7` exact 1320-byte Cartesian4 payload, X/Y/Z/U axis reference와
+  captured application-frame SHA-256 golden
+- group position 1..16 길이, enum/options validation
 - RPC init, fragmented response, 실제 ephemeral UDP callback, close
+- callback payload defensive copy와 controller IP가 아닌 UDP source 거부
 - init status/shape, callback ACK status/shape와 truncated-response 실패 후
   socket/listener state cleanup
+- options clone/timeout validation과 invalid reconnect 시 기존 session 유지
+- close nonzero ACK 예외, response/error 보존과 local cleanup
+- receive timeout 뒤 transport 폐기, `Faulted` 전이와 재사용 차단
+- queued cancellation이 active RPC를 보존하고 in-flight cancellation은
+  해당 transport만 폐기하는지 검증
+- async init/close와 취소 가능한 axis/group factory 성공, reconnect 뒤 stale
+  group handle 및 generation-bound exchange 거부
 - axis lookup 뒤 AxisInfo success/malformed/command-error
 - LASAL static contract: generated client count/entries, 4-axis network links,
   C#-ST critical offsets, 32-bit error truncation guards, legacy command block
 
-PMAS legacy `0x202E` LREAL 16-byte response는 LASAL-DINT typed parser가
-명시적으로 거부한다. DINT actual-position golden은 PLC 재캡처 전까지
-contract 기반 synthetic vector다.
+PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
+LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
+golden은 PLC 재캡처 전까지 contract 기반 synthetic vector다.
 
 ## 실행
+
+PC C# test만 실행:
 
 ```powershell
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
   'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' `
-  /t:RunTests /p:Configuration=Release /nologo
+  /t:RunPcTests /p:Configuration=Release /nologo
 ```
 
-30개 C# case 뒤 LASAL static contract suite도 같은 `RunTests` target에서
-실행된다. 자동 테스트 통과는 source contract 검증이며 LASAL IDE compile,
-PLC download와 실제 EtherCAT/motion 동작 검증을 대체하지 않는다.
+LASAL source static contract만 실행:
+
+```powershell
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
+  'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' `
+  /t:RunLasalContract /p:Configuration=Release /nologo
+```
+
+둘을 순서대로 실행하려면 target을 `/t:RunTests`로 바꾼다.
+
+현재 결과:
+
+- `RunPcTests`: `42/42 PASS`
+- `RunLasalContract`:
+  `PASS LASAL.StaticContract (6 clients, 4 links, offsets, error guards, legacy block)`
+
+target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
+구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와
+source contract 검증이며 LASAL IDE compile, PLC download와 실제
+EtherCAT/motion 동작 검증을 대체하지 않는다.

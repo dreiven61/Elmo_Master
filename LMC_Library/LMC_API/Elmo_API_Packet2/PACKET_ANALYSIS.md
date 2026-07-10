@@ -364,6 +364,12 @@ node 0~3은 X/Y/Z/U, handle 0/1/2/3, coefficient `1, 1, 0`이며
 1개뿐이다. 위 layout은 구조체/offset 근거로 확정할 수 있지만 다른 축 수,
 kinematic type, buffer mode의 실제 wire 값은 추가 캡처로 검증해야 한다.
 
+현재 PC API는 이 근거에 맞춘 exact 1320-byte serializer를 제공하되 공개
+호출을 X/Y/Z/U 4축 identity-shift, Cartesian, `Buffered(2)` profile로
+제한한다. public 호출에서는 capture의 handle `0/1/2/3`을 하드코딩하지 않고
+같은 `LMCConnection`에서 lookup한 axis reference를 넣는다. LASAL의
+large-command staging/apply handler와 PLC 재캡처는 아직 없다.
+
 ## Read Command Layout
 
 ### `0x2028 ReadStatus`
@@ -457,8 +463,8 @@ Request:
 
 Response payload length는 `12`다. payload는 status register 4 bytes,
 command status/error 4 bytes, group error value 4 bytes로 해석해야 한다.
-현재 LASAL DINT C# builder는 payload 첫 DINT에 group reference가 아니라
-`0`을 쓰므로 캡처와 일치하지 않는다.
+현재 LASAL-DINT C# builder도 payload 첫 DINT와 header reference에 같은 group
+descriptor를 써서 이 request shape를 유지한다.
 
 ### `0x2051 GroupReadActualPosition`
 
@@ -491,6 +497,13 @@ Response:
 
 따라서 response는 17개 LREAL이 아니라
 `double[16] + status + error + padding`으로 해석해야 한다.
+
+LASAL-DINT v1 local response contract는 capture의 LREAL ABI를 그대로 쓰지
+않고 exact 68-byte payload
+`DINT[16] + UINT16 function status + INT16 error ID`로 확정했다. PC typed
+parser는 legacy 136-byte response를 명시적으로 거부한다. LASAL handler에서
+위 coordinate enum을 실제 `_LMCRobotBase` coordinate index로 mapping하고
+68-byte response를 만드는 작업은 아직 남아 있다.
 
 ## Command Summary
 

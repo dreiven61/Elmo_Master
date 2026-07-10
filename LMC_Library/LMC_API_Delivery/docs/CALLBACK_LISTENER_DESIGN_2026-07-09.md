@@ -52,9 +52,13 @@ payload remains raw and LASAL event sending is not defined in this phase.
 - `CallbackListenerError`: background listener error event
 - `IsCallbackListenerRunning`
 - `CallbackLocalEndPoint`
+- `RejectedCallbackCount`
+- `LMCConnectionOptions.ValidateCallbackSourceAddress` (default `true`)
 
-The payload is intentionally raw bytes. Do not parse it until real callback
-captures exist.
+The payload is intentionally raw bytes. `LMCCallbackEventArgs.Payload` returns
+a defensive copy, and the default listener accepts datagrams only from the
+configured controller IPv4. Do not parse the bytes until real callback captures
+exist.
 
 ## Lifecycle
 
@@ -62,30 +66,42 @@ captures exist.
 
 `RpcInitConnection(...)` performs this order:
 
-1. Close any previous command socket and callback listener.
-2. Open command TCP socket.
-3. Send `0x8080`.
-4. Start callback UDP listener on `localAddress:callbackPort`.
-5. Read the listener's actual bound port. This differs when the caller requested
+1. Validate all new connection addresses, ports and options. Invalid reconnect
+   input leaves the current session running.
+2. Close any previous command socket and callback listener.
+3. Open command TCP socket.
+4. Send `0x8080`.
+5. Start callback UDP listener on `localAddress:callbackPort`.
+6. Read the listener's actual bound port. This differs when the caller requested
    port `0` and the OS selected an ephemeral port.
-6. Send `0x405C` with the same local address and actual bound port.
-7. Mark the connection as RPC-initialized.
+7. Send `0x405C` with the same local address and actual bound port.
+8. Mark the connection as RPC-initialized.
 
-If any step fails, the command socket and callback listener are both closed.
+After session replacement begins, any initialization failure closes the new
+command socket and callback listener and records `LastInitializationException`.
 
 ### Close
 
 `CloseConnection()` and `Dispose()` perform this order:
 
-1. Send `0x405D` on the command TCP socket if possible.
+1. Send `0x405D` on the command TCP socket if possible and validate its ACK.
 2. Close the command TCP socket.
 3. Stop the callback listener.
 4. Clear connection state and cached handshake responses.
 
+A nonzero close ACK is preserved and reported to the caller after local cleanup.
+
 ### Reconnect
 
-Calling `RpcInitConnection(...)` again first closes both sockets from the
-previous session, then starts a new session.
+Calling `RpcInitConnection(...)` again with valid parameters closes both sockets
+from the previous session, then starts a new session. Axis/group objects created
+for the previous session generation are rejected after reconnect.
+
+Each receive thread captures its own UDP listener and expected controller
+address. Stop atomically detaches the current listener/thread/endpoint before
+closing and joining that generation. If a callback handler outlives the join
+timeout, the old thread cannot consume the next session's UDP socket or clear
+the new session's listener fields when it eventually exits.
 
 ## Current Limitation
 

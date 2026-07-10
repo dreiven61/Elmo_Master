@@ -5,10 +5,31 @@ public static class BasicUsage
 {
     public static void Run()
     {
-        using (var connection = new LMCConnection())
+        var options = new LMCConnectionOptions
         {
+            ConnectTimeoutMilliseconds = 3000,
+            ReceiveTimeoutMilliseconds = 3000,
+            SendTimeoutMilliseconds = 3000,
+            ValidateCallbackSourceAddress = true
+        };
+
+        using (var connection = new LMCConnection(options))
+        {
+            connection.ConnectionStateChanged += delegate(
+                object sender,
+                LMCConnectionStateChangedEventArgs e)
+            {
+                Console.WriteLine(
+                    "Connection "
+                    + e.PreviousState
+                    + " -> "
+                    + e.CurrentState);
+            };
+
             connection.CallbackReceived += delegate(object sender, LMCCallbackEventArgs e)
             {
+                // Raw datagram only. Do not infer a typed event until an actual
+                // LASAL callback payload contract is captured.
                 Console.WriteLine(
                     "Callback bytes = "
                     + e.Payload.Length
@@ -67,8 +88,10 @@ public static class BasicUsage
         var actualPositionDeg = FromDint(actualPosition, LMC_Units.DEG);
         Console.WriteLine("Actual position deg = " + actualPositionDeg);
 
-        // Group motion is intentionally omitted until the _LMCRobotBase1 kinematic
-        // position/dynamics UNIT profile is approved.
+        // PC APIs for GroupReadActualPosition(0x2051) and
+        // SetKinTransformCartesian4Axis(0x20E7) exist, but group motion is
+        // intentionally omitted until their LASAL handlers, _LMCRobotBase1 UNIT
+        // profile, RtWork execution and PLC packet verification are complete.
     }
 
     private static void EnsureSuccess(string operation, LMC_Response response)

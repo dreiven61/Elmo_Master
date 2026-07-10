@@ -152,6 +152,8 @@ Use command-specific parsing internally:
 | `0x2028` read status | `uint StatusRegister` plus envelope |
 | `0x202E` read position | `int ActualPosition` plus envelope |
 | group read status | `uint StatusRegister` plus envelope |
+| `0x2051` group actual position | LASAL-DINT `int[16]`, coordinate context, status/error |
+| `0x20D2` group members | 16-axis reference/device/name/count typed result |
 
 Do not force all of these into `Status/ErrorId`.
 
@@ -233,6 +235,7 @@ Status: implemented on 2026-07-10.
   - `LMCReadStatusResult`
   - `LMCReadActualPositionResult`
   - `LMCGroupReadStatusResult`
+  - `LMCGroupReadActualPositionResult`
   - `LMCGroupMembersInfoResult`
   - `LMCGroupMemberInfo`
 - Existing methods can remain:
@@ -242,6 +245,7 @@ Status: implemented on 2026-07-10.
   - `ReadStatusResult()`
   - `GetActualPositionResult()`
   - `GroupReadStatusResult()`
+  - `GroupReadActualPosition(LMC_COORD_SYSTEM)`
   - `GetGroupMembersInfoResult()`
 - `AxisInfoResponse` preserves and validates the constructor-time 8-byte ACK.
 - axis/group lookup accepts exactly 6 payload bytes and rejects descriptor `0`.
@@ -255,6 +259,11 @@ Status: implemented on 2026-07-10.
   canonical LASAL handler currently returns reserved value `0` until DS402
   StatusWord wiring is approved.
 - `0x20D2` is parsed by exact offsets and exact 1350-byte payload length.
+- `0x2051` LASAL-DINT v1 success is parsed as exact 68-byte payload:
+  `DINT[16] + UINT16 function status + INT16 error`. The captured 136-byte
+  legacy LREAL response is rejected rather than reinterpreted. A 4-byte
+  command-error envelope remains a valid unsuccessful typed result.
+- group position/member arrays are returned through defensive copies.
 
 ### Phase 3: Callback parser
 

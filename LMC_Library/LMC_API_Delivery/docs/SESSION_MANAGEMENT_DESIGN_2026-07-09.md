@@ -170,17 +170,28 @@ Implemented in the PC DLL:
 - Start the callback listener before `0x405C` and stop it during close.
 - Expose `IsRpcInitialized`, `CallbackPort`, `EventMask`, and the parsed
   handshake responses.
+- Expose `IsConnected`, lifecycle state/error events, configurable timeout and
+  cancellation-aware async operations.
+- Track a local session generation and reject axis/group objects created before
+  a successful reconnect.
+- Validate the expected generation inside the same serialized exchange gate that
+  writes the frame, so a reconnect cannot create a check/use gap for an old
+  descriptor. Async object lookup uses `LMCSingleAxis.CreateAsync` and
+  `LMCGroupAxis.CreateAsync` with the same rule.
+- Preserve an existing session when new reconnect parameters are invalid.
 
 See `CALLBACK_LISTENER_DESIGN_2026-07-09.md` for callback listener ownership.
 
 Still optional:
 
 - Add a public `SessionId` if LASAL starts returning one.
-- Add a public `IsConnected` wrapper if application code needs it.
 
-Still unchanged:
+PC boundary:
 
-- Keep motion packets unchanged.
+- Local connection generation prevents stale descriptor reuse but cannot enforce
+  ownership between different PCs.
+- Read sharing, motion/control ownership, busy errors and timeout cleanup must
+  be implemented in the LASAL `dSock` session/target table.
 
 ## Required LASAL Changes
 

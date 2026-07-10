@@ -77,12 +77,27 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 
 `LmcConnection.cs`에 다음을 반영했다.
 
-- 이전 연결이 있으면 best-effort `0x405D` 후 새 연결 시작
+- 새 연결 인자/IP/port를 먼저 검증하고, 유효할 때만 이전 연결에 `0x405D`
+  후 새 연결 시작. invalid reconnect input은 기존 session 유지
 - UDP listener를 `0x405C`보다 먼저 개방
 - remote/local address를 구체적인 IPv4 주소로 조기 검증
 - callback port `0`을 사용하면 실제 할당된 ephemeral port를 등록
 - `0x405C`의 4-byte ACK를 status/error로 파싱
 - 등록 성공 후 실제 callback port와 event mask를 public state에 저장
+- `LMCConnectionOptions`로 connect/read/send/callback join timeout 설정
+- `ConnectionStateChanged`와
+  `Disconnected/Connecting/Connected/Closing/Faulted` 상태 전이 제공
+- initialization protocol, transport, close 오류를 각각
+  `LastInitializationException`, `LastTransportException`,
+  `LastCloseException`에 분리 보존
+- close nonzero ACK는 `RpcCloseResponse`를 보존하고 local TCP/UDP cleanup 뒤
+  호출자에게 예외 전달
+- callback remote source-address 기본 검증, rejected count와 payload 방어 복사
+- 취소 가능한 init/close/axis/group async API
+- timeout/전송 오류와 in-flight 취소는 해당 transport generation을 폐기하고
+  `Faulted`로 전환. queue 대기 중 취소는 active request를 닫지 않음
+- reconnect 성공 뒤 이전 session에서 생성한 axis/group object를 stale
+  generation으로 거부
 
 ### Tracked LASAL
 
@@ -129,12 +144,13 @@ CodeGenerator 실행에서 declaration이 사라지고 구현부 compile이 깨�
 ## 검증 항목
 
 1. LASAL IDE에서 tracked project compile
-2. PC에서 `RpcInitConnection()` 호출 시 두 응답이 3초 안에 도착
+2. PC에서 `RpcInitConnection()` 호출 시 두 응답이 설정된 timeout 안에 도착
 3. `IsRpcInitialized == true`
 4. `RpcCallbackRegistrationResponse.HasCommandResult == true`
 5. callback port `0` 호출 시 wire의 port가 0이 아닌 실제 listener port
 6. 잘못된 port/session 요청에서 nonzero status/error 확인
-7. `CloseConnection()`의 ACK 후 TCP FIN 확인
+7. `CloseConnection()`의 ACK 후 TCP FIN 확인. nonzero ACK는 local cleanup 뒤
+   호출자에게 예외 전달되는지 확인
 8. 재연결 시 기존 `0x405D` 후 새 `0x8080` 순서 확인
 9. `0x8080`을 여러 TCP segment로 나누거나 `0x8080+0x405C`를 합쳐 보내도
    각각 한 번만 처리되는지 확인
@@ -154,4 +170,10 @@ E2E 완료로 표시하지 않는다.
 - callback/close 4-byte ACK의 `HasCommandResult`, `IsSuccess` 판정 성공
 - 실패 ACK `Status=16`, `ErrorId=-8`을 연결 성공으로 처리하지 않고 예외 발생
 - `0.0.0.0` callback local address 조기 거부
-- Release library와 Debug WPF test app build 성공
+- options clone/validation, invalid reconnect session 보존
+- receive timeout/in-flight cancellation transport 폐기와 `Faulted` 전이
+- queued cancellation active request 보존, async init/close 성공
+- reconnect 뒤 stale group object 거부
+- close nonzero ACK 예외/response/error 보존과 local cleanup
+- PC runner 42/42 PASS
+- Debug/Release library와 WPF test app build 성공

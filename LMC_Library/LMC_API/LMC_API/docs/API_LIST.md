@@ -1,212 +1,200 @@
 # LASAL Motion Control Lib API List
 
-기준 구현은 `LMC_Library/LMC_API_Delivery`의 `LasalMotionControlLib`이다.
+기준 구현은 `LMC_Library/LMC_API_Delivery`의 `LasalMotionControlLib`이며,
 검토 기준일은 2026-07-10이다.
-
-이 문서는 현재 DLL의 public API와 구현 대상 기준을 정리한다. 기존
-Elmo/PMAS 스타일의 `LMC_*Cmd` 메소드명은 현재 DLL에서 제거했다. 같은
-패킷을 보내는 중복 alias를 만들지 않고, 한 동작에는 하나의 public API만
-둔다.
-
-상세 개발 순서와 완료 조건은
-[`API_DEVELOPMENT_BACKLOG_2026-07-10.md`](../../../LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md)를
-기준으로 한다.
 
 ## 현재 판정
 
-API 개발은 완료 상태가 아니다.
+- Wireshark 기준 대상 command: 23개
+- PC request builder/public 호출 경로: 23/23
+- PC 자동 테스트 runner: 42/42 PASS
+- LASAL static source contract: PASS
+- tracked LASAL `case` handler: 21/23
+- tracked LASAL 정상 기능 후보: 19/23
+  (`GroupReset`, `GroupStop`은 deterministic unsupported `-5`)
+- tracked LASAL handler 없음: `0x2051`, `0x20E7`
+- 실제 PLC E2E 및 Wireshark 재캡처: 0/23
 
-- 캡처된 고유 command ID: 23개
-- C# request builder/public 호출 경로: 21개
-- C# 미구현: `0x2051`, `0x20E7`
-- tracked LASAL server와 end-to-end 완료: 0개
-- 자동화 test project: 없음
+따라서 "PC API 구현 완료"는 23개 packet을 생성·파싱하는 C# source 범위를
+뜻한다. LASAL command queue/RtWork, 두 신규 handler, IDE build, PLC download와
+실제 재캡처까지 끝났다는 의미가 아니다.
 
-tracked `TCPMotionInterface`에는 2026-07-10에 `0x8080`, `0x405C`,
-`0x405D` 단일-session handler 코드가 반영됐다. 다만 LASAL IDE compile과
-실제 PLC handshake 재캡처가 아직 없으므로 end-to-end 완료로 표시하지
-않는다. 아래의 'C# 구현'도 PLC 통합 완료를 뜻하지 않는다.
+상세 개발 상태는
+[`API_DEVELOPMENT_BACKLOG_2026-07-10.md`](../../../LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md)를
+기준으로 한다.
 
-상태 정의:
+## 공통 계약
 
-- C# 구현: public/internal path와 request builder가 존재
-- 부분 구현: response/error/result 또는 test가 부족
-- E2E 차단: LASAL handler/contract가 없어 실제 PLC 왕복 불가
-- 미구현: public API 또는 frame builder 없음
+- wire numeric motion field는 little-endian signed DINT다.
+- DLL은 단위를 변환하지 않는다. 호출자가 물리값에 PLC 설정과 일치하는
+  `LMC_Units`를 곱하고 DINT 범위를 검사한 `int`를 전달한다.
+- read 결과는 raw DINT이며 호출자가 같은 UNIT으로 나눠 표시한다.
+- axis/group 이름은 LASAL의 실제 object name과 대조하고, 반환된 `UINT16`
+  reference는 포인터가 아닌 opaque descriptor로 취급한다.
+- public API는 한 기능당 하나를 원칙으로 하며 제거된 `LMC_*Cmd` alias는
+  복구하지 않는다.
+- legacy `LmcMotionApi.dll`과 binary/source 호환되지 않는다. 기존 consumer는
+  [`MIGRATION_FROM_LMCMOTIONAPI.md`](MIGRATION_FROM_LMCMOTIONAPI.md)에 따라
+  namespace, 객체 API와 UNIT/DINT 변환을 이관하고 재컴파일해야 한다.
+- callback은 source address를 검증한 UDP raw payload event까지만 제공한다.
+  실제 callback datagram 구조가 캡처되기 전에는 typed parser를 만들지 않는다.
+- 다중 PC 읽기 공유와 motion/control ownership은 LASAL session/dispatcher가
+  강제해야 한다. PC DLL 인스턴스만으로 server-side 소유권은 보장되지 않는다.
 
-## 구현 원칙
-
-- Wireshark 캡처로 확인된 패킷 중 LASAL 쪽에서 실제로 받을 기능만 함수화한다.
-- API 내부에서 단위 변환을 하지 않는다.
-- 호출자는 물리값에 축/인자에 맞는 `LMC_Units`를 곱하고 DINT 범위를
-  검사한 `int`를 넘긴다.
-- read 결과는 internal DINT 그대로 반환하며 호출자가 같은 UNIT으로 나눈다.
-- `LMCSingleAxis`/`LMCGroupAxis` 객체가 name lookup으로 reference를 받아
-  보관하고, 이후 호출에서는 저장된 reference로 패킷을 만든다.
-- `PowerMembers`처럼 여러 축에 같은 명령을 반복하는 동작은 라이브러리
-  protocol API가 아니라 사용자 프로그램/test app helper에서 처리한다.
+UNIT 규칙은
+[`UNIT_CONVERSION_MANUAL_2026-07-10.md`](../../../LMC_API_Delivery/docs/UNIT_CONVERSION_MANUAL_2026-07-10.md),
+RPC/callback 범위는
+[`RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md`](../../../LMC_API_Delivery/docs/RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md)를
+따른다.
 
 ## 연결 API
 
 클래스: `LMCConnection`
+
+생성자:
+
+- `LMCConnection()`
+- `LMCConnection(LMCConnectionOptions options)`
+
+동기 API:
 
 - `RpcInitConnection(string remoteAddress, int remotePort, string localAddress)`
 - `RpcInitConnection(string remoteAddress, int remotePort, string localAddress, int callbackPort, uint eventMask)`
 - `CloseConnection()`
 - `Dispose()`
 
-상태/응답 property:
+비동기 API:
 
-- `IsRpcInitialized`
-- `IsCallbackListenerRunning`
-- `CallbackPort`, `EventMask`, `CallbackLocalEndPoint`
-- `RpcSessionInitResponse`, `RpcCallbackRegistrationResponse`, `RpcCloseResponse`
+- `RpcInitConnectionAsync(..., CancellationToken cancellationToken)`
+- `CloseConnectionAsync(CancellationToken cancellationToken)`
 
-event:
+품질/상태 API:
 
-- `CallbackReceived`
-- `CallbackListenerError`
+- `State`, `IsConnected`, `IsRpcInitialized`, `IsCallbackListenerRunning`
+- `Options`, `LastInitializationException`, `LastTransportException`,
+  `LastCloseException`
+- `CallbackPort`, `EventMask`, `CallbackLocalEndPoint`, `RejectedCallbackCount`
+- `ConnectionStateChanged`, `CallbackReceived`, `CallbackListenerError`
 
-연결 API는 TCP socket을 열고 캡처 기반 RPC handshake를 수행한다.
-`RpcInitConnection`은 session init(`0x8080`) 후 callback registration
-(`0x405C`)을 보낸다. `CloseConnection`/`Dispose`는 close frame(`0x405D`)을
-보낸다.
+`LMCConnectionOptions`는 connect/read/send timeout, callback thread join timeout,
+callback source-address 검증을 설정한다. callback port `0`은 실제 ephemeral
+UDP port를 연 뒤 그 값을 `0x405C`에 등록한다. callback payload getter는
+방어 복사본을 반환한다.
 
-현재 판정: RPC phase-1 코드 반영 / LASAL IDE·PLC E2E 검증 대기.
-
-- tracked LASAL은 한 개의 활성 RPC session만 허용
-- C#은 callback/close 계열 4-byte ACK를 status/error로 해석
-- callback transport는 Maestro manual 기준 UDP로 확정
-- callback port `0`은 실제 ephemeral listener port를 등록
-- remote/local address는 `0.0.0.0`, broadcast, IPv6가 아닌 구체적인 IPv4만 허용
-- 실제 callback datagram이 없어 event payload와 typed parser는 미확정
-
-UNIT 배포 규칙은
-[`UNIT_CONVERSION_MANUAL_2026-07-10.md`](../../../LMC_API_Delivery/docs/UNIT_CONVERSION_MANUAL_2026-07-10.md),
-RPC 구현 범위는
-[`RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md`](../../../LMC_API_Delivery/docs/RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md)를
-따른다.
+timeout/전송 오류와 이미 시작된 RPC의 취소는 해당 transport를 즉시
+폐기하고 state를 `Faulted`로 바꿔 늦게 도착한 response가 다음 command에
+섞이지 않게 한다. lock/queue에서 대기 중인 작업의 취소는 현재 active
+request transport를 닫지 않는다. 새 연결 인자가 유효하지 않으면 기존
+session을 유지하고, reconnect가 성공하면 이전 session에서 만든 axis/group
+object는 session generation mismatch로 거부한다. close nonzero ACK는 local
+cleanup 뒤 예외로 전달하고 response와 `LastCloseException`을 보존한다.
 
 ## 단축 Axis API
 
-클래스: `LMCSingleAxis`
-
-짧은 호환 class alias: `LMCAxis`
+클래스: `LMCSingleAxis`, 호환 짧은 이름 `LMCAxis`
 
 생성자:
 
 - `LMCSingleAxis(LMCConnection connection, string axisName)`
 - `LMCAxis(LMCConnection connection, string axisName)`
+- `LMCSingleAxis.CreateAsync(connection, axisName, cancellationToken)`
 
-생성자는 axis name lookup(`0x103C`) 후 axis info(`0x202B`)를 보낸다.
+생성자는 `0x103C` lookup 뒤 `0x202B` AxisInfo를 검증하고 reference를
+보관한다. WPF처럼 lookup 중 취소가 필요한 호출자는 synchronous 생성자를
+`Task.Run`으로 감싸지 말고 `CreateAsync`를 사용한다.
 
-동작 API:
+| Public API | Command | 입력/결과 | PC 상태 | PLC 상태 |
+|---|---:|---|---|---|
+| `PowerOn`, `PowerOff` | `0x2023` | `LMC_Response` | 구현 | handler 있음, PLC 미검증 |
+| `Reset` | `0x2024` | `LMC_Response` | 구현 | handler 있음, PLC 미검증 |
+| `Stop` | `0x2022` | deceleration/jerk DINT | 구현 | handler 있음, PLC 미검증 |
+| `ReadStatusResult` | `0x2028` | `LMCReadStatusResult` | typed parser 구현 | PLC 재캡처 필요 |
+| `GetActualPositionResult` | `0x202E` | `LMCReadActualPositionResult` | DINT parser 구현 | PLC 재캡처 필요 |
+| `MoveAbsoluteEx` | `0x209F` | 5개 motion DINT, direction | 구현 | handler 있음, PLC 미검증 |
+| `MoveRelativeEx` | `0x20A0` | signed distance 포함 DINT | 구현 | handler 있음, PLC 미검증 |
+| `MoveVelocityEx` | `0x20A2` | velocity/dynamics/direction | 구현 | handler 있음, PLC 미검증 |
 
-- `PowerOn()`
-- `PowerOff()`
-- `Reset()`
-- `Stop(int deceleration, int jerk)`
-- `ReadStatus()`
-- `ReadStatus(out LMC_Response response)`
-- `GetActualPosition()`
-- `GetActualPosition(out LMC_Response response)`
-- `MoveAbsoluteEx(int position, int velocity, int acceleration, int deceleration, int jerk, LMC_DIRECTION direction = LMC_DIRECTION.Shortest)`
-- `MoveRelativeEx(int distance, int velocity, int acceleration, int deceleration, int jerk, LMC_DIRECTION direction = LMC_DIRECTION.Shortest)`
-- `MoveVelocityEx(int velocity, int acceleration, int deceleration, int jerk, LMC_DIRECTION direction)`
-
-| API | C# 상태 | E2E 상태 / 남은 작업 |
-|---|---|---|
-| Axis 생성자 | 부분 구현 | `0x103C` tracked handler 없음, `0x202B` response 폐기, 4축 dispatch 없음 |
-| `PowerOn/Off`, `Reset`, `Stop` | request 구현 | tracked command ID 불일치, `_Edit` response/인자 처리 미완료 |
-| `ReadStatus` | 부분 구현 | LASAL response와 error tail 확정 필요 |
-| `GetActualPosition` | 부분 구현 | PMAS LREAL과 LASAL DINT response 구분, live PLC 캡처 필요 |
-| 세 motion API | request 구현 | C# DINT와 LASAL LREAL parser 불일치, no-op/오동작 위험 |
-
-추가 결함:
-
-- value parser 실패도 숫자 `0`을 반환해 정상값 0과 구분되지 않음
-- name encoding/길이와 direction enum validation 부족
-- test app이 모든 field에 `8388608` scale을 적용해 unit 정책과 충돌
+각 네트워크 동작은 같은 parser를 쓰는 `*Async(..., CancellationToken)` 버전을
+제공한다. `ReadStatus()`/`GetActualPosition()` 호환 facade도 남아 있지만,
+오류 context를 보존하는 typed result 사용을 권장한다.
 
 ## Group API
 
-클래스: `LMCGroupAxis`
-
-짧은 호환 class alias: `LMCGroup`
+클래스: `LMCGroupAxis`, 호환 짧은 이름 `LMCGroup`
 
 생성자:
 
 - `LMCGroupAxis(LMCConnection connection, string groupName)`
 - `LMCGroup(LMCConnection connection, string groupName)`
+- `LMCGroupAxis.CreateAsync(connection, groupName, cancellationToken)`
 
-생성자는 group name lookup(`0x1042`)을 보내고 group reference를 보관한다.
+| Public API | Command | 입력/결과 | PC 상태 | PLC 상태 |
+|---|---:|---|---|---|
+| `GetGroupMembersInfoResult` | `0x20D2` | 16축 reference/device/name/count typed result | 구현 | PLC 재캡처 필요 |
+| `GroupEnable` | `0x2047` | `LMC_Response` | 구현 | handler 있음, PLC 미검증 |
+| `GroupDisable` | `0x2048` | `LMC_Response` | 구현 | handler 있음, PLC 미검증 |
+| `GroupReset` | `0x2049` | `LMC_Response` | 구현 | unsupported `-5` |
+| `GroupStop` | `0x2085` | deceleration/jerk DINT | 구현 | unsupported `-5` |
+| `GroupReadStatusResult` | `0x2045` | `LMCGroupReadStatusResult` | 구현 | PLC 재캡처 필요 |
+| `MoveLinearAbsoluteEx` | `0x20A4` | DINT position[1..16], dynamics, options | 구현 | first 9 axes path, PLC 미검증 |
+| `GroupReadActualPosition` | `0x2051` | coordinate enum, `LMCGroupReadActualPositionResult` | 구현 | handler 없음 |
+| `SetKinTransformCartesian4Axis` | `0x20E7` | X/Y/Z/U axis objects | 구현 | handler 없음 |
 
-동작 API:
+`MoveLinearAbsoluteEx`는 `LMCGroupMotionOptions`로 coordinate system,
+transition mode, buffer mode, execute를 명시할 수 있다. position 배열은
+null 없이 1..16개여야 하며 남는 wire slot은 0으로 채운다.
 
-- `GetGroupMembersInfo()`
-- `GroupEnable()`
-- `GroupDisable()`
-- `GroupReset()`
-- `GroupStop(int deceleration, int jerk)`
-- `GroupReadStatus()`
-- `GroupReadStatus(out LMC_Response response)`
-- `MoveLinearAbsoluteEx(int[] position, int velocity, int acceleration, int deceleration, int jerk)`
+`GroupReadActualPosition`은 LASAL-DINT v1에서 success response payload를
+정확히 68 bytes로 정의한다. 4-byte command-error envelope는 typed error
+result로 보존한다.
 
-| API | C# 상태 | E2E 상태 / 남은 작업 |
-|---|---|---|
-| Group 생성자 | request 구현 | `0x1042` LASAL handler가 없어 생성 불가 |
-| `GetGroupMembersInfo` | 잘못된 부분 구현 | 1350-byte structured response를 ACK로 오판; typed parser 필요 |
-| enable/disable/reset/stop | request 구현 | tracked handler 없음, `_Edit` 실행 주석/no response |
-| `GroupReadStatus` | 부분 구현 | C# payload 첫 DINT `0`과 캡처 group handle `0x0100` 불일치 |
-| `MoveLinearAbsoluteEx` | 부분 구현 | C# DINT 104B와 LASAL LREAL 312B 불일치; mode가 고정됨 |
-| `GroupReadActualPosition` | 미구현 | `0x2051` builder/public API/vector parser/LASAL handler 필요 |
-| `SetKinTransformEx/Cartesian` | 미구현 | `0x20E7` 1320-byte serializer/public API/LASAL apply path 필요 |
+| Payload offset | Size | 의미 |
+|---:|---:|---|
+| 0 | 64 | `DINT position[16]` |
+| 64 | 2 | function status `UINT16` |
+| 66 | 2 | error ID `INT16` |
 
-`0x20E7` 구조는 2026-07-10 보완 분석에서
-`MMC_SETKINTRANSFORMEX_IN`/Cartesian wrapper로 확인했다. 구조 미확정 상태는
-아니지만 unique payload sample이 1개뿐이므로 값 변화 캡처가 더 필요하다.
+PMAS capture의 136-byte `LREAL[16] + status/error + ABI padding`은 legacy
+응답이며 typed parser가 명시적으로 거부한다.
+
+`SetKinTransformCartesian4Axis`는 캡처와 동일한 1,320-byte payload를 만든다.
+공개 지원 범위는 다음 profile 하나다.
+
+- Cartesian kinematic type `0`
+- 같은 `LMCConnection`에 속한 고유 axis reference 4개
+- node 순서 X/Y/Z/U
+- 각 node는 identity ratio `1.0/1.0`, shift `0.0`, transform `Shift(1)`
+- buffer mode `Buffered(2)`, execute `1`
+
+노드 수·계수·축 타입·buffer가 다른 generic kinematics는 캡처가 없어 공개
+지원으로 판정하지 않는다.
 
 ## Public support types
 
-- `LMC_Response`: common envelope, raw payload, status/error compatibility facade
-- `LMCCallbackEventArgs`, `LMCCallbackErrorEventArgs`
-- `LMC_DIRECTION`
-- `LMC_Units`: unit 상수 선언만 제공하며 packet builder에서는 사용하지 않음
-
-typed lookup/status/position/group-members result와 callback message parser는
-아직 제공하지 않는다.
-
-## 의도적으로 제공하지 않는 API
-
-| 항목 | 판단 |
-|---|---|
-| `LMC_*Cmd` method alias | 제거 유지. 중복 public API를 복구하지 않음 |
-| `LMC_PowerMembers` | protocol API가 아님. application/test helper에서 반복 호출 |
-| 자동 unit converter | 제거 유지. caller가 internal DINT를 명시적으로 전달 |
-
-## 개발 우선순위
-
-P0는 canonical LASAL, RPC/DINT contract, target dispatch, response parser,
-test app 안전성, 자동화 test다. P1은 `0x20D2` typed result, `0x2051`,
-`0x20E7`, group mode/session/callback이다.
-
-세부 task ID와 Definition of Done은
-[`API_DEVELOPMENT_BACKLOG_2026-07-10.md`](../../../LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md)를
-따른다.
+- 응답: `LMC_Response`, `LMCReadStatusResult`,
+  `LMCReadActualPositionResult`, `LMCGroupReadStatusResult`,
+  `LMCGroupReadActualPositionResult`, `LMCGroupMembersInfoResult`
+- 연결: `LMCConnectionOptions`, `LMCConnectionState`,
+  `LMCConnectionStateChangedEventArgs`
+- callback: `LMCCallbackEventArgs`, `LMCCallbackErrorEventArgs`
+- group: `LMCGroupMotionOptions`, `LMC_COORD_SYSTEM`, `LMC_BUFFER_MODE`,
+  `LMC_GROUP_TRANSITION_MODE`
+- kinematics public surface: 캡처 profile을 강제하는
+  `SetKinTransformCartesian4Axis(axisX, axisY, axisZ, axisU)`만 제공
+- motion/unit: `LMC_DIRECTION`, `LMC_Units`
 
 ## 권장 호출 순서
 
-아래 순서는 목표 API 흐름이며 현재 tracked LASAL source에서는 실행되지
-않는다. P0 contract와 handler가 완료된 뒤 사용한다.
+아래 순서는 LASAL handler, RtWork, IDE/PLC 검증과 machine safety 승인 뒤의
+목표 흐름이다.
 
 Group 운전:
 
-`RpcInitConnection → LMCGroup 생성 → LMCAxis 멤버 생성 → 각 축 PowerOn → 필요 시 SetKinTransformEx/Cartesian → GroupEnable → MoveLinearAbsoluteEx`
+`RpcInitConnection → group/axis lookup → 각 축 PowerOn → SetKinTransformCartesian4Axis(axisX, axisY, axisZ, axisU) → GroupEnable → MoveLinearAbsoluteEx`
 
-Group 정지/복귀:
+단축 운전:
 
-`GroupStop → GroupDisable → 각 축 PowerOff 또는 단축 Axis API로 개별 운전`
+`RpcInitConnection → axis lookup → PowerOn → typed status 확인 → axis motion → Stop → PowerOff`
 
-단축 Axis 운전:
-
-`RpcInitConnection → LMCAxis 생성 → PowerOn → MoveAbsoluteEx/MoveRelativeEx/MoveVelocityEx → Stop → PowerOff`
+현재 PLC에서 `0x2051`/`0x20E7` handler가 없으므로 PC 함수가 존재한다는
+이유만으로 위 group 흐름을 실행하면 안 된다.

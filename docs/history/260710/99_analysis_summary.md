@@ -33,7 +33,57 @@
 - WPF의 `8,388,608`을 caller-side 23-bit encoder dummy profile로 명시하고
   DLL에는 UNIT/CPR 변환을 넣지 않음
 - WPF response 실패 판정과 native LASAL PowerOn bit 0/Standstill bit 25 교정
-- Debug/Release 30개 C# test와 LASAL static contract suite 통과
+- 이전 checkpoint에서 Debug/Release 30개 C# test와 LASAL static contract suite 통과
+- 이후 PC API에 `GroupReadActualPosition(0x2051)` LASAL-DINT request와 exact
+  68-byte `DINT[16]+status/error` typed result를 추가했다. PMAS legacy
+  136-byte LREAL response는 거부한다.
+- PC API에 `SetKinTransformCartesian4Axis(0x20E7)` exact 1320-byte serializer를
+  추가했다. 공개 범위는 캡처된 X/Y/Z/U identity-shift, Cartesian,
+  `Buffered(2)` profile로 제한한다.
+- group coordinate/transition/buffer/execute 옵션, 배열/enum validation,
+  connection timeout/state/async/cancellation, callback source-address 검증과
+  raw payload 방어 복사를 반영했다.
+- connection lifecycle은 timeout/전송 오류와 in-flight 취소 시 transport를
+  폐기하고 `Faulted`로 전환한다. queued cancellation은 active request를
+  보존하며 invalid reconnect는 기존 session을 유지한다. reconnect 뒤 stale
+  axis/group object는 거부하고, generation 검증과 frame write를 같은 exchange
+  gate에서 수행한다. 취소 가능한 axis/group factory와
+  initialization/transport/close 오류 분리도 반영했다.
+- PC runner 42/42 PASS로 신규 packet, lifecycle/async와 stale-handle 경로를
+  검증했다.
+- test target을 `RunPcTests`, `RunLasalContract`, combined `RunTests`로 나눠
+  PC 실패와 LASAL static contract 실패를 구분했다. 현재 PC 42/42와 LASAL
+  static contract(6 clients, 4 links, offsets/error guards/legacy block)가
+  모두 PASS다.
+- callback typed parser는 실제 datagram 캡처가 없어 만들지 않았다.
+  다중 PC의 읽기 공유와 motion/control ownership은 LASAL server 정책으로
+  남겼다.
+- WPF에 async/cancel, connection/callback 상태와 raw datagram log,
+  `GroupReadActualPosition`, `SetKinTransformCartesian4Axis`와 group option UI를
+  반영했다. lookup도 async factory를 사용하고 종료 시 RPC cleanup을 기다리며,
+  Debug/Release solution build를 확인했다.
+- callback listener는 listener 세대를 캡처하고 stop 시 shared field를 먼저
+  원자적으로 분리해, join timeout 뒤 이전 thread가 재연결 listener를 소비하거나
+  새 endpoint/thread 추적값을 지우지 못하게 했다.
+- assembly는 `0.9.0.0`으로 versioning하고 current Release DLL/EXE와 SHA-256을
+  package `RELEASE_MANIFEST.md`에 기록했다. 새 binary 추적은 다음 commit 범위다.
+
+현재 구현 완료도는 다음과 같이 판정한다.
+
+- 대상 command 23개 중 C# request/public path는 23개다.
+- tracked LASAL에는 21개 `case` handler가 있지만, `0x2049`와 `0x2085`는
+  정상 기능이 아니라 unsupported error `-5`만 반환한다.
+- 따라서 정상 기능 후보 source path는 19개이며, 이 수치는 실제 PLC 완료
+  개수가 아니다.
+- LASAL IDE compile, PLC smoke test와 Wireshark 재캡처를 통과한 command는
+  현재 0개다.
+- PC packet API는 23개 source path를 갖췄지만, single-PC P0 MVP에서는 LASAL
+  command queue/RtWork와 PLC 검증이 가장 큰 잔여다.
+- `0x2051`과 `0x20E7`은 PC 구현을 완료했으나 LASAL handler, coordinate
+  mapping/large-command staging과 E2E 검증이 남았다.
+- callback은 raw-only가 현재 완료 범위이며 typed payload는 근거 확보 뒤
+  추가한다. multi-session/ownership은 LASAL 구현 범위다. PC preview binary와
+  hash manifest는 만들었지만 LASAL/PLC 검증 전 production 승인본은 아니다.
 
 관련 commit:
 
@@ -50,8 +100,9 @@
 3. 승인 후 `ReadActualPosition` one-slot부터 IDE model, compile, PLC 검증을
    단계적으로 진행한다.
 
-그 뒤 남은 기능은 승인된 GroupReset/GroupStop semantics, 실제 UDP callback
-sender/payload, `0x2051`, `0x20E7`, multi-PC ownership 순서다. 현재 LASAL
+그 뒤 남은 기능은 승인된 GroupReset/GroupStop semantics, `0x2051` LASAL
+coordinate mapping/68-byte response, `0x20E7` large-command staging/apply,
+실제 UDP callback sender/payload, multi-PC ownership 순서다. 현재 LASAL
 prototype은 IDE compile/PLC download를 하지 않았고 production 승인 상태가
 아니다.
 
@@ -131,7 +182,10 @@ Wireshark에서 확인된 패킷 중 실제 필요한 기능만 하나의 public
 - `eb49db6`, `3c90a68` line-ending 정책과 테스트 앱 포맷 정리
 - `cbdfdac` 현재 LASAL API/capture 범위 문서화
 
-## 현재 저장소에서 재검증한 사실
+## 초기 분석 당시 저장소에서 재검증한 사실
+
+이 절은 위 최신 PC 구현 전 스냅샷이다. 현재 판단에는 "2026-07-10 최신
+구현 업데이트"와 backlog를 우선한다.
 
 ### Git과 C# library
 
