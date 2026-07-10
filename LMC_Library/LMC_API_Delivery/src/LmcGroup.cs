@@ -19,7 +19,14 @@ namespace LasalMotionControlLib
 
         public LMC_Response GetGroupMembersInfo()
         {
-            return SendGetGroupMembersInfo();
+            return GetGroupMembersInfoResult().Response;
+        }
+
+        public LMCGroupMembersInfoResult GetGroupMembersInfoResult()
+        {
+            return LMCConnection.ParseGroupMembersInfoResult(
+                connection.Exchange(
+                    LMC_Frame.LMCGroupGetMembersInfo(GroupReference)));
         }
 
         public LMC_Response GroupEnable()
@@ -53,6 +60,13 @@ namespace LasalMotionControlLib
             return ReadGroupStatusValue(out response);
         }
 
+        public LMCGroupReadStatusResult GroupReadStatusResult()
+        {
+            return LMCConnection.ParseGroupReadStatusResult(
+                connection.Exchange(
+                    LMC_Frame.LMCGroupReadStatus(GroupReference)));
+        }
+
         public LMC_Response MoveLinearAbsoluteEx(
             int[] position,
             int velocity,
@@ -78,11 +92,6 @@ namespace LasalMotionControlLib
             return groupReference;
         }
 
-        private LMC_Response SendGetGroupMembersInfo()
-        {
-            return Send(LMC_Frame.LMCGroupGetMembersInfo(GroupReference));
-        }
-
         private LMC_Response SendGroupEnable()
         {
             return Send(LMC_Frame.LMCGroupEnable(GroupReference));
@@ -105,10 +114,20 @@ namespace LasalMotionControlLib
 
         private uint ReadGroupStatusValue(out LMC_Response response)
         {
-            return LMCConnection.ParseUInt32Value(
-                connection.Exchange(
-                    LMC_Frame.LMCGroupReadStatus(GroupReference)),
-                out response);
+            var result = GroupReadStatusResult();
+            response = result.Response;
+
+            if (!result.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    "GroupReadStatus failed. Status="
+                    + response.Status
+                    + ", ErrorId="
+                    + response.ErrorId
+                    + ".");
+            }
+
+            return result.State;
         }
 
         private LMC_Response SendMoveLinearAbsolute(

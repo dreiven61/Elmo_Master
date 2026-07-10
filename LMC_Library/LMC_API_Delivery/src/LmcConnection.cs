@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 
 namespace LasalMotionControlLib
@@ -22,11 +23,29 @@ namespace LasalMotionControlLib
         private const int CommandStatusPayloadOffset = 4;
         private const int CommandErrorPayloadOffset = 6;
         private const int LookupReferencePayloadOffset = 4;
+        private const int FunctionStatusPayloadOffset = 4;
+        private const int FunctionErrorPayloadOffset = 6;
+        private const int AxisErrorPayloadOffset = 8;
+        private const int AxisStatusWordPayloadOffset = 10;
+        private const int GroupErrorPayloadOffset = 8;
+        private const int GroupMembersAxisReferencesPayloadOffset = 0;
+        private const int GroupMembersDeviceIdsPayloadOffset = 32;
+        private const int GroupMembersStatusPayloadOffset = 64;
+        private const int GroupMembersErrorPayloadOffset = 66;
+        private const int GroupMembersNamesPayloadOffset = 68;
+        private const int GroupMembersAxisCountPayloadOffset = 1348;
         private const int UInt16ByteLength = 2;
         private const int UInt32ByteLength = 4;
         private const int ShortAcknowledgementPayloadLength = 4;
         private const int AcknowledgementPayloadLength = 8;
-        private const int LookupPayloadMinimumLength =
+        private const int ReadStatusPayloadLength = 12;
+        private const int ReadActualPositionPayloadLength = 8;
+        private const int GroupReadStatusPayloadLength = 12;
+        private const int GroupMembersInfoPayloadLength = 1350;
+        private const int RpcSessionInitPayloadLength = 24;
+        private const int MaximumGroupMemberCount = 16;
+        private const int GroupMemberNameLength = 80;
+        private const int LookupPayloadLength =
             LookupReferencePayloadOffset + UInt16ByteLength;
 
         private readonly object sync = new object();
@@ -116,18 +135,24 @@ namespace LasalMotionControlLib
             {
                 client.Connect(parsedRemoteAddress, remotePort);
 
-                RpcSessionInitResponse = Parse(Exchange(LMC_Frame.RpcSessionInit()));
+                RpcSessionInitResponse = Parse(
+                    Exchange(LMC_Frame.RpcSessionInit()));
                 EnsureSuccess("RPC session init", RpcSessionInitResponse);
+                EnsureExactPayloadLength(
+                    RpcSessionInitResponse,
+                    RpcSessionInitPayloadLength,
+                    "RPC session init");
 
                 StartCallbackListener(parsedLocalAddress, callbackPort);
                 var registeredCallbackPort = CallbackLocalEndPoint.Port;
 
-                RpcCallbackRegistrationResponse = ParseAcknowledgement(
+                RpcCallbackRegistrationResponse = ParseShortAcknowledgement(
                     Exchange(
                         LMC_Frame.RpcCallbackRegistration(
                             eventMask,
                             registeredCallbackPort,
-                            parsedLocalAddress.GetAddressBytes())));
+                            parsedLocalAddress.GetAddressBytes())),
+                    "RPC callback registration");
                 EnsureSuccess("RPC callback registration", RpcCallbackRegistrationResponse);
 
                 CallbackPort = registeredCallbackPort;
@@ -209,7 +234,7 @@ namespace LasalMotionControlLib
                         ShortCommandErrorPayloadOffset));
                 response.HasCommandResult = true;
             }
-            else if (response.Payload.Length >= AcknowledgementPayloadLength)
+            else if (response.Payload.Length == AcknowledgementPayloadLength)
             {
                 response.CommandStatus =
                     LMC_Frame.ReadUInt16(response.Payload, CommandStatusPayloadOffset);
@@ -230,7 +255,7 @@ namespace LasalMotionControlLib
             response = Parse(raw);
 
             if (!response.IsSuccess
-                || response.Payload.Length < LookupPayloadMinimumLength)
+                || response.Payload.Length != LookupPayloadLength)
             {
                 return false;
             }
@@ -238,7 +263,7 @@ namespace LasalMotionControlLib
             reference = LMC_Frame.ReadUInt16(
                 response.Payload,
                 LookupReferencePayloadOffset);
-            return true;
+            return reference != 0;
         }
 
         internal static uint ParseUInt32Value(byte[] raw, out LMC_Response response)
@@ -265,6 +290,172 @@ namespace LasalMotionControlLib
             return LMC_Frame.ReadInt32(response.Payload, ValuePayloadOffset);
         }
 
+        internal static LMCReadStatusResult ParseReadStatusResult(byte[] raw)
+        {
+            bool isShortError;
+            var response = ParseTypedResponse(
+                raw,
+                ReadStatusPayloadLength,
+                "ReadStatus",
+                out isShortError);
+
+            if (isShortError)
+            {
+                return new LMCReadStatusResult(
+                    response,
+                    0,
+                    response.CommandStatus,
+                    response.ErrorId,
+                    0,
+                    0);
+            }
+
+            var functionStatus = LMC_Frame.ReadUInt16(
+                response.Payload,
+                FunctionStatusPayloadOffset);
+            var errorId = ReadInt16(response.Payload, FunctionErrorPayloadOffset);
+
+            SetFunctionResult(response, functionStatus, errorId);
+
+            return new LMCReadStatusResult(
+                response,
+                LMC_Frame.ReadUInt32(response.Payload, ValuePayloadOffset),
+                functionStatus,
+                errorId,
+                LMC_Frame.ReadUInt16(response.Payload, AxisErrorPayloadOffset),
+                LMC_Frame.ReadUInt16(response.Payload, AxisStatusWordPayloadOffset));
+        }
+
+        internal static LMCReadActualPositionResult ParseReadActualPositionResult(byte[] raw)
+        {
+            bool isShortError;
+            var response = ParseTypedResponse(
+                raw,
+                ReadActualPositionPayloadLength,
+                "ReadActualPosition",
+                out isShortError);
+
+            if (isShortError)
+            {
+                return new LMCReadActualPositionResult(
+                    response,
+                    0,
+                    response.CommandStatus,
+                    response.ErrorId);
+            }
+
+            var functionStatus = LMC_Frame.ReadUInt16(
+                response.Payload,
+                FunctionStatusPayloadOffset);
+            var errorId = ReadInt16(response.Payload, FunctionErrorPayloadOffset);
+
+            SetFunctionResult(response, functionStatus, errorId);
+
+            return new LMCReadActualPositionResult(
+                response,
+                LMC_Frame.ReadInt32(response.Payload, ValuePayloadOffset),
+                functionStatus,
+                errorId);
+        }
+
+        internal static LMCGroupReadStatusResult ParseGroupReadStatusResult(byte[] raw)
+        {
+            bool isShortError;
+            var response = ParseTypedResponse(
+                raw,
+                GroupReadStatusPayloadLength,
+                "GroupReadStatus",
+                out isShortError);
+
+            if (isShortError)
+            {
+                return new LMCGroupReadStatusResult(
+                    response,
+                    0,
+                    response.CommandStatus,
+                    response.ErrorId,
+                    0);
+            }
+
+            var functionStatus = LMC_Frame.ReadUInt16(
+                response.Payload,
+                FunctionStatusPayloadOffset);
+            var errorId = ReadInt16(response.Payload, FunctionErrorPayloadOffset);
+
+            SetFunctionResult(response, functionStatus, errorId);
+
+            return new LMCGroupReadStatusResult(
+                response,
+                LMC_Frame.ReadUInt32(response.Payload, ValuePayloadOffset),
+                functionStatus,
+                errorId,
+                LMC_Frame.ReadUInt16(response.Payload, GroupErrorPayloadOffset));
+        }
+
+        internal static LMCGroupMembersInfoResult ParseGroupMembersInfoResult(byte[] raw)
+        {
+            bool isShortError;
+            var response = ParseTypedResponse(
+                raw,
+                GroupMembersInfoPayloadLength,
+                "GetGroupMembersInfo",
+                out isShortError);
+
+            if (isShortError)
+            {
+                return new LMCGroupMembersInfoResult(
+                    response,
+                    new ushort[MaximumGroupMemberCount],
+                    new ushort[MaximumGroupMemberCount],
+                    CreateEmptyGroupMemberNames(),
+                    0,
+                    response.CommandStatus,
+                    response.ErrorId);
+            }
+
+            var axisCount = response.Payload[GroupMembersAxisCountPayloadOffset];
+
+            if (axisCount > MaximumGroupMemberCount)
+            {
+                throw new InvalidDataException(
+                    "GetGroupMembersInfo response contains an axis count greater than 16.");
+            }
+
+            var axisReferences = new ushort[MaximumGroupMemberCount];
+            var deviceIds = new ushort[MaximumGroupMemberCount];
+            var axisNames = new string[MaximumGroupMemberCount];
+
+            for (var index = 0; index < MaximumGroupMemberCount; index++)
+            {
+                axisReferences[index] = LMC_Frame.ReadUInt16(
+                    response.Payload,
+                    GroupMembersAxisReferencesPayloadOffset + index * UInt16ByteLength);
+                deviceIds[index] = LMC_Frame.ReadUInt16(
+                    response.Payload,
+                    GroupMembersDeviceIdsPayloadOffset + index * UInt16ByteLength);
+                axisNames[index] = ReadFixedAsciiString(
+                    response.Payload,
+                    GroupMembersNamesPayloadOffset + index * GroupMemberNameLength,
+                    GroupMemberNameLength);
+            }
+
+            var functionStatus = LMC_Frame.ReadUInt16(
+                response.Payload,
+                GroupMembersStatusPayloadOffset);
+            var errorId = ReadInt16(response.Payload, GroupMembersErrorPayloadOffset);
+
+            SetFunctionResult(response, functionStatus, errorId);
+
+            return new LMCGroupMembersInfoResult(
+                response,
+                axisReferences,
+                deviceIds,
+                axisNames,
+                axisCount,
+                functionStatus,
+                errorId);
+        }
+
         public void Dispose()
         {
             CloseConnection(true);
@@ -278,8 +469,9 @@ namespace LasalMotionControlLib
             {
                 if (sendCloseCommand && currentClient != null && currentClient.Connected)
                 {
-                    RpcCloseResponse = ParseAcknowledgement(
-                        Exchange(LMC_Frame.CloseConnection()));
+                    RpcCloseResponse = ParseShortAcknowledgement(
+                        Exchange(LMC_Frame.CloseConnection()),
+                        "RPC close");
                 }
             }
             catch
@@ -495,6 +687,109 @@ namespace LasalMotionControlLib
             }
 
             return response;
+        }
+
+        private static LMC_Response ParseTypedResponse(
+            byte[] raw,
+            int expectedPayloadLength,
+            string operation,
+            out bool isShortError)
+        {
+            var response = ParseAcknowledgement(raw);
+            isShortError = response.IsFrameValid
+                && response.PayloadLength == ShortAcknowledgementPayloadLength
+                && response.HasCommandResult
+                && !response.IsSuccess;
+
+            if (isShortError)
+            {
+                return response;
+            }
+
+            EnsureExactPayloadLength(
+                response,
+                expectedPayloadLength,
+                operation);
+
+            return response;
+        }
+
+        private static string[] CreateEmptyGroupMemberNames()
+        {
+            var names = new string[MaximumGroupMemberCount];
+
+            for (var index = 0; index < names.Length; index++)
+            {
+                names[index] = string.Empty;
+            }
+
+            return names;
+        }
+
+        private static void EnsureExactPayloadLength(
+            LMC_Response response,
+            int expectedPayloadLength,
+            string operation)
+        {
+            if (response == null
+                || !response.IsFrameValid
+                || response.PayloadLength != expectedPayloadLength
+                || response.Payload.Length != expectedPayloadLength)
+            {
+                throw new InvalidDataException(
+                    operation
+                    + " response must contain exactly "
+                    + expectedPayloadLength
+                    + " payload bytes.");
+            }
+        }
+
+        private static LMC_Response ParseShortAcknowledgement(
+            byte[] raw,
+            string operation)
+        {
+            var response = ParseAcknowledgement(raw);
+
+            if (!response.IsFrameValid
+                || response.PayloadLength != ShortAcknowledgementPayloadLength
+                || !response.HasCommandResult)
+            {
+                throw new InvalidDataException(
+                    operation + " response must contain exactly 4 payload bytes.");
+            }
+
+            return response;
+        }
+
+        private static void SetFunctionResult(
+            LMC_Response response,
+            ushort functionStatus,
+            short errorId)
+        {
+            response.CommandStatus = functionStatus;
+            response.ErrorId = errorId;
+            response.HasCommandResult = true;
+            response.CommandStatusIsBitField = true;
+        }
+
+        private static short ReadInt16(byte[] buffer, int offset)
+        {
+            return unchecked((short)LMC_Frame.ReadUInt16(buffer, offset));
+        }
+
+        private static string ReadFixedAsciiString(
+            byte[] buffer,
+            int offset,
+            int length)
+        {
+            var stringLength = 0;
+
+            while (stringLength < length && buffer[offset + stringLength] != 0)
+            {
+                stringLength++;
+            }
+
+            return Encoding.ASCII.GetString(buffer, offset, stringLength);
         }
     }
 }

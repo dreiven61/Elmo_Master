@@ -1,15 +1,16 @@
 LMC DINT packet map
-Status 2026-07-10: contract proposal, not a deployed/verified PLC implementation.
-The tracked TCPMotionInterface and the untracked _Edit variant do not implement
-this map end-to-end. Do not use the current WPF app for live motion until the
-P0 items in API_DEVELOPMENT_BACKLOG_2026-07-10.md are complete.
+Status 2026-07-10: implemented in delivery C# and the tracked canonical
+TCPMotionInterface for the command subset listed below, but not built or
+verified on a LASAL PLC. The untracked _Edit variant is not canonical. Do not
+use the WPF app for live motion until the remaining P0 items and PLC validation
+in API_DEVELOPMENT_BACKLOG_2026-07-10.md are complete.
 
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The API writes caller-provided DINT values directly to the packet.
 Caller code must multiply the physical value by the selected LMC_Units constant,
 round/check the DINT range, and pass the converted int to the motion API.
 Read APIs return raw LASAL DINT; caller code divides by the same UNIT for display.
-Current Elmo a01-a04 profile (confirmed in Motion_Network):
+Current Elmo _LMCAxis1..4 profile (confirmed in Motion_Network):
   position      value * DEG      (10000)
   velocity      value * DEG      (10000), because MoveAbsolute expects app units/s
   acceleration  value * DEG      (10000)
@@ -21,6 +22,13 @@ jerk as application units/sec^3/1000.
 See UNIT_CONVERSION_MANUAL_2026-07-10.md.
 Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
 
+Target lookup/dispatch:
+- 0x103C/0x1042 carry the caller-provided ASCII object name.
+- LASAL compares it with actual names read from connected objects.
+- The returned UINT16 is an opaque descriptor, not a pointer.
+- Current deployment: axes 1..4, group 0x0100; 0 is invalid.
+- GroupReadStatus carries the group descriptor in both header [6] and payload [8].
+
 0x209F MoveAbsoluteEx, payload 32 bytes
 [8] Position
 [12] Velocity
@@ -30,9 +38,11 @@ Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UI
 [28] Direction
 [32] BufferMode
 [36] Execute
+Current LASAL contract: Direction must be Shortest (2).
 
 0x20A0 MoveRelativeEx, payload 32 bytes
 Same layout as 0x209F. [8] is relative distance.
+Direction must be Shortest (2); the signed distance selects relative direction.
 
 0x20A2 MoveVelocityEx, payload 24 bytes
 [8] Velocity
@@ -41,6 +51,9 @@ Same layout as 0x209F. [8] is relative distance.
 [20] Jerk
 [24] Direction
 [28] Execute
+Deceleration must be 0 because `_LMCAxis.MoveEndless` has no deceleration input.
+Direction must be Positive (1) or Negative (3). The C# serializer normalizes
+the velocity sign and LASAL rejects a sign/direction mismatch.
 
 0x20A4 MoveLinearAbsoluteEx, payload 96 bytes
 [8..71] Position[0..15], 4 bytes each
@@ -62,7 +75,7 @@ Same layout as 0x209F. [8] is relative distance.
 0x2085 GroupStop, payload 16 bytes
 Same layout as Stop.
 
-LASAL 0x209F parser replacement:
+LASAL 0x209F implemented offsets:
 
 _StdLib.MemCpy(dest:=#pos, source:=#ReceiveBuf[8], size:=4);
 _StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[12], size:=4);
@@ -73,7 +86,7 @@ _StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[28], size:=4);
 _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[32], size:=4);
 _StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[36], size:=4);
 
-LMCAxis.MoveAbsolute(
+LMCAxis.MoveShortestWay(
   Position:=pos,
   Speed:=velo,
   Accel:=acc,
@@ -81,12 +94,11 @@ LMCAxis.MoveAbsolute(
   Jerk:=jer
 );
 
-LASAL 0x20A4 parser replacement:
+LASAL 0x20A4 implemented offsets:
 
-Change the class variable GroupExecute from BYTE to DINT.
-The C# request carries 16 DINT positions (64 bytes), while the current
-GroupMovePos copy example below copies only 36 bytes (9 positions). The
-canonical LASAL robot/group axis count must be fixed before implementation.
+GroupExecute is DINT. The C# request carries 16 DINT positions (64 bytes), while
+the canonical `_LMCPROF_POS` contains 9 DINT positions. The current handler
+copies the first 9 and reserves the remaining wire slots for a future profile.
 
 _StdLib.MemCpy(dest:=#GroupMovePos, source:=#ReceiveBuf[8], size:=36);
 _StdLib.MemCpy(dest:=#GroupVelocity, source:=#ReceiveBuf[72], size:=4);
@@ -99,3 +111,18 @@ _StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[96], size:=4);
 _StdLib.MemCpy(dest:=#GroupExecute, source:=#ReceiveBuf[100], size:=4);
 
 No LREAL-to-DINT conversion is required in the PLC.
+
+Response payloads implemented by command-specific parsers:
+- AxisInfo: 8 bytes, handle/reserved[0], status UINT16[4], error INT16[6]
+- Axis ReadStatus: 12 bytes, state UDINT[0], status UINT16[4], error INT16[6],
+  axis error UINT16[8], status word UINT16[10]
+  The canonical LASAL server writes the native _LMCAXIS_STATUS bitfield to
+  state[0]. PowerOn is bit 0 (0x00000001) and Standstill is bit 25
+  (0x02000000). Do not apply the legacy PMAS 0x80/0x200 readiness masks.
+  StatusWord[10] is reserved and currently always 0; DS402 StatusWord is not
+  connected to this response yet.
+- Axis ReadActualPosition: 8 bytes, position DINT[0], status UINT16[4],
+  error INT16[6]
+- Group ReadStatus: 12 bytes, state UDINT[0], status UINT16[4], error INT16[6],
+  group error UINT16[8], padding UINT16[10]
+- GetGroupMembersInfo: exactly 1350 bytes; see RESPONSE_MODEL_DESIGN_2026-07-09.md

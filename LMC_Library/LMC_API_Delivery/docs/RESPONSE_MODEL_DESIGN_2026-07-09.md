@@ -173,7 +173,7 @@ Acknowledgement parser:
    - payload `[0]` is `CommandStatus`
    - payload `[2]` is `ErrorId`
    - mark `HasCommandResult = true`
-3. Otherwise, if payload length is at least 8:
+3. Otherwise, if payload length is exactly 8:
    - payload `[4]` is `CommandStatus`
    - payload `[6]` is `ErrorId`
    - mark `HasCommandResult = true`
@@ -227,15 +227,34 @@ Implementation note:
 
 ### Phase 2: Typed public results
 
-- Add typed result objects for lookup/read APIs where useful:
-  - `LMCAxisLookupResult`
-  - `LMCGroupLookupResult`
+Status: implemented on 2026-07-10.
+
+- Added command-specific result objects:
   - `LMCReadStatusResult`
-  - `LMCReadPositionResult`
+  - `LMCReadActualPositionResult`
+  - `LMCGroupReadStatusResult`
+  - `LMCGroupMembersInfoResult`
+  - `LMCGroupMemberInfo`
 - Existing methods can remain:
   - `GetActualPosition(out LMC_Response response)`
   - `ReadStatus(out LMC_Response response)`
-- New methods can expose richer results without breaking existing callers.
+- New methods expose richer results without breaking existing callers:
+  - `ReadStatusResult()`
+  - `GetActualPositionResult()`
+  - `GroupReadStatusResult()`
+  - `GetGroupMembersInfoResult()`
+- `AxisInfoResponse` preserves and validates the constructor-time 8-byte ACK.
+- axis/group lookup accepts exactly 6 payload bytes and rejects descriptor `0`.
+- malformed typed payloads throw `InvalidDataException`; they do not return a
+  numeric zero.
+- a valid 4-byte command-error envelope is returned as an unsuccessful typed
+  result with its status/error context; it is not misclassified as malformed.
+- `LMCReadStatusResult.IsPowerOn` and `IsStandstill` expose canonical LASAL
+  `_LMCAXIS_STATUS` bit 0 and bit 25 without PMAS mask reuse.
+- `LMCReadStatusResult.StatusWord` keeps the captured field offset, but the
+  canonical LASAL handler currently returns reserved value `0` until DS402
+  StatusWord wiring is approved.
+- `0x20D2` is parsed by exact offsets and exact 1350-byte payload length.
 
 ### Phase 3: Callback parser
 

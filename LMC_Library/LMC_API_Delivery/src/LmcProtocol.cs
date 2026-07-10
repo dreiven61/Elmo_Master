@@ -15,6 +15,8 @@ namespace LasalMotionControlLib
 
     public sealed class LMC_Response
     {
+        private const ushort FunctionStatusCommandErrorMask = 0x0010;
+
         public byte[] Raw { get; internal set; }
         public ushort HeaderStatus { get; internal set; }
         public ushort PayloadLength { get; internal set; }
@@ -24,6 +26,7 @@ namespace LasalMotionControlLib
         public bool HasCommandResult { get; internal set; }
         public ushort CommandStatus { get; internal set; }
         public short ErrorId { get; internal set; }
+        internal bool CommandStatusIsBitField { get; set; }
 
         public ushort Status
         {
@@ -36,8 +39,23 @@ namespace LasalMotionControlLib
             {
                 return IsFrameValid
                     && HeaderStatus == 0
-                    && (!HasCommandResult || (CommandStatus == 0 && ErrorId == 0));
+                    && (!HasCommandResult || IsCommandResultSuccess());
             }
+        }
+
+        private bool IsCommandResultSuccess()
+        {
+            if (ErrorId != 0)
+            {
+                return false;
+            }
+
+            if (CommandStatusIsBitField)
+            {
+                return (CommandStatus & FunctionStatusCommandErrorMask) == 0;
+            }
+
+            return CommandStatus == 0;
         }
     }
 
@@ -269,9 +287,17 @@ namespace LasalMotionControlLib
             int jerk,
             LMC_DIRECTION direction)
         {
+            if (deceleration != 0)
+            {
+                throw new ArgumentException(
+                    "LASAL MoveEndless has no deceleration input; pass 0 and use Stop for controlled deceleration.",
+                    "deceleration");
+            }
+
+            var signedVelocity = ApplyVelocityDirection(velocity, direction);
             var buffer = CreateRequest(LMC_CommandId.MoveVelocity, reference, 24);
 
-            WriteInt32(buffer, HeaderSize, velocity);
+            WriteInt32(buffer, HeaderSize, signedVelocity);
             WriteInt32(buffer, HeaderSize + 4, acceleration);
             WriteInt32(buffer, HeaderSize + 8, deceleration);
             WriteInt32(buffer, HeaderSize + 12, jerk);
@@ -305,7 +331,7 @@ namespace LasalMotionControlLib
         {
             var buffer = CreateRequest(LMC_CommandId.GroupStatus, reference, 8);
 
-            WriteInt32(buffer, HeaderSize, 0);
+            WriteInt32(buffer, HeaderSize, reference);
             WriteInt32(buffer, HeaderSize + 4, 1);
 
             return buffer;
@@ -344,11 +370,34 @@ namespace LasalMotionControlLib
 
         private static byte[] NameLookup(ushort command, string name)
         {
-            var buffer = CreateRequest(command, 0, NamePayloadLength);
-            var encodedName = Encoding.ASCII.GetBytes(name ?? string.Empty);
-            var byteCount = Math.Min(encodedName.Length, NameMaxBytes);
+            if (string.IsNullOrEmpty(name))
+            {
+                throw new ArgumentException(
+                    "A non-empty LASAL object name is required.",
+                    "name");
+            }
 
-            Buffer.BlockCopy(encodedName, 0, buffer, HeaderSize, byteCount);
+            for (var index = 0; index < name.Length; index++)
+            {
+                if (name[index] < 0x20 || name[index] > 0x7E)
+                {
+                    throw new ArgumentException(
+                        "LASAL object names must contain printable ASCII characters only.",
+                        "name");
+                }
+            }
+
+            if (name.Length > NameMaxBytes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "name",
+                    "LASAL object names must be 79 ASCII bytes or fewer.");
+            }
+
+            var buffer = CreateRequest(command, 0, NamePayloadLength);
+            var encodedName = Encoding.ASCII.GetBytes(name);
+
+            Buffer.BlockCopy(encodedName, 0, buffer, HeaderSize, encodedName.Length);
             return buffer;
         }
 
@@ -369,6 +418,13 @@ namespace LasalMotionControlLib
             int jerk,
             LMC_DIRECTION direction)
         {
+            if (direction != LMC_DIRECTION.Shortest)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "direction",
+                    "The current LASAL absolute/relative contract supports Shortest only; relative direction is selected by the signed distance.");
+            }
+
             var buffer = CreateRequest(command, reference, 32);
 
             WriteInt32(buffer, HeaderSize, positionOrDistance);
@@ -381,6 +437,32 @@ namespace LasalMotionControlLib
             WriteInt32(buffer, HeaderSize + 28, 1);
 
             return buffer;
+        }
+
+        private static int ApplyVelocityDirection(
+            int velocity,
+            LMC_DIRECTION direction)
+        {
+            if (direction == LMC_DIRECTION.Positive)
+            {
+                if (velocity == int.MinValue)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        "velocity",
+                        "DINT minimum cannot be converted to a positive velocity.");
+                }
+
+                return velocity < 0 ? -velocity : velocity;
+            }
+
+            if (direction == LMC_DIRECTION.Negative)
+            {
+                return velocity > 0 ? -velocity : velocity;
+            }
+
+            throw new ArgumentOutOfRangeException(
+                "direction",
+                "LASAL MoveVelocity supports Positive or Negative direction only.");
         }
 
         internal static ushort ReadUInt16(byte[] buffer, int offset)

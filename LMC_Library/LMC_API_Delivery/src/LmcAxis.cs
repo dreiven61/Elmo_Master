@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 namespace LasalMotionControlLib
 {
@@ -8,6 +9,7 @@ namespace LasalMotionControlLib
 
         public string AxisName { get; private set; }
         public ushort AxisReference { get; private set; }
+        public LMC_Response AxisInfoResponse { get; private set; }
 
         public LMCSingleAxis(LMCConnection connection, string axisName)
         {
@@ -16,7 +18,18 @@ namespace LasalMotionControlLib
             AxisName = axisName;
             AxisReference = ResolveAxisReference(axisName);
 
-            connection.Exchange(LMC_Frame.LMCAxisInfo(AxisReference));
+            AxisInfoResponse = LMCConnection.ParseAcknowledgement(
+                connection.Exchange(LMC_Frame.LMCAxisInfo(AxisReference)));
+
+            if (!AxisInfoResponse.IsFrameValid
+                || AxisInfoResponse.PayloadLength != 8
+                || !AxisInfoResponse.HasCommandResult)
+            {
+                throw new InvalidDataException(
+                    "AxisInfo response must contain an 8-byte acknowledgement payload.");
+            }
+
+            EnsureSuccess("AxisInfo", AxisInfoResponse);
         }
 
         public LMC_Response PowerOn()
@@ -82,6 +95,12 @@ namespace LasalMotionControlLib
             return ReadStatusValue(out response);
         }
 
+        public LMCReadStatusResult ReadStatusResult()
+        {
+            return LMCConnection.ParseReadStatusResult(
+                connection.Exchange(LMC_Frame.LMCAxisReadStatus(AxisReference)));
+        }
+
         public int GetActualPosition()
         {
             LMC_Response response;
@@ -91,6 +110,12 @@ namespace LasalMotionControlLib
         public int GetActualPosition(out LMC_Response response)
         {
             return ReadActualPositionValue(out response);
+        }
+
+        public LMCReadActualPositionResult GetActualPositionResult()
+        {
+            return LMCConnection.ParseReadActualPositionResult(
+                connection.Exchange(LMC_Frame.LMCAxisReadPosition(AxisReference)));
         }
 
         private ushort ResolveAxisReference(string axisName)
@@ -180,21 +205,53 @@ namespace LasalMotionControlLib
 
         private uint ReadStatusValue(out LMC_Response response)
         {
-            return LMCConnection.ParseUInt32Value(
-                connection.Exchange(LMC_Frame.LMCAxisReadStatus(AxisReference)),
-                out response);
+            var result = ReadStatusResult();
+            response = result.Response;
+            EnsureSuccess("ReadStatus", result.IsSuccess, response);
+            return result.State;
         }
 
         private int ReadActualPositionValue(out LMC_Response response)
         {
-            return LMCConnection.ParseInt32Value(
-                connection.Exchange(LMC_Frame.LMCAxisReadPosition(AxisReference)),
-                out response);
+            var result = GetActualPositionResult();
+            response = result.Response;
+            EnsureSuccess("GetActualPosition", result.IsSuccess, response);
+            return result.PositionRaw;
         }
 
         private LMC_Response Send(byte[] request)
         {
             return LMCConnection.ParseAcknowledgement(connection.Exchange(request));
+        }
+
+        private static void EnsureSuccess(string operation, LMC_Response response)
+        {
+            EnsureSuccess(operation, response != null && response.IsSuccess, response);
+        }
+
+        private static void EnsureSuccess(
+            string operation,
+            bool isSuccess,
+            LMC_Response response)
+        {
+            if (isSuccess)
+            {
+                return;
+            }
+
+            if (response == null)
+            {
+                throw new InvalidOperationException(
+                    operation + " failed without a response.");
+            }
+
+            throw new InvalidOperationException(
+                operation
+                + " failed. Status="
+                + response.Status
+                + ", ErrorId="
+                + response.ErrorId
+                + ".");
         }
     }
 
