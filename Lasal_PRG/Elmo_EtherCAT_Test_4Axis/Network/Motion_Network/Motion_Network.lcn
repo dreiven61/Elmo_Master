@@ -3904,9 +3904,9 @@
 		<Connection Source="_LMCAxis1.HWReady" Destination="Elmo_11.Online" Vertices="(2873,1950),(2536,1950),(2536,1620),(1576,1620),(1576,2370),(1407,2370),"/>
 		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer_RT1.Control" Vertices="(6960,150),(6300,150),(6300,840),(6022,840),"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis" Destination="_LMCAxis1.Control" Vertices="(6960,210),(6450,210),(6450,1560),(4620,1560),(4613,1710),(3539,1710),"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis2" Destination="_LMCAxis2.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis3" Destination="_LMCAxis3.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis4" Destination="_LMCAxis4.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(6960,270),(3539,3630),"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(6960,330),(3509,5400),"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(6960,390),(3509,7140),"/>
 		<Connection Source="Elmo_21.toMaster" Destination="Elmo_11.EtherCATOut_1" Vertices="(563,3570),(503,3570),(503,3450),(1463,3450),(1463,3210),(1407,3210),"/>
 		<Connection Source="Elmo_31.toMaster" Destination="Elmo_21.EtherCATOut_1" Vertices="(563,5370),(503,5370),(503,5250),(1463,5250),(1463,5190),(1407,5190),"/>
 		<Connection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(563,7170),(503,7170),(503,7050),(1463,7050),(1463,6990),(1407,6990),"/>
@@ -3941,7 +3941,7 @@
 		<Connection Source="_LMCRobotBase1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5423,1770),(5243,1770),(5243,3630),(3539,3630),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5423,1830),(5303,1830),(5303,5400),(3509,5400),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5423,1890),(5363,1890),(5363,7140),(3509,7140),"/>
-		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control" Vertices="(6960,270),(6660,270),(6660,1710),(6369,1710),"/>
+		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control" Vertices="(6960,450),(6660,270),(6660,1710),(6369,1710),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

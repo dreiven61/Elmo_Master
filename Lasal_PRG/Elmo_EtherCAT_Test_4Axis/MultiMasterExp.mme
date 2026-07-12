@@ -6,7 +6,7 @@
 	Project_DESC  = "Name of the project"
 	IP            = "10.10.150.1"
 	IP_DESC       = "IP address of this station"
-	Filename      = "C:\work\Elmo\Elmo_Master\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcp"
+	Filename      = "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcp"
 	Filename_DESC = "File name to project">
 	<RemoteServers>
 		<RemoteServer Name="CP313_IOs1.ClassState" Name_DESC="Name" GUID_Svr="{3A3AB6B3-8638-4EBF-BE1F-FF95BD2A673E}" GUID_Svr_DESC="GUID of the server" Class="XXXBase_IOs" Class_DESC="Class" DataType="DINT" DataType_DESC="DataType" GUID_Obj="{497B385D-9838-4142-ABB3-D6A101CCAFB9}" GUID_Obj_DESC="GUID of the object" Type="Object Channel" Type_DESC="Type" WriteProtected="true" WriteProtected_DESC="Write protection of multimaster server" Comment="Shows the state of the class.&#13;&#10;0 ... ok." Comment_DESC="Comment of server"/>
