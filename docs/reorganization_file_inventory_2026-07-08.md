@@ -45,7 +45,7 @@ reorganization commit, the following ignored inputs are intentionally included
 because they are now part of the organized evidence set:
 
 - `LMC_Library/LMC_API/Elmo_API_Packet2/WireShark/*.pcapng`
-- `LMC_Library/LMC_API/LMC_API/bin/LmcMotionApi.dll`
+- `LMC_Library/LMC_API/LMC_API/bin/LasalMotionControlLib.dll`
 - `docs/Elmo_Lib/MMCLibDotNET Libs V3.0.0.7/Lib/*`
 - `test/**/*.pcapng`
 - `test/**/*.xlsx`

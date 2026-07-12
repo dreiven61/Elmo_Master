@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>PACKET_ANALYSIS</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+
+<style id="md-pandoc-exporter-clean-print-style">
+@page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+html {
+  background: #fff !important;
+  color: #222;
+  font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #222;
+  overflow-wrap: break-word;
+}
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 28px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 28px 0 18px;
+  font-weight: 700;
+}
+h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 26px 0 14px;
+  font-weight: 700;
+}
+p { margin: 0 0 14px; }
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  page-break-inside: auto;
+  table-layout: auto !important;
+}
+thead { display: table-header-group; }
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+th,
+td {
+  border: 1px solid #d9d9d9 !important;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+th {
+  font-weight: 700;
+  background: #fff;
+}
+tbody { border: 0 !important; }
+code {
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 0.84em;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+ul,
+ol {
+  margin: 0 0 14px 24px;
+  padding: 0;
+}
+li { margin: 3px 0; }
+@media print {
+  body { font-size: 14px !important; }
+  h2,
+  h3,
+  h4 { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="elmo-api-packet2-packet-analysis">Elmo API Packet2 Packet
+Analysis</h1>
+<p>작성일: 2026-07-08</p>
+<p>분석 대상:</p>
+<ul>
+<li><code>TXT/*.txt</code>: Wireshark에서 뽑은 Ethernet hex dump</li>
+<li><code>WireShark/*.pcapng</code>: 원본 캡처</li>
+</ul>
+<p>분석 방법:</p>
+<ul>
+<li>TCP payload 길이는 Ethernet frame 길이가 아니라
+<code>IP total length - IP header length - TCP header length</code>로
+계산했다.</li>
+<li>ACK-only packet은 payload 분석에서 제외했다.</li>
+<li>멀티바이트 값은 little-endian 기준으로 해석했다.</li>
+</ul>
+<h2 id="핵심-결론">핵심 결론</h2>
+<p>현재 캡처는 “모든 motion 값을 하나의 고정 비율로 DINT 변환해서
+LASAL에 보낸다”는 구조와 맞지 않는다.</p>
+<p>확인된 사실:</p>
+<ul>
+<li>PMAS/MMCLib 패킷은 요청 프레임과 응답 프레임의 header layout이
+다르다.</li>
+<li>axis/group lookup 후 reference를 받아서 후속 command header offset
+<code>[6]</code>에 넣는다.</li>
+<li><code>MoveAbsoluteEx</code>, <code>MoveRelativeEx</code>,
+<code>MoveLinearAbsoluteEx</code>의 motion 값은 8-byte
+<code>LREAL/double</code>이다.</li>
+<li><code>Stop</code>, <code>GroupStop</code>의 deceleration/jerk 값은
+4-byte <code>REAL/float</code>이다.</li>
+<li><code>MoveVelocityEx</code>는 캡처상 header의 payload length와 실제
+TCP payload 길이가 일치하지 않는다.</li>
+<li>단순히 <code>8388608 -&gt; 3600000</code> 같은 고정 변환으로 DLL을
+만드는 것은 근거가 부족하다.</li>
+</ul>
+<p>판단:</p>
+<ul>
+<li>LASAL용 DLL을 제대로 만들려면 axis interface에서 External Unit과
+Internal Unit 계열 정보를 읽어 축별 변환식을 구성해야 한다.</li>
+<li>현재 캡처의 <code>0x202B AxisInfo</code> 응답만으로는 그 단위 변환
+정보를 확인할 수 없다. 별도 Axis Interface/parameter read 패킷 또는 API
+문서 대조가 필요하다.</li>
+</ul>
+<h2 id="공통-헤더">공통 헤더</h2>
+<h3 id="request-header">Request Header</h3>
+<p>요청 프레임은 아래 구조로 보인다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th style="text-align: right;">Size</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Command ID</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Reserved, 캡처상 대부분 <code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Payload length</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Axis 또는 group reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">N</td>
+<td>payload</td>
+<td>command별 payload</td>
+</tr>
+</tbody>
+</table>
+<p>예: <code>MoveAbsoluteEx</code></p>
+<pre class="text"><code>9f 20 00 00 38 00 00 00 ...
+cmd=0x209F, payloadLength=0x0038(56), reference=0</code></pre>
+<p>예: group command</p>
+<pre class="text"><code>47 20 00 00 01 00 00 01 01
+cmd=0x2047, payloadLength=1, reference=0x0100</code></pre>
+<h3 id="response-header">Response Header</h3>
+<p>응답 프레임은 요청과 다르다. payload length가 offset
+<code>[2]</code>에 있다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th style="text-align: right;">Size</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>응답 status 또는 reserved. 정상 응답 캡처는 <code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Response payload length</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td>UINT32</td>
+<td>Reserved, 캡처상 <code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">N</td>
+<td>payload</td>
+<td>응답 데이터</td>
+</tr>
+</tbody>
+</table>
+<p>예:</p>
+<pre class="text"><code>00 00 08 00 00 00 00 00 ...
+responsePayloadLength=8</code></pre>
+<p>주의:</p>
+<ul>
+<li>요청은 length를 <code>[4]</code>에서 읽어야 한다.</li>
+<li>응답은 length를 <code>[2]</code>에서 읽어야 한다.</li>
+<li>같은 parser로 request/response header를 처리하면 틀린다.</li>
+</ul>
+<h2 id="reference-lookup">Reference Lookup</h2>
+<h3 id="x103c-getaxisbyname"><code>0x103C GetAxisByName</code></h3>
+<p>캡처 파일:</p>
+<ul>
+<li><code>WireShark/MMC_MoveAbsoluteExCmd.pcapng</code></li>
+<li><code>WireShark/MMC_ReadActualPositionCmd.pcapng</code></li>
+<li><code>WireShark/MMC_PowerCmd_On_1Axis.pcapng</code></li>
+</ul>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x103C</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td><code>80</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>ASCII[80]</td>
+<td>axis name, 예: <code>a01</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>response payload length = <code>6</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>UINT16</td>
+<td>axis reference</td>
+</tr>
+</tbody>
+</table>
+<p>캡처상 reference:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th style="text-align: right;">Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a01</code></td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td><code>a02</code></td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td><code>a03</code></td>
+<td style="text-align: right;"><code>2</code></td>
+</tr>
+<tr>
+<td><code>a04</code></td>
+<td style="text-align: right;"><code>3</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="x1042-getgroupbyname"><code>0x1042 GetGroupByName</code></h3>
+<p>캡처 파일:</p>
+<ul>
+<li><code>WireShark/MMC_GetGroupMembersInfo.pcapng</code></li>
+<li><code>WireShark/MMC_GroupEnableCmd.pcapng</code></li>
+<li><code>WireShark/MMC_MoveLinearAbsoluteExCmd.pcapng</code></li>
+</ul>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x1042</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td><code>80</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>ASCII[80]</td>
+<td>group name, 예: <code>v01</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>response payload length = <code>6</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>UINT16</td>
+<td>group reference</td>
+</tr>
+</tbody>
+</table>
+<p>캡처상 <code>v01</code> group reference는
+<code>0x0100</code>이다.</p>
+<h2 id="axis-interface-관련-관찰">Axis Interface 관련 관찰</h2>
+<h3 id="x202b-axisinfo"><code>0x202B AxisInfo</code></h3>
+<p>axis lookup 후 축별로 <code>0x202B</code>가 호출된다.</p>
+<p>Request 예:</p>
+<pre class="text"><code>2b 20 00 00 0c 00 00 00 05 00 00 00 00 00 00 00 01 00 00 00</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th style="text-align: right;">값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td style="text-align: right;"><code>0x202B</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td style="text-align: right;"><code>12</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td style="text-align: right;">axis reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>UINT32</td>
+<td style="text-align: right;"><code>5</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>UINT32</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>UINT32</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response는 16 bytes, response payload length는
+<code>8</code>이다.</p>
+<p>캡처만 놓고 보면 <code>0x202B</code> 응답에서 External Unit/Internal
+Unit 스케일을 직접 확인할 수 없다. 따라서 단위 변환을 정확히 구현하려면
+아래 중 하나가 추가로 필요하다.</p>
+<ul>
+<li><code>0x202B</code> payload 인자의 의미를 Maestro/MMCLib API
+문서에서 확인</li>
+<li>axis interface 단위 정보를 읽는 별도 command 캡처 확보</li>
+<li>기존 PMAS API 호출부가 axis interface 단위를 어디서 읽는지 원본
+DLL/API 문서에서 확인</li>
+</ul>
+<h2 id="motion-command-layout">Motion Command Layout</h2>
+<h3 id="x209f-moveabsoluteex"><code>0x209F MoveAbsoluteEx</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_MoveAbsoluteExCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID</td>
+<td style="text-align: right;"><code>0x209F</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length</td>
+<td style="text-align: right;"><code>56</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Axis reference</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL</td>
+<td>Position</td>
+<td style="text-align: right;"><code>838860800.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>LREAL</td>
+<td>Velocity</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>LREAL</td>
+<td>Acceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td>LREAL</td>
+<td>Deceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td>LREAL</td>
+<td>Jerk</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td>DINT</td>
+<td>Direction</td>
+<td style="text-align: right;"><code>2</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">52</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">56</td>
+<td>DINT</td>
+<td>Execute</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td>DINT</td>
+<td>Reserved</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+</tbody>
+</table>
+<p>Raw payload 시작:</p>
+<pre class="text"><code>9f 20 00 00 38 00 00 00
+00 00 00 00 00 00 c9 41
+00 00 00 00 00 00 94 41
+...</code></pre>
+<h3 id="x20a0-moverelativeex"><code>0x20A0 MoveRelativeEx</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_MoveRelativeExCmd.pcapng</code></p>
+<p><code>MoveAbsoluteEx</code>와 layout이 같다. offset
+<code>[8]</code>만 absolute position이 아니라 relative distance다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length</td>
+<td style="text-align: right;"><code>56</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL</td>
+<td>Distance</td>
+<td style="text-align: right;"><code>838860800.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>LREAL</td>
+<td>Velocity</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>LREAL</td>
+<td>Acceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td>LREAL</td>
+<td>Deceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td>LREAL</td>
+<td>Jerk</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td>DINT</td>
+<td>Direction</td>
+<td style="text-align: right;"><code>2</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">52</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">56</td>
+<td>DINT</td>
+<td>Execute</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td>DINT</td>
+<td>Reserved</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="x20a2-movevelocityex"><code>0x20A2 MoveVelocityEx</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_MoveVelocityExCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID</td>
+<td style="text-align: right;"><code>0x20A2</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length field</td>
+<td style="text-align: right;"><code>48</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Axis reference</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL</td>
+<td>Velocity</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>LREAL</td>
+<td>Acceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>LREAL</td>
+<td>Deceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td>LREAL</td>
+<td>Jerk</td>
+<td style="text-align: right;"><code>83886080.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td>DINT</td>
+<td>Direction</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">44</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td>BYTE</td>
+<td>Execute</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>주의:</p>
+<ul>
+<li>실제 TCP payload 길이는 <code>49</code> bytes였다.</li>
+<li>header의 payload length field는 <code>48</code>이다.</li>
+<li><code>8 + 48 = 56</code>이므로 header length field와 실제 TCP
+payload 길이가 맞지 않는다.</li>
+<li>이 캡처 기준으로는 <code>MoveVelocityEx</code>를 strict length
+parser로 처리하면 막힐 수 있다.</li>
+</ul>
+<h3 id="x2022-stop"><code>0x2022 Stop</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_StopCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID</td>
+<td style="text-align: right;"><code>0x2022</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length</td>
+<td style="text-align: right;"><code>16</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Axis reference</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>REAL</td>
+<td>Deceleration</td>
+<td style="text-align: right;"><code>1000000.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>REAL</td>
+<td>Jerk</td>
+<td style="text-align: right;"><code>20000000.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>DINT</td>
+<td>Execute</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Stop</code>은 LREAL이 아니라 4-byte REAL을 사용한다.</p>
+<h3 id="x2085-groupstop"><code>0x2085 GroupStop</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_GroupStopCmd .pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID</td>
+<td style="text-align: right;"><code>0x2085</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length</td>
+<td style="text-align: right;"><code>16</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Group reference</td>
+<td style="text-align: right;"><code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>REAL</td>
+<td>Deceleration</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>REAL</td>
+<td>Jerk</td>
+<td style="text-align: right;"><code>167772160.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>DINT</td>
+<td>Execute</td>
+<td style="text-align: right;"><code>1</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="x20a4-movelinearabsoluteex"><code>0x20A4 MoveLinearAbsoluteEx</code></h3>
+<p>캡처 파일:
+<code>WireShark/MMC_MoveLinearAbsoluteExCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID = <code>0x20A4</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>304</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Group reference = <code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL[16]</td>
+<td>Position vector</td>
+</tr>
+<tr>
+<td style="text-align: right;">136</td>
+<td>LREAL</td>
+<td>Velocity</td>
+</tr>
+<tr>
+<td style="text-align: right;">144</td>
+<td>LREAL</td>
+<td>Acceleration</td>
+</tr>
+<tr>
+<td style="text-align: right;">152</td>
+<td>LREAL</td>
+<td>Deceleration</td>
+</tr>
+<tr>
+<td style="text-align: right;">160</td>
+<td>LREAL</td>
+<td>Jerk</td>
+</tr>
+<tr>
+<td style="text-align: right;">168</td>
+<td>LREAL[16]</td>
+<td>Transition parameters</td>
+</tr>
+<tr>
+<td style="text-align: right;">296</td>
+<td>DINT</td>
+<td>Buffer mode</td>
+</tr>
+<tr>
+<td style="text-align: right;">300</td>
+<td>DINT</td>
+<td>Coordinate system</td>
+</tr>
+<tr>
+<td style="text-align: right;">304</td>
+<td>DINT</td>
+<td>Transition mode</td>
+</tr>
+<tr>
+<td style="text-align: right;">308</td>
+<td>BYTE</td>
+<td>Superimposed</td>
+</tr>
+<tr>
+<td style="text-align: right;">309</td>
+<td>BYTE</td>
+<td>Execute</td>
+</tr>
+<tr>
+<td style="text-align: right;">310</td>
+<td>BYTE[2]</td>
+<td>Padding/reserved</td>
+</tr>
+</tbody>
+</table>
+<p>캡처 예:</p>
+<ul>
+<li><code>Position[0..15]</code>: 캡처 파일의 이 호출은 앞쪽 vector가
+대부분 <code>0.0</code></li>
+<li><code>Velocity</code>: <code>83,886,080.0</code></li>
+<li><code>Acceleration</code>: <code>83,886,080.0</code></li>
+<li><code>Deceleration</code>: <code>167,772,160.0</code></li>
+<li><code>Jerk</code>: <code>167,772,160.0</code></li>
+<li><code>Buffer mode</code>: <code>2</code></li>
+<li><code>Coordinate system</code>: <code>0</code></li>
+<li><code>Transition mode</code>: <code>1</code></li>
+<li><code>Superimposed</code>: <code>0</code></li>
+<li><code>Execute</code>: <code>1</code></li>
+</ul>
+<h3 id="x20e7-setkintransform"><code>0x20E7 SetKinTransform</code></h3>
+<p>캡처 파일:</p>
+<ul>
+<li><code>WireShark/MMC_SetKinTransform .pcapng</code></li>
+<li><code>WireShark/Prepare Group MCS.pcapng</code></li>
+</ul>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td>Command ID = <code>0x20E7</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>1320</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Group reference = <code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL…</td>
+<td>kinematic transform data</td>
+</tr>
+</tbody>
+</table>
+<p>캡처에서 <code>0x20E7</code> payload는 1320 bytes로 크다. 이
+문서에서는 전체 구조를 확정하지 않았다. <code>SetKinTransform</code>은
+별도 문서 또는 Maestro API 구조체 정의와 대조해야 한다.</p>
+<h2 id="read-command-layout">Read Command Layout</h2>
+<h3 id="x2028-readstatus"><code>0x2028 ReadStatus</code></h3>
+<p>캡처 파일:</p>
+<ul>
+<li><code>WireShark/MMC_ReadStatusCmd_1Axis.pcapng</code></li>
+<li><code>WireShark/MMC_ReadStatusCmd_Group.pcapng</code></li>
+</ul>
+<p>Axis request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x2028</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>8</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Axis reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>DINT</td>
+<td>Axis reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>DINT</td>
+<td>Execute = <code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Axis response:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Response payload length</td>
+<td style="text-align: right;"><code>12</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>DWORD</td>
+<td>Status register</td>
+<td style="text-align: right;"><code>0x40000080</code> 또는 유사 값</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>DWORD</td>
+<td>추가 값 또는 reserved</td>
+<td style="text-align: right;"><code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>DWORD</td>
+<td>Error/status tail</td>
+<td style="text-align: right;">캡처별 상이</td>
+</tr>
+</tbody>
+</table>
+<h3 id="x202e-readactualposition"><code>0x202E ReadActualPosition</code></h3>
+<p>캡처 파일:
+<code>WireShark/MMC_ReadActualPositionCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x202E</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Axis reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>BYTE</td>
+<td><code>0</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Response payload length</td>
+<td style="text-align: right;"><code>16</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL</td>
+<td>Actual position</td>
+<td style="text-align: right;"><code>132.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>LREAL 또는 tail</td>
+<td><code>0.0</code></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<h3 id="x2045-groupreadstatus"><code>0x2045 GroupReadStatus</code></h3>
+<p>캡처 파일: <code>WireShark/MMC_GroupReadStatusCmd.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x2045</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>8</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Group reference = <code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>DINT</td>
+<td>Group reference = <code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>DINT</td>
+<td>Execute = <code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response payload length는 <code>12</code>이다. 캡처의 body 첫 4
+bytes는 status 값으로 해석해야 한다.</p>
+<h3 id="x2051-groupreadactualposition"><code>0x2051 GroupReadActualPosition</code></h3>
+<p>캡처 파일:
+<code>WireShark/MMC_GroupReadActualPosition.pcapng</code></p>
+<p>Request:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>UINT16</td>
+<td><code>0x2051</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>UINT16</td>
+<td>Payload length = <code>8</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>UINT16</td>
+<td>Group reference = <code>0x0100</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>DINT</td>
+<td>캡처값 <code>2</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>DINT</td>
+<td>Execute = <code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>Type</th>
+<th>의미</th>
+<th style="text-align: right;">캡처 예</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td>UINT16</td>
+<td>Response payload length</td>
+<td style="text-align: right;"><code>136</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>LREAL</td>
+<td>Position[0]</td>
+<td style="text-align: right;"><code>838857339.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>LREAL</td>
+<td>Position[1]</td>
+<td style="text-align: right;"><code>838858578.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>LREAL</td>
+<td>Position[2]</td>
+<td style="text-align: right;"><code>838858591.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td>LREAL</td>
+<td>Position[3]</td>
+<td style="text-align: right;"><code>838858970.0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">40..</td>
+<td>LREAL…</td>
+<td>나머지 vector/tail</td>
+<td style="text-align: right;">캡처상 대부분 <code>0</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="command-summary">Command Summary</h2>
+<table style="width:100%;">
+<thead>
+<tr>
+<th>Command</th>
+<th style="text-align: right;">ID</th>
+<th style="text-align: right;">Request payload length</th>
+<th style="text-align: right;">실제 TCP request length</th>
+<th>주요 타입</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RpcInitConnection step 1</td>
+<td style="text-align: right;"><code>0x8080</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>RpcInitConnection callback</td>
+<td style="text-align: right;"><code>0x405C</code></td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">20</td>
+<td>DWORD, DWORD, IPv4</td>
+</tr>
+<tr>
+<td>CloseConnection</td>
+<td style="text-align: right;"><code>0x405D</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>GetAxisByName</td>
+<td style="text-align: right;"><code>0x103C</code></td>
+<td style="text-align: right;">80</td>
+<td style="text-align: right;">88</td>
+<td>ASCII[80]</td>
+</tr>
+<tr>
+<td>GetGroupByName</td>
+<td style="text-align: right;"><code>0x1042</code></td>
+<td style="text-align: right;">80</td>
+<td style="text-align: right;">88</td>
+<td>ASCII[80]</td>
+</tr>
+<tr>
+<td>AxisInfo</td>
+<td style="text-align: right;"><code>0x202B</code></td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">20</td>
+<td>DWORD[3]</td>
+</tr>
+<tr>
+<td>Power</td>
+<td style="text-align: right;"><code>0x2023</code></td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">16</td>
+<td>DWORD + BYTE flags</td>
+</tr>
+<tr>
+<td>Reset</td>
+<td style="text-align: right;"><code>0x2024</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>Stop</td>
+<td style="text-align: right;"><code>0x2022</code></td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">24</td>
+<td>REAL, REAL, DINT, DINT</td>
+</tr>
+<tr>
+<td>ReadStatus</td>
+<td style="text-align: right;"><code>0x2028</code></td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">16</td>
+<td>DINT, DINT</td>
+</tr>
+<tr>
+<td>ReadActualPosition</td>
+<td style="text-align: right;"><code>0x202E</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>MoveAbsoluteEx</td>
+<td style="text-align: right;"><code>0x209F</code></td>
+<td style="text-align: right;">56</td>
+<td style="text-align: right;">64</td>
+<td>LREAL[5], DINT[3]</td>
+</tr>
+<tr>
+<td>MoveRelativeEx</td>
+<td style="text-align: right;"><code>0x20A0</code></td>
+<td style="text-align: right;">56</td>
+<td style="text-align: right;">64</td>
+<td>LREAL[5], DINT[3]</td>
+</tr>
+<tr>
+<td>MoveVelocityEx</td>
+<td style="text-align: right;"><code>0x20A2</code></td>
+<td style="text-align: right;">48</td>
+<td style="text-align: right;">49</td>
+<td>LREAL[4], DINT[2], BYTE</td>
+</tr>
+<tr>
+<td>GetGroupMembersInfo</td>
+<td style="text-align: right;"><code>0x20D2</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>GroupEnable</td>
+<td style="text-align: right;"><code>0x2047</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>GroupDisable</td>
+<td style="text-align: right;"><code>0x2048</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>GroupReset</td>
+<td style="text-align: right;"><code>0x2049</code></td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9</td>
+<td>BYTE</td>
+</tr>
+<tr>
+<td>GroupStop</td>
+<td style="text-align: right;"><code>0x2085</code></td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">24</td>
+<td>REAL, REAL, DINT, DINT</td>
+</tr>
+<tr>
+<td>GroupReadStatus</td>
+<td style="text-align: right;"><code>0x2045</code></td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">16</td>
+<td>DINT, DINT</td>
+</tr>
+<tr>
+<td>GroupReadActualPosition</td>
+<td style="text-align: right;"><code>0x2051</code></td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">16</td>
+<td>DINT, DINT</td>
+</tr>
+<tr>
+<td>MoveLinearAbsoluteEx</td>
+<td style="text-align: right;"><code>0x20A4</code></td>
+<td style="text-align: right;">304</td>
+<td style="text-align: right;">312</td>
+<td>LREAL[34], DINT[3], BYTE[4]</td>
+</tr>
+<tr>
+<td>SetKinTransform</td>
+<td style="text-align: right;"><code>0x20E7</code></td>
+<td style="text-align: right;">1320</td>
+<td style="text-align: right;">1328</td>
+<td>구조체, LREAL 중심</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dll-구현-시-주의점">DLL 구현 시 주의점</h2>
+<ol type="1">
+<li>고정 비율 변환을 DLL에 박으면 안 된다.
+<ul>
+<li>캡처는 PMAS/MMCLib가 축 reference와 axis info를 먼저 얻고 그 뒤
+command를 보낸다는 것을 보여준다.</li>
+<li>단위 변환은 axis interface의 External/Internal unit 정보를 기준으로
+축별로 해야 한다.</li>
+</ul></li>
+<li>request와 response parser를 분리해야 한다.
+<ul>
+<li>request length: offset <code>[4]</code></li>
+<li>response length: offset <code>[2]</code></li>
+</ul></li>
+<li>command별 numeric type을 구분해야 한다.
+<ul>
+<li><code>MoveAbsoluteEx</code>, <code>MoveRelativeEx</code>,
+<code>MoveLinearAbsoluteEx</code>: LREAL</li>
+<li><code>Stop</code>, <code>GroupStop</code>: REAL</li>
+<li>상태/enable/buffer/execute 계열: DINT 또는 BYTE 혼재</li>
+</ul></li>
+<li><code>MoveVelocityEx</code>는 캡처 기준 예외 처리가 필요하다.
+<ul>
+<li>header payload length field는 <code>48</code></li>
+<li>실제 TCP payload length는 <code>49</code></li>
+<li>마지막 execute가 1 byte로 붙어 있고 7-byte padding이 없다.</li>
+</ul></li>
+<li>LASAL 이식에서는 PLC가 PMAS 구조를 흉내낼지, PC DLL이 PMAS 구조를
+흉내낼지 먼저 정해야 한다.
+<ul>
+<li>PLC 부하를 줄이려면 PC DLL이 axis interface 단위 정보를 읽고
+변환해야 한다.</li>
+<li>그래도 wire protocol은 이 캡처처럼 command별 타입과 offset을
+유지해야 한다.</li>
+</ul></li>
+</ol>
+</body>
+</html>

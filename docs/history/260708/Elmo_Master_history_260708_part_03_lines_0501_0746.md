@@ -167,7 +167,7 @@
 > <details><summary>Ran a command</summary>
 >
 > - Ran `git add -A -- .
-> git add -f -- ':(glob)LMC_Library/LMC_API/Elmo_API_Packet2/WireShark/*.pcapng' 'LMC_Library/LMC_API/LMC_API/bin/LmcMotionApi.dll' ':(glob)test/**/*.pcapng' ':(glob)test/**/*.xlsx'`
+> git add -f -- ':(glob)LMC_Library/LMC_API/Elmo_API_Packet2/WireShark/*.pcapng' 'LMC_Library/LMC_API/LMC_API/bin/LasalMotionControlLib.dll' ':(glob)test/**/*.pcapng' ':(glob)test/**/*.xlsx'`
 >
 > </details>
 >
