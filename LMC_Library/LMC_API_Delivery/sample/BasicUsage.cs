@@ -88,10 +88,11 @@ public static class BasicUsage
         var actualPositionDeg = FromDint(actualPosition, LMC_Units.DEG);
         Console.WriteLine("Actual position deg = " + actualPositionDeg);
 
-        // PC APIs for GroupReadActualPosition(0x2051) and
-        // SetKinTransformCartesian4Axis(0x20E7) exist, but group motion is
-        // intentionally omitted until their LASAL handlers, _LMCRobotBase1 UNIT
-        // profile, RtWork execution and PLC packet verification are complete.
+        // GroupEnable, GroupDisable, GroupReadStatus, and group-member lookup
+        // have an active LASAL path but are omitted from this axis-only sample.
+        // GroupReset, GroupStop, MoveLinearAbsoluteEx,
+        // GroupReadActualPosition, and SetKinTransformCartesian4Axis have public
+        // PC methods but currently return unsupported error -5 from LASAL.
     }
 
     private static void EnsureSuccess(string operation, LMC_Response response)

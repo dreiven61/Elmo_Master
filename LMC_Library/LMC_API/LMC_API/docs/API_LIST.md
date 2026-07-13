@@ -1,7 +1,7 @@
 # LASAL Motion Control Lib API List
 
 기준 구현은 `LMC_Library/LMC_API_Delivery`의 `LasalMotionControlLib`이며,
-검토 기준일은 2026-07-10이다.
+검토 기준일은 2026-07-13이다.
 
 ## 현재 판정
 
@@ -9,15 +9,16 @@
 - PC request builder/public 호출 경로: 23/23
 - PC 자동 테스트 runner: 42/42 PASS
 - LASAL static source contract: PASS
-- tracked LASAL `case` handler: 21/23
-- tracked LASAL 정상 기능 후보: 19/23
-  (`GroupReset`, `GroupStop`은 deterministic unsupported `-5`)
-- tracked LASAL handler 없음: `0x2051`, `0x20E7`
+- LASAL IDE canonical project Rebuild: PASS (`0 error`, `0 warning`)
+- tracked LASAL active source path: 18/23
+- tracked LASAL deterministic unsupported `-5`: 5/23
+  (`0x2049`, `0x2085`, `0x2051`, `0x20A4`, `0x20E7`)
 - 실제 PLC E2E 및 Wireshark 재캡처: 0/23
 
 따라서 "PC API 구현 완료"는 23개 packet을 생성·파싱하는 C# source 범위를
-뜻한다. LASAL command queue/RtWork, 두 신규 handler, IDE build, PLC download와
-실제 재캡처까지 끝났다는 의미가 아니다.
+뜻한다. LASAL은 RT Task 없이 CyWork에서 실행되며 위 5개 group 명령은 안전한
+LASAL 의미가 승인되지 않아 의도적으로 `-5`를 반환한다. PLC download와 실제
+재캡처가 끝났다는 의미는 아니다.
 
 상세 개발 상태는
 [`API_DEVELOPMENT_BACKLOG_2026-07-10.md`](../../../LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md)를
@@ -136,9 +137,9 @@ cleanup 뒤 예외로 전달하고 response와 `LastCloseException`을 보존한
 | `GroupReset` | `0x2049` | `LMC_Response` | 구현 | unsupported `-5` |
 | `GroupStop` | `0x2085` | deceleration/jerk DINT | 구현 | unsupported `-5` |
 | `GroupReadStatusResult` | `0x2045` | `LMCGroupReadStatusResult` | 구현 | PLC 재캡처 필요 |
-| `MoveLinearAbsoluteEx` | `0x20A4` | DINT position[1..16], dynamics, options | 구현 | first 9 axes path, PLC 미검증 |
-| `GroupReadActualPosition` | `0x2051` | coordinate enum, `LMCGroupReadActualPositionResult` | 구현 | handler 없음 |
-| `SetKinTransformCartesian4Axis` | `0x20E7` | X/Y/Z/U axis objects | 구현 | handler 없음 |
+| `MoveLinearAbsoluteEx` | `0x20A4` | DINT position[1..16], dynamics, options | 구현 | unsupported `-5` |
+| `GroupReadActualPosition` | `0x2051` | coordinate enum, `LMCGroupReadActualPositionResult` | 구현 | unsupported `-5` |
+| `SetKinTransformCartesian4Axis` | `0x20E7` | X/Y/Z/U axis objects | 구현 | unsupported `-5` |
 
 `MoveLinearAbsoluteEx`는 `LMCGroupMotionOptions`로 coordinate system,
 transition mode, buffer mode, execute를 명시할 수 있다. position 배열은
@@ -185,16 +186,16 @@ PMAS capture의 136-byte `LREAL[16] + status/error + ABI padding`은 legacy
 
 ## 권장 호출 순서
 
-아래 순서는 LASAL handler, RtWork, IDE/PLC 검증과 machine safety 승인 뒤의
-목표 흐름이다.
+아래 순서는 PLC E2E와 machine safety 승인 전 테스트 기준이다.
 
-Group 운전:
+현재 Group 확인:
 
-`RpcInitConnection → group/axis lookup → 각 축 PowerOn → SetKinTransformCartesian4Axis(axisX, axisY, axisZ, axisU) → GroupEnable → MoveLinearAbsoluteEx`
+`RpcInitConnection → group/axis lookup → GetGroupMembersInfoResult → 각 축 ReadStatusResult → GroupReadStatusResult`
 
 단축 운전:
 
 `RpcInitConnection → axis lookup → PowerOn → typed status 확인 → axis motion → Stop → PowerOff`
 
-현재 PLC에서 `0x2051`/`0x20E7` handler가 없으므로 PC 함수가 존재한다는
-이유만으로 위 group 흐름을 실행하면 안 된다.
+현재 PLC에서 `0x2049`, `0x2085`, `0x2051`, `0x20A4`, `0x20E7`은 `-5`를
+반환한다. PC 함수가 존재하더라도 group reset/stop/position/motion/kinematics
+기능으로 사용하면 안 된다. 이 5개는 negative protocol test에만 사용한다.

@@ -4,7 +4,7 @@ LASAL Motion Control Lib 함수명 / Command ID / 인자 정리
 중요
 - API는 물리 단위를 변환하지 않는다. 호출자가 physical value * LMC_Units를 계산해 DINT int로 전달한다.
 - PC request builder/public path는 캡처 대상 23/23이다. 실제 PLC E2E 검증은 0/23이다.
-- 0x2051과 0x20E7은 PC에만 구현됐고 LASAL handler가 없다.
+- 0x2051과 0x20E7은 PC serializer/parser까지 구현됐지만 현재 LASAL은 -5를 반환한다.
 - callback은 UDP raw byte[] event만 제공한다. typed callback payload는 미정이다.
 - async 메소드는 같은 frame/parser를 사용하며 CancellationToken을 받는다.
 
@@ -45,9 +45,9 @@ LASAL Motion Control Lib 함수명 / Command ID / 인자 정리
 그룹	GroupReset	0x2049	없음	PC frame 구현; 현재 LASAL은 unsupported -5
 그룹	GroupStop	0x2085	deceleration(int), jerk(int)	PC frame 구현; 현재 LASAL은 unsupported -5
 그룹	GroupReadStatusResult	0x2045	없음	LMCGroupReadStatusResult
-그룹	GroupReadActualPosition	0x2051	LMC_COORD_SYSTEM	LMCGroupReadActualPositionResult; success는 DINT[16]+status/error 68B, 4B error envelope 허용
-그룹	MoveLinearAbsoluteEx	0x20A4	position(int[1..16]), velocity, acceleration, deceleration, jerk[, LMCGroupMotionOptions]	좌표/transition/buffer/execute 옵션 지원
-그룹	SetKinTransformCartesian4Axis	0x20E7	axisX, axisY, axisZ, axisU	같은 connection의 고유 axis reference 4개; exact 1320-byte payload
+그룹	GroupReadActualPosition	0x2051	LMC_COORD_SYSTEM	PC parser 구현; 현재 LASAL은 unsupported -5
+그룹	MoveLinearAbsoluteEx	0x20A4	position(int[1..16]), velocity, acceleration, deceleration, jerk[, LMCGroupMotionOptions]	PC frame 구현; 현재 LASAL은 unsupported -5
+그룹	SetKinTransformCartesian4Axis	0x20E7	axisX, axisY, axisZ, axisU	PC exact 1320-byte serializer 구현; 현재 LASAL은 unsupported -5
 그룹	각 동작의 *Async	동일	동일 + CancellationToken	Task 결과
 
 열거형	LMC_DIRECTION	해당 없음	None=0, Positive=1, Shortest=2, Negative=3, Current=4	축 motion direction
@@ -55,10 +55,10 @@ LASAL Motion Control Lib 함수명 / Command ID / 인자 정리
 열거형	LMC_BUFFER_MODE	해당 없음	Aborting=1, Buffered=2, BlendingLow=3, BlendingPrevious=4, BlendingNext=5, BlendingHigh=6	0x20E7 공개 profile은 Buffered(2)만 허용
 열거형	LMC_GROUP_TRANSITION_MODE	해당 없음	ExactStop=0, ContinuousDirect=2, SmoothParabolic=3, SmoothCubic=4, SmoothQuintic=5	group move 옵션
 
-권장 호출 흐름(PLC 구현·검증 뒤)
-RpcInitConnection → group/axis 이름 lookup → 각 축 PowerOn → SetKinTransformCartesian4Axis(axisX, axisY, axisZ, axisU) → GroupEnable → MoveLinearAbsoluteEx
+권장 초기 실기 흐름
+RpcInitConnection → axis/group 이름 lookup → ReadStatus/ReadPosition/GetMembers/GroupReadStatus → 한 축씩 PowerOn → 저속 MoveRelativeEx → Stop → PowerOff
 
 현재 장비 검증 제한
-- 0x2051 LASAL-DINT 68-byte response와 0x20E7 LASAL handler는 아직 구현되지 않았다.
-- command queue/RtWork, LASAL IDE build, PLC download, 실제 packet 재캡처 전에는 production motion 완료로 판정하지 않는다.
+- 0x2049, 0x2085, 0x2051, 0x20A4, 0x20E7은 현재 LASAL에서 unsupported -5다.
+- CyWork-only source와 LASAL IDE build는 완료했지만 PLC download/실제 packet 재캡처 전에는 production motion 완료로 판정하지 않는다.
 - multi-PC ownership은 PC DLL이 아니라 LASAL session/dispatcher에서 강제해야 한다.

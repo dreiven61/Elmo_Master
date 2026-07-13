@@ -180,13 +180,14 @@ Typed parser는 truncated/trailing payload와 legacy response shape를 정상값
 |---|---|
 | PC request/public path | 23/23 |
 | PC 자동 테스트 | 42/42 PASS |
-| LASAL static source contract | PASS |
-| tracked LASAL handler | 21/23 |
-| `0x2049`, `0x2085` | handler는 있으나 unsupported `-5` |
-| `0x2051`, `0x20E7` | PC 구현, LASAL handler 없음 |
+| LASAL static/strict contract | PASS |
+| LASAL IDE Rebuild | PASS (`0 error`, `0 warning`) |
+| LASAL source-active | 18/23 |
+| `0x2049`, `0x2085`, `0x2051`, `0x20A4`, `0x20E7` | deterministic unsupported `-5` |
 | callback | PC raw UDP listener; LASAL sender/payload 없음 |
 | multi-PC ownership | LASAL policy/구현 필요 |
 | PLC E2E 재캡처 | 0/23 |
 
-실제 motion 전에는 LASAL command queue/RtWork, large-command staging,
-coordinate mapping, ownership, IDE build와 PLC 재캡처를 완료해야 한다.
+실제 motion 전에는 물리 safety chain과 test app의 live-command gate를 확인한다.
+unsupported 5개는 negative test에만 사용하며, production 승인은 실제 PLC
+재캡처와 ownership/운전 조건 검증 뒤 별도로 판단한다.

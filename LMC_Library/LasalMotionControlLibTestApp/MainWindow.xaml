@@ -75,6 +75,10 @@
             Header="Target / API"
             Margin="0,0,0,8">
             <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="180" />
                     <ColumnDefinition Width="180" />
@@ -92,23 +96,42 @@
 
                 <StackPanel Grid.Column="1" Margin="0,0,8,0">
                     <TextBlock Text="Axis" />
-                    <TextBox x:Name="AxisName" Text="_LMCAxis1" />
+                    <TextBox
+                        x:Name="AxisName"
+                        Text="_LMCAxis1"
+                        TextChanged="TargetIdentity_Changed" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Margin="0,0,8,0">
                     <TextBlock Text="Group members" />
-                    <TextBox x:Name="MemberNames" Text="_LMCAxis1,_LMCAxis2,_LMCAxis3,_LMCAxis4" />
+                    <TextBox
+                        x:Name="MemberNames"
+                        Text="_LMCAxis1,_LMCAxis2,_LMCAxis3,_LMCAxis4"
+                        TextChanged="TargetIdentity_Changed" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" Margin="0,0,8,0">
                     <TextBlock Text="Group" />
-                    <TextBox x:Name="GroupName" Text="_LMCRobotBase1" />
+                    <TextBox
+                        x:Name="GroupName"
+                        Text="_LMCRobotBase1"
+                        TextChanged="TargetIdentity_Changed" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="4">
+                <StackPanel Grid.Row="0" Grid.Column="4">
                     <TextBlock Text="API" />
-                    <ComboBox x:Name="ApiOperation" />
+                    <ComboBox
+                        x:Name="ApiOperation"
+                        SelectionChanged="ApiOperation_SelectionChanged" />
                 </StackPanel>
+
+                <TextBlock
+                    x:Name="ApiSupportText"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="5"
+                    Margin="0,8,0,0"
+                    TextWrapping="Wrap"
+                    Foreground="#AA660000" />
             </Grid>
         </GroupBox>
 
@@ -156,7 +179,7 @@
 
         <GroupBox
             DockPanel.Dock="Top"
-            Header="Dummy 23-bit encoder profile (app converts rev/rps to raw DINT)"
+            Header="Engineering values (PC multiplies each value by the configured PLC UNIT)"
             Margin="0,0,0,8">
             <Grid Margin="8">
                 <Grid.ColumnDefinitions>
@@ -170,28 +193,28 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                    <TextBlock Text="Position/Distance (rev)" />
+                    <TextBlock Text="Position/Distance" />
                     <TextBox x:Name="Position" Text="0.1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                    <TextBlock Text="Velocity (rps)" />
+                    <TextBlock Text="Velocity" />
                     <TextBox x:Name="Velocity" Text="0.1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Margin="0,0,8,0">
-                    <TextBlock Text="Acceleration (rev/s²)" />
+                    <TextBlock Text="Acceleration" />
                     <TextBox x:Name="Acceleration" Text="1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" Margin="0,0,8,0">
-                    <TextBlock Text="Deceleration (rev/s²)" />
+                    <TextBlock Text="Deceleration" />
                     <TextBox x:Name="Deceleration" Text="1" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="4" Margin="0,0,8,0">
-                    <TextBlock Text="Jerk (rev/s³)" />
-                    <TextBox x:Name="Jerk" Text="1" />
+                    <TextBlock Text="Jerk" />
+                    <TextBox x:Name="Jerk" Text="0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="5" Margin="0,0,8,0">
@@ -200,7 +223,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="6">
-                    <TextBlock Text="Group positions (rev CSV)" />
+                    <TextBlock Text="Group positions (engineering CSV)" />
                     <TextBox x:Name="GroupPositions" Text="0.1,0.1,0.1,0.1" />
                 </StackPanel>
             </Grid>
@@ -208,35 +231,59 @@
 
         <StackPanel
             DockPanel.Dock="Top"
-            Orientation="Horizontal"
             Margin="0,0,0,8">
-            <TextBlock
-                VerticalAlignment="Center"
-                Text="Dummy encoder counts/rev (2^23)"
-                Margin="0,0,8,0" />
-            <TextBox
-                x:Name="CountsPerRev"
-                Width="130"
-                Text="8388608"
-                Margin="0,0,16,0" />
-            <Button
-                x:Name="ExecuteButton"
-                Width="220"
-                Padding="12,6"
-                Click="Execute_Click"
-                Content="Execute Selected LMC API" />
-            <Button
-                x:Name="CancelButton"
-                Width="100"
-                Padding="12,6"
-                Margin="8,0,0,0"
-                Click="Cancel_Click"
-                Content="Cancel" />
-            <TextBlock
-                VerticalAlignment="Center"
-                Foreground="#AA660000"
-                Margin="18,0,0,0"
-                Text="예제 전용 프로파일입니다. DLL은 UNIT/CPR 변환을 하지 않습니다. MoveVelocity는 Stop 전까지 계속 동작합니다." />
+            <WrapPanel>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Text="PLC UNIT multiplier"
+                    Margin="0,0,8,0" />
+                <TextBox
+                    x:Name="UnitMultiplier"
+                    Width="130"
+                    Text="10000"
+                    Margin="0,0,16,0" />
+                <Button
+                    x:Name="ExecuteButton"
+                    Width="220"
+                    Padding="12,6"
+                    Click="Execute_Click"
+                    Content="Execute Selected LMC API" />
+                <Button
+                    x:Name="CancelButton"
+                    Width="165"
+                    Padding="12,6"
+                    Margin="8,0,0,0"
+                    Click="Cancel_Click"
+                    Content="Cancel (outcome unknown)" />
+                <Button
+                    x:Name="StopVelocityButton"
+                    Width="170"
+                    Padding="12,6"
+                    Margin="8,0,0,0"
+                    Click="StopVelocity_Click"
+                    Content="Stop active velocity" />
+            </WrapPanel>
+
+            <WrapPanel Margin="0,8,0,0">
+                <CheckBox
+                    x:Name="AllowHazardousCommand"
+                    VerticalAlignment="Center"
+                    Checked="AllowHazardousCommand_Changed"
+                    Unchecked="AllowHazardousCommand_Changed"
+                    Content="Arm one power/motion/state command" />
+                <CheckBox
+                    x:Name="AllowUnsupportedNegativeTest"
+                    VerticalAlignment="Center"
+                    Margin="16,0,0,0"
+                    Checked="AllowUnsupportedNegativeTest_Changed"
+                    Unchecked="AllowUnsupportedNegativeTest_Changed"
+                    Content="Allow unsupported -5 negative test" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Foreground="#AA660000"
+                    Margin="18,0,0,0"
+                    Text="UNIT 10000 is only the current rotary-axis profile. Cancel aborts PC transport/wait, is not Stop, and may leave PLC outcome unknown." />
+            </WrapPanel>
         </StackPanel>
 
         <TextBox
