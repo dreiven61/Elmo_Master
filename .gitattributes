@@ -44,3 +44,7 @@
 *.xls binary
 *.zip binary
 *.rar binary
+
+# LASAL Class 2 regenerates vendor/project sources with IDE-owned trailing
+# spaces. Do not mechanically strip them; the EOL policy above still applies.
+Lasal_PRG/Elmo_EtherCAT_Test_4Axis/** -whitespace

@@ -1,5 +1,4 @@
 # Visual Studio / .NET build artifacts
-.vs/
 **/.vs/
 **/bin/
 **/obj/
@@ -11,7 +10,6 @@
 # Local caches / logs
 *.cache
 *.log
-build_cycle2.log
 
 # Test outputs and packet captures
 **/Reports/
@@ -20,10 +18,8 @@ build_cycle2.log
 *.pcap
 *.etl
 *.xlsx
-!EtherCAT Controller(Master) 요구 사양.xlsx
 
 # Large reference bundles and downloaded vendor packages
-**/downloads/
 MMCLibDotNET Libs V3.0.0.7/
 MMCLibDotNET Test App_V3.0.0.7/
 MAESTRO DEVELOPER STUDIO/
@@ -35,15 +31,18 @@ Lasal32dll/
 tmp/
 MaestroLibraries292/
 EtherCAT Controller(Master)*.xlsx
+!EtherCAT Controller(Master) 요구 사양.xlsx
 
 # Archive/manual files kept only for local reference
 *.zip
 *.rar
+*.7z
 *.pdf
 
 # LASAL / SIGMATEK IDE generated or local-state files
 # Keep source files (*.st, *.h, *.cpp, *.c), selected project/network files, and docs
 # under Git unless they are explicitly classified as generated.
+# Do not ignore *.lcp, *.lcb, *.lcn, Network/**/*.st, or ConfigObjects.st.
 # .gitignore does not hide files already tracked by Git.
 **/ProjectInternal/
 *.lba
@@ -62,6 +61,26 @@ EtherCAT Controller(Master)*.xlsx
 *.up2date
 *.o
 *.bin
+
+# Local LASAL project copies
+/Lasal_PRG/Elmo_EtherCAT_Test_4Axis_Edit/
+/Lasal_PRG/Elmo_EtherCAT_Test_4Axis - 복사본/
+
+# Additional LASAL IDE output that is not project source or topology
+Lasal_PRG/**/TempPreview/
+Lasal_PRG/**/Publish/
+Lasal_PRG/**/.tmp/
+Lasal_PRG/**/BAK/
+Lasal_PRG/**/*.plc
+Lasal_PRG/**/*.lds
+Lasal_PRG/**/*_Upload.cod
+Lasal_PRG/**/*_Upload.deb
+Lasal_PRG/**/*_Upload.ipr
+Lasal_PRG/**/designer.html
+Lasal_PRG/**/designerResourcePreview.html
+Lasal_PRG/**/designerToolbox.html
+Lasal_PRG/**/sig-default-css.js
+Lasal_PRG/**/index.db
 
 # Temporary scraped files
 _tmp_*
