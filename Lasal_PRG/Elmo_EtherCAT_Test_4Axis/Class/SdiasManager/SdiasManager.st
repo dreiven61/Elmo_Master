@@ -140,7 +140,7 @@
 (*!
 <Class
 	Name               = "SdiasManager"
-	Revision           = "1.99"
+	Revision           = "1.100"
 	GUID               = "{394AF67B-8CC6-416D-B09C-7933A3E56E13}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -182,6 +182,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="1.100" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.99" Date="2025-11-03" Author="ZoePat" Company="Sigmatek" Description="Corrected duplicated commas at macro calls. This results in NO runtime code change."/>
 		<Dokumentation Revision="1.98" Date="21.03.2025" Author="RamAnd" Company="Sigmatek" Description="Reworked the deactivation of the watchdog trigger functionality when the sync is taking over because for VARAN connections in certain cases the SDOs could have been blocked."/>
 		<Dokumentation Revision="1.97" Date="08.07.2021" Author="RamAnd" Company="Sigmatek" Description="There could have been default read accesses active, which might have interfered when reading latched values.&#13;&#10;Default read accesses are now disabled after the class took over the control of the local SDIAS from the OS."/>
@@ -238,6 +239,9 @@
 		<Dokumentation Revision="1.10" Date="01.08.2013" Author="ObeChr&#13;&#10;RamAnd&#13;&#10;RamAnd&#13;&#10;RamAnd" Company="Sigmatek" Description="Added Comments&#13;&#10;Changed initialisation order to prevent using an older hardware configuration than the actual.&#13;&#10;Changes to show FPGA Version on SDIAS Client objects.&#13;&#10;In the first realtime cycles the classes showed _ClassOk, but there was no actual IO information. Now the ClassState of SDIAS Clients is stored temporary during init and shown at the server after init."/>
 		<Dokumentation Revision="1.0" Date="18.07.2013" Author="RamAnd" Company="Sigmatek" Description="First library version"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 SdiasManager : CLASS
@@ -1058,7 +1062,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB SdiasManager::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SDIASMANAGER
-1$UINT, 99$UINT, (SIZEOF(::SdiasManager))$UINT, 
+1$UINT, 100$UINT, (SIZEOF(::SdiasManager))$UINT, 
 10$UINT, 5$UINT, 0$UINT, 
 TO_UDINT(2118381352), "SdiasManager", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

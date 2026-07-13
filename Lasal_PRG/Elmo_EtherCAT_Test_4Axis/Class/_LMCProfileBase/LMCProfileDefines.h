@@ -1,4 +1,4 @@
-// Hier werden alle globalen Definitionen des LMCProfilbausteins durchgefï¿½hrt
+// Hier werden alle globalen Definitionen des LMCProfilbausteins durchgeführt
 #pragma once
 
 #define  _LMC_AXIS_0      0
@@ -23,7 +23,7 @@
 
 // TempPosition, wenn gelockte Achse nicht fahren soll
 #ifndef _VOID_POS
-#define  _VOID_POS             16#7FFFFFFF
+#define  _VOID_POS             16#7FFFFFFF 
 #endif
 // Zeit nicht definiert
 #ifndef _VOID_TIME
@@ -35,17 +35,17 @@
 #ifndef BIT_OPERATORS
 
   #define BIT_OPERATORS
-
-  #define BIT_CHECK(BITFIELD,BITNR)   BITFIELD AND (1 SHL BITNR)
+  
+  #define BIT_CHECK(BITFIELD,BITNR)   BITFIELD AND (1 SHL BITNR)    
   #define BIT_SET(BITFIELD,BITNR)     BITFIELD:=BITFIELD OR (1 SHL BITNR)
   #define BIT_CLEAR(BITFIELD,BITNR)   BITFIELD:=BITFIELD AND (NOT(1 SHL BITNR))
-  #define BIT_FLIP(BITFIELD,BITNR)    BITFIELD:=BITFIELD XOR (1 SHL BITNR)
+  #define BIT_FLIP(BITFIELD,BITNR)    BITFIELD:=BITFIELD XOR (1 SHL BITNR)  
 
 #endif
 
 // Nachkommafaktor
 #define NK_FACTOR                       1000
-// Ticks frï¿½her bremsen
+// Ticks früher bremsen
 #define PRE_CYCL                        1
 
 #define SHIFT_MUL         3
@@ -109,3 +109,5 @@
 #else
   #define SCALE_JERKFACOR     1.0
 #endif
+     
+

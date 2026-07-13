@@ -42,7 +42,7 @@
 #define _DINT_MAX 2147483647
 #endif
 
-#define _LMCBELT_MIN_VEL_MOVECMD 1 // minimale programmierbare Geschwindigkeit fï¿½r LREAL-MoveTypes [internal units / sec]
+#define _LMCBELT_MIN_VEL_MOVECMD 1 // minimale programmierbare Geschwindigkeit für LREAL-MoveTypes [internal units / sec]
 
 
 
@@ -269,9 +269,9 @@ _LMCBeltAxis : CLASS
 		  8 bExtCNCOfPos,  //! <Variable Comment="0 ... the default overflow position is set&#13;&#10;1 ... a user defined overflow position is set" Name="bdSettings.bExtCNCOfPos"/>
 		  9 bExtCNCMinPos,  //! <Variable Comment="0 ... the default minimum end position is set&#13;&#10;1 ... a user defined minimum end position is set" Name="bdSettings.bExtCNCMinPos"/>
 		  10 bExtCNCMaxPos,  //! <Variable Comment="0 ... the default maximum end position is set&#13;&#10;1 ... a user defined maximum end position is set" Name="bdSettings.bExtCNCMaxPos"/>
-		  12 bNchkSWLim,  //! <Variable Comment="Keine SW-Limit ï¿½berprï¿½fung im Stillstand" Name="bdSettings.bNchkSWLim"/>
+		  12 bNchkSWLim,  //! <Variable Comment="Keine SW-Limit Überprüfung im Stillstand" Name="bdSettings.bNchkSWLim"/>
 		  13 bNchkBrakePos,  //! <Variable Comment="0 ... When sending the movement command, the brake path is monitored during a required reversal of direction. &#13;&#10;1 ... the direction reversal monitor is disabled when sending the motion command. &#13;&#10;" Name="bdSettings.bNchkBrakePos"/>
-		  14 bChkSWLimMove,  //! <Variable Comment="ï¿½berprï¿½fung der Sollposition af die SW-Limits wï¿½hrend der Bewegung" Name="bdSettings.bChkSWLimMove"/>
+		  14 bChkSWLimMove,  //! <Variable Comment="Überprüfung der Sollposition af die SW-Limits während der Bewegung" Name="bdSettings.bChkSWLimMove"/>
 		  15 bInitJerkFilter,  //! <Variable Comment="Den Ruckfilter bei ControllerOn initialisieren (J/N)." Name="bdSettings.bInitJerkFilter"/>
 		  16 bVjump,  //! <Variable Comment="Speed jump on auxiliary axes is enabled and acceleration check disabled." Name="bdSettings.bVjump"/>
 		  17 bNoSetSWLim,  //! <Variable Comment="0: Set AxisError.SwMinError or AxisError.SwMaxError when the&#13;&#10; destination of a move is on or outside the software end&#13;&#10; position (i.e. already during braking). (default).&#13;&#10;1: Set AxisError.SwMinError or AxisError.SwMaxError when the set&#13;&#10; position is on or outside the software end position&#13;&#10; (i.e. only after braking).&#13;&#10;" Name="bdSettings.bNoSetSWLim"/>
@@ -320,7 +320,7 @@ _LMCBeltAxis : CLASS
 				//! <Function Comment="Stops axis movement." Name="StopMove"/>
 	FUNCTION VIRTUAL GLOBAL StopMove
 		VAR_INPUT
-			Decel 	: DINT;			//! <Variable Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="StopMove.Decel"/>
+			Decel 	: DINT;			//! <Variable Comment="Axis deceleration of the movement [Application units / s²]" Name="StopMove.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk of the movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="StopMove.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -330,7 +330,7 @@ _LMCBeltAxis : CLASS
 	FUNCTION VIRTUAL GLOBAL CoupleUserPosExtended
 		VAR_INPUT
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleUserPosExtended.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½ ]" Name="CoupleUserPosExtended.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s² ]" Name="CoupleUserPosExtended.MaxAcc"/>
 			pMasterPos 	: ^LREAL;			//! <Variable Comment="pointer to the set value (LREAL) of the master [internal units]" Name="CoupleUserPosExtended.pMasterPos"/>
 			MaxJerk 	: DINT;			//! <Variable Comment="Maximum jerk of the axis for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="CoupleUserPosExtended.MaxJerk"/>
 		END_VAR
@@ -341,7 +341,7 @@ _LMCBeltAxis : CLASS
 	FUNCTION VIRTUAL GLOBAL ChangeCoupleSettings
 		VAR_INPUT
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="ChangeCoupleSettings.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½ ]" Name="ChangeCoupleSettings.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s² ]" Name="ChangeCoupleSettings.MaxAcc"/>
 			MaxJerk 	: DINT;			//! <Variable Comment="Maximum jerk of the axis for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="ChangeCoupleSettings.MaxJerk"/>
 		END_VAR
 		VAR_OUTPUT

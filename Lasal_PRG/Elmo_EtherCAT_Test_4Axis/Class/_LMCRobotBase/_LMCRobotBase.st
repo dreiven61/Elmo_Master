@@ -33,8 +33,8 @@
 
 #define SYNC_DESYNC_MIN_LENGTH      50
 
-#define BELTCOUPLING_DEFAULT_FILTER_DEPTH_VMASTER 40 //Bei ï¿½nderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
-#define BELTCOUPLING_MAX_FILTER_DEPTH_VMASTER 60 //Bei ï¿½nderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
+#define BELTCOUPLING_DEFAULT_FILTER_DEPTH_VMASTER 40 //Bei Änderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
+#define BELTCOUPLING_MAX_FILTER_DEPTH_VMASTER 60 //Bei Änderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
 
 #define ROTATORY_DISK_MODULO (360deg)
 #define ROTATORY_DISK_ANGLE_TO_RADIANT (2.0*LMC_PI/(ROTATORY_DISK_MODULO))
@@ -67,8 +67,8 @@
 	Comment            = "The class _LMCRobotBase supports basic functionality for multiaxial robot applications. Including profile movement, adding your own kinematic model, using coordinate systems, belt coupling, elementary axes and error handling,...">
 	<Channels>
 		<Server Name="ActiveCoordSystem" GUID="{630C7F19-2906-4C76-B3DE-DF8474D0B19D}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Displaying the CoordSystem of the active movement."/>
-		<Server Name="AMax" GUID="{E86AF423-8FA3-4EA4-9DA0-CAAA1B1FDE8C}" Visualized="true" Initialize="true" WriteProtected="false" Retentive="File" Comment="acceleration for SetBasicParameter [Application units / sï¿½]"/>
-		<Server Name="JMax" GUID="{6A23534D-2066-4D4C-AA68-D275DD2CF723}" Visualized="true" Initialize="true" WriteProtected="false" Retentive="File" Comment="jerk for SetBasicParameter [Application units / sï¿½ / 1000]"/>
+		<Server Name="AMax" GUID="{E86AF423-8FA3-4EA4-9DA0-CAAA1B1FDE8C}" Visualized="true" Initialize="true" WriteProtected="false" Retentive="File" Comment="acceleration for SetBasicParameter [Application units / s²]"/>
+		<Server Name="JMax" GUID="{6A23534D-2066-4D4C-AA68-D275DD2CF723}" Visualized="true" Initialize="true" WriteProtected="false" Retentive="File" Comment="jerk for SetBasicParameter [Application units / s³ / 1000]"/>
 		<Server Name="Override" WriteProtected="false">
 		</Server>
 		<Server Name="RobotMode" GUID="{48378796-1B06-4519-8D2D-C0F0B571B515}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Displaying the active operating mode or state of the robot."/>
@@ -804,8 +804,8 @@ _LMCRobotBase : CLASS
 			CircleDef 	: _LMCPROFCIRCLEDEF;			//! <Variable Comment="Defines which axes should perform a circular movement" Name="MoveCircle.CircleDef"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW) in case of 2 dimenional movement / dromic direction in case of 3 dimensional movement&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW) in case of 2 dimenional movement / antidromic direction in case of 3 dimensional movement&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveCircle.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]" Name="MoveCircle.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveCircle.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCircle.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveCircle.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCircle.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCircle.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerace-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC. " Name="MoveCircle.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveCircle.Jerk"/>
@@ -820,7 +820,7 @@ _LMCRobotBase : CLASS
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="NOT IN USE NOW" Name="MoveCurve.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveCurve.Velocity"/>
 			Accel 	: DINT;
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCurve.Decel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCurve.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCurve.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerace-sphere during rounding [Application units]." Name="MoveCurve.TransRadius"/>
 			pObstacle 	: ^_LMCPROF_OBSTACLE;			//! <Variable Comment="data defining the evasive movement." Name="MoveCurve.pObstacle"/>
@@ -851,8 +851,8 @@ _LMCRobotBase : CLASS
 			pDirection 	: ^_LMCPROF_POS;			//! <Variable Comment="Direction vector related to the 9 profile axis.&#13;&#10;&#13;&#10;This vector may not be normalized!" Name="MoveEndless.pDirection"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; no meaning (Move in clockwise direction (CW))&#13;&#10;16#04 --&gt; no meaning (Move in counter clockwise direction (CCW))&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveEndless.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement. [Application units / s]&#13;&#10;" Name="MoveEndless.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveEndless.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveEndless.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveEndless.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveEndless.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveEndless.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -864,8 +864,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="Absolute end position of the axes [Application Units]" Name="MoveLinear.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveLinear.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveLinear.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveLinear.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveLinear.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveLinear.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveLinear.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveLinear.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerace-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveLinear.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveLinear.Jerk"/>
@@ -879,8 +879,8 @@ _LMCRobotBase : CLASS
 			pDistances 	: ^_LMCPROF_POS;			//! <Variable Comment="Relative distance of the axes [Application Units]" Name="MoveRelative.pDistances"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation" Name="MoveRelative.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveRelative.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveRelative.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveRelative.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveRelative.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveRelative.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveRelative.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerace-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveRelative.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveRelative.Jerk"/>
@@ -891,7 +891,7 @@ _LMCRobotBase : CLASS
 				//! <Function Comment="The method stops the RtWork of the _LMCProfile object and defines the timebase for calling RtWork externally." Name="SetTimeBase"/>
 	FUNCTION VIRTUAL GLOBAL SetTimeBase
 		VAR_INPUT
-			udTimeBase 	: UDINT;			//! <Variable Comment="Time base in ï¿½s" Name="SetTimeBase.udTimeBase"/>
+			udTimeBase 	: UDINT;			//! <Variable Comment="Time base in µs" Name="SetTimeBase.udTimeBase"/>
 		END_VAR
 		VAR_OUTPUT
 			RetCode 	: _LMCPROFERRORTYPES;			//! <Variable Comment="_LMCPROF_NoError      --&gt; OK&#13;&#10;_LMCPROF_ERROR_BUSY   --&gt; Method was called too late. Method can only be called when _Firstscan = 0&#13;&#10;_LMCPROF_OUT_OF_RANGE --&gt; Selected time base too small." Name="SetTimeBase.RetCode"/>
@@ -1021,8 +1021,8 @@ _LMCRobotBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxMoveAbsolute.AxisNo"/>
 			Position 	: DINT;			//! <Variable Comment="Targetposition for the axis [Application units]" Name="AxMoveAbsolute.Position"/>
 			Speed 	: DINT;			//! <Variable Comment="Axis speed of the movement [Application units / s]" Name="AxMoveAbsolute.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="AxMoveAbsolute.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="AxMoveAbsolute.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / s²]" Name="AxMoveAbsolute.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Axis deceleration of the movement [Application units / s²]" Name="AxMoveAbsolute.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveAbsolute.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1033,7 +1033,7 @@ _LMCRobotBase : CLASS
 		VAR_INPUT
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxMoveEndless.AxisNo"/>
 			Speed 	: DINT;			//! <Variable Comment="Axis speed of the movement [Application units / s]" Name="AxMoveEndless.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="AxMoveEndless.Accel"/>
+			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / s²]" Name="AxMoveEndless.Accel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveEndless.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1044,7 +1044,7 @@ _LMCRobotBase : CLASS
 		VAR_INPUT
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxMoveHand.AxisNo"/>
 			Speed 	: DINT;			//! <Variable Comment="Axis speed of the movement [Application units / s]" Name="AxMoveHand.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="AxMoveHand.Accel"/>
+			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / s²]" Name="AxMoveHand.Accel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveHand.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1058,7 +1058,7 @@ _LMCRobotBase : CLASS
 			Position 	: DINT;			//! <Variable Comment="Reference position [Application units]" Name="AxMoveReference.Position"/>
 			VRef1 	: DINT;			//! <Variable Comment="Speed used when searching for the reference switch [Application units/s]" Name="AxMoveReference.VRef1"/>
 			VRef2 	: DINT;			//! <Variable Comment="Speed used when backing off from the reference switch [Application units/s]" Name="AxMoveReference.VRef2"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration / deceleration used when searching for the reference switch and when backing off from it [Application units/sï¿½]" Name="AxMoveReference.Accel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration / deceleration used when searching for the reference switch and when backing off from it [Application units/s²]" Name="AxMoveReference.Accel"/>
 			PositionWindow 	: DINT;			//! <Variable Comment="Distance within which the Z pulse must occur after leaving the reference switch [Application units]" Name="AxMoveReference.PositionWindow"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveReference.Jerk"/>
 		END_VAR
@@ -1072,8 +1072,8 @@ _LMCRobotBase : CLASS
 			Position 	: DINT;			//! <Variable Comment="distance of the movement [Application units]" Name="AxMoveRelative.Position"/>
 			Mode 	: _LMCAXIS_MOVE_RELATIVE_MODE;			//! <Variable Comment="MOVE_RELATIVE_TO_DESTINATION --&gt; Position is relative to the last target position&#13;&#10;MOVE_RELATIVE_TO_POSIITON    --&gt; Position is relative to the actual position" Name="AxMoveRelative.Mode"/>
 			Speed 	: DINT;			//! <Variable Comment="Axis speed of the movement [Application units / s]" Name="AxMoveRelative.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="AxMoveRelative.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="AxMoveRelative.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Axis acceleration of the movement [Application units / s²]" Name="AxMoveRelative.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Axis deceleration of the movement [Application units / s²]" Name="AxMoveRelative.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveRelative.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1085,8 +1085,8 @@ _LMCRobotBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxMoveShortestWay.AxisNo"/>
 			Position 	: DINT;			//! <Variable Comment="Target position for the axis [application units]" Name="AxMoveShortestWay.Position"/>
 			Speed 	: DINT;			//! <Variable Comment="Speed of the axis [application units / sec]" Name="AxMoveShortestWay.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="acceleration of the axis [application units / sï¿½]" Name="AxMoveShortestWay.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="deceleration of the axis [application units / sï¿½]" Name="AxMoveShortestWay.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="acceleration of the axis [application units / s²]" Name="AxMoveShortestWay.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="deceleration of the axis [application units / s²]" Name="AxMoveShortestWay.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxMoveShortestWay.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1177,7 +1177,7 @@ _LMCRobotBase : CLASS
 	FUNCTION GLOBAL AxStopMove
 		VAR_INPUT
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxStopMove.AxisNo"/>
-			Decel 	: DINT;			//! <Variable Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="AxStopMove.Decel"/>
+			Decel 	: DINT;			//! <Variable Comment="Axis deceleration of the movement [Application units / s²]" Name="AxStopMove.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxStopMove.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -1189,7 +1189,7 @@ _LMCRobotBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="AxTuneAxis.AxisNo"/>
 			Position 	: DINT;			//! <Variable Comment="Target or distance for the axis [Application units]" Name="AxTuneAxis.Position"/>
 			Speed 	: DINT;			//! <Variable Comment="Maximum speed [Application units / s]" Name="AxTuneAxis.Speed"/>
-			Accel 	: DINT;			//! <Variable Comment="Axis acceleration [Application units / sï¿½ ]" Name="AxTuneAxis.Accel"/>
+			Accel 	: DINT;			//! <Variable Comment="Axis acceleration [Application units / s² ]" Name="AxTuneAxis.Accel"/>
 			Mode 	: _LMCAXIS_TUNE_MODE;			//! <Variable Comment=" INTERVALL__ACTPOSITION_POSITION          --&gt; Movement between the actual position and the position added to it.&#13;&#10; INTERVALL__ZERO_TO_POSITIVE_POSITION     --&gt; Movement between the specified position and 0&#13;&#10; INTERVALL__POSITON_IN_POSITIVE_DIRECTION --&gt; Relative movement in the positive direction&#13;&#10; INTERVALL__ZERO_TO_NEGATIVE_POSITION     --&gt; Movement between the specified negative position and 0&#13;&#10; INTERVALL__POSITON_IN_NEGATIVE_DIRECTION --&gt; Relative movement in the negative direction&#13;&#10;" Name="AxTuneAxis.Mode"/>
 			WaitTime 	: UDINT;			//! <Variable Comment="A TuneTime is set [ms]. This Tunetime is simply a delay after each movement. " Name="AxTuneAxis.WaitTime"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Axis jerk for this movement [Application units / sec^3 / 1000] (for _LMCAxis-MoveType=_JERK_PROFILE only)" Name="AxTuneAxis.Jerk"/>
@@ -1248,8 +1248,8 @@ _LMCRobotBase : CLASS
 			CircleDef 	: _LMCPROFCIRCLEDEF;			//! <Variable Comment="Defines which axes should perform a circular movement" Name="MoveCircleCoord.CircleDef"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveCircleCoord.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveCircleCoord.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveCircleCoord.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCircleCoord.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveCircleCoord.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCircleCoord.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCircleCoord.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveCircleCoord.TransRadius"/>
 			CoordSystem 	: DINT;			//! <Variable Comment="number of the base coord system." Name="MoveCircleCoord.CoordSystem"/>
@@ -1264,8 +1264,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="End position of the axes in the coordinate system pBeltData.CoordSystem [Application Units]" Name="MoveCurveBelt.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="NOT USED NOW." Name="MoveCurveBelt.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveCurveBelt.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveCurveBelt.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCurveBelt.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveCurveBelt.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCurveBelt.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCurveBelt.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveCurveBelt.TransRadius"/>
 			pObstacle 	: ^_LMCPROF_OBSTACLE;			//! <Variable Comment="data defining the evasive movement." Name="MoveCurveBelt.pObstacle"/>
@@ -1281,8 +1281,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="End position of the axes in the coordinate system given by CoordSystem [Application Units]" Name="MoveCurveCoord.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="NOT USED NOW." Name="MoveCurveCoord.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveCurveCoord.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveCurveCoord.Accel"/>
-			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCurveCoord.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveCurveCoord.Accel"/>
+			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCurveCoord.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCurveCoord.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveCurveCoord.TransRadius"/>
 			pObstacle 	: ^_LMCPROF_OBSTACLE;			//! <Variable Comment="data defining the evasive movement." Name="MoveCurveCoord.pObstacle"/>
@@ -1332,8 +1332,8 @@ _LMCRobotBase : CLASS
 			pDirection 	: ^_LMCPROF_POS;			//! <Variable Comment="Direction vector related to the base coord system.&#13;&#10;&#13;&#10;This vector may not be normalized!" Name="MoveEndlessCoord.pDirection"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; no meaning (Move in clockwise direction (CW))&#13;&#10;16#04 --&gt; no meaning (Move in counter clockwise direction (CCW))&#13;&#10;16#08 --&gt; Feed rate interpolation" Name="MoveEndlessCoord.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement. [Application units / s]" Name="MoveEndlessCoord.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveEndlessCoord.Accel"/>
-			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveEndlessCoord.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveEndlessCoord.Accel"/>
+			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveEndlessCoord.Decel"/>
 			Jerk 	: DINT;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveEndlessCoord.Jerk"/>
 			CoordSystem 	: DINT;			//! <Variable Comment="number of the base coord system.&#13;&#10;CoordSystem:=0 for world coordinates" Name="MoveEndlessCoord.CoordSystem"/>
 		END_VAR
@@ -1346,8 +1346,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="End position of the axes in the coordinate system pBeltData.CoordSystem [Application Units]" Name="MoveLinearBelt.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveLinearBelt.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveLinearBelt.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveLinearBelt.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveLinearBelt.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveLinearBelt.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveLinearBelt.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveLinearBelt.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveLinearBelt.TransRadius"/>
 			pBeltData 	: ^_BELT_COUPLE_DATA;			//! <Variable Comment="information about the belt desynchronization and/or synchronization" Name="MoveLinearBelt.pBeltData"/>
@@ -1362,8 +1362,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="End position of the axes in the coordinate system CoordSystem [Application Units]" Name="MoveLinearCoord.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveLinearCoord.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveLinearCoord.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveLinearCoord.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveLinearCoord.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveLinearCoord.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveLinearCoord.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveLinearCoord.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveLinearCoord.TransRadius"/>
 			CoordSystem 	: DINT;			//! <Variable Comment="number of the base coord system." Name="MoveLinearCoord.CoordSystem"/>
@@ -1378,8 +1378,8 @@ _LMCRobotBase : CLASS
 			pDistances 	: ^_LMCPROF_POS;			//! <Variable Comment="Relative distance of the axes in direction of the coordinate system CoordSystem [Application Units]" Name="MoveRelativeCoord.pDistances"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveRelativeCoord.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveRelativeCoord.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveRelativeCoord.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveRelativeCoord.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveRelativeCoord.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveRelativeCoord.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveRelativeCoord.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveRelativeCoord.TransRadius"/>
 			CoordSystem 	: DINT;			//! <Variable Comment="number of the base coord system." Name="MoveRelativeCoord.CoordSystem"/>
@@ -1394,8 +1394,8 @@ _LMCRobotBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="relative end position of the axes to the tool center point [Application Units]" Name="MoveRelativeTCP.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveRelativeTCP.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveRelativeTCP.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveRelativeTCP.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveRelativeTCP.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveRelativeTCP.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveRelativeTCP.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveRelativeTCP.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="MoveRelativeTCP.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveRelativeTCP.Jerk"/>

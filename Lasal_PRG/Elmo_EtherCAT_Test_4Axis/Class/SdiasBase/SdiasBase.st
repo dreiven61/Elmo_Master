@@ -61,6 +61,9 @@
 //SPI Access
 #define SDIAS_SPI_ACCESS_ID_HW_TREE          1
 #define SDIAS_SPI_ACCESS_ID_HWK_INTERNAL     2
+
+
+#define SDIAS_TEMP_STRING_SIZE             512
 //}}LSL_DEFINES
 
 //{{LSL_DECLARATION
@@ -73,7 +76,7 @@
 (*!
 <Class
 	Name               = "SdiasBase"
-	Revision           = "1.60"
+	Revision           = "2.0"
 	GUID               = "{A44D11C6-5133-4AE2-9A40-4704050522AE}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -96,7 +99,7 @@
 		<Server Name="RetryCounter" GUID="{833C80D1-4726-4DCB-B1AB-C268D7D72245}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Number of Retries on SDIAS-Bus."/>
 		<Server Name="SDOState" GUID="{1C3F8C9A-F083-486D-A096-B459EA29A017}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="State of the actual SDO Transmission."/>
 		<Server Name="SerialNo" GUID="{68FBC413-E3CB-4059-BC09-1D975B4D4819}" Class="String" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Serial number of the Hardware Module."/>
-		<Client Name="Place" Required="false" Internal="false" DefValue="0" Comment="Place of SDIAS Modul [0..63]."/>
+		<Client Name="Place" Required="false" Internal="false" DefValue="0" Comment="Place of SDIAS Module [0..63]."/>
 		<Client Name="Required" Required="true" Internal="false" DefValue="1" Comment="0 = module is not required&#13;&#10;1 = module is required (CPU will crash if module is missing)"/>
 		<Client Name="SdiasIn" Required="true" Internal="false" Comment="This Clients must be connected to a SDIAS_Out_[x] Server."/>
 		<Client Name="SerialNoStr" Required="true" Internal="true"/>
@@ -114,6 +117,8 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="2.0" Date="2026-02-20" Author="LanSte" Company="Sigmatek" Description="Added support for alarm classes that only use NewInst commands.&#13;&#10;Corrected comments in class."/>
+		<Dokumentation Revision="1.61" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.60" Date="12.11.2019" Author="RamAnd" Company="Sigmatek" Description="Detached the logging functionality from HwControl into a new class HwcLogging, therefore the dependency at this class has been changed to HwcLogging."/>
 		<Dokumentation Revision="1.59" Date="09.08.2018" Author="PieSte" Company="Sigmatek" Description="Add function for SPI write (only used internal)."/>
 		<Dokumentation Revision="1.58" Date="31.07.2018" Author="LanSte&#13;&#10;ZoePat" Company="Sigmatek" Description="Added support for dynamic accesses.&#13;&#10;Added NewInst-command &quot;SDIAS_CLT_GET_INFO_PLACE&quot; to get the place."/>
@@ -125,8 +130,8 @@
 		<Dokumentation Revision="1.52" Date="01.03.2016" Author="EisMic" Company="Sigmatek" Description="Corrected BoundExceed Error at Write method of LEDControl Server when Place = LSL_DEACTIVATED."/>
 		<Dokumentation Revision="1.51" Date="22.06.2015" Author="EisMic" Company="Sigmatek" Description="Don&apos;t reset values from server FPGAVersion, SerialNo and Device ID when module gets disconnected."/>
 		<Dokumentation Revision="1.50" Date="17.03.2015" Author="RamAnd" Company="Sigmatek" Description="Added HW Version."/>
-		<Dokumentation Revision="1.49" Date="10.02.2015" Author="PieSte" Company="Sigmatek" Description="Corrected read spi data for hardwaretree in methode GetSPIDataFromID."/>
-		<Dokumentation Revision="1.48" Date="04.11.2014" Author="PieSte" Company="Sigmatek" Description="Added possibility  to read more data from spi flash then one sdo access.&#13;&#10;Set methode GetDeviceID to global.&#13;&#10;Add methode to calculate checksum of spi flash."/>
+		<Dokumentation Revision="1.49" Date="10.02.2015" Author="PieSte" Company="Sigmatek" Description="Corrected read spi data for hardwaretree in method GetSPIDataFromID."/>
+		<Dokumentation Revision="1.48" Date="04.11.2014" Author="PieSte" Company="Sigmatek" Description="Added possibility  to read more data from spi flash then one sdo access.&#13;&#10;Set method GetDeviceID to global.&#13;&#10;Add method to calculate checksum of spi flash."/>
 		<Dokumentation Revision="1.47" Date="30.09.2014" Author="RamAnd" Company="Sigmatek" Description="Added possibility to create a SDIAS control access."/>
 		<Dokumentation Revision="1.46" Date="25.08.2014" Author="LanSte" Company="Sigmatek" Description="Moved defaut call of &apos;GetPointer2ObjectPath&apos; to last init phase, so that it can be overwritten by other classes. (SdiasSafetyManager)"/>
 		<Dokumentation Revision="1.45" Date="24.06.2014" Author="EisMic" Company="Sigmatek" Description="Added support for reading hardware diagnosis and hardwaretree entry."/>
@@ -166,6 +171,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 SdiasBase : CLASS
@@ -445,7 +453,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			ret_code 	: ConfStates;
 		END_VAR;
-				//! <Function Comment="Init-Methode of Class.&#13;&#10;&#13;&#10;This Methode needs to get called. In case the Methode gets overwritten, a call needs to bet installed." Name="Init"/>
+				//! <Function Comment="Init-Method of Class.&#13;&#10;&#13;&#10;This Method needs to get called. In case the Method gets overwritten, a call needs to be installed." Name="Init"/>
 	FUNCTION VIRTUAL GLOBAL Init;
 	
 	FUNCTION AddDynRdAccess
@@ -477,7 +485,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			ret_code 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to add a Read-Access to Module." Name="AddRdAccess"/>
+				//! <Function Comment="Method to add a Read-Access to Module." Name="AddRdAccess"/>
 	FUNCTION AddRdAccess
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="AddRdAccess.hOffset"/>
@@ -492,7 +500,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			ret_code 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to add a Write-Access to Module." Name="AddWrAccess"/>
+				//! <Function Comment="Method to add a Write-Access to Module." Name="AddWrAccess"/>
 	FUNCTION AddWrAccess
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="AddWrAccess.hOffset"/>
@@ -517,7 +525,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			ret_code 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to execute a Read-SDO to Module." Name="StartReadSDO"/>
+				//! <Function Comment="Method to execute a Read-SDO to Module." Name="StartReadSDO"/>
 	FUNCTION StartReadSDO
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="StartReadSDO.hOffset"/>
@@ -525,9 +533,9 @@ SdiasBase : CLASS
 			eCommand 	: t_SDIAS_SDO_Cmd;			//! <Variable Comment="Type of SDO-Command." Name="StartReadSDO.eCommand"/>
 		END_VAR
 		VAR_OUTPUT
-			eRetcode 	: iprStates;			//! <Variable Comment="Indicates if the call of the Methode was successful." Name="StartReadSDO.eRetcode"/>
+			eRetcode 	: iprStates;			//! <Variable Comment="Indicates if the call of the Method was successful." Name="StartReadSDO.eRetcode"/>
 		END_VAR;
-				//! <Function Comment="Methode to execute a Read-SPI-SDO to Module." Name="StartReadSDOSPI"/>
+				//! <Function Comment="Method to execute a Read-SPI-SDO to Module." Name="StartReadSDOSPI"/>
 	FUNCTION StartReadSDOSPI
 		VAR_INPUT
 			PageAdress 	: HINT;
@@ -538,7 +546,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			eRetcode 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to execute a Write-SDO to Module." Name="StartWriteSDO"/>
+				//! <Function Comment="Method to execute a Write-SDO to Module." Name="StartWriteSDO"/>
 	FUNCTION StartWriteSDO
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="StartWriteSDO.hOffset"/>
@@ -547,11 +555,11 @@ SdiasBase : CLASS
 			eCommand 	: t_SDIAS_SDO_Cmd;			//! <Variable Comment="Type of SDO-Command." Name="StartWriteSDO.eCommand"/>
 		END_VAR
 		VAR_OUTPUT
-			dRetcode 	: iprStates;			//! <Variable Comment="Indicates if the call of the Methode was successful." Name="StartWriteSDO.dRetcode"/>
+			dRetcode 	: iprStates;			//! <Variable Comment="Indicates if the call of the Method was successful." Name="StartWriteSDO.dRetcode"/>
 		END_VAR;
-				//! <Function Comment="Realtime Update Methode which runs in PreScan." Name="UpdateRt"/>
+				//! <Function Comment="Realtime Update Method which runs in PreScan." Name="UpdateRt"/>
 	FUNCTION VIRTUAL GLOBAL UpdateRt;
-				//! <Function Comment="Realtime Update Methode which runs in PostScan." Name="UpdateRtPostScan"/>
+				//! <Function Comment="Realtime Update Method which runs in PostScan." Name="UpdateRtPostScan"/>
 	FUNCTION VIRTUAL GLOBAL UpdateRtPostScan;
 	
 	FUNCTION VIRTUAL GLOBAL UpdateRtPreOp
@@ -561,23 +569,23 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			ret_code 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Cyclic Update Methode which runs in PostScan." Name="UpdateCy"/>
+				//! <Function Comment="Cyclic Update Method which runs in PostScan." Name="UpdateCy"/>
 	FUNCTION VIRTUAL GLOBAL UpdateCy;
 	
 	FUNCTION VIRTUAL GLOBAL AddAccesses
 		VAR_OUTPUT
 			eModuleInitState 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode is called if this Module gets connected." Name="ConnectEvent"/>
+				//! <Function Comment="Method is called if this Module gets connected." Name="ConnectEvent"/>
 	FUNCTION VIRTUAL GLOBAL ConnectEvent;
-				//! <Function Comment="Methode is called if this Module gets disconnected." Name="DisconnectEvent"/>
+				//! <Function Comment="Method is called if this Module gets disconnected." Name="DisconnectEvent"/>
 	FUNCTION VIRTUAL GLOBAL DisconnectEvent;
-				//! <Function Comment="Methode should be used to run a Statemachine to Initialize the Module." Name="InitModule"/>
+				//! <Function Comment="Method should be used to run a Statemachine to Initialize the Module." Name="InitModule"/>
 	FUNCTION VIRTUAL GLOBAL InitModule
 		VAR_OUTPUT
 			eModuleInitState 	: iprStates;			//! <Variable Comment="Return BUSY until the Initialisation is finished." Name="InitModule.eModuleInitState"/>
 		END_VAR;
-				//! <Function Comment="This Methode should be used, to check the DeviceID of the Module." Name="CheckDeviceID"/>
+				//! <Function Comment="This Method should be used, to check the DeviceID of the Module." Name="CheckDeviceID"/>
 	FUNCTION VIRTUAL GLOBAL CheckDeviceID
 		VAR_INPUT
 			udID2Check 	: UDINT;			//! <Variable Comment="Device ID of connected Module." Name="CheckDeviceID.udID2Check"/>
@@ -585,21 +593,21 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			bIsOK 	: BOOL;			//! <Variable Comment="FALSE = Wrong DeviceID for Module&#13;&#10;TRUE  = DeviceID of Module is correct" Name="CheckDeviceID.bIsOK"/>
 		END_VAR;
-				//! <Function Comment="Methode to execute a Read-DA to Module." Name="ReadDirect"/>
+				//! <Function Comment="Method to execute a Read-DA to Module." Name="ReadDirect"/>
 	FUNCTION ReadDirect
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="ReadDirect.hOffset"/>
 			usLength 	: USINT;			//! <Variable Comment="Length of Data." Name="ReadDirect.usLength"/>
 			pData 	: pVoid;			//! <Variable Comment="Pointer to Memory for the Read-Data." Name="ReadDirect.pData"/>
 		END_VAR;
-				//! <Function Comment="Methode to execute a Write-DA to Module." Name="WriteDirect"/>
+				//! <Function Comment="Method to execute a Write-DA to Module." Name="WriteDirect"/>
 	FUNCTION WriteDirect
 		VAR_INPUT
 			hOffset 	: HINT;			//! <Variable Comment="Address-Offset in Module." Name="WriteDirect.hOffset"/>
 			usLength 	: USINT;			//! <Variable Comment="Length of Data." Name="WriteDirect.usLength"/>
 			pData 	: pVoid;			//! <Variable Comment="Pointer of Data to Write." Name="WriteDirect.pData"/>
 		END_VAR;
-				//! <Function Comment="Methode to receive the Response in case of SDO-Communication." Name="ReceiveSDOResponse"/>
+				//! <Function Comment="Method to receive the Response in case of SDO-Communication." Name="ReceiveSDOResponse"/>
 	FUNCTION VIRTUAL ReceiveSDOResponse
 		VAR_INPUT
 			eCommand 	: t_SDIAS_SDO_Cmd;			//! <Variable Comment="Type of SDO-Command" Name="ReceiveSDOResponse.eCommand"/>
@@ -610,9 +618,9 @@ SdiasBase : CLASS
 			ResponseLength 	: USINT;			//! <Variable Comment="Size of the ResponseBuffer." Name="ReceiveSDOResponse.ResponseLength"/>
 		END_VAR
 		VAR_OUTPUT
-			ret_code 	: iprStates;			//! <Variable Comment="Indicates if the Methode was successful." Name="ReceiveSDOResponse.ret_code"/>
+			ret_code 	: iprStates;			//! <Variable Comment="Indicates if the Method was successful." Name="ReceiveSDOResponse.ret_code"/>
 		END_VAR;
-				//! <Function Comment="Methode can be used for a CRC16 Calculation." Name="CheckSum_16"/>
+				//! <Function Comment="Method can be used for a CRC16 Calculation." Name="CheckSum_16"/>
 	FUNCTION GLOBAL CheckSum_16
 		VAR_INPUT
 			pData 	: ^UINT;			//! <Variable Comment="Pointer to Data for the Calculation." Name="CheckSum_16.pData"/>
@@ -622,7 +630,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			uiCRCCalculation 	: UINT;			//! <Variable Comment="Result of the Calculation." Name="CheckSum_16.uiCRCCalculation"/>
 		END_VAR;
-				//! <Function Comment="Methode to get this-Pointer of Object in HardwareTree." Name="GetObjectThisp"/>
+				//! <Function Comment="Method to get this-Pointer of Object in HardwareTree." Name="GetObjectThisp"/>
 	FUNCTION VIRTUAL GetObjectThisp
 		VAR_INPUT
 			pObjectPath 	: ^USINT;			//! <Variable Comment="Objectpath of the Module." Name="GetObjectThisp.pObjectPath"/>
@@ -630,16 +638,16 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			pThis 	: UDINT;			//! <Variable Comment="This-Pointer of Object." Name="GetObjectThisp.pThis"/>
 		END_VAR;
-				//! <Function Comment="Methode to set this-Pointer of Object in HardwareTree." Name="SetObjectThisp"/>
+				//! <Function Comment="Method to set this-Pointer of Object in HardwareTree." Name="SetObjectThisp"/>
 	FUNCTION VIRTUAL SetObjectThisp
 		VAR_INPUT
 			pObjectPath 	: ^USINT;			//! <Variable Comment="Objectpath of the Module." Name="SetObjectThisp.pObjectPath"/>
 			pThis 	: UDINT;			//! <Variable Comment="This-Pointer of Object." Name="SetObjectThisp.pThis"/>
 		END_VAR
 		VAR_OUTPUT
-			dRetcode 	: DINT;			//! <Variable Comment="Indicates if the call of the Methode was successful." Name="SetObjectThisp.dRetcode"/>
+			dRetcode 	: DINT;			//! <Variable Comment="Indicates if the call of the Method was successful." Name="SetObjectThisp.dRetcode"/>
 		END_VAR;
-				//! <Function Comment="Call this Methode to get the Pointer to the Objectpath of this Module." Name="GetPointer2ObjectPath"/>
+				//! <Function Comment="Call this Method to get the Pointer to the Objectpath of this Module." Name="GetPointer2ObjectPath"/>
 	FUNCTION VIRTUAL GLOBAL GetPointer2ObjectPath
 		VAR_INPUT
 			pThisPointerOverride 	: pVirtualBase := NIL;
@@ -721,7 +729,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			dRetCode 	: iprStates;
 		END_VAR;
-	
+				//! <Function Comment="This Method should be used, to get the DeviceID of the Module." Name="GetDeviceID"/>
 	FUNCTION VIRTUAL GLOBAL GetDeviceID
 		VAR_OUTPUT
 			output 	: UDINT;
@@ -732,7 +740,7 @@ SdiasBase : CLASS
 			pData 	: ^CHAR;
 			Length 	: UDINT;
 		END_VAR;
-				//! <Function Comment="Methode can be used for calculation the spi checksum.&#13;&#10;The checksum is a simple adding of each byte.&#13;&#10;Checksum Calculation:&#13;&#10;Data: 16#12345678&#13;&#10;Checksum: 16#12 + 16#34 + 16#56 + 16#78 = 16#114" Name="CheckSum_SPI"/>
+				//! <Function Comment="Method can be used for calculation the spi checksum.&#13;&#10;The checksum is a simple adding of each byte.&#13;&#10;Checksum Calculation:&#13;&#10;Data: 16#12345678&#13;&#10;Checksum: 16#12 + 16#34 + 16#56 + 16#78 = 16#114" Name="CheckSum_SPI"/>
 	FUNCTION GLOBAL CheckSum_SPI
 		VAR_INPUT
 			pData 	: ^USINT;			//! <Variable Comment="Pointer to Data for the Calculation." Name="CheckSum_SPI.pData"/>
@@ -747,7 +755,7 @@ SdiasBase : CLASS
 		VAR_OUTPUT
 			HWTimeStamp 	: UINT;			//! <Variable Comment="Hardware Timestamp:&#13;&#10;0 - 65535 [µs]&#13;&#10;Constantly 0 Error, Timestamp could not be determined." Name="GetHWTimeStamp.HWTimeStamp"/>
 		END_VAR;
-				//! <Function Comment="Methode to set a Text with Parameters as Log-Message." Name="LogValue"/>
+				//! <Function Comment="Method to set a Text with Parameters as Log-Message." Name="LogValue"/>
 	FUNCTION VIRTUAL LogValue
 		VAR_INPUT
 			pString 	: ^CHAR;			//! <Variable Comment="Pointer to Log-Message." Name="LogValue.pString"/>
@@ -755,7 +763,7 @@ SdiasBase : CLASS
 			udValue2 	: UDINT := 16#FFFFFFFF;			//! <Variable Comment="ParameterValue 2 which is added to Log-Message.&#13;&#10;&#13;&#10;16#FFFFFFFF =&gt; Value is not used." Name="LogValue.udValue2"/>
 			udValue3 	: UDINT := 16#FFFFFFFF;			//! <Variable Comment="ParameterValue 3 which is added to Log-Message.&#13;&#10;&#13;&#10;16#FFFFFFFF =&gt; Value is not used." Name="LogValue.udValue3"/>
 		END_VAR;
-				//! <Function Comment="Methode to set directly a Text as Log-Message." Name="LogError"/>
+				//! <Function Comment="Method to set directly a Text as Log-Message." Name="LogError"/>
 	FUNCTION VIRTUAL LogError
 		VAR_INPUT
 			pMsg 	: ^CHAR;			//! <Variable Comment="Pointer to Log-Message." Name="LogError.pMsg"/>
@@ -768,17 +776,17 @@ SdiasBase : CLASS
 			pTxt1 	: ^CHAR;
 			pTxt2 	: ^CHAR;
 		END_VAR;
-				//! <Function Comment="Methode to add dataobjects for spi write access. Is only needed for function WriteSPIData()." Name="SPIWriteAddAccesses"/>
+				//! <Function Comment="Method to add dataobjects for spi write access. Is only needed for function WriteSPIData()." Name="SPIWriteAddAccesses"/>
 	FUNCTION VIRTUAL SPIWriteAddAccesses
 		VAR_OUTPUT
 			eModuleInitState 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to get the state of spi write." Name="SPIWriteGetState"/>
+				//! <Function Comment="Method to get the state of spi write." Name="SPIWriteGetState"/>
 	FUNCTION VIRTUAL SPIWriteGetState
 		VAR_OUTPUT
 			retcode 	: iprStates;
 		END_VAR;
-				//! <Function Comment="Methode to write data into spi flash of modul." Name="WriteSPIData"/>
+				//! <Function Comment="Method to write data into spi flash of modul." Name="WriteSPIData"/>
 	FUNCTION VIRTUAL WriteSPIData
 		VAR_INPUT
 			usSectorNumber 	: USINT;			//! <Variable Comment="Sector number in which the data should be written. One sector has a size of 64 kByte." Name="WriteSPIData.usSectorNumber"/>
@@ -795,6 +803,22 @@ SdiasBase : CLASS
 	FUNCTION VIRTUAL SPIWriteUpdateRt;
 	
 	FUNCTION VIRTUAL SPIWriteUpdateCy;
+				//! <Function Comment="Implementation of NewInst SDIAS_CLT_GET_POINTER2SERVER&#13;&#10;Returns a pointer to the server identified by the passed string. &#13;&#10;Returns NIL if server was not found.&#13;&#10;" Name="GetServerPointer"/>
+	FUNCTION VIRTUAL GetServerPointer
+		VAR_INPUT
+			ServerName 	: ^CHAR;
+		END_VAR
+		VAR_OUTPUT
+			ServerPointer 	: ^SvrCh;
+		END_VAR;
+				//! <Function Comment="Implementation of NewInst SDIAS_CLT_SET_ERRORQUIT.&#13;&#10;NewInst is called by alarm classes and must be implemented in derived classes." Name="SetErrorQuit"/>
+	FUNCTION VIRTUAL SetErrorQuit
+		VAR_INPUT
+			Input 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
 	
 	FUNCTION VIRTUAL GLOBAL ClassState::NewInst
 		VAR_INPUT
@@ -852,7 +876,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB SdiasBase::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SDIASBASE
-1$UINT, 60$UINT, (SIZEOF(::SdiasBase))$UINT, 
+2$UINT, 0$UINT, (SIZEOF(::SdiasBase))$UINT, 
 8$UINT, 5$UINT, 0$UINT, 
 TO_UDINT(3175101883), "SdiasBase", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -874,7 +898,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 END_FUNCTION
 
 
-#define USER_CNT_SdiasBase 25
+#define USER_CNT_SdiasBase 27
 
 TYPE
 	_LSL_STD_VMETH	: STRUCT
@@ -993,6 +1017,14 @@ FUNCTION SdiasBase::@STD
 #pragma warning (default : 74)
 #pragma warning (disable : 74)
 	vmt.UserFcts[24]		:= #SPIWriteUpdateCy();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[25]		:= #GetServerPointer();
+
+#pragma warning (default : 74)
+#pragma warning (disable : 74)
+	vmt.UserFcts[26]		:= #SetErrorQuit();
 
 #pragma warning (default : 74)
 	ClassState.pMeth		:= StoreCmd (pCmd := #vmt.CmdTable, SHARED);
@@ -1517,6 +1549,49 @@ FUNCTION VIRTUAL GLOBAL SdiasBase::ClassState::NewInst
       ret_code := READY;
       pResult^.uiLng := sizeof(UINT);
       pResult^.aData[0]$UINT := Place$UINT;
+      
+//**********************************************************************************************************************************************************
+    SDIAS_CLT_CHECKDEVICEID:
+      
+      pResult^.uiLng := 0;
+      ret_code := ERROR;
+      //Check version number
+      if pPara^.aPara[0]$DINT = 1 then
+      
+        pResult^.uiLng          := 5;
+        pResult^.aData[0]$DINT  := 1;
+        pResult^.aData[4]$BOOL  := CheckDeviceID(udID2Check:=pPara^.aPara[1]$UDINT);
+        ret_code := READY;
+      end_if;
+
+      
+//**********************************************************************************************************************************************************
+    SDIAS_CLT_GET_POINTER2SERVER:
+      
+      pResult^.uiLng := 0;
+      ret_code := ERROR;
+      //Check version number
+      if pPara^.aPara[0]$DINT = 1 then
+      
+        pResult^.uiLng            := 8;
+        pResult^.aData[0]$DINT    := 1;
+        pResult^.aData[4]$^SvrCh  := GetServerPointer(ServerName:=pPara^.aPara[1]$^Char);
+        ret_code := READY;
+      end_if;
+
+//**********************************************************************************************************************************************************
+    SDIAS_CLT_SET_ERRORQUIT:
+      
+      pResult^.uiLng := 0;
+      ret_code := ERROR;
+      //Check version number
+      if pPara^.aPara[0]$DINT = 1 then
+      
+        pResult^.uiLng            := 8;
+        pResult^.aData[0]$DINT    := 1;
+        pResult^.aData[4]$DINT    := SetErrorQuit(Input:=pPara^.aPara[1]$DINT);
+        ret_code := READY;
+      end_if;
 
   ELSE
     // we forward this message to the SDIAS Manager
@@ -2105,7 +2180,7 @@ FUNCTION VIRTUAL SdiasBase::ReceiveSDOResponse
 //*****************************************************************************
 
   else
-    // an error occured while performing the operation
+    // an error occurred while performing the operation
     
     // save the error information
     eLastErrorInfo.Offset := hOffset;
@@ -2982,7 +3057,7 @@ FUNCTION VIRTUAL SdiasBase::SPIWriteGetState
   retcode := BUSY;
   
   if sSPIVars.bsFinished.Error then
-    //error occured while write spi data
+    //error occurred while write spi data
     retcode := ERROR;
   elsif sSPIVars.bsFinished.Finished then
     //write spi has finished
@@ -3746,7 +3821,7 @@ FUNCTION VIRTUAL SdiasBase::SPIWriteUpdateRt
       sSPIVars.eSPIWriteSSW := _SPIWrite_Idle;        
       //spi write has finished
       sSPIVars.bsFinished.Finished := 1;
-      //check if an error occured while spi write
+      //check if an error occurred while spi write
       if sSPIVars.eSPIWriteSSWError <> sSPIVars.eSPIWriteSSW then
         //error occurred while spi access - act error step is saved at sSPIVars.eSPIWriteSSWError 
         sSPIVars.bsFinished.Error := 1;
@@ -3954,5 +4029,67 @@ FUNCTION SdiasBase::UnlockSPIAccess
   //reset lock bit if compare value is ok
   sigclib_atomic_cmpxchgU32(pValue:=#sSPIAccess.eSPIAccessProtect$UDINT, cmpVal:=udAccessID, newVal:=_NotLocked);
   dRetCode := READY;
+
+END_FUNCTION
+
+FUNCTION VIRTUAL SdiasBase::GetServerPointer
+	VAR_INPUT
+		ServerName 	: ^CHAR;
+	END_VAR
+	VAR_OUTPUT
+		ServerPointer 	: ^SvrCh;
+	END_VAR
+  VAR
+    pstr : ^CHAR;
+  	str : array [0..SDIAS_TEMP_STRING_SIZE-1] of char;
+    ChannelMode : CHMODE;
+  END_VAR
+  
+  ServerPointer := NIL;
+  
+  if ServerName then
+    
+    // Get String of Object Name
+    pstr := LSL_GetObjName(pThis:=this);
+    
+    if pstr then
+      if (sigclib_strlen(str:=pstr) + sizeof(CHAR) + sigclib_strlen(str:=ServerName)) < (sizeof(str)-1) then // -1 for zero termination, sizeof(CHAR) = sigclib_strlen(str:=".") 
+      
+        // Make Objectname.Servername
+        sigclib_strcpy(dst0 :=#str[0], src0:=pstr);
+        sigclib_strcat(ps1  :=#str[0], ps2:=".");
+        sigclib_strcat(ps1  :=#str[0], ps2:=ServerName);
+        
+        // Look for Pointer
+        ChannelMode := _LookUpEmbed_C(pText:=#str[0], pObj_ch:=#ServerPointer, pObj:=nil);
+
+        // check if it's a server
+        case ChannelMode of
+          _CH_CMD,
+          _CH_SVR:
+          
+        else
+          ServerPointer := NIL;
+          HWC_LogPrintf(pThis:=this, format:="@0480 (SdiasBase::GetServerPointer) Couldn't get thispointer of server: %s" , p0:=ServerName);
+        end_case;
+      
+      end_if;
+    
+    end_if;
+  
+  end_if;
+
+END_FUNCTION
+
+FUNCTION VIRTUAL SdiasBase::SetErrorQuit
+	VAR_INPUT
+		Input 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+  
+  //Method has to be overwritten in derived classes to implement
+  Result := Input ;
 
 END_FUNCTION

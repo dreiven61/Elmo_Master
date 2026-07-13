@@ -7,7 +7,7 @@
 (*!
 <Class
 	Name               = "EtherCAT_Hub_Base"
-	Revision           = "1.1"
+	Revision           = "1.2"
 	GUID               = "{384A2673-3A30-4E8A-A3B6-428F8B653E62}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -34,10 +34,14 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="EisMic"/>
+		<Dokumentation Revision="1.2" Date="2026-04-10" Author="LanSte" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.1" Date="27.05.2024" Author="LanSte" Company="Sigmatek" Description="Added Support for HW-Paths and LVDS Bus."/>
 		<Dokumentation Revision="1.0" Date="09.04.2020" Author="EisMic" Company="Sigmatek" Description="First release version"/>
 		<Dokumentation Revision="0.1" Date="17.05.2019" Author="EisMic" Company="Sigmatek" Description="First test version."/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 EtherCAT_Hub_Base : CLASS
@@ -72,7 +76,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB EtherCAT_Hub_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_ETHERCAT_HUB_BASE
-1$UINT, 1$UINT, (SIZEOF(::EtherCAT_Hub_Base))$UINT, 
+1$UINT, 2$UINT, (SIZEOF(::EtherCAT_Hub_Base))$UINT, 
 1$UINT, 3$UINT, 0$UINT, 
 TO_UDINT(1021147964), "EtherCAT_Hub_Base", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

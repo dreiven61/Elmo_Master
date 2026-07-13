@@ -16,7 +16,7 @@
 (*!
 <Class
 	Name               = "SafetyManager"
-	Revision           = "2.30"
+	Revision           = "3.0"
 	GUID               = "{186EBAC0-5F71-4A3F-BA36-ED9EA68EA059}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -39,6 +39,7 @@
 		<Server Name="MinSyncDuration" GUID="{697A1FC7-1D68-4539-AE59-3800B4CF8373}" Visualized="true" Initialize="false" WriteProtected="false" Retentive="false" Comment="Shows minimum value of server SyncDuration"/>
 		<Server Name="SyncDuration" GUID="{58439908-A73E-4D89-8216-1483D81B8572}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Time of last complete synchronisation cycle in ms (only the Master has this information)"/>
 		<Client Name="SafetyDomainTimeout" Required="false" Internal="false" Comment="[ms] the class has to wait for optional interface domains (leave 0 if none available)&#13;&#10;Set this client to 1 when using FlexCon functionality (without interface domains) where it&apos;s possible that not all participants are available at all times"/>
+		<Client Name="SafetyRoutingTables1" Required="true" Internal="true"/>
 		<Client Name="To_HwControl" Required="true" Internal="false"/>
 		<Client Name="To_MultiTask" Required="false" Internal="false"/>
 		<Client Name="To_OSKernel" Required="false" Internal="false"/>
@@ -58,6 +59,8 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="3.0" Date="04.04.2025" Author="LanSte" Company="Sigmatek" Description="Added Support for ECAT Safety."/>
+		<Dokumentation Revision="2.31" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.30" Date="2025-10-15" Author="RamAnd" Company="Sigmatek" Description="Added possibility to override the UDP scheduler settings and also read back the override values."/>
 		<Dokumentation Revision="2.29" Date="30.09.2025" Author="RamAnd" Company="Sigmatek" Description="When an established interface write connection via UDP has its communication counterpart exchanged, the stored safety number is now updated to enable routing to the new module."/>
 		<Dokumentation Revision="2.28" Date="27.09.2024" Author="RamAnd" Company="Sigmatek" Description="SafetyDomainTimeout now also sets the timeout to wait for optional UDP interface frames.&#13;&#10;Mapping of PDOs in the VBC/VMC memory could have been wrong which would prevent the routing of the safety PDOs.&#13;&#10;Prevented access to uninitialized pointer when an optional reading interface frame via VBC/VMC was not available that could have lead to a crash.&#13;&#10;Prevent sending the current interface frame configuration to the counterparts too fast which could cause problems with the SDO buffer.&#13;&#10;The startup of multiple stations connected via VBC/VMC has been reworked to speed up the connection establishment.&#13;&#10;The number of possible internal interface frames has been increased from 10 to 100.&#13;&#10;The maximum number of interface frame informations from other stations has been increased from 150 to 500."/>
@@ -126,6 +129,16 @@
 				</Channels>
 			</Object>
 			<Object
+				Name       = "SafetyRoutingTables1"
+				GUID       = "{FB539BE3-0F69-4EC4-AC65-5BF0BA840880}"
+				Class      = "SafetyRoutingTables"
+				Position   = "(210,1020)"
+				Visualized = "false">
+				<Channels>
+					<Server Name="ClassSvr"/>
+				</Channels>
+			</Object>
+			<Object
 				Name       = "UdpReceiveData"
 				GUID       = "{AEB21C96-66F3-41BB-AF8B-4D8748F3E760}"
 				Class      = "CriticalSection"
@@ -162,11 +175,15 @@
 			<Connection Source="_base.InterfaceNo" Destination="this.InterfaceNo" Vertices="(218,330),(38,270),"/>
 			<Connection Source="this.UdpSendData" Destination="UdpSendData.ClassSvr"/>
 			<Connection Source="this.UdpReceiveData" Destination="UdpReceiveData.ClassSvr"/>
+			<Connection Source="this.SafetyRoutingTables1" Destination="SafetyRoutingTables1.ClassSvr"/>
 		</Connections>
 		<!-- Headerfiles -->
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using SafetyUDP
@@ -724,6 +741,7 @@ SafetyManager : CLASS
 	UdpSafetyResponseTimeout 	: CltCh_UDINT;
 	UdpSendData 	: CltChCmd_CriticalSection;
 	UdpReceiveData 	: CltChCmd_CriticalSection;
+	SafetyRoutingTables1 	: CltChCmd_SafetyRoutingTables;
   //Variables:
 		InitSSW 	: t_InitSSW;			//! <Variable Comment="initialisation state machine (mostly relevant for the master) which is handled in CyWork()" Name="InitSSW"/>
 		pFirstManagingInterfaceComponent 	: ^t_ManagingComponent;			//! <Variable Comment="linked list with all logged in management modules (for interface frames)" Name="pFirstManagingInterfaceComponent"/>
@@ -1406,6 +1424,7 @@ SafetyManager : CLASS
 END_CLASS;
 
 #pragma using CriticalSection
+#pragma using SafetyRoutingTables
 #pragma usingLtd _MultiTask
 #pragma usingLtd _OSKernel
 #pragma usingLtd HwControlBase
@@ -1417,17 +1436,17 @@ END_CLASS;
 FUNCTION GLOBAL TAB SafetyManager::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SAFETYMANAGER
-2$UINT, 30$UINT, (SIZEOF(::SafetyManager))$UINT, 
-4$UINT, 8$UINT, 0$UINT, 
+3$UINT, 0$UINT, (SIZEOF(::SafetyManager))$UINT, 
+4$UINT, 9$UINT, 0$UINT, 
 TO_UDINT(1799751072), "SafetyManager", //Class
-TO_UDINT(3727715967), "SafetyUDP", 1$UINT, 4$UINT, //Baseclass
+TO_UDINT(3727715967), "SafetyUDP", 1$UINT, 5$UINT, //Baseclass
 //Servers:
 (::SafetyManager.LoginCnt.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3842434630), "LoginCnt", 
 (::SafetyManager.MinSyncDuration.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1133920085), "MinSyncDuration", 
 (::SafetyManager.SyncDuration.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1910597126), "SyncDuration", 
 (::SafetyManager.MaxSyncDuration.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1680693348), "MaxSyncDuration", 
 //Clients:
-(::SafetyManager.To_HwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1012711711), "To_HwControl", TO_UDINT(1193052171), "HwControlBase", 1$UINT, 10$UINT, 
+(::SafetyManager.To_HwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1012711711), "To_HwControl", TO_UDINT(1193052171), "HwControlBase", 1$UINT, 11$UINT, 
 (::SafetyManager.To_OSKernel.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2681344549), "To_OSKernel", TO_UDINT(3045737964), "_OSKernel", 0$UINT, 5$UINT, 
 (::SafetyManager.To_MultiTask.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2145650779), "To_MultiTask", TO_UDINT(2641766936), "_MultiTask", 1$UINT, 1$UINT, 
 (::SafetyManager.SafetyDomainTimeout.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(1863305286), "SafetyDomainTimeout", 
@@ -1435,6 +1454,7 @@ TO_UDINT(3727715967), "SafetyUDP", 1$UINT, 4$UINT, //Baseclass
 (::SafetyManager.UdpSafetyResponseTimeout.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(3847699041), "UdpSafetyResponseTimeout", 
 (::SafetyManager.UdpSendData.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1760877699), "UdpSendData", TO_UDINT(794617671), "CriticalSection", 0$UINT, 4$UINT, 
 (::SafetyManager.UdpReceiveData.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3423267838), "UdpReceiveData", TO_UDINT(794617671), "CriticalSection", 0$UINT, 4$UINT, 
+(::SafetyManager.SafetyRoutingTables1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(667209087), "SafetyRoutingTables1", TO_UDINT(3387336038), "SafetyRoutingTables", 1$UINT, 0$UINT, 
 END_FUNCTION
 
 
@@ -2801,7 +2821,17 @@ FUNCTION VIRTUAL GLOBAL SafetyManager::ClassState::NewInst
       
 //**********************************************************************************************************************************************************      
   else
-    bd_LogRtMessagesInCy.InvalidCommandReceived := TRUE;
+  
+    if (pPara^.uiCmd >= CMD_SM_TABLE_MIN) &  
+       (pPara^.uiCmd <= CMD_SM_TABLE_MAX) then
+    
+      ret_code := SafetyRoutingTables1.ClassSvr.NewInst(pPara:=pPara, pResult:=pResult);
+      return;
+      
+    else
+      bd_LogRtMessagesInCy.InvalidCommandReceived := TRUE;
+    end_if;
+    
   END_CASE;
 
 #ifdef SAFETY_DEBUG_LOGGING_ACTIVATED
@@ -4123,7 +4153,7 @@ FUNCTION SafetyManager::AllManagingNodesSynchron
             if (IsTimeSyncMaster = 0) & pHelpManaging^.InfoBits.IsConnectionToMaster then
               // we have to be our own master now
               IsTimeSyncMaster := 1;
-            end_if;            
+            end_if;
           else
             if (SafetyDomainTimeout = 0) then
               // optional part not available and no timeout set => potential configuration error 
@@ -7509,12 +7539,12 @@ END_FUNCTION
 
 
 FUNCTION SafetyManager::StoreInterfaceRoutingList
-	VAR_INPUT
-		pPara 	: ^CmdStruct;
-		pResult 	: ^results;
+  VAR_INPUT
+    pPara 	: ^CmdStruct;
+    pResult 	: ^results;
 		pHelpManaging 	: ^t_ManagingComponent;
-		IsFSoE 	: BOOL;
-	END_VAR
+    IsFSoE 	: BOOL;
+  END_VAR
 	VAR_OUTPUT
 		IFDataChanged 	: BOOL;
 	END_VAR
@@ -7666,7 +7696,7 @@ FUNCTION SafetyManager::StoreInterfaceRoutingList
         // check if it's from the same managing component
         if aInterfaceFrameInfos[i].pThisManaging$DINT = pPara^.aPara[2] then
           // remove it
-
+          
           // move the following blocks over this one (if it's not the last)
           if i$UDINT < InterfaceFrameNo-1 then
             for j := i to (InterfaceFrameNo-2) do
@@ -7758,7 +7788,7 @@ FUNCTION SafetyManager::StoreInterfaceRoutingList
         HWC_LogPrintf(pThis:=this, format:="@DBG (SafetyManager::StoreInterfaceRoutingList) Old: %x; %V1; %V1; %V1; %V1 ", #TempModuleInfo[i].SafetyNbr, #TempModuleInfo[i].InfoBits, #TempModuleInfo[i].Reserved[0], #TempModuleInfo[i].Reserved[1], #TempModuleInfo[i].Reserved[2]  );
         HWC_LogPrintf(pThis:=this, format:="@DBG (SafetyManager::StoreInterfaceRoutingList) New: %x; %V1; %V1; %V1; %V1 ", #pHelpManaging^.ModuleInfo[i].SafetyNbr, #pHelpManaging^.ModuleInfo[i].InfoBits, #pHelpManaging^.ModuleInfo[i].Reserved[0], #pHelpManaging^.ModuleInfo[i].Reserved[1], #TempModuleInfo[i].Reserved[2]  );
       end_for;
-    end_if; 
+    end_if;
   end_if;
 #endif 
 
@@ -9749,7 +9779,8 @@ FUNCTION SafetyManager::CreateFSoEPDOs
       
       ConnectionsAvailable += 1;
       
-      if pHelpConnectionManager^.Flags.FSoESlaveHasNoConfig & pHelpConnectionManager^.Flags.IsMaster then
+      if (pHelpConnectionManager^.Flags.FSoESlaveHasNoConfig | pHelpConnectionManager^.Flags.HWPathIsFSoEAddr)
+          & pHelpConnectionManager^.Flags.IsMaster then
 
         if pHelpConnectionManager^.InternalConnectionState = FCS_RESET then
           ShareSingleConnectionInfos(pHelpConnectionManager, pHelpConfigManager^.pFirstModuleCfg);
@@ -10362,7 +10393,7 @@ FUNCTION SafetyManager::FinalizePDOMapping
     LogStr            : ARRAY [0..255] OF CHAR;
 #endif
   END_VAR
-   
+  
   // check the FSoE Infos from the other side
   if IFFSoENo then
     // if there is more than 1 entry
@@ -11137,7 +11168,7 @@ FUNCTION SafetyManager::CheckLocalSlaveAddresses
 #ifdef SM_CHECK_CON_STATE_AND_SLAVE_ADDRESS    
       if (pActConnection^.ConnectionState = FCS_NOT_INITIALIZED) & (pActConnection^.SlaveAddress = 0) then     
 #else
-      if (pActConnection^.ConnectionState = FCS_NOT_INITIALIZED) then     
+      if (pActConnection^.ConnectionState = FCS_NOT_INITIALIZED) then
 #endif
         // as soon as we find a not initialized connection => leave
         return;
@@ -11572,9 +11603,9 @@ FUNCTION SafetyManager::ReceiveUdpData
               end_if;
               
               // found the connection => stop searching
-              FoundConnection := TRUE;
-              exit;
-            end_if;
+                FoundConnection := TRUE;
+                exit;
+              end_if;
             
             pActConnection += sizeof(t_UdpConnection);
           end_for;
@@ -12735,7 +12766,7 @@ FUNCTION SafetyManager::SetUdpSchedulerGrid
       bd_SingleLog.SetUdpResponseTimeoutFailed := TRUE;
     end_if;
   end_if;
-  
+
   // if the override values are set => activate them here to override all other settings
   if sUdpVars.udOverrideCycleTime then
     // set the scheduler grid for requests and resonses according to the override value
@@ -13129,30 +13160,35 @@ FUNCTION SafetyManager::ShareSingleConnectionInfos
   // search for the slave config via the path stored in the connection  
   pSlaveModuleCfg   := NIL;
   pActModuleCfg     := pModuleConfig;
-  while pActModuleCfg do
-    if (pActModuleCfg^.ModuleInfo.pPath^ = pMasterConnection^.pSlavePath^) &
-       (To_StdLib.MemCmp(pActModuleCfg^.ModuleInfo.pPath+1, pMasterConnection^.pSlavePath+1, pMasterConnection^.pSlavePath^+1) = 0) then
+  
+  if pMasterConnection^.Flags.HWPathIsFSoEAddr = 0 then // Do not check in this case because Slave Module does not exist in the SCP configuration
+  
+    while pActModuleCfg do
+      if (pActModuleCfg^.ModuleInfo.pPath^ = pMasterConnection^.pSlavePath^) &
+         (To_StdLib.MemCmp(pActModuleCfg^.ModuleInfo.pPath+1, pMasterConnection^.pSlavePath+1, pMasterConnection^.pSlavePath^+1) = 0) then
+        
+        pSlaveModuleCfg := pActModuleCfg;
+        exit;
+      end_if;
       
-      pSlaveModuleCfg := pActModuleCfg;
-      exit;
+      pActModuleCfg := pActModuleCfg^.pNext;
+    end_while;
+  
+    if pSlaveModuleCfg = NIL then
+      return;
     end_if;
-    
-    pActModuleCfg := pActModuleCfg^.pNext;
-  end_while;
-
-  if pSlaveModuleCfg = NIL then
-    return;
   end_if;
 
   // get the object this pointers via the hardware paths
   pMasterSafety := NIL;
   pSlaveSafety  := NIL;
 
+  // Search for Master Object
   pHelpSafety := pFirstSafetyComponent;
   while pHelpSafety do
     if pHelpSafety^.PathLen & 
        (pMasterModuleCfg^.ModuleInfo.pPath^ = pHelpSafety^.pPath^) & 
-       (To_StdLib.MemCmp(pHelpSafety^.pPath + 1, pMasterModuleCfg^.ModuleInfo.pPath + 2 + pMasterModuleCfg^.ModuleInfo.pPath^ - pHelpSafety^.pPath^, pHelpSafety^.pPath^) = 0) then
+       (To_StdLib.MemCmp(pHelpSafety^.pPath + 1, pMasterModuleCfg^.ModuleInfo.pPath + 2, pHelpSafety^.pPath^) = 0) then
       pMasterSafety := pHelpSafety;
       exit;
     else
@@ -13160,17 +13196,31 @@ FUNCTION SafetyManager::ShareSingleConnectionInfos
     end_if;
   end_while;
 
+  // Search for Slave Object
   pHelpSafety := pFirstSafetyComponent;
-  while pHelpSafety do
-    if pHelpSafety^.PathLen & 
-       (pSlaveModuleCfg^.ModuleInfo.pPath^ = pHelpSafety^.pPath^) & 
-       (To_StdLib.MemCmp(pHelpSafety^.pPath + 1, pSlaveModuleCfg^.ModuleInfo.pPath + 2 + pSlaveModuleCfg^.ModuleInfo.pPath^ - pHelpSafety^.pPath^, pHelpSafety^.pPath^) = 0) then
-      pSlaveSafety := pHelpSafety;
-      exit;
-    else
-      pHelpSafety := pHelpSafety^.pNext;
-    end_if;
-  end_while;
+  if pMasterConnection^.Flags.HWPathIsFSoEAddr = 0 then // Do not check pSlaveModuleCfg this case because Slave Module does not exist in the SCP configuration
+    while pHelpSafety do
+      if pHelpSafety^.PathLen & 
+         (pSlaveModuleCfg^.ModuleInfo.pPath^ = pHelpSafety^.pPath^) & 
+         (To_StdLib.MemCmp(pHelpSafety^.pPath + 1, pSlaveModuleCfg^.ModuleInfo.pPath + 2, pHelpSafety^.pPath^) = 0) then
+        pSlaveSafety := pHelpSafety;
+        exit;
+      else
+        pHelpSafety := pHelpSafety^.pNext;
+      end_if;
+    end_while;
+  else
+    while pHelpSafety do
+      if pHelpSafety^.PathLen & 
+         (pMasterConnection^.pSlavePath^ = pHelpSafety^.pPath^) & 
+         (To_StdLib.MemCmp(pHelpSafety^.pPath + 1, pMasterConnection^.pSlavePath + 2, pHelpSafety^.pPath^) = 0) then
+        pSlaveSafety := pHelpSafety;
+        exit;
+      else
+        pHelpSafety := pHelpSafety^.pNext;
+      end_if;
+    end_while;
+  end_if;
 
   if pMasterSafety & pSlaveSafety then
     

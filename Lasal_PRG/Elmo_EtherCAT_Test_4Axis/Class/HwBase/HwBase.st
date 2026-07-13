@@ -23,7 +23,7 @@
 (*!
 <Class
 	Name               = "HwBase"
-	Revision           = "2.36"
+	Revision           = "2.37"
 	GUID               = "{97E357E5-4B1A-11D6-AB3C-00106092052D}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -54,6 +54,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="SilBer"/>
+		<Dokumentation Revision="2.37" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.36" Date="18.12.2020" Author="RamAnd" Company="Sigmatek" Description="Removed CLI/STI occurances in internal time measurements"/>
 		<Dokumentation Revision="2.35" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
 		<Dokumentation Revision="2.34" Date="23.01.2018" Author="RamAnd" Company="Sigmatek" Description="Log messages have been standardized for easier maintenance, easier use in any class and to allow spam filtering. Code for the logging functions is now only located in HwControl."/>
@@ -73,6 +74,9 @@
 		<Dokumentation Revision="2.2" Date="04.03.2010" Author="BleErn" Company="Sigmatek" Description="Changed order of methods"/>
 		<Dokumentation Revision="2.1" Date="08.02.2010" Author="BleErn" Company="Sigmatek" Description="New virtual method UpdateRtPostScan&#13;&#10;New method SetUpdateRtPostScan"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 HwBase : CLASS
@@ -264,7 +268,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB HwBase::@CT_
 0$UINT,
 2#0010000000000000$UINT, //TY_HWBASE
-2$UINT, 36$UINT, (SIZEOF(::HwBase))$UINT, 
+2$UINT, 37$UINT, (SIZEOF(::HwBase))$UINT, 
 2$UINT, 4$UINT, 0$UINT, 
 TO_UDINT(262141616), "HwBase", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -272,7 +276,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::HwBase.State.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(1422331979), "State", 
 (::HwBase.RetryCounter.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3383993698), "RetryCounter", 
 //Clients:
-(::HwBase.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(3069482179), "DiasMasterC", 1$UINT, 83$UINT, 
+(::HwBase.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(3069482179), "DiasMasterC", 1$UINT, 84$UINT, 
 (::HwBase.Place.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(2202636669), "Place", 
 (::HwBase.Required.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(648558917), "Required", 
 (::HwBase.To_StdLib.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2139173287), "To_StdLib", TO_UDINT(3689364044), "_StdLib", 2$UINT, 0$UINT, 

@@ -106,6 +106,8 @@
 #define SM_MaxObjNameLen  256
 #include "..\..\Class\SafetyManager\SafetyManager.h"
 #include "..\..\Source\interfaces\lsl_st_safetydll.h"
+//Define part of class SafetyRoutingTables
+#define SRT_MAXIDX 15 // Currently there are 2 Tables for each Eni File / EtherMaster
 //Define part of class SdiasManager
 #define SDIAS_SDO_MAX_LENGTH              128
 #define SDIAS_SDO_RINGBUFFER_NO            64
@@ -242,32 +244,33 @@ FUNCTION GLOBAL TAB ONE_HW_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-25$UDINT,
+26$UDINT,
 TO_UDINT(529317953), "_CanLib", 1$UINT, 11$UINT, 2$UINT,
 TO_UDINT(4078275645), "_SerLib", 1$UINT, 36$UINT, 3$UINT,
-TO_UDINT(34287727), "_SyncMeasure", 1$UINT, 3$UINT, 0$UINT,
-TO_UDINT(820122881), "_SyncMeasureECAT", 1$UINT, 2$UINT, 1$UINT,
-TO_UDINT(3882880897), "BusInterfaceSDIASInternal", 2$UINT, 1$UINT, 0$UINT,
-TO_UDINT(2377812740), "CP313_IOs", 1$UINT, 0$UINT, 1$UINT,
+TO_UDINT(34287727), "_SyncMeasure", 1$UINT, 4$UINT, 0$UINT,
+TO_UDINT(820122881), "_SyncMeasureECAT", 1$UINT, 3$UINT, 1$UINT,
+TO_UDINT(3882880897), "BusInterfaceSDIASInternal", 2$UINT, 2$UINT, 0$UINT,
+TO_UDINT(2377812740), "CP313_IOs", 1$UINT, 1$UINT, 1$UINT,
 TO_UDINT(794617671), "CriticalSection", 0$UINT, 4$UINT, 2$UINT,
-TO_UDINT(4097056936), "ECAT_Master_Base", 2$UINT, 2$UINT, 0$UINT,
-TO_UDINT(1021147964), "EtherCAT_Hub_Base", 1$UINT, 1$UINT, 1$UINT,
+TO_UDINT(4097056936), "ECAT_Master_Base", 2$UINT, 3$UINT, 0$UINT,
+TO_UDINT(1021147964), "EtherCAT_Hub_Base", 1$UINT, 2$UINT, 1$UINT,
 TO_UDINT(631677903), "EtherCAT_PLC", 2$UINT, 2$UINT, 1$UINT,
-TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 4$UINT, 2$UINT,
-TO_UDINT(3078259981), "HwcLogging", 1$UINT, 0$UINT, 1$UINT,
-TO_UDINT(2471641665), "HwControl", 5$UINT, 27$UINT, 1$UINT,
-TO_UDINT(1193052171), "HwControlBase", 1$UINT, 10$UINT, 0$UINT,
-TO_UDINT(4260294091), "HWRtPostScan", 1$UINT, 0$UINT, 1$UINT,
+TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 2$UINT,
+TO_UDINT(3078259981), "HwcLogging", 1$UINT, 1$UINT, 1$UINT,
+TO_UDINT(2471641665), "HwControl", 6$UINT, 0$UINT, 1$UINT,
+TO_UDINT(1193052171), "HwControlBase", 1$UINT, 11$UINT, 0$UINT,
+TO_UDINT(4260294091), "HWRtPostScan", 1$UINT, 1$UINT, 1$UINT,
 TO_UDINT(2225119864), "MerkerEx", 1$UINT, 22$UINT, 1$UINT,
-TO_UDINT(1799751072), "SafetyManager", 2$UINT, 30$UINT, 1$UINT,
-TO_UDINT(3727715967), "SafetyUDP", 1$UINT, 4$UINT, 0$UINT,
-TO_UDINT(4173303375), "SdiasHubBase", 1$UINT, 10$UINT, 1$UINT,
-TO_UDINT(2118381352), "SdiasManager", 1$UINT, 99$UINT, 1$UINT,
+TO_UDINT(1799751072), "SafetyManager", 3$UINT, 0$UINT, 1$UINT,
+TO_UDINT(3387336038), "SafetyRoutingTables", 1$UINT, 0$UINT, 1$UINT,
+TO_UDINT(3727715967), "SafetyUDP", 1$UINT, 5$UINT, 0$UINT,
+TO_UDINT(4173303375), "SdiasHubBase", 1$UINT, 11$UINT, 1$UINT,
+TO_UDINT(2118381352), "SdiasManager", 1$UINT, 100$UINT, 1$UINT,
 TO_UDINT(1159122596), "SdiasPLC", 2$UINT, 8$UINT, 1$UINT,
 TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 1$UINT,
 TO_UDINT(2898603620), "StringInternal", 1$UINT, 86$UINT, 0$UINT,
 TO_UDINT(3232495061), "VirtualBaseInit", 1$UINT, 3$UINT, 0$UINT,
-TO_UDINT(819479645), "XXXBase_IOs", 1$UINT, 2$UINT, 0$UINT,
+TO_UDINT(819479645), "XXXBase_IOs", 1$UINT, 4$UINT, 0$UINT,
 
 1$UINT, TO_UDINT(3425326136), "CP313_IOS1\_BASE\_CANLIB1", 
 1$UINT, TO_UDINT(1428358530), "CP313_IOS1\_BASE\_CANLIB2", 
@@ -304,6 +307,8 @@ _NO_ATTR, TO_UDINT(2190789875), "HWCONTROL1",
 
 1$UINT, TO_UDINT(1778590035), "HWCONTROL1\SAFETYMANAGER", 
 
+1$UINT, TO_UDINT(209976428), "HWCONTROL1\SAFETYMANAGER\SAFETYROUTINGTABLES1", 
+
 
 1$UINT, TO_UDINT(1007630054), "SDIASPLC1\SDIASHUBBASE1", 
 
@@ -318,7 +323,7 @@ _NO_ATTR, TO_UDINT(1378000520), "SDIASPLC1",
 
 //Internal connections
 0$UDINT,
-18$UDINT,
+19$UDINT,
 TO_UDINT(5), "GetCILInterfacePLL", TO_UDINT(12),
 TO_UDINT(6), "_SerLib1", TO_UDINT(2),
 TO_UDINT(6), "_SerLib2", TO_UDINT(3),
@@ -326,7 +331,7 @@ TO_UDINT(6), "_CanLib1", TO_UDINT(0),
 TO_UDINT(6), "_CanLib2", TO_UDINT(1),
 TO_UDINT(6), "_SerLib3", TO_UDINT(4),
 TO_UDINT(10), "GetCILInterface_ECAT", TO_UDINT(11),
-TO_UDINT(10), "strSoftwareVersion", TO_UDINT(21),
+TO_UDINT(10), "strSoftwareVersion", TO_UDINT(22),
 TO_UDINT(10), "_SyncMeasureECAT1", TO_UDINT(5),
 TO_UDINT(10), "EtherCAT_Hub_Base1", TO_UDINT(9),
 TO_UDINT(14), "SafetyManager", TO_UDINT(17),
@@ -334,9 +339,10 @@ TO_UDINT(14), "HWRtPostScan", TO_UDINT(15),
 TO_UDINT(14), "HwcLogging", TO_UDINT(13),
 TO_UDINT(17), "UdpSendData", TO_UDINT(8),
 TO_UDINT(17), "UdpReceiveData", TO_UDINT(7),
-TO_UDINT(20), "SdiasManager1", TO_UDINT(19),
-TO_UDINT(20), "SdiasHubBase1", TO_UDINT(18),
-TO_UDINT(21), "MerkerEx0", TO_UDINT(16),
+TO_UDINT(17), "SafetyRoutingTables1", TO_UDINT(18),
+TO_UDINT(21), "SdiasManager1", TO_UDINT(20),
+TO_UDINT(21), "SdiasHubBase1", TO_UDINT(19),
+TO_UDINT(22), "MerkerEx0", TO_UDINT(16),
 0$UDINT,
 9$UDINT,
 TO_UDINT(6), "To_HwControl", TO_UDINT(14), "Control",
@@ -344,10 +350,10 @@ TO_UDINT(9), "toNextEtherCAT", TO_UDINT(10), "ClassState",
 TO_UDINT(10), "ToHwControl", TO_UDINT(14), "Control",
 TO_UDINT(15), "toHwControlBase", TO_UDINT(14), "Control",
 TO_UDINT(17), "To_HwControl", TO_UDINT(14), "Control",
-TO_UDINT(18), "ToNextSDIAS", TO_UDINT(19), "ClassState",
-TO_UDINT(19), "ToBusInterface", TO_UDINT(20), "CallCommand",
-TO_UDINT(20), "ToHwControl", TO_UDINT(14), "Control",
-TO_UDINT(21), "DataBuffer", TO_UDINT(16), "m_udLength",
+TO_UDINT(19), "ToNextSDIAS", TO_UDINT(20), "ClassState",
+TO_UDINT(20), "ToBusInterface", TO_UDINT(21), "CallCommand",
+TO_UDINT(21), "ToHwControl", TO_UDINT(14), "Control",
+TO_UDINT(22), "DataBuffer", TO_UDINT(16), "m_udLength",
 
 //Initialization values
 0$UDINT,
@@ -377,13 +383,13 @@ TO_UDINT(17), "UdpSafetyPort", TO_UDINT(10823),//|HW_Network.HwControl1\SafetyMa
 TO_UDINT(17), "InterfaceNo", TO_UDINT(1),//|HW_Network.HwControl1\SafetyManager.InterfaceNo;
 TO_UDINT(17), "UdpSafetyRequestCycle", TO_UDINT(UDP_MIN_REQUEST_TIME),//|HW_Network.HwControl1\SafetyManager.UdpSafetyRequestCycle;
 TO_UDINT(17), "UdpSafetyResponseTimeout", TO_UDINT(UDP_MIN_RESPONSE_TIMEOUT),//|HW_Network.HwControl1\SafetyManager.UdpSafetyResponseTimeout;
-TO_UDINT(18), "SplitterPlace", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasHubBase1.SplitterPlace;
-TO_UDINT(19), "DeviceID", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasManager1.DeviceID;
-TO_UDINT(19), "AutoFarMem", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasManager1.AutoFarMem;
-TO_UDINT(20), "CycleTime", TO_UDINT(1000),//|HW_Network.SdiasPLC1.CycleTime;
-TO_UDINT(20), "IsoStartPoint", TO_UDINT(80),//|HW_Network.SdiasPLC1.IsoStartPoint;
-TO_UDINT(20), "AutoFarMem", TO_UDINT(0),//|HW_Network.SdiasPLC1.AutoFarMem;
-TO_UDINT(21), "SingleRealloc", TO_UDINT(1),//|HW_Network._base\EtherCAT_PLC1\strSoftwareVersion.SingleRealloc;
+TO_UDINT(19), "SplitterPlace", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasHubBase1.SplitterPlace;
+TO_UDINT(20), "DeviceID", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasManager1.DeviceID;
+TO_UDINT(20), "AutoFarMem", TO_UDINT(0),//|HW_Network.SdiasPLC1\SdiasManager1.AutoFarMem;
+TO_UDINT(21), "CycleTime", TO_UDINT(1000),//|HW_Network.SdiasPLC1.CycleTime;
+TO_UDINT(21), "IsoStartPoint", TO_UDINT(80),//|HW_Network.SdiasPLC1.IsoStartPoint;
+TO_UDINT(21), "AutoFarMem", TO_UDINT(0),//|HW_Network.SdiasPLC1.AutoFarMem;
+TO_UDINT(22), "SingleRealloc", TO_UDINT(1),//|HW_Network._base\EtherCAT_PLC1\strSoftwareVersion.SingleRealloc;
 
 //Symbolic initialization values
 0$UDINT,
@@ -415,7 +421,7 @@ TO_UDINT(5), "PhaseRegDamping", TO_UDINT(10), "PhaseRegDamping",
 TO_UDINT(17), "UdpSafetyPort", TO_UDINT(14), "UdpSafetyPort",
 TO_UDINT(17), "InterfaceNo", TO_UDINT(14), "InterfaceNo",
 TO_UDINT(17), "SafetyDomainTimeout", TO_UDINT(14), "SafetyDomainTimeout",
-TO_UDINT(19), "AutoFarMem", TO_UDINT(20), "AutoFarMem",
+TO_UDINT(20), "AutoFarMem", TO_UDINT(21), "AutoFarMem",
 
 //Configuration of timeslots of tasks (RealTime, Cyclic)
 #ifdef __LSLLDR_TIMESLOTS__

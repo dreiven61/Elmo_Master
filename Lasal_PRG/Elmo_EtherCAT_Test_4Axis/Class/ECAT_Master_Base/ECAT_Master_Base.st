@@ -25,7 +25,7 @@
 (*!
 <Class
 	Name               = "ECAT_Master_Base"
-	Revision           = "2.2"
+	Revision           = "2.3"
 	GUID               = "{DA212B4A-1FF3-4955-9BAC-2993BF153C6D}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -85,6 +85,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="LanSte"/>
+		<Dokumentation Revision="2.3" Date="2026-04-10" Author="LanSte" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.2" Date="2025-11-03" Author="ZoePat" Company="Sigmatek" Description="Corrected duplicated commas at macro calls. This results in NO runtime code change."/>
 		<Dokumentation Revision="2.1" Date="2025-10-20" Author="LanSte" Company="Sigmatek" Description="Added Method &quot;DisableRequiredError&quot;.  This Method disables the required error if an EtherCAT error occurs. Instead, the EtherCAT Bus is disabled. Method must be called in 1st Init!&#13;&#10;Added Method &quot;DisableInitBusTimeouts&quot;&#13;&#10;PDO Data is now sent to the ECAT Slaves even if an invalid frame was received.&#13;&#10;Improved error log output."/>
 		<Dokumentation Revision="2.0" Date="03.10.2023" Author="LanSte" Company="Sigmatek" Description="Added Support for Slot Modules.&#13;&#10;Improved Log-Output.&#13;&#10;Added Support for HW-Upload."/>
@@ -159,6 +160,7 @@
 		</Options>
 	</Network>
 	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
 		<Entry Name="ReqFeature" Value="ECAT_2"/>
 	</AdditionalData>
 </Class>
@@ -735,7 +737,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB ECAT_Master_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_ECAT_MASTER_BASE
-2$UINT, 2$UINT, (SIZEOF(::ECAT_Master_Base))$UINT, 
+2$UINT, 3$UINT, (SIZEOF(::ECAT_Master_Base))$UINT, 
 10$UINT, 15$UINT, 0$UINT, 
 TO_UDINT(4097056936), "ECAT_Master_Base", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -751,13 +753,13 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::ECAT_Master_Base.Max_RtTime.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3874088981), "Max_RtTime", 
 (::ECAT_Master_Base.MissedFrameCounter.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(2009695805), "MissedFrameCounter", 
 //Clients:
-(::ECAT_Master_Base.ToHwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3104445832), "ToHwControl", TO_UDINT(2471641665), "HwControl", 5$UINT, 27$UINT, 
+(::ECAT_Master_Base.ToHwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3104445832), "ToHwControl", TO_UDINT(2471641665), "HwControl", 6$UINT, 0$UINT, 
 (::ECAT_Master_Base.IsoStartPoint.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(102048672), "IsoStartPoint", 
 (::ECAT_Master_Base.CoreSelect.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(2631154307), "CoreSelect", 
 (::ECAT_Master_Base.toStdLib.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2501598121), "toStdLib", TO_UDINT(3689364044), "_StdLib", 2$UINT, 0$UINT, 
-(::ECAT_Master_Base.GetCILInterface_ECAT.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1262837960), "GetCILInterface_ECAT", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 4$UINT, 
+(::ECAT_Master_Base.GetCILInterface_ECAT.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1262837960), "GetCILInterface_ECAT", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 
 (::ECAT_Master_Base.strSoftwareVersion.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3315079608), "strSoftwareVersion", TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 
-(::ECAT_Master_Base._SyncMeasureECAT1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4109057332), "_SyncMeasureECAT1", TO_UDINT(820122881), "_SyncMeasureECAT", 1$UINT, 2$UINT, 
+(::ECAT_Master_Base._SyncMeasureECAT1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4109057332), "_SyncMeasureECAT1", TO_UDINT(820122881), "_SyncMeasureECAT", 1$UINT, 3$UINT, 
 (::ECAT_Master_Base.MasterID.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(3786884830), "MasterID", 
 (::ECAT_Master_Base.StateTransitionBehaviour.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(2705879147), "StateTransitionBehaviour", 
 (::ECAT_Master_Base.toMultiTask.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(4206025932), "toMultiTask", TO_UDINT(2641766936), "_MultiTask", 1$UINT, 1$UINT, 

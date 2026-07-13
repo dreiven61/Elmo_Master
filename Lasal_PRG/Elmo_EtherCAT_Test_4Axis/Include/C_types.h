@@ -650,9 +650,9 @@ typedef struct _LMCPROF_MoveData   //! <Type Comment="Element of the profile buf
     DINT zMP;  //! <Type Comment="Distance from the start point to the circle center point in the direction of the third circle axis [Internal units]" Name="_LMCPROF_MoveData.zMP"/>
     DINT PathLength;  //! <Type Comment="Path length [Internal units]" Name="_LMCPROF_MoveData.PathLength"/>
     DINT vMax;  //! <Type Comment="Max. allowed path speed [Internal units/tick]" Name="_LMCPROF_MoveData.vMax"/>
-    DINT aMax;  //! <Type Comment="Max. allowed path acceleration [Internal units/tickï¿½]" Name="_LMCPROF_MoveData.aMax"/>
-    DINT dMax;  //! <Type Comment="Max. allowed path deceleration [Internal units/tickï¿½]" Name="_LMCPROF_MoveData.dMax"/>
-    DINT jMax;  //! <Type Comment="Max. allowed path jerk [Internal units/tickï¿½/sec]" Name="_LMCPROF_MoveData.jMax"/>
+    DINT aMax;  //! <Type Comment="Max. allowed path acceleration [Internal units/tick²]" Name="_LMCPROF_MoveData.aMax"/>
+    DINT dMax;  //! <Type Comment="Max. allowed path deceleration [Internal units/tick²]" Name="_LMCPROF_MoveData.dMax"/>
+    DINT jMax;  //! <Type Comment="Max. allowed path jerk [Internal units/tick²/sec]" Name="_LMCPROF_MoveData.jMax"/>
     _LMCPROF_CIRCLEPOINT sCircleIPSpec;  //! <Type Comment="Interpoint of the circle movement." Name="_LMCPROF_MoveData.sCircleIPSpec"/>
     BOOL bIPnil;  //! <Type Comment="TRUE .. Interpoint was not specified." Name="_LMCPROF_MoveData.bIPnil"/>
     BOOL CircleCCW;  //! <Type Comment="Flag is set if this is a counter-clockwise circle movement. It is used for eventual reverse drive." Name="_LMCPROF_MoveData.CircleCCW"/>
@@ -1130,7 +1130,7 @@ typedef struct
     long Encrypt : 1;  //! <Type Comment="0=no encryption; 1=encrypt file, increased write access on the CF card" Name="FeSetup.Encrypt"/>
   }FeSetup;
 
-typedef struct   //! <Type Comment="Status Flag fï¿½r IO Daten" Name="IO_FLAG"/>
+typedef struct   //! <Type Comment="Status Flag für IO Daten" Name="IO_FLAG"/>
   {
     short WrongHW : 1;  //! <Type Comment="Falsche Hardware verbunden" Name="IO_FLAG.WrongHW"/>
     short NoHW : 1;  //! <Type Comment="Keine Hardware verbunden" Name="IO_FLAG.NoHW"/>
@@ -1195,7 +1195,7 @@ typedef UDINT SafetyConfigStateType;
 #pragma pack(push, 1)
 typedef struct SafetyDiagInfo 
   {
-    USINT uControllerID;  //! <Type Comment="ID of ï¿½Controller (0 = ï¿½C1, else ï¿½C2)" Name="SafetyDiagInfo.uControllerID"/>
+    USINT uControllerID;  //! <Type Comment="ID of µController (0 = µC1, else µC2)" Name="SafetyDiagInfo.uControllerID"/>
     USINT ActErrorCode;  //! <Type Comment="actual error code" Name="SafetyDiagInfo.ActErrorCode"/>
     USINT FirstErrorCode;  //! <Type Comment="code of first error that lead to an error state" Name="SafetyDiagInfo.FirstErrorCode"/>
     UDINT ReasonCode0;  //! <Type Comment="reason for error (meaning depends on actual error code)" Name="SafetyDiagInfo.ReasonCode0"/>

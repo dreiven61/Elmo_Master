@@ -248,6 +248,7 @@
 		<File Path=".\Class\_LMCTool\_LMCTool.st"/>
 		<File Path=".\Class\MoveSplineTable\MoveSplineTable.st"/>
 		<File Path=".\Class\Merker\Merker.st"/>
+		<File Path=".\Class\SafetyRoutingTables\SafetyRoutingTables.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
@@ -339,6 +340,7 @@
 				<Class Name="I2CCDIAS"/>
 				<Class Name="SafetyCDIAS_Base"/>
 				<Class Name="SafetyManager"/>
+				<Class Name="SafetyRoutingTables"/>
 				<Class Name="SafetyUDP"/>
 				<Class Name="SdiasBase"/>
 				<Class Name="SdiasHubBase"/>

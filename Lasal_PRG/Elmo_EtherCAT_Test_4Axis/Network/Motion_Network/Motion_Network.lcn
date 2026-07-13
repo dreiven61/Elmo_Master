@@ -2354,6 +2354,7 @@
 			Position       = "(5400,60)"
 			Visualized     = "true"
 			Remotely       = "true"
+			CyclicTime     = "1 ms"
 			BackgroundTime = "always">
 			<Channels>
 				<Server Name="Control"/>
@@ -2364,9 +2365,9 @@
 				<Client Name="_MultiTask"/>
 				<Client Name="_StdLib"/>
 				<Client Name="_TaskObjectControl"/>
-				<Client Name="Config"/>
+				<Client Name="Config" Value="0"/>
 				<Client Name="ConnectionsPerRun" Value="1"/>
-				<Client Name="MaxConnections" Value="0"/>
+				<Client Name="MaxConnections" Value="1"/>
 				<Client Name="Port" Value="4000"/>
 				<Client Name="SigCLib"/>
 				<Client Name="SizeOfTXBuffer"/>
@@ -2526,8 +2527,7 @@
 			Class      = "_TCPIPServer_RT"
 			Position   = "(5400,750)"
 			Visualized = "true"
-			Remotely   = "true"
-			CyclicTime = "1 ms">
+			Remotely   = "true">
 			<Channels>
 				<Server Name="Control"/>
 				<Server Name="ErrorCode"/>
@@ -3827,7 +3827,8 @@
 			GUID       = "{24D754E7-92FE-441C-AB95-543E8132A88F}"
 			Class      = "TCPMotionInterface"
 			Position   = "(6960,60)"
-			Visualized = "false">
+			Visualized = "false"
+			CyclicTime = "1 ms">
 			<Channels>
 				<Server Name="acc"/>
 				<Server Name="AxisRef"/>
@@ -3858,7 +3859,7 @@
 				<Server Name="velo"/>
 				<Client Name="_StdLib"/>
 				<Client Name="_TCPIPServer"/>
-				<Client Name="LMCAxis"/>
+				<Client Name="LMCAxis1"/>
 				<Client Name="LMCAxis2"/>
 				<Client Name="LMCAxis3"/>
 				<Client Name="LMCAxis4"/>
@@ -3902,8 +3903,8 @@
 		<Connection Source="_LMCAxis1.LMCController" Destination="PosController1.Signal_Input" Vertices="(2873,1770),(2433,1770),"/>
 		<Connection Source="_LMCAxis1.HWError" Destination="Elmo_11.AxError" Vertices="(2873,2010),(2536,2010),(2536,3090),(1407,3090),"/>
 		<Connection Source="_LMCAxis1.HWReady" Destination="Elmo_11.Online" Vertices="(2873,1950),(2536,1950),(2536,1620),(1576,1620),(1576,2370),(1407,2370),"/>
-		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer_RT1.Control" Vertices="(6960,150),(6300,150),(6300,840),(6022,840),"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis" Destination="_LMCAxis1.Control" Vertices="(6960,210),(6450,210),(6450,1560),(4620,1560),(4613,1710),(3539,1710),"/>
+		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(6960,150),(6006,150),"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis1" Destination="_LMCAxis1.Control" Vertices="(6960,210),(3539,1710),"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(6960,270),(3539,3630),"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(6960,330),(3509,5400),"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(6960,390),(3509,7140),"/>
@@ -3941,7 +3942,7 @@
 		<Connection Source="_LMCRobotBase1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5423,1770),(5243,1770),(5243,3630),(3539,3630),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5423,1830),(5303,1830),(5303,5400),(3509,5400),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5423,1890),(5363,1890),(5363,7140),(3509,7140),"/>
-		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control" Vertices="(6960,450),(6660,270),(6660,1710),(6369,1710),"/>
+		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control" Vertices="(6960,450),(6369,1710),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

@@ -2,9 +2,16 @@
 
 작성일: 2026-07-10
 
+최종 갱신: 2026-07-13
+
 대상 프로젝트: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
 
-상태: **소스 우선 구현 / LASAL IDE·네트워크·PLC 적용 대기**
+상태: **2026-07-13 RT mailbox 안 폐기 / 과거 적용 기록**
+
+> 현재 구현은 `TCPMotionInterface` RT Task와 RtWork mailbox를 제거한
+> CyWork-only 구조다. 아래 본문 중 RtWork, typed mailbox, RealTime=1 ms 설정은
+> 더 이상 적용하지 않는다. 현재 System of Record는
+> `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`다.
 
 ## 1. 결론
 
@@ -12,16 +19,25 @@
 `LMCAxis1`로 명확히 바꾸고, TCP callback에서 motion object를 직접 호출하던
 경로를 queue와 `CyWork`/`RtWork` 경계로 분리하는 소스 구현이다.
 
-현재 승인된 실제 실행 범위는 `0x202E ReadActualPosition` 하나뿐이다. 기존
+현재 source에서 허용한 실제 실행 범위는 read-only `0x202E
+ReadActualPosition`과 `0x2028 ReadStatus`다. 기존
 handler body가 있더라도 다른 axis/group client call과 state-changing command는
 해당 명령을 안전한 mailbox 경로로 옮기기 전까지 deterministic error `-5`를
 반환해야 한다. 이 제한은 기능 삭제가 아니라 실제 장비 오동작을 막는 migration
 gate다.
 
-LASAL network와 task 배치는 이번 단계에서 수정하지 않는다. 따라서 소스가
-반영되어도 아래 IDE/network 작업 전에는 axis 1 연결과 `RtWork` 실행 context가
-완성되지 않는다. LASAL IDE compile, PLC download, 실제 packet 재캡처도 아직
-완료되지 않았으므로 production 완료로 판정하지 않는다.
+LASAL IDE 동기화로 legacy `LMCAxis` client는 제거되고 `LMCAxis1` client와
+`RealTime/CyclicTime=1 ms`가 저장됐다. axis 1 connection은 사용자가 IDE에서
+완료했으며 이 작업에서는 네트워크를 더 수정하지 않는다. 최종 project save와
+strict network contract로 생성 결과를 확인해야 한다. LASAL IDE compile, PLC
+download, 실제 packet 재캡처는 아직 완료되지 않았으므로 production 완료로
+판정하지 않는다.
+
+2026-07-13 IDE load/build check에서는 설치된 MotionLib가 참조하는
+`_DriveMngBase/DriveComL2.h`를 읽지 못해 `E0015`가 발생했다. project compiler
+C78과 Hardware/MotionLib/OS Interface/System/Tools library C81 간 version
+warning도 남아 있다. 이 오류는 현재 `TCPMotionInterface` source contract와
+별개지만 build/link 0-error 증거를 막는다.
 
 ## 2. 소스 구현 범위
 
@@ -40,8 +56,8 @@ flowchart LR
     A["PC TCP request"] --> B["Response callback\nstream accumulate and validate"]
     B --> C["SPSC request queue\ndepth 8"]
     C --> D["TCPMotionInterface CyWork\nsession, order, command classify"]
-    D -->|"0x202E only"| E["typed RT request mailbox"]
-    E --> F["TCPMotionInterface RtWork\nLMCAxis1..4 ReadPosition"]
+    D -->|"0x202E / 0x2028"| E["typed RT request mailbox"]
+    E --> F["TCPMotionInterface RtWork\nLMCAxis1..4 read snapshot"]
     F --> G["typed RT result mailbox"]
     G --> D
     D --> H["response frame and TCP send"]
@@ -74,9 +90,9 @@ rejected frame 뒤의 partial frame까지 이미 accumulator에 섞였거나
 P0는 해당 socket을 quarantine하고 PC reconnect를 요구한다. 정상 exact drain이
 끝난 경우에만 같은 connection을 다시 연다.
 
-### 2.3 첫 실행 command: `0x202E`
+### 2.3 read-only 실행 command
 
-`0x202E ReadActualPosition`만 다음 경로를 연다.
+첫 command인 `0x202E ReadActualPosition`은 다음 경로를 연다.
 
 1. `CyWork()`가 descriptor 1..4와 session을 검증한다.
 2. typed RT request mailbox에 reference와 request identity를 publish한다.
@@ -94,17 +110,24 @@ P0의 작은 RPC/axis response는 `CyWork()`에서 `bDirect=TRUE` 한 방식으�
 성공으로 인정한다. partial/error return은 동일 frame을 재전송하지 않고 session
 epoch를 폐기하고 socket을 quarantine하여 reconnect를 요구한다.
 
-PC가 보내는 `0x202E` request와 LASAL response offset은
-`Codex_LASAL_WPF/PmasApiWpfTestApp/Services/SigmatekTcpIpDummyMMCLib.cs`의
-contract와 byte 단위로 대조한다. RT result가 준비되기 전에는 다음 active
-request를 완료 처리하지 않는다.
+두 번째 read-only command인 `0x2028 ReadStatus`도 같은 mailbox를 사용한다.
+`CyWork()`는 payload의 duplicated descriptor와 exact `execute=1` field를 검증하고,
+`RtWork()`는 선택한 축의 `ReadAxisStatus()`와 `ReadAxisError()`를 호출한다.
+response는 12-byte payload로 native status 32-bit, function status/error,
+lower 16-bit axis error와 reserved status-word `0`을 반환한다.
+
+PC가 보내는 `0x202E`/`0x2028` request와 LASAL response offset은 canonical
+`LMC_Library/LMC_API_Delivery/src` serializer/parser 및 golden test와 byte
+단위로 대조한다. `Codex_LASAL_WPF` dummy는 legacy PMAS/hybrid frame이 남아
+있어 이 계약의 E2E client로 사용하지 않는다. RT result가 준비되기 전에는
+다음 active request를 완료 처리하지 않는다.
 
 ### 2.4 차단 범위
 
 기존 source에 handler body가 있어도 아래 client-call command는 mailbox로
 migration하기 전까지 실행하지 않고 error `-5`를 반환한다.
 
-- Axis: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x209F`, `0x20A0`, `0x20A2`
+- Axis: `0x2023`, `0x2024`, `0x2022`, `0x209F`, `0x20A0`, `0x20A2`
 - Group: `0x2047`, `0x2048`, `0x2045`, `0x20A4`
 - 이미 unsupported인 GroupReset `0x2049`, GroupStop `0x2085`
 
@@ -218,15 +241,15 @@ IDE class/network 변경 후 최소한 아래 파일의 생성 diff를 검토한
 - RT result/fault response가 partial send에서 full-frame retry되지 않는지 확인
 - `TCPMotionInterface::RtWork()`에 TCP, 문자열, wait, 동적 메모리가 없는지 확인
 - `_TCPIPServer_RT::RtWork()`에 `CyclicCall()`이 없는지 확인
-- `0x202E` 외 client/state-changing command가 `-5`로 끝나는지 확인
-- C# dummy와 `0x202E` request/response offset 대조
+- `0x202E`, `0x2028` 외 client/state-changing command가 `-5`로 끝나는지 확인
+- canonical C# API와 `0x202E`/`0x2028` request/response offset 대조
 - 새 LASAL custom source에 7-bit ASCII 이외 문자가 없는지 확인
 - `git diff --check`와 관련 static contract test 실행
 
 현재 `RunLasalContract`는 `-SourceOnly`로 source-first gate를 검사한다.
-`RunLasalNetworkContract`는 IDE network까지 포함한 strict gate이며, 현재는 의도대로
-`LMCAxis1 -> _LMCAxis1.Control` 누락을 보고해야 한다. IDE/network 적용 후에는
-strict gate도 PASS해야 한다.
+`RunLasalNetworkContract`는 IDE network까지 포함한 strict gate다. 사용자가
+완료한 axis 1 connection과 아래 task/config를 최종 저장한 뒤 strict gate도
+PASS해야 한다.
 
 ### Gate B: LASAL IDE model/network
 
@@ -243,21 +266,22 @@ strict gate도 PASS해야 한다.
 
 1. RPC init, callback register, axis lookup과 descriptor 1..4를 확인한다.
 2. 각 descriptor의 `0x202E`가 서로 다른 실제 axis position을 반환하는지 본다.
-3. invalid reference는 다른 axis를 호출하지 않고 정해진 error로 끝나야 한다.
-4. 차단된 Power/Stop/Move/group command는 `-5`를 반환하고 실제 상태를 바꾸지
+3. 각 descriptor의 `0x2028`이 해당 축의 native status/error snapshot을 반환하는지 본다.
+4. invalid reference는 다른 axis를 호출하지 않고 정해진 error로 끝나야 한다.
+5. 차단된 Power/Stop/Move/group command는 `-5`를 반환하고 실제 상태를 바꾸지
    않아야 한다.
-5. partial header/payload, combined frame, depth-8 burst와 queue full을 시험한다.
-6. disconnect/reconnect 뒤 old epoch request가 실행되지 않는지 확인한다.
-7. response socket, sequence와 request 순서가 일치하는지 확인한다.
-8. 1 ms CyWork/RtWork에서 cycle jitter와 mailbox 지연을 기록한다.
-9. PC request/LASAL response를 Wireshark로 재캡처한다.
+6. partial header/payload, combined frame, depth-8 burst와 queue full을 시험한다.
+7. disconnect/reconnect 뒤 old epoch request가 실행되지 않는지 확인한다.
+8. response socket, sequence와 request 순서가 일치하는지 확인한다.
+9. 1 ms CyWork/RtWork에서 cycle jitter와 mailbox 지연을 기록한다.
+10. PC request/LASAL response를 Wireshark로 재캡처한다.
 
-Gate C가 끝나기 전에는 `0x202E`도 실제 PLC 검증 완료로 표시하지 않는다.
+Gate C가 끝나기 전에는 `0x202E`와 `0x2028`을 실제 PLC 검증 완료로 표시하지 않는다.
 
 ## 6. 후속 migration 순서
 
-1. `0x202E ReadActualPosition` read-only E2E
-2. `0x2028 ReadStatus`와 read/admin command
+1. `0x202E ReadActualPosition`, `0x2028 ReadStatus` read-only E2E
+2. 나머지 read/admin command
 3. Power, Reset, 기능상 Stop
 4. MoveAbsolute, MoveRelative, MoveVelocity
 5. group lookup/read 경로
@@ -273,12 +297,12 @@ Gate C가 끝나기 전에는 `0x202E`도 실제 PLC 검증 완료로 표시하�
 | 항목 | 상태 |
 |---|---|
 | canonical source 대상 | `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`로 고정 |
-| `LMCAxis1` source rename | 소스 반영 완료, IDE model/network 재생성 대기 |
+| `LMCAxis1` source rename | source와 IDE class model 반영, 최종 network save/strict 확인 대기 |
 | depth-8 queue/CyWork/typed mailbox | 소스 반영 완료, LASAL compile·runtime 검증 대기 |
-| 실제 client-call 허용 | `0x202E` 하나만 허용 |
+| 실제 client-call 허용 | read-only `0x202E`, `0x2028` 허용 |
 | 다른 client/state-changing command | migration 전 `-5` 차단 |
-| network/task property | 설계만 완료, 아직 적용하지 않음 |
-| PLC E2E | `0/23`, `0x202E` 포함 모두 미검증 |
+| network/task property | axis 1 connection은 사용자 완료, `Config/MaxConnections`와 task/core 확인 대기 |
+| PLC E2E | `0/23`, `0x202E`/`0x2028` 포함 모두 미검증 |
 | production 배포 | 불가 |
 
 관련 상세 설계는

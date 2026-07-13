@@ -1,11 +1,11 @@
 # MotionTCPDemo vs Elmo_EtherCAT_Test_4Axis 구조 분석
 
-> 2026-07-10 상태 갱신: 아래의 `Response()` 직접 parser/motion call과
-> `_TCPIPServer_RT::RtWork()`의 `CyclicCall()` 설명은 source-first migration 전
-> 기준선이다. canonical source는 현재 `LMCAxis1`, depth-8 request queue,
-> `CyWork` coordinator와 typed `0x202E` `RtWork` mailbox로 변경됐다. 실제
-> IDE/network/PLC 적용 상태는
-> `LMC_Library/LMC_API_Delivery/docs/LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`
+> 2026-07-13 상태 갱신: 아래의 `Response()` 직접 parser/motion call과
+> `_TCPIPServer_RT::RtWork()` 설명은 과거 비교 기준선이다. 현재 canonical
+> source는 일반 `_TCPIPServer1`, depth-8 request queue와 non-RT `CyWork()`
+> executor를 사용한다. TCPMotionInterface의 RT task와 mailbox는 폐기했다.
+> 실제 IDE/network/PLC 적용 상태는
+> `LMC_Library/LMC_API_Delivery/docs/LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`
 > 를 따른다.
 
 작성일: 2026-07-03

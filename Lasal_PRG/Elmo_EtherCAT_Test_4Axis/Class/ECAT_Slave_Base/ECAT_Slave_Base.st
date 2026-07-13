@@ -39,7 +39,7 @@
 (*!
 <Class
 	Name               = "ECAT_Slave_Base"
-	Revision           = "2.0"
+	Revision           = "2.1"
 	GUID               = "{5B3CD4AF-32B0-40DD-B791-1AD498083509}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -93,6 +93,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="EisMic"/>
+		<Dokumentation Revision="2.1" Date="2026-04-10" Author="LanSte" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.0" Date="03.10.2023" Author="LanSte" Company="Sigmatek" Description="Added Support for Slot Modules.&#13;&#10;Improved Log-Output.&#13;&#10;Added Support for HW-Upload.&#13;&#10;Added Option to use Buffers for SDO, Async data transfer&#13;&#10;Added suport for FOE and SSC Mailbox."/>
 		<Dokumentation Revision="1.4" Date="03.04.2023" Author="EisMic" Company="Sigmatek" Description="Fixed an error where starting an SDO or an AsyncCom read/write was not possible if there were too many open requests from other slaves."/>
 		<Dokumentation Revision="1.3" Date="10.08.2022" Author="LanSte" Company="Sigmatek" Description="Added Online Server."/>
@@ -155,6 +156,7 @@
 		</Options>
 	</Network>
 	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
 		<Entry Name="ReqFeature" Value="ECAT_2"/>
 	</AdditionalData>
 </Class>
@@ -905,7 +907,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB ECAT_Slave_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_ECAT_SLAVE_BASE
-2$UINT, 0$UINT, (SIZEOF(::ECAT_Slave_Base))$UINT, 
+2$UINT, 1$UINT, (SIZEOF(::ECAT_Slave_Base))$UINT, 
 12$UINT, 10$UINT, 0$UINT, 
 TO_UDINT(1515440174), "ECAT_Slave_Base", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -924,7 +926,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::ECAT_Slave_Base.Online.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1858763116), "Online", 
 //Clients:
 (::ECAT_Slave_Base.toMaster.pCh)$UINT, _CH_CLT_CMD$UINT, 2#0000000000000010$UINT, TO_UDINT(1782506038), "toMaster", 
-(::ECAT_Slave_Base.GetCILInterface_ECAT.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1262837960), "GetCILInterface_ECAT", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 4$UINT, 
+(::ECAT_Slave_Base.GetCILInterface_ECAT.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1262837960), "GetCILInterface_ECAT", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 
 (::ECAT_Slave_Base.SlaveIndex.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(3266146979), "SlaveIndex", 
 (::ECAT_Slave_Base.Required.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(648558917), "Required", 
 (::ECAT_Slave_Base.DeviceNameStr.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1201106530), "DeviceNameStr", TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 

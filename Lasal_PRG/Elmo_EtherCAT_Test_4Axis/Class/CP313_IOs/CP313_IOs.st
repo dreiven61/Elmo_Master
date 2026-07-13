@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "CP313_IOs"
-	Revision           = "1.0"
+	Revision           = "1.1"
 	GUID               = "{5655C557-9A70-45FE-B70E-D95C4B49CF6A}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -23,6 +23,7 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="EisMic"/>
+		<Dokumentation Revision="1.1" Date="2026-04-16" Author="LanSte" Company="Sigmatek" Description="Changed object channel To_HwControl to not required command channel."/>
 		<Dokumentation Revision="1.0" Date="07.02.2020" Author="EisMic" Company="Sigmatek" Description="First library version."/>
 	</RevDoku>
 	<Network Name="CP313_IOs">
@@ -88,10 +89,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB CP313_IOs::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_CP313_IOS
-1$UINT, 0$UINT, (SIZEOF(::CP313_IOs))$UINT, 
+1$UINT, 1$UINT, (SIZEOF(::CP313_IOs))$UINT, 
 0$UINT, 0$UINT, 0$UINT, 
 TO_UDINT(2377812740), "CP313_IOs", //Class
-TO_UDINT(819479645), "XXXBase_IOs", 1$UINT, 2$UINT, //Baseclass
+TO_UDINT(819479645), "XXXBase_IOs", 1$UINT, 4$UINT, //Baseclass
 //Servers:
 //Clients:
 END_FUNCTION

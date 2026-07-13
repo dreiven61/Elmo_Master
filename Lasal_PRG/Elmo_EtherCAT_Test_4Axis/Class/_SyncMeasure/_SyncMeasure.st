@@ -28,7 +28,7 @@
 (*!
 <Class
 	Name               = "_SyncMeasure"
-	Revision           = "1.3"
+	Revision           = "1.4"
 	GUID               = "{3F210931-8D75-4E3A-87FC-A1D5697A0575}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -58,6 +58,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="LanSte"/>
+		<Dokumentation Revision="1.4" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.3" Date="08.06.2021" Author="EisMic" Company="Sigmatek" Description="Added description to client PhaseRegDamping and changed its default value from 0 to 4."/>
 		<Dokumentation Revision="1.2" Date="23.10.2019" Author="LanSte" Company="Sigmatek" Description="Set return value state in CyWork. (Compiler Warning 0076)"/>
 		<Dokumentation Revision="1.1" Date="15.04.2019" Author="LanSte" Company="Sigmatek" Description="Removed ToBusIF and replaced loggin function."/>
@@ -88,6 +89,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 _SyncMeasure : CLASS
@@ -245,7 +249,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB _SyncMeasure::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY__SYNCMEASURE
-1$UINT, 3$UINT, (SIZEOF(::_SyncMeasure))$UINT, 
+1$UINT, 4$UINT, (SIZEOF(::_SyncMeasure))$UINT, 
 5$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(34287727), "_SyncMeasure", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -256,7 +260,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::_SyncMeasure.SystemTimeMaster.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3637655624), "SystemTimeMaster", 
 (::_SyncMeasure.SystemTimeOwn.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(2179251917), "SystemTimeOwn", 
 //Clients:
-(::_SyncMeasure.GetCILInterfacePLL.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2671219296), "GetCILInterfacePLL", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 4$UINT, 
+(::_SyncMeasure.GetCILInterfacePLL.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2671219296), "GetCILInterfacePLL", TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 
 (::_SyncMeasure.PhaseRegDamping.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(1271970730), "PhaseRegDamping", 
 END_FUNCTION
 

@@ -42,7 +42,7 @@
 (*!
 <Class
 	Name               = "_SyncMeasureECAT"
-	Revision           = "1.2"
+	Revision           = "1.3"
 	GUID               = "{5BB0096D-D9AC-4953-B976-2CF074596533}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -73,6 +73,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="Berste1"/>
+		<Dokumentation Revision="1.3" Date="2026-04-10" Author="LanSte" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.2" Date="22.02.2024" Author="LanSte" Company="Sigmatek" Description="Fixed a case in which pECAT may be used before it was set."/>
 		<Dokumentation Revision="1.1" Date="2020-07-27" Author="Berste1" Company="Sigmatek" Description="Parameter finetune corrected&#13;&#10;"/>
 		<Dokumentation Revision="1.0" Date="2020-04-09" Author="Berste1" Company="Sigmatek" Description="First Version"/>
@@ -112,6 +113,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using _SyncMeasure
@@ -376,10 +380,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB _SyncMeasureECAT::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY__SYNCMEASUREECAT
-1$UINT, 2$UINT, (SIZEOF(::_SyncMeasureECAT))$UINT, 
+1$UINT, 3$UINT, (SIZEOF(::_SyncMeasureECAT))$UINT, 
 5$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(820122881), "_SyncMeasureECAT", //Class
-TO_UDINT(34287727), "_SyncMeasure", 1$UINT, 3$UINT, //Baseclass
+TO_UDINT(34287727), "_SyncMeasure", 1$UINT, 4$UINT, //Baseclass
 //Servers:
 (::_SyncMeasureECAT.IFilterFakt.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(592816762), "IFilterFakt", 
 (::_SyncMeasureECAT.ShiftedPhase.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1086450720), "ShiftedPhase", 

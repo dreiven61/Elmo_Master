@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "SyncCall"
-	Revision           = "1.21"
+	Revision           = "1.22"
 	GUID               = "{57269018-2E0A-4484-A77E-CCE0899D7749}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -28,6 +28,7 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek"/>
+		<Dokumentation Revision="1.22" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.21" Date="11.05.2016" Author="RamAnd" Company="Sigmatek" Description="Suppressed warning that would occur with target ARM on compiler version 30 or higher."/>
 		<Dokumentation Revision="1.20" Date="21.01.2014" Author="FucHer" Company="Sigmatek" Description="Changed AWL code to Structured Text."/>
 		<Dokumentation Revision="1.10" Date="06.12.2013" Author="LanSte" Company="Sigmatek" Description="AWL deactivated for ARM."/>
@@ -68,6 +69,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using HwBaseCDIAS
@@ -106,10 +110,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB SyncCall::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SYNCCALL
-1$UINT, 21$UINT, (SIZEOF(::SyncCall))$UINT, 
+1$UINT, 22$UINT, (SIZEOF(::SyncCall))$UINT, 
 0$UINT, 0$UINT, 0$UINT, 
 TO_UDINT(4187542331), "SyncCall", //Class
-TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 56$UINT, //Baseclass
+TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 57$UINT, //Baseclass
 //Servers:
 //Clients:
 END_FUNCTION

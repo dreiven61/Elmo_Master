@@ -383,6 +383,11 @@
 												<Client Name="UdpSafetyPort" Value="10823"/>
 											</Channels>
 										</Object>
+										<Object Name="SafetyRoutingTables1" GUID="{FB539BE3-0F69-4EC4-AC65-5BF0BA840880}" Class="SafetyRoutingTables">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
 										<Object Name="UdpReceiveData" GUID="{AEB21C96-66F3-41BB-AF8B-4D8748F3E760}" Class="CriticalSection">
 											<Channels>
 												<Server Name="ClassSvr"/>

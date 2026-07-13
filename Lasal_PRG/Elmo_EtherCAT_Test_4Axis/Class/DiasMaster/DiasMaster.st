@@ -6,7 +6,7 @@
 (*!
 <Class
 	Name               = "DiasMaster"
-	Revision           = "2.33"
+	Revision           = "2.34"
 	GUID               = "{18364A21-3DBE-11D6-AB3C-00106092052D}"
 	RealtimeTask       = "true"
 	CyclicTask         = "false"
@@ -30,6 +30,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="SilBer"/>
+		<Dokumentation Revision="2.34" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.33" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
 		<Dokumentation Revision="2.32" Date="02.10.2014" Author="LanSte" Company="Sigmatek" Description="Fixed compiler error when importing DiasMasterC without a HWControl in Project. The compiler error was caused by a missing type."/>
 		<Dokumentation Revision="2.31" Date="29.07.2014" Author="EisMic" Company="Sigmatek" Description="Added Support for reading hardware diagnose and hardwaretree entry."/>
@@ -41,6 +42,9 @@
 		<Dokumentation Revision="2.9" Date="21.04.2010" Author="BleErn" Company="Sigmatek" Description="Added parameter callOptions for RtPostScan"/>
 		<Dokumentation Revision="2.8" Date="15.07.2009" Author="RamAnd" Company="Sigmatek" Description="Added functions for safety and hardwaretree."/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 DiasMaster : CLASS
@@ -616,7 +620,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB DiasMaster::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_DIASMASTER
-2$UINT, 33$UINT, (SIZEOF(::DiasMaster))$UINT, 
+2$UINT, 34$UINT, (SIZEOF(::DiasMaster))$UINT, 
 1$UINT, 0$UINT, 0$UINT, 
 TO_UDINT(2647887450), "DiasMaster", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

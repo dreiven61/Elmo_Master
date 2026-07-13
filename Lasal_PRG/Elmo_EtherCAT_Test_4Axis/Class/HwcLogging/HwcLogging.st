@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "HwcLogging"
-	Revision           = "1.0"
+	Revision           = "1.1"
 	GUID               = "{242765B4-6E7B-4655-8F6E-16157F0D8FE3}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -31,8 +31,12 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="1.1" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.0" Date="08.11.2019" Author="RamAnd" Company="Sigmatek" Description="First library version"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 HwcLogging : CLASS
@@ -68,7 +72,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB HwcLogging::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HWCLOGGING
-1$UINT, 0$UINT, (SIZEOF(::HwcLogging))$UINT, 
+1$UINT, 1$UINT, (SIZEOF(::HwcLogging))$UINT, 
 2$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(3078259981), "HwcLogging", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

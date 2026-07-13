@@ -53,8 +53,8 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxMoveAbsolute.AxisNo"/>
 	    Position : DINT;  //! <Type Comment="Targetposition for the axis [Application units]" Name="_LogParAxMoveAbsolute.Position"/>
 	    Speed : DINT;  //! <Type Comment="Axis speed of the movement [Application units / s]" Name="_LogParAxMoveAbsolute.Speed"/>
-	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveAbsolute.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveAbsolute.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / s²]" Name="_LogParAxMoveAbsolute.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / s²]" Name="_LogParAxMoveAbsolute.Decel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveAbsolute.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -62,7 +62,7 @@ _LMCRobotLog : CLASS
 	  _LogParAxMoveEndless : STRUCT  //! <Type Public="true" Name="_LogParAxMoveEndless"/>
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxMoveEndless.AxisNo"/>
 	    Speed : DINT;  //! <Type Comment="Axis speed of the movement [Application units / s]" Name="_LogParAxMoveEndless.Speed"/>
-	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveEndless.Accel"/>
+	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / s²]" Name="_LogParAxMoveEndless.Accel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveEndless.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -70,7 +70,7 @@ _LMCRobotLog : CLASS
 	  _LogParAxMoveHand : STRUCT  //! <Type Public="true" Name="_LogParAxMoveHand"/>
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxMoveHand.AxisNo"/>
 	    Speed : DINT;  //! <Type Comment="Axis speed of the movement [Application units / s]" Name="_LogParAxMoveHand.Speed"/>
-	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveHand.Accel"/>
+	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / s²]" Name="_LogParAxMoveHand.Accel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveHand.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -81,7 +81,7 @@ _LMCRobotLog : CLASS
 	    Position : DINT;  //! <Type Comment="Reference position [Application units]" Name="_LogParAxMoveReference.Position"/>
 	    VRef1 : DINT;  //! <Type Comment="Speed used when searching for the reference switch [Application units/s]" Name="_LogParAxMoveReference.VRef1"/>
 	    VRef2 : DINT;  //! <Type Comment="Speed used when backing off from the reference switch [Application units/s]" Name="_LogParAxMoveReference.VRef2"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration / deceleration used when searching for the reference switch and when backing off from it [Application units/sï¿½]" Name="_LogParAxMoveReference.Accel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration / deceleration used when searching for the reference switch and when backing off from it [Application units/s²]" Name="_LogParAxMoveReference.Accel"/>
 	    PositionWindow : DINT;  //! <Type Comment="Distance within which the Z pulse must occur after leaving the reference switch [Application units]" Name="_LogParAxMoveReference.PositionWindow"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveReference.Jerk"/>
 	  END_STRUCT;
@@ -92,8 +92,8 @@ _LMCRobotLog : CLASS
 	    Position : DINT;  //! <Type Comment="distance of the movement [Application units]" Name="_LogParAxMoveRelative.Position"/>
 	    Mode : _LMCAXIS_MOVE_RELATIVE_MODE;  //! <Type Comment="MOVE_RELATIVE_TO_DESTINATION --&gt; Position is relative to the last target position&#13;&#10;MOVE_RELATIVE_TO_POSIITON    --&gt; Position is relative to the actual position" Name="_LogParAxMoveRelative.Mode"/>
 	    Speed : DINT;  //! <Type Comment="Axis speed of the movement [Application units / s]" Name="_LogParAxMoveRelative.Speed"/>
-	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveRelative.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="_LogParAxMoveRelative.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Axis acceleration of the movement [Application units / s²]" Name="_LogParAxMoveRelative.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / s²]" Name="_LogParAxMoveRelative.Decel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveRelative.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -102,8 +102,8 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxMoveShortestWay.AxisNo"/>
 	    Position : DINT;  //! <Type Comment="Target position for the axis [application units]" Name="_LogParAxMoveShortestWay.Position"/>
 	    Speed : DINT;  //! <Type Comment="Speed of the axis [application units / sec]" Name="_LogParAxMoveShortestWay.Speed"/>
-	    Accel : DINT;  //! <Type Comment="acceleration of the axis [application units / sï¿½]" Name="_LogParAxMoveShortestWay.Accel"/>
-	    Decel : DINT;  //! <Type Comment="deceleration of the axis [application units / sï¿½]" Name="_LogParAxMoveShortestWay.Decel"/>
+	    Accel : DINT;  //! <Type Comment="acceleration of the axis [application units / s²]" Name="_LogParAxMoveShortestWay.Accel"/>
+	    Decel : DINT;  //! <Type Comment="deceleration of the axis [application units / s²]" Name="_LogParAxMoveShortestWay.Decel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxMoveShortestWay.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -171,7 +171,7 @@ _LMCRobotLog : CLASS
 #pragma pack(push, 1)
 	  _LogParAxStopMove : STRUCT  //! <Type Public="true" Name="_LogParAxStopMove"/>
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxStopMove.AxisNo"/>
-	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / sï¿½]" Name="_LogParAxStopMove.Decel"/>
+	    Decel : DINT;  //! <Type Comment="Axis deceleration of the movement [Application units / s²]" Name="_LogParAxStopMove.Decel"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxStopMove.Jerk"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -180,7 +180,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="&gt;=1: the specified axis&#13;&#10;  0: all axes&#13;&#10; -1: all hw-axes&#13;&#10; -2: all kinematic-axes" Name="_LogParAxTuneAxis.AxisNo"/>
 	    Position : DINT;  //! <Type Comment="Target or distance for the axis [Application units]" Name="_LogParAxTuneAxis.Position"/>
 	    Speed : DINT;  //! <Type Comment="Maximum speed [Application units / s]" Name="_LogParAxTuneAxis.Speed"/>
-	    Accel : DINT;  //! <Type Comment="Axis acceleration [Application units / sï¿½ ]" Name="_LogParAxTuneAxis.Accel"/>
+	    Accel : DINT;  //! <Type Comment="Axis acceleration [Application units / s² ]" Name="_LogParAxTuneAxis.Accel"/>
 	    Mode : _LMCAXIS_TUNE_MODE;  //! <Type Comment=" INTERVALL__ACTPOSITION_POSITION          --&gt; Movement between the actual position and the position added to it.&#13;&#10; INTERVALL__ZERO_TO_POSITIVE_POSITION     --&gt; Movement between the specified position and 0&#13;&#10; INTERVALL__POSITON_IN_POSITIVE_DIRECTION --&gt; Relative movement in the positive direction&#13;&#10; INTERVALL__ZERO_TO_NEGATIVE_POSITION     --&gt; Movement between the specified negative position and 0&#13;&#10; INTERVALL__POSITON_IN_NEGATIVE_DIRECTION --&gt; Relative movement in the negative direction&#13;&#10;" Name="_LogParAxTuneAxis.Mode"/>
 	    WaitTime : UDINT;  //! <Type Comment="A TuneTime is set [ms]. This Tunetime is simply a delay after each movement. " Name="_LogParAxTuneAxis.WaitTime"/>
 	    Jerk : DINT;  //! <Type Comment="Axis jerk of the movement [Application units / sec^2 / millisec]" Name="_LogParAxTuneAxis.Jerk"/>
@@ -197,7 +197,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParChangeCoupleSettings.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParChangeCoupleSettings.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParChangeCoupleSettings.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParChangeCoupleSettings.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParChangeCoupleSettings.MaxAcc"/>
 	    DeltaPos : DINT;  //! <Type Comment="Position difference between the master axis and the slave axis [internal units]" Name="_LogParChangeCoupleSettings.DeltaPos"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParChangeCoupleSettings.GearMul"/>
 	    GearDiv : DINT;  //! <Type Comment="Divisor for the gear ratio" Name="_LogParChangeCoupleSettings.GearDiv"/>
@@ -225,7 +225,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleCurveTab.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleCurveTab.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleCurveTab.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleCurveTab.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleCurveTab.MaxAcc"/>
 	    DeltaPos : DINT;  //! <Type Comment="Position difference between the master axis and the slave axis [Application units]" Name="_LogParCoupleCurveTab.DeltaPos"/>
 	    pMaster : ^MasterStruct;  //! <Type Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="_LogParCoupleCurveTab.pMaster"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleCurveTab.GearMul"/>
@@ -239,7 +239,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleGearAbsolute.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleGearAbsolute.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleGearAbsolute.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleGearAbsolute.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleGearAbsolute.MaxAcc"/>
 	    DeltaPos : DINT;  //! <Type Comment="Position difference between the master axis and the slave axis [internal units]" Name="_LogParCoupleGearAbsolute.DeltaPos"/>
 	    pMaster : ^MasterStruct;  //! <Type Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="_LogParCoupleGearAbsolute.pMaster"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleGearAbsolute.GearMul"/>
@@ -251,7 +251,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleGearPolynom.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleGearPolynom.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleGearPolynom.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleGearPolynom.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleGearPolynom.MaxAcc"/>
 	    pMaster : ^MasterStruct;  //! <Type Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="_LogParCoupleGearPolynom.pMaster"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleGearPolynom.GearMul"/>
 	    GearDiv : DINT;  //! <Type Comment="Divisor for the gear ratio" Name="_LogParCoupleGearPolynom.GearDiv"/>
@@ -264,7 +264,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleGearRelative.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleGearRelative.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleGearRelative.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleGearRelative.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleGearRelative.MaxAcc"/>
 	    pMaster : ^MasterStruct;  //! <Type Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="_LogParCoupleGearRelative.pMaster"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleGearRelative.GearMul"/>
 	    GearDiv : DINT;  //! <Type Comment="Divisor for the gear ratio" Name="_LogParCoupleGearRelative.GearDiv"/>
@@ -275,7 +275,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleGearVelocity.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleGearVelocity.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleGearVelocity.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleGearVelocity.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleGearVelocity.MaxAcc"/>
 	    pMaster : ^MasterStruct;  //! <Type Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="_LogParCoupleGearVelocity.pMaster"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleGearVelocity.GearMul"/>
 	    GearDiv : DINT;  //! <Type Comment="Divisor for the gear ratio" Name="_LogParCoupleGearVelocity.GearDiv"/>
@@ -286,7 +286,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleProfilePos.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleProfilePos.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleProfilePos.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleProfilePos.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleProfilePos.MaxAcc"/>
 	    Mode : _LMCPROF_RECOUPLEMODE;  //! <Type Comment="selecte the mode for the recouple" Name="_LogParCoupleProfilePos.Mode"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -295,7 +295,7 @@ _LMCRobotLog : CLASS
 	    AxisNo : DINT;  //! <Type Comment="Number of the selected axis, beginning with 1." Name="_LogParCoupleUserPos.AxisNo"/>
 	    CoupleMode : _LMCPROF_EXECUTE;  //! <Type Comment="Time of couple command execution" Name="_LogParCoupleUserPos.CoupleMode"/>
 	    MaxVel : DINT;  //! <Type Comment="Maximum speed of the axis for this movement [Application units / s]" Name="_LogParCoupleUserPos.MaxVel"/>
-	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="_LogParCoupleUserPos.MaxAcc"/>
+	    MaxAcc : DINT;  //! <Type Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="_LogParCoupleUserPos.MaxAcc"/>
 	    pMasterPos : ^DINT;  //! <Type Comment="Pointer to the command variable containing the master position [internal units].&#13;&#10;The command variable has to contain set positions." Name="_LogParCoupleUserPos.pMasterPos"/>
 	    DeltaPos : DINT;  //! <Type Comment="Position difference between the master position and the slave axis [internal units]" Name="_LogParCoupleUserPos.DeltaPos"/>
 	    GearMul : DINT;  //! <Type Comment="Multiplier for the gear ratio" Name="_LogParCoupleUserPos.GearMul"/>
@@ -412,8 +412,8 @@ _LMCRobotLog : CLASS
 	    CircleDef : _LMCPROFCIRCLEDEF;  //! <Type Comment="Defines which axes should perform a circular movement" Name="_LogParMoveCircle.CircleDef"/>
 	    CmdConfig : _LMCPROFCMDCONFIG;  //! <Type Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW) in case of 2 dimenional movement / dromic direction in case of 3 dimensional movement&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW) in case of 2 dimenional movement / antidromic direction in case of 3 dimensional movement&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="_LogParMoveCircle.CmdConfig"/>
 	    Velocity : DINT;  //! <Type Comment="Path speed (feed rate) for the movement.[Application units / s]" Name="_LogParMoveCircle.Velocity"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveCircle.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveCircle.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / s² ]" Name="_LogParMoveCircle.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / s² ]" Name="_LogParMoveCircle.Decel"/>
 	    TransMode : _LMCPROFTRANSMODES;  //! <Type Comment="Transitionmodus during rounding" Name="_LogParMoveCircle.TransMode"/>
 	    TransRadius : DINT;  //! <Type Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC. " Name="_LogParMoveCircle.TransRadius"/>
 	    Jerk : DINT;  //! <Type Comment="Jerk for this movement [Application units / sec^2 / millisec]" Name="_LogParMoveCircle.Jerk"/>
@@ -499,8 +499,8 @@ _LMCRobotLog : CLASS
 	    Positions : _LMCPROF_POS;  //! <Type Comment="Absolute end position of the axes [Application Units]" Name="_LogParMoveLinear.Positions"/>
 	    CmdConfig : _LMCPROFCMDCONFIG;  //! <Type Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="_LogParMoveLinear.CmdConfig"/>
 	    Velocity : DINT;  //! <Type Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="_LogParMoveLinear.Velocity"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveLinear.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveLinear.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / s² ]" Name="_LogParMoveLinear.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / s² ]" Name="_LogParMoveLinear.Decel"/>
 	    TransMode : _LMCPROFTRANSMODES;  //! <Type Comment="Transitionmodus during rounding" Name="_LogParMoveLinear.TransMode"/>
 	    TransRadius : DINT;  //! <Type Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="_LogParMoveLinear.TransRadius"/>
 	    Jerk : DINT;  //! <Type Comment="Jerk for this movement [Application units / sec^2 / millisec]" Name="_LogParMoveLinear.Jerk"/>
@@ -513,8 +513,8 @@ _LMCRobotLog : CLASS
 	    Positions : _LMCPROF_POS;
 	    CmdConfig : _LMCPROFCMDCONFIG;  //! <Type Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="_LogParMoveLinearBelt.CmdConfig"/>
 	    Velocity : DINT;  //! <Type Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="_LogParMoveLinearBelt.Velocity"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveLinearBelt.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveLinearBelt.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / s² ]" Name="_LogParMoveLinearBelt.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / s² ]" Name="_LogParMoveLinearBelt.Decel"/>
 	    TransMode : _LMCPROFTRANSMODES;  //! <Type Comment="Transitionmodus during rounding" Name="_LogParMoveLinearBelt.TransMode"/>
 	    TransRadius : DINT;  //! <Type Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="_LogParMoveLinearBelt.TransRadius"/>
 	    BeltData : _LMCRobotBase::_BELT_COUPLE_DATA;
@@ -527,8 +527,8 @@ _LMCRobotLog : CLASS
 	    Distances : _LMCPROF_POS;  //! <Type Comment="Relative distance of the axes [Application Units]" Name="_LogParMoveRelative.Distances"/>
 	    CmdConfig : _LMCPROFCMDCONFIG;  //! <Type Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation" Name="_LogParMoveRelative.CmdConfig"/>
 	    Velocity : DINT;  //! <Type Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="_LogParMoveRelative.Velocity"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveRelative.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveRelative.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / s² ]" Name="_LogParMoveRelative.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / s² ]" Name="_LogParMoveRelative.Decel"/>
 	    TransMode : _LMCPROFTRANSMODES;  //! <Type Comment="Transitionmodus during rounding" Name="_LogParMoveRelative.TransMode"/>
 	    TransRadius : DINT;  //! <Type Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="_LogParMoveRelative.TransRadius"/>
 	    Jerk : DINT;  //! <Type Comment="Jerk for this movement [Application units / sec^2 / millisec]" Name="_LogParMoveRelative.Jerk"/>
@@ -541,8 +541,8 @@ _LMCRobotLog : CLASS
 	    Distances : _LMCPROF_POS;
 	    CmdConfig : _LMCPROFCMDCONFIG;  //! <Type Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="_LogParMoveRelativeTCP.CmdConfig"/>
 	    Velocity : DINT;  //! <Type Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="_LogParMoveRelativeTCP.Velocity"/>
-	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveRelativeTCP.Accel"/>
-	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="_LogParMoveRelativeTCP.Decel"/>
+	    Accel : DINT;  //! <Type Comment="Acceleration for this movement [Application units / s² ]" Name="_LogParMoveRelativeTCP.Accel"/>
+	    Decel : DINT;  //! <Type Comment="Deceleration for this movement [Application units / s² ]" Name="_LogParMoveRelativeTCP.Decel"/>
 	    TransMode : _LMCPROFTRANSMODES;  //! <Type Comment="Transitionmodus during rounding" Name="_LogParMoveRelativeTCP.TransMode"/>
 	    TransRadius : DINT;  //! <Type Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT." Name="_LogParMoveRelativeTCP.TransRadius"/>
 	    Jerk : DINT;  //! <Type Comment="Jerk for this movement [Application units / sec^2 / millisec]" Name="_LogParMoveRelativeTCP.Jerk"/>
@@ -652,9 +652,9 @@ _LMCRobotLog : CLASS
 #pragma pack(push, 1)
 	  _LogParSetBasicParameter : STRUCT  //! <Type Public="true" Name="_LogParSetBasicParameter"/>
 	    VMax : DINT;  //! <Type Comment="Maximum path speed [Application units / s]" Name="_LogParSetBasicParameter.VMax"/>
-	    AMax : DINT;  //! <Type Comment="Maximum path acceleration/deceleration [Application units / sï¿½]" Name="_LogParSetBasicParameter.AMax"/>
+	    AMax : DINT;  //! <Type Comment="Maximum path acceleration/deceleration [Application units / s²]" Name="_LogParSetBasicParameter.AMax"/>
 	    Tjerk : DINT;  //! <Type Comment="Time for the path acceleration/deceleration to attain its maximum value [ms]." Name="_LogParSetBasicParameter.Tjerk"/>
-	    TangError : DINT;  //! <Type Comment="Maximum tangential error = 1/10000ï¿½" Name="_LogParSetBasicParameter.TangError"/>
+	    TangError : DINT;  //! <Type Comment="Maximum tangential error = 1/10000°" Name="_LogParSetBasicParameter.TangError"/>
 	    PosOffset : _LMCPROF_POS;  //! <Type Comment="Shifting of the null point for the axis (Geometric reference points) [Application units]" Name="_LogParSetBasicParameter.PosOffset"/>
 	  END_STRUCT;
 #pragma pack(pop)
@@ -704,7 +704,7 @@ _LMCRobotLog : CLASS
 #pragma pack(pop)
 #pragma pack(push, 1)
 	  _LogParSetTimeBase : STRUCT  //! <Type Public="true" Name="_LogParSetTimeBase"/>
-	    udTimeBase : UDINT;  //! <Type Comment="Time base in ï¿½s" Name="_LogParSetTimeBase.udTimeBase"/>
+	    udTimeBase : UDINT;  //! <Type Comment="Time base in µs" Name="_LogParSetTimeBase.udTimeBase"/>
 	  END_STRUCT;
 #pragma pack(pop)
 #pragma pack(push, 1)

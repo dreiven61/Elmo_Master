@@ -13,7 +13,7 @@
 (*!
 <Class
 	Name               = "EEPROM"
-	Revision           = "1.11"
+	Revision           = "1.12"
 	GUID               = "{55A1BF94-76EA-4EE2-BFE4-BFD1A43BF119}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -32,9 +32,13 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek"/>
+		<Dokumentation Revision="1.12" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.11" Date="03.03.2014" Author="PieSte" Company="Sigmatek" Description="corrected methode ClkTyp7 (eeprom typ DAI081)"/>
 		<Dokumentation Revision="1.10" Date="06.12.2013" Author="FucHer" Company="Sigmatek" Description="Changed AWL code to Structured Text."/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 EEPROM : CLASS
@@ -309,14 +313,14 @@ END_CLASS;
 FUNCTION GLOBAL TAB EEPROM::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_EEPROM
-1$UINT, 11$UINT, (SIZEOF(::EEPROM))$UINT, 
+1$UINT, 12$UINT, (SIZEOF(::EEPROM))$UINT, 
 1$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(2784851678), "EEPROM", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
 (::EEPROM.Server0.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(2759080719), "Server0", 
 //Clients:
-(::EEPROM.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 33$UINT, 
+(::EEPROM.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 34$UINT, 
 END_FUNCTION
 
 

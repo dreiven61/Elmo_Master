@@ -49,3 +49,54 @@
       //result.uiLng = 2
       //result.aData[0x0]$UINT  = value of client place (valid: 0 - 63 or DEACTIVATED_LSL)
 //+++++++++++++++++++++++++++++++++++++
+
+//+++++++++++++++++++++++++++++++++++++
+#define SDIAS_CLT_CHECKDEVICEID       0x8372
+      
+      //aPara[0] = version of command
+      //Parameter of Version 1:     
+      //aPara[1]$UDINT = DEVICEID to check
+      
+      //retcode = error => command not supported
+      //retcode = ready => result is filled with data
+      
+      // result of version 1
+      //result.uiLng =  5
+      //result.aData[0]$DINT      = version of command
+      //result.aData[4]$BOOL      = Device ID of the SDIAS Modul matched passed Value 
+      
+//+++++++++++++++++++++++++++++++++++++
+
+//+++++++++++++++++++++++++++++++++++++
+#define SDIAS_CLT_GET_POINTER2SERVER  0x8373      
+      
+      //aPara[0] = version of command
+      //Parameter of Version 1:     
+      //aPara[1]$^CHAR = Name of the Server
+      
+      //retcode = error => command not supported
+      //retcode = ready => result is filled with data
+      
+      // result of version 1
+      //result.uiLng =  8
+      //result.aData[0]$DINT      = version of command
+      //result.aData[4]$^SvrCh   = Pointer to the Server, Nil if it does not exist.
+      
+//+++++++++++++++++++++++++++++++++++++
+
+//+++++++++++++++++++++++++++++++++++++
+#define SDIAS_CLT_SET_ERRORQUIT  0x8374
+      
+      //aPara[0] = version of command
+      //Parameter of Version 1:     
+      //aPara[1]$DINT = ErrorQuit Command
+      
+      //retcode = error => command not supported
+      //retcode = ready => result is filled with data
+      
+      // result of version 1
+      //result.uiLng =  8
+      //result.aData[0]$DINT      = version of command
+      //result.aData[4]$DINT   = result of ErrorQuit.Write()
+      
+//+++++++++++++++++++++++++++++++++++++

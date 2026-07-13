@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "SdiasHubBase"
-	Revision           = "1.10"
+	Revision           = "1.11"
 	GUID               = "{5633D4A6-9129-4E1C-BB50-7F012CD8443A}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -25,9 +25,13 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="1.11" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.10" Date="01.08.2013" Author="ObeChr" Company="Sigmatek" Description="Comments for Server / Client"/>
 		<Dokumentation Revision="1.0" Date="18.07.2013" Author="RamAnd" Company="Sigmatek" Description="First library version"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 SdiasHubBase : CLASS
@@ -61,7 +65,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB SdiasHubBase::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SDIASHUBBASE
-1$UINT, 10$UINT, (SIZEOF(::SdiasHubBase))$UINT, 
+1$UINT, 11$UINT, (SIZEOF(::SdiasHubBase))$UINT, 
 1$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(4173303375), "SdiasHubBase", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

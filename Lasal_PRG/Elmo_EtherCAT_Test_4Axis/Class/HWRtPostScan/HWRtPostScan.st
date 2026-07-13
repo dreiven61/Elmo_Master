@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "HWRtPostScan"
-	Revision           = "1.0"
+	Revision           = "1.1"
 	GUID               = "{50071A5B-17CF-4D9A-ABB9-2136C24DBFFC}"
 	RealtimeTask       = "true"
 	DefRealtimeIndex   = "1073741824"
@@ -25,8 +25,12 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="BleErn"/>
+		<Dokumentation Revision="1.1" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.0" Date="08.02.2010" Author="BleErn" Company="Sigmatek" Description="Creation of class for implementation of HWRtPostScan"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 HWRtPostScan : CLASS
@@ -62,14 +66,14 @@ END_CLASS;
 FUNCTION GLOBAL TAB HWRtPostScan::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HWRTPOSTSCAN
-1$UINT, 0$UINT, (SIZEOF(::HWRtPostScan))$UINT, 
+1$UINT, 1$UINT, (SIZEOF(::HWRtPostScan))$UINT, 
 1$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(4260294091), "HWRtPostScan", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
 (::HWRtPostScan.ClassSvr.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(619352855), "ClassSvr", 
 //Clients:
-(::HWRtPostScan.toHwControlBase.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2356350776), "toHwControlBase", TO_UDINT(1193052171), "HwControlBase", 1$UINT, 10$UINT, 
+(::HWRtPostScan.toHwControlBase.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2356350776), "toHwControlBase", TO_UDINT(1193052171), "HwControlBase", 1$UINT, 11$UINT, 
 END_FUNCTION
 
 

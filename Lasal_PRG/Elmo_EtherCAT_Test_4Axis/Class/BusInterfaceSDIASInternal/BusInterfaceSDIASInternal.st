@@ -20,7 +20,7 @@
 (*!
 <Class
 	Name               = "BusInterfaceSDIASInternal"
-	Revision           = "2.1"
+	Revision           = "2.2"
 	GUID               = "{0F88252F-E206-4746-9EE2-190EB96646AE}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -54,6 +54,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="2.2" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.1" Date="25.11.2020" Author="EisMic" Company="Sigmatek" Description="The newinst commando CMD_HWC_REQ_PLLNS_REGULATION is now be forwared to the HwControl.&#13;&#10;Added comment of client CoreSelect."/>
 		<Dokumentation Revision="2.0" Date="26.03.2018" Author="EisMic" Company="Sigmatek" Description="Added support to select the CPU-core on which the realtime and the cyclic task of the class should be executed."/>
 		<Dokumentation Revision="1.30" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
@@ -83,6 +84,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 BusInterfaceSDIASInternal : CLASS
@@ -263,7 +267,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB BusInterfaceSDIASInternal::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_BUSINTERFACESDIASINTERNAL
-2$UINT, 1$UINT, (SIZEOF(::BusInterfaceSDIASInternal))$UINT, 
+2$UINT, 2$UINT, (SIZEOF(::BusInterfaceSDIASInternal))$UINT, 
 2$UINT, 6$UINT, 0$UINT, 
 TO_UDINT(3882880897), "BusInterfaceSDIASInternal", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -271,7 +275,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::BusInterfaceSDIASInternal.InterfaceState.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(2895168853), "InterfaceState", 
 (::BusInterfaceSDIASInternal.CallCommand.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(1059212957), "CallCommand", 
 //Clients:
-(::BusInterfaceSDIASInternal.ToHwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3104445832), "ToHwControl", TO_UDINT(2471641665), "HwControl", 5$UINT, 27$UINT, 
+(::BusInterfaceSDIASInternal.ToHwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3104445832), "ToHwControl", TO_UDINT(2471641665), "HwControl", 6$UINT, 0$UINT, 
 (::BusInterfaceSDIASInternal.CycleTime.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(2924485542), "CycleTime", 
 (::BusInterfaceSDIASInternal.IsoStartPoint.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(102048672), "IsoStartPoint", 
 (::BusInterfaceSDIASInternal.ToOSKernel.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2889244023), "ToOSKernel", TO_UDINT(3045737964), "_OSKernel", 0$UINT, 5$UINT, 

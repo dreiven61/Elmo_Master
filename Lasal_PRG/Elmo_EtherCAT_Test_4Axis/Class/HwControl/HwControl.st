@@ -11,7 +11,7 @@
 (*!
 <Class
 	Name               = "HwControl"
-	Revision           = "5.27"
+	Revision           = "6.0"
 	GUID               = "{4794F3F9-7ABA-4680-9933-0608225B5265}"
 	RealtimeTask       = "false"
 	DefRealtime        = "1 ms"
@@ -56,6 +56,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="6.0" Date="2026-04-09" Author="LanSte" Company="Sigmatek" Description="Added Support for ECAT Safety."/>
 		<Dokumentation Revision="5.27" Date="2025-10-15" Author="RamAnd" Company="Sigmatek" Description="Added GetPara and SetPara methods for general parameter setting and getting.&#13;&#10;Added parameters to GetPara and SetPara to override the UDP timing settings (cycle and timeout of communication)."/>
 		<Dokumentation Revision="5.26" Date="30.09.2025" Author="RamAnd" Company="Sigmatek" Description="When an established interface write connection via UDP has its communication counterpart exchanged, the stored safety number is now updated to enable routing to the new module."/>
 		<Dokumentation Revision="5.25" Date="15.07.2025" Author="LanSte" Company="Sigmatek" Description="Fixed: Drive classes did not work linked. Moved global variables for drive tool to HWControl."/>
@@ -67,7 +68,7 @@
 		<Dokumentation Revision="5.19" Date="22.03.2022" Author="RamAnd" Company="Sigmatek" Description="Added support for the new OS Interface to quit errors"/>
 		<Dokumentation Revision="5.18" Date="17.01.2022" Author="EisMic" Company="Sigmatek" Description="Testversion: Forward the NewInst commando CMD_HWC_CONVERT_COMPRESSED_HWPATH to the SafetyManager class."/>
 		<Dokumentation Revision="5.17" Date="30.11.2021" Author="EisMic" Company="Sigmatek" Description="Added global functions to determine the current operation system.&#13;&#10;Added global function HWC_IsPostInitFinished to determine if the postinit phase is finished or not."/>
-		<Dokumentation Revision="5.16" Date="23.10.2020" Author="PieSte" Company="Sigmatek" Description="Added support for new blocktype and extended routing of FSoE data for this type.&#13;&#10;Corrected allocate of udp buffers at &quot;AddModule()&quot;.&#13;&#10;Don&apos;t Log AddDynSlave error if RetCode is zero at GetDestSafetyOfDO() Methode."/>
+		<Dokumentation Revision="5.16" Date="23.10.2020" Author="PieSte" Company="Sigmatek" Description="Added support for new blocktype and extended routing of FSoE data for this type.&#13;&#10;Corrected allocate of udp buffers at &quot;AddModule()&quot;.&#13;&#10;Don&apos;t Log AddDynSlave error if RetCode is zero at GetDestSafetyOfDO() Method."/>
 		<Dokumentation Revision="5.15" Date="18.12.2020" Author="RamAnd" Company="Sigmatek" Description="Removed CLI/STI occurances in internal time measurements"/>
 		<Dokumentation Revision="5.14" Date="13.03.2020" Author="Berste1" Company="Sigmatek" Description="Registration for Pll readjustment added"/>
 		<Dokumentation Revision="5.13" Date="08.04.2020" Author="PieSte" Company="Sigmatek" Description="Add client RtTaskSync for realtime synchronization if more than one core is used.&#13;&#10;Corrected nil pointer &quot;pStr_HWTreeEntry&quot; at newinst command &quot;CMD_GET_HARDWARE_DIAGNOSIS&quot;."/>
@@ -95,7 +96,7 @@
 		<Dokumentation Revision="4.7" Date="22.06.2017" Author="RamAnd" Company="Sigmatek" Description="If a disconnect happens in a multi master system with safety communication (more than 2 systems connected and exchanging safety data) now the other masters are notified about it to reestablish the connection."/>
 		<Dokumentation Revision="4.6" Date="01.03.2017" Author="EisMic" Company="Sigmatek" Description="Corrected an error in the handling of optional safety modules."/>
 		<Dokumentation Revision="4.5" Date="14.02.2017" Author="ZoePat" Company="Sigmatek" Description="SdiasModules can now request to increase the PostInit timeout."/>
-		<Dokumentation Revision="4.4" Date="21.09.2016" Author="PieSte" Company="Sigmatek" Description="Add methode &quot;AddFirstCallHW&quot; for objects which are called as first at HwControl Realtime. In the TraceView scope is the and of first object call as UserEvent0 with data = 1.215.775.599 marked. "/>
+		<Dokumentation Revision="4.4" Date="21.09.2016" Author="PieSte" Company="Sigmatek" Description="Add method &quot;AddFirstCallHW&quot; for objects which are called as first at HwControl Realtime. In the TraceView scope is the and of first object call as UserEvent0 with data = 1.215.775.599 marked. "/>
 		<Dokumentation Revision="4.3" Date="28.01.2016" Author="RamAnd" Company="Sigmatek" Description="Support for FSoE via IP added."/>
 		<Dokumentation Revision="4.2" Date="06.06.2016" Author="EisMic" Company="Sigmatek" Description="Corrected error if distributed safety modules are connected after the initialisation phase."/>
 		<Dokumentation Revision="4.1" Date="11.05.2016" Author="RamAnd" Company="Sigmatek" Description="Suppressed warning that would occur with target ARM on compiler version 30 or higher."/>
@@ -626,20 +627,20 @@ END_CLASS;
 FUNCTION GLOBAL TAB HwControl::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HWCONTROL
-5$UINT, 27$UINT, (SIZEOF(::HwControl))$UINT, 
+6$UINT, 0$UINT, (SIZEOF(::HwControl))$UINT, 
 1$UINT, 7$UINT, 0$UINT, 
 TO_UDINT(2471641665), "HwControl", //Class
-TO_UDINT(1193052171), "HwControlBase", 1$UINT, 10$UINT, //Baseclass
+TO_UDINT(1193052171), "HwControlBase", 1$UINT, 11$UINT, //Baseclass
 //Servers:
 (::HwControl.SafetyState.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1504224158), "SafetyState", 
 //Clients:
-(::HwControl.SafetyManager.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1799751072), "SafetyManager", TO_UDINT(1799751072), "SafetyManager", 2$UINT, 30$UINT, 
+(::HwControl.SafetyManager.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1799751072), "SafetyManager", TO_UDINT(1799751072), "SafetyManager", 3$UINT, 0$UINT, 
 (::HwControl.SafetyDomainTimeout.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000100$UINT, TO_UDINT(1863305286), "SafetyDomainTimeout", 
 (::HwControl.UdpSafetyPort.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000100$UINT, TO_UDINT(3294470351), "UdpSafetyPort", 
 (::HwControl.InterfaceNo.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000100$UINT, TO_UDINT(2005113602), "InterfaceNo", 
 (::HwControl.RtTaskSync.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(3691411803), "RtTaskSync", 
-(::HwControl.HWRtPostScan.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4260294091), "HWRtPostScan", TO_UDINT(4260294091), "HWRtPostScan", 1$UINT, 0$UINT, 
-(::HwControl.HwcLogging.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3078259981), "HwcLogging", TO_UDINT(3078259981), "HwcLogging", 1$UINT, 0$UINT, 
+(::HwControl.HWRtPostScan.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4260294091), "HWRtPostScan", TO_UDINT(4260294091), "HWRtPostScan", 1$UINT, 1$UINT, 
+(::HwControl.HwcLogging.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3078259981), "HwcLogging", TO_UDINT(3078259981), "HwcLogging", 1$UINT, 1$UINT, 
 END_FUNCTION
 
 
@@ -3476,7 +3477,7 @@ FUNCTION HwControl::UpdateRtVaranManager
           //reset task time counter
           pOneManager^.ud_CounterRt := 0;
 
-          //call realtime methode of VaranMaster
+          //call realtime method of VaranMaster
           pOneManager^.p_Functions^.p_This^.RtWork( 0 ); 
                     
           // if manager is also client and we are in superior task

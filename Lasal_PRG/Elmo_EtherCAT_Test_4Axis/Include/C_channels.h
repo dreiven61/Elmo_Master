@@ -581,6 +581,13 @@ typedef struct CltChCmd_SafetyManager
     SafetyManager *pCmd;
   } CltChCmd_SafetyManager;
 
+typedef struct CltChCmd_SafetyRoutingTables 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    SafetyRoutingTables *pCmd;
+  } CltChCmd_SafetyRoutingTables;
+
 typedef struct CltChCmd_SdiasHubBase 
   {
     struct SvrChCmd_DINT *pCh;

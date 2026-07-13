@@ -21,7 +21,7 @@
 (*!
 <Class
 	Name               = "HwBaseCDIAS"
-	Revision           = "2.56"
+	Revision           = "2.57"
 	GUID               = "{97D4E012-1873-4474-A4CD-0D0F0E4B798B}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -56,6 +56,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="SilBer"/>
+		<Dokumentation Revision="2.57" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.56" Date="18.12.2020" Author="RamAnd" Company="Sigmatek" Description="Removed CLI/STI occurances in internal time measurements"/>
 		<Dokumentation Revision="2.55" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
 		<Dokumentation Revision="2.54" Date="23.01.2018" Author="RamAnd" Company="Sigmatek" Description="Log messages have been standardized for easier maintenance, easier use in any class and to allow spam filtering. Code for the logging functions is now only located in HwControl."/>
@@ -101,6 +102,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 HwBaseCDIAS : CLASS
@@ -473,7 +477,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB HwBaseCDIAS::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HWBASECDIAS
-2$UINT, 56$UINT, (SIZEOF(::HwBaseCDIAS))$UINT, 
+2$UINT, 57$UINT, (SIZEOF(::HwBaseCDIAS))$UINT, 
 2$UINT, 7$UINT, 0$UINT, 
 TO_UDINT(1800499398), "HwBaseCDIAS", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -481,7 +485,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::HwBaseCDIAS.State.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(1422331979), "State", 
 (::HwBaseCDIAS.SerialNo.pMeth)$UINT, _CH_SVR_OBJ$UINT, 2#0000000001000000$UINT, TO_UDINT(1856804640), "SerialNo", 
 //Clients:
-(::HwBaseCDIAS.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 33$UINT, 
+(::HwBaseCDIAS.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 34$UINT, 
 (::HwBaseCDIAS.Place.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(2202636669), "Place", 
 (::HwBaseCDIAS.Required.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(648558917), "Required", 
 (::HwBaseCDIAS.To_StdLib.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2139173287), "To_StdLib", TO_UDINT(3689364044), "_StdLib", 2$UINT, 0$UINT, 

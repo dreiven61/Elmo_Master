@@ -2,6 +2,13 @@
 
 작성일: 2026-07-10
 
+최종 갱신: 2026-07-13
+
+> dispatcher의 descriptor/name registry 결정은 유지한다. 실행 경로는
+> `Response -> queue -> CyWork -> approved client call`이며
+> TCPMotionInterface의 RtWork/RT mailbox는 사용하지 않는다. 상세 task 기준은
+> `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`를 따른다.
+
 ## 결정
 
 `_LMCAxis1`, `_LMCAxis2` 같은 실제 object name은 LASAL 프로젝트가
@@ -34,7 +41,7 @@ canonical 대상은 Git에 추적된
 | `LMCAxis4` | `_LMCAxis4.Control` | 4 |
 | `LMCRobot` | `_LMCRobotBase1.Control` | `0x0100` |
 
-RT 초기화에서 각 typed client의 `pCmd`에 `_GetObjName`을 호출해 실제
+CyWork의 one-shot registry 초기화에서 각 typed client의 `pCmd`에 `_GetObjName`을 호출해 실제
 이름을 256-byte 안전 buffer에 먼저 저장한다. wire name 한계에 맞춰 길이가
 1..79인 경우에만 registry를 ready로 만든다. TCP request마다 `_Linker`
 전체를 검색하지 않는다.
@@ -54,21 +61,30 @@ lookup을 다시 수행한다.
 ## 현재 dispatch 범위
 
 source-first 구현은 `Response()` callback이 완성 frame을 depth-8 queue에
-publish하고, `CyWork()`가 command를 분류한 뒤 typed mailbox를 통해 같은 core의
-`RtWork()`에 client call을 넘기는 구조다.
+publish하고, non-RT `CyWork()`가 command를 분류한 뒤 승인된
+client call을 직접 실행·응답하는 구조다. interface RT task와 mailbox는 없다.
 
-첫 실제 client-call 허용 범위는 `0x202E ReadActualPosition` 하나다. descriptor
-1..4가 `LMCAxis1..4`로 route된다. 기존 handler body가 있더라도 아래
-client/state-changing command는 각각의 mailbox 이관과 PLC 검증 전까지 error
-`-5`를 반환한다.
+현재 실제 client-call 허용 범위는 아래 11개다.
 
-- Axis: Power, Reset, Stop, ReadStatus, MoveAbsolute, MoveRelative, MoveVelocity
-- Group: Enable, Disable, ReadStatus, MoveLinearAbsolute
-- GroupReset/GroupStop: 승인된 LASAL method가 없어 계속 error `-5`
+- Axis descriptor 1..4: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`,
+  `0x209F`, `0x20A0`, `0x20A2`
+- Group descriptor `0x0100`: `0x2047`, `0x2048`, `0x2045`
+
+다음 명령은 deterministic error `-5`를 반환하고 client를 호출하지 않는다.
+
+- `0x2049 GroupReset`
+- `0x2085 GroupStop`
+- `0x20A4 MoveLinearAbsoluteEx`
+- `0x2051 GroupReadActualPosition`
+- `0x20E7 SetKinTransformEx`
+
+`0x2051`과 `0x20E7`은 PC API의 request/public path 및 response 또는
+serializer 처리가 완료된 명령이다. 위 `-5` 판정은 LASAL dispatcher에만
+해당한다.
 
 RPC lifecycle, axis/group lookup, AxisInfo, GetGroupMembersInfo처럼 motion client
-call이 없는 command는 `CyWork()`에서 처리할 수 있다. 이 source 구현은
-LASAL IDE class/network regeneration 전이므로 실제 motion 승인 상태가 아니다.
+call이 없는 command도 `CyWork()`에서 처리한다. 이 source 구현은 LASAL IDE
+rebuild와 PLC 검증 전이므로 실제 motion 승인 상태가 아니다.
 
 모든 DINT motion field는 caller가 변환한 값을 그대로 `_LMCAxis` 또는
 `_LMCRobotBase` method에 전달한다. PLC에서 LREAL 변환이나 UNIT 재적용을
@@ -94,19 +110,21 @@ case default의 `-4`로 거부한다.
 
 반드시 LASAL IDE에서 다음을 수행한다.
 
-1. `TCPMotionInterface` class model의 첫 client를 `LMCAxis1`로 바꾸고
-   queue/mailbox member를 등록한 뒤 CodeGenerator로 재생성한다.
+1. `TCPMotionInterface` class model의 첫 client가 `LMCAxis1`이고 RT task가
+   비활성화됐는지 확인한 뒤 CodeGenerator로 재생성한다.
 2. 생성 결과가 tracked `.st`의 client descriptor/hash와 일치하는지 본다.
    class table header의 client count도 6이어야 한다.
 3. `TCPMotionInterface1.LMCAxis1 -> _LMCAxis1.Control`과 나머지 3축 client
    연결을 확인한다.
-4. CyclicTime/RealTime `1 ms`, axis와 같은 RT core, server `Config=0`,
+4. CyclicTime `1 ms`, RealTime assignment 부재, server `Config=0`,
    `MaxConnections=1`을 적용한다. interface CyWork는 TCP server CyWork와 같은
-   cyclic task/core에 둔다.
-5. PLC에서 실제 name lookup, descriptor 1~4와 축별 `0x202E` routing을
-   재캡처한다.
+   cyclic task에 두고 axis RT thread와 같은 CPU core에서 같거나 낮은 priority로
+   실행한다.
+5. PLC에서 실제 name lookup, descriptor 1~4의 axis 8개 command와 group
+   descriptor `0x0100`의 활성 3개 command routing을 재캡처한다.
 6. invalid name/reference가 정해진 오류로 끝나고 다른 축을 호출하지 않는지
    시험한다.
+7. unsupported 5개 command가 client를 호출하지 않고 `-5`로 끝나는지 확인한다.
 
 상세 IDE/network 적용 순서와 검증 gate는
 `LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`를 따른다.

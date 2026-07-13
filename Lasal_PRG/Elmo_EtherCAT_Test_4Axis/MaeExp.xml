@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="430DC175" Version="1.1" SubVersion="2">
+<File CRC="6179F82D" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -1275,7 +1275,7 @@
 			Name     = "SafetyManager"
 			Datatype = "DINT"
 			Base     = "SafetyUDP"
-			Size     = "39452"
+			Size     = "39464"
 			Guid     = "186EBAC0-5F71-4A3F-BA36-ED9EA68EA059">
 			<Servers>
 				<Server Name="ClassState" Datatype="DINT" Guid="A6D9A0DC-20E2-414D-B902-67A7FC14ABB0" WriteProtected="true"/>

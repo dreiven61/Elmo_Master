@@ -27,7 +27,7 @@
 (*!
 <Class
 	Name               = "ECAT_DS402Base"
-	Revision           = "1.1"
+	Revision           = "1.2"
 	GUID               = "{883EA47B-2D27-4ECA-B8DB-96309BC0DE2E}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -67,6 +67,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="LanSte"/>
+		<Dokumentation Revision="1.2" Date="2026-04-10" Author="LanSte" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.1" Date="04.02.2025" Author="LanSte" Company="Sigmatek" Description="Fixed callback functions."/>
 		<Dokumentation Revision="1.0" Date="05.12.2023" Author="LanSte" Company="Sigmatek" Description="First library version."/>
 	</RevDoku>
@@ -128,6 +129,7 @@
 		</Options>
 	</Network>
 	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
 		<Entry Name="ReqFeature" Value="ECAT_2"/>
 	</AdditionalData>
 	<SpecialClassInfo>
@@ -311,10 +313,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB ECAT_DS402Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_ECAT_DS402BASE
-1$UINT, 1$UINT, (SIZEOF(::ECAT_DS402Base))$UINT, 
+1$UINT, 2$UINT, (SIZEOF(::ECAT_DS402Base))$UINT, 
 13$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(861770287), "ECAT_DS402Base", //Class
-TO_UDINT(1515440174), "ECAT_Slave_Base", 2$UINT, 0$UINT, //Baseclass
+TO_UDINT(1515440174), "ECAT_Slave_Base", 2$UINT, 1$UINT, //Baseclass
 //Servers:
 (::ECAT_DS402Base.DriveIF.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(532550252), "DriveIF", 
 (::ECAT_DS402Base.ActPos.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3351625522), "ActPos", 

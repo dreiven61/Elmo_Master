@@ -3,12 +3,18 @@
 작성일: 2026-07-10
 상태: **설계 전용 / 구현 미승인**
 
+> **2026-07-13 폐기 결정:** 사용자 요청에 따라 `TCPMotionInterface` RT Task와
+> typed RT mailbox는 사용하지 않는다. 이 문서는 과거 대안 검토 기록으로만
+> 보존한다. 현재 구현과 task/core 기준은
+> `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`가 우선한다.
+
 > 2026-07-10 구현 결정: 이 문서는 D0~D15 대안을 보존한 pre-implementation
 > 설계 기록이다. 현재 source-first 최소 구현과 충돌하는 항목은
 > `LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`가 우선한다.
 > 선택된 P0 값은 `Config=0` CyWork transport owner, direct ordered small TX,
 > depth-8/96-byte queue, declared-length bounded discard, `0x202E` typed RtWork
 > first path다. `Config=1 AP`, buffered TX, `SizeOfTXBuffer=4096`은 후속 대안이다.
+> 아래 RtWork/mailbox 권장안은 더 이상 적용하지 않는다.
 
 ## 1. 결론
 

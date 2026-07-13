@@ -3,7 +3,7 @@
 #ifndef __C__MEMORY__HEADER__
 #define __C__MEMORY__HEADER__
 
-(* -- Das ist alter code der durch #define __C__MEMORY__HEADER__ in rtos_variables.h ungï¿½ltig gemacht wurde
+(* -- Das ist alter code der durch #define __C__MEMORY__HEADER__ in rtos_variables.h ungültig gemacht wurde
 
 #define RAM_MAX_CELL     1000                 // maximum # of ramcells
 

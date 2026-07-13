@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-10
+최종 갱신: 2026-07-13
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`에서 LASAL 코드를 수정할 때
 매번 확인할 실무 규칙이다. IDE 장애 예방과 복구 절차는
@@ -67,21 +67,37 @@
   - command id/target/payload 파싱
   - 즉시 가능한 error response
   - 실행 큐 적재
-- 실제 축 명령은 `RtWork` 또는 지정한 주기 함수에서 큐를 하나씩 꺼내 실행한다.
+- 실제 축 명령은 승인된 주기 함수에서 큐를 하나씩 꺼내 실행한다.
 - 현재 tracked `TCPMotionInterface`는 `Response()`가 frame을 depth-8 queue에
-  복사하고 `CyWork()`가 분류한 뒤 typed mailbox로 `RtWork()`에 넘기는
-  source-first 구조다. 실제 RT client call은 `0x202E ReadActualPosition`만 열려
-  있고 다른 axis/group state-changing command는 이관 전까지 `-5`로 차단한다.
-  LASAL IDE model/network 재생성 및 PLC 검증 전에는 production 동작을 승인하지
-  않는다.
-- C# 쪽 `Codex_LASAL_WPF/PmasApiWpfTestApp/Services/SigmatekTcpIpDummyMMCLib.cs`와 PLC 파서는 바이트 단위로 맞춘다.
+  복사하고 `CyWork()`가 분류·실행·응답하는 non-RT 구조다. interface의 RT
+  task, `RtWork()` override, typed RT mailbox와 atomic state는 사용하지 않는다.
+- 현재 CyWork handler가 승인된 명령은 `0x2023 Power`, `0x2024 Reset`,
+  `0x2022 Stop`, `0x2028 ReadStatus`, `0x202E ReadPosition`,
+  `0x209F MoveAbsolute`, `0x20A0 MoveRelative`, `0x20A2 MoveVelocity`,
+  `0x2047 GroupEnable`, `0x2048 GroupDisable`, `0x2045 GroupReadStatus`다.
+- `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear`,
+  `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform`은 지원하지 않으며
+  deterministic error `-5`를 반환한다. 기존 helper body 존재 여부와 runtime
+  지원 여부를 혼동하지 않는다.
+- source 기준 handler 승인은 완료됐지만 LASAL IDE Rebuild와 PLC 동작 시험은
+  남아 있다. 이 검증 전에는 production 완료로 승인하지 않는다.
+- 일반 `_TCPIPServer1`과 interface는 같은 cyclic task에 두고, client method를
+  호출하는 CyWork는 axis RT thread와 같은 core에서 같거나 낮은 priority로
+  배치한다.
+- canonical C# wire 계약은 `LMC_Library/LMC_API_Delivery/src`와 해당 golden/parser
+  test를 기준으로 PLC parser와 바이트 단위로 맞춘다.
+- `Codex_LASAL_WPF/PmasApiWpfTestApp/Services/SigmatekTcpIpDummyMMCLib.cs`도 변경마다
+  대조하되, legacy PMAS/hybrid frame 또는 local-only dummy 동작이 남아 있으면
+  불일치를 문서화하고 canonical E2E client로 사용하지 않는다. 현재 dummy의
+  `ReadStatus()`는 TCP `0x2028`을 전송하지 않는다.
 - `MoveAbsoluteEx`, `ReadActualPosition`, `ReadStatus`, `GroupReadStatus`는 요청/응답 command id와 payload 길이를 문서에 남긴다.
 
 ## 6. Motion/Axis 규칙
 
 - API 계층은 EtherCAT PDO나 DS402 register를 직접 만지지 않는다. `_LMCAxis`, `ECAT_DS402Base`, 기존 drive class를 통해 접근한다.
 - Axis Client는 연결 여부를 확인한 뒤 호출한다.
-- Group Motion은 실제 SIGMATEK group/CNC 구현 클래스와 연결이 확정되기 전까지 명확한 error response로 막는다.
+- 승인 목록 밖의 Group Motion은 실제 SIGMATEK group/CNC 구현 클래스와 의미가
+  확정되기 전까지 deterministic error `-5`로 막는다.
 - `Elmo_1` 기준으로 복제한 `Elmo_2`, `Elmo_3`, `Elmo_4`는 채널/네트워크 연결을 서로 대조한다.
 
 ## 7. Network 규칙

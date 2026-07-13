@@ -270,13 +270,253 @@
 #define SBCMD_SM_DIAG_GET_ERRORCODE_OFFSET    13
 
 //*****************************************************************************
+//** COMMANDS (to SafetyRoutingTables)            0x81D0 - 0x81DF            **
+//*****************************************************************************
+#define CMD_SM_TABLE_MIN               0x81D0
+#define CMD_SM_TABLE_MAX               0x81DF
+
+//Overview commands
+//CMD_SM_ROUTTAB_CREATE_TABLE       0x81D0
+//CMD_SM_TABLE_DEL_TABLE            0x81D1
+//CMD_SM_ROUTTAB_TABLE_ADD_LINE     0x81D2
+//CMD_SM_TABLE_MARK_TABLE_FINALISE  0x81D3
+//CMD_SM_ROUTTAB_TABLE_GET_LINE     0x81D4
+//CMD_SM_TABLE_GET_ENTRY            0x81D5
+//CMD_SM_SCPTAB_CREATE_TABLE        0x81D6
+//CMD_SM_SCPTAB_TABLE_ADD_LINE      0x81D7
+//CMD_SM_SCPTAB_TABLE_GET_LINE      0x81D8
+
+//*****************************************************************************
+#define CMD_SM_ROUTTAB_CREATE_TABLE      0x81D0
+// Command CMD_SM_ROUTTAB_CREATE_TABLE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Table VersionMajor
+// aPara[2]$UDINT   : Table VersionMinor
+// aPara[3]$UDINT   : NoTabEntries, used to alloc the Table, may be 0
+
+// results
+// uiLng := 12;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// aData[8]$UDINT   : Handle of the Created Table
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_TABLE_DEL_TABLE           0x81D1
+// Command CMD_SM_TABLE_DEL_TABLE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table
+
+// results
+// uiLng := 8;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_ROUTTAB_TABLE_ADD_LINE    0x81D2
+// Command CMD_SM_ROUTTAB_TABLE_ADD_LINE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table
+// aPara[2]$UDINT   : Table VersionMajor
+// aPara[3]$UDINT   : Table VersionMinor
+// aPara[4]$pVoid   : pTabLine, Pointer to the Data that should be added to the Table, structure is defined by VersionMajor and VersionMinor
+// aPara[5]$UDINT   : SizeTabLine, size of pTabLine
+// aPara[6]$BDINT   : bdEntriesValid, Bit Mask which marks that the entries in pTabLine are Valid.
+// aPara[7]$BOOL    : bFinaliseTable = TRUE Last line to be added to the Table. When this flag is set the table is marked as valid and can be read/searched
+
+// results
+// uiLng := 8;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_TABLE_MARK_TABLE_FINALISE 0x81D3
+// Command CMD_SM_TABLE_MARK_TABLE_FINALISE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table
+
+// results
+// uiLng := 8;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_ROUTTAB_TABLE_GET_LINE    0x81D4
+// Command CMD_SM_ROUTTAB_TABLE_GET_LINE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table to start the search, 0 = Search from 1st Table
+// aPara[2]$UDINT   : EntryId to search for
+// aPara[3]$pVoid   : Pointer to Value to search for
+// aPara[4]$UDINT   : Table Line from which to start the search
+
+// results
+// uiLng := 24;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// aData[8]$HINT    : Table VersionMajor
+// aData[10]$HINT   : Table VersionMinor
+// aData[12]$pVoid  : Pointer to Table Line, Structure is defined by VersionMajor and VersionMinor
+// aData[16]$DINT   : Index of Table Line that was found, < 0 if not found
+// aData[20]$HDINT  : Handle of the Table in which the Entry was found, 0 not found
+
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_TABLE_GET_ENTRY     0x81D5
+// Command CMD_SM_TABLE_GET_ENTRY
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table, 0 = Search in all Tables
+// aPara[2]$UDINT   : EntryId to search for
+// aPara[3]$pVoid   : Pointer to Value to search for
+// aPara[4]$UDINT   : Table Line from which to start the search
+// aPara[5]$UDINT   : EntryId to return
+
+// results
+// uiLng := 20;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// aData[8]$pVoid   : Pointer to entry data.
+// aData[12]$DINT   : Index of Table Line that was found, < 0 if not found
+// aData[16]$HDINT  : Handle of the Table in which the Entry was found, 0 not found
+
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_SCPTAB_CREATE_TABLE      0x81D6
+// Command CMD_SM_SCPTAB_CREATE_TABLE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Table VersionMajor
+// aPara[2]$UDINT   : Table VersionMinor
+// aPara[3]$UDINT   : NoTabEntries, used to alloc the Table, may be 0
+
+// results
+// uiLng := 12;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// aData[8]$UDINT   : Handle of the Created Table
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_SCPTAB_TABLE_ADD_LINE      0x81D7
+// Command CMD_SM_SCPTAB_TABLE_ADD_LINE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table
+// aPara[2]$UDINT   : Table VersionMajor
+// aPara[3]$UDINT   : Table VersionMinor
+// aPara[4]$pVoid   : pTabLine, Pointer to the Data that should be added to the Table, structure is defined by VersionMajor and VersionMinor
+// aPara[5]$UDINT   : SizeTabLine, size of pTabLine
+// aPara[6]$BDINT   : bdEntriesValid, Bit Mask which marks that the entries in pTabLine are Valid.
+// aPara[7]$BOOL    : bFinaliseTable = TRUE Last line to be added to the Table. When this flag is set the table is marked as valid and can be read/searched
+
+// results
+// uiLng := 8;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+#define CMD_SM_SCPTAB_TABLE_GET_LINE      0x81D8
+// Command CMD_SM_SCPTAB_TABLE_GET_LINE
+// Command Version 1 ** 
+
+// CmdStruct
+// aPara[0]$DINT    : Command Version : 1
+// aPara[1]$UDINT   : Handle to select the Table to start the search, 0 = Search from 1st Table
+// aPara[2]$UDINT   : EntryId to search for
+// aPara[3]$pVoid   : Pointer to Value to search for
+// aPara[4]$UDINT   : Table Line from which to start the search
+
+// results
+// uiLng := 24;
+// aData[0]$DINT    : Command version
+// aData[4]$DINT    : returncode
+// aData[8]$HINT    : Table VersionMajor
+// aData[10]$HINT   : Table VersionMinor
+// aData[12]$pVoid  : Pointer to Table Line, Structure is defined by VersionMajor and VersionMinor
+// aData[16]$DINT   : Index of Table Line that was found, < 0 if not found
+// aData[20]$HDINT  : Handle of the Table in which the Entry was found, 0 not found
+
+// 
+// Command Version 2 ** 
+// Not defined
+
+//*****************************************************************************
+
+#define CMD_SM_TABRETC_OK        0
+
+#define CMD_SM_TABRETC_CMDVER                      -2  // Command Version not supported
+#define CMD_SM_TABRETC_CREATE_TABLE_FAILED         -3  // Create Table Failed
+#define CMD_SM_TABRETC_ADD_TABLELINE_FAILED        -4  // Add Line to Table Failed
+#define CMD_SM_TABRETC_MARK_TABLE_FINALISE_FAILED  -5  // Mark Table Finalise Failed
+
+
+#define CMD_SM_TABRETC_PARA_HANDLE_NOTFOUND  -21 // No Table found to the passed handle
+#define CMD_SM_TABRETC_PARA_PTABLINE         -22 // Parameter pTabLine invalid
+#define CMD_SM_TABRETC_PARA_VERSION          -23 // Parameter Minor/Major Version invalid
+#define CMD_SM_TABRETC_PARA_SIZETABLINE      -24 // Parameter SizeTabLine does not match Table
+#define CMD_SM_TABRETC_PARA_PENTRYVALSEARCH  -25 // Parameter "Pointer to Value to search for" Invalid
+#define CMD_SM_TABRETC_PARA_HANDLE           -26 // Parameter TabHandle invalid
+#define CMD_SM_TABRETC_PARA_TYPE             -27 // Parameter Table Type invalid
+
+#define CMD_SM_TABRETC_TABLE_NOT_MARKED_NEWLINE -31 // Cannot add line to Table. Table has already been Finalised
+#define CMD_SM_TABRETC_TABLE_NOT_MARKED_GETLINE -32 // Cannot get line to Table. Table has not yet been Finalised
+
+#define CMD_SM_TABRETC_ENTRYID_NOT_FOUND     -41 // Entry ID search not found in table
+#define CMD_SM_TABRETC_RETENTRYID_NOT_FOUND  -42 // Entry ID to return not found in table
+
+
+//*****************************************************************************
 //** General Constants                                                       **
 //*****************************************************************************
 
-// mode of compressed path (1 = uncompressed, 2 = compressed with CRC, 3 = interface CRC, 6 = interface CRC and IP Address)
+// mode of compressed path (1 = uncompressed, 2 = compressed with CRC, 3 = interface CRC, 6 = interface CRC and IP Address, 7 = HW-Path = FSoEAddr)
 #define INTERFACE_CRC_MODE                 3
 
 #define INTERFACE_IP_MODE                  6
+#define INTERFACE_FSOEADD_MODE             7
 
 // time in ms in which the timesynchronisation of each component (safety module or managing node) should be finished
 #define TIMESYNC_TIMEOUT                3000
@@ -756,7 +996,8 @@
       7 MasterRequestsSlaveConnectionID,
       8 IsHGW,
       9 AssigneSlaveOnDemand,
-      10 FSoESlaveHasNoConfig
+      10 FSoESlaveHasNoConfig,
+      11 HWPathIsFSoEAddr
 	    ];
     t_FSoEConnectionDetails    : STRUCT
       ConnectionID : UINT;
@@ -803,6 +1044,72 @@
       ConState  : t_FlexConNodeConnectionState;
       SafetyNbrOfConnectedMachine : HDINT;
     END_STRUCT;
+    
+#define SM_NO_FSoERoutingTableEntryIDV0100 10
+    t_FSoERoutingTableEntryIDsV01XX :
+    (
+      FSoERoutingTable_EntryID_ConnectionID  :=  1,
+      FSoERoutingTable_EntryID_SrcHWPath     := 10,
+      FSoERoutingTable_EntryID_SrcHWPathComp := 11,
+      FSoERoutingTable_EntryID_SrcCOEIndex   := 12,
+      FSoERoutingTable_EntryID_DstHWPath     := 20,
+      FSoERoutingTable_EntryID_DstHWPathComp := 21,
+      FSoERoutingTable_EntryID_DstCOEIndex   := 22,
+      FSoERoutingTable_EntryID_FrameSize     := 31,
+      FSoERoutingTable_EntryID_SlavAdd       := 32,
+      FSoERoutingTable_EntryID_Flags         := 33
+    )$UDINT;
+    t_FSoERoutingTableEntryInvalidValV01XX :
+    (
+      FSoERoutingTable_EntryIDInvalid_ConnectionID  :=  0,
+      FSoERoutingTable_EntryIDInvalid_SrcHWPath     :=  0, // = NIL
+      FSoERoutingTable_EntryIDInvalid_SrcHWPathComp :=  0,
+      FSoERoutingTable_EntryIDInvalid_SrcCOEIndex   :=  0,
+      FSoERoutingTable_EntryIDInvalid_DstHWPath     :=  0, // = NIL
+      FSoERoutingTable_EntryIDInvalid_DstHWPathComp :=  0,
+      FSoERoutingTable_EntryIDInvalid_DstCOEIndex   :=  0,
+      FSoERoutingTable_EntryIDInvalid_FrameSize     :=  0,
+      FSoERoutingTable_EntryIDInvalid_SlavAdd       :=  0,
+      FSoERoutingTable_EntryIDInvalid_Flags         :=  0
+    )$DINT;    
+    t_FSoETableLine_V0100 : STRUCT
+      ConnectionID  : DINT;                 // FsoE Connection ID
+      SrcHWPath     : ^CHAR;                // Source HW-Path
+      SrcHWPathComp : HDINT;                // Source HW-Path Compressed
+      SrcCOEIndex   : HDINT;                // COE Index, SubIndex  : 2 Byte Index, 1 Byte Subindex, 1 Byte Allign
+      DstHWPath     : ^CHAR;                // Destination HW-Path
+      DstHWPathComp : HDINT;                // Destination HW-Path Compressed
+      DstCOEIndex   : HDINT;                // COE Index, SubIndex  : 2 Byte Index, 1 Byte Subindex, 1 Byte Allign
+      FrameSize     : UDINT;                // FSoE Frame size in byte
+      SlavAdd       : UDINT;                // FSoE Slave Address
+      Flags         : BDINT;                // Flags: Bit 0: Master2Slave Connection, Bit1: Slave2Master Connection
+    END_STRUCT;
+
+#define SM_NO_SCPTableEntryIDV0100 5
+    t_SCPTableEntryIDV01XX :
+    (
+      SCPTable_EntryID_HWPath     := 101,
+      SCPTable_EntryID_HWPathCRC  := 102,
+      SCPTable_EntryID_SCP_CRC    := 103,
+      SCPTable_EntryID_HW_SCP_CRC := 104,
+      SCPTable_EntryID_APPL_CRC   := 105
+    )$UDINT;
+    t_SCPTableEntryInvalidValV01XX :
+    (
+      SCPTable_EntryIDInvalid_HWPath      :=  0,  // = NIL
+      SCPTable_EntryIDInvalid_HWPathCRC   :=  0,
+      SCPTable_EntryIDInvalid_SCP_CRC     :=  0,
+      SCPTable_EntryIDInvalid_HW_SCP_CRC  :=  0,
+      SCPTable_EntryIDInvalid_APPL_CRC    :=  0
+    )$DINT;    
+    t_SCPTableLine_V0100 : STRUCT
+      HWPath      : ^CHAR;                // HW-Path
+      HWPathCRC   : HDINT;                // CRC of HW-Path
+      SCP_CRC     : HDINT;                // CRC of Safety Project
+      HW_SCP_CRC  : HDINT;                // CRC of Safety Project HW
+      APPL_CRC    : HDINT;                // CRC of Safety Project Application
+    END_STRUCT;
+    
 #pragma pack(pop)
   END_TYPE 
 #endif

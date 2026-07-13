@@ -4,8 +4,8 @@
 //{{LSL_DEFINES
 // maximal inaccuracies of LREAL
 #define _LREAL_EPSILON        0.000001
-#define _LREAL_EPSILON_MUL    0.000001
-// minmal volume of orthogonalsystem
+#define _LREAL_EPSILON_MUL    0.000001  
+// minmal volume of orthogonalsystem  
 #define MIN_SPAT_PRODUCT      _LREAL_EPSILON_MUL
 
 #ifndef deg
@@ -76,7 +76,7 @@ _LMCMath_SO3 : CLASS
 #pragma pack(pop)
 #pragma pack(push, 1)
 	  _ROT_GEOMETRY_ : STRUCT  //! <Type Public="true" Comment="Structure to store the basic rotation information for the case of rotation geometry with degree as angle." Name="_ROT_GEOMETRY_"/>
-	    Angle : DINT;  //! <Type Comment="angle in project unit [deg] (default=1/10000ï¿½)" Name="_ROT_GEOMETRY_.Angle"/>
+	    Angle : DINT;  //! <Type Comment="angle in project unit [deg] (default=1/10000°)" Name="_ROT_GEOMETRY_.Angle"/>
 	    RotAxis : _POINT_;
 	  END_STRUCT;
 #pragma pack(pop)
@@ -108,7 +108,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			phi 	: LREAL;			//! <Variable Comment="Angle [rad]" Name="atan2.phi"/>
 		END_VAR;
-				//! <Function Comment="computes the scalar product of two Rï¿½-vectors: vec_A.vec_B" Name="ScalarProduct"/>
+				//! <Function Comment="computes the scalar product of two R³-vectors: vec_A.vec_B" Name="ScalarProduct"/>
 	FUNCTION GLOBAL ScalarProduct
 		VAR_INPUT
 			vec_A 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="ScalarProduct.vec_A"/>
@@ -117,7 +117,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			scal_AB 	: LREAL;			//! <Variable Comment="Sclaraproduct: Input-Vector . Input-Vector" Name="ScalarProduct.scal_AB"/>
 		END_VAR;
-				//! <Function Comment="computes the vector product (Grassmann-Product) of two Rï¿½-vectors: vec_A x vec_B" Name="VectorProduct"/>
+				//! <Function Comment="computes the vector product (Grassmann-Product) of two R³-vectors: vec_A x vec_B" Name="VectorProduct"/>
 	FUNCTION GLOBAL VectorProduct
 		VAR_INPUT
 			vec_A 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="VectorProduct.vec_A"/>
@@ -126,7 +126,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			vec_AxB 	: _VECTOR_;			//! <Variable Comment="Output-Vector: Input-Vector x Input-Vector" Name="VectorProduct.vec_AxB"/>
 		END_VAR;
-				//! <Function Comment="computes the norm of an Rï¿½-vector" Name="VectorNorm"/>
+				//! <Function Comment="computes the norm of an R³-vector" Name="VectorNorm"/>
 	FUNCTION GLOBAL VectorNorm
 		VAR_INPUT
 			vec_A 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="VectorNorm.vec_A"/>
@@ -134,7 +134,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			norm_A 	: LREAL;			//! <Variable Comment="Norm of the Input-Vector" Name="VectorNorm.norm_A"/>
 		END_VAR;
-				//! <Function Comment="test an Rï¿½-vector to be a zero-vector except for a defined accuracy of:  #define _LREAL_EPSILON        0.000001" Name="TestVectorToZero"/>
+				//! <Function Comment="test an R³-vector to be a zero-vector except for a defined accuracy of:  #define _LREAL_EPSILON        0.000001" Name="TestVectorToZero"/>
 	FUNCTION GLOBAL TestVectorToZero
 		VAR_INPUT
 			vec_0 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="TestVectorToZero.vec_0"/>
@@ -142,7 +142,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			isZero 	: BOOL;			//! <Variable Comment="TRUE  -&gt; Input-Vector is to small (nearly zero)&#13;&#10;FALSE -&gt; otherwise" Name="TestVectorToZero.isZero"/>
 		END_VAR;
-				//! <Function Comment="computes the spatproduct of three Rï¿½-vectors: vec_A . vec_B x vec_C" Name="SpatProduct"/>
+				//! <Function Comment="computes the spatproduct of three R³-vectors: vec_A . vec_B x vec_C" Name="SpatProduct"/>
 	FUNCTION GLOBAL SpatProduct
 		VAR_INPUT
 			vec_A 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="SpatProduct.vec_A"/>
@@ -152,7 +152,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			spat_AinBxC 	: LREAL;			//! <Variable Comment="Spatproduct of: Input-Vector . (Input-Vector x Input-Vector)" Name="SpatProduct.spat_AinBxC"/>
 		END_VAR;
-				//! <Function Comment="test the spatproduct of three Rï¿½-vectors: vec_A . vec_B x vec_C to zero except for a defined accuracy of:  &#13;&#10;#define _LREAL_EPSILON_MUL    0.000001&#13;&#10;#define MIN_SPAT_PRODUCT      _LREAL_EPSILON_MUL" Name="checkSpatProduct"/>
+				//! <Function Comment="test the spatproduct of three R³-vectors: vec_A . vec_B x vec_C to zero except for a defined accuracy of:  &#13;&#10;#define _LREAL_EPSILON_MUL    0.000001&#13;&#10;#define MIN_SPAT_PRODUCT      _LREAL_EPSILON_MUL" Name="checkSpatProduct"/>
 	FUNCTION GLOBAL checkSpatProduct
 		VAR_INPUT
 			vec_A 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="checkSpatProduct.vec_A"/>
@@ -162,7 +162,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			spatOK 	: BOOL;			//! <Variable Comment="FALSE -&gt; Spatproductr is to small (nearly zero)&#13;&#10;TRUE  -&gt; otherwise" Name="checkSpatProduct.spatOK"/>
 		END_VAR;
-				//! <Function Comment="checks if an Rï¿½-vector is not a zero-vector and scales it to an unit-vector in this case" Name="normateVector"/>
+				//! <Function Comment="checks if an R³-vector is not a zero-vector and scales it to an unit-vector in this case" Name="normateVector"/>
 	FUNCTION GLOBAL normateVector
 		VAR_INPUT
 			pVec 	: ^_VECTOR_;			//! <Variable Comment="Pointer to Target-Vector" Name="normateVector.pVec"/>
@@ -171,7 +171,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			CalcSuccess 	: BOOL;			//! <Variable Comment="Indicator of Success&#13;&#10;TRUE  -&gt; calculation successful&#13;&#10;FALSE -&gt; calculation erroneous" Name="normateVector.CalcSuccess"/>
 		END_VAR;
-				//! <Function Comment="checks if the three Rï¿½-vectors: vec_U,vec_V and vec_W are orthogonal and the span of them is Rï¿½" Name="check_OGS"/>
+				//! <Function Comment="checks if the three R³-vectors: vec_U,vec_V and vec_W are orthogonal and the span of them is R³" Name="check_OGS"/>
 	FUNCTION GLOBAL check_OGS
 		VAR_INPUT
 			vec_U 	: _VECTOR_;			//! <Variable Comment="Input-Vector" Name="check_OGS.vec_U"/>
@@ -252,7 +252,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			CalcSuccess 	: BOOL;			//! <Variable Comment="Indicator of Success&#13;&#10;TRUE  -&gt; calculation successful&#13;&#10;FALSE -&gt; calculation erroneous" Name="get__ONS_from_OGS.CalcSuccess"/>
 		END_VAR;
-				//! <Function Comment="computes a rotation matrix defined by three Rï¿½ vectors, that transforms a global coordinate system OXYZ into a local coordinate system Oxyz,&#13;&#10;where the origin O is maintained" Name="get__RotMatrix_By_OGS"/>
+				//! <Function Comment="computes a rotation matrix defined by three R³ vectors, that transforms a global coordinate system OXYZ into a local coordinate system Oxyz,&#13;&#10;where the origin O is maintained" Name="get__RotMatrix_By_OGS"/>
 	FUNCTION GLOBAL get__RotMatrix_By_OGS
 		VAR_INPUT
 			pMatrix 	: ^_TENSOR_;			//! <Variable Comment="Pointer to Target-Matrix" Name="get__RotMatrix_By_OGS.pMatrix"/>
@@ -377,7 +377,7 @@ _LMCMath_SO3 : CLASS
 		VAR_OUTPUT
 			CalcSuccess 	: BOOL;			//! <Variable Comment="Indicator of Success&#13;&#10;TRUE  -&gt; calculation successful&#13;&#10;FALSE -&gt; calculation erroneous" Name="get__RotGeometry_By_RodrigMatrix.CalcSuccess"/>
 		END_VAR;
-				//! <Function Comment="computes the operation on a Rï¿½ vector defined by a 3x3-matrix (A).v" Name="Matrix_x_Vector"/>
+				//! <Function Comment="computes the operation on a R³ vector defined by a 3x3-matrix (A).v" Name="Matrix_x_Vector"/>
 	FUNCTION GLOBAL Matrix_x_Vector
 		VAR_INPUT
 			pVector 	: ^_VECTOR_;			//! <Variable Comment="Target-Vector" Name="Matrix_x_Vector.pVector"/>

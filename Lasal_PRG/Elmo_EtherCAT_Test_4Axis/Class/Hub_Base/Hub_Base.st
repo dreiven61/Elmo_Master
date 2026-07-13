@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "Hub_Base"
-	Revision           = "1.21"
+	Revision           = "1.22"
 	GUID               = "{EF7BD0F8-81CC-4E01-A3FF-C2B56BBF8AD3}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -26,6 +26,7 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="1.22" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.21" Date="23.01.2018" Author="RamAnd" Company="Sigmatek" Description="Log messages have been standardized for easier maintenance, easier use in any class and to allow spam filtering. Code for the logging functions is now only located in HwControl.&#13;&#10;Prevented crash in GetVaranPosition, if the pointer to the Node string returned from GetPointer2NodeString is NIL."/>
 		<Dokumentation Revision="1.20" Date="18.07.2013" Author="RamAnd" Company="Sigmatek" Description="Added NewInst forwarding"/>
 		<Dokumentation Revision="1.15" Date="27.06.2011" Author="RamAnd" Company="Sigmatek" Description="Support of sorting VARAN commands by priority added (needed for communication between safety-modules)."/>
@@ -64,6 +65,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using VaranManager_Base
@@ -348,13 +352,13 @@ END_CLASS;
 FUNCTION GLOBAL TAB Hub_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HUB_BASE
-1$UINT, 21$UINT, (SIZEOF(::Hub_Base))$UINT, 
+1$UINT, 22$UINT, (SIZEOF(::Hub_Base))$UINT, 
 0$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(3238133653), "Hub_Base", //Class
-TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 26$UINT, //Baseclass
+TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 27$UINT, //Baseclass
 //Servers:
 //Clients:
-(::Hub_Base.VaranIn.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2999796184), "VaranIn", TO_UDINT(862125188), "Varan_Base", 2$UINT, 21$UINT, 
+(::Hub_Base.VaranIn.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2999796184), "VaranIn", TO_UDINT(862125188), "Varan_Base", 2$UINT, 22$UINT, 
 (::Hub_Base.Splitter_Place.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(3924993014), "Splitter_Place", 
 END_FUNCTION
 

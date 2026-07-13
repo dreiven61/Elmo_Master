@@ -34,7 +34,7 @@
 (*!
 <Class
 	Name               = "Varan_Base"
-	Revision           = "2.21"
+	Revision           = "2.22"
 	GUID               = "{7213D447-AFAF-4410-B44D-60C992779DEC}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -87,6 +87,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="2.22" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.21" Date="13.12.2024" Author="LanSte" Company="Sigmatek" Description="Removed GetRequiredWaitTime.  Instead the wait time will be fetched from HWControl and apply to all required modules."/>
 		<Dokumentation Revision="2.20" Date="03.10.2023" Author="LanSte" Company="Sigmatek" Description="Added GetRequiredWaitTime. If this method is overwritten, the class will wait for for an required module in the init()"/>
 		<Dokumentation Revision="2.19" Date="15.06.2022" Author="RamAnd" Company="Sigmatek" Description="Added new Server HardwareVersion to show the hardware version of the VARAN type label."/>
@@ -185,6 +186,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 Varan_Base : CLASS
@@ -854,7 +858,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB Varan_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_VARAN_BASE
-2$UINT, 21$UINT, (SIZEOF(::Varan_Base))$UINT, 
+2$UINT, 22$UINT, (SIZEOF(::Varan_Base))$UINT, 
 16$UINT, 11$UINT, 0$UINT, 
 TO_UDINT(862125188), "Varan_Base", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
@@ -876,7 +880,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::Varan_Base.TXLost.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(2032851274), "TXLost", 
 (::Varan_Base.ProtocolVersion.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1757312337), "ProtocolVersion", 
 //Clients:
-(::Varan_Base.VaranIn.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2999796184), "VaranIn", TO_UDINT(3238133653), "Hub_Base", 1$UINT, 21$UINT, 
+(::Varan_Base.VaranIn.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2999796184), "VaranIn", TO_UDINT(3238133653), "Hub_Base", 1$UINT, 22$UINT, 
 (::Varan_Base.Required.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000010$UINT, TO_UDINT(648558917), "Required", 
 (::Varan_Base.UserAction.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(615089769), "UserAction", 
 (::Varan_Base.SerNoValidation.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(2258645482), "SerNoValidation", 

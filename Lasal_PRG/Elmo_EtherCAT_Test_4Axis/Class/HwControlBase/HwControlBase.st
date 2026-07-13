@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "HwControlBase"
-	Revision           = "1.10"
+	Revision           = "1.11"
 	GUID               = "{25529921-015E-4979-B126-D406D2F83DDD}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -35,10 +35,14 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="BleErn"/>
+		<Dokumentation Revision="1.11" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.10" Date="18.07.2013" Author="RamAnd" Company="Sigmatek" Description="Changed comment of RtDebug: Added warning, that the timing behaviour of the machine could be changed, when this client is set."/>
 		<Dokumentation Revision="1.1" Date="27.02.2012" Author="RamAnd" Company="Sigmatek" Description="Added support for the SafetyManager"/>
 		<Dokumentation Revision="1.0" Date="08.02.2010" Author="BleErn" Company="Sigmatek" Description="Creation of BaseClass for HwControl for implementation of HwRtPostScan"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 HwControlBase : CLASS
@@ -115,7 +119,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB HwControlBase::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HWCONTROLBASE
-1$UINT, 10$UINT, (SIZEOF(::HwControlBase))$UINT, 
+1$UINT, 11$UINT, (SIZEOF(::HwControlBase))$UINT, 
 3$UINT, 3$UINT, 0$UINT, 
 TO_UDINT(1193052171), "HwControlBase", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

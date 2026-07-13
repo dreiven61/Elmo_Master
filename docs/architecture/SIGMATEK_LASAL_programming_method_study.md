@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-10
+최종 갱신: 2026-07-13
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis` LASAL 프로젝트를 수정할 때
 필요한 구조와 작업 방법을 정리한 문서다. 기준 자료는 현재 소스,
@@ -23,7 +23,8 @@
   - `Source/`: C/C++ interface/header 자료
 - WPF 연동:
   - PMAS 원본 기준: `Codex_PMAS_WPF/`
-  - SIGMATEK TCP/IP 이식 기준: `Codex_LASAL_WPF/`
+  - SIGMATEK legacy/dummy 참고: `Codex_LASAL_WPF/`
+  - canonical LASAL-DINT API 계약: `LMC_Library/LMC_API_Delivery/src/`와 tests
 
 ## 2. LASAL 파일 성격
 
@@ -61,12 +62,12 @@ WPF에서 LASAL로 명령을 보내는 목표 흐름은 다음과 같다.
 4. 주기 함수가 command queue를 실행
 5. 결과 frame을 C#으로 응답
 
-현재 tracked source는 이 구조의 첫 단계까지 반영됐다. `Response()`는 frame을
-depth-8 queue에 게시하고, `CyWork()`와 typed mailbox를 거쳐 `RtWork()`가
-`0x202E ReadActualPosition`만 실행한다. 다른 axis/group client-call command는
-mailbox 이관 전까지 `-5`로 차단한다. LASAL IDE model/network와 PLC 적용 전에는
-source 구현 상태로만 판정하며 상세 gate는 오류 예방 지침서와
-`LMC_Library/LMC_API_Delivery/docs/LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`를
+현재 tracked source는 `Response()`가 frame을 depth-8 queue에 게시하고,
+non-RT `CyWork()`가 승인 명령을 실행·응답하는 구조다. interface RT task,
+`RtWork()` override, RT mailbox와 atomic state는 사용하지 않는다. 지원하지 않는
+명령은 deterministic error `-5`로 응답한다. LASAL IDE Rebuild와 PLC 동작 시험
+전에는 source 구현 상태로만 판정하며 상세 gate는 오류 예방 지침서와
+`LMC_Library/LMC_API_Delivery/docs/LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`를
 따른다.
 
 주의:
@@ -77,12 +78,18 @@ source 구현 상태로만 판정하며 상세 gate는 오류 예방 지침서�
 
 ## 5. 현재 확인된 PMAS/LASAL 매핑 기준
 
-현재 분석 문서 기준으로 확인한 프레임/기능은 아래처럼 다룬다.
+현재 tracked source의 CyWork 실행 상태는 아래처럼 구분한다.
 
-- `MoveAbsoluteEx` 계열: `0x209F` 관측
-- `ReadActualPosition` request: `0x202E` 관측
-- `ReadActualPosition` response: 기존 LASAL 구현에서 `0x00E0` 사용 이력 존재
-- Group Motion/GroupReadStatus는 PMAS WPF에서 테스트 중이며, LASAL 구현은 실제 group/robot class 연결이 확인된 뒤 확정한다.
+| 상태 | command id와 기능 |
+|---|---|
+| 승인 | `0x2023 Power`, `0x2024 Reset`, `0x2022 Stop`, `0x2028 ReadStatus`, `0x202E ReadPosition` |
+| 승인 | `0x209F MoveAbsolute`, `0x20A0 MoveRelative`, `0x20A2 MoveVelocity` |
+| 승인 | `0x2047 GroupEnable`, `0x2048 GroupDisable`, `0x2045 GroupReadStatus` |
+| 미지원, `-5` | `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear` |
+| 미지원, `-5` | `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform` |
+
+이 표의 승인은 source handler 실행 경로 기준이다. LASAL IDE Rebuild와 PLC 동작
+시험은 아직 완료되지 않았으므로 production 완료를 뜻하지 않는다.
 
 이 값들은 현재 문서/코드에서 확인한 사실이다. Elmo 원본 API와 SIGMATEK 구현이 1:1로 같다고 단정하지 않는다.
 

@@ -309,7 +309,7 @@ FUNCTION GLOBAL TAB VaranManager_2::@CT_
 2$UINT, 10$UINT, (SIZEOF(::VaranManager_2))$UINT, 
 7$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(4019434288), "VaranManager_2", //Class
-TO_UDINT(2940693151), "VaranManager", 3$UINT, 8$UINT, //Baseclass
+TO_UDINT(2940693151), "VaranManager", 3$UINT, 9$UINT, //Baseclass
 //Servers:
 (::VaranManager_2.VaranOut_1.pMeth)$UINT, _CH_SVR_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2138873746), "VaranOut_1", 
 (::VaranManager_2.VaranOut_2.pMeth)$UINT, _CH_SVR_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(3866480168), "VaranOut_2", 
@@ -319,8 +319,8 @@ TO_UDINT(2940693151), "VaranManager", 3$UINT, 8$UINT, //Baseclass
 (::VaranManager_2.SafetyAsyRdMemUsed.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3173824998), "SafetyAsyRdMemUsed", 
 (::VaranManager_2.SafetyAsyWrMemUsed.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1299170309), "SafetyAsyWrMemUsed", 
 //Clients:
-(::VaranManager_2.Hub_Base_Root0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3781719598), "Hub_Base_Root0", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 11$UINT, 
-(::VaranManager_2.Hub_Base_Root1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2523875000), "Hub_Base_Root1", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 11$UINT, 
+(::VaranManager_2.Hub_Base_Root0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3781719598), "Hub_Base_Root0", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 12$UINT, 
+(::VaranManager_2.Hub_Base_Root1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2523875000), "Hub_Base_Root1", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 12$UINT, 
 END_FUNCTION
 
 

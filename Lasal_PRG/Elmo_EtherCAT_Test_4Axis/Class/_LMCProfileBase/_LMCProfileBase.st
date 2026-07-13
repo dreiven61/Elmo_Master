@@ -19,7 +19,7 @@
   #define _LMCPROF_LREAL_NOTZERO(p1)          ((p1 < -_LMCPROF_EPSILON) | (p1 > _LMCPROF_EPSILON))
 #endif
 #define _LMCPROF_LREAL_MAX                    1.79E308
-
+ 
 
 #define _LMPROF_PROMILLE                      1000
 
@@ -45,9 +45,9 @@
 #define _LMCPROF_NEEDED_FREE_BUFFER_ENTRIES    4
 
 
-#define _LMC_PROF_MAXOVERRIDE	               1000 // Maximalwert fï¿½r Override
-#define _LMC_PROF_MINOVERRIDE	                  0	// Minimalwert fï¿½r Override
-#define _LMC_PROF_NORMOVERRIDE               1000 // 100%-Wert fï¿½r Override
+#define _LMC_PROF_MAXOVERRIDE	               1000 // Maximalwert für Override
+#define _LMC_PROF_MINOVERRIDE	                  0	// Minimalwert für Override
+#define _LMC_PROF_NORMOVERRIDE               1000 // 100%-Wert für Override
 
 #define _LMC_PROF_MAX_DINT                   2147483647
 #define _LMC_PROF_MAX_UDINT                  4294967295
@@ -62,7 +62,7 @@
 #define DEF_TRANSRAD_PPTH                       500
 #define MOVECURVE_ACCEL_PATH_AUXAXIS            250 // 250 // 25% of the path length is used for accelerating auxiliary axes with splines
 
-#define _LMC_PROF_DEFAULT_MAX_TANG_ERR          900000 //90ï¿½ ist defaultmï¿½ï¿½ig maximale tangential fehler
+#define _LMC_PROF_DEFAULT_MAX_TANG_ERR          900000 //90° ist defaultmäßig maximale tangential fehler
 
 #define _LMC_PROF_RESTARTPROF_TOLSPHERE_DEFAULT 1mm
 #define _LMC_PROF_RESTARTPROF_APPROACH_DEFAULT  0
@@ -74,17 +74,17 @@
 // the minimal height difference between the end / beginning of the linear part of a MoveCurve() movement and the start / end of the MoveCurveAux section
 #define _LMCPROF_MINIMAL_SWERVEDIFF            0.2mm
 
-// Fehlertoleranz bei Umrechnung von Integer auf Float
+// Fehlertoleranz bei Umrechnung von Integer auf Float 
 #define RESOLUTION_ERROR      (5.0)
 // Fehlertoleranz wenn der Ruck innerhalb eines Ticks um 2*Jmax springt
 #define JERKTICK_ERROR        (-1.0)
 
-// Rï¿½ckgabeparameter
+// Rückgabeparameter
 #define CALCRESIDT_NO_ERROR            0
 #define CALCRESIDT_INIT_ERROR          -1
 #define CALCRESIDT_NO_SOLUTION         -2
 
-// Prï¿½fix (wird fï¿½r Ruck verwendet)
+// Präfix (wird für Ruck verwendet)
 #ifndef PREFIX_KILO
   #define PREFIX_KILO             (1000.0)
 #endif
@@ -114,7 +114,7 @@
 #define _LMCPROF_TANGAXIS_ACTANGLEOVERFLOWLIMIT    45.0 deg
 #define _LMCPROF_TANGAXIS_OVERFLOWDETECTLIMIT     359.0 deg
 
-// Maximum allowed number of points per spline -
+// Maximum allowed number of points per spline - 
 // Attention! If this value is changed also the MaxNrOfPointsPerMoveMaxValue of MoveSplineTable and
 // IPR_MAX_NR_SPLINE_POINTS of _LMCCNCIPRBase are to be changed
 #define PROF_MAX_NR_SPLINE_POINTS           50
@@ -1151,7 +1151,7 @@ _LMCProfileBase : CLASS
 	      2 SWMin,
 	    ];
 	    VMaxTik : LREAL;  //! <Type Comment="Maximum allowed velocity on the axis [int.units/tick]" Name="_LMC_AxisInfo.VMaxTik"/>
-	    AMaxTik : LREAL;  //! <Type Comment="Maximum allowed acceleration on the axis [int.units/tickï¿½]" Name="_LMC_AxisInfo.AMaxTik"/>
+	    AMaxTik : LREAL;  //! <Type Comment="Maximum allowed acceleration on the axis [int.units/tick²]" Name="_LMC_AxisInfo.AMaxTik"/>
 	    JMaxTik : LREAL;  //! <Type Comment="Maximum allowed jerk on the axis [int.units/tick^3]" Name="_LMC_AxisInfo.JMaxTik"/>
 	    AxPosWin : DINT;  //! <Type Comment="Max Pos Error of InPosWin, if no additive coupling (CoupleAdditivePosDiff) is active [internal units]" Name="_LMC_AxisInfo.AxPosWin"/>
 	    AxPosWinAdditivelyCoupled : DINT;  //! <Type Comment="Max Pos Error of InPosWin, if an additive coupling (CoupleAdditivePosDiff) is active [internal units]" Name="_LMC_AxisInfo.AxPosWinAdditivelyCoupled"/>
@@ -1159,7 +1159,7 @@ _LMCProfileBase : CLASS
 	    AxDecel : LREAL;  //! <Type Comment="Deceleration if UnlockProfile is Called [application units / s^2]" Name="_LMC_AxisInfo.AxDecel"/>
 	    ESmin : DINT;
 	    ESmax : DINT;
-	    AxAccJump : LREAL;  //! <Type Comment="Maximum allowed acceleration jump on the axis [appl.units/tickï¿½]&#13;&#10;Used for LIN-CIR, CIR-LIN and CIR-CIR transition" Name="_LMC_AxisInfo.AxAccJump"/>
+	    AxAccJump : LREAL;  //! <Type Comment="Maximum allowed acceleration jump on the axis [appl.units/tick²]&#13;&#10;Used for LIN-CIR, CIR-LIN and CIR-CIR transition" Name="_LMC_AxisInfo.AxAccJump"/>
 	    InitFlag : BDINT
 	    [
 	      1 AccJump,  //! <Type Comment="1: axis acceleration jump is initialized" Name="_LMC_AxisInfo.InitFlag.AccJump"/>
@@ -1182,7 +1182,7 @@ _LMCProfileBase : CLASS
 	      5 bAxVelJumpLimit,  //! <Type Comment="0 ... The velocity jump is not limited for this axis&#13;&#10;1 ... The velocity jump is limited for this axis." Name="_LMC_AxisInfo.ConfigFlags.bAxVelJumpLimit"/>
 	    ];
 	    VMaxTik_RapidTraverse : LREAL;  //! <Type Comment="Maximum allowed axis velocity for rapid traverse [int.units/tick]" Name="_LMC_AxisInfo.VMaxTik_RapidTraverse"/>
-	    AMaxTik_RapidTraverse : LREAL;  //! <Type Comment="Maximum allowed axis acceleration for rapid traverse [int.units/tickï¿½]" Name="_LMC_AxisInfo.AMaxTik_RapidTraverse"/>
+	    AMaxTik_RapidTraverse : LREAL;  //! <Type Comment="Maximum allowed axis acceleration for rapid traverse [int.units/tick²]" Name="_LMC_AxisInfo.AMaxTik_RapidTraverse"/>
 	    TJerk_RapidTraverse : DINT;  //! <Type Comment="Time for the acceleration to reach its maximum value for rapid traverse [ms]." Name="_LMC_AxisInfo.TJerk_RapidTraverse"/>
 	    JMaxTik_RapidTraverse : LREAL;  //! <Type Comment="Maximum allowed axis jerk for rapid traverse [int.units/tick^3]" Name="_LMC_AxisInfo.JMaxTik_RapidTraverse"/>
 	  END_STRUCT;
@@ -1228,7 +1228,7 @@ _LMCProfileBase : CLASS
 #pragma pack(push, 4)
 	  _LMC_GrpLimits : STRUCT
 	    vLim : LREAL;  //! <Type Comment="Group velocity in [int.units/tick]" Name="_LMC_GrpLimits.vLim"/>
-	    aLim : LREAL;  //! <Type Comment="Group acceleration in [int.units/tickï¿½]" Name="_LMC_GrpLimits.aLim"/>
+	    aLim : LREAL;  //! <Type Comment="Group acceleration in [int.units/tick²]" Name="_LMC_GrpLimits.aLim"/>
 	    jLim : LREAL;  //! <Type Comment="Group jerk as LREAL in [int.units/tick^3]" Name="_LMC_GrpLimits.jLim"/>
 	    SetBits : BSINT  //! <Type Comment="If an Value is set by the User over the Function SetGroupParameters, then the defined bit is set" Name="_LMC_GrpLimits.SetBits"/>
 	    [
@@ -1237,7 +1237,7 @@ _LMCProfileBase : CLASS
 	      3 jLim,
 	    ];
 	    Tjerk : DINT;  //! <Type Comment="Time for the acceleration to reach its maximum value [ms]." Name="_LMC_GrpLimits.Tjerk"/>
-	    aMax : LREAL;  //! <Type Comment="Group acceleration in [appl.units/sï¿½]" Name="_LMC_GrpLimits.aMax"/>
+	    aMax : LREAL;  //! <Type Comment="Group acceleration in [appl.units/s²]" Name="_LMC_GrpLimits.aMax"/>
 	  END_STRUCT;
 #pragma pack(pop)
 	  _LMC_IntCalcTypes :
@@ -1377,12 +1377,12 @@ _LMCProfileBase : CLASS
 	    OverrideIntern : LREAL;  //! <Type Comment="internal override normally changed by _LMCCalcModelBase" Name="_LMC_PathData_ProfileInfo.OverrideIntern"/>
 	    vTiks : LREAL;  //! <Type Comment="Speed-Tiks for the act Codeline" Name="_LMC_PathData_ProfileInfo.vTiks"/>
 	    vMax : LREAL;  //! <Type Comment="MaxProfileSpeed which gets locked [IntUnits/tick]. Set by SetBasicParameter()." Name="_LMC_PathData_ProfileInfo.vMax"/>
-	    aMax : LREAL;  //! <Type Comment="MaxProfileAcc which gets locked [IntUnits/tickï¿½]. Set by SetBasicParameter()." Name="_LMC_PathData_ProfileInfo.aMax"/>
+	    aMax : LREAL;  //! <Type Comment="MaxProfileAcc which gets locked [IntUnits/tick²]. Set by SetBasicParameter()." Name="_LMC_PathData_ProfileInfo.aMax"/>
 	    jTiks : LREAL;  //! <Type Comment="MaxProfileJerk which gets locked [IntUnits/tick^3]" Name="_LMC_PathData_ProfileInfo.jTiks"/>
 	    vOver : LREAL;
-	    aTiksMin : LREAL;  //! <Type Comment="Minimalbeschleunigung fï¿½r a-Override" Name="_LMC_PathData_ProfileInfo.aTiksMin"/>
+	    aTiksMin : LREAL;  //! <Type Comment="Minimalbeschleunigung für a-Override" Name="_LMC_PathData_ProfileInfo.aTiksMin"/>
 	    aTiksOverride : LREAL;  //! <Type Comment="Beschleunigung auf der Bahn * a-Override" Name="_LMC_PathData_ProfileInfo.aTiksOverride"/>
-	    dTiksOverride : LREAL;  //! <Type Comment="Verzï¿½gerung auf der Bahn * a-Override" Name="_LMC_PathData_ProfileInfo.dTiksOverride"/>
+	    dTiksOverride : LREAL;  //! <Type Comment="Verzögerung auf der Bahn * a-Override" Name="_LMC_PathData_ProfileInfo.dTiksOverride"/>
 	    dynTrapPos : LREAL;
 	    vLimitLimit : LREAL;
 	    TrapDelta : LREAL;
@@ -1398,8 +1398,8 @@ _LMCProfileBase : CLASS
 	    PathOffset : LREAL;  //! <Type Comment="Offset along the path [Internal Units]" Name="_LMCPROF_RestartInfo.PathOffset"/>
 	    sRestart : LREAL;  //! <Type Comment="Total path length from the start of the NC-program to the point where it was aborted [Internal Units]." Name="_LMCPROF_RestartInfo.sRestart"/>
 	    sRestartSim : LREAL;  //! <Type Comment="Total path length from the start of the NC-program to the point where it is to be continued [Internal Units].&#13;&#10;" Name="_LMCPROF_RestartInfo.sRestartSim"/>
-	    StartDelayTime : UDINT;  //! <Type Comment="Start time of the delay [ï¿½s]" Name="_LMCPROF_RestartInfo.StartDelayTime"/>
-	    DelayTime : UDINT;  //! <Type Comment="Delay time after continue [ï¿½s]." Name="_LMCPROF_RestartInfo.DelayTime"/>
+	    StartDelayTime : UDINT;  //! <Type Comment="Start time of the delay [µs]" Name="_LMCPROF_RestartInfo.StartDelayTime"/>
+	    DelayTime : UDINT;  //! <Type Comment="Delay time after continue [µs]." Name="_LMCPROF_RestartInfo.DelayTime"/>
 	    TrapPosAct : LREAL;  //! <Type Comment="TrapPosAct at the moment the NC-program was aborted [Internal Units]" Name="_LMCPROF_RestartInfo.TrapPosAct"/>
 	    BahnIst : LREAL;  //! <Type Comment="BahnIst at the moment the NC-program was aborted [Internal Units]" Name="_LMCPROF_RestartInfo.BahnIst"/>
 	    RestartAfterStop_dTolDistance : DINT;  //! <Type Comment="Tolerance distance for the restart of the stopped movements. Profile must be closer to the stop position than this distance in order to restart stopped movements." Name="_LMCPROF_RestartInfo.RestartAfterStop_dTolDistance"/>
@@ -2200,8 +2200,8 @@ _LMCProfileBase : CLASS
 	    actPoint2 : _LMCPROF_POS;  //! <Type Comment="Second of the two neighbouring points being handled at the moment." Name="t_s_SplineMoveData.actPoint2"/>
 	    aTargets : ARRAY [0..PROF_MaxNrSplineTargets-1] OF _LMCPROF_POS;  //! <Type Comment="Array holding all the part targets of the spline movement. Also the intermediate targets are saved here." Name="t_s_SplineMoveData.aTargets"/>
 	    aRadii : ARRAY [0..PROF_MaxNrSplineTargets-1] OF DINT;  //! <Type Comment="Array holding transition radii of each spline part movement. Also the intermediate radii are saved here." Name="t_s_SplineMoveData.aRadii"/>
-	    MinAngle : DINT;  //! <Type Comment="This parameter defines the minimal angle allowed between neighbouring points during a MoveSpline movement. &#13;&#10;The absolute value of this parameter will be used.&#13;&#10;Valid Range: 0.0001ï¿½ -&gt; 150ï¿½&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001ï¿½, 1 500 000 ~ 150ï¿½" Name="t_s_SplineMoveData.MinAngle"/>
-	    actAngle : DINT;  //! <Type Comment="Actual trajectory angle at the part movement target.&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001ï¿½, 900000 ~ 90ï¿½" Name="t_s_SplineMoveData.actAngle"/>
+	    MinAngle : DINT;  //! <Type Comment="This parameter defines the minimal angle allowed between neighbouring points during a MoveSpline movement. &#13;&#10;The absolute value of this parameter will be used.&#13;&#10;Valid Range: 0.0001° -&gt; 150°&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001°, 1 500 000 ~ 150°" Name="t_s_SplineMoveData.MinAngle"/>
+	    actAngle : DINT;  //! <Type Comment="Actual trajectory angle at the part movement target.&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001°, 900000 ~ 90°" Name="t_s_SplineMoveData.actAngle"/>
 	    NrPartMoves : DINT;  //! <Type Comment="Number of part movements to be executed - 1. It is used in array and for loops and starts from 0" Name="t_s_SplineMoveData.NrPartMoves"/>
 	    ErrIdx : DINT;  //! <Type Comment="Point index where an error occured while calculating and generating part movement&#13;&#10;-1 .. no error occured&#13;&#10;&gt;=0 .. point index where an error has occured" Name="t_s_SplineMoveData.ErrIdx"/>
 	    bBitUser : BOOL;  //! <Type Comment="This bit is set while generating the part movement. After the movement is generated the bit is reset. It is needed to set the corresponding bit in the user buffer." Name="t_s_SplineMoveData.bBitUser"/>
@@ -2424,7 +2424,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="ChangeCoupleSettings.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="ChangeCoupleSettings.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="ChangeCoupleSettings.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="ChangeCoupleSettings.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="ChangeCoupleSettings.MaxAcc"/>
 			DeltaPos 	: DINT;			//! <Variable Comment="Position difference between the master axis and the slave axis [internal units]" Name="ChangeCoupleSettings.DeltaPos"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="ChangeCoupleSettings.GearMul"/>
 			GearDiv 	: DINT;			//! <Variable Comment="Divisor for the gear ratio" Name="ChangeCoupleSettings.GearDiv"/>
@@ -2474,7 +2474,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleCurveTab.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleCurveTab.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleCurveTab.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleCurveTab.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleCurveTab.MaxAcc"/>
 			DeltaPos 	: DINT;			//! <Variable Comment="Position difference between the master axis and the slave axis [internal units]" Name="CoupleCurveTab.DeltaPos"/>
 			pMaster 	: ^MasterStruct;			//! <Variable Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="CoupleCurveTab.pMaster"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleCurveTab.GearMul"/>
@@ -2492,7 +2492,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleGearAbsolute.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleGearAbsolute.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleGearAbsolute.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleGearAbsolute.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleGearAbsolute.MaxAcc"/>
 			DeltaPos 	: DINT;			//! <Variable Comment="Position difference between the master axis and the slave axis [internal units]" Name="CoupleGearAbsolute.DeltaPos"/>
 			pMaster 	: ^MasterStruct;			//! <Variable Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="CoupleGearAbsolute.pMaster"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleGearAbsolute.GearMul"/>
@@ -2508,7 +2508,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleGearPolynom.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleGearPolynom.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleGearPolynom.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleGearPolynom.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleGearPolynom.MaxAcc"/>
 			pMaster 	: ^MasterStruct;			//! <Variable Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="CoupleGearPolynom.pMaster"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleGearPolynom.GearMul"/>
 			GearDiv 	: DINT;			//! <Variable Comment="Divisor for the gear ratio" Name="CoupleGearPolynom.GearDiv"/>
@@ -2525,7 +2525,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleGearRelative.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleGearRelative.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleGearRelative.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleGearRelative.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleGearRelative.MaxAcc"/>
 			pMaster 	: ^MasterStruct;			//! <Variable Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="CoupleGearRelative.pMaster"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleGearRelative.GearMul"/>
 			GearDiv 	: DINT;			//! <Variable Comment="Divisor for the gear ratio" Name="CoupleGearRelative.GearDiv"/>
@@ -2540,7 +2540,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleGearVelocity.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleGearVelocity.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleGearVelocity.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleGearVelocity.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleGearVelocity.MaxAcc"/>
 			pMaster 	: ^MasterStruct;			//! <Variable Comment="Pointer to the master axis information. Use method _LMCAxis::ReadMasterInfo()." Name="CoupleGearVelocity.pMaster"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleGearVelocity.GearMul"/>
 			GearDiv 	: DINT;			//! <Variable Comment="Divisor for the gear ratio" Name="CoupleGearVelocity.GearDiv"/>
@@ -2555,7 +2555,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleProfilePos.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleProfilePos.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleProfilePos.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleProfilePos.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleProfilePos.MaxAcc"/>
 			Mode 	: _LMCPROF_RECOUPLEMODE;			//! <Variable Comment="selecte the mode for the recouple" Name="CoupleProfilePos.Mode"/>
 		END_VAR
 		VAR_OUTPUT
@@ -2567,7 +2567,7 @@ _LMCProfileBase : CLASS
 			AxisNo 	: DINT;			//! <Variable Comment="Number of the selected axis, beginning with 1." Name="CoupleUserPos.AxisNo"/>
 			CoupleMode 	: _LMCPROF_EXECUTE;			//! <Variable Comment="Time of couple command execution" Name="CoupleUserPos.CoupleMode"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed of the axis for this movement [Application units / s]" Name="CoupleUserPos.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / sï¿½]" Name="CoupleUserPos.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum axis acceleration / deceleration [Application units / s²]" Name="CoupleUserPos.MaxAcc"/>
 			pMasterPos 	: ^DINT;			//! <Variable Comment="Pointer to the command variable containing the master position [internal units].&#13;&#10;The command variable has to contain set positions." Name="CoupleUserPos.pMasterPos"/>
 			DeltaPos 	: DINT;			//! <Variable Comment="Position difference between the master position and the slave axis [internal units]" Name="CoupleUserPos.DeltaPos"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleUserPos.GearMul"/>
@@ -2692,8 +2692,8 @@ _LMCProfileBase : CLASS
 			CircleDef 	: _LMCPROFCIRCLEDEF;			//! <Variable Comment="Defines which axes should perform a circular movement" Name="MoveCircle.CircleDef"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW) in case of 2 dimenional movement / dromic direction in case of 3 dimensional movement&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW) in case of 2 dimenional movement / antidromic direction in case of 3 dimensional movement&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveCircle.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]" Name="MoveCircle.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveCircle.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCircle.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveCircle.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCircle.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCircle.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC+ _LMCPROF_SMOOTH_QUINT  + _LMCPROF_SMOOTH_CLOTH." Name="MoveCircle.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveCircle.Jerk"/>
@@ -2708,7 +2708,7 @@ _LMCProfileBase : CLASS
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="NOT IN USE NOW" Name="MoveCurve.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveCurve.Velocity"/>
 			Accel 	: DINT;
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveCurve.Decel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveCurve.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveCurve.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units]." Name="MoveCurve.TransRadius"/>
 			pObstacle 	: ^_LMCPROF_OBSTACLE;			//! <Variable Comment="data defining the evasive movement." Name="MoveCurve.pObstacle"/>
@@ -2739,8 +2739,8 @@ _LMCProfileBase : CLASS
 			pDirection 	: ^_LMCPROF_POS;			//! <Variable Comment="Direction vector related to the 9 profile axis.&#13;&#10;&#13;&#10;This vector may not be normalized!" Name="MoveEndless.pDirection"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; no meaning (Move in clockwise direction (CW))&#13;&#10;16#04 --&gt; no meaning (Move in counter clockwise direction (CCW))&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveEndless.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement. [Application units / s]&#13;&#10;" Name="MoveEndless.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveEndless.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveEndless.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveEndless.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveEndless.Decel"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveEndless.Jerk"/>
 		END_VAR
 		VAR_OUTPUT
@@ -2752,8 +2752,8 @@ _LMCProfileBase : CLASS
 			pPositions 	: ^_LMCPROF_POS;			//! <Variable Comment="Absolute end position of the axes [Application Units]" Name="MoveLinear.pPositions"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation&#13;&#10;" Name="MoveLinear.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveLinear.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveLinear.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveLinear.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveLinear.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveLinear.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveLinear.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT + _LMCPROF_SMOOTH_CLOTH." Name="MoveLinear.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveLinear.Jerk"/>
@@ -2767,8 +2767,8 @@ _LMCProfileBase : CLASS
 			pDistances 	: ^_LMCPROF_POS;			//! <Variable Comment="Relative distance of the axes [Application Units]" Name="MoveRelative.pDistances"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation" Name="MoveRelative.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]&#13;&#10;" Name="MoveRelative.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveRelative.Accel"/>
-			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveRelative.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveRelative.Accel"/>
+			Decel 	: DINT := 0;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveRelative.Decel"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="Transitionmodus during rounding" Name="MoveRelative.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT  + _LMCPROF_SMOOTH_CLOTH." Name="MoveRelative.TransRadius"/>
 			Jerk 	: DINT := 0;			//! <Variable Comment="Jerk for this movement [Application units / sec^3 / 1000] (for MoveType=_JERK_PROFILE only)" Name="MoveRelative.Jerk"/>
@@ -2782,8 +2782,8 @@ _LMCProfileBase : CLASS
 			pMove 	: ^MoveSplineTable::t_SplineMove;			//! <Variable Comment="Pointer to the spline movement which is to be generated." Name="MoveSpline.pMove"/>
 			CmdConfig 	: _LMCPROFCMDCONFIG;			//! <Variable Comment="16#01 --&gt; Rapid traverse&#13;&#10;16#02 --&gt; Move in clockwise direction (CW)&#13;&#10;16#04 --&gt; Move in counter clockwise direction (CCW)&#13;&#10;16#08 --&gt; Feed rate interpolation" Name="MoveSpline.CmdConfig"/>
 			Velocity 	: DINT;			//! <Variable Comment="Path speed (feed rate) for the movement.[Application units / s]" Name="MoveSpline.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / sï¿½ ]" Name="MoveSpline.Accel"/>
-			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / sï¿½ ]" Name="MoveSpline.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="Acceleration for this movement [Application units / s² ]" Name="MoveSpline.Accel"/>
+			Decel 	: DINT;			//! <Variable Comment="Deceleration for this movement [Application units / s² ]" Name="MoveSpline.Decel"/>
 			NumPoints 	: DINT;			//! <Variable Comment="Num of points to be driven.&#13;&#10;&lt;0 .. invalid number&#13;&#10;0 .. all movement points&#13;&#10;1 .. only a move linear to the first point will be driven&#13;&#10;&gt;1 .. specified number of points will be driven even if there are more points defined under the movement pointer" Name="MoveSpline.NumPoints"/>
 			TransMode 	: _LMCPROFTRANSMODES;			//! <Variable Comment="This parameter is used only for the last part movement of the move spline&#13;&#10;&#13;&#10;Transitionmodus during rounding" Name="MoveSpline.TransMode"/>
 			TransRadius 	: DINT;			//! <Variable Comment="This parameter is used only for the last part movement of the move spline&#13;&#10;&#13;&#10;Radius of the tolerance-sphere during rounding [Application units].&#13;&#10;&#13;&#10;Parameter is only necessary for modes _LMCPROF_SMOOTH_PARAB + _LMCPROF_SMOOTH_CUBIC + _LMCPROF_SMOOTH_QUINT + _LMCPROF_SMOOTH_CLOTH." Name="MoveSpline.TransRadius"/>
@@ -2963,7 +2963,7 @@ _LMCProfileBase : CLASS
 				//! <Function Comment="The method stops the RtWork of this _LMCProfile object and defines the timebase for calling RtWork externally" Name="SetTimeBase"/>
 	FUNCTION VIRTUAL GLOBAL SetTimeBase
 		VAR_INPUT
-			udTimeBase 	: UDINT;			//! <Variable Comment="Time base in ï¿½s" Name="SetTimeBase.udTimeBase"/>
+			udTimeBase 	: UDINT;			//! <Variable Comment="Time base in µs" Name="SetTimeBase.udTimeBase"/>
 		END_VAR
 		VAR_OUTPUT
 			RetCode 	: _LMCPROFERRORTYPES;			//! <Variable Comment="_LMCPROF_NoError      --&gt; OK&#13;&#10;_LMCPROF_ERROR_BUSY   --&gt; Method was called too late. Method can only be called when _Firstscan = 0&#13;&#10;_LMCPROF_OUT_OF_RANGE --&gt; Selected time base too small." Name="SetTimeBase.RetCode"/>
@@ -3211,14 +3211,14 @@ _LMCProfileBase : CLASS
 		END_VAR;
 				//! <Function Comment="calculation of the FeedRate limitation" Name="CalcFLIN"/>
 	FUNCTION CalcFLIN;
-				//! <Function Comment="Returns the jerk as LREAL in [internal units/tickï¿½]" Name="CalcJmax"/>
+				//! <Function Comment="Returns the jerk as LREAL in [internal units/tick³]" Name="CalcJmax"/>
 	FUNCTION CalcJmax
 		VAR_INPUT
-			Amax 	: LREAL;			//! <Variable Comment="acceleration in [application units/tickï¿½]" Name="CalcJmax.Amax"/>
+			Amax 	: LREAL;			//! <Variable Comment="acceleration in [application units/tick²]" Name="CalcJmax.Amax"/>
 			Tjerk 	: DINT;			//! <Variable Comment="Time to attain the max. acceleration [ms]" Name="CalcJmax.Tjerk"/>
 		END_VAR
 		VAR_OUTPUT
-			Jmax 	: LREAL;			//! <Variable Comment="jerk in [internal units/tickï¿½]" Name="CalcJmax.Jmax"/>
+			Jmax 	: LREAL;			//! <Variable Comment="jerk in [internal units/tick³]" Name="CalcJmax.Jmax"/>
 		END_VAR;
 				//! <Function Comment="Calc. coupling factors for linear movements.&#13;&#10;coupling factor = projection * scaling factor" Name="CalcKoFacLinear"/>
 	FUNCTION CalcKoFacLinear
@@ -3433,7 +3433,7 @@ _LMCProfileBase : CLASS
 		VAR_INPUT
 			AxisNo 	: DINT;			//! <Variable Comment="number of the axis (0 - 8)" Name="CoupleProfilePosByAxis.AxisNo"/>
 			MaxVel 	: DINT;			//! <Variable Comment="Maximum speed [Application units / s] " Name="CoupleProfilePosByAxis.MaxVel"/>
-			MaxAcc 	: DINT;			//! <Variable Comment="Maximum acceleration [application units / sï¿½]" Name="CoupleProfilePosByAxis.MaxAcc"/>
+			MaxAcc 	: DINT;			//! <Variable Comment="Maximum acceleration [application units / s²]" Name="CoupleProfilePosByAxis.MaxAcc"/>
 			DeltaPos 	: DINT;			//! <Variable Comment="Position difference between the master axis and the slave axis [Application units]" Name="CoupleProfilePosByAxis.DeltaPos"/>
 			GearMul 	: DINT;			//! <Variable Comment="Multiplier for the gear ratio" Name="CoupleProfilePosByAxis.GearMul"/>
 			GearDiv 	: DINT;			//! <Variable Comment="Divisor for the gear ratio" Name="CoupleProfilePosByAxis.GearDiv"/>
@@ -3965,20 +3965,20 @@ _LMCProfileBase : CLASS
 			Pathlength 	: LREAL;			//! <Variable Comment="Length of a path segment [int.units]" Name="GetvBahn.Pathlength"/>
 			vOut 	: LREAL;			//! <Variable Comment="Desired exit speed of path segment [int.units/tick]" Name="GetvBahn.vOut"/>
 			Dmax 	: LREAL;
-			Jmax 	: LREAL;			//! <Variable Comment="Jerk [int.units/tickï¿½]" Name="GetvBahn.Jmax"/>
+			Jmax 	: LREAL;			//! <Variable Comment="Jerk [int.units/tick³]" Name="GetvBahn.Jmax"/>
 			pAStart 	: ^LREAL;
 		END_VAR
 		VAR_OUTPUT
 			vStart 	: LREAL;			//! <Variable Comment="Maximum possible entry speed of path segment [int.units/tick]" Name="GetvBahn.vStart"/>
 		END_VAR;
-				//! <Function Comment="Berechnet die max. zulï¿½ssige Bahngeschwindigkeit fï¿½r das ï¿½bergangsbahnstï¿½ck in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;" Name="getVRound"/>
+				//! <Function Comment="Berechnet die max. zulässige Bahngeschwindigkeit für das Übergangsbahnstück in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;" Name="getVRound"/>
 	FUNCTION getVRound
 		VAR_INPUT
-			pLast 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das Bahnstï¿½ck vor dem ï¿½bergang" Name="getVRound.pLast"/>
-			pTrans 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das ï¿½bergangsbahnstï¿½ck." Name="getVRound.pTrans"/>
-			pVor 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das Bahnstï¿½ck nach dem ï¿½bergang" Name="getVRound.pVor"/>
+			pLast 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das Bahnstück vor dem Übergang" Name="getVRound.pLast"/>
+			pTrans 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das Übergangsbahnstück." Name="getVRound.pTrans"/>
+			pVor 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Zeiger auf das Bahnstück nach dem Übergang" Name="getVRound.pVor"/>
 			AxeNr 	: DINT;			//! <Variable Comment="Achsnummer" Name="getVRound.AxeNr"/>
-			pRetCalcV 	: ^LREAL;			//! <Variable Comment="Zeiger auf die max. zulï¿½ssige Bahngeschwindigkeit" Name="getVRound.pRetCalcV"/>
+			pRetCalcV 	: ^LREAL;			//! <Variable Comment="Zeiger auf die max. zulässige Bahngeschwindigkeit" Name="getVRound.pRetCalcV"/>
 		END_VAR
 		VAR_OUTPUT
 			retCalc 	: BOOL;			//! <Variable Comment="TRUE: die Bahngeschwindigkeit konnte berechnet werden.&#13;&#10;FALSE: die Bahngeschwindigkeit konnte nicht berechnet werden." Name="getVRound.retCalc"/>
@@ -4401,7 +4401,7 @@ _LMCProfileBase : CLASS
 			pMoveData 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Pointer to the transition contour element" Name="PosCalc_Fourier_Live.pMoveData"/>
 			path_Actual 	: LREAL;			//! <Variable Comment="actual path of the profile" Name="PosCalc_Fourier_Live.path_Actual"/>
 		END_VAR;
-				//! <Function Comment="Interpoliert die Linearachsen bei Gerade-Kreis- und Kreis-Gerade-ï¿½bergï¿½ngen in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;Es werden nur die Hilfsachsen verrundet. Die Bahnachsen fahren die programmierte Gerade. Die Methode wird nur aufgerufen, wenn sich&#13;&#10;die Achsen innerhalb der Toleranzkugel befinden.&#13;&#10;CalcPosByTransRadiusParab() berechnet die Bahnstï¿½ckdaten." Name="PosCalc_Lin_Round_Aux"/>
+				//! <Function Comment="Interpoliert die Linearachsen bei Gerade-Kreis- und Kreis-Gerade-Übergängen in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;Es werden nur die Hilfsachsen verrundet. Die Bahnachsen fahren die programmierte Gerade. Die Methode wird nur aufgerufen, wenn sich&#13;&#10;die Achsen innerhalb der Toleranzkugel befinden.&#13;&#10;CalcPosByTransRadiusParab() berechnet die Bahnstückdaten." Name="PosCalc_Lin_Round_Aux"/>
 	FUNCTION PosCalc_Lin_Round_Aux
 		VAR_INPUT
 			pMoveData 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Pointer to the transition contour element" Name="PosCalc_Lin_Round_Aux.pMoveData"/>
@@ -4416,7 +4416,7 @@ _LMCProfileBase : CLASS
 		VAR_INPUT
 			pMoveData 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Pointer to the transition contour element" Name="PosCalc_NoPosChange.pMoveData"/>
 		END_VAR;
-				//! <Function Comment="Interpoliert alle Achsen bei Gerade-Gerade-ï¿½bergï¿½ngen in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;Es werden alle linearen Bahn- und Hilfsachsen verrundet. Die Methode wird nur aufgerufen, wenn sich&#13;&#10;die Achsen innerhalb der Toleranzkugel befinden.&#13;&#10;CalcPosByTransRadiusParab() berechnet die Bahnstï¿½ckdaten." Name="PosCalc_Round_All"/>
+				//! <Function Comment="Interpoliert alle Achsen bei Gerade-Gerade-Übergängen in der Betriebsart &quot;Profil verrunden mit Toleranzkugel&quot;.&#13;&#10;Es werden alle linearen Bahn- und Hilfsachsen verrundet. Die Methode wird nur aufgerufen, wenn sich&#13;&#10;die Achsen innerhalb der Toleranzkugel befinden.&#13;&#10;CalcPosByTransRadiusParab() berechnet die Bahnstückdaten." Name="PosCalc_Round_All"/>
 	FUNCTION PosCalc_Round_All
 		VAR_INPUT
 			pMoveData 	: ^_LMCPROF_MoveData_Intern;			//! <Variable Comment="Pointer to the transition contour element" Name="PosCalc_Round_All.pMoveData"/>
@@ -4630,12 +4630,12 @@ _LMCProfileBase : CLASS
 	FUNCTION refactorDynamic
 		VAR_INPUT
 			Velocity 	: DINT;			//! <Variable Comment="velocity in [application units/s]" Name="refactorDynamic.Velocity"/>
-			Accel 	: DINT;			//! <Variable Comment="acceleration in [application units/sï¿½]" Name="refactorDynamic.Accel"/>
-			Decel 	: DINT;			//! <Variable Comment="deceleration in [application units/sï¿½]" Name="refactorDynamic.Decel"/>
+			Accel 	: DINT;			//! <Variable Comment="acceleration in [application units/s²]" Name="refactorDynamic.Accel"/>
+			Decel 	: DINT;			//! <Variable Comment="deceleration in [application units/s²]" Name="refactorDynamic.Decel"/>
 			Jerk 	: DINT;			//! <Variable Comment="Jerk in [application units / sec^3 / 1000]" Name="refactorDynamic.Jerk"/>
 			pVelocity 	: ^LREAL;			//! <Variable Comment="pointer at the velocity in [internal units/tick]" Name="refactorDynamic.pVelocity"/>
-			pAccel 	: ^LREAL;			//! <Variable Comment="pointer at the acceleration in [internal units/tickï¿½]" Name="refactorDynamic.pAccel"/>
-			pDecel 	: ^LREAL;			//! <Variable Comment="pointer at the deceleration in [internal units/tickï¿½]" Name="refactorDynamic.pDecel"/>
+			pAccel 	: ^LREAL;			//! <Variable Comment="pointer at the acceleration in [internal units/tick²]" Name="refactorDynamic.pAccel"/>
+			pDecel 	: ^LREAL;			//! <Variable Comment="pointer at the deceleration in [internal units/tick²]" Name="refactorDynamic.pDecel"/>
 			pJerk 	: ^LREAL;			//! <Variable Comment="pointer to the Jerk in [IntUnits / tick^3]" Name="refactorDynamic.pJerk"/>
 		END_VAR
 		VAR_OUTPUT

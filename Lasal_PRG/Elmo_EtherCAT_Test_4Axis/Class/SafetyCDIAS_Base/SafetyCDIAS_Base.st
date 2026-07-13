@@ -45,7 +45,7 @@
 (*!
 <Class
 	Name               = "SafetyCDIAS_Base"
-	Revision           = "3.19"
+	Revision           = "3.20"
 	GUID               = "{EA629206-D9FC-4C90-AAB0-E5D2CE0DCE76}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -90,6 +90,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="3.20" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="3.19" Date="20.04.2021" Author="RamAnd" Company="Sigmatek" Description="Added 2 new servers ApplCRC and HwCRC to show the CRCs of the safety application logic as well as the hardware configuration."/>
 		<Dokumentation Revision="3.18" Date="01.02.2021" Author="EisMic" Company="Sigmatek" Description="Corrected an error that caused the class to be stuck in _Wait4Synchronicity state when using unsafe variables."/>
 		<Dokumentation Revision="3.17" Date="05.10.2020" Author="EisMic" Company="Sigmatek" Description="Added support to get the visual error code offset for the class SafetyDiagnosisInfo.&#13;&#10;Diagnosis info data is now fetched even if the the manager initialisation is not finished."/>
@@ -181,6 +182,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using HwBaseCDIAS
@@ -1271,10 +1275,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB SafetyCDIAS_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SAFETYCDIAS_BASE
-3$UINT, 19$UINT, (SIZEOF(::SafetyCDIAS_Base))$UINT, 
+3$UINT, 20$UINT, (SIZEOF(::SafetyCDIAS_Base))$UINT, 
 13$UINT, 5$UINT, 0$UINT, 
 TO_UDINT(2652646482), "SafetyCDIAS_Base", //Class
-TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 56$UINT, //Baseclass
+TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 57$UINT, //Baseclass
 //Servers:
 (::SafetyCDIAS_Base.ClassState.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1096059024), "ClassState", 
 (::SafetyCDIAS_Base.VoltageOK.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(2158378107), "VoltageOK", 

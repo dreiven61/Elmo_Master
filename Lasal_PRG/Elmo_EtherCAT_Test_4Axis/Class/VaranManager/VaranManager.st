@@ -19,7 +19,7 @@
 (*!
 <Class
 	Name               = "VaranManager"
-	Revision           = "3.8"
+	Revision           = "3.9"
 	GUID               = "{2CF568E9-025C-4CAE-9A6D-3802AC2DB447}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -78,6 +78,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="3.9" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="3.8" Date="13.12.2024" Author="LanSte" Company="Sigmatek" Description="Added support for Get Required Wait Time"/>
 		<Dokumentation Revision="3.7" Date="16.06.2023" Author="EisMic" Company="Sigmatek" Description="Added functionality to allow modules to give time to the OS during the post init phase (e.g. for safety SDO handling).&#13;&#10;Fixed the debug VARAN memory calculation when the flag VARAN_DOL_NOT_INSERT_DO_INTO_DOL is set."/>
 		<Dokumentation Revision="3.6" Date="18.04.2023" Author="EisMic" Company="Sigmatek" Description="Fixed an access exception when more than 1 Flexhub object were used on CPUs with no VaranInterface available."/>
@@ -192,6 +193,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using VaranManager_Base
@@ -1302,10 +1306,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB VaranManager::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_VARANMANAGER
-3$UINT, 8$UINT, (SIZEOF(::VaranManager))$UINT, 
+3$UINT, 9$UINT, (SIZEOF(::VaranManager))$UINT, 
 15$UINT, 16$UINT, 0$UINT, 
 TO_UDINT(2940693151), "VaranManager", //Class
-TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 26$UINT, //Baseclass
+TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 27$UINT, //Baseclass
 //Servers:
 (::VaranManager.State.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1422331979), "State", 
 (::VaranManager.ManagerOn.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(863440053), "ManagerOn", 
@@ -1323,7 +1327,7 @@ TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 26$UINT, //Baseclass
 (::VaranManager.SuperiorSystemOK.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(298279974), "SuperiorSystemOK", 
 (::VaranManager.ManagerProtocolVersion.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(1336107588), "ManagerProtocolVersion", 
 //Clients:
-(::VaranManager.To_HwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1012711711), "To_HwControl", TO_UDINT(2471641665), "HwControl", 5$UINT, 27$UINT, 
+(::VaranManager.To_HwControl.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1012711711), "To_HwControl", TO_UDINT(2471641665), "HwControl", 6$UINT, 0$UINT, 
 (::VaranManager.VaranManagerTime.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(3386702), "VaranManagerTime", 
 (::VaranManager.VaranManagerNr.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(4059623800), "VaranManagerNr", 
 (::VaranManager.PreventManagerError.pCh)$UINT, _CH_CLT_DATA$UINT, 2#0000000000000000$UINT, TO_UDINT(1977854530), "PreventManagerError", 

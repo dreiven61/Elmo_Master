@@ -233,7 +233,7 @@ TYPE
   _LMCAXIS_READPARAMETER :  //! <Type Comment="Parameter-ID" Name="_LMCAXIS_READPARAMETER"/>
   (
     LMCAXIS_PAR_RD_V_MAX,  //! <Type Comment="Read maximum axis velocity [Application units/s] or [Internal units/s] depending on mode" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_V_MAX"/>
-    LMCAXIS_PAR_RD_A_MAX,  //! <Type Comment="Read maximum axis acceleration / deceleration [Application units/sï¿½] or [Internal units/sï¿½] depending on mode" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_A_MAX"/>
+    LMCAXIS_PAR_RD_A_MAX,  //! <Type Comment="Read maximum axis acceleration / deceleration [Application units/s²] or [Internal units/s²] depending on mode" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_A_MAX"/>
     LMCAXIS_PAR_RD_EXTUNITS,  //! <Type Comment="Read value of server ExUnit [Increments]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_EXTUNITS"/>
     LMCAXIS_PAR_RD_INTUNITS,  //! <Type Comment="Read value of server IntUnit" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_INTUNITS"/>
     LMCAXIS_PAR_RD_RESFACT,  //! <Type Comment="Read the value of server Resolution" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_RESFACT"/>
@@ -248,7 +248,7 @@ TYPE
     LMCAXIS_PAR_RD_CONTROLLERTYPE,  //! <Type Comment="Read which type of controller is connected to client LMCController" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_CONTROLLERTYPE"/>
     LMCAXIS_PAR_RD_TIMEBASE,  //! <Type Comment="Read the RtWork() cycle time&#13;&#10;in [microseconds] if the most significant bit is set&#13;&#10;or in [milliseconds] otherwise" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_TIMEBASE"/>
     LMCAXIS_PAR_RD_CONTROLLERPAR,  //! <Type Comment="Read a parameter value from the controller connected to client LMCController.&#13;&#10;If no controller is connected, then -1 is returned.&#13;&#10;Mode contains the number of the controller parameter that should be read." Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_CONTROLLERPAR"/>
-    LMCAXIS_PAR_RD_J_MAX,  //! <Type Comment="Read the maximum jerk [Application units / sï¿½ / ms] = [Application units / s^3 * 1000]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_J_MAX"/>
+    LMCAXIS_PAR_RD_J_MAX,  //! <Type Comment="Read the maximum jerk [Application units / s² / ms] = [Application units / s^3 * 1000]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_J_MAX"/>
     LMCAXIS_PAR_RD_MOVETYPE,  //! <Type Comment="Read moving profile of the axis&#13;&#10;====================&#13;&#10; 0 = _RAMP_PROFILE - axis moves without jerk limitation&#13;&#10; 1 = _SCURVE_PROFILE - axis moves with jerk filter (jerk limitation through position filter)&#13;&#10;10 = _JERK_PROFILE - axis moves with jerk limitation (calculated limitation)" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_MOVETYPE"/>
     LMCAXIS_PAR_RD_T_JERK,  //! <Type Comment="Read the jerk time (server Tjerk) [ms].&#13;&#10;This is the time for the acceleration to attain its maximum value." Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_T_JERK"/>
     LMCAXIS_PAR_RD_HARDLOCK,  //! <Type Comment="Read the HardLock flag.&#13;&#10;0: the slave always adheres to its speed, acceleration and deceleration limits&#13;&#10;1: when the slave is synchronized with the master, it may exceed its acceleration and deceleration limits but not the speed limit&#13;&#10;2: when the slave is synchronized to a _LMCProfile object the jerk limit is not monitored&#13;&#10;3: when the slave is synchronized the jerk limit is not monitored" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_HARDLOCK"/>
@@ -257,7 +257,7 @@ TYPE
     LMCAXIS_PAR_RD_MOVEDIRECTION,  //! <Type Comment="Read direction of movement for the axis&#13;&#10;0 = AXIS_MOVE_ANY_WAY axis may move in any direction&#13;&#10;1 = AXIS_MOVE_NEG_DIR axis may only move in the negative direction&#13;&#10;3 = AXIS_MOVE_POS_DIR axis may only move in the positive direction&#13;&#10;2 = AXIS_MOVE_SHORTEST_WAY axis takes the shortest way to the destination" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_MOVEDIRECTION"/>
     LMCAXIS_PAR_RD_SWLIMWINDOW,  //! <Type Comment="Read Endpostion-Tolerance-Window [application units]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_SWLIMWINDOW"/>
     LMCAXIS_PAR_RD_MASTER_DELAY,  //! <Type Comment="Read the max Delay of the MasterPointer [ticks]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_MASTER_DELAY"/>
-    LMCAXIS_PAR_RD_DEC,  //! <Type Comment="Read deceleration [Application units/sï¿½] or [Internal units/tickï¿½] depending on mode" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_DEC"/>
+    LMCAXIS_PAR_RD_DEC,  //! <Type Comment="Read deceleration [Application units/s²] or [Internal units/tick²] depending on mode" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_DEC"/>
     LMCAXIS_PAR_RD_DYN_SW_LIMIT,  //! <Type Comment="Is a min/max dynamic software limit monitored?" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_DYN_SW_LIMIT"/>
     LMCAXIS_PAR_RD_MAX_OVERRIDE,  //! <Type Comment="Reads the maximal allowed value for the override&#13;&#10;&#13;&#10;Mode=0: absolute max override value&#13;&#10;Mode=1: max override value in a tenth of percent" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_MAX_OVERRIDE"/>
     LMCAXIS_PAR_RD_NORM_OVERRIDE,  //! <Type Comment="Reads the override value, which represents 100%." Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_NORM_OVERRIDE"/>
@@ -270,7 +270,7 @@ TYPE
     LMCAXIS_PAR_RD_ALLOWED_ACC_JUMP,  //! <Type Comment="Read the maximal allowed accel jump for the slave. [application units / sec^2 / tick]" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_ALLOWED_ACC_JUMP"/>
     LMCAXIS_PAR_RD_SIMULATE_MODE,  //! <Type Comment="Delivers the information if the axis is active in simulate mode." Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_SIMULATE_MODE"/>
     LMCAXIS_PAR_RD_ERROR_CONFIG,  //! <Type Comment="Set user defined error configuration&#13;&#10;" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_ERROR_CONFIG"/>
-    LMCAXIS_PAR_RD_AEMERGENCY,  //! <Type Comment="Read emergency deccelarition. If Emergency &lt;&gt; 0 [Application units / sï¿½]&#13;&#10;if AEmergency is smaller AMax, the deceleration is AMax" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_AEMERGENCY"/>
+    LMCAXIS_PAR_RD_AEMERGENCY,  //! <Type Comment="Read emergency deccelarition. If Emergency &lt;&gt; 0 [Application units / s²]&#13;&#10;if AEmergency is smaller AMax, the deceleration is AMax" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_AEMERGENCY"/>
     LMCAXIS_PAR_RD_ABS_ENCODER,  //! <Type Comment="This parameter is used for the activation (AbsEncoder = 1) / deactivation (AbsEncoder = 0) of reading encoder-values from a motor" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_ABS_ENCODER"/>
     LMCAXIS_PAR_RD_AXISERROR,  //! <Type Comment="Read error flags of the Axis&#13;&#10;" Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_AXISERROR"/>
     LMCAXIS_PAR_RD_REFPOSOFF,  //! <Type Comment="The position change if actual position is overwritten with the reference position." Name="_LMCAXIS_READPARAMETER.LMCAXIS_PAR_RD_REFPOSOFF"/>
@@ -436,14 +436,14 @@ TYPE
     LMCAXIS_SET_EXUNIT,  //! <Type Comment="Set new value for server ExUnit [Increments]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_EXUNIT"/>
     LMCAXIS_SET_INTUNIT,  //! <Type Comment="Set new value for server IntUnit [Application units]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_INTUNIT"/>
     LMCAXIS_SET_VMAX,  //! <Type Comment="Set new value for server VMax [Application units/s]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_VMAX"/>
-    LMCAXIS_SET_AMAX,  //! <Type Comment="Set new value for server AMax [Application units/sï¿½]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_AMAX"/>
+    LMCAXIS_SET_AMAX,  //! <Type Comment="Set new value for server AMax [Application units/s²]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_AMAX"/>
     LMCAXIS_SET_SWMINPOS,  //! <Type Comment="Set new value for server SWMinPos [Application units]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_SWMINPOS"/>
     LMCAXIS_SET_SWMAXPOS,  //! <Type Comment="Set new value for server SWMaxPos [Application units]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_SWMAXPOS"/>
     LMCAXIS_SET_MODULO,  //! <Type Comment="Set new value for server Modulo [Application units]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_MODULO"/>
     LMCAXIS_SET_T_JERK,  //! <Type Comment="Set new value for server Tjerk [ms]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_T_JERK"/>
     LMCAXIS_SET_MOVETYPE,  //! <Type Comment="Set new value for server MoveType" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_MOVETYPE"/>
-    LMCAXIS_SET_AEMERGENCY,  //! <Type Comment="Set new value for the server AEmergency [application units / secï¿½]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_AEMERGENCY"/>
-    LMCAXIS_SET_JMAX,  //! <Type Comment="Set a new value for server JMax [ApplicationUnits/secï¿½/ms]&#13;&#10;for MoveType = _JERK_PROFILE only." Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_JMAX"/>
+    LMCAXIS_SET_AEMERGENCY,  //! <Type Comment="Set new value for the server AEmergency [application units / sec²]" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_AEMERGENCY"/>
+    LMCAXIS_SET_JMAX,  //! <Type Comment="Set a new value for server JMax [ApplicationUnits/sec²/ms]&#13;&#10;for MoveType = _JERK_PROFILE only." Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_JMAX"/>
     LMCAXIS_SET_ERROR_CONFIG,  //! <Type Comment="Set user defined error configuration&#13;&#10;" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_ERROR_CONFIG"/>
     LMCAXIS_SET_ABS_ENCODER  //! <Type Comment="This parameter is used for the activation (AbsEncoder = 1) / deactivation (AbsEncoder = 0) of reading encoder-values from a motor" Name="_LMCAXIS_SETSERVER.LMCAXIS_SET_ABS_ENCODER"/>
   )$UDINT;
@@ -651,9 +651,9 @@ TYPE
     zMP : DINT;  //! <Type Comment="Distance from the start point to the circle center point in the direction of the third circle axis [Internal units]" Name="_LMCPROF_MoveData.zMP"/>
     PathLength : DINT;  //! <Type Comment="Path length [Internal units]" Name="_LMCPROF_MoveData.PathLength"/>
     vMax : DINT;  //! <Type Comment="Max. allowed path speed [Internal units/tick]" Name="_LMCPROF_MoveData.vMax"/>
-    aMax : DINT;  //! <Type Comment="Max. allowed path acceleration [Internal units/tickï¿½]" Name="_LMCPROF_MoveData.aMax"/>
-    dMax : DINT;  //! <Type Comment="Max. allowed path deceleration [Internal units/tickï¿½]" Name="_LMCPROF_MoveData.dMax"/>
-    jMax : DINT;  //! <Type Comment="Max. allowed path jerk [Internal units/tickï¿½/sec]" Name="_LMCPROF_MoveData.jMax"/>
+    aMax : DINT;  //! <Type Comment="Max. allowed path acceleration [Internal units/tick²]" Name="_LMCPROF_MoveData.aMax"/>
+    dMax : DINT;  //! <Type Comment="Max. allowed path deceleration [Internal units/tick²]" Name="_LMCPROF_MoveData.dMax"/>
+    jMax : DINT;  //! <Type Comment="Max. allowed path jerk [Internal units/tick²/sec]" Name="_LMCPROF_MoveData.jMax"/>
     sCircleIPSpec : _LMCPROF_CIRCLEPOINT;  //! <Type Comment="Interpoint of the circle movement." Name="_LMCPROF_MoveData.sCircleIPSpec"/>
     bIPnil : BOOL;  //! <Type Comment="TRUE .. Interpoint was not specified." Name="_LMCPROF_MoveData.bIPnil"/>
     CircleCCW : BOOL;  //! <Type Comment="Flag is set if this is a counter-clockwise circle movement. It is used for eventual reverse drive." Name="_LMCPROF_MoveData.CircleCCW"/>
@@ -914,7 +914,7 @@ TYPE
     _LMCPROF_NoChkAuxAxis:=10,  //! <Type Comment="FALSE: Default value. Path speed, path acceleration/deceleration and path jerk are limited by the limit values of the path axes and the limit values of the auxiliary axes.&#13;&#10;TRUE : Path speed, path acceleration/deceleration and path jerk are limited by the limit values of the path axes only." Name="_LMCPROFPARAMETER._LMCPROF_NoChkAuxAxis"/>
     _LMCPROF_OverrideType:=11,  //! <Type Comment="0: Default value. The override calculation is always based on the actual path speed of the path segment. &#13;&#10;1: The override calculation is based on the specified path speed of the path segment only. Limits of the path speed by circle limits, maximum speeds, etc. are not included in the override calculation.&#13;&#10;2: The override calculation is based on the actual path speed. Limits of the path speed by circle limits, maximum speeds, etc. are not included in the override calculation.&#13;&#10;" Name="_LMCPROFPARAMETER._LMCPROF_OverrideType"/>
     _LMCPROF_RoundConnectMode:=13,  //! <Type Comment="FALSE: Default value. The single axis movement at the segment transfer with tolerance sphere is always trapezoidal.&#13;&#10;TRUE : The single axis movement at the segment transfer with tolerance sphere is executed with a &quot;softer&quot; movement.&#13;&#10;       As the duration of the movement remains unchanged compared to the trapezoidal movement, temporarily the acceleration is higher than defined but the jerk is minimized." Name="_LMCPROFPARAMETER._LMCPROF_RoundConnectMode"/>
-    _LMCPROF_aMinOverride:=14,  //! <Type Comment="The lower limit for the acceleration in [application units/sï¿½]. The lower limit must be greater than null.&#13;&#10;" Name="_LMCPROFPARAMETER._LMCPROF_aMinOverride"/>
+    _LMCPROF_aMinOverride:=14,  //! <Type Comment="The lower limit for the acceleration in [application units/s²]. The lower limit must be greater than null.&#13;&#10;" Name="_LMCPROFPARAMETER._LMCPROF_aMinOverride"/>
     _LMCPROF_ActVel:=15,  //! <Type Comment="Returns the current path speed." Name="_LMCPROFPARAMETER._LMCPROF_ActVel"/>
     _LMCPROF_ActAcc:=16,  //! <Type Comment="Returns the current path acceleration." Name="_LMCPROFPARAMETER._LMCPROF_ActAcc"/>
     _LMCPROF_MoveType:=17,  //! <Type Comment="Set the motion type:&#13;&#10;_RAMP_CURVE -&gt; the motion is defined by a ramp limiting velocity and acceleraation / deceleration&#13;&#10;_JERK_LIMIT -&gt; the motion is defined by a smooth function limiting velocity, acceleraation / deceleration and jerk" Name="_LMCPROFPARAMETER._LMCPROF_MoveType"/>
@@ -953,19 +953,19 @@ TYPE
     _LMCPROF_ReverseDMax,  //! <Type Comment="If reverse movement is triggered (by setting Override &lt; 0), first action will be to decelerate. &#13;&#10;The user can specify if maximal deceleration (this parameter set) or original movement deceleration (default - this parameter not set) is to be used." Name="_LMCPROFPARAMETER._LMCPROF_ReverseDMax"/>
     _LMCPROF_CheckGlobLimChlothoid,  //! <Type Comment="This option can be used to activate the check of the global acceleration limits and jerk limits for clothoid transitions instead of using only the axes limits.&#13;&#10;Default: Not Active" Name="_LMCPROFPARAMETER._LMCPROF_CheckGlobLimChlothoid"/>
     _LMCPROF_BrakeInTransitionClothoid,  //! <Type Comment="This setting can be used to allow to brake while being inside of a clothoid transition in the clothoid area.&#13;&#10;Default: No braking in transition - constant tangential velocity in transition." Name="_LMCPROFPARAMETER._LMCPROF_BrakeInTransitionClothoid"/>
-    _LMCPROF_MoveSpline_MinAngle  //! <Type Comment="This parameter defines the minimal angle allowed between neighbouring points during a MoveSpline movement. &#13;&#10;The absolute value of this parameter will be used.&#13;&#10;Valid Range: 0.1ï¿½ -&gt; 150ï¿½&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001ï¿½, 1 500 000 ~ 150ï¿½" Name="_LMCPROFPARAMETER._LMCPROF_MoveSpline_MinAngle"/>
+    _LMCPROF_MoveSpline_MinAngle  //! <Type Comment="This parameter defines the minimal angle allowed between neighbouring points during a MoveSpline movement. &#13;&#10;The absolute value of this parameter will be used.&#13;&#10;Valid Range: 0.1° -&gt; 150°&#13;&#10;&#13;&#10;Unit: (Promille) 1 ~ 0.0001°, 1 500 000 ~ 150°" Name="_LMCPROFPARAMETER._LMCPROF_MoveSpline_MinAngle"/>
   )$UDINT;
   _LMCPROFPARAMETERAXIS :  //! <Type Comment="Type of axis parameter" Name="_LMCPROFPARAMETERAXIS"/>
   (
     _LMCPROF_AX_VEL_LIMIT,  //! <Type Comment="Axis velocity limit [Application units/s]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_VEL_LIMIT"/>
-    _LMCPROF_AX_ACCEL_LIMIT,  //! <Type Comment="Axis acceleration limit [Application units/sï¿½]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_ACCEL_LIMIT"/>
+    _LMCPROF_AX_ACCEL_LIMIT,  //! <Type Comment="Axis acceleration limit [Application units/s²]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_ACCEL_LIMIT"/>
     _LMCPROF_AX_TJERK,  //! <Type Comment="Jerk time [ms]. The time in which the acceleration increases linearly from zero to the maximum." Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_TJERK"/>
-    _LMCPROF_AX_UNLOCK_DECEL,  //! <Type Comment="Axis deceleration to be used by UnlockProfile() [Application units/sï¿½]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_UNLOCK_DECEL"/>
+    _LMCPROF_AX_UNLOCK_DECEL,  //! <Type Comment="Axis deceleration to be used by UnlockProfile() [Application units/s²]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_UNLOCK_DECEL"/>
     _LMCPROF_AX_MAX_VEL_JUMP,  //! <Type Comment="Axis velocity jump limit [Application units/s]&#13;&#10;Value = 0 is the default case with no velocity jump limit and deactivated velocity jump at the axis. The axis object will decouple, when a velocity jump occurs.&#13;&#10;&#13;&#10;There exist two special values to define a specific behaviour:&#13;&#10;-1 ... No velocity jump limit is defined (like 0), but the velocity jump is activated at the axis. The axis object will not decouple, when a velocity jump occurs.&#13;&#10;-2 ... The velocity jump limit is 0. The axis will stop at every corner." Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_MAX_VEL_JUMP"/>
     _LMCPROF_AX_INPOS_WINDOW,  //! <Type Comment="Position window [Application units]. Used by ProfileInPosition()." Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_INPOS_WINDOW"/>
     _LMCPROF_AX_LOCK_GRP,  //! <Type Comment="Number of the group to which the axis belongs" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_LOCK_GRP"/>
-    _LMCPROF_AX_MAX_ACCEL_JUMP,  //! <Type Comment="Axis acceleration jump limit [Application units/sï¿½]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_MAX_ACCEL_JUMP"/>
-    _LMCPROF_AX_DEC,  //! <Type Comment="Axis deceleration calculated from path [Application units/sï¿½]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_DEC"/>
+    _LMCPROF_AX_MAX_ACCEL_JUMP,  //! <Type Comment="Axis acceleration jump limit [Application units/s²]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_MAX_ACCEL_JUMP"/>
+    _LMCPROF_AX_DEC,  //! <Type Comment="Axis deceleration calculated from path [Application units/s²]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_DEC"/>
     _LMCPROF_AX_NOT_CHECK_SWLIMIT,  //! <Type Comment="handling of _LMCAxis.AxisError.SwMinError/SwMaxError&#13;&#10;0 ... the bits will be checked&#13;&#10;1 ... the bits will be ignored" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_NOT_CHECK_SWLIMIT"/>
     _LMCPROF_AX_SW_MIN_LIMIT,  //! <Type Comment="Reads the minimal software limit. [Application units]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_SW_MIN_LIMIT"/>
     _LMCPROF_AX_SW_MAX_LIMIT,  //! <Type Comment="Reads the maximal software limit. [application units]" Name="_LMCPROFPARAMETERAXIS._LMCPROF_AX_SW_MAX_LIMIT"/>
@@ -978,7 +978,7 @@ TYPE
   _LMCPROFPARAMETERGROUPS :  //! <Type Comment="Type of axes group parameter" Name="_LMCPROFPARAMETERGROUPS"/>
   (
     _LMCPROF_GRP_VEL_LIMIT,  //! <Type Comment="Path speed limit of an axes group [Application units/s]" Name="_LMCPROFPARAMETERGROUPS._LMCPROF_GRP_VEL_LIMIT"/>
-    _LMCPROF_GRP_ACCEL_LIMIT,  //! <Type Comment="Path acceleration limit of an axes group [Application units/sï¿½]" Name="_LMCPROFPARAMETERGROUPS._LMCPROF_GRP_ACCEL_LIMIT"/>
+    _LMCPROF_GRP_ACCEL_LIMIT,  //! <Type Comment="Path acceleration limit of an axes group [Application units/s²]" Name="_LMCPROFPARAMETERGROUPS._LMCPROF_GRP_ACCEL_LIMIT"/>
     _LMCPROF_GRP_TJERK  //! <Type Comment="During this time [ms], the acceleration&#13;&#10;increases from null to its maximum value" Name="_LMCPROFPARAMETERGROUPS._LMCPROF_GRP_TJERK"/>
   )$UDINT;
   _LMCPROFSETTINGS : BDINT  //! <Type Comment="Currently active profile settings." Name="_LMCPROFSETTINGS"/>
@@ -1119,7 +1119,7 @@ TYPE
     3 EnableChecksum,  //! <Type Comment="0=no Checksum; 1=Calculate Checksum, increased write access on the CF card" Name="FeSetup.EnableChecksum"/>
     4 Encrypt,  //! <Type Comment="0=no encryption; 1=encrypt file, increased write access on the CF card" Name="FeSetup.Encrypt"/>
   ];
-  IO_FLAG : BINT  //! <Type Comment="Status Flag fï¿½r IO Daten" Name="IO_FLAG"/>
+  IO_FLAG : BINT  //! <Type Comment="Status Flag für IO Daten" Name="IO_FLAG"/>
   [
     1 WrongHW,  //! <Type Comment="Falsche Hardware verbunden" Name="IO_FLAG.WrongHW"/>
     2 NoHW,  //! <Type Comment="Keine Hardware verbunden" Name="IO_FLAG.NoHW"/>
@@ -1177,7 +1177,7 @@ TYPE
   )$UDINT;
 #pragma pack(push, 1)
   SafetyDiagInfo : STRUCT
-    uControllerID : USINT;  //! <Type Comment="ID of ï¿½Controller (0 = ï¿½C1, else ï¿½C2)" Name="SafetyDiagInfo.uControllerID"/>
+    uControllerID : USINT;  //! <Type Comment="ID of µController (0 = µC1, else µC2)" Name="SafetyDiagInfo.uControllerID"/>
     ActErrorCode : USINT;  //! <Type Comment="actual error code" Name="SafetyDiagInfo.ActErrorCode"/>
     FirstErrorCode : USINT;  //! <Type Comment="code of first error that lead to an error state" Name="SafetyDiagInfo.FirstErrorCode"/>
     ReasonCode0 : UDINT;  //! <Type Comment="reason for error (meaning depends on actual error code)" Name="SafetyDiagInfo.ReasonCode0"/>

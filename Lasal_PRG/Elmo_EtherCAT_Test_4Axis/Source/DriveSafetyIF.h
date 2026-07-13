@@ -69,6 +69,116 @@
 #define DRIVESAFETYIF_UPDATEPARACLASS_STATE_SAFETY_CHANGED                12
 #define DRIVESAFETYIF_UPDATEPARACLASS_STATE_SAFETY_SETSERVICEMODE_PENDING 20
 
+// Set / Clears an OPERATIONMODESPEC Bit in DS402_Control
+#define DRIVESAFETYIF_SET_OPERATIONMODESPEC                16#8582
+#define DRIVESAFETYIF_SET_OPERATIONMODESPEC_VER_1          1                   //version 1
+#define DRIVESAFETYIF_SET_OPERATIONMODESPEC_VER_MAX        DRIVESAFETYIF_SET_OPERATIONMODESPEC_VER_1   //newest implemented version
+//  Command Version 1 **  
+//  CmdStruct
+//  aPara[0]$DINT     : Command Version : 1
+//  aPara[1]$DINT     : Select OPERATIONMODESPEC 1,2,3. Caution "normal control word" / "SyncPara.ControlWord.userinfo = 0" does not support OperationModeSpec3!
+//  aPara[2]$BOOL     : Set OPERATIONMODESPEC (=1 Set Bit, =0 Clear Bit)
+
+//  results
+//  uiLng         : 8 Byte
+//  aData[0]$DINT : Command Version : max supported version
+//  aData[4]$DINT : retval Returns valueIn if ok, -1 on Error
+
+//  retcode
+//  READY
+//  ERROR
+
+// Returns the supported interfaces via NewInst commands
+#define DRIVESAFETYIF_GET_SUPPORTED_IF                      16#8583
+#define DRIVESAFETYIF_GET_SUPPORTED_IF_VER_1                1                   //version 1
+#define DRIVESAFETYIF_GET_SUPPORTED_IF_VER_MAX              DRIVESAFETYIF_GET_SUPPORTED_IF_VER_1   //newest implemented version
+//  Command Version 1 **  
+//  CmdStruct
+//  aPara[0]$DINT     : Command Version : 1  
+
+//  results
+//  uiLng           : 8 Byte
+//  aData[0]$DINT   : Command Version : max supported version
+//  aData[4]$BDINT  : Bitfield with supported features
+//                       Bit1 .. Support for old axis interface see SDDDefinitions.h, e.g. _DriveAxis
+//                       Bit2 .. Support for MDD2000 axis interface (not safety), e.g. MDD2000_Axis, ECAT_DS402AxisBase, ECAT_DS402Base
+//                       Bit3 .. Support for MDD2000 axis interface for safety, e.g. MDD2000_Axis
+//                       Bit4 .. Support for variable PDO Config: DRIVESAFETYIF_CONFIG_EXT_PDOACCESS, DRIVESAFETYIF_EXT_PDOACCESS, e.g. MDD2000_Axis
+
+// Configures the the extended PDO mapping.
+// The extended PDO data is accessed with DRIVESAFETYIF_EXT_PDOACCESS
+// This NewInst performs memory operations and must not be called in realtime task! 
+// This NewInst must not be called while DRIVESAFETYIF_EXT_PDOACCESS is active!
+#define DRIVESAFETYIF_CONFIG_EXT_PDOACCESS                  16#8584
+#define DRIVESAFETYIF_CONFIG_EXT_PDOACCESS_VER_1            1                   //version 1
+#define DRIVESAFETYIF_CONFIG_EXT_PDOACCESS_VER_MAX          DRIVESAFETYIF_CONFIG_EXT_PDOACCESS_VER_1 //newest implemented version
+//  Command Version 1 **  
+//  CmdStruct
+//  aPara[0]$DINT     : Command Version : 1  
+//  aPara[1]$BDINT    : Bit1 = Rd, Bit2 = Wr, Bit3 Ignore Mapping Error
+//  aPara[2]$UDINT    : no PDO to Map (=x)
+//  aPara[3]$UDINT    : PDO ID 1
+//  aPara[4]$UDINT    : PDO len 1 (MSB set => Value is signed), min 2Byte max 4Byte (larger will be supported in future e.g. 8Byte)
+//  ...
+//  aPara[3+x-1]$UDINT : PDO ID x
+//  aPara[3+x]$UDINT   : PDO len x (MSB set => Value is signed)
+
+//  results Para[1]$BDIN Bit4 = 0
+//  uiLng         : 8+ Byte
+//  aData[0]$DINT : Command Version : max supported version
+//  aData[4]$HDINT : Handle of Mapping, must be used with DRIVESAFETYIF_EXT_PDOACCESS, Axis supports max 1 read and 1 write handle
+//  aData[8+]$UDINT : Failed Mapping IDs see uiLng for no of IDs, Only set retcode = ERROR or Bit3 Ignore Mapping Error is set.
+
+//  retcode
+//  READY
+//  ERROR
+
+// Read 100x
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_ACTPOS             1001
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_ACTSPEED           1002
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_ACTCURRENT         1003
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_ACTXW              1004
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_STATEWORD          1005
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_DIGINPUTS          1006
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFECONTROLWORD    1007
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFESTATEWORD      1008
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFEPOS            1009
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFESPEED          1010
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFEACCELERATION   1011
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SAFECURRENT        1012
+
+// Write 200x
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_ENABLE             2001
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SETPOS             2002
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SETSPEED           2003
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SETCURRENT         2004
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SETTORQUE          2005
+#define DRIVESAFETYIF_EXT_PDOACCESS_ID_SETACC             2006
+
+// Read / Writes the extended PDO data.
+// The mapping of the extended PDO data is configured with DRIVESAFETYIF_CONFIG_EXT_PDOACCESS
+// This NewInst must be called in realtime task!
+// This NewInst must not be called while DRIVESAFETYIF_CONFIG_EXT_PDOACCESS is active!
+#define DRIVESAFETYIF_EXT_PDOACCESS                  16#8585
+#define DRIVESAFETYIF_EXT_PDOACCESS_VER_1            1                   //version 1
+#define DRIVESAFETYIF_EXT_PDOACCESS_VER_MAX          DRIVESAFETYIF_EXT_PDOACCESS_VER_1  //newest implemented version
+//  Command Version 1 **  
+//  CmdStruct
+//  aPara[0]$DINT     : Command Version : 1  
+//  aPara[1]$UDINT    : Handle of Mapping
+//  aPara[2]$pvoid    : Pointer to: Pdodata 1 len PDO 1 ... PDOdata x len PDO x
+//  aPara[3]$UDINT    : Size of aPara[2]$pvoid in Byte
+
+//  results
+//  uiLng         : 8 Byte
+//  aData[0]$DINT : Command Version : max supported version
+//  aData[4]$DINT : retcode: 1 Ok, 0 Not Online => PDO Data Not set, -1 error, -2 Invalid Handle, -3 Mapping invalid, -4 Invalid Length, -5 PdoData Invalid 
+
+//  retcode
+//  READY
+//  ERROR
+
+
 //*****************************************************************************
 //** NewInst 0x8590-0x859F                                                   **
 //** NewInst 0x85C0-0x85CF                                                   **

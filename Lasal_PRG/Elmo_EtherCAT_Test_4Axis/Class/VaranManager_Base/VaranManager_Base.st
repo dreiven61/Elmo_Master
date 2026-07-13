@@ -6,7 +6,7 @@
 (*!
 <Class
 	Name               = "VaranManager_Base"
-	Revision           = "1.26"
+	Revision           = "1.27"
 	GUID               = "{C7469E6D-58D6-464D-8C08-61D9F18730FD}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -35,6 +35,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="1.27" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.26" Date="03.08.2023" Author="EisMic" Company="Sigmatek" Description="Added newinst commands in headerfile VaranManager_Base.h."/>
 		<Dokumentation Revision="1.25" Date="12.11.2019" Author="RamAnd" Company="Sigmatek" Description="Detached the logging functionality from HwControl into a new class HwcLogging, therefore the dependency at this class has been changed to HwcLogging."/>
 		<Dokumentation Revision="1.24" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
@@ -51,6 +52,9 @@
 		<Dokumentation Revision="1.8" Date="16.07.2009" Author="ObeChr" Company="Sigmatek" Description="Added method: UseVaranRtPostScan&#13;&#10;Added type in VaranManager_Base.h"/>
 		<Dokumentation Revision="1.7" Date="16.04.2009" Author="RamAnd" Company="Sigmatek" Description="Added 2 new methods: GetDocumentation and GetSerialNo"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 VaranManager_Base : CLASS
@@ -352,7 +356,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB VaranManager_Base::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_VARANMANAGER_BASE
-1$UINT, 26$UINT, (SIZEOF(::VaranManager_Base))$UINT, 
+1$UINT, 27$UINT, (SIZEOF(::VaranManager_Base))$UINT, 
 1$UINT, 3$UINT, 0$UINT, 
 TO_UDINT(4035182347), "VaranManager_Base", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

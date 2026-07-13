@@ -17,7 +17,7 @@
 (*!
 <Class
 	Name               = "GetCILInterface"
-	Revision           = "1.4"
+	Revision           = "1.5"
 	GUID               = "{052E0B59-656A-4392-B495-EED6A48A832D}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -52,6 +52,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="EisMic"/>
+		<Dokumentation Revision="1.5" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.4" Date="20.05.2021" Author="EisMic" Company="Sigmatek" Description="Added interface for WIFI."/>
 		<Dokumentation Revision="1.3" Date="31.08.2020" Author="FurDom" Company="Sigmatek" Description="added interface for RAM"/>
 		<Dokumentation Revision="1.2" Date="16.04.2019" Author="EisMic" Company="Sigmatek" Description="Removed trace-messages if a interface could not be fetched via OS_CILGET.&#13;&#10;Added interface for ECAT, Hardwaretree."/>
@@ -68,6 +69,9 @@
 		<Dokumentation Revision="0.2" Date="01.10.2014" Author="RamAnd" Company="Sigmatek" Description="Variables are now defined as VAR_PRIVATE to prevent multiple fetchings."/>
 		<Dokumentation Revision="0.1" Date="19.09.2014" Author="EisMic" Company="Sigmatek" Description="Testversion"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 GetCILInterface : CLASS
@@ -186,7 +190,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB GetCILInterface::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_GETCILINTERFACE
-1$UINT, 4$UINT, (SIZEOF(::GetCILInterface))$UINT, 
+1$UINT, 5$UINT, (SIZEOF(::GetCILInterface))$UINT, 
 1$UINT, 0$UINT, 0$UINT, 
 TO_UDINT(1916923939), "GetCILInterface", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

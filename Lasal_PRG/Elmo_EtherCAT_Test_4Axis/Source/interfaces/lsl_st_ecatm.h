@@ -25,8 +25,8 @@
 #define ECATM_ENI_SEEK_ERROR			    -12
 #define ECATM_ENI_NOT_CHECKSUM_FOUND		-13
 #define ECATM_ENI_CHECKSUM_DOES_NOT_MATCH	-14
-#define ECATM_GIRQ_ENABLE_FAILED -15 
-#define ECATM_ERROR_CYCCTX_LOCK_ERROR -16  
+#define ECATM_GIRQ_ENABLE_FAILED 			-15 
+#define ECATM_ERROR_CYCCTX_LOCK_ERROR 		-16  
 
 
 #define LSL_ECATM_PRE_CYC_TASK    0
@@ -44,7 +44,7 @@
 
 
 
-#define LSL_ECATM_TYPE_VERSION    0x00010003
+#define LSL_ECATM_TYPE_VERSION    0x00010004
 // TODO: will be added later. Don't know all of them yet.
 
 //////////////////////////////////////////////
@@ -143,6 +143,10 @@ TYPE
         ECATM_sii_poll          : pVoid;
         ECATM_sii_set_buffer    : pVoid;
         ECATM_sii_abort         : pVoid;
+		
+        // VERSION 4
+        // Get trailing data from eni
+        ECATM_eni_get_trailing	: pVoid;
 
     END_STRUCT;
     #pragma pack (pop)
@@ -880,8 +884,16 @@ FUNCTION __CDECL GLOBAL P_ECATM_sii_abort
         ecatm       : pVoid; (*Struct: _ecatm_hdl*)
         sii       	: pVoid; (*Struct: _ecatm_sii_hdl*)
     END_VAR;
+	
+FUNCTION __CDECL GLOBAL P_ECATM_eni_get_trailing
+    VAR_INPUT
+        ecatm       : pVoid; (*Struct: _ecatm_hdl*)
+        trailing   	: ^pChar;
+    END_VAR
+        VAR_OUTPUT
+        retcode : DINT;
+    END_VAR;
 
-    
 // Since Version 0x00010001
 #define OS_ECATM_CHECK_VERSION(pECATM)                      pECATM^.version                     <> LSL_ECATM_TYPE_VERSION
 #define OS_ECATM_SetEventCallback(pECATM,p1,p2,p3,p4)       pECATM^.ECATM_SetEventCallback      $ P_ECATM_SetEventCallback(p1,p2,p3,p4)
@@ -953,6 +965,8 @@ FUNCTION __CDECL GLOBAL P_ECATM_sii_abort
 #define OS_ECATM_sii_poll(pECATM,p1,p2,p3)                  pECATM^.ECATM_sii_poll             	$ P_ECATM_sii_poll(p1,p2,p3)
 #define OS_ECATM_sii_set_buffer(pECATM,p1,p2,p3,p4)			pECATM^.ECATM_sii_set_buffer        $ P_ECATM_sii_set_buffer(p1,p2,p3,p4)
 #define OS_ECATM_sii_abort(pECATM,p1,p2)                    pECATM^.ECATM_sii_abort             $ P_ECATM_sii_abort(p1,p2)
+// Since Version 0x00010004
+#define OS_ECATM_eni_get_trailing(pECATM,p1,p2)				pECATM^.ECATM_eni_get_trailing      $ P_ECATM_eni_get_trailing(p1,p2)
 
 #endif
 

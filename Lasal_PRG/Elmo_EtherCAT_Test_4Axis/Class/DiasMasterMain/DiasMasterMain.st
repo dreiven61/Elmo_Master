@@ -9,7 +9,7 @@
 (*!
 <Class
 	Name               = "DiasMasterMain"
-	Revision           = "2.25"
+	Revision           = "2.26"
 	GUID               = "{8DDB958C-8E8E-4446-A332-88C51D93511B}"
 	RealtimeTask       = "true"
 	DefRealtime        = "1 ms"
@@ -58,6 +58,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="AscFra"/>
+		<Dokumentation Revision="2.26" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.25" Date="21.12.2020" Author="RamAnd" Company="Sigmatek" Description="On linux platforms there is no local DIAS/CDIAS therefore the class now doesn&apos;t try to initialize the local busses there anymore."/>
 		<Dokumentation Revision="2.24" Date="05.08.2020" Author="FurDom" Company="Sigmatek" Description="Tracelogging changed. Trace messages for timeslice errors and watchdog errors are set in the function WriteRTLogs() /CyWork."/>
 		<Dokumentation Revision="2.23" Date="24.07.2018" Author="RamAnd" Company="Sigmatek" Description="Prevent required error crash when current target platform is LARS."/>
@@ -122,6 +123,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using DiasMaster
@@ -1179,10 +1183,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB DiasMasterMain::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_DIASMASTERMAIN
-2$UINT, 25$UINT, (SIZEOF(::DiasMasterMain))$UINT, 
+2$UINT, 26$UINT, (SIZEOF(::DiasMasterMain))$UINT, 
 10$UINT, 8$UINT, 0$UINT, 
 TO_UDINT(3792535737), "DiasMasterMain", //Class
-TO_UDINT(2647887450), "DiasMaster", 2$UINT, 33$UINT, //Baseclass
+TO_UDINT(2647887450), "DiasMaster", 2$UINT, 34$UINT, //Baseclass
 //Servers:
 (::DiasMasterMain.Release.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(2701327623), "Release", 
 (::DiasMasterMain.Chipstate.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000000000$UINT, TO_UDINT(3029740863), "Chipstate", 

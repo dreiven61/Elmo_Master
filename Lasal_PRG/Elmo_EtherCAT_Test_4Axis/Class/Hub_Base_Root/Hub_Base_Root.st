@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "Hub_Base_Root"
-	Revision           = "2.11"
+	Revision           = "2.12"
 	GUID               = "{64ED1FC4-EA8C-4B30-98C0-5BA271C4FFE8}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -25,6 +25,7 @@
 	</Channels>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="renste"/>
+		<Dokumentation Revision="2.12" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.11" Date="23.01.2018" Author="RamAnd" Company="Sigmatek" Description="Log messages have been standardized for easier maintenance, easier use in any class and to allow spam filtering. Code for the logging functions is now only located in HwControl."/>
 		<Dokumentation Revision="2.10" Date="18.07.2013" Author="RamAnd" Company="Sigmatek" Description="Added NewInst forwarding"/>
 		<Dokumentation Revision="2.6" Date="27.06.2011" Author="RamAnd" Company="Sigmatek" Description="Support of sorting VARAN commands by priority added (needed for communication between safety-modules)."/>
@@ -64,6 +65,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using Hub_Base
@@ -347,13 +351,13 @@ END_CLASS;
 FUNCTION GLOBAL TAB Hub_Base_Root::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_HUB_BASE_ROOT
-2$UINT, 11$UINT, (SIZEOF(::Hub_Base_Root))$UINT, 
+2$UINT, 12$UINT, (SIZEOF(::Hub_Base_Root))$UINT, 
 0$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(1770276445), "Hub_Base_Root", //Class
-TO_UDINT(3238133653), "Hub_Base", 1$UINT, 21$UINT, //Baseclass
+TO_UDINT(3238133653), "Hub_Base", 1$UINT, 22$UINT, //Baseclass
 //Servers:
 //Clients:
-(::Hub_Base_Root.VaranConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(564966969), "VaranConnect", TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 26$UINT, 
+(::Hub_Base_Root.VaranConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(564966969), "VaranConnect", TO_UDINT(4035182347), "VaranManager_Base", 1$UINT, 27$UINT, 
 END_FUNCTION
 
 

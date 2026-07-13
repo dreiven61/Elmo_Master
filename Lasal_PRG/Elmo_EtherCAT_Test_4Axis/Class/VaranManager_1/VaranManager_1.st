@@ -197,11 +197,11 @@ FUNCTION GLOBAL TAB VaranManager_1::@CT_
 2$UINT, 8$UINT, (SIZEOF(::VaranManager_1))$UINT, 
 1$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(1989862026), "VaranManager_1", //Class
-TO_UDINT(2940693151), "VaranManager", 3$UINT, 8$UINT, //Baseclass
+TO_UDINT(2940693151), "VaranManager", 3$UINT, 9$UINT, //Baseclass
 //Servers:
 (::VaranManager_1.VaranOut_1.pMeth)$UINT, _CH_SVR_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2138873746), "VaranOut_1", 
 //Clients:
-(::VaranManager_1.Hub_Base_Root0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3781719598), "Hub_Base_Root0", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 11$UINT, 
+(::VaranManager_1.Hub_Base_Root0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3781719598), "Hub_Base_Root0", TO_UDINT(1770276445), "Hub_Base_Root", 2$UINT, 12$UINT, 
 END_FUNCTION
 
 

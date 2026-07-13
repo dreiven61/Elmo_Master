@@ -380,7 +380,7 @@ _LMCCalcModelBase : CLASS
 				//! <Function Comment="this methode should be overritten by the user to&#13;&#10;solve the inverse kinematic problem:&#13;&#10;the motor-positions of the axes 101 to 109 [internal units] should be computed&#13;&#10;from the effector-position and -orientation [world-coordinates in internal units]" Name="User_CalcInverseKinematic"/>
 	FUNCTION VIRTUAL GLOBAL User_CalcInverseKinematic
 		VAR_INPUT
-			pEffectorPos 	: ^_LMCPROF_POS;			//! <Variable Comment="pointer to the effector positions and -angles [world-coordinates in internal units] (inpï¿½t)" Name="User_CalcInverseKinematic.pEffectorPos"/>
+			pEffectorPos 	: ^_LMCPROF_POS;			//! <Variable Comment="pointer to the effector positions and -angles [world-coordinates in internal units] (inpüt)" Name="User_CalcInverseKinematic.pEffectorPos"/>
 			pMotorPos 	: ^_LMCPROF_POS;			//! <Variable Comment="pointer to the motor positions of axes 101 to 109 [internal units] (output)" Name="User_CalcInverseKinematic.pMotorPos"/>
 		END_VAR
 		VAR_OUTPUT

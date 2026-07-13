@@ -26,7 +26,7 @@
 (*!
 <Class
 	Name               = "SafetyUDP"
-	Revision           = "1.4"
+	Revision           = "1.5"
 	GUID               = "{5260DCC2-D171-4729-B965-8A7B43D0B86A}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -62,12 +62,16 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="RamAnd"/>
+		<Dokumentation Revision="1.5" Date="2026-02-24" Author="WinPat" Company="ek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.4" Date="02.03.2020" Author="FurDom" Company="Sigmatek" Description="Reworked to support newer CPUs (address space &gt; 0x80000000)"/>
 		<Dokumentation Revision="1.3" Date="14.02.2019" Author="PieSte" Company="Sigmatek" Description="Numbers were assigned to the log messages to make them available in the help."/>
 		<Dokumentation Revision="1.2" Date="06.03.2018" Author="EisMic" Company="Sigmatek" Description="Attached header files no longer point to the installation directory of LASAL but instead now point to the the source/interfaces folder."/>
 		<Dokumentation Revision="1.1" Date="23.01.2018" Author="RamAnd" Company="Sigmatek" Description="Log messages have been standardized for easier maintenance, easier use in any class and to allow spam filtering. Code for the logging functions is now only located in HwControl."/>
 		<Dokumentation Revision="1.0" Date="13.09.2016" Author="RamAnd" Company="Sigmatek" Description="First library version"/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 SafetyUDP : CLASS
@@ -400,7 +404,7 @@ END_CLASS;
 FUNCTION GLOBAL TAB SafetyUDP::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_SAFETYUDP
-1$UINT, 4$UINT, (SIZEOF(::SafetyUDP))$UINT, 
+1$UINT, 5$UINT, (SIZEOF(::SafetyUDP))$UINT, 
 8$UINT, 3$UINT, 0$UINT, 
 TO_UDINT(3727715967), "SafetyUDP", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass

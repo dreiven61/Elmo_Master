@@ -13,7 +13,7 @@
 
 //////////////////////
 // Mutex
-#define MUTEX_NAME_MAX_LENGTH_LMCPROFILE     32   //maximale Anzahl an Zeichen fï¿½r den Mutexnamen
+#define MUTEX_NAME_MAX_LENGTH_LMCPROFILE     32   //maximale Anzahl an Zeichen für den Mutexnamen
 #define MUTEX_NAME_END_LENGTH_LMCPROFILE      3
 #define STR_MUTEX_NAME_SEPERATOR_LMCPROFILE ".."
 //}}LSL_DEFINES

@@ -416,6 +416,11 @@ TYPE
     dData : DINT;
     pCmd : ^SafetyManager;
   END_STRUCT;
+  CltChCmd_SafetyRoutingTables : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^SafetyRoutingTables;
+  END_STRUCT;
   CltChCmd_SdiasHubBase : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

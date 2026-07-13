@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "WatchdogDias"
-	Revision           = "2.11"
+	Revision           = "2.12"
 	GUID               = "{169C29BA-AD8E-4C05-843C-02A9D6541EA7}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -22,6 +22,7 @@
 	</Channels>
 	<RevDoku>
 		<Owner/>
+		<Dokumentation Revision="2.12" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="2.11" Date="10.05.2016" Author="RamAnd" Company="Sigmatek" Description="Suppressed warning that would occur with target ARM on compiler version 30 or higher."/>
 		<Dokumentation Revision="2.10" Date="05.12.2013" Author="FucHer" Company="Sigmatek" Description="Changed AWL code to Structured Text."/>
 		<Dokumentation Revision="1.9" Date="20.07.2012" Author="ObeChr" Company="Sigmatek" Description="Implemented time measurement for internal tests in methods UpdateRt, UpdateRtPostScan and UpdateCy"/>
@@ -60,6 +61,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using HwBaseCDIAS
@@ -105,10 +109,10 @@ END_CLASS;
 FUNCTION GLOBAL TAB WatchdogDias::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_WATCHDOGDIAS
-2$UINT, 11$UINT, (SIZEOF(::WatchdogDias))$UINT, 
+2$UINT, 12$UINT, (SIZEOF(::WatchdogDias))$UINT, 
 0$UINT, 0$UINT, 0$UINT, 
 TO_UDINT(1573657038), "WatchdogDias", //Class
-TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 56$UINT, //Baseclass
+TO_UDINT(1800499398), "HwBaseCDIAS", 2$UINT, 57$UINT, //Baseclass
 //Servers:
 //Clients:
 END_FUNCTION

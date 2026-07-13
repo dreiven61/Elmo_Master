@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "DiasMasterPostScan"
-	Revision           = "1.0"
+	Revision           = "1.1"
 	GUID               = "{B07083C0-51E6-11D6-B05D-0010609208CF}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -23,6 +23,13 @@
 		<Server Name="Server0" GUID="{B07083C1-51E6-11D6-B05D-0010609208CF}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Client Name="MasterConnect" Required="true" Internal="false" Comment="connection to Master "/>
 	</Channels>
+	<RevDoku>
+		<Owner/>
+		<Dokumentation Revision="1.1" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
+	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 DiasMasterPostScan : CLASS
@@ -57,14 +64,14 @@ END_CLASS;
 FUNCTION GLOBAL TAB DiasMasterPostScan::@CT_
 0$UINT,
 2#1010000000000000$UINT, //TY_DIASMASTERPOSTSCAN
-1$UINT, 0$UINT, (SIZEOF(::DiasMasterPostScan))$UINT, 
+1$UINT, 1$UINT, (SIZEOF(::DiasMasterPostScan))$UINT, 
 1$UINT, 1$UINT, 0$UINT, 
 TO_UDINT(3076475114), "DiasMasterPostScan", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
 (::DiasMasterPostScan.Server0.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(2759080719), "Server0", 
 //Clients:
-(::DiasMasterPostScan.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 33$UINT, 
+(::DiasMasterPostScan.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 34$UINT, 
 END_FUNCTION
 
 

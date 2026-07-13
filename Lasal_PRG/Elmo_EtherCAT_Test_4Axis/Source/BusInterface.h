@@ -104,6 +104,8 @@
 #define _BUS_IF_REQUEST_OPERATIONAL_STATE 12
 #define _BUS_IF_GET_OPERATIONAL_STATE_ACTIVE     13
 #define _BUS_IF_GET_ONLINE_STATE          14
+#define _BUS_IF_FIRMWAREVERSION           15
+#define _BUS_IF_PLACE                     16
 
     
 //*****************************************************************************

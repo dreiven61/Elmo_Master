@@ -243,12 +243,12 @@
 #define _DINT_MAX 2147483647
 #endif
 
-#define _LMCBELT_MIN_VEL_MOVECMD 1 // minimale programmierbare Geschwindigkeit fï¿½r LREAL-MoveTypes [internal units / sec]
+#define _LMCBELT_MIN_VEL_MOVECMD 1 // minimale programmierbare Geschwindigkeit für LREAL-MoveTypes [internal units / sec]
 //Define part of class _LMCMath_SO3
 // maximal inaccuracies of LREAL
 #define _LREAL_EPSILON        0.000001
-#define _LREAL_EPSILON_MUL    0.000001
-// minmal volume of orthogonalsystem
+#define _LREAL_EPSILON_MUL    0.000001  
+// minmal volume of orthogonalsystem  
 #define MIN_SPAT_PRODUCT      _LREAL_EPSILON_MUL
 
 #ifndef deg
@@ -311,7 +311,7 @@
   #define _LMCPROF_LREAL_NOTZERO(p1)          ((p1 < -_LMCPROF_EPSILON) | (p1 > _LMCPROF_EPSILON))
 #endif
 #define _LMCPROF_LREAL_MAX                    1.79E308
-
+ 
 
 #define _LMPROF_PROMILLE                      1000
 
@@ -337,9 +337,9 @@
 #define _LMCPROF_NEEDED_FREE_BUFFER_ENTRIES    4
 
 
-#define _LMC_PROF_MAXOVERRIDE	               1000 // Maximalwert fï¿½r Override
-#define _LMC_PROF_MINOVERRIDE	                  0	// Minimalwert fï¿½r Override
-#define _LMC_PROF_NORMOVERRIDE               1000 // 100%-Wert fï¿½r Override
+#define _LMC_PROF_MAXOVERRIDE	               1000 // Maximalwert für Override
+#define _LMC_PROF_MINOVERRIDE	                  0	// Minimalwert für Override
+#define _LMC_PROF_NORMOVERRIDE               1000 // 100%-Wert für Override
 
 #define _LMC_PROF_MAX_DINT                   2147483647
 #define _LMC_PROF_MAX_UDINT                  4294967295
@@ -354,7 +354,7 @@
 #define DEF_TRANSRAD_PPTH                       500
 #define MOVECURVE_ACCEL_PATH_AUXAXIS            250 // 250 // 25% of the path length is used for accelerating auxiliary axes with splines
 
-#define _LMC_PROF_DEFAULT_MAX_TANG_ERR          900000 //90ï¿½ ist defaultmï¿½ï¿½ig maximale tangential fehler
+#define _LMC_PROF_DEFAULT_MAX_TANG_ERR          900000 //90° ist defaultmäßig maximale tangential fehler
 
 #define _LMC_PROF_RESTARTPROF_TOLSPHERE_DEFAULT 1mm
 #define _LMC_PROF_RESTARTPROF_APPROACH_DEFAULT  0
@@ -366,17 +366,17 @@
 // the minimal height difference between the end / beginning of the linear part of a MoveCurve() movement and the start / end of the MoveCurveAux section
 #define _LMCPROF_MINIMAL_SWERVEDIFF            0.2mm
 
-// Fehlertoleranz bei Umrechnung von Integer auf Float
+// Fehlertoleranz bei Umrechnung von Integer auf Float 
 #define RESOLUTION_ERROR      (5.0)
 // Fehlertoleranz wenn der Ruck innerhalb eines Ticks um 2*Jmax springt
 #define JERKTICK_ERROR        (-1.0)
 
-// Rï¿½ckgabeparameter
+// Rückgabeparameter
 #define CALCRESIDT_NO_ERROR            0
 #define CALCRESIDT_INIT_ERROR          -1
 #define CALCRESIDT_NO_SOLUTION         -2
 
-// Prï¿½fix (wird fï¿½r Ruck verwendet)
+// Präfix (wird für Ruck verwendet)
 #ifndef PREFIX_KILO
   #define PREFIX_KILO             (1000.0)
 #endif
@@ -406,7 +406,7 @@
 #define _LMCPROF_TANGAXIS_ACTANGLEOVERFLOWLIMIT    45.0 deg
 #define _LMCPROF_TANGAXIS_OVERFLOWDETECTLIMIT     359.0 deg
 
-// Maximum allowed number of points per spline -
+// Maximum allowed number of points per spline - 
 // Attention! If this value is changed also the MaxNrOfPointsPerMoveMaxValue of MoveSplineTable and
 // IPR_MAX_NR_SPLINE_POINTS of _LMCCNCIPRBase are to be changed
 #define PROF_MAX_NR_SPLINE_POINTS           50
@@ -428,7 +428,7 @@
 
 //////////////////////
 // Mutex
-#define MUTEX_NAME_MAX_LENGTH_LMCPROFILE     32   //maximale Anzahl an Zeichen fï¿½r den Mutexnamen
+#define MUTEX_NAME_MAX_LENGTH_LMCPROFILE     32   //maximale Anzahl an Zeichen für den Mutexnamen
 #define MUTEX_NAME_END_LENGTH_LMCPROFILE      3
 #define STR_MUTEX_NAME_SEPERATOR_LMCPROFILE ".."
 //Define part of class _LMCRobotBase
@@ -463,8 +463,8 @@
 
 #define SYNC_DESYNC_MIN_LENGTH      50
 
-#define BELTCOUPLING_DEFAULT_FILTER_DEPTH_VMASTER 40 //Bei ï¿½nderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
-#define BELTCOUPLING_MAX_FILTER_DEPTH_VMASTER 60 //Bei ï¿½nderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
+#define BELTCOUPLING_DEFAULT_FILTER_DEPTH_VMASTER 40 //Bei Änderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
+#define BELTCOUPLING_MAX_FILTER_DEPTH_VMASTER 60 //Bei Änderungen auch Kommentar von _LMCROBOT_BELTCOUPLING_VEL_FILTER_DEPTH anpassen!
 
 #define ROTATORY_DISK_MODULO (360deg)
 #define ROTATORY_DISK_ANGLE_TO_RADIANT (2.0*LMC_PI/(ROTATORY_DISK_MODULO))
@@ -764,14 +764,14 @@ TO_UDINT(4107457475), "_TCPIPServer", 1$UINT, 2$UINT, 1$UINT,
 TO_UDINT(755701613), "_TCPIPServer_RT", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, 0$UINT,
 TO_UDINT(1198357413), "Controller", 1$UINT, 47$UINT, 0$UINT,
-TO_UDINT(861770287), "ECAT_DS402Base", 1$UINT, 1$UINT, 0$UINT,
-TO_UDINT(1515440174), "ECAT_Slave_Base", 2$UINT, 0$UINT, 0$UINT,
+TO_UDINT(861770287), "ECAT_DS402Base", 1$UINT, 2$UINT, 0$UINT,
+TO_UDINT(1515440174), "ECAT_Slave_Base", 2$UINT, 1$UINT, 0$UINT,
 TO_UDINT(219251848), "Elmo_1", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(2484655410), "Elmo_2", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(3810518436), "Elmo_3", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(2105241607), "Elmo_4", 0$UINT, 0$UINT, 1$UINT,
-TO_UDINT(1021147964), "EtherCAT_Hub_Base", 1$UINT, 1$UINT, 4$UINT,
-TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 4$UINT, 4$UINT,
+TO_UDINT(1021147964), "EtherCAT_Hub_Base", 1$UINT, 2$UINT, 4$UINT,
+TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 4$UINT,
 TO_UDINT(2225119864), "MerkerEx", 1$UINT, 22$UINT, 14$UINT,
 TO_UDINT(28504452), "PosController", 2$UINT, 77$UINT, 4$UINT,
 TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 14$UINT,
@@ -1237,8 +1237,8 @@ TO_UDINT(136), "DataBuffer", TO_UDINT(118), "m_udLength",
 TO_UDINT(137), "DataBuffer", TO_UDINT(119), "m_udLength",
 TO_UDINT(138), "DataBuffer", TO_UDINT(120), "m_udLength",
 TO_UDINT(139), "DataBuffer", TO_UDINT(121), "m_udLength",
-TO_UDINT(140), "_TCPIPServer", TO_UDINT(95), "Control",
-TO_UDINT(140), "LMCAxis", TO_UDINT(6), "Control",
+TO_UDINT(140), "_TCPIPServer", TO_UDINT(94), "Control",
+TO_UDINT(140), "LMCAxis1", TO_UDINT(6), "Control",
 TO_UDINT(140), "LMCAxis2", TO_UDINT(7), "Control",
 TO_UDINT(140), "LMCAxis3", TO_UDINT(8), "Control",
 TO_UDINT(140), "LMCAxis4", TO_UDINT(9), "Control",
@@ -1246,7 +1246,7 @@ TO_UDINT(140), "LMCRobot", TO_UDINT(86), "Control",
 
 //Initialization values
 0$UDINT,
-215$UDINT,
+216$UDINT,
 TO_UDINT(2), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(3), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(4), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
@@ -1377,8 +1377,9 @@ TO_UDINT(86), "JMax", TO_UDINT(50000 mm),//|Motion_Network._LMCRobotBase1.JMax;
 TO_UDINT(92), "No", TO_UDINT(LMCSPLINEBUFF_MINBUFFS),//|Motion_Network._base\_LMCRobotBase1\_LMCSplineBuffer.No;
 TO_UDINT(93), "No", TO_UDINT(2),//|Motion_Network._base\_LMCRobotBase1\_LMCTableBuffer.No;
 TO_UDINT(94), "Port", TO_UDINT(4000),//|Motion_Network._TCPIPServer1.Port;
-TO_UDINT(94), "MaxConnections", TO_UDINT(0),//|Motion_Network._TCPIPServer1.MaxConnections;
+TO_UDINT(94), "MaxConnections", TO_UDINT(1),//|Motion_Network._TCPIPServer1.MaxConnections;
 TO_UDINT(94), "ConnectionsPerRun", TO_UDINT(1),//|Motion_Network._TCPIPServer1.ConnectionsPerRun;
+TO_UDINT(94), "Config", TO_UDINT(0),//|Motion_Network._TCPIPServer1.Config;
 TO_UDINT(95), "Port", TO_UDINT(4000),//|Motion_Network._TCPIPServer_RT1.Port;
 TO_UDINT(95), "MaxConnections", TO_UDINT(0),//|Motion_Network._TCPIPServer_RT1.MaxConnections;
 TO_UDINT(95), "ConnectionsPerRun", TO_UDINT(1),//|Motion_Network._TCPIPServer_RT1.ConnectionsPerRun;
@@ -1481,9 +1482,10 @@ TO_UDINT(9), (1)$UDINT, 4194303$DINT, 	//_LMCAXIS4
 TO_UDINT(86), (1)$UDINT, 4194303$DINT, 	//_LMCROBOTBASE1
 
 0$UDINT,
-2$UDINT,
+3$UDINT,
 TO_UDINT(86), (1)$UDINT, 4194303$DINT, 	//_LMCROBOTBASE1
-TO_UDINT(95), (1)$UDINT, 4194303$DINT, 	//_TCPIPSERVER_RT1
+TO_UDINT(94), (1)$UDINT, 4194303$DINT, 	//_TCPIPSERVER1
+TO_UDINT(140), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
 
 0$UDINT,
 9$UDINT,
@@ -1691,9 +1693,10 @@ TO_UDINT(91), "LMCController", TO_UDINT(9), "LMCController",
 (0)$UDINT, 	//_LMCROBOTBASE1
 
 0$UDINT,
-2$UDINT,
+3$UDINT,
 (0)$UDINT, 	//_LMCROBOTBASE1
-(0)$UDINT, 	//_TCPIPSERVER_RT1
+(0)$UDINT, 	//_TCPIPSERVER1
+(0)$UDINT, 	//TCPMOTIONINTERFACE1
 
 0$UDINT,
 9$UDINT,

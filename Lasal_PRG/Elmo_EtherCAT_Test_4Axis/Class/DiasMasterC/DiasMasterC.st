@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "DiasMasterC"
-	Revision           = "1.83"
+	Revision           = "1.84"
 	GUID               = "{B07083C4-51E6-11D6-B05D-0010609208CF}"
 	RealtimeTask       = "true"
 	DefRealtime        = "1 ms"
@@ -83,6 +83,7 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner Company="Sigmatek" Author="AscFra"/>
+		<Dokumentation Revision="1.84" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.83" Date="21.12.2020" Author="RamAnd" Company="Sigmatek" Description="On linux platforms there is no local DIAS/CDIAS therefore the class now doesn&apos;t try to initialize the local busses there anymore."/>
 		<Dokumentation Revision="1.82" Date="05.08.2020" Author="FurDom" Company="Sigmatek" Description="changed in BaseClass (2.23 =&gt; 2.24); Tracelogging changed. Trace messages for timeslice errors and watchdog errors are set in the function WriteRTLogs() /CyWork."/>
 		<Dokumentation Revision="1.81" Date="24.07.2018" Author="RamAnd" Company="Sigmatek" Description="Prevent required error crash when current target platform is LARS."/>
@@ -234,6 +235,9 @@
 		<Options>
 		</Options>
 	</Network>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 #pragma using DiasMasterMain
@@ -308,17 +312,17 @@ END_CLASS;
 FUNCTION GLOBAL TAB DiasMasterC::@CT_
 0$UINT,
 2#0010000000000000$UINT, //TY_DIASMASTERC
-1$UINT, 83$UINT, (SIZEOF(::DiasMasterC))$UINT, 
+1$UINT, 84$UINT, (SIZEOF(::DiasMasterC))$UINT, 
 0$UINT, 5$UINT, 0$UINT, 
 TO_UDINT(3069482179), "DiasMasterC", //Class
-TO_UDINT(3792535737), "DiasMasterMain", 2$UINT, 25$UINT, //Baseclass
+TO_UDINT(3792535737), "DiasMasterMain", 2$UINT, 26$UINT, //Baseclass
 //Servers:
 //Clients:
-(::DiasMasterC.DiasMasterPostScan.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3076475114), "DiasMasterPostScan", TO_UDINT(3076475114), "DiasMasterPostScan", 1$UINT, 0$UINT, 
-(::DiasMasterC.EEPROM.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2784851678), "EEPROM", TO_UDINT(2784851678), "EEPROM", 1$UINT, 11$UINT, 
-(::DiasMasterC.I2CCDIAS.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2326720416), "I2CCDIAS", TO_UDINT(2326720416), "I2CCDIAS", 1$UINT, 6$UINT, 
-(::DiasMasterC.WatchdogDias0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2287664271), "WatchdogDias0", TO_UDINT(1573657038), "WatchdogDias", 2$UINT, 11$UINT, 
-(::DiasMasterC.SyncCall.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(4187542331), "SyncCall", TO_UDINT(4187542331), "SyncCall", 1$UINT, 21$UINT, 
+(::DiasMasterC.DiasMasterPostScan.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3076475114), "DiasMasterPostScan", TO_UDINT(3076475114), "DiasMasterPostScan", 1$UINT, 1$UINT, 
+(::DiasMasterC.EEPROM.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2784851678), "EEPROM", TO_UDINT(2784851678), "EEPROM", 1$UINT, 12$UINT, 
+(::DiasMasterC.I2CCDIAS.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2326720416), "I2CCDIAS", TO_UDINT(2326720416), "I2CCDIAS", 1$UINT, 7$UINT, 
+(::DiasMasterC.WatchdogDias0.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2287664271), "WatchdogDias0", TO_UDINT(1573657038), "WatchdogDias", 2$UINT, 12$UINT, 
+(::DiasMasterC.SyncCall.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(4187542331), "SyncCall", TO_UDINT(4187542331), "SyncCall", 1$UINT, 22$UINT, 
 END_FUNCTION
 
 

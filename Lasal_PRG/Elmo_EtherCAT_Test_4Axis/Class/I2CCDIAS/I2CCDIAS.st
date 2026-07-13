@@ -5,7 +5,7 @@
 (*!
 <Class
 	Name               = "I2CCDIAS"
-	Revision           = "1.6"
+	Revision           = "1.7"
 	GUID               = "{A2878E60-0FDA-43B3-881D-B8E0ED92A1CF}"
 	RealtimeTask       = "false"
 	CyclicTask         = "false"
@@ -30,8 +30,12 @@
 	</Dependencies>
 	<RevDoku>
 		<Owner/>
+		<Dokumentation Revision="1.7" Date="2026-02-24" Author="WinPat" Company="Sigmatek" Description="Special: Set property flag &quot;Hidden&quot; of class, since this is an internal class."/>
 		<Dokumentation Revision="1.6" Date="21.08.2013" Author="FucHer" Company="Sigmatek" Description="Changed AWL code to Structured Text."/>
 	</RevDoku>
+	<AdditionalData>
+		<Entry Name="Hidden" Value="true"/>
+	</AdditionalData>
 </Class>
 *)
 I2CCDIAS : CLASS
@@ -143,14 +147,14 @@ END_CLASS;
 FUNCTION GLOBAL TAB I2CCDIAS::@CT_
 0$UINT,
 2#0100000000000000$UINT, //TY_I2CCDIAS
-1$UINT, 6$UINT, (SIZEOF(::I2CCDIAS))$UINT, 
+1$UINT, 7$UINT, (SIZEOF(::I2CCDIAS))$UINT, 
 1$UINT, 2$UINT, 0$UINT, 
 TO_UDINT(2326720416), "I2CCDIAS", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
 (::I2CCDIAS.Control.pMeth)$UINT, _CH_CMD$UINT, 2#0000000000000000$UINT, TO_UDINT(3533623889), "Control", 
 //Clients:
-(::I2CCDIAS.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 33$UINT, 
+(::I2CCDIAS.MasterConnect.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1515240279), "MasterConnect", TO_UDINT(2647887450), "DiasMaster", 2$UINT, 34$UINT, 
 (::I2CCDIAS.To_OSKernel.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(2681344549), "To_OSKernel", TO_UDINT(3045737964), "_OSKernel", 0$UINT, 5$UINT, 
 END_FUNCTION
 
