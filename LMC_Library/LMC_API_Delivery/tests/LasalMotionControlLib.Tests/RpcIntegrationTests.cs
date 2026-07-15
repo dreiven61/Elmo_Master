@@ -31,6 +31,10 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.AxisConstructor.AxisInfoSuccess", AxisConstructorAxisInfoSuccess);
             tests.Add("Rpc.AxisConstructor.MalformedAxisInfoRejected", AxisConstructorMalformedAxisInfoRejected);
             tests.Add("Rpc.AxisConstructor.CommandErrorRejected", AxisConstructorCommandErrorRejected);
+            tests.Add("Rpc.AxisConstructor.ShortAxisInfoErrorPreserved", AxisConstructorShortAxisInfoErrorPreserved);
+            tests.Add("Rpc.AxisCreateAsync.ShortAxisInfoErrorPreserved", AxisCreateAsyncShortAxisInfoErrorPreserved);
+            tests.Add("Rpc.AxisConstructor.ShortAxisInfoSuccessRejected", AxisConstructorShortAxisInfoSuccessRejected);
+            tests.Add("Rpc.AxisConstructor.LookupErrorPreserved", AxisConstructorLookupErrorPreserved);
             tests.Add("Rpc.AxisReadStatus.ShortErrorPreserved", AxisReadStatusShortErrorPreserved);
             tests.Add("Rpc.Group.PositionAndKinematics", GroupPositionAndKinematics);
         }
@@ -639,7 +643,15 @@ namespace LasalMotionControlLib.Tests
                 CallbackStep(),
                 new FakeRpcStep(
                     0x103C,
-                    TestFrame.Response(0, axisLookupPayload)),
+                    TestFrame.Response(0, axisLookupPayload))
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(
+                            0x103C,
+                            0,
+                            NamePayload("_LMCAxis9")),
+                        request)
+                },
                 new FakeRpcStep(
                     0x202B,
                     TestFrame.Response(0, axisInfoPayload)),
@@ -660,13 +672,14 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(connection.IsConnected);
                 var axis = LMCSingleAxis.CreateAsync(
                     connection,
-                    "_LMCAxis1",
+                    "_LMCAxis9",
                     CancellationToken.None).GetAwaiter().GetResult();
                 var group = LMCGroupAxis.CreateAsync(
                     connection,
                     "_LMCRobotBase1",
                     CancellationToken.None).GetAwaiter().GetResult();
 
+                AssertEx.Equal("_LMCAxis9", axis.AxisName);
                 AssertEx.Equal((ushort)0x1234, axis.AxisReference);
                 AssertEx.Equal((ushort)0x0100, group.GroupReference);
                 connection.CloseConnectionAsync(
@@ -717,6 +730,90 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Contains("Status=16", exception.Message);
                     AssertEx.Contains("ErrorId=-8", exception.Message);
                 });
+        }
+
+        private static void AxisConstructorShortAxisInfoErrorPreserved()
+        {
+            RunAxisConstructorScenario(
+                TestFrame.Response(
+                    1,
+                    TestFrame.Hex("01 00 FC FF")),
+                connection =>
+                {
+                    var exception = AssertEx.Throws<InvalidOperationException>(
+                        () => new LMCAxis(connection, "_LMCAxis1"));
+
+                    AssertEx.Contains("Status=1", exception.Message);
+                    AssertEx.Contains("ErrorId=-4", exception.Message);
+                });
+        }
+
+        private static void AxisCreateAsyncShortAxisInfoErrorPreserved()
+        {
+            RunAxisConstructorScenario(
+                TestFrame.Response(
+                    1,
+                    TestFrame.Hex("01 00 FC FF")),
+                connection =>
+                {
+                    var exception = AssertEx.Throws<InvalidOperationException>(
+                        () => LMCSingleAxis.CreateAsync(
+                            connection,
+                            "_LMCAxis1",
+                            CancellationToken.None).GetAwaiter().GetResult());
+
+                    AssertEx.Contains("Status=1", exception.Message);
+                    AssertEx.Contains("ErrorId=-4", exception.Message);
+                });
+        }
+
+        private static void AxisConstructorShortAxisInfoSuccessRejected()
+        {
+            RunAxisConstructorScenario(
+                TestFrame.Response(
+                    0,
+                    TestFrame.Hex("00 00 00 00")),
+                connection => AssertEx.Throws<InvalidDataException>(
+                    () => new LMCAxis(connection, "_LMCAxis1")));
+        }
+
+        private static void AxisConstructorLookupErrorPreserved()
+        {
+            var lookupError = TestFrame.Response(
+                1,
+                TestFrame.Hex("01 00 FE FF"));
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(0x103C, lookupError),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var exception = AssertEx.Throws<InvalidOperationException>(
+                    () => LMCSingleAxis.CreateAsync(
+                        connection,
+                        "_LMCAxis1",
+                        CancellationToken.None).GetAwaiter().GetResult());
+
+                AssertEx.Contains("Axis lookup failed for '_LMCAxis1'", exception.Message);
+                AssertEx.Contains("HeaderStatus=1", exception.Message);
+                AssertEx.Contains("CommandStatus=1", exception.Message);
+                AssertEx.Contains("ErrorId=-2", exception.Message);
+                AssertEx.Contains(
+                    "Raw=01 00 04 00 00 00 00 00 01 00 FE FF",
+                    exception.Message);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
         }
 
         private static void AxisReadStatusShortErrorPreserved()
@@ -774,6 +871,11 @@ namespace LasalMotionControlLib.Tests
             var groupLookupPayload = new byte[6];
             TestFrame.WriteUInt16(groupLookupPayload, 4, 0x0100);
             var groupPositionPayload = new byte[68];
+            var groupStopPayload = new byte[16];
+            TestFrame.WriteInt32(groupStopPayload, 0, 1000);
+            TestFrame.WriteInt32(groupStopPayload, 4, 0);
+            TestFrame.WriteInt32(groupStopPayload, 8, 1);
+            TestFrame.WriteInt32(groupStopPayload, 12, 1);
 
             for (var index = 0; index < 16; index++)
             {
@@ -808,6 +910,13 @@ namespace LasalMotionControlLib.Tests
             }
 
             steps.Add(
+                new FakeRpcStep(0x204A, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(0x204A, 0x0100, new byte[] { 1 }),
+                        request)
+                });
+            steps.Add(
                 new FakeRpcStep(0x20E7, successAck)
                 {
                     ResponseChunks = new[] { 2, 2, 1 },
@@ -828,6 +937,60 @@ namespace LasalMotionControlLib.Tests
                         AssertEx.Equal(2, TestFrame.ReadInt32(request, 8 + 1308));
                         AssertEx.Equal((byte)1, request[8 + 1312]);
                     }
+                });
+            steps.Add(
+                new FakeRpcStep(0x2047, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(0x2047, 0x0100, new byte[] { 1 }),
+                        request)
+                });
+            steps.Add(
+                new FakeRpcStep(0x2049, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(0x2049, 0x0100, new byte[] { 1 }),
+                        request)
+                });
+            steps.Add(
+                new FakeRpcStep(0x2085, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(
+                            0x2085,
+                            0x0100,
+                            groupStopPayload),
+                        request)
+                });
+            steps.Add(
+                new FakeRpcStep(0x20A4, longSuccessAck)
+                {
+                    InspectRequest = request =>
+                    {
+                        AssertEx.Equal(104, request.Length);
+                        AssertEx.Equal(100, TestFrame.ReadInt32(request, 8));
+                        AssertEx.Equal(-200, TestFrame.ReadInt32(request, 12));
+                        AssertEx.Equal(300, TestFrame.ReadInt32(request, 16));
+                        AssertEx.Equal(400, TestFrame.ReadInt32(request, 20));
+                        AssertEx.Equal(0, TestFrame.ReadInt32(request, 8 + 80));
+                        AssertEx.Equal(0, TestFrame.ReadInt32(request, 8 + 84));
+                        AssertEx.Equal(1, TestFrame.ReadInt32(request, 8 + 88));
+                        AssertEx.Equal(1, TestFrame.ReadInt32(request, 8 + 92));
+                    }
+                });
+            steps.Add(
+                new FakeRpcStep(0x2048, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(0x2048, 0x0100, new byte[] { 1 }),
+                        request)
+                });
+            steps.Add(
+                new FakeRpcStep(0x204B, longSuccessAck)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(0x204B, 0x0100, new byte[] { 1 }),
+                        request)
                 });
             steps.Add(new FakeRpcStep(0x405D, successAck));
 
@@ -856,6 +1019,12 @@ namespace LasalMotionControlLib.Tests
                     new LMCAxis(connection, "_LMCAxis4")
                 };
 
+                AssertEx.True(
+                    group.GroupPowerOnAsync(CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+                        .IsSuccess);
+
                 var response = group.SetKinTransformCartesian4Axis(
                     axes[0],
                     axes[1],
@@ -863,6 +1032,34 @@ namespace LasalMotionControlLib.Tests
                     axes[3]);
 
                 AssertEx.True(response.IsSuccess);
+
+                AssertEx.True(group.GroupEnable().IsSuccess);
+                AssertEx.True(group.GroupReset().IsSuccess);
+                AssertEx.True(group.GroupStop(1000, 0).IsSuccess);
+                AssertEx.True(
+                    group.MoveLinearAbsoluteEx(
+                        new[] { 100, -200, 300, 400 },
+                        1000,
+                        2000,
+                        2000,
+                        0,
+                        new LMCGroupMotionOptions
+                        {
+                            CoordinateSystem = LMC_COORD_SYSTEM.None,
+                            TransitionMode = LMC_GROUP_TRANSITION_MODE.ExactStop,
+                            BufferMode = LMC_BUFFER_MODE.Aborting,
+                            Execute = true
+                        }).IsSuccess);
+                AssertEx.True(
+                    group.GroupDisableAsync(CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+                        .IsSuccess);
+                AssertEx.True(
+                    group.GroupPowerOffAsync(CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+                        .IsSuccess);
 
                 connection.CloseConnection();
                 server.Verify();

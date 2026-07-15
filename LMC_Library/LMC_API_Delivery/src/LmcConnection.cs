@@ -47,6 +47,7 @@ namespace LasalMotionControlLib
         private const int RpcSessionInitPayloadLength = 24;
         private const int MaximumGroupMemberCount = 16;
         private const int GroupMemberNameLength = 80;
+        private const int LookupDiagnosticRawByteLimit = 128;
         private const int LookupPayloadLength =
             LookupReferencePayloadOffset + UInt16ByteLength;
         private const long AnySessionGeneration = -1;
@@ -594,6 +595,92 @@ namespace LasalMotionControlLib
                 response.Payload,
                 LookupReferencePayloadOffset);
             return reference != 0;
+        }
+
+        internal static InvalidOperationException CreateLookupFailureException(
+            string targetKind,
+            string objectName,
+            byte[] raw)
+        {
+            var response = ParseAcknowledgement(raw);
+            var message = new StringBuilder();
+            var rawLength = raw == null ? 0 : raw.Length;
+            var hasLookupPayload = response.Payload.Length == LookupPayloadLength;
+            var lookupReference = hasLookupPayload
+                ? LMC_Frame.ReadUInt16(
+                    response.Payload,
+                    LookupReferencePayloadOffset)
+                : (ushort)0;
+
+            message.Append(targetKind)
+                .Append(" lookup failed for '")
+                .Append(objectName)
+                .Append("'. FrameValid=")
+                .Append(response.IsFrameValid)
+                .Append(", HeaderStatus=")
+                .Append(response.HeaderStatus)
+                .Append(", PayloadLength=")
+                .Append(response.PayloadLength)
+                .Append(", ParsedPayloadLength=")
+                .Append(response.Payload.Length)
+                .Append(", RawLength=")
+                .Append(rawLength);
+
+            if (response.HasCommandResult)
+            {
+                message.Append(", CommandStatus=")
+                    .Append(response.CommandStatus)
+                    .Append(", ErrorId=")
+                    .Append(response.ErrorId);
+            }
+
+            if (hasLookupPayload)
+            {
+                message.Append(", Reference=")
+                    .Append(lookupReference);
+            }
+            else
+            {
+                message.Append(", ExpectedPayloadLength=")
+                    .Append(LookupPayloadLength);
+            }
+
+            message.Append(". ");
+            if (response.IsFrameValid
+                && response.HeaderStatus != 0
+                && response.HasCommandResult
+                && response.PayloadLength == ShortAcknowledgementPayloadLength
+                && response.ErrorId == -2)
+            {
+                message.Append(
+                    "The LASAL object registry entry is not ready or the object name did not match. ");
+            }
+            else if (response.IsFrameValid
+                && response.HeaderStatus == 0
+                && hasLookupPayload
+                && lookupReference == 0)
+            {
+                message.Append(
+                    "A zero descriptor is not valid for the LASAL dispatcher. ");
+            }
+
+            message.Append("Raw=")
+                .Append(ToHex(raw))
+                .Append(".");
+
+            return new InvalidOperationException(message.ToString());
+        }
+
+        private static string ToHex(byte[] raw)
+        {
+            if (raw == null || raw.Length == 0)
+            {
+                return "<empty>";
+            }
+
+            var byteCount = Math.Min(raw.Length, LookupDiagnosticRawByteLimit);
+            var hex = BitConverter.ToString(raw, 0, byteCount).Replace("-", " ");
+            return byteCount == raw.Length ? hex : hex + " ...";
         }
 
         internal static uint ParseUInt32Value(byte[] raw, out LMC_Response response)

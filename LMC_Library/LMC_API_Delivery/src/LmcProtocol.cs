@@ -117,9 +117,11 @@ namespace LasalMotionControlLib
 
         internal const ushort GetMembers = 0x20D2;
         internal const ushort GroupStatus = 0x2045;
-        internal const ushort GroupEnable = 0x2047;
-        internal const ushort GroupDisable = 0x2048;
+        internal const ushort GroupProfileLock = 0x2047;
+        internal const ushort GroupProfileUnlock = 0x2048;
         internal const ushort GroupReset = 0x2049;
+        internal const ushort GroupPowerOn = 0x204A;
+        internal const ushort GroupPowerOff = 0x204B;
         internal const ushort GroupStop = 0x2085;
         internal const ushort GroupPosition = 0x2051;
         internal const ushort MoveLinear = 0x20A4;
@@ -335,12 +337,22 @@ namespace LasalMotionControlLib
 
         internal static byte[] LMCGroupEnable(ushort reference)
         {
-            return ExecuteOnly(LMC_CommandId.GroupEnable, reference);
+            return ExecuteOnly(LMC_CommandId.GroupProfileLock, reference);
         }
 
         internal static byte[] LMCGroupDisable(ushort reference)
         {
-            return ExecuteOnly(LMC_CommandId.GroupDisable, reference);
+            return ExecuteOnly(LMC_CommandId.GroupProfileUnlock, reference);
+        }
+
+        internal static byte[] LMCGroupPowerOn(ushort reference)
+        {
+            return ExecuteOnly(LMC_CommandId.GroupPowerOn, reference);
+        }
+
+        internal static byte[] LMCGroupPowerOff(ushort reference)
+        {
+            return ExecuteOnly(LMC_CommandId.GroupPowerOff, reference);
         }
 
         internal static byte[] LMCGroupReset(ushort reference)

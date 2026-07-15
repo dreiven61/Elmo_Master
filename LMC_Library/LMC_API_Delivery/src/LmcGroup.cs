@@ -59,7 +59,10 @@ namespace LasalMotionControlLib
                 out lookupResponse,
                 out groupReference))
             {
-                throw new InvalidOperationException("Invalid group lookup response.");
+                throw LMCConnection.CreateLookupFailureException(
+                    "Group",
+                    groupName,
+                    raw);
             }
 
             connection.EnsureSessionGeneration(generation);
@@ -95,11 +98,19 @@ namespace LasalMotionControlLib
             return LMCConnection.ParseGroupMembersInfoResult(raw);
         }
 
+        /// <summary>
+        /// Locks the configured group profile. The legacy method name is kept for API compatibility.
+        /// This command does not power the group axes; use GroupPowerOn or GroupPowerOnAsync for power.
+        /// </summary>
         public LMC_Response GroupEnable()
         {
             return SendGroupEnable();
         }
 
+        /// <summary>
+        /// Locks the configured group profile. The legacy method name is kept for API compatibility.
+        /// This command does not power the group axes; use GroupPowerOn or GroupPowerOnAsync for power.
+        /// </summary>
         public Task<LMC_Response> GroupEnableAsync(
             CancellationToken cancellationToken)
         {
@@ -108,16 +119,68 @@ namespace LasalMotionControlLib
                 cancellationToken);
         }
 
+        /// <summary>
+        /// Unlocks the group profile. The legacy method name is kept for API compatibility.
+        /// This command does not power off the group axes; use GroupPowerOff or GroupPowerOffAsync.
+        /// The current LASAL adapter rejects unlock while the profile is not in position.
+        /// </summary>
         public LMC_Response GroupDisable()
         {
             return SendGroupDisable();
         }
 
+        /// <summary>
+        /// Unlocks the group profile. The legacy method name is kept for API compatibility.
+        /// This command does not power off the group axes; use GroupPowerOff or GroupPowerOffAsync.
+        /// The current LASAL adapter rejects unlock while the profile is not in position.
+        /// </summary>
         public Task<LMC_Response> GroupDisableAsync(
             CancellationToken cancellationToken)
         {
             return SendAsync(
                 LMC_Frame.LMCGroupDisable(GroupReference),
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Starts LASAL RobotOn processing for the group. A successful ACK confirms command
+        /// acceptance only; it does not guarantee that every member axis is servo-ready.
+        /// </summary>
+        public LMC_Response GroupPowerOn()
+        {
+            return Send(LMC_Frame.LMCGroupPowerOn(GroupReference));
+        }
+
+        /// <summary>
+        /// Starts LASAL RobotOn processing for the group. A successful ACK confirms command
+        /// acceptance only; it does not guarantee that every member axis is servo-ready.
+        /// </summary>
+        public Task<LMC_Response> GroupPowerOnAsync(
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCGroupPowerOn(GroupReference),
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Starts LASAL RobotOff processing for the group. A successful ACK confirms command
+        /// acceptance only; it does not guarantee that every member axis is powered off.
+        /// </summary>
+        public LMC_Response GroupPowerOff()
+        {
+            return Send(LMC_Frame.LMCGroupPowerOff(GroupReference));
+        }
+
+        /// <summary>
+        /// Starts LASAL RobotOff processing for the group. A successful ACK confirms command
+        /// acceptance only; it does not guarantee that every member axis is powered off.
+        /// </summary>
+        public Task<LMC_Response> GroupPowerOffAsync(
+            CancellationToken cancellationToken)
+        {
+            return SendAsync(
+                LMC_Frame.LMCGroupPowerOff(GroupReference),
                 cancellationToken);
         }
 
@@ -320,15 +383,19 @@ namespace LasalMotionControlLib
         {
             EnsureCurrentSessionForUse();
             ushort groupReference;
+            var lookupRaw = connection.Exchange(
+                LMC_Frame.LMCGroupGetByName(groupName),
+                sessionGeneration);
 
             if (!LMCConnection.TryParseLookupReference(
-                connection.Exchange(
-                    LMC_Frame.LMCGroupGetByName(groupName),
-                    sessionGeneration),
+                lookupRaw,
                 out _,
                 out groupReference))
             {
-                throw new InvalidOperationException("Invalid group lookup response.");
+                throw LMCConnection.CreateLookupFailureException(
+                    "Group",
+                    groupName,
+                    lookupRaw);
             }
 
             return groupReference;

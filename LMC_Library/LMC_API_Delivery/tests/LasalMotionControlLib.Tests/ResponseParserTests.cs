@@ -169,6 +169,69 @@ namespace LasalMotionControlLib.Tests
                 out response,
                 out reference);
             AssertEx.False(parsed);
+
+            var errorPayload = new byte[4];
+            TestFrame.WriteUInt16(errorPayload, 0, 1);
+            TestFrame.WriteInt16(errorPayload, 2, -2);
+            var lookupError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                TestFrame.Response(1, errorPayload));
+
+            AssertEx.Contains("Axis lookup failed for '_LMCAxis1'", lookupError.Message);
+            AssertEx.Contains("FrameValid=True", lookupError.Message);
+            AssertEx.Contains("HeaderStatus=1", lookupError.Message);
+            AssertEx.Contains("PayloadLength=4", lookupError.Message);
+            AssertEx.Contains("CommandStatus=1", lookupError.Message);
+            AssertEx.Contains("ErrorId=-2", lookupError.Message);
+            AssertEx.Contains("object registry entry is not ready", lookupError.Message);
+            AssertEx.Contains(
+                "Raw=01 00 04 00 00 00 00 00 01 00 FE FF",
+                lookupError.Message);
+
+            var zeroReferenceError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                TestFrame.Response(0, new byte[6]));
+            AssertEx.Contains("Reference=0", zeroReferenceError.Message);
+            AssertEx.Contains("zero descriptor", zeroReferenceError.Message);
+
+            var truncatedLookup = new byte[8];
+            TestFrame.WriteUInt16(truncatedLookup, 2, 6);
+            var truncatedError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                truncatedLookup);
+            AssertEx.Contains("FrameValid=False", truncatedError.Message);
+            AssertEx.Contains("PayloadLength=6", truncatedError.Message);
+            AssertEx.Contains("ParsedPayloadLength=0", truncatedError.Message);
+            AssertEx.Contains("RawLength=8", truncatedError.Message);
+
+            var malformedAckPayload = new byte[8];
+            TestFrame.WriteUInt16(malformedAckPayload, 4, 1);
+            TestFrame.WriteInt16(malformedAckPayload, 6, -2);
+            var malformedAckError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                TestFrame.Response(1, malformedAckPayload));
+            AssertEx.False(
+                malformedAckError.Message.IndexOf(
+                    "object registry entry is not ready",
+                    StringComparison.Ordinal) >= 0);
+
+            var longRaw = new byte[256];
+            for (var index = 0; index < longRaw.Length; index++)
+            {
+                longRaw[index] = 0xAA;
+            }
+
+            var longRawError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                longRaw);
+            AssertEx.Contains("RawLength=256", longRawError.Message);
+            AssertEx.Contains(" ...", longRawError.Message);
+            AssertEx.True(longRawError.Message.Length < 1024);
         }
 
         private static void LegacyPrimitiveValueAndFailure()
@@ -225,15 +288,21 @@ namespace LasalMotionControlLib.Tests
             AssertEx.True(result.Response.IsFrameValid);
 
             // The canonical LASAL server returns native _LMCAXIS_STATUS:
-            // PowerOn bit 0 plus Standstill bit 25.
-            TestFrame.WriteUInt32(payload, 0, 0x02000001u);
+            // PowerOn bit 0, IsReferenced bit 1, and Standstill bit 25.
+            TestFrame.WriteUInt32(payload, 0, 0x02000003u);
             TestFrame.WriteUInt16(payload, 4, 0);
             result = LMCConnection.ParseReadStatusResult(
                 TestFrame.Response(0, payload));
-            AssertEx.Equal(0x02000001u, result.State);
+            AssertEx.Equal(0x02000003u, result.State);
             AssertEx.True(result.IsPowerOn);
+            AssertEx.True(result.IsReferenced);
             AssertEx.True(result.IsStandstill);
             AssertEx.True(result.IsSuccess);
+
+            TestFrame.WriteUInt32(payload, 0, 0x02000001u);
+            result = LMCConnection.ParseReadStatusResult(
+                TestFrame.Response(0, payload));
+            AssertEx.False(result.IsReferenced);
 
             TestFrame.WriteUInt16(payload, 4, 0x0010);
             TestFrame.WriteInt16(payload, 6, -8);
@@ -295,6 +364,34 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal((ushort)0, result.GroupErrorId);
             AssertEx.False(result.HasCommandError);
             AssertEx.True(result.IsSuccess);
+            AssertEx.False(result.IsPowerOn);
+            AssertEx.False(result.IsStandby);
+            AssertEx.False(result.IsEnabled);
+            AssertEx.False(result.IsDisabled);
+
+            TestFrame.WriteUInt32(payload, 0, 0x00040000u);
+            result = LMCConnection.ParseGroupReadStatusResult(
+                TestFrame.Response(0, payload));
+            AssertEx.True(result.IsPowerOn);
+            AssertEx.False(result.IsStandby);
+            AssertEx.False(result.IsEnabled);
+            AssertEx.False(result.IsDisabled);
+
+            TestFrame.WriteUInt32(payload, 0, 0x00020000u);
+            result = LMCConnection.ParseGroupReadStatusResult(
+                TestFrame.Response(0, payload));
+            AssertEx.False(result.IsPowerOn);
+            AssertEx.True(result.IsStandby);
+            AssertEx.True(result.IsEnabled);
+            AssertEx.False(result.IsDisabled);
+
+            TestFrame.WriteUInt32(payload, 0, 0x00010000u);
+            result = LMCConnection.ParseGroupReadStatusResult(
+                TestFrame.Response(0, payload));
+            AssertEx.False(result.IsPowerOn);
+            AssertEx.False(result.IsStandby);
+            AssertEx.False(result.IsEnabled);
+            AssertEx.True(result.IsDisabled);
 
             TestFrame.WriteUInt16(payload, 8, 99);
             result = LMCConnection.ParseGroupReadStatusResult(
@@ -434,6 +531,16 @@ namespace LasalMotionControlLib.Tests
             clonedNames[0] = "changed";
             AssertEx.Equal("a01", result.AxisNames[0]);
 
+            payload = GroupMembersPayload(9, 0, 0);
+            result = LMCConnection.ParseGroupMembersInfoResult(
+                TestFrame.Response(0, payload));
+            AssertEx.True(result.IsSuccess);
+            AssertEx.Equal((byte)9, result.AxisCount);
+            AssertEx.Equal(9, result.Members.Length);
+            AssertEx.Equal((ushort)0x1008, result.Members[8].AxisReference);
+            AssertEx.Equal((ushort)0x2008, result.Members[8].DeviceId);
+            AssertEx.Equal("a09", result.Members[8].AxisName);
+
             payload = GroupMembersPayload(2, 0x0010, -8);
             result = LMCConnection.ParseGroupMembersInfoResult(
                 TestFrame.Response(0, payload));
@@ -540,6 +647,11 @@ namespace LasalMotionControlLib.Tests
             WriteFixedAscii(payload, 68 + 1 * 80, "a02");
             WriteFixedAscii(payload, 68 + 2 * 80, "a03");
             WriteFixedAscii(payload, 68 + 3 * 80, "a04");
+            WriteFixedAscii(payload, 68 + 4 * 80, "a05");
+            WriteFixedAscii(payload, 68 + 5 * 80, "a06");
+            WriteFixedAscii(payload, 68 + 6 * 80, "a07");
+            WriteFixedAscii(payload, 68 + 7 * 80, "a08");
+            WriteFixedAscii(payload, 68 + 8 * 80, "a09");
 
             for (var index = 0; index < 80; index++)
             {

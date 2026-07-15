@@ -34,13 +34,14 @@ namespace LasalMotionControlLib
             AxisReference = ResolveAxisReference(axisName);
 
             EnsureCurrentSessionForUse();
-            AxisInfoResponse = LMCConnection.ParseAcknowledgement(
+            AxisInfoResponse = LMCConnection.ParseCommandAcknowledgement(
                 connection.Exchange(
                     LMC_Frame.LMCAxisInfo(AxisReference),
-                    sessionGeneration));
+                    sessionGeneration),
+                "AxisInfo");
 
-            ValidateAxisInfoResponse(AxisInfoResponse);
             EnsureSuccess("AxisInfo", AxisInfoResponse);
+            ValidateAxisInfoResponse(AxisInfoResponse);
         }
 
         private LMCSingleAxis(
@@ -82,17 +83,21 @@ namespace LasalMotionControlLib
                 out lookupResponse,
                 out axisReference))
             {
-                throw new InvalidOperationException("Invalid axis lookup response.");
+                throw LMCConnection.CreateLookupFailureException(
+                    "Axis",
+                    axisName,
+                    lookupRaw);
             }
 
-            var axisInfoResponse = LMCConnection.ParseAcknowledgement(
+            var axisInfoResponse = LMCConnection.ParseCommandAcknowledgement(
                 await connection.ExchangeAsync(
                     LMC_Frame.LMCAxisInfo(axisReference),
                     generation,
-                    cancellationToken).ConfigureAwait(false));
+                    cancellationToken).ConfigureAwait(false),
+                "AxisInfo");
 
-            ValidateAxisInfoResponse(axisInfoResponse);
             EnsureSuccess("AxisInfo", axisInfoResponse);
+            ValidateAxisInfoResponse(axisInfoResponse);
             connection.EnsureSessionGeneration(generation);
 
             return new LMCSingleAxis(
@@ -325,15 +330,19 @@ namespace LasalMotionControlLib
         {
             EnsureCurrentSessionForUse();
             ushort axisReference;
+            var lookupRaw = connection.Exchange(
+                LMC_Frame.LMCAxisGetByName(axisName),
+                sessionGeneration);
 
             if (!LMCConnection.TryParseLookupReference(
-                connection.Exchange(
-                    LMC_Frame.LMCAxisGetByName(axisName),
-                    sessionGeneration),
+                lookupRaw,
                 out _,
                 out axisReference))
             {
-                throw new InvalidOperationException("Invalid axis lookup response.");
+                throw LMCConnection.CreateLookupFailureException(
+                    "Axis",
+                    axisName,
+                    lookupRaw);
             }
 
             return axisReference;

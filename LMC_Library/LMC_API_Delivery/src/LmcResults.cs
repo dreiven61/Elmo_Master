@@ -27,6 +27,7 @@ namespace LasalMotionControlLib
     public sealed class LMCReadStatusResult
     {
         private const uint LasalAxisPowerOnMask = 0x00000001u;
+        private const uint LasalAxisReferencedMask = 0x00000002u;
         private const uint LasalAxisStandstillMask = 0x02000000u;
 
         internal LMCReadStatusResult(
@@ -52,9 +53,21 @@ namespace LasalMotionControlLib
         public ushort AxisErrorId { get; private set; }
         public ushort StatusWord { get; private set; }
 
+        /// <summary>
+        /// True when the LASAL adapter reports the native axis power-on state.
+        /// </summary>
         public bool IsPowerOn
         {
             get { return (State & LasalAxisPowerOnMask) != 0; }
+        }
+
+        /// <summary>
+        /// True when the native LASAL _LMCAXIS_STATUS.IsReferenced bit is set.
+        /// This is the axis reference/home-complete state, not a DS402 statusword bit.
+        /// </summary>
+        public bool IsReferenced
+        {
+            get { return (State & LasalAxisReferencedMask) != 0; }
         }
 
         public bool IsStandstill
@@ -118,6 +131,13 @@ namespace LasalMotionControlLib
 
     public sealed class LMCGroupReadStatusResult
     {
+        // Disabled and standby retain the Maestro group-state mask values. The
+        // power-ready bit and the LASAL conditions that drive all three masks
+        // are this adapter's project-local contract.
+        private const uint LasalGroupDisabledMask = 0x00010000u;
+        private const uint LasalGroupStandbyMask = 0x00020000u;
+        private const uint LasalGroupPowerReadyMask = 0x00040000u;
+
         internal LMCGroupReadStatusResult(
             LMC_Response response,
             uint state,
@@ -137,6 +157,40 @@ namespace LasalMotionControlLib
         public ushort FunctionStatus { get; private set; }
         public short ErrorId { get; private set; }
         public ushort GroupErrorId { get; private set; }
+
+        /// <summary>
+        /// True when the LASAL adapter reports project-local group power ready.
+        /// </summary>
+        public bool IsPowerOn
+        {
+            get { return (State & LasalGroupPowerReadyMask) != 0; }
+        }
+
+        /// <summary>
+        /// True when the standard Maestro group standby mask is set. The LASAL
+        /// adapter sets it only while powered, profile-locked, and in position.
+        /// </summary>
+        public bool IsStandby
+        {
+            get { return (State & LasalGroupStandbyMask) != 0; }
+        }
+
+        /// <summary>
+        /// Compatibility alias for IsStandby; this means profile locked, not servo power on.
+        /// </summary>
+        public bool IsEnabled
+        {
+            get { return IsStandby; }
+        }
+
+        /// <summary>
+        /// True when the standard Maestro group disabled mask is set. The LASAL
+        /// adapter uses this state for an unlocked profile.
+        /// </summary>
+        public bool IsDisabled
+        {
+            get { return (State & LasalGroupDisabledMask) != 0; }
+        }
 
         public bool HasCommandError
         {

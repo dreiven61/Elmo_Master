@@ -66,11 +66,14 @@ public static class BasicUsage
         }
 
         // Caller selects a UNIT and converts before calling the API.
-        var position = ToDint(1.0, LMC_Units.DEG);
-        var velocity = ToDint(1.0, LMC_Units.DEG);
-        var acceleration = ToDint(1.0, LMC_Units.DEG);
-        var deceleration = ToDint(1.0, LMC_Units.DEG);
-        var jerk = 0; // Nonzero jerk conversion requires an approved profile.
+        var position = ToDint(1.0, LMC_Units.MM);
+        var velocity = ToDint(1.0, LMC_Units.MM);
+        var acceleration = ToDint(10.0, LMC_Units.MM);
+        var deceleration = ToDint(10.0, LMC_Units.MM);
+
+        // _LMCAxis declares Jerk in application units / s^3 / 1000.
+        // Verify the downloaded PLC uses _JERK_PROFILE and an appropriate JMax.
+        var jerk = ToJerkDint(1000.0, LMC_Units.MM);
 
         EnsureSuccess(
             "MoveAbsoluteEx",
@@ -85,14 +88,12 @@ public static class BasicUsage
         var actualPosition = axis.GetActualPosition(out positionResponse);
         EnsureSuccess("GetActualPosition", positionResponse);
 
-        var actualPositionDeg = FromDint(actualPosition, LMC_Units.DEG);
-        Console.WriteLine("Actual position deg = " + actualPositionDeg);
+        var actualPositionMm = FromDint(actualPosition, LMC_Units.MM);
+        Console.WriteLine("Actual position mm = " + actualPositionMm);
 
-        // GroupEnable, GroupDisable, GroupReadStatus, and group-member lookup
-        // have an active LASAL path but are omitted from this axis-only sample.
-        // GroupReset, GroupStop, MoveLinearAbsoluteEx,
-        // GroupReadActualPosition, and SetKinTransformCartesian4Axis have public
-        // PC methods but currently return unsupported error -5 from LASAL.
+        // The active group API, including GroupPowerOn/Off, identity mapping,
+        // profile lock/unlock, status, stop, reset, position, and MoveLinear,
+        // is omitted from this intentionally axis-only sample.
     }
 
     private static void EnsureSuccess(string operation, LMC_Response response)
@@ -118,6 +119,11 @@ public static class BasicUsage
         }
 
         return checked((int)Math.Round(value * unit, MidpointRounding.AwayFromZero));
+    }
+
+    private static int ToJerkDint(double physicalJerkPerSecondCubed, int axisUnit)
+    {
+        return ToDint(physicalJerkPerSecondCubed / 1000.0, axisUnit);
     }
 
     private static double FromDint(int value, int unit)

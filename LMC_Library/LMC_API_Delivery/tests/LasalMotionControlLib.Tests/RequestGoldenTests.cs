@@ -195,6 +195,14 @@ namespace LasalMotionControlLib.Tests
                 LMC_Frame.LMCGroupDisable(Reference));
 
             AssertEx.SequenceEqual(
+                TestFrame.Request(0x204A, Reference, new byte[] { 1 }),
+                LMC_Frame.LMCGroupPowerOn(Reference));
+
+            AssertEx.SequenceEqual(
+                TestFrame.Request(0x204B, Reference, new byte[] { 1 }),
+                LMC_Frame.LMCGroupPowerOff(Reference));
+
+            AssertEx.SequenceEqual(
                 TestFrame.Request(0x2049, Reference, new byte[] { 1 }),
                 LMC_Frame.LMCGroupReset(Reference));
 
