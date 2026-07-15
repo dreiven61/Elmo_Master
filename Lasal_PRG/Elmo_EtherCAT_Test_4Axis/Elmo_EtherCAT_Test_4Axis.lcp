@@ -252,6 +252,7 @@
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
+		<File Path=".\Network\Comm_Network\Comm_Network.lcn"/>
 		<File Path=".\Network\Motion_Network\Motion_Network.lcn"/>
 	</NetworkFiles>
 	<ObjectFiles>

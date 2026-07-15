@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="Comm_Network" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name           = "_TCPIPServer1"
+			GUID           = "{42E82217-EDCD-47A0-BF97-FCBD9C009436}"
+			Class          = "_TCPIPServer"
+			Position       = "(870,120)"
+			Visualized     = "true"
+			Remotely       = "true"
+			CyclicTime     = "1 ms"
+			BackgroundTime = "always">
+			<Channels>
+				<Server Name="Control"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="SemaName01"/>
+				<Server Name="SemaName02"/>
+				<Server Name="TaskName"/>
+				<Client Name="_MultiTask"/>
+				<Client Name="_StdLib"/>
+				<Client Name="_TaskObjectControl"/>
+				<Client Name="Config" Value="0"/>
+				<Client Name="ConnectionsPerRun" Value="1"/>
+				<Client Name="MaxConnections" Value="1"/>
+				<Client Name="Port" Value="4000"/>
+				<Client Name="SigCLib"/>
+				<Client Name="SizeOfTXBuffer"/>
+				<Client Name="Timeout"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="CheckSum" GUID="{924983ED-FE4B-4B5A-BC71-6E6963A07A78}" Class="_CheckSum">
+							<Channels>
+								<Server Name="ClassSvr"/>
+							</Channels>
+						</Object>
+						<Object Name="StrSemaName01" GUID="{299AFE23-53C0-4268-B520-661EA498CF23}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="StrSemaName02" GUID="{75EFD2B9-8A72-4ADD-B553-20298AB8A232}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="StrTaskName" GUID="{510AA27F-2062-4B46-A6C5-CE04D658B1CE}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "TCPMotionInterface1"
+			GUID       = "{24D754E7-92FE-441C-AB95-543E8132A88F}"
+			Class      = "TCPMotionInterface"
+			Position   = "(2280,120)"
+			Visualized = "false"
+			CyclicTime = "1 ms">
+			<Channels>
+				<Server Name="acc"/>
+				<Server Name="AxisRef"/>
+				<Server Name="bufMode"/>
+				<Server Name="ClassSvr"/>
+				<Server Name="CommandID"/>
+				<Server Name="ConnectedClients"/>
+				<Server Name="CurrentSock"/>
+				<Server Name="dec"/>
+				<Server Name="dir"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ErrorGroup"/>
+				<Server Name="ErrorSocket"/>
+				<Server Name="ErrorState"/>
+				<Server Name="Exec"/>
+				<Server Name="jer"/>
+				<Server Name="Payload"/>
+				<Server Name="pos"/>
+				<Server Name="Power"/>
+				<Server Name="ReadPos"/>
+				<Server Name="Reserved"/>
+				<Server Name="RetCode"/>
+				<Server Name="RobotLock"/>
+				<Server Name="RobotPowerOff"/>
+				<Server Name="RobotPowerOn"/>
+				<Server Name="RobotUnLock"/>
+				<Server Name="State"/>
+				<Server Name="velo"/>
+				<Client Name="_StdLib"/>
+				<Client Name="_TCPIPServer"/>
+				<Client Name="LMCAxis1"/>
+				<Client Name="LMCAxis2"/>
+				<Client Name="LMCAxis3"/>
+				<Client Name="LMCAxis4"/>
+				<Client Name="LMCAxis5"/>
+				<Client Name="LMCAxis6"/>
+				<Client Name="LMCAxis7"/>
+				<Client Name="LMCAxis8"/>
+				<Client Name="LMCAxis9"/>
+				<Client Name="LMCRobot"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{7252841C-D303-4C1F-8C09-E1DDBD1FDDD9}" Class="_TCPIPServerInterface">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="ConnectedClients"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ErrorGroup"/>
+								<Server Name="ErrorSocket"/>
+								<Server Name="ErrorState"/>
+								<Server Name="State"/>
+								<Client Name="_TCPIPServer"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="TCPMotionInterface1.LMCAxis1" Destination="_LMCAxis1.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis2" Destination="_LMCAxis2.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis3" Destination="_LMCAxis3.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis4" Destination="_LMCAxis4.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis5" Destination="_LMCAxis5.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis6" Destination="_LMCAxis6.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis7" Destination="_LMCAxis7.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis8" Destination="_LMCAxis8.Control"/>
+		<Connection Source="TCPMotionInterface1.LMCAxis9" Destination="_LMCAxis9.Control"/>
+		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(2280,210),(1476,210),"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>

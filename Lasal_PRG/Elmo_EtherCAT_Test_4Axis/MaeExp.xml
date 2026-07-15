@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="6179F82D" Version="1.1" SubVersion="2">
+<File CRC="63041898" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -995,23 +995,6 @@
 			</Objects>
 		</Class>
 		<Class
-			Name     = "_TCPIPServer_RT"
-			Datatype = "_TCPIPServer::_FSM_TCPIP_SERVER"
-			Base     = "_TCPIPServer"
-			Size     = "9548"
-			Guid     = "4E4DEDB9-BF85-4C21-B09B-364D67EA6769">
-			<Servers>
-				<Server Name="TaskName" Datatype="UDINT" Guid="5EB28875-F879-47BA-ACF8-71CCF5F07236" WriteProtected="true"/>
-				<Server Name="SemaName01" Datatype="UDINT" Guid="1B197424-5725-42AD-AE85-11C19399AC62" WriteProtected="true"/>
-				<Server Name="SemaName02" Datatype="UDINT" Guid="373DFDFC-0E2C-4CF0-955D-86E61C7F6941" WriteProtected="true"/>
-			</Servers>
-			<Objects>
-				<Object Name="StrSemaName01" Datatype="String" Guid="299AFE23-53C0-4268-B520-661EA498CF23"/>
-				<Object Name="StrSemaName02" Datatype="String" Guid="75EFD2B9-8A72-4ADD-B553-20298AB8A232"/>
-				<Object Name="StrTaskName" Datatype="String" Guid="510AA27F-2062-4B46-A6C5-CE04D658B1CE"/>
-			</Objects>
-		</Class>
-		<Class
 			Name     = "BusInterfaceSDIASInternal"
 			Datatype = "DINT"
 			Size     = "232"
@@ -1390,9 +1373,13 @@
 		<Object Name="_LMCAxis2" Datatype="_LMCAxis" Guid="B4658FE2-310E-4638-A4C4-816216B3D408"/>
 		<Object Name="_LMCAxis3" Datatype="_LMCAxis" Guid="DE82A00B-9202-44C0-849B-BDE493B21833"/>
 		<Object Name="_LMCAxis4" Datatype="_LMCAxis" Guid="36641238-C276-4350-BE64-4649B8745498"/>
+		<Object Name="_LMCAxis5" Datatype="_LMCAxis" Guid="639C973F-851F-4056-95F1-C1738D797CB6"/>
+		<Object Name="_LMCAxis6" Datatype="_LMCAxis" Guid="9E781B33-A368-4B95-AF2D-AA0FDE7CE0B5"/>
+		<Object Name="_LMCAxis7" Datatype="_LMCAxis" Guid="064C973F-8832-4EFB-A80F-E3483F3A2480"/>
+		<Object Name="_LMCAxis8" Datatype="_LMCAxis" Guid="0753FBBB-B5D3-4AB0-A7FB-2E67BD61CC7F"/>
+		<Object Name="_LMCAxis9" Datatype="_LMCAxis" Guid="3787C705-87DA-4625-994F-8D424E7D15AE"/>
 		<Object Name="_LMCRobotBase1" Datatype="_LMCRobotBase" Guid="A01C18CD-FE1E-432E-B14F-EF0871CE3576"/>
 		<Object Name="_TCPIPServer1" Datatype="_TCPIPServer" Guid="42E82217-EDCD-47A0-BF97-FCBD9C009436"/>
-		<Object Name="_TCPIPServer_RT1" Datatype="_TCPIPServer_RT" Guid="0D3B6344-81C9-4399-93FA-458AB3244308"/>
 		<Object Name="CP313_IOs1" Datatype="CP313_IOs" Guid="497B385D-9838-4142-ABB3-D6A101CCAFB9"/>
 		<Object Name="Elmo_11" Datatype="Elmo_1" Guid="47F87ED0-D0EE-486E-BC7A-A70547F6C0D9"/>
 		<Object Name="Elmo_21" Datatype="Elmo_2" Guid="5F64D794-EC42-413A-AE7D-FE8E9353E49B"/>
