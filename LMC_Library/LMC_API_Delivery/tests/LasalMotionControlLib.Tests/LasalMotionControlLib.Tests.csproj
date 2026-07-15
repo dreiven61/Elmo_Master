@@ -48,12 +48,12 @@
   <Target Name="RunLasalNetworkContract">
     <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot;" />
   </Target>
-  <Target Name="BuildHardwareTestApp">
+  <Target Name="BuildSimpleExampleApp">
     <MSBuild
-      Projects="$(MSBuildProjectDirectory)\..\..\..\LasalMotionControlLibTestApp\LasalMotionControlLibTestApp.csproj"
+      Projects="$(MSBuildProjectDirectory)\..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\LasalApiWpfTestApp.csproj"
       Targets="Build"
       Properties="Configuration=$(Configuration);Platform=AnyCPU" />
   </Target>
-  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildHardwareTestApp" />
+  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildSimpleExampleApp" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
