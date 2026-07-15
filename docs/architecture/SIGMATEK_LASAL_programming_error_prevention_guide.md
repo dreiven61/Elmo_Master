@@ -2,7 +2,7 @@
 
 작성일: 2026-07-10
 
-최종 갱신: 2026-07-13
+최종 갱신: 2026-07-14
 
 이 문서는 `Elmo_Master`에서 LASAL 소스, 네트워크, 프로젝트 파일을 수정할 때
 IDE 검색 오류, 생성 영역 손상, 잘못된 프로젝트 수정, 패킷 불일치를 예방하기
@@ -282,16 +282,73 @@ Windows 탐색기에서 프로젝트 폴더를 통째로 복사한 뒤 `.lcp/.lc
   않는다.
 - 승인 명령은 `0x2023 Power`, `0x2024 Reset`, `0x2022 Stop`,
   `0x2028 ReadStatus`, `0x202E ReadPosition`, `0x209F MoveAbsolute`,
-  `0x20A0 MoveRelative`, `0x20A2 MoveVelocity`, `0x2047 GroupEnable`,
-  `0x2048 GroupDisable`, `0x2045 GroupReadStatus`다.
-- `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear`,
-  `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform`은 지원하지 않으며 pre-case
-  guard에서 deterministic error `-5`를 반환한다. 기존 helper body가 남아 있다는
-  이유로 runtime 허용 상태로 판단하면 안 된다.
-- source handler는 반영됐지만 LASAL IDE Rebuild, task/core 확인, PLC download,
+  `0x20A0 MoveRelative`, `0x20A2 MoveVelocity`, `0x204A GroupPowerOn`,
+  `0x204B GroupPowerOff`, `0x2047 GroupEnable/ProfileLock`,
+  `0x2048 GroupDisable/ProfileUnlock`, `0x2049 GroupReset`, `0x2085 GroupStop`,
+  `0x2045 GroupReadStatus`, `0x2051 GroupReadActualPosition`,
+  `0x20A4 MoveLinear`, `0x20E7 SetKinTransform`이다.
+- `0x20E7`의 1,320바이트 payload를 받기 위해 queue payload 1,320바이트,
+  receive buffer 2,048바이트, active request buffer 1,328바이트를 유지한다.
+- group motion은 현재 4축 정적 identity 범위만 승인한다. 5..16번 position은
+  0이어야 하며, `MoveLinear`의 coordinate/transition/buffer 조합은 canonical
+  handler의 제한을 따라야 한다. `SetKinTransform`은 generic transform 계산이나
+  profile lock이 아니라 payload 검증과 static identity mapping 설정이다.
+  `LockProfile`/`UnlockProfile`은 별도 `0x2047`/`0x2048` handler만 수행한다.
+- GroupDisable은 stop command가 아니다. 먼저 GroupStop과 in-position을 확인하고
+  호출하며, LASAL handler는 `ProfileInPosition`이 아니면 `-6`으로 거부한다.
+- `0x204A/0x204B`는 기존 23개 캡처 명령이 아닌 LASAL project-local extension이다.
+  ACK를 servo ready/off 완료로 오해하지 말고 `PowerOn -> GroupReadStatus의
+  IsPowerOn(0x00040000) -> SetKin -> Enable/LockProfile -> motion ->
+  Disable/UnlockProfile -> PowerOff -> IsPowerOn=false 확인` 순서를 지킨다.
+  `0x00040000`만 local Power Ready 확장이다. `0x00020000=NC_GROUP_STANDBY_MASK`와
+  `0x00010000=NC_GROUP_DISABLED_MASK`는 Maestro 표준이고, lock/unlock 조건에
+  mapping하는 방식만 현재 어댑터 계약이다.
+- `GroupReset`의 `AxQuitError(AxisNo:=0)`는 axis/hardware error reset이다.
+  robot profile error 해제를 보장하지 않으므로 ACK 후 group status/error를 읽는다.
+  `GroupStop` ACK도 stop 완료가 아니라 dispatch 접수로 취급한다.
+- nonzero group Jerk는 `_LMCRobotBase1.MoveType=_JERK_PROFILE`과 nonzero `JMax`가
+  필요하다. object 설정과 `ONE_Motion_Network_Table.st` 생성값이 다르면 빌드 전
+  stale network로 판정한다.
+- source handler와 정적 계약은 반영됐지만 LASAL IDE Rebuild, task/core 확인, PLC download,
   PLC 동작 시험과 packet 재캡처는 남아 있다. 상세 적용 상태는
   [`LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`](../../LMC_Library/LMC_API_Delivery/docs/LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md)를
   따른다.
+
+### 숫자 변환과 memory overlay
+
+LASAL postfix `$DINT`/`$UDINT`는 일반적인 숫자 cast가 아니다. 대상 주소부터
+해당 폭의 메모리를 재해석한다. 따라서 2바이트 `UINT` 필드를 4바이트
+`DINT`로 읽으면 바로 다음 2바이트 필드까지 합쳐질 수 있다.
+
+2026-07-14 PLC 디버깅에서 다음 결함을 확인했다.
+
+```text
+CommandId(UINT)      = 0x202B
+Reference(UINT)      = 0x0001
+PayloadLength(UINT)  = 0x000C
+Reserved(UINT)       = 0x0000
+
+CommandId$DINT       = 0x0001202B = 73771
+Reference$DINT       = 0x000C0001 = 786433
+PayloadLength$DINT   = 0x0000000C = 12
+```
+
+이 때문에 정상 `0x202B AxisInfo`가 `case`의 `else`로 들어가 error `-4`를
+반환했다. `PayloadLength`만 정상처럼 보인 것은 다음 `Reserved`가 0이었기
+때문이다.
+
+숫자 확대는 아래처럼 명시적인 변환 함수를 사용한다.
+
+```st
+CommandID := TO_DINT(ActiveRequest.CommandId);
+AxisRef := TO_DINT(ActiveRequest.Reference);
+Payload := TO_DINT(ActiveRequest.PayloadLength);
+```
+
+`Sendbuf[offset]$UDINT`와 `RequestBuf[offset]$UINT`처럼 wire byte buffer에
+정해진 폭의 값을 배치하거나 꺼내는 코드는 의도적 overlay다. 이를 scalar
+field의 숫자 변환과 혼동하지 않는다. 정적 계약은 `ActiveRequest`의 세
+`UINT` 필드에 `$DINT`를 사용하는 코드를 거부한다.
 
 ### RPC lifecycle
 
@@ -324,19 +381,43 @@ close 때 session, callback, receive accumulator 상태를 함께 정리한다.
 - PC API DLL은 받은 DINT를 그대로 serialize한다.
 - LASAL은 받은 DINT에 UNIT을 다시 곱하거나 나누지 않는다.
 - 축마다 UNIT이 다르면 PC application이 축별로 변환한다.
-- 더미 프로그램의 `8388608` 상수는 특정 encoder 예시일 뿐 공통 UNIT이 아니다.
+- `ExUnits=8388608`은 DS402/encoder 측 변환 설정이다. PC TCP API UNIT 또는
+  PC 입력 제한 계산에 사용하지 않는다.
+- 현재 `_LMCAxis1..4`의 application transmission은 사용자가 제시한
+  `10 mm/rev` 기준으로 `ExUnits=8388608`, `IntUnits=10 mm(100000)`다.
+  PC application unit은 별도로 `LMC_Units.MM=10000`이며 Raw DINT를 쓰는
+  PC 프로그램은 추가 변환하지 않는다.
+- 단, PC의 `MM=10000`과 `_LMCAxis.IntUnits`를 같은 설정 항목으로 취급하지
+  않는다. `IntUnits`는 `InternalPosition = ExternalPosition x IntUnits / ExUnits`
+  transmission ratio의 일부이므로 실제 lead/gear 이동량을 반영해야 한다.
+- MotionLib 기본 SWMin/SWMax 표시값은 DS402 signed-DINT target으로 실제 도달
+  가능한 범위를 보장하지 않는다. ExUnits, IntUnits, BinOffset과 MaxModulo를
+  함께 계산한 뒤 범위를 정한다.
+- `LMCAXIS_PAR_SET_MAXMODULO`는 Init 종료 전에만 설정하며, 공식 허용식
+  `Value x ExUnits / IntUnits <= 2147483647`을 만족해야 한다. 10 mm/rev의
+  현재 비율에서는 최대 `25,599,999 DINT = 2559.9999 mm`다.
+- 이 MaxModulo는 모든 motion의 총 이동거리 한계가 아니다. 최신 `_LMCAxis`는
+  SW end position이 비활성인 continuous/endless 축에서 overflow 뒤 남은
+  거리를 계속 이동한다. 반면 `_LMCProfile`은 기본적으로 명시적 SW limit가
+  없을 때도 `±MaxModulo`를 최종 허용 위치로 사용해 group target을 검사한다.
+- 유한축 Group에서 `_LMCPROF_ChkEndPosForSwLimit=0`을 기계 limit 대체책 없이
+  적용하지 않는다. 더 넓은 절대좌표 창은 drive position scaling, LASAL
+  ExUnits/IntUnits, reference offset, 실제 SW limit를 함께 재설계한다.
+- group endpoint가 `_LMCPROF_SWE_ERROR(7)`로 거부되면 먼저 각 축의
+  `AxReadSWEndPos`, `LMCAXIS_PAR_RD_MAX_MODULO`, `LMCAXIS_PAR_RD_BINOFFSET`과
+  `ReadProfileError().SubErrorNo`를 확인한다. 화면의 SWMax 기본값만으로
+  원인을 판단하지 않는다.
 
 상세 기준은
 [`UNIT_CONVERSION_MANUAL_2026-07-10.md`](../../LMC_Library/LMC_API_Delivery/docs/UNIT_CONVERSION_MANUAL_2026-07-10.md)를
 따른다.
 
-### 미지원 명령
+### 미지원 기능
 
-미지원 명령에 dummy success를 반환하지 않는다. 현재 `0x2049 GroupReset`,
-`0x2085 GroupStop`, `0x20A4 MoveLinear`, `0x2051 GroupReadActualPosition`,
-`0x20E7 SetKinTransform`은 deterministic error `-5`로 처리한다. 실제 callback
-event sender와 multi-PC ownership도 구현 및 PLC 검증 전까지 지원 대상으로
-판정하지 않는다. 현재 상태는
+미지원 기능에 dummy success를 반환하지 않는다. 현재 공개 PC API에 없는
+`MoveCircle`은 command ID와 DINT payload mapping을 추정해 추가하지 않는다.
+실제 callback event sender와 multi-PC ownership도 구현 및 PLC 검증 전까지
+지원 대상으로 판정하지 않는다. 현재 group API의 제한과 검증 상태는
 [`API_DEVELOPMENT_BACKLOG_2026-07-10.md`](../../LMC_Library/LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md)를
 기준으로 확인한다.
 

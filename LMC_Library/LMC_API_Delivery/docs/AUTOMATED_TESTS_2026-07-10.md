@@ -41,7 +41,8 @@
   group handle 및 generation-bound exchange 거부
 - axis lookup 뒤 AxisInfo success/malformed/command-error
 - LASAL static contract: generated client count/entries, 4-axis network links,
-  C#-ST critical offsets, 32-bit error truncation guards, legacy command block
+  C#-ST critical offsets, 32-bit error truncation guards, legacy command block,
+  `_JERK_PROFILE`/nonzero JMax와 Stop/Move Jerk 수신·전달 경로
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -65,13 +66,16 @@ LASAL source static contract만 실행:
   /t:RunLasalContract /p:Configuration=Release /nologo
 ```
 
-둘을 순서대로 실행하려면 target을 `/t:RunTests`로 바꾼다.
+PC C# test, LASAL source static contract와 현재 WPF example build를 순서대로
+실행하려면 target을 `/t:RunTests`로 바꾼다. 제거된 legacy
+`LasalMotionControlLibTestApp`은 이 target에 포함하지 않는다.
 
 현재 결과:
 
-- `RunPcTests`: `42/42 PASS`
+- `RunPcTests`: `46/46 PASS`
 - `RunLasalContract`:
-  `PASS LASAL.StaticContract (6 clients, 4 links, offsets, error guards, legacy block)`
+  `PASS LASAL.StaticContract (CyWork-only active command contract and ordinary TCP server network)`
+- `BuildSimpleExampleApp`: `LMC_Library/LasalApiWpfTestApp` build PASS
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

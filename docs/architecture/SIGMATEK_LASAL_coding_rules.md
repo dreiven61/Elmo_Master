@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-13
+최종 갱신: 2026-07-14
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`에서 LASAL 코드를 수정할 때
 매번 확인할 실무 규칙이다. IDE 장애 예방과 복구 절차는
@@ -53,6 +53,10 @@
 
 - `CASE ... OF` 기본 분기는 `default:`가 아니라 `else`를 사용한다.
 - 이 프로젝트에서 검증된 OR 표현은 `|`다. `OR`는 기존 코드/컴파일 근거 없이 새로 쓰지 않는다.
+- postfix `$DINT`/`$UDINT`는 숫자 변환이 아니라 해당 주소를 지정 폭으로
+  재해석하는 memory overlay다. `UINT`/`INT` 값을 32비트 숫자로 확대할 때는
+  `TO_DINT(...)`/`TO_UDINT(...)`를 사용한다. wire byte buffer를 읽고 쓰는
+  의도적 overlay와 일반 숫자 변환을 구분한다.
 - 새 custom source 또는 IDE metadata에 한글, 이모지, 스마트 따옴표, 전각 문자를 넣지 않는다. 한국어 설명은 `docs/**/*.md`에 기록한다.
 - 기존 vendor/library 소스의 확장 문자를 일괄 변환하거나 파일 전체를 재인코딩하지 않는다.
 - BOM과 줄바꿈을 의미 없이 바꾸지 않는다.
@@ -74,13 +78,36 @@
 - 현재 CyWork handler가 승인된 명령은 `0x2023 Power`, `0x2024 Reset`,
   `0x2022 Stop`, `0x2028 ReadStatus`, `0x202E ReadPosition`,
   `0x209F MoveAbsolute`, `0x20A0 MoveRelative`, `0x20A2 MoveVelocity`,
-  `0x2047 GroupEnable`, `0x2048 GroupDisable`, `0x2045 GroupReadStatus`다.
-- `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear`,
-  `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform`은 지원하지 않으며
-  deterministic error `-5`를 반환한다. 기존 helper body 존재 여부와 runtime
-  지원 여부를 혼동하지 않는다.
-- source 기준 handler 승인은 완료됐지만 LASAL IDE Rebuild와 PLC 동작 시험은
-  남아 있다. 이 검증 전에는 production 완료로 승인하지 않는다.
+  `0x204A GroupPowerOn`, `0x204B GroupPowerOff`,
+  `0x2047 GroupEnable/ProfileLock`, `0x2048 GroupDisable/ProfileUnlock`, `0x2049 GroupReset`,
+  `0x2085 GroupStop`, `0x2045 GroupReadStatus`, `0x2051 GroupReadActualPosition`,
+  `0x20A4 MoveLinear`, `0x20E7 SetKinTransform`이다.
+- `0x20E7` 때문에 queue payload는 1,320바이트, receive accumulator는
+  2,048바이트다. 작은 명령 기준인 96바이트로 되돌리면 안 된다.
+- 현재 4축 group 구현은 정적 X/Y/Z/U identity 구성이다. `MoveLinear`는
+  position 1..4, coordinate `None(0)`, transition `ExactStop(0)` 또는
+  `ContinuousDirect(2)`, buffer `Aborting(1)` 또는 `Buffered(2)`만 허용한다.
+  `SetKinTransform`은 정확한 identity payload와 static mapping만 검증·설정한다.
+  profile lock/unlock은 별도 `GroupEnable(0x2047)`/`GroupDisable(0x2048)`가
+  `LockProfile`/`UnlockProfile`로 수행한다. 임의 비선형 kinematic 변환으로
+  설명하지 않는다. GroupDisable은 `ProfileInPosition` 확인 전 호출하지 않으며
+  현재 LASAL handler도 미확인 상태를 `-6`으로 거부한다.
+- `0x204A/0x204B`는 기존 23개 캡처 명령이 아닌 LASAL project-local extension이다.
+  ACK는 비동기 `RobotOn`/`RobotOff` 요청 접수이며 최종 완료가 아니다. 정상 순서는
+  `PowerOn -> GroupReadStatus IsPowerOn(0x00040000) -> SetKin -> Enable/lock ->
+  motion -> Disable/unlock -> PowerOff -> IsPowerOn=false 확인`이다.
+  `0x00040000`만 local Power Ready 확장이다.
+  `0x00020000=NC_GROUP_STANDBY_MASK`와 `0x00010000=NC_GROUP_DISABLED_MASK`는
+  Maestro 표준이며, 어댑터가 이를 locked standby/unlocked disabled 조건에 mapping한다.
+- `GroupReset`은 `AxQuitError(AxisNo:=0)` 기반 axis/hardware error reset이다.
+  robot profile error 전체 reset으로 문서화하지 않고 후속 status/error를 읽는다.
+  `GroupStop` ACK도 정지 완료로 해석하지 않는다.
+- group Jerk를 0보다 크게 전달하려면 `_LMCRobotBase1.MoveType`도
+  `_JERK_PROFILE`이어야 하고 `JMax`가 0보다 커야 한다. `Motion_Network.lcn`과
+  generated table을 함께 검사한다.
+- source와 정적 계약 검사는 완료됐지만 이번 변경 뒤 LASAL IDE Rebuild,
+  동일 core/priority 확인과 PLC 동작 시험은 남아 있다. 이 검증 전에는
+  production 완료로 승인하지 않는다.
 - 일반 `_TCPIPServer1`과 interface는 같은 cyclic task에 두고, client method를
   호출하는 CyWork는 axis RT thread와 같은 core에서 같거나 낮은 priority로
   배치한다.
@@ -96,8 +123,9 @@
 
 - API 계층은 EtherCAT PDO나 DS402 register를 직접 만지지 않는다. `_LMCAxis`, `ECAT_DS402Base`, 기존 drive class를 통해 접근한다.
 - Axis Client는 연결 여부를 확인한 뒤 호출한다.
-- 승인 목록 밖의 Group Motion은 실제 SIGMATEK group/CNC 구현 클래스와 의미가
-  확정되기 전까지 deterministic error `-5`로 막는다.
+- 공개 PC API와 확정된 DINT wire 계약 밖의 Group Motion은 실제 SIGMATEK
+  group/CNC 의미가 확정되기 전까지 구현하지 않는다. 현재 `MoveCircle`은
+  MotionLib method만 있고 공개 PC API와 DINT frame이 없으므로 대상이 아니다.
 - `Elmo_1` 기준으로 복제한 `Elmo_2`, `Elmo_3`, `Elmo_4`는 채널/네트워크 연결을 서로 대조한다.
 
 ## 7. Network 규칙

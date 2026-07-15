@@ -46,8 +46,8 @@ LASAL 의미가 승인되지 않아 deterministic `-5`를 반환한다. 실제 P
 - 다중 PC의 읽기 공유와 motion/control owner 판정은 LASAL server 정책입니다.
 - 그룹 reset/stop/position/motion/kinematics 5개는 PC 함수가 있어도 현재
   동작 기능으로 사용하지 않고 `-5` negative test에만 사용합니다.
-- 실기 시험은 `test-app`과
-  `../../LasalMotionControlLibTestApp/README.md`의 safety gate/순서를 따릅니다.
+- 이 `0.9.0-pc-api` snapshot의 `test-app`은 legacy archive입니다. 현재 실기
+  시험은 `../../LasalApiWpfTestApp/README.md`의 safety gate/순서를 따릅니다.
 
 ## 구현 및 검증 범위
 

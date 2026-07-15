@@ -37,7 +37,7 @@ contain a table such as `_LMCAxis1 -> axis 1`.
 
 The canonical LASAL implementation uses this flow:
 
-1. `TCPMotionInterface` receives `_LMCAxis1..4` through typed client channels.
+1. `TCPMotionInterface` receives `_LMCAxis1..9` through typed client channels.
 2. During LASAL runtime initialization it reads each connected object's actual
    name with `_GetObjName` and builds an immutable registry.
 3. `0x103C`/`0x1042` search that registry and return an opaque `UINT16`
@@ -47,7 +47,7 @@ The canonical LASAL implementation uses this flow:
    the registered client channel.
 
 The descriptor is not a PLC pointer and must never expose `pCmd` or another
-runtime address. Value `0` is invalid, current axis descriptors are `1..4`, and
+runtime address. Value `0` is invalid, current axis descriptors are `1..9`, and
 the current group descriptor is `0x0100`. These values are deployment-local and
 may change after a project rebuild; callers must perform lookup again after each
 new RPC connection.
@@ -85,16 +85,19 @@ This keeps the conversion responsibility explicit:
 - PLC code receives DINT values and passes them to LASAL motion blocks
 
 The DLL must not apply `8,388,608 count/rev` or any other conversion. The WPF
-test app deliberately applies `8,388,608` in caller code as a 23-bit encoder
-dummy profile. Production caller code must replace that profile with the UNIT
-or scale configured in its PLC project.
+example selects the PLC application UNIT in caller code and also provides an
+explicit raw-DINT mode. Encoder counts remain part of the PLC/drive transmission
+ratio and are not a PC API UNIT.
 
-For the current `Elmo_EtherCAT_Test_4Axis` project, `_LMCAxis1..4` are configured with
-the `deg` macro for `IntUnits`, `VMax`, `AMax`, and `JMax`. Therefore current
-single-axis position/speed/accel/decel examples use `LMC_Units.DEG`; `RPM` is
-not a substitute for `_LMCAxis` speed in application units per second. Nonzero
-jerk conversion and the `_LMCRobotBase1` kinematic-axis profile remain explicit approval
-items and must not be guessed by the DLL.
+In the currently saved `Elmo_EtherCAT_Test_4Axis` project, `_LMCAxis1..4` use
+the `mm` macro and `_JERK_PROFILE`; the saved values are `IntUnits=10 mm/rev`,
+`VMax=75 mm`, `AMax=7500 mm`, and `JMax=75000 mm`. Current single-axis examples
+therefore use `LMC_Units.MM`. `RPM` is not a substitute for `_LMCAxis` speed in
+application units per second. The caller converts physical jerk with
+`(physical jerk / 1000) * axis UNIT`, because `_LMCAxis` declares Jerk in
+`Application units / sec^3 / 1000`. The DLL still performs no conversion. The
+downloaded PLC profile/JMax and the `_LMCRobotBase1` kinematic-axis profile must
+be verified separately.
 
 The distribution rule, unit table, overflow handling, and caller examples are
 defined in `UNIT_CONVERSION_MANUAL_2026-07-10.md`.

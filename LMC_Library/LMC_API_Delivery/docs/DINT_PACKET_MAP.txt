@@ -1,26 +1,41 @@
 LMC DINT packet map
-Status 2026-07-10: delivery C# has request/public paths for all 23 captured
-commands. The tracked canonical TCPMotionInterface has 21 handlers; 0x2049 and
-0x2085 return deterministic unsupported -5, while 0x2051 and 0x20E7 have no
-LASAL handler. Nothing has been built or verified on a LASAL PLC. The untracked
-_Edit variant is not canonical. Do not use the WPF app for live motion until
-the remaining P0 items and PLC validation in
-API_DEVELOPMENT_BACKLOG_2026-07-10.md are complete.
+Status 2026-07-14: delivery C# and the tracked canonical TCPMotionInterface have
+request/public/handler paths for all 23 captured commands plus two project-local
+LASAL extensions, 0x204A and 0x204B. These two extensions are not captured
+commands. The five previously
+blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
+source. C# 46 tests, LASAL source-only/full-network static contracts and the WPF
+VS2019 Debug build pass. The current LASAL source has NOT been rebuilt in the
+LASAL IDE and has NOT been verified on a PLC.
+CPU core/priority placement and packet recapture are also pending. The untracked
+_Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md.
 
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The API writes caller-provided DINT values directly to the packet.
 Caller code must multiply the physical value by the selected LMC_Units constant,
 round/check the DINT range, and pass the converted int to the motion API.
 Read APIs return raw LASAL DINT; caller code divides by the same UNIT for display.
-Current Elmo _LMCAxis1..4 profile (confirmed in Motion_Network):
-  position      value * DEG      (10000)
-  velocity      value * DEG      (10000), because MoveAbsolute expects app units/s
-  acceleration  value * DEG      (10000)
-  deceleration  value * DEG      (10000)
-  jerk          use 0 until the nonzero physical conversion is approved
+Current saved Elmo _LMCAxis1..4 profile (confirmed in Motion_Network):
+  IntUnits      1 mm; UNIT MM = 10000
+  VMax          75 mm
+  AMax          7500 mm
+  MoveType      _JERK_PROFILE
+  JMax          75000 mm
+  position      value * MM       (10000)
+  velocity      value * MM       (10000), because MoveAbsolute expects app units/s
+  acceleration  value * MM       (10000)
+  deceleration  value * MM       (10000)
+  jerk          (physical axis-unit/s^3 / 1000) * MM
 RPM is not the MoveAbsolute velocity UNIT unless the PLC method explicitly
-declares an RPM input. unit.h has no dedicated jerk UNIT, while _LMCAxis defines
-jerk as application units/sec^3/1000.
+declares an RPM input. unit.h has no dedicated jerk UNIT; use the selected axis
+application-unit constant after applying the _LMCAxis /1000 definition. Nonzero
+Jerk affects _JERK_PROFILE only. Verify the downloaded PLC MoveType/JMax before
+live motion.
+Current saved _LMCRobotBase1 group profile:
+  MoveType      _JERK_PROFILE
+  JMax          50000 mm
+Nonzero group Jerk is ignored unless the robot profile is _JERK_PROFILE. Verify
+the downloaded robot MoveType/JMax before GroupStop or MoveLinear testing.
 See UNIT_CONVERSION_MANUAL_2026-07-10.md.
 Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
 
@@ -67,13 +82,26 @@ the velocity sign and LASAL rejects a sign/direction mismatch.
 [92] TransitionMode
 [96] BufferMode
 [100] Execute
+Current four-axis LASAL restrictions:
+- Position[0..3] are X/Y/Z/U in the statically connected axis order.
+- Position[4..15] must be zero.
+- Velocity, acceleration and deceleration must be positive; jerk must be >= 0.
+- CoordSystem must be None (0).
+- TransitionMode must be ExactStop (0) or ContinuousDirect (2).
+- BufferMode must be Aborting (1) or Buffered (2).
+- Execute must be 1.
+- Aborting maps to CmdConfig.MoveImmediately (bit 5, value 16); Buffered maps
+  to CmdConfig 0. The LASAL call is LMCRobot.MoveLinearCoord.
 
 0x2051 GroupReadActualPosition, payload 8 bytes
 [8] CoordinateSystem DINT: None=0, ACS=1, MCS=2, PCS=3
 [12] Enable BYTE = 1
 [13..15] Padding = 0
-The public enum is the PMAS wire enum. LASAL must explicitly map it to the
-_LMCRobotBase coordinate-index semantics; do not pass it through by assumption.
+The public enum is validated as None/ACS/MCS/PCS. This project has no dynamic
+CalcModel, so all four values currently read the same statically wired axis-order
+identity position through GetRobotPosition(Mode:=_ACTPOS_APPUNITS,
+CoordSystem:=0). Do not interpret the accepted MCS/PCS enum as a dynamic
+kinematic conversion.
 
 LASAL-DINT v1 success response payload is exactly 68 bytes:
 [8..71] Position DINT[16]
@@ -99,9 +127,13 @@ The captured PMAS 136-byte LREAL response is legacy and the PC parser rejects it
 [1321..1327] ABI tail padding = 0
 Public support is restricted to four identity-shift nodes X/Y/Z/U using unique
 axis references from the same LMCConnection. Generic node counts, coefficients,
-axis types and buffer modes are not capture-verified. The existing LASAL 1024B
-receive/queue design cannot accept this command without separate large-command
-staging.
+axis types and buffer modes are not capture-verified. The canonical LASAL source
+uses a 2048-byte receive accumulator, 1328-byte request buffer and 1320-byte
+queue payload, so the exact command fits without a second staging path. The
+handler validates the entire captured identity shape, confirms axis clients
+1..4, and configures the static identity mapping only. It does not call
+LockProfile and does not create or modify a dynamic CalcModel. Profile locking
+is the separate 0x2047 command.
 The captured response payload is exactly 4 bytes (`UINT16 status + INT16
 error`). The public method rejects the generic 8-byte acknowledgement shape.
 
@@ -113,17 +145,61 @@ error`). The public method rejects the generic 8-byte acknowledgement shape.
 
 0x2085 GroupStop, payload 16 bytes
 Same layout as Stop.
+Current LASAL validation requires BufferMode=Aborting (1), Execute=1,
+Deceleration>=0, Jerk>=0 and Deceleration>0 when Jerk>0. The handler calls
+LMCRobot.StopMove(Mode:=3, Decel, Jerk).
+The success ACK means the stop command was accepted, not that standstill has
+already been reached. Poll GroupReadStatus afterward.
+
+0x2049 GroupReset, payload 1 byte
+[8] Execute BYTE = 1
+The handler validates group reference 0x0100 and calls
+LMCRobot.AxQuitError(AxisNo:=0).
+This resets connected axis/hardware errors; it is not a guaranteed reset of the
+robot profile error. Poll GroupReadStatus and inspect GroupErrorId afterward.
+
+0x204A GroupPowerOn, payload 1 byte (project-local LASAL extension; not captured)
+[8] Execute BYTE = 1
+The handler starts asynchronous LMCRobot.RobotOn processing. A success ACK means
+the request was accepted, not that every member axis is servo-ready. Poll
+GroupReadStatus until local state bit 0x00040000 (IsPowerOn) is set.
+
+0x204B GroupPowerOff, payload 1 byte (project-local LASAL extension; not captured)
+[8] Execute BYTE = 1
+The handler starts asynchronous LMCRobot.RobotOff processing. A success ACK means
+the request was accepted, not that every member axis is powered off. Poll
+GroupReadStatus until local state bit 0x00040000 (IsPowerOn) is cleared.
+
+0x2047 GroupEnable / ProfileLock, payload 1 byte
+[8] Execute BYTE = 1
+The handler calls LMCRobot.LockProfile for the validated static mapping. A success
+ACK means the lock request was accepted. The standard Maestro
+NC_GROUP_STANDBY_MASK (0x00020000) identifies standby; this adapter sets it for
+the locked standby condition exposed as IsStandby/IsEnabled.
+
+0x2048 GroupDisable / ProfileUnlock, payload 1 byte
+[8] Execute BYTE = 1
+The handler requires ProfileInPosition(_LMCPROF_ProfileFinished), then calls
+LMCRobot.UnlockProfile. A moving or unverified profile is rejected with -6.
+The standard Maestro
+NC_GROUP_DISABLED_MASK (0x00010000) identifies disabled; this adapter sets it for
+the unlocked disabled condition exposed as IsDisabled.
+
+Normal group order:
+GroupPowerOn -> GroupReadStatus IsPowerOn -> SetKinTransform -> GroupEnable/lock
+-> motion -> GroupStop/in-position -> GroupDisable/unlock -> GroupPowerOff ->
+GroupReadStatus IsPowerOn=false.
 
 LASAL 0x209F implemented offsets:
 
-_StdLib.MemCpy(dest:=#pos, source:=#ReceiveBuf[8], size:=4);
-_StdLib.MemCpy(dest:=#velo, source:=#ReceiveBuf[12], size:=4);
-_StdLib.MemCpy(dest:=#acc, source:=#ReceiveBuf[16], size:=4);
-_StdLib.MemCpy(dest:=#dec, source:=#ReceiveBuf[20], size:=4);
-_StdLib.MemCpy(dest:=#jer, source:=#ReceiveBuf[24], size:=4);
-_StdLib.MemCpy(dest:=#dir, source:=#ReceiveBuf[28], size:=4);
-_StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[32], size:=4);
-_StdLib.MemCpy(dest:=#Exec, source:=#ReceiveBuf[36], size:=4);
+_StdLib.MemCpy(dest:=#pos, source:=#RequestBuf[8], size:=4);
+_StdLib.MemCpy(dest:=#velo, source:=#RequestBuf[12], size:=4);
+_StdLib.MemCpy(dest:=#acc, source:=#RequestBuf[16], size:=4);
+_StdLib.MemCpy(dest:=#dec, source:=#RequestBuf[20], size:=4);
+_StdLib.MemCpy(dest:=#jer, source:=#RequestBuf[24], size:=4);
+_StdLib.MemCpy(dest:=#dir, source:=#RequestBuf[28], size:=4);
+_StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[32], size:=4);
+_StdLib.MemCpy(dest:=#Exec, source:=#RequestBuf[36], size:=4);
 
 LMCAxis.MoveShortestWay(
   Position:=pos,
@@ -136,18 +212,18 @@ LMCAxis.MoveShortestWay(
 LASAL 0x20A4 implemented offsets:
 
 GroupExecute is DINT. The C# request carries 16 DINT positions (64 bytes), while
-the canonical `_LMCPROF_POS` contains 9 DINT positions. The current handler
-copies the first 9 and reserves the remaining wire slots for a future profile.
+this canonical project has four statically connected axes. The current handler
+copies only the first four positions and requires wire slots 5..16 to be zero.
 
-_StdLib.MemCpy(dest:=#GroupMovePos, source:=#ReceiveBuf[8], size:=36);
-_StdLib.MemCpy(dest:=#GroupVelocity, source:=#ReceiveBuf[72], size:=4);
-_StdLib.MemCpy(dest:=#GroupAccel, source:=#ReceiveBuf[76], size:=4);
-_StdLib.MemCpy(dest:=#GroupDecel, source:=#ReceiveBuf[80], size:=4);
-_StdLib.MemCpy(dest:=#GroupJerk, source:=#ReceiveBuf[84], size:=4);
-_StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#ReceiveBuf[88], size:=4);
-_StdLib.MemCpy(dest:=#GroupTransitionModeInput, source:=#ReceiveBuf[92], size:=4);
-_StdLib.MemCpy(dest:=#bufMode, source:=#ReceiveBuf[96], size:=4);
-_StdLib.MemCpy(dest:=#GroupExecute, source:=#ReceiveBuf[100], size:=4);
+_StdLib.MemCpy(dest:=#GroupMovePos, source:=#RequestBuf[8], size:=16);
+_StdLib.MemCpy(dest:=#GroupVelocity, source:=#RequestBuf[72], size:=4);
+_StdLib.MemCpy(dest:=#GroupAccel, source:=#RequestBuf[76], size:=4);
+_StdLib.MemCpy(dest:=#GroupDecel, source:=#RequestBuf[80], size:=4);
+_StdLib.MemCpy(dest:=#GroupJerk, source:=#RequestBuf[84], size:=4);
+_StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#RequestBuf[88], size:=4);
+_StdLib.MemCpy(dest:=#GroupTransitionModeInput, source:=#RequestBuf[92], size:=4);
+_StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[96], size:=4);
+_StdLib.MemCpy(dest:=#GroupExecute, source:=#RequestBuf[100], size:=4);
 
 No LREAL-to-DINT conversion is required in the PLC.
 
@@ -164,6 +240,10 @@ Response payloads implemented by command-specific parsers:
   error INT16[6]
 - Group ReadStatus: 12 bytes, state UDINT[0], status UINT16[4], error INT16[6],
   group error UINT16[8], padding UINT16[10]
+  0x00040000 is the project-local LASAL Power Ready extension (IsPowerOn).
+  0x00020000 is the standard Maestro NC_GROUP_STANDBY_MASK and 0x00010000 is
+  NC_GROUP_DISABLED_MASK. The project-local part is the adapter condition that
+  maps locked standby to IsStandby/IsEnabled and unlocked disabled to IsDisabled.
 - GetGroupMembersInfo: exactly 1350 bytes; see RESPONSE_MODEL_DESIGN_2026-07-09.md
 - Group ReadActualPosition: exactly 68 bytes, position DINT[16] at [0..63],
   status UINT16[64], error INT16[66]. Legacy 136-byte LREAL is rejected.
@@ -174,3 +254,10 @@ Callback and ownership:
   they do not define a typed callback protocol.
 - Multi-PC read sharing and motion/control ownership must be enforced by the LASAL
   session/dispatcher. Separate PC LMCConnection instances cannot enforce server ownership.
+
+MoveCircle scope:
+- The current public C# API has no MoveCircle method.
+- No approved LASAL-DINT command ID, payload or response contract exists for it.
+- It is not part of the 23 capture-backed commands or the two project-local
+  power extensions and must not be inferred from
+  the vendor LMCRobot.MoveCircleCoord method alone.

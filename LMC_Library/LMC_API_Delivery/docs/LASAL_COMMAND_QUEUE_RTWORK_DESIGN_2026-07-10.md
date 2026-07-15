@@ -239,6 +239,12 @@ RT queue lock으로 사용하지 않는다.
 
 ### 6.5 object-name registry
 
+> **현재 구현과 다름:** 아래 one-shot/immutable registry는 폐기된 RtWork 대안의
+> 기록이다. 현재 CyWork-only 구현은 `0x103C`/`0x1042` lookup request를 처리할
+> 때 해당 typed client 이름만 `_GetObjName()`으로 새로 읽고, `0x20D2`에서만
+> 다섯 이름을 모두 갱신한다. 주기적인 string polling과 stale cache는 사용하지
+> 않는다. 현재 기준은 `LASAL_OBJECT_DISPATCHER_DESIGN_2026-07-10.md`를 따른다.
+
 registry는 active motion scan의 `RtWork`에서 만들지 않는다. 권장 위치는 모든
 client 연결이 끝난 뒤의 Init/PostInit 또는 one-shot CyWork다.
 
@@ -356,7 +362,7 @@ IngressFaultMailbox
 | `0x103C`, `0x1042` | immutable object-name registry lookup |
 | `0x202B` | descriptor 검증과 AxisInfo response |
 | `0x20D2` | immutable group-member/name response, 최대 1358-byte frame |
-| `0x2049`, `0x2085` | 현재 deterministic unsupported `-5` |
+| `0x2049`, `0x2085` | 이 폐기 초안 당시 deterministic unsupported `-5`. 현재 CyWork 구현은 GroupReset/GroupStop 활성 |
 | legacy `0x2081..0x2084` | 제거된 구형 alias, deterministic unsupported `-4` |
 | unknown command | unsupported command `-4` |
 
@@ -370,7 +376,8 @@ IngressFaultMailbox
 | `0x2028` | `ReadAxisStatus()` + `ReadAxisError()` snapshot; trailing reserved/status-word field는 현재 `0` |
 | `0x202E` | axis actual-position snapshot |
 | `0x209F`, `0x20A0`, `0x20A2` | axis move method 한 번 호출 |
-| `0x2047`, `0x2048` | group RobotOn/RobotOff |
+| `0x2047`, `0x2048` | 이 폐기 초안의 RobotOn/RobotOff 배정은 사용하지 않음. 현재 CyWork 구현은 profile LockProfile/UnlockProfile |
+| `0x204A`, `0x204B` | 현재 CyWork 구현의 LASAL-local group RobotOn/RobotOff extension. RtWork를 사용하지 않음 |
 | `0x2045` | 현재 `ProfileInPosition()` + 마지막 `GroupMoveRetCode`; 실제 robot error snapshot 아님 |
 | `0x20A4` | migration 대상이지만 group mode/kinematic 승인 전 live call 금지 |
 

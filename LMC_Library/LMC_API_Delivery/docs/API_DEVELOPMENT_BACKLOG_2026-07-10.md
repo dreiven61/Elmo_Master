@@ -2,11 +2,11 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-13
+Latest update: 2026-07-14
 
 Analysis baseline: `996686d`
 
-Current checkpoint: `d91da48`
+Current checkpoint base: `28abbda` and the 2026-07-14 group API working tree
 
 Status: Open
 
@@ -14,75 +14,96 @@ Status: Open
 
 현재 API 개발은 완료 상태가 아니다.
 
-Wireshark 자료에는 고유 command ID 23개가 있다. 현재 C# DLL에는 23개
-모두의 request builder와 public 호출 경로가 있다. tracked LASAL은 18개를
-source-active path로 제공하고 `GroupReset(0x2049)`, `GroupStop(0x2085)`,
-`GroupReadActualPosition(0x2051)`, `MoveLinearAbsoluteEx(0x20A4)`,
-`SetKinTransformEx(0x20E7)`에는 deterministic unsupported error `-5`를
-반환한다.
+Wireshark 자료에는 고유 command ID 23개가 있다. 여기에 기존 캡처 명령이 아닌
+LASAL project-local extension `GroupPowerOn(0x204A)`과
+`GroupPowerOff(0x204B)` 2개를 추가했다. 현재 C# DLL과 tracked LASAL에는
+캡처 기반 23개 + local extension 2개, 총 25개의 request/public/source-active
+path가 있다. 2026-07-14에 `GroupReset(0x2049)`,
+`GroupStop(0x2085)`, `GroupReadActualPosition(0x2051)`,
+`MoveLinearAbsoluteEx(0x20A4)`, `SetKinTransformEx(0x20E7)` handler를
+활성화해 이전 deterministic unsupported 5개를 해소했다.
 
-현재 runtime gate는 non-RT `CyWork()`에서 아래 11개 client call을 허용한다.
+현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 client call을 허용한다.
 
 - Axis: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`
-- Group: `0x2047`, `0x2048`, `0x2045`
+- Group: `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`, `0x2085`, `0x20A4`,
+  `0x2051`, `0x20E7`
 
 `TCPMotionInterface`의 RT Task, RtWork override와 typed mailbox는 제거했다.
-`0x2049`, `0x2085`, `0x20A4`, `0x2051`, `0x20E7`은 deterministic error
-`-5`를 반환한다. source 실행 허용, IDE build 완료, PLC 실기 완료를 구분해야 한다.
+receive accumulator 2,048 bytes, request buffer 1,328 bytes, queue payload
+1,320 bytes로 exact `0x20E7` frame도 같은 CyWork queue에서 처리한다. source
+실행 허용, 정적 계약 통과, IDE build 완료, PLC 실기 완료를 구분해야 한다.
 
 현재 task/network 기준은
 `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`를 따른다.
 
 C#에는 command별 typed parser, strict ACK, `0x2051` LASAL-DINT vector,
-`0x20E7` exact Cartesian4 serializer, group mode 옵션, timeout/state/async와
+`0x20E7` exact Cartesian4 serializer, local group power와 typed group state,
+group mode 옵션, timeout/state/async와
 callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실제
 object-name lookup, opaque descriptor와 4축 DINT dispatcher를 반영했다.
 
-LASAL IDE Rebuild/Link와 `Power`/`pos`/`velo` implementation smoke는 완료했다.
-PLC download와 실제 packet 재캡처는 아직 없으므로 source 구현과 자동 테스트가
-완료된 항목도 PLC end-to-end 검증 완료로 계산하지 않으며, 실기 검증 완료 API
-수는 여전히 0개다.
+현재 source는 C# 자동 테스트 46/46, LASAL source-only/full-network static
+contract와 WPF VS2019 MSBuild Debug를 통과했다.
+다만 이번 group handler 반영 뒤 LASAL IDE Rebuild/Link와 implementation-search
+smoke는 수행하지 않았다. PLC download와 실제 packet 재캡처도 없으므로 source
+구현과 자동 테스트가 완료된 항목도 PLC end-to-end 검증 완료로 계산하지 않으며,
+실기 검증 완료 API 수는 여전히 0개다.
 
-PC packet API의 남은 핵심 blocker는 신규 frame 추가가 아니다. 먼저 아래
-LASAL/PLC P0를 끝내야 한다.
+PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame
+추가가 아니다. 먼저 아래 LASAL/PLC 검증을 끝내야 한다.
 
-1. canonical LASAL source 확정
-2. RPC/header/DINT/response 계약 통일
-3. 4축 및 group target dispatch
-4. false-success와 response parser 오류 제거
-5. 테스트 앱 단위·성공 판정 수정
-6. byte-level 자동화 테스트와 실제 PLC 캡처 확보
+1. 현재 source의 LASAL IDE Rebuild/Link와 implementation-search smoke
+2. CyWork와 motion RT thread의 CPU core/priority 조건 확인
+3. RPC/lookup, 단일축과 group의 캡처 기반 23 command + local 2 command PLC smoke 및 재캡처
+4. static identity group coordinate/kinematic 제약의 장비 적용 승인
+5. 실제 callback sender/payload와 multi-PC session/ownership 정책
 
 ## 현재 구현 완료도 판정
 
 | 구분 | 상태 | 완료 판정 |
 |---|---:|---|
 | Wireshark 기준 대상 command | 23개 | 전체 범위 |
-| C# request builder 또는 public 호출 경로 | 23/23 | source 구현이며 PLC 완료가 아님 |
-| LASAL source-active path | 18/23 | lifecycle/lookup/axis/group read-control source, 실제 PLC 동작은 미검증 |
-| LASAL deterministic unsupported | 5/23 | `0x2049`, `0x2085`, `0x2051`, `0x20A4`, `0x20E7` |
-| 현재 CyWork client-call 허용 | 11/23 | axis 8개와 group 3개 source path 허용, PLC 검증 전 |
-| C# 자동 테스트 | 42/42 PASS | fake/synthetic/loopback/source contract 검증 |
-| LASAL IDE build/smoke | PASS | Rebuild 0 error/0 warning, 3개 implementation 검색 성공 |
-| 실제 PLC E2E 및 Wireshark 재캡처 | 0/23 | 완료된 command 없음 |
+| LASAL project-local extension | 2개 | `0x204A/0x204B`; 기존 캡처 명령이 아님 |
+| C# request builder 또는 public 호출 경로 | 25개 (23+2) | source 구현이며 PLC 완료가 아님 |
+| LASAL source-active path | 25개 (23+2) | lifecycle/lookup/axis/group source, 실제 PLC 동작은 미검증 |
+| 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
+| 현재 CyWork client-call 허용 | 18/25 | axis 8개와 group 10개 client-call path, PLC 검증 전 |
+| C# 자동 테스트 | 46/46 PASS | fake/synthetic/loopback/source contract 검증 |
+| LASAL source-only/full-network static contract | PASS | 현재 group parser/method/size/network 계약 포함 |
+| WPF VS2019 MSBuild Debug | PASS | build 검증이며 PLC 동작 승인이 아님 |
+| 현재 LASAL IDE build/smoke | 미검증 | group source 반영 뒤 Rebuild/Link와 implementation 검색 필요 |
+| 실제 PLC E2E 및 Wireshark 재캡처 | 0/25 | 캡처 기반 23 + local 2 모두 완료된 command 없음 |
 
-`0x2051 GroupReadActualPosition`은 PC에서 coordinate request와 exact 68-byte
-LASAL-DINT response(`DINT[16] + status/error`) typed parser까지 구현했다.
-captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`도 PC에서 exact
-1320-byte serializer와 동일 connection의 X/Y/Z/U axis object를 받는
-`SetKinTransformCartesian4Axis` public API까지 구현했다. 두 command 모두
-현재 PLC source에서 명시적으로 `-5`를 반환하며 동작 기능으로 승인하지 않는다.
+`0x2051 GroupReadActualPosition`은 exact 68-byte LASAL-DINT response
+(`DINT[16] + status/error`)를 반환한다. 현재 프로젝트에는 dynamic CalcModel이
+없으므로 None/ACS/MCS/PCS 요청을 모두 같은 static axis-order identity 위치로
+읽는다. captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`은 exact
+1320-byte Cartesian X/Y/Z/U identity 요청 전체를 검증하고 static mapping만
+설정한다. profile lock은 `0x2047 GroupEnable`이 별도로 수행하며 이것은 dynamic
+kinematic transform 생성 기능이 아니다.
+
+정상 순서는 `0x204A PowerOn -> GroupReadStatus.IsPowerOn(0x00040000) ->
+0x20E7 SetKin -> 0x2047 Enable/LockProfile -> motion ->
+0x2048 Disable/UnlockProfile -> 0x204B PowerOff -> IsPowerOn=false 확인`이다.
+`0x204A/0x204B` ACK는
+비동기 `RobotOn`/`RobotOff` 요청 접수이며 최종 완료가 아니다. `0x00040000`만
+LASAL local Power Ready다. `0x00020000=NC_GROUP_STANDBY_MASK`와
+`0x00010000=NC_GROUP_DISABLED_MASK`는 Maestro 표준이며, 현재 어댑터가 각각
+locked standby와 unlocked disabled 조건에 연결한다.
 
 따라서 완료 범위는 다음처럼 구분한다.
 
-- **single-PC P0 MVP:** 현재 정상 기능 후보 18개는 PC core와 LASAL source가
-  준비됐고, runtime client-call은 위 11개까지 열려 있다. IDE build는 완료했고
-  PLC smoke test와 재캡처가 주된 잔여 작업이다.
-- **전체 23-command API:** PC packet API는 23개 source path를 갖췄다.
-  LASAL의 unsupported 5개 semantics, large-command staging, 실제 callback
-  sender, session/ownership과 PLC 검증이 남아 있다. PC preview assembly와
-  build manifest는 `0.9.0-pc-api`로 생성했다.
+- **single-PC P0 MVP:** PC core와 LASAL source는 캡처 기반 23 + local 2 범위를 갖췄고,
+  runtime client-call은 위 18개까지 열려 있다. 현재 source의 IDE build,
+  same-core/priority 확인, PLC smoke와 재캡처가 남았다.
+- **전체 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
+  session/ownership과 PLC 검증이 남아 있다. PC preview assembly와 build
+  manifest는 `0.9.0-pc-api`로 생성했다.
+
+`MoveCircle`은 현재 공개 C# API와 승인된 LASAL-DINT command ID/payload 계약에
+없으며 캡처 기반 23 + local extension 2 범위에 포함되지 않는다.
 
 ## 2026-07-10 진행 내용
 
@@ -100,7 +121,7 @@ captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`도 PC에서 exac
 - `_LMCAxis1..4`와 `_LMCRobotBase1`의 실제 LASAL object name을 startup 때
   읽어 opaque descriptor를 발급하고, 4개 typed client channel로 dispatch한다.
 - Axis Power/Reset/Stop/Read/Move DINT handler와 Group lookup/members/
-  enable/disable/status/linear handler를 tracked project에 반영했다.
+  enable(profile lock)/disable(profile unlock)/status/linear handler를 tracked project에 반영했다.
 - GroupReset/GroupStop은 안전한 LASAL 대응 method 확정 전까지 deterministic
   `-5` error를 반환한다.
 - command별 typed parser, WPF response 안전 판정과 23-bit dummy profile
@@ -125,7 +146,7 @@ captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`도 PC에서 exac
 - callback typed parser는 실제 datagram payload 근거가 없어 의도적으로
   추가하지 않았다. raw payload event가 현재 PC 완료 범위다.
 
-## 2026-07-13 진행 내용
+## 2026-07-13 진행 내용 (당시 스냅샷)
 
 - 사용자 결정에 따라 `TCPMotionInterface`의 RT Task, typed RT mailbox와
   `RtWork()` override를 제거했다. request를 검증한 뒤 non-RT `CyWork()`
@@ -148,12 +169,44 @@ captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`도 PC에서 exac
   library 간 version warning 5개도 유지된다. 이 환경 문제를 해결하기 전에는
   build/link 0-error 판정을 할 수 없다.
 
+## 2026-07-14 진행 내용
+
+- `GroupReset(0x2049)`을 `LMCRobot.AxQuitError(AxisNo:=0)`로 활성화했다.
+  이는 axis/hardware error reset이며 robot profile error 전체 reset이 아니다.
+  ACK 뒤 `GroupReadStatus`로 실제 error 해제를 확인한다.
+- `GroupStop(0x2085)`을 `LMCRobot.StopMove(Mode:=3, Decel, Jerk)`로 활성화했다.
+  `Aborting(1)`, `Execute=1`, nonnegative deceleration/jerk를 검사하고 nonzero
+  jerk에는 positive deceleration을 요구한다. ACK는 정지 완료가 아니라 stop
+  command 접수다.
+- `MoveLinearAbsoluteEx(0x20A4)`는 현재 static 4축만 허용한다. position slot
+  1..4만 사용하고 5..16은 0이어야 한다. coordinate `None(0)`, transition
+  `ExactStop(0)`/`ContinuousDirect(2)`, buffer `Aborting(1)`/`Buffered(2)`만
+  `LMCRobot.MoveLinearCoord`에 mapping한다.
+- group nonzero Jerk가 실제 적용되도록 canonical `_LMCRobotBase1`의
+  `MoveType=_JERK_PROFILE`, `JMax=50000 mm`와 generated table을 맞췄다.
+- `GroupReadActualPosition(0x2051)`은 68-byte DINT 응답을 만든다. dynamic
+  CalcModel이 없는 현재 프로젝트에서는 None/ACS/MCS/PCS를 모두 동일한 static
+  axis-order identity 위치로 읽으며, 16개 position 중 첫 4개가 실제 축이다.
+- `SetKinTransformCartesian4Axis(0x20E7)`은 1,320-byte X/Y/Z/U identity 요청
+  전체를 검증해 static mapping만 설정한다. `LockProfile`은 별도
+  `GroupEnable(0x2047)`이 수행하며 dynamic transform을 생성하지 않는다.
+- LASAL local extension `GroupPowerOn(0x204A)`/`GroupPowerOff(0x204B)`은 각각
+  비동기 `RobotOn`/`RobotOff` 시작 요청을 접수한다. ACK는 최종 servo 상태를
+  보장하지 않으며 `GroupReadStatus`의 local Power Ready bit로 후속 확인한다.
+- receive accumulator를 2,048 bytes, request buffer를 1,328 bytes, queue
+  payload를 1,320 bytes로 확장해 exact `0x20E7` frame을 같은 queue에 담는다.
+- C# 자동 테스트 46/46, LASAL source-only/full-network static contract와 WPF
+  VS2019 MSBuild Debug는 통과했다.
+- 현재 group source 반영 뒤 LASAL IDE Rebuild/Link, Find in Implementation,
+  CPU core/priority와 PLC E2E는 아직 검증하지 않았다.
+- `MoveCircle`은 공개 API와 승인된 wire contract가 없어 이번 범위에서 제외했다.
+
 ## 분석 기준
 
 이 문서는 다음을 교차 대조했다.
 
 - C# source: `LMC_Library/LMC_API_Delivery/src/**`
-- WPF test app: `LMC_Library/LasalMotionControlLibTestApp/**`
+- WPF example: `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/**`
 - tracked LASAL server:
   `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/**`
 - untracked candidate:
@@ -231,14 +284,16 @@ connection은 사용자가 IDE에서 완료했으며, 최종 저장 후 strict n
 | ID | 기능 | C# DLL | canonical tracked LASAL | 판정 |
 |---:|---|---|---|---|
 | `0x20D2` | GetGroupMembersInfo | exact 1350B typed parser | descriptor/name 4축 1350B response | source/자동 테스트 완료, PLC 검증 대기 |
-| `0x2047` | GroupEnable | request/ACK parser | CyWork에서 RobotOn dispatch | source/build 완료, PLC 검증 대기 |
-| `0x2048` | GroupDisable | request/ACK parser | CyWork에서 RobotOff dispatch | source/build 완료, PLC 검증 대기 |
-| `0x2049` | GroupReset | request/ACK parser | deterministic unsupported `-5` | P0: 승인된 LASAL reset semantics 필요 |
-| `0x2045` | GroupReadStatus | 12B typed result, payload에도 descriptor | CyWork에서 ProfileInPosition 기반 status bit `0x00020000`, `_ROBOT_ERROR` 시 ReadProfileError error number 응답 | source/build 완료, PLC 검증 대기 |
-| `0x2085` | GroupStop | DINT 24-byte request | deterministic unsupported `-5` | P0: 승인된 LASAL stop semantics 필요 |
-| `0x20A4` | MoveLinearAbsoluteEx | DINT 104-byte request, public mode options | deterministic unsupported `-5` | group profile semantics 승인 필요 |
-| `0x2051` | GroupReadActualPosition | coordinate request + exact 68B DINT[16] typed result | deterministic unsupported `-5` | PC 완료 / LASAL mapping·기능 승인 필요 |
-| `0x20E7` | SetKinTransformCartesian4Axis | exact 1320B captured-profile serializer | deterministic unsupported `-5`; large staging 없음 | PC 완료 / LASAL apply semantics 승인 필요 |
+| `0x204A` | GroupPowerOn | local extension request/ACK parser | CyWork에서 비동기 `RobotOn` 시작 요청 | LASAL-local source/자동 테스트 완료, 기존 캡처 명령 아님, PLC 검증 대기 |
+| `0x204B` | GroupPowerOff | local extension request/ACK parser | CyWork에서 비동기 `RobotOff` 시작 요청 | LASAL-local source/자동 테스트 완료, 기존 캡처 명령 아님, PLC 검증 대기 |
+| `0x2047` | GroupEnable | request/ACK parser | CyWork에서 `LockProfile` dispatch | source/자동 테스트 완료, LASAL IDE/PLC 검증 대기 |
+| `0x2048` | GroupDisable | request/ACK parser | `ProfileInPosition` 확인 뒤 CyWork에서 `UnlockProfile` dispatch | source/정적 gate 완료, LASAL IDE/PLC 검증 대기 |
+| `0x2049` | GroupReset | request/ACK parser | CyWork에서 `AxQuitError(AxisNo:=0)` dispatch | source/정적 계약 완료, IDE/PLC 검증 대기 |
+| `0x2045` | GroupReadStatus | 12B typed result, `IsPowerOn`/`IsStandby`/`IsEnabled`/`IsDisabled` | local `0x40000` Power Ready와 표준 `0x20000` Standby/`0x10000` Disabled mask; adapter가 lock/unlock 조건에 mapping | source/build 완료, mask 출처 구분, PLC 검증 대기 |
+| `0x2085` | GroupStop | DINT 24-byte request | CyWork에서 `StopMove(Mode:=3)` dispatch | source/정적 계약 완료, IDE/PLC 검증 대기 |
+| `0x20A4` | MoveLinearAbsoluteEx | DINT 104-byte request, public mode options | static 4축/None/승인 mode만 `MoveLinearCoord` dispatch | source/정적 계약 완료, IDE/PLC 검증 대기 |
+| `0x2051` | GroupReadActualPosition | coordinate request + exact 68B DINT[16] typed result | static identity axis-order `GetRobotPosition`과 68B response | source/정적 계약 완료, IDE/PLC 검증 대기 |
+| `0x20E7` | SetKinTransformCartesian4Axis | exact 1320B captured-profile serializer | exact identity mapping validation/config only; 1320B queue, profile lock 없음 | source/정적 계약 완료, dynamic transform 아님, IDE/PLC 검증 대기 |
 
 ## 현재 코드의 주요 결함
 
@@ -274,12 +329,12 @@ connection은 사용자가 IDE에서 완료했으며, 최종 저장 후 strict n
 4. 모든 네트워크/polling path를 async/cancellation으로 바꾸고 Cancel 버튼과
    비동기 delay를 적용했다. axis/group lookup도 취소 가능한 async factory를
    사용하고 window 종료 시 RPC close/dispose 완료를 기다린다.
-5. `GroupReadActualPosition`, `SetKinTransformCartesian4Axis`, group coordinate/
-   transition/buffer option을 UI에 노출했다.
+5. `GroupPowerOn/Off`, profile lock/unlock status, `GroupReadActualPosition`,
+   `SetKinTransformCartesian4Axis`, group coordinate/transition/buffer option을 UI에 노출했다.
 
-WPF Debug/Release build는 성공했지만 LASAL handler와 PLC 검증은 아직 없다.
-따라서 UI 기능이 존재한다는 이유로 실제 motion을 production-safe로
-판정하면 안 된다.
+WPF Debug/Release build와 LASAL source/static 계약은 성공했지만 현재 source의
+LASAL IDE build와 PLC 검증은 아직 없다. 따라서 UI 기능이 존재한다는 이유로
+실제 motion을 production-safe로 판정하면 안 된다.
 
 ### Input과 public API
 
@@ -317,9 +372,10 @@ padding을 17번째 position으로 해석하면 안 된다.
 
 LASAL-DINT v1 local contract는 response를 exact 68 bytes,
 `DINT[16] + UINT16 status + INT16 error`로 확정했다. PC typed parser는 이
-형태만 받고 captured legacy 136-byte LREAL response를 거부한다. 남은 작업은
-LASAL에서 PMAS coordinate enum(None/ACS/MCS/PCS)을 실제 robot coordinate
-index로 명시적으로 mapping하고 같은 68-byte response를 만드는 것이다.
+형태만 받고 captured legacy 136-byte LREAL response를 거부한다. LASAL은
+PMAS coordinate enum(None/ACS/MCS/PCS)을 검증하지만, dynamic CalcModel이 없는
+현재 static 4축 프로젝트에서는 모두 `GetRobotPosition`의 동일 axis-order
+identity 위치로 mapping한다. 16개 DINT slot 중 첫 4개가 실제 축이고 나머지는 0이다.
 
 ### `0x20E7 SetKinTransformEx/Cartesian`
 
@@ -340,18 +396,21 @@ index로 명시적으로 mapping하고 같은 68-byte response를 만드는 것�
 구조는 captured Cartesian4 serializer 개발에 충분하다. PC 공개 API는
 고유 X/Y/Z/U axis reference, identity shift, `Buffered(2)`로 제한해 구현했다.
 축 수, 계수, node type, buffer mode를 바꾼 generic 기능을 열려면 추가
-캡처가 필요하다. LASAL에는 1320-byte command용 large-command staging과
-apply handler가 아직 없다.
+캡처가 필요하다. LASAL은 2,048-byte receive accumulator, 1,328-byte request
+buffer와 1,320-byte queue payload로 exact frame을 수용한다. handler는 전체
+identity shape와 axis reference 1..4를 검증하고 static identity mapping만
+설정한다. `LockProfile`은 후속 `0x2047 GroupEnable`이 수행한다. dynamic
+CalcModel을 생성하거나 coefficients를 적용하는 generic transform은 아니다.
 
 ## P0 개발 목록
 
 | ID | 작업 | 완료 조건 |
 |---|---|---|
 | P0-01 | canonical LASAL project 확정 | tracked `Elmo_EtherCAT_Test_4Axis`에 승인된 변경만 반영하고 untracked `_Edit` 의존 제거 |
-| P0-02 | LASAL-DINT protocol v1 명세 고정 | 모든 23 command의 header, request, response, type, error schema 문서화 |
+| P0-02 | LASAL-DINT protocol v1 명세 고정 | 캡처 기반 23 command와 local extension 2개의 header, request, response, type, error schema를 구분해 문서화 |
 | P0-03 | RPC lifecycle 구현 | LASAL에 `0x8080`, `0x405C`, `0x405D` handler/response 추가, 요청 `dSock`으로 응답 |
 | P0-04 | target dispatcher 구현 | LASAL actual object name lookup 후 opaque descriptor가 `_LMCAxis1~4`/robot으로 정확히 route |
-| P0-05 | 기존 C# command의 LASAL handler 완성 | Power/Reset/Stop/read/move/group command가 DINT contract로 실제 실행되고 미구현 command는 deterministic error 반환 |
+| P0-05 | 기존 C# command의 LASAL handler 완성 | 캡처 기반 23 + local 2 공개 범위가 DINT contract로 실제 실행되거나 유효한 조회 응답을 만들고 잘못된 조합은 deterministic error 반환 |
 | P0-06 | response parser 교정 | 4B/8B ACK, lookup, value, AxisInfo, 0x20D2를 command별 parser로 처리 |
 | P0-07 | WPF test app 안전 수정 | 23-bit dummy가 caller profile임을 명시, `IsFrameValid`/`IsSuccess` 확인, 실패값 0과 PMAS state mask 사용 금지 |
 | P0-08 | 자동화 test 기반 | request golden bytes, captured response parser, malformed frame, fake TCP server integration test 추가 |
@@ -360,35 +419,37 @@ apply handler가 아직 없다.
 진행 상태:
 
 - P0-01: 이번 변경부터 tracked project를 canonical 변경 대상으로 사용
-- P0-02: PC 23-command request/response schema와 UNIT 책임 문서화 완료.
-  LASAL `0x2051` coordinate mapping, `0x20E7` apply/ACK와 callback event
-  payload는 server 구현/캡처 뒤 확정 필요
+- P0-02: PC의 캡처 기반 23 + local 2 request/response schema와 UNIT 책임, LASAL `0x2051`
+  static identity mapping/68B response와 `0x20E7` exact identity/4B ACK를
+  문서화했다. callback event payload는 실제 캡처 뒤 확정 필요
 - P0-03: PC/LASAL phase-1 코드 반영, LASAL IDE와 PLC E2E 검증 대기
 - P0-04: actual-name registry, descriptor 1..4와 4축 client wiring source 반영,
   LASAL IDE/PLC 검증 대기
-- P0-05: axis Power/Reset/Stop/Read/Move 8개와 group Enable/Disable/ReadStatus
-  3개 client-call runtime을 CyWork에서 활성화했다. `0x2049`, `0x2085`,
-  `0x20A4`, `0x2051`, `0x20E7`은 `-5`로 차단한다.
+- P0-05: axis Power/Reset/Stop/Read/Move 8개와 group PowerOn/PowerOff/
+  Enable/Disable/ReadStatus/Reset/Stop/MoveLinear/ReadActualPosition/SetKin 10개
+  client-call runtime을 CyWork에서 활성화했다. 캡처 기반 23-command 범위의
+  `-5` 차단은 없고 local extension 2개도 별도 계약으로 활성화됐다.
 - P0-06: exact 4B/8B ACK, typed read, AxisInfo, `0x20D2`, `0x2051` parser와
   legacy/truncated shape tests 완료
 - P0-07: WPF dummy profile 표기, response 실패 판정, LASAL PowerOn/Standstill
   mask, async/cancel, raw callback/state 표시와 신규 group UI 반영 완료.
   실제 PLC 장시간 polling/motion 검증은 남음
 - P0-08: request golden, captured/synthetic parser, malformed frame와 fake RPC/
-  UDP callback/lifecycle 통합 test 42/42 PASS. source-first generated table/offset와
+  UDP callback/lifecycle 통합 test 46/46 PASS. source-first generated table/offset와
   axis 2~4 link는 `RunLasalContract` PASS. axis 1 connection은 사용자가 IDE에서
   완료했으며 최종 저장 뒤 `RunLasalNetworkContract` 확인이 남았다.
 - P0-09: `Response -> depth-8 queue -> CyWork execute -> response` 경로와
-  위 11개 활성 command를 반영했다. unsupported 5개는 `-5`로 차단한다.
+  위 18개 활성 client-call command를 반영했다. 2,048-byte receive,
+  1,328-byte request, 1,320-byte queue payload로 `0x20E7`도 같은 경로를 쓴다.
   LASAL IDE class model의 `LMCAxis1`, 일반
   `_TCPIPServer1`, CyclicTime 1 ms, `Config=0`, `MaxConnections=1`을 반영했다.
-  interface RealTime assignment는 제거했다. CyWork/axis core와
-  vendor header `E0015` 해결과 PLC 검증은 남았다. 상세 적용 경계는
+  interface RealTime assignment는 제거했다. 현재 source의 LASAL IDE build,
+  CyWork/axis core와 priority 확인 및 PLC 검증은 남았다. 상세 적용 경계는
   `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`에 기록했다.
 
-tracked `.st`는 CodeGenerator export이다. 이번 IDE 동기화가 반영한 class model과
-새 session/accumulator 변수가 vendor header 오류 해결 후 Rebuild/Link에서도
-유지되는지 확인해야 P0-03 변경을 영구 보존 상태로 판정한다.
+tracked `.st`는 CodeGenerator export이다. 이번 group handler와 확장된
+session/accumulator/queue 변수가 Rebuild/Link 뒤에도 유지되는지 확인해야 현재
+변경을 IDE 보존 상태로 판정한다.
 
 P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하지 않는 것이
 맞다.
@@ -398,17 +459,17 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 | ID | 작업 | 완료 조건 |
 |---|---|---|
 | P1-01 | `GetGroupMembersInfo` typed API (source/test 완료) | `LMCGroupMembersInfoResult`가 16축 reference/device/name/count/status/error를 반환 |
-| P1-02 | `GroupReadActualPosition(0x2051)` (PC 완료) | PC exact 68B DINT result와 WPF 경로 완료; LASAL coordinate mapping/기능 승인, PLC 재캡처 필요 |
-| P1-03 | `SetKinTransformCartesian4Axis(0x20E7)` (PC 완료) | PC exact 1320B captured profile 완료; LASAL large staging/apply/ACK와 PLC 재캡처 필요 |
-| P1-04 | group motion mode API (PC 완료) | PC coordinate/transition/buffer/execute validation 완료; LASAL semantics/PLC 검증 필요 |
+| P1-02 | `GroupReadActualPosition(0x2051)` (source 완료) | exact 68B DINT result와 static identity axis-order LASAL mapping 완료; IDE build/PLC 재캡처 필요 |
+| P1-03 | `SetKinTransformCartesian4Axis(0x20E7)` (source 완료) | exact 1320B identity validation/config와 queue 적용 완료; profile lock은 별도 `0x2047`, dynamic transform 아님, IDE build/PLC 재캡처 필요 |
+| P1-04 | group motion mode API (source 완료) | static 4축, None, ExactStop/ContinuousDirect, Aborting/Buffered mapping 완료; IDE build/PLC 검증 필요 |
 | P1-05 | typed read 결과 (완료), lookup 결과 (부분) | 정상값 0과 실패를 구분하고 response/error context 보존 |
 | P1-06 | session/ownership | LASAL dSock session table, axis/group ownership, busy error, disconnect/timeout cleanup |
 | P1-07 | callback 검증 | PC raw listener 완료; 실제 payload 캡처 후에만 LASAL sender/typed parser 추가 |
 | P1-08 | 실제 PLC 재캡처 | handshake, lookup, 4축 routing, 성공/실패 ACK, read/motion/group packet 저장 및 문서 갱신 |
 
-`0x2051`과 `0x20E7`의 PC 코드는 구현됐지만 LASAL은 의도적으로 `-5`를
-반환한다. LASAL mapping/apply semantics를 별도 승인하기 전까지 negative test
-외에는 사용할 수 없다.
+`0x2051`과 `0x20E7`은 PC/LASAL source와 정적 계약까지 구현됐다. 다만 static
+identity 전용이며 현재 source의 IDE build와 PLC 실기가 끝나지 않았으므로
+production 지원으로 표시하지 않는다.
 
 ## P2 개발 목록
 
@@ -430,7 +491,7 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 `LMC_Library/LMC_API/LMC_API`에는 현재 PC preview 산출물을 조립했다.
 
 - README, API list, packet map, sample과 function/Command ID TXT를 현재
-  23-command PC public API와 LASAL 미구현 범위에 맞췄다.
+  캡처 기반 23 + LASAL local extension 2 PC public API 범위에 맞췄다.
 - `0.9.0.0` DLL/EXE를 current Release source에서 재빌드했고
   `RELEASE_MANIFEST.md`에 size와 SHA-256을 기록했다.
 - old tracked binary를 제거하고 새 이름의 package/Delivery DLL과 test-app
@@ -449,10 +510,13 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
    - 권장: PMAS wire-compatible라고 부르지 말고 `LASAL-DINT v1`로 명시한다.
 3. `0x2051` response type
    - 결정 완료: LASAL-DINT v1 exact 68B `DINT[16]+status/error`.
-   - LASAL handler와 coordinate enum/index mapping은 남음.
+   - 현재 프로젝트는 dynamic CalcModel이 없어 None/ACS/MCS/PCS를 동일 static
+     axis-order identity 위치로 mapping한다.
 4. `0x20E7` 적용 방식
    - 결정 완료: PC는 exact 1320-byte captured Cartesian4 serializer를 사용.
-   - LASAL large-command staging/apply 방식은 함께 설계·구현해야 함.
+   - LASAL은 exact identity shape를 1320-byte queue에서 검증하고 static 4축
+     mapping만 설정한다. `LockProfile`은 `0x2047 GroupEnable`이 별도로 수행하며
+     dynamic CalcModel 변경 기능이 아니다.
 5. callback event protocol
    - transport는 Maestro manual 기준 UDP로 확정했다.
    - event mask bit, datagram payload, 재전송/유실 정책은 실제 callback
@@ -463,19 +527,19 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 
 ## 권장 실행 순서
 
-1. `LMCAxis1..4`, depth-8 queue와 CyWork-only 활성 11개 command 정적 검증 유지
-2. LASAL 설치의 MotionLib/Hardware `DriveComL2.h` 불일치를 동일 release 전체
-   library 설치 또는 설치 복구로 해결
+1. `LMCAxis1..4`, depth-8 queue와 CyWork-only 활성 18개 client-call command 정적 검증 유지
+2. 현재 group source를 LASAL IDE에서 Rebuild/Link하고 Find in Implementation smoke 수행
 3. 일반 `_TCPIPServer1` link, CyclicTime 1 ms, RealTime assignment 부재,
    same-core, `Config=0`, `MaxConnections=1`을 strict contract로 확인
-4. 완료된 LASAL IDE Rebuild 결과를 기준으로 PLC download, RPC/lookup/descriptor 1..4 재캡처
+4. 현재 LASAL IDE Rebuild 결과를 기준으로 PLC download, RPC/lookup/descriptor 1..4 재캡처
 5. ReadActualPosition -> read/admin -> Power/Stop -> Move 순서로 명령별 CyWork handler/E2E
 6. 나머지 single-axis command E2E
-7. GroupReset/GroupStop의 승인된 LASAL semantics 구현
-8. group lookup/members/enable/status/linear/stop E2E
-9. `0x2051` coordinate mapping/68B response와 `0x20E7` large staging/apply 구현
-10. 실제 UDP callback payload 캡처 뒤 LASAL sender/typed parser 구현
-11. multi-PC ownership, 실제 pcap, release package 완료
+7. Group 정상 순서 `0x204A PowerOn -> IsPowerOn(0x40000) -> 0x20E7 SetKin ->
+   0x2047 Enable/LockProfile -> MoveLinear -> 0x2048 Disable/UnlockProfile ->
+   0x204B PowerOff -> IsPowerOn=false` E2E
+8. GroupReset/GroupStop과 `0x2051` static identity position/68B response를 별도 E2E
+9. 실제 UDP callback payload 캡처 뒤 LASAL sender/typed parser 구현
+10. multi-PC ownership, 실제 pcap, release package 완료
 
 ## Definition of Done
 
@@ -497,6 +561,7 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 - 제거된 `LMC_*Cmd` method alias 복구
 - DLL 내부 자동 unit conversion
 - `PowerMembers` 같은 반복 helper를 protocol command로 추가
+- 공개 API와 승인된 wire contract가 없는 `MoveCircle`을 vendor method 이름만으로 추가
 
 ## 관련 문서
 
@@ -510,5 +575,6 @@ P0가 끝나기 전에는 현재 WPF test app으로 실제 motion을 수행하�
 - [UNIT conversion manual](UNIT_CONVERSION_MANUAL_2026-07-10.md)
 - [LASAL command queue / RtWork design](LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md)
 - [LASAL CyWork-only TCP execution design](LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md)
+- [Group API implementation](GROUP_API_IMPLEMENTATION_2026-07-14.md)
 - [Session management design](SESSION_MANAGEMENT_DESIGN_2026-07-09.md)
 - [History handoff](../../../docs/history/260710/99_analysis_summary.md)

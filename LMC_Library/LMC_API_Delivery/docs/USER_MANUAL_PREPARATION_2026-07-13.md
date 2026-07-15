@@ -14,18 +14,19 @@ assembly `0.9.0.0`, product `0.9.0-pc-api` preview
 
 ## 1. 결론
 
-사용자 매뉴얼의 Markdown 원본 작성은 시작할 수 있다. PC API source, LASAL
-handler, canonical 프로젝트 Rebuild와 implementation-search smoke까지 완료했다.
-실제 PLC 시험은 아직 끝나지 않았으므로 최종 매뉴얼에서 `지원`이라고 표시할
-기능은 아래 세
-조건을 모두 만족한 항목으로 제한한다.
+사용자 매뉴얼의 Markdown 원본 작성은 시작할 수 있다. PC API source와 현재
+캡처 기반 23개 command 및 LASAL-local Group Power extension 2개, C# 46 tests,
+LASAL static/strict contract까지 완료했다. 다만 2026-07-14 group source 반영 뒤 canonical 프로젝트 Rebuild와
+implementation-search smoke, 실제 PLC 시험은 아직 끝나지 않았다. 최종
+매뉴얼에서 `지원`이라고 표시할 기능은 아래 세 조건을 모두 만족한 항목으로
+제한한다.
 
 1. 공개 C# 호출 경로가 있다.
 2. LASAL dispatcher가 실제 client method를 호출하거나 유효한 조회 응답을 만든다.
 3. 출판 전 LASAL IDE build와 PLC smoke test를 통과한다.
 
-PC에 메서드가 있어도 LASAL이 `-5`를 반환하는 기능은 사용 예제에 넣지 않고
-`현재 미지원` 표에만 기록한다.
+PC에 메서드가 있어도 current LASAL source나 PLC 검증이 없는 기능은 배포용
+완료 예제로 표시하지 않는다.
 
 ## 2. 매뉴얼 기준 자료
 
@@ -94,7 +95,7 @@ printable ASCII 1~79자여야 한다. 재접속 뒤에는 이전 axis/group 객�
 | `MoveAbsoluteEx` | 활성 | 본문 예제 대상 |
 | `MoveRelativeEx` | 활성 | 본문 예제 대상 |
 | `MoveVelocityEx` | 활성 | direction과 signed velocity 제약 포함 |
-| `ReadStatusResult` | 활성 | ready/standstill 확인의 기본 API |
+| `ReadStatusResult` | 활성 | power/home(`IsReferenced`)/standstill 확인의 기본 API |
 | `GetActualPositionResult` | 활성 | raw DINT를 UNIT으로 나누는 예제 포함 |
 
 동기 API와 `CancellationToken`을 받는 async API를 별도 절로 정리한다. motion
@@ -105,17 +106,26 @@ printable ASCII 1~79자여야 한다. 재접속 뒤에는 이전 axis/group 객�
 | API | LASAL 실행 | 매뉴얼 처리 |
 |---|---|---|
 | `GetGroupMembersInfoResult` | 응답 path 활성 | 본문에 포함 |
-| `GroupEnable`, `GroupDisable` | client call 활성 | 본문에 포함 |
-| `GroupReadStatusResult` | client call 활성 | 본문에 포함 |
-| `GroupReset` | `-5` | 현재 미지원 |
-| `GroupStop` | `-5` | 현재 미지원 |
-| `MoveLinearAbsoluteEx` | `-5` | 현재 미지원 |
-| `GroupReadActualPosition` | `-5` | PC 구현만 완료, 현재 미지원 |
-| `SetKinTransformCartesian4Axis` | `-5` | PC 구현만 완료, 현재 미지원 |
+| `GroupPowerOn`, `GroupPowerOff` | LASAL-local `RobotOn`/`RobotOff` 시작 요청 활성 | ACK 뒤 `IsPowerOn`으로 실제 상태를 확인한다고 명시 |
+| `GroupEnable`, `GroupDisable` | `LockProfile`/`UnlockProfile` 활성 | servo power와 분리된 profile lock API로 설명 |
+| `GroupReadStatusResult` | client call 활성 | `IsPowerOn`/`IsStandby`/`IsDisabled` 상태 의미 포함 |
+| `GroupReset` | `AxQuitError(AxisNo:=0)` 활성 | axis/hardware error reset이며 profile error 전체 reset이 아님을 명시 |
+| `GroupStop` | `StopMove(Mode:=3)` 활성 | deceleration/jerk, Aborting 제약과 ACK 후 상태 확인 포함 |
+| `MoveLinearAbsoluteEx` | static 4축 `MoveLinearCoord` 활성 | 승인된 coordinate/transition/buffer 조합만 예제화 |
+| `GroupReadActualPosition` | static identity axis-order 68B DINT 응답 활성 | None/ACS/MCS/PCS가 같은 현재 mapping임을 명시 |
+| `SetKinTransformCartesian4Axis` | exact identity 검증과 static mapping 등록 활성 | profile lock이나 dynamic transform 생성 기능이 아님을 명시 |
 
-그룹 motion 완료 예제는 `MoveLinearAbsoluteEx`가 실제 PLC에서 승인되기 전에는
-작성하지 않는다. `GroupReadStatusResult`는 valid bit `0x40000000`, standby bit
-`0x00020000`과 `GroupErrorId`를 함께 확인하도록 안내한다.
+`MoveLinearAbsoluteEx`는 position 1..4만 사용하고 5..16은 0이어야 한다.
+coordinate는 `None(0)`, transition은 `ExactStop(0)` 또는
+`ContinuousDirect(2)`, buffer는 `Aborting(1)` 또는 `Buffered(2)`만 허용한다.
+그룹 motion 예제 원본은 작성할 수 있지만 실제 PLC에서 승인되기 전에는
+배포용 완료 예제로 표시하지 않는다. `GroupReadStatusResult`는 valid bit
+`0x40000000`, LASAL-local Power Ready `0x00040000`, Maestro 표준 standby
+`0x00020000`/disabled `0x00010000`과 `GroupErrorId`를 함께 확인한다.
+
+`MoveCircle`은 현재 공개 C# API와 승인된 LASAL-DINT command ID/payload 계약에
+없다. 최종 매뉴얼의 API 사용법에는 포함하지 않고, 현재 버전 범위 밖이라고
+명시한다.
 
 ## 4. 반드시 포함할 UNIT 계약
 
@@ -131,10 +141,17 @@ printable ASCII 1~79자여야 한다. 재접속 뒤에는 이전 axis/group 객�
 - 축과 인자마다 PLC 설정 UNIT이 다를 수 있다.
 - `8,388,608`은 더미 23-bit encoder 예제이며 공통 배율이 아니다.
 - DINT 변환에는 `checked`와 명시적 반올림을 사용한다.
-- nonzero jerk 변환은 실제 motion profile 검증 전까지 예제에서 사용하지 않는다.
+- `_LMCAxis` Jerk의 단위는 `axis application unit/s^3/1000`이다. 따라서
+  `Jerk DINT = (물리 jerk / 1000) x 축 UNIT`으로 변환한다.
+- nonzero Jerk는 `_JERK_PROFILE`에서만 효과가 있다. 현재 저장된
+  `_LMCAxis1..4`는 `_JERK_PROFILE`, `JMax=75000 mm`지만 실제 다운로드된 PLC
+  설정과 장비 허용 범위는 시험 전에 다시 확인한다.
+- group motion의 nonzero Jerk도 `_LMCRobotBase1.MoveType=_JERK_PROFILE`이어야
+  효과가 있다. canonical network는 `_JERK_PROFILE`, `JMax=50000 mm`로
+  저장돼 있으며 PLC download 뒤 동일한지 다시 확인한다.
 
-최종 매뉴얼에는 `ToDint`, `FromDint` helper와 현재 `_LMCAxis1..4`의 `DEG`
-profile 예제를 포함한다.
+최종 매뉴얼에는 `ToDint`, `ToJerkDint`, `FromDint` helper와 현재 저장된
+`_LMCAxis1..4`의 `MM`/`_JERK_PROFILE` 예제를 포함한다.
 
 ## 5. 최종 매뉴얼 목차
 
@@ -148,14 +165,16 @@ profile 예제를 포함한다.
 8. 단일축 Power/Reset/Stop
 9. 단일축 Absolute/Relative/Velocity motion
 10. ReadStatus와 ActualPosition
-11. 그룹 Enable/Disable/Status/Member 조회
-12. 동기 API와 async/cancellation
-13. `LMC_Response`와 typed result 판정
-14. 오류 코드와 문제 해결
-15. 안전 정지, 종료 및 재연결
-16. 현재 미지원 API
-17. 전체 예제
-18. 버전, 변경 이력과 지원 문의 정보
+11. 그룹 Enable/Disable/Reset/Stop
+12. 그룹 Status/Member/ActualPosition 조회
+13. static 4축 MoveLinear와 identity kinematic profile
+14. 동기 API와 async/cancellation
+15. `LMC_Response`와 typed result 판정
+16. 오류 코드와 문제 해결
+17. 안전 정지, 종료 및 재연결
+18. 현재 범위 밖 API와 제한
+19. 전체 예제
+20. 버전, 변경 이력과 지원 문의 정보
 
 ## 6. 준비할 코드 예제
 
@@ -169,6 +188,10 @@ profile 예제를 포함한다.
 | Relative/Velocity | signed 값과 direction 제약, Stop 경로 |
 | 읽기 | typed result의 `IsSuccess`, `AxisErrorId`, raw position 변환 |
 | 그룹 상태 | Enable, `GroupReadStatusResult`, standby mask와 `GroupErrorId` |
+| 그룹 reset/stop | `GroupReset`, `GroupStop`, ACK와 정지 완료 상태 확인 |
+| 그룹 위치 | `GroupReadActualPosition`, 첫 4개 DINT와 static identity mapping |
+| 그룹 선형 이동 | 4축 position, 승인된 coordinate/transition/buffer, 완료 polling |
+| kinematic profile | X/Y/Z/U axis lookup, exact identity `SetKinTransformCartesian4Axis`, dynamic transform가 아님 |
 | async | `CancellationToken`, in-flight 취소 시 transport fault와 command outcome unknown, 재연결 전 객체 재사용 금지 |
 | 종료 | Stop/PowerOff 정책, `CloseConnection` 또는 `Dispose` |
 
@@ -198,19 +221,24 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 
 ## 8. 출판 전 필수 gate
 
-- [x] 이번 `_ROBOT_ERROR$DINT` 수정 뒤 LASAL IDE Rebuild/Link 0 error
-- [x] `Power`, `pos`, `velo` Find in Implementation smoke 성공
-- [x] smoke 시작 뒤 `%TEMP%/Lasal2.log`에 새 `CInvalidArgException` 없음
+- [x] C# 자동 테스트 46/46 통과
+- [x] 현재 LASAL static/strict contract 통과
+- [x] WPF example VS2019 MSBuild Debug 통과
+- [ ] 2026-07-14 group source 반영 뒤 LASAL IDE Rebuild/Link
+- [ ] group method의 Find in Implementation smoke와 이후 `%TEMP%/Lasal2.log` 확인
 - [ ] `TCPMotionInterface`와 axis RT thread의 CPU core/priority 조건 확인
 - [ ] RPC init/callback/close 실제 PLC 왕복 확인
 - [ ] `_LMCAxis1..4`와 group 실제 object name 확정
 - [ ] 단일축 8개 API의 성공/실패 ACK 및 read response 재캡처
-- [ ] 그룹 member/enable/disable/status 실제 응답 재캡처
-- [ ] unsupported 5개 API가 `-5`를 반환하고 motion을 실행하지 않는지 확인
-- [ ] PC 자동 테스트와 LASAL strict contract 통과
+- [ ] 그룹 power-on/off, member/enable/disable/status/reset/stop 실제 응답 재캡처
+- [ ] static 4축 MoveLinear 성공/인자 오류와 완료 상태 재캡처
+- [ ] GroupReadActualPosition 68B DINT와 static identity axis order 확인
+- [ ] SetKin exact identity 1320B request/4B ACK와 static mapping 등록 확인
+- [ ] GroupEnable/Disable의 `LockProfile`/`UnlockProfile` 결과 확인
 - [ ] 배포 DLL을 확정 commit에서 Release rebuild
 - [ ] DLL version, file size, SHA-256과 source commit 기록
-- [ ] 실제 PLC UNIT, software limit, ready/complete mask 확정
+- [ ] 실제 PLC UNIT, transmission ratio, software limit, ready/complete mask 확정
+- [ ] 10 mm/rev 설정 다운로드 후 4축 IntUnits/MaxModulo/BinOffset/absolute offset readback 및 재참조 확인
 - [ ] 매뉴얼 표지의 제품명, 회사명, 버전, 지원 연락처 확정
 
 ## 9. 현재 준비 상태
@@ -218,15 +246,18 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 | 항목 | 상태 |
 |---|---|
 | 공개 API inventory | 준비됨 |
-| 지원/미지원 분리 | 준비됨 |
+| 지원/범위 밖/제한 분리 | source 기준 준비됨, PLC 승인 대기 |
 | UNIT 정책 | 준비됨 |
 | 기본 C# 예제 | 존재, 최종 PLC 값 반영 필요 |
+| WPF example build | VS2019 Debug PASS, PLC 동작 승인 아님 |
 | 오류 모델 | source 기준 준비됨, PLC 실패 캡처 필요 |
-| LASAL build | Rebuild/Link 및 implementation smoke 완료 |
+| LASAL static contract | PASS |
+| 현재 LASAL IDE build | group source 반영 뒤 미검증 |
 | PLC E2E 근거 | 미완료 |
 | 배포 버전/해시 | 최종 source 확정 뒤 재생성 필요 |
 | 최종 문서 형식 | Markdown 원본 준비 후 PDF/DOCX 배포 형식 결정 필요 |
 
-현재 바로 할 다음 작업은 최신 Release test app으로 read-only부터 실제 PLC smoke를
+현재 바로 할 다음 작업은 canonical project의 Rebuild/Link와 implementation
+smoke를 먼저 수행한 뒤 최신 Release test app으로 read-only부터 실제 PLC smoke를
 진행하고 packet/상태 결과를 기록하는 것이다. 그 결과를 반영해 최종 사용자 매뉴얼
 Markdown 본문과 안전한 실행 예제를 작성한다.

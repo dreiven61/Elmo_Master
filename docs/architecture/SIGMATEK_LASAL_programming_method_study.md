@@ -84,12 +84,25 @@ non-RT `CyWork()`가 승인 명령을 실행·응답하는 구조다. interface 
 |---|---|
 | 승인 | `0x2023 Power`, `0x2024 Reset`, `0x2022 Stop`, `0x2028 ReadStatus`, `0x202E ReadPosition` |
 | 승인 | `0x209F MoveAbsolute`, `0x20A0 MoveRelative`, `0x20A2 MoveVelocity` |
-| 승인 | `0x2047 GroupEnable`, `0x2048 GroupDisable`, `0x2045 GroupReadStatus` |
-| 미지원, `-5` | `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear` |
-| 미지원, `-5` | `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform` |
+| 승인, LASAL local extension | `0x204A GroupPowerOn`, `0x204B GroupPowerOff` |
+| 승인 | `0x2047 GroupEnable/ProfileLock`, `0x2048 GroupDisable/ProfileUnlock`, `0x2045 GroupReadStatus` |
+| 승인, 정적 4축 제한 | `0x2049 GroupReset`, `0x2085 GroupStop`, `0x20A4 MoveLinear` |
+| 승인, 정적 identity 제한 | `0x2051 GroupReadActualPosition`, `0x20E7 SetKinTransform` |
 
 이 표의 승인은 source handler 실행 경로 기준이다. LASAL IDE Rebuild와 PLC 동작
 시험은 아직 완료되지 않았으므로 production 완료를 뜻하지 않는다.
+`0x204A/0x204B`는 기존 23개 캡처 명령이 아닌 project-local extension이며 ACK는
+비동기 `RobotOn`/`RobotOff` 요청 접수만 뜻한다. 정상 group 순서는
+`PowerOn -> IsPowerOn(0x00040000) 확인 -> SetKin(static mapping only) ->
+Enable/LockProfile -> motion -> Disable/UnlockProfile -> PowerOff ->
+IsPowerOn=false 확인`이다.
+`GroupReadStatus`의 `0x00040000`만 local Power Ready 확장이다.
+`0x00020000=NC_GROUP_STANDBY_MASK`와 `0x00010000=NC_GROUP_DISABLED_MASK`는
+Maestro 표준이며, 현재 어댑터가 각각 locked standby(`IsStandby/IsEnabled`)와
+unlocked disabled(`IsDisabled`) 조건에 mapping한다.
+`GroupReset`은 `AxQuitError(AxisNo:=0)` 기반 axis/hardware error reset이며 robot
+profile error 전체 초기화가 아니다. `GroupStop` ACK도 정지 완료가 아니라 command
+접수이므로 두 명령 모두 `GroupReadStatus`로 후속 상태를 확인한다.
 
 이 값들은 현재 문서/코드에서 확인한 사실이다. Elmo 원본 API와 SIGMATEK 구현이 1:1로 같다고 단정하지 않는다.
 
