@@ -4,13 +4,16 @@
 
 대상: `LasalMotionControlLib`
 
-예정 최종 문서: `LASAL_MOTION_CONTROL_LIB_USER_MANUAL_KO.md`
+편집 원본:
+`LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`
 
-배포 패키지 복사 위치:
-`LMC_Library/LMC_API/LMC_API/docs/USER_MANUAL_KO.md`
+초기 생성용 Markdown: `LMC_Library/LMC_API/API_USER_MANUAL_KO.md`
+
+최종 PDF:
+`LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf`
 
 현재 개발 등급: `.NET Framework 4.8`, C# 7.3,
-assembly `0.9.0.0`, product `0.9.0-pc-api` preview
+assembly `0.9.1.0`, product `0.9.1-preview`
 
 ## 1. 결론
 
@@ -56,9 +59,10 @@ PC에 메서드가 있어도 current LASAL source나 PLC 검증이 없는 기능
 폐기된 과거 task 분리 설계와 PMAS legacy LREAL API는 현재 사용 매뉴얼의 동작 근거로
 사용하지 않는다.
 
-`LMC_Library/LMC_API/LMC_API` 패키지는 이번 변경에서 최신 CyWork-only source와
-Release DLL/EXE로 다시 생성하고 `RELEASE_MANIFEST.md`의 size/hash를 갱신한다.
-이 패키지는 실기 시험용 preview이며 PLC E2E 승인본은 아니다.
+`LMC_Library/LMC_API/LMC_API`는 구버전 보관본이다. 신규 패키지는
+`LMC_Library/LMC_API_Distribution`의 `01_API`, `02_Example_Program`,
+`03_API_User_Manual` 세 항목으로만 구성한다. 상세 build metadata와 개발 검증
+기록은 외부 패키지에 포함하지 않고 내부 개발 문서에서 관리한다.
 
 ## 3. 매뉴얼에 포함할 현재 API 범위
 
@@ -255,7 +259,7 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 | 현재 LASAL IDE build | group source 반영 뒤 미검증 |
 | PLC E2E 근거 | 미완료 |
 | 배포 버전/해시 | 최종 source 확정 뒤 재생성 필요 |
-| 최종 문서 형식 | Markdown 원본 준비 후 PDF/DOCX 배포 형식 결정 필요 |
+| 최종 문서 형식 | 사용자 편집 DOCX 원본과 단일 한국어 PDF 배포 형식 확정 |
 
 현재 바로 할 다음 작업은 canonical project의 Rebuild/Link와 implementation
 smoke를 먼저 수행한 뒤 최신 Release test app으로 read-only부터 실제 PLC smoke를

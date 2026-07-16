@@ -175,5 +175,5 @@ E2E 완료로 표시하지 않는다.
 - queued cancellation active request 보존, async init/close 성공
 - reconnect 뒤 stale group object 거부
 - close nonzero ACK 예외/response/error 보존과 local cleanup
-- PC runner 42/42 PASS
+- PC runner 46/46 PASS (2026-07-15 재검증)
 - Debug/Release library와 WPF test app build 성공

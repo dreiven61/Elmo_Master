@@ -43,7 +43,8 @@ Target lookup/dispatch:
 - 0x103C/0x1042 carry the caller-provided ASCII object name.
 - LASAL compares it with actual names read from connected objects.
 - The returned UINT16 is an opaque descriptor, not a pointer.
-- Current deployment: axes 1..4, group 0x0100; 0 is invalid.
+- Current deployment: single-axis descriptors 1..9, group 0x0100; 0 is invalid.
+  Cartesian group identity/motion remains limited to axes 1..4 (X/Y/Z/U).
 - GroupReadStatus carries the group descriptor in both header [6] and payload [8].
 
 0x209F MoveAbsoluteEx, payload 32 bytes

@@ -480,7 +480,8 @@ production 지원으로 표시하지 않는다.
 - test app UI-thread blocking 제거, raw callback/group UI, UNIT/DINT 검사,
   live-command arm, MoveVelocity stop 추적, 정확한 `-5` 판정과 member PowerOn
   rollback 반영 완료; 실제 PLC 검증은 남음
-- assembly version `0.9.0.0`과 PC preview release manifest 반영 완료
+- assembly version `0.9.1.0`, product `0.9.1-preview`와 신규 Distribution
+  manifest 반영 완료
 - package DLL/EXE를 current source에서 Release rebuild하고 SHA-256 기록 완료;
   release artifact commit에서 ignored `bin` DLL도 명시적으로 추적
 - sample/function TXT/API list/packet map 문서는 current PC API로 교체 완료
@@ -488,11 +489,12 @@ production 지원으로 표시하지 않는다.
 
 ## 배포 패키지 상태
 
-`LMC_Library/LMC_API/LMC_API`에는 현재 PC preview 산출물을 조립했다.
+`LMC_Library/LMC_API/LMC_API`는 2026-07-13의 구버전 보관본으로 고정한다.
+현재 PC preview 산출물은 `LMC_Library/LMC_API_Distribution`에 조립한다.
 
 - README, API list, packet map, sample과 function/Command ID TXT를 현재
   캡처 기반 23 + LASAL local extension 2 PC public API 범위에 맞췄다.
-- `0.9.0.0` DLL/EXE를 current Release source에서 재빌드했고
+- `0.9.1.0` DLL/EXE를 current Release source에서 재빌드했고
   `RELEASE_MANIFEST.md`에 size와 SHA-256을 기록했다.
 - old tracked binary를 제거하고 새 이름의 package/Delivery DLL과 test-app
   DLL/EXE를 release artifact commit에서 명시적으로 추적했다.

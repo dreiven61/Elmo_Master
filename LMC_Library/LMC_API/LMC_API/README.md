@@ -1,4 +1,8 @@
-# LASAL Motion Control Lib 전달 패키지
+# LASAL Motion Control Lib 구버전 보관본
+
+> **배포 금지:** 이 폴더는 2026-07-13의 `0.9.0-pc-api` 스냅샷을 보존한
+> legacy archive다. 현재 소스 및 `0.9.1-preview` API와 일치하지 않는다.
+> 신규 배포는 `../../LMC_API_Distribution`만 사용한다.
 
 Elmo DLL 없이 LASAL-DINT v1 TCP 패킷으로 제어하는 C# API 전달 폴더입니다.
 기준 소스는 `../../LMC_API_Delivery`이며 public 함수 접두사는 `LMC_`가

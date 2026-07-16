@@ -46,8 +46,8 @@ var raw = checked((int)Math.Round(
   DINT를 그대로 송수신하는 모드이며 소수 입력은 거부한다.
 - NaN, Infinity와 DINT 범위 초과는 송신 전에 거부한다. 선택 UNIT이 있으면
   actual position은 `raw / UNIT`, Raw 모드이면 raw DINT만 표시한다.
-- `mm (x10000)`은 PC application UNIT이다. 현재 저장된 축 transmission은
-  실제 `10 mm/rev` 기준 `ExUnits=8388608`, `IntUnits=10 mm(100000)`이며 두
+- `mm (x10000)`은 PC application UNIT이다. 현재 Git 추적 축 transmission은
+  `ExUnits=8388608`, `IntUnits=1 mm(10000)`이며 두
   설정을 같은 값으로 취급하지 않는다.
 - `117440512 DINT`는 `mm` 선택에서 `11744.0512`, Raw 선택에서
   `117440512`로 입력한다. 이 변환 가능 범위와 PLC/장비 motion limit는 별개다.

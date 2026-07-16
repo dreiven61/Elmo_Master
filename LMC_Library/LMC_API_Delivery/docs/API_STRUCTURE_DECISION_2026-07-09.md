@@ -89,8 +89,8 @@ example selects the PLC application UNIT in caller code and also provides an
 explicit raw-DINT mode. Encoder counts remain part of the PLC/drive transmission
 ratio and are not a PC API UNIT.
 
-In the currently saved `Elmo_EtherCAT_Test_4Axis` project, `_LMCAxis1..4` use
-the `mm` macro and `_JERK_PROFILE`; the saved values are `IntUnits=10 mm/rev`,
+In the currently saved `Elmo_EtherCAT_Test_4Axis` project, `_LMCAxis1..9` use
+the `mm` macro and `_JERK_PROFILE`; the saved values are `IntUnits=1 mm/rev`,
 `VMax=75 mm`, `AMax=7500 mm`, and `JMax=75000 mm`. Current single-axis examples
 therefore use `LMC_Units.MM`. `RPM` is not a substitute for `_LMCAxis` speed in
 application units per second. The caller converts physical jerk with

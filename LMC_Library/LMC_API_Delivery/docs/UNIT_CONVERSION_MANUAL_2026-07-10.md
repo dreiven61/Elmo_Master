@@ -27,9 +27,11 @@ Jerk 송신 DINT = (물리 jerk / 1000) x 축 application UNIT
 
 현재 LASAL Motion Network의 `ExUnits=8,388,608`은 DS402/encoder 측 변환
 설정이다. PC API의 application UNIT이 아니며 PC 송신값에 곱하지 않는다.
-2026-07-14 저장 설정은 사용자가 제시한 `모터 1회전 = 10 mm` 기구비에 맞춰
-`_LMCAxis1..4.IntUnits=10 mm(100000)`로 변경했다. PC application UNIT은
-계속 `1 mm = LMC_Units.MM = 10000 DINT`다. DLL 내부 정·역변환은 사용하지 않는다.
+2026-07-15 Git 추적 Motion Network는 `_LMCAxis1..9`에
+`IntUnits=1 mm(10000)`, `SWMinPos=-10000 mm`, `SWMaxPos=10000 mm`를 저장한다.
+PC application UNIT도 `1 mm = LMC_Units.MM = 10000 DINT`이지만 두 설정은
+역할이 다르다. 실제 PLC 다운로드 값과 기구비가 Git 설정과 같은지 반드시
+확인하며, DLL 내부 정·역변환은 사용하지 않는다.
 
 ## UNIT 선택
 
@@ -81,24 +83,27 @@ InternalPosition [application unit]
     = ExternalPosition [encoder value] x IntUnits / ExUnits
 ```
 
-현재 프로젝트는 `ExUnits=8388608`, `IntUnits=10 mm(100000)`다. 즉
-`8,388,608 encoder count`가 `10 mm` 이동에 해당한다. 기구비를 확인하지 않고
+현재 Git 추적 프로젝트는 `ExUnits=8388608`, `IntUnits=1 mm(10000)`다. 즉
+저장된 변환식상 `8,388,608 encoder count`가 `1 mm` application 이동에
+해당한다. 기구비를 확인하지 않고
 `ExUnits`를 PC UNIT인 `10000`으로 바꾸거나 MaxModulo만 확대하면 실제 이동량이
 틀어진다.
 
 이 비율에서 application 좌표와 external signed-DINT 위치의 관계는 다음과 같다.
 
 ```text
-1280 mm -> 12,800,000 application DINT -> 0x40000000 external
-2500 mm -> 25,000,000 application DINT -> 0x7D000000 external
-2560 mm -> 25,600,000 application DINT -> 0x80000000 external (양의 범위 초과)
+128 mm -> 1,280,000 application DINT -> 0x40000000 external
+250 mm -> 2,500,000 application DINT -> 0x7D000000 external
+256 mm -> 2,560,000 application DINT -> 0x80000000 external (양의 범위 초과)
 ```
 
-따라서 external offset이 0일 때 한쪽 좌표 상한은 약 `2559.9999 mm`이고
-signed-DINT 전체 창의 폭은 약 `5120 mm`다. 기존 절대엔코더/BinOffset이
-`+0x40000000`만큼 남아 있으면 양의 headroom이 절반이므로 약 `1280 mm`에서
-경계에 도달한다. 이는 SIGMATEK 시스템의 고정 이동거리 한계가 아니라 현재
-external scale과 좌표 offset의 조합이다. 스케일을 바꾼 뒤 기존 retentive
+따라서 현재 Git 설정에서 external offset이 0일 때 한쪽 좌표 상한은 약
+`255.9999 mm`이고 signed-DINT 전체 창의 폭은 약 `512 mm`다. 기존
+절대엔코더/BinOffset이 `+0x40000000`만큼 남아 있으면 양의 headroom이
+절반이므로 약 `128 mm`에서 경계에 도달한다. 구형 10 mm/rev 설정에서는 같은
+external 경계가 약 `1280 mm`였다. 이는 SIGMATEK 시스템의 고정 이동거리
+한계가 아니라 현재 external scale과 좌표 offset의 조합이다. 스케일을 바꾼 뒤
+기존 retentive
 absolute position offset을 그대로 쓰지 말고 정식 재참조해야 한다.
 
 SIGMATEK MotionLib의 `_LMCAxis.SetParameter()` 문서는
@@ -109,16 +114,16 @@ Value x ExUnits / IntUnits > 2147483647 -> CommandError
 ```
 
 이 값은 internal unit으로 지정하며 마지막 Init cycle 이전에만 변경할 수 있다.
-현재 10 mm/rev 비율에서 설정 가능한 양의 최대값은 `25,599,999 DINT`, 즉
-`2559.9999 mm`다. `Resolution`을 키우면서 `IntUnits`도 같은 배수로 키우라는
+현재 1 mm/rev Git 비율에서 설정 가능한 양의 최대값은 `2,559,999 DINT`, 즉
+`255.9999 mm`다. `Resolution`을 키우면서 `IntUnits`도 같은 배수로 키우라는
 매뉴얼 규칙 때문에 두 값은 변환식에서 약분된다. Resolution은 저속 프로파일
 정밀도 조정용이며 좌표 범위 확대 수단이 아니다.
 
 MotionLib `_LMCAxis` 변경 이력은 SW end position이 비활성인 continuous/endless
 축에서 target이 내부 overflow 위치를 넘어도 overflow 위치까지 이동하고 좌표를
 보정한 뒤 남은 거리를 계속 이동한다고 명시한다. 현재 프로젝트의 `_LMCAxis
-1.120`은 이 기능이 추가된 `1.65`보다 최신이다. 따라서 `1280 mm`나
-`2560 mm`가 모든 단축 motion의 총 이동거리 한계는 아니다.
+1.120`은 이 기능이 추가된 `1.65`보다 최신이다. 따라서 현재 스케일의
+`128 mm`나 `256 mm`가 모든 단축 motion의 총 이동거리 한계는 아니다.
 
 단, 현재 Group motion의 `_LMCProfile`은 기본값
 `_LMCPROF_ChkEndPosForSwLimit=1`로 연결 축의 최종 허용 위치를 사전 검사한다.
@@ -126,36 +131,37 @@ MotionLib `_LMCAxis` 변경 이력은 SW end position이 비활성인 continuous
 이를 넘으면 `_LMCPROF_SWE_ERROR(7)`가 발생한다. 이 검사를 0으로 끄는 기능은
 있지만 유한 스트로크 4축 장비에서 기계 한계 대체책 없이 자동 적용하지 않는다.
 
-유한축 Group에서 약 `5120 mm`보다 넓은 절대좌표 창이 필요하면 Elmo 드라이브의
+유한축 Group에서 현재 약 `512 mm`보다 넓은 절대좌표 창이 필요하면 Elmo 드라이브의
 DS402 position scaling/electronic gearing으로 `0x6064`와 `0x607A`의 external
 unit 자체를 재설계하고 LASAL `ExUnits`를 그 값과 같이 바꿔야 한다. Elmo도
 [DS402 user-defined scaling](https://www.elmomc.com/capabilities/servo-technology/special-functionality/scaling-factors/)을
 지원한다. 정확한 drive object 값과 실제 기계 SW limit가 확정되기 전에는 이
 저장소의 EtherCAT startup parameter를 추정값으로 수정하지 않는다.
 
-현재 저장된 `Elmo_EtherCAT_Test_4Axis`의 `_LMCAxis1..4`는 Motion Network에서
+현재 저장된 `Elmo_EtherCAT_Test_4Axis`의 `_LMCAxis1..9`는 Motion Network에서
 아래처럼 `mm` macro와 `_JERK_PROFILE`을 사용한다. 실제 PLC에 다운로드된 설정이
 같은지는 live motion 전에 확인한다.
 
 | 항목 | 현재 PLC 설정 | PC 호출 UNIT |
 |---|---|---|
-| Position / IntUnits | `10 mm/rev` | `LMC_Units.MM` |
+| Position / IntUnits | `1 mm/rev` (`1 mm` macro) | `LMC_Units.MM` |
 | Speed / VMax | `75 mm` | `LMC_Units.MM` |
 | Accel, Decel / AMax | `7500 mm` | `LMC_Units.MM` |
 | Motion profile | `_JERK_PROFILE` | nonzero Jerk 적용 가능 |
 | Jerk / JMax | `75000 mm` | `(물리 jerk / 1000) x LMC_Units.MM` |
 
-### 10 mm/rev 설정 변경 후 필수 확인
+### 저장 설정 및 실제 PLC 필수 확인
 
-1. Servo off와 Group unlock 상태에서 새 네트워크를 다운로드하고 PLC를 재시작한다.
-2. 네 축 모두 `IntUnits=100000`, `Resolution=1`인지 확인한다.
+1. Servo off와 Group unlock 상태에서 승인된 네트워크를 다운로드하고 PLC를 재시작한다.
+2. 1~9축 모두 승인된 기구비와 일치하는지 확인한다. 현재 Git 기대값은
+   `IntUnits=10000`, `Resolution=1`이다.
 3. 기존 절대엔코더 offset을 임의로 0으로 쓰지 말고 장비의 실제 기준점에서
    정식 재참조한다.
 4. 각 축의 `LMCAXIS_PAR_RD_MAX_MODULO`, `LMCAXIS_PAR_RD_BINOFFSET`,
    `_LMCABSEncoder.PosOffset`, `PosOffsetOk`를 읽는다.
 5. Group을 다시 LockProfile한 뒤 profile의 최종 SW min/max를 읽는다.
-6. 실제 기계 SWMin/SWMax가 확정되기 전에는 1280 mm 이상 실기 이동을 수행하지
-   않는다.
+6. 실제 기계 SWMin/SWMax와 external headroom이 확정되기 전에는 큰 실기 이동을
+   수행하지 않는다.
 
 `_LMCAxis` 문서는 jerk를 `Application units / sec^3 / 1000`으로 정의한다.
 `unit.h`에는 jerk 전용 UNIT이 없으므로 위치와 같은 축 application-unit 상수를

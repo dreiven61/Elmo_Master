@@ -81,10 +81,10 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
   전송하려면 `11744.0512`를 입력한다. Raw 모드는 소수 입력을 거부한다.
 - UNIT 콤보는 PC 변환만 바꾼다. PLC의 software limit, MaxModulo, DS402 범위나
   실제 장비의 허용 이동 범위를 변경하지 않는다.
-- 현재 저장된 PLC transmission은 실제 `10 mm/rev` 기준
-  `ExUnits=8388608`, `IntUnits=10 mm(100000)`다. offset 0 기준 external
-  signed-DINT 좌표 상한은 약 `2559.9999 mm`이며, 기존 `+0x40000000`
-  BinOffset이 남아 있으면 양의 headroom은 약 `1280 mm`다. 스케일 변경 후
+- 현재 Git 추적 PLC transmission은 `ExUnits=8388608`,
+  `IntUnits=1 mm(10000)`다. offset 0 기준 external signed-DINT 좌표 상한은
+  약 `255.9999 mm`이며, 기존 `+0x40000000` BinOffset이 남아 있으면 양의
+  headroom은 약 `128 mm`다. 스케일 변경 후
   절대엔코더를 재참조하고 MaxModulo/BinOffset을 읽기 전에는 큰 이동을 시험하지
   않는다.
 - 단축 continuous/endless motion은 비활성 SW limit 상태에서 MaxModulo overflow

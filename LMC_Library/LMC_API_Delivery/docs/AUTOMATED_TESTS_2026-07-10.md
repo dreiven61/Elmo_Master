@@ -40,7 +40,7 @@
 - async init/close와 취소 가능한 axis/group factory 성공, reconnect 뒤 stale
   group handle 및 generation-bound exchange 거부
 - axis lookup 뒤 AxisInfo success/malformed/command-error
-- LASAL static contract: generated client count/entries, 4-axis network links,
+- LASAL static contract: generated client count/entries, 9-axis network links,
   C#-ST critical offsets, 32-bit error truncation guards, legacy command block,
   `_JERK_PROFILE`/nonzero JMax와 Stop/Move Jerk 수신·전달 경로
 

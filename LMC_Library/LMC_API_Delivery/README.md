@@ -4,7 +4,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 
 ## 개발 상태
 
-2026-07-14 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
+2026-07-15 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다.
@@ -119,7 +119,8 @@ receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 que
 
 ## 폴더
 
-- `bin/LasalMotionControlLib.dll`: current `0.9.0-pc-api` preview DLL
+- `src/bin/Release/LasalMotionControlLib.dll`: 개발 빌드 산출물. 배포 기준 DLL은
+  `../LMC_API_Distribution/01_API/LasalMotionControlLib.dll`의 `0.9.1-preview`다.
 - `src/`: DLL 전체 C# 소스
 - `sample/BasicUsage.cs`: RPC 연결, raw callback, caller-side UNIT 변환과
   단일축 motion 호출 전 안전 확인 구조 예제
