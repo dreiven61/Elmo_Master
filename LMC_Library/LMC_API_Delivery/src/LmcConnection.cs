@@ -520,13 +520,14 @@ namespace LasalMotionControlLib
 
             if (safeRaw.Length >= expectedLength && response.PayloadLength > 0)
             {
-                response.Payload = new byte[response.PayloadLength];
+                var payload = new byte[response.PayloadLength];
                 Buffer.BlockCopy(
                     safeRaw,
                     LMC_Frame.HeaderSize,
-                    response.Payload,
+                    payload,
                     0,
                     response.PayloadLength);
+                response.Payload = payload;
             }
 
             return response;

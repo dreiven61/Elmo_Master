@@ -41,6 +41,14 @@ namespace LasalMotionControlLib.Tests
             AssertEx.SequenceEqual(new byte[] { 1, 2, 3 }, response.Payload);
             AssertEx.SequenceEqual(raw, response.Raw);
 
+            var mutablePayload = response.Payload;
+            mutablePayload[0] = 0xFF;
+            AssertEx.SequenceEqual(new byte[] { 1, 2, 3 }, response.Payload);
+
+            var mutableRaw = response.Raw;
+            mutableRaw[0] = 0xFF;
+            AssertEx.SequenceEqual(raw, response.Raw);
+
             var headerError = LMCConnection.Parse(
                 TestFrame.Response(7, new byte[0]));
             AssertEx.True(headerError.IsFrameValid);

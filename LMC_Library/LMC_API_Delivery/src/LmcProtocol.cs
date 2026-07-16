@@ -17,11 +17,22 @@ namespace LasalMotionControlLib
     {
         private const ushort FunctionStatusCommandErrorMask = 0x0010;
 
-        public byte[] Raw { get; internal set; }
+        private byte[] raw;
+        private byte[] payload;
+
+        public byte[] Raw
+        {
+            get { return CloneOrEmpty(raw); }
+            internal set { raw = CloneOrEmpty(value); }
+        }
         public ushort HeaderStatus { get; internal set; }
         public ushort PayloadLength { get; internal set; }
         public uint HeaderReserved { get; internal set; }
-        public byte[] Payload { get; internal set; }
+        public byte[] Payload
+        {
+            get { return CloneOrEmpty(payload); }
+            internal set { payload = CloneOrEmpty(value); }
+        }
         public bool IsFrameValid { get; internal set; }
         public bool HasCommandResult { get; internal set; }
         public ushort CommandStatus { get; internal set; }
@@ -56,6 +67,11 @@ namespace LasalMotionControlLib
             }
 
             return CommandStatus == 0;
+        }
+
+        private static byte[] CloneOrEmpty(byte[] value)
+        {
+            return value == null ? new byte[0] : (byte[])value.Clone();
         }
     }
 
