@@ -54,6 +54,12 @@
       Targets="Build"
       Properties="Configuration=$(Configuration);Platform=AnyCPU" />
   </Target>
-  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildSimpleExampleApp" />
+  <Target Name="BuildDistributionExampleApp">
+    <MSBuild
+      Projects="$(MSBuildProjectDirectory)\..\..\..\LMC_API_Distribution\02_Example_Program\LasalApiWpfTestApp\LasalApiWpfTestApp.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);Platform=AnyCPU" />
+  </Target>
+  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildSimpleExampleApp;BuildDistributionExampleApp" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

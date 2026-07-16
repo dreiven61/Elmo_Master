@@ -10,6 +10,11 @@
 # Local caches / logs
 *.cache
 *.log
+**/__pycache__/
+*.py[cod]
+
+# Generated document staging output
+/output/doc/
 
 # Test outputs and packet captures
 **/Reports/
@@ -38,6 +43,7 @@ EtherCAT Controller(Master)*.xlsx
 *.rar
 *.7z
 *.pdf
+!LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf
 
 # LASAL / SIGMATEK IDE generated or local-state files
 # Keep source files (*.st, *.h, *.cpp, *.c), selected project/network files, and docs
