@@ -21,6 +21,7 @@
    - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/**/*.st`
    - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/**/*`
 2. 프로젝트 분석 문서
+   - `docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`
    - `docs/PMAS_LASAL_Integrated_Analysis_2026-04-10.md`
    - `docs/architecture/SIGMATEK_LASAL_coding_rules.md`
    - `docs/architecture/SIGMATEK_LASAL_programming_method_study.md`
@@ -30,9 +31,10 @@
    - `output/pdf/maestro_api_md/**`
    - 루트의 Maestro/MMCLib PDF와 압축 해제 자료
 4. 실험 자료
-   - `packet_capture/**`
-   - `profile_capture/**`
-   - `Codex_*_WPF/Reports/**`
+   - `test/packet_capture/**`
+   - `test/profile_capture/**`
+   - `test/Reports_PMAS/**`
+   - `test/Reports_Lasal/**`
 
 주의:
 

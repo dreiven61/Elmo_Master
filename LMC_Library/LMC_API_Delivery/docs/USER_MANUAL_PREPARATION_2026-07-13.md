@@ -2,6 +2,14 @@
 
 작성일: 2026-07-13
 
+최종 상태 갱신: 2026-07-16
+
+> 이 문서는 매뉴얼 제작 준비 기록이다. 현재 제품 구조, 검증 수치와 릴리스
+> 차단 항목은
+> [ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md](../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)를
+> 우선한다. 특히 실제 PLC command E2E/재캡처는 아직 `0/25`이며, 현재
+> `GroupReadActualPosition`의 slot 1..9 복사 동작은 공개 계약이 확정되지 않았다.
+
 대상: `LasalMotionControlLib`
 
 편집 원본:
@@ -19,7 +27,7 @@ assembly `0.9.1.0`, product `0.9.1-preview`
 
 사용자 매뉴얼의 Markdown 원본 작성은 시작할 수 있다. PC API source와 현재
 캡처 기반 23개 command 및 LASAL-local Group Power extension 2개, C# 46 tests,
-LASAL static/strict contract까지 완료했다. 다만 2026-07-14 group source 반영 뒤 canonical 프로젝트 Rebuild와
+LASAL static/strict contract까지 완료했다. 다만 현재 group/9-axis source 반영 뒤 canonical 프로젝트 Rebuild와
 implementation-search smoke, 실제 PLC 시험은 아직 끝나지 않았다. 최종
 매뉴얼에서 `지원`이라고 표시할 기능은 아래 세 조건을 모두 만족한 항목으로
 제한한다.
@@ -148,14 +156,16 @@ coordinate는 `None(0)`, transition은 `ExactStop(0)` 또는
 - `_LMCAxis` Jerk의 단위는 `axis application unit/s^3/1000`이다. 따라서
   `Jerk DINT = (물리 jerk / 1000) x 축 UNIT`으로 변환한다.
 - nonzero Jerk는 `_JERK_PROFILE`에서만 효과가 있다. 현재 저장된
-  `_LMCAxis1..4`는 `_JERK_PROFILE`, `JMax=75000 mm`지만 실제 다운로드된 PLC
+  `_LMCAxis1..9`는 `_JERK_PROFILE`, `JMax=75000 mm`지만 실제 다운로드된 PLC
   설정과 장비 허용 범위는 시험 전에 다시 확인한다.
 - group motion의 nonzero Jerk도 `_LMCRobotBase1.MoveType=_JERK_PROFILE`이어야
   효과가 있다. canonical network는 `_JERK_PROFILE`, `JMax=50000 mm`로
   저장돼 있으며 PLC download 뒤 동일한지 다시 확인한다.
 
 최종 매뉴얼에는 `ToDint`, `ToJerkDint`, `FromDint` helper와 현재 저장된
-`_LMCAxis1..4`의 `MM`/`_JERK_PROFILE` 예제를 포함한다.
+`_LMCAxis1..9`의 `MM`/`_JERK_PROFILE` 예제를 포함한다. 실제 장비 safety와
+PDO 검증 대상은 physical axis 1..4이고, axis 5..9는 `SimulateMode=1` software
+axis라는 점을 분리해서 설명한다.
 
 ## 5. 최종 매뉴얼 목차
 
@@ -193,7 +203,7 @@ coordinate는 `None(0)`, transition은 `ExactStop(0)` 또는
 | 읽기 | typed result의 `IsSuccess`, `AxisErrorId`, raw position 변환 |
 | 그룹 상태 | Enable, `GroupReadStatusResult`, standby mask와 `GroupErrorId` |
 | 그룹 reset/stop | `GroupReset`, `GroupStop`, ACK와 정지 완료 상태 확인 |
-| 그룹 위치 | `GroupReadActualPosition`, 첫 4개 DINT와 static identity mapping |
+| 그룹 위치 | `GroupReadActualPosition`, tracked source의 slot 1..9와 실제 axis-order를 대조하고 공개 범위 결정 |
 | 그룹 선형 이동 | 4축 position, 승인된 coordinate/transition/buffer, 완료 polling |
 | kinematic profile | X/Y/Z/U axis lookup, exact identity `SetKinTransformCartesian4Axis`, dynamic transform가 아님 |
 | async | `CancellationToken`, in-flight 취소 시 transport fault와 command outcome unknown, 재연결 전 객체 재사용 금지 |
@@ -228,21 +238,21 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 - [x] C# 자동 테스트 46/46 통과
 - [x] 현재 LASAL static/strict contract 통과
 - [x] WPF example VS2019 MSBuild Debug 통과
-- [ ] 2026-07-14 group source 반영 뒤 LASAL IDE Rebuild/Link
+- [ ] 현재 group/9-axis source 반영 뒤 LASAL IDE Rebuild/Link
 - [ ] group method의 Find in Implementation smoke와 이후 `%TEMP%/Lasal2.log` 확인
 - [ ] `TCPMotionInterface`와 axis RT thread의 CPU core/priority 조건 확인
 - [ ] RPC init/callback/close 실제 PLC 왕복 확인
-- [ ] `_LMCAxis1..4`와 group 실제 object name 확정
+- [ ] `_LMCAxis1..9`와 group 실제 object name, physical 1..4/simulated 5..9 구분 확정
 - [ ] 단일축 8개 API의 성공/실패 ACK 및 read response 재캡처
 - [ ] 그룹 power-on/off, member/enable/disable/status/reset/stop 실제 응답 재캡처
 - [ ] static 4축 MoveLinear 성공/인자 오류와 완료 상태 재캡처
-- [ ] GroupReadActualPosition 68B DINT와 static identity axis order 확인
+- [ ] GroupReadActualPosition 68B DINT slot 1..9와 static identity axis order 확인 후 4축/9축 공개 계약 확정
 - [ ] SetKin exact identity 1320B request/4B ACK와 static mapping 등록 확인
 - [ ] GroupEnable/Disable의 `LockProfile`/`UnlockProfile` 결과 확인
 - [ ] 배포 DLL을 확정 commit에서 Release rebuild
 - [ ] DLL version, file size, SHA-256과 source commit 기록
 - [ ] 실제 PLC UNIT, transmission ratio, software limit, ready/complete mask 확정
-- [ ] 10 mm/rev 설정 다운로드 후 4축 IntUnits/MaxModulo/BinOffset/absolute offset readback 및 재참조 확인
+- [ ] 현재 1 mm/rev Git 설정 다운로드 후 physical 4축의 IntUnits/MaxModulo/BinOffset/absolute offset readback 및 재참조 확인
 - [ ] 매뉴얼 표지의 제품명, 회사명, 버전, 지원 연락처 확정
 
 ## 9. 현재 준비 상태
@@ -256,10 +266,10 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 | WPF example build | VS2019 Debug PASS, PLC 동작 승인 아님 |
 | 오류 모델 | source 기준 준비됨, PLC 실패 캡처 필요 |
 | LASAL static contract | PASS |
-| 현재 LASAL IDE build | group source 반영 뒤 미검증 |
-| PLC E2E 근거 | 미완료 |
-| 배포 버전/해시 | 최종 source 확정 뒤 재생성 필요 |
-| 최종 문서 형식 | 사용자 편집 DOCX 원본과 단일 한국어 PDF 배포 형식 확정 |
+| 현재 LASAL IDE build | group/9-axis source 반영 뒤 미검증 |
+| PLC E2E 근거 | `0/25`, 미완료 |
+| 배포 버전/해시 | `0.9.1-preview` 산출물과 내부 hash 기록 존재, production 승인 아님 |
+| 최종 문서 형식 | DOCX/PDF 형식은 확정, 외부 문서 버전 1.0을 내부 Markdown 1.4로 재출판 필요 |
 
 현재 바로 할 다음 작업은 canonical project의 Rebuild/Link와 implementation
 smoke를 먼저 수행한 뒤 최신 Release test app으로 read-only부터 실제 PLC smoke를

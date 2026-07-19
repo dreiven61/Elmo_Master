@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-13
+최종 갱신: 2026-07-16
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis` LASAL 프로젝트를 수정할 때
 필요한 구조와 작업 방법을 정리한 문서다. 기준 자료는 현재 소스,
@@ -64,8 +64,10 @@ WPF에서 LASAL로 명령을 보내는 목표 흐름은 다음과 같다.
 
 현재 tracked source는 `Response()`가 frame을 depth-8 queue에 게시하고,
 non-RT `CyWork()`가 승인 명령을 실행·응답하는 구조다. interface RT task,
-`RtWork()` override, RT mailbox와 atomic state는 사용하지 않는다. 지원하지 않는
-명령은 deterministic error `-5`로 응답한다. LASAL IDE Rebuild와 PLC 동작 시험
+`RtWork()` override, RT mailbox와 atomic state는 사용하지 않는다. 알 수 없는
+command ID는 deterministic error `-4`로 응답한다. 알려진 command에 대응 method가
+없는 경우의 예약 오류는 `-5`지만 현재 23+2 공개 범위에는 남은 `-5` gate가 없다.
+LASAL IDE Rebuild와 PLC 동작 시험
 전에는 source 구현 상태로만 판정하며 상세 gate는 오류 예방 지침서와
 `LMC_Library/LMC_API_Delivery/docs/LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`를
 따른다.
@@ -108,13 +110,16 @@ profile error 전체 초기화가 아니다. `GroupStop` ACK도 정지 완료가
 
 ## 6. Axis/Network 작업 방법
 
-- `Elmo_11`과 `PosController1/_LMCAxis1` 연결을 기준점으로 사용한다.
-- `Elmo_2`, `Elmo_3`, `Elmo_4` 추가 시 아래 항목을 같은 패턴으로 맞춘다:
+- physical 기준점은 `Elmo_11`과 `PosController1/_LMCAxis1` 연결이다.
+- physical 축 2~4는 아래 항목을 축 1과 같은 패턴으로 맞춘다:
   - drive object
   - axis object
   - Client/Server channel
   - Motion network 연결
   - include/channel generated header
+- `_LMCAxis5..9`는 `SimulateMode=1` software axis다. physical DS402/PDO 연결을
+  임의로 복제하지 않고 axis client, task, UNIT과 robot software connection을 확인한다.
+- single-axis dispatcher는 1..9, Cartesian SetKin/Lock/Move는 X/Y/Z/U 1..4다.
 - 네트워크 변경 후에는 `Motion_Network.lcn`, `Networks.lcb`, `ONE_Motion_Network_Table.st`를 같이 확인한다.
 
 ## 7. ST 문법 주의점
@@ -140,8 +145,10 @@ Group 구현이 확정되지 않은 상태에서 Elmo API 이름만 맞춘 더�
 ## 9. 문서화 기준
 
 - 구조 변경: `docs/architecture/`에 반영
-- API/프레임 변경: `docs/PMAS_LASAL_Integrated_Analysis_2026-04-10.md` 또는 별도 protocol 문서에 반영
-- 테스트 결과: `packet_capture/` 또는 `Codex_*_WPF/Reports/`에 원본을 두고, 요약은 md로 작성
+- API/프레임 변경: `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`와
+  `ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`에 반영
+- 테스트 결과: `test/packet_capture/`, `test/profile_capture/` 또는
+  `test/Reports_*`에 원본을 두고, 요약은 md로 작성
 - 긴 히스토리 문서: 날짜 폴더로 분할하고 `index.md`를 둔다.
 
 ## 10. 결론

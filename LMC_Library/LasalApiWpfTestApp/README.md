@@ -74,7 +74,7 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
 
 - DLL은 UNIT을 곱하거나 나누지 않는다. 이 예제의 Axis/Group UNIT 콤보가
   송신 전에 호출자 측 변환 방식을 선택한다.
-- 기본 선택 `mm (x10000)`은 현재 저장된 `_LMCAxis1..4`의 `1 mm` macro와
+- 기본 선택 `mm (x10000)`은 현재 저장된 `_LMCAxis1..9`의 `1 mm` macro와
   일치한다. `8,388,608`은 encoder 측 `ExUnits`이며 PC API UNIT이 아니다.
 - `None / raw DINT`를 선택하면 정수 입력을 변환 없이 보낸다. 예를 들어
   `117440512`를 입력하면 같은 DINT가 전송된다. `mm` 선택에서 같은 값을
@@ -93,7 +93,7 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
 - Jerk 입력 단위는 `_LMCAxis`가 정의한 `axis application unit/s^3/1000`이다.
   UI는 입력값에 UNIT을 곱해 DINT로 보내며 기본값 `0`도 허용한다. 예를 들어
   물리 jerk가 `1000 mm/s^3`이면 Jerk 칸에 `1`을 입력하고 UNIT `10000`을 사용한다.
-- 현재 저장된 `_LMCAxis1..4`는 `_JERK_PROFILE`, `JMax=75000 mm`다. nonzero
+- 현재 저장된 `_LMCAxis1..9`는 `_JERK_PROFILE`, `JMax=75000 mm`다. nonzero
   Jerk 시험 전 다운로드된 PLC의 MoveType/JMax와 장비 허용 범위를 다시 확인한다.
 - Group UNIT 콤보도 PC UI가 적용한다. 현재 static group은 X/Y/Z/U 4축,
   `Coordinate=None`, `ExactStop`/`ContinuousDirect`, `Aborting`/`Buffered`만
@@ -121,6 +121,10 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
   상태 조회 실패와 `Home/Referenced=False`를 구분해 표시하며, 후자의 경우에도
   Set Identity 전송을 차단한다. 가상축 5~9는 Cartesian identity 대상이 아니므로
   이 검사에 자동 포함하지 않는다.
+- Group Read Position은 wire상 DINT[16]이다. current PLC source는
+  `_LMCPROF_POS`의 Pos1..Pos9를 slot 1..9에 복사하지만 기존 문서는 4축-only로
+  설명했다. PLC 재캡처로 계약을 확정하기 전에는 slot 5..9를 production 값으로
+  사용하지 않는다. 이 readback 문제는 4축 Move/SetKin/Lock 범위를 넓히지 않는다.
 - Single Axis 탭은 object name 자유 입력 방식이므로 `_LMCAxis1`부터
   `_LMCAxis9`까지 한 축씩 Load해 동일한 Power/Read/Move/Stop/Reset API를 시험한다.
   이 지원 범위는 9축 동시 Cartesian group motion을 뜻하지 않는다.

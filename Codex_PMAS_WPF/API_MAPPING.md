@@ -3,7 +3,8 @@
 - Solution: `C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\PmasApiWpfTestApp.sln`
 - Project: `C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\PmasApiWpfTestApp\PmasApiWpfTestApp.csproj`
 - Target: `.NET Framework 4.8`, `WPF`, `Visual Studio 2019`
-- Output: `C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\PmasApiWpfTestApp\bin\Debug\net48\PmasApiWpfTestApp.exe`
+- Output: `C:\work\Elmo\Elmo_Master\Codex_PMAS_WPF\PmasApiWpfTestApp\bin\Debug\PmasApiWpfTestApp.exe`
+- Role: Elmo MMCLibDotNET reference/benchmark app; LASAL delivery app가 아님
 
 ## Implemented Areas
 

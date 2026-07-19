@@ -2,7 +2,8 @@
 
 작성일: 2026-07-13
 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-상태: 2026-07-14 group API와 large frame queue 반영, LASAL IDE Rebuild/PLC 재검증 대기
+상태: 2026-07-16 9축 dispatcher와 group API/large frame queue 반영,
+LASAL IDE Rebuild/PLC 재검증 대기
 
 `Motion_Network.lcn`과 `ONE_Motion_Network_Table.st`는 no-RT 설정으로 함께
 재생성됐다. `_TCPIPServer1.Config=0`, `MaxConnections=1`이며
@@ -23,8 +24,8 @@ no-RT baseline의 Rebuild/Link는 성공했지만 2026-07-14 group handler와 bu
 - RT request/result mailbox, `RtWork()` override, `sigclib_atomic_*` 호출은
   `TCPMotionInterface`에서 사용하지 않는다.
 
-이 결정은 TCP API interface에만 적용된다. EtherCAT과 motion 제어에 필요한
-`_LMCAxis1..4`의 기존 RT task까지 제거한다는 뜻은 아니다.
+이 결정은 TCP API interface에만 적용된다. physical 축 1..4와 simulated 축
+5..9의 `_LMCAxis` RT task까지 제거한다는 뜻은 아니다.
 
 ## 2. 빌드 에러 원인
 
@@ -89,18 +90,19 @@ wire overlay는 유지하지만 typed scalar field의 확대 변환에는 postfi
 
 protocol 범위는 기존 캡처 기반 23개와 LASAL project-local extension 2개
 (`0x204A/0x204B`)로 구분한다. local extension 2개를 캡처 명령 수에 포함하지
-않는다. 아래 runtime client-call 활성 범위는 axis 8개 + group 10개, 총 18개다.
+않는다. 아래 runtime axis/group control·read·motion 범위는 axis 8개 + group
+10개, 총 18개다. lifecycle과 name/member metadata handler는 이 수에서 제외한다.
 
 | 명령 | 실행 위치 | 동작 |
 |---|---|---|
-| `0x2023 Power` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.PowerOn()` 또는 `PowerOff()` 호출, ACK |
-| `0x2024 Reset` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.QuitError()` 호출, ACK |
-| `0x2022 Stop` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.StopMove()` 호출, ACK |
-| `0x202E ReadActualPosition` | `MsgPaser()`의 CyWork context | 연결 확인 후 `LMCAxis1..4.ReadPosition()` 호출, 16바이트 응답 |
+| `0x2023 Power` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.PowerOn()` 또는 `PowerOff()` 호출, ACK |
+| `0x2024 Reset` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.QuitError()` 호출, ACK |
+| `0x2022 Stop` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.StopMove()` 호출, ACK |
+| `0x202E ReadActualPosition` | `MsgPaser()`의 CyWork context | 연결 확인 후 `LMCAxis1..9.ReadPosition()` 호출, 16바이트 응답 |
 | `0x2028 ReadStatus` | `MsgPaser()`의 CyWork context | 연결 확인 후 `ReadAxisStatus()`와 `ReadAxisError()` 호출, 20바이트 응답 |
-| `0x209F MoveAbsoluteEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.MoveShortestWay()` 호출, ACK |
-| `0x20A0 MoveRelativeEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.MoveRelative()` 호출, ACK |
-| `0x20A2 MoveVelocityEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..4.MoveEndless()` 호출, ACK |
+| `0x209F MoveAbsoluteEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveShortestWay()` 호출, ACK |
+| `0x20A0 MoveRelativeEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveRelative()` 호출, ACK |
+| `0x20A2 MoveVelocityEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveEndless()` 호출, ACK |
 | `0x204A GroupPowerOn` | `MsgPaser()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOn()` 시작 요청, 접수 ACK |
 | `0x204B GroupPowerOff` | `MsgPaser()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOff()` 시작 요청, 접수 ACK |
 | `0x2047 GroupEnable` | `MsgPaser()`의 CyWork context | 검증된 static mapping을 `LMCRobot.LockProfile()`로 lock, ACK |
@@ -109,7 +111,7 @@ protocol 범위는 기존 캡처 기반 23개와 LASAL project-local extension 2
 | `0x2049 GroupReset` | `MsgPaser()`의 CyWork context | 축/하드웨어 오류용 `LMCRobot.AxQuitError(AxisNo:=0)` 호출, ACK |
 | `0x2085 GroupStop` | `MsgPaser()`의 CyWork context | `LMCRobot.StopMove(Mode:=3, Decel, Jerk)` 호출, command 접수 ACK |
 | `0x20A4 MoveLinearAbsoluteEx` | `MsgPaser()`의 CyWork context | static 4축과 승인된 mode를 검사해 `LMCRobot.MoveLinearCoord()` 호출, ACK |
-| `0x2051 GroupReadActualPosition` | `MsgPaser()`의 CyWork context | static axis-order identity `GetRobotPosition()` 호출, 76바이트 frame/68바이트 payload 반환 |
+| `0x2051 GroupReadActualPosition` | `MsgPaser()`의 CyWork context | `GetRobotPosition()`의 Pos1..Pos9를 현재 source가 복사, 76바이트 frame/68바이트 payload 반환; 공개 4-vs-9 read 계약 재확정 필요 |
 | `0x20E7 SetKinTransformCartesian4Axis` | `MsgPaser()`의 CyWork context | exact 1,320-byte X/Y/Z/U identity 요청의 static mapping 검증/설정만 수행, 4바이트 ACK payload; profile lock은 하지 않음 |
 | RPC init/callback/close, name lookup | CyWork | 기존 non-motion 처리 유지 |
 
@@ -142,7 +144,7 @@ nonzero group Jerk를 적용하기 위해 canonical `_LMCRobotBase1`은
 각 활성 command는 canonical C# serializer와 같은 payload length, descriptor,
 execute/direction/buffer field를 검사한다. `0x2028`은 header/payload descriptor
 일치와 `Execute=1`도 검사한다. `0x202E`은 payload 길이 1, payload byte 0,
-descriptor 1..4를 검사한다. client 미연결은 `-2`, 잘못된 frame/descriptor는
+descriptor 1..9를 검사한다. client 미연결은 `-2`, 잘못된 frame/descriptor는
 `-3`, 지원 범위 밖 motion 조합은 `-7`이다.
 
 ### 기존 DummyMMCLib와 byte offset 대조
@@ -206,8 +208,8 @@ RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니
 - request entry의 `UINT` 필드 세 개를 `TO_DINT(...)`로 숫자 확대하고
   `ActiveRequest.<field>$DINT`를 사용하지 않음
 - `Response()` callback isolation
-- axis Power/Reset/Stop/Read/Move 8개 command의 request validation, 4축 dispatch와 ACK/typed response
-- group 10개 client-call command의 descriptor, payload validation, LASAL method와 response
+- axis Power/Reset/Stop/Read/Move 8개 command의 request validation, 1..9축 dispatch와 ACK/typed response
+- group 10개 runtime control/read/motion command의 descriptor, payload validation, LASAL method와 response
 - receive 2,048 bytes, request 1,328 bytes, queue payload 1,320 bytes와
   fragmented/combined large-frame bound
 - `0x20A4` static 4축/mode 제한, `0x2051` exact 68-byte response,
@@ -217,15 +219,19 @@ RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니
 
 PLC에서는 추가로 아래를 확인한다.
 
-- axis 1..4에서 `0x202E` 값이 실제 위치와 일치
-- axis 1..4에서 `0x2028` status/error가 native 값과 일치
+- physical axis 1..4와 simulated software axis 5..9에서 `0x202E` 값이 각
+  LASAL object의 실제 위치와 일치
+- physical axis 1..4와 simulated software axis 5..9에서 `0x2028`
+  status/error가 각 native 값과 일치
 - Power/Reset/Stop은 local safety chain을 준비한 상태에서 command ACK와 실제 상태를 대조
 - MoveAbsolute/Relative/Velocity는 무부하·저속·짧은 이동으로 순차 검증
 - GroupPowerOn ACK 뒤 `IsPowerOn(0x00040000)`까지 확인하고, PowerOff ACK도 실제 off 상태와 대조
 - GroupEnable/Disable은 각각 `LockProfile`/`UnlockProfile`과 `0x00020000`/`0x00010000` 상태를 대조
 - GroupReset/GroupStop은 실제 error/stop 상태와 ACK를 대조
 - MoveLinear는 static 4축, None, 승인된 transition/buffer 조합에서만 짧게 검증
-- GroupReadActualPosition은 first 4 DINT와 실제 axis-order position을 대조
+- GroupReadActualPosition은 tracked handler가 채우는 slot 1..9와 실제
+  axis-order position을 대조하고, PLC 재캡처 뒤 4축-only 또는 9축 readback 중
+  하나를 공개 계약으로 확정
 - SetKin은 exact 1,320-byte identity request, 4-byte ACK와 static mapping만 대조하고 profile lock을 기대하지 않음
 - 승인 범위 밖 group mode가 `-7`이고 client motion을 시작하지 않는지 확인
 - fragmented/combined/burst frame 순서 유지

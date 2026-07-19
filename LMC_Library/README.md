@@ -16,6 +16,8 @@
 
 ## 개발자 시작 위치
 
+- 프로젝트 전체 현재 상태:
+  [`../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`](../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)
 - 구조/변경/릴리스 절차:
   [`LMC_API/API_DEVELOPMENT_GUIDE.md`](LMC_API/API_DEVELOPMENT_GUIDE.md)
 - 최근 source review:

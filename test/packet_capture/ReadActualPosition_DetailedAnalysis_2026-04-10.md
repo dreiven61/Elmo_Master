@@ -1,6 +1,6 @@
 # ReadActualPosition.pcapng Detailed Analysis
 
-- Source file: `packet_capture/ReadActualPosition.pcapng`
+- Source file: `test/packet_capture/ReadActualPosition.pcapng`
 - Target IP focus: `192.168.1.3`
 - Analysis date: `2026-04-10`
 
@@ -60,7 +60,7 @@ Hex:
 
 ## 5) Cross-check against larger captures
 
-Using `packet_capture/motion_tes2t_4000.tsv`:
+Using `test/packet_capture/motion_tes2t_4000.tsv`:
 - `24-byte` responses repeatedly decode as:
   - first `double` (offset 8): changing with motion
   - second `double` (offset 16): mostly constant around `48933472.0`
@@ -81,4 +81,3 @@ Conclusion:
   - field labels at offsets `0..7`
 - Low confidence (needs official protocol spec or more labeled captures):
   - exact meaning of response `double` at offset `16..23`
-

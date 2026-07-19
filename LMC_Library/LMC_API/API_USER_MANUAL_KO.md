@@ -1,6 +1,6 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 1.2
+문서 버전: 1.4
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
 발행일: 2026-07-16
@@ -14,8 +14,23 @@
 | 1.0 | 2026-07-15 | 최초 작성 |
 | 1.1 | 2026-07-16 | 공개 API 레퍼런스 작성 |
 | 1.2 | 2026-07-16 | API 기능, 인자 UNIT과 반환값 중심으로 간소화 |
+| 1.3 | 2026-07-16 | preview 안전 경고, 응답 판정과 4축 group 제한 보완 |
+| 1.4 | 2026-07-16 | group position read 계약 불일치와 static identity 제한 명시 |
 
-이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값만 설명한다.
+이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
+설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
+reference는 아니다.
+
+> **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. PC 시험과
+> LASAL 정적 계약은 통과했지만 실제 PLC command E2E/재캡처는 `0/25`다.
+> `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
+> Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
+> `Dispose`, timeout과 cancellation은 Stop을 보내지 않는다. 실제 장비에서는 E-stop,
+> HW/SW limit, UNIT, Home/Reference와 이동 범위를 별도로 승인한다.
+
+> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.4`지만 현재 Distribution의
+> DOCX/PDF는 아직 문서 버전 `1.0`이다. 아래 안전·group-read 보완은 외부 manual
+> 재생성 전까지 package README와 함께 전달해야 한다.
 
 \toc
 
@@ -64,8 +79,15 @@ Jerk 송신 DINT = (물리 jerk / 1000) x PLC application UNIT
 
 | Property | Type | 설명 |
 |---|---|---|
-| `IsSuccess` | `bool` | `true`: 명령 성공, `false`: 명령 실패 |
-| `Status` | `ushort` | 반환된 command status |
+| `IsSuccess` | `bool` | frame과 command 결과 성공 여부; motion/power/stop 완료를 뜻하지 않음 |
+| `Raw` / `Payload` | `byte[]` | 방어 복사된 원본 frame/payload |
+| `HeaderStatus` | `ushort` | response envelope 상태 |
+| `PayloadLength` | `ushort` | header에 선언된 payload 길이 |
+| `HeaderReserved` | `uint` | header reserved 값 |
+| `IsFrameValid` | `bool` | header와 command별 payload shape 검증 결과 |
+| `HasCommandResult` | `bool` | command status/error field 존재 여부 |
+| `CommandStatus` | `ushort` | command/function status |
+| `Status` | `ushort` | command result가 있으면 CommandStatus, 없으면 HeaderStatus |
 | `ErrorId` | `short` | 반환된 error ID, 정상은 0 |
 
 비동기 메서드는 동일한 결과를 `Task<LMC_Response>`로 반환한다.
@@ -460,6 +482,11 @@ public static Task<LMCGroupAxis> CreateAsync(
 
 `LMCGroup`은 `LMCGroupAxis`의 호환 이름이다.
 
+Group Power/Enable/Reset/Stop/Move의 성공 ACK는 method 호출 접수 결과다. 완료
+상태는 `GroupReadStatusResult`와 필요 시 `GroupReadActualPosition`으로 확인한다.
+현재 SetKin/Lock/Move는 X/Y/Z/U 축 1~4에만 적용된다. 이것은 9축 동시 group
+interpolation API가 아니다.
+
 ## 4.2 GetGroupMembersInfo
 
 Group에 연결된 axis member 정보를 읽는다.
@@ -618,8 +645,14 @@ public Task<LMCGroupReadActualPositionResult> GroupReadActualPositionAsync(
 
 | Return | UNIT | 설명 |
 |---|---|---|
-| `LMCGroupReadActualPositionResult` | Group application UNIT DINT | 16개 actual coordinate와 error 정보 |
+| `LMCGroupReadActualPositionResult` | Group application UNIT DINT | 고정 16-slot coordinate와 error 정보; 현재 source의 slot 1..9 공개 범위는 미확정 |
 | `Task<LMCGroupReadActualPositionResult>` | Group application UNIT DINT | 비동기 group position 결과 |
+
+현재 adapter는 `None/Acs/Mcs/Pcs`를 모두 같은
+`GetRobotPosition(CoordSystem:=0)` static axis-order read로 처리한다. dynamic
+coordinate transform 결과로 해석하면 안 된다. tracked source는 slot 1..9를
+채우고 slot 10..16을 0으로 남기지만, 이 9축 readback은 PLC 재캡처와 공개 계약
+승인 전이다.
 
 ## 4.11 SetKinTransformCartesian4Axis
 
@@ -652,6 +685,9 @@ public Task<LMC_Response> SetKinTransformCartesian4AxisAsync(
 |---|---|
 | `LMC_Response` | Kinematic transform command 결과 |
 | `Task<LMC_Response>` | 비동기 transform command 결과 |
+
+이 helper는 exact X/Y/Z/U identity payload만 만든다. generic/dynamic kinematic
+transform 계산이나 profile lock을 수행하지 않는다.
 
 ## 4.12 MoveLinearAbsoluteEx
 
@@ -693,7 +729,7 @@ public Task<LMC_Response> MoveLinearAbsoluteExAsync(
 
 | Parameter | Type | UNIT | 설명 |
 |---|---|---|---|
-| `position` | `int[]` | Group application UNIT DINT | 1~16개 absolute coordinate |
+| `position` | `int[]` | Group application UNIT DINT | wire 16개; 현재 PLC는 X/Y/Z/U slot 1..4만 사용하고 5..16은 0이어야 함 |
 | `velocity` | `int` | Group application UNIT/s DINT | Path velocity |
 | `acceleration` | `int` | Group application UNIT/s² DINT | Path acceleration |
 | `deceleration` | `int` | Group application UNIT/s² DINT | Path deceleration |
@@ -717,6 +753,10 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `BufferMode` | `LMC_BUFFER_MODE` | `Aborting` | Buffer mode |
 | `Execute` | `bool` | `true` | Command execute |
 
+현재 PLC adapter가 승인하는 조합은 `CoordinateSystem=None`,
+`TransitionMode=ExactStop/ContinuousDirect`, `BufferMode=Aborting/Buffered`,
+`Execute=true`뿐이다. public enum에 다른 값이 있어도 현재 PLC 지원을 뜻하지 않는다.
+
 # 5. Return Type
 
 ## 5.1 LMCReadStatusResult
@@ -728,11 +768,13 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
 | `State` | `uint` | Bit field | Raw axis state |
+| `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
+| `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `IsPowerOn` | `bool` | - | Axis Power On 상태 |
 | `IsReferenced` | `bool` | - | Home / Reference 완료 상태 |
 | `IsStandstill` | `bool` | - | Standstill 상태 |
 | `AxisErrorId` | `ushort` | Error ID | Axis error |
-| `StatusWord` | `ushort` | Bit field | DS402 statusword |
+| `StatusWord` | `ushort` | Reserved | 현재 LASAL adapter는 0을 반환하며 DS402 statusword로 사용하지 않음 |
 | `ErrorId` | `short` | Error ID | Command error |
 
 ## 5.2 LMCReadActualPositionResult
@@ -744,6 +786,8 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
 | `PositionRaw` | `int` | PLC application UNIT DINT | Actual position |
+| `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
+| `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `ErrorId` | `short` | Error ID | Command error |
 
 ## 5.3 LMCGroupReadStatusResult
@@ -757,7 +801,10 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `State` | `uint` | Bit field | Raw group state |
 | `IsPowerOn` | `bool` | - | Group power 상태 |
 | `IsStandby` | `bool` | - | Profile locked 상태 |
+| `IsEnabled` | `bool` | - | `IsStandby` 호환 alias; servo power와 다름 |
 | `IsDisabled` | `bool` | - | Profile unlocked 상태 |
+| `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
+| `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `GroupErrorId` | `ushort` | Error ID | Group / profile error |
 | `ErrorId` | `short` | Error ID | Command error |
 
@@ -770,8 +817,14 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
 | `CoordinateSystem` | `LMC_COORD_SYSTEM` | Enum | 반환 좌표계 |
-| `PositionsRaw` | `int[16]` | Group application UNIT DINT | Actual coordinate 배열 |
+| `PositionsRaw` | `int[16]` | Group application UNIT DINT | 고정 16-slot 배열; 현재 slot 1..9 readback 계약 미확정 |
+| `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
+| `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `ErrorId` | `short` | Error ID | Command error |
+
+현재 tracked PLC source는 `_LMCPROF_POS`의 Pos1..Pos9를 response slot 1..9에
+복사한다. 기존 4축-only read 문서와 충돌하므로 PLC 재캡처 뒤 공개 readback
+범위를 확정해야 한다. Move/SetKin/Lock의 4축 제한은 그대로다.
 
 ## 5.5 LMCGroupMembersInfoResult
 
@@ -781,8 +834,11 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 |---|---|---|---|
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
-| `AxisCount` | `byte` | Count | Group member 수 |
+| `AxisCount` | `byte` | Count | Group member 수; 현재 tracked source는 9 |
 | `Members` | `LMCGroupMemberInfo[]` | - | Member 정보 배열 |
+| `AxisReferences` / `DeviceIds` / `AxisNames` | 배열 | - | 방어 복사된 원본 member 배열 |
+| `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
+| `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `ErrorId` | `short` | Error ID | Command error |
 
 `LMCGroupMemberInfo`의 반환 필드는 다음과 같다.

@@ -7,6 +7,12 @@
 > 실제 IDE/network/PLC 적용 상태는
 > `LMC_Library/LMC_API_Delivery/docs/LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`
 > 를 따른다.
+>
+> **2026-07-16 범위 갱신:** 현재 software/single-axis dispatcher는 1..9,
+> physical Elmo/DS402는 1..4, simulated axis는 5..9, Cartesian group은 1..4다.
+> 아래 4축 비교 표와 권고는 2026-07-03 snapshot이다. 최신 전체 판정은
+> [ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md](ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)를
+> 우선한다.
 
 작성일: 2026-07-03
 

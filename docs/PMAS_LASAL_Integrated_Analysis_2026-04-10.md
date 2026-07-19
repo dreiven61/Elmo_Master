@@ -3,6 +3,13 @@
 - 작성일: 2026-04-10
 - 목적: 지금까지 수행한 PDF 분석, API 매핑, WPF 구현, 패킷 캡처 분석 결과를 한 파일로 통합해 이후 작업 기준으로 사용
 
+> **현재 상태 안내(2026-07-16):** 이 문서는 PMAS 캡처와 초기
+> `Codex_LASAL_WPF` dummy/hybrid 구현을 분석한 역사적 기준선이다. 아래의
+> `0x2081..0x2084`, `0x00E0`, Int64/LREAL frame과 dummy 구현 권고는 현재
+> canonical `LASAL-DINT v1` 계약이 아니다. 최신 구현·검증 상태는
+> [Elmo Master 현재 아키텍처 및 릴리스 상태](architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)와
+> `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`를 기준으로 판단한다.
+
 ## 1) 기준 자료
 
 ### 문서/PDF
@@ -18,7 +25,7 @@
 - `Codex_LASAL_WPF/API_MAPPING.md`
 
 ### 패킷 캡처/분석 산출물
-- 폴더: `packet_capture/`
+- 폴더: `test/packet_capture/`
 - 주요 파일:
   - `Motion_Test.pcapng`, `Motion_Tes2t.pcapng`
   - `MoveAbsoluteEx.pcapng`, `ReadActualPosition.pcapng`, `ReadStatus.pcapng`
@@ -159,10 +166,10 @@
   - `Codex_PMAS_WPF/`
   - `Codex_LASAL_WPF/`
 - 테스트 리포트:
-  - `Codex_PMAS_WPF/Reports/`
-  - `Codex_LASAL_WPF/Reports/`
+  - `test/Reports_PMAS/`
+  - `test/Reports_Lasal/`
 - 패킷 분석 산출물:
-  - `packet_capture/`
+  - `test/packet_capture/`
 
 ## 8) 다음 작업 권장 (후속)
 

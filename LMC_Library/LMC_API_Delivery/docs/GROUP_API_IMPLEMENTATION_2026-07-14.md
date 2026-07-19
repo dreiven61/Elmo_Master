@@ -117,7 +117,11 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 - 현재 프로젝트에는 dynamic `CalcModel`이 연결되지 않았다. 네 enum은 모두
   `GetRobotPosition(Mode:=_ACTPOS_APPUNITS, CoordSystem:=0)`의 동일 static
   axis-order identity 위치로 읽는다.
-- 첫 4개 DINT가 실제 축이고 나머지 12개는 0이다.
+- 현재 tracked handler는 `_LMCPROF_POS` 36 bytes(`Pos1..Pos9`)를 응답 slot
+  1..9에 복사하고 slot 10..16을 0으로 남긴다. 과거 4축-only read 설명과
+  충돌하므로 PLC 재캡처 뒤 1..9 readback을 승인하거나 handler가 5..16을
+  명시적으로 0 처리하도록 계약을 확정해야 한다. Move/SetKin/Lock의 4축 제한과
+  position read 범위를 같은 것으로 단정하지 않는다.
 - PMAS legacy 136-byte LREAL response는 현재 PC parser가 거부한다.
 
 ### SetKinTransformCartesian4Axis

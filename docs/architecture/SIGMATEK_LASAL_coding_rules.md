@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-14
+최종 갱신: 2026-07-16
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`에서 LASAL 코드를 수정할 때
 매번 확인할 실무 규칙이다. IDE 장애 예방과 복구 절차는
@@ -75,13 +75,16 @@
 - 현재 tracked `TCPMotionInterface`는 `Response()`가 frame을 depth-8 queue에
   복사하고 `CyWork()`가 분류·실행·응답하는 non-RT 구조다. interface의 RT
   task, `RtWork()` override, typed RT mailbox와 atomic state는 사용하지 않는다.
-- 현재 CyWork handler가 승인된 명령은 `0x2023 Power`, `0x2024 Reset`,
+- 현재 CyWork의 axis/group control·read·motion 명령은 `0x2023 Power`, `0x2024 Reset`,
   `0x2022 Stop`, `0x2028 ReadStatus`, `0x202E ReadPosition`,
   `0x209F MoveAbsolute`, `0x20A0 MoveRelative`, `0x20A2 MoveVelocity`,
   `0x204A GroupPowerOn`, `0x204B GroupPowerOff`,
   `0x2047 GroupEnable/ProfileLock`, `0x2048 GroupDisable/ProfileUnlock`, `0x2049 GroupReset`,
   `0x2085 GroupStop`, `0x2045 GroupReadStatus`, `0x2051 GroupReadActualPosition`,
   `0x20A4 MoveLinear`, `0x20E7 SetKinTransform`이다.
+- lifecycle/lookup의 `0x8080`, `0x405C`, `0x405D`, `0x103C`, `0x1042`,
+  `0x202B`, `0x20D2`도 CyWork에서 처리한다. 이를 합친 source-active 고유 ID는
+  캡처 기반 23개와 local 2개, 총 25개다.
 - `0x20E7` 때문에 queue payload는 1,320바이트, receive accumulator는
   2,048바이트다. 작은 명령 기준인 96바이트로 되돌리면 안 된다.
 - 현재 4축 group 구현은 정적 X/Y/Z/U identity 구성이다. `MoveLinear`는
@@ -126,12 +129,15 @@
 - 공개 PC API와 확정된 DINT wire 계약 밖의 Group Motion은 실제 SIGMATEK
   group/CNC 의미가 확정되기 전까지 구현하지 않는다. 현재 `MoveCircle`은
   MotionLib method만 있고 공개 PC API와 DINT frame이 없으므로 대상이 아니다.
-- `Elmo_1` 기준으로 복제한 `Elmo_2`, `Elmo_3`, `Elmo_4`는 채널/네트워크 연결을 서로 대조한다.
+- physical `Elmo_1..4`는 DS402/PDO와 `_LMCAxis1..4` 연결을 서로 대조한다.
+- `_LMCAxis5..9`는 `SimulateMode=1` software axis이며 single-axis API에는 포함되지만
+  physical DS402/PDO와 4축 Cartesian SetKin/Lock/Move에는 포함되지 않는다.
 
 ## 7. Network 규칙
 
 - `Motion_Network`에서 객체 연결을 바꾸면 `ONE_Motion_Network_Table.st`, `Motion_Network.lcn`, `Networks.lcb` 변경을 같이 확인한다.
-- `Elmo_11`과 `PosController1/_LMCAxis1` 연결을 기준점으로 삼고, 추가 축은 같은 패턴으로 맞춘다.
+- `Elmo_11`과 `PosController1/_LMCAxis1` 연결을 physical 기준점으로 삼는다.
+  축 2..4는 physical pattern, 축 5..9는 simulated-axis pattern으로 따로 검증한다.
 - 네트워크 파일은 바이너리/생성 성격이 있으므로 텍스트 diff만 보고 판단하지 않는다.
 
 ## 8. 정적 확인 명령
@@ -156,9 +162,10 @@ git diff --cached --check
 
 ## 9. 문서 동기화
 
-- TCP 프레임이 바뀌면 `docs/PMAS_LASAL_Integrated_Analysis_2026-04-10.md` 또는 별도 분석 문서를 갱신한다.
+- TCP 프레임이 바뀌면 `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`와
+  `ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`를 갱신한다.
 - WPF API 매핑이 바뀌면 `Codex_PMAS_WPF/API_MAPPING.md`, `Codex_LASAL_WPF/API_MAPPING.md`를 확인한다.
-- 패킷 분석 결과는 `packet_capture/` 아래 별도 md로 남긴다.
+- 패킷 분석 결과는 `test/packet_capture/` 아래 별도 md로 남긴다.
 
 ## 10. 커밋 전 체크리스트
 

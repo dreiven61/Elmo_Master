@@ -10,8 +10,10 @@
 
 > 현재 구현은 `TCPMotionInterface` RT Task와 RtWork mailbox를 제거한
 > CyWork-only 구조다. 아래 본문 중 RtWork, typed mailbox, RealTime=1 ms 설정은
-> 더 이상 적용하지 않는다. 현재 System of Record는
-> `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`다.
+> 더 이상 적용하지 않는다. 아래의 4축 client 설명도 현재 9축 single-axis
+> dispatcher 범위가 아니다. 현재 System of Record는
+> `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`와
+> `../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`다.
 
 ## 1. 결론
 

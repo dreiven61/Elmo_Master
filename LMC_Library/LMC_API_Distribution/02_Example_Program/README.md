@@ -34,5 +34,11 @@ Release로 빌드한다. 프로젝트의 DLL 참조는 다음 상대경로로 �
 주의: 예제의 Close 버튼은 motion Stop을 보내지 않는다. 실제 장비의 E-stop,
 software/hardware limit와 작업영역 검증을 별도로 준비한다.
 
+현재 `Group Read Position`의 slot 5..9는 PLC source와 기존 4축 문서의 계약이
+일치하지 않아 재캡처 대기 상태다. X/Y/Z/U slot 1..4 외 값은 production
+판정에 사용하지 않는다. Group Move/SetKin/Lock은 계속 4축 전용이다.
+
 API별 인자, UNIT과 반환값은
-`..\03_API_User_Manual\LASAL_Motion_Control_API_User_Manual_KO.pdf`를 참조한다.
+[LASAL Motion Control API 사용자 매뉴얼](../03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf)을
+참조한다. 단, 포함된 PDF는 문서 버전 `1.0`이다. 최신 preview/검증/안전
+제한은 먼저 [package README](../README.md)를 확인한다.

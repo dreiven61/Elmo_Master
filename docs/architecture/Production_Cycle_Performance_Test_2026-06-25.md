@@ -2,6 +2,16 @@
 
 Date: 2026-06-25
 
+Status update: 2026-07-16
+
+> This document records the original benchmark design and its implementation in
+> `Codex_PMAS_WPF` and `Codex_LASAL_WPF`. The latter is now classified as a legacy
+> hybrid client: some paths use TCP while other paths simulate, fall back locally,
+> or do nothing. It is therefore useful for preserving the benchmark workflow, but
+> it is not evidence of a completed LMC API-to-LASAL PLC end-to-end comparison.
+> Current system roles and release gates are defined in
+> [ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md](ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md).
+
 ## Purpose
 
 This test implements the performance comparison proposed by Jonas Drager.
@@ -26,10 +36,16 @@ The actor delays model non-motion time such as vacuum drop, gripper open, or set
 
 ## Implementation
 
-The existing single-axis `Cycle Test` tab was extended in both WPF programs:
+The existing single-axis `Cycle Test` tab was extended in these two WPF programs:
 
 - `Codex_PMAS_WPF/PmasApiWpfTestApp`
 - `Codex_LASAL_WPF/PmasApiWpfTestApp`
+
+The PMAS application remains the MMCLib reference side. The
+`Codex_LASAL_WPF` implementation preserves the test UI and timing model only; a
+current SIGMATEK result must be reproduced through
+`LMC_Library/LasalApiWpfTestApp` and the canonical
+`Lasal_PRG/Elmo_EtherCAT_Test_4Axis` project, with real PLC evidence retained.
 
 New UI inputs:
 
@@ -50,7 +66,8 @@ The command latency is measured around the synchronous `MoveAbsolute`/`MoveAbsol
 
 ## Comparison Rules
 
-Before comparing PMAS and SIGMATEK results, these inputs must be equivalent:
+Before comparing PMAS and a current SIGMATEK/LMC result, these inputs must be
+equivalent:
 
 - Same axis and mechanical load.
 - Same effective movement distance.
@@ -71,6 +88,10 @@ abs(target position - actual position) <= in-position tolerance
 ```
 
 This is intentionally shared by PMAS and SIGMATEK WPF tests because both sides already support it through the existing single-axis cycle test path.
+
+For a release claim, the same rule must be implemented or verified in the
+current LMC API WPF path. Results produced only by the legacy hybrid application
+must be labelled as historical workflow evidence, not current PLC E2E evidence.
 
 ## Result Interpretation
 

@@ -3,6 +3,12 @@
 작성일: 2026-07-08
 보완 분석: 2026-07-10
 
+> **현재 상태 안내(2026-07-16):** 이 문서는 PMAS/MMCLib packet evidence가
+> 주목적이다. 본문에 적힌 “LASAL handler가 아직 없다”는 2026-07-10 당시 상태는
+> 현재 source와 다르다. 최신 LASAL-DINT 구현·검증 상태는
+> `../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`와
+> `../../LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`를 우선한다.
+
 분석 대상:
 
 - `TXT/*.txt`: Wireshark에서 뽑은 Ethernet hex dump
@@ -367,8 +373,9 @@ kinematic type, buffer mode의 실제 wire 값은 추가 캡처로 검증해야 
 현재 PC API는 이 근거에 맞춘 exact 1320-byte serializer를 제공하되 공개
 호출을 X/Y/Z/U 4축 identity-shift, Cartesian, `Buffered(2)` profile로
 제한한다. public 호출에서는 capture의 handle `0/1/2/3`을 하드코딩하지 않고
-같은 `LMCConnection`에서 lookup한 axis reference를 넣는다. LASAL의
-large-command staging/apply handler와 PLC 재캡처는 아직 없다.
+같은 `LMCConnection`에서 lookup한 axis reference를 넣는다. 현재 canonical LASAL
+source에는 1,320-byte queue와 exact Cartesian4 identity validation handler가
+반영됐다. 다만 LASAL IDE Rebuild, PLC 적용과 재캡처는 아직 없다.
 
 ## Read Command Layout
 
@@ -501,9 +508,10 @@ Response:
 LASAL-DINT v1 local response contract는 capture의 LREAL ABI를 그대로 쓰지
 않고 exact 68-byte payload
 `DINT[16] + UINT16 function status + INT16 error ID`로 확정했다. PC typed
-parser는 legacy 136-byte response를 명시적으로 거부한다. LASAL handler에서
-위 coordinate enum을 실제 `_LMCRobotBase` coordinate index로 mapping하고
-68-byte response를 만드는 작업은 아직 남아 있다.
+parser는 legacy 136-byte response를 명시적으로 거부한다. 현재 canonical LASAL
+source에는 68-byte response handler가 있다. 이 handler는 `_LMCPROF_POS`
+36 bytes(Pos1..Pos9)를 복사하므로 과거 4축-only read 설명과 충돌한다. PLC
+재캡처 뒤 4축 또는 9축 position read 계약을 확정해야 한다.
 
 ## Command Summary
 

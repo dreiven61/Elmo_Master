@@ -2,9 +2,13 @@
 
 LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지와 별도로 사용합니다.
 
+프로젝트 전체 역할과 release gate는
+[현재 아키텍처 및 릴리스 상태](../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)를
+우선합니다.
+
 ## 개발 상태
 
-2026-07-15 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
+2026-07-16 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다.
@@ -16,7 +20,8 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
   (`0x204A GroupPowerOn`, `0x204B GroupPowerOff`; 기존 캡처 명령이 아님)
 - C# request builder와 public 호출 경로: 25개 (캡처 기반 23 + local extension 2)
 - LASAL source-active command: 25개 (캡처 기반 23 + local extension 2)
-- CyWork에서 실제 client call이 활성화된 command: 18개
+- CyWork axis/group control·read·motion command: 18개
+  (lifecycle과 name/member metadata handler 제외)
   (`0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
@@ -24,8 +29,8 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 - C# 자동 테스트 runner: 46/46 PASS
 - LASAL source-only/full-network static contract: PASS
 - WPF example VS2019 MSBuild Debug: PASS
-- 현재 group source 반영 뒤 LASAL IDE Rebuild/Link: 미검증
-- 현재 group source 반영 뒤 Find in Implementation smoke: 미검증
+- 현재 group/9-axis source 반영 뒤 LASAL IDE Rebuild/Link: 미검증
+- 현재 group/9-axis source 반영 뒤 Find in Implementation smoke: 미검증
 - CyWork와 motion RT thread의 CPU core/priority 조건: 미검증
 - 실제 PLC end-to-end와 Wireshark 재캡처까지 완료된 command: 0/25
   (캡처 기반 23 + local extension 2)
@@ -51,6 +56,11 @@ group source는 local extension인 `GroupPowerOn(0x204A)`/`GroupPowerOff(0x204B)
 `GroupDisable(0x2048)`의 `UnlockProfile`이 담당한다. GroupDisable은
 `ProfileInPosition(_LMCPROF_ProfileFinished)`가 확인된 상태에서만 unlock한다.
 
+주의: current `0x2051` handler는 `_LMCPROF_POS`의 Pos1..Pos9를 DINT[16]
+response slot 1..9에 복사한다. 기존 4축-only position read 문서와 충돌하므로
+PLC 재캡처 뒤 4축 또는 9축 readback 계약을 확정해야 한다. 이 문제는
+Move/SetKin/Lock의 4축 제한을 9축 group motion으로 확대하지 않는다.
+
 정상 group 순서는 `GroupPowerOn -> GroupReadStatus.IsPowerOn -> identity axes
 ReadStatus.IsReferenced -> SetKinTransform ->
 GroupEnable/LockProfile -> motion -> GroupDisable/UnlockProfile -> GroupPowerOff ->
@@ -75,7 +85,7 @@ command gate, 작은 기본값, 물리 E-stop과
 
 tracked `TCPMotionInterface.Response()`는 최대 1,328-byte frame을 2,048-byte
 receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 queue에
-복사한다. non-RT `CyWork()` 하나가 `MsgPaser()`와 위 18개 승인 client call을
+복사한다. non-RT `CyWork()` 하나가 `MsgPaser()`와 위 18개 승인 control/read/motion command를
 실행합니다. interface RT task, RtWork mailbox와 atomic state는 사용하지
 않습니다. 일반 `_TCPIPServer1`과 interface의 동일 cyclic task, axis RT thread와
 같은 core 배치, PLC jitter를 확인하기 전까지 production-safe로 판정하지 않습니다.
@@ -154,7 +164,7 @@ source static checks), `RunTests`(두 검증과 WPF test app build) target으로
 없으므로 이 버전의 구현 범위가 아닙니다. 이름만 추가해 임의 wire protocol을
 만들지 않습니다.
 
-WPF example의 기본 `UNIT=10000`은 현재 저장된 `_LMCAxis1..4`의 `1 mm`
+WPF example의 기본 `UNIT=10000`은 현재 저장된 `_LMCAxis1..9`의 `1 mm`
 macro와 일치한다. Jerk 기본값은 `0`이지만 입력할 수 있으며
 `Jerk DINT = (물리 jerk / 1000) x 축 UNIT`을 사용한다. 현재 저장된 profile은
 `_JERK_PROFILE`, `JMax=75000 mm`다. 과거 `8,388,608 count/rev`는 23-bit

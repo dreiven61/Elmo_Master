@@ -2,10 +2,10 @@
 
 작성일: 2026-07-10
 
-최종 갱신: 2026-07-14
+최종 갱신: 2026-07-16
 
 > dispatcher의 descriptor/name registry 결정은 유지한다. 실행 경로는
-> `Response -> queue -> CyWork -> approved client call`이며
+> `Response -> queue -> CyWork -> approved command handler`이며
 > TCPMotionInterface의 RtWork/RT mailbox는 사용하지 않는다. 상세 task 기준은
 > `LASAL_CYWORK_ONLY_TCP_EXECUTION_DESIGN_2026-07-13.md`를 따른다.
 
@@ -39,15 +39,21 @@ canonical 대상은 Git에 추적된
 | `LMCAxis2` | `_LMCAxis2.Control` | 2 |
 | `LMCAxis3` | `_LMCAxis3.Control` | 3 |
 | `LMCAxis4` | `_LMCAxis4.Control` | 4 |
+| `LMCAxis5` | `_LMCAxis5.Control` | 5 |
+| `LMCAxis6` | `_LMCAxis6.Control` | 6 |
+| `LMCAxis7` | `_LMCAxis7.Control` | 7 |
+| `LMCAxis8` | `_LMCAxis8.Control` | 8 |
+| `LMCAxis9` | `_LMCAxis9.Control` | 9 |
 | `LMCRobot` | `_LMCRobotBase1.Control` | `0x0100` |
 
 lookup request를 CyWork에서 실제 처리할 때 연결된 typed client의 `pCmd`에
 `_GetObjName`을 호출해 이름을 새로 읽는다. 호출 전 256-byte buffer를 0으로
 초기화하고 반환 길이가 1..79인지 확인한 뒤에만 비교한다. 주기적인 name
 discovery/retry는 실행하지 않으므로 1 ms CyWork에 문자열 polling 부하가 없다.
-Axis 1 lookup은 Axis 1 client만 준비되면 처리하며 Axis 2~4 또는 Robot 준비
-여부에 의존하지 않는다. `GetGroupMembersInfo`는 요청을 처리할 때만 다섯
-client의 현재 연결과 이름을 모두 다시 확인하고 그 요청의
+개별 axis lookup은 해당 axis client만 준비되면 처리하며 다른 axis 또는 Robot
+준비 여부에 의존하지 않는다. 축 5~9 이름 조회는 CodeGenerator에 이미 등록된
+scratch buffer를 순차 재사용한다. `GetGroupMembersInfo`는 요청을 처리할 때만
+axis 1~9와 Robot client의 현재 연결과 이름을 모두 다시 확인하고 그 요청의
 `ObjectRegistryReady`를 결정한다. `_Linker` 전체 검색은 사용하지 않는다.
 
 `0x103C`와 `0x1042`는 request의 NUL-terminated ASCII name을 registry와
@@ -78,15 +84,17 @@ lookup을 다시 수행한다.
 ## 현재 dispatch 범위
 
 source-first 구현은 `Response()` callback이 완성 frame을 depth-8 queue에
-publish하고, non-RT `CyWork()`가 command를 분류한 뒤 승인된
-client call을 직접 실행·응답하는 구조다. interface RT task와 mailbox는 없다.
+publish하고, non-RT `CyWork()`가 command를 분류한 뒤 승인된 handler와 필요한
+client method를 실행·응답하는 구조다. interface RT task와 mailbox는 없다.
 
-현재 실제 client-call 허용 범위는 아래 16개다.
+아래 18개는 lifecycle과 name/member metadata handler를 제외한 axis/group
+control·read·motion command다. lookup과 `0x20D2`도 `_GetObjName` client
+metadata를 읽으므로 18은 전체 client-call 수가 아니다.
 
-- Axis descriptor 1..4: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`,
+- Axis descriptor 1..9: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`,
   `0x209F`, `0x20A0`, `0x20A2`
-- Group descriptor `0x0100`: `0x2047`, `0x2048`, `0x2045`, `0x2049`,
-  `0x2085`, `0x20A4`, `0x2051`, `0x20E7`
+- Group descriptor `0x0100`: local power `0x204A`, `0x204B`, profile/state
+  `0x2047`, `0x2048`, `0x2045`, `0x2049`, `0x2085`, `0x20A4`, `0x2051`, `0x20E7`
 
 이전 `-5` group gate는 2026-07-14 source에서 제거했다. 다만 group command는
 static 4축/identity와 승인된 mode만 허용하며 범위 밖 인자는 `-7`이다.
@@ -120,28 +128,31 @@ case default의 `-4`로 거부한다.
 
 반드시 LASAL IDE에서 다음을 수행한다.
 
-1. `TCPMotionInterface` class model의 첫 client가 `LMCAxis1`이고 RT task가
-   비활성화됐는지 확인한 뒤 CodeGenerator로 재생성한다.
+1. `TCPMotionInterface` class model의 motion client가 `LMCAxis1..9`와
+   `LMCRobot`이고 RT task가 비활성화됐는지 확인한 뒤 CodeGenerator로 재생성한다.
 2. 생성 결과가 tracked `.st`의 client descriptor/hash와 일치하는지 본다.
-   class table header의 client count도 6이어야 한다.
-3. `TCPMotionInterface1.LMCAxis1 -> _LMCAxis1.Control`과 나머지 3축 client
+   class table header의 client count는 `_StdLib`을 포함해 11이어야 한다.
+3. `TCPMotionInterface1.LMCAxis1 -> _LMCAxis1.Control`과 나머지 8축 client
    연결을 확인한다.
 4. CyclicTime `1 ms`, RealTime assignment 부재, server `Config=0`,
    `MaxConnections=1`을 적용한다. interface CyWork는 TCP server CyWork와 같은
    cyclic task에 두고 axis RT thread와 같은 CPU core에서 같거나 낮은 priority로
    실행한다.
-5. PLC에서 실제 name lookup, descriptor 1~4의 axis 8개 command와 group
-   descriptor `0x0100`의 활성 3개 command routing을 재캡처한다.
+5. PLC에서 실제 name lookup, descriptor 1~9의 axis 8개 command와 group
+   descriptor `0x0100`의 활성 10개 control/read/motion command routing을 재캡처한다.
    mixed-case `_LMCAxis1`/`_LMCRobotBase1`와 runtime canonical uppercase
    `_LMCAXIS1`/`_LMCROBOTBASE1`가 같은 descriptor를 반환하는지도 확인한다.
-   Online Debugger에서 `AxisObjectName1..4`, `GroupObjectName`,
+   Online Debugger에서 axis별 lookup 결과, `GroupObjectName`,
    `ObjectRegistryReady`도 함께 확인한다.
 6. invalid name/reference가 정해진 오류로 끝나고 다른 축을 호출하지 않는지
    시험한다.
-7. unsupported 5개 command가 client를 호출하지 않고 `-5`로 끝나는지 확인한다.
+7. unknown command는 `-4`, invalid reference/argument는 각각 정한 오류로 끝나고
+   캡처 기반 23 + local 2 범위에 남은 deterministic `-5` gate가 없는지 확인한다.
 
-상세 IDE/network 적용 순서와 검증 gate는
-`LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`를 따른다.
+현재 전체 topology와 검증 gate는
+`../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`를
+우선하고, `LASAL_SOURCE_QUEUE_AND_NETWORK_APPLY_PLAN_2026-07-10.md`는 4축 당시의
+historical 적용 기록으로만 읽는다.
 
 CodeGenerator header를 수동 수정한 현재 소스만으로 production 완료를
 선언하면 안 된다.

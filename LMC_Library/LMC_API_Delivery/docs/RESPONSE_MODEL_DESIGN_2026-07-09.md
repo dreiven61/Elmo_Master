@@ -2,6 +2,13 @@
 
 Date: 2026-07-09
 
+> **Status update 2026-07-16:** The initial `Question` and `Current Design
+> Assessment` sections below are the historical pre-implementation baseline.
+> Phase 1/2 are implemented in the current `LMC_Response`, command-specific typed
+> parsers/results and defensive array copies. Phase 3 typed callback payloads
+> remain pending because no callback datagram schema has been captured. See
+> `../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`.
+
 ## Question
 
 The current public `LMC_Response` type is:

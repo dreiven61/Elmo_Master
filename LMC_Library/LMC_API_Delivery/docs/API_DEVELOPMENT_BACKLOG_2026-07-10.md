@@ -2,13 +2,19 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-14
+Latest update: 2026-07-16
 
 Analysis baseline: `996686d`
 
-Current checkpoint base: `28abbda` and the 2026-07-14 group API working tree
+Current audit base: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 
 Status: Open
+
+> **읽는 법:** 이 문서는 날짜별 개발 backlog와 당시 snapshot을 함께 보존한다.
+> `2026-07-10 진행 내용`, `2026-07-13 진행 내용` 같은 절은 그 날짜의 상태이며
+> 현재 범위가 아니다. 최신 전체 상태는
+> `../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`와
+> `../../LMC_API/API_DEVELOPMENT_GUIDE.md`를 우선한다.
 
 ## 결론
 
@@ -23,7 +29,9 @@ path가 있다. 2026-07-14에 `GroupReset(0x2049)`,
 `MoveLinearAbsoluteEx(0x20A4)`, `SetKinTransformEx(0x20E7)` handler를
 활성화해 이전 deterministic unsupported 5개를 해소했다.
 
-현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 client call을 허용한다.
+현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 axis/group
+control·read·motion command를 허용한다. lifecycle과 name/member metadata
+handler는 이 수에서 제외한다.
 
 - Axis: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`
@@ -42,7 +50,8 @@ C#에는 command별 typed parser, strict ACK, `0x2051` LASAL-DINT vector,
 `0x20E7` exact Cartesian4 serializer, local group power와 typed group state,
 group mode 옵션, timeout/state/async와
 callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실제
-object-name lookup, opaque descriptor와 4축 DINT dispatcher를 반영했다.
+object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
+DINT dispatcher를 반영했다.
 
 현재 source는 C# 자동 테스트 46/46, LASAL source-only/full-network static
 contract와 WPF VS2019 MSBuild Debug를 통과했다.
@@ -69,7 +78,7 @@ PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 
 | C# request builder 또는 public 호출 경로 | 25개 (23+2) | source 구현이며 PLC 완료가 아님 |
 | LASAL source-active path | 25개 (23+2) | lifecycle/lookup/axis/group source, 실제 PLC 동작은 미검증 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
-| 현재 CyWork client-call 허용 | 18/25 | axis 8개와 group 10개 client-call path, PLC 검증 전 |
+| 현재 CyWork control/read/motion 범위 | 18/25 | axis 8개와 group 10개; metadata handler 제외, PLC 검증 전 |
 | C# 자동 테스트 | 46/46 PASS | fake/synthetic/loopback/source contract 검증 |
 | LASAL source-only/full-network static contract | PASS | 현재 group parser/method/size/network 계약 포함 |
 | WPF VS2019 MSBuild Debug | PASS | build 검증이며 PLC 동작 승인이 아님 |
@@ -96,11 +105,11 @@ locked standby와 unlocked disabled 조건에 연결한다.
 따라서 완료 범위는 다음처럼 구분한다.
 
 - **single-PC P0 MVP:** PC core와 LASAL source는 캡처 기반 23 + local 2 범위를 갖췄고,
-  runtime client-call은 위 18개까지 열려 있다. 현재 source의 IDE build,
+  runtime control/read/motion command는 위 18개까지 열려 있다. 현재 source의 IDE build,
   same-core/priority 확인, PLC smoke와 재캡처가 남았다.
 - **전체 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
-  session/ownership과 PLC 검증이 남아 있다. PC preview assembly와 build
-  manifest는 `0.9.0-pc-api`로 생성했다.
+  session/ownership과 PLC 검증이 남아 있다. 현재 preview는 assembly/file
+  `0.9.1.0`, product `0.9.1-preview`다. current Distribution 내부 manifest는 없다.
 
 `MoveCircle`은 현재 공개 C# API와 승인된 LASAL-DINT command ID/payload 계약에
 없으며 캡처 기반 23 + local extension 2 범위에 포함되지 않는다.
@@ -186,7 +195,9 @@ locked standby와 unlocked disabled 조건에 연결한다.
   `MoveType=_JERK_PROFILE`, `JMax=50000 mm`와 generated table을 맞췄다.
 - `GroupReadActualPosition(0x2051)`은 68-byte DINT 응답을 만든다. dynamic
   CalcModel이 없는 현재 프로젝트에서는 None/ACS/MCS/PCS를 모두 동일한 static
-  axis-order identity 위치로 읽으며, 16개 position 중 첫 4개가 실제 축이다.
+  axis-order 위치로 읽는다. 현재 tracked handler는 `_LMCPROF_POS`의 Pos1..Pos9를
+  복사하므로 과거 first-4-only 설명과 충돌한다. PLC 재캡처 뒤 4축 또는 9축
+  readback 계약을 확정해야 한다.
 - `SetKinTransformCartesian4Axis(0x20E7)`은 1,320-byte X/Y/Z/U identity 요청
   전체를 검증해 static mapping만 설정한다. `LockProfile`은 별도
   `GroupEnable(0x2047)`이 수행하며 dynamic transform을 생성하지 않는다.
@@ -238,7 +249,7 @@ flowchart LR
     A["WPF 또는 사용자 프로그램"] --> B["LasalMotionControlLib C#"]
     B -->|"8-byte header와 DINT payload"| C["TCPMotionInterface"]
     C --> D["actual name registry와 opaque descriptor"]
-    D --> F["_LMCAxis1..4 및 _LMCRobotBase1"]
+    D --> F["_LMCAxis1..9 및 _LMCRobotBase1"]
     E["PMAS Wireshark capture"] -. "LREAL/REAL 기준 근거" .-> B
     E -. "legacy wire 기준" .-> C
     C -. "LASAL IDE/PLC 검증 대기" .-> B
@@ -257,7 +268,7 @@ legacy/hybrid 참고 자료이며 canonical source가 아니다.
 | `0x8080` | Session Init | frame와 응답 대기 구현 | tracked 단일-session response 코드 반영 | P0: LASAL IDE/PLC 검증 대기 |
 | `0x405C` | Callback Register | UDP listener, 실제 bound port, 4B ACK parser | tracked endpoint 저장/ACK 코드 반영 | P0: event 송신 제외, PLC 검증 대기 |
 | `0x405D` | Close | 재연결/종료 frame 구현 | tracked ACK 후 state clear 코드 반영 | P0: PLC 검증 대기 |
-| `0x103C` | Axis lookup | reference parser 구현 | 실제 object-name registry, descriptor 1..4 | source 반영, IDE/PLC 검증 대기 |
+| `0x103C` | Axis lookup | reference parser 구현 | 실제 object-name registry, descriptor 1..9 | source 반영, IDE/PLC 검증 대기 |
 | `0x1042` | Group lookup | reference parser 구현 | 실제 `_LMCRobotBase1` name, descriptor `0x0100` | source/build 완료, PLC 검증 대기 |
 | `0x202B` | AxisInfo | 8B ACK 보존·검증 | descriptor 검증 후 8B ACK | source/자동 테스트 완료, PLC 검증 대기 |
 
@@ -274,16 +285,16 @@ legacy/hybrid 참고 자료이며 canonical source가 아니다.
 | `0x20A0` | MoveRelativeEx | DINT 40-byte request | CyWork에서 MoveRelative dispatch | source/build 완료, PLC 검증 대기 |
 | `0x20A2` | MoveVelocityEx | DINT 32-byte request | CyWork에서 MoveEndless dispatch | source/build 완료, PLC 검증 대기 |
 
-source와 IDE class model의 첫 client는 `LMCAxis1`로 동기화됐다. axis 1 network
-connection은 사용자가 IDE에서 완료했으며, 최종 저장 후 strict network contract로
-`TCPMotionInterface1.LMCAxis1 -> _LMCAxis1.Control` 생성 결과를 확인한다.
-`LMCAxis2..4` link는 유지한다.
+현재 source/class model은 `LMCAxis1..9`와 `LMCRobot` client를 가진다. tracked
+network의 `TCPMotionInterface1.LMCAxis1..9 -> _LMCAxis1..9.Control` 연결은
+full-network static contract를 통과했다. physical 1..4와 simulated 5..9의 실제
+IDE Rebuild/Link, download와 online 연결 상태는 별도로 확인해야 한다.
 
 ### Group
 
 | ID | 기능 | C# DLL | canonical tracked LASAL | 판정 |
 |---:|---|---|---|---|
-| `0x20D2` | GetGroupMembersInfo | exact 1350B typed parser | descriptor/name 4축 1350B response | source/자동 테스트 완료, PLC 검증 대기 |
+| `0x20D2` | GetGroupMembersInfo | exact 1350B typed parser | AxisCount 9, descriptor/name slot 1..9의 1350B response | source/자동 테스트 완료, PLC 검증 대기 |
 | `0x204A` | GroupPowerOn | local extension request/ACK parser | CyWork에서 비동기 `RobotOn` 시작 요청 | LASAL-local source/자동 테스트 완료, 기존 캡처 명령 아님, PLC 검증 대기 |
 | `0x204B` | GroupPowerOff | local extension request/ACK parser | CyWork에서 비동기 `RobotOff` 시작 요청 | LASAL-local source/자동 테스트 완료, 기존 캡처 명령 아님, PLC 검증 대기 |
 | `0x2047` | GroupEnable | request/ACK parser | CyWork에서 `LockProfile` dispatch | source/자동 테스트 완료, LASAL IDE/PLC 검증 대기 |
@@ -375,7 +386,9 @@ LASAL-DINT v1 local contract는 response를 exact 68 bytes,
 형태만 받고 captured legacy 136-byte LREAL response를 거부한다. LASAL은
 PMAS coordinate enum(None/ACS/MCS/PCS)을 검증하지만, dynamic CalcModel이 없는
 현재 static 4축 프로젝트에서는 모두 `GetRobotPosition`의 동일 axis-order
-identity 위치로 mapping한다. 16개 DINT slot 중 첫 4개가 실제 축이고 나머지는 0이다.
+axis-order 위치로 mapping한다. 현재 tracked source는 `_LMCPROF_POS` 9개 값을
+slot 1..9에 복사한다. Move/SetKin/Lock은 계속 4축이므로 readback slot 범위는
+PLC 재캡처 뒤 별도 계약으로 확정한다.
 
 ### `0x20E7 SetKinTransformEx/Cartesian`
 
@@ -423,11 +436,12 @@ CalcModel을 생성하거나 coefficients를 적용하는 generic transform은 �
   static identity mapping/68B response와 `0x20E7` exact identity/4B ACK를
   문서화했다. callback event payload는 실제 캡처 뒤 확정 필요
 - P0-03: PC/LASAL phase-1 코드 반영, LASAL IDE와 PLC E2E 검증 대기
-- P0-04: actual-name registry, descriptor 1..4와 4축 client wiring source 반영,
+- P0-04: actual-name registry, single-axis descriptor 1..9와 9축 client wiring,
+  group descriptor `0x0100`/4축 Cartesian 경계 source 반영,
   LASAL IDE/PLC 검증 대기
 - P0-05: axis Power/Reset/Stop/Read/Move 8개와 group PowerOn/PowerOff/
   Enable/Disable/ReadStatus/Reset/Stop/MoveLinear/ReadActualPosition/SetKin 10개
-  client-call runtime을 CyWork에서 활성화했다. 캡처 기반 23-command 범위의
+  control/read/motion runtime을 CyWork에서 활성화했다. 캡처 기반 23-command 범위의
   `-5` 차단은 없고 local extension 2개도 별도 계약으로 활성화됐다.
 - P0-06: exact 4B/8B ACK, typed read, AxisInfo, `0x20D2`, `0x2051` parser와
   legacy/truncated shape tests 완료
@@ -436,10 +450,10 @@ CalcModel을 생성하거나 coefficients를 적용하는 generic transform은 �
   실제 PLC 장시간 polling/motion 검증은 남음
 - P0-08: request golden, captured/synthetic parser, malformed frame와 fake RPC/
   UDP callback/lifecycle 통합 test 46/46 PASS. source-first generated table/offset와
-  axis 2~4 link는 `RunLasalContract` PASS. axis 1 connection은 사용자가 IDE에서
-  완료했으며 최종 저장 뒤 `RunLasalNetworkContract` 확인이 남았다.
+  axis 1..9 link는 `RunLasalContract`와 `RunLasalNetworkContract` PASS. 이것은
+  정적 검증이며 LASAL IDE/PLC 확인은 남았다.
 - P0-09: `Response -> depth-8 queue -> CyWork execute -> response` 경로와
-  위 18개 활성 client-call command를 반영했다. 2,048-byte receive,
+  위 18개 활성 control/read/motion command를 반영했다. 2,048-byte receive,
   1,328-byte request, 1,320-byte queue payload로 `0x20E7`도 같은 경로를 쓴다.
   LASAL IDE class model의 `LMCAxis1`, 일반
   `_TCPIPServer1`, CyclicTime 1 ms, `Config=0`, `MaxConnections=1`을 반영했다.
@@ -480,9 +494,8 @@ production 지원으로 표시하지 않는다.
 - test app UI-thread blocking 제거, raw callback/group UI, UNIT/DINT 검사,
   live-command arm, MoveVelocity stop 추적, 정확한 `-5` 판정과 member PowerOn
   rollback 반영 완료; 실제 PLC 검증은 남음
-- assembly version `0.9.1.0`, product `0.9.1-preview`와 신규 Distribution
-  manifest 반영 완료
-- package DLL/EXE를 current source에서 Release rebuild하고 SHA-256 기록 완료;
+- assembly version `0.9.1.0`, product `0.9.1-preview`와 신규 Distribution 반영 완료
+- package DLL/EXE를 current source에서 Release rebuild하고 SHA-256 동일성 확인 완료;
   release artifact commit에서 ignored `bin` DLL도 명시적으로 추적
 - sample/function TXT/API list/packet map 문서는 current PC API로 교체 완료
 - `LMC_API_Delivery`, package, packet analysis의 링크와 용어 최종 통일
@@ -494,14 +507,15 @@ production 지원으로 표시하지 않는다.
 
 - README, API list, packet map, sample과 function/Command ID TXT를 현재
   캡처 기반 23 + LASAL local extension 2 PC public API 범위에 맞췄다.
-- `0.9.1.0` DLL/EXE를 current Release source에서 재빌드했고
-  `RELEASE_MANIFEST.md`에 size와 SHA-256을 기록했다.
+- `0.9.1.0` DLL/EXE를 current Release source에서 재빌드했다. build script는
+  source/`01_API`/`Run` DLL hash 동일성을 검사하고 hash를 console에 출력한다.
+  current Distribution 내부에는 `RELEASE_MANIFEST.md`를 두지 않는다.
 - old tracked binary를 제거하고 새 이름의 package/Delivery DLL과 test-app
   DLL/EXE를 release artifact commit에서 명시적으로 추적했다.
 
 현재 산출물은 PC API source/test용 preview다. LASAL/PLC 검증 뒤 실제 release를
-만들 때는 확정 source commit으로 다시 빌드하고 manifest의 source와 SHA-256을
-갱신해야 한다.
+만들 때는 확정 source commit으로 다시 빌드하고 build console의 source와 SHA-256을
+distribution 외부 승인 기록에 보존해야 한다.
 
 ## 설계 결정 및 미결정 항목
 
@@ -529,11 +543,12 @@ production 지원으로 표시하지 않는다.
 
 ## 권장 실행 순서
 
-1. `LMCAxis1..4`, depth-8 queue와 CyWork-only 활성 18개 client-call command 정적 검증 유지
+1. `LMCAxis1..9`, depth-8 queue와 CyWork-only 활성 18개 control/read/motion command 정적 검증 유지
 2. 현재 group source를 LASAL IDE에서 Rebuild/Link하고 Find in Implementation smoke 수행
 3. 일반 `_TCPIPServer1` link, CyclicTime 1 ms, RealTime assignment 부재,
    same-core, `Config=0`, `MaxConnections=1`을 strict contract로 확인
-4. 현재 LASAL IDE Rebuild 결과를 기준으로 PLC download, RPC/lookup/descriptor 1..4 재캡처
+4. 현재 LASAL IDE Rebuild 결과를 기준으로 PLC download, RPC/lookup/single-axis
+   descriptor 1..9와 group descriptor `0x0100` 재캡처
 5. ReadActualPosition -> read/admin -> Power/Stop -> Move 순서로 명령별 CyWork handler/E2E
 6. 나머지 single-axis command E2E
 7. Group 정상 순서 `0x204A PowerOn -> IsPowerOn(0x40000) -> 0x20E7 SetKin ->
@@ -567,8 +582,12 @@ production 지원으로 표시하지 않는다.
 
 ## 관련 문서
 
-- [Current API list](../../LMC_API/LMC_API/docs/API_LIST.md)
-- [Current C# packet map](../../LMC_API/LMC_API/docs/LMC_PACKET_MAP.md)
+- [Current API development guide](../../LMC_API/API_DEVELOPMENT_GUIDE.md)
+- [Current LASAL-DINT packet map](DINT_PACKET_MAP.txt)
+- [Legacy 0.9.0 API list](../../LMC_API/LMC_API/docs/API_LIST.md)
+- [Legacy 0.9.0 C# packet map](../../LMC_API/LMC_API/docs/LMC_PACKET_MAP.md)
+- [Current project architecture and release status](../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)
+- [Internal 0.9.1-preview build metadata](BUILD_METADATA_2026-07-16.md)
 - [PMAS packet analysis](../../LMC_API/Elmo_API_Packet2/PACKET_ANALYSIS.md)
 - [API structure decision](API_STRUCTURE_DECISION_2026-07-09.md)
 - [Response model](RESPONSE_MODEL_DESIGN_2026-07-09.md)

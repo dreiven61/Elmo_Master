@@ -2,6 +2,8 @@
 
 작성일: 2026-07-10
 
+최종 결과 재확인: 2026-07-16
+
 ## 구성
 
 외부 NuGet package가 없는 .NET Framework 4.8 console runner다.
@@ -74,8 +76,12 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 - `RunPcTests`: `46/46 PASS`
 - `RunLasalContract`:
-  `PASS LASAL.StaticContract (CyWork-only active command contract and ordinary TCP server network)`
+  `PASS LASAL.StaticContract.SourceOnly` (9축, CyWork-only, 1320-byte queue와 group API)
+- `RunLasalNetworkContract`: `PASS LASAL.StaticContract` (current full network)
 - `BuildSimpleExampleApp`: `LMC_Library/LasalApiWpfTestApp` build PASS
+- `BuildDistributionExampleApp`: binary-reference distribution example build PASS
+- full distribution preview pipeline: temporary standalone example Debug/Release build,
+  forbidden internal-reference scan, cleanup과 DLL hash identity PASS
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

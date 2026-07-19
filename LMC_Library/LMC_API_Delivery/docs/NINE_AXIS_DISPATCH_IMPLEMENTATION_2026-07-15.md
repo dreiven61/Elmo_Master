@@ -41,6 +41,11 @@ PC DLL은 원래 object name과 nonzero opaque descriptor에 축 개수 제한�
 0 위치로 이동할 수 있다. 9축 동시 group motion은 정확히 9개 target을 받는
 별도 direct axis-space 계약과 `LMCRobot.MoveLinear` 경로로 설계해야 한다.
 
+별도 확인 사항: current `GroupReadActualPosition` handler는
+`_LMCPROF_POS(Pos1..Pos9)` 36 bytes를 response slot 1..9에 복사한다. 이 read
+동작은 4축 Move/SetKin/Lock 계약과 분리해서 PLC 재캡처하고, 4축-only read 또는
+9축 readback 중 하나로 공개 계약을 확정해야 한다.
+
 ## 검증
 
 - `RunPcTests`: 46/46 PASS

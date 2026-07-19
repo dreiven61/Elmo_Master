@@ -5,7 +5,7 @@
 - `Codex_PMAS_WPF/API_MAPPING.md`
   - Confirms `Codex_PMAS_WPF/PmasApiWpfTestApp.sln` is the WPF test app.
   - Confirms implemented Group Motion APIs include `MMC_GroupReadStatusCmd`, `MoveLinearAbsoluteEx`, `GroupEnable`, `GroupStop`, member status, and Cartesian transform setup.
-- `Codex_PMAS_WPF/Reports/CycleResults/ReadActualPosition_Latency_Compare_20260415_PMASSamples.md`
+- `test/Reports_Lasal/CycleResults/ReadActualPosition_Latency_Compare_20260415_PMASSamples.md`
   - Existing latency logs measure app-side call duration, so `GroupReadStatus` latency must be recorded with the same `Stopwatch` start/end around the managed API call.
 
 ## API Facts Used

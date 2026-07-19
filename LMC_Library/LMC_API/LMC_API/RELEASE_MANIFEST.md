@@ -1,5 +1,10 @@
 # PC API Build Manifest
 
+> **LEGACY SNAPSHOT / 배포 금지:** 이 파일은 2026-07-13의
+> `0.9.0-pc-api` 보관 기록이다. 현재 `0.9.1-preview` 배포는
+> `../../LMC_API_Distribution`을 사용하며, current package에는 이 형식의
+> manifest가 없다.
+
 - Build time: 2026-07-13 15:30 KST
 - Product version: `0.9.0-pc-api`
 - Assembly version: `0.9.0.0`

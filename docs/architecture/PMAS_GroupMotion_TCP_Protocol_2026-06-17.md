@@ -1,7 +1,7 @@
 # PMAS Group Motion TCP Protocol Notes - 2026-06-17
 
-이 문서는 `packet_capture/MoveLinearAbsoluteEx.pcapng`와
-`packet_capture/GroupReadStatus.pcapng`를 기준으로 `Elmo_EtherCAT_Test_4Axis`
+이 문서는 `test/packet_capture/MoveLinearAbsoluteEx.pcapng`와
+`test/packet_capture/GroupReadStatus.pcapng`를 기준으로 `Elmo_EtherCAT_Test_4Axis`
 LASAL 코드에 구현할 TCP 프레임 구조를 정리한 것이다.
 
 ## 기준 구현

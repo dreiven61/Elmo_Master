@@ -146,9 +146,11 @@ payload 세부 offset은 `LmcProtocol.cs`, LASAL parser와
 | Group | `0x20A4` | Move Linear Absolute |
 | Group | `0x20E7` | Set Cartesian 4-axis identity transform |
 
-현재 request/public/source-active path는 25개다. 그중 motion object client
-method를 실제 호출하는 CyWork command는 18개다. 이 숫자는 PLC E2E 완료 수가
-아니다. 실제 PLC E2E/재캡처 완료는 현재 0/25다.
+현재 request/public/source-active path는 25개다. 그중 lifecycle과 name/member
+metadata handler를 제외한 CyWork axis/group control·read·motion command는
+18개다. lookup과 `0x20D2`도 client metadata를 읽으므로 18을 전체 client-call
+수로 해석하면 안 된다. 이 숫자는 PLC E2E 완료 수도 아니다. 실제 PLC
+E2E/재캡처 완료는 현재 0/25다.
 
 ## 5. 연결, callback과 session lifetime
 
@@ -220,6 +222,11 @@ encoder/transmission ratio이며 PC 입력에 곱하지 않는다. 실제 다운
 현재 Cartesian group은 X/Y/Z/U 4축 static identity mapping이다. 5~9축은
 single-axis dispatcher에만 포함되고 group transform/motion에는 포함되지 않는다.
 
+단, current `GroupReadActualPosition` handler는 `_LMCPROF_POS`의 Pos1..Pos9를
+DINT[16] response slot 1..9에 복사한다. 기존 4축-only read 문서와 충돌하므로
+PLC 재캡처 뒤 4축 read로 제한할지 9축 readback을 공개할지 확정해야 한다.
+이 readback 문제는 SetKin/Lock/Move의 4축 제한을 9축으로 넓히지 않는다.
+
 승인 옵션:
 
 - Coordinate: `None`
@@ -283,9 +290,10 @@ public enum에는 다른 값도 선언돼 있지만 현재 PLC adapter가 지원
 
 breaking change면 assembly minor version을 올린다. 같은 AssemblyVersion으로
 서로 다른 public surface를 배포하지 않는다. preview patch라도 FileVersion과
-InformationalVersion을 올리고 manifest/hash를 새로 만든다. API DLL project는
-deterministic build를 유지해 동일 source/toolchain의 반복 빌드 hash가 흔들리지
-않게 한다.
+InformationalVersion을 올리고 Distribution 밖의 승인 기록과 내부
+`BUILD_METADATA_YYYY-MM-DD.md` hash snapshot을 새로 만든다. current Distribution
+안에는 manifest/metadata 파일을 넣지 않는다. API DLL project는 deterministic
+build를 유지해 동일 source/toolchain의 반복 빌드 hash가 흔들리지 않게 한다.
 
 ## 12. 빌드와 검증
 
@@ -335,6 +343,7 @@ script는 사용자가 수정한 문서를 재생성하거나 덮어쓰지 않�
 - Find in Implementation smoke: 미검증
 - CyWork와 motion RT thread core/priority/jitter: 미검증
 - 실제 PLC command E2E와 Wireshark 재캡처: 0/25
+- `GroupReadActualPosition` slot 5..9 공개 계약: 미결정
 - typed callback schema: 없음
 - 다중 PC motion-owner arbitration: 없음
 - Home 실행 API: 없음, `IsReferenced` 확인만 가능

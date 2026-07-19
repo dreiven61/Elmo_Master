@@ -1,5 +1,5 @@
 LMC DINT packet map
-Status 2026-07-14: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-07-16: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 LASAL extensions, 0x204A and 0x204B. These two extensions are not captured
 commands. The five previously
@@ -15,7 +15,7 @@ The API writes caller-provided DINT values directly to the packet.
 Caller code must multiply the physical value by the selected LMC_Units constant,
 round/check the DINT range, and pass the converted int to the motion API.
 Read APIs return raw LASAL DINT; caller code divides by the same UNIT for display.
-Current saved Elmo _LMCAxis1..4 profile (confirmed in Motion_Network):
+Current saved _LMCAxis1..9 profile (confirmed in Motion_Network):
   IntUnits      1 mm; UNIT MM = 10000
   VMax          75 mm
   AMax          7500 mm
@@ -99,10 +99,14 @@ Current four-axis LASAL restrictions:
 [12] Enable BYTE = 1
 [13..15] Padding = 0
 The public enum is validated as None/ACS/MCS/PCS. This project has no dynamic
-CalcModel, so all four values currently read the same statically wired axis-order
-identity position through GetRobotPosition(Mode:=_ACTPOS_APPUNITS,
-CoordSystem:=0). Do not interpret the accepted MCS/PCS enum as a dynamic
-kinematic conversion.
+CalcModel, so all four values currently use GetRobotPosition with
+CoordSystem:=0. Do not interpret the accepted MCS/PCS enum as a dynamic
+kinematic conversion. The current tracked handler copies the complete 36-byte
+_LMCPROF_POS (Pos1..Pos9) into response slots 1..9 and leaves slots 10..16 zero.
+This differs from the older documented four-axis-only read contract. PLC
+recapture must decide whether the public contract remains 1..9 readback or the
+handler must explicitly zero slots 5..16. Group Move/SetKin/Lock remains limited
+to axes 1..4 regardless of this readback issue.
 
 LASAL-DINT v1 success response payload is exactly 68 bytes:
 [8..71] Position DINT[16]
@@ -247,7 +251,9 @@ Response payloads implemented by command-specific parsers:
   maps locked standby to IsStandby/IsEnabled and unlocked disabled to IsDisabled.
 - GetGroupMembersInfo: exactly 1350 bytes; see RESPONSE_MODEL_DESIGN_2026-07-09.md
 - Group ReadActualPosition: exactly 68 bytes, position DINT[16] at [0..63],
-  status UINT16[64], error INT16[66]. Legacy 136-byte LREAL is rejected.
+  status UINT16[64], error INT16[66]. The current source copies Pos1..Pos9 and
+  zero-fills slots 10..16; the intended 4-vs-9 public read contract is pending
+  PLC verification. Legacy 136-byte LREAL is rejected.
 
 Callback and ownership:
 - UDP callback payload remains raw because no event datagram capture/contract exists.
