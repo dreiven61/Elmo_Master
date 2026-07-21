@@ -1,0 +1,2144 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>API_DEVELOPMENT_GUIDE</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style id="md-pandoc-exporter-clean-print-style">
+  @page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+  html {
+    background: #fff !important;
+    color: #222;
+    font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  body {
+    margin: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: #222;
+    overflow-wrap: break-word;
+  }
+  h1 {
+    font-size: 30px;
+    line-height: 1.2;
+    margin: 0 0 28px;
+    font-weight: 700;
+  }
+  h2 {
+    font-size: 24px;
+    line-height: 1.25;
+    margin: 28px 0 18px;
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 20px;
+    line-height: 1.3;
+    margin: 26px 0 14px;
+    font-weight: 700;
+  }
+  p { margin: 0 0 14px; }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 16px 0 18px;
+    font-size: 14px;
+    line-height: 1.45;
+    page-break-inside: auto;
+    table-layout: auto !important;
+  }
+  thead { display: table-header-group; }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  th,
+  td {
+    border: 1px solid #d9d9d9 !important;
+    padding: 8px 10px !important;
+    vertical-align: middle;
+  }
+  th {
+    font-weight: 700;
+    background: #fff;
+  }
+  tbody { border: 0 !important; }
+  code {
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    font-size: 0.84em;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  ul,
+  ol {
+    margin: 0 0 14px 24px;
+    padding: 0;
+  }
+  li { margin: 3px 0; }
+  @media print {
+    body { font-size: 14px !important; }
+    h2,
+    h3,
+    h4 { break-after: avoid; }
+  }
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">API_DEVELOPMENT_GUIDE</h1>
+</header>
+<h1
+id="lasalmotioncontrollib-내부-코드-및-실행-구조-설명서">LasalMotionControlLib
+내부 코드 및 실행 구조 설명서</h1>
+<ul>
+<li>문서 버전: <code>2.1</code></li>
+<li>작성 기준: <code>2026-07-21</code></li>
+<li>적용 API: <code>LasalMotionControlLib 0.9.1-preview</code></li>
+<li>motion baseline branch/commit: <code>main</code> /
+<code>f9bc88a7f78dab5214186689198414fa9a203a32</code></li>
+<li>diagnostics 기준: 2026-07-21 current source</li>
+<li>대상 독자: C# API, LASAL TCP adapter, MotionLib 연결과 배포 패키지를
+유지보수하는 개발자</li>
+</ul>
+<p>이 문서는 공개 API의 signature와 인자를 다시 나열하는 문서가 아니다.
+사용자 코드에서 호출한 API가 C# facade, TCP frame, LASAL request queue,
+<code>_LMCAxis</code> 또는 <code>_LMCRobotBase</code> 호출과 response
+parser를 거쳐 결과로 돌아오는 실제 구현 경로를 설명한다.</p>
+<p>검토 대상인 Distribution DOCX
+<code>LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx</code>
+문서 버전 <code>1.0</code>은 빠른 API 참조다. 각 기능에서 sync/async
+signature를 함께 보여 주지만 두 메서드가 내부적으로 같은 transport와
+command를 공유한다는 사실은 설명하지 않는다. 현재 내부 사용자 매뉴얼
+원본은 <a href="API_USER_MANUAL_KO.md">API_USER_MANUAL_KO.md</a> 문서
+버전 <code>1.4</code>다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현
+이해와 유지보수를 보완한다.</p>
+<blockquote>
+<p><strong>상태 경고:</strong> <code>0.9.1-preview</code>는 production
+승인본이 아니다. 2026-07-21 current source는 PC 자동 시험 100/100, LASAL
+정적 계약, IDE Rebuild/Link와 implementation smoke를 통과했다. 그러나
+기존 motion command의 실제 PLC E2E는 여전히 <code>0/25</code>이며,
+diagnostics D1~D3도 PLC runtime 시험과 packet 재캡처를 수행하지 않았다.
+아래 설명에서 <code>구현됨</code>은 current source에 경로가 존재한다는
+뜻이며 실기 완료를 뜻하지 않는다.</p>
+</blockquote>
+<h2 id="먼저-바로잡아야-할-핵심-오해">1. 먼저 바로잡아야 할 핵심
+오해</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>오해</th>
+<th>실제 구현</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sync API와 async API가 서로 다른 PLC 기능이다</td>
+<td>같은 command ID, 같은 payload builder, 같은 parser를 사용한다.</td>
+</tr>
+<tr>
+<td>async API는 비동기 socket I/O 또는 PLC-side async command다</td>
+<td>blocking <code>ExchangeCore()</code>를 <code>Task.Run</code>으로
+실행하는 caller-thread 비차단 wrapper다.</td>
+</tr>
+<tr>
+<td>여러 async API를 동시에 호출하면 TCP request도 병렬 처리된다</td>
+<td>connection의 단일 <code>sync</code> gate 때문에 request/response가
+한 건씩 직렬 처리된다.</td>
+</tr>
+<tr>
+<td>response를 request ID로 매칭한다</td>
+<td>request ID와 pending-response map이 없다. gate를 잡은 호출이 바로
+다음 response를 직접 읽는다.</td>
+</tr>
+<tr>
+<td><code>LMC_Response.IsSuccess == true</code>면 이동 또는 Power 전이가
+완료됐다</td>
+<td>대부분의 ACK는 명령 접수 또는 MotionLib method의 즉시 반환 결과다.
+완료는 status/position polling으로 확인한다.</td>
+</tr>
+<tr>
+<td>callback 등록이 있으므로 motion-complete event도 구현됐다</td>
+<td>PC raw UDP listener와 PLC endpoint 등록만 있다. PLC event sender와
+typed payload schema는 없다.</td>
+</tr>
+<tr>
+<td>cancellation, timeout, <code>CloseConnection</code>,
+<code>Dispose</code>가 축을 정지시킨다</td>
+<td>motion Stop을 보내지 않는다. in-flight cancellation은 TCP
+transport를 폐기할 수 있다.</td>
+</tr>
+</tbody>
+</table>
+<p>가장 중요한 한 문장으로 요약하면 다음과 같다.</p>
+<blockquote>
+<p><strong>sync/async는 호출자 대기 방식의 차이일 뿐이며, 내부 wire와
+PLC 실행 경로는 같다.</strong></p>
+</blockquote>
+<h2 id="system-of-record와-디렉터리-책임">2. System of Record와 디렉터리
+책임</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>경로</th>
+<th>책임</th>
+<th>판정</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMC_Library/LMC_API_Delivery/src</code></td>
+<td>C# API의 canonical source</td>
+<td>구현 판단 우선</td>
+</tr>
+<tr>
+<td><code>LMC_Library/LMC_API_Delivery/tests</code></td>
+<td>request golden, parser, fake RPC, LASAL 정적 계약</td>
+<td>회귀 기준</td>
+</tr>
+<tr>
+<td><code>LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt</code></td>
+<td>command별 byte 계약</td>
+<td>source와 함께 변경</td>
+</tr>
+<tr>
+<td><code>LMC_Library/LasalApiWpfTestApp</code></td>
+<td>canonical API source를 직접 참조하는 개발/실기 앱</td>
+<td>내부 기준 앱</td>
+</tr>
+<tr>
+<td><code>LMC_Library/LMC_API_Distribution</code></td>
+<td>외부 DLL, binary-reference 예제, 사용자 DOCX/PDF</td>
+<td>배포 기준</td>
+</tr>
+<tr>
+<td><code>Lasal_PRG/Elmo_EtherCAT_Test_4Axis</code></td>
+<td>canonical PLC TCP/RPC adapter와 motion network</td>
+<td>LASAL 수정 기준</td>
+</tr>
+<tr>
+<td><code>Codex_PMAS_WPF</code></td>
+<td>Elmo MMCLib 기능 비교 기준</td>
+<td>LASAL wire 구현 아님</td>
+</tr>
+<tr>
+<td><code>Codex_LASAL_WPF</code></td>
+<td>실제 TCP와 simulation/no-op이 섞인 legacy hybrid</td>
+<td>신규 구현 근거로 사용 금지</td>
+</tr>
+<tr>
+<td><code>LMC_Library/LMC_API/LMC_API</code></td>
+<td><code>0.9.0-pc-api</code> 보관본</td>
+<td>개발/배포 사용 금지</td>
+</tr>
+</tbody>
+</table>
+<p>현재 상태와 과거 문서가 충돌하면 current source, <a
+href="../LMC_API_Delivery/docs/DINT_PACKET_MAP.txt">DINT_PACKET_MAP.txt</a>,
+<a
+href="../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md">현재
+아키텍처 및 릴리스 상태</a> 순서로 판단한다.</p>
+<h2 id="전체-실행-구조">3. 전체 실행 구조</h2>
+<pre class="mermaid"><code>flowchart LR
+    APP[&quot;사용자 프로그램 / WPF&quot;] --&gt; FACADE[&quot;LMCSingleAxis / LMCGroupAxis&quot;]
+    FACADE --&gt; FRAME[&quot;LMC_Frame serializer&quot;]
+    FRAME --&gt; CONN[&quot;LMCConnection\n단일 exchange gate&quot;]
+    CONN --&gt;|&quot;TCP LASAL-DINT v1&quot;| SERVER[&quot;_TCPIPServer1 : 4000&quot;]
+    SERVER --&gt; RESP[&quot;Response()\ningress only&quot;]
+    RESP --&gt; QUEUE[&quot;request queue\ndepth 8&quot;]
+    QUEUE --&gt; CY[&quot;TCPMotionInterface.CyWork()&quot;]
+    CY --&gt; PARSER[&quot;MsgPaser()&quot;]
+    PARSER --&gt; AXIS[&quot;_LMCAxis1..9 Control&quot;]
+    PARSER --&gt; ROBOT[&quot;_LMCRobotBase1 Control&quot;]
+    AXIS --&gt; RT[&quot;1 ms motion realtime/profile&quot;]
+    ROBOT --&gt; RT
+    RT --&gt; PDO[&quot;physical axis 1..4 / EtherCAT PDO&quot;]
+    PARSER --&gt;|&quot;direct response&quot;| SERVER
+    SERVER --&gt; CONN
+    CONN --&gt; RESULT[&quot;ACK / typed result parser&quot;]
+    SERVER -. &quot;UDP endpoint 등록만&quot; .-&gt; CONN</code></pre>
+<p>실행 책임은 다음 네 층으로 나뉜다.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>층</th>
+<th>책임</th>
+<th>하지 않는 일</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>사용자/WPF</td>
+<td>UNIT 변환, 안전 gate, 상태 polling, UI thread marshal</td>
+<td>wire byte 직접 조립</td>
+</tr>
+<tr>
+<td>C# DLL</td>
+<td>입력 검증, frame 생성, TCP lifecycle, response 파싱</td>
+<td>자동 UNIT 변환, motion 완료 대기</td>
+</tr>
+<tr>
+<td>LASAL TCP adapter</td>
+<td>session/descriptor/payload 검증, queue, MotionLib method 호출</td>
+<td>EtherCAT RT profile 계산 자체</td>
+</tr>
+<tr>
+<td>MotionLib/drive</td>
+<td>profile 실행, 상태 전이, physical EtherCAT output</td>
+<td>PC RPC concurrency 관리</td>
+</tr>
+</tbody>
+</table>
+<h2 id="syncasync-api의-실제-내부-동작">4. sync/async API의 실제 내부
+동작</h2>
+<h3 id="공통-호출-파이프라인">4.1 공통 호출 파이프라인</h3>
+<p>Axis와 Group의 public method는 다음 형태로 수렴한다.</p>
+<pre class="text"><code>public API
+  -&gt; LMC_Frame request builder
+  -&gt; LMCConnection.Exchange 또는 ExchangeAsync
+  -&gt; ExchangeCore
+  -&gt; TCP Write
+  -&gt; response header 8 bytes ReadExact
+  -&gt; declared payload ReadExact
+  -&gt; ACK 또는 typed result parser</code></pre>
+<ul>
+<li>sync API는 호출한 thread에서 <code>ExchangeCore()</code>가 끝날
+때까지 block한다.</li>
+<li>async API는 <code>Task.Run(() =&gt; ExchangeCore(...))</code>로
+worker thread에서 같은 blocking 작업을 수행한다.</li>
+<li>Axis/Group async facade는 같은 <code>LMC_Frame</code> builder와
+parser를 사용하고 <code>ConfigureAwait(false)</code>로 library 내부
+continuation을 실행한다.</li>
+<li>async 전용 command ID, async response, PLC completion event는
+없다.</li>
+</ul>
+<p>근거:</p>
+<ul>
+<li><code>LmcConnection.cs:157-203</code> - connection init/close async
+wrapper</li>
+<li><code>LmcConnection.cs:390-470</code> - 공통
+<code>ExchangeCore</code>와 <code>Task.Run</code></li>
+<li><code>LmcAxis.cs:437-455</code> - Axis 공통 send/send-async</li>
+<li><code>LmcGroup.cs:459-499</code> - Group 공통 send/send-async</li>
+</ul>
+<pre class="mermaid"><code>sequenceDiagram
+    participant App
+    participant Facade as Axis/Group facade
+    participant Conn as LMCConnection
+    participant TCP as TCP socket
+    participant PLC as LASAL adapter
+    App-&gt;&gt;Facade: sync API 또는 async API
+    Facade-&gt;&gt;Facade: 동일 LMC_Frame 생성
+    Facade-&gt;&gt;Conn: Exchange 또는 ExchangeAsync
+    Note over Conn: async는 Task.Run, 둘 다 같은 sync gate 사용
+    Conn-&gt;&gt;Conn: connection state와 generation 검사
+    Conn-&gt;&gt;TCP: request 전체 Write
+    TCP-&gt;&gt;PLC: 8-byte header + payload
+    PLC--&gt;&gt;TCP: 8-byte response header + payload
+    Conn-&gt;&gt;TCP: ReadExact(8), ReadExact(payloadLength)
+    Conn-&gt;&gt;Conn: sync gate 해제
+    Conn--&gt;&gt;Facade: raw response
+    Facade-&gt;&gt;Facade: ACK 또는 typed parser
+    Facade--&gt;&gt;App: LMC_Response 또는 typed result</code></pre>
+<h3 id="연결당-한-건만-in-flight">4.2 연결당 한 건만 in-flight</h3>
+<p><code>LMCConnection</code>에는 request ID, correlation ID,
+<code>TaskCompletionSource</code> map 또는 상시 TCP reader loop가 없다.
+<code>sync</code> monitor가 request 송신부터 response 전체 수신까지
+보호한다. header의 <code>Reference</code>는 Axis/Group descriptor이며
+request ID가 아니다. <code>HeaderReserved</code>도 보존만 하며
+correlation에 사용하지 않는다.</p>
+<p>따라서 다음 호출은 worker thread 수와 관계없이 wire에서 순차
+처리된다.</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>await Task<span class="op">.</span><span class="fu">WhenAll</span><span class="op">(</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    axis1<span class="op">.</span><span class="fu">GetActualPositionResultAsync</span><span class="op">(</span>token<span class="op">),</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    axis2<span class="op">.</span><span class="fu">GetActualPositionResultAsync</span><span class="op">(</span>token<span class="op">),</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    group<span class="op">.</span><span class="fu">GroupReadStatusResultAsync</span><span class="op">(</span>token<span class="op">));</span></span></code></pre></div>
+<p>위 코드는 세 작업을 논리적으로 동시에 시작하지만 한
+<code>LMCConnection</code>에서는 최대 한 RPC만 송수신된다. 현재 PC API는
+PLC의 depth-8 queue를 burst pipeline으로 사용하지 않는다.</p>
+<h3 id="sync와-async의-선택-기준">4.3 sync와 async의 선택 기준</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>상황</th>
+<th>권장</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UI thread에서 호출</td>
+<td>async API 사용</td>
+</tr>
+<tr>
+<td>background worker에서 짧은 진단 호출</td>
+<td>sync 또는 async 모두 가능</td>
+</tr>
+<tr>
+<td>높은 throughput을 위한 병렬 RPC</td>
+<td>현재 API로 불가능, protocol redesign 필요</td>
+</tr>
+<tr>
+<td>명령 완료 대기</td>
+<td>async 여부와 무관하게 typed status/position polling 필요</td>
+</tr>
+<tr>
+<td>취소 가능한 사용자 동작</td>
+<td>async + token을 쓸 수 있으나 취소를 Stop으로 취급하면 안 됨</td>
+</tr>
+</tbody>
+</table>
+<p><code>ReadStatus()</code>와 <code>GetActualPosition()</code> 같은
+scalar compatibility helper는 sync 전용이다. async에서는
+<code>ReadStatusResultAsync()</code>와
+<code>GetActualPositionResultAsync()</code>처럼 diagnostic field를
+보존하는 typed API를 사용한다.</p>
+<h2 id="connection-lifecycle과-session-generation">5. Connection
+lifecycle과 session generation</h2>
+<h3 id="초기화-순서">5.1 초기화 순서</h3>
+<p>실제 <code>RpcInitConnection[Async]</code> 순서는 다음과 같다.</p>
+<ol type="1">
+<li>address, port, timeout과 callback 인자를 검증한다.</li>
+<li><code>lifecycleSync</code> gate를 획득한다.</li>
+<li>이전 connection이 있으면 local resource를 정리한다.</li>
+<li>지정한 local IPv4에 ephemeral TCP endpoint를 만들고 PLC에
+연결한다.</li>
+<li><code>0x8080</code> session-init을 보내고 정확한 24-byte payload를
+검증한다.</li>
+<li>local UDP callback listener를 bind한다.</li>
+<li>실제 bind된 UDP port, event mask, local IPv4로 <code>0x405C</code>를
+보낸다.</li>
+<li>정확한 4-byte ACK가 성공하면 <code>Connected</code>로 전이한다.</li>
+</ol>
+<pre class="mermaid"><code>sequenceDiagram
+    participant App
+    participant Conn as LMCConnection
+    participant TCP
+    participant UDP
+    participant PLC
+    App-&gt;&gt;Conn: RpcInitConnection[Async]
+    Conn-&gt;&gt;Conn: lifecycle gate, 입력 검증, 이전 session 정리
+    Conn-&gt;&gt;TCP: connect
+    Conn-&gt;&gt;PLC: 0x8080 SessionInit
+    PLC--&gt;&gt;Conn: payload 24 bytes
+    Conn-&gt;&gt;UDP: bind local callback socket
+    Conn-&gt;&gt;PLC: 0x405C mask + actual UDP port + IPv4
+    PLC--&gt;&gt;Conn: ACK payload 4 bytes
+    Conn--&gt;&gt;App: State = Connected</code></pre>
+<p>기본 option은 다음과 같다.</p>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 40%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>Option</th>
+<th style="text-align: right;">기본값</th>
+<th>적용 방식</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connect timeout</td>
+<td style="text-align: right;">3000 ms</td>
+<td><code>BeginConnect</code> + wait timeout</td>
+</tr>
+<tr>
+<td>Send timeout</td>
+<td style="text-align: right;">3000 ms</td>
+<td>synchronous <code>NetworkStream.Write</code> 기반</td>
+</tr>
+<tr>
+<td>Receive timeout</td>
+<td style="text-align: right;">3000 ms</td>
+<td>synchronous <code>NetworkStream.Read</code> 기반</td>
+</tr>
+<tr>
+<td>Callback thread join</td>
+<td style="text-align: right;">500 ms</td>
+<td>listener 종료 시 background thread join</td>
+</tr>
+<tr>
+<td>Callback source validation</td>
+<td style="text-align: right;"><code>true</code></td>
+<td>controller IPv4가 다르면 datagram 폐기</td>
+</tr>
+</tbody>
+</table>
+<h3 id="상태와-fault">5.2 상태와 fault</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>State</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Disconnected</code></td>
+<td>local TCP/UDP resource가 닫힘</td>
+</tr>
+<tr>
+<td><code>Connecting</code></td>
+<td>TCP와 RPC/callback 초기화 진행 중</td>
+</tr>
+<tr>
+<td><code>Connected</code></td>
+<td>command exchange 허용</td>
+</tr>
+<tr>
+<td><code>Closing</code></td>
+<td>close ACK와 local cleanup 진행 중</td>
+</tr>
+<tr>
+<td><code>Faulted</code></td>
+<td>timeout, transport 오류 또는 in-flight cancellation로 stream 신뢰
+상실</td>
+</tr>
+</tbody>
+</table>
+<p>자동 retry와 자동 reconnect는 없다. <code>Faulted</code> 이후
+애플리케이션이 다시 <code>RpcInitConnection[Async]</code>를 수행해야
+한다.</p>
+<h3 id="axisgroup-handle과-generation">5.3 Axis/Group handle과
+generation</h3>
+<p>새 <code>TcpClient</code>를 만들 때 local
+<code>sessionGeneration</code>이 증가한다. Axis와 Group 객체는 생성 당시
+generation과 lookup descriptor를 저장한다. 각 호출 전과 exchange gate
+안에서 현재 generation인지 확인하므로 reconnect 후 예전 객체는
+<code>InvalidOperationException</code>으로 거부된다.</p>
+<pre class="text"><code>Connection A generation 10
+  -&gt; axis handle(reference 1, generation 10)
+  -&gt; disconnect/reconnect
+Connection A generation 11
+  -&gt; old axis handle 사용: 거부
+  -&gt; CreateAsync로 새 handle 생성: 정상</code></pre>
+<p>descriptor는 PLC pointer가 아니다. current deployment의 opaque local
+값은 Axis <code>1..9</code>, Group <code>0x0100</code>이며 session
+밖에서 영속 identifier로 저장하면 안 된다.</p>
+<h3 id="cancellation의-실제-의미">5.4 cancellation의 실제 의미</h3>
+<pre class="mermaid"><code>flowchart TD
+    A[&quot;Cancellation requested&quot;] --&gt; B{&quot;호출 종류와 취소 관찰 시점&quot;}
+    B --&gt;|&quot;일반 command: gate 대기 또는 pre-I/O 검사&quot;| C[&quot;OperationCanceledException&quot;]
+    C --&gt; D[&quot;활성 RPC와 TCP transport 유지&quot;]
+    B --&gt;|&quot;일반 command: cancellation 등록 / I/O 진입 후&quot;| E[&quot;현재 TcpClient detach 및 close&quot;]
+    E --&gt; F[&quot;UDP listener stop&quot;]
+    F --&gt; G[&quot;State = Faulted&quot;]
+    G --&gt; H[&quot;명령 적용 여부 불명, reconnect 필요&quot;]
+    B --&gt;|&quot;RpcInitConnection&quot;| I[&quot;부분 생성 resource 정리, Disconnected&quot;]
+    B --&gt;|&quot;CloseConnection&quot;| J[&quot;local close 완료, Disconnected&quot;]</code></pre>
+<ul>
+<li>gate 대기 중 또는 gate 획득 직후의 pre-I/O token 검사에서 취소를
+관찰하면 다른 active request와 현재 transport를 건드리지 않는다.</li>
+<li>일반 command가 pre-I/O 검사를 지나 cancellation callback 등록과
+transport I/O에 진입한 뒤 취소되면 command bytes가 이미 전송됐을 수
+있다. 이때 command 적용 여부와 TCP stream 위치를 확정할 수 없으므로
+transport를 폐기하고 <code>Faulted</code>로 전환한다.</li>
+<li><code>RpcInitConnection[Async]</code> 취소는 부분 생성 resource를
+정리하고 <code>Disconnected</code>로 끝난다.</li>
+<li><code>CloseConnection[Async]</code> 취소도 local close를 완료하고
+<code>Disconnected</code>로 끝난다.</li>
+<li>cancellation token은 motion Stop token이 아니다.</li>
+</ul>
+<p><code>CloseConnection()</code>은 <code>0x405D</code> ACK를 시도한 뒤
+local TCP/UDP를 닫는다. ACK가 실패해도 local resource는 정리된다.
+<code>Dispose()</code>는 close 오류를 외부로 다시 던지지 않는다. 어느
+경로도 Axis/Group Stop을 자동 전송하지 않는다.</p>
+<h2 id="axis와-group-객체-생성">6. Axis와 Group 객체 생성</h2>
+<h3 id="axis-생성">6.1 Axis 생성</h3>
+<p><code>new LMCSingleAxis(connection, name)</code> 또는
+<code>CreateAsync()</code>는 단순 local object 생성이 아니다.</p>
+<ol type="1">
+<li>printable ASCII 1..79-byte name을 <code>0x103C</code> 80-byte
+payload로 전송한다.</li>
+<li>PLC가 실제 연결 object의 <code>_GetObjName()</code>과 대소문자를
+무시해 비교한다.</li>
+<li>성공하면 6-byte lookup response의 offset 4에서 nonzero descriptor를
+읽는다.</li>
+<li>descriptor로 <code>0x202B AxisInfo</code>를 추가 전송한다.</li>
+<li>8-byte ACK의 frame, command status와 exact shape를 검증한다.</li>
+<li>descriptor와 session generation을 handle에 저장한다.</li>
+</ol>
+<p>sync constructor와 async factory는 동일한 두 RPC를 순서대로 수행한다.
+async factory가 두 요청을 동시에 보내는 것은 아니다.</p>
+<h3 id="group-생성">6.2 Group 생성</h3>
+<p>Group은 <code>0x1042</code> name lookup 한 번으로 current descriptor
+<code>0x0100</code>을 얻는다. current PLC에는 한 <code>LMCRobot</code>
+registry 대상만 있다. Group handle도 session generation을 저장한다.</p>
+<p><code>GetGroupMembersInfoResult[Async]</code>는 별도
+<code>0x20D2</code> command다. response는 16개 reference, 16개 device
+ID, 16개의 80-byte name slot, function status/error와 axis count로
+구성된다. 현재 PLC 성공 조건은 Axis 1..9와 Robot client가 모두 연결된
+상태다.</p>
+<h2 id="wire-protocol과-response-correlation">7. Wire protocol과
+response correlation</h2>
+<h3 id="request-header">7.1 request header</h3>
+<p>모든 integer와 DINT는 little-endian이다.
+<code>SetKinTransformCartesian4Axis()</code>의 matrix/node 값은 IEEE-754
+64-bit <code>DOUBLE</code>을 little-endian으로 직렬화한다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th style="text-align: right;">크기</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td>Command ID</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>Reserved, 현재 0</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">2</td>
+<td>Payload length</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">2</td>
+<td>object descriptor/reference</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">N</td>
+<td>command payload</td>
+</tr>
+</tbody>
+</table>
+<h3 id="response-header">7.2 response header</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th style="text-align: right;">크기</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td>Header status</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>Payload length</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td>Reserved</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">N</td>
+<td>response payload</td>
+</tr>
+</tbody>
+</table>
+<p>C#은 response header 8 bytes를 먼저 <code>ReadExact()</code>하고
+offset 2의 <code>UInt16</code> 길이만큼 payload를 다시
+<code>ReadExact()</code>한다. raw 크기가 정확히
+<code>8 + PayloadLength</code>일 때만 <code>IsFrameValid</code>가
+된다.</p>
+<p>현재 protocol에는 magic, version, request ID, command echo와 CRC가
+없다. 순서가 어긋난 stream을 재동기화할 방법도 없다. 그래서 timeout,
+EOF, partial send와 in-flight cancellation 뒤에는 transport 재사용을
+금지한다.</p>
+<h3 id="response-shape">7.3 response shape</h3>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 40%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>shape</th>
+<th style="text-align: right;">payload</th>
+<th>사용</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>short ACK/error</td>
+<td style="text-align: right;">4 bytes</td>
+<td><code>Status UINT16 + ErrorId INT16</code></td>
+</tr>
+<tr>
+<td>long ACK</td>
+<td style="text-align: right;">8 bytes</td>
+<td>opaque/reference DINT + status/error</td>
+</tr>
+<tr>
+<td>Axis status</td>
+<td style="text-align: right;">12 bytes</td>
+<td>state + function status/error + axis error + reserved status
+word</td>
+</tr>
+<tr>
+<td>Axis position</td>
+<td style="text-align: right;">8 bytes</td>
+<td>DINT position + function status/error</td>
+</tr>
+<tr>
+<td>Group status</td>
+<td style="text-align: right;">12 bytes</td>
+<td>state + function status/error + group error + padding</td>
+</tr>
+<tr>
+<td>Group position</td>
+<td style="text-align: right;">68 bytes</td>
+<td>DINT[16] + function status/error</td>
+</tr>
+<tr>
+<td>Group members</td>
+<td style="text-align: right;">1350 bytes</td>
+<td>16-member metadata + function status/error/count</td>
+</tr>
+</tbody>
+</table>
+<p>typed response parser는 정상 command별 고정 길이 또는 4-byte short
+error만 허용한다. 정상 status/position payload가 없는 4-byte success
+response는 성공값으로 만들지 않고 <code>InvalidDataException</code>으로
+거부한다.</p>
+<h2 id="c-api-내부-계층">8. C# API 내부 계층</h2>
+<h3 id="파일별-책임">8.1 파일별 책임</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>파일</th>
+<th>책임</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LmcProtocol.cs</code></td>
+<td>command ID, request builder, little-endian read/write, wire-level
+validation</td>
+</tr>
+<tr>
+<td><code>LmcConnection.cs</code></td>
+<td>lifecycle, exchange serialization, exact read, response parser,
+callback thread</td>
+</tr>
+<tr>
+<td><code>LmcAxis.cs</code></td>
+<td>Axis facade, lookup/AxisInfo, request 선택, typed/scalar 결과</td>
+</tr>
+<tr>
+<td><code>LmcGroup.cs</code></td>
+<td>Group facade, lookup, kinematic axis validation, Group request
+선택</td>
+</tr>
+<tr>
+<td><code>LmcGroupModels.cs</code></td>
+<td>public motion option과 internal captured kinematic model</td>
+</tr>
+<tr>
+<td><code>LmcResults.cs</code></td>
+<td>typed result, status mask, command/axis/group success 판정</td>
+</tr>
+<tr>
+<td><code>LmcConnectionModels.cs</code></td>
+<td>lifecycle state와 timeout/callback option</td>
+</tr>
+<tr>
+<td><code>LmcUnits.cs</code></td>
+<td>caller용 UNIT 상수, 자동 변환 로직 아님</td>
+</tr>
+</tbody>
+</table>
+<h3 id="command-facade의-반환-방식">8.2 command facade의 반환 방식</h3>
+<p>Power, Reset, Stop과 Move 계열은 다음 방식이다.</p>
+<pre class="text"><code>public command
+  -&gt; request 생성
+  -&gt; Exchange[Async]
+  -&gt; ParseCommandAcknowledgement
+  -&gt; LMC_Response 반환</code></pre>
+<p>일반 command는 valid ACK의 command status가 실패여도 대체로 예외로
+바꾸지 않는다. 호출자가 <code>response.IsSuccess</code>,
+<code>Status</code>, <code>ErrorId</code>를 확인해야 한다. transport
+오류나 malformed ACK는 예외다.</p>
+<p>반면 다음 경로는 실패를 예외화한다.</p>
+<ul>
+<li>session init과 callback registration</li>
+<li>explicit close ACK</li>
+<li>Axis lookup/AxisInfo와 Group lookup</li>
+<li>scalar compatibility read인 <code>ReadStatus()</code>,
+<code>GetActualPosition()</code>, <code>GroupReadStatus()</code></li>
+</ul>
+<h3 id="typed-read와-scalar-compatibility-read">8.3 typed read와 scalar
+compatibility read</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>API</th>
+<th>실패 처리</th>
+<th>diagnostic 정보</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ReadStatusResult[Async]</code></td>
+<td>정상 error envelope를 result로 반환</td>
+<td>모두 보존</td>
+</tr>
+<tr>
+<td><code>GetActualPositionResult[Async]</code></td>
+<td>정상 error envelope를 result로 반환</td>
+<td>모두 보존</td>
+</tr>
+<tr>
+<td><code>GroupReadStatusResult[Async]</code></td>
+<td>정상 error envelope를 result로 반환</td>
+<td>모두 보존</td>
+</tr>
+<tr>
+<td><code>ReadStatus()</code></td>
+<td>result 실패 시 <code>InvalidOperationException</code></td>
+<td>out response 사용 시 일부 확인</td>
+</tr>
+<tr>
+<td><code>GetActualPosition()</code></td>
+<td>result 실패 시 <code>InvalidOperationException</code></td>
+<td>out response 사용 시 일부 확인</td>
+</tr>
+<tr>
+<td><code>GroupReadStatus()</code></td>
+<td>result 실패 시 <code>InvalidOperationException</code></td>
+<td>out response 사용 시 일부 확인</td>
+</tr>
+</tbody>
+</table>
+<p>신규 애플리케이션은 typed result API를 기본으로 사용한다.</p>
+<h2 id="lasal-tcp-ingress-queue와-dispatcher">9. LASAL TCP ingress,
+queue와 dispatcher</h2>
+<h3 id="task와-고정-자원">9.1 task와 고정 자원</h3>
+<p><code>_TCPIPServer1</code>과 <code>TCPMotionInterface1</code>은 같은
+non-RT cyclic task에서 1 ms 주기로 등록되며 TCP server가 먼저
+실행된다.</p>
+<table>
+<thead>
+<tr>
+<th>자원</th>
+<th style="text-align: right;">크기/값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP port</td>
+<td style="text-align: right;">4000</td>
+</tr>
+<tr>
+<td>Max connections</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td>receive accumulator</td>
+<td style="text-align: right;">2048 bytes</td>
+</tr>
+<tr>
+<td>active request buffer</td>
+<td style="text-align: right;">1328 bytes</td>
+</tr>
+<tr>
+<td>queue payload maximum</td>
+<td style="text-align: right;">1320 bytes</td>
+</tr>
+<tr>
+<td>send staging buffer</td>
+<td style="text-align: right;">2048 bytes</td>
+</tr>
+<tr>
+<td>request queue depth</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr>
+<td>한 <code>CyWork</code>에서 처리하는 request</td>
+<td style="text-align: right;">최대 1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tcpipserver에서-response까지">9.2 <code>_TCPIPServer</code>에서
+<code>Response()</code>까지</h3>
+<p><code>_TCPIPServer.CyWork()</code>는 socket의 available byte 수를
+확인하고 <code>TCPMotionInterface.DataHandling()</code>에 이번 scan에서
+읽을 크기를 묻는다. OS receive 뒤 <code>Response()</code> callback을
+호출한다.</p>
+<p><code>Response()</code>의 책임은 ingress뿐이다.</p>
+<ol type="1">
+<li>fragment를 <code>ReceiveBuf</code>에 누적한다.</li>
+<li>8-byte header에서 payload length를 읽는다.</li>
+<li>payload가 1320 bytes를 넘는지 검사한다.</li>
+<li>완전한 frame이 될 때까지 기다린다.</li>
+<li>command, descriptor, payload와 session epoch를 queue entry에
+복사한다.</li>
+<li>entry state를 마지막에 <code>READY</code>로 publish한다.</li>
+<li>callback에 여러 frame이 붙어 있으면 남은 bytes를 앞으로 옮겨
+반복한다.</li>
+</ol>
+<p><code>Response()</code>는 motion method를 호출하거나 TCP response를
+보내지 않는다. 이 invariant는 TCP callback에서 MotionLib를 직접 호출하지
+않기 위한 핵심 경계다.</p>
+<h3 id="queue-state와-cywork">9.3 queue state와
+<code>CyWork()</code></h3>
+<pre class="text"><code>FREE -&gt; WRITING -&gt; READY -&gt; ACTIVE -&gt; FREE</code></pre>
+<p><code>CyWork()</code>는 read index의 <code>READY</code> entry 하나를
+<code>ActiveRequest</code>로 복사하고 queue slot을 해제한다. request
+header를 <code>RequestBuf</code>에 재구성한 후 <code>MsgPaser()</code>를
+동기 호출한다. handler가 MotionLib client를 호출하고 response를
+보내기까지 같은 CyWork invocation에서 수행된다.</p>
+<p>queue entry에는 <code>Sequence</code>가 있지만 현재 response
+correlation이나 duplicate detection에는 사용하지 않는다. session이
+끊기거나 close되면 <code>SessionEpoch</code>가 바뀌며 이전 epoch의 stale
+queue entry는 실행하지 않는다.</p>
+<h3 id="ingress-fault">9.4 ingress fault</h3>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 40%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>상황</th>
+<th style="text-align: right;">local error</th>
+<th>동작</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>잘못된 socket/session</td>
+<td style="text-align: right;"><code>-1</code></td>
+<td>request 거부</td>
+</tr>
+<tr>
+<td>payload &gt; 1320</td>
+<td style="text-align: right;"><code>-5</code></td>
+<td>frame 폐기, boundary 불명확 시 reconnect 요구</td>
+</tr>
+<tr>
+<td>receive accumulator overflow</td>
+<td style="text-align: right;"><code>-8</code></td>
+<td>ingress block/quarantine</td>
+</tr>
+<tr>
+<td>queue full</td>
+<td style="text-align: right;"><code>-8</code></td>
+<td>앞서 수락된 응답 뒤 fault response</td>
+</tr>
+<tr>
+<td>unknown command</td>
+<td style="text-align: right;"><code>-4</code></td>
+<td>short error response</td>
+</tr>
+<tr>
+<td>direct partial/failed send</td>
+<td style="text-align: right;">transport quarantine</td>
+<td>session epoch 변경, reconnect 필요</td>
+</tr>
+</tbody>
+</table>
+<p>하나의 TCP callback에 oversized frame 뒤 다음 frame 일부가 이미
+포함돼 boundary를 확정할 수 없으면 reconnect만 안전한 복구 방법으로
+취급한다.</p>
+<h3 id="session-gate">9.5 session gate</h3>
+<p>일반 command는 같은 socket에서 다음 두 단계가 모두 끝난 뒤에만
+허용된다.</p>
+<ol type="1">
+<li><code>0x8080</code> session init</li>
+<li><code>0x405C</code> callback endpoint registration</li>
+</ol>
+<p>callback event sender가 아직 없더라도 registration은 현재 PLC session
+gate의 일부다. protocol header에 session ID는 없고 socket과 local
+<code>SessionEpoch</code>가 session을 구분한다.</p>
+<h2 id="motionlib와-realtime-경계">10. MotionLib와 realtime 경계</h2>
+<p><code>TCPMotionInterface</code>는 non-RT <code>CyWork</code>
+object다. 실제 <code>_LMCAxis1..9</code>는
+<code>RealtimeTask=true</code>, <code>CyclicTask=false</code>인 motion
+object다. Axis control client를 통해 호출된 method는 profile/state
+machine을 설정하고 실제 profile 진행과 EtherCAT output은 Axis realtime
+경로에서 이어진다.</p>
+<pre class="mermaid"><code>flowchart LR
+    A[&quot;TCPMotionInterface CyWork\nnon-RT&quot;] --&gt; B[&quot;LMCAxis/LMCRobot method call&quot;]
+    B --&gt; C[&quot;즉시 command return code&quot;]
+    C --&gt; D[&quot;TCP ACK&quot;]
+    B --&gt; E[&quot;_LMCAxis / _LMCRobot RT state&quot;]
+    E --&gt; F[&quot;profile 계산&quot;]
+    F --&gt; G[&quot;set position / controller&quot;]
+    G --&gt; H[&quot;EtherCAT PDO -&gt; physical axis 1..4&quot;]
+    E --&gt; I[&quot;status/actual position polling&quot;]</code></pre>
+<p>MotionLib source는 <code>_LMCAxis</code> method caller가 Axis
+realtime thread와 같은 core이며 realtime thread보다 같거나 낮은
+priority여야 한다고 명시한다. current source/static contract만으로 실제
+PLC의 core/priority 배치가 이 조건을 만족한다고 확정할 수 없다. LASAL
+IDE와 PLC에서 task ID, core, priority와 jitter를 확인해야 한다.</p>
+<p>축 범위도 구분한다.</p>
+<table>
+<thead>
+<tr>
+<th>범위</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Axis 1..4</td>
+<td>physical Elmo/DS402 연결</td>
+</tr>
+<tr>
+<td>Axis 5..9</td>
+<td>software object, simulation mode</td>
+</tr>
+<tr>
+<td>Robot member 1..9</td>
+<td>software wiring 존재</td>
+</tr>
+<tr>
+<td>Cartesian SetKin/Lock/Move</td>
+<td>X/Y/Z/U Axis 1..4만 승인</td>
+</tr>
+</tbody>
+</table>
+<h2 id="대표-command의-end-to-end-walkthrough">11. 대표 command의
+end-to-end walkthrough</h2>
+<h3 id="moveabsoluteex">11.1 <code>MoveAbsoluteEx</code></h3>
+<ol type="1">
+<li><code>LMCSingleAxis.MoveAbsoluteEx()</code>가 현재 session인지
+확인한다.</li>
+<li><code>LMC_Frame.LMCAxisMoveAbsolute()</code>가 <code>0x209F</code>,
+descriptor와 32-byte payload를 만든다.</li>
+<li>C#은 direction이 <code>Shortest(2)</code>인지 검증하고 모든 DINT를
+little-endian으로 기록한다.</li>
+<li><code>LMCConnection.Exchange[Async]</code>가 단일 gate를 획득해
+request를 전송한다.</li>
+<li>PLC <code>Response()</code>가 frame을 조립해 depth-8 queue에
+publish한다.</li>
+<li><code>TCPMotionInterface.CyWork()</code>가 request 하나를 꺼내
+<code>MsgPaser()</code>를 호출한다.</li>
+<li>handler가 payload length, Axis <code>1..9</code>, direction, buffer
+mode와 execute를 검증한다.</li>
+<li>Axis reference에 따라
+<code>LMCAxisN.MoveShortestWay(Position, Speed, Accel, Decel, Jerk)</code>를
+호출한다.</li>
+<li>MotionLib 즉시 return code를 16-bit status/error로 정리해 8-byte ACK
+payload를 전송한다.</li>
+<li>C# <code>ParseCommandAcknowledgement()</code>가
+<code>LMC_Response</code>를 반환한다.</li>
+<li>애플리케이션은 <code>ReadStatusResult[Async]</code>와
+<code>GetActualPositionResult[Async]</code>를 polling해
+standstill/in-position과 최종 위치를 별도로 확인한다.</li>
+</ol>
+<p>Request payload:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Payload offset</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>Position DINT</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>Velocity DINT</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>Acceleration DINT</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>Deceleration DINT</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>Jerk DINT</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>Direction DINT, current <code>2</code> only</td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td>BufferMode DINT, current <code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td>Execute DINT, <code>1</code></td>
+</tr>
+</tbody>
+</table>
+<p>ACK 성공은 profile method가 요청을 받아들였다는 뜻이지 target 도착을
+뜻하지 않는다.</p>
+<h3 id="readstatusresult">11.2 <code>ReadStatusResult</code></h3>
+<ol type="1">
+<li>C#이 <code>0x2028</code>, descriptor와 payload 내부
+reference/execute를 보낸다.</li>
+<li>PLC가 descriptor와 payload reference가 일치하는지 확인한다.</li>
+<li>해당 <code>LMCAxisN.ReadAxisStatus()</code>와
+<code>ReadAxisError()</code>를 호출한다.</li>
+<li>12-byte payload에 native <code>_LMCAXIS_STATUS</code>, function
+status/error, axis error와 reserved status word를 기록한다.</li>
+<li>C# parser가 <code>LMCReadStatusResult</code>를 만든다.</li>
+</ol>
+<p>현재 주요 status bit는 다음과 같다.</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th style="text-align: right;">Native state mask</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IsPowerOn</code></td>
+<td style="text-align: right;"><code>0x00000001</code></td>
+<td>LASAL Axis power state</td>
+</tr>
+<tr>
+<td><code>IsReferenced</code></td>
+<td style="text-align: right;"><code>0x00000002</code></td>
+<td>reference/home-complete state</td>
+</tr>
+<tr>
+<td><code>IsStandstill</code></td>
+<td style="text-align: right;"><code>0x02000000</code></td>
+<td>Axis standstill</td>
+</tr>
+</tbody>
+</table>
+<p><code>StatusWord</code> response slot은 현재 <code>0</code>으로
+채우는 reserved field다. DS402 StatusWord 진단값으로 사용하면 안
+된다.</p>
+<h3 id="정상-group-실행-순서">11.3 정상 Group 실행 순서</h3>
+<pre class="text"><code>Group/Axis handle 생성
+  -&gt; GetGroupMembersInfoResult
+  -&gt; GroupPowerOn
+  -&gt; GroupReadStatusResult.IsPowerOn poll
+  -&gt; Axis 1..4 IsReferenced 확인
+  -&gt; SetKinTransformCartesian4Axis
+  -&gt; GroupEnable (LockProfile)
+  -&gt; GroupReadStatusResult.IsStandby poll
+  -&gt; MoveLinearAbsoluteEx
+  -&gt; Group status/position으로 완료 확인
+  -&gt; 필요 시 GroupStop 후 in-position 확인
+  -&gt; GroupDisable (UnlockProfile)
+  -&gt; GroupPowerOff
+  -&gt; IsPowerOn == false 확인</code></pre>
+<p><code>GroupEnable/Disable</code>은 servo power 명령이 아니라 profile
+lock/unlock이다. <code>GroupDisable</code>은 profile in-position을
+확인한 뒤에만 <code>UnlockProfile()</code>을 호출한다.</p>
+<p><code>SetKinTransformCartesian4Axis()</code>는 dynamic kinematic
+model을 생성하지 않는다. captured 1320-byte X/Y/Z/U identity payload
+전체와 unique Axis references를 검증하고 PLC의
+<code>GroupKinematicReady</code> flag를 설정한다. profile lock은 별도
+<code>GroupEnable()</code>이 수행한다.</p>
+<h2 id="api와-plc-handler-매핑">12. API와 PLC handler 매핑</h2>
+<h3 id="lifecycle과-lookup">12.1 Lifecycle과 lookup</h3>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 28%" />
+<col style="width: 28%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr>
+<th>Public/API 단계</th>
+<th style="text-align: right;">Command</th>
+<th style="text-align: right;">Request/Success payload</th>
+<th>PLC 동작</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RpcInitConnection[Async]</code> 내부</td>
+<td style="text-align: right;"><code>0x8080</code></td>
+<td style="text-align: right;">1 / 24</td>
+<td>socket을 RPC session으로 지정</td>
+</tr>
+<tr>
+<td>동일 초기화 내부</td>
+<td style="text-align: right;"><code>0x405C</code></td>
+<td style="text-align: right;">12 / 4</td>
+<td>callback mask/port/IPv4 저장</td>
+</tr>
+<tr>
+<td><code>CloseConnection[Async]</code></td>
+<td style="text-align: right;"><code>0x405D</code></td>
+<td style="text-align: right;">1 / 4</td>
+<td>ACK 후 session state/epoch 정리</td>
+</tr>
+<tr>
+<td><code>LMCSingleAxis</code> 생성</td>
+<td style="text-align: right;"><code>0x103C</code></td>
+<td style="text-align: right;">80 / 6</td>
+<td>실제 object name -&gt; descriptor <code>1..9</code></td>
+</tr>
+<tr>
+<td>Axis 생성 2단계</td>
+<td style="text-align: right;"><code>0x202B</code></td>
+<td style="text-align: right;">12 / 8</td>
+<td>payload 길이와 descriptor <code>1..9</code>만 확인; mode/enable 값과
+client 연결은 재검증하지 않음</td>
+</tr>
+<tr>
+<td><code>LMCGroupAxis</code> 생성</td>
+<td style="text-align: right;"><code>0x1042</code></td>
+<td style="text-align: right;">80 / 6</td>
+<td>Robot name -&gt; descriptor <code>0x0100</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="single-axis">12.2 Single Axis</h3>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 23%" />
+<col style="width: 23%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr>
+<th>Public sync/async pair</th>
+<th style="text-align: right;">Command</th>
+<th style="text-align: right;">Request/Success payload</th>
+<th>LASAL method/값</th>
+<th>완료 확인</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PowerOn[Async]</code></td>
+<td style="text-align: right;"><code>0x2023</code></td>
+<td style="text-align: right;">8 / 8</td>
+<td><code>LMCAxisN.PowerOn</code></td>
+<td><code>ReadStatusResult.IsPowerOn</code></td>
+</tr>
+<tr>
+<td><code>PowerOff[Async]</code></td>
+<td style="text-align: right;"><code>0x2023</code></td>
+<td style="text-align: right;">8 / 8</td>
+<td><code>LMCAxisN.PowerOff</code></td>
+<td><code>IsPowerOn == false</code></td>
+</tr>
+<tr>
+<td><code>Reset[Async]</code></td>
+<td style="text-align: right;"><code>0x2024</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td><code>QuitError()</code></td>
+<td>status/error 재조회</td>
+</tr>
+<tr>
+<td><code>Stop[Async]</code></td>
+<td style="text-align: right;"><code>0x2022</code></td>
+<td style="text-align: right;">16 / 8</td>
+<td><code>StopMove</code></td>
+<td><code>IsStandstill</code>과 position</td>
+</tr>
+<tr>
+<td><code>ReadStatusResult[Async]</code></td>
+<td style="text-align: right;"><code>0x2028</code></td>
+<td style="text-align: right;">8 / 12</td>
+<td><code>ReadAxisStatus</code>, <code>ReadAxisError</code></td>
+<td>response 자체</td>
+</tr>
+<tr>
+<td><code>GetActualPositionResult[Async]</code></td>
+<td style="text-align: right;"><code>0x202E</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td><code>ReadPosition(ACTPOS_APPUNIT)</code></td>
+<td>response 자체</td>
+</tr>
+<tr>
+<td><code>MoveAbsoluteEx[Async]</code></td>
+<td style="text-align: right;"><code>0x209F</code></td>
+<td style="text-align: right;">32 / 8</td>
+<td><code>MoveShortestWay</code></td>
+<td>status/position polling</td>
+</tr>
+<tr>
+<td><code>MoveRelativeEx[Async]</code></td>
+<td style="text-align: right;"><code>0x20A0</code></td>
+<td style="text-align: right;">32 / 8</td>
+<td><code>MoveRelative</code></td>
+<td>status/position polling</td>
+</tr>
+<tr>
+<td><code>MoveVelocityEx[Async]</code></td>
+<td style="text-align: right;"><code>0x20A2</code></td>
+<td style="text-align: right;">24 / 8</td>
+<td><code>MoveEndless</code></td>
+<td>status, 명시적 Stop</td>
+</tr>
+</tbody>
+</table>
+<p>Axis Reset의 <code>QuitError()</code>는 반환값이 없다. client가
+연결되어 호출됐다는 이유로 ACK가 성공할 수 있으므로 실제 error 해제는
+status polling으로 확인한다.</p>
+<h3 id="group">12.3 Group</h3>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 23%" />
+<col style="width: 23%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr>
+<th>Public sync/async pair</th>
+<th style="text-align: right;">Command</th>
+<th style="text-align: right;">Request/Success payload</th>
+<th>LASAL method/값</th>
+<th>완료 확인</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GetGroupMembersInfoResult[Async]</code></td>
+<td style="text-align: right;"><code>0x20D2</code></td>
+<td style="text-align: right;">1 / 1350</td>
+<td>object/member metadata 수집</td>
+<td>response 자체</td>
+</tr>
+<tr>
+<td><code>GroupPowerOn[Async]</code></td>
+<td style="text-align: right;"><code>0x204A</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td><code>RobotOn(_ACTIVE)</code></td>
+<td><code>IsPowerOn</code> poll</td>
+</tr>
+<tr>
+<td><code>GroupPowerOff[Async]</code></td>
+<td style="text-align: right;"><code>0x204B</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td><code>RobotOff()</code></td>
+<td><code>IsPowerOn == false</code></td>
+</tr>
+<tr>
+<td><code>GroupEnable[Async]</code></td>
+<td style="text-align: right;"><code>0x2047</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td>Axis1..4 <code>LockProfile</code></td>
+<td><code>IsStandby/IsEnabled</code></td>
+</tr>
+<tr>
+<td><code>GroupDisable[Async]</code></td>
+<td style="text-align: right;"><code>0x2048</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td>in-position 확인 후 <code>UnlockProfile</code></td>
+<td><code>IsDisabled</code></td>
+</tr>
+<tr>
+<td><code>GroupReset[Async]</code></td>
+<td style="text-align: right;"><code>0x2049</code></td>
+<td style="text-align: right;">1 / 8</td>
+<td><code>AxQuitError(AxisNo:=0)</code></td>
+<td>Group/Axis error 재조회</td>
+</tr>
+<tr>
+<td><code>GroupStop[Async]</code></td>
+<td style="text-align: right;"><code>0x2085</code></td>
+<td style="text-align: right;">16 / 8</td>
+<td><code>StopMove(Mode:=3)</code></td>
+<td>status/in-position</td>
+</tr>
+<tr>
+<td><code>GroupReadStatusResult[Async]</code></td>
+<td style="text-align: right;"><code>0x2045</code></td>
+<td style="text-align: right;">8 / 12</td>
+<td>power/lock/in-position/error 조합</td>
+<td>response 자체</td>
+</tr>
+<tr>
+<td><code>GroupReadActualPosition[Async]</code></td>
+<td style="text-align: right;"><code>0x2051</code></td>
+<td style="text-align: right;">8 / 68</td>
+<td><code>GetRobotPosition</code></td>
+<td>response 자체</td>
+</tr>
+<tr>
+<td><code>MoveLinearAbsoluteEx[Async]</code></td>
+<td style="text-align: right;"><code>0x20A4</code></td>
+<td style="text-align: right;">96 / 8</td>
+<td><code>MoveLinearCoord</code></td>
+<td>status/position polling</td>
+</tr>
+<tr>
+<td><code>SetKinTransformCartesian4Axis[Async]</code></td>
+<td style="text-align: right;"><code>0x20E7</code></td>
+<td style="text-align: right;">1320 / 4</td>
+<td>identity payload 검증, ready flag</td>
+<td>이후 Lock/status</td>
+</tr>
+</tbody>
+</table>
+<p>current <code>GroupStop</code> handler는 <code>StopMove()</code>가
+반환한 command number를 저장하지만 오류 판정에 사용하지 않는다. Robot
+client가 연결되어 있으면 ACK가 성공할 수 있으므로 실제 정지는 Group
+status와 in-position을 다시 읽어 확인한다.</p>
+<p><code>0x204A</code>와 <code>0x204B</code>는 PMAS packet capture에
+없는 project-local LASAL extension이다.</p>
+<p>Group linear request는 DINT position 16개를 예약하지만 current PLC는
+앞의 X/Y/Z/U 4개만 사용하고 slot 5..16이 모두 0인지 검사한다. 승인된
+옵션은 다음뿐이다.</p>
+<ul>
+<li>Coordinate system: <code>None(0)</code></li>
+<li>Transition: <code>ExactStop(0)</code>,
+<code>ContinuousDirect(2)</code></li>
+<li>Buffer: <code>Aborting(1)</code>, <code>Buffered(2)</code></li>
+<li>Execute: <code>true</code></li>
+</ul>
+<h2 id="response-error와-완료-판정">13. Response, error와 완료 판정</h2>
+<h3 id="오류-계층">13.1 오류 계층</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>계층</th>
+<th>예</th>
+<th>C# 동작</th>
+<th>connection 영향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>argument validation</td>
+<td>잘못된 direction, name, vector</td>
+<td><code>ArgumentException</code> 계열</td>
+<td>없음</td>
+</tr>
+<tr>
+<td>session/handle</td>
+<td>disconnected, stale generation</td>
+<td><code>InvalidOperationException</code></td>
+<td>현재 상태 유지</td>
+</tr>
+<tr>
+<td>transport</td>
+<td>timeout, EOF, socket 오류</td>
+<td>I/O 예외</td>
+<td><code>Faulted</code>, reconnect 필요</td>
+</tr>
+<tr>
+<td>frame shape</td>
+<td>잘못된 payload length/ACK shape</td>
+<td><code>InvalidDataException</code></td>
+<td>parser 단계라 자동 fault 아님</td>
+</tr>
+<tr>
+<td>command result</td>
+<td>valid ACK의 nonzero status/error</td>
+<td><code>LMC_Response.IsSuccess == false</code></td>
+<td>transport 유지 가능</td>
+</tr>
+<tr>
+<td>typed function result</td>
+<td>function/axis/group error</td>
+<td>typed <code>IsSuccess == false</code></td>
+<td>transport 유지 가능</td>
+</tr>
+<tr>
+<td>motion completion</td>
+<td>ACK 후 아직 이동 중</td>
+<td>polling 결과로 판단</td>
+<td>정상</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lmc_response">13.2 <code>LMC_Response</code></h3>
+<ul>
+<li><code>HeaderStatus</code>: response envelope 상태</li>
+<li><code>PayloadLength</code>: header에 선언된 payload 크기</li>
+<li><code>HeaderReserved</code>: 보존되는 opaque 값</li>
+<li><code>CommandStatus</code>: ACK 또는 typed function status</li>
+<li><code>ErrorId</code>: signed adapter/MotionLib error</li>
+<li><code>Status</code>: command result가 있으면
+<code>CommandStatus</code>, 없으면 <code>HeaderStatus</code></li>
+<li><code>IsFrameValid</code>: exact <code>8 + payload length</code>
+shape</li>
+<li><code>IsSuccess</code>: valid frame, header success, command
+status/error success의 조합</li>
+</ul>
+<p><code>Status</code> 하나만 기록하면 header error와 command error를
+구분하지 못한다. 진단 로그에는 <code>HeaderStatus</code>,
+<code>CommandStatus</code>, <code>ErrorId</code>, raw payload length를
+따로 남긴다.</p>
+<h3 id="typed-result">13.3 typed result</h3>
+<p>typed <code>IsSuccess</code>는 다음 조건을 추가로 본다.</p>
+<pre class="text"><code>frame valid
+and HeaderStatus == 0
+and ErrorId == 0
+and (FunctionStatus &amp; 0x0010) == 0
+and AxisErrorId 또는 GroupErrorId == 0   // 해당 result에 존재할 때</code></pre>
+<p><code>LMCReadStatusResult.StatusWord</code>는 현재 reserved
+<code>0</code>이다. <code>_LMCAXIS_STATUS</code>의 native state와 DS402
+StatusWord를 혼동하지 않는다.</p>
+<h3 id="current-adapter-local-error">13.4 current adapter local
+error</h3>
+<p>다음 값은 current <code>TCPMotionInterface</code>에서 사용하는 local
+의미다. 모든 미래 command에 영구적인 public enum으로 고정된 계약은
+아니다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">ErrorId</th>
+<th>current local 의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>-1</code></td>
+<td>RPC/session 상태 오류</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-2</code></td>
+<td>lookup 실패 또는 LASAL client 미연결</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-3</code></td>
+<td>descriptor/payload/request shape 오류</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-4</code></td>
+<td>unknown command</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-5</code></td>
+<td>ingress payload가 1320 bytes를 넘는 oversized frame</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-6</code></td>
+<td>wire로 보존할 수 없는 MotionLib error 또는 Robot 상태 불일치</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-7</code></td>
+<td>지원하지 않는 motion 인자 조합</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>-8</code></td>
+<td>queue/transport framing 오류</td>
+</tr>
+</tbody>
+</table>
+<p>MotionLib의 넓은 error bit field가 16-bit wire error 범위를 벗어나면
+<code>-6</code>으로 축약될 수 있다. 원인 진단에는 PLC-side native
+error와 상태 readback이 추가로 필요하다.</p>
+<h2 id="callback-구현과-현재-한계">14. Callback 구현과 현재 한계</h2>
+<p>PC에는 별도 background UDP listener thread가 있다.</p>
+<ul>
+<li>local IPv4/port에 <code>UdpClient</code> bind</li>
+<li>기본적으로 controller source IPv4 검증</li>
+<li>source port는 검증하지 않음</li>
+<li>raw payload는 defensive copy하고 remote endpoint와 UTC timestamp를
+event로 전달</li>
+<li><code>CallbackReceived</code> handler는 listener thread에서 직접
+호출</li>
+<li>handler 예외는 <code>CallbackListenerError</code>로 전달</li>
+<li>WPF UI update는 애플리케이션이 Dispatcher로 marshal</li>
+</ul>
+<p>PLC <code>0x405C</code> handler는 event mask, port와 IPv4를 저장하고
+ACK한다. 현재 canonical source에는 해당 endpoint로 UDP datagram을 보내는
+typed event sender가 없다. 따라서 callback은 motion-complete, fault 또는
+Recorder event 계약으로 사용할 수 없다.</p>
+<p><code>ConnectionStateChanged</code> handler도 library thread에서 직접
+실행되며 UI marshal을 하지 않는다. handler 예외는 connection 동작에
+전파되지 않도록 무시된다.</p>
+<h2 id="unit과-safety-책임-경계">15. UNIT과 safety 책임 경계</h2>
+<p>DLL은 UNIT을 자동으로 곱하거나 나누지 않는다.</p>
+<pre class="text"><code>송신 DINT = 물리값 x PLC application UNIT
+표시 물리값 = 수신 DINT / 동일 UNIT
+Jerk DINT = (물리 jerk / 1000) x PLC application UNIT</code></pre>
+<p>current Git의 <code>_LMCAxis1..9</code>는 <code>IntUnits=1 mm</code>,
+즉 <code>10000 DINT</code> 기준이다. <code>ExUnits=8388608</code>은
+encoder/transmission ratio이며 PC motion 인자에 곱하는 UNIT이
+아니다.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>책임</th>
+<th>담당</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DINT conversion, checked overflow, 반올림</td>
+<td>사용자/WPF</td>
+</tr>
+<tr>
+<td>frame field type와 지원 enum 검증</td>
+<td>C# DLL</td>
+</tr>
+<tr>
+<td>descriptor, payload shape와 MotionLib mode 제한</td>
+<td>PLC adapter</td>
+</tr>
+<tr>
+<td>E-stop, hardware/software limit, Home/reference, 이동 범위 승인</td>
+<td>장비/PLC 안전 설계</td>
+</tr>
+</tbody>
+</table>
+<p><code>CloseConnection</code>, <code>Dispose</code>, timeout과
+cancellation은 safe stop이 아니다. 통신과 독립적인 E-stop/drive safety
+chain이 반드시 필요하다.</p>
+<h2 id="검증-수준과-알려진-위험">16. 검증 수준과 알려진 위험</h2>
+<h3 id="현재-확인된-범위">16.1 현재 확인된 범위</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>항목</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PC request/parser/fake-RPC/diagnostics 합계</td>
+<td>100/100 PASS</td>
+</tr>
+<tr>
+<td>LASAL source/full-network static contract</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>LASAL IDE rebuild/link</td>
+<td>0 error, C78/C81 version mismatch warning 3건</td>
+</tr>
+<tr>
+<td><code>Find in Implementation</code> smoke</td>
+<td>3/3 PASS, 신규 <code>CInvalidArgException</code> 0건</td>
+</tr>
+<tr>
+<td>기존 motion PLC download 및 25 command E2E</td>
+<td>0/25</td>
+</tr>
+<tr>
+<td>diagnostics D1~D3 PLC runtime</td>
+<td>미실시</td>
+</tr>
+<tr>
+<td>actual TCP/UDP recapture</td>
+<td>미검증</td>
+</tr>
+<tr>
+<td>core/priority/jitter</td>
+<td>미검증</td>
+</tr>
+</tbody>
+</table>
+<p>PC 시험은 serializer, parser, loopback TCP/UDP lifecycle을 검증한다.
+실제 MotionLib 상태 전이, EtherCAT, Axis hardware와 PLC task 배치를
+검증하지 않는다.</p>
+<h3 id="현재-주요-위험">16.2 현재 주요 위험</h3>
+<ol type="1">
+<li><code>GroupReadActualPosition</code> handler는
+<code>_LMCPROF_POS</code>의 Pos1..Pos9를 response slot 1..9에 복사할 수
+있지만 기존 공개 설명은 4축 중심이다. production 계약이 미확정이다.</li>
+<li>None/ACS/MCS/PCS group position 입력은 현재 CalcModel 없이 모두
+<code>CoordSystem:=0</code> static identity read로 처리된다.</li>
+<li><code>SetKinTransformCartesian4Axis</code>는 dynamic transform
+생성이 아니라 exact identity payload validation과 ready flag
+설정이다.</li>
+<li><code>_LMCAxis</code> method caller의 core/priority 조건을 실제
+PLC에서 확인하지 않았다.</li>
+<li><code>_TCPIPServer</code> base가 OS receive의 short-read를 어떻게
+보장하는지 실기/매뉴얼 확인이 필요하다.</li>
+<li><code>RobotPowerOn/Off/Lock/UnLock</code> legacy writable server
+channel은 queue/session을 우회해 Robot method를 직접 호출한다. 외부 연결
+금지 또는 제거가 필요하다.</li>
+<li>callback endpoint 등록은 필수지만 event sender가 없다.</li>
+<li>TCP port 4000, one connection 구조에 authentication, encryption과
+multi-PC motion-owner arbitration이 없다.</li>
+<li>C# reader는 command별 상한을 적용하기 전에 response header의
+<code>UInt16</code> payload length를 읽는다. 비정상 peer가 최대
+65535-byte 대기/할당을 유발할 수 있다.</li>
+</ol>
+<h3 id="ethercat-diagnostics-확장의-내부-실행-경로">16.3 EtherCAT
+diagnostics 확장의 내부 실행 경로</h3>
+<p>2026-07-21 source에는 <code>LMCConnection.Diagnostics</code>가
+추가됐다. 이 facade도 기존 motion API와 같은 TCP connection, 직렬
+exchange gate와 LASAL-DINT request/response 경로를 사용한다. 별도 UDP
+data transport가 아니다.</p>
+<pre class="text"><code>EtherCAT PDO update
+  -&gt; LMCEcatInputLatch.RtWork (304-byte scalar snapshot publish)
+     -&gt; D1 Health / 24-entry Catalog / PI Read
+     -&gt; D2 same-snapshot Bulk
+     -&gt; LMCRecorderStore.AppendSnapshot (fixed 1,280,000-byte bank)
+        -&gt; LMCDiagnosticsService non-RT request handling
+           -&gt; TCPMotionInterface diagnostics response/chunk
+              -&gt; LMCDiagnostics typed parser
+                 -&gt; WPF plot / CSV</code></pre>
+<ul>
+<li>D0 <code>0x7E00</code>은 schema, capability, payload 상한, map
+revision과 retained <code>DiagnosticsBootId</code>를 협상한다.</li>
+<li>D1은 현재 활성 PDO 24개를 정적 Catalog로 제공하고, RT가 publish한
+image에서 Health와 PI를 읽는다. PI Read는 SDO가 아니다.</li>
+<li>D2 Bulk는 TCP 요청 시 여러 server를 순차 read하지 않고 하나의
+published snapshot을 identity와 cycle/timestamp를 포함해 반환한다.</li>
+<li>D3 Recorder는 single bank, manual/no-trigger, finite capture만 PLC에
+활성화돼 있다. header와 최대 1,280-byte data chunk를 분리하고, reconnect
+뒤 동일 BootId인 frozen record만 <code>AdoptRecorder</code>로
+인계한다.</li>
+<li>D4 trigger/ring/double과 D5 PI/SDO operation은 C# sync/async
+contract와 개발 WPF 흐름까지 존재하지만 PLC capability는 0이다. exact
+request는 <code>UnsupportedFeature</code>를 반환하고 write allowlist는
+empty다.</li>
+<li>diagnostics 상태 변경 async 호출의 cancellation은 송신 전까지만
+취소한다. PLC가 요청을 수락한 뒤에는 handle/ticket/result identity를
+잃지 않도록 응답을 끝까지 수신한다. Recorder PC download cancellation은
+PLC recording이나 motion stop이 아니다.</li>
+</ul>
+<p>세부 byte layout과 RT/non-RT 경계는 <a
+href="../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md">LMC
+EtherCAT PI/Bulk/Recorder 구현 설계</a>, 실기 순서는 <a
+href="../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md">내부
+PLC 시험 가이드</a>를 따른다.</p>
+<h2 id="command-추가-또는-변경-절차">17. command 추가 또는 변경
+절차</h2>
+<p>새 API를 추가할 때 public sync/async method만 추가하면 구현이 끝난
+것이 아니다.</p>
+<ol type="1">
+<li>command ID와 packet 근거를 확정한다.</li>
+<li><code>LmcProtocol.cs</code>에 request builder와 input validation을
+추가한다.</li>
+<li>필요하면 <code>LmcResults.cs</code>와
+<code>LmcConnection.cs</code>에 exact response parser를 추가한다.</li>
+<li>Axis/Group 또는 별도 facade에서 sync/async가 같은 builder/parser를
+공유하게 한다.</li>
+<li><code>TCPMotionInterface.st</code>의 session gate, payload
+validation, client call과 response shape를 함께 구현한다.</li>
+<li>최대 request가 1320-byte queue payload, 최대 response가 2048-byte
+send staging을 넘는지 확인한다.</li>
+<li><a
+href="../LMC_API_Delivery/docs/DINT_PACKET_MAP.txt">DINT_PACKET_MAP.txt</a>를
+byte offset 단위로 갱신한다.</li>
+<li>request golden, malformed/short error parser와 fake RPC lifecycle
+test를 추가한다.</li>
+<li>LASAL source-only/full-network static contract를 갱신한다.</li>
+<li>C# DLL, 개발 WPF와 binary-reference 배포 예제를 빌드한다.</li>
+<li>LASAL IDE Rebuild/Link, <code>Find in Implementation</code> smoke와
+새 <code>CInvalidArgException</code> 부재를 확인한다.</li>
+<li>PLC E2E, response 상태와 packet recapture를 정적 시험과 별도로
+기록한다.</li>
+</ol>
+<p>PI, Bulk 또는 Recorder처럼 대용량/연속 데이터를 추가할 경우 현재
+command queue에 전체 record를 한 응답으로 싣지 않는다. control/config
+command와 chunk upload를 분리하고 현재 1320-byte request 및 2048-byte
+send staging 한계를 유지해야 한다.</p>
+<h2 id="빌드와-정적-검증">18. 빌드와 정적 검증</h2>
+<p>VS2019 full MSBuild를 사용한다. classic WPF는 .NET Framework 4.8
+Developer Pack과 WPF targets가 필요하다.</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="va">$msbuild</span> <span class="op">=</span> <span class="st">&#39;C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe&#39;</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="op">&amp;</span> <span class="va">$msbuild</span> LMC_Library\LMC_API_Delivery\src\LasalMotionControlLib<span class="op">.</span><span class="fu">csproj</span> `</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">/</span>t<span class="op">:</span>Rebuild <span class="op">/</span>p<span class="op">:</span>Configuration<span class="op">=</span>Release <span class="op">/</span>nologo</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="op">&amp;</span> <span class="va">$msbuild</span> LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib<span class="op">.</span><span class="fu">Tests</span>\LasalMotionControlLib<span class="op">.</span><span class="fu">Tests</span><span class="op">.</span><span class="fu">csproj</span> `</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">/</span>t<span class="op">:</span>RunTests <span class="op">/</span>p<span class="op">:</span>Configuration<span class="op">=</span>Release <span class="op">/</span>nologo</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="op">&amp;</span> <span class="va">$msbuild</span> LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib<span class="op">.</span><span class="fu">Tests</span>\LasalMotionControlLib<span class="op">.</span><span class="fu">Tests</span><span class="op">.</span><span class="fu">csproj</span> `</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">/</span>t<span class="op">:</span>RunLasalNetworkContract <span class="op">/</span>p<span class="op">:</span>Configuration<span class="op">=</span>Release <span class="op">/</span>nologo</span></code></pre></div>
+<p>source-only verifier를 직접 실행할 수도 있다.</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="op">&amp;</span> LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib<span class="op">.</span><span class="fu">Tests</span>\Verify-LasalContract<span class="op">.</span><span class="fu">ps1</span> `</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="op">-</span>RepositoryRoot <span class="op">(</span><span class="fu">Get-Location</span><span class="op">)</span></span></code></pre></div>
+<p>정적 PASS를 LASAL IDE build 또는 PLC E2E PASS로 기록하지 않는다.</p>
+<p>이 문서의 standalone HTML은 다음 명령으로 재생성한다.</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="op">&amp;</span> <span class="st">&#39;C:\Program Files\Pandoc\pandoc.exe&#39;</span> `</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  LMC_Library\LMC_API\API_DEVELOPMENT_GUIDE<span class="op">.</span><span class="fu">md</span> `</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">--</span>standalone <span class="op">--</span>metadata <span class="st">&#39;title=API_DEVELOPMENT_GUIDE&#39;</span> `</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">--</span>include-in-header<span class="op">=</span>LMC_Library\LMC_API\API_DEVELOPMENT_GUIDE_PRINT_STYLE<span class="op">.</span><span class="fu">html</span> `</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">--</span>output<span class="op">=</span>LMC_Library\LMC_API\API_DEVELOPMENT_GUIDE<span class="op">.</span><span class="fu">html</span></span></code></pre></div>
+<h2 id="주요-소스-탐색-지도">19. 주요 소스 탐색 지도</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>확인 목적</th>
+<th>시작 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sync/async 공통 exchange</td>
+<td><code>LMC_API_Delivery/src/LmcConnection.cs:390-470</code></td>
+</tr>
+<tr>
+<td>cancellation/fault</td>
+<td><code>LmcConnection.cs:1392-1448</code>, <code>1508-1520</code></td>
+</tr>
+<tr>
+<td>callback listener</td>
+<td><code>LmcConnection.cs:1064-1196</code></td>
+</tr>
+<tr>
+<td>frame와 command ID</td>
+<td><code>LmcProtocol.cs:113-185</code></td>
+</tr>
+<tr>
+<td>Axis facade/lookup</td>
+<td><code>LmcAxis.cs:27-109</code>, <code>123-455</code></td>
+</tr>
+<tr>
+<td>Group facade/validation</td>
+<td><code>LmcGroup.cs:15-99</code>, <code>101-536</code></td>
+</tr>
+<tr>
+<td>typed result semantics</td>
+<td><code>LmcResults.cs:5-210</code></td>
+</tr>
+<tr>
+<td>TCP buffer/queue 선언</td>
+<td><code>TCPMotionInterface.st:96-174</code></td>
+</tr>
+<tr>
+<td>PLC queue consumer</td>
+<td><code>TCPMotionInterface.st:474-570</code></td>
+</tr>
+<tr>
+<td>TCP accumulator/producer</td>
+<td><code>TCPMotionInterface.st:645-914</code></td>
+</tr>
+<tr>
+<td>PLC session/dispatcher</td>
+<td><code>TCPMotionInterface.st:917-2248</code></td>
+</tr>
+<tr>
+<td>Axis adapter methods</td>
+<td><code>TCPMotionInterface.st:2255-2783</code></td>
+</tr>
+<tr>
+<td>Group adapter methods</td>
+<td><code>TCPMotionInterface.st:2808-2927</code></td>
+</tr>
+<tr>
+<td>network wiring</td>
+<td><code>Network/Comm_Network/Comm_Network.lcn:5-29</code>,
+<code>179-265</code></td>
+</tr>
+<tr>
+<td>command별 byte map</td>
+<td><code>LMC_API_Delivery/docs/DINT_PACKET_MAP.txt</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="유지보수-판단-기준">20. 유지보수 판단 기준</h2>
+<ul>
+<li>공개 API 이름보다 실제 command ID, payload shape와 PLC handler를
+먼저 본다.</li>
+<li>sync와 async 구현을 복제하지 않고 같은 request builder/parser를
+공유한다.</li>
+<li>ACK 성공과 motion/state 완료를 별도 상태로 기록한다.</li>
+<li>source-active, static PASS, IDE PASS, PLC E2E PASS를 같은 완료
+상태로 합치지 않는다.</li>
+<li>physical Axis 1..4, simulated Axis 5..9, Cartesian Group 1..4의
+범위를 섞지 않는다.</li>
+<li>PMAS/MMCLib wire와 current LASAL-DINT v1 wire를 호환 protocol로
+취급하지 않는다.</li>
+<li><code>TCPMotionInterface.st</code>, <code>LmcProtocol.cs</code>,
+<code>DINT_PACKET_MAP.txt</code>, golden/parser/static tests를 한 변경
+단위로 유지한다.</li>
+</ul>
+</body>
+</html>

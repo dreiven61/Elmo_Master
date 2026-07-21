@@ -150,3 +150,21 @@ accept `Shortest` only (relative sign comes from distance), while velocity
 moves accept `Positive` or `Negative`, normalize the velocity sign, and require
 deceleration `0` because LASAL `MoveEndless` has no deceleration input. Unsupported
 combinations are rejected instead of being transmitted and ignored.
+
+## Deferred Static/Handle Compatibility Facade
+
+The instance-owned `LMCConnection` model remains the implementation core for
+the EtherCAT diagnostics, PI/Bulk, and Recorder work. Do not convert the core
+transport, timeout, callback listener, session generation, or diagnostics
+objects to static state while those features are being implemented.
+
+An Elmo-style static/connection-handle API may be added later as a separate
+compatibility facade. That facade must delegate to existing `LMCConnection`
+instances through a thread-safe handle registry whose handle contains both a
+slot and a generation. It must reject stale handles after reconnect or close,
+must not introduce a second wire implementation, and must not be described as
+binary or source compatible with Elmo `MMCConnection` unless that compatibility
+is separately proved.
+
+The static facade is milestone D6 in the
+[EtherCAT PI/Bulk/Recorder implementation design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md).

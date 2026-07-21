@@ -10,9 +10,10 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. PC 테스트 및 LASAL 정적 계약과 독립 예제
-빌드는 통과했지만 actual PLC E2E/packet 재캡처는 0/25다. production 승인본으로
-표기하지 않는다.
+현재 버전은 `0.9.1-preview`다. PC 테스트 100/100, LASAL source/full 계약,
+LASAL IDE Rebuild/Link와 개발 WPF Debug/Release 빌드는 통과했다. 기존 motion/group
+PLC E2E/packet 재캡처는 0/25이고 diagnostics D1~D3 runtime 시험도 미실시다.
+production 승인본으로 표기하지 않는다.
 
 ## 개발자 시작 위치
 
@@ -24,6 +25,8 @@
   [`LMC_API/API_SOURCE_REVIEW_2026-07-15.md`](LMC_API/API_SOURCE_REVIEW_2026-07-15.md)
 - API 현재 구현 상태:
   [`LMC_API_Delivery/README.md`](LMC_API_Delivery/README.md)
+- EtherCAT PI/Bulk/Recorder 내부 PLC 시험 순서:
+  [`../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md)
 
 ## 사용자 전달 위치
 

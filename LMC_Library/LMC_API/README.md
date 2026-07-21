@@ -12,7 +12,10 @@
 - 개발용 WPF 예제: `../LasalApiWpfTestApp`
 - 정식 배포 폴더: `../LMC_API_Distribution`
 - LASAL 어댑터: `../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- 실제 PLC E2E/Wireshark 재캡처: `0/25`
+- PC 자동 테스트: `100/100 PASS`
+- LASAL IDE: Rebuild/Link `0 error`, implementation smoke `3/3 PASS`
+- 기존 motion/group PLC E2E/Wireshark 재캡처: `0/25`
+- diagnostics PLC 시험 matrix: 미실시
 
 `LMC_API/LMC_API`는 2026-07-13의 `0.9.0-pc-api` 구버전 보관본이다.
 현재 DLL, 문서 또는 예제로 재사용하지 않는다. `Elmo_API_Packet2`는 패킷 분석
@@ -22,6 +25,10 @@
 
 - [API_DEVELOPMENT_GUIDE.md](API_DEVELOPMENT_GUIDE.md): 구조, wire 계약,
   변경 규칙, 테스트와 릴리스 절차
+- [API_DEVELOPMENT_GUIDE.html](API_DEVELOPMENT_GUIDE.html): 위 내부 설명서의
+  standalone HTML
+- [API_DEVELOPMENT_GUIDE_PRINT_STYLE.html](API_DEVELOPMENT_GUIDE_PRINT_STYLE.html):
+  Pandoc HTML 재생성용 print style
 - [API_SOURCE_REVIEW_2026-07-15.md](API_SOURCE_REVIEW_2026-07-15.md): 이번
   배포 준비 전 소스/문서/바이너리 리뷰 결과
 - [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md): 사용자 매뉴얼 초기 초안용 Markdown

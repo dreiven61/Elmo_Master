@@ -13,10 +13,19 @@
 - Single Axis: object lookup, Power/Reset/Stop, status/position, 3가지 motion
 - Group Motion: object/member 조회, Power On/Off, profile Lock/Unlock,
   Reset/Stop, status/position, static 4축 Move Linear와 identity configuration
+- EtherCAT / PI: capability, master/slave health, active signal Catalog와 typed PI value
+- Bulk Snapshot: 선택 signal의 same-cycle snapshot, entry status와 raw value
+- Recorder: capability-gated Single/Ring/Double 및 Manual/Edge/Window/Mask configuration,
+  start/stop/status/header, reconnect adoption, chunk download, CSV와 dependency-free
+  downsample plot
+- SDO/Write Policy: SDO ticket submit/status/cancel, 4/8/12-byte inline 결과,
+  extended result chunk download/save, capability 및 allowlist로 차단되는 PI/SDO
+  Write 확인
 - Execution Log: connection state, response 결과와 raw callback diagnostic
 
-현재 PLC 활성 경로가 아닌 기능은 UI, source와 mapping에 포함하지 않는다.
-별도 시험 도구가 필요하면 이 예제에 다시 섞지 않고 독립 프로그램으로 만든다.
+Motion command는 현재 PLC 활성 경로만 노출한다. Diagnostics command는 SDK surface를
+노출하되 `GetCapabilities` 결과로 기능별 버튼을 fail-closed한다. 따라서 PC build에
+화면이 포함돼도 PLC가 bit를 광고하지 않으면 실행할 수 없다.
 
 ## 3. 실제 API 연결
 
@@ -26,6 +35,36 @@ WPF 프로젝트는 `../LMC_API_Delivery/src/LasalMotionControlLib.csproj`를
 
 축과 그룹 object는 이름 lookup으로 얻은 reference를 보관한다. 연결을 닫거나
 재연결하면 기존 object를 즉시 폐기하고 다시 Load해야 한다.
+
+Diagnostics Catalog와 Bulk/Recorder handle도 connection session에 귀속된다. Close나
+reconnect 시 UI의 live handle은 폐기한다. 단, Recorder Start에서 받은
+`DiagnosticsBootId + RecordId + BufferId` 텍스트는 reconnect 뒤 adoption 시험을 위해
+보존한다. 같은 PLC boot에서 Capabilities를 다시 읽고 `AdoptRecorderAsync`로 새
+connection 소유 identity를 만든 뒤 Status 또는 Header를 읽어 configuration metadata를
+복구한다. 활성 connection 안에서는 Catalog reload 전에 Bulk/Recorder resource를 먼저
+release해야 한다.
+
+Recorder plot은 외부 chart package를 사용하지 않는다. downloaded immutable raw
+buffer에서 화면 폭에 맞게 sample을 downsample하고 WPF `Canvas/Polyline`으로 그린다.
+CSV export와 plot은 PLC live object를 다시 읽지 않는다. `Cancel Download`는 PC-side
+chunk download token만 취소하며 recorder stop/release를 대신하지 않는다.
+
+Recorder Trigger는 Configure payload의 signal/operator/value/mask 조건을 RT recorder가
+판정한다. `Trigger Now`는 `TriggerRecorderAsync(0x7E42)`를 호출해 locally configured
+non-Manual D4 recorder를 명시적으로 trigger한다. Adopt identity에는 configuration
+shape가 없으므로 사용하지 않는다. Ring은 trigger capture에만 사용하고 Double은 PLC가
+해당 capability를 광고할 때만 선택할 수 있다.
+
+Window trigger의 기존 wire 필드는 `TriggerValue=lower bound`,
+`TriggerMask=upper bound`로 해석한다. Window signal은 Int16/UInt16/Int32/UInt32로
+제한하고 signed type은 signed ordering으로 `lower <= upper`를 검사한다. Edge는
+TriggerMask를 항상 0으로 보내고 Mask는 BitField16/32와 non-zero TriggerMask를
+요구해 세 경로의 의미를 섞지 않는다.
+
+SDO 4/8/12-byte result는 `GetOperationStatusAsync` response의 `ResultData`로 표시한다.
+12 bytes 초과 Read는 `ExtendedSdoResultChunk` capability와 `MaxSdoDataBytes`를 확인한
+뒤 제출한다. terminal success 후 `ReadSdoResultChunkAsync(0x7E51)`를 offset/sequence로
+반복해 CRC가 검증된 전체 결과를 조립하고 raw binary로 저장한다.
 
 ## 4. UNIT 규칙
 
@@ -140,5 +179,10 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
   Move Linear/Set Identity Kinematics의 UI-to-API handler와 group InPosition
   monitor 확인
 - 실제 실행 창과 두 탭의 layout/accessibility smoke test
+- diagnostics capability fail-closed 상태, Catalog selection, Bulk resource lifecycle,
+  Recorder mode/trigger capability gate, Ready/Header gate, reconnect adoption,
+  download progress/cancel, metadata CSV와 plot smoke test
+- SDO ticket submit/status/cancel, terminal inline result, extended result chunk
+  download/save와 PI/SDO Write allowlist gate
 - 실제 PLC 시험은 Read Status/Position부터 시작하고 motion은 마지막에 수행
 - `MoveCircle`은 공개 API와 승인된 DINT wire 계약이 생기기 전까지 UI에 추가하지 않음

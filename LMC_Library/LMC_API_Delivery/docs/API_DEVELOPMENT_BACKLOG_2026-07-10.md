@@ -2,7 +2,7 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-16
+Latest update: 2026-07-21
 
 Analysis baseline: `996686d`
 
@@ -22,12 +22,17 @@ Status: Open
 
 Wireshark 자료에는 고유 command ID 23개가 있다. 여기에 기존 캡처 명령이 아닌
 LASAL project-local extension `GroupPowerOn(0x204A)`과
-`GroupPowerOff(0x204B)` 2개를 추가했다. 현재 C# DLL과 tracked LASAL에는
-캡처 기반 23개 + local extension 2개, 총 25개의 request/public/source-active
-path가 있다. 2026-07-14에 `GroupReset(0x2049)`,
+`GroupPowerOff(0x204B)` 2개를 추가했다. 기존 motion/group 범위는 캡처 기반 23개와
+local extension 2개를 합한 25개다. 2026-07-14에 `GroupReset(0x2049)`,
 `GroupStop(0x2085)`, `GroupReadActualPosition(0x2051)`,
 `MoveLinearAbsoluteEx(0x20A4)`, `SetKinTransformEx(0x20E7)` handler를
 활성화해 이전 deterministic unsupported 5개를 해소했다.
+2026-07-21 current source의 LASAL-local diagnostics namespace에는 정확히 24개
+command ID가 있다. D0~D3 18개는 capability, Health/Catalog/PI Read, Bulk와
+single-bank manual Recorder의 성공 응답 경로가 있고, D4/D5 6개는 exact wire를
+검사한 뒤 capability-off `UnsupportedFeature`로 fail-closed한다. 따라서 성공 응답
+capable PLC active 범위는 기존 25 + diagnostics D0~D3 18 = 43개이고,
+dispatcher/wire handled contract는 D4/D5 6개를 더한 49개다.
 
 현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 axis/group
 control·read·motion command를 허용한다. lifecycle과 name/member metadata
@@ -53,19 +58,20 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 46/46, LASAL source-only/full-network static
-contract와 WPF VS2019 MSBuild Debug를 통과했다.
-다만 이번 group handler 반영 뒤 LASAL IDE Rebuild/Link와 implementation-search
-smoke는 수행하지 않았다. PLC download와 실제 packet 재캡처도 없으므로 source
-구현과 자동 테스트가 완료된 항목도 PLC end-to-end 검증 완료로 계산하지 않으며,
-실기 검증 완료 API 수는 여전히 0개다.
+현재 source는 C# 자동 테스트 100/100, LASAL source-only/full-network static
+contract와 개발 WPF VS2019 MSBuild Debug/Release `TreatWarningsAsErrors` build를
+통과했다. LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
+version mismatch warning 3건이며, InputLatch/RecorderStore/
+TCPMotionInterface.Diagnostics implementation-search smoke 3건과 smoke 이후 신규
+`CInvalidArgException` 0건을 확인했다. PLC download와 실제 packet 재캡처는 아직
+없으므로 기존 motion/group E2E는 0/25이고 diagnostics PLC 시험 matrix는 미실시다.
 
-PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame
-추가가 아니다. 먼저 아래 LASAL/PLC 검증을 끝내야 한다.
+PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame이나 IDE
+build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 
-1. 현재 source의 LASAL IDE Rebuild/Link와 implementation-search smoke
-2. CyWork와 motion RT thread의 CPU core/priority 조건 확인
-3. RPC/lookup, 단일축과 group의 캡처 기반 23 command + local 2 command PLC smoke 및 재캡처
+1. CyWork와 motion RT thread의 CPU core/priority 조건 확인
+2. 기존 motion/group 25 command의 PLC smoke와 재캡처
+3. diagnostics D0~D3 runtime 및 D4/D5 exact fail-closed PLC 시험 matrix
 4. static identity group coordinate/kinematic 제약의 장비 적용 승인
 5. 실제 callback sender/payload와 multi-PC session/ownership 정책
 
@@ -75,15 +81,17 @@ PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 
 |---|---:|---|
 | Wireshark 기준 대상 command | 23개 | 전체 범위 |
 | LASAL project-local extension | 2개 | `0x204A/0x204B`; 기존 캡처 명령이 아님 |
-| C# request builder 또는 public 호출 경로 | 25개 (23+2) | source 구현이며 PLC 완료가 아님 |
-| LASAL source-active path | 25개 (23+2) | lifecycle/lookup/axis/group source, 실제 PLC 동작은 미검증 |
+| LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4/D5 exact fail-closed 6 |
+| 성공 응답 capable PLC active path | 43개 | 기존 motion/group 25 + diagnostics D0~D3 18 |
+| C#/dispatcher/wire handled contract | 49개 | active 43 + D4/D5 exact fail-closed 6 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
-| 현재 CyWork control/read/motion 범위 | 18/25 | axis 8개와 group 10개; metadata handler 제외, PLC 검증 전 |
-| C# 자동 테스트 | 46/46 PASS | fake/synthetic/loopback/source contract 검증 |
-| LASAL source-only/full-network static contract | PASS | 현재 group parser/method/size/network 계약 포함 |
-| WPF VS2019 MSBuild Debug | PASS | build 검증이며 PLC 동작 승인이 아님 |
-| 현재 LASAL IDE build/smoke | 미검증 | group source 반영 뒤 Rebuild/Link와 implementation 검색 필요 |
-| 실제 PLC E2E 및 Wireshark 재캡처 | 0/25 | 캡처 기반 23 + local 2 모두 완료된 command 없음 |
+| 현재 CyWork control/read/motion 범위 | 18개 | axis 8개와 group 10개; diagnostics/lifecycle/metadata 제외 |
+| C# 자동 테스트 | 100/100 PASS | fake/synthetic/loopback/source contract 검증 |
+| LASAL source-only/full-network static contract | PASS | diagnostics D0~D5 wire/network 계약 포함 |
+| 개발 WPF VS2019 MSBuild | Debug/Release `TreatWarningsAsErrors` PASS | PLC 동작 승인이 아님 |
+| 현재 LASAL IDE build/smoke | 0 error, 3 version warnings, smoke 3/3 PASS | 신규 `CInvalidArgException` 0건 |
+| 기존 motion/group PLC E2E 및 재캡처 | 0/25 | diagnostics와 분리 |
+| diagnostics PLC 시험 matrix | 미실시 | D0~D3 runtime + D4/D5 expected fail-closed |
 
 `0x2051 GroupReadActualPosition`은 exact 68-byte LASAL-DINT response
 (`DINT[16] + status/error`)를 반환한다. 현재 프로젝트에는 dynamic CalcModel이
@@ -104,11 +112,13 @@ locked standby와 unlocked disabled 조건에 연결한다.
 
 따라서 완료 범위는 다음처럼 구분한다.
 
-- **single-PC P0 MVP:** PC core와 LASAL source는 캡처 기반 23 + local 2 범위를 갖췄고,
-  runtime control/read/motion command는 위 18개까지 열려 있다. 현재 source의 IDE build,
+- **single-PC P0 MVP:** PC core와 LASAL source는 기존 motion/group 25개와
+  diagnostics handled contract 24개를 갖췄고, 성공 응답 capable PLC active 범위는
+  총 43개다. runtime axis/group control/read/motion command는 위 18개까지 열려 있다.
   same-core/priority 확인, PLC smoke와 재캡처가 남았다.
-- **전체 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
-  session/ownership과 PLC 검증이 남아 있다. 현재 preview는 assembly/file
+- **기존 motion 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
+  session/ownership과 기존 motion/group 25개 PLC 검증이 남아 있다. diagnostics는
+  별도 PLC matrix로 검증한다. 현재 preview는 assembly/file
   `0.9.1.0`, product `0.9.1-preview`다. current Distribution 내부 manifest는 없다.
 
 `MoveCircle`은 현재 공개 C# API와 승인된 LASAL-DINT command ID/payload 계약에
@@ -580,6 +590,50 @@ distribution 외부 승인 기록에 보존해야 한다.
 - `PowerMembers` 같은 반복 helper를 protocol command로 추가
 - 공개 API와 승인된 wire contract가 없는 `MoveCircle`을 vendor method 이름만으로 추가
 
+## 후속 개발 트랙: EtherCAT PI/Bulk/Recorder
+
+현재 motion/control API 구조 검증 뒤 진행할 diagnostics 기능은 아래 단계로
+분리한다. 상세 구조, wire schema, RT/Non-RT 경계와 검증 gate는
+`docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md`를
+기준으로 한다.
+
+| 단계 | 범위 | 현재 상태 |
+|---|---|---|
+| D0 | `0x7E00..0x7EFF` capability/contract와 skeleton | source 구현, PC/정적 PASS, IDE/PLC 미검증 |
+| D1 | EtherCAT Health + read-only Signal Catalog/PI | RT ordering/IDE network gate 확인 필요 |
+| D2 | 동일 cycle Bulk Snapshot | 설계 완료, 미구현 |
+| D3 | single fixed-bank Recorder + TCP chunk + WPF/CSV | 설계 완료, 미구현 |
+| D4 | pre-trigger + edge/window/mask + double bank | 후속 설계, 미구현 |
+| D5 | allowlist PI Write + ticket 기반 SDO | 후속 설계, 미구현 |
+| D6 | Elmo식 static/handle compatibility facade | 마지막 후속 구현 |
+
+2026-07-20 D0 반영 상태:
+
+- C#에 `connection.Diagnostics.GetCapabilities()` sync/async API, diagnostics common
+  envelope, capability model/parser를 추가했다.
+- PLC `TCPMotionInterface`의 기존 queue/CyWork dispatcher에 project-local
+  `0x7E00 GetDiagnosticsCapabilities`를 추가했다.
+- D0는 `CapabilityBits=0`, `DiagnosticsBootId=0` sentinel만 반환한다. retained
+  nonzero BootId 구현 전에는 Bulk/Recorder/PI Write/SDO capability를 켜지 않는다.
+- VS2019 전체 `RunTests`에서 PC 53/53, LASAL source contract와 두 WPF 예제 build가
+  통과했고 full-network static contract도 별도로 통과했다.
+- 남은 D0 gate는 LASAL IDE Rebuild/Link, implementation smoke, PLC download와 실제
+  정상/malformed `0x7E00` packet recapture다.
+- D1 RT producer는 새 LASAL class/network 등록과 함께 모든 slave input callback 뒤,
+  motion 계산 전 실행 순서를 IDE/System Trace로 증명해야 한다. 현재 master wrapper에는
+  확인된 public post-input hook이 없으므로 source-only 임의 구현은 진행하지 않는다.
+
+중요한 경계:
+
+- RT Recorder는 모든 input PDO callback 뒤 1 ms RT 경로에서 sample한다.
+- TCP/문자열/파일/SDO/dynamic allocation은 RT에서 금지한다.
+- 현재 활성 PDO와 class에만 존재하는 비활성 server를 Catalog에서 구분한다.
+- 물리축 1~4와 software/simulated 축 5~9를 구분한다.
+- v1 32채널 x 31,250 samples는 bank 하나당 4,000,000 bytes다. 실제 PLC free
+  RAM과 RT jitter 측정 전에는 production 상한으로 확정하지 않는다.
+- 현재 instance `LMCConnection` core를 유지한다. static facade는 wire/PLC 안정화
+  뒤 adapter로만 추가한다.
+
 ## 관련 문서
 
 - [Current API development guide](../../LMC_API/API_DEVELOPMENT_GUIDE.md)
@@ -590,6 +644,7 @@ distribution 외부 승인 기록에 보존해야 한다.
 - [Internal 0.9.1-preview build metadata](BUILD_METADATA_2026-07-16.md)
 - [PMAS packet analysis](../../LMC_API/Elmo_API_Packet2/PACKET_ANALYSIS.md)
 - [API structure decision](API_STRUCTURE_DECISION_2026-07-09.md)
+- [EtherCAT PI/Bulk/Recorder implementation design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md)
 - [Response model](RESPONSE_MODEL_DESIGN_2026-07-09.md)
 - [RPC packet decision](RPC_CONNECTION_PACKET_DECISION_2026-07-09.md)
 - [RPC and UDP callback implementation](RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md)

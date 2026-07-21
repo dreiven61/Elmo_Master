@@ -46,6 +46,60 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 18. 종료 순서는 Group Stop 및 InPosition 확인, `Disable (Unlock Profile)`,
     `Power Off`, `Read Status`에서 `PowerOn=False` 확인이다.
 
+## EtherCAT / PI / Bulk / Recorder 시험 순서
+
+1. Connect 뒤 `Refresh Capabilities`를 먼저 누른다. PLC가 광고하지 않은 기능의
+   버튼은 활성화되지 않는다.
+   현재 internal test build의 정상 retained 경로는 `CapabilityBits=0x0000001F`,
+   `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`다. D4/D5 bit는 0이어야 한다.
+2. `Read EtherCAT Health`에서 master state, invalid-cycle counter와 slave 1~4의
+   Online/AL/DS402 상태를 확인한다.
+3. `Load PI Catalog`로 현재 map revision과 active PDO signal을 받은 뒤 사용할
+   signal의 `Use`를 체크한다. 기본 선택은 네 축의 `actual_position`이다.
+4. `Read Selected PI`는 SDO가 아니라 PLC가 publish한 최신 cyclic image를 읽는다.
+   Raw Value와 Entry Status를 함께 확인한다.
+5. Bulk 탭은 선택된 `BulkReadable` signal을 configure한 뒤 Status가 Active인지
+   확인하고 `Read Snapshot`을 실행한다. 모든 entry의 cycle/timestamp는 하나다.
+6. Recorder 탭은 선택된 `Recordable` signal, sample period와 capacity로 Recorder를
+   configure/start한다. `Single + Manual`은 D3 기본 경로다. Edge/Window/Mask trigger와
+   Ring/Double mode는 PLC가 각각 `RecorderTrigger`/`RecorderDoubleBank` capability를
+   광고할 때만 Configure할 수 있다. Edge/Window/Mask는 RT signal 조건으로 발생한다.
+   Window는 `TriggerValue=lower bound`, `TriggerMask=upper bound` wire 계약을 사용하며
+   Int16/UInt16/Int32/UInt32 signal만 허용하고 lower가 upper보다 크면 송신 전에
+   거부한다. signed Int16/Int32 bound는 signed decimal 또는 canonical raw hex로
+   입력할 수 있다.
+
+   현재 고정 bank는 1,280,000 bytes다. capability의 `MaxRecorderSamples=320000`은
+   1채널 절대 상한이며 실제 sample 상한은 Configure 응답의 `AcceptedCapacity`다.
+   계산식은 `floor(1280000 / (channelCount * 4))`이고 16채널은 20,000,
+   24채널은 13,333 samples까지다.
+
+   `Trigger Now`는 `RecorderTrigger` capability가 있는 locally configured non-Manual
+   recorder를 `TriggerRecorderAsync`로 명시적으로 trigger할 때 사용한다. reconnect로
+   Adopt한 identity와 Manual configuration에는 사용할 수 없다.
+7. finite capture가 끝나거나 Stop한 뒤 Status가 Ready인지 확인하고 `Read Header` 또는
+   `Download`를 실행한다. Header에는 sample/cycle/trigger/CRC metadata가 표시된다.
+8. Start가 표시한 `DiagnosticsBootId`, `RecordId`, `BufferId`는 disconnect 후에도
+   입력칸에 유지된다. 같은 PLC boot로 reconnect한 뒤 Capabilities를 갱신하고
+   `Adopt`하면 frozen Recorder를 다시 Status/Header/Download할 수 있다. PLC가
+   reboot되어 BootId가 달라졌다면 adoption은 의도적으로 거부된다.
+9. download된 immutable PC data는 signal별 downsample plot으로 확인하고 CSV로
+   저장할 수 있다. CSV 앞부분에는 Recorder identity, map/cycle/timestamp와 채널별
+   SignalId/alias/type/unit/scale metadata가, 이어서 `sample_index`,
+   `relative_time_us`, channel raw value가 기록된다. PLC buffer/config는 `Release`로
+   명시적으로 반환한다. Adopt한 Recorder는 `Release`가 필요할 경우 Status metadata를
+   먼저 복구한 뒤 buffer와 configuration을 모두 반환한다.
+10. SDO 탭은 `Submit SDO -> Refresh Ticket` 순서로 시험한다. 4/8/12-byte Read
+    결과는 operation status에 inline으로 표시된다. 12 bytes보다 큰 Read는 PLC가
+    `ExtendedSdoResultChunk` capability를 광고하고 `MaxSdoDataBytes` 안에 있을 때
+    제출할 수 있다. terminal success 뒤 `Download Result`가 `0x7E51` chunk의
+    identity/offset/sequence/CRC를 검증해 전체 byte array를 조립하며 `Save Result`로
+    `.bin` 저장할 수 있다. PI Write와 SDO Write는 capability와 SDK allowlist가 모두
+    허용해야만 실행된다.
+
+현재 PLC가 D0 capability(`CapabilityBits=0`)만 반환하면 위 진단 기능은 정상적으로
+비활성화된다. UI와 SDK가 존재한다는 사실이 PLC runtime 구현 완료를 뜻하지 않는다.
+
 ## Load Axis 실패 진단
 
 `_LMCAxis1`이 network의 실제 object name인데도 Load Axis가 실패하면 Execution
@@ -143,7 +197,9 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
   확인창 없이 버튼 클릭 시 즉시 송신된다.
 - motion 가능성이 남은 상태에서 창을 닫아도 확인창이나 자동 Stop 없이 연결을
   종료한다. 실제 축 정지는 사용자가 Stop, Power Off 또는 외부 장치로 확인한다.
-- 실행 중 Cancel 기능은 제공하지 않는다. API timeout은 기본 3초다.
+- motion/제어 command의 실행 중 Cancel 기능은 제공하지 않는다. API timeout은 기본
+  3초다. Recorder의 `Cancel Download`는 이미 frozen된 데이터를 PC로 복사하는 작업만
+  취소하며 PLC recording이나 motion을 정지시키지 않는다.
 - callback log는 raw UDP diagnostic data이며 motion 완료 판정이 아니다.
 
 활성 command mapping은 `API_MAPPING.md`, 구현 판단과 안전 설계는 `DESIGN.md`를

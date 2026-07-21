@@ -1,6 +1,8 @@
 # LASAL Motion Control Example API Mapping
 
-이 예제는 현재 PLC에서 활성화된 protocol 경로만 화면에 노출한다.
+이 예제는 현재 PLC에서 활성화된 motion 경로와 SDK의 capability-gated diagnostics
+경로를 화면에 노출한다. Diagnostics 버튼은 PLC가 해당 capability를 광고해야만
+활성화된다.
 
 | 화면 | Command ID | 실제 API |
 |---|---:|---|
@@ -27,10 +29,43 @@
 | Group Read Position | `0x2051` | `GroupReadActualPositionAsync` |
 | Move Linear Absolute | `0x20A4` | `MoveLinearAbsoluteExAsync` |
 | Set Identity Kinematics | `0x20E7` | `SetKinTransformCartesian4AxisAsync` |
+| Diagnostics Capabilities | `0x7E00` | `LMCConnection.Diagnostics.GetCapabilitiesAsync` |
+| PI Catalog Info / Chunk | `0x7E01`, `0x7E02` | `GetSignalCatalogAsync` |
+| EtherCAT Health | `0x7E10` | `ReadEtherCATHealthAsync` |
+| PI Read | `0x7E20` | `ReadPIAsync` |
+| Bulk Configure / Status / Snapshot / Release | `0x7E30`~`0x7E33` | `ConfigureBulkAsync`, `ReadBulkStatusAsync`, `ReadBulkAsync`, `ReleaseBulkAsync` |
+| Recorder Configure / Start / Trigger / Stop | `0x7E40`~`0x7E43` | `ConfigureRecorderAsync`, `StartRecorderAsync`, `TriggerRecorderAsync`, `StopRecorderAsync` |
+| Recorder Status / Header / Chunk | `0x7E44`~`0x7E46` | `GetRecorderStatusAsync`, `GetRecorderHeaderAsync`, `ReadRecorderChunkAsync`, `DownloadRecorderAsync` |
+| Recorder Buffer / Configuration Release | `0x7E47`, `0x7E48` | `ReleaseRecorderBufferAsync`, `ReleaseRecorderAsync` |
+| Recorder Reconnect Adoption | `0x7E49` | `AdoptRecorderAsync` |
+| PI Write ticket submit | `0x7E21` | `SubmitPIWriteAsync` |
+| SDO ticket submit | `0x7E50` | `SubmitSdoAsync` |
+| Extended SDO result chunk | `0x7E51` | `ReadSdoResultChunkAsync` |
+| Diagnostics ticket status / cancel | `0x7E03`, `0x7E04` | `GetOperationStatusAsync`, `CancelOperationAsync` |
 
 `Connect`는 TCP 연결, RPC session 초기화, UDP callback listener 개방과 callback
 등록을 한 번에 수행한다. callback은 typed motion event가 아니라 raw diagnostic
 payload로만 표시한다.
+
+Diagnostics 탭은 먼저 `0x7E00` capability를 읽고 PLC가 광고한 bit에 해당하는
+버튼만 활성화한다. Catalog/PI는 read-only이고, Bulk와 Recorder configuration은
+선택 signal의 Catalog access flag를 다시 검사한다. Recorder download는 header와
+chunk identity/sequence/CRC를 SDK가 검증한 뒤 immutable `LMCRecorderData`로
+조립하며, WPF는 이 데이터만 plot/CSV에 사용한다.
+
+Edge/Window/Mask trigger와 Ring/Double 동작은 `0x7E40 Configure` payload와
+capability로 선택한다. Window는 payload의 `TriggerValue`를 lower bound,
+`TriggerMask`를 upper bound로 사용한다. `0x7E42 Trigger`는 locally configured
+non-Manual D4 identity에만 사용한다.
+reconnect resume은 기존 handle을 재사용하지 않고
+`DiagnosticsBootId + RecordId + BufferId`로 `0x7E49 Adopt`한 새 identity를 사용한다.
+Adopt한 resource는 Status 또는 Header로 configuration metadata를 복구한 뒤
+buffer(`0x7E47`)와 configuration(`0x7E48`) 순서로 해제한다.
+
+SDO의 4/8/12-byte 결과는 `0x7E03 GetOperationStatus` response에 inline으로
+포함된다. 더 큰 Read는 `ExtendedSdoResultChunk` capability가 필요하고 terminal
+success 뒤 `0x7E51 ReadSdoResultChunk`를 반복해 전체 결과를 조립한다. PI/SDO Write
+버튼은 PLC capability와 SDK allowlist가 모두 허용하지 않으면 실행되지 않는다.
 
 Motion 인자는 PC 프로그램이 `engineering value × PLC UNIT`으로 변환하거나
 이미 변환된 raw 값으로 제공한 LASAL DINT다. DLL 내부에서는 단위 변환을 수행하지 않는다. 예제의 UNIT
