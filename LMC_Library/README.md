@@ -10,7 +10,7 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. PC 테스트 101/101, 최신 LASAL source/full 계약과
+현재 버전은 `0.9.1-preview`다. PC 테스트 102/102, 최신 LASAL source/full 계약과
 개발 WPF Debug/Release 빌드는 통과했다. LASAL IDE Rebuild/Link는 Recorder Stop
 멱등 패치 직전 source에서 통과했으므로 최신 source는 PLC download 전에 다시
 검증해야 한다. 기존 motion/group PLC E2E/packet 재캡처는 0/25이고 diagnostics

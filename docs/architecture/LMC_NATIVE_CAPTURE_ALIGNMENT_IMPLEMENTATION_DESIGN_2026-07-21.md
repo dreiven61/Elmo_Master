@@ -217,7 +217,7 @@ Static/PC gates:
 
 - PMAS Version2 Debug/Release build: PASS to temporary outputs because the running app
   locked the normal Debug output executable
-- existing LMC PC tests: 101/101 PASS
+- existing LMC PC tests: 102/102 PASS
 - `Verify-LasalContract.ps1`: PASS for the latest source
 - `git diff --check`: PASS before commit
 

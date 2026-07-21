@@ -20,7 +20,7 @@
 버전 `1.4`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
 > **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-21 current
-> source는 PC 자동 시험 101/101과 LASAL 정적 계약을 통과했다. D0-D4 통합 source의
+> source는 PC 자동 시험 102/102과 LASAL 정적 계약을 통과했다. D0-D4 통합 source의
 > IDE Rebuild/Link와 implementation smoke도 통과했지만 이후 Recorder Stop 멱등
 > 패치는 최신 source Rebuild 대기다. 기존 motion command의 실제 PLC E2E는 여전히 `0/25`이며,
 > diagnostics D1~D3와 D4 single-bank Ring/Trigger도 PLC runtime 시험과 packet 재캡처를
@@ -765,7 +765,7 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics 합계 | 101/101 PASS |
+| PC request/parser/fake-RPC/diagnostics 합계 | 102/102 PASS |
 | LASAL source/full-network static contract | PASS |
 | LASAL IDE rebuild/link | D0-D4 통합 source 0 error; 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |
 | `Find in Implementation` smoke | 위 통합 source 3/3 PASS, 신규 `CInvalidArgException` 0건 |

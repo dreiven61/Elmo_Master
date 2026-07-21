@@ -12,7 +12,7 @@
 - 개발용 WPF 예제: `../LasalApiWpfTestApp`
 - 정식 배포 폴더: `../LMC_API_Distribution`
 - LASAL 어댑터: `../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- PC 자동 테스트: `101/101 PASS`
+- PC 자동 테스트: `102/102 PASS`
 - LASAL IDE: D0-D4 통합 source Rebuild/Link `0 error`, implementation smoke `3/3 PASS`;
   이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기
 - 기존 motion/group PLC E2E/Wireshark 재캡처: `0/25`

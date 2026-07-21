@@ -78,7 +78,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: `101/101 PASS`
+- `RunPcTests`: `102/102 PASS`
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger active source, D4 Double/D5 fail-closed wire)

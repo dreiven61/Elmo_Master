@@ -41,7 +41,7 @@
 | 성공 응답 capable PLC active command | 44개 | 기존 motion/group 25 + diagnostics D0~D4 single-bank 19 |
 | dispatcher/wire handled contract | 49개 | active 44 + D5 exact fail-closed 5 |
 | CyWork axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; metadata lookup 제외 |
-| PC 자동 테스트 | diagnostics 포함 101/101 PASS | 2026-07-21 current source 기준 |
+| PC 자동 테스트 | diagnostics 포함 102/102 PASS | 2026-07-22 current source 기준 |
 | 개발 WPF build | Debug/Release `TreatWarningsAsErrors` PASS | VS2019 MSBuild |
 | LASAL 정적 계약 | source-only/full-network PASS | PLC 시험이 아님 |
 | LASAL IDE | 2026-07-21 16:02 Rebuild/Link 0 error, version warnings; implementation smoke 3/3 PASS | 17:56 Recorder Stop 멱등 패치 전 결과이므로 최신 source는 PLC download 전 재실행 필요 |
@@ -511,7 +511,7 @@ D4 전체와 D5를 완료로 오인하면 안 된다.
 
 확인된 범위:
 
-- C# request/parser/fake-RPC/golden/malformed test 101/101 PASS
+- C# request/parser/fake-RPC/golden/malformed test 102/102 PASS
 - 개발 WPF Debug/Release `TreatWarningsAsErrors` build PASS
 - LASAL source-only/full-network static contract PASS
 - LASAL IDE Rebuild/Link 0 error, compiler warning 6줄(C78 project 1줄과 C81 library

@@ -2288,7 +2288,7 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
   TCPMotionInterface.Diagnostics 3건 PASS, 신규 `CInvalidArgException` 0건
 - 최종 implementation-only 외부 source의 source-only/full-network contract: PASS
 - 최종 implementation-only 변경 뒤 IDE Rebuild/Link: 미반복
-- PC test: 101/101 PASS
+- PC test: 102/102 PASS
 - 개발 WPF Debug/Release `TreatWarningsAsErrors`: PASS
 
 - Class 생성, declaration 구조 변경과 Network 편집만 LASAL IDE에서 수행

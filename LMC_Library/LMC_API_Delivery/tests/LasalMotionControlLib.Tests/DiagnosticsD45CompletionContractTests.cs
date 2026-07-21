@@ -44,6 +44,9 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.WriteAllowlistFailClosed",
                 D5WriteAllowlistFailClosed);
             tests.Add(
+                "Policy.DiagnosticsD5.FirstSliceSdoReadMaxSdoBoundary",
+                D5FirstSliceSdoReadMaxSdoBoundary);
+            tests.Add(
                 "Rpc.DiagnosticsD5.StatefulCancellationBoundary",
                 D5StatefulCancellationBoundary);
         }
@@ -496,7 +499,7 @@ namespace LasalMotionControlLib.Tests
                     0x7E50,
                     TestFrame.Response(
                         0,
-                        SubmitPayload(3, ticketId, LMCOperationKind.SDORead)))
+                        SubmitPayload(2, ticketId, LMCOperationKind.SDORead)))
                 {
                     InspectRequest = request => submitCancellation.Cancel()
                 };
@@ -504,7 +507,7 @@ namespace LasalMotionControlLib.Tests
                     0x7E04,
                     TestFrame.Response(
                         0,
-                        CancelPayload(4, ticketId)))
+                        CancelPayload(3, ticketId)))
                 {
                     InspectRequest = request => cancelCancellation.Cancel()
                 };
@@ -519,16 +522,7 @@ namespace LasalMotionControlLib.Tests
                             CapabilitiesPayload(
                                 1,
                                 LMCDiagnosticCapability.SDORead,
-                                4,
-                                0))),
-                    new FakeRpcStep(
-                        0x7E00,
-                        TestFrame.Response(
-                            0,
-                            CapabilitiesPayload(
-                                2,
-                                LMCDiagnosticCapability.SDORead,
-                                4,
+                                12,
                                 0))),
                     submitStep,
                     cancelStep,
@@ -536,20 +530,6 @@ namespace LasalMotionControlLib.Tests
                 using (var connection = new LMCConnection())
                 {
                     Connect(connection, server.Port);
-                    var oversizedRequest = LMCSdoRequest.CreateRead(
-                        1,
-                        0x2100,
-                        0,
-                        LMCSignalValueType.UInt32,
-                        8,
-                        100);
-                    AssertEx.Throws<InvalidDataException>(
-                        () => connection.Diagnostics.SubmitSdoAsync(
-                                oversizedRequest,
-                                CancellationToken.None)
-                            .GetAwaiter()
-                            .GetResult());
-
                     var request = LMCSdoRequest.CreateRead(
                         1,
                         0x2100,
@@ -575,6 +555,94 @@ namespace LasalMotionControlLib.Tests
                     connection.CloseConnection();
                     server.Verify();
                 }
+            }
+        }
+
+        private static void D5FirstSliceSdoReadMaxSdoBoundary()
+        {
+            const uint ticketId = 0x44444444u;
+            var submitStep = new FakeRpcStep(
+                0x7E50,
+                TestFrame.Response(
+                    0,
+                    SubmitPayload(3, ticketId, LMCOperationKind.SDORead)))
+            {
+                InspectRequest = request =>
+                {
+                    AssertEx.Equal(40, request.Length);
+                    AssertEx.Equal((ushort)32, TestFrame.ReadUInt16(request, 4));
+                    AssertEx.Equal(MapRevision, TestFrame.ReadUInt32(request, 16));
+                    AssertEx.Equal((ushort)1, TestFrame.ReadUInt16(request, 20));
+                    AssertEx.Equal((ushort)0, TestFrame.ReadUInt16(request, 22));
+                    AssertEx.Equal((ushort)0x1000, TestFrame.ReadUInt16(request, 24));
+                    AssertEx.Equal((byte)0, request[26]);
+                    AssertEx.Equal((byte)LMCSignalValueType.UInt32, request[27]);
+                    AssertEx.Equal(100u, TestFrame.ReadUInt32(request, 28));
+                    AssertEx.Equal((ushort)4, TestFrame.ReadUInt16(request, 32));
+                    AssertEx.Equal((ushort)0, TestFrame.ReadUInt16(request, 34));
+                    AssertEx.Equal(BootId, TestFrame.ReadUInt32(request, 36));
+                }
+            };
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
+                submitStep,
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var oversizedRequest = LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    8,
+                    100);
+                AssertEx.Throws<InvalidDataException>(
+                    () => connection.Diagnostics.SubmitSdoAsync(
+                            oversizedRequest,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+
+                var firstSliceRequest = LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    100);
+                var ticket = connection.Diagnostics.SubmitSdoAsync(
+                        firstSliceRequest,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+
+                AssertEx.Equal(ticketId, ticket.TicketId);
+                AssertEx.Equal((ushort)4, ticket.RequestedResultLength);
+                AssertEx.False(ticket.UsesExtendedResultChunks);
+
+                connection.CloseConnection();
+                server.Verify();
             }
         }
 

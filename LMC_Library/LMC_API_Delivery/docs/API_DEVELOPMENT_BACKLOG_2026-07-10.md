@@ -8,7 +8,7 @@ Latest update: 2026-07-21
 > `현재 구현 완료도 판정` 표는 2026-07-21 current source 기준이다. 현재 diagnostics는
 > D4 single-bank Ring/Trigger가 활성이고 D4 Double과 D5 PLC 실행은
 > capability-off이며, diagnostics active는 19개, 전체 success-capable active path는
-> 44개, dispatcher/wire handled contract는 49개다. PC 자동 테스트는 101/101이고
+> 44개, dispatcher/wire handled contract는 49개다. PC 자동 테스트는 102/102이고
 > diagnostics PLC runtime 시험은 아직 수행하지 않았다. 최신 상태와 검증 경계는
 > [LMC EtherCAT PI/Bulk/Recorder Implementation Design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md)을
 > 기준으로 한다.
@@ -70,7 +70,7 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 101/101, LASAL source-only/full-network static
+현재 source는 C# 자동 테스트 102/102, LASAL source-only/full-network static
 contract와 개발 WPF VS2019 MSBuild Debug/Release `TreatWarningsAsErrors` build를
 통과했다. LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
 compiler warning은 6줄(C78 project 1줄과 C81 library mismatch 5줄)이며,
@@ -100,7 +100,7 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 49개 | active 44 + capability-off diagnostics 5 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork control/read/motion 범위 | 18개 | axis 8개와 group 10개; diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | 101/101 PASS | fake/synthetic/loopback/source contract 검증 |
+| C# 자동 테스트 | 102/102 PASS | fake/synthetic/loopback/source contract 검증 |
 | LASAL source-only/full-network static contract | PASS | diagnostics D0~D5 wire/network 계약 포함 |
 | 개발 WPF VS2019 MSBuild | Debug/Release `TreatWarningsAsErrors` PASS | PLC 동작 승인이 아님 |
 | LASAL IDE build/smoke | D0-D4 통합 source 0 error, version warnings, smoke 3/3 PASS | 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |

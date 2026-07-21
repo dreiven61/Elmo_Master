@@ -127,7 +127,7 @@ case에 맡기지 않고 `LMCDiagnosticsService`의 명시적 reserved handler�
 
 | 우선순위 | 작업 | 완료 조건 |
 |---|---|---|
-| P0 | 이번 수정 commit 회귀 종료 | 두 WPF Debug/Release build, PC 101/101, 최신 LASAL 정적 계약, `git diff --check` |
+| P0 | 이번 수정 commit 회귀 종료 | 두 WPF Debug/Release build, PC 102/102, 최신 LASAL 정적 계약, `git diff --check` |
 | P1 | 최신 LASAL source IDE/PLC 검증 | 최신 source Rebuild/Link와 smoke 후 5절의 D1-D4 행을 모두 통과하고 packet/trace 결과를 보존 |
 | P2 | D5 첫 증분: SDO Read-only | 한 ticket, 4축, 검증된 4-byte object의 inline result만 구현하고 bit 8만 추가 광고 |
 | P3 | D4 Double bank | 두 고정 bank의 capture/upload 소유권과 full 정책을 구현하고 RAM/jitter 기준 통과 후 bit 6 광고 |
@@ -233,7 +233,7 @@ registry와 static sync/async wrapper를 추가하고 stale handle, dispose, con
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `101/101 passed` | 통과 확인 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `102/102 passed` | 통과 확인 |
 | WPF build | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj`, Debug/AnyCPU build | error 0 | 통과 확인 |
 | LASAL source/network contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | `PASS LASAL.StaticContract` | 통과 확인 |
 | LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | D0-D4 통합 source 통과; 17:56 Stop 패치 이후 재실행 대기 |

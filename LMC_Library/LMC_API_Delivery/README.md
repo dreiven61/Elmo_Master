@@ -43,7 +43,7 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: 101/101 PASS
+- C# 자동 테스트 runner: 102/102 PASS
 - LASAL source-only/full-network static contract: PASS
 - 개발 WPF example VS2019 MSBuild Debug/Release `TreatWarningsAsErrors`: PASS
 - DiagnosticsBootCounter/D1~D4 single-bank 통합 source LASAL IDE Rebuild/Link: 0 error,

@@ -6,7 +6,7 @@
 - 범위: D1 Health/Catalog/PI Read, D2 Bulk, D3 Recorder v1,
   D4 single-bank Ring/Trigger
 - 제외: 고객 배포 패키지 갱신, D4 Double bank, D5 PLC PI/SDO 실행, D6 facade
-- preflight 상태: PC 101/101과 최신 LASAL source/full 계약 PASS. D0-D4 통합 source의
+- preflight 상태: PC 102/102과 최신 LASAL source/full 계약 PASS. D0-D4 통합 source의
   IDE Rebuild/Link 0 error, implementation smoke 3/3 PASS지만 이후 Recorder Stop 멱등
   패치는 최신 source Rebuild 대기다. C78/C81 version mismatch warning은 남아 있다.
 

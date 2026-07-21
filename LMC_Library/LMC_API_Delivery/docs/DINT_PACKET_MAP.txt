@@ -11,7 +11,7 @@ five exact fail-closed D5 requests. These extensions are not captured Elmo
 commands.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. C# 101 tests, LASAL source-only/full-network static contracts and the
+source. C# 102 tests, LASAL source-only/full-network static contracts and the
 development WPF VS2019 Debug/Release TreatWarningsAsErrors builds pass. The
 class/network integration snapshot rebuilt and linked in the LASAL IDE with
 0 errors and 3 C78-project/C81-library-and-compiler version mismatch warnings.
