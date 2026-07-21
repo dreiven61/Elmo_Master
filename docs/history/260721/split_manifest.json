@@ -1,0 +1,2401 @@
+{
+  "Source": "docs/history/Elmo_Master_history_260721.md",
+  "SourceBytes": 42025939,
+  "SourceLines": 53548,
+  "SourceLineEnding": "CRLF",
+  "SourceEndsWithLineEnding": true,
+  "ChunkTargetLines": 250,
+  "BoundaryRule": "Target 250-line cumulative boundaries; advance a boundary past blank lines so chunk files do not end with blank Markdown lines.",
+  "ChunkCount": 215,
+  "SourceSha256": "1ddbdcd8d6dd6947d79f0764879c6160d90d8e5d259888b202ca5c0ce42f9d9d",
+  "SourceSha256AfterSplit": "1ddbdcd8d6dd6947d79f0764879c6160d90d8e5d259888b202ca5c0ce42f9d9d",
+  "OriginalSourceUnchanged": true,
+  "ReadableReferenceSha256": "32c1b041be1d63d08e5bb731e4b4683024a6b999bebb2b893357b3fcf247e468",
+  "ReadableRejoinedSha256": "32c1b041be1d63d08e5bb731e4b4683024a6b999bebb2b893357b3fcf247e468",
+  "ReadableRejoinMatchesReference": true,
+  "ExactByteRejoinMatchesSource": false,
+  "ExactRejoinException": "Split copies replace 39 embedded image/tool-state payload lines and trim trailing spaces or tabs on 168 non-payload source lines. The original source is unchanged.",
+  "PayloadSubstitutions": [
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 2773,
+      "OriginalCharacters": 212049,
+      "OriginalLineUtf8Sha256": "add7b7a7a86976fb5910c765a49dba3cf3b0e8a0b01db0d4497cc778e2f0cef8",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 2,773; original character count 212,049; UTF-8 SHA-256 add7b7a7a86976fb5910c765a49dba3cf3b0e8a0b01db0d4497cc778e2f0cef8; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 2782,
+      "OriginalCharacters": 210873,
+      "OriginalLineUtf8Sha256": "d7535d165884e104eb668f8bb9f05ba5b6cbe3f01ddb6d1e19fdffc54c6704e8",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 2,782; original character count 210,873; UTF-8 SHA-256 d7535d165884e104eb668f8bb9f05ba5b6cbe3f01ddb6d1e19fdffc54c6704e8; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 29865,
+      "OriginalCharacters": 428744,
+      "OriginalLineUtf8Sha256": "bf90faa4c4ba55fad0649ce417126b80db2834c134d7a3c97c57962120b3349e",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 29,865; original character count 428,744; UTF-8 SHA-256 bf90faa4c4ba55fad0649ce417126b80db2834c134d7a3c97c57962120b3349e; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 29897,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "e4fd709628d02876b2855fcff02cf666882d4645e7722732c79202229ec14855",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 29,897; original character count 1,048,602; UTF-8 SHA-256 e4fd709628d02876b2855fcff02cf666882d4645e7722732c79202229ec14855; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 29927,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "878665438b8867b01b81458b82875d7f78aadc1822c1d90e6b7733be72e19c1b",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 29,927; original character count 1,048,602; UTF-8 SHA-256 878665438b8867b01b81458b82875d7f78aadc1822c1d90e6b7733be72e19c1b; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 29957,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "a13f7c9356842e3fc7ad9a3b802a247e8426da786e449115c8eda99d9faea7af",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 29,957; original character count 1,048,602; UTF-8 SHA-256 a13f7c9356842e3fc7ad9a3b802a247e8426da786e449115c8eda99d9faea7af; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 29987,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "772fe7df035bcf10562a5fd505dfd1cfc9c7e7602653902ed85772797d9b47a9",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 29,987; original character count 1,048,602; UTF-8 SHA-256 772fe7df035bcf10562a5fd505dfd1cfc9c7e7602653902ed85772797d9b47a9; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 30017,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "5f341607d8c0d5b0609e512173e1934cec14c6dc0972ce1ea74c4df0bd52f407",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 30,017; original character count 1,048,602; UTF-8 SHA-256 5f341607d8c0d5b0609e512173e1934cec14c6dc0972ce1ea74c4df0bd52f407; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 30047,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "f30d2d38df38c5cc0e03388d0da15f8591952c00da5607d88acbc47ba07bda51",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 30,047; original character count 1,048,602; UTF-8 SHA-256 f30d2d38df38c5cc0e03388d0da15f8591952c00da5607d88acbc47ba07bda51; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 30113,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "a59f545714c14fe6f18a4bee83f33aa5513d53661bb225614dd8c4ba62614d99",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 30,113; original character count 1,048,602; UTF-8 SHA-256 a59f545714c14fe6f18a4bee83f33aa5513d53661bb225614dd8c4ba62614d99; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31016,
+      "OriginalCharacters": 1048601,
+      "OriginalLineUtf8Sha256": "e18476c90c15212747d3da448ab35e7a543f088be91aaf40d79711805ea8b6a7",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,016; original character count 1,048,601; UTF-8 SHA-256 e18476c90c15212747d3da448ab35e7a543f088be91aaf40d79711805ea8b6a7; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31059,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "d8193a9bdb6fec3a93107958cfb3a34418c084fdaf25006192ad4da812cf3272",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,059; original character count 1,048,602; UTF-8 SHA-256 d8193a9bdb6fec3a93107958cfb3a34418c084fdaf25006192ad4da812cf3272; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31074,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "47e28325349768ca5d4380a4f93c6e4dff9b73878b56353ec7f71890b4021b36",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,074; original character count 1,048,602; UTF-8 SHA-256 47e28325349768ca5d4380a4f93c6e4dff9b73878b56353ec7f71890b4021b36; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31089,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "ecce44e2f5b298814beda6c91ecc42cb353e2d7b1380d32df74b462b754afabd",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,089; original character count 1,048,602; UTF-8 SHA-256 ecce44e2f5b298814beda6c91ecc42cb353e2d7b1380d32df74b462b754afabd; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31104,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "2c6667a2a50cc3438f733b15368637488df383032a93229261b55190cabd292f",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,104; original character count 1,048,602; UTF-8 SHA-256 2c6667a2a50cc3438f733b15368637488df383032a93229261b55190cabd292f; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31119,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "dc9a1c7f78f4f428624abdb16898b0e02b90a0f40ec8943305a8036be502c21f",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,119; original character count 1,048,602; UTF-8 SHA-256 dc9a1c7f78f4f428624abdb16898b0e02b90a0f40ec8943305a8036be502c21f; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31134,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "24ed6fe2a667393fd0a0fda7e45e1e512a0de72a5c77af675c5194c459705ed7",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,134; original character count 1,048,602; UTF-8 SHA-256 24ed6fe2a667393fd0a0fda7e45e1e512a0de72a5c77af675c5194c459705ed7; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31149,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "1e8a651c658c7262436cdea2b708f6b5820975452349eaa84230c9d9e09ef4b6",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,149; original character count 1,048,602; UTF-8 SHA-256 1e8a651c658c7262436cdea2b708f6b5820975452349eaa84230c9d9e09ef4b6; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31164,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "e3e6c6d5f34f9596acc5e988af12c433d7b9215b61ba3b7f0046bc4ab88c5971",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,164; original character count 1,048,602; UTF-8 SHA-256 e3e6c6d5f34f9596acc5e988af12c433d7b9215b61ba3b7f0046bc4ab88c5971; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31179,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "d57937baaefe1677cf3cde3d391f420708a5e85a910473d0ddb2a2b7a221af20",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,179; original character count 1,048,602; UTF-8 SHA-256 d57937baaefe1677cf3cde3d391f420708a5e85a910473d0ddb2a2b7a221af20; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31321,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "66e1f2700fe0e6cd9d780dc2f4e4cbac36367acc30a56ca34f92c761ef107fd1",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,321; original character count 1,048,602; UTF-8 SHA-256 66e1f2700fe0e6cd9d780dc2f4e4cbac36367acc30a56ca34f92c761ef107fd1; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31364,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "07c6ca91429b32042a4091b465c9a1c9baae7c6c856c28759eb37510b2371fd4",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,364; original character count 1,048,602; UTF-8 SHA-256 07c6ca91429b32042a4091b465c9a1c9baae7c6c856c28759eb37510b2371fd4; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 31394,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "38cb80b1b718f8ba38d6293b9129521399ebed58107201a85b282e7f2283591a",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 31,394; original character count 1,048,602; UTF-8 SHA-256 38cb80b1b718f8ba38d6293b9129521399ebed58107201a85b282e7f2283591a; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32312,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "2a2c42dbb09b5de5ed0b954b1b331ef1488b134a39c1ec9f2a47fed05b0d85ac",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,312; original character count 1,048,602; UTF-8 SHA-256 2a2c42dbb09b5de5ed0b954b1b331ef1488b134a39c1ec9f2a47fed05b0d85ac; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32328,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "861d4bc3d7fdc2050e53ce3491dc0493aa659f5e9a84d9891f5a677eaffc467f",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,328; original character count 1,048,602; UTF-8 SHA-256 861d4bc3d7fdc2050e53ce3491dc0493aa659f5e9a84d9891f5a677eaffc467f; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32345,
+      "OriginalCharacters": 1047300,
+      "OriginalLineUtf8Sha256": "618da226dafa52709050240b6df45a0af3cecb72451ecdfa4ac336f62446e798",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,345; original character count 1,047,300; UTF-8 SHA-256 618da226dafa52709050240b6df45a0af3cecb72451ecdfa4ac336f62446e798; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32364,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "3b9e91ec7662204954b63b10cc4d5db92a268b34f041f8aa5128fcaa30f51255",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,364; original character count 1,048,602; UTF-8 SHA-256 3b9e91ec7662204954b63b10cc4d5db92a268b34f041f8aa5128fcaa30f51255; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32379,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "04bfed0ab159145e076209d14283941b8f7a1c3381ed6d28c8645596ae436620",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,379; original character count 1,048,602; UTF-8 SHA-256 04bfed0ab159145e076209d14283941b8f7a1c3381ed6d28c8645596ae436620; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32394,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "4c5cbd76f2363edb94eb5888ae55834703b4fede1235f4c544a295bf222cee7a",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,394; original character count 1,048,602; UTF-8 SHA-256 4c5cbd76f2363edb94eb5888ae55834703b4fede1235f4c544a295bf222cee7a; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32409,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "bdce968bec1284f201f576c7902fdc479331707d8146c3e1af3159ff2d408584",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,409; original character count 1,048,602; UTF-8 SHA-256 bdce968bec1284f201f576c7902fdc479331707d8146c3e1af3159ff2d408584; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32424,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "d1f0a1a47f48fb648dc71868b3bbb81262c9ccf080b7785d0be7d28afd66673f",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,424; original character count 1,048,602; UTF-8 SHA-256 d1f0a1a47f48fb648dc71868b3bbb81262c9ccf080b7785d0be7d28afd66673f; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32439,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "23d41bb0ec73bfa5d0d56fe960365a48797ceafad69a19302bc1507913649d62",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,439; original character count 1,048,602; UTF-8 SHA-256 23d41bb0ec73bfa5d0d56fe960365a48797ceafad69a19302bc1507913649d62; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32454,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "42336ccfe1fa5c6fa1e9884c704b20dcc1bc9bfbab513040dd856d94ffaf9576",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,454; original character count 1,048,602; UTF-8 SHA-256 42336ccfe1fa5c6fa1e9884c704b20dcc1bc9bfbab513040dd856d94ffaf9576; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 32484,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "f2cdbc72a3b7c42d267d2df72460be5f543db8e53b9509dc15835038c50960a3",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 32,484; original character count 1,048,602; UTF-8 SHA-256 f2cdbc72a3b7c42d267d2df72460be5f543db8e53b9509dc15835038c50960a3; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 34453,
+      "OriginalCharacters": 1048601,
+      "OriginalLineUtf8Sha256": "463db00383529073eac25a293f8d366ef7ec036bb46038a23c68d0c25a1ae95b",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 34,453; original character count 1,048,601; UTF-8 SHA-256 463db00383529073eac25a293f8d366ef7ec036bb46038a23c68d0c25a1ae95b; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 34479,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "92844f91ab794d7153bb0e6370758e19c78a4729ed91f7940109db71bb55f1e0",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 34,479; original character count 1,048,602; UTF-8 SHA-256 92844f91ab794d7153bb0e6370758e19c78a4729ed91f7940109db71bb55f1e0; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 49604,
+      "OriginalCharacters": 1048584,
+      "OriginalLineUtf8Sha256": "4cb2558d214dc0d0ca41d284876d2051e9af130a45399e5f0cfbf9cd7ef842a7",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 49,604; original character count 1,048,584; UTF-8 SHA-256 4cb2558d214dc0d0ca41d284876d2051e9af130a45399e5f0cfbf9cd7ef842a7; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 49712,
+      "OriginalCharacters": 1048602,
+      "OriginalLineUtf8Sha256": "e501ba0b1696e9737c0f839c400de02528a8c5d9ed1aa7ca0448ceba4642ac46",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 49,712; original character count 1,048,602; UTF-8 SHA-256 e501ba0b1696e9737c0f839c400de02528a8c5d9ed1aa7ca0448ceba4642ac46; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    },
+    {
+      "Kind": "EmbeddedPayloadPlaceholder",
+      "SourceLine": 49835,
+      "OriginalCharacters": 477159,
+      "OriginalLineUtf8Sha256": "a6d3451f72eae3599a4f625065a731aea48764afb0aef2014e906f5c979598c0",
+      "Replacement": "> [OMITTED FROM SPLIT COPY: embedded computer-use image/tool-state payload at source line 49,835; original character count 477,159; UTF-8 SHA-256 a6d3451f72eae3599a4f625065a731aea48764afb0aef2014e906f5c979598c0; retained unchanged in docs/history/Elmo_Master_history_260721.md.]"
+    }
+  ],
+  "TrailingWhitespaceTrimCount": 168,
+  "TrailingWhitespaceTrimLines": [
+    2508,
+    3281,
+    3736,
+    4060,
+    4501,
+    4506,
+    4821,
+    4826,
+    5260,
+    5265,
+    5664,
+    5669,
+    6029,
+    6034,
+    6396,
+    6401,
+    6757,
+    6762,
+    7095,
+    7100,
+    7435,
+    7440,
+    7771,
+    7776,
+    8139,
+    8144,
+    8475,
+    8480,
+    8816,
+    8821,
+    9143,
+    9148,
+    9484,
+    9489,
+    9825,
+    9830,
+    10162,
+    10167,
+    10498,
+    10503,
+    10829,
+    10834,
+    11161,
+    11166,
+    11493,
+    11498,
+    11825,
+    11830,
+    12157,
+    12162,
+    12488,
+    12493,
+    12816,
+    12821,
+    13167,
+    13172,
+    13529,
+    13534,
+    14117,
+    14122,
+    14472,
+    14477,
+    14821,
+    14826,
+    15191,
+    15196,
+    15573,
+    15578,
+    15922,
+    15927,
+    16273,
+    16278,
+    16614,
+    16619,
+    16952,
+    16957,
+    17309,
+    17314,
+    17654,
+    17659,
+    18155,
+    18160,
+    18512,
+    18517,
+    18865,
+    18870,
+    19086,
+    19091,
+    25798,
+    25799,
+    25801,
+    25802,
+    26044,
+    26047,
+    26049,
+    26050,
+    26200,
+    26203,
+    26205,
+    26206,
+    26467,
+    26471,
+    26767,
+    26771,
+    27050,
+    27054,
+    27353,
+    27357,
+    27877,
+    27881,
+    28237,
+    28241,
+    28580,
+    28584,
+    28874,
+    28878,
+    29202,
+    29206,
+    29532,
+    29536,
+    36063,
+    36067,
+    36426,
+    36430,
+    36748,
+    36752,
+    37042,
+    37046,
+    37368,
+    37372,
+    39106,
+    39110,
+    39455,
+    39459,
+    39807,
+    39811,
+    40159,
+    40163,
+    40399,
+    40403,
+    40651,
+    40652,
+    40654,
+    40655,
+    41442,
+    41446,
+    41782,
+    41786,
+    42118,
+    42122,
+    42588,
+    42592,
+    46334,
+    46338,
+    46642,
+    46646,
+    47014,
+    47018,
+    47348,
+    47352,
+    47672,
+    47676,
+    47833,
+    47837,
+    50358,
+    50362,
+    53058,
+    53062
+  ],
+  "Chunks": [
+    {
+      "Part": 1,
+      "File": "Elmo_Master_history_260721_part_001_lines_00001_00250.md",
+      "StartLine": 1,
+      "EndLine": 250,
+      "Lines": 250,
+      "Bytes": 17273,
+      "Sha256": "ca9de2be6714d1622d54c0d9d18188b54c160930028d99281bc9717a775ecfbb"
+    },
+    {
+      "Part": 2,
+      "File": "Elmo_Master_history_260721_part_002_lines_00251_00500.md",
+      "StartLine": 251,
+      "EndLine": 500,
+      "Lines": 250,
+      "Bytes": 13870,
+      "Sha256": "a57fcb1b2d0d995ae37d782e9b883c60c477b1fe40bcb0ff1a165ae2fff8dd2d"
+    },
+    {
+      "Part": 3,
+      "File": "Elmo_Master_history_260721_part_003_lines_00501_00750.md",
+      "StartLine": 501,
+      "EndLine": 750,
+      "Lines": 250,
+      "Bytes": 11453,
+      "Sha256": "44eb3ad2634257acb7e811559d16cc8995da7348031567d57b5abc8f7add00c0"
+    },
+    {
+      "Part": 4,
+      "File": "Elmo_Master_history_260721_part_004_lines_00751_01000.md",
+      "StartLine": 751,
+      "EndLine": 1000,
+      "Lines": 250,
+      "Bytes": 7982,
+      "Sha256": "f830a2e4baacc30b995061b10e6460f5614f6dfea1a42caa6e9ea62d234f31c5"
+    },
+    {
+      "Part": 5,
+      "File": "Elmo_Master_history_260721_part_005_lines_01001_01250.md",
+      "StartLine": 1001,
+      "EndLine": 1250,
+      "Lines": 250,
+      "Bytes": 9032,
+      "Sha256": "cc20f60fa9c1bfca4f939adc34f3952ced07822c0a2f0b3c60a58f63c529ab3f"
+    },
+    {
+      "Part": 6,
+      "File": "Elmo_Master_history_260721_part_006_lines_01251_01500.md",
+      "StartLine": 1251,
+      "EndLine": 1500,
+      "Lines": 250,
+      "Bytes": 11655,
+      "Sha256": "770867247ed5a538fbf90937649e3f1f08c31b6aade725bd69826621686cb85a"
+    },
+    {
+      "Part": 7,
+      "File": "Elmo_Master_history_260721_part_007_lines_01501_01750.md",
+      "StartLine": 1501,
+      "EndLine": 1750,
+      "Lines": 250,
+      "Bytes": 19425,
+      "Sha256": "06bd6ef339ae3c0725e6722ddc6fda9b26fd2c5fbb459e096daae9b7546e3bdb"
+    },
+    {
+      "Part": 8,
+      "File": "Elmo_Master_history_260721_part_008_lines_01751_02000.md",
+      "StartLine": 1751,
+      "EndLine": 2000,
+      "Lines": 250,
+      "Bytes": 12285,
+      "Sha256": "c504c1eba0b6a86d4a2822d9be8890a2f9ac468b989fdfea74227fa8e8c6dfc0"
+    },
+    {
+      "Part": 9,
+      "File": "Elmo_Master_history_260721_part_009_lines_02001_02250.md",
+      "StartLine": 2001,
+      "EndLine": 2250,
+      "Lines": 250,
+      "Bytes": 12854,
+      "Sha256": "78c86196f3dd264ae7a1e5a3cb65e986fa60fbb85bee5b8b26928e42001db834"
+    },
+    {
+      "Part": 10,
+      "File": "Elmo_Master_history_260721_part_010_lines_02251_02500.md",
+      "StartLine": 2251,
+      "EndLine": 2500,
+      "Lines": 250,
+      "Bytes": 19843,
+      "Sha256": "be999a014df7962cd71795a304716ef71d376721e7feb1370e1cfc575425f1c1"
+    },
+    {
+      "Part": 11,
+      "File": "Elmo_Master_history_260721_part_011_lines_02501_02750.md",
+      "StartLine": 2501,
+      "EndLine": 2750,
+      "Lines": 250,
+      "Bytes": 9164,
+      "Sha256": "b13f9e6ff104d3a70f9ab876b866df1c6756c7fb300a2c56c614a2dd6758db61"
+    },
+    {
+      "Part": 12,
+      "File": "Elmo_Master_history_260721_part_012_lines_02751_03000.md",
+      "StartLine": 2751,
+      "EndLine": 3000,
+      "Lines": 250,
+      "Bytes": 9164,
+      "Sha256": "6c727587f97378fd48202552dba4eff24f98864d626ba8fda7b64c2ba3932b08"
+    },
+    {
+      "Part": 13,
+      "File": "Elmo_Master_history_260721_part_013_lines_03001_03250.md",
+      "StartLine": 3001,
+      "EndLine": 3250,
+      "Lines": 250,
+      "Bytes": 24091,
+      "Sha256": "7a28a1614f99db863c8d728be61a4b82fa66a15f33e3a410893a398a3d379de4"
+    },
+    {
+      "Part": 14,
+      "File": "Elmo_Master_history_260721_part_014_lines_03251_03500.md",
+      "StartLine": 3251,
+      "EndLine": 3500,
+      "Lines": 250,
+      "Bytes": 10299,
+      "Sha256": "7992cd6d606cf72cbd6da72dc3239769721ea006769634e8bc4aa82b7dea94ac"
+    },
+    {
+      "Part": 15,
+      "File": "Elmo_Master_history_260721_part_015_lines_03501_03750.md",
+      "StartLine": 3501,
+      "EndLine": 3750,
+      "Lines": 250,
+      "Bytes": 20137,
+      "Sha256": "537795c6f20c94c9eb9e52579c1548496d13730b79ea312bf8fe5fd322019de6"
+    },
+    {
+      "Part": 16,
+      "File": "Elmo_Master_history_260721_part_016_lines_03751_04000.md",
+      "StartLine": 3751,
+      "EndLine": 4000,
+      "Lines": 250,
+      "Bytes": 17925,
+      "Sha256": "f62a4ba4ca735d6b671bd61ccc914b27ef8a08044459a2bae7776d4c641f6e19"
+    },
+    {
+      "Part": 17,
+      "File": "Elmo_Master_history_260721_part_017_lines_04001_04250.md",
+      "StartLine": 4001,
+      "EndLine": 4250,
+      "Lines": 250,
+      "Bytes": 12189,
+      "Sha256": "847c0b56d762e5e107699641a4e761ba4ed768000196d75d2c88b235fc0305f2"
+    },
+    {
+      "Part": 18,
+      "File": "Elmo_Master_history_260721_part_018_lines_04251_04500.md",
+      "StartLine": 4251,
+      "EndLine": 4500,
+      "Lines": 250,
+      "Bytes": 19366,
+      "Sha256": "e9c107df2cb365b57a27a530d7d2a95e1ab373fe7ceeaa650dc0f54a288c3399"
+    },
+    {
+      "Part": 19,
+      "File": "Elmo_Master_history_260721_part_019_lines_04501_04750.md",
+      "StartLine": 4501,
+      "EndLine": 4750,
+      "Lines": 250,
+      "Bytes": 13041,
+      "Sha256": "7a7199da78315e85a233c9e5fc6401fc3ea0a77b16ee52956fe5f7a87a804f51"
+    },
+    {
+      "Part": 20,
+      "File": "Elmo_Master_history_260721_part_020_lines_04751_05000.md",
+      "StartLine": 4751,
+      "EndLine": 5000,
+      "Lines": 250,
+      "Bytes": 16575,
+      "Sha256": "27f207da3831ad6b5d28bf7bca402d70194c3dd2b5f9f5faf997c4251b041ffa"
+    },
+    {
+      "Part": 21,
+      "File": "Elmo_Master_history_260721_part_021_lines_05001_05250.md",
+      "StartLine": 5001,
+      "EndLine": 5250,
+      "Lines": 250,
+      "Bytes": 20369,
+      "Sha256": "abc1bc6f5e57f5294303748034a54f644d58fd82ae65855c2240902db4c40e4c"
+    },
+    {
+      "Part": 22,
+      "File": "Elmo_Master_history_260721_part_022_lines_05251_05500.md",
+      "StartLine": 5251,
+      "EndLine": 5500,
+      "Lines": 250,
+      "Bytes": 9906,
+      "Sha256": "fdc25dbfa60f4d51dccea8fb293824dc6528b14155696348f8bf124950ea2eaa"
+    },
+    {
+      "Part": 23,
+      "File": "Elmo_Master_history_260721_part_023_lines_05501_05750.md",
+      "StartLine": 5501,
+      "EndLine": 5750,
+      "Lines": 250,
+      "Bytes": 19680,
+      "Sha256": "227884652a7146b0eba770015e480484e35af2fd89b39788ba9b1d3c7ae06de7"
+    },
+    {
+      "Part": 24,
+      "File": "Elmo_Master_history_260721_part_024_lines_05751_06000.md",
+      "StartLine": 5751,
+      "EndLine": 6000,
+      "Lines": 250,
+      "Bytes": 17331,
+      "Sha256": "d2e3b0e9791ba21c603cfc97e027fe5edd9e7487c954b9a890dac6a26bd9925c"
+    },
+    {
+      "Part": 25,
+      "File": "Elmo_Master_history_260721_part_025_lines_06001_06250.md",
+      "StartLine": 6001,
+      "EndLine": 6250,
+      "Lines": 250,
+      "Bytes": 12792,
+      "Sha256": "c3db8015b3b66a77daa1311e08dce6088eb82997564825f6456025a56a6df454"
+    },
+    {
+      "Part": 26,
+      "File": "Elmo_Master_history_260721_part_026_lines_06251_06500.md",
+      "StartLine": 6251,
+      "EndLine": 6500,
+      "Lines": 250,
+      "Bytes": 19520,
+      "Sha256": "d1c85b08a3cee4b86a73cb4c6264d890e938c1034496f3eb0b177680a707199b"
+    },
+    {
+      "Part": 27,
+      "File": "Elmo_Master_history_260721_part_027_lines_06501_06750.md",
+      "StartLine": 6501,
+      "EndLine": 6750,
+      "Lines": 250,
+      "Bytes": 19965,
+      "Sha256": "3be6fb9aa5caa1fe117b5adc1070f7b79923d09d77ea649a6ce19fb69d38cda7"
+    },
+    {
+      "Part": 28,
+      "File": "Elmo_Master_history_260721_part_028_lines_06751_07000.md",
+      "StartLine": 6751,
+      "EndLine": 7000,
+      "Lines": 250,
+      "Bytes": 12441,
+      "Sha256": "85c7f29569e392fe0d8e4babfd4ac5dbcad1a5eb394de242ba516359ac87f100"
+    },
+    {
+      "Part": 29,
+      "File": "Elmo_Master_history_260721_part_029_lines_07001_07250.md",
+      "StartLine": 7001,
+      "EndLine": 7250,
+      "Lines": 250,
+      "Bytes": 17352,
+      "Sha256": "a92b08b3b5bd826821b11d063dccc57a3757a3d714fa76d77dd6eada9b08ae7b"
+    },
+    {
+      "Part": 30,
+      "File": "Elmo_Master_history_260721_part_030_lines_07251_07500.md",
+      "StartLine": 7251,
+      "EndLine": 7500,
+      "Lines": 250,
+      "Bytes": 20118,
+      "Sha256": "a0ba9e406a635c57ea927c113e27ccd8686e2056bee81d011e925ed76641b842"
+    },
+    {
+      "Part": 31,
+      "File": "Elmo_Master_history_260721_part_031_lines_07501_07750.md",
+      "StartLine": 7501,
+      "EndLine": 7750,
+      "Lines": 250,
+      "Bytes": 19173,
+      "Sha256": "cb07bde84e2846ce418f12f47bd6df18b77615f8b4d1f96de2327519bf20664e"
+    },
+    {
+      "Part": 32,
+      "File": "Elmo_Master_history_260721_part_032_lines_07751_08000.md",
+      "StartLine": 7751,
+      "EndLine": 8000,
+      "Lines": 250,
+      "Bytes": 10989,
+      "Sha256": "b5944bb38e556db6dfd807ff18a8ddfd447c1d2bf7b5854f179d55f41a27a028"
+    },
+    {
+      "Part": 33,
+      "File": "Elmo_Master_history_260721_part_033_lines_08001_08250.md",
+      "StartLine": 8001,
+      "EndLine": 8250,
+      "Lines": 250,
+      "Bytes": 19337,
+      "Sha256": "4cd64000eb1a83631bcc530db5306ef0acf0a6ddc49cb93503b36831c7376f86"
+    },
+    {
+      "Part": 34,
+      "File": "Elmo_Master_history_260721_part_034_lines_08251_08500.md",
+      "StartLine": 8251,
+      "EndLine": 8500,
+      "Lines": 250,
+      "Bytes": 19801,
+      "Sha256": "60bcb3405625e62c8391a122b26d07efae6b42982291ccad80b2571d00007f21"
+    },
+    {
+      "Part": 35,
+      "File": "Elmo_Master_history_260721_part_035_lines_08501_08750.md",
+      "StartLine": 8501,
+      "EndLine": 8750,
+      "Lines": 250,
+      "Bytes": 13239,
+      "Sha256": "4595780409c08055c9471e953434fa94841087da3fc5ab48f949ac8da9f63713"
+    },
+    {
+      "Part": 36,
+      "File": "Elmo_Master_history_260721_part_036_lines_08751_09000.md",
+      "StartLine": 8751,
+      "EndLine": 9000,
+      "Lines": 250,
+      "Bytes": 17340,
+      "Sha256": "09186af4c2faef237d81cccac8c4b725485ebab6c3811e068b5e9505a8cc2bf7"
+    },
+    {
+      "Part": 37,
+      "File": "Elmo_Master_history_260721_part_037_lines_09001_09250.md",
+      "StartLine": 9001,
+      "EndLine": 9250,
+      "Lines": 250,
+      "Bytes": 19424,
+      "Sha256": "11e9f0432593dae6a4c561d2f3bf732cb40797c3ac39c9bc4618c4a2d877cff4"
+    },
+    {
+      "Part": 38,
+      "File": "Elmo_Master_history_260721_part_038_lines_09251_09500.md",
+      "StartLine": 9251,
+      "EndLine": 9500,
+      "Lines": 250,
+      "Bytes": 19733,
+      "Sha256": "0de584ce0bd8ff46c363d1f3fac54cde43b1776d11a1828e6b407fdc99cee7e2"
+    },
+    {
+      "Part": 39,
+      "File": "Elmo_Master_history_260721_part_039_lines_09501_09750.md",
+      "StartLine": 9501,
+      "EndLine": 9750,
+      "Lines": 250,
+      "Bytes": 13212,
+      "Sha256": "ddf6879e22632dec4f659e89e482c9fedbe895219b93783d3b27aaed1b4bf128"
+    },
+    {
+      "Part": 40,
+      "File": "Elmo_Master_history_260721_part_040_lines_09751_10000.md",
+      "StartLine": 9751,
+      "EndLine": 10000,
+      "Lines": 250,
+      "Bytes": 17135,
+      "Sha256": "c1ff835cfb5f855183f1b857121bd48ceee0404c4702506ed35a15b7784c3e52"
+    },
+    {
+      "Part": 41,
+      "File": "Elmo_Master_history_260721_part_041_lines_10001_10250.md",
+      "StartLine": 10001,
+      "EndLine": 10250,
+      "Lines": 250,
+      "Bytes": 19575,
+      "Sha256": "3a746c45232650e6ac14967097189ae46e9aa889371385e9a5254ba16ab3dd7a"
+    },
+    {
+      "Part": 42,
+      "File": "Elmo_Master_history_260721_part_042_lines_10251_10500.md",
+      "StartLine": 10251,
+      "EndLine": 10500,
+      "Lines": 250,
+      "Bytes": 20079,
+      "Sha256": "858393829c0634169fb442df5085a9f7d95be5d958af95ca41be08b666b507e9"
+    },
+    {
+      "Part": 43,
+      "File": "Elmo_Master_history_260721_part_043_lines_10501_10750.md",
+      "StartLine": 10501,
+      "EndLine": 10750,
+      "Lines": 250,
+      "Bytes": 13082,
+      "Sha256": "3c32943f228c572988614969d47cdb3a6d072fb101c23388b1b464868ca28c63"
+    },
+    {
+      "Part": 44,
+      "File": "Elmo_Master_history_260721_part_044_lines_10751_11000.md",
+      "StartLine": 10751,
+      "EndLine": 11000,
+      "Lines": 250,
+      "Bytes": 17208,
+      "Sha256": "7f00f71ed48ab17cb1b8bdad788ee7e896530d8d153002f6178fa723790d4eb9"
+    },
+    {
+      "Part": 45,
+      "File": "Elmo_Master_history_260721_part_045_lines_11001_11250.md",
+      "StartLine": 11001,
+      "EndLine": 11250,
+      "Lines": 250,
+      "Bytes": 19595,
+      "Sha256": "53fb4f0351e243fd94b238eb0f77599541149857d6e80221352d495ecb7db564"
+    },
+    {
+      "Part": 46,
+      "File": "Elmo_Master_history_260721_part_046_lines_11251_11500.md",
+      "StartLine": 11251,
+      "EndLine": 11500,
+      "Lines": 250,
+      "Bytes": 19934,
+      "Sha256": "b3a28f553f277698adc2fb60df76b3a24ed004e5aed006a61526a6c4832e178e"
+    },
+    {
+      "Part": 47,
+      "File": "Elmo_Master_history_260721_part_047_lines_11501_11750.md",
+      "StartLine": 11501,
+      "EndLine": 11750,
+      "Lines": 250,
+      "Bytes": 13327,
+      "Sha256": "b37b2e4832a10928f20cbbd70eae327791d6b5c38b40bc94d070201e229ed0eb"
+    },
+    {
+      "Part": 48,
+      "File": "Elmo_Master_history_260721_part_048_lines_11751_12000.md",
+      "StartLine": 11751,
+      "EndLine": 12000,
+      "Lines": 250,
+      "Bytes": 17180,
+      "Sha256": "45f6d86bfad5cbc13c9559c01678f3cae834768b4b52973cf9345b0278e6922f"
+    },
+    {
+      "Part": 49,
+      "File": "Elmo_Master_history_260721_part_049_lines_12001_12250.md",
+      "StartLine": 12001,
+      "EndLine": 12250,
+      "Lines": 250,
+      "Bytes": 19634,
+      "Sha256": "0877eb35a0f2fe49b261f91a912a035b08f830c7d58330901117f7265447766a"
+    },
+    {
+      "Part": 50,
+      "File": "Elmo_Master_history_260721_part_050_lines_12251_12500.md",
+      "StartLine": 12251,
+      "EndLine": 12500,
+      "Lines": 250,
+      "Bytes": 19848,
+      "Sha256": "74235e11bd58a00858e17c6f8b76a3fd188749bab240065ba6275d4d65d51d9e"
+    },
+    {
+      "Part": 51,
+      "File": "Elmo_Master_history_260721_part_051_lines_12501_12750.md",
+      "StartLine": 12501,
+      "EndLine": 12750,
+      "Lines": 250,
+      "Bytes": 13629,
+      "Sha256": "072ff9f1a146b0e88c17d5916adf2e549fc69b5c2ff072d732aa63364d466797"
+    },
+    {
+      "Part": 52,
+      "File": "Elmo_Master_history_260721_part_052_lines_12751_13000.md",
+      "StartLine": 12751,
+      "EndLine": 13000,
+      "Lines": 250,
+      "Bytes": 17205,
+      "Sha256": "7a36f8d1409320c51f6ce5262231decfc71ea4c030617c915d18e08a8404e39e"
+    },
+    {
+      "Part": 53,
+      "File": "Elmo_Master_history_260721_part_053_lines_13001_13250.md",
+      "StartLine": 13001,
+      "EndLine": 13250,
+      "Lines": 250,
+      "Bytes": 19606,
+      "Sha256": "08e09ea5fd281c616e7135153b9192c57f1eb2a702a2e06ee1bab4bf43fbe25e"
+    },
+    {
+      "Part": 54,
+      "File": "Elmo_Master_history_260721_part_054_lines_13251_13500.md",
+      "StartLine": 13251,
+      "EndLine": 13500,
+      "Lines": 250,
+      "Bytes": 17642,
+      "Sha256": "672f00386963143e4f25f3c3d86fbd7f8076e8f1f25d252f8f791eb9bd5be993"
+    },
+    {
+      "Part": 55,
+      "File": "Elmo_Master_history_260721_part_055_lines_13501_13750.md",
+      "StartLine": 13501,
+      "EndLine": 13750,
+      "Lines": 250,
+      "Bytes": 11471,
+      "Sha256": "eceaab4410a79c5d2211f2f0993ca8e8944e773e66f4cd8368c7221dfbf89971"
+    },
+    {
+      "Part": 56,
+      "File": "Elmo_Master_history_260721_part_056_lines_13751_14000.md",
+      "StartLine": 13751,
+      "EndLine": 14000,
+      "Lines": 250,
+      "Bytes": 13230,
+      "Sha256": "ee00c0d2fbe5f3158924e39ad6150288e1032aae8517eb3008c0eee566ea3a55"
+    },
+    {
+      "Part": 57,
+      "File": "Elmo_Master_history_260721_part_057_lines_14001_14250.md",
+      "StartLine": 14001,
+      "EndLine": 14250,
+      "Lines": 250,
+      "Bytes": 18463,
+      "Sha256": "df8505a6d1bea6ceaf92574f28cf0131b7c9a7db04b9bfcf5ed3511cd2597b2c"
+    },
+    {
+      "Part": 58,
+      "File": "Elmo_Master_history_260721_part_058_lines_14251_14500.md",
+      "StartLine": 14251,
+      "EndLine": 14500,
+      "Lines": 250,
+      "Bytes": 18960,
+      "Sha256": "b8d18c77a5137e2a801c504fba9ae27030bde2ce1966b809f44b3d606db8168c"
+    },
+    {
+      "Part": 59,
+      "File": "Elmo_Master_history_260721_part_059_lines_14501_14750.md",
+      "StartLine": 14501,
+      "EndLine": 14750,
+      "Lines": 250,
+      "Bytes": 12367,
+      "Sha256": "96e9ae33ce0ed8fe1efdc89b7f979eddc3f005297e47ad5cc0a075b97c90d1a0"
+    },
+    {
+      "Part": 60,
+      "File": "Elmo_Master_history_260721_part_060_lines_14751_15000.md",
+      "StartLine": 14751,
+      "EndLine": 15000,
+      "Lines": 250,
+      "Bytes": 16074,
+      "Sha256": "abe400dd1aee2943012fcba57c4b5e1330010c358b5382ea2af4e9c8f33420f0"
+    },
+    {
+      "Part": 61,
+      "File": "Elmo_Master_history_260721_part_061_lines_15001_15250.md",
+      "StartLine": 15001,
+      "EndLine": 15250,
+      "Lines": 250,
+      "Bytes": 19397,
+      "Sha256": "2039d6cbe90974e36c9e61e18854e9710e72f3bfa2ac6bd286a288dc32c2a014"
+    },
+    {
+      "Part": 62,
+      "File": "Elmo_Master_history_260721_part_062_lines_15251_15500.md",
+      "StartLine": 15251,
+      "EndLine": 15500,
+      "Lines": 250,
+      "Bytes": 11918,
+      "Sha256": "2a0ca53779deb4d34034c5b2d3398e5e7f046024caf21bdc5076aff9e5f1737e"
+    },
+    {
+      "Part": 63,
+      "File": "Elmo_Master_history_260721_part_063_lines_15501_15750.md",
+      "StartLine": 15501,
+      "EndLine": 15750,
+      "Lines": 250,
+      "Bytes": 16303,
+      "Sha256": "b51fd3da8b89416a62959e1879ff0171d8a131945016e450baf15340fed0b1de"
+    },
+    {
+      "Part": 64,
+      "File": "Elmo_Master_history_260721_part_064_lines_15751_16000.md",
+      "StartLine": 15751,
+      "EndLine": 16000,
+      "Lines": 250,
+      "Bytes": 19733,
+      "Sha256": "ea8a24ec5f23a8c3a945ee469dddeb9c3bec1f36da5477058ba16fc78117d179"
+    },
+    {
+      "Part": 65,
+      "File": "Elmo_Master_history_260721_part_065_lines_16001_16250.md",
+      "StartLine": 16001,
+      "EndLine": 16250,
+      "Lines": 250,
+      "Bytes": 18678,
+      "Sha256": "39e02c9fbad725b977fccd484f0cf6a23ee90e3959df43438363e536689818ce"
+    },
+    {
+      "Part": 66,
+      "File": "Elmo_Master_history_260721_part_066_lines_16251_16500.md",
+      "StartLine": 16251,
+      "EndLine": 16500,
+      "Lines": 250,
+      "Bytes": 11847,
+      "Sha256": "90538c3102ab0eec2a837cd834cd432819d584f3d81bc3657b87c9b04625e8b1"
+    },
+    {
+      "Part": 67,
+      "File": "Elmo_Master_history_260721_part_067_lines_16501_16750.md",
+      "StartLine": 16501,
+      "EndLine": 16750,
+      "Lines": 250,
+      "Bytes": 18495,
+      "Sha256": "8e191f322327c1a5f6f7e9e8fdb6a7c19a40f38cb2dc66466ca877dd72fbd9cc"
+    },
+    {
+      "Part": 68,
+      "File": "Elmo_Master_history_260721_part_068_lines_16751_17000.md",
+      "StartLine": 16751,
+      "EndLine": 17000,
+      "Lines": 250,
+      "Bytes": 19541,
+      "Sha256": "68e15c4858a0bc1277228f2f2bdbb836af7aef711fddeb3679675507f7db08cf"
+    },
+    {
+      "Part": 69,
+      "File": "Elmo_Master_history_260721_part_069_lines_17001_17250.md",
+      "StartLine": 17001,
+      "EndLine": 17250,
+      "Lines": 250,
+      "Bytes": 12979,
+      "Sha256": "71c9e840493e97d137af95006fce92e42601227b28c58132eee641573f6a97c6"
+    },
+    {
+      "Part": 70,
+      "File": "Elmo_Master_history_260721_part_070_lines_17251_17500.md",
+      "StartLine": 17251,
+      "EndLine": 17500,
+      "Lines": 250,
+      "Bytes": 16317,
+      "Sha256": "4a7b9cebc349ffffacf81f34f8d0f93f09a59cdaa4dca6430962c178791bef80"
+    },
+    {
+      "Part": 71,
+      "File": "Elmo_Master_history_260721_part_071_lines_17501_17750.md",
+      "StartLine": 17501,
+      "EndLine": 17750,
+      "Lines": 250,
+      "Bytes": 19586,
+      "Sha256": "c07c83f947d9e17cbfa31ef15eae9cdad8d08c4f5cf241315201d93c9659ef63"
+    },
+    {
+      "Part": 72,
+      "File": "Elmo_Master_history_260721_part_072_lines_17751_18000.md",
+      "StartLine": 17751,
+      "EndLine": 18000,
+      "Lines": 250,
+      "Bytes": 7240,
+      "Sha256": "2c47aea5581efe0831481fddb212ba59d9b1c1a446269525d35ccc41d4a6f1c7"
+    },
+    {
+      "Part": 73,
+      "File": "Elmo_Master_history_260721_part_073_lines_18001_18250.md",
+      "StartLine": 18001,
+      "EndLine": 18250,
+      "Lines": 250,
+      "Bytes": 19606,
+      "Sha256": "9810ae50c308ac06cf2a9eac962ea700388777cfcd166c4b32f11ceff561d347"
+    },
+    {
+      "Part": 74,
+      "File": "Elmo_Master_history_260721_part_074_lines_18251_18500.md",
+      "StartLine": 18251,
+      "EndLine": 18500,
+      "Lines": 250,
+      "Bytes": 19314,
+      "Sha256": "34f49d47d74b1c96183057d25cfc069cb4391cdfd5e8da0621828da53f6b0c63"
+    },
+    {
+      "Part": 75,
+      "File": "Elmo_Master_history_260721_part_075_lines_18501_18750.md",
+      "StartLine": 18501,
+      "EndLine": 18750,
+      "Lines": 250,
+      "Bytes": 11739,
+      "Sha256": "e14f63b5a93f1f3b0b185490888a9a66e3e9932b679552fe4ed4c821d9c55a65"
+    },
+    {
+      "Part": 76,
+      "File": "Elmo_Master_history_260721_part_076_lines_18751_19000.md",
+      "StartLine": 18751,
+      "EndLine": 19000,
+      "Lines": 250,
+      "Bytes": 18523,
+      "Sha256": "f70f3084ca366fb6ec8c7830518e0cc17ee75479d44613a16dc5f21c338f42ea"
+    },
+    {
+      "Part": 77,
+      "File": "Elmo_Master_history_260721_part_077_lines_19001_19250.md",
+      "StartLine": 19001,
+      "EndLine": 19250,
+      "Lines": 250,
+      "Bytes": 11734,
+      "Sha256": "dc94e3457ffc5b065558bb06d8cb74d6016d0d5264cc9888567e51462563ed0f"
+    },
+    {
+      "Part": 78,
+      "File": "Elmo_Master_history_260721_part_078_lines_19251_19500.md",
+      "StartLine": 19251,
+      "EndLine": 19500,
+      "Lines": 250,
+      "Bytes": 9816,
+      "Sha256": "c3a31e282caaa7c5067daf5d8b73a98e878ec66e6303b1f53ca78678741922fa"
+    },
+    {
+      "Part": 79,
+      "File": "Elmo_Master_history_260721_part_079_lines_19501_19750.md",
+      "StartLine": 19501,
+      "EndLine": 19750,
+      "Lines": 250,
+      "Bytes": 6779,
+      "Sha256": "6b083c23f78a5098132710a4cd6a444e1e531ce3adf25a0716401120e9a67de5"
+    },
+    {
+      "Part": 80,
+      "File": "Elmo_Master_history_260721_part_080_lines_19751_20000.md",
+      "StartLine": 19751,
+      "EndLine": 20000,
+      "Lines": 250,
+      "Bytes": 9465,
+      "Sha256": "c59fbd4ecfc94cb60f2a8809332d607e100d489c672c60451f0fc110956c3ca8"
+    },
+    {
+      "Part": 81,
+      "File": "Elmo_Master_history_260721_part_081_lines_20001_20250.md",
+      "StartLine": 20001,
+      "EndLine": 20250,
+      "Lines": 250,
+      "Bytes": 10894,
+      "Sha256": "02f180911e2b34f2fb6a4d672ad4c7de3708a99ce1ad44ac7c21dfc464b4f641"
+    },
+    {
+      "Part": 82,
+      "File": "Elmo_Master_history_260721_part_082_lines_20251_20500.md",
+      "StartLine": 20251,
+      "EndLine": 20500,
+      "Lines": 250,
+      "Bytes": 9394,
+      "Sha256": "35f3b2ea92622894184838b20d2aa114222cccfc2d5618011c07829120e619c9"
+    },
+    {
+      "Part": 83,
+      "File": "Elmo_Master_history_260721_part_083_lines_20501_20750.md",
+      "StartLine": 20501,
+      "EndLine": 20750,
+      "Lines": 250,
+      "Bytes": 8549,
+      "Sha256": "a7d7935b53dbc7bec87acbcefe0ba9125893ed6d8d66d390f2115e1605397f30"
+    },
+    {
+      "Part": 84,
+      "File": "Elmo_Master_history_260721_part_084_lines_20751_21000.md",
+      "StartLine": 20751,
+      "EndLine": 21000,
+      "Lines": 250,
+      "Bytes": 7379,
+      "Sha256": "4896e9a43ec52d8c80163bb84407f67ea455bf9147322361f2d3f0bd9f8d6a19"
+    },
+    {
+      "Part": 85,
+      "File": "Elmo_Master_history_260721_part_085_lines_21001_21250.md",
+      "StartLine": 21001,
+      "EndLine": 21250,
+      "Lines": 250,
+      "Bytes": 8950,
+      "Sha256": "dda0dc4a85e3ab3f713bd37d59bb9fb35b094ffc3aafecc45fe6b6358fde26fd"
+    },
+    {
+      "Part": 86,
+      "File": "Elmo_Master_history_260721_part_086_lines_21251_21500.md",
+      "StartLine": 21251,
+      "EndLine": 21500,
+      "Lines": 250,
+      "Bytes": 6917,
+      "Sha256": "de55bca9930b6a2332883f4bab240c7fbc5debd59a7d4dd71815fe3567d0c50f"
+    },
+    {
+      "Part": 87,
+      "File": "Elmo_Master_history_260721_part_087_lines_21501_21750.md",
+      "StartLine": 21501,
+      "EndLine": 21750,
+      "Lines": 250,
+      "Bytes": 5907,
+      "Sha256": "db82fcc00d2c9fddd123d2244eef40facb4c9c67f441478b4202f2251a3537cf"
+    },
+    {
+      "Part": 88,
+      "File": "Elmo_Master_history_260721_part_088_lines_21751_22000.md",
+      "StartLine": 21751,
+      "EndLine": 22000,
+      "Lines": 250,
+      "Bytes": 6368,
+      "Sha256": "612f180fdbd71cb45052963b115109ea59f8087e1b3c6dc25ac0c460683bb1e3"
+    },
+    {
+      "Part": 89,
+      "File": "Elmo_Master_history_260721_part_089_lines_22001_22250.md",
+      "StartLine": 22001,
+      "EndLine": 22250,
+      "Lines": 250,
+      "Bytes": 5742,
+      "Sha256": "2b2a48b02da7d906f66b634df6238f332b190814f9831002f64b6485a8b4cb3e"
+    },
+    {
+      "Part": 90,
+      "File": "Elmo_Master_history_260721_part_090_lines_22251_22500.md",
+      "StartLine": 22251,
+      "EndLine": 22500,
+      "Lines": 250,
+      "Bytes": 10490,
+      "Sha256": "5da5d433d3e9332287f15e9264b6813d279de24bfc91462150db52c68a575f26"
+    },
+    {
+      "Part": 91,
+      "File": "Elmo_Master_history_260721_part_091_lines_22501_22750.md",
+      "StartLine": 22501,
+      "EndLine": 22750,
+      "Lines": 250,
+      "Bytes": 5944,
+      "Sha256": "b994699cb911b287fb7f755ba0c19a3c21c69d291cbd1c7889eb6fbb508cb20c"
+    },
+    {
+      "Part": 92,
+      "File": "Elmo_Master_history_260721_part_092_lines_22751_23000.md",
+      "StartLine": 22751,
+      "EndLine": 23000,
+      "Lines": 250,
+      "Bytes": 35357,
+      "Sha256": "340ef76b3670e4d0183d8e24955bf84d20fc1f05312ff9f2287d189d89178acc"
+    },
+    {
+      "Part": 93,
+      "File": "Elmo_Master_history_260721_part_093_lines_23001_23250.md",
+      "StartLine": 23001,
+      "EndLine": 23250,
+      "Lines": 250,
+      "Bytes": 78032,
+      "Sha256": "aaa3ed72d32634076fe8ebe4fb6021a1b2935f12cd017cfb6685ad85e331129e"
+    },
+    {
+      "Part": 94,
+      "File": "Elmo_Master_history_260721_part_094_lines_23251_23500.md",
+      "StartLine": 23251,
+      "EndLine": 23500,
+      "Lines": 250,
+      "Bytes": 33983,
+      "Sha256": "c03d933e4a721fd806ea51c28f1b31f69341cb23ac46c51a81c1f412a3768cf7"
+    },
+    {
+      "Part": 95,
+      "File": "Elmo_Master_history_260721_part_095_lines_23501_23750.md",
+      "StartLine": 23501,
+      "EndLine": 23750,
+      "Lines": 250,
+      "Bytes": 7053,
+      "Sha256": "eaaf0d5bc9d78b15909108948afe4e79b07f176359d365f15f40a53e6c6f9c6a"
+    },
+    {
+      "Part": 96,
+      "File": "Elmo_Master_history_260721_part_096_lines_23751_24000.md",
+      "StartLine": 23751,
+      "EndLine": 24000,
+      "Lines": 250,
+      "Bytes": 24150,
+      "Sha256": "8cfc81bd45f63ba9fb0555a7edf1b494e651f2193e524a863b5e44afb56edde9"
+    },
+    {
+      "Part": 97,
+      "File": "Elmo_Master_history_260721_part_097_lines_24001_24250.md",
+      "StartLine": 24001,
+      "EndLine": 24250,
+      "Lines": 250,
+      "Bytes": 16553,
+      "Sha256": "94b840e6258635249da4e541dfdd0998b7889881a6df1b49d6751c043df4deeb"
+    },
+    {
+      "Part": 98,
+      "File": "Elmo_Master_history_260721_part_098_lines_24251_24500.md",
+      "StartLine": 24251,
+      "EndLine": 24500,
+      "Lines": 250,
+      "Bytes": 11446,
+      "Sha256": "dd7e9e7729fe971a5f3e47d4830d67086d6df6ae77d69444bd61a2cd368e6958"
+    },
+    {
+      "Part": 99,
+      "File": "Elmo_Master_history_260721_part_099_lines_24501_24750.md",
+      "StartLine": 24501,
+      "EndLine": 24750,
+      "Lines": 250,
+      "Bytes": 7512,
+      "Sha256": "10bfb090025b73648f1aede6cb62d6dfbc50a62b908fe96093cf463dd3199774"
+    },
+    {
+      "Part": 100,
+      "File": "Elmo_Master_history_260721_part_100_lines_24751_25000.md",
+      "StartLine": 24751,
+      "EndLine": 25000,
+      "Lines": 250,
+      "Bytes": 10718,
+      "Sha256": "5da897312a0e28eef1bce53780e771c299eebcdfa86f50fd9a20996c59005bc7"
+    },
+    {
+      "Part": 101,
+      "File": "Elmo_Master_history_260721_part_101_lines_25001_25250.md",
+      "StartLine": 25001,
+      "EndLine": 25250,
+      "Lines": 250,
+      "Bytes": 13338,
+      "Sha256": "8b36ac82b637bb8ce9cbb2124c46dfbbfd23b0ffffd17f3cef3a1040fc5a3cce"
+    },
+    {
+      "Part": 102,
+      "File": "Elmo_Master_history_260721_part_102_lines_25251_25500.md",
+      "StartLine": 25251,
+      "EndLine": 25500,
+      "Lines": 250,
+      "Bytes": 10027,
+      "Sha256": "aeee17b99ffd3ac5ecc28b389127012367ca44e1c18a71e6757cd36d9f0f34a2"
+    },
+    {
+      "Part": 103,
+      "File": "Elmo_Master_history_260721_part_103_lines_25501_25750.md",
+      "StartLine": 25501,
+      "EndLine": 25750,
+      "Lines": 250,
+      "Bytes": 14852,
+      "Sha256": "c397116ea828dd3c719cf6da6dd570213574f39dfbe83128f0f6bebf2d3a61d3"
+    },
+    {
+      "Part": 104,
+      "File": "Elmo_Master_history_260721_part_104_lines_25751_26000.md",
+      "StartLine": 25751,
+      "EndLine": 26000,
+      "Lines": 250,
+      "Bytes": 8855,
+      "Sha256": "fcfef36e5fdd0e42a6861c0ff2837f22dab94766db44d6a18366c7c993c12853"
+    },
+    {
+      "Part": 105,
+      "File": "Elmo_Master_history_260721_part_105_lines_26001_26250.md",
+      "StartLine": 26001,
+      "EndLine": 26250,
+      "Lines": 250,
+      "Bytes": 9547,
+      "Sha256": "cf4e5888297d423c946cd46d8c85b40161b930caa8c4efb54971236908c04027"
+    },
+    {
+      "Part": 106,
+      "File": "Elmo_Master_history_260721_part_106_lines_26251_26500.md",
+      "StartLine": 26251,
+      "EndLine": 26500,
+      "Lines": 250,
+      "Bytes": 17794,
+      "Sha256": "663adfdcab7b1bf1275927fda66d53770ba3f4d4d463c9fb736a1778c3563632"
+    },
+    {
+      "Part": 107,
+      "File": "Elmo_Master_history_260721_part_107_lines_26501_26750.md",
+      "StartLine": 26501,
+      "EndLine": 26750,
+      "Lines": 250,
+      "Bytes": 20891,
+      "Sha256": "2a695f90cbd51e3d5b002198bfedb5e25bacde4fcf5487fb39ad5ba7fa6fde0e"
+    },
+    {
+      "Part": 108,
+      "File": "Elmo_Master_history_260721_part_108_lines_26751_27000.md",
+      "StartLine": 26751,
+      "EndLine": 27000,
+      "Lines": 250,
+      "Bytes": 15669,
+      "Sha256": "56e70bebbc7438555f0a2d777f367b3f732727af5dc8d4b67a303e9a9e2bde53"
+    },
+    {
+      "Part": 109,
+      "File": "Elmo_Master_history_260721_part_109_lines_27001_27250.md",
+      "StartLine": 27001,
+      "EndLine": 27250,
+      "Lines": 250,
+      "Bytes": 13103,
+      "Sha256": "15d11a929fbd16229f1473f3abd7d9dd118428a0b6d6ebb1be52770e1da46ef5"
+    },
+    {
+      "Part": 110,
+      "File": "Elmo_Master_history_260721_part_110_lines_27251_27500.md",
+      "StartLine": 27251,
+      "EndLine": 27500,
+      "Lines": 250,
+      "Bytes": 18106,
+      "Sha256": "0f5c76d0792ed384b0fb44da3a2f4cd205bdb400254c1877570dab9b8b4b3b6f"
+    },
+    {
+      "Part": 111,
+      "File": "Elmo_Master_history_260721_part_111_lines_27501_27750.md",
+      "StartLine": 27501,
+      "EndLine": 27750,
+      "Lines": 250,
+      "Bytes": 11824,
+      "Sha256": "e3f54f661fc59db248f044b5c618496109c31e2f1d87f448736575bb906967d4"
+    },
+    {
+      "Part": 112,
+      "File": "Elmo_Master_history_260721_part_112_lines_27751_28000.md",
+      "StartLine": 27751,
+      "EndLine": 28000,
+      "Lines": 250,
+      "Bytes": 17883,
+      "Sha256": "40a920b9bbd01ac64a2266efcf9a9935145e270614acddf3972370bbf461c8c9"
+    },
+    {
+      "Part": 113,
+      "File": "Elmo_Master_history_260721_part_113_lines_28001_28250.md",
+      "StartLine": 28001,
+      "EndLine": 28250,
+      "Lines": 250,
+      "Bytes": 17199,
+      "Sha256": "327339730181d739a6fbd0991b9ea3cfbe5d662055c112b3cbab85354521603b"
+    },
+    {
+      "Part": 114,
+      "File": "Elmo_Master_history_260721_part_114_lines_28251_28500.md",
+      "StartLine": 28251,
+      "EndLine": 28500,
+      "Lines": 250,
+      "Bytes": 13742,
+      "Sha256": "fc76a77d9fd40cedbb6d06df3683fe46c02f5bb7a1229af845a30425f77a2dae"
+    },
+    {
+      "Part": 115,
+      "File": "Elmo_Master_history_260721_part_115_lines_28501_28750.md",
+      "StartLine": 28501,
+      "EndLine": 28750,
+      "Lines": 250,
+      "Bytes": 14180,
+      "Sha256": "0ceaa9d2ec13d828921f234d9c2b5df7987dd5f450cf453338214cef44046b51"
+    },
+    {
+      "Part": 116,
+      "File": "Elmo_Master_history_260721_part_116_lines_28751_29000.md",
+      "StartLine": 28751,
+      "EndLine": 29000,
+      "Lines": 250,
+      "Bytes": 18050,
+      "Sha256": "d60994eede9ce4fae2204e3551771e6e106b6c8305243c04e9e77b285936e6f7"
+    },
+    {
+      "Part": 117,
+      "File": "Elmo_Master_history_260721_part_117_lines_29001_29250.md",
+      "StartLine": 29001,
+      "EndLine": 29250,
+      "Lines": 250,
+      "Bytes": 17737,
+      "Sha256": "e3d36c6cd892e5ec5fdbdf7a3d42b82742831073e00d7a323347eca82ceb4383"
+    },
+    {
+      "Part": 118,
+      "File": "Elmo_Master_history_260721_part_118_lines_29251_29500.md",
+      "StartLine": 29251,
+      "EndLine": 29500,
+      "Lines": 250,
+      "Bytes": 17104,
+      "Sha256": "85fd5e9a53fab26f26a84c768c24aa66340b8577dbf1908faae5b03a11f3c3cc"
+    },
+    {
+      "Part": 119,
+      "File": "Elmo_Master_history_260721_part_119_lines_29501_29750.md",
+      "StartLine": 29501,
+      "EndLine": 29750,
+      "Lines": 250,
+      "Bytes": 10542,
+      "Sha256": "3fbc6ab2330b44d33cda26595a97e1278ec11819a03fa302b86493ebd6348440"
+    },
+    {
+      "Part": 120,
+      "File": "Elmo_Master_history_260721_part_120_lines_29751_30000.md",
+      "StartLine": 29751,
+      "EndLine": 30000,
+      "Lines": 250,
+      "Bytes": 8100,
+      "Sha256": "ae1f57e61174981abf6cd7e4b06f3bc1019dc27fd6517161a174b4ea7920cb82"
+    },
+    {
+      "Part": 121,
+      "File": "Elmo_Master_history_260721_part_121_lines_30001_30250.md",
+      "StartLine": 30001,
+      "EndLine": 30250,
+      "Lines": 250,
+      "Bytes": 6148,
+      "Sha256": "072681460ab671992234e8c28ab8a467561b76e4b70ce05fc35a385dbc0fa773"
+    },
+    {
+      "Part": 122,
+      "File": "Elmo_Master_history_260721_part_122_lines_30251_30500.md",
+      "StartLine": 30251,
+      "EndLine": 30500,
+      "Lines": 250,
+      "Bytes": 5935,
+      "Sha256": "0adac213bebe0f3fb90827f9534a43874b181ba24f4efc4550ea97fd6e02ef7c"
+    },
+    {
+      "Part": 123,
+      "File": "Elmo_Master_history_260721_part_123_lines_30501_30750.md",
+      "StartLine": 30501,
+      "EndLine": 30750,
+      "Lines": 250,
+      "Bytes": 8526,
+      "Sha256": "86cf5a89430a62a89baf71806d09bbe8c7731b4d74fcaf98e49158f2442d4498"
+    },
+    {
+      "Part": 124,
+      "File": "Elmo_Master_history_260721_part_124_lines_30751_31000.md",
+      "StartLine": 30751,
+      "EndLine": 31000,
+      "Lines": 250,
+      "Bytes": 26496,
+      "Sha256": "3eb7394c1f144f24f3f22b686f50063caa9cb82baa4bad19785b5027592779e4"
+    },
+    {
+      "Part": 125,
+      "File": "Elmo_Master_history_260721_part_125_lines_31001_31250.md",
+      "StartLine": 31001,
+      "EndLine": 31250,
+      "Lines": 250,
+      "Bytes": 11504,
+      "Sha256": "9165ce0b633b80dc6fe34b30311b7f2b21317c55f6796b29d37c5f79108efaf5"
+    },
+    {
+      "Part": 126,
+      "File": "Elmo_Master_history_260721_part_126_lines_31251_31500.md",
+      "StartLine": 31251,
+      "EndLine": 31500,
+      "Lines": 250,
+      "Bytes": 9476,
+      "Sha256": "0001421ea41a05f81b768b6e3fd68924e920de06d6dfd4d6cdeb1301118952a6"
+    },
+    {
+      "Part": 127,
+      "File": "Elmo_Master_history_260721_part_127_lines_31501_31750.md",
+      "StartLine": 31501,
+      "EndLine": 31750,
+      "Lines": 250,
+      "Bytes": 7872,
+      "Sha256": "5637d140baea77a1c2a694cc89dd5cc7b7224fbe7d1cb6375ccca24bade79c99"
+    },
+    {
+      "Part": 128,
+      "File": "Elmo_Master_history_260721_part_128_lines_31751_32000.md",
+      "StartLine": 31751,
+      "EndLine": 32000,
+      "Lines": 250,
+      "Bytes": 7400,
+      "Sha256": "72303b8acae1e4c9259ea01c0d480eeeb0cf35f7fcac2b50c18d912af2efd687"
+    },
+    {
+      "Part": 129,
+      "File": "Elmo_Master_history_260721_part_129_lines_32001_32250.md",
+      "StartLine": 32001,
+      "EndLine": 32250,
+      "Lines": 250,
+      "Bytes": 10676,
+      "Sha256": "d5fb85f0358b0104cfb34f36a1fbbe80fae946d0664be5c16d55156754dce453"
+    },
+    {
+      "Part": 130,
+      "File": "Elmo_Master_history_260721_part_130_lines_32251_32500.md",
+      "StartLine": 32251,
+      "EndLine": 32500,
+      "Lines": 250,
+      "Bytes": 11492,
+      "Sha256": "b53bfa219774099f00957553ddeefb17575e8f361e25e9e1905d4d211e628daa"
+    },
+    {
+      "Part": 131,
+      "File": "Elmo_Master_history_260721_part_131_lines_32501_32750.md",
+      "StartLine": 32501,
+      "EndLine": 32750,
+      "Lines": 250,
+      "Bytes": 25674,
+      "Sha256": "6d97ff74571276bb3deffcf8ce19403ab0a167ee50ff82ec855db4c3bb198753"
+    },
+    {
+      "Part": 132,
+      "File": "Elmo_Master_history_260721_part_132_lines_32751_33000.md",
+      "StartLine": 32751,
+      "EndLine": 33000,
+      "Lines": 250,
+      "Bytes": 7595,
+      "Sha256": "4e4b88948c4132c0cbac1c34db536fbf0f317543d135c770c6c4d05c2dcdfac7"
+    },
+    {
+      "Part": 133,
+      "File": "Elmo_Master_history_260721_part_133_lines_33001_33250.md",
+      "StartLine": 33001,
+      "EndLine": 33250,
+      "Lines": 250,
+      "Bytes": 7762,
+      "Sha256": "53299a2b6ab4a212cf754096d5534a43005d8bcb331acf65a2010cf0a9775874"
+    },
+    {
+      "Part": 134,
+      "File": "Elmo_Master_history_260721_part_134_lines_33251_33500.md",
+      "StartLine": 33251,
+      "EndLine": 33500,
+      "Lines": 250,
+      "Bytes": 6293,
+      "Sha256": "18e04483a945c9aff62234fbf5cec2c0290ffe09d003097033c6b62a37d463ac"
+    },
+    {
+      "Part": 135,
+      "File": "Elmo_Master_history_260721_part_135_lines_33501_33750.md",
+      "StartLine": 33501,
+      "EndLine": 33750,
+      "Lines": 250,
+      "Bytes": 7880,
+      "Sha256": "33b408d121195ab5b614d2c493ed8032a66a7eb59f0e99b495b6220bb6a639a3"
+    },
+    {
+      "Part": 136,
+      "File": "Elmo_Master_history_260721_part_136_lines_33751_34000.md",
+      "StartLine": 33751,
+      "EndLine": 34000,
+      "Lines": 250,
+      "Bytes": 7988,
+      "Sha256": "00e0166e9c6956d7defbef9f9980de33d1e5efab226a8cfb502637f94443b575"
+    },
+    {
+      "Part": 137,
+      "File": "Elmo_Master_history_260721_part_137_lines_34001_34250.md",
+      "StartLine": 34001,
+      "EndLine": 34250,
+      "Lines": 250,
+      "Bytes": 9809,
+      "Sha256": "a651c084ea76621d58585f5ce8ee8a01e5bb5c2ec8eebb8470a629d47bbcdae3"
+    },
+    {
+      "Part": 138,
+      "File": "Elmo_Master_history_260721_part_138_lines_34251_34500.md",
+      "StartLine": 34251,
+      "EndLine": 34500,
+      "Lines": 250,
+      "Bytes": 8641,
+      "Sha256": "5a1003c957105599a41dd2a81404a53126ef27d1043e2322f7623435922ceb6f"
+    },
+    {
+      "Part": 139,
+      "File": "Elmo_Master_history_260721_part_139_lines_34501_34750.md",
+      "StartLine": 34501,
+      "EndLine": 34750,
+      "Lines": 250,
+      "Bytes": 36603,
+      "Sha256": "7c226a6c6728fde51248acea0fb29cdfd1a10d04c111a9c1f40000416f2a213d"
+    },
+    {
+      "Part": 140,
+      "File": "Elmo_Master_history_260721_part_140_lines_34751_35000.md",
+      "StartLine": 34751,
+      "EndLine": 35000,
+      "Lines": 250,
+      "Bytes": 7472,
+      "Sha256": "4e1886f0e63d889449fc1178f13d27b90f4719c79f397ddca7e112eee6b29cc2"
+    },
+    {
+      "Part": 141,
+      "File": "Elmo_Master_history_260721_part_141_lines_35001_35250.md",
+      "StartLine": 35001,
+      "EndLine": 35250,
+      "Lines": 250,
+      "Bytes": 7975,
+      "Sha256": "69490ac989e944b0c2eabde90aa443a6500a52aa05ab4ff7e1f18cdddf846e7f"
+    },
+    {
+      "Part": 142,
+      "File": "Elmo_Master_history_260721_part_142_lines_35251_35500.md",
+      "StartLine": 35251,
+      "EndLine": 35500,
+      "Lines": 250,
+      "Bytes": 10253,
+      "Sha256": "f96be1fb5629e7a5141a41272fd9dded5a2192c8d97821a3393fc4a77ad74da1"
+    },
+    {
+      "Part": 143,
+      "File": "Elmo_Master_history_260721_part_143_lines_35501_35750.md",
+      "StartLine": 35501,
+      "EndLine": 35750,
+      "Lines": 250,
+      "Bytes": 16969,
+      "Sha256": "dacf1bbabe96a2314320ac504063c0d1f206a88d2fea44d5d55641362d87ec42"
+    },
+    {
+      "Part": 144,
+      "File": "Elmo_Master_history_260721_part_144_lines_35751_36000.md",
+      "StartLine": 35751,
+      "EndLine": 36000,
+      "Lines": 250,
+      "Bytes": 15822,
+      "Sha256": "d3508bec8715c5e28d0961f60aec34965a22536e361b882a5fb299238f9c6c0e"
+    },
+    {
+      "Part": 145,
+      "File": "Elmo_Master_history_260721_part_145_lines_36001_36250.md",
+      "StartLine": 36001,
+      "EndLine": 36250,
+      "Lines": 250,
+      "Bytes": 17210,
+      "Sha256": "fa1c51935c9c38ec27299574d10216d4d75d465ee49d1a7f4cf54fa2f5313615"
+    },
+    {
+      "Part": 146,
+      "File": "Elmo_Master_history_260721_part_146_lines_36251_36500.md",
+      "StartLine": 36251,
+      "EndLine": 36500,
+      "Lines": 250,
+      "Bytes": 18286,
+      "Sha256": "d8967907eac2d58eb42cdae7f58cd35634e86af628eb35fe517acb773fff24b2"
+    },
+    {
+      "Part": 147,
+      "File": "Elmo_Master_history_260721_part_147_lines_36501_36750.md",
+      "StartLine": 36501,
+      "EndLine": 36750,
+      "Lines": 250,
+      "Bytes": 21748,
+      "Sha256": "595546e08f2309e8cfaa340f72268e4db6f2ad12f8634c1274cdadf3b1be28fd"
+    },
+    {
+      "Part": 148,
+      "File": "Elmo_Master_history_260721_part_148_lines_36751_37000.md",
+      "StartLine": 36751,
+      "EndLine": 37000,
+      "Lines": 250,
+      "Bytes": 18915,
+      "Sha256": "a875322ae57c274baf28e293b9fc53016324937050483a6546e940d7c9e866ba"
+    },
+    {
+      "Part": 149,
+      "File": "Elmo_Master_history_260721_part_149_lines_37001_37250.md",
+      "StartLine": 37001,
+      "EndLine": 37250,
+      "Lines": 250,
+      "Bytes": 19475,
+      "Sha256": "c97e6063b5a52c33a3563e6f8b52e6bf001c3886f88e11a7900c79cfa85c33d5"
+    },
+    {
+      "Part": 150,
+      "File": "Elmo_Master_history_260721_part_150_lines_37251_37500.md",
+      "StartLine": 37251,
+      "EndLine": 37500,
+      "Lines": 250,
+      "Bytes": 14863,
+      "Sha256": "72800ce0021744b1ee23e4c6685113a5696b1c52a64a1009c81af2340abb1621"
+    },
+    {
+      "Part": 151,
+      "File": "Elmo_Master_history_260721_part_151_lines_37501_37750.md",
+      "StartLine": 37501,
+      "EndLine": 37750,
+      "Lines": 250,
+      "Bytes": 20132,
+      "Sha256": "afa52d1ecfd8a09562bc4ce797d3b2272b3477dae430ae1aac9c34a8fd610ed6"
+    },
+    {
+      "Part": 152,
+      "File": "Elmo_Master_history_260721_part_152_lines_37751_38000.md",
+      "StartLine": 37751,
+      "EndLine": 38000,
+      "Lines": 250,
+      "Bytes": 10786,
+      "Sha256": "e5cbe27fb4f0a027800455aae58027f14c5581ea187ce02a3eb45df731d1f285"
+    },
+    {
+      "Part": 153,
+      "File": "Elmo_Master_history_260721_part_153_lines_38001_38251.md",
+      "StartLine": 38001,
+      "EndLine": 38251,
+      "Lines": 251,
+      "Bytes": 12177,
+      "Sha256": "dbedfc96357a760faf9b51ed997dc6c0f86dd4cac467dbcd976fb243c1ed8ea9"
+    },
+    {
+      "Part": 154,
+      "File": "Elmo_Master_history_260721_part_154_lines_38252_38501.md",
+      "StartLine": 38252,
+      "EndLine": 38501,
+      "Lines": 250,
+      "Bytes": 11596,
+      "Sha256": "e7846b335ed2a985e886a886dfa806ee2d57683851c73844ad4729ab8e113bc7"
+    },
+    {
+      "Part": 155,
+      "File": "Elmo_Master_history_260721_part_155_lines_38502_38751.md",
+      "StartLine": 38502,
+      "EndLine": 38751,
+      "Lines": 250,
+      "Bytes": 15285,
+      "Sha256": "7ce6131edfd91da38b09418bb0a2efe9a136ebcfe3ea738fe6c5d212397a2edb"
+    },
+    {
+      "Part": 156,
+      "File": "Elmo_Master_history_260721_part_156_lines_38752_39001.md",
+      "StartLine": 38752,
+      "EndLine": 39001,
+      "Lines": 250,
+      "Bytes": 17198,
+      "Sha256": "ca3fe7e4d9e622c05777674e3250d5bea59bcc674145d4f560be90cdf65359de"
+    },
+    {
+      "Part": 157,
+      "File": "Elmo_Master_history_260721_part_157_lines_39002_39251.md",
+      "StartLine": 39002,
+      "EndLine": 39251,
+      "Lines": 250,
+      "Bytes": 14831,
+      "Sha256": "fc094479abb05e3af1ae5bfb136d4ec8e9d524cf91a1d0c3150e0240e25aac47"
+    },
+    {
+      "Part": 158,
+      "File": "Elmo_Master_history_260721_part_158_lines_39252_39501.md",
+      "StartLine": 39252,
+      "EndLine": 39501,
+      "Lines": 250,
+      "Bytes": 26943,
+      "Sha256": "8e7f7539425c4a19e29670456faef9997c2f1f44be1e7b355e5bf061b2f4fb63"
+    },
+    {
+      "Part": 159,
+      "File": "Elmo_Master_history_260721_part_159_lines_39502_39751.md",
+      "StartLine": 39502,
+      "EndLine": 39751,
+      "Lines": 250,
+      "Bytes": 19995,
+      "Sha256": "e74c9a1e809de7f59b59ea2efe42d98cef7ffcbc8e583219b2fcc6923c549317"
+    },
+    {
+      "Part": 160,
+      "File": "Elmo_Master_history_260721_part_160_lines_39752_40001.md",
+      "StartLine": 39752,
+      "EndLine": 40001,
+      "Lines": 250,
+      "Bytes": 13707,
+      "Sha256": "84d23e68de619e889fce75d7d30401aa7c84edab74b2d12bad57bcc30d971e8a"
+    },
+    {
+      "Part": 161,
+      "File": "Elmo_Master_history_260721_part_161_lines_40002_40251.md",
+      "StartLine": 40002,
+      "EndLine": 40251,
+      "Lines": 250,
+      "Bytes": 23381,
+      "Sha256": "71bbaf50e0f8f6824a4d6e07cf1a44ffb846d37e407a87c93875e876c7bcdcbb"
+    },
+    {
+      "Part": 162,
+      "File": "Elmo_Master_history_260721_part_162_lines_40252_40501.md",
+      "StartLine": 40252,
+      "EndLine": 40501,
+      "Lines": 250,
+      "Bytes": 10217,
+      "Sha256": "92e6ba6c178c2dc1366c78c728ff9228ebce913e2976b10b37187d47ec055e4d"
+    },
+    {
+      "Part": 163,
+      "File": "Elmo_Master_history_260721_part_163_lines_40502_40751.md",
+      "StartLine": 40502,
+      "EndLine": 40751,
+      "Lines": 250,
+      "Bytes": 9842,
+      "Sha256": "8cd422b3778953fa4a83f02c6812b23e4fefe372a354d01bfc9ffe9a48140f03"
+    },
+    {
+      "Part": 164,
+      "File": "Elmo_Master_history_260721_part_164_lines_40752_41001.md",
+      "StartLine": 40752,
+      "EndLine": 41001,
+      "Lines": 250,
+      "Bytes": 12064,
+      "Sha256": "618cc51db5421f9a92513b4b47b48ddadf40f636020fea0d5b2596107b3d6d4f"
+    },
+    {
+      "Part": 165,
+      "File": "Elmo_Master_history_260721_part_165_lines_41002_41251.md",
+      "StartLine": 41002,
+      "EndLine": 41251,
+      "Lines": 250,
+      "Bytes": 11945,
+      "Sha256": "ace1cb1c1844f79c172c1efa1e0fdfe71dc008274d45e280b0b9a6fba6052b0a"
+    },
+    {
+      "Part": 166,
+      "File": "Elmo_Master_history_260721_part_166_lines_41252_41501.md",
+      "StartLine": 41252,
+      "EndLine": 41501,
+      "Lines": 250,
+      "Bytes": 22364,
+      "Sha256": "8e11ecfe12a6cfefbf6a701bd17a599f73eb3ae17a693348a27f4e6d401313e2"
+    },
+    {
+      "Part": 167,
+      "File": "Elmo_Master_history_260721_part_167_lines_41502_41751.md",
+      "StartLine": 41502,
+      "EndLine": 41751,
+      "Lines": 250,
+      "Bytes": 22995,
+      "Sha256": "9fe76dc815abe63e1f0f1aa4298b23d2ba769a8c68443c85f93c6f5a784f224a"
+    },
+    {
+      "Part": 168,
+      "File": "Elmo_Master_history_260721_part_168_lines_41752_42001.md",
+      "StartLine": 41752,
+      "EndLine": 42001,
+      "Lines": 250,
+      "Bytes": 22258,
+      "Sha256": "b1d56b3367a1907331dc964b23515f3f517aa637bf8da2c11d853497a8aa8c47"
+    },
+    {
+      "Part": 169,
+      "File": "Elmo_Master_history_260721_part_169_lines_42002_42251.md",
+      "StartLine": 42002,
+      "EndLine": 42251,
+      "Lines": 250,
+      "Bytes": 18428,
+      "Sha256": "93004ecae26d00a4ef6a6de43e834a4c9bad7489bc9103e220c2d6762553c137"
+    },
+    {
+      "Part": 170,
+      "File": "Elmo_Master_history_260721_part_170_lines_42252_42501.md",
+      "StartLine": 42252,
+      "EndLine": 42501,
+      "Lines": 250,
+      "Bytes": 27828,
+      "Sha256": "05948fd819137183e5d4b50abcd17ca52e54585bc9ccaeab8dbfc4e1bb9f948f"
+    },
+    {
+      "Part": 171,
+      "File": "Elmo_Master_history_260721_part_171_lines_42502_42751.md",
+      "StartLine": 42502,
+      "EndLine": 42751,
+      "Lines": 250,
+      "Bytes": 17029,
+      "Sha256": "da2185f9033a28823644ce3c3d02d60679e213b511120343c6350a6f445b421a"
+    },
+    {
+      "Part": 172,
+      "File": "Elmo_Master_history_260721_part_172_lines_42752_43001.md",
+      "StartLine": 42752,
+      "EndLine": 43001,
+      "Lines": 250,
+      "Bytes": 29763,
+      "Sha256": "7a600e1aa63bc91c3a379727ec4764aa56c94d3c90ed7628541947906f36eda6"
+    },
+    {
+      "Part": 173,
+      "File": "Elmo_Master_history_260721_part_173_lines_43002_43251.md",
+      "StartLine": 43002,
+      "EndLine": 43251,
+      "Lines": 250,
+      "Bytes": 6474,
+      "Sha256": "c00c944669e10851f71f6a3ec770414da7f1e1b59d9f0cabcc682973158906e5"
+    },
+    {
+      "Part": 174,
+      "File": "Elmo_Master_history_260721_part_174_lines_43252_43501.md",
+      "StartLine": 43252,
+      "EndLine": 43501,
+      "Lines": 250,
+      "Bytes": 5224,
+      "Sha256": "7c125ec8d861fa5f392f0c897082064c0df05c1a22e5b4f01e704cb0663eae81"
+    },
+    {
+      "Part": 175,
+      "File": "Elmo_Master_history_260721_part_175_lines_43502_43751.md",
+      "StartLine": 43502,
+      "EndLine": 43751,
+      "Lines": 250,
+      "Bytes": 5257,
+      "Sha256": "20427d21aff658e30dd31f97bdbce674768270d6021d3006a1aaa0b976ae5e18"
+    },
+    {
+      "Part": 176,
+      "File": "Elmo_Master_history_260721_part_176_lines_43752_44001.md",
+      "StartLine": 43752,
+      "EndLine": 44001,
+      "Lines": 250,
+      "Bytes": 5898,
+      "Sha256": "a954d366b9df49357e45e1dad1dfa27474d02dc2663222b99ff78aed3c57734b"
+    },
+    {
+      "Part": 177,
+      "File": "Elmo_Master_history_260721_part_177_lines_44002_44251.md",
+      "StartLine": 44002,
+      "EndLine": 44251,
+      "Lines": 250,
+      "Bytes": 5552,
+      "Sha256": "c67eefa15d47596f44fb36a6d20989c86e10d261b98f5c2ca907cd1491435d4c"
+    },
+    {
+      "Part": 178,
+      "File": "Elmo_Master_history_260721_part_178_lines_44252_44501.md",
+      "StartLine": 44252,
+      "EndLine": 44501,
+      "Lines": 250,
+      "Bytes": 6116,
+      "Sha256": "cb270be4a3f08d3f980f08b274ed254144a6f4fd6ec57dd3b39bc63062476834"
+    },
+    {
+      "Part": 179,
+      "File": "Elmo_Master_history_260721_part_179_lines_44502_44751.md",
+      "StartLine": 44502,
+      "EndLine": 44751,
+      "Lines": 250,
+      "Bytes": 5714,
+      "Sha256": "29838c3816bfbb51ff3317f70d769d704baaf90a058b00d2d9e70aff14cee2a3"
+    },
+    {
+      "Part": 180,
+      "File": "Elmo_Master_history_260721_part_180_lines_44752_45001.md",
+      "StartLine": 44752,
+      "EndLine": 45001,
+      "Lines": 250,
+      "Bytes": 5539,
+      "Sha256": "754df82a8846c586c7cdd19ac54dead3967343ca6e90e85293171ab0fccc6e3d"
+    },
+    {
+      "Part": 181,
+      "File": "Elmo_Master_history_260721_part_181_lines_45002_45251.md",
+      "StartLine": 45002,
+      "EndLine": 45251,
+      "Lines": 250,
+      "Bytes": 53635,
+      "Sha256": "3bc6f348e08454a76cfb0827e0b2b789f641a9b9d6ef3b4a2703a67e664ba75d"
+    },
+    {
+      "Part": 182,
+      "File": "Elmo_Master_history_260721_part_182_lines_45252_45501.md",
+      "StartLine": 45252,
+      "EndLine": 45501,
+      "Lines": 250,
+      "Bytes": 14223,
+      "Sha256": "c6a301c796a1a3c60aa9e4bf6c69e1d2c4a1c25bab107289957015ecd6eb03aa"
+    },
+    {
+      "Part": 183,
+      "File": "Elmo_Master_history_260721_part_183_lines_45502_45751.md",
+      "StartLine": 45502,
+      "EndLine": 45751,
+      "Lines": 250,
+      "Bytes": 15194,
+      "Sha256": "d11ec4135c925b3a8308540d081a3f30f25f8463791fd2bb9babd2c8a58c97ab"
+    },
+    {
+      "Part": 184,
+      "File": "Elmo_Master_history_260721_part_184_lines_45752_46001.md",
+      "StartLine": 45752,
+      "EndLine": 46001,
+      "Lines": 250,
+      "Bytes": 8130,
+      "Sha256": "4b23ad9049d15208562d93ac0ae01ab27494731d7504a1a68ccd6a6d17b62dd7"
+    },
+    {
+      "Part": 185,
+      "File": "Elmo_Master_history_260721_part_185_lines_46002_46251.md",
+      "StartLine": 46002,
+      "EndLine": 46251,
+      "Lines": 250,
+      "Bytes": 21534,
+      "Sha256": "ad8cb99c8b92cdf272c9f9b48112adefb543cc3781066073d959880cd4b23d1a"
+    },
+    {
+      "Part": 186,
+      "File": "Elmo_Master_history_260721_part_186_lines_46252_46501.md",
+      "StartLine": 46252,
+      "EndLine": 46501,
+      "Lines": 250,
+      "Bytes": 21534,
+      "Sha256": "fd0b52c46651fb4d9eca95cbb2efec3e93ef88449f528eb1a25a8ec065d20150"
+    },
+    {
+      "Part": 187,
+      "File": "Elmo_Master_history_260721_part_187_lines_46502_46751.md",
+      "StartLine": 46502,
+      "EndLine": 46751,
+      "Lines": 250,
+      "Bytes": 22885,
+      "Sha256": "bcd29f7acea912a6ed2139e89b285e0859be92c8c17718c84ef9faaa12cb90b0"
+    },
+    {
+      "Part": 188,
+      "File": "Elmo_Master_history_260721_part_188_lines_46752_47001.md",
+      "StartLine": 46752,
+      "EndLine": 47001,
+      "Lines": 250,
+      "Bytes": 29966,
+      "Sha256": "52009a393cad966f3ab6d8842eae16b62c2a04ad18edae627a3a593eea488685"
+    },
+    {
+      "Part": 189,
+      "File": "Elmo_Master_history_260721_part_189_lines_47002_47251.md",
+      "StartLine": 47002,
+      "EndLine": 47251,
+      "Lines": 250,
+      "Bytes": 22586,
+      "Sha256": "7502405a6c1d10eb50e70a638c525d45b1d6509c8cfa5051f3a2cf8edc43e85a"
+    },
+    {
+      "Part": 190,
+      "File": "Elmo_Master_history_260721_part_190_lines_47252_47501.md",
+      "StartLine": 47252,
+      "EndLine": 47501,
+      "Lines": 250,
+      "Bytes": 14917,
+      "Sha256": "cd8c159804070a4f2163d93bdf970a68e4787cc5fb878db6c41c59ecbdc35917"
+    },
+    {
+      "Part": 191,
+      "File": "Elmo_Master_history_260721_part_191_lines_47502_47751.md",
+      "StartLine": 47502,
+      "EndLine": 47751,
+      "Lines": 250,
+      "Bytes": 26830,
+      "Sha256": "140d850e826c720c2e6bba5f5446ea75268efd6f93b0785cee98312cde1e2d3e"
+    },
+    {
+      "Part": 192,
+      "File": "Elmo_Master_history_260721_part_192_lines_47752_48001.md",
+      "StartLine": 47752,
+      "EndLine": 48001,
+      "Lines": 250,
+      "Bytes": 9573,
+      "Sha256": "a68de892ed695e199c0e8ab3245de197e616feacae7c0eacb61e0051cfb2f89d"
+    },
+    {
+      "Part": 193,
+      "File": "Elmo_Master_history_260721_part_193_lines_48002_48251.md",
+      "StartLine": 48002,
+      "EndLine": 48251,
+      "Lines": 250,
+      "Bytes": 33846,
+      "Sha256": "01224dc008770cc5e7cb541ab75a012460310d63ccb7aaa7ad49645e562af702"
+    },
+    {
+      "Part": 194,
+      "File": "Elmo_Master_history_260721_part_194_lines_48252_48501.md",
+      "StartLine": 48252,
+      "EndLine": 48501,
+      "Lines": 250,
+      "Bytes": 39095,
+      "Sha256": "d2462696d6e006d8996adc9b2e7da392dffd86e59231cbdcad89ba95065ac2dc"
+    },
+    {
+      "Part": 195,
+      "File": "Elmo_Master_history_260721_part_195_lines_48502_48751.md",
+      "StartLine": 48502,
+      "EndLine": 48751,
+      "Lines": 250,
+      "Bytes": 32575,
+      "Sha256": "da9ed02e1770615e0caba8cda2080b88a6c18a5f9bfd2c0d622e6bdc893755ff"
+    },
+    {
+      "Part": 196,
+      "File": "Elmo_Master_history_260721_part_196_lines_48752_49001.md",
+      "StartLine": 48752,
+      "EndLine": 49001,
+      "Lines": 250,
+      "Bytes": 31650,
+      "Sha256": "8e654c0301999bff976c0e60dd103400f8dafa00fcdd0d0883104a6042ba149f"
+    },
+    {
+      "Part": 197,
+      "File": "Elmo_Master_history_260721_part_197_lines_49002_49251.md",
+      "StartLine": 49002,
+      "EndLine": 49251,
+      "Lines": 250,
+      "Bytes": 42507,
+      "Sha256": "41918801c1c9033a859b6f25a7fd39222714d4c36917a9a68a369ecaf2e3ef1a"
+    },
+    {
+      "Part": 198,
+      "File": "Elmo_Master_history_260721_part_198_lines_49252_49501.md",
+      "StartLine": 49252,
+      "EndLine": 49501,
+      "Lines": 250,
+      "Bytes": 32754,
+      "Sha256": "79ea49e3f2260af210604ba5d2a2d25ed2850399d45e2f0bf7c32991f5586575"
+    },
+    {
+      "Part": 199,
+      "File": "Elmo_Master_history_260721_part_199_lines_49502_49751.md",
+      "StartLine": 49502,
+      "EndLine": 49751,
+      "Lines": 250,
+      "Bytes": 30043,
+      "Sha256": "67757f6d5d2b0782e5b73c67e9edbe6a9690314e7fb83c37b0450146e3a1f03a"
+    },
+    {
+      "Part": 200,
+      "File": "Elmo_Master_history_260721_part_200_lines_49752_50001.md",
+      "StartLine": 49752,
+      "EndLine": 50001,
+      "Lines": 250,
+      "Bytes": 8628,
+      "Sha256": "15b3fa50398662a5766af075b9b2196664b5629e46d008dc61e8105356d3e4a3"
+    },
+    {
+      "Part": 201,
+      "File": "Elmo_Master_history_260721_part_201_lines_50002_50251.md",
+      "StartLine": 50002,
+      "EndLine": 50251,
+      "Lines": 250,
+      "Bytes": 20536,
+      "Sha256": "70f66a54e8fdc6c35a342990a7811e0ff81d5f50e5a8cb0b5307e629f141256a"
+    },
+    {
+      "Part": 202,
+      "File": "Elmo_Master_history_260721_part_202_lines_50252_50501.md",
+      "StartLine": 50252,
+      "EndLine": 50501,
+      "Lines": 250,
+      "Bytes": 18833,
+      "Sha256": "b8dc8b48d34b0155b59555b7cdc6383f7ae6e616d751f7b8b192a8238075004d"
+    },
+    {
+      "Part": 203,
+      "File": "Elmo_Master_history_260721_part_203_lines_50502_50751.md",
+      "StartLine": 50502,
+      "EndLine": 50751,
+      "Lines": 250,
+      "Bytes": 22298,
+      "Sha256": "82999214660adec5c9b6763c5035e43193107b82fddd213870393afa1c97d68b"
+    },
+    {
+      "Part": 204,
+      "File": "Elmo_Master_history_260721_part_204_lines_50752_51001.md",
+      "StartLine": 50752,
+      "EndLine": 51001,
+      "Lines": 250,
+      "Bytes": 114341,
+      "Sha256": "73af703ec1d632854724aa5a02ddec08043641660cd8099de7baee2a67bafe00"
+    },
+    {
+      "Part": 205,
+      "File": "Elmo_Master_history_260721_part_205_lines_51002_51251.md",
+      "StartLine": 51002,
+      "EndLine": 51251,
+      "Lines": 250,
+      "Bytes": 100040,
+      "Sha256": "fa0cec06c582dcca9a59004bea6d6bbcde6ca1292932e2775a9f70999a6f5d62"
+    },
+    {
+      "Part": 206,
+      "File": "Elmo_Master_history_260721_part_206_lines_51252_51501.md",
+      "StartLine": 51252,
+      "EndLine": 51501,
+      "Lines": 250,
+      "Bytes": 113950,
+      "Sha256": "aa6ba93f8cbe78845ebb277839ed53af73b9e083c441c283216a281f34d6efb4"
+    },
+    {
+      "Part": 207,
+      "File": "Elmo_Master_history_260721_part_207_lines_51502_51751.md",
+      "StartLine": 51502,
+      "EndLine": 51751,
+      "Lines": 250,
+      "Bytes": 129442,
+      "Sha256": "e4525286bfec5df1f5c852d4757b403eb96ce788e82e73add3f2ca502f20fd03"
+    },
+    {
+      "Part": 208,
+      "File": "Elmo_Master_history_260721_part_208_lines_51752_52001.md",
+      "StartLine": 51752,
+      "EndLine": 52001,
+      "Lines": 250,
+      "Bytes": 115773,
+      "Sha256": "7df49a9402b7cff63fcf2d9c0502379a588a00453df88ac832106c7740fedf75"
+    },
+    {
+      "Part": 209,
+      "File": "Elmo_Master_history_260721_part_209_lines_52002_52251.md",
+      "StartLine": 52002,
+      "EndLine": 52251,
+      "Lines": 250,
+      "Bytes": 83354,
+      "Sha256": "4284e199b3d170bba662f2cd63ea9f058e108184d24c5b878140ac5ec94c9875"
+    },
+    {
+      "Part": 210,
+      "File": "Elmo_Master_history_260721_part_210_lines_52252_52501.md",
+      "StartLine": 52252,
+      "EndLine": 52501,
+      "Lines": 250,
+      "Bytes": 12280,
+      "Sha256": "1ba6fd74467ad3d0befe8f3304bb9c76e8b513ae7e2bd458b1458eb3a0fae9c7"
+    },
+    {
+      "Part": 211,
+      "File": "Elmo_Master_history_260721_part_211_lines_52502_52751.md",
+      "StartLine": 52502,
+      "EndLine": 52751,
+      "Lines": 250,
+      "Bytes": 12545,
+      "Sha256": "8e30eeac2dfd0e8d54a0a2c043e7eecd6c48c49187b80144caf5724d572efea7"
+    },
+    {
+      "Part": 212,
+      "File": "Elmo_Master_history_260721_part_212_lines_52752_53001.md",
+      "StartLine": 52752,
+      "EndLine": 53001,
+      "Lines": 250,
+      "Bytes": 25720,
+      "Sha256": "89b21c625b42d0527c3a88e3e5d7eea2db107374eac37a0e6e137cc9f308a2a1"
+    },
+    {
+      "Part": 213,
+      "File": "Elmo_Master_history_260721_part_213_lines_53002_53251.md",
+      "StartLine": 53002,
+      "EndLine": 53251,
+      "Lines": 250,
+      "Bytes": 16959,
+      "Sha256": "bca4bde06212ab9432b2542b7dab989c60074e9291c6a9b821d0d5d7af0a62b7"
+    },
+    {
+      "Part": 214,
+      "File": "Elmo_Master_history_260721_part_214_lines_53252_53501.md",
+      "StartLine": 53252,
+      "EndLine": 53501,
+      "Lines": 250,
+      "Bytes": 12983,
+      "Sha256": "502ba20e177fc6d8ea845eaec3f4b36053ec2e10da2146cbe10e72a77674e8e9"
+    },
+    {
+      "Part": 215,
+      "File": "Elmo_Master_history_260721_part_215_lines_53502_53548.md",
+      "StartLine": 53502,
+      "EndLine": 53548,
+      "Lines": 47,
+      "Bytes": 2713,
+      "Sha256": "99cde6bf4a797e5ee1d2932ff4f017cbe737937e7077c3d5d235ee4b5053bc73"
+    }
+  ]
+}
