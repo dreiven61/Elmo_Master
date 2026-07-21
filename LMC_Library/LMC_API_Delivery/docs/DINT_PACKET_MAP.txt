@@ -51,7 +51,9 @@ Current saved _LMCRobotBase1 group profile:
 Nonzero group Jerk is ignored unless the robot profile is _JERK_PROFILE. Verify
 the downloaded robot MoveType/JMax before GroupStop or MoveLinear testing.
 See UNIT_CONVERSION_MANUAL_2026-07-10.md.
-Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
+LASAL project-local header: CommandId UINT[0], Reserved UINT[2] = 0,
+PayloadLength UINT[4], Reference UINT[6]. This is not the native MMCLib RPC
+header; native captures use the offset-2 field as a request numerator/response echo.
 
 0x7E00 GetDiagnosticsCapabilities, request payload 8 bytes
 [8]  SchemaVersion UINT16 = 1

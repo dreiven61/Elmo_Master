@@ -3,10 +3,26 @@
 - 작성일: 2026-07-21
 - 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
 - PC 시험 앱: `LMC_Library/LasalApiWpfTestApp`
-- 범위: D1 Health/Catalog/PI Read, D2 Bulk, D3 Recorder v1
-- 제외: 고객 배포 패키지 갱신, D4 ring/trigger/double, D5 PI/SDO Write
-- preflight 상태: PC 100/100, LASAL source/full 계약 PASS, IDE Rebuild/Link 0 error,
-  implementation smoke 3/3 PASS. C78/C81 version mismatch warning 3건은 남아 있다.
+- 범위: D1 Health/Catalog/PI Read, D2 Bulk, D3 Recorder v1,
+  D4 single-bank Ring/Trigger
+- 제외: 고객 배포 패키지 갱신, D4 Double bank, D5 PLC PI/SDO 실행, D6 facade
+- preflight 상태: PC 101/101과 최신 LASAL source/full 계약 PASS. D0-D4 통합 source의
+  IDE Rebuild/Link 0 error, implementation smoke 3/3 PASS지만 이후 Recorder Stop 멱등
+  패치는 최신 source Rebuild 대기다. C78/C81 version mismatch warning은 남아 있다.
+
+현재 source 상태와 실기 판정은 구분한다.
+
+| 단계 | 현재 source 상태 | 이 문서의 PLC 실기 상태 |
+|---|---|---|
+| D0 | common envelope, capability와 `0x7E00` 구현 | 아래 D1~D4 시험과 함께 검증 대기 |
+| D1 | Health/Catalog/PI Read 활성 | 미실시 |
+| D2 | 최대 24-entry Bulk 활성 | 미실시 |
+| D3 | single-bank finite/manual Recorder 활성 | 미실시 |
+| D4 | single-bank Ring, Edge/Window/Mask와 forced trigger 활성 | 미실시. Double bank는 미구현 |
+| D5 | C# 공개/wire contract만 구현, PLC 실행은 fail-closed | 미구현이므로 성공 시험 대상 아님 |
+| D6 | static compatibility facade 후속 설계 | 미구현 |
+
+따라서 정적 계약과 IDE Build/Link 통과를 실제 PLC 완료로 해석하지 않는다.
 
 ## 1. 시험 전 완료 조건
 
@@ -34,7 +50,7 @@
 ## 2. 안전 조건
 
 - 첫 시험은 축 power off와 정지 상태에서 수행한다.
-- D1~D3는 read/record 경로이며 motion command를 발생시키지 않아야 한다.
+- D1~D4는 read/record 경로이며 motion command를 발생시키지 않아야 한다.
 - PI Write와 SDO Write control은 현재 SDK allowlist와 PLC capability가 모두 off인 것이
   정상이다. 활성화해서 시험하지 않는다.
 - `ControlWord`, `TargetPosition`, `TargetVelocity`, `TargetTorque` direct write는 금지한다.
@@ -52,7 +68,7 @@
 
 ```text
 DiagnosticsBuild       1
-CapabilityBits         0x0000001F
+CapabilityBits         0x0000003F
 MapRevision            0x957F101E
 CatalogEntryCount      24
 MaxBulkEntryCount      24
@@ -68,7 +84,7 @@ DiagnosticsBootId      nonzero
 `AcceptedCapacity=min(requested, floor(1280000 / (channelCount * 4)))`가 실제 상한이며,
 16채널은 20,000 samples, 24채널은 13,333 samples까지다.
 
-BootId가 0이면 D2/D3 bit가 꺼지는 것이 정상 fail-closed다. 이 경우 Recorder를
+BootId가 0이면 D2/D3와 D4 Trigger bit가 꺼지는 것이 정상 fail-closed다. 이 경우 Recorder를
 강행하지 말고 `DiagnosticsBootCounter` retentive restore/write/read-back부터 확인한다.
 
 ## 4. D1 Health, Catalog, PI Read
@@ -135,7 +151,29 @@ SampleCapacity      1000
 upload 중에는 완료 bank의 header/data hash가 변하면 안 되고 RT task가 TCP 전송 때문에
 block되면 안 된다.
 
-## 7. 재접속과 Adopt
+## 7. D4 single-bank Ring/Trigger
+
+현재 D4 시험 대상은 하나의 물리 bank를 쓰는 Ring/Trigger뿐이다.
+`RecorderBufferCount=1`, BufferId=0, capability bit 5=1과 bit 6=0을 먼저 확인한다.
+
+1. `Ring + Edge`를 Int32 또는 BitField signal에 설정하고 pre-trigger 100,
+   post-trigger 899, capacity 1000으로 시작한다.
+2. pre-trigger history가 채워진 뒤 threshold를 통과시켜 자동 trigger가 한 번만
+   발생하고 `TriggerIndex=100`인지 확인한다.
+3. Int32 signal의 `Window`에서 `TriggerValue=lower`, `TriggerMask=upper` 경계를
+   각각 통과시켜 조건과 signed 비교가 일치하는지 확인한다.
+4. BitField16/32 signal의 `Mask`에서 nonzero mask로 all-set/any-set/all-clear 조건을
+   각각 확인한다.
+5. non-Manual Ring을 다시 시작하고 `Trigger Now (0x7E42)`로 forced trigger를 발생시킨다.
+6. EtherCAT master/slave가 유효하지 않은 cycle에서는 자동 trigger가 발생하지 않고,
+   정상 상태 복귀 뒤 새 history로 조건을 다시 평가하는지 확인한다.
+7. 각 경우 Header/CSV에서 pre + trigger + post sample 순서, sample count와 cycle 간격을
+   확인하고 완료 bank가 upload 중 변하지 않는지 확인한다.
+
+이 시험의 통과는 Double bank를 검증하지 않는다. 두 번째 bank, BufferId=1과 capture/upload
+동시 진행은 현재 source에 없다.
+
+## 8. 재접속과 Adopt
 
 1. 완료된 record를 release하지 않은 상태에서 PC TCP session만 종료한다.
 2. 새 session으로 연결하고 capability를 다시 읽는다.
@@ -143,21 +181,21 @@ block되면 안 된다.
 4. 새 OwnerSessionEpoch를 받은 뒤 임의 chunk offset부터 다운로드를 재개한다.
 5. PLC reboot로 BootId가 바뀐 뒤 이전 identity의 adopt가 거부되는지 확인한다.
 
-## 8. 현재 Unsupported가 정상인 기능
+## 9. 현재 미구현 또는 Unsupported가 정상인 기능
 
 아래는 버튼/API contract가 보여도 PLC 성공을 기대하지 않는다.
 
-- D4 `TriggerRecorder (0x7E42)`
-- Ring/Double Buffer
-- Edge/Window/Mask trigger 실행
+- D4 Double Buffer
 - D5 `SubmitPIWrite (0x7E21)`
 - D5 operation status/cancel과 `SubmitSDO (0x7E50)`
 - extended SDO `ReadSDOResultChunk (0x7E51)`
+- D6 static compatibility facade
 
-Capability bit가 0인 동안 WPF는 실행 control을 비활성화하거나 API가 호출 전 차단해야
-한다. exact raw request를 보낸 경우 PLC는 `UnsupportedFeature`를 반환해야 한다.
+D4 Double/D5 capability bit가 0인 동안 WPF는 실행 control을 비활성화하거나 API가
+호출 전 차단해야 한다. D5 exact reserved raw request를 보낸 경우 PLC는
+`UnsupportedFeature`를 반환해야 한다. D6에는 호출할 PLC command 자체가 없다.
 
-## 9. 시험 결과 기록
+## 10. 시험 결과 기록
 
 각 시험 결과에는 다음을 남긴다.
 

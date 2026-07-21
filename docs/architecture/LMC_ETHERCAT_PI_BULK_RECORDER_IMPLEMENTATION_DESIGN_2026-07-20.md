@@ -66,8 +66,8 @@ request에 `UnsupportedFeature`를 반환한다. 모든 단계는 실제 PLC run
 | `GetPIVarInfoByAlias` | Catalog info/chunk에서 alias와 metadata 조회 |
 | `ReadPIVar` | `ReadPI(SignalId)`로 최신 cyclic image 조회 |
 | `WritePIVar` | D5 `SubmitPIWrite`, 기본 비활성/allowlist |
-| `MMC_ConfigBulkRead` | `ConfigureBulk` |
-| `MMC_PerformBulkRead` | `ReadBulkSnapshot` |
+| `MMC_ConfigureBulkReadPI` | `ConfigureBulk` |
+| `MMC_PerformBulkReadCmdPI` | `ReadBulkSnapshot` |
 | `BeginRecording` | `ConfigureRecorder` + `StartRecorder` |
 | `GetRecordingStatus` | `GetRecorderStatus` |
 | `StopRecording` | `StopRecorder` |
@@ -76,6 +76,10 @@ request에 `UnsupportedFeature`를 반환한다. 모든 단계는 실제 PLC run
 
 대응 목표는 사용자 기능과 호출 흐름이다. Elmo 내부 signal number, command ID,
 packet binary를 복제하는 것이 아니다.
+
+`MMC_ConfigBulkRead`/`MMC_PerformBulkRead` (`0x10C9`/`0x10CA`)는 임의 parameter
+preset용 native API다. D2의 PI image snapshot 대응 API가 아니며 현재 custom
+Diagnostics 범위에 포함하지 않는다.
 
 ### 1.2 범위와 제외 범위
 
@@ -168,7 +172,8 @@ retained nonzero `DiagnosticsBootId`는 hidden `DiagnosticsBootCounter` server
 (`Retentive=File`)를 첫 diagnostics request에서 한 번 증가시키고 read-back 확인하는
 방식으로 구현했다. wrap 또는 write/read-back 불일치는 BootId 0으로 fail-closed한다.
 class/network 통합 snapshot은 LASAL IDE Rebuild/Link 0 error로 확인했다. C78 project와
-C81 library/compiler version mismatch warning 3건은 남아 있다. 당시
+C81 compiler/library version warning은 6줄(project C78 1줄과 library mismatch 5줄)
+남아 있다. 당시
 `Find in Implementation`은 InputLatch, RecorderStore, TCPMotionInterface.Diagnostics
 3건이 성공했고 smoke 기준 이후 `Lasal2.log`의 신규 `CInvalidArgException`은 0건이다.
 그 뒤 추가한 active Recorder zero-ID adopt, trigger health gate와 terminal race 보강은
@@ -1809,8 +1814,10 @@ P28     UDINT  DiagnosticsBootId
 P32     BYTE[] WriteData             // read이면 길이 0
 ```
 
-read에서는 `DataLength`가 원하는 4/8/12-byte 길이이고 `WriteData` 배열만 0 bytes다.
-write에서는 `WriteData` 길이가 `DataLength`와 정확히 같아야 한다.
+wire schema는 향후 read `DataLength` 4/8/12 bytes를 표현할 수 있고 read의
+`WriteData` 배열은 0 bytes다. 다만 최초 D5 Read-only 증분은 `DataLength=4`만
+허용하고 `MaxSdoDataBytes=4`만 광고한다. write에서는 이후 기능을 열 때
+`WriteData` 길이가 `DataLength`와 정확히 같아야 한다.
 
 submit response는 즉시 실행 결과가 아니라 ticket만 반환한다.
 
@@ -1871,7 +1878,7 @@ D5 v1 cancel은 아직 실행되지 않은 `Queued` ticket에만 성공한다. `
 mailbox state machine을 강제 중단하지 않고 `InvalidState`를 반환하며 caller가 완료를
 poll한다.
 
-v1 후속 상한:
+v1 최종 목표 상한:
 
 - queue depth: compile-time fixed
 - 한 slave당 active SDO: 1
@@ -1880,10 +1887,13 @@ v1 후속 상한:
 - completed ticket retention: bounded count/time
 
 현재 `ECAT_DS402Base::AddASyncEntryDS402`는 atomic active flag로 drive당 한 요청만
-허용하고, `bsDataInfo`에 따라 4/8/12-byte SDO를 시작한다. 향후
-`LMCDiagnosticsService`는 이 함수를 감싼 adapter를 통해서만 요청하고
-busy/start-failure return code를 ticket 상태로 변환한다. 12 bytes 이하 결과는
-`GetOperationStatus`에 inline한다. Public C# API와 WPF에는 더 큰 결과를 받는
+허용하고, `bsDataInfo`에 따라 4/8/12-byte SDO를 시작한다. 그러나 diagnostics
+callback은 실제 응답 길이를 별도로 전달하지 않아 짧은 object가 8/12-byte zero-padded
+성공처럼 보일 수 있다. 따라서 최초 증분은 실측된 `0x1000:0` UInt32 같은 확인된
+4-byte object만 allowlist에 넣는다. 8/12-byte는 actual-length 계약을 추가하거나 각
+object 크기를 PLC에서 검증하기 전에는 열지 않는다. 향후 `LMCDiagnosticsService`는
+이 함수를 감싼 adapter를 통해서만 요청하고 busy/start-failure return code를 ticket
+상태로 변환한다. 허용된 결과는 `GetOperationStatus`에 inline한다. Public C# API와 WPF에는 더 큰 결과를 받는
 `ReadSDOResultChunk (0x7E51)` contract도 구현했지만 현재 PLC dispatcher와 capability
 bit 12는 꺼져 있다.
 
@@ -2271,7 +2281,7 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
 2026-07-21 검증 결과와 경계:
 
 - class/network 통합 snapshot Rebuild/Link: 0 error,
-  3 warnings(C78 project와 C81 library/compiler version mismatch)
+  compiler warning 6줄(C78 project 1줄과 C81 library mismatch 5줄)
 - 해당 snapshot `Find in Implementation`: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS, 신규 `CInvalidArgException` 0건
 - 최종 implementation-only 외부 source의 source-only/full-network contract: PASS

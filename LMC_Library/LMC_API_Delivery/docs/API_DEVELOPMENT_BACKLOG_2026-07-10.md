@@ -4,9 +4,12 @@ Date: 2026-07-10
 
 Latest update: 2026-07-21
 
-> 이 문서의 수치 표는 2026-07-10 backlog snapshot이다. 현재 diagnostics는
+> 이 문서는 2026-07-10 backlog snapshot을 보존하지만, 아래 상단 결론과
+> `현재 구현 완료도 판정` 표는 2026-07-21 current source 기준이다. 현재 diagnostics는
 > D4 single-bank Ring/Trigger가 활성이고 D4 Double과 D5 PLC 실행은
-> capability-off이며, PC 자동 테스트는 101/101이다. 최신 상태와 검증 경계는
+> capability-off이며, diagnostics active는 19개, 전체 success-capable active path는
+> 44개, dispatcher/wire handled contract는 49개다. PC 자동 테스트는 101/101이고
+> diagnostics PLC runtime 시험은 아직 수행하지 않았다. 최신 상태와 검증 경계는
 > [LMC EtherCAT PI/Bulk/Recorder Implementation Design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md)을
 > 기준으로 한다.
 
@@ -35,10 +38,13 @@ local extension 2개를 합한 25개다. 2026-07-14에 `GroupReset(0x2049)`,
 활성화해 이전 deterministic unsupported 5개를 해소했다.
 2026-07-21 current source의 LASAL-local diagnostics namespace에는 정확히 24개
 command ID가 있다. D0~D3 18개는 capability, Health/Catalog/PI Read, Bulk와
-single-bank manual Recorder의 성공 응답 경로가 있고, D4/D5 6개는 exact wire를
-검사한 뒤 capability-off `UnsupportedFeature`로 fail-closed한다. 따라서 성공 응답
-capable PLC active 범위는 기존 25 + diagnostics D0~D3 18 = 43개이고,
-dispatcher/wire handled contract는 D4/D5 6개를 더한 49개다.
+single-bank manual Recorder의 성공 응답 경로가 있다. D4 `TriggerRecorder(0x7E42)`가
+single-bank Ring/Trigger 경로로 추가 활성화되어 diagnostics active는 19개다.
+D5 PLC 실행에 해당하는 나머지 5개 command 계약은 exact wire를 검사한 뒤 capability-off
+`UnsupportedFeature`로 fail-closed한다. D4 Double도 기존 Recorder command의
+capability-off mode다. 따라서 성공 응답 capable PLC active 범위는 기존 25 +
+diagnostics 19 = 44개이고, dispatcher/wire handled contract는 capability-off
+diagnostics 5개를 더한 49개다.
 
 현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 axis/group
 control·read·motion command를 허용한다. lifecycle과 name/member metadata
@@ -64,10 +70,11 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 100/100, LASAL source-only/full-network static
+현재 source는 C# 자동 테스트 101/101, LASAL source-only/full-network static
 contract와 개발 WPF VS2019 MSBuild Debug/Release `TreatWarningsAsErrors` build를
 통과했다. LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
-version mismatch warning 3건이며, InputLatch/RecorderStore/
+compiler warning은 6줄(C78 project 1줄과 C81 library mismatch 5줄)이며,
+InputLatch/RecorderStore/
 TCPMotionInterface.Diagnostics implementation-search smoke 3건과 smoke 이후 신규
 `CInvalidArgException` 0건을 확인했다. PLC download와 실제 packet 재캡처는 아직
 없으므로 기존 motion/group E2E는 0/25이고 diagnostics PLC 시험 matrix는 미실시다.
@@ -77,7 +84,8 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 
 1. CyWork와 motion RT thread의 CPU core/priority 조건 확인
 2. 기존 motion/group 25 command의 PLC smoke와 재캡처
-3. diagnostics D0~D3 runtime 및 D4/D5 exact fail-closed PLC 시험 matrix
+3. diagnostics D0~D3와 D4 single-bank Ring/Trigger runtime, D4 Double/D5 exact
+   fail-closed PLC 시험 matrix
 4. static identity group coordinate/kinematic 제약의 장비 적용 승인
 5. 실제 callback sender/payload와 multi-PC session/ownership 정책
 
@@ -87,17 +95,17 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 |---|---:|---|
 | Wireshark 기준 대상 command | 23개 | 전체 범위 |
 | LASAL project-local extension | 2개 | `0x204A/0x204B`; 기존 캡처 명령이 아님 |
-| LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4/D5 exact fail-closed 6 |
-| 성공 응답 capable PLC active path | 43개 | 기존 motion/group 25 + diagnostics D0~D3 18 |
-| C#/dispatcher/wire handled contract | 49개 | active 43 + D4/D5 exact fail-closed 6 |
+| LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4 single-bank Trigger active 1 + D5 capability-off 5; D4 Double mode off |
+| 성공 응답 capable PLC active path | 44개 | 기존 motion/group 25 + diagnostics active 19 |
+| C#/dispatcher/wire handled contract | 49개 | active 44 + capability-off diagnostics 5 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork control/read/motion 범위 | 18개 | axis 8개와 group 10개; diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | 100/100 PASS | fake/synthetic/loopback/source contract 검증 |
+| C# 자동 테스트 | 101/101 PASS | fake/synthetic/loopback/source contract 검증 |
 | LASAL source-only/full-network static contract | PASS | diagnostics D0~D5 wire/network 계약 포함 |
 | 개발 WPF VS2019 MSBuild | Debug/Release `TreatWarningsAsErrors` PASS | PLC 동작 승인이 아님 |
-| 현재 LASAL IDE build/smoke | 0 error, 3 version warnings, smoke 3/3 PASS | 신규 `CInvalidArgException` 0건 |
+| LASAL IDE build/smoke | D0-D4 통합 source 0 error, version warnings, smoke 3/3 PASS | 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |
 | 기존 motion/group PLC E2E 및 재캡처 | 0/25 | diagnostics와 분리 |
-| diagnostics PLC 시험 matrix | 미실시 | D0~D3 runtime + D4/D5 expected fail-closed |
+| diagnostics PLC 시험 matrix | 미실시 | D0~D3와 D4 single-bank Ring/Trigger runtime + D4 Double/D5 expected fail-closed |
 
 `0x2051 GroupReadActualPosition`은 exact 68-byte LASAL-DINT response
 (`DINT[16] + status/error`)를 반환한다. 현재 프로젝트에는 dynamic CalcModel이
@@ -120,7 +128,8 @@ locked standby와 unlocked disabled 조건에 연결한다.
 
 - **single-PC P0 MVP:** PC core와 LASAL source는 기존 motion/group 25개와
   diagnostics handled contract 24개를 갖췄고, 성공 응답 capable PLC active 범위는
-  총 43개다. runtime axis/group control/read/motion command는 위 18개까지 열려 있다.
+  총 44개다. diagnostics active는 D0~D3 18개와 D4 `TriggerRecorder` 1개를 합한
+  19개다. runtime axis/group control/read/motion command는 위 18개까지 열려 있다.
   same-core/priority 확인, PLC smoke와 재캡처가 남았다.
 - **기존 motion 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
   session/ownership과 기존 motion/group 25개 PLC 검증이 남아 있다. diagnostics는
@@ -596,10 +605,14 @@ distribution 외부 승인 기록에 보존해야 한다.
 - `PowerMembers` 같은 반복 helper를 protocol command로 추가
 - 공개 API와 승인된 wire contract가 없는 `MoveCircle`을 vendor method 이름만으로 추가
 
-## 후속 개발 트랙: EtherCAT PI/Bulk/Recorder
+## 후속 개발 트랙: EtherCAT PI/Bulk/Recorder (2026-07-20 역사적 snapshot)
 
-현재 motion/control API 구조 검증 뒤 진행할 diagnostics 기능은 아래 단계로
-분리한다. 상세 구조, wire schema, RT/Non-RT 경계와 검증 gate는
+아래 단계 표와 D0 반영 bullet은 2026-07-20 D0 착수 시점의 기록이다. 현재는 D1~D3와
+D4 single-bank Ring/Trigger까지 source-active이고, D4 Double과 D5 PLC 실행은
+capability-off다. 현재 수치와 검증 경계는 문서 상단의 `현재 구현 완료도 판정`을 따른다.
+
+2026-07-20 당시 motion/control API 구조 검증 뒤 진행할 diagnostics 기능은 아래 단계로
+분리했다. 상세 구조, wire schema, RT/Non-RT 경계와 검증 gate는
 `docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md`를
 기준으로 한다.
 

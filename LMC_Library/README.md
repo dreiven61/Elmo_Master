@@ -10,9 +10,12 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. PC 테스트 100/100, LASAL source/full 계약,
-LASAL IDE Rebuild/Link와 개발 WPF Debug/Release 빌드는 통과했다. 기존 motion/group
-PLC E2E/packet 재캡처는 0/25이고 diagnostics D1~D3 runtime 시험도 미실시다.
+현재 버전은 `0.9.1-preview`다. PC 테스트 101/101, 최신 LASAL source/full 계약과
+개발 WPF Debug/Release 빌드는 통과했다. LASAL IDE Rebuild/Link는 Recorder Stop
+멱등 패치 직전 source에서 통과했으므로 최신 source는 PLC download 전에 다시
+검증해야 한다. 기존 motion/group PLC E2E/packet 재캡처는 0/25이고 diagnostics
+D1~D3 및 D4 single-bank Ring/Trigger runtime 시험도 미실시다. D4 Double과 D5 PLC
+실행, D6 facade는 미구현이다.
 production 승인본으로 표기하지 않는다.
 
 ## 개발자 시작 위치
@@ -27,6 +30,9 @@ production 승인본으로 표기하지 않는다.
   [`LMC_API_Delivery/README.md`](LMC_API_Delivery/README.md)
 - EtherCAT PI/Bulk/Recorder 내부 PLC 시험 순서:
   [`../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md)
+- native PMAS capture 분석과 구현 정렬:
+  [`../docs/architecture/ELMO_NATIVE_API_PACKET_CAPTURE_ANALYSIS_2026-07-21.md`](../docs/architecture/ELMO_NATIVE_API_PACKET_CAPTURE_ANALYSIS_2026-07-21.md),
+  [`../docs/architecture/LMC_NATIVE_CAPTURE_ALIGNMENT_IMPLEMENTATION_DESIGN_2026-07-21.md`](../docs/architecture/LMC_NATIVE_CAPTURE_ALIGNMENT_IMPLEMENTATION_DESIGN_2026-07-21.md)
 
 ## 사용자 전달 위치
 

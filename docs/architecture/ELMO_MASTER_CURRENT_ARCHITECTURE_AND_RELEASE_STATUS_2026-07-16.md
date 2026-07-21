@@ -1,7 +1,8 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
 - 감사일: 2026-07-16
-- 마지막 source 상태 갱신: 2026-07-21 diagnostics D1~D3 internal test build
+- 마지막 source 상태 검토: 2026-07-22 diagnostics D1~D4 single-bank 및 PMAS native
+  capture 정렬
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
@@ -35,17 +36,17 @@
 | single-axis 범위 | descriptor `1..9` | 축 1~4 physical, 축 5~9 simulated |
 | Cartesian group move/lock | X/Y/Z/U 축 1~4 | 9축 group interpolation이 아님 |
 | 기존 motion/group command | 25개 | 캡처 기반 23 + local motion extension 2 |
-| diagnostics PLC test 범위 | D0~D3 | capability, Health/Catalog/PI Read, Bulk, single-bank Recorder |
-| diagnostics 계약-only 범위 | D4/D5 | C#/WPF contract는 존재, PLC capability off/fail-closed |
-| 성공 응답 capable PLC active command | 43개 | 기존 motion/group 25 + diagnostics D0~D3 18 |
-| dispatcher/wire handled contract | 49개 | active 43 + D4/D5 exact fail-closed 6 |
+| diagnostics PLC test 범위 | D0~D4 single-bank | capability, Health/Catalog/PI Read, Bulk, single-bank Recorder Ring/Trigger |
+| diagnostics 계약-only 범위 | D4 Double/D5 | C#/WPF contract는 존재, PLC capability off/fail-closed |
+| 성공 응답 capable PLC active command | 44개 | 기존 motion/group 25 + diagnostics D0~D4 single-bank 19 |
+| dispatcher/wire handled contract | 49개 | active 44 + D5 exact fail-closed 5 |
 | CyWork axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; metadata lookup 제외 |
-| PC 자동 테스트 | diagnostics 포함 100/100 PASS | 2026-07-21 current source 기준 |
+| PC 자동 테스트 | diagnostics 포함 101/101 PASS | 2026-07-21 current source 기준 |
 | 개발 WPF build | Debug/Release `TreatWarningsAsErrors` PASS | VS2019 MSBuild |
 | LASAL 정적 계약 | source-only/full-network PASS | PLC 시험이 아님 |
-| LASAL IDE | Rebuild/Link 0 error, 3 version warnings; implementation smoke 3/3 PASS | C78 project와 C81 library/compiler mismatch warning, 신규 `CInvalidArgException` 0건 |
+| LASAL IDE | 2026-07-21 16:02 Rebuild/Link 0 error, version warnings; implementation smoke 3/3 PASS | 17:56 Recorder Stop 멱등 패치 전 결과이므로 최신 source는 PLC download 전 재실행 필요 |
 | 기존 motion/group PLC E2E·재캡처 | 0/25 | production blocker |
-| diagnostics PLC 시험 matrix | 미실시 | D0~D3 runtime과 D4/D5 expected fail-closed를 별도 기록 |
+| diagnostics PLC 시험 matrix | 미실시 | D0~D4 single-bank runtime과 D4 Double/D5 expected fail-closed를 별도 기록 |
 
 프로젝트 폴더명에는 `4Axis`가 남아 있지만 현재 의미는 다음처럼 나눠야 한다.
 
@@ -121,8 +122,9 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Diagnostics negotiation | `0x7E00` | capability/envelope | D1~D3 test capability, retained BootId 실패 시 fail-closed |
 | Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | internal test source 활성, PLC runtime 미검증 |
 | Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | internal test source 활성, PLC runtime 미검증 |
-| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder | internal test source 활성, PLC runtime 미검증 |
-| Diagnostics D4/D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E42`, `0x7E50`, `0x7E51` | trigger/ring/double, PI/SDO ticket/chunk | public C#/WPF contract, PLC capability off/UnsupportedFeature |
+| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | internal test source 활성, PLC runtime 미검증 |
+| Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | internal test source 활성, PLC runtime 미검증; Double은 거부 |
+| Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | public C#/WPF contract, PLC capability off/UnsupportedFeature |
 | Lookup | `0x103C`, `0x1042`, `0x202B` | axis/group lookup, AxisInfo | active |
 | Axis control | `0x2023`, `0x2024`, `0x2022` | power, reset, stop | active, 축 1..9 |
 | Axis read | `0x2028`, `0x202E` | status, position | active, 축 1..9 |
@@ -136,8 +138,8 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Group motion | `0x20A4` | MoveLinearAbsolute | active, X/Y/Z/U 4축 제한 |
 | Kinematics | `0x20E7` | Cartesian4 identity 설정 | active, dynamic transform 아님 |
 
-현재 성공 응답 capable PLC active 고유 ID는 43개다. 기존 motion/group 25개와
-diagnostics D0~D3 18개를 합한 값이다. D4/D5 exact fail-closed 6개까지 포함하면
+현재 성공 응답 capable PLC active 고유 ID는 44개다. 기존 motion/group 25개와
+diagnostics D0~D4 single-bank 19개를 합한 값이다. D5 exact fail-closed 5개까지 포함하면
 dispatcher/wire가 처리하는 contract는 49개다. `0x204A/0x204B`와 diagnostics 24개는
 PMAS 캡처에 없는 LASAL-local extension이다. 18개라는 CyWork 수치는 lifecycle,
 diagnostics와 name/member metadata handler를 제외한 axis/group
@@ -239,7 +241,20 @@ benchmark에 사용한다. Cycle Test의 기본 의미는 같은 motion 조건�
 생산 cycle 시간과 throughput을 비교하는 것이다. 통신 latency만 재는 시험으로
 해석하지 않는다.
 
-### 7.2 `Codex_LASAL_WPF`
+### 7.2 `Codex_PMAS_WPF_Version2`
+
+`Codex_PMAS_WPF`를 별도 복제해 현재 LASAL diagnostics 화면과 기능을 PMAS/MMCLib
+native API로 비교하기 위한 내부 reference app이다. 직접 MMCLibDotNET을 호출하므로
+생성되는 packet은 native `0x10xx/0x11xx/0x20xx`이며 custom `0x7Exx`가 아니다.
+
+2026-07-21 capture 분석으로 Health counter, selected PI Recorder 설정, Recorder
+ready/header/range gate를 보완했다. 이 app과 capture는 PMAS 기능 의미와 호출 순서를
+확인하는 근거다. LASAL PLC diagnostics wire/runtime 성공 근거 또는 배포 client로
+사용하지 않는다. 자세한 결과는
+`ELMO_NATIVE_API_PACKET_CAPTURE_ANALYSIS_2026-07-21.md`와
+`LMC_NATIVE_CAPTURE_ALIGNMENT_IMPLEMENTATION_DESIGN_2026-07-21.md`를 따른다.
+
+### 7.3 `Codex_LASAL_WPF`
 
 이름과 UI 때문에 현재 LASAL 앱처럼 보이지만 실제로는 legacy hybrid다.
 
@@ -250,7 +265,7 @@ benchmark에 사용한다. Cycle Test의 기본 의미는 같은 motion 조건�
 빌드는 통과하지만 canonical E2E client로 사용하면 안 된다. PMAS UI 비교와 과거
 cycle benchmark 재현 참고 용도로만 남긴다.
 
-### 7.3 현재 개발·배포 앱
+### 7.4 현재 개발·배포 앱
 
 - 개발 앱은 `LMC_Library/LasalApiWpfTestApp`이며 API source를 ProjectReference한다.
 - 배포 앱은 `LMC_Library/LMC_API_Distribution/02_Example_Program`이며
@@ -360,9 +375,10 @@ golden을 대신하지 않는다.
 
 ### P0: production 승인 전 필수
 
-1. LASAL IDE build/smoke 단계는 통과했지만 PLC download/runtime와 packet 재캡처
-   증거는 없다. 기존 motion/group E2E는 0/25이며 diagnostics는 D0~D3 runtime과
-   D4/D5 expected fail-closed matrix를 별도로 수행해야 한다.
+1. D0-D4 통합 source의 LASAL IDE build/smoke는 통과했지만 이후 Recorder Stop 멱등
+   패치는 최신 source Rebuild가 필요하고 PLC download/runtime와 packet 재캡처 증거도
+   없다. 기존 motion/group E2E는 0/25이며 diagnostics는 D0~D4 single-bank
+   runtime과 D4 Double/D5 expected fail-closed matrix를 별도로 수행해야 한다.
 2. 다운로드된 PLC의 UNIT, MaxModulo, BinOffset, reference offset과 실제 안전 limit를 확인해야 한다.
 3. tracked top-level network에서 `HWMin`, `HWMax`, `Emergency`, `RefSwitch` 외부 연결을
    확인하지 못했다. 이것은 장비에 안전 회로가 없다는 증거는 아니며 PLC/배선에서
@@ -429,8 +445,8 @@ golden을 대신하지 않는다.
 7. group은 `PowerOn -> power poll -> SetKin -> Lock -> Move -> Stop/InPosition ->
    Unlock -> PowerOff` 순서로 시험한다.
 8. 기존 motion/group 25 command의 request/success/expected failure와 상태 완료
-   근거를 저장하고, diagnostics는 D0~D3 runtime과 D4/D5 exact fail-closed matrix로
-   분리해 저장한다.
+   근거를 저장하고, diagnostics는 D0~D4 single-bank runtime과 D4 Double/D5 exact
+   fail-closed matrix로 분리해 저장한다.
 9. callback과 multi-PC 정책은 실제 캡처 또는 승인된 local protocol 후 구현한다.
 10. 외부 DOCX/PDF 안전 경고와 최종 hash/provenance를 갱신한 뒤 production 승인한다.
 
@@ -472,39 +488,47 @@ EtherCAT 1 ms RT cycle
      -> D1 Health / 24-entry fixed Catalog / PI Read
      -> D2 same-snapshot Bulk (max 24)
      -> D3 Recorder v1 (single 1,280,000-byte bank, max 24 channels)
+        -> D4 single-bank Ring / Edge / Window / Mask / forced Trigger
         -> non-RT TCP status/header/chunk/release/adopt
            -> development WPF plot/CSV
 ```
 
-정상 capability 목표값은 `DiagnosticsBuild=1`, `CapabilityBits=0x0000001F`,
+정상 capability 목표값은 `DiagnosticsBuild=1`, `CapabilityBits=0x0000003F`,
 `MapRevision=0x957F101E`, `CatalogEntryCount=24`, nonzero retained
 `DiagnosticsBootId`다. BootCounter 초기화/write-readback에 실패하면 BootId를 0으로
-두고 D2/D3 bit를 광고하지 않는다.
+두고 D2/D3/D4 bit를 광고하지 않는다.
 
-D4/D5는 완료로 오인하면 안 된다.
+D4 전체와 D5를 완료로 오인하면 안 된다.
 
 - C#에는 Ring/Double/Edge/Window/Mask model, `TriggerRecorder`, PI Write, SDO ticket,
   extended SDO result chunk sync/async contract가 있다.
 - 개발 WPF에는 해당 설정과 호출/다운로드 UI가 있다.
-- PLC ring/double/trigger와 write/ticket dispatcher는 없다. capability bit 5~9/12는
-  0이고 exact reserved request는 `UnsupportedFeature`다.
+- PLC에는 single-bank Ring과 Edge/Window/Mask/forced Trigger가 구현되어 capability
+  bit 5가 켜진다. Double bank는 아직 없으므로 bit 6은 0이고 요청은 거부된다.
+- D5 write/ticket dispatcher는 없다. capability bit 7~9/12는 0이고 exact reserved
+  request는 `UnsupportedFeature`다.
 - SDK와 PLC write allowlist는 기본 empty로 유지한다.
 
 확인된 범위:
 
-- C# request/parser/fake-RPC/golden/malformed test 100/100 PASS
+- C# request/parser/fake-RPC/golden/malformed test 101/101 PASS
 - 개발 WPF Debug/Release `TreatWarningsAsErrors` build PASS
 - LASAL source-only/full-network static contract PASS
-- LASAL IDE Rebuild/Link 0 error, 3 warnings(C78 project와 C81 library/compiler
-  version mismatch)
+- LASAL IDE Rebuild/Link 0 error, compiler warning 6줄(C78 project 1줄과 C81 library
+  mismatch 5줄)
 - `Find in Implementation` 3건(InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics) PASS
 - smoke 기준 이후 `Lasal2.log` 신규 `CInvalidArgException` 0건
-- D1~D3 source handler, network wiring, C#/PLC byte offset 교차 확인
+- D1~D4 single-bank source handler, network wiring, C#/PLC byte offset 교차 확인
+
+위 IDE 결과는 2026-07-21 16:02 기준이다. 같은 날 17:56에 추가한
+`LMCRecorderStore` Stop 멱등 패치는 최신 정적 계약으로 검증했지만 IDE Rebuild/Link를
+다시 수행하지 않았다. 이 차이를 해소하기 전에는 최신 LASAL source의 compile 완료로
+승격하지 않는다.
 
 현재 남은 gate:
 
-- PLC download 후 capability, Health/Catalog/PI, Bulk, Recorder chunk/adopt 실기 시험
+- PLC download 후 capability, Health/Catalog/PI, Bulk, Recorder Ring/Trigger/chunk/adopt 실기 시험
 - 1 ms RT jitter, free RAM, 1.28 MB bank hash 불변성 확인
 - cable/slave fault의 stale/offline 상태와 malformed TCP response 확인
 

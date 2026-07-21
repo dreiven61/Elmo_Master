@@ -12,8 +12,8 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
-EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1과 D4/D5 예약 공개 API가
-포함됩니다.
+EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
+Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
 
 현재 완료도를 구분하면 다음과 같습니다.
 
@@ -21,30 +21,34 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1과 D4/D5 예약 공�
 - LASAL project-local extension command: 2개
   (`0x204A GroupPowerOn`, `0x204B GroupPowerOff`; 기존 캡처 명령이 아님)
 - LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 24개 ID 예약
-  - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler
-  - D4/D5: PC 공개 API와 exact wire contract는 존재하지만 PLC capability는 0이며
+  - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler 활성
+  - D4: single-bank Ring/Trigger와 `0x7E42` 활성, Double bank는 미구현
+  - D5: PC 공개 API와 exact wire contract만 존재하며 PLC capability는 0이고
     `UnsupportedFeature`를 반환
-- 성공 응답 capable PLC active command: 43개
-  (기존 motion/group 25 + diagnostics D0~D3 18)
+  - D6: static compatibility facade 미구현
+- 성공 응답 capable PLC active command: 44개
+  (기존 motion/group 25 + diagnostics D0~D3 18 + D4 Trigger 1)
 - dispatcher/wire handled contract: 49개
-  (active 43 + D4/D5 exact fail-closed 6)
+  (active 44 + D5 exact fail-closed 5)
 - C# diagnostics 공개 API: D0~D5 sync/async contract 구현
 - LASAL diagnostics test build capability:
+  - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000003F`
   - bit 0~2: Health, SignalCatalog, PIRead
   - nonzero retained BootId일 때 bit 3~4: BulkSnapshot, RecorderSingleBank
-  - bit 5~12: 0
+  - nonzero retained BootId일 때 bit 5: RecorderTrigger
+  - bit 6~12: 0
 - CyWork axis/group control·read·motion command: 18개
   (lifecycle과 name/member metadata handler 제외)
   (`0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: 100/100 PASS
+- C# 자동 테스트 runner: 101/101 PASS
 - LASAL source-only/full-network static contract: PASS
 - 개발 WPF example VS2019 MSBuild Debug/Release `TreatWarningsAsErrors`: PASS
-- 현재 DiagnosticsBootCounter/D1~D3 활성 source LASAL IDE Rebuild/Link: 0 error,
-  3 warnings(C78 project와 C81 library/compiler version mismatch)
-- `Find in Implementation` smoke: InputLatch, RecorderStore,
+- DiagnosticsBootCounter/D1~D4 single-bank 통합 source LASAL IDE Rebuild/Link: 0 error,
+  version mismatch warning. 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기
+- 위 통합 source의 `Find in Implementation` smoke: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS; smoke 이후 `Lasal2.log`의 신규
   `CInvalidArgException` 0건
 - CyWork와 motion RT thread의 CPU core/priority 조건: 미검증
@@ -54,9 +58,10 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1과 D4/D5 예약 공�
 extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
 `LMCConnection.Diagnostics` 아래 D0~D5 공개 API와 common envelope, capability,
 Catalog/Health/PI/Bulk/Recorder/ticket/chunk parser를 제공한다. 현재 PLC test build가
-광고하는 실제 실행 범위는 D1 read-only, D2 Bulk, D3 single-bank manual Recorder다.
-D4 Trigger/Ring/Double과 D5 PI/SDO operation은 public contract만 준비됐고 PLC가
-capability를 광고하지 않으므로 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
+광고하는 실제 실행 범위는 D1 read-only, D2 Bulk, D3 single-bank manual Recorder와
+D4 single-bank Ring/Edge/Window/Mask/forced Trigger다. D4 Double bank와 D5 PI/SDO
+operation은 PLC가 capability를 광고하지 않으므로 호출 전에 차단되거나
+`UnsupportedFeature`가 반환된다. D6 static compatibility facade는 구현하지 않았다.
 새로
 추가한 `0x2051`은 LASAL-DINT v1 전용 68-byte success response
 (`DINT[16] + UINT16 status + INT16 error`)만 받으며 캡처의 PMAS legacy
@@ -179,9 +184,9 @@ receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 que
 - `docs/AUTOMATED_TESTS_2026-07-10.md`: 자동 테스트 범위와 실행법
 - `docs/SESSION_MANAGEMENT_DESIGN_2026-07-09.md`: 다중 PC 세션 관리 설계
 - [`../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md):
-  D1~D3 내부 PLC 다운로드·실기 시험 순서와 판정 기준
+  D1~D3와 D4 single-bank Ring/Trigger 내부 PLC 다운로드·실기 시험 순서와 판정 기준
 
-자동 테스트는 `RunPcTests`(C# 100 cases), `RunLasalContract`(tracked LASAL
+자동 테스트는 `RunPcTests`(C# 101 cases), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
 분리돼 있다. 고객 배포 예제 build는 기본 `RunTests` 완료 조건에서 제외한다.
 

@@ -2,7 +2,7 @@
 
 작성일: 2026-07-10
 
-최종 결과 재확인: 2026-07-16
+최종 결과 재확인: 2026-07-21
 
 ## 구성
 
@@ -45,6 +45,10 @@
 - LASAL static contract: generated client count/entries, 9-axis network links,
   C#-ST critical offsets, 32-bit error truncation guards, legacy command block,
   `_JERK_PROFILE`/nonzero JMax와 Stop/Move Jerk 수신·전달 경로
+- diagnostics D0 capability와 D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank
+  Recorder request/parser 및 source contract
+- D4 single-bank Ring/Edge/Window/Mask/forced Trigger request validation과 active
+  LASAL source contract, D4 Double과 D5 PLC command의 fail-closed contract
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -74,10 +78,11 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: `46/46 PASS`
+- `RunPcTests`: `101/101 PASS`
 - `RunLasalContract`:
-  `PASS LASAL.StaticContract.SourceOnly` (9축, CyWork-only, 1320-byte queue와 group API)
-- `RunLasalNetworkContract`: `PASS LASAL.StaticContract` (current full network)
+  `PASS LASAL.StaticContract.SourceOnly` (9축, CyWork-only, D1~D3와 D4
+  single-bank Ring/Trigger active source, D4 Double/D5 fail-closed wire)
+- `RunLasalNetworkContract`: `PASS LASAL.StaticContract` (current recorder/network wiring)
 - `BuildSimpleExampleApp`: `LMC_Library/LasalApiWpfTestApp` build PASS
 - `BuildDistributionExampleApp`: binary-reference distribution example build PASS
 - full distribution preview pipeline: temporary standalone example Debug/Release build,
@@ -87,3 +92,13 @@ target을 분리했기 때문에 PC C# 실패와 LASAL static source contract �
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와
 source contract 검증이며 LASAL IDE compile, PLC download와 실제
 EtherCAT/motion 동작 검증을 대체하지 않는다.
+
+현재 단계 구분:
+
+| 단계 | 자동/정적 계약 상태 | 실제 PLC 상태 |
+|---|---|---|
+| D0 | 구현 및 `CapabilityBits=0x0000003F` 계약 테스트 포함 | D1~D4와 함께 실기 검증 대기 |
+| D1~D3 | active source와 PC contract 테스트 포함 | end-to-end 미실시 |
+| D4 | single-bank Ring/Trigger active contract 포함 | runtime 미실시, Double 미구현 |
+| D5 | C# 공개/wire와 PLC fail-closed contract 포함 | PLC 실행 미구현 |
+| D6 | 테스트 대상 없음 | facade 미구현 |

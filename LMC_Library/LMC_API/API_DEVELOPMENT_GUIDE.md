@@ -20,9 +20,11 @@
 버전 `1.4`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
 > **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-21 current
-> source는 PC 자동 시험 100/100, LASAL 정적 계약, IDE Rebuild/Link와 implementation
-> smoke를 통과했다. 그러나 기존 motion command의 실제 PLC E2E는 여전히 `0/25`이며,
-> diagnostics D1~D3도 PLC runtime 시험과 packet 재캡처를 수행하지 않았다.
+> source는 PC 자동 시험 101/101과 LASAL 정적 계약을 통과했다. D0-D4 통합 source의
+> IDE Rebuild/Link와 implementation smoke도 통과했지만 이후 Recorder Stop 멱등
+> 패치는 최신 source Rebuild 대기다. 기존 motion command의 실제 PLC E2E는 여전히 `0/25`이며,
+> diagnostics D1~D3와 D4 single-bank Ring/Trigger도 PLC runtime 시험과 packet 재캡처를
+> 수행하지 않았다. D4 Double과 D5 PLC 실행은 capability-off다.
 > 아래 설명에서 `구현됨`은 current source에 경로가 존재한다는 뜻이며 실기 완료를 뜻하지 않는다.
 
 ## 1. 먼저 바로잡아야 할 핵심 오해
@@ -763,12 +765,15 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics 합계 | 100/100 PASS |
+| PC request/parser/fake-RPC/diagnostics 합계 | 101/101 PASS |
 | LASAL source/full-network static contract | PASS |
-| LASAL IDE rebuild/link | 0 error, C78/C81 version mismatch warning 3건 |
-| `Find in Implementation` smoke | 3/3 PASS, 신규 `CInvalidArgException` 0건 |
+| LASAL IDE rebuild/link | D0-D4 통합 source 0 error; 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |
+| `Find in Implementation` smoke | 위 통합 source 3/3 PASS, 신규 `CInvalidArgException` 0건 |
+| LASAL diagnostics command contract | active 19/handled 24: D0~D3 18 + D4 `TriggerRecorder` 1 active, D5 계열 5개 fail-closed |
+| 전체 성공 응답 capable PLC active path | 44개: 기존 motion/group 25 + diagnostics 19 |
+| C#/dispatcher/wire handled contract | 49개: active 44 + capability-off diagnostics 5 |
 | 기존 motion PLC download 및 25 command E2E | 0/25 |
-| diagnostics D1~D3 PLC runtime | 미실시 |
+| diagnostics D1~D3 및 D4 single-bank Ring/Trigger PLC runtime | 미실시 |
 | actual TCP/UDP recapture | 미검증 |
 | core/priority/jitter | 미검증 |
 
@@ -817,12 +822,14 @@ EtherCAT PDO update
   Health와 PI를 읽는다. PI Read는 SDO가 아니다.
 - D2 Bulk는 TCP 요청 시 여러 server를 순차 read하지 않고 하나의 published snapshot을
   identity와 cycle/timestamp를 포함해 반환한다.
-- D3 Recorder는 single bank, manual/no-trigger, finite capture만 PLC에 활성화돼 있다.
+- D3 Recorder는 single-bank manual/no-trigger finite capture의 기반 경로를 제공한다.
   header와 최대 1,280-byte data chunk를 분리하고, reconnect 뒤 동일 BootId인 frozen
-  record만 `AdoptRecorder`로 인계한다.
-- D4 trigger/ring/double과 D5 PI/SDO operation은 C# sync/async contract와 개발 WPF
-  흐름까지 존재하지만 PLC capability는 0이다. exact request는
-  `UnsupportedFeature`를 반환하고 write allowlist는 empty다.
+  record를 `AdoptRecorder`로 인계한다.
+- D4 single-bank Ring/Trigger는 PLC에 활성화돼 있다. edge/window/mask 및 forced trigger를
+  지원하지만 물리 bank는 하나뿐이며 Double capability bit는 0이다.
+- D4 Double과 D5 PI/SDO operation은 C# sync/async contract와 개발 WPF 흐름까지
+  존재하지만 PLC capability는 0이다. exact request는 `UnsupportedFeature`를 반환하고
+  write allowlist는 empty다.
 - diagnostics 상태 변경 async 호출의 cancellation은 송신 전까지만 취소한다. PLC가
   요청을 수락한 뒤에는 handle/ticket/result identity를 잃지 않도록 응답을 끝까지
   수신한다. Recorder PC download cancellation은 PLC recording이나 motion stop이 아니다.
