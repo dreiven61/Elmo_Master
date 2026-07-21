@@ -2,21 +2,24 @@ LMC DINT packet map
 Status 2026-07-21: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 motion extensions, 0x204A and 0x204B. LASAL-DINT Diagnostics v1 reserves 24
-project-local command IDs in 0x7E00..0x7E51. D0-D3 are implemented for the
-internal PLC test build; D4-D5 have public C# contracts but remain capability-off
-and return UnsupportedFeature in the PLC. Therefore 43 command IDs are
-success-capable in the PLC source (25 motion/group + 18 diagnostics D0-D3), while
-the dispatcher/wire contract handles 49 IDs including the six exact fail-closed
-D4-D5 requests. These extensions are not captured Elmo commands.
+project-local command IDs in 0x7E00..0x7E51. D0-D3 and D4 single-bank
+Ring/Trigger are implemented for the internal PLC test build. D4 Double bank and
+all D5 PLC execution remain capability-off and return UnsupportedFeature.
+Therefore 44 command IDs are success-capable in the PLC source: 25 motion/group
+and 19 diagnostics. The dispatcher/wire contract handles 49 IDs including the
+five exact fail-closed D5 requests. These extensions are not captured Elmo
+commands.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. C# 100 tests, LASAL source-only/full-network static contracts and the
+source. C# 101 tests, LASAL source-only/full-network static contracts and the
 development WPF VS2019 Debug/Release TreatWarningsAsErrors builds pass. The
-current D1-D3 activation and retained BootId source rebuilds and links in the
-LASAL IDE with 0 errors and 3 C78-project/C81-library-and-compiler version
-mismatch warnings. Find in Implementation passes for InputLatch, RecorderStore,
-and TCPMotionInterface.Diagnostics, with 0 new CInvalidArgException entries in
-Lasal2.log after the smoke-test baseline. It has NOT yet been verified on a PLC.
+class/network integration snapshot rebuilt and linked in the LASAL IDE with
+0 errors and 3 C78-project/C81-library-and-compiler version mismatch warnings.
+That snapshot passed Find in Implementation for InputLatch, RecorderStore and
+TCPMotionInterface.Diagnostics with 0 new CInvalidArgException entries. Final
+implementation-only active-adopt and trigger-health/race fixes were then edited
+externally and passed both static contracts; an IDE build was not repeated for
+those final source changes. It has NOT yet been verified on a PLC.
 CPU core/priority placement and packet recapture are also pending. The untracked
 _Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
 ../../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md.
@@ -66,12 +69,13 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [24] DiagnosticsBuild UDINT = 1
 [28] CapabilityBits UDINT
      0x00000007 when D1 is available
-     0x0000001F when D1-D3 and retained BootId are available
+     0x0000003F when D1-D3, D4 RecorderTrigger and retained BootId are available
 [32] MapRevision UDINT = 0x957F101E when D1 is available
 [36] CatalogEntryCount UINT16 = 24 when D1 is available
 [38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
 [40] MaxRecorderChannels UINT16 = 24 when D3 is available, otherwise 0
-[42] RecorderBufferCount UINT16 = 1 when D3 is available, otherwise 0
+[42] RecorderBufferCount UINT16 = 1 when D3/D4 is available, otherwise 0
+     D4 currently reuses this one physical bank; Double-bank bit 6 remains zero.
 [44] MaxRecorderSamples UDINT = 320000 when D3 is available, otherwise 0
      This is the absolute one-channel limit. ConfigureRecorder returns
      AcceptedCapacity=min(requested,floor(1280000/(channelCount*4)));
@@ -86,14 +90,14 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [64] RecorderBytesPerBank UDINT = 1280000 when D3 is available, otherwise 0
 [68] MaxSdoDataBytes UINT16 = 0
 [70] Reserved UINT16 = 0
-[72] DiagnosticsBootId UDINT = retained nonzero generation for D2/D3;
+[72] DiagnosticsBootId UDINT = retained nonzero generation for D2-D4;
      0 only when the retained generation is unavailable/faulted
 
 Malformed diagnostics requests keep the same 68-byte response shape and set
 CommandStatus=1, ErrorId=-32000, and DetailCode to 1 UnsupportedSchema,
 2 UnsupportedFeature, or 12 BoundsInvalid. DiagnosticsBootId=0 is legal only
 while all stateful Bulk, Recorder, PI Write, and SDO capability bits are zero.
-A nonzero retained boot generation is required before D2/D3 can be advertised.
+A nonzero retained boot generation is required before D2-D4 can be advertised.
 RequestId zero is reserved and returns BoundsInvalid. If a malformed request
 declares at least the complete 8-byte common envelope, the response still
 echoes the received RequestId; a shorter request cannot provide an ID to echo.
@@ -129,7 +133,7 @@ D2 active Bulk commands:
 - 0x7E33 ReleaseBulk: request 20, response common 16 bytes
   Identity request P8 BulkId, P12 ConfigRevision, P16 MapRevision.
 
-D3 active Recorder v1 commands:
+D3/D4 active Recorder commands:
 - 0x7E40 ConfigureRecorder: request 56 + 4*N, response 56 bytes
 - 0x7E41 StartRecorder: request 28, response 40 bytes
 - 0x7E43 StopRecorder: request 28, response common 16 bytes
@@ -138,15 +142,49 @@ D3 active Recorder v1 commands:
 - 0x7E46 ReadRecorderChunk: request 32, response 52 + data bytes
 - 0x7E47 ReleaseRecorderBuffer: request 28, response common 16 bytes
 - 0x7E48 ReleaseRecorder: request 28, response common 16 bytes
-- 0x7E49 AdoptRecorder: request 20, response 36 bytes
-Recorder identity request P8 RecordId, P12 BufferId, P16 MapRevision,
-P20 OwnerSessionEpoch, P24 DiagnosticsBootId. D3 accepts only single bank,
-manual/no-trigger, finite length, and a maximum of 24 channels in this test build.
+- 0x7E49 AdoptRecorder/AdoptActiveRecorder: request 20, response 36 bytes
+Recorder commands 0x7E42..0x7E47 use P8 RecordId, P12 BufferId,
+P16 MapRevision, P20 OwnerSessionEpoch, P24 DiagnosticsBootId. Command 0x7E49
+instead uses P8 RecordId, P12 BufferId, P16 DiagnosticsBootId; zero/zero selects
+single-bank discovery. D3 Single mode accepts only
+manual/no-trigger finite capture. D4 Ring mode requires edge/window/mask trigger
+and supports RT condition or explicit TriggerRecorder. This test build has one
+physical bank, BufferId 0, and a maximum of 24 channels. RecorderDoubleBank
+capability bit 6 is zero and Configure BufferMode=Double returns UnsupportedFeature.
+For a Mask trigger, TriggerValue is unused and must be zero; only the nonzero
+TriggerMask participates in all-set/any-set/all-clear evaluation.
+Automatic edge/window/mask evaluation requires MasterState=OP(8), zero consecutive
+invalid cycles, and the trigger axis Online with ESMState=OP(8) and ALStatusCode=0.
+An invalid cycle clears the previous-value history. A forced TriggerRecorder
+request bypasses this input-health gate after the configured pre-history is ready.
+StopRecorder publishes a stop sequence. When RT observes it, the store freezes
+before copying that cycle's sample. A non-empty record retains EndCycle and
+EndTimestamp from its last copied sample; Stop does not append an extra sample.
 
-D4 reserved TriggerRecorder 0x7E42:
+D4 active TriggerRecorder 0x7E42:
 Request payload is exactly 28 bytes and uses the Recorder identity layout above.
-Future success response is common-only 16 bytes. Current PLC capability bit 5 is
-zero and the exact request returns common error DetailCode=2 UnsupportedFeature.
+Success response is common-only 16 bytes. Current PLC capability bit 5 is one.
+The PLC validates identity/owner/map/BootId/state and publishes a forced-trigger
+sequence to the RT recorder. Manual configurations and inactive records reject it.
+TriggerRecorder and StopRecorder success ACKs mean that their request sequence was
+published, not that RT already applied it. If a request races a natural terminal
+transition, the final ReadRecorderStatus StopReason and TriggerIndex are authoritative.
+Ring upload remaps wrapped physical samples to chronological offset order.
+Recorder header DataCrcPolicy is None, DataCrcPresent is clear, and every Recorder
+chunk DataCRC32 is zero. DroppedSamples/DroppedCycles and OverflowCount are reserved
+and currently always zero; zero is not PLC runtime proof of no loss.
+Before a trigger, Ring recording can update its bounded pre-history indefinitely.
+Exact reconnect recovery keeps the saved BootId/RecordId/BufferId and calls
+AdoptRecorder. If Start response loss or an app crash loses RecordId, the client
+first verifies the nonzero BootId and calls AdoptActiveRecorder, which sends
+RecordId=0 and BufferId=0 on the same 0x7E49 wire command. The PLC discovers the
+one current closed-owner bank and returns its actual identity. Mixed zero/nonzero
+identity is rejected. This discovery contract is single-bank only; Double-bank
+capability remains off.
+The SDK validates exact pre/trigger/post shape only for a locally configured
+identity: TriggerIndex=PreTriggerSamples and TriggerComplete SampleCount equals
+PreTriggerSamples+1+PostTriggerSamples. AdoptRecorder does not return that shape,
+so adopted identities are checked only against common frozen wire invariants.
 
 D5 reserved PI Write 0x7E21:
 Request payload is exactly 28 bytes:

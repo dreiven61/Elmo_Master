@@ -927,7 +927,7 @@
                                     Grid.ColumnSpan="4"
                                     Margin="0,2,0,8"
                                     Foreground="#5F6B7A"
-                                    Text="Start fills these IDs automatically and they remain visible after disconnect. Reconnect to the same PLC boot, refresh Capabilities, then Adopt. Read Status or Header before Download; Release recovers Status metadata when needed. Trigger Now explicitly fires a locally configured non-Manual D4 recorder and is enabled only when RecorderTrigger is advertised."
+                                    Text="Start fills these IDs automatically and they remain visible after disconnect. Reconnect to the same PLC boot, refresh Capabilities, then Adopt. Record ID=0 and Buffer ID=0 discovers and adopts the current single-bank Recorder; nonzero Record ID keeps exact adoption. Read Status for authoritative terminal metadata or Header before Download. Trigger Now explicitly fires a locally configured non-Manual D4 recorder and is enabled only when RecorderTrigger is advertised."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>

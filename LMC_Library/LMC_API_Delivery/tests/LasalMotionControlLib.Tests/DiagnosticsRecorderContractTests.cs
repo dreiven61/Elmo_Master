@@ -53,6 +53,9 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.Recorder.AdoptCleanup",
                 RecorderAdoptCleanup);
             tests.Add(
+                "Rpc.Recorder.AdoptActive",
+                RecorderAdoptActive);
+            tests.Add(
                 "Rpc.Recorder.StatefulCancellationBoundary",
                 RecorderStatefulCancellationBoundary);
             tests.Add(
@@ -95,6 +98,7 @@ namespace LasalMotionControlLib.Tests
                 LMCRecorderTriggerType.Mask,
                 LMCRecorderTriggerOperator.MaskAnySet,
                 0x0000000Fu);
+            AssertEx.Equal(0u, mask.TriggerValue);
             AssertEx.Equal(0x0000000Fu, mask.TriggerMask);
 
             AssertEx.Throws<ArgumentOutOfRangeException>(
@@ -136,6 +140,12 @@ namespace LasalMotionControlLib.Tests
                     0));
             AssertEx.Throws<ArgumentException>(
                 () => TriggerConfiguration(
+                    LMCRecorderBufferMode.Single,
+                    LMCRecorderTriggerType.Edge,
+                    LMCRecorderTriggerOperator.RisingEdge,
+                    0));
+            AssertEx.Throws<ArgumentException>(
+                () => TriggerConfiguration(
                     LMCRecorderBufferMode.Ring,
                     LMCRecorderTriggerType.Edge,
                     LMCRecorderTriggerOperator.EnterWindow,
@@ -146,6 +156,20 @@ namespace LasalMotionControlLib.Tests
                     LMCRecorderTriggerType.Mask,
                     LMCRecorderTriggerOperator.MaskAllSet,
                     0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new LMCRecorderConfiguration(
+                    Signals,
+                    1,
+                    10,
+                    LMCRecorderBufferMode.Ring,
+                    LMCRecorderTriggerType.Mask,
+                    LMCSignalValueType.BitField32,
+                    4,
+                    5,
+                    Signal1,
+                    LMCRecorderTriggerOperator.MaskAnySet,
+                    1,
+                    0x0F));
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => new LMCRecorderConfiguration(
                     Signals,
@@ -268,6 +292,16 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(RecordId, TestFrame.ReadUInt32(adopt, 16));
             AssertEx.Equal(DiagnosticsBootId, TestFrame.ReadUInt32(adopt, 24));
 
+            var adoptActive = LMC_DiagnosticsFrame.AdoptActiveRecorder(
+                GoldenRequestId,
+                DiagnosticsBootId);
+            AssertRequestHeader(adoptActive, 0x7E49, 20, GoldenRequestId);
+            AssertEx.Equal(0u, TestFrame.ReadUInt32(adoptActive, 16));
+            AssertEx.Equal(0u, TestFrame.ReadUInt32(adoptActive, 20));
+            AssertEx.Equal(
+                DiagnosticsBootId,
+                TestFrame.ReadUInt32(adoptActive, 24));
+
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_DiagnosticsFrame.ConfigureRecorder(
                     GoldenRequestId,
@@ -285,6 +319,10 @@ namespace LasalMotionControlLib.Tests
                     GoldenRequestId,
                     DiagnosticsBootId,
                     0,
+                    0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_DiagnosticsFrame.AdoptActiveRecorder(
+                    GoldenRequestId,
                     0));
         }
 
@@ -336,6 +374,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(RecordId, identity.RecordId);
             AssertEx.Equal(0u, identity.BufferId);
             AssertEx.Equal(LMCRecorderState.Armed, identity.InitialState);
+            AssertEx.True(identity.HasConfigurationShape);
 
             var status = LMC_DiagnosticsParser.ParseRecorderStatus(
                 TestFrame.Response(0, StatusPayload(GoldenRequestId)),
@@ -346,6 +385,126 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(3u, status.SampleCount);
             AssertEx.True(status.IsFrozen);
             AssertEx.False(status.HasTrigger);
+
+            var rollingIdentity = RecorderIdentity(
+                bufferMode: LMCRecorderBufferMode.Ring,
+                triggerType: LMCRecorderTriggerType.Edge);
+            var rollingStatusPayload = StatusPayload(GoldenRequestId);
+            TestFrame.WriteUInt16(
+                rollingStatusPayload,
+                36,
+                (ushort)LMCRecorderState.Recording);
+            rollingStatusPayload[39] = (byte)LMCRecorderStopReason.None;
+            TestFrame.WriteUInt32(rollingStatusPayload, 40, 1);
+            TestFrame.WriteUInt32(rollingStatusPayload, 52, 90);
+            var rollingStatus = LMC_DiagnosticsParser.ParseRecorderStatus(
+                TestFrame.Response(0, rollingStatusPayload),
+                GoldenRequestId,
+                rollingIdentity);
+            rollingIdentity.ApplyStatusMetadata(rollingStatus);
+            AssertEx.Equal(0u, rollingIdentity.AcceptedStartCycle);
+
+            TestFrame.WriteUInt32(rollingStatusPayload, 52, 91);
+            rollingStatus = LMC_DiagnosticsParser.ParseRecorderStatus(
+                TestFrame.Response(0, rollingStatusPayload),
+                GoldenRequestId,
+                rollingIdentity);
+            rollingIdentity.ApplyStatusMetadata(rollingStatus);
+            AssertEx.Equal(0u, rollingIdentity.AcceptedStartCycle);
+
+            var frozenRollingPayload = StatusPayload(GoldenRequestId);
+            frozenRollingPayload[39] =
+                (byte)LMCRecorderStopReason.TriggerComplete;
+            TestFrame.WriteUInt32(frozenRollingPayload, 48, 1);
+            TestFrame.WriteUInt32(frozenRollingPayload, 52, 92);
+            var frozenRollingStatus = LMC_DiagnosticsParser.ParseRecorderStatus(
+                TestFrame.Response(0, frozenRollingPayload),
+                GoldenRequestId,
+                rollingIdentity);
+            rollingIdentity.ApplyStatusMetadata(frozenRollingStatus);
+            AssertEx.Equal(92u, rollingIdentity.AcceptedStartCycle);
+
+            TestFrame.WriteUInt32(frozenRollingPayload, 52, 93);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, frozenRollingPayload),
+                    GoldenRequestId,
+                    rollingIdentity));
+
+            var manualRecordingIdentity = RecorderIdentity();
+            var manualRecordingPayload = StatusPayload(GoldenRequestId);
+            TestFrame.WriteUInt16(
+                manualRecordingPayload,
+                36,
+                (ushort)LMCRecorderState.Recording);
+            manualRecordingPayload[39] =
+                (byte)LMCRecorderStopReason.None;
+            TestFrame.WriteUInt32(manualRecordingPayload, 40, 1);
+            var manualRecordingStatus =
+                LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, manualRecordingPayload),
+                    GoldenRequestId,
+                    manualRecordingIdentity);
+            manualRecordingIdentity.ApplyStatusMetadata(
+                manualRecordingStatus);
+            AssertEx.Equal(
+                100u,
+                manualRecordingIdentity.AcceptedStartCycle);
+
+            TestFrame.WriteUInt32(manualRecordingPayload, 52, 101);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, manualRecordingPayload),
+                    GoldenRequestId,
+                    manualRecordingIdentity));
+
+            var wrongTriggerIndex = StatusPayload(GoldenRequestId);
+            wrongTriggerIndex[39] =
+                (byte)LMCRecorderStopReason.TriggerComplete;
+            TestFrame.WriteUInt32(wrongTriggerIndex, 48, 0);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, wrongTriggerIndex),
+                    GoldenRequestId,
+                    RecorderIdentity(
+                        bufferMode: LMCRecorderBufferMode.Ring,
+                        triggerType: LMCRecorderTriggerType.Edge)));
+
+            var wrongTriggerSampleCount = StatusPayload(GoldenRequestId);
+            wrongTriggerSampleCount[39] =
+                (byte)LMCRecorderStopReason.TriggerComplete;
+            TestFrame.WriteUInt32(wrongTriggerSampleCount, 40, 2);
+            TestFrame.WriteUInt32(wrongTriggerSampleCount, 48, 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, wrongTriggerSampleCount),
+                    GoldenRequestId,
+                    RecorderIdentity(
+                        bufferMode: LMCRecorderBufferMode.Ring,
+                        triggerType: LMCRecorderTriggerType.Edge)));
+
+            var overPostLimit = StatusPayload(GoldenRequestId);
+            overPostLimit[39] = (byte)LMCRecorderStopReason.UserStop;
+            TestFrame.WriteUInt32(overPostLimit, 48, 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, overPostLimit),
+                    GoldenRequestId,
+                    RecorderIdentity(
+                        triggerType: LMCRecorderTriggerType.Edge,
+                        bufferMode: LMCRecorderBufferMode.Ring,
+                        preTriggerSamples: 1,
+                        postTriggerSamples: 0)));
+
+            var triggeredCountComplete = StatusPayload(GoldenRequestId);
+            TestFrame.WriteUInt32(triggeredCountComplete, 48, 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderStatus(
+                    TestFrame.Response(0, triggeredCountComplete),
+                    GoldenRequestId,
+                    RecorderIdentity(
+                        bufferMode: LMCRecorderBufferMode.Ring,
+                        triggerType: LMCRecorderTriggerType.Edge)));
 
             var wrongBoot = StatusPayload(GoldenRequestId);
             TestFrame.WriteUInt32(wrongBoot, 72, DiagnosticsBootId + 1);
@@ -430,6 +589,36 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(0x0000000400000003ul, header.TriggerTimestampUs);
             AssertEx.Equal(0x0000000600000005ul, header.EndTimestampUs);
             AssertEx.Equal(Signal1, header.SignalIds[0]);
+
+            var wrongTriggerIndex = HeaderPayload(GoldenRequestId, true);
+            TestFrame.WriteUInt32(wrongTriggerIndex, 64, 0);
+            AssertHeaderMalformed(wrongTriggerIndex, identity);
+
+            var wrongTriggerSampleCount = HeaderPayload(GoldenRequestId, true);
+            TestFrame.WriteUInt32(wrongTriggerSampleCount, 44, 2);
+            AssertHeaderMalformed(wrongTriggerSampleCount, identity);
+
+            var overPostLimit = HeaderPayload(GoldenRequestId, true);
+            overPostLimit[41] = (byte)LMCRecorderStopReason.UserStop;
+            TestFrame.WriteUInt16(
+                overPostLimit,
+                42,
+                (ushort)(LMCRecorderHeaderFlags.CaptureComplete
+                    | LMCRecorderHeaderFlags.TriggerPresent
+                    | LMCRecorderHeaderFlags.UserStopped
+                    | LMCRecorderHeaderFlags.DataCrcPresent));
+            AssertHeaderMalformed(
+                overPostLimit,
+                RecorderIdentity(
+                    triggerType: LMCRecorderTriggerType.Edge,
+                    bufferMode: LMCRecorderBufferMode.Ring,
+                    preTriggerSamples: 1,
+                    postTriggerSamples: 0));
+
+            var triggeredCountComplete = HeaderPayload(GoldenRequestId, true);
+            triggeredCountComplete[41] =
+                (byte)LMCRecorderStopReason.SampleCountComplete;
+            AssertHeaderMalformed(triggeredCountComplete, identity);
 
             var immutableIdentity = RecorderIdentity(
                 triggerType: LMCRecorderTriggerType.Edge);
@@ -622,6 +811,56 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(OwnerSessionEpoch, adoption.OwnerSessionEpoch);
             AssertEx.Equal(LMCRecorderState.Ready, adoption.State);
 
+            var discovered = LMC_DiagnosticsParser.ParseAdoptRecorder(
+                TestFrame.Response(0, AdoptPayload(GoldenRequestId)),
+                GoldenRequestId,
+                DiagnosticsBootId,
+                0,
+                0);
+            AssertEx.Equal(RecordId, discovered.RecordId);
+            AssertEx.Equal(0u, discovered.BufferId);
+
+            var missingActiveRecord = AdoptPayload(GoldenRequestId);
+            TestFrame.WriteUInt32(missingActiveRecord, 20, 0);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseAdoptRecorder(
+                    TestFrame.Response(0, missingActiveRecord),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    0,
+                    0));
+
+            var invalidActiveBuffer = AdoptPayload(GoldenRequestId);
+            TestFrame.WriteUInt32(invalidActiveBuffer, 24, 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseAdoptRecorder(
+                    TestFrame.Response(0, invalidActiveBuffer),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    0,
+                    0));
+
+            var faulted = AdoptPayload(GoldenRequestId);
+            TestFrame.WriteUInt16(
+                faulted,
+                32,
+                (ushort)LMCRecorderState.Fault);
+            AssertEx.Equal(
+                LMCRecorderState.Fault,
+                LMC_DiagnosticsParser.ParseAdoptRecorder(
+                    TestFrame.Response(0, faulted),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    RecordId,
+                    0).State);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseAdoptRecorder(
+                    TestFrame.Response(0, faulted),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    0,
+                    0));
+
             var badReserved = AdoptPayload(GoldenRequestId);
             TestFrame.WriteUInt16(badReserved, 34, 1);
             AssertEx.Throws<InvalidDataException>(
@@ -720,6 +959,133 @@ namespace LasalMotionControlLib.Tests
             RunRecorderAdoptCleanup(true);
         }
 
+        private static void RecorderAdoptActive()
+        {
+            RunRecorderAdoptActive(false);
+            RunRecorderAdoptActive(true);
+            RunRecorderAdoptActiveDoubleBankRejected();
+            RunRecorderAdoptActivePreCanceled();
+
+            using (var connection = new LMCConnection())
+            {
+                AssertEx.Throws<ArgumentOutOfRangeException>(
+                    () => connection.Diagnostics.AdoptActiveRecorder(0));
+                AssertEx.Throws<ArgumentOutOfRangeException>(
+                    () => connection.Diagnostics.AdoptActiveRecorderAsync(
+                            0,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+            }
+        }
+
+        private static void RunRecorderAdoptActive(bool useAsync)
+        {
+            var adoptStep = new FakeRpcStep(
+                0x7E49,
+                TestFrame.Response(0, AdoptPayload(2)));
+            adoptStep.InspectRequest = request =>
+            {
+                AssertRequestHeader(request, 0x7E49, 20, 2);
+                AssertEx.Equal(0u, TestFrame.ReadUInt32(request, 16));
+                AssertEx.Equal(0u, TestFrame.ReadUInt32(request, 20));
+                AssertEx.Equal(
+                    DiagnosticsBootId,
+                    TestFrame.ReadUInt32(request, 24));
+            };
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        SingleBankCapabilitiesPayload(1))),
+                adoptStep,
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var identity = useAsync
+                    ? connection.Diagnostics.AdoptActiveRecorderAsync(
+                            DiagnosticsBootId,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult()
+                    : connection.Diagnostics.AdoptActiveRecorder(
+                        DiagnosticsBootId);
+
+                AssertEx.Equal(RecordId, identity.RecordId);
+                AssertEx.Equal(0u, identity.BufferId);
+                AssertEx.Equal(
+                    OwnerSessionEpoch,
+                    identity.OwnerSessionEpoch);
+                AssertEx.True(identity.IsAdopted);
+                AssertEx.False(identity.HasConfigurationShape);
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderAdoptActiveDoubleBankRejected()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics.AdoptActiveRecorder(
+                        DiagnosticsBootId));
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderAdoptActivePreCanceled()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            using (var cancellation = new CancellationTokenSource())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+                cancellation.Cancel();
+                AssertEx.Throws<OperationCanceledException>(
+                    () => connection.Diagnostics.AdoptActiveRecorderAsync(
+                            DiagnosticsBootId,
+                            cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult());
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
         private static void RunRecorderAdoptCleanup(bool useAsync)
         {
             using (var server = new FakeRpcServer(
@@ -770,6 +1136,7 @@ namespace LasalMotionControlLib.Tests
                 }
 
                 AssertEx.False(identity.HasConfigurationMetadata);
+                AssertEx.False(identity.HasConfigurationShape);
                 AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics.ReleaseRecorderBuffer(identity));
 
@@ -1061,7 +1428,7 @@ namespace LasalMotionControlLib.Tests
                 5,
                 Signal1,
                 triggerOperator,
-                100,
+                triggerType == LMCRecorderTriggerType.Mask ? 0u : 100u,
                 triggerMask);
         }
 
@@ -1117,7 +1484,10 @@ namespace LasalMotionControlLib.Tests
 
         private static LMCRecorderIdentity RecorderIdentity(
             uint acceptedStartCycle = 0,
-            LMCRecorderTriggerType triggerType = LMCRecorderTriggerType.Manual)
+            LMCRecorderTriggerType triggerType = LMCRecorderTriggerType.Manual,
+            LMCRecorderBufferMode bufferMode = LMCRecorderBufferMode.Single,
+            uint preTriggerSamples = 1,
+            uint postTriggerSamples = 1)
         {
             return new LMCRecorderIdentity(
                 null,
@@ -1133,8 +1503,14 @@ namespace LasalMotionControlLib.Tests
                 3,
                 LMCCapturePhase.InputMapped,
                 1000,
-                LMCRecorderBufferMode.Single,
+                bufferMode,
                 triggerType,
+                triggerType == LMCRecorderTriggerType.Manual
+                    ? 0u
+                    : preTriggerSamples,
+                triggerType == LMCRecorderTriggerType.Manual
+                    ? 0u
+                    : postTriggerSamples,
                 true,
                 16,
                 Signals,
@@ -1361,6 +1737,16 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 52, 16);
             TestFrame.WriteUInt32(payload, 56, 800);
             TestFrame.WriteUInt32(payload, 64, DiagnosticsBootId);
+            return payload;
+        }
+
+        private static byte[] SingleBankCapabilitiesPayload(uint requestId)
+        {
+            var payload = CapabilitiesPayload(requestId);
+            var capabilityBits = TestFrame.ReadUInt32(payload, 20);
+            capabilityBits &= ~(uint)LMCDiagnosticCapability.RecorderDoubleBank;
+            TestFrame.WriteUInt32(payload, 20, capabilityBits);
+            TestFrame.WriteUInt16(payload, 34, 1);
             return payload;
         }
 

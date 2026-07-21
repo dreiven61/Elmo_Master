@@ -44,6 +44,9 @@
 
 ## LASAL 변경 규칙
 
+- LASAL IDE는 Class 생성/선언 구조 변경과 Network 편집에만 사용한다. 기존 class의
+  implementation 로직은 추적된 `.st` source를 외부 편집기에서 수정하고 정적 계약으로
+  우선 검증한다. 매 implementation 수정마다 IDE 동기화 작업을 반복하지 않는다.
 - LASAL 작업 전 아래 문서를 먼저 확인한다.
   - `docs/architecture/SIGMATEK_LASAL_coding_rules.md`
   - `docs/architecture/SIGMATEK_LASAL_programming_method_study.md`

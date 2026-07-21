@@ -1,8 +1,9 @@
 # LMC EtherCAT PI/Bulk/Recorder Implementation Design
 
 - 작성일: 2026-07-20
-- 상태: D1~D3 internal test source 활성, D4/D5 public contract 구현·PLC fail-closed,
-  D6 후속, LASAL IDE 재빌드·implementation smoke 통과, PLC 실장 검증 대기
+- 상태: D1~D3와 D4 single-bank Ring/Trigger internal test source 활성,
+  D4 Double 및 D5 PLC 실행은 capability-off, D6 후속,
+  최신 외부 source 정적 계약 통과, PLC 통합·실장 검증 대기
 - 적용 대상:
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
   - `LMC_Library/LMC_API_Delivery/src`
@@ -42,6 +43,8 @@ flowchart TB
 4. Bulk는 TCP 요청 시 각 변수를 읽지 않는다. RT가 동일 cycle에 만든 immutable
    snapshot을 Non-RT가 읽는다.
 5. Recorder v1은 단일 고정 bank, manual start, finite length, no-trigger로 시작한다.
+   현재 D4 internal test source는 같은 단일 bank에 Ring pre-trigger와
+   edge/window/mask 및 명시적 trigger를 추가했다. Double bank는 아직 꺼져 있다.
    설계 상한은 32채널이지만 현재 source 구현 상한은 고정 Catalog와 같은 24채널이다.
 6. Recorder 데이터는 `recordId + bufferId + offset + count + sequence` 기반으로
    기본 1,280-byte data chunk를 전송한다. 실기 검증 뒤 capability 값으로만 상향한다.
@@ -52,9 +55,9 @@ flowchart TB
    마지막 호환 계층으로만 추가하며 이번 구현 범위에는 넣지 않는다.
 
 이 문서는 구현할 구조와 단계별 완료 조건을 정한 기준이다. 현재 internal test source는
-D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank manual Recorder를 광고하도록
-구성됐다. D4/D5 public C# contract와 WPF test path도 준비됐지만 PLC capability는 0이며
-exact request에 `UnsupportedFeature`를 반환한다. 모든 단계는 실제 PLC runtime 검증 전이다.
+D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank manual Recorder와 D4 single-bank
+Ring/Trigger를 광고한다. D4 Double bank와 D5 PI/SDO 실행은 capability가 0이며 exact
+request에 `UnsupportedFeature`를 반환한다. 모든 단계는 실제 PLC runtime 검증 전이다.
 
 ### 1.1 Elmo API와의 기능 대응
 
@@ -103,11 +106,11 @@ contract를 대신한다고 간주하지 않는다.
 
 | 단계 | 현재 분류 | 현재 source 범위 | wire 상태와 남은 조건 |
 |---|---|---|---|
-| D0 | 구현됨 | common envelope, capability parser/model, `0x7E00` PLC handler, sync/async PC API | active. service 연결 시 D1, nonzero BootId일 때 D2/D3 capability 광고 |
+| D0 | 구현됨 | common envelope, capability parser/model, `0x7E00` PLC handler, sync/async PC API | active. service 연결 시 D1, nonzero BootId일 때 D2/D3 및 D4 Trigger capability 광고 |
 | D1 | internal test source 활성 | 4축 x 활성 PDO 6개인 24-entry Catalog, Health, PI Read, 304-byte RT latch와 seqlock copy | `LMC_DIAG_D1_ENABLED=TRUE`, capability bit 0~2 광고. PLC runtime 검증 대기 |
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release, 동일 latch snapshot, session owner 검사 | retained `DiagnosticsBootCounter`에서 nonzero BootId가 발급될 때 bit 3 광고 |
-| D3 | internal test source 활성 | 1,280,000-byte 단일 bank, 최대 24채널, manual/no-trigger, finite capture, status/header/chunk/release/adopt | nonzero BootId일 때 bit 4 광고. PLC RAM/jitter/chunk/adopt 검증 대기 |
-| D4 | public contract 구현 / PLC fail-closed | C# Ring/Double/Edge/Window/Mask model, `TriggerRecorder` sync/async, WPF 설정/호출 | PLC ring/trigger/double bank 미구현, bit 5~6=0, exact `0x7E42` request에 UnsupportedFeature |
+| D3 | internal test source 활성 | 1,280,000-byte 단일 bank, 최대 24채널, manual/no-trigger, finite capture, status/header/chunk/release와 exact/zero-ID adopt | nonzero BootId일 때 bit 4 광고. PLC RAM/jitter/chunk/adopt 검증 대기 |
+| D4 | single-bank Ring/Trigger internal test source 활성 | C# Ring/Double/Edge/Window/Mask model, `TriggerRecorder` sync/async, WPF 설정/호출, PLC pre-trigger ring과 edge/window/mask/forced trigger | bit 5=1. 단일 물리 bank만 사용하며 bit 6 Double=0, `RecorderBufferCount=1`. PLC runtime 검증 대기 |
 | D5 | public contract 구현 / PLC fail-closed | PI Write, SDO ticket/status/cancel, extended result chunk sync/async와 WPF flow | PLC allowlist/ticket/drive dispatcher 미구현, bit 7~9/12=0, exact reserved request에 UnsupportedFeature |
 | D6 | 후속 설계 | 현재 instance 기반 `LMCConnection` 유지 | static/handle facade 미구현; PLC와 wire 안정화 뒤 C# compatibility layer로만 추가 |
 
@@ -115,7 +118,7 @@ D0 PLC test build의 정상 capability는 다음과 같다.
 
 ```text
 DiagnosticsBuild     = 1
-CapabilityBits       = 0x0000001F  // D1-D3, normal retained BootId path
+CapabilityBits       = 0x0000003F  // D1-D3 + D4 RecorderTrigger
 MapRevision          = 0x957F101E
 DiagnosticsBootId    = nonzero retained generation
 MaxRequestPayload    = 1320
@@ -123,7 +126,7 @@ MaxResponsePayload   = 2040
 MaxChunkData         = 1280
 ```
 
-retentive counter가 wrap/fault이거나 service가 없으면 stateful bit 3~4는 0으로 내려간다.
+retentive counter가 wrap/fault이거나 service가 없으면 stateful bit 3~5는 0으로 내려간다.
 D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
 
 현재 source의 실행 경로는 다음과 같다.
@@ -142,7 +145,8 @@ D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
    `PendingClosedSessionEpoch`에 보존한다. 다음 `CyWork`가
    `NotifySessionClosed`를 호출하여 Bulk owner를 정리하고 Recorder owner를
    `ClosedSessionEpoch`으로 표시한다. 이후 `AdoptRecorder(0x7E49)`가 동일 BootId와
-   record/buffer identity를 검사해 새 session epoch로 소유권을 넘기는 구조다.
+   보존한 record/buffer identity를 검사하거나, `AdoptActiveRecorder`가 zero-ID sentinel로
+   현재 single bank를 발견해 새 session epoch로 소유권을 넘기는 구조다.
 
 코드 근거:
 
@@ -151,7 +155,7 @@ D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
 - [LMCRecorderStore.st](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCRecorderStore/LMCRecorderStore.st)의
   `g_LMCRecorderData`, `AppendSnapshot`, `HandleRequest`, `NotifySessionClosed`
 - [LMCDiagnosticsService.st](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st)의
-  D1~D3 enable 상수, Catalog/Bulk handler, Recorder delegation
+  D1~D3 enable 상수, Catalog/Bulk handler, D3/D4 Recorder store delegation
 - [TCPMotionInterface.st](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st)의
   capability response, diagnostics dispatch, `PendingClosedSessionEpoch`
 - [Motion_Network.lcn](../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/Motion_Network.lcn)과
@@ -163,13 +167,16 @@ D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
 retained nonzero `DiagnosticsBootId`는 hidden `DiagnosticsBootCounter` server
 (`Retentive=File`)를 첫 diagnostics request에서 한 번 증가시키고 read-back 확인하는
 방식으로 구현했다. wrap 또는 write/read-back 불일치는 BootId 0으로 fail-closed한다.
-이 server와 `GetDiagnosticsBootId`가 추가된 현재 source는 LASAL IDE Rebuild/Link
-0 error로 확인했다. C78 project와 C81 library/compiler version mismatch warning 3건은
-남아 있다. `Find in Implementation`은 InputLatch, RecorderStore,
-TCPMotionInterface.Diagnostics 3건이 성공했고 smoke 기준 이후 `Lasal2.log`의 신규
-`CInvalidArgException`은 0건이다. PLC download, System Trace RT ordering, packet
-capture, recorder RAM/jitter, disconnect/adopt 및 chunk hash 시험은 남아 있다.
-이 검증이 끝나기 전에는 D1~D3를 production 완료 또는 PLC 실장 완료로 분류하지 않는다.
+class/network 통합 snapshot은 LASAL IDE Rebuild/Link 0 error로 확인했다. C78 project와
+C81 library/compiler version mismatch warning 3건은 남아 있다. 당시
+`Find in Implementation`은 InputLatch, RecorderStore, TCPMotionInterface.Diagnostics
+3건이 성공했고 smoke 기준 이후 `Lasal2.log`의 신규 `CInvalidArgException`은 0건이다.
+그 뒤 추가한 active Recorder zero-ID adopt, trigger health gate와 terminal race 보강은
+외부 `.st` source와 source-only/full-network 정적 계약으로 검증했다. 구현 로직은 외부
+편집기를 사용한다는 작업 기준에 따라 이 최종 implementation-only 변경 뒤 IDE
+Rebuild/Link를 반복하지 않았다. PLC download, System Trace RT ordering, packet capture,
+recorder RAM/jitter, disconnect/adopt 및 chunk hash 시험은 남아 있다.
+이 검증이 끝나기 전에는 D1~D4를 production 완료 또는 PLC 실장 완료로 분류하지 않는다.
 
 ## 2. 확인된 현재 기준
 
@@ -836,7 +843,7 @@ stateDiagram-v2
     Configured --> Armed: Start
     Armed --> Recording: next eligible RT cycle
     Recording --> Ready: requested samples complete
-    Recording --> Ready: Stop at sample boundary
+    Recording --> Ready: Stop observed before next sample copy
     Ready --> Uploading: first valid chunk
     Uploading --> Uploading: retry/random chunk
     Uploading --> Configured: ReleaseBuffer
@@ -846,8 +853,13 @@ stateDiagram-v2
 
 `Configure`는 `configId/configRevision`만 만들고 record ID를 발급하지 않는다.
 `Start(configId, configRevision)`가 bank를 예약하고 새 `recordId/bufferId`를 즉시
-반환한다. 실제 `startCycle`은 다음 eligible RT cycle에 확정된다. `Stop`도 flag만
-전달하며 RT가 현재 sample을 완성한 뒤 bank를 freeze한다.
+반환한다. 실제 `startCycle`은 다음 eligible RT cycle에 확정된다. `Stop` RPC는 request
+sequence를 publish하고, RT `AppendSnapshot`이 그 sequence를 관찰한 cycle에는 sample
+copy보다 먼저 즉시 bank를 freeze한다. 따라서 Stop 관찰 cycle의 sample은 추가되지
+않는다. 기존 sample이 하나라도 있으면 `EndCycle/EndTimestamp`는 마지막으로 실제 복사한
+sample 값을 유지한다. sample이 아직 0개일 때만 Stop 관찰 cycle을 End metadata로 쓴다.
+성공 ACK는 sequence publish만 뜻하며 RT 적용 완료를 뜻하지 않는다. terminal 전환과
+경합한 호출의 최종 결과는 이후 status의 `StopReason/TriggerIndex`가 authoritative하다.
 
 `ReleaseBuffer`는 frozen bank만 비우고 같은 configuration으로 다시 Start할 수 있게
 한다. `ReleaseRecorder`는 READY/UPLOADING/WRITING bank가 없을 때만 configuration과
@@ -953,26 +965,36 @@ signalIds[32]
 - `bufferId`는 v1에서 0, v2 double bank에서 0 또는 1이다.
 - `diagnosticsBootId + recordId + bufferId`가 모두 일치해야 chunk를 읽는다. 단조
   증가하는 `recordId`가 같은 boot에서 재사용된 bank의 generation 역할을 한다.
-- TCP disconnect가 발생해도 finite capture는 끝까지 진행하고 `READY`로 보존한다.
-- 재접속한 PC는 capability의 `diagnosticsBootId`를 먼저 비교하고 header를 다시 읽은
-  뒤 임의 offset부터 재개할 수 있다. 모든 Recorder identity request도 BootId를
-  보내므로 capability 확인과 chunk 요청 사이의 reboot race를 server가 거부한다.
+- TCP disconnect가 발생해도 Recorder를 자동 중지하지 않는다. Single finite capture는
+  끝까지 진행해 `READY`로 보존하고, trigger 전 Ring은 trigger 또는 Stop이 적용될 때까지
+  bounded pre-history를 무기한 갱신할 수 있다.
+- 정상 reconnect의 exact 경로는 PC가 `diagnosticsBootId + recordId + bufferId`를 보존한
+  경우다. capability의 BootId를 먼저 비교하고 `AdoptRecorder`로 새 control owner를 얻은
+  뒤 active Ring은 Status/Stop, frozen capture는 Status/Header/Download/Release를 계속한다.
+  모든 Recorder identity request도 BootId를 보내므로 capability 확인과 요청 사이의
+  reboot race를 server가 거부한다.
+- Start response 유실 또는 앱 crash로 record identity를 잃어도, 현재 single-bank build는
+  nonzero BootId 확인 뒤 `AdoptActiveRecorder`의 zero-ID discovery로 닫힌 이전 owner의 현재
+  bank를 찾아 actual RecordId/BufferId와 새 OwnerSessionEpoch를 돌려준다. exact identity
+  경로도 그대로 유지한다. `RecordId=0, BufferId=nonzero`는 discovery가 아니며 거부한다.
+  이 방식은 `RecorderBufferCount=1`일 때만 모호하지 않으므로 Double bank 활성 전까지만
+  지원한다.
 - completed record는 명시적 `ReleaseBuffer` 전까지 덮어쓰지 않는다.
-- v1에는 무한 기록을 넣지 않아 orphan recorder를 만들지 않는다.
 - diagnostics service 재초기화 또는 PLC reboot 때 BootId가 바뀌며 모든 이전 record
   identity는 무효다. reconnect resume은 이 경계를 통과하지 않는다.
 
 ### 8.5 v2 trigger와 double buffer
 
-v1 검증 뒤 추가한다.
+현재 internal test build에는 pre-trigger ring, rising/falling edge, Int32 window in/out,
+bit mask set/clear, forced trigger, trigger sample/cycle과 post-trigger sample count가
+구현돼 있다. Mask 조건은 `TriggerValue=0`으로 고정하고 `TriggerMask`만 사용한다.
+두 번째 immutable bank는 아직 구현하지 않았다.
 
-- pre-trigger ring
-- rising/falling edge
-- signed/unsigned window in/out
-- bit mask set/clear
-- trigger sample/cycle 저장
-- post-trigger sample count
-- 두 번째 immutable bank
+자동 edge/window/mask 조건은 snapshot의 master state가 OP(8), consecutive invalid
+cycle이 0이고 trigger 축이 Online, ESM OP(8), AL code 0일 때만 평가한다. 한 cycle이라도
+유효하지 않으면 `PreviousTriggerValid`를 지워 invalid 구간을 건너뛴 edge/window 전이를
+만들지 않는다. forced `TriggerRecorder` sequence는 이 input-health gate와 무관하게
+pre-trigger history가 준비된 뒤 적용된다.
 
 두 bank가 모두 `READY/UPLOADING`이면 새 record는 `Busy`다. RT가 old data를
 자동 overwrite하거나 upload를 기다리지 않는다.
@@ -1019,14 +1041,14 @@ record, buffer, ticket 식별자는 payload에서만 전달한다.
 | ReleaseBulk | `0x7E33` | D2 |
 | ConfigureRecorder | `0x7E40` | D3 |
 | StartRecorder | `0x7E41` | D3 |
-| TriggerRecorder | `0x7E42` | D4 public contract, PLC capability off |
+| TriggerRecorder | `0x7E42` | D4 single-bank Ring/Trigger active |
 | StopRecorder | `0x7E43` | D3 |
 | ReadRecorderStatus | `0x7E44` | D3 |
 | ReadRecorderHeader | `0x7E45` | D3 |
 | ReadRecorderChunk | `0x7E46` | D3 |
 | ReleaseRecorderBuffer | `0x7E47` | D3/D4 |
 | ReleaseRecorder | `0x7E48` | D3 |
-| AdoptRecorder | `0x7E49` | D3 reconnect |
+| AdoptRecorder / AdoptActiveRecorder | `0x7E49` | D3 reconnect, single-bank zero-ID discovery |
 | SubmitSDO | `0x7E50` | D5 |
 | ReadSDOResultChunk | `0x7E51` | D5 extended-result public contract, PLC capability off |
 
@@ -1100,6 +1122,15 @@ D1 capability 의존 규칙은 다음과 같다.
 - source 등록, RT latch ordering trace, LASAL Rebuild/Link, malformed packet test 중
   하나라도 미완료면 bits 0..2를 모두 0으로 유지한다.
 - D1은 stateful resource가 없으므로 `DiagnosticsBootId=0`을 계속 허용한다.
+
+현재 D4 capability 의존 규칙은 다음과 같다.
+
+- `RecorderTrigger` bit 5가 1이면 `RecorderSingleBank` bit 4와 nonzero
+  `DiagnosticsBootId`가 반드시 필요하다.
+- bit 5는 Ring buffer와 edge/window/mask/forced trigger를 뜻한다. Double bank를
+  뜻하지 않는다.
+- `RecorderDoubleBank` bit 6은 0이고 `RecorderBufferCount=1`이다. 따라서 BufferId는
+  현재 0만 유효하며 capture/upload를 동시에 진행할 수 없다.
 
 ### 9.3 Response 크기
 
@@ -1232,7 +1263,9 @@ bit field:
 | `HeaderFlags` | bit0 CaptureComplete, bit1 TriggerPresent, bit2 UserStopped, bit3 DataCrcPresent |
 | `OperationFlags` | bit0 Write; 0이면 Read, bit1..15는 v1에서 0 |
 
-CRC는 둘 다 `CRC-32/ISO-HDLC`를 사용한다.
+Catalog `mapRevision`은 `CRC-32/ISO-HDLC`를 사용한다. Recorder wire도 같은 CRC enum과
+field를 예약했지만 현재 internal PLC build는 `DataCrcPolicy=None`이다. 따라서 header의
+`DataCrcPresent` bit는 0이고 모든 Recorder chunk의 `dataCrc32`는 0이어야 한다.
 
 ```text
 polynomial normal   = 0x04C11DB7
@@ -1245,7 +1278,8 @@ final XOR           = 0xFFFFFFFF
 `mapRevision` coverage는 `catalogIndex` 오름차순의 80-byte Catalog entry 전체를
 연결한 bytes다. 모든 정수는 little-endian, alias는 ASCII NUL padding, reserved는
 0으로 canonicalize한다. 활성 Catalog의 CRC 결과 0은 `0xFFFFFFFF`로 치환한다.
-`dataCrc32` coverage는 Recorder chunk의 `Data[]` bytes만이다.
+향후 `DataCrcPolicy=Crc32IsoHdlc`를 켜는 build에서만 Recorder `dataCrc32` coverage를
+각 chunk의 `Data[]` bytes로 정의한다.
 
 ### 9.6 Catalog chunk
 
@@ -1469,15 +1503,19 @@ P52     UDINT  DiagnosticsBootId
 P56     UDINT  SignalId[ChannelCount]
 ```
 
-D3는 `BufferMode=0`, `TriggerType=0`만 허용한다. 사용하지 않는
+D3 기본 경로는 `BufferMode=0`, `TriggerType=0`이다. 사용하지 않는
 `TriggerValueType`, `PreTriggerSamples`, `PostTriggerSamples`, `TriggerSignalId`,
-`TriggerOperator`, `TriggerValue`, `TriggerMask`는 모두 0이어야 하며 아니면
-`UnsupportedFeature`를 반환한다. wire 위치는 D4를 위해 예약한다.
+`TriggerOperator`, `TriggerValue`, `TriggerMask`는 모두 0이어야 한다.
 
-D4 public contract는 `BufferMode=1/2`와 edge/window/mask trigger를 동일 configure
-frame에 직렬화한다. Window trigger는 별도 wire field를 늘리지 않고
-`TriggerValue=lower bound`, `TriggerMask=upper bound`로 해석한다. 현재 PLC는 D4
-capability bit를 광고하지 않으며 이 값들을 실행하지 않는다.
+D4 활성 경로는 `BufferMode=1` Ring과 edge/window/mask trigger를 같은 configure
+frame에 직렬화한다. `BufferMode=2` Double은 `UnsupportedFeature`다. Ring은 non-Manual
+trigger가 필수이고 Single은 Manual만 허용한다. Window trigger는 별도 wire field를
+늘리지 않고 `TriggerValue=lower bound`, `TriggerMask=upper bound`로 해석한다.
+현재 Catalog 기준 edge는 Int32/BitField16/BitField32, window는 Int32,
+mask는 BitField16/BitField32 signal을 사용한다. Configure는
+`PreTriggerSamples + 1 + PostTriggerSamples <= AcceptedCapacity`를 검증한다.
+Mask trigger에서 `TriggerValue`는 의미가 없는 reserved input이며 반드시 0이다.
+조건 판정은 nonzero `TriggerMask`만 사용해 all-set/any-set/all-clear를 계산한다.
 
 `TriggerRecorder (0x7E42)` request는 Start/Stop과 같은 28-byte recorder identity다.
 
@@ -1490,8 +1528,14 @@ P20     UDINT  OwnerSessionEpoch
 P24     UDINT  DiagnosticsBootId
 ```
 
-향후 PLC 성공 response는 정확히 common response 16 bytes다. 현재 PLC는 위 길이와
-reserved 규칙을 먼저 검증한 뒤 `UnsupportedFeature` common response를 반환한다.
+PLC 성공 response는 정확히 common response 16 bytes다. 현재 single-bank Ring
+configuration에서 identity, owner, map revision, BootId와 state를 검증한 뒤 RT 경로에
+forced-trigger sequence를 publish한다. Manual configuration, stale identity와 Ready 이후
+호출은 `InvalidState` 또는 해당 identity 오류로 거부한다. 이 ACK는 sequence publish이며
+RT 적용 완료가 아니다. 자동 edge/window/mask 판정은 master OP, consecutive invalid
+cycle 0, trigger 축 Online/OP/AL code 0일 때만 수행하고 invalid cycle에서는 이전 값
+history를 reset한다. forced trigger는 pre-history가 준비됐으면 이 health gate와 무관하게
+적용된다.
 
 configure response:
 
@@ -1545,6 +1589,14 @@ P16     UDINT  MapRevision
 P20     UDINT  OwnerSessionEpoch
 P24     UDINT  DiagnosticsBootId
 ```
+
+`StopRecorder` 성공 response는 Stop 완료 시점이 아니라 RT에 stop sequence가 publish됐다는
+뜻이다. 다음 `AppendSnapshot`에서 Stop을 sample copy보다 먼저 관찰해 즉시 Ready로
+freeze하므로 그 cycle의 sample은 포함되지 않는다. 이미 복사된 sample이 있으면 status와
+header의 `EndCycle/EndTimestamp`는 마지막 sample metadata를 유지한다. Stop, forced
+trigger와 자연 trigger 완료가 terminal 전환 근처에서 경합하면 ACK 순서로 최종 원인을
+추측하지 않고 이후 `ReadRecorderStatus`의 `StopReason/TriggerIndex`를 authoritative 값으로
+사용한다.
 
 status response:
 
@@ -1613,6 +1665,10 @@ P112    UDINT  SignalId[ChannelCount]
 검사해 확정한다. 따라서 capture 해석은 현재 PLC 설정을 다시 추측하지 않고 frozen
 header 값만 사용한다.
 
+현재 `DroppedSamples`/PLC 내부 `DroppedCycles`와 `OverflowCount`는 wire 호환을 위해
+예약된 계수다. Start 때 0으로 초기화되고 현재 producer는 증가시키지 않으므로 status와
+header에서 항상 0이다. 0을 손실 없음의 실기 증명으로 해석하지 않는다.
+
 ### 9.10 Recorder chunk
 
 request payload:
@@ -1651,13 +1707,16 @@ offset을 다시 요청할 수 있어야 하므로 server-side strict next-seque
 않는다. `ResponseFlags.LastChunk`로 마지막 chunk를 표시한다. stale data 차단은
 boot/record/buffer identity로 수행한다.
 
-`dataCrc32`는 application-level corruption 및 잘못된 chunk 조립을 검출한다. TCP
-reliability를 대신하는 재전송 protocol은 아니다.
+현재 header의 `DataCrcPolicy=None`과 일치하도록 `dataCrc32=0`을 반환한다. PC parser는
+이 조합을 강제한다. 향후 CRC policy를 켜는 build에서만 이 field가 application-level
+corruption 및 잘못된 chunk 조립 검출에 사용되며, TCP reliability를 대신하는 재전송
+protocol은 아니다. Ring capture의 물리 buffer가 wrap돼도 upload offset 0은 가장 오래된
+pre-trigger sample이 되도록 `FrozenFirstSampleIndex`에서 chronological order로 remap한다.
 
 ### 9.11 Session과 resource ownership
 
 현재 TCP server는 `MaxConnections=1`이며 C#도 connection당 exchange 하나를
-직렬화한다. D1~D3에서 별도 upload socket을 가정하지 않는다.
+직렬화한다. D1~D4에서 별도 upload socket을 가정하지 않는다.
 
 | Resource | v1 policy |
 |---|---|
@@ -1668,11 +1727,17 @@ reliability를 대신하는 재전송 protocol은 아니다.
 | Frozen Recorder bank | immutable, reconnect 뒤 record identity로 resume 가능 |
 | PI/SDO Write | motion/control owner와 write policy 모두 필요 |
 
-finite Recorder는 TCP disconnect로 중단하지 않는다. 새 single session은
-`recordId/bufferId`를 제시해 frozen bank를 계속 내려받을 수 있다. disconnect 시
-control owner는 orphaned 상태가 된다. 새 session이 stop/release 권한을 넘겨받으려면
-`AdoptRecorder`를 명시적으로 호출해야 하며, server는 이전 owner session이 닫혔고
-identity가 일치할 때만 새 `OwnerSessionEpoch`를 반환한다.
+Recorder는 TCP disconnect로 자동 중단되지 않는다. 새 single session은 보존한
+`diagnosticsBootId/recordId/bufferId`를 제시해 frozen bank를 계속 내려받거나 active Ring의
+control을 회수할 수 있다. disconnect 시 control owner는 closed-session 상태로 남는다. 새 session이
+stop/release 권한을 넘겨받으려면 `AdoptRecorder`를 명시적으로 호출해야 하며, server는
+이전 owner session이 닫혔고 identity가 일치할 때만 새 `OwnerSessionEpoch`를 반환한다.
+identity를 잃었으면 같은 `0x7E49`에 RecordId=0, BufferId=0을 보내는
+`AdoptActiveRecorder`로 현재 single-bank Recorder를 discover하고 control을 회수한다.
+server는 먼저 BootId가 현재 generation인지, 이전 owner session이 실제로 닫혔는지,
+current bank가 Armed~Uploading 상태인지 확인한 뒤 actual identity를 반환한다. nonzero
+RecordId의 exact adoption은 기존대로 유지한다. zero-ID discovery는 bank가 하나라서
+대상이 유일한 현재 build에 한정하고 Double bank capability가 켜지기 전까지만 지원한다.
 
 resource release request:
 
@@ -1687,6 +1752,9 @@ P20 OwnerSessionEpoch U32, P24 DiagnosticsBootId U32
 
 AdoptRecorder:
 P8  RecordId U32, P12 BufferId U32, P16 DiagnosticsBootId U32
+
+AdoptActiveRecorder (same 0x7E49 wire):
+P8  RecordId=0 U32, P12 BufferId=0 U32, P16 DiagnosticsBootId U32
 
 AdoptRecorder response:
 P0..15 common response
@@ -1902,6 +1970,7 @@ LMCRecorderConfigurationHandle ConfigureRecorder(
     LMCRecorderConfiguration configuration);
 LMCRecorderIdentity StartRecorder(
     LMCRecorderConfigurationHandle configuration);
+void TriggerRecorder(LMCRecorderIdentity identity);
 void StopRecorder(LMCRecorderIdentity identity);
 LMCRecorderStatus GetRecorderStatus(LMCRecorderIdentity identity);
 LMCRecorderHeader GetRecorderHeader(LMCRecorderIdentity identity);
@@ -1910,12 +1979,25 @@ LMCRecorderIdentity AdoptRecorder(
     uint diagnosticsBootId,
     uint recordId,
     uint bufferId);
+LMCRecorderIdentity AdoptActiveRecorder(uint diagnosticsBootId);
 void ReleaseRecorderBuffer(LMCRecorderIdentity identity);
 void ReleaseRecorder(LMCRecorderConfigurationHandle configuration);
 
 Task<LMCRecorderData> DownloadRecorderAsync(
     LMCRecorderIdentity identity,
     IProgress<LMCRecorderDownloadProgress> progress,
+    CancellationToken token);
+
+Task TriggerRecorderAsync(
+    LMCRecorderIdentity identity,
+    CancellationToken token);
+Task<LMCRecorderIdentity> AdoptRecorderAsync(
+    uint diagnosticsBootId,
+    uint recordId,
+    uint bufferId,
+    CancellationToken token);
+Task<LMCRecorderIdentity> AdoptActiveRecorderAsync(
+    uint diagnosticsBootId,
     CancellationToken token);
 
 // D5; capability와 write policy가 허용할 때만 사용
@@ -1933,6 +2015,25 @@ void CancelOperation(LMCOperationTicket ticket);
 `DiagnosticsBootId` type은 wire와 같은 `uint`다.
 `LMCOperationTicket`은 `DiagnosticsBootId + TicketId + OperationKind`를 보존하고
 다른 connection 또는 BootId에서 재사용하지 않는다.
+
+SDK가 `ConfigureRecorder`와 `StartRecorder`로 직접 만든 local identity에는 buffer/trigger
+configuration shape가 보존된다. Status/Header parser는 이 경우 non-Manual capture에서
+trigger 전 `SampleCount <= PreTriggerSamples`, trigger 후
+`TriggerIndex == PreTriggerSamples`, `StopReason=TriggerComplete`이면
+`SampleCount == PreTriggerSamples + 1 + PostTriggerSamples`를 검증한다. trigger 이후의
+모든 상태는 이 합계를 초과할 수 없으며, triggered configuration의
+`SampleCountComplete`도 거부한다. Manual identity에 trigger metadata가 오는 것도
+거부한다. Local Manual/Single의 `StartCycle`은 첫 sample 이후 고정하고, trigger 전
+Ring에서 oldest pre-history가 이동할 때만 아직 mutable한 값으로 취급한다.
+
+반면 `AdoptRecorder` wire response에는 원래 BufferMode/TriggerType/pre/post 값이 없으므로
+adopted identity의 configuration shape는 unknown이다. 이 경우 SDK는 위 pre/post exact
+shape를 추측하지 않고 identity, state/StopReason, capacity/sample bound, trigger index
+범위, header flag/timestamp/CRC 같은 wire frozen invariants만 검증한다. Status/Header를
+읽어 config ID와 frozen metadata를 보강해도 원래 trigger shape를 복원한 것으로 간주하지
+않는다. `AdoptActiveRecorder`도 동일 response parser를 사용하므로 configuration shape는
+같이 unknown이다. 차이는 request identity가 zero/zero라서 current single bank를
+discover한다는 점뿐이다.
 
 모든 operation은 기존처럼 sync/async가 같은 builder/parser/wire를 사용한다. Async는
 별도 UDP protocol이 아니다.
@@ -1981,6 +2082,8 @@ canonical test app인 `LMC_Library/LasalApiWpfTestApp`에 다음 tab을 추가�
 - 채널 선택, sample period cycles, sample count
 - memory estimate와 예상 duration 표시
 - configure/start/stop/status
+- reconnect 시 nonzero RecordId는 exact Adopt, RecordId/BufferId 모두 0이면
+  `AdoptActiveRecorderAsync` single-bank discovery
 - chunk download progress와 retry
 - channel별 plot enable/disable
 - CSV export
@@ -2036,7 +2139,8 @@ compatibility milestone로 진행한다.
 ### D0. Contract와 skeleton
 
 현재 상태: 구현됨. `LMCDiagnosticsService`가 연결되면 D1 capability를, retained
-nonzero `DiagnosticsBootId` 초기화까지 성공하면 D2/D3 capability를 함께 광고한다.
+nonzero `DiagnosticsBootId` 초기화까지 성공하면 D2/D3와 D4 Trigger capability를 함께
+광고한다.
 
 - command range/capability/version 확정
 - D0 stateless `DiagnosticsBootId=0` sentinel과 client 검증 구현
@@ -2046,8 +2150,10 @@ nonzero `DiagnosticsBootId` 초기화까지 성공하면 D2/D3 capability를 함
 - 기존 25 command regression
 
 검증 상태: PC golden/malformed contract test와 LASAL source-only/full-network contract가
-통과했다. 현재 BootCounter 변경을 포함한 LASAL IDE Rebuild/Link는 0 error이며,
-implementation smoke 3건과 신규 `CInvalidArgException` 0건을 확인했다.
+통과했다. class/network 통합 snapshot의 LASAL IDE Rebuild/Link는 0 error였고,
+implementation smoke 3건과 신규 `CInvalidArgException` 0건을 확인했다. 최종
+implementation-only 보강 뒤 IDE build는 반복하지 않았으며 최신 source 검증은 정적
+계약 결과를 기준으로 한다.
 
 ### D1. Health + read-only Catalog/PI
 
@@ -2103,17 +2209,20 @@ fail-closed한다.
 
 ### D4. Recorder v2
 
-현재 상태: public C# contract와 개발용 WPF 설정/호출 경로는 구현, PLC는 미구현이다.
-`0x7E42`는 정확한 request를 검증한 뒤 `UnsupportedFeature`를 반환하고
-trigger/ring/double-bank capability bit 5~6은 0이다.
+현재 상태: single-bank Ring/Trigger internal test source 활성. public C# contract와
+개발용 WPF 설정/호출 경로, PLC pre-trigger ring, edge/window/mask 조건과
+`0x7E42` forced trigger가 구현됐다. 정상 retained BootId 경로는 bit 5를 광고해 전체
+`CapabilityBits=0x0000003F`를 반환한다. 물리 bank는 한 개이고
+`RecorderBufferCount=1`, BufferId=0이며 Double capability bit 6은 0이다.
 
-- pre-trigger ring
-- edge/window/mask trigger
-- double bank
-- trigger cycle/header
-- long upload 중 다음 capture
+- 구현: pre-trigger ring, edge/window/mask/forced trigger, trigger cycle/header,
+  chronological chunk upload
+- 미구현: double bank, long upload 중 다음 capture
 
-완료 기준: 두 bank ownership이 겹치지 않고 full 상태에서 RT가 block되지 않는다.
+현재 단계 완료 기준: edge/window/mask와 forced trigger에서 정확히
+`pre + trigger + post` sample이 고정되고 `TriggerIndex=PreTriggerSamples`인지 PLC에서
+확인한다. D4 전체 완료 기준은 두 bank ownership이 겹치지 않고 full 상태에서 RT가
+block되지 않는 것이다. 이 기준을 통과하기 전까지 bit 6은 켜지 않는다.
 
 ### D5. 제한적 PI/SDO Write
 
@@ -2151,7 +2260,7 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
 - mixed capture phase
 - Bulk seqlock retry/Busy
 - chunk first/middle/last, retry, random access
-- CRC mismatch
+- Recorder CRC-off zero-field와 enabled-CRC parser mismatch
 - record/buffer identity mismatch
 - fake server reconnect/resume
 - 기존 API regression
@@ -2159,21 +2268,21 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
 
 ### 15.2 LASAL IDE 검증
 
-2026-07-21 current source 결과:
+2026-07-21 검증 결과와 경계:
 
-- Rebuild/Link: 0 error, 3 warnings(C78 project와 C81 library/compiler version mismatch)
-- `Find in Implementation`: InputLatch, RecorderStore,
-  TCPMotionInterface.Diagnostics 3건 PASS
-- smoke 기준 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException`: 0건
-- source-only/full-network contract: PASS
-- PC test: 100/100 PASS
+- class/network 통합 snapshot Rebuild/Link: 0 error,
+  3 warnings(C78 project와 C81 library/compiler version mismatch)
+- 해당 snapshot `Find in Implementation`: InputLatch, RecorderStore,
+  TCPMotionInterface.Diagnostics 3건 PASS, 신규 `CInvalidArgException` 0건
+- 최종 implementation-only 외부 source의 source-only/full-network contract: PASS
+- 최종 implementation-only 변경 뒤 IDE Rebuild/Link: 미반복
+- PC test: 101/101 PASS
 - 개발 WPF Debug/Release `TreatWarningsAsErrors`: PASS
 
-- project-owned custom source만 변경
-- Rebuild/Link
-- channel declaration/member/`@CT_`/`@STD`/network 일치
-- 변경 class `Find in Implementation` smoke
-- smoke 시작 뒤 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 없음
+- Class 생성, declaration 구조 변경과 Network 편집만 LASAL IDE에서 수행
+- 기존 class implementation은 외부 편집기에서 수정하고 정적 계약으로 우선 검증
+- PLC 통합/download gate에서 Rebuild/Link와 `Find in Implementation` smoke 수행
+- channel declaration/member/`@CT_`/`@STD`/network 일치 확인
 - actual RT order 확인
 
 ### 15.3 PLC/실기 검증

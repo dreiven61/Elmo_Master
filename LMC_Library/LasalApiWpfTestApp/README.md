@@ -50,8 +50,9 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 
 1. Connect 뒤 `Refresh Capabilities`를 먼저 누른다. PLC가 광고하지 않은 기능의
    버튼은 활성화되지 않는다.
-   현재 internal test build의 정상 retained 경로는 `CapabilityBits=0x0000001F`,
-   `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`다. D4/D5 bit는 0이어야 한다.
+   현재 internal test build의 정상 retained 경로는 `CapabilityBits=0x0000003F`,
+   `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`다. bit 5
+   `RecorderTrigger`는 활성이고 bit 6 `RecorderDoubleBank`와 D5 bit 7~9/12는 0이다.
 2. `Read EtherCAT Health`에서 master state, invalid-cycle counter와 slave 1~4의
    Online/AL/DS402 상태를 확인한다.
 3. `Load PI Catalog`로 현재 map revision과 active PDO signal을 받은 뒤 사용할
@@ -61,41 +62,75 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 5. Bulk 탭은 선택된 `BulkReadable` signal을 configure한 뒤 Status가 Active인지
    확인하고 `Read Snapshot`을 실행한다. 모든 entry의 cycle/timestamp는 하나다.
 6. Recorder 탭은 선택된 `Recordable` signal, sample period와 capacity로 Recorder를
-   configure/start한다. `Single + Manual`은 D3 기본 경로다. Edge/Window/Mask trigger와
-   Ring/Double mode는 PLC가 각각 `RecorderTrigger`/`RecorderDoubleBank` capability를
-   광고할 때만 Configure할 수 있다. Edge/Window/Mask는 RT signal 조건으로 발생한다.
-   Window는 `TriggerValue=lower bound`, `TriggerMask=upper bound` wire 계약을 사용하며
-   Int16/UInt16/Int32/UInt32 signal만 허용하고 lower가 upper보다 크면 송신 전에
-   거부한다. signed Int16/Int32 bound는 signed decimal 또는 canonical raw hex로
-   입력할 수 있다.
+   configure/start한다. `Single + Manual`은 D3 기본 경로다. 현재 D4 경로는 한 개의
+   물리 bank를 사용하는 `Ring + Edge/Window/Mask`이며 RT signal 조건 또는
+   `Trigger Now`로 발생한다. Double mode는 bit 6이 0이므로 Configure할 수 없다.
+   Window는 `TriggerValue=lower bound`, `TriggerMask=upper bound` wire 계약을 사용한다.
+   public SDK는 Int16/UInt16/Int32/UInt32 bound를 검증하지만 현재 24-entry PLC Catalog에서
+   Window로 실행 가능한 signal은 Int32다. 현재 PLC에서 Edge는
+   Int32/BitField16/BitField32, Mask는 BitField16/BitField32 signal을 사용한다.
+   lower가 upper보다 크면 송신 전에 거부한다. Mask trigger는 `TriggerValue=0`으로
+   강제되며 사용자가 입력하는 값은 nonzero `TriggerMask`뿐이다.
 
    현재 고정 bank는 1,280,000 bytes다. capability의 `MaxRecorderSamples=320000`은
    1채널 절대 상한이며 실제 sample 상한은 Configure 응답의 `AcceptedCapacity`다.
    계산식은 `floor(1280000 / (channelCount * 4))`이고 16채널은 20,000,
    24채널은 13,333 samples까지다.
 
-   `Trigger Now`는 `RecorderTrigger` capability가 있는 locally configured non-Manual
-   recorder를 `TriggerRecorderAsync`로 명시적으로 trigger할 때 사용한다. reconnect로
-   Adopt한 identity와 Manual configuration에는 사용할 수 없다.
+   `Trigger Now`는 locally configured non-Manual Ring recorder를
+   `TriggerRecorderAsync`로 명시적으로 trigger할 때 사용한다. pre-trigger history가
+   채워진 뒤 RT sample 경로가 요청 sequence를 적용한다. reconnect로 Adopt한 identity와
+   Manual configuration에는 사용할 수 없다. 자동 Edge/Window/Mask 조건은 EtherCAT
+   master가 OP이고 consecutive invalid cycle이 0이며, trigger 축이 Online/OP이고 AL code가
+   0일 때만 평가한다. 조건이 유효하지 않은 cycle은 이전 trigger history를 지워 잘못된
+   edge/window 전이를 만들지 않는다. `Trigger Now`는 이 입력 유효성 gate와 무관하게
+   허용되지만 pre-trigger sample이 준비된 뒤 RT에서 적용된다.
+
+   `Trigger Now`와 `Stop`의 성공 ACK는 RT 적용 완료가 아니라 각각 request sequence를
+   publish했다는 뜻이다. 다음 RT
+   `AppendSnapshot`이 Stop을 관찰하면 sample copy 전에 즉시 freeze하므로 Stop 관찰
+   cycle의 sample은 추가되지 않는다. sample이 이미 있으면 Header의 End cycle/timestamp는
+   마지막으로 복사된 sample을 가리킨다. 자연 trigger 완료, Trigger Now, Stop이 terminal
+   전환 근처에서 경합할 수 있으므로 최종 결과는 이후 `Read Status`의 `StopReason`과
+   `TriggerIndex`를 기준으로 판단한다.
 7. finite capture가 끝나거나 Stop한 뒤 Status가 Ready인지 확인하고 `Read Header` 또는
    `Download`를 실행한다. Header에는 sample/cycle/trigger/CRC metadata가 표시된다.
+   현재 PLC는 `DataCrcPolicy=None`, `DataCrcPresent=false`, chunk `DataCrc32=0`이다.
+   `DroppedSamples`와 `OverflowCount`도 현재 예약 필드라 항상 0이며, 이 값만으로 실기
+   손실 없음이 증명되지는 않는다.
 8. Start가 표시한 `DiagnosticsBootId`, `RecordId`, `BufferId`는 disconnect 후에도
    입력칸에 유지된다. 같은 PLC boot로 reconnect한 뒤 Capabilities를 갱신하고
-   `Adopt`하면 frozen Recorder를 다시 Status/Header/Download할 수 있다. PLC가
-   reboot되어 BootId가 달라졌다면 adoption은 의도적으로 거부된다.
+   nonzero RecordId를 그대로 두고 `Adopt`하면 저장한 exact identity로 frozen Recorder 또는
+   active Ring의 control을 회수한다. 앱 crash나 Start response 유실로 RecordId를 모르면
+   BootId만 확인한 뒤 RecordId와 BufferId를 모두 0으로 입력하고 `Adopt`한다. 이 경로는
+   `AdoptActiveRecorderAsync`로 현재 한 개의 single-bank Recorder를 discover하고 새 session이
+   control을 넘겨받는다. active Ring은 Status/Stop, frozen Recorder는
+   Status/Header/Download/Release를 계속한다. PLC가 reboot되어 BootId가 달라졌다면 두
+   adoption 경로 모두 의도적으로 거부된다.
+
+   zero-ID discovery는 `RecorderBufferCount=1`인 현재 internal test build에만 정의된다.
+   RecordId=0, BufferId=nonzero 조합은 거부되며 Double bank가 활성화되기 전까지 한 번에
+   하나의 current Recorder만 발견한다. exact recovery와 운영 추적을 위해 Start 성공 시
+   identity를 로그나 별도 상태 파일에 보존하는 방식도 계속 권장한다.
+
+   SDK는 이 앱에서 Configure/Start한 local identity에 대해서는
+   `TriggerIndex=PreTriggerSamples`와 TriggerComplete의
+   `SampleCount=PreTriggerSamples+1+PostTriggerSamples`를 Status/Header에서 검증한다.
+   Adopt response에는 원래 pre/post shape가 없으므로 adopted identity에는 이 exact shape를
+   추측해 적용하지 않고 frozen wire invariant만 검증한다.
 9. download된 immutable PC data는 signal별 downsample plot으로 확인하고 CSV로
    저장할 수 있다. CSV 앞부분에는 Recorder identity, map/cycle/timestamp와 채널별
    SignalId/alias/type/unit/scale metadata가, 이어서 `sample_index`,
    `relative_time_us`, channel raw value가 기록된다. PLC buffer/config는 `Release`로
    명시적으로 반환한다. Adopt한 Recorder는 `Release`가 필요할 경우 Status metadata를
    먼저 복구한 뒤 buffer와 configuration을 모두 반환한다.
-10. SDO 탭은 `Submit SDO -> Refresh Ticket` 순서로 시험한다. 4/8/12-byte Read
-    결과는 operation status에 inline으로 표시된다. 12 bytes보다 큰 Read는 PLC가
-    `ExtendedSdoResultChunk` capability를 광고하고 `MaxSdoDataBytes` 안에 있을 때
-    제출할 수 있다. terminal success 뒤 `Download Result`가 `0x7E51` chunk의
-    identity/offset/sequence/CRC를 검증해 전체 byte array를 조립하며 `Save Result`로
-    `.bin` 저장할 수 있다. PI Write와 SDO Write는 capability와 SDK allowlist가 모두
-    허용해야만 실행된다.
+10. SDO 탭의 public API/WPF flow는 `Submit SDO -> Refresh Ticket` 순서로 구성돼 있다.
+    그러나 현재 internal PLC build는 SDO Read/Write, PI Write와 extended result 실행을
+    모두 광고하지 않으며 bit 7~9/12와 `MaxSdoDataBytes`는 0이다. 따라서 현재 장비
+    시험 대상이 아니고 UI에서 비활성화돼야 한다. 향후 capability가 켜진 build에서만
+    4/8/12-byte Read 결과를 operation status에 inline으로 확인하고, 큰 결과를
+    `0x7E51` chunk로 조립한다. PI Write와 SDO Write는 capability 외에도 non-empty SDK/PLC
+    allowlist와 type/range/state/owner 검사를 모두 통과해야 한다.
 
 현재 PLC가 D0 capability(`CapabilityBits=0`)만 반환하면 위 진단 기능은 정상적으로
 비활성화된다. UI와 SDK가 존재한다는 사실이 PLC runtime 구현 완료를 뜻하지 않는다.

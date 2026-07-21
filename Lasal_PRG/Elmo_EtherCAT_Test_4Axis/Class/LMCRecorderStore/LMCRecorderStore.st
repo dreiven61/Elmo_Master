@@ -41,9 +41,22 @@ LMCRecorderStore : CLASS
 		SamplePeriodCycles 	: UINT;
 		ChannelCount 	: UINT;
 		SampleStrideBytes 	: UINT;
+		BufferMode 	: USINT;
+		TriggerType 	: USINT;
+		TriggerValueType 	: USINT;
+		TriggerOperator 	: USINT;
+		PreTriggerSamples 	: UDINT;
+		PostTriggerSamples 	: UDINT;
+		TriggerSignalId 	: UDINT;
+		TriggerSignalOffset 	: UINT;
+		TriggerValue 	: UDINT;
+		TriggerMask 	: UDINT;
 		CapturePhase 	: UINT;
 		StopReason 	: UDINT;
 		TriggerIndex 	: UDINT;
+		TriggerCycle 	: UDINT;
+		TriggerTimestampLow 	: UDINT;
+		TriggerTimestampHigh 	: UDINT;
 		StartCycle 	: UDINT;
 		EndCycle 	: UDINT;
 		StartTimestampLow 	: UDINT;
@@ -57,9 +70,16 @@ LMCRecorderStore : CLASS
 		NextRecordId 	: UDINT;
 		StartRequestSequence 	: UDINT;
 		StartAppliedSequence 	: UDINT;
+		TriggerRequestSequence 	: UDINT;
+		TriggerAppliedSequence 	: UDINT;
 		StopRequestSequence 	: UDINT;
 		StopAppliedSequence 	: UDINT;
 		StatusSequence 	: UDINT;
+		WriteSampleIndex 	: UDINT;
+		FrozenFirstSampleIndex 	: UDINT;
+		PostSamplesRemaining 	: UDINT;
+		PreviousTriggerValue 	: UDINT;
+		PreviousTriggerValid 	: BOOL;
 		BufferReleased 	: BOOL;
 		SignalIds : ARRAY [0..31] OF UDINT;
 
@@ -178,6 +198,7 @@ END_FUNCTION
 #define LMC_RECORDER_STOP_NONE 0
 #define LMC_RECORDER_STOP_COUNT_COMPLETE 1
 #define LMC_RECORDER_STOP_USER 2
+#define LMC_RECORDER_STOP_TRIGGER_COMPLETE 3
 
 // The data bank is global so the generated class object stays below the
 // 16-bit object-size field used by the LASAL class table. Exactly one
@@ -210,12 +231,27 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 	VAR
 		state : UDINT;
 		startRequest : UDINT;
+		triggerRequest : UDINT;
 		stopRequest : UDINT;
 		sequence : UDINT;
 		cycleCounter : UDINT;
 		channelIndex : UINT;
 		dataOffset : UDINT;
 		snapshotOffset : UDINT;
+		triggerRaw : UDINT;
+		triggerHealthOffset : UDINT;
+		triggerEvent : BOOL;
+		triggerInputValid : BOOL;
+		previousCondition : BOOL;
+		currentCondition : BOOL;
+		prehistoryReady : BOOL;
+		previousSigned : DINT;
+		currentSigned : DINT;
+		thresholdSigned : DINT;
+		lowerSigned : DINT;
+		upperSigned : DINT;
+		timestampStep : UDINT;
+		timestampLowBefore : UDINT;
 	END_VAR
 
 	Result := -1;
@@ -225,6 +261,7 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 
 	state := sigclib_atomic_getU32(pValue:=#StateValue);
 	startRequest := sigclib_atomic_getU32(pValue:=#StartRequestSequence);
+	triggerRequest := sigclib_atomic_getU32(pValue:=#TriggerRequestSequence);
 	stopRequest := sigclib_atomic_getU32(pValue:=#StopRequestSequence);
 
 	sequence := sigclib_atomic_getU32(pValue:=#StatusSequence) + 1;
@@ -242,14 +279,22 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 		DividerCounter := 0;
 		StopReason := LMC_RECORDER_STOP_NONE;
 		TriggerIndex := 0xFFFFFFFF;
-		StartCycle := cycleCounter;
-		EndCycle := cycleCounter;
-		StartTimestampLow := (pSnapshot + 4)^$UDINT;
-		StartTimestampHigh := (pSnapshot + 8)^$UDINT;
-		EndTimestampLow := StartTimestampLow;
-		EndTimestampHigh := StartTimestampHigh;
+		TriggerCycle := 0;
+		TriggerTimestampLow := 0;
+		TriggerTimestampHigh := 0;
+		StartCycle := 0;
+		EndCycle := 0;
+		StartTimestampLow := 0;
+		StartTimestampHigh := 0;
+		EndTimestampLow := 0;
+		EndTimestampHigh := 0;
 		DroppedCycles := 0;
 		OverflowCount := 0;
+		WriteSampleIndex := 0;
+		FrozenFirstSampleIndex := 0;
+		PostSamplesRemaining := 0;
+		PreviousTriggerValue := 0;
+		PreviousTriggerValid := FALSE;
 		state := LMC_RECORDER_RECORDING;
 		sigclib_atomic_setU32(
 			pValue:=#StateValue, value:=LMC_RECORDER_RECORDING);
@@ -258,10 +303,18 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 	if ((state = LMC_RECORDER_ARMED) | (state = LMC_RECORDER_RECORDING)) &
 		(stopRequest <> StopAppliedSequence) then
 		StopAppliedSequence := stopRequest;
+		if (TriggerType <> 0) & (TriggerIndex = 0xFFFFFFFF) &
+			(SampleCapacity > 0) then
+			FrozenFirstSampleIndex :=
+				(WriteSampleIndex + SampleCapacity - SampleCount) MOD
+				SampleCapacity;
+		end_if;
 		StopReason := LMC_RECORDER_STOP_USER;
-		EndCycle := cycleCounter;
-		EndTimestampLow := (pSnapshot + 4)^$UDINT;
-		EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+		if SampleCount = 0 then
+			EndCycle := cycleCounter;
+			EndTimestampLow := (pSnapshot + 4)^$UDINT;
+			EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+		end_if;
 		state := LMC_RECORDER_READY;
 		sigclib_atomic_setU32(
 			pValue:=#StateValue, value:=LMC_RECORDER_READY);
@@ -269,26 +322,209 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 
 	if state = LMC_RECORDER_RECORDING then
 		if DividerCounter = 0 then
-			if SampleCount < SampleCapacity then
-				for channelIndex := 0 to ChannelCount - 1 do
-					dataOffset := SampleCount * TO_UDINT(SampleStrideBytes) +
-						TO_UDINT(channelIndex) * 4;
-					snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
-					g_LMCRecorderData[TO_DINT(dataOffset)]$UDINT :=
-						(pSnapshot + snapshotOffset)^$UDINT;
-				end_for;
-				SampleCount += 1;
-				EndCycle := cycleCounter;
-				EndTimestampLow := (pSnapshot + 4)^$UDINT;
-				EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+			if TriggerType = 0 then
+				if SampleCount < SampleCapacity then
+					if SampleCount = 0 then
+						StartCycle := cycleCounter;
+						StartTimestampLow := (pSnapshot + 4)^$UDINT;
+						StartTimestampHigh := (pSnapshot + 8)^$UDINT;
+					end_if;
+					for channelIndex := 0 to ChannelCount - 1 do
+						dataOffset := WriteSampleIndex *
+							TO_UDINT(SampleStrideBytes) +
+							TO_UDINT(channelIndex) * 4;
+						snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
+						g_LMCRecorderData[TO_DINT(dataOffset)]$UDINT :=
+							(pSnapshot + snapshotOffset)^$UDINT;
+					end_for;
+					WriteSampleIndex := (WriteSampleIndex + 1) MOD SampleCapacity;
+					SampleCount += 1;
+					EndCycle := cycleCounter;
+					EndTimestampLow := (pSnapshot + 4)^$UDINT;
+					EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+				end_if;
+
+				if SampleCount >= SampleCapacity then
+					StopReason := LMC_RECORDER_STOP_COUNT_COMPLETE;
+					state := LMC_RECORDER_READY;
+					sigclib_atomic_setU32(
+						pValue:=#StateValue, value:=LMC_RECORDER_READY);
+				end_if;
+			else
+				triggerRaw := (pSnapshot + TO_UDINT(TriggerSignalOffset))^$UDINT;
+				triggerEvent := FALSE;
+				triggerHealthOffset := 64 +
+					(((TriggerSignalId shr 8) and 0xFF) - 1) * 36;
+				triggerInputValid :=
+					((pSnapshot + 12)^$UDINT = 8) &
+					((pSnapshot + 16)^$UDINT = 0) &
+					((pSnapshot + triggerHealthOffset)^$DINT <> 0) &
+					((pSnapshot + triggerHealthOffset + 4)^$UDINT = 8) &
+					((pSnapshot + triggerHealthOffset + 12)^$UDINT = 0);
+				previousCondition := FALSE;
+				currentCondition := FALSE;
+				prehistoryReady := SampleCount >= PreTriggerSamples;
+
+				if prehistoryReady then
+					if triggerRequest <> TriggerAppliedSequence then
+						TriggerAppliedSequence := triggerRequest;
+						triggerEvent := TRUE;
+					elsif triggerInputValid then
+						if TriggerType = 1 then
+							if PreviousTriggerValid then
+							if TriggerValueType = 4 then
+								previousSigned := PreviousTriggerValue$DINT;
+								currentSigned := triggerRaw$DINT;
+								thresholdSigned := TriggerValue$DINT;
+								if TriggerOperator = 1 then
+									triggerEvent := (previousSigned < thresholdSigned) &
+										(currentSigned >= thresholdSigned);
+								else
+									triggerEvent := (previousSigned > thresholdSigned) &
+										(currentSigned <= thresholdSigned);
+								end_if;
+							else
+								if TriggerOperator = 1 then
+									triggerEvent := (PreviousTriggerValue < TriggerValue) &
+										(triggerRaw >= TriggerValue);
+								else
+									triggerEvent := (PreviousTriggerValue > TriggerValue) &
+										(triggerRaw <= TriggerValue);
+								end_if;
+							end_if;
+							end_if;
+						elsif TriggerType = 2 then
+							if PreviousTriggerValid then
+							previousSigned := PreviousTriggerValue$DINT;
+							currentSigned := triggerRaw$DINT;
+							lowerSigned := TriggerValue$DINT;
+							upperSigned := TriggerMask$DINT;
+							previousCondition := (previousSigned >= lowerSigned) &
+								(previousSigned <= upperSigned);
+							currentCondition := (currentSigned >= lowerSigned) &
+								(currentSigned <= upperSigned);
+							if TriggerOperator = 3 then
+								triggerEvent := (previousCondition = FALSE) &
+									currentCondition;
+							else
+								triggerEvent := previousCondition &
+									(currentCondition = FALSE);
+							end_if;
+							end_if;
+						else
+							case TriggerOperator of
+							5:
+								triggerEvent := (triggerRaw and TriggerMask) = TriggerMask;
+							6:
+								triggerEvent := (triggerRaw and TriggerMask) <> 0;
+							7:
+								triggerEvent := (triggerRaw and TriggerMask) = 0;
+							end_case;
+						end_if;
+					end_if;
+				end_if;
+
+				if TriggerIndex = 0xFFFFFFFF then
+					if triggerEvent then
+						if SampleCount = 0 then
+							StartCycle := cycleCounter;
+							StartTimestampLow := (pSnapshot + 4)^$UDINT;
+							StartTimestampHigh := (pSnapshot + 8)^$UDINT;
+						end_if;
+						FrozenFirstSampleIndex :=
+							(WriteSampleIndex + SampleCapacity - SampleCount) MOD
+							SampleCapacity;
+						for channelIndex := 0 to ChannelCount - 1 do
+							dataOffset := WriteSampleIndex *
+								TO_UDINT(SampleStrideBytes) +
+								TO_UDINT(channelIndex) * 4;
+							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
+							g_LMCRecorderData[TO_DINT(dataOffset)]$UDINT :=
+								(pSnapshot + snapshotOffset)^$UDINT;
+						end_for;
+						WriteSampleIndex := (WriteSampleIndex + 1) MOD SampleCapacity;
+						TriggerIndex := SampleCount;
+						SampleCount += 1;
+						TriggerCycle := cycleCounter;
+						TriggerTimestampLow := (pSnapshot + 4)^$UDINT;
+						TriggerTimestampHigh := (pSnapshot + 8)^$UDINT;
+						EndCycle := cycleCounter;
+						EndTimestampLow := TriggerTimestampLow;
+						EndTimestampHigh := TriggerTimestampHigh;
+						PostSamplesRemaining := PostTriggerSamples;
+						if PostSamplesRemaining = 0 then
+							StopReason := LMC_RECORDER_STOP_TRIGGER_COMPLETE;
+							state := LMC_RECORDER_READY;
+							sigclib_atomic_setU32(
+								pValue:=#StateValue, value:=LMC_RECORDER_READY);
+						end_if;
+					elsif PreTriggerSamples > 0 then
+						if SampleCount = 0 then
+							StartCycle := cycleCounter;
+							StartTimestampLow := (pSnapshot + 4)^$UDINT;
+							StartTimestampHigh := (pSnapshot + 8)^$UDINT;
+						elsif SampleCount >= PreTriggerSamples then
+							StartCycle += TO_UDINT(SamplePeriodCycles);
+							timestampStep := TO_UDINT(SamplePeriodCycles) * 1000;
+							timestampLowBefore := StartTimestampLow;
+							StartTimestampLow += timestampStep;
+							if StartTimestampLow < timestampLowBefore then
+								StartTimestampHigh += 1;
+							end_if;
+						end_if;
+						for channelIndex := 0 to ChannelCount - 1 do
+							dataOffset := WriteSampleIndex *
+								TO_UDINT(SampleStrideBytes) +
+								TO_UDINT(channelIndex) * 4;
+							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
+							g_LMCRecorderData[TO_DINT(dataOffset)]$UDINT :=
+								(pSnapshot + snapshotOffset)^$UDINT;
+						end_for;
+						WriteSampleIndex := (WriteSampleIndex + 1) MOD SampleCapacity;
+						if SampleCount < PreTriggerSamples then
+							SampleCount += 1;
+						end_if;
+						EndCycle := cycleCounter;
+						EndTimestampLow := (pSnapshot + 4)^$UDINT;
+						EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+					end_if;
+				else
+					if SampleCount < SampleCapacity then
+						for channelIndex := 0 to ChannelCount - 1 do
+							dataOffset := WriteSampleIndex *
+								TO_UDINT(SampleStrideBytes) +
+								TO_UDINT(channelIndex) * 4;
+							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
+							g_LMCRecorderData[TO_DINT(dataOffset)]$UDINT :=
+								(pSnapshot + snapshotOffset)^$UDINT;
+						end_for;
+						WriteSampleIndex := (WriteSampleIndex + 1) MOD SampleCapacity;
+						SampleCount += 1;
+						EndCycle := cycleCounter;
+						EndTimestampLow := (pSnapshot + 4)^$UDINT;
+						EndTimestampHigh := (pSnapshot + 8)^$UDINT;
+					end_if;
+					if PostSamplesRemaining > 0 then
+						PostSamplesRemaining -= 1;
+					end_if;
+					if PostSamplesRemaining = 0 then
+						StopReason := LMC_RECORDER_STOP_TRIGGER_COMPLETE;
+						state := LMC_RECORDER_READY;
+						sigclib_atomic_setU32(
+							pValue:=#StateValue, value:=LMC_RECORDER_READY);
+					end_if;
+				end_if;
+
+				if triggerInputValid then
+					PreviousTriggerValue := triggerRaw;
+					PreviousTriggerValid := TRUE;
+				else
+					// Break edge/window history across invalid EtherCAT input.
+					PreviousTriggerValid := FALSE;
+				end_if;
 			end_if;
 
-			if SampleCount >= SampleCapacity then
-				StopReason := LMC_RECORDER_STOP_COUNT_COMPLETE;
-				state := LMC_RECORDER_READY;
-				sigclib_atomic_setU32(
-					pValue:=#StateValue, value:=LMC_RECORDER_READY);
-			else
+			if state = LMC_RECORDER_RECORDING then
 				DividerCounter := TO_UDINT(SamplePeriodCycles) - 1;
 			end_if;
 		else
@@ -346,6 +582,10 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 		triggerSignalId : UDINT;
 		triggerValue : UDINT;
 		triggerMask : UDINT;
+		expectedTriggerValueType : USINT;
+		triggerPhysicalAxis : UINT;
+		triggerSignalCode : UINT;
+		triggerSignalOffset : UINT;
 		signalId : UDINT;
 		physicalAxis : UINT;
 		signalCode : UINT;
@@ -380,7 +620,10 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 		chunkSequence : UDINT;
 		dataByteCount : UDINT;
 		dataOffset : UDINT;
+		copySampleIndex : UDINT;
+		physicalSampleIndex : UDINT;
 		responseSizeRequired : UDINT;
+		headerFlags : UINT;
 		statusStable : BOOL;
 		validatedSignalIds : ARRAY [0..23] OF UDINT;
 		validatedSignalOffsets : ARRAY [0..23] OF UINT;
@@ -458,16 +701,79 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						((pRequest + 41)^$USINT <> 0) |
 						((pRequest + 42)^$UINT <> 0) then
 						detailCode := 12;
-					elsif (bufferMode <> 0) | (triggerType <> 0) |
-						(triggerValueType <> 0) | (preTriggerSamples <> 0) |
-						(postTriggerSamples <> 0) | (triggerSignalId <> 0) |
-						(triggerOperator <> 0) | (triggerValue <> 0) |
-						(triggerMask <> 0) then
+					elsif bufferMode = 2 then
 						detailCode := 2;
+					elsif (bufferMode > 2) | (triggerType > 3) then
+						detailCode := 12;
+					elsif (triggerType = 0) &
+						((bufferMode <> 0) | (triggerValueType <> 0) |
+						 (preTriggerSamples <> 0) | (postTriggerSamples <> 0) |
+						 (triggerSignalId <> 0) | (triggerOperator <> 0) |
+						 (triggerValue <> 0) | (triggerMask <> 0)) then
+						detailCode := 12;
+					elsif (triggerType <> 0) & (bufferMode <> 1) then
+						detailCode := 12;
 					elsif sigclib_atomic_getU32(pValue:=#StateValue) >
 						LMC_RECORDER_CONFIGURED then
 						detailCode := 9;
 					else
+						triggerSignalOffset := 0;
+						if triggerType <> 0 then
+							triggerPhysicalAxis := TO_UINT(
+								(triggerSignalId shr 8) and 0xFF);
+							triggerSignalCode := TO_UINT(triggerSignalId and 0xFF);
+							expectedTriggerValueType := 8;
+							if (triggerSignalCode = 1) | (triggerSignalCode = 4) then
+								expectedTriggerValueType := 4;
+							elsif (triggerSignalCode = 3) | (triggerSignalCode = 6) then
+								expectedTriggerValueType := 7;
+							end_if;
+
+							if ((triggerSignalId and 0xFFFF0000) <> 0x00100000) |
+								(triggerPhysicalAxis < 1) | (triggerPhysicalAxis > 4) |
+								(triggerSignalCode < 1) | (triggerSignalCode > 6) then
+								detailCode := 4;
+							elsif triggerValueType <> expectedTriggerValueType then
+								detailCode := 5;
+							elsif preTriggerSamples >= requestedCapacity then
+								detailCode := 12;
+							elsif postTriggerSamples >
+								(requestedCapacity - preTriggerSamples - 1) then
+								detailCode := 12;
+							elsif triggerType = 1 then
+								if ((triggerOperator <> 1) & (triggerOperator <> 2)) |
+									(triggerMask <> 0) then
+									detailCode := 12;
+								elsif (triggerValueType = 7) &
+									((triggerValue and 0xFFFF0000) <> 0) then
+									detailCode := 12;
+								end_if;
+							elsif triggerType = 2 then
+								if ((triggerOperator <> 3) & (triggerOperator <> 4)) |
+									(triggerValueType <> 4) |
+									(triggerValue$DINT > triggerMask$DINT) then
+									detailCode := 12;
+								end_if;
+							else
+								if (triggerOperator < 5) | (triggerOperator > 7) |
+									((triggerValueType <> 7) &
+									 (triggerValueType <> 8)) | (triggerMask = 0) |
+									(triggerValue <> 0) then
+									detailCode := 12;
+								elsif (triggerValueType = 7) &
+									(((triggerValue and 0xFFFF0000) <> 0) |
+									 ((triggerMask and 0xFFFF0000) <> 0)) then
+									detailCode := 12;
+								end_if;
+							end_if;
+
+							if detailCode = 0 then
+								triggerSignalOffset := 208 +
+									(triggerPhysicalAxis - 1) * 24 +
+									(triggerSignalCode - 1) * 4;
+							end_if;
+						end_if;
+
 						// Validate into local arrays first. A malformed Configure must
 						// never corrupt the signal map used by an existing RT capture.
 						_memset(dest:=#validatedSignalIds[0], usByte:=0,
@@ -503,6 +809,13 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 								acceptedCapacity := requestedCapacity;
 							end_if;
 							if acceptedCapacity = 0 then
+								detailCode := 20;
+							elsif (triggerType <> 0) &
+								(preTriggerSamples >= acceptedCapacity) then
+								detailCode := 20;
+							elsif (triggerType <> 0) &
+								(postTriggerSamples >
+								 (acceptedCapacity - preTriggerSamples - 1)) then
 								detailCode := 20;
 							elsif (requestedConfigId = 0) & (NextConfigId = 0) then
 								detailCode := 9;
@@ -543,12 +856,30 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 								ChannelCount := requestedChannelCount;
 								SampleStrideBytes := TO_UINT(stride);
 								SampleCapacity := acceptedCapacity;
+								BufferMode := bufferMode;
+								TriggerType := triggerType;
+								TriggerValueType := triggerValueType;
+								TriggerOperator := triggerOperator;
+								PreTriggerSamples := preTriggerSamples;
+								PostTriggerSamples := postTriggerSamples;
+								TriggerSignalId := triggerSignalId;
+								TriggerSignalOffset := triggerSignalOffset;
+								TriggerValue := triggerValue;
+								TriggerMask := triggerMask;
 								SampleCount := 0;
 								CapturePhase := 1;
 								StopReason := 0;
 								TriggerIndex := 0xFFFFFFFF;
+								TriggerCycle := 0;
+								TriggerTimestampLow := 0;
+								TriggerTimestampHigh := 0;
 								RecordId := 0;
 								BufferId := 0;
+								WriteSampleIndex := 0;
+								FrozenFirstSampleIndex := 0;
+								PostSamplesRemaining := 0;
+								PreviousTriggerValue := 0;
+								PreviousTriggerValid := FALSE;
 								BufferReleased := TRUE;
 								sigclib_atomic_setU32(
 									pValue:=#StateValue,
@@ -615,6 +946,9 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						SampleCount := 0;
 						StopReason := LMC_RECORDER_STOP_NONE;
 						TriggerIndex := 0xFFFFFFFF;
+						TriggerCycle := 0;
+						TriggerTimestampLow := 0;
+						TriggerTimestampHigh := 0;
 						StartCycle := 0;
 						EndCycle := 0;
 						StartTimestampLow := 0;
@@ -623,10 +957,17 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						EndTimestampHigh := 0;
 						DroppedCycles := 0;
 						OverflowCount := 0;
+						WriteSampleIndex := 0;
+						FrozenFirstSampleIndex := 0;
+						PostSamplesRemaining := 0;
+						PreviousTriggerValue := 0;
+						PreviousTriggerValid := FALSE;
 						// Drain a late Stop published after the previous record became
 						// Ready so it cannot terminate this new record on its first cycle.
 						StopAppliedSequence := sigclib_atomic_getU32(
 							pValue:=#StopRequestSequence);
+						TriggerAppliedSequence := sigclib_atomic_getU32(
+							pValue:=#TriggerRequestSequence);
 						nextRequestSequence := sigclib_atomic_getU32(
 							pValue:=#StartRequestSequence) + 1;
 						if nextRequestSequence = 0 then
@@ -648,11 +989,44 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 				end_if;
 
 			0x7E42:
-				// D4 trigger wire is reserved but remains fail-closed.
-				if RequestSize <> 28 then
+				if (RequestSize <> 28) | (CallerSessionEpoch = 0) then
 					detailCode := 12;
 				else
-					detailCode := 2;
+					requestRecordId := (pRequest + 8)^$UDINT;
+					requestBufferId := (pRequest + 12)^$UDINT;
+					expectedMapRevision := (pRequest + 16)^$UDINT;
+					requestOwnerEpoch := (pRequest + 20)^$UDINT;
+					requestBootId := (pRequest + 24)^$UDINT;
+					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					if (requestRecordId <> RecordId) |
+						(requestBufferId <> BufferId) then
+						detailCode := 22;
+					elsif expectedMapRevision <> MapRevision then
+						detailCode := 3;
+					elsif (requestBootId <> DiagnosticsBootId) |
+						(requestBootId <> CurrentDiagnosticsBootId) then
+						detailCode := 25;
+					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
+						(CallerSessionEpoch <> OwnerSessionEpoch) then
+						detailCode := 10;
+					elsif TriggerType = 0 then
+						detailCode := 19;
+					elsif TriggerIndex <> 0xFFFFFFFF then
+						detailCode := 19;
+					elsif (state <> LMC_RECORDER_ARMED) &
+						(state <> LMC_RECORDER_RECORDING) then
+						detailCode := 19;
+					else
+						nextRequestSequence := sigclib_atomic_getU32(
+							pValue:=#TriggerRequestSequence) + 1;
+						if nextRequestSequence = 0 then
+							nextRequestSequence := 1;
+						end_if;
+						sigclib_atomic_setU32(
+							pValue:=#TriggerRequestSequence,
+							value:=nextRequestSequence);
+						ResponseSize := 16;
+					end_if;
 				end_if;
 
 			0x7E43:
@@ -806,10 +1180,14 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						(pResponse + 36)^$UDINT := MapRevision;
 						(pResponse + 40)^$USINT := TO_USINT(CapturePhase);
 						(pResponse + 41)^$USINT := TO_USINT(StopReason);
-						(pResponse + 42)^$UINT := 1;
-						if StopReason = LMC_RECORDER_STOP_USER then
-							(pResponse + 42)^$UINT := 5;
+						headerFlags := 1;
+						if TriggerIndex <> 0xFFFFFFFF then
+							headerFlags := headerFlags or 2;
 						end_if;
+						if StopReason = LMC_RECORDER_STOP_USER then
+							headerFlags := headerFlags or 4;
+						end_if;
+						(pResponse + 42)^$UINT := headerFlags;
 						(pResponse + 44)^$UDINT := SampleCount;
 						(pResponse + 48)^$UDINT := SampleCapacity;
 						(pResponse + 52)^$UINT := ChannelCount;
@@ -820,12 +1198,12 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						(pResponse + 62)^$UINT := 0;
 						(pResponse + 64)^$UDINT := TriggerIndex;
 						(pResponse + 68)^$UDINT := StartCycle;
-						(pResponse + 72)^$UDINT := 0;
+						(pResponse + 72)^$UDINT := TriggerCycle;
 						(pResponse + 76)^$UDINT := EndCycle;
 						(pResponse + 80)^$UDINT := StartTimestampLow;
 						(pResponse + 84)^$UDINT := StartTimestampHigh;
-						(pResponse + 88)^$UDINT := 0;
-						(pResponse + 92)^$UDINT := 0;
+						(pResponse + 88)^$UDINT := TriggerTimestampLow;
+						(pResponse + 92)^$UDINT := TriggerTimestampHigh;
 						(pResponse + 96)^$UDINT := EndTimestampLow;
 						(pResponse + 100)^$UDINT := EndTimestampHigh;
 						(pResponse + 104)^$UDINT := DroppedCycles;
@@ -881,7 +1259,6 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						else
 							returnedSamples := TO_UINT(maxSamples);
 							dataByteCount := maxSamples * TO_UDINT(SampleStrideBytes);
-							dataOffset := offsetSample * TO_UDINT(SampleStrideBytes);
 							sigclib_atomic_setU32(
 								pValue:=#StateValue, value:=LMC_RECORDER_UPLOADING);
 							if (offsetSample + maxSamples) = SampleCount then
@@ -898,10 +1275,18 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 							(pResponse + 42)^$UINT := TO_UINT(dataByteCount);
 							(pResponse + 44)^$UDINT := 0;
 							(pResponse + 48)^$UDINT := DiagnosticsBootId;
-							_memcpy(
-								ptr1:=pResponse + 52,
-								ptr2:=#g_LMCRecorderData[TO_DINT(dataOffset)],
-								cntr:=dataByteCount);
+							for copySampleIndex := 0 to maxSamples - 1 do
+								physicalSampleIndex :=
+									(FrozenFirstSampleIndex + offsetSample +
+									 copySampleIndex) MOD SampleCapacity;
+								dataOffset := physicalSampleIndex *
+									TO_UDINT(SampleStrideBytes);
+								_memcpy(
+									ptr1:=pResponse + 52 + copySampleIndex *
+										TO_UDINT(SampleStrideBytes),
+									ptr2:=#g_LMCRecorderData[TO_DINT(dataOffset)],
+									cntr:=TO_UDINT(SampleStrideBytes));
+							end_for;
 							ResponseSize := 52 + TO_DINT(dataByteCount);
 						end_if;
 					end_if;
@@ -936,6 +1321,13 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						SampleCount := 0;
 						StopReason := 0;
 						TriggerIndex := 0xFFFFFFFF;
+						TriggerCycle := 0;
+						TriggerTimestampLow := 0;
+						TriggerTimestampHigh := 0;
+						WriteSampleIndex := 0;
+						FrozenFirstSampleIndex := 0;
+						PostSamplesRemaining := 0;
+						PreviousTriggerValid := FALSE;
 						sigclib_atomic_setU32(
 							pValue:=#StateValue, value:=LMC_RECORDER_CONFIGURED);
 						ResponseSize := 16;
@@ -976,6 +1368,16 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						ChannelCount := 0;
 						SampleCapacity := 0;
 						SampleStrideBytes := 0;
+						BufferMode := 0;
+						TriggerType := 0;
+						TriggerValueType := 0;
+						TriggerOperator := 0;
+						PreTriggerSamples := 0;
+						PostTriggerSamples := 0;
+						TriggerSignalId := 0;
+						TriggerSignalOffset := 0;
+						TriggerValue := 0;
+						TriggerMask := 0;
 						sigclib_atomic_setU32(
 							pValue:=#StateValue, value:=LMC_RECORDER_EMPTY);
 						ResponseSize := 16;
@@ -990,20 +1392,43 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					requestBufferId := (pRequest + 12)^$UDINT;
 					requestBootId := (pRequest + 16)^$UDINT;
 					state := sigclib_atomic_getU32(pValue:=#StateValue);
-					if (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
-						detailCode := 22;
-					elsif (requestBootId <> DiagnosticsBootId) |
-						(requestBootId <> CurrentDiagnosticsBootId) then
-						detailCode := 25;
-					elsif (state < LMC_RECORDER_ARMED) |
-						(state > LMC_RECORDER_UPLOADING) then
-						detailCode := 19;
-					elsif (ClosedSessionEpoch = 0) |
-						(ClosedSessionEpoch <> OwnerSessionEpoch) then
-						detailCode := 10;
-					elsif ResponseCapacity < 36 then
-						detailCode := 20;
+					if requestRecordId = 0 then
+						// RecordId=0 and BufferId=0 discovers the one active bank.
+						// Mixed zero/nonzero identities are never discovery requests.
+						if requestBufferId <> 0 then
+							detailCode := 22;
+						elsif (requestBootId <> DiagnosticsBootId) |
+							(requestBootId <> CurrentDiagnosticsBootId) then
+							detailCode := 25;
+						elsif (RecordId = 0) | (BufferId <> 0) then
+							detailCode := 22;
+						elsif (state < LMC_RECORDER_ARMED) |
+							(state > LMC_RECORDER_UPLOADING) then
+							detailCode := 19;
+						elsif (ClosedSessionEpoch = 0) |
+							(ClosedSessionEpoch <> OwnerSessionEpoch) then
+							detailCode := 10;
+						elsif ResponseCapacity < 36 then
+							detailCode := 20;
+						end_if;
 					else
+						if (requestRecordId <> RecordId) |
+							(requestBufferId <> BufferId) then
+							detailCode := 22;
+						elsif (requestBootId <> DiagnosticsBootId) |
+							(requestBootId <> CurrentDiagnosticsBootId) then
+							detailCode := 25;
+						elsif (state < LMC_RECORDER_ARMED) |
+							(state > LMC_RECORDER_UPLOADING) then
+							detailCode := 19;
+						elsif (ClosedSessionEpoch = 0) |
+							(ClosedSessionEpoch <> OwnerSessionEpoch) then
+							detailCode := 10;
+						elsif ResponseCapacity < 36 then
+							detailCode := 20;
+						end_if;
+					end_if;
+					if detailCode = 0 then
 						OwnerSessionEpoch := CallerSessionEpoch;
 						ClosedSessionEpoch := 0;
 						(pResponse + 16)^$UDINT := DiagnosticsBootId;
@@ -1051,9 +1476,22 @@ FUNCTION LMCRecorderStore::LMCRecorderStore
 	SamplePeriodCycles := 1;
 	ChannelCount := 0;
 	SampleStrideBytes := 0;
+	BufferMode := 0;
+	TriggerType := 0;
+	TriggerValueType := 0;
+	TriggerOperator := 0;
+	PreTriggerSamples := 0;
+	PostTriggerSamples := 0;
+	TriggerSignalId := 0;
+	TriggerSignalOffset := 0;
+	TriggerValue := 0;
+	TriggerMask := 0;
 	CapturePhase := 1;
 	StopReason := LMC_RECORDER_STOP_NONE;
 	TriggerIndex := 0xFFFFFFFF;
+	TriggerCycle := 0;
+	TriggerTimestampLow := 0;
+	TriggerTimestampHigh := 0;
 	StartCycle := 0;
 	EndCycle := 0;
 	StartTimestampLow := 0;
@@ -1067,9 +1505,16 @@ FUNCTION LMCRecorderStore::LMCRecorderStore
 	NextRecordId := 1;
 	StartRequestSequence := 0;
 	StartAppliedSequence := 0;
+	TriggerRequestSequence := 0;
+	TriggerAppliedSequence := 0;
 	StopRequestSequence := 0;
 	StopAppliedSequence := 0;
 	StatusSequence := 0;
+	WriteSampleIndex := 0;
+	FrozenFirstSampleIndex := 0;
+	PostSamplesRemaining := 0;
+	PreviousTriggerValue := 0;
+	PreviousTriggerValid := FALSE;
 	BufferReleased := TRUE;
 	_memset(dest:=#SignalIds[0], usByte:=0, cntr:=sizeof(SignalIds));
 	_memset(dest:=#SignalOffsets[0], usByte:=0, cntr:=sizeof(SignalOffsets));

@@ -316,6 +316,31 @@ namespace LasalMotionControlLib
                     "RecordId must be non-zero.");
             }
 
+            return CreateAdoptRecorderRequest(
+                requestId,
+                diagnosticsBootId,
+                recordId,
+                bufferId);
+        }
+
+        internal static byte[] AdoptActiveRecorder(
+            uint requestId,
+            uint diagnosticsBootId)
+        {
+            RequireRecorderBootId(diagnosticsBootId);
+            return CreateAdoptRecorderRequest(
+                requestId,
+                diagnosticsBootId,
+                0,
+                0);
+        }
+
+        private static byte[] CreateAdoptRecorderRequest(
+            uint requestId,
+            uint diagnosticsBootId,
+            uint recordId,
+            uint bufferId)
+        {
             var buffer = CreateCommonRequest(
                 LMC_CommandId.AdoptRecorder,
                 requestId,
@@ -626,6 +651,8 @@ namespace LasalMotionControlLib
                 configuration.SamplePeriodUs,
                 configuration.Configuration.BufferMode,
                 configuration.Configuration.TriggerType,
+                configuration.Configuration.PreTriggerSamples,
+                configuration.Configuration.PostTriggerSamples,
                 true,
                 configuration.MaxChunkDataBytes,
                 configuration.SignalIds,
@@ -686,6 +713,16 @@ namespace LasalMotionControlLib
             var startCycle = LMC_Frame.ReadUInt32(payload, 52);
             var ownerSessionEpoch = LMC_Frame.ReadUInt32(payload, 68);
             var diagnosticsBootId = LMC_Frame.ReadUInt32(payload, 72);
+            var frozen = state == LMCRecorderState.Ready
+                || state == LMCRecorderState.Uploading;
+            // Status does not carry the original trigger/buffer shape for an
+            // adopted identity. Before freeze (or an observed trigger), a ring's
+            // oldest retained sample and therefore StartCycle may legitimately move.
+            var mutableStartCycle = !frozen
+                && triggerIndex == uint.MaxValue
+                && (!identity.HasConfigurationShape
+                    || identity.TriggerType != LMCRecorderTriggerType.Manual
+                    || sampleCount == 0);
 
             if (recordId != identity.RecordId
                 || bufferId != identity.BufferId
@@ -712,19 +749,36 @@ namespace LasalMotionControlLib
                     && identity.TriggerType == LMCRecorderTriggerType.Manual
                     && (triggerIndex != uint.MaxValue
                         || stopReason == LMCRecorderStopReason.TriggerComplete))
+                || (identity.HasConfigurationShape
+                    && identity.TriggerType != LMCRecorderTriggerType.Manual
+                    && ((triggerIndex == uint.MaxValue
+                            && sampleCount > identity.PreTriggerSamples)
+                        || (triggerIndex != uint.MaxValue
+                            && triggerIndex != identity.PreTriggerSamples)
+                        || (triggerIndex != uint.MaxValue
+                            && sampleCount > checked(
+                                identity.PreTriggerSamples
+                                + 1
+                                + identity.PostTriggerSamples))
+                        || stopReason
+                            == LMCRecorderStopReason.SampleCountComplete
+                        || (stopReason == LMCRecorderStopReason.TriggerComplete
+                            && sampleCount != checked(
+                                identity.PreTriggerSamples
+                                + 1
+                                + identity.PostTriggerSamples))))
                 || ownerSessionEpoch == 0
                 || (identity.OwnerSessionEpoch != 0
                     && ownerSessionEpoch != identity.OwnerSessionEpoch)
-                || (identity.AcceptedStartCycle != 0
-                    && startCycle != identity.AcceptedStartCycle)
+                || (identity.HasAcceptedStartCycleMetadata
+                    && (mutableStartCycle
+                        || startCycle != identity.AcceptedStartCycle))
                 || diagnosticsBootId != identity.DiagnosticsBootId)
             {
                 throw new InvalidDataException(
                     "ReadRecorderStatus returned invalid or mismatched Recorder metadata.");
             }
 
-            var frozen = state == LMCRecorderState.Ready
-                || state == LMCRecorderState.Uploading;
             if ((!frozen && state != LMCRecorderState.Fault
                     && stopReason != LMCRecorderStopReason.None)
                 || (frozen && stopReason == LMCRecorderStopReason.None)
@@ -832,7 +886,7 @@ namespace LasalMotionControlLib
                 || dataCrcPolicy > LMCRecorderDataCrcPolicy.Crc32IsoHdlc
                 || LMC_Frame.ReadUInt16(payload, 62) != 0
                 || (triggerIndex != uint.MaxValue && triggerIndex >= sampleCount)
-                || (identity.AcceptedStartCycle != 0
+                || (identity.HasAcceptedStartCycleMetadata
                     && startCycle != identity.AcceptedStartCycle))
             {
                 throw new InvalidDataException(
@@ -866,6 +920,29 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidDataException(
                     "A manual Recorder configuration cannot return trigger metadata.");
+            }
+
+            if (identity.HasConfigurationShape
+                && identity.TriggerType != LMCRecorderTriggerType.Manual
+                && ((triggerIndex == uint.MaxValue
+                        && sampleCount > identity.PreTriggerSamples)
+                    || (triggerIndex != uint.MaxValue
+                        && triggerIndex != identity.PreTriggerSamples)
+                    || (triggerIndex != uint.MaxValue
+                        && sampleCount > checked(
+                            identity.PreTriggerSamples
+                            + 1
+                            + identity.PostTriggerSamples))
+                    || stopReason
+                        == LMCRecorderStopReason.SampleCountComplete
+                    || (stopReason == LMCRecorderStopReason.TriggerComplete
+                        && sampleCount != checked(
+                            identity.PreTriggerSamples
+                            + 1
+                            + identity.PostTriggerSamples))))
+            {
+                throw new InvalidDataException(
+                    "ReadRecorderHeader does not match the configured trigger sample shape.");
             }
 
             if (!triggerPresent
@@ -1094,12 +1171,22 @@ namespace LasalMotionControlLib
             var bufferId = LMC_Frame.ReadUInt32(payload, 24);
             var ownerSessionEpoch = LMC_Frame.ReadUInt32(payload, 28);
             var state = (LMCRecorderState)LMC_Frame.ReadUInt16(payload, 32);
+            var discoverActive = expectedRecordId == 0
+                && expectedBufferId == 0;
+            var identityMatches = discoverActive
+                ? recordId != 0 && bufferId == 0
+                : expectedRecordId != 0
+                    && recordId == expectedRecordId
+                    && bufferId == expectedBufferId;
+            var stateIsValid = discoverActive
+                ? state >= LMCRecorderState.Armed
+                    && state <= LMCRecorderState.Uploading
+                : state >= LMCRecorderState.Armed
+                    && state <= LMCRecorderState.Fault;
             if (diagnosticsBootId != expectedDiagnosticsBootId
-                || recordId != expectedRecordId
-                || bufferId != expectedBufferId
+                || !identityMatches
                 || ownerSessionEpoch == 0
-                || state < LMCRecorderState.Armed
-                || state > LMCRecorderState.Fault
+                || !stateIsValid
                 || LMC_Frame.ReadUInt16(payload, 34) != 0)
             {
                 throw new InvalidDataException(

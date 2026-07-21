@@ -4,6 +4,12 @@ Date: 2026-07-10
 
 Latest update: 2026-07-21
 
+> 이 문서의 수치 표는 2026-07-10 backlog snapshot이다. 현재 diagnostics는
+> D4 single-bank Ring/Trigger가 활성이고 D4 Double과 D5 PLC 실행은
+> capability-off이며, PC 자동 테스트는 101/101이다. 최신 상태와 검증 경계는
+> [LMC EtherCAT PI/Bulk/Recorder Implementation Design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md)을
+> 기준으로 한다.
+
 Analysis baseline: `996686d`
 
 Current audit base: `f8f99a299f72c118c9a243d0165368d666d0cd0f`

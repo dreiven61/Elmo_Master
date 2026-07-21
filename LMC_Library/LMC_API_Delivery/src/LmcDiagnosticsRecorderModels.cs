@@ -161,6 +161,14 @@ namespace LasalMotionControlLib
                     "triggerType");
             }
 
+            if (bufferMode == LMCRecorderBufferMode.Single
+                && triggerType != LMCRecorderTriggerType.Manual)
+            {
+                throw new ArgumentException(
+                    "Triggered Recorder configurations require Ring or Double buffer mode.",
+                    "bufferMode");
+            }
+
             ValidateTrigger(
                 triggerType,
                 triggerValueType,
@@ -347,6 +355,13 @@ namespace LasalMotionControlLib
                         throw new ArgumentOutOfRangeException(
                             "triggerMask",
                             "Mask triggers require a non-zero TriggerMask.");
+                    }
+
+                    if (triggerValue != 0)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            "triggerValue",
+                            "Mask trigger operators use only TriggerMask; TriggerValue must be zero.");
                     }
 
                     if (triggerValueType != LMCSignalValueType.BitField16
@@ -594,6 +609,7 @@ namespace LasalMotionControlLib
         private int bufferState;
         private int recorderReleaseState;
         private bool hasFrozenHeaderMetadata;
+        private bool hasAcceptedStartCycleMetadata;
         private LMCRecorderDataCrcPolicy dataCrcPolicy;
         private uint frozenSampleCount;
         private ushort frozenSampleStrideBytes;
@@ -615,6 +631,8 @@ namespace LasalMotionControlLib
             uint samplePeriodUs,
             LMCRecorderBufferMode bufferMode,
             LMCRecorderTriggerType triggerType,
+            uint preTriggerSamples,
+            uint postTriggerSamples,
             bool hasConfigurationShape,
             ushort maxChunkDataBytes,
             IReadOnlyList<uint> configuredSignalIds,
@@ -632,11 +650,14 @@ namespace LasalMotionControlLib
             OwnerSessionEpoch = ownerSessionEpoch;
             InitialState = state;
             AcceptedStartCycle = acceptedStartCycle;
+            hasAcceptedStartCycleMetadata = acceptedStartCycle != 0;
             Capacity = capacity;
             CapturePhase = capturePhase;
             SamplePeriodUs = samplePeriodUs;
             BufferMode = bufferMode;
             TriggerType = triggerType;
+            PreTriggerSamples = preTriggerSamples;
+            PostTriggerSamples = postTriggerSamples;
             HasConfigurationShape = hasConfigurationShape;
             MaxChunkDataBytes = maxChunkDataBytes;
             ConnectionSessionGeneration = connectionSessionGeneration;
@@ -668,7 +689,9 @@ namespace LasalMotionControlLib
         public uint SamplePeriodUs { get; private set; }
         public LMCRecorderBufferMode BufferMode { get; private set; }
         public LMCRecorderTriggerType TriggerType { get; private set; }
-        internal bool HasConfigurationShape { get; private set; }
+        public uint PreTriggerSamples { get; private set; }
+        public uint PostTriggerSamples { get; private set; }
+        public bool HasConfigurationShape { get; private set; }
         public IReadOnlyList<uint> SignalIds { get { return signalIds; } }
         public ushort ChannelCount { get { return checked((ushort)signalIds.Count); } }
         public bool IsBufferReleased
@@ -706,6 +729,17 @@ namespace LasalMotionControlLib
                 lock (metadataSync)
                 {
                     return dataCrcPolicy;
+                }
+            }
+        }
+
+        internal bool HasAcceptedStartCycleMetadata
+        {
+            get
+            {
+                lock (metadataSync)
+                {
+                    return hasAcceptedStartCycleMetadata;
                 }
             }
         }
@@ -825,9 +859,27 @@ namespace LasalMotionControlLib
                     status.ConfigRevision,
                     status.Capacity);
                 ApplyCapturePhase(status.CapturePhase);
-                if (AcceptedStartCycle == 0)
+
+                var mutableStartCycle = !status.IsFrozen
+                    && !status.HasTrigger
+                    && (!HasConfigurationShape
+                        || TriggerType != LMCRecorderTriggerType.Manual
+                        || status.SampleCount == 0);
+                if (hasAcceptedStartCycleMetadata && mutableStartCycle)
+                {
+                    throw new InvalidOperationException(
+                        "Recorder returned to mutable start-cycle metadata after it was fixed.");
+                }
+
+                if (mutableStartCycle)
+                {
+                    return;
+                }
+
+                if (!hasAcceptedStartCycleMetadata)
                 {
                     AcceptedStartCycle = status.StartCycle;
+                    hasAcceptedStartCycleMetadata = true;
                 }
                 else if (AcceptedStartCycle != status.StartCycle)
                 {
@@ -868,9 +920,10 @@ namespace LasalMotionControlLib
                         "Recorder SamplePeriodUs changed for an existing identity.");
                 }
 
-                if (AcceptedStartCycle == 0)
+                if (!hasAcceptedStartCycleMetadata)
                 {
                     AcceptedStartCycle = header.StartCycle;
+                    hasAcceptedStartCycleMetadata = true;
                 }
                 else if (AcceptedStartCycle != header.StartCycle)
                 {

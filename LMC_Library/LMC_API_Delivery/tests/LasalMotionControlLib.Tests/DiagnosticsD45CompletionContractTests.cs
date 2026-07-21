@@ -630,6 +630,8 @@ namespace LasalMotionControlLib.Tests
                 1000,
                 LMCRecorderBufferMode.Ring,
                 LMCRecorderTriggerType.Edge,
+                4,
+                5,
                 true,
                 1280,
                 new[] { SignalId },

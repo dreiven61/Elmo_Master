@@ -1047,7 +1047,7 @@ FUNCTION TCPMotionInterface::MsgPaser
         Sendbuf[32]$UDINT := 0x957F101E;
         Sendbuf[36]$UINT := 24;
         if diagnosticsBootId <> 0 then
-          Sendbuf[28]$UDINT := 0x0000001F;
+          Sendbuf[28]$UDINT := 0x0000003F;
           Sendbuf[38]$UINT := 24;
           Sendbuf[40]$UINT := 24;
           Sendbuf[42]$UINT := 1;

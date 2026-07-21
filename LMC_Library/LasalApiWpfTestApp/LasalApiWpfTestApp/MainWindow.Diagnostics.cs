@@ -34,6 +34,7 @@ namespace LasalMotionControlApiExample
         private LMCOperationTicket diagnosticOperationTicket;
         private LMCOperationStatus diagnosticOperationStatus;
         private byte[] diagnosticOperationResult;
+        private bool updatingRecorderConfigurationOptions;
 
         private void InitializeDiagnosticsUi()
         {
@@ -45,9 +46,7 @@ namespace LasalMotionControlApiExample
 
             ComboRecorderBufferMode.ItemsSource = new[]
             {
-                LMCRecorderBufferMode.Single,
-                LMCRecorderBufferMode.Ring,
-                LMCRecorderBufferMode.Double
+                LMCRecorderBufferMode.Single
             };
             ComboRecorderBufferMode.SelectedItem =
                 LMCRecorderBufferMode.Single;
@@ -109,6 +108,7 @@ namespace LasalMotionControlApiExample
 
                     TextDiagnosticsCapabilities.Text =
                         FormatCapabilities(diagnosticCapabilities);
+                    UpdateRecorderBufferModeOptions();
                     UpdateRecorderEstimate();
                 });
         }
@@ -418,7 +418,7 @@ namespace LasalMotionControlApiExample
                     var diagnosticsBootId = ParseNonZeroUInt32Wire(
                         TextRecorderAdoptBootId.Text,
                         "Recorder DiagnosticsBootId");
-                    var recordId = ParseNonZeroUInt32Wire(
+                    var recordId = ParseUInt32Wire(
                         TextRecorderAdoptRecordId.Text,
                         "Recorder RecordId");
                     var bufferId = ParseUInt32Wire(
@@ -426,19 +426,39 @@ namespace LasalMotionControlApiExample
                         "Recorder BufferId");
 
                     recorderConfiguration = null;
-                    recorderIdentity =
-                        await RequireConnection().Diagnostics.AdoptRecorderAsync(
-                            diagnosticsBootId,
-                            recordId,
-                            bufferId,
-                            CancellationToken.None);
+                    var diagnostics = RequireConnection().Diagnostics;
+                    if (recordId == 0 && bufferId == 0)
+                    {
+                        recorderIdentity =
+                            await diagnostics.AdoptActiveRecorderAsync(
+                                diagnosticsBootId,
+                                CancellationToken.None);
+                    }
+                    else
+                    {
+                        if (recordId == 0)
+                        {
+                            throw new InvalidOperationException(
+                                "Recorder RecordId must be nonzero for exact adoption. "
+                                + "Use RecordId=0 and BufferId=0 together to discover "
+                                + "the current single-bank Recorder.");
+                        }
+
+                        recorderIdentity =
+                            await diagnostics.AdoptRecorderAsync(
+                                diagnosticsBootId,
+                                recordId,
+                                bufferId,
+                                CancellationToken.None);
+                    }
                     recorderStatus = null;
                     ClearRecorderDownload();
                     UpdateRecorderAdoptionFields(recorderIdentity);
                     TextRecorderSummary.Text = FormatRecorderIdentity(
                         recorderIdentity)
                         + Environment.NewLine
-                        + "Recorder adopted. Read Status or Header before download; Release recovers Status metadata when needed.";
+                        + "Recorder adopted. Read Status for authoritative terminal metadata, "
+                        + "or Header before download; Release recovers Status metadata when needed.";
                 });
         }
 
@@ -456,7 +476,8 @@ namespace LasalMotionControlApiExample
                         CancellationToken.None);
                     recorderStatus = null;
                     TextRecorderSummary.Text =
-                        "Stop accepted. Refresh status until State=Ready before downloading.";
+                        "Stop request sequence published. Refresh Status until State=Ready; "
+                        + "the final StopReason and TriggerIndex are authoritative.";
                 });
         }
 
@@ -485,9 +506,10 @@ namespace LasalMotionControlApiExample
                         CancellationToken.None);
                     recorderStatus = null;
                     TextRecorderSummary.Text =
-                        "Trigger accepted for RecordId="
+                        "Trigger request sequence published for RecordId="
                         + identity.RecordId
-                        + ". Refresh Status until State=Ready before downloading.";
+                        + ". Refresh Status until State=Ready; the final StopReason "
+                        + "and TriggerIndex are authoritative.";
                 });
         }
 
@@ -719,6 +741,12 @@ namespace LasalMotionControlApiExample
             object sender,
             SelectionChangedEventArgs e)
         {
+            if (updatingRecorderConfigurationOptions)
+            {
+                return;
+            }
+
+            NormalizeRecorderConfigurationSelection();
             UpdateRecorderTriggerControls();
             UpdateRecorderEstimate();
             if (ButtonConnect != null)
@@ -1189,7 +1217,8 @@ namespace LasalMotionControlApiExample
             ComboRecorderTriggerSignal.IsEnabled = recorderTriggerInputsEnabled;
             TextRecorderPreTrigger.IsEnabled = recorderTriggerInputsEnabled;
             TextRecorderPostTrigger.IsEnabled = recorderTriggerInputsEnabled;
-            TextRecorderTriggerValue.IsEnabled = recorderTriggerInputsEnabled;
+            TextRecorderTriggerValue.IsEnabled = recorderTriggerInputsEnabled
+                && selectedRecorderTriggerType != LMCRecorderTriggerType.Mask;
             TextRecorderTriggerMask.IsEnabled = recorderTriggerInputsEnabled
                 && (selectedRecorderTriggerType
                         == LMCRecorderTriggerType.Window
@@ -1319,6 +1348,7 @@ namespace LasalMotionControlApiExample
             diagnosticOperationTicket = null;
             diagnosticOperationStatus = null;
             diagnosticOperationResult = null;
+            UpdateRecorderBufferModeOptions();
 
             if (GridSignalCatalog != null)
             {
@@ -1524,6 +1554,113 @@ namespace LasalMotionControlApiExample
                 ?? entries.FirstOrDefault();
         }
 
+        private void UpdateRecorderBufferModeOptions()
+        {
+            if (ComboRecorderBufferMode == null)
+            {
+                return;
+            }
+
+            var previousMode = ComboRecorderBufferMode.SelectedItem
+                is LMCRecorderBufferMode
+                    ? (LMCRecorderBufferMode)
+                        ComboRecorderBufferMode.SelectedItem
+                    : LMCRecorderBufferMode.Single;
+            var modes = new List<LMCRecorderBufferMode>
+            {
+                LMCRecorderBufferMode.Single
+            };
+            if (SupportsCapability(LMCDiagnosticCapability.RecorderTrigger))
+            {
+                modes.Add(LMCRecorderBufferMode.Ring);
+            }
+
+            if (SupportsCapability(LMCDiagnosticCapability.RecorderDoubleBank))
+            {
+                modes.Add(LMCRecorderBufferMode.Double);
+            }
+
+            var triggerType = ComboRecorderTriggerType != null
+                && ComboRecorderTriggerType.SelectedItem
+                    is LMCRecorderTriggerType
+                        ? (LMCRecorderTriggerType)
+                            ComboRecorderTriggerType.SelectedItem
+                        : LMCRecorderTriggerType.Manual;
+            var selectedMode = modes.Contains(previousMode)
+                ? previousMode
+                : LMCRecorderBufferMode.Single;
+            if (triggerType != LMCRecorderTriggerType.Manual
+                && modes.Contains(LMCRecorderBufferMode.Ring)
+                && selectedMode == LMCRecorderBufferMode.Single)
+            {
+                selectedMode = LMCRecorderBufferMode.Ring;
+            }
+            else if (triggerType == LMCRecorderTriggerType.Manual
+                && selectedMode == LMCRecorderBufferMode.Ring)
+            {
+                selectedMode = LMCRecorderBufferMode.Single;
+            }
+
+            updatingRecorderConfigurationOptions = true;
+            try
+            {
+                ComboRecorderBufferMode.ItemsSource = modes;
+                ComboRecorderBufferMode.SelectedItem = selectedMode;
+            }
+            finally
+            {
+                updatingRecorderConfigurationOptions = false;
+            }
+        }
+
+        private void NormalizeRecorderConfigurationSelection()
+        {
+            if (ComboRecorderBufferMode == null
+                || ComboRecorderTriggerType == null)
+            {
+                return;
+            }
+
+            var bufferMode = ComboRecorderBufferMode.SelectedItem
+                is LMCRecorderBufferMode
+                    ? (LMCRecorderBufferMode)
+                        ComboRecorderBufferMode.SelectedItem
+                    : LMCRecorderBufferMode.Single;
+            var triggerType = ComboRecorderTriggerType.SelectedItem
+                is LMCRecorderTriggerType
+                    ? (LMCRecorderTriggerType)
+                        ComboRecorderTriggerType.SelectedItem
+                    : LMCRecorderTriggerType.Manual;
+            LMCRecorderBufferMode? replacement = null;
+            if (triggerType != LMCRecorderTriggerType.Manual
+                && bufferMode == LMCRecorderBufferMode.Single
+                && ComboRecorderBufferMode.Items.Contains(
+                    LMCRecorderBufferMode.Ring))
+            {
+                replacement = LMCRecorderBufferMode.Ring;
+            }
+            else if (triggerType == LMCRecorderTriggerType.Manual
+                && bufferMode == LMCRecorderBufferMode.Ring)
+            {
+                replacement = LMCRecorderBufferMode.Single;
+            }
+
+            if (!replacement.HasValue)
+            {
+                return;
+            }
+
+            updatingRecorderConfigurationOptions = true;
+            try
+            {
+                ComboRecorderBufferMode.SelectedItem = replacement.Value;
+            }
+            finally
+            {
+                updatingRecorderConfigurationOptions = false;
+            }
+        }
+
         private static bool IsRecorderTriggerValueTypeSupported(
             LMCRecorderTriggerType triggerType,
             LMCSignalValueType valueType)
@@ -1591,12 +1728,14 @@ namespace LasalMotionControlApiExample
             }
 
             var triggerValueType = triggerSignal.Entry.DataType;
-            var triggerValue = ParseRecorderTriggerRawValue(
-                TextRecorderTriggerValue.Text,
-                triggerValueType,
-                triggerType == LMCRecorderTriggerType.Window
-                    ? "Recorder window lower bound"
-                    : "Recorder trigger value");
+            var triggerValue = triggerType == LMCRecorderTriggerType.Mask
+                ? 0
+                : ParseRecorderTriggerRawValue(
+                    TextRecorderTriggerValue.Text,
+                    triggerValueType,
+                    triggerType == LMCRecorderTriggerType.Window
+                        ? "Recorder window lower bound"
+                        : "Recorder trigger value");
             uint triggerMask;
             switch (triggerType)
             {
@@ -1694,7 +1833,7 @@ namespace LasalMotionControlApiExample
                         LMCRecorderTriggerOperator.MaskAllClear
                     };
                     TextRecorderTriggerValueLabel.Text =
-                        "Trigger value raw (decimal or 0x...)";
+                        "Unused for Mask (wire value forced to 0)";
                     TextRecorderTriggerMaskLabel.Text =
                         "Bit mask raw, non-zero (decimal or 0x...)";
                     break;

@@ -399,6 +399,18 @@ namespace LasalMotionControlLib
                 diagnosticsBootId,
                 recordId,
                 bufferId,
+                false,
+                connection.SessionGeneration);
+        }
+
+        public LMCRecorderIdentity AdoptActiveRecorder(
+            uint diagnosticsBootId)
+        {
+            return AdoptRecorderCore(
+                diagnosticsBootId,
+                0,
+                0,
+                true,
                 connection.SessionGeneration);
         }
 
@@ -406,9 +418,18 @@ namespace LasalMotionControlLib
             uint diagnosticsBootId,
             uint recordId,
             uint bufferId,
+            bool discoverActive,
             long sessionGeneration)
         {
-            ValidateRecorderAdoptionArguments(diagnosticsBootId, recordId);
+            if (discoverActive)
+            {
+                ValidateRecorderActiveAdoptionArguments(diagnosticsBootId);
+            }
+            else
+            {
+                ValidateRecorderAdoptionArguments(diagnosticsBootId, recordId);
+            }
+
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = GetCapabilities();
             ValidateRecorderAdoptionCapabilities(
@@ -416,14 +437,22 @@ namespace LasalMotionControlLib
                 sessionGeneration,
                 diagnosticsBootId,
                 bufferId);
+            if (discoverActive)
+            {
+                ValidateActiveRecorderDiscoveryCapabilities(capabilities);
+            }
 
             var requestId = NextRequestId();
             var raw = connection.Exchange(
-                LMC_DiagnosticsFrame.AdoptRecorder(
-                    requestId,
-                    diagnosticsBootId,
-                    recordId,
-                    bufferId),
+                discoverActive
+                    ? LMC_DiagnosticsFrame.AdoptActiveRecorder(
+                        requestId,
+                        diagnosticsBootId)
+                    : LMC_DiagnosticsFrame.AdoptRecorder(
+                        requestId,
+                        diagnosticsBootId,
+                        recordId,
+                        bufferId),
                 sessionGeneration);
             var adoption = ParseRecorderResponse(
                 sessionGeneration,
@@ -459,6 +488,29 @@ namespace LasalMotionControlLib
                         diagnosticsBootId,
                         recordId,
                         bufferId,
+                        false,
+                        sessionGeneration);
+                },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        public async Task<LMCRecorderIdentity> AdoptActiveRecorderAsync(
+            uint diagnosticsBootId,
+            CancellationToken cancellationToken)
+        {
+            ValidateRecorderActiveAdoptionArguments(diagnosticsBootId);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return AdoptRecorderCore(
+                        diagnosticsBootId,
+                        0,
+                        0,
+                        true,
                         sessionGeneration);
                 },
                 CancellationToken.None).ConfigureAwait(false);
@@ -711,6 +763,29 @@ namespace LasalMotionControlLib
             }
         }
 
+        private static void ValidateActiveRecorderDiscoveryCapabilities(
+            LMCDiagnosticCapabilities capabilities)
+        {
+            if (capabilities.RecorderBufferCount != 1
+                || capabilities.Supports(
+                    LMCDiagnosticCapability.RecorderDoubleBank))
+            {
+                throw new NotSupportedException(
+                    "AdoptActiveRecorder is only defined for a single-bank Recorder.");
+            }
+        }
+
+        private static void ValidateRecorderActiveAdoptionArguments(
+            uint diagnosticsBootId)
+        {
+            if (diagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "diagnosticsBootId",
+                    "AdoptActiveRecorder requires a non-zero DiagnosticsBootId.");
+            }
+        }
+
         private long ValidateRecorderConfiguration(
             LMCRecorderConfigurationHandle configuration)
         {
@@ -904,6 +979,8 @@ namespace LasalMotionControlLib
                 0,
                 LMCRecorderBufferMode.Single,
                 LMCRecorderTriggerType.Manual,
+                0,
+                0,
                 false,
                 capabilities.MaxChunkDataBytes,
                 new uint[0],
