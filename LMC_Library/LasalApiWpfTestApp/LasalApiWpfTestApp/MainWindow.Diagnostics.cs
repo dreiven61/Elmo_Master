@@ -471,9 +471,53 @@ namespace LasalMotionControlApiExample
                 async () =>
                 {
                     var identity = RequireRecorderIdentity();
-                    await RequireConnection().Diagnostics.StopRecorderAsync(
-                        identity,
-                        CancellationToken.None);
+                    var diagnostics = RequireConnection().Diagnostics;
+                    recorderStatus =
+                        await diagnostics.GetRecorderStatusAsync(
+                            identity,
+                            CancellationToken.None);
+                    if (recorderStatus.State != LMCRecorderState.Armed
+                        && recorderStatus.State != LMCRecorderState.Recording)
+                    {
+                        TextRecorderSummary.Text =
+                            "Stop not sent: Recorder State="
+                            + recorderStatus.State
+                            + " is already frozen or terminal. Stop is valid only "
+                            + "in Armed or Recording."
+                            + Environment.NewLine
+                            + FormatRecorderStatus(recorderStatus);
+                        return;
+                    }
+
+                    try
+                    {
+                        await diagnostics.StopRecorderAsync(
+                            identity,
+                            CancellationToken.None);
+                    }
+                    catch (LMCDiagnosticsCommandException exception)
+                        when (exception.Response != null
+                            && exception.Response.Detail
+                                == LMCDiagnosticsDetailCode.InvalidState)
+                    {
+                        recorderStatus =
+                            await diagnostics.GetRecorderStatusAsync(
+                                identity,
+                                CancellationToken.None);
+                        if (!recorderStatus.IsFrozen)
+                        {
+                            throw;
+                        }
+
+                        TextRecorderSummary.Text =
+                            "Stop no longer required: Recorder reached State="
+                            + recorderStatus.State
+                            + " before the Stop request was accepted."
+                            + Environment.NewLine
+                            + FormatRecorderStatus(recorderStatus);
+                        return;
+                    }
+
                     recorderStatus = null;
                     TextRecorderSummary.Text =
                         "Stop request sequence published. Refresh Status until State=Ready; "
@@ -665,11 +709,16 @@ namespace LasalMotionControlApiExample
             var channels = BuildRecorderChannelItems(data.Header.SignalIds);
             await RunOperationAsync(
                 "Export Recorder CSV",
-                () => Task.Run(
-                    () => WriteRecorderCsv(
-                        dialog.FileName,
-                        data,
-                        channels)));
+                async () =>
+                {
+                    await Task.Run(
+                        () => WriteRecorderCsv(
+                            dialog.FileName,
+                            data,
+                            channels));
+                    TextRecorderSummary.Text =
+                        "CSV export complete. File=" + dialog.FileName;
+                });
         }
 
         private async void ButtonReleaseRecorder_Click(
@@ -1162,6 +1211,9 @@ namespace LasalMotionControlApiExample
             var hasRecorderIdentity = recorderIdentity != null
                 && !recorderIdentity.IsRecorderReleased;
             var downloadRunning = recorderDownloadCancellation != null;
+            var recorderCanStop = recorderStatus == null
+                || recorderStatus.State == LMCRecorderState.Armed
+                || recorderStatus.State == LMCRecorderState.Recording;
             var selectedRecorderBufferMode =
                 ComboRecorderBufferMode.SelectedItem is LMCRecorderBufferMode
                     ? (LMCRecorderBufferMode)ComboRecorderBufferMode.SelectedItem
@@ -1249,7 +1301,8 @@ namespace LasalMotionControlApiExample
             ButtonStopRecorder.IsEnabled = connected
                 && idle
                 && hasRecorderIdentity
-                && !recorderIdentity.IsBufferReleased;
+                && !recorderIdentity.IsBufferReleased
+                && recorderCanStop;
             ButtonTriggerRecorder.IsEnabled = connected
                 && idle
                 && supportsRecorderTrigger
@@ -2446,7 +2499,7 @@ namespace LasalMotionControlApiExample
         private static string FormatRecorderData(LMCRecorderData data)
         {
             var header = data.Header;
-            return "Download complete. RecordId="
+            return "Download to PC memory complete. RecordId="
                 + header.RecordId
                 + ", BufferId="
                 + header.BufferId

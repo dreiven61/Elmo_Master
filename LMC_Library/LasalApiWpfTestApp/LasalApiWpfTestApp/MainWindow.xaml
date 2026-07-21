@@ -645,7 +645,7 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Width="55" Binding="{Binding SlaveIndex}" Header="Slave" />
                                         <DataGridTextColumn Width="55" Binding="{Binding PhysicalAxis}" Header="Axis" />
-                                        <DataGridCheckBoxColumn Width="55" Binding="{Binding Online}" Header="Online" />
+                                        <DataGridCheckBoxColumn Width="55" Binding="{Binding Online, Mode=OneWay}" Header="Online" />
                                         <DataGridTextColumn Width="70" Binding="{Binding EtherCATState}" Header="EC State" />
                                         <DataGridTextColumn Width="85" Binding="{Binding ALStatusCode}" Header="AL Code" />
                                         <DataGridTextColumn Width="90" Binding="{Binding DS402StatusWord}" Header="DS402" />
@@ -873,6 +873,11 @@
                                 </WrapPanel>
 
                                 <StackPanel Grid.Row="6" Grid.ColumnSpan="3">
+                                    <TextBlock
+                                        Margin="0,0,8,5"
+                                        Foreground="#5F6B7A"
+                                        Text="Download copies a frozen PLC recording into this app's PC memory; it does not create a file. Export CSV opens a Save dialog and writes the downloaded PC data to the file you choose."
+                                        TextWrapping="Wrap" />
                                     <ProgressBar
                                         x:Name="ProgressRecorderDownload"
                                         Height="18"

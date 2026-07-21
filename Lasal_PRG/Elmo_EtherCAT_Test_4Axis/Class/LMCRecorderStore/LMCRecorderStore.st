@@ -1049,6 +1049,11 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
 						(CallerSessionEpoch <> OwnerSessionEpoch) then
 						detailCode := 10;
+					elsif (state = LMC_RECORDER_READY) |
+						(state = LMC_RECORDER_UPLOADING) then
+						// Stop is idempotent after the record has already reached a
+						// terminal/readback state. Preserve identity and ownership checks.
+						ResponseSize := 16;
 					elsif (state <> LMC_RECORDER_ARMED) &
 						(state <> LMC_RECORDER_RECORDING) then
 						detailCode := 19;
