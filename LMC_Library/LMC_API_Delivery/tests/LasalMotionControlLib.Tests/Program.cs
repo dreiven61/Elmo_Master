@@ -12,6 +12,12 @@ namespace LasalMotionControlLib.Tests
             RequestGoldenTests.Register(tests);
             ResponseParserTests.Register(tests);
             RpcIntegrationTests.Register(tests);
+            DiagnosticsContractTests.Register(tests);
+            DiagnosticsD1ContractTests.Register(tests);
+            DiagnosticsD2ContractTests.Register(tests);
+            DiagnosticsD5ContractTests.Register(tests);
+            DiagnosticsD45CompletionContractTests.Register(tests);
+            DiagnosticsRecorderContractTests.Register(tests);
 
             var failed = 0;
 

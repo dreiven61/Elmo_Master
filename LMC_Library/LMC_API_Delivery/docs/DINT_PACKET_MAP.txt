@@ -1,14 +1,25 @@
 LMC DINT packet map
-Status 2026-07-16: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-07-21: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
-LASAL extensions, 0x204A and 0x204B. These two extensions are not captured
-commands. The five previously
+motion extensions, 0x204A and 0x204B. LASAL-DINT Diagnostics v1 reserves 24
+project-local command IDs in 0x7E00..0x7E51. D0-D3 are implemented for the
+internal PLC test build; D4-D5 have public C# contracts but remain capability-off
+and return UnsupportedFeature in the PLC. Therefore 43 command IDs are
+success-capable in the PLC source (25 motion/group + 18 diagnostics D0-D3), while
+the dispatcher/wire contract handles 49 IDs including the six exact fail-closed
+D4-D5 requests. These extensions are not captured Elmo commands.
+The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. C# 46 tests, LASAL source-only/full-network static contracts and the WPF
-VS2019 Debug build pass. The current LASAL source has NOT been rebuilt in the
-LASAL IDE and has NOT been verified on a PLC.
+source. C# 100 tests, LASAL source-only/full-network static contracts and the
+development WPF VS2019 Debug/Release TreatWarningsAsErrors builds pass. The
+current D1-D3 activation and retained BootId source rebuilds and links in the
+LASAL IDE with 0 errors and 3 C78-project/C81-library-and-compiler version
+mismatch warnings. Find in Implementation passes for InputLatch, RecorderStore,
+and TCPMotionInterface.Diagnostics, with 0 new CInvalidArgException entries in
+Lasal2.log after the smoke-test baseline. It has NOT yet been verified on a PLC.
 CPU core/priority placement and packet recapture are also pending. The untracked
-_Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md.
+_Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
+../../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md.
 
 All numeric motion fields below are signed 32-bit little-endian LASAL internal DINT.
 The API writes caller-provided DINT values directly to the packet.
@@ -38,6 +49,134 @@ Nonzero group Jerk is ignored unless the robot profile is _JERK_PROFILE. Verify
 the downloaded robot MoveType/JMax before GroupStop or MoveLinear testing.
 See UNIT_CONVERSION_MANUAL_2026-07-10.md.
 Header: CommandId UINT[0], Reserved UINT[2], PayloadLength UINT[4], Reference UINT[6]
+
+0x7E00 GetDiagnosticsCapabilities, request payload 8 bytes
+[8]  SchemaVersion UINT16 = 1
+[10] RequestFlags UINT16 = 0
+[12] RequestId UDINT, nonzero
+Header Reference [6] must be 0.
+
+Success response outer payload is exactly 68 bytes (76 bytes including header):
+[8]  SchemaVersion UINT16 = 1
+[10] ResponseFlags UINT16 = 0
+[12] CommandStatus UINT16 = 0
+[14] ErrorId INT16 = 0
+[16] Echoed RequestId UDINT
+[20] DetailCode UDINT = 0
+[24] DiagnosticsBuild UDINT = 1
+[28] CapabilityBits UDINT
+     0x00000007 when D1 is available
+     0x0000001F when D1-D3 and retained BootId are available
+[32] MapRevision UDINT = 0x957F101E when D1 is available
+[36] CatalogEntryCount UINT16 = 24 when D1 is available
+[38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
+[40] MaxRecorderChannels UINT16 = 24 when D3 is available, otherwise 0
+[42] RecorderBufferCount UINT16 = 1 when D3 is available, otherwise 0
+[44] MaxRecorderSamples UDINT = 320000 when D3 is available, otherwise 0
+     This is the absolute one-channel limit. ConfigureRecorder returns
+     AcceptedCapacity=min(requested,floor(1280000/(channelCount*4)));
+     current limits are 20000 samples at 16 channels and 13333 at 24 channels.
+[48] BaseCycleTimeUs UDINT = 1000
+[52] MaxRequestPayloadBytes UINT16 = 1320
+[54] MaxResponsePayloadBytes UINT16 = 2040
+[56] MaxChunkDataBytes UINT16 = 1280
+[58] CatalogEntryStride UINT16 = 80
+[60] SignalValueEntryStride UINT16 = 16
+[62] Reserved UINT16 = 0
+[64] RecorderBytesPerBank UDINT = 1280000 when D3 is available, otherwise 0
+[68] MaxSdoDataBytes UINT16 = 0
+[70] Reserved UINT16 = 0
+[72] DiagnosticsBootId UDINT = retained nonzero generation for D2/D3;
+     0 only when the retained generation is unavailable/faulted
+
+Malformed diagnostics requests keep the same 68-byte response shape and set
+CommandStatus=1, ErrorId=-32000, and DetailCode to 1 UnsupportedSchema,
+2 UnsupportedFeature, or 12 BoundsInvalid. DiagnosticsBootId=0 is legal only
+while all stateful Bulk, Recorder, PI Write, and SDO capability bits are zero.
+A nonzero retained boot generation is required before D2/D3 can be advertised.
+RequestId zero is reserved and returns BoundsInvalid. If a malformed request
+declares at least the complete 8-byte common envelope, the response still
+echoes the received RequestId; a shorter request cannot provide an ID to echo.
+
+Diagnostics common request payload (all commands, outer header excluded):
+P0 SchemaVersion UINT16 = 1
+P2 RequestFlags UINT16 = 0
+P4 RequestId UDINT, nonzero
+
+Diagnostics common response payload:
+P0  SchemaVersion UINT16 = 1
+P2  ResponseFlags UINT16
+P4  CommandStatus UINT16, 0 success / 1 domain error
+P6  ErrorId INT16, domain error is -32000
+P8  Echoed RequestId UDINT
+P12 DetailCode UDINT
+
+D1 active read-only commands:
+- 0x7E01 GetSignalCatalogInfo: request 8, response 36 bytes
+- 0x7E02 GetSignalCatalogChunk: request 16, response 28 + 80*N bytes
+  P8 ExpectedMapRevision U32, P12 StartIndex U16, P14 MaxEntries U16
+- 0x7E10 ReadEtherCATHealth: request 8, response 72 + 32*4 = 200 bytes
+- 0x7E20 ReadPI: request 20, response 52 bytes
+  P8 ExpectedMapRevision U32, P12 SignalId U32, P16 ExpectedType U8,
+  P17..19 reserved zero
+
+D2 active Bulk commands:
+- 0x7E30 ConfigureBulk: request 20 + 4*N, response 36 bytes
+  P8 ExpectedMapRevision U32, P12 RequestedBulkId U32,
+  P16 SignalCount U16, P18 reserved, P20 SignalId[N]
+- 0x7E31 ReadBulkStatus: request 20, response 36 bytes
+- 0x7E32 ReadBulkSnapshot: request 20, response 56 + 16*N bytes
+- 0x7E33 ReleaseBulk: request 20, response common 16 bytes
+  Identity request P8 BulkId, P12 ConfigRevision, P16 MapRevision.
+
+D3 active Recorder v1 commands:
+- 0x7E40 ConfigureRecorder: request 56 + 4*N, response 56 bytes
+- 0x7E41 StartRecorder: request 28, response 40 bytes
+- 0x7E43 StopRecorder: request 28, response common 16 bytes
+- 0x7E44 ReadRecorderStatus: request 28, response 76 bytes
+- 0x7E45 ReadRecorderHeader: request 28, response 112 + 4*N bytes
+- 0x7E46 ReadRecorderChunk: request 32, response 52 + data bytes
+- 0x7E47 ReleaseRecorderBuffer: request 28, response common 16 bytes
+- 0x7E48 ReleaseRecorder: request 28, response common 16 bytes
+- 0x7E49 AdoptRecorder: request 20, response 36 bytes
+Recorder identity request P8 RecordId, P12 BufferId, P16 MapRevision,
+P20 OwnerSessionEpoch, P24 DiagnosticsBootId. D3 accepts only single bank,
+manual/no-trigger, finite length, and a maximum of 24 channels in this test build.
+
+D4 reserved TriggerRecorder 0x7E42:
+Request payload is exactly 28 bytes and uses the Recorder identity layout above.
+Future success response is common-only 16 bytes. Current PLC capability bit 5 is
+zero and the exact request returns common error DetailCode=2 UnsupportedFeature.
+
+D5 reserved PI Write 0x7E21:
+Request payload is exactly 28 bytes:
+P8  MapRevision U32
+P12 SignalId U32
+P16 ValueType U8
+P17..19 reserved zero
+P20 RawValue32 U32
+P24 DiagnosticsBootId U32
+Future success response is the 32-byte operation-ticket payload. Current PLC
+capability bit 7 is zero and the exact request returns UnsupportedFeature.
+
+D5 SubmitSDO 0x7E50 request header is 32 bytes plus write data:
+P8 MapRevision U32, P12 SlaveReference U16, P14 OperationFlags U16,
+P16 ObjectIndex U16, P18 SubIndex U8, P19 ValueType U8,
+P20 TimeoutCycles U32, P24 DataLength U16, P26 reserved,
+P28 DiagnosticsBootId U32, P32 WriteData[]. Current PLC bits 8-9 are zero.
+
+D5 ReadSDOResultChunk 0x7E51 request is exactly 28 bytes:
+P8 TicketId U32, P12 ByteOffset U32, P16 RequestedBytes U16,
+P18 reserved, P20 Sequence U32, P24 DiagnosticsBootId U32.
+Future success response is 48 + data bytes:
+P16 TicketId, P20 ByteOffset, P24 ReturnedBytes U16, P26 reserved,
+P28 Sequence, P32 TotalResultLength, P36 DataCRC32, P40 DiagnosticsBootId,
+P44 ValueType U8, P45..47 reserved, P48 Data[]. Current capability bit 12 is
+zero and the exact request returns UnsupportedFeature.
+
+Full Catalog, Health, Bulk, Recorder and operation response field definitions
+are canonical in docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md
+and are enforced by C# golden/parser tests plus Verify-LasalContract.ps1.
 
 Target lookup/dispatch:
 - 0x103C/0x1042 carry the caller-provided ASCII object name.

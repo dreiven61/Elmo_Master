@@ -249,6 +249,9 @@
 		<File Path=".\Class\MoveSplineTable\MoveSplineTable.st"/>
 		<File Path=".\Class\Merker\Merker.st"/>
 		<File Path=".\Class\SafetyRoutingTables\SafetyRoutingTables.st"/>
+		<File Path=".\Class\LMCEcatInputLatch\LMCEcatInputLatch.st"/>
+		<File Path=".\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"/>
+		<File Path=".\Class\LMCRecorderStore\LMCRecorderStore.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>

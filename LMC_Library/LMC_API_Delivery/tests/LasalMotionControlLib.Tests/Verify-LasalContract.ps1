@@ -28,6 +28,10 @@ $motionNetworkTablePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Ne
 $tcpServerRtPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TCPIPServer_RT\_TCPIPServer_RT.st'
 $classDbPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
 $protocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\LmcProtocol.cs'
+$diagnosticsProtocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\LmcDiagnosticsProtocol.cs'
+$diagnosticsLatchPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'
+$diagnosticsServicePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+$recorderStorePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCRecorderStore\LMCRecorderStore.st'
 
 $st = Get-Content -Raw -LiteralPath $stPath
 $commNetwork = Get-Content -Raw -LiteralPath $commNetworkPath
@@ -38,18 +42,61 @@ $tcpServerRt = Get-Content -Raw -LiteralPath $tcpServerRtPath
 $classDbText = [Text.Encoding]::ASCII.GetString(
     [IO.File]::ReadAllBytes($classDbPath))
 $protocol = Get-Content -Raw -LiteralPath $protocolPath
+$diagnosticsProtocol = Get-Content -Raw -LiteralPath $diagnosticsProtocolPath
+$diagnosticsLatch = Get-Content -Raw -LiteralPath $diagnosticsLatchPath
+$diagnosticsService = Get-Content -Raw -LiteralPath $diagnosticsServicePath
+$recorderStore = Get-Content -Raw -LiteralPath $recorderStorePath
 
 [xml]$commNetworkXml = $commNetwork
 [xml]$motionNetworkXml = $motionNetwork
 
-Assert-Match $st '20\$UINT,\s*11\$UINT,\s*0\$UINT' 'TCPMotionInterface generated client count is not 11.'
+$commRecorderStoreObjects = @(
+    $commNetworkXml.SelectNodes("//Object[@Name='LMCRecorderStore1']"))
+$motionRecorderStoreObjects = @(
+    $motionNetworkXml.SelectNodes("//Object[@Name='LMCRecorderStore1']"))
+if ($commRecorderStoreObjects.Count -ne 0 -or
+    $motionRecorderStoreObjects.Count -ne 1 -or
+    $motionRecorderStoreObjects[0].Class -ne 'LMCRecorderStore') {
+    throw ('LMCRecorderStore1 must exist exactly once as LMCRecorderStore in ' +
+        "Motion_Network: motion=$($motionRecorderStoreObjects.Count), " +
+        "comm=$($commRecorderStoreObjects.Count).")
+}
+
+$recorderStoreConnections = @(
+    $commNetworkXml.SelectNodes("//Connection[@Destination='LMCRecorderStore1.ClassSvr']")
+    $motionNetworkXml.SelectNodes("//Connection[@Destination='LMCRecorderStore1.ClassSvr']"))
+if ($recorderStoreConnections.Count -ne 2) {
+    throw "LMCRecorderStore1 client connection count is $($recorderStoreConnections.Count), expected exactly two."
+}
+$recorderConnectionSources = @(
+    $recorderStoreConnections | ForEach-Object { $_.Source })
+foreach ($expectedRecorderSource in @(
+    'LMCEcatInputLatch1.RecorderStore',
+    'LMCDiagnosticsService1.RecorderStore')) {
+    if (@($recorderConnectionSources | Where-Object {
+                $_ -eq $expectedRecorderSource }).Count -ne 1) {
+        throw "Missing or duplicate $expectedRecorderSource -> LMCRecorderStore1.ClassSvr connection."
+    }
+}
+if (@($motionNetworkXml.SelectNodes(
+            "//Connection[@Source='LMCEcatInputLatch1.RecorderStore' and " +
+            "@Destination='LMCRecorderStore1.ClassSvr']")).Count -ne 1 -or
+    @($commNetworkXml.SelectNodes(
+            "//Connection[@Source='LMCDiagnosticsService1.RecorderStore' and " +
+            "@Destination='LMCRecorderStore1.ClassSvr']")).Count -ne 1) {
+    throw 'RecorderStore client connections are not in their required Motion/Comm networks.'
+}
+
+Assert-Match $st '20\$UINT,\s*12\$UINT,\s*0\$UINT' 'TCPMotionInterface generated client count is not 12.'
 
 $clientEntries = [regex]::Matches(
     $st,
-    '\(::TCPMotionInterface\.(LMCAxis[1-9]|LMCRobot|_StdLib)\.pCh\)\$UINT').Count
-if ($clientEntries -ne 11) {
-    throw "TCPMotionInterface generated client entry count is $clientEntries, expected 11."
+    '\(::TCPMotionInterface\.(LMCAxis[1-9]|LMCRobot|_StdLib|Diagnostics)\.pCh\)\$UINT').Count
+if ($clientEntries -ne 12) {
+    throw "TCPMotionInterface generated client entry count is $clientEntries, expected 12."
 }
+
+Assert-Match $st '\(::TCPMotionInterface\.Diagnostics\.pCh\)\$UINT.*"Diagnostics".*"LMCDiagnosticsService"' 'TCPMotionInterface Diagnostics client metadata is missing.'
 
 foreach ($axisNumber in 1..9) {
     $clientName = "LMCAxis$axisNumber"
@@ -80,6 +127,47 @@ if (-not $SourceOnly) {
         throw '_TCPIPServer1.MaxConnections must be explicitly set to 1.'
     }
     Assert-Match $commNetwork 'TCPMotionInterface1\._TCPIPServer.*_TCPIPServer1\.Control' 'TCPMotionInterface1 is not connected to the ordinary TCP server in Comm_Network.'
+    $diagnosticsServiceObject = $commNetworkXml.SelectSingleNode("//Object[@Name='LMCDiagnosticsService1']")
+    $diagnosticsLatchObject = $motionNetworkXml.SelectSingleNode("/Network/Components/Object[@Name='LMCEcatInputLatch1']")
+    if ($null -eq $diagnosticsServiceObject -or $diagnosticsServiceObject.Class -ne 'LMCDiagnosticsService') {
+        throw 'LMCDiagnosticsService1 network object is missing from Comm_Network.'
+    }
+    Assert-Match $classDbText 'DiagnosticsBootCounter' 'Classes.lcb metadata is missing DiagnosticsBootCounter. Reload and save LMCDiagnosticsService through LASAL IDE.'
+    Assert-Match $classDbText 'GetDiagnosticsBootId' 'Classes.lcb metadata is missing GetDiagnosticsBootId. Reload and save LMCDiagnosticsService through LASAL IDE.'
+    $diagnosticsBootCounterServer = $diagnosticsServiceObject.SelectSingleNode(
+        "./Channels/Server[@Name='DiagnosticsBootCounter']")
+    if ($null -eq $diagnosticsBootCounterServer -or
+        $diagnosticsBootCounterServer.Value -ne '0') {
+        throw 'LMCDiagnosticsService1.DiagnosticsBootCounter network initialization is missing.'
+    }
+    Assert-Match $commNetworkTable '"DiagnosticsBootCounter",\s*TO_UDINT\(0\),//\|Comm_Network\.LMCDiagnosticsService1\.DiagnosticsBootCounter;' 'LMCDiagnosticsService1 generated DiagnosticsBootCounter initialization is stale in Comm_Network.'
+    if ($null -eq $diagnosticsLatchObject -or $diagnosticsLatchObject.Class -ne 'LMCEcatInputLatch') {
+        throw 'LMCEcatInputLatch1 network object is missing from Motion_Network.'
+    }
+    if ($diagnosticsLatchObject.HasAttribute('RealTime') -or
+        $diagnosticsLatchObject.HasAttribute('CyclicTime') -or
+        $diagnosticsLatchObject.HasAttribute('BackgroundTime')) {
+        throw 'LMCEcatInputLatch1 must not own an independent scheduled task.'
+    }
+    $diagnosticsLatchTriggerConnections = @(
+        $motionNetworkXml.SelectNodes(
+            "//Connection[@Source='_LMCAxis1.LMCPreRtWorkTrigger' and " +
+            "@Destination='LMCEcatInputLatch1.ClassSvr']"))
+    if ($diagnosticsLatchTriggerConnections.Count -ne 1) {
+        throw ('LMCEcatInputLatch1 must have exactly one ' +
+            '_LMCAxis1.LMCPreRtWorkTrigger connection for same-cycle ordering.')
+    }
+    $diagnosticsNetworkText = $commNetwork + "`n" + $motionNetwork
+    foreach ($link in @(
+        'TCPMotionInterface1.Diagnostics.*LMCDiagnosticsService1.ClassSvr',
+        'LMCDiagnosticsService1.InputLatch.*LMCEcatInputLatch1.ClassSvr',
+        'LMCEcatInputLatch1.EcatMaster.*EtherCAT_PLC1.ClassState',
+        'LMCEcatInputLatch1.Drive1.*Elmo_11.ClassState',
+        'LMCEcatInputLatch1.Drive2.*Elmo_21.ClassState',
+        'LMCEcatInputLatch1.Drive3.*Elmo_31.ClassState',
+        'LMCEcatInputLatch1.Drive4.*Elmo_41.ClassState')) {
+        Assert-Match $diagnosticsNetworkText $link "Missing diagnostics network link matching $link."
+    }
     Assert-Match $commNetworkTable '"MaxConnections",\s*TO_UDINT\(1\),//\|Comm_Network\._TCPIPServer1\.MaxConnections;' '_TCPIPServer1 generated MaxConnections value is stale in Comm_Network.'
     foreach ($axisNumber in 1..9) {
         $axisObject = $motionNetworkXml.SelectSingleNode(
@@ -205,6 +293,134 @@ foreach ($commandId in @('2023', '2024', '2022', '2028', '202E', '209F', '20A0',
         throw "Active command 0x$commandId is blocked before its CyWork handler."
     }
 }
+
+$diagnosticsCapabilitiesCaseBlock = [regex]::Match(
+    $msgParserBlock,
+    '(?s)0x7E00:.*?0x103C:').Value
+if ([string]::IsNullOrWhiteSpace($diagnosticsCapabilitiesCaseBlock)) {
+    throw '0x7E00 diagnostics capability case was not found.'
+}
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)if Payload >= 8 then.*?RequestBuf\[8\]\$UINT.*?RequestBuf\[10\]\$UINT.*?RequestBuf\[12\]\$UDINT' '0x7E00 common request fields are not decoded for exact and overlength envelopes at the specified offsets.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)\(Payload <> 8\) \| \(AxisRef <> 0\).*?diagnosticsSchemaVersion <> 1.*?diagnosticsRequestFlags <> 0' '0x7E00 payload/reference/schema/flags validation is missing.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)elsif diagnosticsRequestId = 0 then.*?Sendbuf\[20\]\$UDINT\s*:=\s*12' '0x7E00 does not reject the reserved RequestId zero value with BoundsInvalid.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[2\]\$UINT\s*:=\s*68' '0x7E00 response payload length is not 68 bytes.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[24\]\$UDINT\s*:=\s*1' '0x7E00 DiagnosticsBuild is not 1.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[28\]\$UDINT\s*:=\s*0' '0x7E00 disconnected CapabilityBits default is not fail-closed.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[32\]\$UDINT\s*:=\s*0' '0x7E00 disconnected MapRevision default is not fail-closed.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[36\]\$UINT\s*:=\s*0' '0x7E00 disconnected CatalogEntryCount default is not fail-closed.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)diagnosticsBootId := 0;.*?IsClientConnected\(#Diagnostics\).*?diagnosticsBootId := Diagnostics\.GetDiagnosticsBootId\(\)' '0x7E00 does not obtain the runtime retained DiagnosticsBootId.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)if IsClientConnected\(#Diagnostics\) then\s*Sendbuf\[28\]\$UDINT\s*:=\s*0x00000007;\s*Sendbuf\[32\]\$UDINT\s*:=\s*0x957F101E;\s*Sendbuf\[36\]\$UINT\s*:=\s*24' '0x7E00 does not advertise active D1 Health/Catalog/PI with the canonical map.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)if diagnosticsBootId <> 0 then\s*Sendbuf\[28\]\$UDINT\s*:=\s*0x0000001F;\s*Sendbuf\[38\]\$UINT\s*:=\s*24;\s*Sendbuf\[40\]\$UINT\s*:=\s*24;\s*Sendbuf\[42\]\$UINT\s*:=\s*1;\s*Sendbuf\[44\]\$UDINT\s*:=\s*320000;\s*Sendbuf\[64\]\$UDINT\s*:=\s*1280000' '0x7E00 does not advertise the bounded D2 Bulk and D3 single-bank Recorder envelope only for a stable BootId.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[52\]\$UINT\s*:=\s*1320' '0x7E00 MaxRequestPayloadBytes is not 1320.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[54\]\$UINT\s*:=\s*2040' '0x7E00 MaxResponsePayloadBytes is not 2040.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[56\]\$UINT\s*:=\s*1280' '0x7E00 MaxChunkDataBytes is not 1280.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[58\]\$UINT\s*:=\s*80' '0x7E00 CatalogEntryStride is not 80.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[60\]\$UINT\s*:=\s*16' '0x7E00 SignalValueEntryStride is not 16.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[68\]\$UINT\s*:=\s*0' '0x7E00 MaxSdoDataBytes must remain zero while D5 is disabled.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock 'Sendbuf\[72\]\$UDINT\s*:=\s*diagnosticsBootId' '0x7E00 does not return the runtime DiagnosticsBootId.'
+Assert-Match $diagnosticsCapabilitiesCaseBlock '(?s)SendData\(.*?udSize:=76' '0x7E00 does not send the complete 76-byte frame.'
+
+$diagnosticsDispatchBlock = [regex]::Match(
+    $msgParserBlock,
+    '(?s)0x7E01,\s*0x7E02.*?0x7E50,\s*0x7E51:.*?0x8080:').Value
+if ([string]::IsNullOrWhiteSpace($diagnosticsDispatchBlock)) {
+    throw 'The reserved diagnostics command family is not delegated to LMCDiagnosticsService.'
+}
+Assert-Match $diagnosticsDispatchBlock '(?s)IsClientConnected\(#Diagnostics\).*?Diagnostics\.HandleRequest\(.*?ResponseCapacity:=2040.*?diagnosticsResponseSize <= 2040.*?SendData' 'Diagnostics service delegation or response bound is incomplete.'
+
+Assert-Match $diagnosticsLatch 'RealtimeTask\s*=\s*"true"' 'LMCEcatInputLatch is not declared as an RT class.'
+Assert-Match $diagnosticsLatch 'SnapshotBytes\s*:\s*ARRAY \[0\.\.511\] OF USINT' 'LMCEcatInputLatch fixed snapshot storage is not 512 bytes.'
+Assert-Match $diagnosticsLatch '(?s)FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork.*?OS_READMICROSEC\(\).*?Drive1\.ActPos\.Read\(\).*?Drive4\.StateWord\.Read\(\).*?state := READY' 'LMCEcatInputLatch does not latch all four PDO images and timestamp in RtWork.'
+Assert-Match $diagnosticsLatch 'sigclib_atomic_setU32\(pValue:=#PublishSequence' 'LMCEcatInputLatch publish sequence is not stored atomically.'
+Assert-Match $diagnosticsLatch 'sigclib_atomic_getU32\(pValue:=#PublishSequence' 'LMCEcatInputLatch publish sequence is not loaded atomically.'
+Assert-Match $diagnosticsLatch '(?s)FUNCTION GLOBAL LMCEcatInputLatch::CopySnapshot.*?DestSize < 304.*?retryCount < 3.*?_memcpy.*?sequenceBefore = sequenceAfter' 'LMCEcatInputLatch bounded seqlock copy is incomplete.'
+Assert-Match $diagnosticsLatch '(?s)FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork.*?sigclib_atomic_setU32\(pValue:=#PublishSequence,\s*value:=finalSequence\).*?IsClientConnected\(#RecorderStore\).*?RecorderStore\.AppendSnapshot\(\s*pSnapshot:=#SnapshotBytes\[0\],\s*SnapshotSize:=304\).*?state := READY' 'LMCEcatInputLatch does not append the final immutable 304-byte RT snapshot to RecorderStore.'
+
+Assert-Match $diagnosticsService '#define LMC_DIAG_D1_ENABLED\s+TRUE' 'D1 Health/Catalog/PI Read is not enabled.'
+Assert-Match $diagnosticsService '#define LMC_DIAG_D2_ENABLED\s+TRUE' 'D2 Bulk Snapshot is not enabled.'
+Assert-Match $diagnosticsService '#define LMC_DIAG_D3_ENABLED\s+TRUE' 'D3 single-bank Recorder is not enabled.'
+Assert-Match $diagnosticsService '#define LMC_DIAG_MAP_REVISION\s+0x957F101E' 'LMCDiagnosticsService MapRevision is not the canonical D1 catalog CRC.'
+Assert-Match $diagnosticsService 'Server Name="DiagnosticsBootCounter".*Initialize="true".*DefValue="0".*Retentive="File"' 'LMCDiagnosticsService retained DiagnosticsBootCounter metadata is missing.'
+Assert-Match $diagnosticsService '(?s)FUNCTION GLOBAL LMCDiagnosticsService::GetDiagnosticsBootId.*?DiagnosticsBootCounter\.Read\(\).*?nextBootId = 0xFFFFFFFF.*?DiagnosticsBootCounter\.Write\(input:=nextBootId\).*?DiagnosticsBootCounter\.Read\(\) = nextBootId.*?BootIdFault := TRUE.*?END_FUNCTION' 'LMCDiagnosticsService retained BootId generation or write verification is incomplete.'
+Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::BuildCatalogEntry.*?CatalogIndex >= 24.*?pEntry \+ 76.*?:= 0' 'LMCDiagnosticsService fixed 80-byte catalog entry builder is incomplete.'
+Assert-Match $diagnosticsService '(?s)FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest.*?0x7E01:.*?0x7E02:.*?0x7E10:.*?0x7E20:' 'LMCDiagnosticsService D1 command handlers are missing.'
+Assert-Match $diagnosticsService '(?s)InputLatch\.CopySnapshot\(.*?DestSize:=sizeof\(snapshot\).*?ResponseSize := 200' 'EtherCAT Health does not use the immutable latch snapshot.'
+Assert-Match $diagnosticsService '(?s)entryStatus := 0.*?entryStatus := entryStatus or 4.*?entryStatus := entryStatus or 2.*?entryStatus := 1' 'PI Read entry validity/staleness status construction is incomplete.'
+
+$diagnosticsServiceHandleBlock = [regex]::Match(
+    $diagnosticsService,
+    '(?s)FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($diagnosticsServiceHandleBlock)) {
+    throw 'LMCDiagnosticsService.HandleRequest implementation was not found.'
+}
+Assert-Match $diagnosticsServiceHandleBlock '(?s)currentBootId := GetDiagnosticsBootId\(\).*?\(CommandId >= 0x7E30\).*?\(CommandId <= 0x7E33\).*?\(CommandId >= 0x7E40\).*?\(CommandId <= 0x7E49\).*?currentBootId = 0.*?detailCode := 11' 'LMCDiagnosticsService does not fail closed for raw stateful D2/D3 calls when BootId is unavailable.'
+Assert-Match $diagnosticsServiceHandleBlock '(?s)if \(CommandId >= 0x7E40\)\s*&\s*\(CommandId <= 0x7E49\).*?IsClientConnected\(#RecorderStore\) = FALSE.*?\(pResponse \+ 4\)\^\$UINT := 1.*?\(pResponse \+ 12\)\^\$UDINT := 11.*?ResponseSize := 16.*?RETURN' 'LMCDiagnosticsService RecorderStore disconnected path is not fail-closed.'
+Assert-Match $diagnosticsServiceHandleBlock '(?s)RecorderStore\.HandleRequest\(.*?CommandId:=CommandId.*?CallerSessionEpoch:=CallerSessionEpoch.*?CurrentDiagnosticsBootId:=currentBootId.*?ResponseCapacity:=ResponseCapacity\)' 'LMCDiagnosticsService does not delegate D3 requests with the retained runtime BootId.'
+Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E21:\s*.*?if RequestSize <> 28 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if' 'SubmitPIWrite 0x7E21 must validate its 28-byte reserved wire and remain UnsupportedFeature.'
+Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E51:\s*.*?if RequestSize <> 28 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if' 'ReadSDOResultChunk 0x7E51 must validate its 28-byte reserved wire and remain UnsupportedFeature.'
+Assert-Match $diagnosticsServiceHandleBlock '(?s)if detailCode <> 0 then.*?\(pResponse \+ 4\)\^\$UINT := 1.*?ResponseSize := 16' 'LMCDiagnosticsService reserved and error commands do not return the common 16-byte error envelope.'
+
+$diagnosticsServiceNotifyBlock = [regex]::Match(
+    $diagnosticsService,
+    '(?s)FUNCTION GLOBAL LMCDiagnosticsService::NotifySessionClosed.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($diagnosticsServiceNotifyBlock)) {
+    throw 'LMCDiagnosticsService.NotifySessionClosed implementation was not found.'
+}
+Assert-Match $diagnosticsServiceNotifyBlock '(?s)SessionEpoch = BulkOwnerSessionEpoch.*?BulkState := 0.*?RecorderStore\.NotifySessionClosed\(SessionEpoch:=SessionEpoch\)' 'LMCDiagnosticsService does not release the matching Bulk owner and notify RecorderStore on session close.'
+Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::@STD.*?ret_code\s*:=\s*LMCDiagnosticsService\(\).*?END_FUNCTION' 'LMCDiagnosticsService @STD does not invoke its constructor.'
+Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::LMCDiagnosticsService.*?NextBulkId := 0.*?BulkState := 0.*?_memset\(dest:=#BulkSignalIds\[0\].*?ret_code := C_OK.*?END_FUNCTION' 'LMCDiagnosticsService constructor does not initialize its complete Bulk state.'
+
+Assert-Match $recorderStore '(?s)VAR_GLOBAL\s+g_LMCRecorderData\s*:\s*ARRAY \[0\.\.1279999\] OF USINT;\s*END_VAR' 'LMCRecorderStore fixed 1,280,000-byte global recorder bank is missing.'
+Assert-Match $recorderStore '#define LMC_RECORDER_STORAGE_BYTES\s+1280000' 'LMCRecorderStore storage-size constant does not match the global recorder bank.'
+Assert-Match $recorderStore '(?s)stride := TO_UDINT\(requestedChannelCount\) \* 4;.*?acceptedCapacity := LMC_RECORDER_STORAGE_BYTES / stride;.*?if acceptedCapacity > requestedCapacity then\s*acceptedCapacity := requestedCapacity;\s*end_if' 'LMCRecorderStore ConfigureRecorder does not clamp AcceptedCapacity to the fixed bank size and requested sample count.'
+Assert-Match $recorderStore '(?s)FUNCTION LMCRecorderStore::@STD.*?ret_code\s*:=\s*LMCRecorderStore\(\).*?END_FUNCTION' 'LMCRecorderStore @STD does not invoke its constructor.'
+Assert-Match $recorderStore '(?s)FUNCTION LMCRecorderStore::LMCRecorderStore.*?StateValue := LMC_RECORDER_EMPTY.*?SamplePeriodCycles := 1.*?NextConfigId := 1.*?NextRecordId := 1.*?BufferReleased := TRUE.*?ret_code := C_OK.*?END_FUNCTION' 'LMCRecorderStore constructor does not initialize recorder identity, timing, and ownership state.'
+Assert-Match $recorderStore '(?s)elsif \(CurrentDiagnosticsBootId = 0\) then\s*detailCode := 11' 'LMCRecorderStore does not reject the BootId-zero sentinel before stateful D3 processing.'
+
+$recorderHandleRequestBlock = [regex]::Match(
+    $recorderStore,
+    '(?s)FUNCTION GLOBAL LMCRecorderStore::HandleRequest.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($recorderHandleRequestBlock)) {
+    throw 'LMCRecorderStore.HandleRequest implementation was not found.'
+}
+foreach ($recorderCommandId in @(
+    '0x7E40', '0x7E41', '0x7E42', '0x7E43', '0x7E44',
+    '0x7E45', '0x7E46', '0x7E47', '0x7E48', '0x7E49')) {
+    $recorderCommandCount = [regex]::Matches(
+        $recorderHandleRequestBlock,
+        "(?m)^\s*$recorderCommandId\s*:").Count
+    if ($recorderCommandCount -ne 1) {
+        throw "LMCRecorderStore command $recorderCommandId handler count is $recorderCommandCount, expected one."
+    }
+}
+Assert-Match $recorderHandleRequestBlock '(?s)0x7E42:\s*.*?if RequestSize <> 28 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if;\s*0x7E43:' 'TriggerRecorder 0x7E42 must validate its 28-byte reserved wire and remain UnsupportedFeature until D4 is implemented.'
+Assert-Match $recorderHandleRequestBlock '(?s)if detailCode <> 0 then.*?\(pResponse \+ 4\)\^\$UINT := 1.*?ResponseSize := 16' 'LMCRecorderStore reserved and error commands do not return the common 16-byte error envelope.'
+Assert-Match $recorderStore '(?s)FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot.*?StateValue.*?g_LMCRecorderData.*?SampleCount \+= 1.*?END_FUNCTION' 'LMCRecorderStore RT AppendSnapshot capture path is incomplete.'
+Assert-Match $recorderStore '(?s)FUNCTION GLOBAL LMCRecorderStore::NotifySessionClosed.*?SessionEpoch = OwnerSessionEpoch.*?ClosedSessionEpoch := SessionEpoch.*?END_FUNCTION' 'LMCRecorderStore does not retain the closed owner epoch for Recorder adoption.'
+
+$recorderProtocolCommands = [ordered]@{
+    ConfigureRecorder = '0x7E40'
+    StartRecorder = '0x7E41'
+    TriggerRecorder = '0x7E42'
+    StopRecorder = '0x7E43'
+    ReadRecorderStatus = '0x7E44'
+    ReadRecorderHeader = '0x7E45'
+    ReadRecorderChunk = '0x7E46'
+    ReleaseRecorderBuffer = '0x7E47'
+    ReleaseRecorder = '0x7E48'
+    AdoptRecorder = '0x7E49'
+}
+foreach ($recorderProtocolCommand in $recorderProtocolCommands.GetEnumerator()) {
+    Assert-Match $protocol (
+        'internal const ushort ' +
+        [regex]::Escape($recorderProtocolCommand.Key) +
+        ' = ' +
+        [regex]::Escape($recorderProtocolCommand.Value) +
+        ';') "C# recorder command $($recorderProtocolCommand.Key) has the wrong ID."
+}
+
+Assert-Match $protocol 'internal const ushort GetDiagnosticsCapabilities = 0x7E00;' 'C# diagnostics capability command ID is missing.'
+Assert-Match $diagnosticsProtocol '(?s)GetDiagnosticsCapabilities\(uint requestId\).*?CreateRequest\(\s*LMC_CommandId\.GetDiagnosticsCapabilities,\s*0,\s*CommonRequestPayloadLength\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize, SchemaVersion\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize \+ 2, 0\).*?WriteUInt32\(buffer, LMC_Frame\.HeaderSize \+ 4, requestId\)' 'C# diagnostics capability common request builder is incomplete.'
 
 $axisLookupBlock = [regex]::Match(
     $msgParserBlock,
@@ -471,6 +687,14 @@ if ([string]::IsNullOrWhiteSpace($motionCyWorkBlock)) {
 if ($motionCyWorkBlock -match '_GetObjName|_strlen|_stricmp|_strcmp') {
     throw 'CyWork still performs periodic object-name discovery or string comparison.'
 }
+Assert-Match $st 'PendingClosedSessionEpoch\s*:\s*UDINT' 'TCPMotionInterface pending closed-session epoch storage is missing.'
+Assert-Match $motionCyWorkBlock '(?s)PendingClosedSessionEpoch <> 0.*?IsClientConnected\(#Diagnostics\).*?Diagnostics\.NotifySessionClosed\(\s*SessionEpoch:=PendingClosedSessionEpoch\).*?PendingClosedSessionEpoch := 0.*?currentEpoch := SessionEpoch' 'TCPMotionInterface.CyWork does not flush the pending closed epoch to LMCDiagnosticsService before processing requests.'
+$closedEpochCaptureCount = [regex]::Matches(
+    $st,
+    '(?s)if \(SessionEpoch <> 0\)\s*&\s*\(PendingClosedSessionEpoch = 0\) then\s*PendingClosedSessionEpoch := SessionEpoch;\s*end_if;\s*SessionEpoch \+= 1').Count
+if ($closedEpochCaptureCount -ne 3) {
+    throw "TCPMotionInterface first-wins closed-session capture count is $closedEpochCaptureCount, expected three disconnect/send/close paths."
+}
 Assert-Match $motionCyWorkBlock '(?s)RequestQueue\[QueueReadIndex\$DINT\]\.State\s*=\s*TCPMI_QUEUE_READY.*?State\s*:=\s*TCPMI_QUEUE_ACTIVE.*?MemCpy.*?State\s*:=\s*TCPMI_QUEUE_FREE' 'CyWork queue READY/ACTIVE/FREE transition is missing.'
 Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one active request.'
 if ($motionCyWorkBlock -match 'ActiveRequest\.(?:CommandId|Reference|PayloadLength)\$DINT') {
@@ -523,8 +747,8 @@ Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# g
 Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 
 if ($SourceOnly) {
-    Write-Host 'PASS LASAL.StaticContract.SourceOnly (CyWork-only queue, no RT task/mailbox, axis and complete published group API)'
+    Write-Host 'PASS LASAL.StaticContract.SourceOnly (CyWork queue, diagnostics D1-D3 active contract, D4-D5 fail-closed wire, recorder bank, and session-close wiring)'
 }
 else {
-    Write-Host 'PASS LASAL.StaticContract (CyWork-only active command contract, 1320-byte staging, and ordinary TCP server network)'
+    Write-Host 'PASS LASAL.StaticContract (CyWork queue, diagnostics D1-D3 active contract, D4-D5 fail-closed wire, recorder/network wiring, and generated tables)'
 }

@@ -60,7 +60,7 @@
                 <TextBlock
                     Margin="0,3,0,0"
                     Foreground="#55657A"
-                    Text="Only PLC-active APIs are exposed. Values use the selected application UNIT or pass through as raw DINT." />
+                    Text="Motion controls remain PLC-active. Diagnostics controls are enabled only after the PLC advertises the required capability. Values use the selected application UNIT or pass through as raw DINT." />
             </StackPanel>
         </DockPanel>
 
@@ -590,6 +590,483 @@
                             </GroupBox>
                         </StackPanel>
                     </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="EtherCAT / PI">
+                <ScrollViewer
+                    x:Name="ScrollDiagnostics"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Diagnostics capabilities">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonDiagnosticsCapabilities"
+                                        Click="ButtonDiagnosticsCapabilities_Click"
+                                        Content="Refresh Capabilities" />
+                                    <Button
+                                        x:Name="ButtonReadEtherCatHealth"
+                                        Click="ButtonReadEtherCatHealth_Click"
+                                        Content="Read EtherCAT Health" />
+                                    <Button
+                                        x:Name="ButtonLoadSignalCatalog"
+                                        Click="ButtonLoadSignalCatalog_Click"
+                                        Content="Load PI Catalog" />
+                                    <Button
+                                        x:Name="ButtonReadSelectedPi"
+                                        Click="ButtonReadSelectedPi_Click"
+                                        Content="Read Selected PI" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextDiagnosticsCapabilities"
+                                    FontFamily="Consolas"
+                                    Text="Connect, then refresh diagnostics capabilities."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="EtherCAT master / slave health">
+                            <StackPanel>
+                                <TextBlock
+                                    x:Name="TextEtherCatHealthSummary"
+                                    Margin="0,0,0,8"
+                                    FontFamily="Consolas"
+                                    Text="Health has not been read."
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    x:Name="GridEtherCatHealth"
+                                    Height="170"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    IsReadOnly="True"
+                                    SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="55" Binding="{Binding SlaveIndex}" Header="Slave" />
+                                        <DataGridTextColumn Width="55" Binding="{Binding PhysicalAxis}" Header="Axis" />
+                                        <DataGridCheckBoxColumn Width="55" Binding="{Binding Online}" Header="Online" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding EtherCATState}" Header="EC State" />
+                                        <DataGridTextColumn Width="85" Binding="{Binding ALStatusCode}" Header="AL Code" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding DS402StatusWord}" Header="DS402" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding AxisError}" Header="Axis Error" />
+                                        <DataGridTextColumn Width="95" Binding="{Binding LastValidCycle}" Header="Valid Cycle" />
+                                        <DataGridTextColumn Width="110" Binding="{Binding LastStateChangeCycle}" Header="Change Cycle" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Signal Catalog / PI image">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="0,0,0,8"
+                                    Foreground="#5F6B7A"
+                                    Text="Check signals to use for PI reads, Bulk snapshots, and Recorder capture. Only catalog flags permitted by the PLC are used."
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    x:Name="GridSignalCatalog"
+                                    Height="290"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    SelectionMode="Extended">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Width="45" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Header="Use" />
+                                        <DataGridTextColumn Width="55" IsReadOnly="True" Binding="{Binding Axis}" Header="Axis" />
+                                        <DataGridTextColumn Width="230" IsReadOnly="True" Binding="{Binding Alias}" Header="Alias" />
+                                        <DataGridTextColumn Width="95" IsReadOnly="True" Binding="{Binding SignalIdHex}" Header="Signal ID" />
+                                        <DataGridTextColumn Width="85" IsReadOnly="True" Binding="{Binding DataType}" Header="Type" />
+                                        <DataGridTextColumn Width="85" IsReadOnly="True" Binding="{Binding PdoAddress}" Header="PDO" />
+                                        <DataGridTextColumn Width="100" IsReadOnly="True" Binding="{Binding Direction}" Header="Direction" />
+                                        <DataGridTextColumn Width="115" IsReadOnly="True" Binding="{Binding RawValue}" Header="Raw Value" />
+                                        <DataGridTextColumn Width="145" IsReadOnly="True" Binding="{Binding EntryStatus}" Header="Status" />
+                                        <DataGridTextColumn Width="90" IsReadOnly="True" Binding="{Binding CycleCounter}" Header="Cycle" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Bulk Snapshot">
+                <ScrollViewer
+                    x:Name="ScrollBulkSnapshot"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Same-cycle Bulk configuration">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonConfigureBulk"
+                                        Click="ButtonConfigureBulk_Click"
+                                        Content="Configure Selected" />
+                                    <Button
+                                        x:Name="ButtonReadBulkStatus"
+                                        Click="ButtonReadBulkStatus_Click"
+                                        Content="Refresh Status" />
+                                    <Button
+                                        x:Name="ButtonReadBulkSnapshot"
+                                        Click="ButtonReadBulkSnapshot_Click"
+                                        Content="Read Snapshot" />
+                                    <Button
+                                        x:Name="ButtonReleaseBulk"
+                                        Click="ButtonReleaseBulk_Click"
+                                        Content="Release" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextBulkSummary"
+                                    FontFamily="Consolas"
+                                    Text="Load the PI Catalog and check Bulk-readable signals first."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Latest same-cycle snapshot">
+                            <DataGrid
+                                x:Name="GridBulkSnapshot"
+                                Height="360"
+                                AutoGenerateColumns="False"
+                                CanUserAddRows="False"
+                                IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="230" Binding="{Binding Alias}" Header="Alias" />
+                                    <DataGridTextColumn Width="95" Binding="{Binding SignalIdHex}" Header="Signal ID" />
+                                    <DataGridTextColumn Width="100" Binding="{Binding DataType}" Header="Type" />
+                                    <DataGridTextColumn Width="130" Binding="{Binding RawValue}" Header="Raw Value" />
+                                    <DataGridTextColumn Width="170" Binding="{Binding EntryStatus}" Header="Status" />
+                                    <DataGridTextColumn Width="100" Binding="{Binding Detail}" Header="Detail" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Recorder">
+                <ScrollViewer
+                    x:Name="ScrollRecorder"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Recorder configuration">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sample period (cycles)" />
+                                    <TextBox
+                                        x:Name="TextRecorderSamplePeriod"
+                                        Width="135"
+                                        Text="1"
+                                        TextChanged="RecorderConfiguration_TextChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sample capacity" />
+                                    <TextBox
+                                        x:Name="TextRecorderSampleCapacity"
+                                        Width="135"
+                                        Text="1000"
+                                        TextChanged="RecorderConfiguration_TextChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Buffer mode" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderBufferMode"
+                                        Width="170"
+                                        SelectionChanged="RecorderConfiguration_SelectionChanged" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger type" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderTriggerType"
+                                        Width="135"
+                                        SelectionChanged="RecorderConfiguration_SelectionChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger operator" />
+                                    <ComboBox x:Name="ComboRecorderTriggerOperator" Width="170" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger signal" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderTriggerSignal"
+                                        Width="330"
+                                        DisplayMemberPath="DisplayName" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Pre-trigger samples" />
+                                    <TextBox x:Name="TextRecorderPreTrigger" Width="135" Text="100" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Post-trigger samples" />
+                                    <TextBox x:Name="TextRecorderPostTrigger" Width="135" Text="899" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="2">
+                                    <TextBlock
+                                        x:Name="TextRecorderTriggerValueLabel"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Trigger value (ignored in Manual mode)" />
+                                    <TextBox x:Name="TextRecorderTriggerValue" Width="170" Text="0" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="3" Grid.Column="0">
+                                    <TextBlock
+                                        x:Name="TextRecorderTriggerMaskLabel"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Trigger mask (ignored in Manual mode)" />
+                                    <TextBox x:Name="TextRecorderTriggerMask" Width="135" Text="1" />
+                                </StackPanel>
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="2"
+                                    Margin="8,4,0,8"
+                                    VerticalAlignment="Center"
+                                    Foreground="#5F6B7A"
+                                    Text="Manual ignores all trigger fields. Edge uses TriggerValue as its threshold and forces TriggerMask to zero. Window maps lower bound to TriggerValue and upper bound to TriggerMask; signed Int16/Int32 bounds accept signed decimal input. Mask requires a BitField16/32 signal and a non-zero TriggerMask."
+                                    TextWrapping="Wrap" />
+
+                                <StackPanel
+                                    Grid.Row="4"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,2,0,8">
+                                    <TextBlock
+                                        Foreground="#5F6B7A"
+                                        Text="Uses checked Recordable signals from the PI Catalog. Trigger and Double modes are enabled only when advertised by the PLC."
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        x:Name="TextRecorderEstimate"
+                                        Margin="0,3,0,0"
+                                        FontFamily="Consolas"
+                                        Text="Estimate unavailable until the PI Catalog is loaded."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="5" Grid.ColumnSpan="3">
+                                    <Button x:Name="ButtonConfigureRecorder" Click="ButtonConfigureRecorder_Click" Content="Configure" />
+                                    <Button x:Name="ButtonStartRecorder" Click="ButtonStartRecorder_Click" Content="Start" />
+                                    <Button x:Name="ButtonTriggerRecorder" Click="ButtonTriggerRecorder_Click" Content="Trigger Now" />
+                                    <Button x:Name="ButtonStopRecorder" Click="ButtonStopRecorder_Click" Content="Stop" />
+                                    <Button x:Name="ButtonRecorderStatus" Click="ButtonRecorderStatus_Click" Content="Refresh Status" />
+                                    <Button x:Name="ButtonReadRecorderHeader" Click="ButtonReadRecorderHeader_Click" Content="Read Header" />
+                                    <Button x:Name="ButtonDownloadRecorder" Click="ButtonDownloadRecorder_Click" Content="Download" />
+                                    <Button x:Name="ButtonCancelRecorderDownload" Click="ButtonCancelRecorderDownload_Click" Content="Cancel Download" />
+                                    <Button x:Name="ButtonExportRecorderCsv" Click="ButtonExportRecorderCsv_Click" Content="Export CSV" />
+                                    <Button x:Name="ButtonReleaseRecorder" Click="ButtonReleaseRecorder_Click" Content="Release" />
+                                </WrapPanel>
+
+                                <StackPanel Grid.Row="6" Grid.ColumnSpan="3">
+                                    <ProgressBar
+                                        x:Name="ProgressRecorderDownload"
+                                        Height="18"
+                                        Margin="0,2,8,5"
+                                        Maximum="1"
+                                        Minimum="0" />
+                                    <TextBlock
+                                        x:Name="TextRecorderSummary"
+                                        FontFamily="Consolas"
+                                        Text="Load the PI Catalog and check Recordable signals first."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Reconnect / adopt existing Recorder">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Diagnostics Boot ID" />
+                                    <TextBox x:Name="TextRecorderAdoptBootId" Width="150" Text="0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Record ID" />
+                                    <TextBox x:Name="TextRecorderAdoptRecordId" Width="125" Text="0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Buffer ID" />
+                                    <TextBox x:Name="TextRecorderAdoptBufferId" Width="105" Text="0" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonAdoptRecorder"
+                                    Grid.Row="0"
+                                    Grid.Column="3"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonAdoptRecorder_Click"
+                                    Content="Adopt" />
+
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="4"
+                                    Margin="0,2,0,8"
+                                    Foreground="#5F6B7A"
+                                    Text="Start fills these IDs automatically and they remain visible after disconnect. Reconnect to the same PLC boot, refresh Capabilities, then Adopt. Read Status or Header before Download; Release recovers Status metadata when needed. Trigger Now explicitly fires a locally configured non-Manual D4 recorder and is enabled only when RecorderTrigger is advertised."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Downloaded raw sample plot">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <TextBlock
+                                        Margin="0,7,8,0"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Signal" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderPlotSignal"
+                                        Width="280"
+                                        DisplayMemberPath="DisplayName"
+                                        SelectionChanged="ComboRecorderPlotSignal_SelectionChanged" />
+                                    <TextBlock
+                                        x:Name="TextRecorderPlotRange"
+                                        Margin="8,7,0,0"
+                                        FontFamily="Consolas"
+                                        Text="No downloaded data." />
+                                </WrapPanel>
+                                <Border
+                                    Height="300"
+                                    Padding="4"
+                                    Background="#FAFBFD"
+                                    BorderBrush="#B8C2D0"
+                                    BorderThickness="1">
+                                    <Canvas
+                                        x:Name="CanvasRecorderPlot"
+                                        ClipToBounds="True"
+                                        SizeChanged="CanvasRecorderPlot_SizeChanged" />
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="SDO / Write Policy">
+                <ScrollViewer
+                    x:Name="ScrollDiagnosticsOperations"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Asynchronous SDO ticket">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation" />
+                                    <ComboBox
+                                        x:Name="ComboSdoOperation"
+                                        Width="150"
+                                        SelectionChanged="SdoOperation_SelectionChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Slave reference" />
+                                    <TextBox x:Name="TextSdoSlaveReference" Width="105" Text="1" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index" />
+                                    <TextBox x:Name="TextSdoIndex" Width="105" Text="0x1000" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="3">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index" />
+                                    <TextBox x:Name="TextSdoSubIndex" Width="90" Text="0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type" />
+                                    <ComboBox x:Name="ComboSdoValueType" Width="150" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length" />
+                                    <ComboBox
+                                        x:Name="ComboSdoDataLength"
+                                        Width="105"
+                                        IsEditable="True" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (cycles)" />
+                                    <TextBox x:Name="TextSdoTimeoutCycles" Width="105" Text="1000" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write data (little-endian hex bytes)" />
+                                    <TextBox x:Name="TextSdoWriteData" Width="390" Text="00 00 00 00" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="2" Grid.ColumnSpan="5">
+                                    <Button x:Name="ButtonSubmitSdo" Click="ButtonSubmitSdo_Click" Content="Submit SDO" />
+                                    <Button x:Name="ButtonRefreshDiagnosticOperation" Click="ButtonRefreshDiagnosticOperation_Click" Content="Refresh Ticket" />
+                                    <Button x:Name="ButtonDownloadSdoResult" Click="ButtonDownloadSdoResult_Click" Content="Download Result" />
+                                    <Button x:Name="ButtonExportSdoResult" Click="ButtonExportSdoResult_Click" Content="Save Result" />
+                                    <Button x:Name="ButtonCancelDiagnosticOperation" Click="ButtonCancelDiagnosticOperation_Click" Content="Cancel Ticket" />
+                                </WrapPanel>
+
+                                <TextBlock
+                                    x:Name="TextDiagnosticOperationSummary"
+                                    Grid.Row="3"
+                                    Grid.ColumnSpan="5"
+                                    FontFamily="Consolas"
+                                    Text="SDO Read requires an advertised SDORead capability. Refresh Ticket returns 4/8/12 bytes inline; larger reads require ExtendedSdoResultChunk and Download Result after terminal success. SDO Write remains blocked unless its capability and SDK allowlist are enabled."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="PI Write policy gate">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="Select exactly one WritableByPolicy Catalog entry on the EtherCAT / PI tab. The call remains fail-closed until schema v1 defines the payload and a compile-time allowlist is approved. DS402 ControlWord and target objects are permanently blocked."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Raw value (decimal or 0x...)" />
+                                        <TextBox x:Name="TextPiWriteRawValue" Width="180" Text="0" />
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="ButtonSubmitPiWrite"
+                                        Margin="8,20,8,8"
+                                        Click="ButtonSubmitPiWrite_Click"
+                                        Content="Submit PI Write" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>

@@ -40,6 +40,7 @@
 		<Server Name="RobotUnLock" GUID="{ADED8B18-F205-4D23-9D6E-A966DCA5605E}" Visualized="false" Initialize="false" WriteProtected="false" Retentive="false"/>
 		<Server Name="velo" GUID="{62BB909C-5656-4232-B799-BE918E89FDFD}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Client Name="_StdLib" Required="false" Internal="false"/>
+		<Client Name="Diagnostics" Required="true" Internal="false"/>
 		<Client Name="LMCAxis1" Required="true" Internal="false"/>
 		<Client Name="LMCAxis2" Required="true" Internal="false"/>
 		<Client Name="LMCAxis3" Required="true" Internal="false"/>
@@ -148,6 +149,7 @@ TCPMotionInterface : CLASS
 	LMCAxis9 	: CltChCmd__LMCAxis;
 	LMCRobot 	: CltChCmd__LMCRobotBase;
 	_StdLib 	: CltChCmd__StdLib;
+	Diagnostics 	: CltChCmd_LMCDiagnosticsService;
   //Variables:
 		ReceiveBuf : ARRAY [0..2047] OF BYTE;
 
@@ -161,6 +163,7 @@ TCPMotionInterface : CLASS
 		QueueReadIndex 	: UDINT;
 		NextSequence 	: UDINT;
 		SessionEpoch 	: UDINT;
+		PendingClosedSessionEpoch 	: UDINT;
 		ActiveRequest 	: _TCPMI_REQUEST_ENTRY;
 		ActiveRequestValid 	: BOOL;
 		IngressFaultPending 	: BOOL;
@@ -338,6 +341,7 @@ END_CLASS;
 #pragma usingLtd _LMCAxis
 #pragma usingLtd _LMCRobotBase
 #pragma usingLtd _StdLib
+#pragma usingLtd LMCDiagnosticsService
 
 
 //}}LSL_DECLARATION
@@ -347,7 +351,7 @@ FUNCTION GLOBAL TAB TCPMotionInterface::@CT_
 0$UINT,
 2#0100000000000010$UINT, //TY_TCPMOTIONINTERFACE
 0$UINT, 0$UINT, (SIZEOF(::TCPMotionInterface))$UINT, 
-20$UINT, 11$UINT, 0$UINT, 
+20$UINT, 12$UINT, 0$UINT, 
 TO_UDINT(684024945), "TCPMotionInterface", //Class
 TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, //Baseclass
 //Servers:
@@ -383,6 +387,7 @@ TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, //Baseclass
 (::TCPMotionInterface.LMCAxis9.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1844576980), "LMCAxis9", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
 (::TCPMotionInterface.LMCRobot.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1583165433), "LMCRobot", TO_UDINT(3888346726), "_LMCRobotBase", 2$UINT, 22$UINT, 
 (::TCPMotionInterface._StdLib.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(3689364044), "_StdLib", TO_UDINT(3689364044), "_StdLib", 2$UINT, 0$UINT, 
+(::TCPMotionInterface.Diagnostics.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(43195119), "Diagnostics", TO_UDINT(1037074496), "LMCDiagnosticsService", 0$UINT, 0$UINT, 
 END_FUNCTION
 
 
@@ -485,6 +490,13 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 
   // The ordinary TCP server and this interface run in one cyclic task.
   // Response publishes the queue before this CyWork consumes it.
+  if (PendingClosedSessionEpoch <> 0) &
+     IsClientConnected(#Diagnostics) then
+    Diagnostics.NotifySessionClosed(
+      SessionEpoch:=PendingClosedSessionEpoch);
+    PendingClosedSessionEpoch := 0;
+  end_if;
+
   currentEpoch := SessionEpoch;
 
   // MsgPaser resolves object names on demand in this CyWork context.  CyWork
@@ -562,6 +574,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
           IngressBlocked := FALSE;
         end_if;
       else
+
         IngressFaultPending := FALSE;
         IngressBlocked := TRUE;
         IngressFaultCloseRequired := TRUE;
@@ -603,6 +616,9 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
       end_if;
       if CurrentSock = dSock then
         CurrentSock := 0;
+        if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+          PendingClosedSessionEpoch := SessionEpoch;
+        end_if;
         SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;
@@ -699,6 +715,9 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::SendData
   // A direct partial send cannot be retried without corrupting the stream.
   // Quarantine the session and require a clean TCP reconnect.
   if dRetcode <> udSize$DINT then
+    if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+      PendingClosedSessionEpoch := SessionEpoch;
+    end_if;
     SessionEpoch += 1;
     if SessionEpoch = 0 then
       SessionEpoch := 1;
@@ -921,6 +940,11 @@ FUNCTION TCPMotionInterface::MsgPaser
     kinValid : BOOL;
     powerIsOn : DINT;
     profileLockState : DINT;
+    diagnosticsSchemaVersion : UINT;
+    diagnosticsRequestFlags : UINT;
+    diagnosticsRequestId : UDINT;
+    diagnosticsResponseSize : DINT;
+	diagnosticsBootId : UDINT;
   END_VAR
 
   // Motion/read/lookup commands are accepted only after this socket completed
@@ -946,6 +970,146 @@ FUNCTION TCPMotionInterface::MsgPaser
   end_if;
 
   case CommandID of
+
+    // LASAL-DINT diagnostics capability negotiation.
+    0x7E00:
+
+      diagnosticsSchemaVersion := 0;
+      diagnosticsRequestFlags := 0;
+      diagnosticsRequestId := 0;
+
+      if Payload >= 8 then
+        diagnosticsSchemaVersion := RequestBuf[8]$UINT;
+        diagnosticsRequestFlags := RequestBuf[10]$UINT;
+        diagnosticsRequestId := RequestBuf[12]$UDINT;
+      end_if;
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 68;
+      Sendbuf[4]$UDINT := 0;
+
+      // Common diagnostics response envelope.
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$UINT := 0;
+      Sendbuf[12]$UINT := 0;
+      Sendbuf[14]$INT := 0;
+      Sendbuf[16]$UDINT := diagnosticsRequestId;
+      Sendbuf[20]$UDINT := 0;
+
+      if (Payload <> 8) | (AxisRef <> 0) then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -32000;
+        Sendbuf[20]$UDINT := 12;
+      elsif diagnosticsSchemaVersion <> 1 then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -32000;
+        Sendbuf[20]$UDINT := 1;
+      elsif diagnosticsRequestFlags <> 0 then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -32000;
+        Sendbuf[20]$UDINT := 2;
+      elsif diagnosticsRequestId = 0 then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -32000;
+        Sendbuf[20]$UDINT := 12;
+      end_if;
+
+      diagnosticsBootId := 0;
+      if IsClientConnected(#Diagnostics) then
+        diagnosticsBootId := Diagnostics.GetDiagnosticsBootId();
+      end_if;
+
+      // D1 is stateless and can remain available when the retained generation
+      // counter is exhausted. D2 and D3 require a stable nonzero BootId.
+      Sendbuf[24]$UDINT := 1;
+      Sendbuf[28]$UDINT := 0;
+      Sendbuf[32]$UDINT := 0;
+      Sendbuf[36]$UINT := 0;
+      Sendbuf[38]$UINT := 0;
+      Sendbuf[40]$UINT := 0;
+      Sendbuf[42]$UINT := 0;
+      Sendbuf[44]$UDINT := 0;
+      Sendbuf[48]$UDINT := 1000;
+      Sendbuf[52]$UINT := 1320;
+      Sendbuf[54]$UINT := 2040;
+      Sendbuf[56]$UINT := 1280;
+      Sendbuf[58]$UINT := 80;
+      Sendbuf[60]$UINT := 16;
+      Sendbuf[62]$UINT := 0;
+      Sendbuf[64]$UDINT := 0;
+      Sendbuf[68]$UINT := 0;
+      Sendbuf[70]$UINT := 0;
+      Sendbuf[72]$UDINT := diagnosticsBootId;
+
+      if IsClientConnected(#Diagnostics) then
+        Sendbuf[28]$UDINT := 0x00000007;
+        Sendbuf[32]$UDINT := 0x957F101E;
+        Sendbuf[36]$UINT := 24;
+        if diagnosticsBootId <> 0 then
+          Sendbuf[28]$UDINT := 0x0000001F;
+          Sendbuf[38]$UINT := 24;
+          Sendbuf[40]$UINT := 24;
+          Sendbuf[42]$UINT := 1;
+          Sendbuf[44]$UDINT := 320000;
+          Sendbuf[64]$UDINT := 1280000;
+        end_if;
+      end_if;
+
+      SendData(
+        pData:=#Sendbuf[0],
+        udSize:=76,
+        dSocket:=CurrentSock,
+        bDirect:=TRUE
+      );
+
+    // Reserved diagnostics command family. The service returns bounded
+    // domain responses; capabilities remain the authoritative feature gate.
+    0x7E01, 0x7E02, 0x7E03, 0x7E04,
+    0x7E10, 0x7E20, 0x7E21,
+    0x7E30, 0x7E31, 0x7E32, 0x7E33,
+    0x7E40, 0x7E41, 0x7E42, 0x7E43, 0x7E44,
+    0x7E45, 0x7E46, 0x7E47, 0x7E48, 0x7E49,
+    0x7E50, 0x7E51:
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      diagnosticsResponseSize := -1;
+      if IsClientConnected(#Diagnostics) then
+        diagnosticsResponseSize := Diagnostics.HandleRequest(
+          CommandId:=CommandID$UINT,
+          Reference:=AxisRef$UINT,
+		  pRequest:=(#RequestBuf[8])$^USINT,
+          RequestSize:=Payload$UDINT,
+		  pResponse:=(#Sendbuf[8])$^USINT,
+          ResponseCapacity:=2040,
+          CallerSessionEpoch:=SessionEpoch
+        );
+      end_if;
+
+      if (diagnosticsResponseSize >= 16) &
+         (diagnosticsResponseSize <= 2040) then
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := diagnosticsResponseSize$UINT;
+        Sendbuf[4]$UDINT := 0;
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=(diagnosticsResponseSize + 8)$UDINT,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+      else
+        Sendbuf[0]$UINT := 1;
+        Sendbuf[2]$UINT := 4;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+        SendData(
+          pData:=#Sendbuf[0],
+          udSize:=12,
+          dSocket:=CurrentSock,
+          bDirect:=TRUE
+        );
+      end_if;
 
     // RPC session init. Response payload follows the captured 24-byte shape.
     0x8080:
@@ -1055,6 +1219,9 @@ FUNCTION TCPMotionInterface::MsgPaser
         RpcCallbackIPv4[1] := 0;
         RpcCallbackIPv4[2] := 0;
         RpcCallbackIPv4[3] := 0;
+        if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+          PendingClosedSessionEpoch := SessionEpoch;
+        end_if;
         SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;

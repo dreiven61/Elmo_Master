@@ -27,6 +27,22 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="LmcProtocol.cs" />
+    <Compile Include="LmcDiagnosticsProtocol.cs" />
+    <Compile Include="LmcDiagnosticsD1Protocol.cs" />
+    <Compile Include="LmcDiagnosticsD2Protocol.cs" />
+    <Compile Include="LmcDiagnosticsD5Protocol.cs" />
+    <Compile Include="LmcDiagnosticsRecorderProtocol.cs" />
+    <Compile Include="LmcDiagnosticsModels.cs" />
+    <Compile Include="LmcDiagnosticsD1Models.cs" />
+    <Compile Include="LmcDiagnosticsD2Models.cs" />
+    <Compile Include="LmcDiagnosticsD5Models.cs" />
+    <Compile Include="LmcDiagnosticsRecorderModels.cs" />
+    <Compile Include="LmcDiagnostics.cs" />
+    <Compile Include="LmcDiagnosticsD1.cs" />
+    <Compile Include="LmcDiagnosticsD2.cs" />
+    <Compile Include="LmcDiagnosticsD5.cs" />
+    <Compile Include="LmcDiagnosticsRecorder.cs" />
+    <Compile Include="LmcRecorderDownload.cs" />
     <Compile Include="LmcConnectionModels.cs" />
     <Compile Include="LmcGroupModels.cs" />
     <Compile Include="LmcResults.cs" />

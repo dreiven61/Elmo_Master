@@ -5330,6 +5330,32 @@
 			</AdditionalData>
 		</Object>
 		<Object
+			Name       = "LMCEcatInputLatch1"
+			GUID       = "{10BDB5A5-256E-4AEF-8524-A71F24BF2C88}"
+			Class      = "LMCEcatInputLatch"
+			Position   = "(120,120)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Client Name="Drive1"/>
+				<Client Name="Drive2"/>
+				<Client Name="Drive3"/>
+				<Client Name="Drive4"/>
+				<Client Name="EcatMaster"/>
+				<Client Name="RecorderStore"/>
+			</Channels>
+		</Object>
+		<Object
+			Name       = "LMCRecorderStore1"
+			GUID       = "{F66CC49D-6A07-48E5-9401-A11A6A2B928A}"
+			Class      = "LMCRecorderStore"
+			Position   = "(420,600)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+			</Channels>
+		</Object>
+		<Object
 			Name       = "PosController1"
 			GUID       = "{637805E5-FCE3-4345-B84C-0FE8CBED0CA7}"
 			Class      = "PosController"
@@ -5482,6 +5508,13 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
+		<Connection Source="_LMCAxis1.LMCPreRtWorkTrigger" Destination="LMCEcatInputLatch1.ClassSvr" Vertices="(2880,510),(420,210),"/>
+		<Connection Source="LMCEcatInputLatch1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr" Vertices="(120,510),(720,690),"/>
+		<Connection Source="LMCEcatInputLatch1.EcatMaster" Destination="EtherCAT_PLC1.ClassState"/>
+		<Connection Source="LMCEcatInputLatch1.Drive1" Destination="Elmo_11.ClassState" Vertices="(120,270),(1414,390),"/>
+		<Connection Source="LMCEcatInputLatch1.Drive2" Destination="Elmo_21.ClassState" Vertices="(120,330),(1414,2250),"/>
+		<Connection Source="LMCEcatInputLatch1.Drive3" Destination="Elmo_31.ClassState" Vertices="(120,390),(1414,4050),"/>
+		<Connection Source="LMCEcatInputLatch1.Drive4" Destination="Elmo_41.ClassState" Vertices="(120,450),(1414,5850),"/>
 		<Connection Source="Elmo_11.toMaster" Destination="EtherCAT_PLC1.EtherCATOut_1"/>
 		<Connection Source="PosController1.iHWErrors" Destination="Elmo_11.AxError" Vertices="(1950,450),(1636,450),(1636,1770),(1414,1770),"/>
 		<Connection Source="PosController1.HWErrorQuit" Destination="Elmo_11.AxErrorQuit" Vertices="(1950,870),(1876,870),(1876,1830),(1414,1830),"/>

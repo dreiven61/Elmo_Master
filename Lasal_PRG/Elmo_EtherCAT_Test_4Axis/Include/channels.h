@@ -341,10 +341,40 @@ TYPE
     dData : DINT;
     pCmd : ^SVRCHCMD;
   END_STRUCT;
+  SvrChCmd_t_e_VaranErrors : STRUCT
+    pMeth : ^CMDMETH;
+    dData : t_e_VaranErrors;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  CltChCmd_ECAT_Master_Base : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^ECAT_Master_Base;
+  END_STRUCT;
   CltChCmd_EEPROM : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;
     pCmd : ^EEPROM;
+  END_STRUCT;
+  CltChCmd_Elmo_1 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^Elmo_1;
+  END_STRUCT;
+  CltChCmd_Elmo_2 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^Elmo_2;
+  END_STRUCT;
+  CltChCmd_Elmo_3 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^Elmo_3;
+  END_STRUCT;
+  CltChCmd_Elmo_4 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^Elmo_4;
   END_STRUCT;
   CltChCmd_EtherCAT_Hub_Base : STRUCT
     pCh : ^SvrChCmd_DINT;
@@ -391,6 +421,21 @@ TYPE
     dData : DINT;
     pCmd : ^I2CCDIAS;
   END_STRUCT;
+  CltChCmd_LMCDiagnosticsService : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^LMCDiagnosticsService;
+  END_STRUCT;
+  CltChCmd_LMCEcatInputLatch : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^LMCEcatInputLatch;
+  END_STRUCT;
+  CltChCmd_LMCRecorderStore : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^LMCRecorderStore;
+  END_STRUCT;
   CltChCmd_Merker : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;
@@ -425,11 +470,6 @@ TYPE
     pCh : ^SvrChCmd_DINT;
     dData : DINT;
     pCmd : ^SdiasHubBase;
-  END_STRUCT;
-  SvrChCmd_t_e_VaranErrors : STRUCT
-    pMeth : ^CMDMETH;
-    dData : t_e_VaranErrors;
-    pDsc : ^SVRDSC;
   END_STRUCT;
   CltChCmd_SdiasManager : STRUCT
     pCh : ^SvrChCmd_t_e_VaranErrors;

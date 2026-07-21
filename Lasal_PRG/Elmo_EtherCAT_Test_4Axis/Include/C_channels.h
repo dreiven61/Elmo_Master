@@ -476,12 +476,54 @@ typedef struct CltChCmd_DINT
     SVRCHCMD *pCmd;
   } CltChCmd_DINT;
 
+typedef struct SvrChCmd_t_e_VaranErrors 
+  {
+    CMDMETH *pMeth;
+    t_e_VaranErrors dData;
+    SVRDSC *pDsc;
+  } SvrChCmd_t_e_VaranErrors;
+
+typedef struct CltChCmd_ECAT_Master_Base 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    ECAT_Master_Base *pCmd;
+  } CltChCmd_ECAT_Master_Base;
+
 typedef struct CltChCmd_EEPROM 
   {
     struct SvrChCmd_DINT *pCh;
     DINT dData;
     EEPROM *pCmd;
   } CltChCmd_EEPROM;
+
+typedef struct CltChCmd_Elmo_1 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    Elmo_1 *pCmd;
+  } CltChCmd_Elmo_1;
+
+typedef struct CltChCmd_Elmo_2 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    Elmo_2 *pCmd;
+  } CltChCmd_Elmo_2;
+
+typedef struct CltChCmd_Elmo_3 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    Elmo_3 *pCmd;
+  } CltChCmd_Elmo_3;
+
+typedef struct CltChCmd_Elmo_4 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    Elmo_4 *pCmd;
+  } CltChCmd_Elmo_4;
 
 typedef struct CltChCmd_EtherCAT_Hub_Base 
   {
@@ -546,6 +588,27 @@ typedef struct CltChCmd_I2CCDIAS
     I2CCDIAS *pCmd;
   } CltChCmd_I2CCDIAS;
 
+typedef struct CltChCmd_LMCDiagnosticsService 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    LMCDiagnosticsService *pCmd;
+  } CltChCmd_LMCDiagnosticsService;
+
+typedef struct CltChCmd_LMCEcatInputLatch 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    LMCEcatInputLatch *pCmd;
+  } CltChCmd_LMCEcatInputLatch;
+
+typedef struct CltChCmd_LMCRecorderStore 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    LMCRecorderStore *pCmd;
+  } CltChCmd_LMCRecorderStore;
+
 typedef struct CltChCmd_Merker 
   {
     struct SvrChCmd_DINT *pCh;
@@ -594,13 +657,6 @@ typedef struct CltChCmd_SdiasHubBase
     DINT dData;
     SdiasHubBase *pCmd;
   } CltChCmd_SdiasHubBase;
-
-typedef struct SvrChCmd_t_e_VaranErrors 
-  {
-    CMDMETH *pMeth;
-    t_e_VaranErrors dData;
-    SVRDSC *pDsc;
-  } SvrChCmd_t_e_VaranErrors;
 
 typedef struct CltChCmd_SdiasManager 
   {

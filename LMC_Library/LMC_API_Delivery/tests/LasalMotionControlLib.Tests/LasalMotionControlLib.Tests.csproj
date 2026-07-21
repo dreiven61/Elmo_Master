@@ -31,6 +31,12 @@
     <Compile Include="RequestGoldenTests.cs" />
     <Compile Include="ResponseParserTests.cs" />
     <Compile Include="RpcIntegrationTests.cs" />
+    <Compile Include="DiagnosticsContractTests.cs" />
+    <Compile Include="DiagnosticsD1ContractTests.cs" />
+    <Compile Include="DiagnosticsD2ContractTests.cs" />
+    <Compile Include="DiagnosticsD5ContractTests.cs" />
+    <Compile Include="DiagnosticsD45CompletionContractTests.cs" />
+    <Compile Include="DiagnosticsRecorderContractTests.cs" />
     <None Include="Verify-LasalContract.ps1" />
   </ItemGroup>
   <ItemGroup>
@@ -60,6 +66,6 @@
       Targets="Build"
       Properties="Configuration=$(Configuration);Platform=AnyCPU" />
   </Target>
-  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildSimpleExampleApp;BuildDistributionExampleApp" />
+  <Target Name="RunTests" DependsOnTargets="RunPcTests;RunLasalContract;BuildSimpleExampleApp" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

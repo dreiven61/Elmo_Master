@@ -36,6 +36,11 @@
 			<IOConnection ObjSrv="Elmo_41" Server="ActPos" ObjClt="_LMCAxis4" Client="ActPosition" IOI="Input" Type="Analog" SortIndex="29" KeyName="000029" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="AxError" ObjClt="_LMCAxis4" Client="HWError" IOI="Input" Type="Digital" SortIndex="30" KeyName="000030" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="Online" ObjClt="_LMCAxis4" Client="HWReady" IOI="IOState" SortIndex="31" KeyName="000031" Advanced="0"/>
+			<IOConnection ObjSrv="EtherCAT_PLC1" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="EcatMaster" IOI="IOState" SortIndex="32" KeyName="000032" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_11" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive1" IOI="IOState" SortIndex="33" KeyName="000033" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive2" IOI="IOState" SortIndex="34" KeyName="000034" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive3" IOI="IOState" SortIndex="35" KeyName="000035" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive4" IOI="IOState" SortIndex="36" KeyName="000036" Advanced="0"/>
 		</IOConnections>
 	</Entry>
 	<!-- List of Folders -->

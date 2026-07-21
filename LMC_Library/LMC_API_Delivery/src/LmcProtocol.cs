@@ -142,6 +142,31 @@ namespace LasalMotionControlLib
         internal const ushort GroupPosition = 0x2051;
         internal const ushort MoveLinear = 0x20A4;
         internal const ushort SetKinTransformEx = 0x20E7;
+
+        internal const ushort GetDiagnosticsCapabilities = 0x7E00;
+        internal const ushort GetSignalCatalogInfo = 0x7E01;
+        internal const ushort GetSignalCatalogChunk = 0x7E02;
+        internal const ushort GetOperationStatus = 0x7E03;
+        internal const ushort CancelOperation = 0x7E04;
+        internal const ushort ReadEtherCATHealth = 0x7E10;
+        internal const ushort ReadPI = 0x7E20;
+        internal const ushort SubmitPIWrite = 0x7E21;
+        internal const ushort ConfigureBulk = 0x7E30;
+        internal const ushort ReadBulkStatus = 0x7E31;
+        internal const ushort ReadBulkSnapshot = 0x7E32;
+        internal const ushort ReleaseBulk = 0x7E33;
+        internal const ushort ConfigureRecorder = 0x7E40;
+        internal const ushort StartRecorder = 0x7E41;
+        internal const ushort TriggerRecorder = 0x7E42;
+        internal const ushort StopRecorder = 0x7E43;
+        internal const ushort ReadRecorderStatus = 0x7E44;
+        internal const ushort ReadRecorderHeader = 0x7E45;
+        internal const ushort ReadRecorderChunk = 0x7E46;
+        internal const ushort ReleaseRecorderBuffer = 0x7E47;
+        internal const ushort ReleaseRecorder = 0x7E48;
+        internal const ushort AdoptRecorder = 0x7E49;
+        internal const ushort SubmitSdo = 0x7E50;
+        internal const ushort ReadSdoResultChunk = 0x7E51;
     }
 
     internal static class LMC_Frame

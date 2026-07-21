@@ -79,6 +79,7 @@ namespace LasalMotionControlLib
 
             this.options = options.CloneAndValidate();
             connectionState = (int)LMCConnectionState.Disconnected;
+            Diagnostics = new LMCDiagnostics(this);
         }
 
         public bool IsRpcInitialized { get; private set; }
@@ -111,6 +112,7 @@ namespace LasalMotionControlLib
         public Exception LastTransportException { get; private set; }
         public Exception LastInitializationException { get; private set; }
         public Exception LastCloseException { get; private set; }
+        public LMCDiagnostics Diagnostics { get; private set; }
         public long RejectedCallbackCount
         {
             get { return Interlocked.Read(ref rejectedCallbackCount); }

@@ -1,0 +1,863 @@
+using System;
+
+namespace LasalMotionControlLib
+{
+    internal static class LMCDiagnosticsWritePolicy
+    {
+        // Add targets only after PLC mapping and hardware behavior are verified.
+        // Empty lists make all diagnostic writes fail closed by default.
+        private static readonly uint[] AllowedPIWriteSignalIds = new uint[0];
+        private static readonly SdoWriteTarget[] AllowedSdoWrites =
+            new SdoWriteTarget[0];
+
+        internal static void RequirePIWriteAllowed(LMCPIWriteRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            for (var index = 0;
+                index < AllowedPIWriteSignalIds.Length;
+                index++)
+            {
+                if (AllowedPIWriteSignalIds[index] == request.SignalId)
+                {
+                    return;
+                }
+            }
+
+            throw new NotSupportedException(
+                "PI Write is blocked because the signal is not in the SDK compile-time allowlist.");
+        }
+
+        internal static void RequireSdoWriteAllowed(LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            if (!request.IsWrite)
+            {
+                return;
+            }
+
+            for (var index = 0; index < AllowedSdoWrites.Length; index++)
+            {
+                if (AllowedSdoWrites[index].Matches(request))
+                {
+                    return;
+                }
+            }
+
+            throw new NotSupportedException(
+                "SDO Write is blocked because the target is not in the SDK compile-time allowlist.");
+        }
+
+        private sealed class SdoWriteTarget
+        {
+            internal SdoWriteTarget(
+                ushort slaveReference,
+                ushort objectIndex,
+                byte subIndex,
+                LMCSignalValueType valueType,
+                ushort dataLength)
+            {
+                SlaveReference = slaveReference;
+                ObjectIndex = objectIndex;
+                SubIndex = subIndex;
+                ValueType = valueType;
+                DataLength = dataLength;
+            }
+
+            private ushort SlaveReference { get; set; }
+            private ushort ObjectIndex { get; set; }
+            private byte SubIndex { get; set; }
+            private LMCSignalValueType ValueType { get; set; }
+            private ushort DataLength { get; set; }
+
+            internal bool Matches(LMCSdoRequest request)
+            {
+                return request.SlaveReference == SlaveReference
+                    && request.ObjectIndex == ObjectIndex
+                    && request.SubIndex == SubIndex
+                    && request.ValueType == ValueType
+                    && request.DataLength == DataLength;
+            }
+        }
+    }
+
+    [Flags]
+    public enum LMCOperationFlags : ushort
+    {
+        None = 0,
+        Write = 1 << 0
+    }
+
+    public enum LMCOperationState : ushort
+    {
+        Free = 0,
+        Queued = 1,
+        Running = 2,
+        Completed = 3,
+        Failed = 4,
+        Cancelled = 5,
+        Expired = 6
+    }
+
+    public enum LMCOperationKind : ushort
+    {
+        None = 0,
+        PIWrite = 1,
+        SDORead = 2,
+        SDOWrite = 3
+    }
+
+    public enum LMCOperationOutcome : ushort
+    {
+        NoneOrPending = 0,
+        Success = 1,
+        Failed = 2,
+        Cancelled = 3,
+        TimedOut = 4
+    }
+
+    public sealed class LMCPIWriteRequest
+    {
+        public LMCPIWriteRequest(
+            LMCSignalCatalog catalog,
+            LMCSignalCatalogEntry signal,
+            LMCSignalValueType valueType,
+            uint rawValue32)
+        {
+            if (catalog == null)
+            {
+                throw new ArgumentNullException("catalog");
+            }
+
+            if (signal == null)
+            {
+                throw new ArgumentNullException("signal");
+            }
+
+            if (catalog.MapRevision == 0)
+            {
+                throw new ArgumentException(
+                    "PI Write requires a Catalog with a non-zero MapRevision.",
+                    "catalog");
+            }
+
+            var found = false;
+            for (var index = 0; index < catalog.Entries.Count; index++)
+            {
+                if (ReferenceEquals(catalog.Entries[index], signal))
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                throw new ArgumentException(
+                    "The PI Write signal does not belong to the supplied Catalog.",
+                    "signal");
+            }
+
+            if (signal.SignalId == 0)
+            {
+                throw new ArgumentException(
+                    "PI Write requires a non-zero SignalId.",
+                    "signal");
+            }
+
+            if ((signal.AccessFlags & LMCSignalAccessFlags.WritableByPolicy) == 0)
+            {
+                throw new InvalidOperationException(
+                    "The Catalog does not mark this signal WritableByPolicy.");
+            }
+
+            if (valueType == LMCSignalValueType.Invalid
+                || valueType != signal.DataType)
+            {
+                throw new ArgumentException(
+                    "The PI Write ValueType must exactly match the Catalog entry.",
+                    "valueType");
+            }
+
+            if (IsPermanentlyUnsafeTarget(signal))
+            {
+                throw new InvalidOperationException(
+                    "Direct PI Write is permanently blocked for DS402 control and target objects.");
+            }
+
+            ValidateRawValue(signal, rawValue32);
+
+            Catalog = catalog;
+            Signal = signal;
+            ValueType = valueType;
+            RawValue32 = rawValue32;
+        }
+
+        public LMCSignalCatalog Catalog { get; private set; }
+        public LMCSignalCatalogEntry Signal { get; private set; }
+        public uint MapRevision { get { return Catalog.MapRevision; } }
+        public uint SignalId { get { return Signal.SignalId; } }
+        public LMCSignalValueType ValueType { get; private set; }
+        public uint RawValue32 { get; private set; }
+
+        internal static bool IsPermanentlyUnsafeTarget(
+            LMCSignalCatalogEntry signal)
+        {
+            if (signal == null)
+            {
+                return false;
+            }
+
+            switch (signal.PdoIndex)
+            {
+                case 0x6040:
+                case 0x607A:
+                case 0x60FF:
+                case 0x6071:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static void ValidateRawValue(
+            LMCSignalCatalogEntry signal,
+            uint rawValue32)
+        {
+            switch (signal.DataType)
+            {
+                case LMCSignalValueType.Bool:
+                    if (rawValue32 > 1)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            "rawValue32",
+                            "Bool PI values must be canonical 0 or 1.");
+                    }
+
+                    ValidateUnsignedRange(signal, rawValue32);
+
+                    break;
+
+                case LMCSignalValueType.Int16:
+                    var int16Value = unchecked((short)(ushort)rawValue32);
+                    var canonicalInt16 = unchecked((uint)(int)int16Value);
+                    if (rawValue32 != canonicalInt16)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            "rawValue32",
+                            "Int16 PI values must be sign-extended to 32 bits.");
+                    }
+
+                    ValidateSignedRange(signal, int16Value);
+                    break;
+
+                case LMCSignalValueType.UInt16:
+                case LMCSignalValueType.BitField16:
+                    if ((rawValue32 & 0xFFFF0000u) != 0)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            "rawValue32",
+                            "Unsigned 16-bit PI values must be zero-extended to 32 bits.");
+                    }
+
+                    ValidateUnsignedRange(signal, rawValue32);
+                    break;
+
+                case LMCSignalValueType.Int32:
+                    ValidateSignedRange(signal, unchecked((int)rawValue32));
+                    break;
+
+                case LMCSignalValueType.UInt32:
+                case LMCSignalValueType.BitField32:
+                    ValidateUnsignedRange(signal, rawValue32);
+                    break;
+
+                case LMCSignalValueType.Real32:
+                    throw new NotSupportedException(
+                        "REAL PI Write is fail-closed because schema v1 does not define how DINT MinimumRaw and MaximumRaw encode REAL bounds.");
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        "signal",
+                        "The Catalog entry has no writable schema-v1 ValueType.");
+            }
+        }
+
+        private static void ValidateSignedRange(
+            LMCSignalCatalogEntry signal,
+            int value)
+        {
+            if (value < signal.MinimumRaw || value > signal.MaximumRaw)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "rawValue32",
+                    "The PI value is outside the Catalog raw range.");
+            }
+        }
+
+        private static void ValidateUnsignedRange(
+            LMCSignalCatalogEntry signal,
+            uint value)
+        {
+            var minimum = unchecked((uint)signal.MinimumRaw);
+            var maximum = unchecked((uint)signal.MaximumRaw);
+            if (value < minimum || value > maximum)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "rawValue32",
+                    "The PI value is outside the Catalog raw range.");
+            }
+        }
+    }
+
+    public sealed class LMCSdoRequest
+    {
+        private readonly byte[] writeData;
+
+        private LMCSdoRequest(
+            ushort slaveReference,
+            LMCOperationFlags operationFlags,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            uint timeoutCycles,
+            ushort dataLength,
+            byte[] writeData)
+        {
+            ValidateIdentity(
+                slaveReference,
+                operationFlags,
+                objectIndex,
+                valueType,
+                timeoutCycles,
+                dataLength);
+
+            if (operationFlags == LMCOperationFlags.Write)
+            {
+                if (writeData == null || writeData.Length != dataLength)
+                {
+                    throw new ArgumentException(
+                        "SDO WriteData length must exactly match DataLength.",
+                        "writeData");
+                }
+
+                ValidateCanonicalWriteData(valueType, writeData);
+                this.writeData = (byte[])writeData.Clone();
+            }
+            else
+            {
+                if (operationFlags != LMCOperationFlags.None)
+                {
+                    throw new ArgumentOutOfRangeException("operationFlags");
+                }
+
+                if (writeData != null && writeData.Length != 0)
+                {
+                    throw new ArgumentException(
+                        "SDO Read must not contain WriteData.",
+                        "writeData");
+                }
+
+                this.writeData = new byte[0];
+            }
+
+            SlaveReference = slaveReference;
+            OperationFlags = operationFlags;
+            ObjectIndex = objectIndex;
+            SubIndex = subIndex;
+            ValueType = valueType;
+            TimeoutCycles = timeoutCycles;
+            DataLength = dataLength;
+        }
+
+        public ushort SlaveReference { get; private set; }
+        public LMCOperationFlags OperationFlags { get; private set; }
+        public ushort ObjectIndex { get; private set; }
+        public byte SubIndex { get; private set; }
+        public LMCSignalValueType ValueType { get; private set; }
+        public uint TimeoutCycles { get; private set; }
+        public ushort DataLength { get; private set; }
+        public bool IsWrite { get { return OperationFlags == LMCOperationFlags.Write; } }
+        public byte[] WriteData { get { return (byte[])writeData.Clone(); } }
+
+        internal byte[] WriteDataUnsafe { get { return writeData; } }
+
+        public static LMCSdoRequest CreateRead(
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            uint timeoutCycles)
+        {
+            return new LMCSdoRequest(
+                slaveReference,
+                LMCOperationFlags.None,
+                objectIndex,
+                subIndex,
+                valueType,
+                timeoutCycles,
+                dataLength,
+                null);
+        }
+
+        public static LMCSdoRequest CreateWrite(
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            byte[] writeData,
+            uint timeoutCycles)
+        {
+            if (writeData == null)
+            {
+                throw new ArgumentNullException("writeData");
+            }
+
+            if (writeData.Length != 4
+                && writeData.Length != 8
+                && writeData.Length != 12)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "writeData",
+                    "D5 SDO WriteData must contain exactly 4, 8, or 12 bytes.");
+            }
+
+            return new LMCSdoRequest(
+                slaveReference,
+                LMCOperationFlags.Write,
+                objectIndex,
+                subIndex,
+                valueType,
+                timeoutCycles,
+                (ushort)writeData.Length,
+                writeData);
+        }
+
+        internal static bool IsPermanentlyUnsafeObject(ushort objectIndex)
+        {
+            switch (objectIndex)
+            {
+                case 0x6040:
+                case 0x607A:
+                case 0x60FF:
+                case 0x6071:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static void ValidateIdentity(
+            ushort slaveReference,
+            LMCOperationFlags operationFlags,
+            ushort objectIndex,
+            LMCSignalValueType valueType,
+            uint timeoutCycles,
+            ushort dataLength)
+        {
+            if (slaveReference == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "slaveReference",
+                    "SlaveReference must be non-zero.");
+            }
+
+            if (objectIndex == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "objectIndex",
+                    "ObjectIndex must be non-zero.");
+            }
+
+            if (valueType <= LMCSignalValueType.Invalid
+                || valueType > LMCSignalValueType.BitField32)
+            {
+                throw new ArgumentOutOfRangeException("valueType");
+            }
+
+            if (timeoutCycles == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "timeoutCycles",
+                    "TimeoutCycles must be non-zero.");
+            }
+
+            var isInlineLength = dataLength == 4
+                || dataLength == 8
+                || dataLength == 12;
+            if (operationFlags == LMCOperationFlags.Write && !isInlineLength)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "dataLength",
+                    "SDO Write DataLength must be exactly 4, 8, or 12 bytes.");
+            }
+
+            if (operationFlags == LMCOperationFlags.None
+                && !isInlineLength
+                && dataLength <= LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "dataLength",
+                    "Inline SDO Read DataLength must be 4, 8, or 12 bytes; larger reads require result chunks.");
+            }
+        }
+
+        private static void ValidateCanonicalWriteData(
+            LMCSignalValueType valueType,
+            byte[] data)
+        {
+            if (valueType == LMCSignalValueType.Bool)
+            {
+                if (data[0] > 1)
+                {
+                    throw new ArgumentException(
+                        "Bool SDO data must begin with canonical 0 or 1.",
+                        "writeData");
+                }
+
+                RequireTail(data, 1, 0);
+            }
+            else if (valueType == LMCSignalValueType.Int16)
+            {
+                var fill = (data[1] & 0x80) == 0 ? (byte)0 : (byte)0xFF;
+                RequireTail(data, 2, fill);
+            }
+            else if (valueType == LMCSignalValueType.UInt16
+                || valueType == LMCSignalValueType.BitField16)
+            {
+                RequireTail(data, 2, 0);
+            }
+        }
+
+        private static void RequireTail(
+            byte[] data,
+            int startIndex,
+            byte expected)
+        {
+            for (var index = startIndex; index < data.Length; index++)
+            {
+                if (data[index] != expected)
+                {
+                    throw new ArgumentException(
+                        "Narrow SDO values must use canonical sign or zero extension.",
+                        "writeData");
+                }
+            }
+        }
+    }
+
+    public sealed class LMCOperationTicket
+    {
+        internal LMCOperationTicket(
+            uint ticketId,
+            LMCOperationKind operationKind,
+            uint queuedCycle,
+            uint diagnosticsBootId,
+            long connectionSessionGeneration,
+            LMCDiagnostics owner,
+            bool expectsResultData,
+            ushort expectedResultLength,
+            LMCSignalValueType expectedResultValueType,
+            bool usesExtendedResultChunks = false,
+            ushort maxResultChunkDataBytes = 0)
+        {
+            if (ticketId == 0)
+            {
+                throw new ArgumentOutOfRangeException("ticketId");
+            }
+
+            if (operationKind <= LMCOperationKind.None
+                || operationKind > LMCOperationKind.SDOWrite)
+            {
+                throw new ArgumentOutOfRangeException("operationKind");
+            }
+
+            if (diagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException("diagnosticsBootId");
+            }
+
+            var isSdoRead = operationKind == LMCOperationKind.SDORead;
+            if (expectsResultData != isSdoRead
+                || (isSdoRead
+                    && (expectedResultLength == 0
+                        || expectedResultValueType
+                            == LMCSignalValueType.Invalid))
+                || (!isSdoRead
+                    && (expectedResultLength != 0
+                        || expectedResultValueType
+                            != LMCSignalValueType.Invalid)))
+            {
+                throw new ArgumentException(
+                    "Operation ticket result metadata does not match its operation kind.");
+            }
+
+            if (usesExtendedResultChunks
+                && (!isSdoRead
+                    || expectedResultLength
+                        <= LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes
+                    || maxResultChunkDataBytes == 0))
+            {
+                throw new ArgumentException(
+                    "Extended SDO result tickets require a result larger than 12 bytes and a non-zero chunk limit.");
+            }
+
+            if (!usesExtendedResultChunks && maxResultChunkDataBytes != 0)
+            {
+                throw new ArgumentException(
+                    "Inline operation tickets must not contain an SDO result chunk limit.");
+            }
+
+            Owner = owner ?? throw new ArgumentNullException("owner");
+            TicketId = ticketId;
+            OperationKind = operationKind;
+            QueuedCycle = queuedCycle;
+            DiagnosticsBootId = diagnosticsBootId;
+            ConnectionSessionGeneration = connectionSessionGeneration;
+            ExpectsResultData = expectsResultData;
+            ExpectedResultLength = expectedResultLength;
+            ExpectedResultValueType = expectedResultValueType;
+            UsesExtendedResultChunks = usesExtendedResultChunks;
+            MaxResultChunkDataBytes = maxResultChunkDataBytes;
+        }
+
+        public uint TicketId { get; private set; }
+        public LMCOperationKind OperationKind { get; private set; }
+        public uint QueuedCycle { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public bool UsesExtendedResultChunks { get; private set; }
+        public ushort RequestedResultLength { get { return ExpectedResultLength; } }
+        public LMCSignalValueType ResultValueType
+        {
+            get { return ExpectedResultValueType; }
+        }
+
+        internal long ConnectionSessionGeneration { get; private set; }
+        internal LMCDiagnostics Owner { get; private set; }
+        internal bool ExpectsResultData { get; private set; }
+        internal ushort ExpectedResultLength { get; private set; }
+        internal LMCSignalValueType ExpectedResultValueType { get; private set; }
+        internal ushort MaxResultChunkDataBytes { get; private set; }
+    }
+
+    public sealed class LMCOperationStatus
+    {
+        private readonly byte[] resultData;
+
+        internal LMCOperationStatus(
+            LMCDiagnosticsResponse response,
+            uint ticketId,
+            LMCOperationKind operationKind,
+            LMCOperationState state,
+            uint submitCycle,
+            uint completionCycle,
+            LMCOperationOutcome outcome,
+            short operationErrorId,
+            uint operationDetail,
+            uint resultLength,
+            LMCSignalValueType resultValueType,
+            byte[] resultData,
+            uint diagnosticsBootId)
+        {
+            Response = response;
+            TicketId = ticketId;
+            OperationKind = operationKind;
+            State = state;
+            SubmitCycle = submitCycle;
+            CompletionCycle = completionCycle;
+            Outcome = outcome;
+            OperationErrorId = operationErrorId;
+            OperationDetail = operationDetail;
+            ResultLength = resultLength;
+            ResultValueType = resultValueType;
+            this.resultData = resultData == null
+                ? new byte[0]
+                : (byte[])resultData.Clone();
+            DiagnosticsBootId = diagnosticsBootId;
+        }
+
+        public LMCDiagnosticsResponse Response { get; private set; }
+        public uint TicketId { get; private set; }
+        public LMCOperationKind OperationKind { get; private set; }
+        public LMCOperationState State { get; private set; }
+        public uint SubmitCycle { get; private set; }
+        public uint CompletionCycle { get; private set; }
+        public LMCOperationOutcome Outcome { get; private set; }
+        public short OperationErrorId { get; private set; }
+        public uint OperationDetail { get; private set; }
+        public uint ResultLength { get; private set; }
+        public LMCSignalValueType ResultValueType { get; private set; }
+        public byte[] ResultData { get { return (byte[])resultData.Clone(); } }
+        public uint DiagnosticsBootId { get; private set; }
+
+        public bool IsTerminal
+        {
+            get
+            {
+                return State == LMCOperationState.Completed
+                    || State == LMCOperationState.Failed
+                    || State == LMCOperationState.Cancelled
+                    || State == LMCOperationState.Expired;
+            }
+        }
+
+        public bool IsSuccessful
+        {
+            get
+            {
+                return State == LMCOperationState.Completed
+                    && Outcome == LMCOperationOutcome.Success;
+            }
+        }
+    }
+
+    public sealed class LMCSdoResultChunkRequest
+    {
+        public LMCSdoResultChunkRequest(
+            LMCOperationTicket ticket,
+            uint offsetBytes,
+            ushort requestedByteCount,
+            uint sequence)
+        {
+            if (ticket == null)
+            {
+                throw new ArgumentNullException("ticket");
+            }
+
+            if (ticket.OperationKind != LMCOperationKind.SDORead
+                || !ticket.UsesExtendedResultChunks)
+            {
+                throw new ArgumentException(
+                    "SDO result chunks require an extended SDO Read ticket.",
+                    "ticket");
+            }
+
+            if (requestedByteCount == 0
+                || requestedByteCount > ticket.MaxResultChunkDataBytes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "requestedByteCount",
+                    "RequestedByteCount must fit the negotiated SDO result chunk limit.");
+            }
+
+            if (offsetBytes >= ticket.ExpectedResultLength)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "offsetBytes",
+                    "OffsetBytes must be inside the requested SDO result length.");
+            }
+
+            Ticket = ticket;
+            OffsetBytes = offsetBytes;
+            RequestedByteCount = requestedByteCount;
+            Sequence = sequence;
+        }
+
+        public LMCOperationTicket Ticket { get; private set; }
+        public uint OffsetBytes { get; private set; }
+        public ushort RequestedByteCount { get; private set; }
+        public uint Sequence { get; private set; }
+    }
+
+    public sealed class LMCSdoResultChunk
+    {
+        private readonly byte[] data;
+
+        internal LMCSdoResultChunk(
+            LMCDiagnosticsResponse response,
+            uint ticketId,
+            uint offsetBytes,
+            ushort returnedByteCount,
+            uint sequence,
+            uint totalResultLength,
+            uint dataCrc32,
+            uint diagnosticsBootId,
+            LMCSignalValueType valueType,
+            byte[] data)
+        {
+            Response = response;
+            TicketId = ticketId;
+            OffsetBytes = offsetBytes;
+            ReturnedByteCount = returnedByteCount;
+            Sequence = sequence;
+            TotalResultLength = totalResultLength;
+            DataCrc32 = dataCrc32;
+            DiagnosticsBootId = diagnosticsBootId;
+            ValueType = valueType;
+            this.data = data == null ? new byte[0] : (byte[])data.Clone();
+        }
+
+        public LMCDiagnosticsResponse Response { get; private set; }
+        public uint TicketId { get; private set; }
+        public uint OffsetBytes { get; private set; }
+        public ushort ReturnedByteCount { get; private set; }
+        public uint Sequence { get; private set; }
+        public uint TotalResultLength { get; private set; }
+        public uint DataCrc32 { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public LMCSignalValueType ValueType { get; private set; }
+        public byte[] Data { get { return (byte[])data.Clone(); } }
+        public bool IsLastChunk
+        {
+            get
+            {
+                return (Response.ResponseFlags
+                    & LMCDiagnosticsResponseFlags.LastChunk) != 0;
+            }
+        }
+    }
+
+    internal sealed class LMCOperationSubmission
+    {
+        internal LMCOperationSubmission(
+            LMCDiagnosticsResponse response,
+            uint ticketId,
+            LMCOperationKind operationKind,
+            uint queuedCycle,
+            uint diagnosticsBootId)
+        {
+            Response = response;
+            TicketId = ticketId;
+            OperationKind = operationKind;
+            QueuedCycle = queuedCycle;
+            DiagnosticsBootId = diagnosticsBootId;
+        }
+
+        internal LMCDiagnosticsResponse Response { get; private set; }
+        internal uint TicketId { get; private set; }
+        internal LMCOperationKind OperationKind { get; private set; }
+        internal uint QueuedCycle { get; private set; }
+        internal uint DiagnosticsBootId { get; private set; }
+    }
+
+    internal sealed class LMCCancelOperationResult
+    {
+        internal LMCCancelOperationResult(
+            LMCDiagnosticsResponse response,
+            uint ticketId,
+            LMCOperationState state,
+            LMCOperationOutcome outcome,
+            uint diagnosticsBootId)
+        {
+            Response = response;
+            TicketId = ticketId;
+            State = state;
+            Outcome = outcome;
+            DiagnosticsBootId = diagnosticsBootId;
+        }
+
+        internal LMCDiagnosticsResponse Response { get; private set; }
+        internal uint TicketId { get; private set; }
+        internal LMCOperationState State { get; private set; }
+        internal LMCOperationOutcome Outcome { get; private set; }
+        internal uint DiagnosticsBootId { get; private set; }
+    }
+}

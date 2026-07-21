@@ -655,7 +655,7 @@ FUNCTION GLOBAL TAB ONE_Motion_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-43$UDINT,
+45$UDINT,
 TO_UDINT(1047453148), "_AxisBase", 1$UINT, 58$UINT, 0$UINT,
 TO_UDINT(3162349954), "_LMCABSEncoder", 1$UINT, 0$UINT, 9$UINT,
 TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 9$UINT,
@@ -694,6 +694,8 @@ TO_UDINT(3810518436), "Elmo_3", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(2105241607), "Elmo_4", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(1021147964), "EtherCAT_Hub_Base", 1$UINT, 2$UINT, 4$UINT,
 TO_UDINT(1916923939), "GetCILInterface", 1$UINT, 5$UINT, 4$UINT,
+TO_UDINT(3935910575), "LMCEcatInputLatch", 0$UINT, 0$UINT, 1$UINT,
+TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(2225119864), "MerkerEx", 1$UINT, 22$UINT, 8$UINT,
 TO_UDINT(28504452), "PosController", 2$UINT, 77$UINT, 4$UINT,
 TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 8$UINT,
@@ -922,6 +924,10 @@ _NO_ATTR, TO_UDINT(499450212), "ELMO_41",
 1$UINT, TO_UDINT(3244829115), "ELMO_31\_BASE\_BASE\GETCILINTERFACE_ECAT", 
 1$UINT, TO_UDINT(3256960000), "ELMO_41\_BASE\_BASE\GETCILINTERFACE_ECAT", 
 
+_NO_ATTR, TO_UDINT(3311388916), "LMCECATINPUTLATCH1", 
+
+_NO_ATTR, TO_UDINT(1161287402), "LMCRECORDERSTORE1", 
+
 1$UINT, TO_UDINT(465790920), "ELMO_11\_BASE\_BASE\DEVICENAMESTR\MERKEREX0", 
 1$UINT, TO_UDINT(779370331), "ELMO_11\_BASE\_BASE\PRODUCTREVSTR\MERKEREX0", 
 1$UINT, TO_UDINT(1445685167), "ELMO_21\_BASE\_BASE\DEVICENAMESTR\MERKEREX0", 
@@ -1113,33 +1119,34 @@ TO_UDINT(159), "LMCMath_SO3", TO_UDINT(118),
 TO_UDINT(159), "_LMCRobotLog", TO_UDINT(160),
 TO_UDINT(159), "LMCBeltInternal", TO_UDINT(117),
 TO_UDINT(172), "GetCILInterface_ECAT", TO_UDINT(180),
-TO_UDINT(172), "DeviceNameStr", TO_UDINT(196),
-TO_UDINT(172), "ProductRevStr", TO_UDINT(197),
+TO_UDINT(172), "DeviceNameStr", TO_UDINT(198),
+TO_UDINT(172), "ProductRevStr", TO_UDINT(199),
 TO_UDINT(172), "EtherCAT_Hub_Base_1", TO_UDINT(176),
 TO_UDINT(173), "GetCILInterface_ECAT", TO_UDINT(181),
-TO_UDINT(173), "DeviceNameStr", TO_UDINT(198),
-TO_UDINT(173), "ProductRevStr", TO_UDINT(199),
+TO_UDINT(173), "DeviceNameStr", TO_UDINT(200),
+TO_UDINT(173), "ProductRevStr", TO_UDINT(201),
 TO_UDINT(173), "EtherCAT_Hub_Base_1", TO_UDINT(177),
 TO_UDINT(174), "GetCILInterface_ECAT", TO_UDINT(182),
-TO_UDINT(174), "DeviceNameStr", TO_UDINT(200),
-TO_UDINT(174), "ProductRevStr", TO_UDINT(201),
+TO_UDINT(174), "DeviceNameStr", TO_UDINT(202),
+TO_UDINT(174), "ProductRevStr", TO_UDINT(203),
 TO_UDINT(174), "EtherCAT_Hub_Base_1", TO_UDINT(178),
 TO_UDINT(175), "GetCILInterface_ECAT", TO_UDINT(183),
-TO_UDINT(175), "DeviceNameStr", TO_UDINT(202),
-TO_UDINT(175), "ProductRevStr", TO_UDINT(203),
+TO_UDINT(175), "DeviceNameStr", TO_UDINT(204),
+TO_UDINT(175), "ProductRevStr", TO_UDINT(205),
 TO_UDINT(175), "EtherCAT_Hub_Base_1", TO_UDINT(179),
-TO_UDINT(196), "MerkerEx0", TO_UDINT(184),
-TO_UDINT(197), "MerkerEx0", TO_UDINT(185),
 TO_UDINT(198), "MerkerEx0", TO_UDINT(186),
 TO_UDINT(199), "MerkerEx0", TO_UDINT(187),
 TO_UDINT(200), "MerkerEx0", TO_UDINT(188),
 TO_UDINT(201), "MerkerEx0", TO_UDINT(189),
 TO_UDINT(202), "MerkerEx0", TO_UDINT(190),
 TO_UDINT(203), "MerkerEx0", TO_UDINT(191),
+TO_UDINT(204), "MerkerEx0", TO_UDINT(192),
+TO_UDINT(205), "MerkerEx0", TO_UDINT(193),
 0$UDINT,
-208$UDINT,
+214$UDINT,
 TO_UDINT(9), "ActPosition", TO_UDINT(172), "ActPos",
-TO_UDINT(9), "LMCController", TO_UDINT(192), "Signal_Input",
+TO_UDINT(9), "LMCController", TO_UDINT(194), "Signal_Input",
+TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(184), "ClassSvr",
 TO_UDINT(9), "LMCMath", TO_UDINT(120), "ClassSvr",
 TO_UDINT(9), "LMCSafety", TO_UDINT(161), "ClassSvr",
 TO_UDINT(9), "LMCReference", TO_UDINT(18), "RefInput",
@@ -1148,7 +1155,7 @@ TO_UDINT(9), "LMCPublisher", TO_UDINT(150), "ClassSvr",
 TO_UDINT(9), "HWReady", TO_UDINT(172), "Online",
 TO_UDINT(9), "HWError", TO_UDINT(172), "AxError",
 TO_UDINT(10), "ActPosition", TO_UDINT(173), "ActPos",
-TO_UDINT(10), "LMCController", TO_UDINT(193), "Signal_Input",
+TO_UDINT(10), "LMCController", TO_UDINT(195), "Signal_Input",
 TO_UDINT(10), "LMCMath", TO_UDINT(121), "ClassSvr",
 TO_UDINT(10), "LMCSafety", TO_UDINT(162), "ClassSvr",
 TO_UDINT(10), "LMCReference", TO_UDINT(19), "RefInput",
@@ -1157,7 +1164,7 @@ TO_UDINT(10), "LMCPublisher", TO_UDINT(151), "ClassSvr",
 TO_UDINT(10), "HWReady", TO_UDINT(173), "Online",
 TO_UDINT(10), "HWError", TO_UDINT(173), "AxError",
 TO_UDINT(11), "ActPosition", TO_UDINT(174), "ActPos",
-TO_UDINT(11), "LMCController", TO_UDINT(194), "Signal_Input",
+TO_UDINT(11), "LMCController", TO_UDINT(196), "Signal_Input",
 TO_UDINT(11), "LMCMath", TO_UDINT(122), "ClassSvr",
 TO_UDINT(11), "LMCSafety", TO_UDINT(163), "ClassSvr",
 TO_UDINT(11), "LMCReference", TO_UDINT(20), "RefInput",
@@ -1166,7 +1173,7 @@ TO_UDINT(11), "LMCPublisher", TO_UDINT(152), "ClassSvr",
 TO_UDINT(11), "HWReady", TO_UDINT(174), "Online",
 TO_UDINT(11), "HWError", TO_UDINT(174), "AxError",
 TO_UDINT(12), "ActPosition", TO_UDINT(175), "ActPos",
-TO_UDINT(12), "LMCController", TO_UDINT(195), "Signal_Input",
+TO_UDINT(12), "LMCController", TO_UDINT(197), "Signal_Input",
 TO_UDINT(12), "LMCMath", TO_UDINT(123), "ClassSvr",
 TO_UDINT(12), "LMCSafety", TO_UDINT(164), "ClassSvr",
 TO_UDINT(12), "LMCReference", TO_UDINT(21), "RefInput",
@@ -1318,34 +1325,39 @@ TO_UDINT(176), "toNextEtherCAT", TO_UDINT(172), "ClassState",
 TO_UDINT(177), "toNextEtherCAT", TO_UDINT(173), "ClassState",
 TO_UDINT(178), "toNextEtherCAT", TO_UDINT(174), "ClassState",
 TO_UDINT(179), "toNextEtherCAT", TO_UDINT(175), "ClassState",
-TO_UDINT(192), "iHWErrors", TO_UDINT(172), "AxError",
-TO_UDINT(192), "oActive", TO_UDINT(172), "AxEnable",
-TO_UDINT(192), "oOutputSignal", TO_UDINT(172), "SetPos",
-TO_UDINT(192), "DriveEnabled", TO_UDINT(172), "AxEnable",
-TO_UDINT(192), "HWErrorQuit", TO_UDINT(172), "AxErrorQuit",
-TO_UDINT(193), "iHWErrors", TO_UDINT(173), "AxError",
-TO_UDINT(193), "oActive", TO_UDINT(173), "AxEnable",
-TO_UDINT(193), "oOutputSignal", TO_UDINT(173), "SetPos",
-TO_UDINT(193), "DriveEnabled", TO_UDINT(173), "AxEnable",
-TO_UDINT(193), "HWErrorQuit", TO_UDINT(173), "AxErrorQuit",
-TO_UDINT(194), "iHWErrors", TO_UDINT(174), "AxError",
-TO_UDINT(194), "oActive", TO_UDINT(174), "AxEnable",
-TO_UDINT(194), "oOutputSignal", TO_UDINT(174), "SetPos",
-TO_UDINT(194), "DriveEnabled", TO_UDINT(174), "AxEnable",
-TO_UDINT(194), "HWErrorQuit", TO_UDINT(174), "AxErrorQuit",
-TO_UDINT(195), "iHWErrors", TO_UDINT(175), "AxError",
-TO_UDINT(195), "oActive", TO_UDINT(175), "AxEnable",
-TO_UDINT(195), "oOutputSignal", TO_UDINT(175), "SetPos",
-TO_UDINT(195), "DriveEnabled", TO_UDINT(175), "AxEnable",
-TO_UDINT(195), "HWErrorQuit", TO_UDINT(175), "AxErrorQuit",
-TO_UDINT(196), "DataBuffer", TO_UDINT(184), "m_udLength",
-TO_UDINT(197), "DataBuffer", TO_UDINT(185), "m_udLength",
+TO_UDINT(184), "Drive1", TO_UDINT(172), "ClassState",
+TO_UDINT(184), "Drive2", TO_UDINT(173), "ClassState",
+TO_UDINT(184), "Drive3", TO_UDINT(174), "ClassState",
+TO_UDINT(184), "Drive4", TO_UDINT(175), "ClassState",
+TO_UDINT(184), "RecorderStore", TO_UDINT(185), "ClassSvr",
+TO_UDINT(194), "iHWErrors", TO_UDINT(172), "AxError",
+TO_UDINT(194), "oActive", TO_UDINT(172), "AxEnable",
+TO_UDINT(194), "oOutputSignal", TO_UDINT(172), "SetPos",
+TO_UDINT(194), "DriveEnabled", TO_UDINT(172), "AxEnable",
+TO_UDINT(194), "HWErrorQuit", TO_UDINT(172), "AxErrorQuit",
+TO_UDINT(195), "iHWErrors", TO_UDINT(173), "AxError",
+TO_UDINT(195), "oActive", TO_UDINT(173), "AxEnable",
+TO_UDINT(195), "oOutputSignal", TO_UDINT(173), "SetPos",
+TO_UDINT(195), "DriveEnabled", TO_UDINT(173), "AxEnable",
+TO_UDINT(195), "HWErrorQuit", TO_UDINT(173), "AxErrorQuit",
+TO_UDINT(196), "iHWErrors", TO_UDINT(174), "AxError",
+TO_UDINT(196), "oActive", TO_UDINT(174), "AxEnable",
+TO_UDINT(196), "oOutputSignal", TO_UDINT(174), "SetPos",
+TO_UDINT(196), "DriveEnabled", TO_UDINT(174), "AxEnable",
+TO_UDINT(196), "HWErrorQuit", TO_UDINT(174), "AxErrorQuit",
+TO_UDINT(197), "iHWErrors", TO_UDINT(175), "AxError",
+TO_UDINT(197), "oActive", TO_UDINT(175), "AxEnable",
+TO_UDINT(197), "oOutputSignal", TO_UDINT(175), "SetPos",
+TO_UDINT(197), "DriveEnabled", TO_UDINT(175), "AxEnable",
+TO_UDINT(197), "HWErrorQuit", TO_UDINT(175), "AxErrorQuit",
 TO_UDINT(198), "DataBuffer", TO_UDINT(186), "m_udLength",
 TO_UDINT(199), "DataBuffer", TO_UDINT(187), "m_udLength",
 TO_UDINT(200), "DataBuffer", TO_UDINT(188), "m_udLength",
 TO_UDINT(201), "DataBuffer", TO_UDINT(189), "m_udLength",
 TO_UDINT(202), "DataBuffer", TO_UDINT(190), "m_udLength",
 TO_UDINT(203), "DataBuffer", TO_UDINT(191), "m_udLength",
+TO_UDINT(204), "DataBuffer", TO_UDINT(192), "m_udLength",
+TO_UDINT(205), "DataBuffer", TO_UDINT(193), "m_udLength",
 
 //Initialization values
 0$UDINT,
@@ -1646,42 +1658,42 @@ TO_UDINT(178), "SplitterPlace", TO_UDINT(0),//|Motion_Network.Elmo_31\EtherCAT_H
 TO_UDINT(178), "BusType", TO_UDINT(0),//|Motion_Network.Elmo_31\EtherCAT_Hub_Base_1.BusType;
 TO_UDINT(179), "SplitterPlace", TO_UDINT(0),//|Motion_Network.Elmo_41\EtherCAT_Hub_Base_1.SplitterPlace;
 TO_UDINT(179), "BusType", TO_UDINT(0),//|Motion_Network.Elmo_41\EtherCAT_Hub_Base_1.BusType;
-TO_UDINT(184), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
-TO_UDINT(185), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
-TO_UDINT(186), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
-TO_UDINT(187), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
-TO_UDINT(188), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
-TO_UDINT(189), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
-TO_UDINT(190), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
-TO_UDINT(191), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
-TO_UDINT(192), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController1.iHWErrors;
-TO_UDINT(192), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController1.vHWDelay;
-TO_UDINT(192), "oActive", TO_UDINT(0),//|Motion_Network.PosController1.oActive;
-TO_UDINT(192), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController1.cDragLimit;
-TO_UDINT(192), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController1.cDragCalcDelay;
-TO_UDINT(193), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController2.iHWErrors;
-TO_UDINT(193), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController2.vHWDelay;
-TO_UDINT(193), "oActive", TO_UDINT(0),//|Motion_Network.PosController2.oActive;
-TO_UDINT(193), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController2.cDragLimit;
-TO_UDINT(193), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController2.cDragCalcDelay;
-TO_UDINT(194), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController3.iHWErrors;
-TO_UDINT(194), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController3.vHWDelay;
-TO_UDINT(194), "oActive", TO_UDINT(0),//|Motion_Network.PosController3.oActive;
-TO_UDINT(194), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController3.cDragLimit;
-TO_UDINT(194), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController3.cDragCalcDelay;
-TO_UDINT(195), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController4.iHWErrors;
-TO_UDINT(195), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController4.vHWDelay;
-TO_UDINT(195), "oActive", TO_UDINT(0),//|Motion_Network.PosController4.oActive;
-TO_UDINT(195), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController4.cDragLimit;
-TO_UDINT(195), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController4.cDragCalcDelay;
-TO_UDINT(196), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_11\DeviceNameStr.SingleRealloc;
-TO_UDINT(197), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_11\ProductRevStr.SingleRealloc;
-TO_UDINT(198), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_21\DeviceNameStr.SingleRealloc;
-TO_UDINT(199), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_21\ProductRevStr.SingleRealloc;
-TO_UDINT(200), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_31\DeviceNameStr.SingleRealloc;
-TO_UDINT(201), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_31\ProductRevStr.SingleRealloc;
-TO_UDINT(202), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_41\DeviceNameStr.SingleRealloc;
-TO_UDINT(203), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_41\ProductRevStr.SingleRealloc;
+TO_UDINT(186), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
+TO_UDINT(187), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_11\MerkerEx0.ThreadSafe;
+TO_UDINT(188), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
+TO_UDINT(189), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_21\MerkerEx0.ThreadSafe;
+TO_UDINT(190), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
+TO_UDINT(191), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_31\MerkerEx0.ThreadSafe;
+TO_UDINT(192), "ThreadSafe", TO_UDINT(0),//|Motion_Network.DeviceNameStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
+TO_UDINT(193), "ThreadSafe", TO_UDINT(0),//|Motion_Network.ProductRevStr\_base\_base\Elmo_41\MerkerEx0.ThreadSafe;
+TO_UDINT(194), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController1.iHWErrors;
+TO_UDINT(194), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController1.vHWDelay;
+TO_UDINT(194), "oActive", TO_UDINT(0),//|Motion_Network.PosController1.oActive;
+TO_UDINT(194), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController1.cDragLimit;
+TO_UDINT(194), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController1.cDragCalcDelay;
+TO_UDINT(195), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController2.iHWErrors;
+TO_UDINT(195), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController2.vHWDelay;
+TO_UDINT(195), "oActive", TO_UDINT(0),//|Motion_Network.PosController2.oActive;
+TO_UDINT(195), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController2.cDragLimit;
+TO_UDINT(195), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController2.cDragCalcDelay;
+TO_UDINT(196), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController3.iHWErrors;
+TO_UDINT(196), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController3.vHWDelay;
+TO_UDINT(196), "oActive", TO_UDINT(0),//|Motion_Network.PosController3.oActive;
+TO_UDINT(196), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController3.cDragLimit;
+TO_UDINT(196), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController3.cDragCalcDelay;
+TO_UDINT(197), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController4.iHWErrors;
+TO_UDINT(197), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController4.vHWDelay;
+TO_UDINT(197), "oActive", TO_UDINT(0),//|Motion_Network.PosController4.oActive;
+TO_UDINT(197), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController4.cDragLimit;
+TO_UDINT(197), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController4.cDragCalcDelay;
+TO_UDINT(198), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_11\DeviceNameStr.SingleRealloc;
+TO_UDINT(199), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_11\ProductRevStr.SingleRealloc;
+TO_UDINT(200), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_21\DeviceNameStr.SingleRealloc;
+TO_UDINT(201), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_21\ProductRevStr.SingleRealloc;
+TO_UDINT(202), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_31\DeviceNameStr.SingleRealloc;
+TO_UDINT(203), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_31\ProductRevStr.SingleRealloc;
+TO_UDINT(204), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_41\DeviceNameStr.SingleRealloc;
+TO_UDINT(205), "SingleRealloc", TO_UDINT(1),//|Motion_Network._base\_base\Elmo_41\ProductRevStr.SingleRealloc;
 
 //Symbolic initialization values
 0$UDINT,
@@ -1733,8 +1745,9 @@ TO_UDINT(143), (500)$UDINT, 4194303$DINT, 	//_LMCROBOTBASE1\_BASE\_LMCPROFILEVIS
 
 //External connections
 0$UDINT,
-1$UDINT,
+2$UDINT,
 TO_UDINT(172), "toMaster", C_DIR, TO_UDINT(4288059666), "EtherCAT_PLC1\EtherCAT_Hub_Base1","ClassSvr",
+TO_UDINT(184), "EcatMaster", C_DIR, TO_UDINT(2283968053), "EtherCAT_PLC1","ClassState",
 
 //Magic internal connections
 0$UDINT,
