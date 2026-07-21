@@ -2234,11 +2234,13 @@ fail-closed한다.
 확인한다. D4 전체 완료 기준은 두 bank ownership이 겹치지 않고 full 상태에서 RT가
 block되지 않는 것이다. 이 기준을 통과하기 전까지 bit 6은 켜지 않는다.
 
-### D5. 제한적 PI/SDO Write
+### D5. 제한적 PI/SDO operation
 
 현재 상태: public C# contract/model과 개발용 WPF ticket/chunk flow는 구현,
-PLC 실행 queue는 미구현이다. SDK와 PLC write allowlist는 기본 empty이고 capability
-bit 7~9/12는 0이므로 write와 extended result는 fail-closed한다.
+PLC는 `0x7E03/0x7E04/0x7E21/0x7E50/0x7E51`의 reserved request shape를 명시적으로
+검증한 뒤 fail-closed한다. 실행 queue, Drive callback과 ticket state machine은
+미구현이다. SDK와 PLC write allowlist는 기본 empty이고 capability bit 7~9/12는
+0이므로 read/write와 extended result는 활성되지 않는다.
 
 - global default off
 - allowlist, type/range/state/owner 검사

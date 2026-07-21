@@ -403,6 +403,9 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		duplicateIndex : UINT;
 		hasInvalidEntry : BOOL;
 		currentBootId : UDINT;
+		sdoOperationFlags : UINT;
+		sdoDataLength : UINT;
+		sdoReserved : UINT;
 	END_VAR
 
 	ResponseSize := -1;
@@ -673,6 +676,15 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 						end_if;
 					end_if;
 				end_if;
+			end_if;
+
+		0x7E03, 0x7E04:
+			// D5 operation status/cancel wire is reserved. Reject malformed
+			// envelopes deterministically before returning UnsupportedFeature.
+			if RequestSize <> 16 then
+				detailCode := 12;
+			else
+				detailCode := 2;
 			end_if;
 
 		0x7E21:
@@ -984,6 +996,27 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					_memset(dest:=#BulkSignalIds[0], usByte:=0,
 						cntr:=sizeof(BulkSignalIds));
 					ResponseSize := 16;
+				end_if;
+			end_if;
+
+		0x7E50:
+			// D5 SDO execution is disabled. Still validate the fixed header,
+			// operation flags, reserved field and variable write-data shape.
+			if RequestSize < 32 then
+				detailCode := 12;
+			else
+				sdoOperationFlags := (pRequest + 14)^$UINT;
+				sdoDataLength := (pRequest + 24)^$UINT;
+				sdoReserved := (pRequest + 26)^$UINT;
+				expectedRequestSize := 32;
+				if sdoOperationFlags = 1 then
+					expectedRequestSize += TO_UDINT(sdoDataLength);
+				end_if;
+				if (sdoOperationFlags > 1) | (sdoReserved <> 0) |
+					(RequestSize <> expectedRequestSize) then
+					detailCode := 12;
+				else
+					detailCode := 2;
 				end_if;
 			end_if;
 

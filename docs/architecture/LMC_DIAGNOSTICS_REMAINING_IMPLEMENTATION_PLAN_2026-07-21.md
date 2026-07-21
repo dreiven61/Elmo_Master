@@ -40,7 +40,7 @@ implementation smoke를 다시 수행해야 한다. D1-D4 fault/capture 실장 �
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release | same-cycle 및 부하 PLC 검증 |
 | D3 | internal test source 활성 | 1,280,000-byte single bank, 최대 24채널 Manual Recorder, download/adopt/release | RAM, jitter, 장시간 upload, reconnect PLC 검증 |
 | D4 | single-bank Ring/Trigger 활성 | pre-trigger ring, Edge/Window/Mask, forced trigger, chronological upload | trigger PLC 검증 및 Double bank 구현 |
-| D5 | PC public contract만 구현, PLC fail-closed | PI/SDO ticket 모델, status/cancel, WPF 흐름 | 첫 증분 SDO Read 실행부, 이후 write policy |
+| D5 | PC public contract와 PLC 명시적 fail-closed parser | PI/SDO ticket 모델, status/cancel, WPF 흐름, reserved request shape 검증 | 첫 증분 SDO Read 실행부, 이후 write policy |
 | D6 | 미구현 | instance 기반 `LMCConnection`은 유지 | C# static/handle compatibility facade |
 
 현재 정상 retained BootId 경로의 capability는 다음과 같다.
@@ -106,6 +106,21 @@ diagnostics `0x7Exx` packet은 포함하지 않는다. 분석 결과를 다음�
 PMAS Version2의 `uiSr=0` 차단과 `0x0104` ready flow는 source/build 수준으로만
 확인했다. 실제 controller UI smoke는 남아 있다.
 
+### 3.6 D5 capability-off dispatcher 명시화
+
+`0x7E03 GetOperationStatus`, `0x7E04 CancelOperation`, `0x7E50 SubmitSDO`를 default
+case에 맡기지 않고 `LMCDiagnosticsService`의 명시적 reserved handler로 추가했다.
+
+- `0x7E03/0x7E04`는 exact 16-byte request만 구조적으로 유효하다.
+- `0x7E50`은 32-byte header, OperationFlags 0/1, reserved zero와 read/write별 정확한
+  payload 길이를 검증한다.
+- malformed shape는 `BoundsInvalid`, 구조적으로 유효한 request는
+  `UnsupportedFeature`다.
+- capability는 계속 `0x0000003F`, `MaxSdoDataBytes=0`이다. ticket, Drive callback과
+  SDO 실행은 아직 없다.
+- PC 회귀는 first-slice capability `MaxSdoDataBytes=4`에서 4-byte read를 허용하고
+  8-byte read를 송신 전에 거부하는 경계를 포함한다.
+
 ## 4. 구현 우선순위
 
 단계 번호는 설계 분류이고 아래 `P0-P5`는 실제 작업 순서다.
@@ -160,6 +175,10 @@ reconnect 의미를 함께 검증해야 하므로 현재 single-bank 실장 기�
 - disconnect 시 queued ticket 취소, running callback 결과는 폐기한 뒤 slot 회수
 - 실제 object 크기가 확인된 read allowlist만 사용. 첫 실기 벡터는 `0x1000:0`
   UInt32/4-byte read다.
+
+2026-07-22 현재 위 세 command의 capability-off request parser까지만 구현했다.
+Drive1..4 client, callback mailbox, one-ticket state machine과 실행 scheduling은
+LASAL IDE declaration/network 작업이 필요한 다음 단계다.
 
 ### 6.2 제외 범위
 
@@ -237,5 +256,6 @@ EtherCAT fault 전이, RAM 여유, 실제 RT jitter, drive mailbox 응답을 대
 3. 해당 단계의 PLC 시험 결과를 packet/log/trace로 저장한다.
 4. 사용자 문서와 release status의 수치 및 미구현 표기가 source와 일치한다.
 
-현재는 1번과 2번의 일부까지 확인된 상태다. 실제 PLC download와 5절의 runtime
-검증을 하지 않았으므로 D1-D4를 production 완료로 분류하지 않는다.
+현재는 D1-D4 source와 D5 capability-off parser에 대해 1번과 2번의 일부까지 확인된
+상태다. 실제 PLC download와 5절의 runtime 검증을 하지 않았으므로 D1-D4 또는 D5를
+production 완료로 분류하지 않는다.

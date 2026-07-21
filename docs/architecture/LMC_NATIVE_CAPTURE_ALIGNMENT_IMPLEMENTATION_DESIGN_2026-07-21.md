@@ -205,6 +205,12 @@ timeout, queued cancel, disconnect/orphan cleanup and stale BootId/owner rejecti
 actual SDO response length. Zero-initialized trailing bytes could otherwise hide an object
 size mismatch.
 
+The 2026-07-22 prerequisite increment adds explicit capability-off parsing for `0x7E03`,
+`0x7E04` and `0x7E50`. It validates fixed sizes, SDO flags, the reserved field and exact
+read/write payload shape. Valid shapes still return UnsupportedFeature and malformed shapes
+return BoundsInvalid. Capability remains `0x0000003F` with `MaxSdoDataBytes=0`; no Drive
+client, callback mailbox or ticket executor is present yet.
+
 ## 7. Verification gates
 
 Static/PC gates:

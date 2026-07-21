@@ -496,7 +496,7 @@ namespace LasalMotionControlLib.Tests
                     0x7E50,
                     TestFrame.Response(
                         0,
-                        SubmitPayload(2, ticketId, LMCOperationKind.SDORead)))
+                        SubmitPayload(3, ticketId, LMCOperationKind.SDORead)))
                 {
                     InspectRequest = request => submitCancellation.Cancel()
                 };
@@ -504,7 +504,7 @@ namespace LasalMotionControlLib.Tests
                     0x7E04,
                     TestFrame.Response(
                         0,
-                        CancelPayload(3, ticketId)))
+                        CancelPayload(4, ticketId)))
                 {
                     InspectRequest = request => cancelCancellation.Cancel()
                 };
@@ -519,7 +519,16 @@ namespace LasalMotionControlLib.Tests
                             CapabilitiesPayload(
                                 1,
                                 LMCDiagnosticCapability.SDORead,
-                                12,
+                                4,
+                                0))),
+                    new FakeRpcStep(
+                        0x7E00,
+                        TestFrame.Response(
+                            0,
+                            CapabilitiesPayload(
+                                2,
+                                LMCDiagnosticCapability.SDORead,
+                                4,
                                 0))),
                     submitStep,
                     cancelStep,
@@ -527,6 +536,20 @@ namespace LasalMotionControlLib.Tests
                 using (var connection = new LMCConnection())
                 {
                     Connect(connection, server.Port);
+                    var oversizedRequest = LMCSdoRequest.CreateRead(
+                        1,
+                        0x2100,
+                        0,
+                        LMCSignalValueType.UInt32,
+                        8,
+                        100);
+                    AssertEx.Throws<InvalidDataException>(
+                        () => connection.Diagnostics.SubmitSdoAsync(
+                                oversizedRequest,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+
                     var request = LMCSdoRequest.CreateRead(
                         1,
                         0x2100,

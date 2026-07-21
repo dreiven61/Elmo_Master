@@ -188,6 +188,12 @@ identity: TriggerIndex=PreTriggerSamples and TriggerComplete SampleCount equals
 PreTriggerSamples+1+PostTriggerSamples. AdoptRecorder does not return that shape,
 so adopted identities are checked only against common frozen wire invariants.
 
+D5 reserved GetOperationStatus 0x7E03 and CancelOperation 0x7E04:
+Request payload is exactly 16 bytes:
+P8 TicketId U32, P12 DiagnosticsBootId U32.
+The current PLC validates the exact request size, then returns UnsupportedFeature.
+Malformed sizes return BoundsInvalid. The ticket executor remains capability-off.
+
 D5 reserved PI Write 0x7E21:
 Request payload is exactly 28 bytes:
 P8  MapRevision U32
@@ -204,6 +210,9 @@ P8 MapRevision U32, P12 SlaveReference U16, P14 OperationFlags U16,
 P16 ObjectIndex U16, P18 SubIndex U8, P19 ValueType U8,
 P20 TimeoutCycles U32, P24 DataLength U16, P26 reserved,
 P28 DiagnosticsBootId U32, P32 WriteData[]. Current PLC bits 8-9 are zero.
+The capability-off parser accepts only OperationFlags 0/1, reserved=0, an exact
+32-byte read request, or an exact 32+DataLength-byte write request. Structurally
+valid requests return UnsupportedFeature; malformed shapes return BoundsInvalid.
 
 D5 ReadSDOResultChunk 0x7E51 request is exactly 28 bytes:
 P8 TicketId U32, P12 ByteOffset U32, P16 RequestedBytes U16,
