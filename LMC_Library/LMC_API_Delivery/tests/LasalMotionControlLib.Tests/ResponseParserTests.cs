@@ -418,17 +418,17 @@ namespace LasalMotionControlLib.Tests
                 0x01020304,
                 int.MinValue,
                 int.MaxValue,
-                0,
                 7,
                 -8,
                 9,
                 -10,
-                11,
-                -12,
-                13,
-                -14,
-                15,
-                -16
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
             };
 
             for (var index = 0; index < expected.Length; index++)
@@ -441,9 +441,9 @@ namespace LasalMotionControlLib.Tests
 
             var result = LMCConnection.ParseGroupReadActualPositionResult(
                 TestFrame.Response(0, payload),
-                LMC_COORD_SYSTEM.Mcs);
+                LMC_COORD_SYSTEM.Acs);
 
-            AssertEx.Equal(LMC_COORD_SYSTEM.Mcs, result.CoordinateSystem);
+            AssertEx.Equal(LMC_COORD_SYSTEM.Acs, result.CoordinateSystem);
             AssertEx.Equal((ushort)0x4000, result.FunctionStatus);
             AssertEx.Equal((short)0, result.ErrorId);
             AssertEx.True(result.IsSuccess);
@@ -453,27 +453,31 @@ namespace LasalMotionControlLib.Tests
             clone[0] = 999;
             AssertEx.Equal(1, result.PositionsRaw[0]);
 
+            // Raw/older clients can still reach the PLC with MCS. Preserve its
+            // explicit -7 command-error context even though the public builder
+            // now rejects MCS before sending a request.
             var shortError = LMCConnection.ParseGroupReadActualPositionResult(
-                TestFrame.Response(0, TestFrame.Hex("10 00 FB FF")),
+                TestFrame.Response(0, TestFrame.Hex("10 00 F9 FF")),
                 LMC_COORD_SYSTEM.Mcs);
             AssertEx.False(shortError.IsSuccess);
             AssertEx.True(shortError.HasCommandError);
-            AssertEx.Equal((short)-5, shortError.ErrorId);
+            AssertEx.Equal(LMC_COORD_SYSTEM.Mcs, shortError.CoordinateSystem);
+            AssertEx.Equal((short)-7, shortError.ErrorId);
             AssertEx.Equal(16, shortError.PositionsRaw.Length);
 
             AssertEx.Throws<InvalidDataException>(
                 () => LMCConnection.ParseGroupReadActualPositionResult(
                     TestFrame.Response(0, new byte[136]),
-                    LMC_COORD_SYSTEM.Mcs),
+                    LMC_COORD_SYSTEM.Acs),
                 "The LASAL-DINT group parser must reject the legacy LREAL response.");
             AssertEx.Throws<InvalidDataException>(
                 () => LMCConnection.ParseGroupReadActualPositionResult(
                     TestFrame.Response(0, new byte[67]),
-                    LMC_COORD_SYSTEM.Mcs));
+                    LMC_COORD_SYSTEM.Acs));
             AssertEx.Throws<InvalidDataException>(
                 () => LMCConnection.ParseGroupReadActualPositionResult(
                     TestFrame.Response(0, new byte[69]),
-                    LMC_COORD_SYSTEM.Mcs));
+                    LMC_COORD_SYSTEM.Acs));
         }
 
         private static void TypedCapturedRawGolden()

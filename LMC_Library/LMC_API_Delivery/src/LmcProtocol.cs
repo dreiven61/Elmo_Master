@@ -143,6 +143,10 @@ namespace LasalMotionControlLib
         internal const ushort MoveLinear = 0x20A4;
         internal const ushort SetKinTransformEx = 0x20E7;
 
+        internal const ushort GetAdminCapabilities = 0x7D00;
+        internal const ushort ReadAxisParameter = 0x7D10;
+        internal const ushort ReadGroupParameters = 0x7D20;
+
         internal const ushort GetDiagnosticsCapabilities = 0x7E00;
         internal const ushort GetSignalCatalogInfo = 0x7E01;
         internal const ushort GetSignalCatalogChunk = 0x7E02;
@@ -181,6 +185,7 @@ namespace LasalMotionControlLib
         private const int NamePayloadLength = 0x50;
         private const int NameMaxBytes = 79;
         private const int MaxLinearAxes = 16;
+        private const int CurrentGroupMotionAxes = 4;
         private const int IPv4ByteLength = 4;
         private const int SetKinTransformPayloadLength = 1320;
         private const int KinematicNodeSize = 40;
@@ -415,7 +420,7 @@ namespace LasalMotionControlLib
             ushort reference,
             LMC_COORD_SYSTEM coordinateSystem)
         {
-            ValidateCoordinateSystem(coordinateSystem);
+            ValidateGroupReadCoordinateSystem(coordinateSystem);
 
             var buffer = CreateRequest(LMC_CommandId.GroupPosition, reference, 8);
 
@@ -430,6 +435,7 @@ namespace LasalMotionControlLib
             int deceleration,
             int jerk)
         {
+            ValidateGroupStopMotionParameters(deceleration, jerk);
             return StopWithMotionParameters(LMC_CommandId.GroupStop, reference, deceleration, jerk);
         }
 
@@ -462,6 +468,7 @@ namespace LasalMotionControlLib
         {
             ValidateGroupPositions(position);
             ValidateGroupMotionOptions(options);
+            ValidateGroupMotionParameters(velocity, acceleration, deceleration, jerk);
 
             var buffer = CreateRequest(LMC_CommandId.MoveLinear, reference, 96);
 
@@ -733,6 +740,19 @@ namespace LasalMotionControlLib
             }
         }
 
+        private static void ValidateGroupReadCoordinateSystem(
+            LMC_COORD_SYSTEM coordinateSystem)
+        {
+            ValidateCoordinateSystem(coordinateSystem);
+
+            if (coordinateSystem != LMC_COORD_SYSTEM.None
+                && coordinateSystem != LMC_COORD_SYSTEM.Acs)
+            {
+                throw new NotSupportedException(
+                    "The current LASAL 0x2051 contract supports None and ACS member-slot reads only.");
+            }
+        }
+
         private static void ValidateGroupPositions(int[] position)
         {
             if (position == null)
@@ -746,6 +766,16 @@ namespace LasalMotionControlLib
                     "position",
                     "Group position vectors must contain 1 to 16 DINT values.");
             }
+
+            for (var index = CurrentGroupMotionAxes; index < position.Length; index++)
+            {
+                if (position[index] != 0)
+                {
+                    throw new ArgumentException(
+                        "The current four-axis LASAL group move contract requires position slots 5 through 16 to be zero.",
+                        "position");
+                }
+            }
         }
 
         private static void ValidateGroupMotionOptions(
@@ -758,6 +788,12 @@ namespace LasalMotionControlLib
 
             ValidateCoordinateSystem(options.CoordinateSystem);
 
+            if (options.CoordinateSystem != LMC_COORD_SYSTEM.None)
+            {
+                throw new NotSupportedException(
+                    "The current LASAL 0x20A4 contract supports the None coordinate system only.");
+            }
+
             if (!Enum.IsDefined(
                 typeof(LMC_GROUP_TRANSITION_MODE),
                 options.TransitionMode))
@@ -765,9 +801,90 @@ namespace LasalMotionControlLib
                 throw new ArgumentOutOfRangeException("options.TransitionMode");
             }
 
+            if (options.TransitionMode != LMC_GROUP_TRANSITION_MODE.ExactStop
+                && options.TransitionMode != LMC_GROUP_TRANSITION_MODE.ContinuousDirect)
+            {
+                throw new NotSupportedException(
+                    "The current LASAL 0x20A4 contract supports ExactStop and ContinuousDirect transitions only.");
+            }
+
             if (!Enum.IsDefined(typeof(LMC_BUFFER_MODE), options.BufferMode))
             {
                 throw new ArgumentOutOfRangeException("options.BufferMode");
+            }
+
+            if (options.BufferMode != LMC_BUFFER_MODE.Aborting
+                && options.BufferMode != LMC_BUFFER_MODE.Buffered)
+            {
+                throw new NotSupportedException(
+                    "The current LASAL 0x20A4 contract supports Aborting and Buffered modes only.");
+            }
+
+            if (!options.Execute)
+            {
+                throw new NotSupportedException(
+                    "The current LASAL 0x20A4 contract requires Execute=true.");
+            }
+        }
+
+        private static void ValidateGroupMotionParameters(
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk)
+        {
+            if (velocity <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "velocity",
+                    "Group velocity must be positive.");
+            }
+
+            if (acceleration <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "acceleration",
+                    "Group acceleration must be positive.");
+            }
+
+            if (deceleration <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "deceleration",
+                    "Group deceleration must be positive.");
+            }
+
+            if (jerk < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "jerk",
+                    "Group jerk must be zero or positive.");
+            }
+        }
+
+        private static void ValidateGroupStopMotionParameters(
+            int deceleration,
+            int jerk)
+        {
+            if (deceleration < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "deceleration",
+                    "Group stop deceleration must be zero or positive.");
+            }
+
+            if (jerk < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "jerk",
+                    "Group stop jerk must be zero or positive.");
+            }
+
+            if (jerk > 0 && deceleration == 0)
+            {
+                throw new ArgumentException(
+                    "Group stop requires a positive deceleration when jerk is nonzero.",
+                    "deceleration");
             }
         }
 

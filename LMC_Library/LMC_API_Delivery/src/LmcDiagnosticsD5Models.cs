@@ -4,9 +4,9 @@ namespace LasalMotionControlLib
 {
     internal static class LMCDiagnosticsSdoPolicy
     {
-        internal const uint MaximumFirstSliceTimeoutCycles = 60000;
+        internal const uint MaximumReadTimeoutCycles = 60000;
 
-        internal static void RequireFirstSliceReadAllowed(
+        internal static void RequireReadAllowed(
             LMCSdoRequest request)
         {
             if (request == null)
@@ -17,35 +17,68 @@ namespace LasalMotionControlLib
             if (request.IsWrite)
             {
                 throw new NotSupportedException(
-                    "The first-slice D5 SDO policy supports Read operations only.");
+                    "The active D5 SDO policy supports Read operations only.");
             }
 
             if (request.SlaveReference < 1 || request.SlaveReference > 4)
             {
                 throw new NotSupportedException(
-                    "The first-slice D5 SDO policy supports SlaveReference 1 through 4 only.");
+                    "The active D5 SDO policy supports SlaveReference 1 through 4 only.");
             }
 
-            if (request.ObjectIndex != 0x1000
-                || request.SubIndex != 0)
+            var expectedLength = ExpectedReadLength(request.ValueType);
+            if (request.DataLength != expectedLength)
             {
                 throw new NotSupportedException(
-                    "The first-slice D5 SDO policy supports object 0x1000:0 only.");
-            }
-
-            if (request.ValueType != LMCSignalValueType.UInt32
-                || request.DataLength != 4)
-            {
-                throw new NotSupportedException(
-                    "The first-slice D5 SDO policy supports UInt32 4-byte reads only.");
+                    "The active D5 SDO policy requires 8-bit types=1 byte, 16-bit types=2 bytes, and 32-bit types=4 bytes.");
             }
 
             if (request.TimeoutCycles < 1
-                || request.TimeoutCycles > MaximumFirstSliceTimeoutCycles)
+                || request.TimeoutCycles > MaximumReadTimeoutCycles)
             {
                 throw new NotSupportedException(
-                    "The first-slice D5 SDO policy requires TimeoutCycles from 1 through 60000.");
+                    "The active D5 SDO policy requires TimeoutCycles from 1 through 60000.");
             }
+        }
+
+        internal static ushort ExpectedReadLength(
+            LMCSignalValueType valueType)
+        {
+            switch (valueType)
+            {
+                case LMCSignalValueType.Bool:
+                case LMCSignalValueType.Int8:
+                case LMCSignalValueType.UInt8:
+                case LMCSignalValueType.BitField8:
+                    return 1;
+                case LMCSignalValueType.Int16:
+                case LMCSignalValueType.UInt16:
+                case LMCSignalValueType.BitField16:
+                    return 2;
+                case LMCSignalValueType.Int32:
+                case LMCSignalValueType.UInt32:
+                case LMCSignalValueType.Real32:
+                case LMCSignalValueType.BitField32:
+                    return 4;
+                default:
+                    throw new NotSupportedException(
+                        "The active D5 SDO policy does not support this ValueType.");
+            }
+        }
+
+        internal static bool IsLegacyFirstSliceRead(
+            LMCSdoRequest request)
+        {
+            return request != null
+                && !request.IsWrite
+                && request.SlaveReference >= 1
+                && request.SlaveReference <= 4
+                && request.ObjectIndex == 0x1000
+                && request.SubIndex == 0
+                && request.ValueType == LMCSignalValueType.UInt32
+                && request.DataLength == 4
+                && request.TimeoutCycles >= 1
+                && request.TimeoutCycles <= MaximumReadTimeoutCycles;
         }
     }
 
@@ -525,7 +558,7 @@ namespace LasalMotionControlLib
             }
 
             if (valueType <= LMCSignalValueType.Invalid
-                || valueType > LMCSignalValueType.BitField32)
+                || valueType > LMCSignalValueType.BitField8)
             {
                 throw new ArgumentOutOfRangeException("valueType");
             }
@@ -537,10 +570,16 @@ namespace LasalMotionControlLib
                     "TimeoutCycles must be non-zero.");
             }
 
-            var isInlineLength = dataLength == 4
+            var isReadInlineLength = dataLength == 1
+                || dataLength == 2
+                || dataLength == 4
                 || dataLength == 8
                 || dataLength == 12;
-            if (operationFlags == LMCOperationFlags.Write && !isInlineLength)
+            var isWriteInlineLength = dataLength == 4
+                || dataLength == 8
+                || dataLength == 12;
+            if (operationFlags == LMCOperationFlags.Write
+                && !isWriteInlineLength)
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
@@ -548,12 +587,22 @@ namespace LasalMotionControlLib
             }
 
             if (operationFlags == LMCOperationFlags.None
-                && !isInlineLength
+                && !isReadInlineLength
                 && dataLength <= LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes)
             {
                 throw new ArgumentOutOfRangeException(
                     "dataLength",
-                    "Inline SDO Read DataLength must be 4, 8, or 12 bytes; larger reads require result chunks.");
+                    "Inline SDO Read DataLength must be 1, 2, 4, 8, or 12 bytes; larger reads require result chunks.");
+            }
+
+            if (operationFlags == LMCOperationFlags.None
+                && dataLength < 4
+                && dataLength
+                    != LMCDiagnosticsSdoPolicy.ExpectedReadLength(valueType))
+            {
+                throw new ArgumentOutOfRangeException(
+                    "dataLength",
+                    "One- and two-byte SDO reads must exactly match the selected SDO ValueType width.");
             }
         }
 
@@ -570,6 +619,16 @@ namespace LasalMotionControlLib
                         "writeData");
                 }
 
+                RequireTail(data, 1, 0);
+            }
+            else if (valueType == LMCSignalValueType.Int8)
+            {
+                var fill = (data[0] & 0x80) == 0 ? (byte)0 : (byte)0xFF;
+                RequireTail(data, 1, fill);
+            }
+            else if (valueType == LMCSignalValueType.UInt8
+                || valueType == LMCSignalValueType.BitField8)
+            {
                 RequireTail(data, 1, 0);
             }
             else if (valueType == LMCSignalValueType.Int16)

@@ -184,6 +184,20 @@ namespace LasalMotionControlLib.Tests
                     LMCRecorderTriggerOperator.RisingEdge,
                     0,
                     0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new LMCRecorderConfiguration(
+                    Signals,
+                    1,
+                    10,
+                    LMCRecorderBufferMode.Ring,
+                    LMCRecorderTriggerType.Edge,
+                    LMCSignalValueType.Int8,
+                    1,
+                    1,
+                    Signal1,
+                    LMCRecorderTriggerOperator.RisingEdge,
+                    0,
+                    0));
         }
 
         private static void RecorderCapabilityChunkCarriesWholeSample()

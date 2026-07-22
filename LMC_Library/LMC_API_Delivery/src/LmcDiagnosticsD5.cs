@@ -11,6 +11,10 @@ namespace LasalMotionControlLib
         private bool hasOperationBootId;
         private long operationBootIdSessionGeneration;
         private uint operationBootId;
+        private const int InlineSdoTerminalPollAllowance = 32;
+        private const uint InlineSdoPollIntervalMicroseconds = 1000;
+        private readonly SemaphoreSlim inlineSdoReadGate =
+            new SemaphoreSlim(1, 1);
 
         public LMCOperationTicket SubmitPIWrite(
             LMCPIWriteRequest request)
@@ -101,6 +105,17 @@ namespace LasalMotionControlLib
         {
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = GetCapabilities();
+            return SubmitSdoCore(
+                request,
+                sessionGeneration,
+                capabilities);
+        }
+
+        private LMCOperationTicket SubmitSdoCore(
+            LMCSdoRequest request,
+            long sessionGeneration,
+            LMCDiagnosticCapabilities capabilities)
+        {
             ValidateSdoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -309,6 +324,205 @@ namespace LasalMotionControlLib
             }
         }
 
+        internal LMCInlineSdoReadCompletion ReadInlineSdoToTerminal(
+            LMCSdoRequest request,
+            long expectedSessionGeneration)
+        {
+            ValidateInlineSdoReadRequest(request);
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+
+            inlineSdoReadGate.Wait();
+            try
+            {
+                connection.EnsureSessionGeneration(expectedSessionGeneration);
+                var submission = SubmitInlineSdoRead(
+                    request,
+                    expectedSessionGeneration);
+                var ticket = submission.Ticket;
+                var pollLimit = GetInlineSdoTerminalPollLimit(
+                    request.TimeoutCycles);
+                var pollDelayMilliseconds =
+                    GetInlineSdoPollDelayMilliseconds(
+                        submission.BaseCycleTimeUs);
+
+                for (var poll = 0; poll < pollLimit; poll++)
+                {
+                    var status = GetOperationStatus(ticket);
+                    if (status.IsTerminal)
+                    {
+                        return RequireSuccessfulInlineSdoRead(ticket, status);
+                    }
+
+                    if (poll + 1 < pollLimit)
+                    {
+                        Thread.Sleep(pollDelayMilliseconds);
+                    }
+                }
+
+                throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
+            }
+            finally
+            {
+                inlineSdoReadGate.Release();
+            }
+        }
+
+        internal async Task<LMCInlineSdoReadCompletion>
+            ReadInlineSdoToTerminalAsync(
+                LMCSdoRequest request,
+                long expectedSessionGeneration,
+                CancellationToken cancellationToken)
+        {
+            ValidateInlineSdoReadRequest(request);
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+
+            await inlineSdoReadGate.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            LMCOperationTicket ticket = null;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                connection.EnsureSessionGeneration(expectedSessionGeneration);
+                var submission = await RunStateMutatingAsync(
+                    () => SubmitInlineSdoRead(
+                        request,
+                        expectedSessionGeneration),
+                    cancellationToken).ConfigureAwait(false);
+                ticket = submission.Ticket;
+                var pollLimit = GetInlineSdoTerminalPollLimit(
+                    request.TimeoutCycles);
+                var pollDelayMilliseconds =
+                    GetInlineSdoPollDelayMilliseconds(
+                        submission.BaseCycleTimeUs);
+
+                for (var poll = 0; poll < pollLimit; poll++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var status = await GetOperationStatusAsync(
+                        ticket,
+                        CancellationToken.None).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (status.IsTerminal)
+                    {
+                        return RequireSuccessfulInlineSdoRead(ticket, status);
+                    }
+
+                    if (poll + 1 < pollLimit)
+                    {
+                        await Task.Delay(
+                            pollDelayMilliseconds,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
+            }
+            catch (OperationCanceledException exception)
+            {
+                if (ticket == null)
+                {
+                    throw;
+                }
+
+                throw new LMCSdoReadWaitCanceledException(
+                    ticket,
+                    exception,
+                    cancellationToken);
+            }
+            finally
+            {
+                inlineSdoReadGate.Release();
+            }
+        }
+
+        internal static int GetInlineSdoPollDelayMilliseconds(
+            uint baseCycleTimeUs)
+        {
+            if (baseCycleTimeUs == 0)
+            {
+                throw new InvalidDataException(
+                    "Typed SDO polling requires a non-zero BaseCycleTimeUs capability.");
+            }
+
+            return checked((int)(
+                ((ulong)baseCycleTimeUs
+                    + InlineSdoPollIntervalMicroseconds
+                    - 1)
+                / InlineSdoPollIntervalMicroseconds));
+        }
+
+        private LMCInlineSdoReadSubmission SubmitInlineSdoRead(
+            LMCSdoRequest request,
+            long expectedSessionGeneration)
+        {
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+            var capabilities = GetCapabilities();
+            GetInlineSdoPollDelayMilliseconds(
+                capabilities.BaseCycleTimeUs);
+            var ticket = SubmitSdoCore(
+                request,
+                expectedSessionGeneration,
+                capabilities);
+            return new LMCInlineSdoReadSubmission(
+                ticket,
+                capabilities.BaseCycleTimeUs);
+        }
+
+        internal static int GetInlineSdoTerminalPollLimit(
+            uint timeoutCycles)
+        {
+            if (timeoutCycles < 1
+                || timeoutCycles
+                    > LMCDiagnosticsSdoPolicy.MaximumReadTimeoutCycles)
+            {
+                throw new ArgumentOutOfRangeException("timeoutCycles");
+            }
+
+            return checked(
+                (int)timeoutCycles + InlineSdoTerminalPollAllowance);
+        }
+
+        private static void ValidateInlineSdoReadRequest(
+            LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            ValidateSdoSubmitPolicy(request);
+            if (request.IsWrite
+                || request.DataLength
+                    > LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes)
+            {
+                throw new NotSupportedException(
+                    "The typed SDO helper supports inline SDO Read results only.");
+            }
+        }
+
+        private static LMCInlineSdoReadCompletion
+            RequireSuccessfulInlineSdoRead(
+                LMCOperationTicket ticket,
+                LMCOperationStatus status)
+        {
+            if (!status.IsSuccessful)
+            {
+                throw new LMCSdoReadOperationException(ticket, status);
+            }
+
+            return new LMCInlineSdoReadCompletion(ticket, status);
+        }
+
+        private static LMCSdoReadPollingTimeoutException
+            CreateInlineSdoPollingTimeout(
+                LMCOperationTicket ticket,
+                int pollLimit)
+        {
+            return new LMCSdoReadPollingTimeoutException(
+                ticket,
+                pollLimit);
+        }
+
         private static void ValidateSdoWritePolicy(LMCSdoRequest request)
         {
             if (!request.IsWrite)
@@ -326,7 +540,7 @@ namespace LasalMotionControlLib
         private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
         {
             ValidateSdoWritePolicy(request);
-            LMCDiagnosticsSdoPolicy.RequireFirstSliceReadAllowed(request);
+            LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
         }
 
         private void ValidatePIWriteCapabilities(
@@ -399,6 +613,15 @@ namespace LasalMotionControlLib
             {
                 throw new NotSupportedException(
                     "The connected PLC does not advertise the requested SDO operation.");
+            }
+
+            if (!request.IsWrite
+                && !LMCDiagnosticsSdoPolicy.IsLegacyFirstSliceRead(request)
+                && !capabilities.Supports(
+                    LMCDiagnosticCapability.SDOReadGeneralInline))
+            {
+                throw new NotSupportedException(
+                    "The connected PLC does not advertise general inline SDO Read support.");
             }
 
             if (capabilities.DiagnosticsBootId == 0

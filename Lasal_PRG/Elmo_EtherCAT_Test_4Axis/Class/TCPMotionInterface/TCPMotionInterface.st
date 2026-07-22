@@ -949,6 +949,21 @@ FUNCTION TCPMotionInterface::MsgPaser
     diagnosticsRequestId : UDINT;
     diagnosticsResponseSize : DINT;
 	diagnosticsBootId : UDINT;
+    adminSchemaVersion : UINT;
+    adminRequestFlags : UINT;
+    adminRequestId : UDINT;
+    adminParameterKey : UINT;
+    adminSelectionMask : UDINT;
+    adminDetailCode : UDINT;
+    adminAxisValue : DINT;
+    adminGroupVelocityLimit : DINT;
+    adminGroupAccelerationLimit : DINT;
+    adminGroupJerkTime : DINT;
+    adminUnitCode : UINT;
+    adminAxisReadKind : UINT;
+    adminAxisParameter : _LMCAXIS_READPARAMETER;
+    adminSwEndMode : _LMCAXIS_READSWENDPOS;
+    adminAxisClientConnected : BOOL;
   END_VAR
 
   // Motion/read/lookup commands are accepted only after this socket completed
@@ -974,6 +989,295 @@ FUNCTION TCPMotionInterface::MsgPaser
   end_if;
 
   case CommandID of
+
+    // LASAL-local read-only administrative capability negotiation.
+    0x7D00:
+
+      adminSchemaVersion := 0;
+      adminRequestFlags := 0;
+      adminRequestId := 0;
+      adminDetailCode := 0;
+
+      if Payload >= 8 then
+        adminSchemaVersion := RequestBuf[8]$UINT;
+        adminRequestFlags := RequestBuf[10]$UINT;
+        adminRequestId := RequestBuf[12]$UDINT;
+      end_if;
+
+      if Payload <> 8 then
+        adminDetailCode := 5;
+      elsif AxisRef <> 0 then
+        adminDetailCode := 4;
+      elsif adminSchemaVersion <> 1 then
+        adminDetailCode := 1;
+      elsif adminRequestFlags <> 0 then
+        adminDetailCode := 2;
+      elsif adminRequestId = 0 then
+        adminDetailCode := 3;
+      end_if;
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 40;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$UINT := 0;
+      Sendbuf[12]$UINT := 0;
+      Sendbuf[14]$INT := 0;
+      Sendbuf[16]$UDINT := adminRequestId;
+      Sendbuf[20]$UDINT := adminDetailCode;
+
+      if adminDetailCode <> 0 then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+      end_if;
+
+      // Schema v1 supports six physical-axis keys and three group keys.
+      Sendbuf[24]$UDINT := 0x00000003;
+      Sendbuf[28]$UDINT := 0x0000003F;
+      Sendbuf[32]$UDINT := 0x00000007;
+      Sendbuf[36]$UINT := 4;
+      Sendbuf[38]$UINT := 1;
+      Sendbuf[40]$UINT := 0x0100;
+      Sendbuf[42]$UINT := 3;
+      Sendbuf[44]$UINT := 1;
+      Sendbuf[46]$UINT := 0;
+
+      SendData(
+        pData:=#Sendbuf[0],
+        udSize:=48,
+        dSocket:=CurrentSock,
+        bDirect:=TRUE
+      );
+
+    // Read one allowlisted physical-axis parameter in application units.
+    0x7D10:
+
+      adminSchemaVersion := 0;
+      adminRequestFlags := 0;
+      adminRequestId := 0;
+      adminParameterKey := 0;
+      adminDetailCode := 0;
+      adminAxisValue := 0;
+      adminUnitCode := 1;
+      adminAxisReadKind := 0;
+      adminAxisClientConnected := FALSE;
+
+      if Payload >= 8 then
+        adminSchemaVersion := RequestBuf[8]$UINT;
+        adminRequestFlags := RequestBuf[10]$UINT;
+        adminRequestId := RequestBuf[12]$UDINT;
+      end_if;
+      if Payload >= 12 then
+        adminParameterKey := RequestBuf[16]$UINT;
+      end_if;
+
+      if Payload <> 12 then
+        adminDetailCode := 5;
+      elsif (AxisRef < 1) | (AxisRef > 4) then
+        adminDetailCode := 4;
+      elsif adminSchemaVersion <> 1 then
+        adminDetailCode := 1;
+      elsif adminRequestFlags <> 0 then
+        adminDetailCode := 2;
+      elsif adminRequestId = 0 then
+        adminDetailCode := 3;
+      elsif RequestBuf[18]$UINT <> 0 then
+        adminDetailCode := 5;
+      else
+        case adminParameterKey of
+          1:
+            adminAxisReadKind := 1;
+            adminSwEndMode := LMCAXIS_RD_SWMIN_APPUNIT;
+            adminUnitCode := 1;
+          2:
+            adminAxisReadKind := 1;
+            adminSwEndMode := LMCAXIS_RD_SWMAX_APPUNIT;
+            adminUnitCode := 1;
+          3:
+            adminAxisReadKind := 2;
+            adminAxisParameter := LMCAXIS_PAR_RD_SWLIMWINDOW;
+            adminUnitCode := 1;
+          4:
+            adminAxisReadKind := 2;
+            adminAxisParameter := LMCAXIS_PAR_RD_V_MAX;
+            adminUnitCode := 2;
+          5:
+            adminAxisReadKind := 2;
+            adminAxisParameter := LMCAXIS_PAR_RD_A_MAX;
+            adminUnitCode := 3;
+          6:
+            adminAxisReadKind := 2;
+            adminAxisParameter := LMCAXIS_PAR_RD_REFPOS;
+            adminUnitCode := 1;
+        else
+          adminDetailCode := 6;
+        end_case;
+      end_if;
+
+      if adminDetailCode = 0 then
+        case AxisRef of
+          1:
+            if IsClientConnected(#LMCAxis1) = 1 then
+              adminAxisClientConnected := TRUE;
+              if adminAxisReadKind = 1 then
+                adminAxisValue := LMCAxis1.ReadSWEndPos(
+                  Mode:=adminSwEndMode);
+              else
+                adminAxisValue := LMCAxis1.ReadParameter(
+                  ParNr:=adminAxisParameter, mode:=0);
+              end_if;
+            end_if;
+          2:
+            if IsClientConnected(#LMCAxis2) = 1 then
+              adminAxisClientConnected := TRUE;
+              if adminAxisReadKind = 1 then
+                adminAxisValue := LMCAxis2.ReadSWEndPos(
+                  Mode:=adminSwEndMode);
+              else
+                adminAxisValue := LMCAxis2.ReadParameter(
+                  ParNr:=adminAxisParameter, mode:=0);
+              end_if;
+            end_if;
+          3:
+            if IsClientConnected(#LMCAxis3) = 1 then
+              adminAxisClientConnected := TRUE;
+              if adminAxisReadKind = 1 then
+                adminAxisValue := LMCAxis3.ReadSWEndPos(
+                  Mode:=adminSwEndMode);
+              else
+                adminAxisValue := LMCAxis3.ReadParameter(
+                  ParNr:=adminAxisParameter, mode:=0);
+              end_if;
+            end_if;
+          4:
+            if IsClientConnected(#LMCAxis4) = 1 then
+              adminAxisClientConnected := TRUE;
+              if adminAxisReadKind = 1 then
+                adminAxisValue := LMCAxis4.ReadSWEndPos(
+                  Mode:=adminSwEndMode);
+              else
+                adminAxisValue := LMCAxis4.ReadParameter(
+                  ParNr:=adminAxisParameter, mode:=0);
+              end_if;
+            end_if;
+        else
+        end_case;
+
+        if adminAxisClientConnected = FALSE then
+          adminDetailCode := 7;
+        end_if;
+      end_if;
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$UINT := 0;
+      Sendbuf[12]$UINT := 0;
+      Sendbuf[14]$INT := 0;
+      Sendbuf[16]$UDINT := adminRequestId;
+      Sendbuf[20]$UDINT := adminDetailCode;
+
+      if adminDetailCode = 0 then
+        Sendbuf[2]$UINT := 28;
+        Sendbuf[24]$UINT := adminParameterKey;
+        Sendbuf[26]$UINT := 1;
+        Sendbuf[28]$UINT := adminUnitCode;
+        Sendbuf[30]$UINT := 0;
+        Sendbuf[32]$DINT := adminAxisValue;
+        SendData(
+          pData:=#Sendbuf[0], udSize:=36,
+          dSocket:=CurrentSock, bDirect:=TRUE);
+      else
+        Sendbuf[2]$UINT := 16;
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+        SendData(
+          pData:=#Sendbuf[0], udSize:=24,
+          dSocket:=CurrentSock, bDirect:=TRUE);
+      end_if;
+
+    // Read a bounded selection of main-profile group parameters.
+    0x7D20:
+
+      adminSchemaVersion := 0;
+      adminRequestFlags := 0;
+      adminRequestId := 0;
+      adminSelectionMask := 0;
+      adminDetailCode := 0;
+      adminGroupVelocityLimit := 0;
+      adminGroupAccelerationLimit := 0;
+      adminGroupJerkTime := 0;
+
+      if Payload >= 8 then
+        adminSchemaVersion := RequestBuf[8]$UINT;
+        adminRequestFlags := RequestBuf[10]$UINT;
+        adminRequestId := RequestBuf[12]$UDINT;
+      end_if;
+      if Payload >= 12 then
+        adminSelectionMask := RequestBuf[16]$UDINT;
+      end_if;
+
+      if Payload <> 12 then
+        adminDetailCode := 5;
+      elsif AxisRef <> 0x0100 then
+        adminDetailCode := 4;
+      elsif adminSchemaVersion <> 1 then
+        adminDetailCode := 1;
+      elsif adminRequestFlags <> 0 then
+        adminDetailCode := 2;
+      elsif adminRequestId = 0 then
+        adminDetailCode := 3;
+      elsif (adminSelectionMask = 0) |
+            ((adminSelectionMask and 0xFFFFFFF8) <> 0) then
+        adminDetailCode := 8;
+      elsif IsClientConnected(#LMCRobot) <> 1 then
+        adminDetailCode := 7;
+      end_if;
+
+      if adminDetailCode = 0 then
+        if (adminSelectionMask and 0x00000001) <> 0 then
+          adminGroupVelocityLimit := LMCRobot.ReadGroupParameter(
+            GrpNo:=1, ParNo:=_LMCPROF_GRP_VEL_LIMIT);
+        end_if;
+        if (adminSelectionMask and 0x00000002) <> 0 then
+          adminGroupAccelerationLimit := LMCRobot.ReadGroupParameter(
+            GrpNo:=1, ParNo:=_LMCPROF_GRP_ACCEL_LIMIT);
+        end_if;
+        if (adminSelectionMask and 0x00000004) <> 0 then
+          adminGroupJerkTime := LMCRobot.ReadGroupParameter(
+            GrpNo:=1, ParNo:=_LMCPROF_GRP_TJERK);
+        end_if;
+      end_if;
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$UINT := 0;
+      Sendbuf[12]$UINT := 0;
+      Sendbuf[14]$INT := 0;
+      Sendbuf[16]$UDINT := adminRequestId;
+      Sendbuf[20]$UDINT := adminDetailCode;
+
+      if adminDetailCode = 0 then
+        Sendbuf[2]$UINT := 32;
+        Sendbuf[24]$UDINT := adminSelectionMask;
+        Sendbuf[28]$DINT := adminGroupVelocityLimit;
+        Sendbuf[32]$DINT := adminGroupAccelerationLimit;
+        Sendbuf[36]$DINT := adminGroupJerkTime;
+        SendData(
+          pData:=#Sendbuf[0], udSize:=40,
+          dSocket:=CurrentSock, bDirect:=TRUE);
+      else
+        Sendbuf[2]$UINT := 16;
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+        SendData(
+          pData:=#Sendbuf[0], udSize:=24,
+          dSocket:=CurrentSock, bDirect:=TRUE);
+      end_if;
 
     // LASAL-DINT diagnostics capability negotiation.
     0x7E00:
@@ -1025,7 +1329,8 @@ FUNCTION TCPMotionInterface::MsgPaser
       end_if;
 
       // D1 is stateless and can remain available when the retained generation
-      // counter is exhausted. D2 and D3 require a stable nonzero BootId.
+      // counter is exhausted. D2-D5 stateful capabilities require a stable
+      // nonzero BootId.
       Sendbuf[24]$UDINT := 1;
       Sendbuf[28]$UDINT := 0;
       Sendbuf[32]$UDINT := 0;
@@ -1051,12 +1356,13 @@ FUNCTION TCPMotionInterface::MsgPaser
         Sendbuf[32]$UDINT := 0x957F101E;
         Sendbuf[36]$UINT := 24;
         if diagnosticsBootId <> 0 then
-          Sendbuf[28]$UDINT := 0x0000003F;
+          Sendbuf[28]$UDINT := 0x0000213F;
           Sendbuf[38]$UINT := 24;
           Sendbuf[40]$UINT := 24;
           Sendbuf[42]$UINT := 1;
           Sendbuf[44]$UDINT := 320000;
           Sendbuf[64]$UDINT := 1280000;
+          Sendbuf[68]$UINT := 4;
         end_if;
       end_if;
 
@@ -2164,6 +2470,8 @@ FUNCTION TCPMotionInterface::MsgPaser
       if GroupCommandInputValid = TRUE then
         GroupReadErrorId := -2;
         if IsClientConnected(#LMCRobot) = 1 then
+          // StopMove returns the stop command number, not an error code.
+          // Poll GroupReadStatus for completion and profile errors.
           GroupStopCommandNo := LMCRobot.StopMove(
             Mode:=3, Decel:=GroupDecel, Jerk:=GroupJerk);
           GroupReadErrorId := 0;
@@ -2286,25 +2594,27 @@ FUNCTION TCPMotionInterface::MsgPaser
         _StdLib.MemCpy(dest:=#GroupExecute, source:=#RequestBuf[12], size:=4);
       end_if;
 
-      if (Payload = 8) & (AxisRef = 0x0100) &
-         (GroupCoordSystem >= 0) & (GroupCoordSystem <= 3) &
-         (GroupExecute = 1) then
-        GroupReadErrorId := -2;
-        if IsClientConnected(#LMCRobot) = 1 then
-          // No CalcModel is connected. None/ACS/MCS/PCS are therefore read
-          // through the same statically wired axis-order identity mapping.
-          GroupReadRetCode := LMCRobot.GetRobotPosition(
-            Mode:=_ACTPOS_APPUNITS,
-            IncludeTool:=FALSE,
-            CoordSystem:=0,
-            pPositions:=#GroupReadPos);
-          if GroupReadRetCode = _LMCPROF_NoError then
-            GroupReadErrorId := 0;
-          elsif GroupReadRetCode$UDINT <= 32767 then
-            GroupReadErrorId := GroupReadRetCode$DINT;
-          else
-            GroupReadErrorId := -6;
+      if (Payload = 8) & (AxisRef = 0x0100) & (GroupExecute = 1) then
+        if (GroupCoordSystem = 0) | (GroupCoordSystem = 1) then
+          GroupReadErrorId := -2;
+          if IsClientConnected(#LMCRobot) = 1 then
+            // No CalcModel is connected. None and ACS are member-slot aliases
+            // for the statically wired axis-order identity mapping.
+            GroupReadRetCode := LMCRobot.GetRobotPosition(
+              Mode:=_ACTPOS_APPUNITS,
+              IncludeTool:=FALSE,
+              CoordSystem:=0,
+              pPositions:=#GroupReadPos);
+            if GroupReadRetCode = _LMCPROF_NoError then
+              GroupReadErrorId := 0;
+            elsif GroupReadRetCode$UDINT <= 32767 then
+              GroupReadErrorId := GroupReadRetCode$DINT;
+            else
+              GroupReadErrorId := -6;
+            end_if;
           end_if;
+        elsif (GroupCoordSystem = 2) | (GroupCoordSystem = 3) then
+          GroupReadErrorId := -7;
         end_if;
       end_if;
 

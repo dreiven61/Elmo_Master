@@ -81,6 +81,7 @@ namespace LasalMotionControlApiExample
             ComboGroupBuffer.SelectedItem = LMC_BUFFER_MODE.Aborting;
 
             InitializeDiagnosticsUi();
+            InitializeReadOnlyApiUi();
 
             WriteLog(
                 "Example ready. Connect, load _LMCAxis1, and start with Read Status. "
@@ -144,6 +145,10 @@ namespace LasalMotionControlApiExample
             else if (TabsMotion.SelectedIndex == 5)
             {
                 ScrollDiagnosticsOperations?.ScrollToTop();
+            }
+            else if (TabsMotion.SelectedIndex == 6)
+            {
+                ScrollReadOnlyApi?.ScrollToTop();
             }
         }
 
@@ -2822,6 +2827,7 @@ namespace LasalMotionControlApiExample
             group = null;
             ResetGroupPreparationState();
             ClearDiagnosticsState();
+            ClearReadOnlyApiState();
             if (TextAxisReference != null)
             {
                 TextAxisReference.Text = "not loaded";
@@ -3246,6 +3252,7 @@ namespace LasalMotionControlApiExample
                         + currentConnection.RejectedCallbackCount);
 
             UpdateDiagnosticsUiState(connected, idle);
+            UpdateReadOnlyApiUiState(connected, idle);
 
             var trackedGroup = motionMayBeActive
                 && group != null

@@ -564,12 +564,14 @@ namespace LasalMotionControlLib
             byte[] payload)
         {
             if (resultDataLength != 0
+                && resultDataLength != 1
+                && resultDataLength != 2
                 && resultDataLength != 4
                 && resultDataLength != 8
                 && resultDataLength != 12)
             {
                 throw new InvalidDataException(
-                    "GetOperationStatus ResultDataLength must be 0, 4, 8, or 12.");
+                    "GetOperationStatus ResultDataLength must be 0, 1, 2, 4, 8, or 12.");
             }
 
             var shouldContainResult = expectedTicket.ExpectsResultData

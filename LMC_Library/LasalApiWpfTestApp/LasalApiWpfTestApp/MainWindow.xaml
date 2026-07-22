@@ -978,7 +978,7 @@
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12">
-                        <GroupBox Header="Asynchronous SDO Read ticket (first slice)">
+                        <GroupBox Header="Asynchronous SDO Read ticket">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -1006,20 +1006,23 @@
                                     <TextBox x:Name="TextSdoSlaveReference" Width="105" Text="1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="2">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index (fixed)" />
-                                    <TextBox x:Name="TextSdoIndex" Width="105" IsReadOnly="True" Text="0x1000" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index (0x0001..0xFFFF)" />
+                                    <TextBox x:Name="TextSdoIndex" Width="150" Text="0x1000" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="3">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index (fixed)" />
-                                    <TextBox x:Name="TextSdoSubIndex" Width="90" IsReadOnly="True" Text="0" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index (0..255)" />
+                                    <TextBox x:Name="TextSdoSubIndex" Width="105" Text="0" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="4">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type (fixed)" />
-                                    <ComboBox x:Name="ComboSdoValueType" Width="150" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type" />
+                                    <ComboBox
+                                        x:Name="ComboSdoValueType"
+                                        Width="150"
+                                        SelectionChanged="SdoValueType_SelectionChanged" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length (fixed)" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length (1, 2, or 4)" />
                                     <ComboBox
                                         x:Name="ComboSdoDataLength"
                                         Width="105" />
@@ -1046,7 +1049,7 @@
                                     Grid.Row="3"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
-                                    Text="First-slice SDO Read only: slave 1..4, object 0x1000:0, UInt32, 4 bytes, timeout 1..60000 cycles. Submit stays disabled until the PLC advertises SDORead; Refresh Ticket retrieves the inline result. SDO Write and extended-result download are unavailable."
+                                    Text="SDO Read: bit 13 enables editable nonzero object index, sub-index 0..255, and exact 1/2/4-byte typed reads. A bit-8-only PLC falls back to fixed 0x1000:0 UInt32/4. Refresh Ticket retrieves the inline result; SDO Write is unavailable."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>
@@ -1069,6 +1072,177 @@
                                         Content="Submit PI Write" />
                                 </WrapPanel>
                             </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Read-only API">
+                <ScrollViewer
+                    x:Name="ScrollReadOnlyApi"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <Border
+                            Margin="0,0,10,10"
+                            Padding="10"
+                            Background="#FFF6DF"
+                            BorderBrush="#E0B34B"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#8A4A00"
+                                    FontWeight="SemiBold"
+                                    Text="PLC verification boundary"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    Foreground="#8A4A00"
+                                    Text="Admin commands 0x7D00/0x7D10/0x7D20 require the matching LASAL source to be built and downloaded. Source/static validation has passed, but LASAL IDE build and live PLC execution are not yet verified. Every command on this tab is read-only."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <GroupBox Header="Admin capabilities">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonAdminCapabilities"
+                                        Click="ButtonAdminCapabilities_Click"
+                                        Content="Refresh Admin Capabilities" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextAdminCapabilities"
+                                    FontFamily="Consolas"
+                                    Text="Admin capabilities have not been read."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Semantic axis parameter">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Physical axis reference (1..4)" />
+                                    <ComboBox x:Name="ComboAdminAxisReference" Width="150" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Semantic parameter key" />
+                                    <ComboBox x:Name="ComboAdminAxisParameter" Width="270" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonReadAdminAxisParameter"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadAdminAxisParameter_Click"
+                                    Content="Read Axis Parameter" />
+                                <TextBlock
+                                    x:Name="TextAdminAxisParameterResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="3"
+                                    FontFamily="Consolas"
+                                    Text="No axis parameter result."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,4,0,0"
+                                    Foreground="#5F6B7A"
+                                    Text="The key is semantic; native LASAL MotionLib enum values are not exposed on the PC wire."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Semantic group parameters (group reference fixed at 0x0100)">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Selection" />
+                                    <ComboBox x:Name="ComboAdminGroupSelection" Width="240" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonReadAdminGroupParameters"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadAdminGroupParameters_Click"
+                                    Content="Read Group Parameters" />
+                                <TextBlock
+                                    x:Name="TextAdminGroupParameterResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="2"
+                                    FontFamily="Consolas"
+                                    Text="No group parameter result."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Physical drive reads">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Physical axis reference (1..4)" />
+                                    <ComboBox x:Name="ComboDriveReadAxisReference" Width="150" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonGetDriveOperationMode"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="8,20,8,8"
+                                    Click="ButtonGetDriveOperationMode_Click"
+                                    Content="Get Drive Operation Mode" />
+                                <Button
+                                    x:Name="ButtonReadDriveStatus"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="0,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadDriveStatus_Click"
+                                    Content="Read Drive Status" />
+                                <TextBlock
+                                    x:Name="TextDriveReadResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="3"
+                                    FontFamily="Consolas"
+                                    Text="No drive read result."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,4,0,0"
+                                    Foreground="#8A4A00"
+                                    Text="Read Drive Status is explicitly non-atomic: LASAL axis status, DS402 0x6041:0, and DS402 0x6061:0 are read sequentially and may come from different PLC/EtherCAT cycles."
+                                    TextWrapping="Wrap" />
+                            </Grid>
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>

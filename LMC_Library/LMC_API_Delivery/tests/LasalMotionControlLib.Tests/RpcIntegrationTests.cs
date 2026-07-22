@@ -877,9 +877,9 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteInt32(groupStopPayload, 8, 1);
             TestFrame.WriteInt32(groupStopPayload, 12, 1);
 
-            for (var index = 0; index < 16; index++)
+            for (var index = 0; index < 9; index++)
             {
-                TestFrame.WriteInt32(groupPositionPayload, index * 4, index - 8);
+                TestFrame.WriteInt32(groupPositionPayload, index * 4, index - 4);
             }
 
             var steps = new List<FakeRpcStep>
@@ -894,7 +894,7 @@ namespace LasalMotionControlLib.Tests
                         TestFrame.Request(
                             0x2051,
                             0x0100,
-                            new byte[] { 2, 0, 0, 0, 1, 0, 0, 0 }),
+                            new byte[] { 1, 0, 0, 0, 1, 0, 0, 0 }),
                         request)
                 }
             };
@@ -1005,11 +1005,35 @@ namespace LasalMotionControlLib.Tests
                     LMCConnection.DefaultEventMask);
 
                 var group = new LMCGroup(connection, "_LMCRobotBase1");
-                var position = group.GroupReadActualPosition(LMC_COORD_SYSTEM.Mcs);
+
+                AssertEx.Throws<NotSupportedException>(
+                    () => group.GroupReadActualPosition(LMC_COORD_SYSTEM.Mcs));
+                AssertEx.Throws<NotSupportedException>(
+                    () => group.MoveLinearAbsoluteEx(
+                        new[] { 1, 2, 3, 4 },
+                        1,
+                        1,
+                        1,
+                        0,
+                        new LMCGroupMotionOptions
+                        {
+                            CoordinateSystem = LMC_COORD_SYSTEM.Acs
+                        }));
+                AssertEx.Throws<ArgumentException>(
+                    () => group.MoveLinearAbsoluteEx(
+                        new[] { 1, 2, 3, 4, 5 },
+                        1,
+                        1,
+                        1,
+                        0));
+
+                var position = group.GroupReadActualPosition(LMC_COORD_SYSTEM.Acs);
 
                 AssertEx.True(position.IsSuccess);
-                AssertEx.Equal(-8, position.PositionsRaw[0]);
-                AssertEx.Equal(7, position.PositionsRaw[15]);
+                AssertEx.Equal(LMC_COORD_SYSTEM.Acs, position.CoordinateSystem);
+                AssertEx.Equal(-4, position.PositionsRaw[0]);
+                AssertEx.Equal(4, position.PositionsRaw[8]);
+                AssertEx.Equal(0, position.PositionsRaw[15]);
 
                 var axes = new[]
                 {

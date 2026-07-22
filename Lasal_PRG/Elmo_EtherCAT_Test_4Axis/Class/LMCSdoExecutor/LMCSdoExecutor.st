@@ -110,11 +110,12 @@ LMCSdoExecutor : CLASS
 		PublishedResult 	: LMCSdoExecutorResult;
   //Functions:
 	
-	FUNCTION GLOBAL TryStartRead4
+	FUNCTION GLOBAL TryStartRead
 		VAR_INPUT
 			OperationToken 	: UDINT;
-			ObjectIndex 	: HINT;
-			SubIndex 	: HSINT;
+			ObjectIndex 	: UINT;
+			SubIndex 	: USINT;
+			ReadLength 	: UINT;
 			TimeoutMs 	: UDINT;
 		END_VAR
 		VAR_OUTPUT
@@ -283,6 +284,7 @@ END_FUNCTION
 #define LMC_SDO_EXEC_RESULT_READY 3
 #define LMC_SDO_EXEC_ORPHANED 4
 #define LMC_SDO_EXEC_QUARANTINED 5
+#define LMC_SDO_EXEC_RELEASING 6
 
 #define LMC_SDO_EXEC_VALID 0$UDINT
 #define LMC_SDO_EXEC_INVALID_VERSION 1
@@ -334,11 +336,12 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ParaString::Write
 END_FUNCTION
 
 
-FUNCTION GLOBAL LMCSdoExecutor::TryStartRead4
+FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 	VAR_INPUT
 		OperationToken : UDINT;
-		ObjectIndex : HINT;
-		SubIndex : HSINT;
+		ObjectIndex : UINT;
+		SubIndex : USINT;
+		ReadLength : UINT;
 		TimeoutMs : UDINT;
 	END_VAR
 	VAR_OUTPUT
@@ -351,6 +354,7 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead4
 
 	ret_code := ERROR;
 	if (sizeof(LMCSdoExecutorResult) <> 32) | (OperationToken = 0) |
+		((ReadLength <> 1) & (ReadLength <> 2) & (ReadLength <> 4)) |
 		(TimeoutMs = 0) | (TimeoutMs > 60000) then
 		RETURN;
 	end_if;
@@ -365,50 +369,97 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead4
 	end_if;
 
 	ActiveToken := OperationToken;
-	ActiveIndex := TO_UINT(ObjectIndex);
-	ActiveSubIndex := TO_USINT(SubIndex);
-	ActiveLength := 4;
+	ActiveIndex := ObjectIndex;
+	ActiveSubIndex := SubIndex;
+	ActiveLength := ReadLength;
 	_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
 	_memset(dest:=#PublishedResult, usByte:=0, cntr:=sizeof(PublishedResult));
 
 	if IsClientConnected(#toSlave) = FALSE then
-		ActiveToken := 0;
-		ActiveIndex := 0;
-		ActiveSubIndex := 0;
-		ActiveLength := 0;
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_ARMING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_ARMING then
+			ActiveToken := 0;
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			_memset(dest:=#ReadBuffer[0], usByte:=0,
+				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#PublishedResult, usByte:=0,
+				cntr:=sizeof(PublishedResult));
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+			end_if;
+		else
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+		RETURN;
+	end_if;
+
+	// Publish RUNNING before the vendor request becomes visible. A short SDO
+	// can otherwise callback while the adapter is still ARMING.
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_ARMING,
+		newVal:=LMC_SDO_EXEC_RUNNING);
+	if previousState <> LMC_SDO_EXEC_ARMING then
 		sigclib_atomic_setU32(
-			pValue:=#AdapterState, value:=LMC_SDO_EXEC_IDLE);
+			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 		RETURN;
 	end_if;
 
 	startResult := toSlave.StartReadSDO(
-		ObjectIndex,
-		SubIndex,
+		ObjectIndex$HINT,
+		SubIndex$HSINT,
 		0,
 		(#ReadBuffer[0])$^USINT,
-		4,
+		TO_UDINT(ReadLength),
 		TimeoutMs,
 		THIS);
 	ret_code := startResult;
 
-	if startResult = READY then
+	if startResult <> READY then
+		// BUSY and ERROR do not own the vendor buffer. Reserve a private
+		// releasing state while clearing the request before exposing Idle.
 		previousState := sigclib_atomic_cmpxchgU32(
 			pValue:=#AdapterState,
-			cmpVal:=LMC_SDO_EXEC_ARMING,
-			newVal:=LMC_SDO_EXEC_RUNNING);
-		if previousState <> LMC_SDO_EXEC_ARMING then
+			cmpVal:=LMC_SDO_EXEC_RUNNING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_RUNNING then
+			ActiveToken := 0;
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			_memset(dest:=#ReadBuffer[0], usByte:=0,
+				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#PublishedResult, usByte:=0,
+				cntr:=sizeof(PublishedResult));
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+				ret_code := ERROR;
+			end_if;
+		else
+			// ECAT_Slave_Base guarantees that BUSY or ERROR did not accept the
+			// request and cannot callback. Any state change is an invariant fault.
 			sigclib_atomic_setU32(
 				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 			ret_code := ERROR;
 		end_if;
-	else
-		ActiveToken := 0;
-		ActiveIndex := 0;
-		ActiveSubIndex := 0;
-		ActiveLength := 0;
-		_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
-		sigclib_atomic_setU32(
-			pValue:=#AdapterState, value:=LMC_SDO_EXEC_IDLE);
 	end_if;
 
 END_FUNCTION
@@ -439,8 +490,7 @@ FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion
 	end_if;
 
 	stateValue := sigclib_atomic_getU32(pValue:=#AdapterState);
-	if (stateValue <> LMC_SDO_EXEC_RESULT_READY) &
-		(stateValue <> LMC_SDO_EXEC_QUARANTINED) then
+	if stateValue <> LMC_SDO_EXEC_RESULT_READY then
 		Result := -2;
 		RETURN;
 	end_if;
@@ -463,24 +513,36 @@ FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion
 					RETURN;
 				end_if;
 
-				if stateValue = LMC_SDO_EXEC_RESULT_READY then
-					ActiveToken := 0;
-					ActiveIndex := 0;
-					ActiveSubIndex := 0;
-					ActiveLength := 0;
-					_memset(dest:=#ReadBuffer[0], usByte:=0,
-						cntr:=sizeof(ReadBuffer));
-					previousState := sigclib_atomic_cmpxchgU32(
+				previousState := sigclib_atomic_cmpxchgU32(
+					pValue:=#AdapterState,
+					cmpVal:=stateValue,
+					newVal:=LMC_SDO_EXEC_RELEASING);
+				if previousState <> stateValue then
+					sigclib_atomic_setU32(
 						pValue:=#AdapterState,
-						cmpVal:=LMC_SDO_EXEC_RESULT_READY,
-						newVal:=LMC_SDO_EXEC_IDLE);
-					if previousState <> LMC_SDO_EXEC_RESULT_READY then
-						sigclib_atomic_setU32(
-							pValue:=#AdapterState,
-							value:=LMC_SDO_EXEC_QUARANTINED);
-						Result := -5;
-						RETURN;
-					end_if;
+						value:=LMC_SDO_EXEC_QUARANTINED);
+					Result := -5;
+					RETURN;
+				end_if;
+
+				ActiveToken := 0;
+				ActiveIndex := 0;
+				ActiveSubIndex := 0;
+				ActiveLength := 0;
+				_memset(dest:=#ReadBuffer[0], usByte:=0,
+					cntr:=sizeof(ReadBuffer));
+				_memset(dest:=#PublishedResult, usByte:=0,
+					cntr:=sizeof(PublishedResult));
+				previousState := sigclib_atomic_cmpxchgU32(
+					pValue:=#AdapterState,
+					cmpVal:=LMC_SDO_EXEC_RELEASING,
+					newVal:=LMC_SDO_EXEC_IDLE);
+				if previousState <> LMC_SDO_EXEC_RELEASING then
+					sigclib_atomic_setU32(
+						pValue:=#AdapterState,
+						value:=LMC_SDO_EXEC_QUARANTINED);
+					Result := -5;
+					RETURN;
 				end_if;
 
 				_memcpy(ptr1:=pDest, ptr2:=#localResult,
@@ -556,6 +618,7 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 		actualLength : UDINT;
 		writeSequence : UDINT;
 		finalSequence : UDINT;
+		previousState : UDINT;
 	END_VAR
 
 	if pPara^.uiCmd <> ECAT_M_SDO_CALLBACK then
@@ -591,21 +654,43 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 		validationCode := LMC_SDO_EXEC_INVALID_LENGTH;
 	end_if;
 
-	if (stateValue = LMC_SDO_EXEC_ORPHANED) &
-		(validationCode = LMC_SDO_EXEC_VALID) then
+	// A callback is owned only while this executor still holds an active
+	// request. Unsolicited or duplicate callbacks remain quarantined.
+	if ((stateValue <> LMC_SDO_EXEC_RUNNING) &
+		(stateValue <> LMC_SDO_EXEC_ORPHANED)) | (ActiveToken = 0) then
+		sigclib_atomic_setU32(
+			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		RETURN;
+	end_if;
+
+	// The public ticket was removed on disconnect or timeout. Once its late
+	// callback arrives, the vendor no longer owns ReadBuffer, so release it
+	// even when the callback reports invalid metadata.
+	if stateValue = LMC_SDO_EXEC_ORPHANED then
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_ORPHANED,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState <> LMC_SDO_EXEC_ORPHANED then
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+			RETURN;
+		end_if;
 		ActiveToken := 0;
 		ActiveIndex := 0;
 		ActiveSubIndex := 0;
 		ActiveLength := 0;
 		_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
-		sigclib_atomic_setU32(
-			pValue:=#AdapterState, value:=LMC_SDO_EXEC_IDLE);
-		RETURN;
-	end_if;
-
-	if ActiveToken = 0 then
-		sigclib_atomic_setU32(
-			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		_memset(dest:=#PublishedResult, usByte:=0,
+			cntr:=sizeof(PublishedResult));
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_RELEASING,
+			newVal:=LMC_SDO_EXEC_IDLE);
+		if previousState <> LMC_SDO_EXEC_RELEASING then
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
 		RETURN;
 	end_if;
 
@@ -635,10 +720,42 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 	sigclib_atomic_setU32(
 		pValue:=#PublishSequence, value:=finalSequence);
 
-	if validationCode = LMC_SDO_EXEC_VALID then
-		sigclib_atomic_setU32(
-			pValue:=#AdapterState, value:=LMC_SDO_EXEC_RESULT_READY);
-	else
+	// Validation failures are still owned completions. Publish them for the
+	// service to report, then CopyCompletion releases the persistent buffer.
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_RUNNING,
+		newVal:=LMC_SDO_EXEC_RESULT_READY);
+	if previousState = LMC_SDO_EXEC_ORPHANED then
+		// Timeout or disconnect won after this callback sampled Running. The
+		// public owner is gone, so discard the publication and release safely.
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_ORPHANED,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_ORPHANED then
+			ActiveToken := 0;
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			_memset(dest:=#ReadBuffer[0], usByte:=0,
+				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#PublishedResult, usByte:=0,
+				cntr:=sizeof(PublishedResult));
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+			end_if;
+		else
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+	elsif previousState <> LMC_SDO_EXEC_RUNNING then
 		sigclib_atomic_setU32(
 			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 	end_if;

@@ -277,6 +277,42 @@ namespace LasalMotionControlLib.Tests
                 0);
             TestFrame.WriteUInt16(chunkExceedsResponseLimit, 48, 2000);
             AssertMalformed(chunkExceedsResponseLimit, GoldenRequestId);
+
+            var generalSdoWithoutBase = CapabilitiesPayload(
+                GoldenRequestId,
+                (uint)LMCDiagnosticCapability.SDOReadGeneralInline,
+                1);
+            TestFrame.WriteUInt16(generalSdoWithoutBase, 60, 4);
+            AssertMalformed(generalSdoWithoutBase, GoldenRequestId);
+
+            var generalSdoWrongLimit = CapabilitiesPayload(
+                GoldenRequestId,
+                (uint)(LMCDiagnosticCapability.SDORead
+                    | LMCDiagnosticCapability.SDOReadGeneralInline),
+                1);
+            AssertMalformed(generalSdoWrongLimit, GoldenRequestId);
+
+            var generalSdoWithoutBoot = CapabilitiesPayload(
+                GoldenRequestId,
+                (uint)(LMCDiagnosticCapability.SDORead
+                    | LMCDiagnosticCapability.SDOReadGeneralInline),
+                0);
+            TestFrame.WriteUInt16(generalSdoWithoutBoot, 60, 4);
+            AssertMalformed(generalSdoWithoutBoot, GoldenRequestId);
+
+            var generalSdo = CapabilitiesPayload(
+                GoldenRequestId,
+                (uint)(LMCDiagnosticCapability.SDORead
+                    | LMCDiagnosticCapability.SDOReadGeneralInline),
+                1);
+            TestFrame.WriteUInt16(generalSdo, 60, 4);
+            var generalCapabilities = LMC_DiagnosticsParser.ParseCapabilities(
+                TestFrame.Response(0, generalSdo),
+                GoldenRequestId,
+                1);
+            AssertEx.True(
+                generalCapabilities.Supports(
+                    LMCDiagnosticCapability.SDOReadGeneralInline));
         }
 
         private static void DiagnosticsReservedCommandIds()

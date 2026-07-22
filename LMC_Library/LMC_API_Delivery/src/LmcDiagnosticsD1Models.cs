@@ -26,7 +26,10 @@ namespace LasalMotionControlLib
         UInt32 = 5,
         Real32 = 6,
         BitField16 = 7,
-        BitField32 = 8
+        BitField32 = 8,
+        Int8 = 9,
+        UInt8 = 10,
+        BitField8 = 11
     }
 
     public enum LMCCapturePhase : ushort

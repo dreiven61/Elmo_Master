@@ -69,16 +69,28 @@ namespace LasalMotionControlApiExample
                 SdoOperationMode.Read
             };
             ComboSdoOperation.SelectedItem = SdoOperationMode.Read;
-            ComboSdoValueType.ItemsSource = new[]
-            {
-                LMCSignalValueType.UInt32
-            };
-            ComboSdoValueType.SelectedItem = LMCSignalValueType.UInt32;
             ComboSdoDataLength.ItemsSource = new ushort[]
             {
+                1,
+                2,
                 4
             };
             ComboSdoDataLength.SelectedItem = (ushort)4;
+            ComboSdoValueType.ItemsSource = new[]
+            {
+                LMCSignalValueType.Bool,
+                LMCSignalValueType.Int16,
+                LMCSignalValueType.UInt16,
+                LMCSignalValueType.Int32,
+                LMCSignalValueType.UInt32,
+                LMCSignalValueType.Real32,
+                LMCSignalValueType.BitField16,
+                LMCSignalValueType.BitField32,
+                LMCSignalValueType.Int8,
+                LMCSignalValueType.UInt8,
+                LMCSignalValueType.BitField8
+            };
+            ComboSdoValueType.SelectedItem = LMCSignalValueType.UInt32;
             UpdateSdoOperationControls();
             UpdateRecorderEstimate();
         }
@@ -825,13 +837,24 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private void SdoValueType_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            if (ComboSdoDataLength != null
+                && ComboSdoValueType.SelectedItem is LMCSignalValueType valueType)
+            {
+                ComboSdoDataLength.SelectedItem = GetSdoReadDataLength(valueType);
+            }
+        }
+
         private async void ButtonSubmitSdo_Click(
             object sender,
             RoutedEventArgs e)
         {
             LMCSdoRequest request;
             string validationMessage;
-            if (!TryCreateFirstSliceSdoReadRequest(
+            if (!TryCreateSdoReadRequest(
                 out request,
                 out validationMessage))
             {
@@ -1117,7 +1140,8 @@ namespace LasalMotionControlApiExample
                 LMCDiagnosticCapability.RecorderDoubleBank);
             var supportsPiWrite = SupportsCapability(
                 LMCDiagnosticCapability.PIWrite);
-            var supportsFirstSliceSdoRead = SupportsFirstSliceSdoRead();
+            var supportsSdoRead = SupportsSdoRead();
+            var supportsGeneralSdoRead = SupportsGeneralInlineSdoRead();
             var hasCatalog = diagnosticCatalog != null;
             var hasBulk = bulkConfiguration != null
                 && !bulkConfiguration.IsReleased;
@@ -1252,18 +1276,32 @@ namespace LasalMotionControlApiExample
             var canSubmitOperation = diagnosticOperationTicket == null
                 || operationIsTerminal;
             var sdoInputsEnabled = idle && canSubmitOperation;
+            if (supportsSdoRead
+                && !supportsGeneralSdoRead
+                && canSubmitOperation)
+            {
+                TextSdoIndex.Text = "0x1000";
+                TextSdoSubIndex.Text = "0";
+                ComboSdoValueType.SelectedItem = LMCSignalValueType.UInt32;
+                ComboSdoDataLength.SelectedItem = (ushort)4;
+            }
+
             ComboSdoOperation.IsEnabled = false;
             TextSdoSlaveReference.IsEnabled = sdoInputsEnabled;
-            TextSdoIndex.IsEnabled = false;
-            TextSdoSubIndex.IsEnabled = false;
-            ComboSdoValueType.IsEnabled = false;
-            ComboSdoDataLength.IsEnabled = false;
+            TextSdoIndex.IsEnabled = sdoInputsEnabled
+                && supportsGeneralSdoRead;
+            TextSdoSubIndex.IsEnabled = sdoInputsEnabled
+                && supportsGeneralSdoRead;
+            ComboSdoValueType.IsEnabled = sdoInputsEnabled
+                && supportsGeneralSdoRead;
+            ComboSdoDataLength.IsEnabled = sdoInputsEnabled
+                && supportsGeneralSdoRead;
             TextSdoTimeoutCycles.IsEnabled = sdoInputsEnabled;
             TextSdoWriteData.IsEnabled = false;
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitOperation
-                && supportsFirstSliceSdoRead;
+                && supportsSdoRead;
             ButtonRefreshDiagnosticOperation.IsEnabled = connected
                 && idle
                 && diagnosticOperationTicket != null;
@@ -1334,7 +1372,7 @@ namespace LasalMotionControlApiExample
                     "Load the PI Catalog and check Recordable signals first.";
                 TextRecorderPlotRange.Text = "No downloaded data.";
                 TextDiagnosticOperationSummary.Text =
-                    "First-slice SDO Read only: slave 1..4, object 0x1000:0, UInt32, 4 bytes, timeout 1..60000 cycles. Submit stays disabled until the PLC advertises SDORead; Refresh Ticket retrieves the inline result. SDO Write and extended-result download are unavailable.";
+                    "SDO Read: bit 13 enables editable nonzero object index, sub-index 0..255, and exact 1/2/4-byte typed reads. A bit-8-only PLC falls back to fixed 0x1000:0 UInt32/4. Refresh Ticket retrieves the inline result; SDO Write is unavailable.";
             }
         }
 
@@ -1355,7 +1393,7 @@ namespace LasalMotionControlApiExample
                 && diagnosticCapabilities.Supports(capability);
         }
 
-        private bool SupportsFirstSliceSdoRead()
+        private bool SupportsSdoRead()
         {
             return diagnosticCapabilities != null
                 && diagnosticCapabilities.Supports(
@@ -1365,6 +1403,14 @@ namespace LasalMotionControlApiExample
                 && diagnosticCapabilities.MaxSdoDataBytes >= 4
                 && diagnosticCapabilities.MaxRequestPayloadBytes >= 32
                 && diagnosticCapabilities.MaxResponsePayloadBytes >= 64;
+        }
+
+        private bool SupportsGeneralInlineSdoRead()
+        {
+            return SupportsSdoRead()
+                && diagnosticCapabilities.Supports(
+                    LMCDiagnosticCapability.SDOReadGeneralInline)
+                && diagnosticCapabilities.MaxSdoDataBytes == 4;
         }
 
         private void EnsureCapability(
@@ -1906,7 +1952,7 @@ namespace LasalMotionControlApiExample
             TextSdoWriteData.IsEnabled = false;
         }
 
-        private bool TryCreateFirstSliceSdoReadRequest(
+        private bool TryCreateSdoReadRequest(
             out LMCSdoRequest request,
             out string validationMessage)
         {
@@ -1977,18 +2023,11 @@ namespace LasalMotionControlApiExample
                     return false;
                 }
 
-                if (objectIndex != 0x1000 || subIndex != 0)
+                var expectedLength = GetSdoReadDataLength(valueType);
+                if (dataLength != expectedLength)
                 {
                     validationMessage =
-                        "Only object 0x1000:0 is available in the first slice.";
-                    return false;
-                }
-
-                if (valueType != LMCSignalValueType.UInt32
-                    || dataLength != 4)
-                {
-                    validationMessage =
-                        "Only UInt32, 4-byte SDO Read is available in the first slice.";
+                        "Data length must match the selected type: 8-bit types=1, 16-bit types=2, 32-bit types=4.";
                     return false;
                 }
 
@@ -1999,10 +2038,10 @@ namespace LasalMotionControlApiExample
                     return false;
                 }
 
-                if (diagnosticCapabilities.MaxSdoDataBytes < 4)
+                if (diagnosticCapabilities.MaxSdoDataBytes < dataLength)
                 {
                     validationMessage =
-                        "The PLC MaxSdoDataBytes capability is less than 4.";
+                        "The selected data length exceeds the PLC MaxSdoDataBytes capability.";
                     return false;
                 }
 
@@ -2025,6 +2064,31 @@ namespace LasalMotionControlApiExample
             {
                 validationMessage = error.Message;
                 return false;
+            }
+        }
+
+        private static ushort GetSdoReadDataLength(
+            LMCSignalValueType valueType)
+        {
+            switch (valueType)
+            {
+                case LMCSignalValueType.Bool:
+                case LMCSignalValueType.Int8:
+                case LMCSignalValueType.UInt8:
+                case LMCSignalValueType.BitField8:
+                    return 1;
+                case LMCSignalValueType.Int16:
+                case LMCSignalValueType.UInt16:
+                case LMCSignalValueType.BitField16:
+                    return 2;
+                case LMCSignalValueType.Int32:
+                case LMCSignalValueType.UInt32:
+                case LMCSignalValueType.Real32:
+                case LMCSignalValueType.BitField32:
+                    return 4;
+                default:
+                    throw new InvalidOperationException(
+                        "The selected SDO value type is unsupported.");
             }
         }
 

@@ -18,7 +18,8 @@ namespace LasalMotionControlLib
         SDOWrite = 1u << 9,
         ApplicationPhaseSnapshot = 1u << 10,
         ExtendedWkcDiagnostics = 1u << 11,
-        ExtendedSdoResultChunk = 1u << 12
+        ExtendedSdoResultChunk = 1u << 12,
+        SDOReadGeneralInline = 1u << 13
     }
 
     [Flags]

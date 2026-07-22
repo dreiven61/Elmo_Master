@@ -44,8 +44,8 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.WriteAllowlistFailClosed",
                 D5WriteAllowlistFailClosed);
             tests.Add(
-                "Policy.DiagnosticsD5.FirstSliceSdoReadMaxSdoBoundary",
-                D5FirstSliceSdoReadMaxSdoBoundary);
+                "Policy.DiagnosticsD5.GeneralSdoReadCapabilityGate",
+                D5GeneralSdoReadCapabilityGate);
             tests.Add(
                 "Rpc.DiagnosticsD5.StatefulCancellationBoundary",
                 D5StatefulCancellationBoundary);
@@ -573,13 +573,13 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void D5FirstSliceSdoReadMaxSdoBoundary()
+        private static void D5GeneralSdoReadCapabilityGate()
         {
-            RunD5FirstSliceSdoReadMaxSdoBoundary(false);
-            RunD5FirstSliceSdoReadMaxSdoBoundary(true);
+            RunD5GeneralSdoReadCapabilityGate(false);
+            RunD5GeneralSdoReadCapabilityGate(true);
         }
 
-        private static void RunD5FirstSliceSdoReadMaxSdoBoundary(
+        private static void RunD5GeneralSdoReadCapabilityGate(
             bool useAsync)
         {
             const uint ticketId = 0x44444444u;
@@ -587,7 +587,7 @@ namespace LasalMotionControlLib.Tests
                 0x7E50,
                 TestFrame.Response(
                     0,
-                    SubmitPayload(2, ticketId, LMCOperationKind.SDORead)))
+                    SubmitPayload(3, ticketId, LMCOperationKind.SDORead)))
             {
                 InspectRequest = request =>
                 {
@@ -618,6 +618,15 @@ namespace LasalMotionControlLib.Tests
                             LMCDiagnosticCapability.SDORead,
                             4,
                             0))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
                 submitStep,
                 CloseStep()))
             using (var connection = new LMCConnection())
@@ -637,12 +646,25 @@ namespace LasalMotionControlLib.Tests
                     LMCSignalValueType.UInt32,
                     4,
                     100);
+                var generalRequest = LMCSdoRequest.CreateRead(
+                    1,
+                    0x1018,
+                    1,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    100);
                 LMCOperationTicket ticket;
                 if (useAsync)
                 {
                     AssertEx.Throws<NotSupportedException>(
                         () => connection.Diagnostics.SubmitSdoAsync(
                                 oversizedRequest,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+                    AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdoAsync(
+                                generalRequest,
                                 CancellationToken.None)
                             .GetAwaiter()
                             .GetResult());
@@ -657,6 +679,9 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Throws<NotSupportedException>(
                         () => connection.Diagnostics.SubmitSdo(
                             oversizedRequest));
+                    AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdo(
+                            generalRequest));
                     ticket = connection.Diagnostics.SubmitSdo(
                         firstSliceRequest);
                 }
@@ -775,7 +800,7 @@ namespace LasalMotionControlLib.Tests
         }
 
         // Keeps the generic future chunk surface covered without widening the
-        // first-slice SubmitSdo policy.
+        // active bounded SubmitSdo policy.
         private static LMCOperationTicket ExtendedTicket(
             LMCConnection connection,
             LMCOperationTicket submittedTicket,

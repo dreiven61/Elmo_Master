@@ -47,7 +47,8 @@ namespace LasalMotionControlLib
                 | LMCDiagnosticCapability.PIWrite
                 | LMCDiagnosticCapability.SDORead
                 | LMCDiagnosticCapability.SDOWrite
-                | LMCDiagnosticCapability.ExtendedSdoResultChunk);
+                | LMCDiagnosticCapability.ExtendedSdoResultChunk
+                | LMCDiagnosticCapability.SDOReadGeneralInline);
 
         internal static LMCDiagnosticCapabilities ParseCapabilities(
             byte[] raw,
@@ -160,6 +161,9 @@ namespace LasalMotionControlLib
             var extendedSdoResultEnabled =
                 (capabilityBits
                     & (uint)LMCDiagnosticCapability.ExtendedSdoResultChunk) != 0;
+            var generalInlineSdoReadEnabled =
+                (capabilityBits
+                    & (uint)LMCDiagnosticCapability.SDOReadGeneralInline) != 0;
 
             if (piReadEnabled && !signalCatalogEnabled)
             {
@@ -187,6 +191,15 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidDataException(
                     "ExtendedSdoResultChunk requires SDORead and MaxSdoDataBytes greater than 12.");
+            }
+
+            if (generalInlineSdoReadEnabled
+                && ((capabilityBits
+                        & (uint)LMCDiagnosticCapability.SDORead) == 0
+                    || maxSdoDataBytes != 4))
+            {
+                throw new InvalidDataException(
+                    "SDOReadGeneralInline requires SDORead and MaxSdoDataBytes equal to 4.");
             }
 
             if (sdoEnabled

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace LasalMotionControlLib
 {
-    public class LMCSingleAxis
+    public partial class LMCSingleAxis
     {
         private readonly LMCConnection connection;
         private readonly long sessionGeneration;

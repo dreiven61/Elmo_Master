@@ -28,12 +28,16 @@
     <Compile Include="AssertEx.cs" />
     <Compile Include="TestFrame.cs" />
     <Compile Include="FakeRpcServer.cs" />
+    <Compile Include="AdminContractTests.cs" />
+    <Compile Include="ErrorCatalogTests.cs" />
     <Compile Include="RequestGoldenTests.cs" />
     <Compile Include="ResponseParserTests.cs" />
     <Compile Include="RpcIntegrationTests.cs" />
+    <Compile Include="DriveReadFacadeTests.cs" />
     <Compile Include="DiagnosticsContractTests.cs" />
     <Compile Include="DiagnosticsD1ContractTests.cs" />
     <Compile Include="DiagnosticsD2ContractTests.cs" />
+    <Compile Include="DiagnosticsPIBulkFacadeContractTests.cs" />
     <Compile Include="DiagnosticsD5ContractTests.cs" />
     <Compile Include="DiagnosticsD45CompletionContractTests.cs" />
     <Compile Include="DiagnosticsRecorderContractTests.cs" />

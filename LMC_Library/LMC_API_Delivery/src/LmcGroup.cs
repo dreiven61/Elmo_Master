@@ -12,6 +12,16 @@ namespace LasalMotionControlLib
         public string GroupName { get; private set; }
         public ushort GroupReference { get; private set; }
 
+        internal LMCConnection Connection
+        {
+            get { return connection; }
+        }
+
+        internal long SessionGeneration
+        {
+            get { return sessionGeneration; }
+        }
+
         public LMCGroupAxis(LMCConnection connection, string groupName)
         {
             this.connection = connection ?? throw new ArgumentNullException(nameof(connection));

@@ -302,6 +302,21 @@ namespace LasalMotionControlLib.Tests
                     0,
                     1));
 
+            var sdoOnlyValueType = CatalogChunkPayload(
+                GoldenRequestId,
+                0,
+                1,
+                1);
+            sdoOnlyValueType[28 + 8] = (byte)LMCSignalValueType.Int8;
+            sdoOnlyValueType[28 + 9] = 1;
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseSignalCatalogChunk(
+                    TestFrame.Response(0, sdoOnlyValueType),
+                    GoldenRequestId,
+                    MapRevision,
+                    0,
+                    1));
+
             var nonzeroReserved = CatalogChunkPayload(GoldenRequestId, 0, 1, 1);
             TestFrame.WriteUInt32(nonzeroReserved, 28 + 76, 1);
             AssertEx.Throws<InvalidDataException>(

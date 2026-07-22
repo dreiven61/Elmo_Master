@@ -80,15 +80,40 @@ namespace LasalMotionControlLib
             get { return LMC_ResultSemantics.HasCommandError(FunctionStatus); }
         }
 
-        public bool IsSuccess
+        /// <summary>
+        /// True when the ReadStatus RPC and LASAL function call succeeded.
+        /// A native axis error can still be present and is reported separately
+        /// through HasAxisError and AxisErrorFlags.
+        /// </summary>
+        public bool IsReadSuccessful
         {
             get
             {
                 return LMC_ResultSemantics.IsFunctionResultSuccess(
-                        Response,
-                        FunctionStatus,
-                        ErrorId)
-                    && AxisErrorId == 0;
+                    Response,
+                    FunctionStatus,
+                    ErrorId);
+            }
+        }
+
+        public bool HasAxisError
+        {
+            get { return AxisErrorId != 0; }
+        }
+
+        /// <summary>
+        /// Raw LASAL _LMCAXIS_ERROR flags. These are not DS402 statusword bits.
+        /// </summary>
+        public ushort AxisErrorFlags
+        {
+            get { return AxisErrorId; }
+        }
+
+        public bool IsSuccess
+        {
+            get
+            {
+                return IsReadSuccessful && !HasAxisError;
             }
         }
     }

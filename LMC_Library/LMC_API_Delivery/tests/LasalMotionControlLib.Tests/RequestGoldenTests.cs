@@ -18,6 +18,7 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Request.AxisMotion.GoldenBytes", AxisMotionGoldenBytes);
             tests.Add("Request.GroupControlAndRead.GoldenBytes", GroupControlAndReadGoldenBytes);
             tests.Add("Request.GroupLinear.GoldenBytes", GroupLinearGoldenBytes);
+            tests.Add("Request.GroupContract.ValidationMatrix", GroupContractValidationMatrix);
             tests.Add("Request.GroupPositionAndKinematics.GoldenBytes", GroupPositionAndKinematicsGoldenBytes);
             tests.Add("Request.RawDint.IsNotRescaled", RawDintIsNotRescaled);
         }
@@ -217,17 +218,26 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Request(
                     0x2051,
                     Reference,
-                    new byte[] { 2, 0, 0, 0, 1, 0, 0, 0 }),
+                    new byte[] { 0, 0, 0, 0, 1, 0, 0, 0 }),
                 LMC_Frame.LMCGroupReadActualPosition(
                     Reference,
-                    LMC_COORD_SYSTEM.Mcs));
+                    LMC_COORD_SYSTEM.None));
+
+            AssertEx.SequenceEqual(
+                TestFrame.Request(
+                    0x2051,
+                    Reference,
+                    new byte[] { 1, 0, 0, 0, 1, 0, 0, 0 }),
+                LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    LMC_COORD_SYSTEM.Acs));
 
             AssertEx.SequenceEqual(
                 TestFrame.Request(
                     0x2085,
                     Reference,
-                    IntPayload(0x01020304, -2, 1, 1)),
-                LMC_Frame.LMCGroupStop(Reference, 0x01020304, -2));
+                    IntPayload(0x01020304, 2, 1, 1)),
+                LMC_Frame.LMCGroupStop(Reference, 0x01020304, 2));
         }
 
         private static void GroupLinearGoldenBytes()
@@ -259,16 +269,16 @@ namespace LasalMotionControlLib.Tests
 
             var options = new LMCGroupMotionOptions
             {
-                CoordinateSystem = LMC_COORD_SYSTEM.Mcs,
-                TransitionMode = LMC_GROUP_TRANSITION_MODE.SmoothCubic,
+                CoordinateSystem = LMC_COORD_SYSTEM.None,
+                TransitionMode = LMC_GROUP_TRANSITION_MODE.ContinuousDirect,
                 BufferMode = LMC_BUFFER_MODE.Buffered,
-                Execute = false
+                Execute = true
             };
 
-            TestFrame.WriteInt32(payload, 80, 2);
-            TestFrame.WriteInt32(payload, 84, 4);
+            TestFrame.WriteInt32(payload, 80, 0);
+            TestFrame.WriteInt32(payload, 84, 2);
             TestFrame.WriteInt32(payload, 88, 2);
-            TestFrame.WriteInt32(payload, 92, 0);
+            TestFrame.WriteInt32(payload, 92, 1);
 
             AssertEx.SequenceEqual(
                 TestFrame.Request(0x20A4, Reference, payload),
@@ -281,12 +291,146 @@ namespace LasalMotionControlLib.Tests
                     40,
                     options));
 
+        }
+
+        private static void GroupContractValidationMatrix()
+        {
+            AssertEx.Throws<NotSupportedException>(
+                () => LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    LMC_COORD_SYSTEM.Mcs));
+            AssertEx.Throws<NotSupportedException>(
+                () => LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    LMC_COORD_SYSTEM.Pcs));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupReadActualPosition(
+                    Reference,
+                    (LMC_COORD_SYSTEM)4));
+
             AssertEx.Throws<ArgumentNullException>(
                 () => LMC_Frame.LMCGroupMoveLinearAbsolute(
                     Reference, null, 1, 1, 1, 1));
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new int[0], 1, 1, 1, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
                     Reference, new int[17], 1, 1, 1, 1));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new[] { 1, 2, 3, 4, 5 }, 1, 1, 1, 0));
+
+            var sixteenSlots = new int[16];
+            sixteenSlots[0] = 1;
+            sixteenSlots[1] = 2;
+            sixteenSlots[2] = 3;
+            sixteenSlots[3] = 4;
+            LMC_Frame.LMCGroupMoveLinearAbsolute(
+                Reference, sixteenSlots, 1, 1, 1, 0);
+
+            sixteenSlots[15] = 1;
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, sixteenSlots, 1, 1, 1, 0));
+
+            AssertEx.Throws<ArgumentNullException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    new[] { 1 },
+                    1,
+                    1,
+                    1,
+                    0,
+                    null));
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new[] { 1 }, 0, 1, 1, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new[] { 1 }, 1, 0, 1, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new[] { 1 }, 1, 1, 0, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference, new[] { 1 }, 1, 1, 1, -1));
+
+            foreach (var coordinateSystem in new[]
+            {
+                LMC_COORD_SYSTEM.Acs,
+                LMC_COORD_SYSTEM.Mcs,
+                LMC_COORD_SYSTEM.Pcs
+            })
+            {
+                AssertEx.Throws<NotSupportedException>(
+                    () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                        Reference,
+                        new[] { 1 },
+                        1,
+                        1,
+                        1,
+                        0,
+                        new LMCGroupMotionOptions
+                        {
+                            CoordinateSystem = coordinateSystem
+                        }));
+            }
+
+            foreach (var transitionMode in new[]
+            {
+                LMC_GROUP_TRANSITION_MODE.SmoothParabolic,
+                LMC_GROUP_TRANSITION_MODE.SmoothCubic,
+                LMC_GROUP_TRANSITION_MODE.SmoothQuintic
+            })
+            {
+                AssertEx.Throws<NotSupportedException>(
+                    () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                        Reference,
+                        new[] { 1 },
+                        1,
+                        1,
+                        1,
+                        0,
+                        new LMCGroupMotionOptions
+                        {
+                            TransitionMode = transitionMode
+                        }));
+            }
+
+            foreach (var bufferMode in new[]
+            {
+                LMC_BUFFER_MODE.BlendingLow,
+                LMC_BUFFER_MODE.BlendingPrevious,
+                LMC_BUFFER_MODE.BlendingNext,
+                LMC_BUFFER_MODE.BlendingHigh
+            })
+            {
+                AssertEx.Throws<NotSupportedException>(
+                    () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                        Reference,
+                        new[] { 1 },
+                        1,
+                        1,
+                        1,
+                        0,
+                        new LMCGroupMotionOptions
+                        {
+                            BufferMode = bufferMode
+                        }));
+            }
+
+            AssertEx.Throws<NotSupportedException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    new[] { 1 },
+                    1,
+                    1,
+                    1,
+                    0,
+                    new LMCGroupMotionOptions { Execute = false }));
+
             AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => LMC_Frame.LMCGroupMoveLinearAbsolute(
                     Reference,
@@ -299,6 +443,39 @@ namespace LasalMotionControlLib.Tests
                     {
                         TransitionMode = (LMC_GROUP_TRANSITION_MODE)1
                     }));
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    new[] { 1 },
+                    1,
+                    1,
+                    1,
+                    0,
+                    new LMCGroupMotionOptions
+                    {
+                        CoordinateSystem = (LMC_COORD_SYSTEM)4
+                    }));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupMoveLinearAbsolute(
+                    Reference,
+                    new[] { 1 },
+                    1,
+                    1,
+                    1,
+                    0,
+                    new LMCGroupMotionOptions
+                    {
+                        BufferMode = (LMC_BUFFER_MODE)7
+                    }));
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupStop(Reference, -1, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCGroupStop(Reference, 1, -1));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_Frame.LMCGroupStop(Reference, 0, 1));
+            LMC_Frame.LMCGroupStop(Reference, 0, 0);
         }
 
         private static void GroupPositionAndKinematicsGoldenBytes()
