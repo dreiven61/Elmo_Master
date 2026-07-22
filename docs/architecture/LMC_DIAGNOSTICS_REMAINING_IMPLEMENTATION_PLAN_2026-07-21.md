@@ -18,11 +18,11 @@ capture도 분석해 PMAS Version2 Recorder의 ready/header/range gate와 PI 선
 보완했다. 이 capture에는 custom `0x7Exx` packet이 없으므로 LASAL diagnostics 실기
 증거로 사용하지 않는다.
 
-PC 자동 시험과 최신 LASAL source 정적 계약은 통과했다. LASAL IDE Rebuild/Link는
-2026-07-21 16:02의 D0-D4 통합 source에서 통과했지만, 17:56에 추가한 Recorder Stop
-멱등 패치보다 앞선 결과다. 따라서 PLC download 전에 최신 source로 Rebuild/Link와
-implementation smoke를 다시 수행해야 한다. D1-D4 fault/capture 실장 시험도 아직
-하지 않았다.
+2026-07-22 LASAL IDE에서 `EtherCAT_SDOBase`와 새 EtherCAT network를 저장한 사용자
+추가분을 보존하면서 `0x7E03/0x7E04/0x7E50` capability-off parser와 Recorder terminal
+Stop 멱등 처리를 병합 복구했다. PC 자동 시험 102/102와 LASAL source-only/full-network
+정적 계약은 현재 working source 기준으로 통과했다. 최신 source의 Rebuild/Link와
+implementation smoke, D1-D4 fault/capture 실장 시험은 아직 수행하지 않았다.
 
 이 문서에서 다음 표현은 구분한다.
 
@@ -40,7 +40,7 @@ implementation smoke를 다시 수행해야 한다. D1-D4 fault/capture 실장 �
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release | same-cycle 및 부하 PLC 검증 |
 | D3 | internal test source 활성 | 1,280,000-byte single bank, 최대 24채널 Manual Recorder, download/adopt/release | RAM, jitter, 장시간 upload, reconnect PLC 검증 |
 | D4 | single-bank Ring/Trigger 활성 | pre-trigger ring, Edge/Window/Mask, forced trigger, chronological upload | trigger PLC 검증 및 Double bank 구현 |
-| D5 | PC public contract와 PLC 명시적 fail-closed parser | PI/SDO ticket 모델, status/cancel, WPF 흐름, reserved request shape 검증 | 첫 증분 SDO Read 실행부, 이후 write policy |
+| D5 | PC public contract, 파생 executor 설계 완료; capability-off parser 복구 | PI/SDO ticket 모델, status/cancel, WPF 흐름, first-slice 구조 설계 | derived SDO Read 실행부, 이후 write policy |
 | D6 | 미구현 | instance 기반 `LMCConnection`은 유지 | C# static/handle compatibility facade |
 
 현재 정상 retained BootId 경로의 capability는 다음과 같다.
@@ -121,13 +121,31 @@ case에 맡기지 않고 `LMCDiagnosticsService`의 명시적 reserved handler�
 - PC 회귀는 first-slice capability `MaxSdoDataBytes=4`에서 4-byte read를 허용하고
   8-byte read를 송신 전에 거부하는 경계를 포함한다.
 
+위 세 handler는 commit `6d2c717`의 계약을 기준으로 2026-07-22 LASAL IDE 저장분에
+다시 병합했으며 최신 정적 계약을 통과했다.
+
+### 3.7 `EtherCAT_SDOBase` 파생 executor 설계
+
+사용자가 추가한 `EtherCAT_SDOBase`와 축별 object/network를 검토했다. plain base의
+수동 `Para*` channel을 운영 API로 쓰지 않고 다음 구조를 채택했다.
+
+- `LMCSdoExecutor : EtherCAT_SDOBase` 파생 class와 축별 4개 instance
+- 파생 class는 inherited `toSlave`와 actual-length callback만 재사용하는 transport adapter
+- `ParaReadWrite::Write`를 override해 manual SDO 시작 경로 차단
+- private 4-byte buffer와 cross-task safe callback mailbox 사용
+- D5 ticket, BootId, session owner, timeout/cancel은 `LMCDiagnosticsService`가 전담
+- physical Running cancel은 지원하지 않고 queued-only cancel과 orphan drain 적용
+
+정확한 class, state machine, wire validation과 검증 gate는
+`LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 기준으로 한다.
+
 ## 4. 구현 우선순위
 
 단계 번호는 설계 분류이고 아래 `P0-P5`는 실제 작업 순서다.
 
 | 우선순위 | 작업 | 완료 조건 |
 |---|---|---|
-| P0 | 이번 수정 commit 회귀 종료 | 두 WPF Debug/Release build, PC 102/102, 최신 LASAL 정적 계약, `git diff --check` |
+| P0 | LASAL IDE save 회귀 복구 완료 | D5 reserved parser와 Recorder terminal Stop을 사용자 IDE 추가분에 병합했고 최신 LASAL 정적 계약과 `git diff --check` 통과 |
 | P1 | 최신 LASAL source IDE/PLC 검증 | 최신 source Rebuild/Link와 smoke 후 5절의 D1-D4 행을 모두 통과하고 packet/trace 결과를 보존 |
 | P2 | D5 첫 증분: SDO Read-only | 한 ticket, 4축, 검증된 4-byte object의 inline result만 구현하고 bit 8만 추가 광고 |
 | P3 | D4 Double bank | 두 고정 bank의 capture/upload 소유권과 full 정책을 구현하고 RAM/jitter 기준 통과 후 bit 6 광고 |
@@ -191,11 +209,14 @@ LASAL IDE declaration/network 작업이 필요한 다음 단계다.
 bit는 `SDORead` bit 8 하나뿐이다. D4 Double이 계속 꺼진 현재 capability에 bit 8만
 더하면 `CapabilityBits=0x0000013F`, `MaxSdoDataBytes=4`다. bit 7, 9, 12는 계속 0이다.
 
-현재 drive callback 계약은 실제 반환 길이를 별도로 제공하지 않는다. 따라서 요청
-길이와 실제 OD object 크기가 다르면 zero padding으로 오류가 가려질 수 있다. 최초
-allowlist는 object 크기를 장비에서 확인한 4-byte 항목으로 제한하고 성공, busy,
-timeout, cancel, disconnect/orphan을 PLC에서 시험해야 한다. 8/12-byte는 actual-length를
-callback 계약에 추가하거나 object 크기 검증 경로를 확보한 후 별도 증분으로 연다.
+기존 `ECAT_DS402Base::AddASyncEntryDS402` wrapper는 실제 반환 길이를 service에 전달하지
+않는다. 새 설계는 `LMCSdoExecutor : EtherCAT_SDOBase`에서 lower-level callback의
+`aPara[5]` actual length와 `aPara[6]` abort code를 직접 보존한다. 그래도 최초 allowlist는
+실측된 4-byte `0x1000:0`으로 제한하고 success, busy, timeout, cancel,
+disconnect/orphan을 PLC에서 시험한다. 8/12-byte는 first slice와 분리한다.
+
+구현 구조와 정확한 상태 전이는
+`LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 따른다.
 
 ## 7. D4 Double bank 구현 범위
 
@@ -235,9 +256,9 @@ registry와 static sync/async wrapper를 추가하고 stale handle, dispose, con
 |---|---|---|---|
 | C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `102/102 passed` | 통과 확인 |
 | WPF build | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj`, Debug/AnyCPU build | error 0 | 통과 확인 |
-| LASAL source/network contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | `PASS LASAL.StaticContract` | 통과 확인 |
-| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | D0-D4 통합 source 통과; 17:56 Stop 패치 이후 재실행 대기 |
-| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService implementation이 정상 로드되고 IDE 예외가 없음 | 통합 source 3/3 통과; 최신 source 재실행 대기 |
+| LASAL source/network contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | `PASS LASAL.StaticContract` | 2026-07-22 source-only/full-network 통과 |
+| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 이전 D0-D4 통합 source만 통과; 현재 SDOBase/network save본과 회귀 복구본 재실행 대기 |
+| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | 이전 통합 source 3/3만 통과; 최신 source와 새 executor 재실행 대기 |
 | LASAL IDE log | smoke 시작 시각 이후 `%TEMP%\Lasal2.log` 검색 | 신규 `CInvalidArgException` 0건 | 통합 source 통과; 최신 smoke 기준시각으로 재검색 대기 |
 | diff hygiene | `git diff --check`와 staging 시 `git diff --cached --check` | whitespace error 0 | 최종 작업 종료 시 반복 |
 | PLC capability | 변경 project download 후 `Refresh Capabilities` | 현재 baseline `0x0000003F`; D5 Read 승인 뒤 `0x0000013F` | 미검증 |
@@ -256,6 +277,6 @@ EtherCAT fault 전이, RAM 여유, 실제 RT jitter, drive mailbox 응답을 대
 3. 해당 단계의 PLC 시험 결과를 packet/log/trace로 저장한다.
 4. 사용자 문서와 release status의 수치 및 미구현 표기가 source와 일치한다.
 
-현재는 D1-D4 source와 D5 capability-off parser에 대해 1번과 2번의 일부까지 확인된
-상태다. 실제 PLC download와 5절의 runtime 검증을 하지 않았으므로 D1-D4 또는 D5를
-production 완료로 분류하지 않는다.
+현재 working source에는 D1-D4 source와 복구한 D5 capability-off parser가 있다. 실제
+PLC download와 5절의 runtime 검증을 하지 않았으므로 D1-D4 또는 D5를 production
+완료로 분류하지 않는다.

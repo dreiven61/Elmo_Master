@@ -37,14 +37,14 @@
 | Cartesian group move/lock | X/Y/Z/U 축 1~4 | 9축 group interpolation이 아님 |
 | 기존 motion/group command | 25개 | 캡처 기반 23 + local motion extension 2 |
 | diagnostics PLC test 범위 | D0~D4 single-bank | capability, Health/Catalog/PI Read, Bulk, single-bank Recorder Ring/Trigger |
-| diagnostics 계약-only 범위 | D4 Double/D5 | C#/WPF contract는 존재, PLC capability off/fail-closed |
+| diagnostics 계약-only 범위 | D4 Double/D5 | C#/WPF contract와 D5 derived executor 설계 존재, PLC capability off |
 | 성공 응답 capable PLC active command | 44개 | 기존 motion/group 25 + diagnostics D0~D4 single-bank 19 |
-| dispatcher/wire handled contract | 49개 | active 44 + D5 exact fail-closed 5 |
+| dispatcher/wire handled contract | 49개 | active 44 + D5 exact fail-closed 5; 2026-07-22 IDE save 회귀 병합 복구 완료 |
 | CyWork axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; metadata lookup 제외 |
-| PC 자동 테스트 | diagnostics 포함 102/102 PASS | 2026-07-22 current source 기준 |
+| PC 자동 테스트 | diagnostics 포함 102/102 PASS | 2026-07-22 현재 working source 기준 |
 | 개발 WPF build | Debug/Release `TreatWarningsAsErrors` PASS | VS2019 MSBuild |
-| LASAL 정적 계약 | source-only/full-network PASS | PLC 시험이 아님 |
-| LASAL IDE | 2026-07-21 16:02 Rebuild/Link 0 error, version warnings; implementation smoke 3/3 PASS | 17:56 Recorder Stop 멱등 패치 전 결과이므로 최신 source는 PLC download 전 재실행 필요 |
+| LASAL 정적 계약 | source-only/full-network PASS | reserved handler와 Recorder Stop 회귀 병합 복구 후 재검증 |
+| LASAL IDE | 2026-07-21 16:02 Rebuild/Link 0 error, version warnings; implementation smoke 3/3 PASS | 현재 SDOBase/network 추가분과 회귀 복구본은 Rebuild/Link 미실행 |
 | 기존 motion/group PLC E2E·재캡처 | 0/25 | production blocker |
 | diagnostics PLC 시험 matrix | 미실시 | D0~D4 single-bank runtime과 D4 Double/D5 expected fail-closed를 별도 기록 |
 
@@ -124,7 +124,7 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | internal test source 활성, PLC runtime 미검증 |
 | Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | internal test source 활성, PLC runtime 미검증 |
 | Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | internal test source 활성, PLC runtime 미검증; Double은 거부 |
-| Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | public C#/WPF contract, PLC capability off/UnsupportedFeature |
+| Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | public C#/WPF contract와 derived executor 설계; PLC capability off, reserved parser 복구 완료 |
 | Lookup | `0x103C`, `0x1042`, `0x202B` | axis/group lookup, AxisInfo | active |
 | Axis control | `0x2023`, `0x2024`, `0x2022` | power, reset, stop | active, 축 1..9 |
 | Axis read | `0x2028`, `0x202E` | status, position | active, 축 1..9 |
@@ -139,8 +139,9 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Kinematics | `0x20E7` | Cartesian4 identity 설정 | active, dynamic transform 아님 |
 
 현재 성공 응답 capable PLC active 고유 ID는 44개다. 기존 motion/group 25개와
-diagnostics D0~D4 single-bank 19개를 합한 값이다. D5 exact fail-closed 5개까지 포함하면
-dispatcher/wire가 처리하는 contract는 49개다. `0x204A/0x204B`와 diagnostics 24개는
+diagnostics D0~D4 single-bank 19개를 합한 값이다. D5 exact fail-closed 5개까지 포함한
+dispatcher/wire contract는 49개이며 2026-07-22 IDE save 회귀를 병합 복구했다.
+`0x204A/0x204B`와 diagnostics 24개는
 PMAS 캡처에 없는 LASAL-local extension이다. 18개라는 CyWork 수치는 lifecycle,
 diagnostics와 name/member metadata handler를 제외한 axis/group
 control·read·motion 명령의 합계다. 축 8개와 그룹 10개다.
@@ -375,10 +376,11 @@ golden을 대신하지 않는다.
 
 ### P0: production 승인 전 필수
 
-1. D0-D4 통합 source의 LASAL IDE build/smoke는 통과했지만 이후 Recorder Stop 멱등
-   패치는 최신 source Rebuild가 필요하고 PLC download/runtime와 packet 재캡처 증거도
-   없다. 기존 motion/group E2E는 0/25이며 diagnostics는 D0~D4 single-bank
-   runtime과 D4 Double/D5 expected fail-closed matrix를 별도로 수행해야 한다.
+1. D0-D4 통합 source의 과거 LASAL IDE build/smoke만 통과했다. 새 SDOBase/network를
+   보존하면서 Recorder Stop 멱등 및 D5 reserved parser 회귀는 병합 복구했고 최신
+   정적 계약은 통과했다. 아직 최신 source를 Rebuild/Link하지 않았다. PLC download/runtime와
+   packet 재캡처 증거도 없다. 기존 motion/group E2E는 0/25이며 diagnostics는 D0-D4
+   single-bank runtime과 D4 Double/D5 matrix를 별도로 수행해야 한다.
 2. 다운로드된 PLC의 UNIT, MaxModulo, BinOffset, reference offset과 실제 안전 limit를 확인해야 한다.
 3. tracked top-level network에서 `HWMin`, `HWMax`, `Emergency`, `RefSwitch` 외부 연결을
    확인하지 못했다. 이것은 장비에 안전 회로가 없다는 증거는 아니며 PLC/배선에서
@@ -505,8 +507,12 @@ D4 전체와 D5를 완료로 오인하면 안 된다.
 - 개발 WPF에는 해당 설정과 호출/다운로드 UI가 있다.
 - PLC에는 single-bank Ring과 Edge/Window/Mask/forced Trigger가 구현되어 capability
   bit 5가 켜진다. Double bank는 아직 없으므로 bit 6은 0이고 요청은 거부된다.
-- D5 write/ticket dispatcher는 없다. capability bit 7~9/12는 0이고 exact reserved
-  request는 `UnsupportedFeature`다.
+- D5 실행 dispatcher는 아직 없다. `LMCSdoExecutor : EtherCAT_SDOBase` 파생 adapter와
+  `LMCDiagnosticsService` one-ticket 구조는
+  `LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`에 설계했다.
+- capability bit 7~9/12는 0이다. exact reserved request는
+  `UnsupportedFeature`를 반환하며 `0x7E03/0x7E04/0x7E50` parser 회귀도
+  2026-07-22 병합 복구했다.
 - SDK와 PLC write allowlist는 기본 empty로 유지한다.
 
 확인된 범위:

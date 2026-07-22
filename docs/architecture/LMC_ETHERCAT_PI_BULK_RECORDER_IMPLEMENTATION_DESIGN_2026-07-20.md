@@ -1886,16 +1886,19 @@ v1 최종 목표 상한:
 - timeout: request마다 bounded
 - completed ticket retention: bounded count/time
 
-현재 `ECAT_DS402Base::AddASyncEntryDS402`는 atomic active flag로 drive당 한 요청만
-허용하고, `bsDataInfo`에 따라 4/8/12-byte SDO를 시작한다. 그러나 diagnostics
-callback은 실제 응답 길이를 별도로 전달하지 않아 짧은 object가 8/12-byte zero-padded
-성공처럼 보일 수 있다. 따라서 최초 증분은 실측된 `0x1000:0` UInt32 같은 확인된
-4-byte object만 allowlist에 넣는다. 8/12-byte는 actual-length 계약을 추가하거나 각
-object 크기를 PLC에서 검증하기 전에는 열지 않는다. 향후 `LMCDiagnosticsService`는
-이 함수를 감싼 adapter를 통해서만 요청하고 busy/start-failure return code를 ticket
-상태로 변환한다. 허용된 결과는 `GetOperationStatus`에 inline한다. Public C# API와 WPF에는 더 큰 결과를 받는
-`ReadSDOResultChunk (0x7E51)` contract도 구현했지만 현재 PLC dispatcher와 capability
-bit 12는 꺼져 있다.
+`ECAT_DS402Base::AddASyncEntryDS402`는 atomic active flag로 drive당 한 요청만 허용하고
+4/8/12-byte SDO를 시작할 수 있지만 diagnostics consumer에 실제 응답 길이를 전달하지
+않는다. D5에서는 이 wrapper를 사용하지 않는다. 2026-07-22 추가된
+`EtherCAT_SDOBase`의 lower-level callback은 actual length와 abort code를 제공하므로,
+`LMCSdoExecutor : EtherCAT_SDOBase` 파생 adapter가 inherited `toSlave.StartReadSDO`를
+private fixed buffer로 직접 호출하고 callback metadata를 보존한다. 수동 `Para*` 실행
+경로는 override해 차단하고 ticket/session/timeout은 `LMCDiagnosticsService`가 관리한다.
+
+최초 증분은 실측된 `0x1000:0` UInt32 4-byte object만 allowlist에 넣는다. 허용된 결과는
+`GetOperationStatus`에 inline한다. 8/12-byte와 `ReadSDOResultChunk (0x7E51)`는 별도
+증분이며 현재 PLC dispatcher와 capability bit 12는 꺼져 있다. 정확한 class/network,
+callback mailbox와 orphan 정책은
+`LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 따른다.
 
 `ReadSDOResultChunk` request/response contract:
 
