@@ -2223,6 +2223,23 @@ ECAT_Master_Base : CLASS_PUBLIC
 	END_TYPE
 END_CLASS;
 #pragma define (restore)
+LMCSdoExecutor : CLASS_PUBLIC
+	TYPE
+	  LMCSdoExecutorResult : STRUCT
+	    Token : UDINT;
+	    OsResult : DINT;
+	    AbortCode : UDINT;
+	    ActualLength : UDINT;
+	    ObjectIndex : UINT;
+	    SubIndex : USINT;
+	    IsWrite : USINT;
+	    ValidationCode : UDINT;
+	    Data : UDINT;
+	    Reserved : UDINT;
+	  END_STRUCT;
+	END_TYPE
+END_CLASS;
+#pragma define (restore)
 MerkerEx : CLASS_PUBLIC
 #include <.\lsl_st_mt.h>
 	TYPE

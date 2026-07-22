@@ -6,7 +6,7 @@
 			Name       = "CP313_IOs1"
 			GUID       = "{497B385D-9838-4142-ABB3-D6A101CCAFB9}"
 			Class      = "CP313_IOs"
-			Position   = "(1500,1170)"
+			Position   = "(1470,1050)"
 			Visualized = "true"
 			Remotely   = "true">
 			<Channels>
@@ -233,7 +233,7 @@
 			Name       = "SdiasPLC1"
 			GUID       = "{43AA458B-5C1E-470D-AC43-542AFEF91F6F}"
 			Class      = "SdiasPLC"
-			Position   = "(1500,390)"
+			Position   = "(1470,270)"
 			Visualized = "true"
 			Remotely   = "true">
 			<Channels>
@@ -319,8 +319,8 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
-		<Connection Source="SdiasPLC1.ToHwControl" Destination="HwControl1.Control" Vertices="(1500,480),(1008,360),"/>
-		<Connection Source="CP313_IOs1.To_HwControl" Destination="HwControl1.Control" Vertices="(1500,1260),(1008,360),"/>
+		<Connection Source="SdiasPLC1.ToHwControl" Destination="HwControl1.Control" Vertices="(1470,360),(1008,360),"/>
+		<Connection Source="CP313_IOs1.To_HwControl" Destination="HwControl1.Control" Vertices="(1470,1140),(1008,360),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

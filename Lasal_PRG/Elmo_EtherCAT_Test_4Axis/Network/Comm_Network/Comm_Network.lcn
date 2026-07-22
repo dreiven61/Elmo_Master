@@ -180,13 +180,17 @@
 			Name       = "LMCDiagnosticsService1"
 			GUID       = "{F42F0DD4-D9CC-4E5B-B073-F88FACAD14A8}"
 			Class      = "LMCDiagnosticsService"
-			Position   = "(1860,660)"
+			Position   = "(870,840)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
 				<Server Name="DiagnosticsBootCounter" Value="0"/>
 				<Client Name="InputLatch"/>
 				<Client Name="RecorderStore"/>
+				<Client Name="SdoAxis1"/>
+				<Client Name="SdoAxis2"/>
+				<Client Name="SdoAxis3"/>
+				<Client Name="SdoAxis4"/>
 			</Channels>
 		</Object>
 		<Object
@@ -276,10 +280,14 @@
 		<Connection Source="TCPMotionInterface1.LMCAxis7" Destination="_LMCAxis7.Control"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis8" Destination="_LMCAxis8.Control"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis9" Destination="_LMCAxis9.Control"/>
-		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2280,930),(2160,750),"/>
+		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2280,930),(1486,930),"/>
 		<Connection Source="LMCDiagnosticsService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCDiagnosticsService1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr"/>
 		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(2280,210),(1476,210),"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis1" Destination="LMCSdoExecutor1.ClassState"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
+		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

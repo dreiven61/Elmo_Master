@@ -616,6 +616,20 @@ typedef struct CltChCmd_LMCRecorderStore
     LMCRecorderStore *pCmd;
   } CltChCmd_LMCRecorderStore;
 
+typedef struct SvrChCmd_iprStates 
+  {
+    CMDMETH *pMeth;
+    iprStates dData;
+    SVRDSC *pDsc;
+  } SvrChCmd_iprStates;
+
+typedef struct CltChCmd_LMCSdoExecutor 
+  {
+    struct SvrChCmd_iprStates *pCh;
+    iprStates dData;
+    LMCSdoExecutor *pCmd;
+  } CltChCmd_LMCSdoExecutor;
+
 typedef struct CltChCmd_Merker 
   {
     struct SvrChCmd_DINT *pCh;
@@ -1049,11 +1063,4 @@ typedef struct SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase
     t_s_LMCAxis_SafetyState dData;
     SVRDSC *pDsc;
   } SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase;
-
-typedef struct SvrChCmd_iprStates 
-  {
-    CMDMETH *pMeth;
-    iprStates dData;
-    SVRDSC *pDsc;
-  } SvrChCmd_iprStates;
 

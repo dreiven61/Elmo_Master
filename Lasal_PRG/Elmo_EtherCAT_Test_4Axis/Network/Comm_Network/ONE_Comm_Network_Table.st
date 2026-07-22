@@ -168,9 +168,13 @@ TO_UDINT(9), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
 
 //External connections
 0$UDINT,
-12$UDINT,
+16$UDINT,
 TO_UDINT(2), "InputLatch", C_DIR, TO_UDINT(3311388916), "LMCEcatInputLatch1","ClassSvr",
 TO_UDINT(2), "RecorderStore", C_DIR, TO_UDINT(1161287402), "LMCRecorderStore1","ClassSvr",
+TO_UDINT(2), "SdoAxis1", C_DIR, TO_UDINT(1999418485), "LMCSdoExecutor1","ClassState",
+TO_UDINT(2), "SdoAxis2", C_DIR, TO_UDINT(3995461071), "LMCSdoExecutor2","ClassState",
+TO_UDINT(2), "SdoAxis3", C_DIR, TO_UDINT(2569196889), "LMCSdoExecutor3","ClassState",
+TO_UDINT(2), "SdoAxis4", C_DIR, TO_UDINT(122044666), "LMCSdoExecutor4","ClassState",
 TO_UDINT(9), "LMCAxis1", C_DIR, TO_UDINT(1307168646), "_LMCAxis1","Control",
 TO_UDINT(9), "LMCAxis2", C_DIR, TO_UDINT(3571490364), "_LMCAxis2","Control",
 TO_UDINT(9), "LMCAxis3", C_DIR, TO_UDINT(2749869738), "_LMCAxis3","Control",

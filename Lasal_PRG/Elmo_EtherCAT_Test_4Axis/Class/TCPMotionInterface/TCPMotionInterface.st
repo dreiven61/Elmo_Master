@@ -545,6 +545,10 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
     ActiveRequestValid := FALSE;
   end_if;
 
+  if IsClientConnected(#Diagnostics) then
+    Diagnostics.ProcessOperations();
+  end_if;
+
   // Fault responses are ordered after every request accepted before the fault.
   if (ActiveRequestValid = FALSE) & (IngressFaultPending = TRUE) &
      (RequestQueue[QueueReadIndex$DINT].State <> TCPMI_QUEUE_READY) then

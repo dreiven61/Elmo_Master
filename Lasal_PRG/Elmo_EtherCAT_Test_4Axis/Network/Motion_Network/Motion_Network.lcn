@@ -4556,8 +4556,8 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
-		<Connection Source="_LMCAxis1.LMCPreRtWorkTrigger" Destination="LMCEcatInputLatch1.ClassSvr" Vertices="(3090,510),(6312,3450),"/>
-		<Connection Source="LMCEcatInputLatch1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr" Vertices="(5850,3750),(5270,3750),"/>
+		<Connection Source="_LMCAxis1.LMCPreRtWorkTrigger" Destination="LMCEcatInputLatch1.ClassSvr" Vertices="(3090,510),(6150,3450),"/>
+		<Connection Source="LMCEcatInputLatch1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr" Vertices="(5850,3750),(5160,3750),"/>
 		<Connection Source="LMCEcatInputLatch1.EcatMaster" Destination="EtherCAT_PLC1.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.Drive1" Destination="Elmo_11.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.Drive2" Destination="Elmo_21.ClassState"/>

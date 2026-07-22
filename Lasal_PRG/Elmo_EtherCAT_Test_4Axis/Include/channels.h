@@ -441,6 +441,16 @@ TYPE
     dData : DINT;
     pCmd : ^LMCRecorderStore;
   END_STRUCT;
+  SvrChCmd_iprStates : STRUCT
+    pMeth : ^CMDMETH;
+    dData : iprStates;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  CltChCmd_LMCSdoExecutor : STRUCT
+    pCh : ^SvrChCmd_iprStates;
+    dData : iprStates;
+    pCmd : ^LMCSdoExecutor;
+  END_STRUCT;
   CltChCmd_Merker : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;
@@ -749,11 +759,6 @@ TYPE
   SvrCh_t_s_LMCAxis_SafetyState_PTofCls__LMCAxisBase : STRUCT
     pMeth : ^CHMETH;
     dData : _LMCAxisBase::t_s_LMCAxis_SafetyState;
-    pDsc : ^SVRDSC;
-  END_STRUCT;
-  SvrChCmd_iprStates : STRUCT
-    pMeth : ^CMDMETH;
-    dData : iprStates;
     pDsc : ^SVRDSC;
   END_STRUCT;
 END_TYPE

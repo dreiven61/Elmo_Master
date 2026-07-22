@@ -1,5 +1,5 @@
 [CRC]
-0E73839D
+20DB586B
 [VERSION]
 2.10
 [VOV]
@@ -25,7 +25,6 @@ _LMCPROFMOVEPROFILE : UDINT;"RAMP_PROFILE"=0,"JERK_PROFILE"=1,
 _ROBOT_MODE@_LMCRobotBase : UDINT;"_ROBOT_PASSIVE"=0,"_ROBOT_ACTIVE"=1,"_ROBOT_DIRECT"=2,"_ROBOT_ERROR"=3,"_ROBOT_MODE_CHANGE"=4,
 t_e_VaranErrors : UDINT;"_ClassOk"=0,"_NotInitialized"=1,"_CallBackError"=2,"_RequiredError"=3,"_RootError"=4,"_NoHardware"=5,"_WrongHardware"=6,"_CreateDOFailed"=7,"_DirectAccessFailed"=8,"_PllError"=9,"_TimeoutInInit"=10,"_HardwareRequiredIRQ"=11,"_HardwareNotRequiredIRQ"=12,"_HardwareFatalErrorIRQ"=13,"_ManagerError"=14,"_DisableError"=15,"_EnableError"=16,"_MultipleError"=17,"_SPIError"=18,"_ErrorBootImageFPGA"=19,"_NoCDIASInterface"=20,"_EEPromError"=21,"_NoVaranInterface"=22,"_MemoryFault"=23,"_TimesliceError"=24,"_TimesliceErrorIRQ"=25,"_WatchdogError"=26,"_VaranTimeError"=27,"_DiasTimeError"=28,"_DORamFull"=29,"_PortNoLink"=30,"_VaranDriverNotExists"=31,"_WrongDOLType"=32,"_WrongRunStatus"=33,"_DOHandleInvalid"=34,"_DOCmdInvalid"=35,"_ManagerNotExists"=36,"_DOLAddressInvalid"=37,"_UnknownCommand"=38,"_ComponentNotExists"=39,"_ClientNotExists"=40,"_CdiasEEPromNotExists"=41,"_CdiasEEPromNoGrant"=42,"_CdiasEEPromNack"=43,"_PortNotExists"=44,"_PortIsUplink"=45,"_NoMutex"=46,"_NoTask"=47,"_IDNotFound"=48,"_IDNotInitialized"=49,"_InvalidDeviceAddress"=50,"_CallbackNotHandled"=51,"_NoMem"=52,"_NoLegacyWd"=53,"_AdminDOLExecutionError"=54,"_DADOLExecutionError"=55,"_SPIFlashNoAccess"=56,"_ClientNotready"=57,"_TimeoutVaran"=58,"_UnknownFault"=59,"_DiasError"=60,"_DeviceError"=61,"_VaranTimeWarning"=62,"_OnlyASYSupported"=63,"_InvalidSerialNo"=64,"_CDIASRequiredError"=65,"_DIASRequiredError"=66,"_NoCalibDataFound"=67,"_ModuleFoundButManagerIsOff"=68,"_InvalidConfguration"=69,"_ClientDisabled"=70,"_ClientCantEnable"=71,"_CdiasAddressInvalid"=72,"_SPIFlashInvalid"=73,"_SPIDOLIDInvalid"=74,"_SPIDOLInvalid"=75,"_SPIRequiredListError"=76,"_SPIChksumError"=77,"_ParameterInvalid"=78,"_DOTypeNotSupported"=79,"_DMAError"=80,"_PropertyIDInvalid"=81,"_PropertyValueInvalid"=82,"_DONumberOverflow"=83,"_APIUsageNotAllowed"=84,"_NodeTypeWrong"=85,"_DataLengthInvalid"=86,"_DOTypeInvalid"=87,"_OperationNotAllowed"=88,"_NodeNumberOverflow"=89,"_NoHandleFound"=90,"_TopologyNotAllowed"=91,
 t_e_ECAT_STATE : UDINT;"ECAT_STATE_NONE"=0,"ECAT_STATE_INIT"=1,"ECAT_STATE_PREOP"=2,"ECAT_STATE_BOOT"=3,"ECAT_STATE_SAFEOP"=4,"ECAT_STATE_OP"=8,
-iprStates : UDINT;"READY"=0,"ERROR"=1,"ERROR_BUSY"=2,"BUSY"=3,"QUIT"=4,"STOP_BP"=5,"SINGLESTEP"=6,
 _FSM_UDP_ERROR@SafetyUDP : DINT;"_NO_ERROR_UDP_ERROR"=0,"_INIT_TCP_USER_UDP_ERROR"=-1,"_NO_IP_ADDRESS_UDP_ERROR"=-2,"_NO_MEMORY_SOCKET_UDP_ERROR"=-3,"_NO_MEMORY_SENDBUFFER_UDP_ERROR"=-4,"_INVALID_HANDLE_UDP_ERROR"=-5,"_SHUTDOWN_UDP_ERROR"=-6,"_CLOSESOCKET_UDP_ERROR"=-7,"_ALLOCATE_SOCKET_UDP_ERROR"=-8,"_SET_BIND_UDP_ERROR"=-9,"_RECV_UDP_ERROR"=-10,"_SEND_UDP_ERROR"=-11,"_NO_LOCAL_IP_UDP_ERROR"=-12,"_NO_DESTINATION_IP_UDP_ERROR"=-13,"_INVALID_UDP_PORT_UDP_ERROR"=-12,"_INVALID_INTERFACE_NUMBER_UDP_ERROR"=-11,"_NO_MEMORY_RECEIVE_BUFFER_UDP_ERROR"=-10,"_NO_MEMORY_CONNECTION_BUFFER_UDP_ERROR"=-9,
 [TYPES]
 _LMCAXIS_OPMODE : UDINT;
@@ -246,7 +245,6 @@ DS402_Control : BDINT
 15  ManufactureSpec4,
 16  ManufactureSpec5,
 ];
-iprStates : UDINT;
 _FSM_UDP_ERROR@SafetyUDP : DINT;
 [STRUCTURES]
 [CLASSES]
@@ -267,7 +265,6 @@ _FSM_UDP_ERROR@SafetyUDP : DINT;
 "Elmo_3",{D351B0CF-7160-4B8B-B77C-A7D78B2FB90C},
 "Elmo_4",{B91D1424-5387-42C6-84F5-4391E9259F6F},
 "EtherCAT_PLC",{EAAD0D64-14E9-4804-BF58-F3A5E4444F39},
-"EtherCAT_SDOBase",{47421B46-76BD-4CB4-B2B2-8EEF7265063A},
 "GetCILInterface",{052E0B59-656A-4392-B495-EED6A48A832D},
 "HwControl",{4794F3F9-7ABA-4680-9933-0608225B5265},
 "PosController",{60E8C9C0-075F-499A-AA73-1A7C772F0C71},
@@ -561,17 +558,6 @@ _FSM_UDP_ERROR@SafetyUDP : DINT;
 "EtherCAT_PLC","UDINT","Min_RtTime",{B7B75AD3-D503-4918-9CA6-577B780CFED9},
 "EtherCAT_PLC","UDINT","Max_RtTime",{F9407679-A8B8-4583-B936-F1C764F9CA30},
 "EtherCAT_PLC","UDINT","MissedFrameCounter",{0B3663E5-EAE7-4B09-B451-68827781240C},
-"EtherCAT_SDOBase","iprStates","ClassState",{17AB54D3-7855-45B7-911A-9576DDCF8542},
-"EtherCAT_SDOBase","DINT","ParaReadWrite",{F7F3A11F-08AA-435F-B427-8F4E437665A3},
-"EtherCAT_SDOBase","HDINT","ParaIndex",{4979D147-33CC-40E4-BF4D-103FDF7CDD51},
-"EtherCAT_SDOBase","HDINT","ParaSubIndex",{37984192-41B7-4AB5-B298-660332D0CE9F},
-"EtherCAT_SDOBase","DINT","CompleteAccess",{169F4D23-3A87-40A6-9196-71482210E348},
-"EtherCAT_SDOBase","DINT","ParaType",{BE7C3AC0-BADC-4862-B1FF-721F6CC53433},
-"EtherCAT_SDOBase","UDINT","ParaLength",{81E23868-A40C-4C38-9A78-DAD5CBBBDB44},
-"EtherCAT_SDOBase","DINT","ParaValue",{37F60183-F4FA-47EF-A37C-506DFE25453D},
-"EtherCAT_SDOBase","STRING","ParaString",{E3ABA0FE-B2B7-4F92-84F6-53B2E9E267EF},
-"EtherCAT_SDOBase","HDINT","ErrorCode",{8E57551A-D82B-457E-ABF9-2947396D236F},
-"EtherCAT_SDOBase","UDINT","Timeout",{ABA1E8CE-60A4-4B2E-B1CC-0A713B759C1A},
 "GetCILInterface","DINT","ClassSvr",{795FF043-ECF8-4951-9AA2-28835836905A},
 "HwControl","DINT","Control",{6E0C095B-B92D-47BE-BA84-39E07206C58D},
 "HwControl","t_e_VaranErrors","State",{662C9213-4BB2-4CC6-AE9F-D19FC74B0F6B},
@@ -632,14 +618,6 @@ _FSM_UDP_ERROR@SafetyUDP : DINT;
 "GetCILInterface","EtherCAT_PLC1\_SyncMeasureECAT1\GetCILInterfacePLL",{426141B2-336D-45E6-BFC2-727CBE6F0C0B},
 "GetCILInterface","EtherCAT_PLC1\GetCILInterface_ECAT",{4340C880-BE66-4F86-86CC-C2B5AFDD2A5E},
 "String","EtherCAT_PLC1\strSoftwareVersion",{B562F7D9-8CC4-4155-9695-83BA51C68876},
-"EtherCAT_SDOBase","EtherCAT_SDOBase1",{0D7AEF75-1805-41CA-A592-841F243DCB82},
-"String","EtherCAT_SDOBase1\strSDOParaString",{98B9A5C1-8414-4C70-9E8B-4085B98A8848},
-"EtherCAT_SDOBase","EtherCAT_SDOBase2",{5D4F9DAC-6514-43BF-86C7-3BC24B112E55},
-"String","EtherCAT_SDOBase2\strSDOParaString",{98B9A5C1-8414-4C70-9E8B-4085B98A8848},
-"EtherCAT_SDOBase","EtherCAT_SDOBase3",{E6A63213-8555-451B-8166-B8AF9A59496A},
-"String","EtherCAT_SDOBase3\strSDOParaString",{98B9A5C1-8414-4C70-9E8B-4085B98A8848},
-"EtherCAT_SDOBase","EtherCAT_SDOBase4",{F03C246D-8EEA-4CD7-8E0C-500BF1488039},
-"String","EtherCAT_SDOBase4\strSDOParaString",{98B9A5C1-8414-4C70-9E8B-4085B98A8848},
 "CP313_IOs","CP313_IOs1",{497B385D-9838-4142-ABB3-D6A101CCAFB9},
 "HwControl","HwControl1",{406A4ED8-33F6-4556-ADF2-F23B00CC917F},
 "SafetyManager","HwControl1\SafetyManager",{4545C840-4FB2-4C80-B150-345DF08208A7},

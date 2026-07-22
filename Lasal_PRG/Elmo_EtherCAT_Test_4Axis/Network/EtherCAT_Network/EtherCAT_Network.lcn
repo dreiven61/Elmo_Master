@@ -1141,14 +1141,14 @@
 			</Networks>
 		</Object>
 		<Object
-			Name       = "EtherCAT_SDOBase1"
-			GUID       = "{0D7AEF75-1805-41CA-A592-841F243DCB82}"
-			Class      = "EtherCAT_SDOBase"
-			Position   = "(2700,660)"
-			Visualized = "true"
-			Remotely   = "true">
+			Name       = "LMCSdoExecutor1"
+			GUID       = "{E64F35BE-4588-43B3-BD25-63F594501BAB}"
+			Class      = "LMCSdoExecutor"
+			Position   = "(2760,660)"
+			Visualized = "false">
 			<Channels>
 				<Server Name="ClassState"/>
+				<Server Name="ClassSvr"/>
 				<Server Name="CompleteAccess" Value="0"/>
 				<Server Name="ErrorCode"/>
 				<Server Name="ParaIndex"/>
@@ -1166,20 +1166,29 @@
 				<Network>
 					<!-- List of Components in this network -->
 					<Components>
-						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+						<Object Name="_base" GUID="{D9BEE8AB-D7C8-44DD-8EFD-B294EB0179FE}" Class="EtherCAT_SDOBase">
 							<Channels>
-								<Server Name="Data"/>
-								<Client Name="SingleRealloc" Value="1"/>
+								<Server Name="ClassState"/>
+								<Server Name="CompleteAccess" Value="0"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ParaIndex"/>
+								<Server Name="ParaLength"/>
+								<Server Name="ParaReadWrite"/>
+								<Server Name="ParaString"/>
+								<Server Name="ParaSubIndex"/>
+								<Server Name="ParaType"/>
+								<Server Name="ParaValue"/>
+								<Server Name="Timeout" Value="100"/>
+								<Client Name="toSlave"/>
 							</Channels>
 							<!-- List of Networks in this component -->
 							<Networks>
 								<Network>
 									<!-- List of Components in this network -->
 									<Components>
-										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+										<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
 											<Channels>
 												<Server Name="Data"/>
-												<Client Name="DataBuffer"/>
 												<Client Name="SingleRealloc" Value="1"/>
 											</Channels>
 											<!-- List of Networks in this component -->
@@ -1187,9 +1196,32 @@
 												<Network>
 													<!-- List of Components in this network -->
 													<Components>
-														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
 															<Channels>
 																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
 															</Channels>
 														</Object>
 													</Components>
@@ -1197,12 +1229,6 @@
 													</Connections>
 												</Network>
 											</Networks>
-										</Object>
-										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
-											<Channels>
-												<Server Name="m_udLength"/>
-												<Client Name="ThreadSafe" Value="0"/>
-											</Channels>
 										</Object>
 									</Components>
 									<Connections>
@@ -1217,14 +1243,14 @@
 			</Networks>
 		</Object>
 		<Object
-			Name       = "EtherCAT_SDOBase2"
-			GUID       = "{5D4F9DAC-6514-43BF-86C7-3BC24B112E55}"
-			Class      = "EtherCAT_SDOBase"
+			Name       = "LMCSdoExecutor2"
+			GUID       = "{1BFAFBDA-E4A2-490C-8892-7B33A37DC7DF}"
+			Class      = "LMCSdoExecutor"
 			Position   = "(2700,2520)"
-			Visualized = "true"
-			Remotely   = "true">
+			Visualized = "false">
 			<Channels>
 				<Server Name="ClassState"/>
+				<Server Name="ClassSvr"/>
 				<Server Name="CompleteAccess" Value="0"/>
 				<Server Name="ErrorCode"/>
 				<Server Name="ParaIndex"/>
@@ -1242,20 +1268,29 @@
 				<Network>
 					<!-- List of Components in this network -->
 					<Components>
-						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+						<Object Name="_base" GUID="{D9BEE8AB-D7C8-44DD-8EFD-B294EB0179FE}" Class="EtherCAT_SDOBase">
 							<Channels>
-								<Server Name="Data"/>
-								<Client Name="SingleRealloc" Value="1"/>
+								<Server Name="ClassState"/>
+								<Server Name="CompleteAccess" Value="0"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ParaIndex"/>
+								<Server Name="ParaLength"/>
+								<Server Name="ParaReadWrite"/>
+								<Server Name="ParaString"/>
+								<Server Name="ParaSubIndex"/>
+								<Server Name="ParaType"/>
+								<Server Name="ParaValue"/>
+								<Server Name="Timeout" Value="100"/>
+								<Client Name="toSlave"/>
 							</Channels>
 							<!-- List of Networks in this component -->
 							<Networks>
 								<Network>
 									<!-- List of Components in this network -->
 									<Components>
-										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+										<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
 											<Channels>
 												<Server Name="Data"/>
-												<Client Name="DataBuffer"/>
 												<Client Name="SingleRealloc" Value="1"/>
 											</Channels>
 											<!-- List of Networks in this component -->
@@ -1263,9 +1298,32 @@
 												<Network>
 													<!-- List of Components in this network -->
 													<Components>
-														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
 															<Channels>
 																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
 															</Channels>
 														</Object>
 													</Components>
@@ -1273,12 +1331,6 @@
 													</Connections>
 												</Network>
 											</Networks>
-										</Object>
-										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
-											<Channels>
-												<Server Name="m_udLength"/>
-												<Client Name="ThreadSafe" Value="0"/>
-											</Channels>
 										</Object>
 									</Components>
 									<Connections>
@@ -1293,14 +1345,14 @@
 			</Networks>
 		</Object>
 		<Object
-			Name       = "EtherCAT_SDOBase3"
-			GUID       = "{E6A63213-8555-451B-8166-B8AF9A59496A}"
-			Class      = "EtherCAT_SDOBase"
+			Name       = "LMCSdoExecutor3"
+			GUID       = "{4691BC7F-32A3-42C3-9CC5-AA79B4010E54}"
+			Class      = "LMCSdoExecutor"
 			Position   = "(2700,4320)"
-			Visualized = "true"
-			Remotely   = "true">
+			Visualized = "false">
 			<Channels>
 				<Server Name="ClassState"/>
+				<Server Name="ClassSvr"/>
 				<Server Name="CompleteAccess" Value="0"/>
 				<Server Name="ErrorCode"/>
 				<Server Name="ParaIndex"/>
@@ -1318,20 +1370,29 @@
 				<Network>
 					<!-- List of Components in this network -->
 					<Components>
-						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+						<Object Name="_base" GUID="{D9BEE8AB-D7C8-44DD-8EFD-B294EB0179FE}" Class="EtherCAT_SDOBase">
 							<Channels>
-								<Server Name="Data"/>
-								<Client Name="SingleRealloc" Value="1"/>
+								<Server Name="ClassState"/>
+								<Server Name="CompleteAccess" Value="0"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ParaIndex"/>
+								<Server Name="ParaLength"/>
+								<Server Name="ParaReadWrite"/>
+								<Server Name="ParaString"/>
+								<Server Name="ParaSubIndex"/>
+								<Server Name="ParaType"/>
+								<Server Name="ParaValue"/>
+								<Server Name="Timeout" Value="100"/>
+								<Client Name="toSlave"/>
 							</Channels>
 							<!-- List of Networks in this component -->
 							<Networks>
 								<Network>
 									<!-- List of Components in this network -->
 									<Components>
-										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+										<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
 											<Channels>
 												<Server Name="Data"/>
-												<Client Name="DataBuffer"/>
 												<Client Name="SingleRealloc" Value="1"/>
 											</Channels>
 											<!-- List of Networks in this component -->
@@ -1339,9 +1400,32 @@
 												<Network>
 													<!-- List of Components in this network -->
 													<Components>
-														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
 															<Channels>
 																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
 															</Channels>
 														</Object>
 													</Components>
@@ -1349,12 +1433,6 @@
 													</Connections>
 												</Network>
 											</Networks>
-										</Object>
-										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
-											<Channels>
-												<Server Name="m_udLength"/>
-												<Client Name="ThreadSafe" Value="0"/>
-											</Channels>
 										</Object>
 									</Components>
 									<Connections>
@@ -1369,14 +1447,14 @@
 			</Networks>
 		</Object>
 		<Object
-			Name       = "EtherCAT_SDOBase4"
-			GUID       = "{F03C246D-8EEA-4CD7-8E0C-500BF1488039}"
-			Class      = "EtherCAT_SDOBase"
+			Name       = "LMCSdoExecutor4"
+			GUID       = "{F09FF3A9-E847-43DF-9531-9CB841D4FFD2}"
+			Class      = "LMCSdoExecutor"
 			Position   = "(2700,6120)"
-			Visualized = "true"
-			Remotely   = "true">
+			Visualized = "false">
 			<Channels>
 				<Server Name="ClassState"/>
+				<Server Name="ClassSvr"/>
 				<Server Name="CompleteAccess" Value="0"/>
 				<Server Name="ErrorCode"/>
 				<Server Name="ParaIndex"/>
@@ -1394,20 +1472,29 @@
 				<Network>
 					<!-- List of Components in this network -->
 					<Components>
-						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+						<Object Name="_base" GUID="{D9BEE8AB-D7C8-44DD-8EFD-B294EB0179FE}" Class="EtherCAT_SDOBase">
 							<Channels>
-								<Server Name="Data"/>
-								<Client Name="SingleRealloc" Value="1"/>
+								<Server Name="ClassState"/>
+								<Server Name="CompleteAccess" Value="0"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ParaIndex"/>
+								<Server Name="ParaLength"/>
+								<Server Name="ParaReadWrite"/>
+								<Server Name="ParaString"/>
+								<Server Name="ParaSubIndex"/>
+								<Server Name="ParaType"/>
+								<Server Name="ParaValue"/>
+								<Server Name="Timeout" Value="100"/>
+								<Client Name="toSlave"/>
 							</Channels>
 							<!-- List of Networks in this component -->
 							<Networks>
 								<Network>
 									<!-- List of Components in this network -->
 									<Components>
-										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+										<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
 											<Channels>
 												<Server Name="Data"/>
-												<Client Name="DataBuffer"/>
 												<Client Name="SingleRealloc" Value="1"/>
 											</Channels>
 											<!-- List of Networks in this component -->
@@ -1415,9 +1502,32 @@
 												<Network>
 													<!-- List of Components in this network -->
 													<Components>
-														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
 															<Channels>
 																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
 															</Channels>
 														</Object>
 													</Components>
@@ -1425,12 +1535,6 @@
 													</Connections>
 												</Network>
 											</Networks>
-										</Object>
-										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
-											<Channels>
-												<Server Name="m_udLength"/>
-												<Client Name="ThreadSafe" Value="0"/>
-											</Channels>
 										</Object>
 									</Components>
 									<Connections>
@@ -1453,11 +1557,11 @@
 		<Connection Source="Elmo_21.toMaster" Destination="Elmo_11.EtherCATOut_1" Vertices="(1530,2610),(1463,2610),(1463,2490),(2416,2490),(2416,2250),(2374,2250),"/>
 		<Connection Source="Elmo_31.toMaster" Destination="Elmo_21.EtherCATOut_1" Vertices="(1530,4410),(1463,4410),(1463,4290),(2416,4290),(2416,4230),(2374,4230),"/>
 		<Connection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(1530,6210),(1463,6210),(1463,6090),(2416,6090),(2416,6030),(2374,6030),"/>
-		<Connection Source="EtherCAT_SDOBase1.toSlave" Destination="Elmo_11.ClassState" Vertices="(2700,750),(2374,750),"/>
-		<Connection Source="EtherCAT_SDOBase2.toSlave" Destination="Elmo_21.ClassState" Vertices="(2700,2610),(2374,2610),"/>
-		<Connection Source="EtherCAT_SDOBase3.toSlave" Destination="Elmo_31.ClassState" Vertices="(2700,4410),(2374,4410),"/>
-		<Connection Source="EtherCAT_SDOBase4.toSlave" Destination="Elmo_41.ClassState" Vertices="(2700,6210),(2374,6210),"/>
 		<Connection Source="EtherCAT_PLC1.ToHwControl" Destination="HwControl1.Control"/>
+		<Connection Source="LMCSdoExecutor1.toSlave" Destination="Elmo_11.ClassState" Vertices="(2760,750),(2374,750),"/>
+		<Connection Source="LMCSdoExecutor2.toSlave" Destination="Elmo_21.ClassState" Vertices="(2700,2610),(2374,2610),"/>
+		<Connection Source="LMCSdoExecutor3.toSlave" Destination="Elmo_31.ClassState" Vertices="(2700,4410),(2374,4410),"/>
+		<Connection Source="LMCSdoExecutor4.toSlave" Destination="Elmo_41.ClassState" Vertices="(2700,6210),(2374,6210),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

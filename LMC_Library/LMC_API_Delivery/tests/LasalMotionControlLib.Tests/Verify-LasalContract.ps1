@@ -23,6 +23,7 @@ $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $stPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st'
 $commNetworkPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\Comm_Network.lcn'
 $commNetworkTablePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\ONE_Comm_Network_Table.st'
+$etherCatNetworkPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\EtherCAT_Network.lcn'
 $motionNetworkPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\Motion_Network.lcn'
 $motionNetworkTablePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\ONE_Motion_Network_Table.st'
 $tcpServerRtPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TCPIPServer_RT\_TCPIPServer_RT.st'
@@ -32,12 +33,18 @@ $diagnosticsProtocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\Lmc
 $diagnosticsLatchPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st'
 $diagnosticsServicePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
 $recorderStorePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCRecorderStore\LMCRecorderStore.st'
+$sdoExecutorPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st'
 
 $st = Get-Content -Raw -LiteralPath $stPath
 $commNetwork = Get-Content -Raw -LiteralPath $commNetworkPath
-$commNetworkTable = Get-Content -Raw -LiteralPath $commNetworkTablePath
+$etherCatNetwork = Get-Content -Raw -LiteralPath $etherCatNetworkPath
 $motionNetwork = Get-Content -Raw -LiteralPath $motionNetworkPath
-$motionNetworkTable = Get-Content -Raw -LiteralPath $motionNetworkTablePath
+$commNetworkTable = ''
+$motionNetworkTable = ''
+if (-not $SourceOnly) {
+    $commNetworkTable = Get-Content -Raw -LiteralPath $commNetworkTablePath
+    $motionNetworkTable = Get-Content -Raw -LiteralPath $motionNetworkTablePath
+}
 $tcpServerRt = Get-Content -Raw -LiteralPath $tcpServerRtPath
 $classDbText = [Text.Encoding]::ASCII.GetString(
     [IO.File]::ReadAllBytes($classDbPath))
@@ -46,8 +53,10 @@ $diagnosticsProtocol = Get-Content -Raw -LiteralPath $diagnosticsProtocolPath
 $diagnosticsLatch = Get-Content -Raw -LiteralPath $diagnosticsLatchPath
 $diagnosticsService = Get-Content -Raw -LiteralPath $diagnosticsServicePath
 $recorderStore = Get-Content -Raw -LiteralPath $recorderStorePath
+$sdoExecutor = Get-Content -Raw -LiteralPath $sdoExecutorPath
 
 [xml]$commNetworkXml = $commNetwork
+[xml]$etherCatNetworkXml = $etherCatNetwork
 [xml]$motionNetworkXml = $motionNetwork
 
 $commRecorderStoreObjects = @(
@@ -167,6 +176,91 @@ if (-not $SourceOnly) {
         'LMCEcatInputLatch1.Drive3.*Elmo_31.ClassState',
         'LMCEcatInputLatch1.Drive4.*Elmo_41.ClassState')) {
         Assert-Match $diagnosticsNetworkText $link "Missing diagnostics network link matching $link."
+    }
+
+    $sdoExecutorObjects = @(
+        $etherCatNetworkXml.SelectNodes(
+            "/Network/Components/Object[@Class='LMCSdoExecutor']"))
+    if ($sdoExecutorObjects.Count -ne 4) {
+        throw "EtherCAT_Network LMCSdoExecutor object count is $($sdoExecutorObjects.Count), expected exactly four."
+    }
+    $rawSdoBaseObjects = @(
+        $etherCatNetworkXml.SelectNodes(
+            "/Network/Components/Object[@Class='EtherCAT_SDOBase']"))
+    if ($rawSdoBaseObjects.Count -ne 0) {
+        throw ('EtherCAT_Network still contains production EtherCAT_SDOBase ' +
+            "objects=$($rawSdoBaseObjects.Count); replace them with LMCSdoExecutor instances.")
+    }
+    foreach ($sdoAxis in 1..4) {
+        $executorName = "LMCSdoExecutor$sdoAxis"
+        $driveName = "Elmo_$($sdoAxis)1"
+        $executorObjectsForAxis = @(
+            $etherCatNetworkXml.SelectNodes(
+                "/Network/Components/Object[@Name='$executorName' and " +
+                "@Class='LMCSdoExecutor']"))
+        if ($executorObjectsForAxis.Count -ne 1) {
+            throw "$executorName must exist exactly once as LMCSdoExecutor in EtherCAT_Network."
+        }
+        $executorObject = $executorObjectsForAxis[0]
+        $executorRemotely = $executorObject.GetAttribute('Remotely')
+        if ($executorObject.GetAttribute('Visualized') -ne 'false' -or
+            ($executorRemotely -ne '' -and $executorRemotely -ne 'false')) {
+            throw "$executorName must set Visualized=false and Remotely=false."
+        }
+
+        $slaveConnections = @(
+            $etherCatNetworkXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Source='$executorName.toSlave' and " +
+                "@Destination='$driveName.ClassState']"))
+        if ($slaveConnections.Count -ne 1) {
+            throw "Missing or duplicate $executorName.toSlave -> $driveName.ClassState connection in EtherCAT_Network."
+        }
+
+        $sdoClientName = "SdoAxis$sdoAxis"
+        $sdoClient = $diagnosticsServiceObject.SelectSingleNode(
+            "./Channels/Client[@Name='$sdoClientName']")
+        if ($null -eq $sdoClient) {
+            throw "LMCDiagnosticsService1.$sdoClientName client is missing from Comm_Network."
+        }
+        $serviceConnections = @(
+            $commNetworkXml.SelectNodes(
+                "/Network/Connections/Connection[" +
+                "@Source='LMCDiagnosticsService1.$sdoClientName' and " +
+                "@Destination='$executorName.ClassState']"))
+        if ($serviceConnections.Count -ne 1) {
+            throw ("Missing or duplicate LMCDiagnosticsService1.$sdoClientName " +
+                "-> $executorName.ClassState cross-network connection in Comm_Network.")
+        }
+    }
+    if (@($etherCatNetworkXml.SelectNodes(
+                "/Network/Connections/Connection[starts-with(@Source,'LMCSdoExecutor') " +
+                "and substring-after(@Source,'.')='toSlave']")).Count -ne 4) {
+        throw 'EtherCAT_Network must contain exactly four LMCSdoExecutor.toSlave connections.'
+    }
+    if (@($etherCatNetworkXml.SelectNodes(
+                "/Network/Connections/Connection[starts-with(@Source,'EtherCAT_SDOBase')]")).Count -ne 0) {
+        throw 'EtherCAT_Network still contains legacy EtherCAT_SDOBase connections.'
+    }
+    if (@($commNetworkXml.SelectNodes(
+                "/Network/Connections/Connection[starts-with(@Source,'LMCDiagnosticsService1.SdoAxis')]")).Count -ne 4) {
+        throw 'Comm_Network must contain exactly four LMCDiagnosticsService1.SdoAxis cross-network connections.'
+    }
+
+    foreach ($classDbEntry in @(
+        'LMCSdoExecutor',
+        'TryStartRead4',
+        'CopyCompletion',
+        'MarkOrphan',
+        'IsReusable',
+        'LMCSdoExecutorResult',
+        'SdoAxis1',
+        'SdoAxis2',
+        'SdoAxis3',
+        'SdoAxis4',
+        'ProcessOperations')) {
+        Assert-Match $classDbText ([regex]::Escape($classDbEntry)) (
+            "Classes.lcb metadata is missing $classDbEntry. Reload and save the SDO classes through LASAL IDE.")
     }
     Assert-Match $commNetworkTable '"MaxConnections",\s*TO_UDINT\(1\),//\|Comm_Network\._TCPIPServer1\.MaxConnections;' '_TCPIPServer1 generated MaxConnections value is stale in Comm_Network.'
     foreach ($axisNumber in 1..9) {
@@ -336,9 +430,84 @@ Assert-Match $diagnosticsLatch 'sigclib_atomic_getU32\(pValue:=#PublishSequence'
 Assert-Match $diagnosticsLatch '(?s)FUNCTION GLOBAL LMCEcatInputLatch::CopySnapshot.*?DestSize < 304.*?retryCount < 3.*?_memcpy.*?sequenceBefore = sequenceAfter' 'LMCEcatInputLatch bounded seqlock copy is incomplete.'
 Assert-Match $diagnosticsLatch '(?s)FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork.*?sigclib_atomic_setU32\(pValue:=#PublishSequence,\s*value:=finalSequence\).*?IsClientConnected\(#RecorderStore\).*?RecorderStore\.AppendSnapshot\(\s*pSnapshot:=#SnapshotBytes\[0\],\s*SnapshotSize:=304\).*?state := READY' 'LMCEcatInputLatch does not append the final immutable 304-byte RT snapshot to RecorderStore.'
 
+Assert-Match $sdoExecutor '(?s)LMCSdoExecutor\s*:\s*CLASS\s*:\s*EtherCAT_SDOBase' 'LMCSdoExecutor no longer derives from EtherCAT_SDOBase.'
+if ([regex]::Matches(
+        $sdoExecutor,
+        '<Connection\s+Source="_base\.toSlave"\s+Destination="this\.toSlave"').Count -ne 1) {
+    throw 'LMCSdoExecutor internal network must forward exactly one _base.toSlave client to this.toSlave.'
+}
+$sdoResultTypeBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)LMCSdoExecutorResult\s*:\s*STRUCT.*?END_STRUCT').Value
+if ([string]::IsNullOrWhiteSpace($sdoResultTypeBlock)) {
+    throw 'LMCSdoExecutorResult declaration was not found.'
+}
+Assert-Match $sdoResultTypeBlock 'Type Public="true" Name="LMCSdoExecutorResult"' 'LMCSdoExecutorResult is not a public LASAL type.'
+Assert-Match $sdoResultTypeBlock '(?s)Token\s*:\s*UDINT;.*?OsResult\s*:\s*DINT;.*?AbortCode\s*:\s*UDINT;.*?ActualLength\s*:\s*UDINT;.*?ObjectIndex\s*:\s*UINT;.*?SubIndex\s*:\s*USINT;.*?IsWrite\s*:\s*USINT;.*?ValidationCode\s*:\s*UDINT;.*?Data\s*:\s*UDINT;.*?Reserved\s*:\s*UDINT;' 'LMCSdoExecutorResult 32-byte public field layout is incomplete or reordered.'
+Assert-Match $sdoExecutor 'sizeof\(LMCSdoExecutorResult\)\s*<>\s*32' 'LMCSdoExecutor does not fail closed if its public result ABI is not 32 bytes.'
+Assert-Match $sdoExecutor '(?s)#define LMC_SDO_EXEC_IDLE\s+0.*?#define LMC_SDO_EXEC_ARMING\s+1.*?#define LMC_SDO_EXEC_RUNNING\s+2.*?#define LMC_SDO_EXEC_RESULT_READY\s+3.*?#define LMC_SDO_EXEC_ORPHANED\s+4.*?#define LMC_SDO_EXEC_QUARANTINED\s+5' 'LMCSdoExecutor atomic state constants are incomplete.'
+Assert-Match $sdoExecutor 'Function Name="ClassState\.NewInst" UseBaseCmd="true"' 'LMCSdoExecutor callback override does not preserve the EtherCAT_SDOBase command table.'
+Assert-Match $sdoExecutor '(?s)ParaReadWrite\.pMeth\s*:=\s*StoreMethod\(\s*#M_RD_DIRECT\(\),\s*#ParaReadWrite::Write\(\)\s*\).*?ParaType\.pMeth\s*:=\s*StoreMethod\(\s*#M_RD_DIRECT\(\),\s*#ParaType::Write\(\)\s*\).*?_memcpy\(\(#vmt\.CmdTable\)\$\^USINT,\s*ParaString\.pMeth.*?vmt\.CmdTable\.Write\s*:=\s*#ParaString::Write\(\).*?ParaString\.pMeth\s*:=\s*StoreCmd' 'LMCSdoExecutor manual-channel write overrides are not registered in the IDE-generated unqualified VMT entries.'
+
+foreach ($manualWrite in @(
+    @{ Name = 'ParaReadWrite'; Expected = 'ParaReadWrite' },
+    @{ Name = 'ParaType'; Expected = 'ParaType' },
+    @{ Name = 'ParaString'; Expected = 'ParaString' })) {
+    $manualWriteBlock = [regex]::Match(
+        $sdoExecutor,
+        ('(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::' +
+            $manualWrite.Name + '::Write.*?END_FUNCTION')).Value
+    if ([string]::IsNullOrWhiteSpace($manualWriteBlock)) {
+        throw "LMCSdoExecutor.$($manualWrite.Name).Write implementation was not found."
+    }
+    Assert-Match $manualWriteBlock (
+        'result\s*:=\s*' + $manualWrite.Expected + '\s*;') (
+        "LMCSdoExecutor.$($manualWrite.Name).Write does not ignore manual writes fail-closed.")
+    if ($manualWriteBlock -match 'result\s*:=\s*input') {
+        throw "LMCSdoExecutor.$($manualWrite.Name).Write accepts the manual input."
+    }
+}
+
+$sdoTryStartBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION GLOBAL LMCSdoExecutor::TryStartRead4.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($sdoTryStartBlock)) {
+    throw 'LMCSdoExecutor.TryStartRead4 implementation was not found.'
+}
+Assert-Match $sdoTryStartBlock '(?s)sigclib_atomic_cmpxchgU32\(\s*pValue:=#AdapterState,\s*cmpVal:=LMC_SDO_EXEC_IDLE,\s*newVal:=LMC_SDO_EXEC_ARMING\).*?toSlave\.StartReadSDO\(\s*ObjectIndex,\s*SubIndex,\s*0,\s*\(#ReadBuffer\[0\]\)\$\^USINT,\s*4,\s*TimeoutMs,\s*THIS\).*?cmpVal:=LMC_SDO_EXEC_ARMING,\s*newVal:=LMC_SDO_EXEC_RUNNING' 'LMCSdoExecutor does not atomically reserve and start the fixed 4-byte read with CompleteAccess=0 and its own callback.'
+
+$sdoCopyCompletionBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion.*?END_FUNCTION').Value
+Assert-Match $sdoCopyCompletionBlock '(?s)sigclib_atomic_getU32\(pValue:=#AdapterState\).*?stateValue <> LMC_SDO_EXEC_RESULT_READY.*?stateValue <> LMC_SDO_EXEC_QUARANTINED.*?retryCount < 3.*?sequenceBefore := sigclib_atomic_getU32.*?_memcpy.*?sequenceAfter := sigclib_atomic_getU32.*?sequenceBefore = sequenceAfter.*?localResult\.Token <> ExpectedToken.*?value:=LMC_SDO_EXEC_QUARANTINED' 'LMCSdoExecutor completion copy lacks bounded seqlock or token validation.'
+Assert-Match $sdoCopyCompletionBlock '(?s)cmpVal:=LMC_SDO_EXEC_RESULT_READY,\s*newVal:=LMC_SDO_EXEC_IDLE.*?_memcpy\(ptr1:=pDest, ptr2:=#localResult' 'LMCSdoExecutor does not atomically release a consumed normal completion.'
+
+$sdoMarkOrphanBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION GLOBAL LMCSdoExecutor::MarkOrphan.*?END_FUNCTION').Value
+Assert-Match $sdoMarkOrphanBlock '(?s)ExpectedToken = 0.*?ActiveToken <> ExpectedToken.*?sigclib_atomic_cmpxchgU32\(\s*pValue:=#AdapterState,\s*cmpVal:=LMC_SDO_EXEC_RUNNING,\s*newVal:=LMC_SDO_EXEC_ORPHANED\)' 'LMCSdoExecutor does not atomically orphan only the expected running token.'
+Assert-Match $sdoExecutor '(?s)FUNCTION GLOBAL LMCSdoExecutor::IsReusable.*?sigclib_atomic_getU32\(\s*pValue:=#AdapterState\)\s*=\s*LMC_SDO_EXEC_IDLE.*?END_FUNCTION' 'LMCSdoExecutor reusable state is not an atomic Idle-only check.'
+
+$sdoCallbackBlock = [regex]::Match(
+    $sdoExecutor,
+    '(?s)FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($sdoCallbackBlock)) {
+    throw 'LMCSdoExecutor.ClassState.NewInst callback implementation was not found.'
+}
+Assert-Match $sdoCallbackBlock '(?s)pPara\^\.uiCmd <> ECAT_M_SDO_CALLBACK.*?ret_code := EtherCAT_SDOBase::NewInst\(pPara, pResult\).*?RETURN' 'LMCSdoExecutor does not forward unknown commands to EtherCAT_SDOBase.'
+Assert-Match $sdoCallbackBlock '(?s)callbackIsWrite := pPara\^\.aPara\[2\]\$USINT.*?callbackIndex := pPara\^\.aPara\[3\]\$UINT.*?callbackSubIndex := pPara\^\.aPara\[4\]\$USINT.*?osResult := pPara\^\.aPara\[1\]\$DINT.*?actualLength := pPara\^\.aPara\[5\]\$UDINT.*?abortCode := pPara\^\.aPara\[6\]\$UDINT' 'LMCSdoExecutor callback metadata extraction is incomplete.'
+Assert-Match $sdoCallbackBlock '(?s)aPara\[0\]\$DINT <> 1.*?stateValue <> LMC_SDO_EXEC_RUNNING.*?stateValue <> LMC_SDO_EXEC_ORPHANED.*?callbackIsWrite <> 0.*?callbackIndex <> ActiveIndex.*?callbackSubIndex <> ActiveSubIndex.*?ActiveToken = 0.*?actualLength <> TO_UDINT\(ActiveLength\)' 'LMCSdoExecutor callback version/state/direction/index/subindex/token/length validation is incomplete.'
+Assert-Match $sdoCallbackBlock '(?s)stateValue = LMC_SDO_EXEC_ORPHANED.*?validationCode = LMC_SDO_EXEC_VALID.*?ActiveToken := 0.*?value:=LMC_SDO_EXEC_IDLE.*?RETURN' 'LMCSdoExecutor does not drain a valid late orphan callback back to Idle.'
+Assert-Match $sdoCallbackBlock '(?s)writeSequence := sigclib_atomic_getU32.*?writeSequence and 1.*?sigclib_atomic_setU32\(\s*pValue:=#PublishSequence, value:=writeSequence\).*?PublishedResult\.Token := ActiveToken.*?PublishedResult\.ValidationCode := validationCode.*?PublishedResult\.Data := ReadBuffer\[0\]\$UDINT.*?finalSequence := writeSequence \+ 1.*?value:=finalSequence.*?value:=LMC_SDO_EXEC_RESULT_READY.*?value:=LMC_SDO_EXEC_QUARANTINED' 'LMCSdoExecutor callback publication is not a validated atomic seqlock result.'
+
 Assert-Match $diagnosticsService '#define LMC_DIAG_D1_ENABLED\s+TRUE' 'D1 Health/Catalog/PI Read is not enabled.'
 Assert-Match $diagnosticsService '#define LMC_DIAG_D2_ENABLED\s+TRUE' 'D2 Bulk Snapshot is not enabled.'
 Assert-Match $diagnosticsService '#define LMC_DIAG_D3_ENABLED\s+TRUE' 'D3 single-bank Recorder is not enabled.'
+Assert-Match $diagnosticsService '#define LMC_DIAG_D5_SDO_READ_ENABLED\s+FALSE' 'D5 SDO read compile gate must remain FALSE until LASAL/PLC runtime proof is complete.'
+if ([regex]::Matches($diagnosticsService, '<Client Name="SdoAxis[1-4]" Required="true" Internal="false"/>').Count -ne 4 -or
+    [regex]::Matches($diagnosticsService, 'SdoAxis[1-4]\s*:\s*CltChCmd_LMCSdoExecutor;').Count -ne 4) {
+    throw 'LMCDiagnosticsService does not declare exactly four required LMCSdoExecutor clients.'
+}
 Assert-Match $diagnosticsService '#define LMC_DIAG_MAP_REVISION\s+0x957F101E' 'LMCDiagnosticsService MapRevision is not the canonical D1 catalog CRC.'
 Assert-Match $diagnosticsService 'Server Name="DiagnosticsBootCounter".*Initialize="true".*DefValue="0".*Retentive="File"' 'LMCDiagnosticsService retained DiagnosticsBootCounter metadata is missing.'
 Assert-Match $diagnosticsService '(?s)FUNCTION GLOBAL LMCDiagnosticsService::GetDiagnosticsBootId.*?DiagnosticsBootCounter\.Read\(\).*?nextBootId = 0xFFFFFFFF.*?DiagnosticsBootCounter\.Write\(input:=nextBootId\).*?DiagnosticsBootCounter\.Read\(\) = nextBootId.*?BootIdFault := TRUE.*?END_FUNCTION' 'LMCDiagnosticsService retained BootId generation or write verification is incomplete.'
@@ -357,10 +526,65 @@ Assert-Match $diagnosticsServiceHandleBlock '(?s)currentBootId := GetDiagnostics
 Assert-Match $diagnosticsServiceHandleBlock '(?s)if \(CommandId >= 0x7E40\)\s*&\s*\(CommandId <= 0x7E49\).*?IsClientConnected\(#RecorderStore\) = FALSE.*?\(pResponse \+ 4\)\^\$UINT := 1.*?\(pResponse \+ 12\)\^\$UDINT := 11.*?ResponseSize := 16.*?RETURN' 'LMCDiagnosticsService RecorderStore disconnected path is not fail-closed.'
 Assert-Match $diagnosticsServiceHandleBlock '(?s)RecorderStore\.HandleRequest\(.*?CommandId:=CommandId.*?CallerSessionEpoch:=CallerSessionEpoch.*?CurrentDiagnosticsBootId:=currentBootId.*?ResponseCapacity:=ResponseCapacity\)' 'LMCDiagnosticsService does not delegate D3 requests with the retained runtime BootId.'
 Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E21:\s*.*?if RequestSize <> 28 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if' 'SubmitPIWrite 0x7E21 must validate its 28-byte reserved wire and remain UnsupportedFeature.'
-Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E03,\s*0x7E04:\s*.*?if RequestSize <> 16 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if' 'GetOperationStatus/CancelOperation must validate their 16-byte reserved wire and remain UnsupportedFeature.'
-Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E50:\s*.*?if RequestSize < 32 then\s*detailCode := 12;.*?sdoOperationFlags := \(pRequest \+ 14\)\^\$UINT.*?sdoDataLength := \(pRequest \+ 24\)\^\$UINT.*?sdoReserved := \(pRequest \+ 26\)\^\$UINT.*?expectedRequestSize := 32.*?sdoOperationFlags = 1.*?expectedRequestSize \+= TO_UDINT\(sdoDataLength\).*?sdoOperationFlags > 1.*?sdoReserved <> 0.*?RequestSize <> expectedRequestSize.*?detailCode := 12;.*?detailCode := 2;' 'SubmitSDO 0x7E50 must validate flags, reserved bytes, and read/write payload shape before remaining UnsupportedFeature.'
+
+$sdoStatusBlock = [regex]::Match(
+    $diagnosticsServiceHandleBlock,
+    '(?s)0x7E03:.*?0x7E04:').Value
+$sdoCancelBlock = [regex]::Match(
+    $diagnosticsServiceHandleBlock,
+    '(?s)0x7E04:.*?0x7E21:').Value
+$sdoSubmitBlock = [regex]::Match(
+    $diagnosticsServiceHandleBlock,
+    '(?s)0x7E50:.*?0x7E51:').Value
+foreach ($sdoHandler in @(
+    @{ Name = 'GetOperationStatus 0x7E03'; Block = $sdoStatusBlock },
+    @{ Name = 'CancelOperation 0x7E04'; Block = $sdoCancelBlock },
+    @{ Name = 'SubmitSDO 0x7E50'; Block = $sdoSubmitBlock })) {
+    if ([string]::IsNullOrWhiteSpace($sdoHandler.Block)) {
+        throw "$($sdoHandler.Name) implementation was not found."
+    }
+}
+
+Assert-Match $sdoStatusBlock '(?s)RequestSize <> 16.*?LMC_DIAG_D5_SDO_READ_ENABLED = FALSE.*?ResponseCapacity < 64.*?sdoTicketId := \(pRequest \+ 8\)\^\$UDINT.*?sdoBootId := \(pRequest \+ 12\)\^\$UDINT.*?sdoTicketId <> TicketId.*?sdoBootId <> TicketBootId.*?CallerSessionEpoch <> OwnerSessionEpoch.*?\(pResponse \+ 16\)\^\$UDINT := TicketId.*?\(pResponse \+ 22\)\^\$UINT := OperationState.*?\(pResponse \+ 32\)\^\$UINT := OperationOutcome.*?\(pResponse \+ 60\)\^\$UDINT := TicketBootId.*?ResponseSize := 64' 'GetOperationStatus 0x7E03 does not validate ticket/boot/session ownership and return the fixed D5 status envelope.'
+Assert-Match $sdoStatusBlock '(?s)OperationState = LMC_DIAG_SDO_STATE_COMPLETED.*?OperationOutcome = LMC_DIAG_SDO_OUTCOME_SUCCESS.*?\(pResponse \+ 40\)\^\$UDINT := SdoResultLength.*?\(pResponse \+ 48\)\^\$UDINT := SdoResultData' 'GetOperationStatus 0x7E03 does not expose data only for a successful completed operation.'
+
+Assert-Match $sdoCancelBlock '(?s)RequestSize <> 16.*?LMC_DIAG_D5_SDO_READ_ENABLED = FALSE.*?ResponseCapacity < 28.*?sdoTicketId <> TicketId.*?sdoBootId <> TicketBootId.*?CallerSessionEpoch <> OwnerSessionEpoch.*?OperationState <> LMC_DIAG_SDO_STATE_QUEUED.*?detailCode := 19.*?OperationState := LMC_DIAG_SDO_STATE_CANCELLED.*?OperationOutcome := LMC_DIAG_SDO_OUTCOME_CANCELLED.*?ResponseSize := 28' 'CancelOperation 0x7E04 is not restricted to the owning queued ticket.'
+
+if ([regex]::Matches($diagnosticsService, '(?m)^\s*TicketId\s*:\s*UDINT;').Count -ne 1 -or
+    $diagnosticsService -match '(?m)^\s*TicketId\s*:\s*ARRAY') {
+    throw 'LMCDiagnosticsService must own one global D5 ticket, not a ticket array.'
+}
+Assert-Match $sdoSubmitBlock '(?s)RequestSize < 32.*?expectedMapRevision := \(pRequest \+ 8\)\^\$UDINT.*?sdoSlaveReference := \(pRequest \+ 12\)\^\$UINT.*?sdoOperationFlags := \(pRequest \+ 14\)\^\$UINT.*?sdoObjectIndex := \(pRequest \+ 16\)\^\$UINT.*?sdoSubIndex := \(pRequest \+ 18\)\^\$USINT.*?requestSdoValueType := \(pRequest \+ 19\)\^\$USINT.*?sdoTimeoutCycles := \(pRequest \+ 20\)\^\$UDINT.*?sdoDataLength := \(pRequest \+ 24\)\^\$UINT.*?sdoReserved := \(pRequest \+ 26\)\^\$UINT.*?sdoBootId := \(pRequest \+ 28\)\^\$UDINT.*?expectedRequestSize := 32.*?sdoOperationFlags = 1.*?expectedRequestSize \+= TO_UDINT\(sdoDataLength\).*?RequestSize <> expectedRequestSize' 'SubmitSDO 0x7E50 generic request envelope validation is incomplete.'
+Assert-Match $sdoSubmitBlock '(?s)LMC_DIAG_D5_SDO_READ_ENABLED = FALSE.*?sdoSlaveReference < 1.*?sdoSlaveReference > 4.*?sdoTimeoutCycles < 1.*?sdoTimeoutCycles > 60000.*?expectedMapRevision <> LMC_DIAG_MAP_REVISION.*?sdoBootId <> currentBootId.*?sdoOperationFlags = 1.*?sdoDataLength <> 4.*?sdoObjectIndex <> 0x1000.*?sdoSubIndex <> 0.*?requestSdoValueType <> 5' 'SubmitSDO 0x7E50 does not enforce the gated first-slice read-only axes 1..4, 0x1000:0, UInt32, 4-byte policy.'
+if ($diagnosticsServiceHandleBlock -match '(?m)^\s*sdoValueType\s*:\s*USINT;') {
+    throw 'HandleRequest local sdoValueType shadows the retained SdoValueType ticket field.'
+}
+Assert-Match $sdoSubmitBlock '(?s)OperationState = LMC_DIAG_SDO_STATE_QUEUED.*?OperationState = LMC_DIAG_SDO_STATE_RUNNING.*?SdoInternalDrainState <> 0.*?detailCode := 9.*?case sdoSlaveReference of.*?SdoAxis1\.IsReusable\(\).*?SdoAxis4\.IsReusable\(\).*?NextTicketId = 0xFFFFFFFF.*?NextOperationToken = 0xFFFFFFFF.*?NextTicketId \+= 1.*?NextOperationToken \+= 1.*?TicketId := NextTicketId.*?OperationToken := NextOperationToken.*?OperationState := LMC_DIAG_SDO_STATE_QUEUED.*?SdoInternalDrainState := 0.*?ResponseSize := 32' 'SubmitSDO 0x7E50 does not allocate exactly one reusable queued ticket with wrap and drain guards.'
 Assert-Match $diagnosticsServiceHandleBlock '(?s)0x7E51:\s*.*?if RequestSize <> 28 then\s*detailCode := 12;\s*else\s*detailCode := 2;\s*end_if' 'ReadSDOResultChunk 0x7E51 must validate its 28-byte reserved wire and remain UnsupportedFeature.'
 Assert-Match $diagnosticsServiceHandleBlock '(?s)if detailCode <> 0 then.*?\(pResponse \+ 4\)\^\$UINT := 1.*?ResponseSize := 16' 'LMCDiagnosticsService reserved and error commands do not return the common 16-byte error envelope.'
+
+$sdoProcessBlock = [regex]::Match(
+    $diagnosticsService,
+    '(?s)FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations.*?END_FUNCTION').Value
+if ([string]::IsNullOrWhiteSpace($sdoProcessBlock)) {
+    throw 'LMCDiagnosticsService.ProcessOperations implementation was not found.'
+}
+Assert-Match $sdoProcessBlock 'completion\s*:\s*LMCSdoExecutor::LMCSdoExecutorResult;' 'ProcessOperations does not use the derived executor public result type with its class qualifier.'
+if ($sdoProcessBlock -match 'completion\s*:\s*LMCSdoExecutorResult;') {
+    throw 'ProcessOperations uses an unqualified LMCSdoExecutorResult type that LASAL C78 cannot resolve.'
+}
+$typedSdoConnectionChecks = [regex]::Matches(
+    $diagnosticsService,
+    'executorConnected\s*:=\s*IsClientConnected\(#SdoAxis[1-4]\)\s*<>\s*0;')
+if ($typedSdoConnectionChecks.Count -ne 12 -or
+    $diagnosticsService -match 'executorConnected\s*:=\s*IsClientConnected\(#SdoAxis[1-4]\)\s*;') {
+    throw 'LMCDiagnosticsService must convert all twelve SdoAxis connection checks from DINT to BOOL explicitly.'
+}
+Assert-Match $sdoProcessBlock '(?s)LMC_DIAG_D5_SDO_READ_ENABLED = FALSE.*?RETURN.*?TicketId = 0.*?SdoInternalDrainState = 0' 'ProcessOperations does not remain inert behind the D5 compile gate and empty-ticket guard.'
+Assert-Match $sdoProcessBlock '(?s)SdoInternalDrainState <> 0.*?IsSdoReadReady\(SlaveReference:=SdoSlaveReference\) = FALSE.*?CopyCompletion\(\s*ExpectedToken:=OperationToken.*?IsSdoReadReady\(SlaveReference:=SdoSlaveReference\) then.*?SdoInternalDrainState := 0.*?RETURN' 'ProcessOperations does not drain late timeout/disconnect callbacks before releasing the executor.'
+Assert-Match $sdoProcessBlock '(?s)OperationState = LMC_DIAG_SDO_STATE_RUNNING.*?CopyCompletion\(\s*ExpectedToken:=OperationToken.*?elapsedCycles := currentCycle - SdoSubmitCycle.*?if \(completionResult = 0\)\s*&\s*\(elapsedCycles > SdoTimeoutCycles\) then.*?elsif completionResult = 0 then.*?OperationState := LMC_DIAG_SDO_STATE_COMPLETED.*?RETURN.*?elapsedCycles >= SdoTimeoutCycles.*?MarkOrphan\(\s*ExpectedToken:=OperationToken\).*?OperationState := LMC_DIAG_SDO_STATE_EXPIRED.*?SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED' 'ProcessOperations must consume a completion at the deadline before timeout and quarantine an incomplete timed-out adapter for late-callback drain.'
+Assert-Match $sdoProcessBlock '(?s)completion\.ValidationCode = 7.*?SdoOperationDetail := 5.*?else\s*SdoOperationDetail := 24.*?completion\.OsResult <> 0.*?completion\.AbortCode = 0x08000000.*?SdoOperationDetail := completion\.OsResult\$UDINT.*?elsif completion\.AbortCode <> 0.*?elsif completion\.ActualLength <> 4 then.*?SdoOperationDetail := 5.*?completion\.ObjectIndex <> SdoObjectIndex.*?SdoOperationDetail := 24' 'ProcessOperations does not preserve the first-slice validation, OS/abort priority, length, and metadata error mapping.'
+Assert-Match $sdoProcessBlock '(?s)OperationState <> LMC_DIAG_SDO_STATE_QUEUED.*?OperationState <> LMC_DIAG_SDO_STATE_RUNNING.*?currentCycle = SdoLastProcessedCycle.*?remainingCycles := SdoTimeoutCycles - elapsedCycles.*?case SdoSlaveReference of.*?SdoAxis1\.TryStartRead4\(.*?SdoAxis4\.TryStartRead4\(.*?startResult = READY.*?OperationState := LMC_DIAG_SDO_STATE_RUNNING' 'ProcessOperations does not start one queued read per published RT cycle through the selected executor.'
 
 $diagnosticsServiceNotifyBlock = [regex]::Match(
     $diagnosticsService,
@@ -712,6 +936,7 @@ if ($closedEpochCaptureCount -ne 3) {
 }
 Assert-Match $motionCyWorkBlock '(?s)RequestQueue\[QueueReadIndex\$DINT\]\.State\s*=\s*TCPMI_QUEUE_READY.*?State\s*:=\s*TCPMI_QUEUE_ACTIVE.*?MemCpy.*?State\s*:=\s*TCPMI_QUEUE_FREE' 'CyWork queue READY/ACTIVE/FREE transition is missing.'
 Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one active request.'
+Assert-Match $motionCyWorkBlock '(?s)MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE.*?if IsClientConnected\(#Diagnostics\) then\s*Diagnostics\.ProcessOperations\(\);\s*end_if' 'TCPMotionInterface.CyWork does not safely advance D5 operations after request processing.'
 if ($motionCyWorkBlock -match 'ActiveRequest\.(?:CommandId|Reference|PayloadLength)\$DINT') {
     throw 'CyWork reinterprets a 16-bit request field as a 32-bit DINT instead of using numeric conversion.'
 }
@@ -762,8 +987,8 @@ Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# g
 Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 
 if ($SourceOnly) {
-    Write-Host 'PASS LASAL.StaticContract.SourceOnly (CyWork queue, diagnostics D1-D3 plus D4 trigger/ring active contract, D4 double and D5 fail-closed wire, recorder bank, and session-close wiring)'
+    Write-Host 'PASS LASAL.StaticContract.SourceOnly (CyWork queue, diagnostics D1-D4 active contract, gated derived D5 SDO executor/ticket contract, recorder bank, and session-close wiring)'
 }
 else {
-    Write-Host 'PASS LASAL.StaticContract (CyWork queue, diagnostics D1-D3 plus D4 trigger/ring active contract, D4 double and D5 fail-closed wire, recorder/network wiring, and generated tables)'
+    Write-Host 'PASS LASAL.StaticContract (CyWork queue, diagnostics D1-D4 active contract, gated derived D5 SDO executor/ticket and four-axis network contract, recorder wiring, and generated metadata/tables)'
 }

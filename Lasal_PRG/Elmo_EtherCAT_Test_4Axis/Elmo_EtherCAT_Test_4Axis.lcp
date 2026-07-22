@@ -253,6 +253,7 @@
 		<File Path=".\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"/>
 		<File Path=".\Class\LMCRecorderStore\LMCRecorderStore.st"/>
 		<File Path=".\Class\EtherCAT_SDOBase\EtherCAT_SDOBase.st"/>
+		<File Path=".\Class\LMCSdoExecutor\LMCSdoExecutor.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
