@@ -2,15 +2,15 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-22
+Latest update: 2026-07-23
 
 > 이 문서는 2026-07-10 backlog snapshot을 보존하지만, 아래 상단 결론과
-> `현재 구현 완료도 판정` 표는 2026-07-22 current source 기준이다. 현재 diagnostics는
+> `현재 구현 완료도 판정` 표는 2026-07-23 current source 기준이다. 현재 diagnostics는
 > D4 single-bank Ring/Trigger와 D5 general-inline SDO Read가 test source에서 활성이고,
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
-> 22개다. Phase 1 Admin active 3개를 포함한 전체 success-capable path는 50개,
-> dispatcher/wire handled contract는 52개다. PC 자동 테스트는 Debug/Release 각
-> 135/135다. D5 legacy `0x13F`와
+> 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
+> 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
+> Debug/Release 각 148/148다. D5 legacy `0x13F`와
 > general-inline 1/2/4-byte SDO Read는 사용자가 실제 PLC에서 정상 동작을 확인했다.
 > 이번 기준선에는 그 최종 확인에 대한 별도 신규 pcap/log가 첨부되지 않았다.
 > D5 fault matrix와 D0~D4 PLC runtime은 아직 수행하지 않았다. 최신 상태와 검증 경계는
@@ -49,12 +49,13 @@ test source에서 활성화되어 diagnostics active는 22개다. `SubmitPIWrite
 `ReadSDOResultChunk(0x7E51)`는 exact wire를 검사한 뒤 `UnsupportedFeature`로
 fail-closed한다. D4 Double도 capability-off mode다. diagnostics 기준 성공 응답 capable
 범위는 기존 25 + diagnostics 22 = 47개이고 handled contract는 capability-off
-diagnostics 2개를 더한 49개다. Phase 1의 LASAL-local read-only Admin
-`0x7D00/0x7D10/0x7D20` 3개를 포함하면 전체 active는 50개, handled는 52개다.
+  diagnostics 2개를 더한 49개다. LASAL-local Admin
+  `0x7D00/0x7D10/0x7D20/0x7D22` 4개를 포함하면 전체 active는 51개, handled는 53개다.
 
-현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 axis/group
+현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 legacy axis/group
 control·read·motion command를 허용한다. lifecycle과 name/member metadata
-handler는 이 수에서 제외한다.
+handler는 이 수에서 제외한다. Admin motion `0x7D22`도 같은 `MsgPaser()`/CyWork
+queue에서 실행되지만 아래 legacy 18개 수에는 포함하지 않는다.
 
 - Axis: `0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`
@@ -76,7 +77,7 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 135/135, LASAL SourceOnly/full static
+현재 source는 C# 자동 테스트 Debug/Release 각 148/148, LASAL SourceOnly/full static
 contract와 개발 WPF Debug/Release build 및 각 3초 startup smoke를 통과했다.
 `Classes.lcb`의 general `TryStartRead` declaration은 current source와 동기화되어 있다.
 gate-off D5 source의 LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
@@ -106,12 +107,12 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | Wireshark 기준 대상 command | 23개 | 전체 범위 |
 | LASAL project-local extension | 2개 | `0x204A/0x204B`; 기존 캡처 명령이 아님 |
 | LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4 Trigger 1 + D5 general-inline Read 3 active + D5 reserved 2; D4 Double mode off |
-| LASAL read-only Admin extension | 3개 | `0x7D00/0x7D10/0x7D20`; source/static active, IDE/PLC 미검증 |
-| 성공 응답 capable PLC active path | 50개 | 기존 motion/group 25 + diagnostics active 22 + Admin 3 |
-| C#/dispatcher/wire handled contract | 52개 | active 50 + capability-off diagnostics 2 |
+| LASAL Admin extension | 4개 | `0x7D00/0x7D10/0x7D20/0x7D22`; source/static active, IDE/PLC 미검증 |
+| 성공 응답 capable PLC active path | 51개 | 기존 motion/group 25 + diagnostics active 22 + Admin 4 |
+| C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
-| 현재 CyWork control/read/motion 범위 | 18개 | axis 8개와 group 10개; diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 135/135 PASS | fake/synthetic/loopback/source contract 검증 |
+| 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
+| C# 자동 테스트 | Debug/Release 각 148/148 PASS | fake/synthetic/loopback/source contract 검증 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
 | 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS | PLC 동작 승인이 아님 |

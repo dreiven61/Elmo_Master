@@ -10,7 +10,7 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. PC 테스트 Debug/Release 각 135/135, LASAL
+현재 버전은 `0.9.1-preview`다. PC 테스트 Debug/Release 각 148/148, LASAL
 SourceOnly/full static 계약과 개발 WPF Debug/Release build 및 각 3초 startup smoke는
 통과했다. `Classes.lcb`의 general `TryStartRead` declaration도 current source와
 동기화되어 있다. BootId 5 legacy `0x13F` PLC capture에서 `0x1000:0` UInt32 4-byte SDO Read는
@@ -21,8 +21,9 @@ fault matrix와 최신 IDE build/download/smoke log는 남아 있다. 기존 mot
 E2E/packet 재캡처는 0/25이고 diagnostics D1~D4 runtime도 미실시다. D4 Double,
 PI/SDO Write와 8/12-byte/extended SDO result는 미구현이다. Phase 1의 D1/D2 기반
 PI/Bulk compatibility facade는 구현됐지만, 기존 D6 계획의 static/handle wrapper와
-별도 D6 wire는 구현하지 않았다. `0x7D00/10/20` Admin은 source/static만 완료됐고
-LASAL IDE build/download와 PLC 검증이 남아 있다.
+별도 D6 wire는 구현하지 않았다. `0x7D00/10/20` read와 `0x7D22`
+GroupMoveLinearRelative Admin은 source/static만 완료됐고 LASAL IDE build/download와
+PLC parameter/relative-motion 검증이 남아 있다.
 production 승인본으로 표기하지 않는다.
 
 ## 개발자 시작 위치

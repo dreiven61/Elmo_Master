@@ -12,7 +12,7 @@
 - 상단 Connection: PLC IP/port, PC local IPv4, callback UDP port, Connect/Close
 - Single Axis: object lookup, Power/Reset/Stop, status/position, 3가지 motion
 - Group Motion: object/member 조회, Power On/Off, profile Lock/Unlock,
-  Reset/Stop, status/position, static 4축 Move Linear와 identity configuration
+  Reset/Stop, status/position, static 4축 absolute/relative Move Linear와 identity configuration
 - EtherCAT / PI: capability, master/slave health, active signal Catalog와 typed PI value
 - Bulk Snapshot: 선택 signal의 same-cycle snapshot, entry status와 raw value
 - Recorder: capability-gated Single/Ring/Double 및 Manual/Edge/Window/Mask configuration,
@@ -123,7 +123,11 @@ var raw = checked((int)Math.Round(
 - 현재 저장된 축 설정은 `_JERK_PROFILE`, `JMax=75000 mm`다. 실제 시험에서는
   다운로드된 PLC 설정과 장비 제한을 별도로 확인한다.
 - Group position/dynamics도 별도 Group UNIT 콤보로 같은 DINT 변환을 수행한다.
-  현재 Move Linear는 X/Y/Z/U 4개 값만 사용하고 coordinate는 `None`만 허용한다.
+  현재 Move Linear Absolute는 X/Y/Z/U를 target으로, Relative는 같은 입력을 delta로
+  해석한다. 두 경로 모두 4개 값만 사용하고 coordinate는 `None`만 허용한다.
+- Relative는 Admin `0x7D22` capability가 없는 PLC에서 API가 송신 전에 거부한다.
+  PLC가 `MoveRelativeCoord`를 직접 호출하므로 UI는 현재 위치를 합산해 absolute target을
+  만들지 않는다. Admin ACK는 queue 수락이며 완료는 기존 Group InPosition monitor다.
 - group Jerk 입력도 `group application unit/s^3/1000` 값으로 보고 UNIT을 곱한다.
   canonical `_LMCRobotBase1`은 `_JERK_PROFILE`, `JMax=50000 mm`다.
 
@@ -157,6 +161,9 @@ var raw = checked((int)Math.Round(
   정지 완료가 아니므로 stable Group InPosition을 다시 확인한다. PLC의
   `StopMove(Mode:=3)`은 기존 profile buffer를 폐기하며, 정지 뒤 새 Move를 금지하는
   명령이 아니다.
+- Relative move도 absolute와 같은 motion-uncertain tracking을 사용한다. valid Admin
+  rejection만 local tracking을 해제하고 timeout, malformed response 또는 연결 손실은
+  상태가 불확실하므로 Stop/PowerOff recovery 경로를 유지한다.
 - Move Linear 응답 `ErrorId=7`은 `_LMCPROF_SWE_ERROR`다. 예제는 송신 직전의
   X/Y/Z/U `StartRaw`, `TargetRaw`와 dynamics를 로그에 남기고, runtime software
   end position 위반임을 명시한다. 어느 축이 위반했는지는 현재 wire 응답에
@@ -198,7 +205,7 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
 - LASAL static contract에서 `_JERK_PROFILE`, nonzero JMax, Jerk 수신 offset과
   `_LMCAxis` 및 `_LMCRobotBase1` 전달 경로 확인
 - Group Power On/Off, profile Lock/Unlock, Reset/Stop/Read Position,
-  Move Linear/Set Identity Kinematics의 UI-to-API handler와 group InPosition
+  Move Linear Absolute/Relative 및 Set Identity Kinematics의 UI-to-API handler와 group InPosition
   monitor 확인
 - 실제 실행 창과 모든 탭의 layout/accessibility smoke test
 - diagnostics capability fail-closed 상태, Catalog selection, Bulk resource lifecycle,

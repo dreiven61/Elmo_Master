@@ -32,7 +32,7 @@ capture도 분석해 PMAS Version2 Recorder의 ready/header/range gate와 PI 선
 
 2026-07-22 `LMCSdoExecutor : EtherCAT_SDOBase`, 축별 executor 4개, service one-ticket
 실행부와 두 network의 연결을 구현했다. Recorder terminal Stop 멱등 처리도 유지했다.
-PC 자동 시험 135/135, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정 LASAL SourceOnly/
+PC 자동 시험 148/148, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정 LASAL SourceOnly/
 full static 계약이 통과했다. `Classes.lcb`의 `TryStartRead` declaration도 current source와
 동기화됐다. 10:53 IDE
 Rebuild/Link는 gate-off baseline 결과다. gate-on 첫 D5
@@ -319,7 +319,7 @@ sync/async wrapper는 이 facade의 실제 사용성 검증 뒤 필요성이 확
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `135/135 passed` | 통과 확인 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `148/148 passed` | 통과 확인 |
 | WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj` Debug build 후 3초 startup | error 0, startup exception 없음 | 통과 확인 |
 | LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly` | PASS | 통과 확인 |
 | LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | PASS | 통과 확인; `Classes.lcb` `TryStartRead` declaration 동기화 |

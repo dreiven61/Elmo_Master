@@ -2,6 +2,8 @@
 
 작성일: 2026-07-14
 
+최종 갱신: 2026-07-23 (`0x7D22 GroupMoveLinearRelative` source/static)
+
 대상:
 
 - PC: `LMC_Library/LMC_API_Delivery/src/LmcGroup.cs`
@@ -26,12 +28,15 @@ LASAL-DINT adapter가 추가한 project-local extension이다.
 | `0x2049` | `GroupReset` | `LMCRobot.AxQuitError(AxisNo:=0)` |
 | `0x2085` | `GroupStop` | `LMCRobot.StopMove(Mode:=3, Decel, Jerk)` |
 | `0x20A4` | `MoveLinearAbsoluteEx` | 승인된 static 4축 인자를 `LMCRobot.MoveLinearCoord`에 전달 |
+| `0x7D22` | `MoveLinearRelativeEx` | Admin capability 뒤 승인된 4축 distance를 `LMCRobot.MoveRelativeCoord`에 전달 |
 | `0x2051` | `GroupReadActualPosition` | static axis-order identity 위치를 읽어 68-byte DINT payload 반환 |
 | `0x20E7` | `SetKinTransformCartesian4Axis` | exact X/Y/Z/U identity 요청을 검증하고 static mapping을 등록 |
 
 이 상태는 source 구현 완료다. 2026-07-22 Phase 0 기준 C# 105/105와 LASAL
 source-only/full-network static
-contract와 WPF VS2019 Debug build는 통과했다. 현재 LASAL source는 IDE에서
+contract와 WPF VS2019 Debug build는 통과했다. 2026-07-23 Phase 2 통합 기준은 C#
+Debug/Release 148/148, LASAL SourceOnly/full static과 WPF Debug/Release build/startup
+smoke를 통과했다. 현재 LASAL source는 IDE에서
 Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실제 장비
 동작도 검증하지 않았다.
 
@@ -114,6 +119,21 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 - ACK 성공은 move 완료가 아니다. group status의 standby/in-position을 별도로
   확인한다.
 
+### MoveLinearRelativeEx
+
+- Admin v1 request payload는 104 bytes다. 공통 prefix 뒤 distance `DINT[16]`,
+  velocity/acceleration/deceleration/jerk/coordinate/transition/buffer/execute를 둔다.
+- distance 1..4는 X/Y/Z/U이고 slot 5..16은 0이어야 한다. dynamics와 options는
+  absolute와 같은 whitelist를 사용한다.
+- PLC는 Robot/Axis1..4 client, `GroupKinematicReady`, Robot power와 profile lock을
+  확인한 뒤 `LMCRobot.MoveRelativeCoord`를 직접 호출한다. PC current-position 합산은 없다.
+- Admin detail 9는 motion parameter, 10은 준비 상태, 11은 native profile reject다.
+  detail 11의 representable positive GroupProfile code를 `ErrorId`에 보존하고 그 밖은
+  adapter fallback `-6`을 사용한다.
+- success ACK는 queue 수락이며 완료는 `GroupReadStatusResult`로 확인한다.
+- WPF safety gate는 `0x7D00` preflight를 gate 밖에서 수행하고 session/connection-bound
+  prepared capability overload로 gate 안에서 단일 `0x7D22`만 전송한다.
+
 ### GroupReadActualPosition
 
 - request coordinate enum: `None(0)`, `ACS(1)`만 지원
@@ -172,7 +192,7 @@ wire 계약이 없다. vendor `_LMCRobotBase.MoveCircleCoord` method가 존재�
 5. Reset을 실제 axis error와 profile error 상태에서 각각 검증하고, Reset이
    profile error까지 해제했다고 가정하지 않음
 6. Stop ACK 뒤 실제 in-position/standstill을 별도로 확인
-7. 무부하, 저속, 짧은 거리로 MoveLinear와 mode rejection 검증
+7. 무부하, 저속, 짧은 거리로 MoveLinear absolute/relative와 mode rejection 검증
 8. exact SetKin request와 mapping ACK 검증
 9. PowerOn -> `IsPowerOn` -> SetKin -> Enable -> `IsStandby` 순서와 역순
    rejection 검증

@@ -2,7 +2,7 @@
 
 작성일: 2026-07-10
 
-최종 결과 재확인: 2026-07-22
+최종 결과 재확인: 2026-07-23
 
 ## 구성
 
@@ -54,6 +54,9 @@
   extended result fail-closed contract
 - Phase 1 Admin `0x7D00/0x7D10/0x7D20` golden/parser/fake-RPC, semantic key/mask,
   RequestId/session/capability와 LASAL source offset/method mapping
+- Phase 2 Admin `0x7D22 GroupMoveLinearRelative` exact 104-byte golden,
+  4-axis/parameter whitelist, strict ACK/native reject parser, sync/async fake-RPC,
+  capability no-dispatch, stale generation과 LASAL `MoveRelativeCoord` state gate
 - `GetDriveOperationMode`/`ReadDriveStatus`의 physical axis 1..4, terminal
   success/failure, `TimeoutCycles+32` bounded poll과 ticket-preserving cancellation
 - PI alias와 Bulk builder/reader의 exact MapRevision, entry validation, latest
@@ -87,9 +90,9 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `135/135 PASS`
+- `RunPcTests`: Debug/Release 각 `148/148 PASS`
 - `RunLasalContract`:
-  `PASS LASAL.StaticContract.SourceOnly` (9축, CyWork-only, D1~D3와 D4
+  `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,
   D4 Double/D5 Write·extended fail-closed wire)
 - `RunLasalNetworkContract`: `PASS LASAL.StaticContract`; `Classes.lcb` general
@@ -114,4 +117,4 @@ EtherCAT/motion 동작 검증을 대체하지 않는다.
 | D4 | single-bank Ring/Trigger active contract 포함 | runtime 미실시, Double 미구현 |
 | D5 | general-inline Read submit/status/cancel 및 executor release/race 계약 포함 | legacy 축 1~4와 general-inline 1/2/4-byte 사용자 실기 PASS; 최종 확인 신규 pcap/log와 fault matrix 없음 |
 | Phase 1 facade | typed drive read, PI/Bulk builder/reader와 error catalog PC contract 포함 | 기존 D5 SDO runtime 외 신규 Admin/facade E2E는 미실시 |
-| Admin | `0x7D00/10/20` C# golden/parser/fake-RPC와 LASAL SourceOnly mapping 포함 | LASAL IDE build/download와 실물 값/UNIT/packet 미검증 |
+| Admin | `0x7D00/10/20/22` C# golden/parser/fake-RPC와 LASAL SourceOnly mapping 포함 | LASAL IDE build/download, 실물 값/UNIT/relative motion/packet 미검증 |

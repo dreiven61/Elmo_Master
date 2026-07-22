@@ -42,9 +42,17 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
     Locked/Standby 확인은 아니다.
 16. `2 / 5 Read Status (Power Ready / Lock Ready)`를 다시 실행해
     `Enabled/LockedStandby=True`를 확인한다. 이 확인 뒤에만 Move가 활성화된다.
-17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 시험한다.
-18. 종료 순서는 Group Stop 및 InPosition 확인, `Disable (Unlock Profile)`,
+17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.
+18. `0x7D00`에 `GroupLinearRelative`가 광고된 최신 PLC에서 X/Y/Z/U를 작은
+    delta로 바꿔 `6 Move Linear Relative`를 시험한다. PASS는 profile queue 수락이며
+    화면의 Group InPosition monitor가 완료될 때까지 기다린다.
+19. 종료 순서는 Group Stop 및 InPosition 확인, `Disable (Unlock Profile)`,
     `Power Off`, `Read Status`에서 `PowerOn=False` 확인이다.
+
+`Move Linear Relative`는 PC에서 현재 위치와 delta를 더하지 않는다. Admin `0x7D22`로
+delta를 보내고 PLC가 `MoveRelativeCoord`를 호출한다. 이 source는 C#/LASAL 정적 시험과
+WPF build/startup smoke까지만 통과했다. LASAL IDE build/download, 작은 거리 실동작,
+Stop/PowerOff recovery와 packet capture 전에는 runtime 완료로 판정하지 않는다.
 
 ## EtherCAT / PI / Bulk / Recorder 시험 순서
 

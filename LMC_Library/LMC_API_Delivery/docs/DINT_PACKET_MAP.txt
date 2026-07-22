@@ -1,18 +1,18 @@
 LMC DINT packet map
-Status 2026-07-22: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-07-23: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 adds three read-only
-commands in 0x7D00..0x7D20. LASAL-DINT Diagnostics v1 reserves 24
+commands plus 0x7D22 GroupMoveLinearRelative. LASAL-DINT Diagnostics v1 reserves 24
 project-local command IDs in 0x7E00..0x7E51. D0-D3, D4 single-bank Ring/Trigger
 and the D5 general-inline SDO Read ticket flow are implemented for the internal
 PLC test build. D4 Double bank, PI/SDO Write and extended SDO results remain off.
-Therefore 50 command IDs are success-capable in the PLC source: 25 motion/group,
-3 read-only admin and 22 diagnostics. The dispatcher/wire contract handles 52 IDs
+Therefore 51 command IDs are success-capable in the PLC source: 25 motion/group,
+4 admin and 22 diagnostics. The dispatcher/wire contract handles 53 IDs
 including the two reserved D5 requests. These extensions are not captured Elmo
 commands.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. C# tests including Phase 1 pass 135/135 in Debug and Release, both LASAL SourceOnly and full
+source. C# tests including Phase 2 0x7D22 pass 148/148 in Debug and Release, both LASAL SourceOnly and full
 static contracts pass, and the development WPF Debug/Release builds plus their
 3-second startup smokes pass. Classes.lcb contains the current general
 TryStartRead declaration and generated metadata. The
@@ -23,7 +23,7 @@ TCPMotionInterface.Diagnostics with 0 new CInvalidArgException entries. Final
 implementation-only active-adopt, trigger-health/race, D5 executor recovery and
 read-only Admin changes were then edited externally and passed the applicable
 static contracts. An IDE build was not repeated for those final source changes.
-The D5 Read path has user runtime confirmation, but Admin 0x7D00/0x7D10/0x7D20
+The D5 Read path has user runtime confirmation, but Admin 0x7D00/0x7D10/0x7D20/0x7D22
 has NOT yet been built/downloaded or verified on a PLC.
 CPU core/priority placement and packet recapture are also pending. The untracked
 _Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
@@ -72,11 +72,15 @@ P4  CommandStatus UINT16, 0 success / 1 domain error
 P6  ErrorId INT16, domain error is -31000
 P8  Echoed RequestId UDINT
 P12 DetailCode UDINT: 1 schema, 2 flags, 3 request ID, 4 reference,
-    5 payload shape, 6 parameter key, 7 client, 8 selection mask
+    5 payload shape, 6 parameter key, 7 client, 8 selection mask,
+    9 motion parameters, 10 invalid motion state, 11 native command rejected.
+For detail 1..10 ErrorId is -31000. Detail 11 preserves a positive representable
+LASAL GroupProfile error in ErrorId or uses adapter fallback -6; interpret positive
+values in the GroupProfile domain.
 
 0x7D00 GetAdminCapabilities, request payload 8 bytes, Reference=0.
 Success response payload is exactly 40 bytes:
-P16 FeatureBits U32 = 0x00000003 (axis/group parameter read)
+P16 FeatureBits U32 = 0x00000007 (axis/group parameter read and group relative move)
 P20 AxisParameterMask U32 = 0x0000003F
 P24 GroupParameterMask U32 = 0x00000007
 P28 PhysicalAxisCount U16 = 4
@@ -85,6 +89,8 @@ P32 MainGroupReference U16 = 0x0100
 P34 MaxGroupParameterCount U16 = 3
 P36 ErrorCatalogVersion U16 = 1
 P38 Reserved U16 = 0
+FeatureBits 0x00000007 requires the matching Phase 2 PC DLL. Older strict clients
+that know only bits 0..1 reject bit 2, so deploy the PLC and PC API as a pair.
 
 0x7D10 ReadAxisParameter, request payload 12 bytes, Reference=axis 1..4:
 P8 ParameterKey U16, P10 Reserved U16 = 0.
@@ -108,6 +114,22 @@ P16 PresentMask U32, P20 PathVelocityLimit DINT [app units/s],
 P24 PathAccelerationLimit DINT [app units/s^2], P28 JerkTime DINT [ms].
 The PLC maps the three semantic bits explicitly to ReadGroupParameter(GrpNo=1)
 and never accepts native enum values from the caller.
+
+0x7D22 GroupMoveLinearRelative, request payload 104 bytes, Reference=0x0100:
+P8..P68  Distance[16] DINT. The current X/Y/Z/U group uses slots 1..4 and
+          requires slots 5..16 to be zero.
+P72       Velocity DINT, greater than zero
+P76       Acceleration DINT, greater than zero
+P80       Deceleration DINT, greater than zero
+P84       Jerk DINT, zero or greater
+P88       CoordinateSystem DINT = 0 (None)
+P92       TransitionMode DINT = 0 ExactStop or 2 ContinuousDirect
+P96       BufferMode DINT = 1 Aborting or 2 Buffered
+P100      Execute DINT = 1
+The PLC requires Robot and Axis1..4 clients, GroupKinematicReady, Robot power,
+and profile lock before calling LMCRobot.MoveRelativeCoord. The response is the
+16-byte Admin common response. Success means the native profile command was
+accepted; completion and profile error are read through 0x2045 GroupReadStatus.
 
 0x7E00 GetDiagnosticsCapabilities, request payload 8 bytes
 [8]  SchemaVersion UINT16 = 1

@@ -765,7 +765,7 @@ bit 8 `SDORead`와 bit 13 `SDOReadGeneralInline`은 함께 1이다. bit 13은 bi
 - `LMCDiagnosticsService`: `0x7E03`, `0x7E04`, `0x7E50` gated handler와 실행부
 - `LMCRecorderStore`: terminal `StopRecorder` idempotent 처리
 
-2026-07-22 이후 통합 수정 source는 PC 자동 시험 Debug/Release 각 135/135, WPF
+2026-07-23 Phase 2 통합 source는 PC 자동 시험 Debug/Release 각 148/148, WPF
 Debug/Release build와 각 3초 startup smoke 및 `Verify-LasalContract.ps1` SourceOnly를
 통과했다. LASAL IDE에서 저장한
 `Classes.lcb`가 `TryStartRead` declaration과 동기화돼 full static 계약도 PASS한다.

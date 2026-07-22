@@ -1,9 +1,9 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 1.5
+문서 버전: 1.6
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-발행일: 2026-07-22
+발행일: 2026-07-23
 
 \pagebreak
 
@@ -17,6 +17,7 @@
 | 1.3 | 2026-07-16 | preview 안전 경고, 응답 판정과 4축 group 제한 보완 |
 | 1.4 | 2026-07-16 | group position read 계약 불일치와 static identity 제한 명시 |
 | 1.5 | 2026-07-22 | read-only Admin, typed drive status, PI/Bulk facade와 local error catalog 추가 |
+| 1.6 | 2026-07-23 | `0x7D22` GroupMoveLinearRelative API, wire/state 제한과 runtime 검증 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
@@ -28,10 +29,10 @@ reference는 아니다.
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
 > `Dispose`, timeout과 cancellation은 Stop을 보내지 않는다. 실제 장비에서는 E-stop,
 > HW/SW limit, UNIT, Home/Reference와 이동 범위를 별도로 승인한다.
-> Phase 1 Admin `0x7D00/10/20`은 source와 정적 시험까지 완료했지만 LASAL IDE build,
-> PLC download와 실물 parameter 값/UNIT은 아직 검증하지 않았다.
+> Admin `0x7D00/10/20/22`는 source와 정적 시험까지 완료했지만 LASAL IDE build,
+> PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 
-> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.5`지만 현재 Distribution의
+> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.6`지만 현재 Distribution의
 > DOCX/PDF는 아직 문서 버전 `1.0`이다. 아래 안전·group-read 보완은 외부 manual
 > 재생성 전까지 package README와 함께 전달해야 한다.
 
@@ -794,9 +795,71 @@ public Task<LMC_Response> MoveLinearAbsoluteExAsync(
 `ExactStop`/`ContinuousDirect`, buffer `Aborting`/`Buffered`, `Execute=true`다.
 정의됐지만 지원하지 않는 option은 RPC 전에 `NotSupportedException`으로 거부한다.
 
-## 4.13 LMCGroupMotionOptions
+## 4.13 MoveLinearRelativeEx
 
-MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
+Group profile의 마지막 buffered target을 기준으로 Cartesian relative distance를
+원자적으로 적재한다. PC에서 현재 위치를 읽어 absolute target으로 변환하지 않는다.
+
+```csharp
+public LMCAdminResponse MoveLinearRelativeEx(
+    int[] distance,
+    int velocity,
+    int acceleration,
+    int deceleration,
+    int jerk)
+
+public LMCAdminResponse MoveLinearRelativeEx(
+    int[] distance,
+    int velocity,
+    int acceleration,
+    int deceleration,
+    int jerk,
+    LMCGroupMotionOptions options)
+
+public Task<LMCAdminResponse> MoveLinearRelativeExAsync(
+    int[] distance,
+    int velocity,
+    int acceleration,
+    int deceleration,
+    int jerk,
+    LMCGroupMotionOptions options,
+    CancellationToken cancellationToken)
+```
+
+`distance`와 dynamics/options의 UNIT 및 허용 범위는 absolute move와 같다. 현재 PLC는
+X/Y/Z/U slot 1..4만 사용하고 slot 5..16=0, coordinate `None`, transition
+`ExactStop`/`ContinuousDirect`, buffer `Aborting`/`Buffered`, `Execute=true`만 허용한다.
+
+반환형은 `LMCAdminResponse`다. valid command rejection은
+`LMCAdminCommandException.Response`에 Admin detail과 native error를 보존한다. success는
+`MoveRelativeCoord`가 profile queue에 명령을 수락했다는 뜻이며 완료가 아니다. 이후
+`GroupReadStatusResult[Async]`에서 InPosition/profile error를 확인한다.
+
+일반 overload는 같은 session의 `0x7D00` capability를 먼저 확인한다. Stop/PowerOff
+우선순위 gate가 있는 UI는 gate 밖에서 `GetCapabilitiesAsync`를 수행한 뒤 아래 prepared
+overload를 gate 안에서 사용한다. 전달한 capability는 같은 `LMCConnection`과 session,
+feature/group reference가 아니면 wire 송신 전에 거부된다.
+
+```csharp
+LMCAdminCapabilities capabilities =
+    await connection.Admin.GetCapabilitiesAsync(cancellationToken);
+
+LMCAdminResponse accepted = await group.MoveLinearRelativeExAsync(
+    distance,
+    velocity,
+    acceleration,
+    deceleration,
+    jerk,
+    options,
+    capabilities,
+    cancellationToken);
+```
+
+prepared capability를 받는 sync overload도 같은 인자 순서로 제공한다.
+
+## 4.14 LMCGroupMotionOptions
+
+MoveLinearAbsolute/Relative의 좌표계와 motion mode를 설정한다.
 
 | Property | Type | UNIT / Default | 설명 |
 |---|---|---|---|
@@ -905,7 +968,21 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `DeviceId` | `ushort` | Device ID | PLC device ID |
 | `AxisName` | `string` | ASCII string | LASAL axis object name |
 
-# 6. Phase 1 Read-only Admin과 Diagnostics facade
+## 5.6 LMCAdminResponse
+
+LASAL-local Admin 명령의 공통 16-byte response를 보존한다.
+
+| Property | Type | 설명 |
+|---|---|---|
+| `TransportResponse` | `LMC_Response` | outer transport frame |
+| `SchemaVersion` / `ResponseFlags` | `ushort` | Admin schema와 reserved flags |
+| `CommandStatus` | `ushort` | 0 success, 1 domain rejection |
+| `ErrorId` | `short` | Admin `-31000`, positive GroupProfile code 또는 adapter fallback `-6` |
+| `RequestId` | `uint` | request echo |
+| `DetailCode` / `DetailCodeValue` | enum / `uint` | typed/raw Admin detail |
+| `IsSuccess` | `bool` | status/error/detail이 모두 success인지 여부 |
+
+# 6. Admin과 Diagnostics facade
 
 ## 6.1 Admin capability와 semantic parameter read
 

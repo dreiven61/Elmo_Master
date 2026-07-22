@@ -7,7 +7,7 @@
   D4 single-bank Ring/Trigger, D5 general-inline SDO Read
 - 제외: 고객 배포 패키지 갱신, D4 Double bank, PI/SDO Write, 8/12-byte 및
   extended SDO result, 기존 D6 static/handle facade
-- preflight 상태: PC 자동 테스트 135/135, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정
+- preflight 상태: PC 자동 테스트 148/148, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정
   LASAL SourceOnly/full static 계약 PASS. `Classes.lcb`의 `TryStartRead` declaration도 current
   source와 동기화됐다.
   legacy fixed-vector D5 시험의 same-cycle timeout을 수정했고 후속 download의 Slave 1~4

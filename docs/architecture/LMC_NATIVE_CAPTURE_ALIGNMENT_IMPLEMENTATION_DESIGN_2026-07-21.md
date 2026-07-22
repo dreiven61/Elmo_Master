@@ -227,7 +227,7 @@ Static/PC gates:
 
 - PMAS Version2 Debug/Release build: PASS to temporary outputs because the running app
   locked the normal Debug output executable
-- current LMC PC tests: Debug/Release 135/135 PASS
+- current LMC PC tests: Debug/Release 148/148 PASS
 - WPF Debug/Release builds and 3-second startup smokes: PASS
 - LASAL SourceOnly/full static contracts: PASS
 - `Classes.lcb` general `TryStartRead` declaration and generated metadata: synchronized

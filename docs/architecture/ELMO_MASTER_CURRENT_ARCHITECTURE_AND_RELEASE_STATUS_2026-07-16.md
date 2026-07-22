@@ -1,9 +1,10 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
 - 감사일: 2026-07-16
-- 마지막 source 상태 검토: 2026-07-22 diagnostics D1~D4 single-bank, test-profile D5
+- 마지막 source 상태 검토: 2026-07-23 diagnostics D1~D4 single-bank, test-profile D5
   general-inline SDO Read 활성, 사용자 PLC 1/2/4-byte SDO Read 확인 PASS, group Phase 0
-  option/position 계약 정합, Phase 1 read-only Admin/facade 및 PMAS native capture 정렬
+  option/position 계약 정합, Phase 1 read-only Admin/facade, Phase 2 `0x7D22`
+  GroupMoveLinearRelative 및 PMAS native capture 정렬
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
@@ -38,19 +39,19 @@
 | single-axis 범위 | descriptor `1..9` | 축 1~4 physical, 축 5~9 simulated |
 | Cartesian group move/lock | X/Y/Z/U 축 1~4 | 9축 group interpolation이 아님 |
 | 기존 motion/group command | 25개 | 캡처 기반 23 + local motion extension 2 |
-| read-only Admin command | 3개 | `0x7D00` capability, `0x7D10` axis parameter, `0x7D20` group parameter |
+| Admin command | 4개 | `0x7D00` capability, `0x7D10` axis parameter, `0x7D20` group parameter, `0x7D22` group relative move |
 | diagnostics PLC test 범위 | D0~D4 single-bank + D5 general-inline | Health/Catalog/PI Read, Bulk, Recorder Ring/Trigger, typed 1/2/4-byte SDO Read test profile |
 | diagnostics 계약-only/비활성 범위 | D4 Double/D5 Write·extended | D4 Double, PI/SDO Write와 8/12-byte 및 extended result는 비활성 |
-| 성공 응답 capable PLC active command | 50개 | 기존 motion/group 25 + diagnostics 22 + read-only Admin 3 |
-| dispatcher/wire handled contract | 52개 | active 50 + reserved D5 `0x7E21/0x7E51` 2 |
-| CyWork axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; metadata lookup 제외 |
-| PC 자동 테스트 | Debug/Release 각 135/135 PASS | 2026-07-22 working source 기준 |
+| 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
+| dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
+| CyWork legacy axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
+| PC 자동 테스트 | Debug/Release 각 148/148 PASS | 2026-07-23 working source 기준 |
 | 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS | 현재 working source 기준 |
 | LASAL SourceOnly 정적 계약 | PASS | current `.st` source 계약 포함 |
 | LASAL full static 계약 | PASS | `Classes.lcb`의 `TryStartRead` declaration과 current source/network 동기화 확인 |
 | D5 executor 초기화 | constructor declaration/implementation 미완료 | 자동 zero-init 공식 보장 미확인; current Busy 직접 원인은 아니며 IDE declaration P1 필요 |
 | LASAL IDE | 10:53 gate-off baseline 0 error; 수정본 BootId 5 runtime 확인 | 최신 fixed-source build/smoke log는 미보존 |
-| Phase 1 Admin IDE/PLC | C#/LASAL source와 static contract PASS | IDE build/download, 실물 값/UNIT과 packet capture 미검증 |
+| Admin IDE/PLC | `0x7D00/10/20/22` C#/LASAL source와 static contract PASS | IDE build/download, 실물 값/UNIT/relative motion과 packet capture 미검증 |
 | 기존 motion/group PLC E2E·재캡처 | 0/25 | production blocker |
 | diagnostics PLC 시험 matrix | D5 legacy와 general-inline 1/2/4-byte SDO Read 사용자 확인 PASS | 이번 확인의 신규 pcap/log 없음; D5 fault 및 D0~D4/D4 Double matrix는 별도 기록 필요 |
 
@@ -111,7 +112,7 @@ PMAS 캡처에는 LREAL/REAL ABI가 있고 현재 LASAL adapter는 caller가 변
 
 - `LMCConnection`: TCP/RPC lifecycle, UDP listener, timeout, 상태와 session generation 소유
 - `LMCDiagnostics`: 같은 connection/session/wire를 사용하는 diagnostics capability 진입점
-- `LMCAdmin`: `0x7D00/10/20` capability-gated read-only semantic parameter 진입점
+- `LMCAdmin`: `0x7D00/10/20` read와 `0x7D22` relative motion의 capability-gated 진입점
 - `LMCSingleAxis`: lookup 후 descriptor를 보관하고 축 1~9에 같은 API 제공
 - `LMCGroupAxis`: group descriptor `0x0100`, member/state/power/lock/motion API 제공
 - `LMC_Response`와 typed result: frame shape, command status와 error를 분리
@@ -126,7 +127,7 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | 구분 | ID | 기능 | source 상태 |
 |---|---|---|---|
 | Lifecycle | `0x8080`, `0x405C`, `0x405D` | init, callback 등록, close | active |
-| Read-only Admin | `0x7D00`, `0x7D10`, `0x7D20` | capability, axis/group semantic parameter read | source/static active; IDE/PLC 미검증 |
+| Admin | `0x7D00`, `0x7D10`, `0x7D20`, `0x7D22` | capability, axis/group semantic parameter read, group relative move | source/static active; IDE/PLC 미검증 |
 | Diagnostics negotiation | `0x7E00` | capability/envelope | D1~D3 test capability, retained BootId 실패 시 fail-closed |
 | Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | internal test source 활성, PLC runtime 미검증 |
 | Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | internal test source 활성, PLC runtime 미검증 |
@@ -143,23 +144,24 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Group reset/stop | `0x2049`, `0x2085` | error reset, stop | active |
 | Group power | `0x204A`, `0x204B` | RobotOn, RobotOff | project-local extension |
 | Group position | `0x2051` | DINT position vector | None/ACS member-slot alias, slot 1..9 + zero tail; MCS/PCS 거부 |
-| Group motion | `0x20A4` | MoveLinearAbsolute | active, X/Y/Z/U 4축 제한 |
+| Group motion | `0x20A4`, `0x7D22` | MoveLinearAbsolute, MoveLinearRelative | active source, X/Y/Z/U 4축 제한; `0x7D22` IDE/PLC 미검증 |
 | Kinematics | `0x20E7` | Cartesian4 identity 설정 | active, dynamic transform 아님 |
 
-현재 성공 응답 capable PLC active 고유 ID는 50개다. 기존 motion/group 25개,
+현재 성공 응답 capable PLC active 고유 ID는 51개다. 기존 motion/group 25개,
 diagnostics D0~D4 single-bank 19개, test profile에서 활성화한 D5
-`0x7E03/0x7E04/0x7E50` 3개와 read-only Admin 3개를 합한 값이다.
-reserved `0x7E21/0x7E51`까지 포함한 dispatcher/wire contract는 52개다.
-Admin 3개는 source/static active 수에 포함하지만 IDE/PLC 검증은 아직 없다. D5는 first PLC runtime의 same-cycle timeout을
+`0x7E03/0x7E04/0x7E50` 3개와 Admin 4개를 합한 값이다.
+reserved `0x7E21/0x7E51`까지 포함한 dispatcher/wire contract는 53개다.
+Admin 4개는 source/static active 수에 포함하지만 IDE/PLC 검증은 아직 없다. D5는 first PLC runtime의 same-cycle timeout을
 수정했고 Slave 1~4 legacy happy-path 성공 증거를 확보했다. 과거 BootId 6
 general-inline capture에서는 두 Submit이 ticket 전 `ResourceBusy`로 거부됐지만,
 callback ordering/release source 수정 뒤 사용자가 general-inline 1/2/4-byte runtime
 정상 동작을 확인했다. 최종 확인에 대한 신규 pcap/log와 fault matrix는 없으므로
 production 승인 수치와는 계속 구분한다.
-`0x204A/0x204B`와 diagnostics 24개는
+`0x204A/0x204B`, Admin 4개와 diagnostics 24개는
 PMAS 캡처에 없는 LASAL-local extension이다. 18개라는 CyWork 수치는 lifecycle,
 diagnostics와 name/member metadata handler를 제외한 axis/group
-control·read·motion 명령의 합계다. 축 8개와 그룹 10개다.
+legacy control·read·motion 명령의 합계다. 축 8개와 그룹 10개이며 Admin motion
+`0x7D22`도 같은 CyWork queue를 사용하지만 그 18개에는 포함하지 않는다.
 lookup과 `0x20D2`도 `_GetObjName` client metadata를 읽으므로 “전체 client-call
 수”라고 부르면 안 된다.
 
@@ -295,6 +297,9 @@ cycle benchmark 재현 참고 용도로만 남긴다.
 - Phase 1의 `Read-only API` 탭은 Admin capability를 먼저 확인한 뒤 physical axis
   1~4의 semantic parameter, group `0x0100` parameter, typed operation mode와
   non-atomic drive status를 실기 확인한다. motion/write command는 포함하지 않는다.
+- Group Motion 탭의 `Move Linear Relative`는 별도 Admin `0x7D22`를 사용하며
+  absolute와 같은 power/identity/profile-lock, motion-uncertain, Stop과 완료 monitor를
+  재사용한다. source/static과 WPF smoke만 완료됐고 실동작은 미검증이다.
 - 내부 PLC 시험과 API 계약이 확정된 뒤 검증된 DLL/예제/문서를 배포 폴더로 옮긴다.
 
 ## 8. 배포 상태
@@ -557,7 +562,7 @@ extended result는 계속 capability-off다.
 
 확인된 범위:
 
-- 현행 C# request/parser/fake-RPC/golden/malformed 테스트 Debug/Release 각 135/135 PASS
+- 현행 C# request/parser/fake-RPC/golden/malformed 테스트 Debug/Release 각 148/148 PASS
 - 개발 WPF Debug/Release build와 각 3초 startup smoke PASS
 - LASAL SourceOnly static contract PASS
 - LASAL full static contract PASS; `Classes.lcb`의 `TryStartRead` declaration 동기화 확인

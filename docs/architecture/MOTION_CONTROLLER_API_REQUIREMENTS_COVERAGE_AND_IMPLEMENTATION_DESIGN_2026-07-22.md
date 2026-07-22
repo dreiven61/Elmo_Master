@@ -5,7 +5,8 @@
 - 대상 시트/범위: `API 목록!A4:G68`
 - 원본 SHA-256: `A4441C88A489EE2898A8A6FA34182E387ABCA03C97B07EA9F68DB73AA29E34A4`
 - 판정 대상: 현재 Git working source의 C# 공개 API, TCP wire, LASAL handler/network, WPF 노출
-- 상태: Phase 0과 Phase 1 source 구현 완료. PC 자동 시험과 LASAL 정적 계약은 PASS이며, Phase 1 LASAL IDE build/download와 실물 PLC 검증은 별도다.
+- 갱신일: 2026-07-23
+- 상태: Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22 GroupMoveLinearRelative` source 구현 완료. PC 자동 시험과 LASAL 정적 계약은 PASS이며, Admin LASAL IDE build/download와 실물 PLC 검증은 별도다.
 - workbook 추출: OOXML read-only. 숨김 행과 수식은 없었고 실제 값은 A1:G68에 있었다. 현재 세션에는 workbook renderer가 없어 색/조건부 서식에 의미를 둔 판정은 하지 않았다.
 
 ## 1. 결론
@@ -16,10 +17,10 @@
 
 | 구분 | 개수 | 의미 |
 |---|---:|---|
-| 직접 구현 | 15 | 동일 기능의 C# 공개 경로와 LASAL 실행 경로가 있다. 원래 OPUS/OPERA 시그니처나 wire와 완전 동일하다는 뜻은 아니다. |
+| 직접 구현 | 16 | 동일 기능의 C# 공개 경로와 LASAL 실행 경로가 있다. 원래 OPUS/OPERA 시그니처나 wire와 완전 동일하다는 뜻은 아니다. |
 | LASAL 적응 구현 | 24 | 별도 API를 통합했거나 LASAL-native diagnostics/workflow로 같은 목적을 달성한다. |
 | 부분 구현/비활성 scaffold | 10 | 일부 범위만 실행되거나 C# 계약만 있고 PLC capability 또는 정책이 꺼져 있다. |
-| 실제 미구현 | 12 | 공개 API 또는 PLC handler가 없고 다른 활성 경로도 요구 목적을 충족하지 못한다. |
+| 실제 미구현 | 11 | 공개 API 또는 PLC handler가 없고 다른 활성 경로도 요구 목적을 충족하지 못한다. |
 | 흡수/비동등 보류 | 4 | 다른 요구사항에 흡수하거나 1:1 복제하면 잘못된 의미가 되는 항목이다. |
 | 합계 | **65** | |
 
@@ -28,9 +29,9 @@
 | 우선순위 | 직접 | LASAL 적응 | 부분/비활성 | 미구현 | 흡수/보류 | 합계 |
 |---|---:|---:|---:|---:|---:|---:|
 | 상 | 11 | 6 | 0 | 4 | 0 | 21 |
-| 중 | 3 | 10 | 7 | 2 | 3 | 25 |
+| 중 | 4 | 10 | 7 | 1 | 3 | 25 |
 | 하 | 1 | 8 | 3 | 6 | 1 | 19 |
-| 합계 | **15** | **24** | **10** | **12** | **4** | **65** |
+| 합계 | **16** | **24** | **10** | **11** | **4** | **65** |
 
 핵심 판단은 아래와 같다.
 
@@ -43,6 +44,7 @@
 7. PC 자동 테스트와 정적 계약 PASS는 최신 PLC download 및 실물 모션 PASS를 의미하지 않는다.
 8. Phase 1에서 read-only Admin 3개 command, typed drive read, PI/Bulk facade와 PC-local error catalog를 source 구현했다. 이로써 No.6/18/34는 LASAL 적응 구현으로 이동했고 No.54는 제한적 부분 구현으로 이동했다.
 9. 새 Admin command는 아직 LASAL IDE/PLC에서 실행하지 않았으므로 source/static 완료와 runtime 완료를 분리한다.
+10. Phase 2 첫 슬라이스로 No.41 `Group MoveLinearRelativeEx`를 `0x7D22`와 LASAL `MoveRelativeCoord`로 source 구현했다. PC가 현재 위치를 합산하지 않으며 PLC profile queue가 상대 이동을 원자적으로 해석한다.
 
 ## 2. 판정 기준과 증거 경계
 
@@ -80,12 +82,12 @@
   - `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow*.cs`
   - `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml`
 
-### 2.3 2026-07-22 정적 검증
+### 2.3 2026-07-23 정적 검증
 
 | 검증 | 결과 | 한계 |
 |---|---|---|
-| C# PC tests Debug | 135/135 PASS | Phase 1 fake RPC, golden bytes, parser, facade/error catalog, reconnect race와 in-flight status cancellation 포함 |
-| C# PC tests Release | 135/135 PASS | 위와 동일 |
+| C# PC tests Debug | 148/148 PASS | Phase 1 회귀와 `0x7D22` golden/validation/parser/fake-RPC/capability/generation/safety-owner 13개 포함 |
+| C# PC tests Release | 148/148 PASS | 위와 동일 |
 | LASAL contract SourceOnly | PASS | source 문자열/offset/호출 계약 정적 검사 |
 | LASAL contract network 포함 | PASS | 4축 network와 generated table 정적 검사 |
 | WPF Debug build | PASS | 실행 중인 기존 output lock을 피한 임시 output build; 화면 runtime/PLC smoke는 아님 |
@@ -138,7 +140,7 @@
 | 38 | 하 | Profile Conditioning parameters | G | 검증된 SIGMATEK/LASAL 대응 기능이 없다. |
 | 39 | 상 | Axis actual position | E | `GetActualPosition[Result][Async]`, PLC `0x202E`; engineering double이 아니라 caller-scaled raw DINT다. |
 | 40 | 상 | MoveRelativeEx | D | `MoveRelativeEx[Async]`, PLC `0x20A0`; raw DINT와 제한된 buffer 의미를 사용한다. |
-| 41 | 중 | Group MoveLinearRelativeEx | G | 공개 API/handler가 없다. LASAL `MoveRelativeCoord`를 이용한 별도 원자적 command가 필요하다. |
+| 41 | 중 | Group MoveLinearRelativeEx | D | `LMCGroupAxis.MoveLinearRelativeEx[Async]`, Admin `0x7D22`, LASAL `MoveRelativeCoord` 경로가 있다. source/static 완료이며 IDE/PLC 실동작은 미검증이다. |
 | 42 | 상 | Axis Stop | D | `Stop[Async]`, PLC `0x2022`; decel/jerk를 지원하나 buffer mode는 미노출이다. |
 | 43 | 상 | Group Stop | D | `GroupStop[Async]`, PLC `0x2085`. ACK는 검증된 `StopMove(Mode:=3)` dispatch를 뜻하고 완료/error는 `GroupReadStatus`로 확인한다. |
 | 44 | 상 | MoveVelocityEx | D | `MoveVelocityEx[Async]`, PLC `0x20A2`; 실제 LASAL 호출은 `MoveEndless`, deceleration=0 제약이 있다. |
@@ -228,7 +230,7 @@ Phase 1에서 read-only 3개 ID를 구현해 `DINT_PACKET_MAP.txt`, golden/parse
 | SetAxisOverride | `0x7D16` | v1 velocity override permille | 후속 |
 | ReadGroupParameters | `0x7D20` | bounded batch read | source 구현 |
 | WriteGroupParameters | `0x7D21` | bounded semantic allowlist write | 후속 |
-| GroupMoveLinearRelative | `0x7D22` | LASAL `MoveRelativeCoord` 원자적 실행 | 후속 |
+| GroupMoveLinearRelative | `0x7D22` | LASAL `MoveRelativeCoord` 원자적 실행 | source 구현 |
 | ArmWaitCondition | `0x7D30` | PLC-local condition arm/start | 요구 확정 전 보류 |
 
 공통 payload prefix 제안:
@@ -358,6 +360,14 @@ raw enum passthrough는 금지한다.
 
 v1은 4축 identity, supported coordinate, transition 0/2, buffer 1/2의 실제 PLC 범위만 허용한다.
 
+구현된 v1 wire는 Admin 공통 prefix 8바이트 뒤에 16개 DINT distance slot과 velocity, acceleration, deceleration, jerk, coordinate, transition, buffer, execute를 둔 정확히 104바이트 payload다. 현재 4축 topology 때문에 slot 5..16은 반드시 0이고 coordinate는 `None(0)`만 허용한다. 성공 응답은 16바이트 Admin 공통 ACK이며 이동 완료가 아니라 profile queue 수락을 뜻한다. 완료와 profile error는 기존 `GroupReadStatus(0x2045)`로 판정한다.
+
+`0x7D00 FeatureBits`가 `0x00000003`에서 `0x00000007`로 바뀌므로 PLC와 Phase 2 PC DLL은 paired rollout한다. 기존 strict parser는 알 수 없는 bit 2를 거부하므로 PLC만 선행 배포하면 기존 Admin read도 capability 단계에서 차단된다.
+
+LASAL handler는 Robot/Axis1..4 client 연결, 4축 kinematic identity 준비, Robot power와 profile lock을 확인한 뒤에만 `MoveRelativeCoord`를 호출한다. Admin detail 9는 motion body 오류, 10은 준비 상태 오류, 11은 native profile command 거부이며 detail 11의 `ErrorId`는 positive `GroupProfile` 오류 번호 또는 adapter fallback `-6`만 허용한다.
+
+WPF Group Motion 탭은 기존 X/Y/Z/U와 dynamics/options 입력을 재사용하는 `Move Linear Relative` 버튼을 제공한다. 기존 absolute move와 같은 motion-uncertain, Stop, `GroupReadStatus` 완료 모니터 경로를 사용한다.
+
 #### 6.2.4 Override
 
 v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Override` server의 1000=100% 의미를 사용한다. Maestro의 acceleration/jerk factor는 native 의미가 검증될 때까지 unsupported다.
@@ -416,12 +426,13 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 
 ## 8. 다음 구현 슬라이스
 
-Phase 0과 Phase 1 source 구현은 완료했다. 다음 슬라이스는 Phase 1의 LASAL IDE build/link와 PLC read-only E2E를 먼저 닫은 뒤 Phase 2로 진행한다.
+Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22` source 구현은 완료했다. 다음 순서는 새 Admin capability 전체와 상대이동을 같은 PLC build에서 검증한 뒤, 물리 계약이 닫힌 기능만 추가하는 것이다.
 
-1. `0x7D00/10/20` IDE Rebuild/Link와 implementation smoke
+1. `0x7D00/10/20/22` IDE Rebuild/Link와 implementation smoke
 2. WPF `Read-only API` 탭에서 axis 1..4의 6개 semantic parameter와 group 3개 parameter 값/UNIT 확인
 3. 같은 탭의 operation mode/status composite 및 기존 EtherCAT/PI 탭의 PI/Bulk facade live PLC regression과 packet capture
-4. capability, invalid axis/key/selection, timeout/stale-session failure matrix
-5. 위 read-only gate가 닫힌 뒤 Reference/Homing IO와 상태 계약 확정
+4. WPF Group Motion 탭에서 작은 X/Y/Z/U 상대거리로 Aborting/Buffered 수락, `GroupReadStatus` 완료, Stop/PowerOff recovery와 packet capture 확인
+5. capability, invalid axis/key/selection/motion body, invalid state, native reject, timeout/stale-session failure matrix
+6. 위 runtime gate가 닫힌 뒤 axis velocity override의 persistence/read-back/ownership 계약을 확정하고, Reference/Homing은 physical IO 연결 확인 후 별도로 진행
 
 Homing/SetPosition 같은 물리 위험 기능은 IO/상태/ownership 계약을 승인하기 전에는 capability를 광고하지 않는다.

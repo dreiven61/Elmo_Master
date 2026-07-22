@@ -2331,7 +2331,7 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
 - 현재 외부 source의 SourceOnly/full static contract: PASS
 - `Classes.lcb` general `TryStartRead` declaration과 generated metadata 동기화: PASS
 - gate-on D5 fixed-source runtime download: 확인, 대응 IDE Rebuild/Link log는 미보존
-- 현행 PC 자동 테스트: Debug/Release 각 135/135 PASS
+- 현행 PC 자동 테스트: Debug/Release 각 148/148 PASS
 - 개발 WPF Debug/Release build와 각 3초 startup smoke: PASS
 
 2026-07-22 legacy runtime에서 BootId 5, `0x13F`, MaxSDO=4와 Slave 1~4

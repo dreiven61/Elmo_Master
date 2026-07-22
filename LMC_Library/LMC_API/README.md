@@ -12,7 +12,7 @@
 - 개발용 WPF 예제: `../LasalApiWpfTestApp`
 - 정식 배포 폴더: `../LMC_API_Distribution`
 - LASAL 어댑터: `../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- PC 자동 테스트: Debug/Release 각 135/135 PASS
+- PC 자동 테스트: Debug/Release 각 148/148 PASS
 - 개발 WPF: Debug/Release build와 각 3초 startup smoke PASS
 - LASAL 정적 계약: SourceOnly/full static PASS; `Classes.lcb`의 general
   `TryStartRead` declaration과 current source 동기화 확인
@@ -22,10 +22,11 @@
 - diagnostics source: D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline SDO Read
   활성(`CapabilityBits=0x0000213F`, MaxSDO=4); D4 Double, PI/SDO Write,
   8/12-byte/extended SDO result는 미구현
-- Phase 1 source: Admin `0x7D00/10/20`, typed drive read, PI/Bulk builder/reader와
-  PC-local error catalog 구현; success-capable 50개/handled 52개
-- Phase 1 검증 경계: C#과 LASAL static PASS; Admin LASAL IDE build/download,
-  실물 parameter 값/UNIT과 packet capture는 미검증
+- Admin source: Phase 1 `0x7D00/10/20` read와 Phase 2 `0x7D22`
+  GroupMoveLinearRelative, typed drive read, PI/Bulk builder/reader와 PC-local error
+  catalog 구현; success-capable 51개/handled 53개
+- Admin 검증 경계: C#과 LASAL static PASS; LASAL IDE build/download,
+  실물 parameter 값/UNIT, relative motion과 packet capture는 미검증
 - diagnostics PLC 시험 matrix: legacy 축 1~4와 general-inline 1/2/4-byte SDO Read는
   사용자 실기 PASS. 최종 확인 신규 pcap/log와 D5 fault matrix/D1~D4 시험은 없음
 
