@@ -351,6 +351,11 @@ TYPE
     dData : t_e_VaranErrors;
     pCmd : ^ECAT_Master_Base;
   END_STRUCT;
+  CltChCmd_ECAT_Slave_Base : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^ECAT_Slave_Base;
+  END_STRUCT;
   CltChCmd_EEPROM : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

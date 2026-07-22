@@ -490,6 +490,13 @@ typedef struct CltChCmd_ECAT_Master_Base
     ECAT_Master_Base *pCmd;
   } CltChCmd_ECAT_Master_Base;
 
+typedef struct CltChCmd_ECAT_Slave_Base 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    ECAT_Slave_Base *pCmd;
+  } CltChCmd_ECAT_Slave_Base;
+
 typedef struct CltChCmd_EEPROM 
   {
     struct SvrChCmd_DINT *pCh;

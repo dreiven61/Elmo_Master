@@ -1,0 +1,1465 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Network Name="EtherCAT_Network" Revision="0.0">
+	<!-- List of Components in this network -->
+	<Components>
+		<Object
+			Name       = "Elmo_11"
+			GUID       = "{47F87ED0-D0EE-486E-BC7A-A70547F6C0D9}"
+			Class      = "Elmo_1"
+			Position   = "(1530,660)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXw"/>
+				<Server Name="AL_StatusCode"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControlWord"/>
+				<Server Name="DeviceAdress"/>
+				<Server Name="DeviceName"/>
+				<Server Name="DriveIF"/>
+				<Server Name="EtherCATOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="Inputs_DigitalInputs"/>
+				<Server Name="Online"/>
+				<Server Name="Outputs_DigitalOutputs"/>
+				<Server Name="ProductCode"/>
+				<Server Name="ProductRevision"/>
+				<Server Name="RevisionNo"/>
+				<Server Name="SerialNo"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SlaveState"/>
+				<Server Name="StateWord"/>
+				<Server Name="VendorID"/>
+				<Client Name="NoSDOBuffer" Value="0"/>
+				<Client Name="SlaveIndex" Value="0"/>
+				<Client Name="toMaster"/>
+				<Client Name="UseDefaultEnableSequence" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{7266B399-596C-4DBB-A5BF-56AC8BC68024}" Class="ECAT_DS402Base">
+							<Channels>
+								<Server Name="ActPos"/>
+								<Server Name="ActSpeed"/>
+								<Server Name="ActTorque"/>
+								<Server Name="ActXw"/>
+								<Server Name="AL_StatusCode"/>
+								<Server Name="AxEnable"/>
+								<Server Name="AxError"/>
+								<Server Name="AxErrorQuit"/>
+								<Server Name="ClassState"/>
+								<Server Name="ControlWord"/>
+								<Server Name="DeviceAdress"/>
+								<Server Name="DeviceName"/>
+								<Server Name="DriveIF"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="Online"/>
+								<Server Name="ProductCode"/>
+								<Server Name="ProductRevision"/>
+								<Server Name="RevisionNo"/>
+								<Server Name="SerialNo"/>
+								<Server Name="SetPos"/>
+								<Server Name="SetSpeed"/>
+								<Server Name="SetTorque"/>
+								<Server Name="SlaveState"/>
+								<Server Name="StateWord"/>
+								<Server Name="VendorID"/>
+								<Client Name="NoSDOBuffer" Value="0"/>
+								<Client Name="SlaveIndex" Value="0"/>
+								<Client Name="toMaster"/>
+								<Client Name="UseDefaultEnableSequence" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{80EAE1CA-1B88-4D0B-86A1-68539F1C74D5}" Class="ECAT_Slave_Base">
+											<Channels>
+												<Server Name="AL_StatusCode"/>
+												<Server Name="ClassState"/>
+												<Server Name="DeviceAdress"/>
+												<Server Name="DeviceName"/>
+												<Server Name="EtherCATState"/>
+												<Server Name="Online"/>
+												<Server Name="ProductCode"/>
+												<Server Name="ProductRevision"/>
+												<Server Name="RevisionNo"/>
+												<Server Name="SerialNo"/>
+												<Server Name="SlaveState"/>
+												<Server Name="VendorID"/>
+												<Client Name="NoAsyncBuffer" Value="0"/>
+												<Client Name="NoSDOBuffer" Value="0"/>
+												<Client Name="NoSSCBuffer" Value="0"/>
+												<Client Name="Required" Value="1"/>
+												<Client Name="SlaveIndex" Value="0"/>
+												<Client Name="toMaster"/>
+												<Client Name="toStdLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="DeviceNameStr" GUID="{90F50F62-25DC-456C-B345-491F993164C4}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="GetCILInterface_ECAT" GUID="{011CA525-35F4-4C54-9FFF-B30CB50751D6}" Class="GetCILInterface">
+															<Channels>
+																<Server Name="ClassSvr"/>
+															</Channels>
+														</Object>
+														<Object Name="ProductRevStr" GUID="{E7CD79D3-8E47-4407-8EB1-B3910316B819}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base_1" GUID="{FEE75173-7270-4734-B6B7-E984A138F7F8}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<ECAT_Infos DC_Index="0">
+				<ECAT_StartUp CmdUID="4113" Index="24672" SubIndex="0" TransMask="2" Comment="Op mode" Flags="1611137024" SlotIndex="0" Data="8,"/>
+				<ECAT_StartUp CmdUID="4114" Index="24770" SubIndex="1" TransMask="2" Comment="Cycle time" Flags="1611137024" SlotIndex="0" Data="2,"/>
+				<ECAT_EoEConf/>
+			</ECAT_Infos>
+			<AdditionalData>
+				<Entry Name="DeviceType" Value="Elmo_1"/>
+				<Entry Name="HWKey" Value="HWD:M_ETHERCAT:1:4:0"/>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "Elmo_21"
+			GUID       = "{5F64D794-EC42-413A-AE7D-FE8E9353E49B}"
+			Class      = "Elmo_2"
+			Position   = "(1530,2520)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXw"/>
+				<Server Name="AL_StatusCode"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControlWord"/>
+				<Server Name="DeviceAdress"/>
+				<Server Name="DeviceName"/>
+				<Server Name="DriveIF"/>
+				<Server Name="EtherCATOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="Inputs_DigitalInputs"/>
+				<Server Name="Online"/>
+				<Server Name="Outputs_DigitalOutputs"/>
+				<Server Name="ProductCode"/>
+				<Server Name="ProductRevision"/>
+				<Server Name="RevisionNo"/>
+				<Server Name="SerialNo"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SlaveState"/>
+				<Server Name="StateWord"/>
+				<Server Name="VendorID"/>
+				<Client Name="NoSDOBuffer" Value="0"/>
+				<Client Name="SlaveIndex" Value="1"/>
+				<Client Name="toMaster"/>
+				<Client Name="UseDefaultEnableSequence" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{3786AC1E-B6E9-456B-AECA-E83264DE3C16}" Class="ECAT_DS402Base">
+							<Channels>
+								<Server Name="ActPos"/>
+								<Server Name="ActSpeed"/>
+								<Server Name="ActTorque"/>
+								<Server Name="ActXw"/>
+								<Server Name="AL_StatusCode"/>
+								<Server Name="AxEnable"/>
+								<Server Name="AxError"/>
+								<Server Name="AxErrorQuit"/>
+								<Server Name="ClassState"/>
+								<Server Name="ControlWord"/>
+								<Server Name="DeviceAdress"/>
+								<Server Name="DeviceName"/>
+								<Server Name="DriveIF"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="Online"/>
+								<Server Name="ProductCode"/>
+								<Server Name="ProductRevision"/>
+								<Server Name="RevisionNo"/>
+								<Server Name="SerialNo"/>
+								<Server Name="SetPos"/>
+								<Server Name="SetSpeed"/>
+								<Server Name="SetTorque"/>
+								<Server Name="SlaveState"/>
+								<Server Name="StateWord"/>
+								<Server Name="VendorID"/>
+								<Client Name="NoSDOBuffer" Value="0"/>
+								<Client Name="SlaveIndex" Value="1"/>
+								<Client Name="toMaster"/>
+								<Client Name="UseDefaultEnableSequence" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{80EAE1CA-1B88-4D0B-86A1-68539F1C74D5}" Class="ECAT_Slave_Base">
+											<Channels>
+												<Server Name="AL_StatusCode"/>
+												<Server Name="ClassState"/>
+												<Server Name="DeviceAdress"/>
+												<Server Name="DeviceName"/>
+												<Server Name="EtherCATState"/>
+												<Server Name="Online"/>
+												<Server Name="ProductCode"/>
+												<Server Name="ProductRevision"/>
+												<Server Name="RevisionNo"/>
+												<Server Name="SerialNo"/>
+												<Server Name="SlaveState"/>
+												<Server Name="VendorID"/>
+												<Client Name="NoAsyncBuffer" Value="0"/>
+												<Client Name="NoSDOBuffer" Value="0"/>
+												<Client Name="NoSSCBuffer" Value="0"/>
+												<Client Name="Required" Value="1"/>
+												<Client Name="SlaveIndex" Value="1"/>
+												<Client Name="toMaster"/>
+												<Client Name="toStdLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="DeviceNameStr" GUID="{90F50F62-25DC-456C-B345-491F993164C4}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="GetCILInterface_ECAT" GUID="{011CA525-35F4-4C54-9FFF-B30CB50751D6}" Class="GetCILInterface">
+															<Channels>
+																<Server Name="ClassSvr"/>
+															</Channels>
+														</Object>
+														<Object Name="ProductRevStr" GUID="{E7CD79D3-8E47-4407-8EB1-B3910316B819}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base_1" GUID="{D9FD7B06-074F-431B-8EEE-5500BA50640E}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<ECAT_Infos DC_Index="0">
+				<ECAT_StartUp CmdUID="4113" Index="24672" SubIndex="0" TransMask="2" Comment="Op mode" Flags="1611137024" SlotIndex="0" Data="8,"/>
+				<ECAT_StartUp CmdUID="4114" Index="24770" SubIndex="1" TransMask="2" Comment="Cycle time" Flags="1611137024" SlotIndex="0" Data="2,"/>
+				<ECAT_EoEConf/>
+			</ECAT_Infos>
+			<AdditionalData>
+				<Entry Name="DeviceType" Value="Elmo_2"/>
+				<Entry Name="HWKey" Value="HWD:M_ETHERCAT:198948:0:0"/>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "Elmo_31"
+			GUID       = "{C34DFC99-CE46-4D0E-A5C3-DC9ACEB167D5}"
+			Class      = "Elmo_3"
+			Position   = "(1530,4320)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXw"/>
+				<Server Name="AL_StatusCode"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControlWord"/>
+				<Server Name="DeviceAdress"/>
+				<Server Name="DeviceName"/>
+				<Server Name="DriveIF"/>
+				<Server Name="EtherCATOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="Inputs_DigitalInputs"/>
+				<Server Name="Online"/>
+				<Server Name="Outputs_DigitalOutputs"/>
+				<Server Name="ProductCode"/>
+				<Server Name="ProductRevision"/>
+				<Server Name="RevisionNo"/>
+				<Server Name="SerialNo"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SlaveState"/>
+				<Server Name="StateWord"/>
+				<Server Name="VendorID"/>
+				<Client Name="NoSDOBuffer" Value="0"/>
+				<Client Name="SlaveIndex" Value="2"/>
+				<Client Name="toMaster"/>
+				<Client Name="UseDefaultEnableSequence" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{9E8FB4EB-6BCA-4340-BE80-1B01BB768564}" Class="ECAT_DS402Base">
+							<Channels>
+								<Server Name="ActPos"/>
+								<Server Name="ActSpeed"/>
+								<Server Name="ActTorque"/>
+								<Server Name="ActXw"/>
+								<Server Name="AL_StatusCode"/>
+								<Server Name="AxEnable"/>
+								<Server Name="AxError"/>
+								<Server Name="AxErrorQuit"/>
+								<Server Name="ClassState"/>
+								<Server Name="ControlWord"/>
+								<Server Name="DeviceAdress"/>
+								<Server Name="DeviceName"/>
+								<Server Name="DriveIF"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="Online"/>
+								<Server Name="ProductCode"/>
+								<Server Name="ProductRevision"/>
+								<Server Name="RevisionNo"/>
+								<Server Name="SerialNo"/>
+								<Server Name="SetPos"/>
+								<Server Name="SetSpeed"/>
+								<Server Name="SetTorque"/>
+								<Server Name="SlaveState"/>
+								<Server Name="StateWord"/>
+								<Server Name="VendorID"/>
+								<Client Name="NoSDOBuffer" Value="0"/>
+								<Client Name="SlaveIndex" Value="2"/>
+								<Client Name="toMaster"/>
+								<Client Name="UseDefaultEnableSequence" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{80EAE1CA-1B88-4D0B-86A1-68539F1C74D5}" Class="ECAT_Slave_Base">
+											<Channels>
+												<Server Name="AL_StatusCode"/>
+												<Server Name="ClassState"/>
+												<Server Name="DeviceAdress"/>
+												<Server Name="DeviceName"/>
+												<Server Name="EtherCATState"/>
+												<Server Name="Online"/>
+												<Server Name="ProductCode"/>
+												<Server Name="ProductRevision"/>
+												<Server Name="RevisionNo"/>
+												<Server Name="SerialNo"/>
+												<Server Name="SlaveState"/>
+												<Server Name="VendorID"/>
+												<Client Name="NoAsyncBuffer" Value="0"/>
+												<Client Name="NoSDOBuffer" Value="0"/>
+												<Client Name="NoSSCBuffer" Value="0"/>
+												<Client Name="Required" Value="1"/>
+												<Client Name="SlaveIndex" Value="2"/>
+												<Client Name="toMaster"/>
+												<Client Name="toStdLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="DeviceNameStr" GUID="{90F50F62-25DC-456C-B345-491F993164C4}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="GetCILInterface_ECAT" GUID="{011CA525-35F4-4C54-9FFF-B30CB50751D6}" Class="GetCILInterface">
+															<Channels>
+																<Server Name="ClassSvr"/>
+															</Channels>
+														</Object>
+														<Object Name="ProductRevStr" GUID="{E7CD79D3-8E47-4407-8EB1-B3910316B819}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base_1" GUID="{7DAD50CE-925E-4A70-A140-415413CA69DC}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<ECAT_Infos DC_Index="0">
+				<ECAT_StartUp CmdUID="4129" Index="24672" SubIndex="0" TransMask="2" Comment="Op mode" Flags="1611137024" SlotIndex="0" Data="8,"/>
+				<ECAT_StartUp CmdUID="4130" Index="24770" SubIndex="1" TransMask="2" Comment="Cycle time" Flags="1611137024" SlotIndex="0" Data="2,"/>
+				<ECAT_EoEConf/>
+			</ECAT_Infos>
+			<AdditionalData>
+				<Entry Name="DeviceType" Value="Elmo_3"/>
+				<Entry Name="HWKey" Value="HWD:M_ETHERCAT:198948:1:0"/>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "Elmo_41"
+			GUID       = "{8DDACCE9-3A73-4313-9905-815D01DD571E}"
+			Class      = "Elmo_4"
+			Position   = "(1530,6120)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ActPos"/>
+				<Server Name="ActSpeed"/>
+				<Server Name="ActTorque"/>
+				<Server Name="ActXw"/>
+				<Server Name="AL_StatusCode"/>
+				<Server Name="AxEnable"/>
+				<Server Name="AxError"/>
+				<Server Name="AxErrorQuit"/>
+				<Server Name="ClassState"/>
+				<Server Name="ControlWord"/>
+				<Server Name="DeviceAdress"/>
+				<Server Name="DeviceName"/>
+				<Server Name="DriveIF"/>
+				<Server Name="EtherCATOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="Inputs_DigitalInputs"/>
+				<Server Name="Online"/>
+				<Server Name="Outputs_DigitalOutputs"/>
+				<Server Name="ProductCode"/>
+				<Server Name="ProductRevision"/>
+				<Server Name="RevisionNo"/>
+				<Server Name="SerialNo"/>
+				<Server Name="SetPos"/>
+				<Server Name="SetSpeed"/>
+				<Server Name="SetTorque"/>
+				<Server Name="SlaveState"/>
+				<Server Name="StateWord"/>
+				<Server Name="VendorID"/>
+				<Client Name="NoSDOBuffer" Value="0"/>
+				<Client Name="SlaveIndex" Value="3"/>
+				<Client Name="toMaster"/>
+				<Client Name="UseDefaultEnableSequence" Value="1"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{9DE8BC92-DD99-421C-A03A-D44E2207E25A}" Class="ECAT_DS402Base">
+							<Channels>
+								<Server Name="ActPos"/>
+								<Server Name="ActSpeed"/>
+								<Server Name="ActTorque"/>
+								<Server Name="ActXw"/>
+								<Server Name="AL_StatusCode"/>
+								<Server Name="AxEnable"/>
+								<Server Name="AxError"/>
+								<Server Name="AxErrorQuit"/>
+								<Server Name="ClassState"/>
+								<Server Name="ControlWord"/>
+								<Server Name="DeviceAdress"/>
+								<Server Name="DeviceName"/>
+								<Server Name="DriveIF"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="Online"/>
+								<Server Name="ProductCode"/>
+								<Server Name="ProductRevision"/>
+								<Server Name="RevisionNo"/>
+								<Server Name="SerialNo"/>
+								<Server Name="SetPos"/>
+								<Server Name="SetSpeed"/>
+								<Server Name="SetTorque"/>
+								<Server Name="SlaveState"/>
+								<Server Name="StateWord"/>
+								<Server Name="VendorID"/>
+								<Client Name="NoSDOBuffer" Value="0"/>
+								<Client Name="SlaveIndex" Value="3"/>
+								<Client Name="toMaster"/>
+								<Client Name="UseDefaultEnableSequence" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{80EAE1CA-1B88-4D0B-86A1-68539F1C74D5}" Class="ECAT_Slave_Base">
+											<Channels>
+												<Server Name="AL_StatusCode"/>
+												<Server Name="ClassState"/>
+												<Server Name="DeviceAdress"/>
+												<Server Name="DeviceName"/>
+												<Server Name="EtherCATState"/>
+												<Server Name="Online"/>
+												<Server Name="ProductCode"/>
+												<Server Name="ProductRevision"/>
+												<Server Name="RevisionNo"/>
+												<Server Name="SerialNo"/>
+												<Server Name="SlaveState"/>
+												<Server Name="VendorID"/>
+												<Client Name="NoAsyncBuffer" Value="0"/>
+												<Client Name="NoSDOBuffer" Value="0"/>
+												<Client Name="NoSSCBuffer" Value="0"/>
+												<Client Name="Required" Value="1"/>
+												<Client Name="SlaveIndex" Value="3"/>
+												<Client Name="toMaster"/>
+												<Client Name="toStdLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="DeviceNameStr" GUID="{90F50F62-25DC-456C-B345-491F993164C4}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="GetCILInterface_ECAT" GUID="{011CA525-35F4-4C54-9FFF-B30CB50751D6}" Class="GetCILInterface">
+															<Channels>
+																<Server Name="ClassSvr"/>
+															</Channels>
+														</Object>
+														<Object Name="ProductRevStr" GUID="{E7CD79D3-8E47-4407-8EB1-B3910316B819}" Class="String">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+																			<Channels>
+																				<Server Name="Data"/>
+																				<Client Name="DataBuffer"/>
+																				<Client Name="SingleRealloc" Value="1"/>
+																			</Channels>
+																			<!-- List of Networks in this component -->
+																			<Networks>
+																				<Network>
+																					<!-- List of Components in this network -->
+																					<Components>
+																						<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																							<Channels>
+																								<Server Name="Data"/>
+																							</Channels>
+																						</Object>
+																					</Components>
+																					<Connections>
+																					</Connections>
+																				</Network>
+																			</Networks>
+																		</Object>
+																		<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+																			<Channels>
+																				<Server Name="m_udLength"/>
+																				<Client Name="ThreadSafe" Value="0"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base_1" GUID="{1CF53016-0E21-4B1F-B4EB-08357E0667AD}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+			<ECAT_Infos DC_Index="0">
+				<ECAT_StartUp CmdUID="4145" Index="24672" SubIndex="0" TransMask="2" Comment="Op mode" Flags="1611137024" SlotIndex="0" Data="8,"/>
+				<ECAT_StartUp CmdUID="4146" Index="24770" SubIndex="1" TransMask="2" Comment="Cycle time" Flags="1611137024" SlotIndex="0" Data="2,"/>
+				<ECAT_EoEConf/>
+			</ECAT_Infos>
+			<AdditionalData>
+				<Entry Name="DeviceType" Value="Elmo_4"/>
+				<Entry Name="HWKey" Value="HWD:M_ETHERCAT:198948:2:0"/>
+			</AdditionalData>
+		</Object>
+		<Object
+			Name       = "EtherCAT_PLC1"
+			GUID       = "{52EAFA73-AB9C-4D0B-8B19-F533C65655D5}"
+			Class      = "EtherCAT_PLC"
+			Position   = "(367,60)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Act_RtTime"/>
+				<Server Name="ClassState"/>
+				<Server Name="EtherCatOut_1"/>
+				<Server Name="EtherCATState"/>
+				<Server Name="FrameTimeMaxTask0"/>
+				<Server Name="FrameTimeTask0"/>
+				<Server Name="Max_RtTime"/>
+				<Server Name="Min_RtTime"/>
+				<Server Name="MissedFrameCounter"/>
+				<Server Name="SoftwareVersion"/>
+				<Server Name="Synchron"/>
+				<Client Name="CoreSelect" Value="0"/>
+				<Client Name="ENIFile"/>
+				<Client Name="IsoStartPoint" Value="80"/>
+				<Client Name="MasterID" Value="1"/>
+				<Client Name="MissingFrameBehaviour" Value="3"/>
+				<Client Name="PhaseRegDamping" Value="0"/>
+				<Client Name="StateTransitionBehaviour" Value="2#110"/>
+				<Client Name="StateTransitionTimeout" Value="20000"/>
+				<Client Name="SynchronizationMode" Value="0"/>
+				<Client Name="ToHwControl"/>
+				<Parameter KeyName="EtherCATBusCycleTime" Value="1000"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{85FB5D5E-6C85-4854-868E-5A0D78B5564A}" Class="ECAT_Master_Base">
+							<Channels>
+								<Server Name="Act_RtTime"/>
+								<Server Name="ClassState"/>
+								<Server Name="EtherCATState"/>
+								<Server Name="FrameTimeMaxTask0"/>
+								<Server Name="FrameTimeTask0"/>
+								<Server Name="Max_RtTime"/>
+								<Server Name="Min_RtTime"/>
+								<Server Name="MissedFrameCounter"/>
+								<Server Name="SoftwareVersion"/>
+								<Server Name="Synchron"/>
+								<Client Name="CoreSelect" Value="0"/>
+								<Client Name="ENIFile"/>
+								<Client Name="IsoStartPoint" Value="80"/>
+								<Client Name="MasterID" Value="1"/>
+								<Client Name="MissingFrameBehaviour" Value="3"/>
+								<Client Name="PhaseRegDamping" Value="0"/>
+								<Client Name="StateTransitionBehaviour" Value="2#110"/>
+								<Client Name="StateTransitionTimeout" Value="20000"/>
+								<Client Name="SynchronizationMode" Value="0"/>
+								<Client Name="ToHwControl"/>
+								<Client Name="toMultiTask"/>
+								<Client Name="toStdLib"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_SyncMeasureECAT1" GUID="{415E0AF8-BF80-42E0-A922-10810BA9504A}" Class="_SyncMeasureECAT">
+											<Channels>
+												<Server Name="ClassSvr"/>
+												<Server Name="divisor" Value="4"/>
+												<Server Name="Frame_sendOffset"/>
+												<Server Name="IFilterFakt"/>
+												<Server Name="Offset"/>
+												<Server Name="ShiftedPhase"/>
+												<Server Name="Synchron"/>
+												<Server Name="SyncRegulationEnable"/>
+												<Server Name="SystemTimeMaster"/>
+												<Server Name="SystemTimeOwn"/>
+												<Client Name="PhaseRegDamping" Value="0"/>
+												<Client Name="SigCLib"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6B61C05A-E099-4752-9889-EA509948FB1B}" Class="_SyncMeasure">
+															<Channels>
+																<Server Name="ClassSvr"/>
+																<Server Name="Synchron"/>
+																<Server Name="SyncRegulationEnable"/>
+																<Server Name="SystemTimeMaster"/>
+																<Server Name="SystemTimeOwn"/>
+																<Client Name="PhaseRegDamping" Value="0"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="GetCILInterfacePLL" GUID="{426141B2-336D-45E6-BFC2-727CBE6F0C0B}" Class="GetCILInterface">
+																			<Channels>
+																				<Server Name="ClassSvr"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="GetCILInterface_ECAT" GUID="{4340C880-BE66-4F86-86CC-C2B5AFDD2A5E}" Class="GetCILInterface">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+										<Object Name="strSoftwareVersion" GUID="{B562F7D9-8CC4-4155-9695-83BA51C68876}" Class="String">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+															<Channels>
+																<Server Name="Data"/>
+																<Client Name="DataBuffer"/>
+																<Client Name="SingleRealloc" Value="1"/>
+															</Channels>
+															<!-- List of Networks in this component -->
+															<Networks>
+																<Network>
+																	<!-- List of Components in this network -->
+																	<Components>
+																		<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+																			<Channels>
+																				<Server Name="Data"/>
+																			</Channels>
+																		</Object>
+																	</Components>
+																	<Connections>
+																	</Connections>
+																</Network>
+															</Networks>
+														</Object>
+														<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+															<Channels>
+																<Server Name="m_udLength"/>
+																<Client Name="ThreadSafe" Value="0"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+						<Object Name="EtherCAT_Hub_Base1" GUID="{FA56EC45-FD54-45FF-972D-96E7D4C85161}" Class="EtherCAT_Hub_Base">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Client Name="BusType" Value="0"/>
+								<Client Name="SplitterPlace" Value="0"/>
+								<Client Name="toNextEtherCAT"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "EtherCAT_SDOBase1"
+			GUID       = "{0D7AEF75-1805-41CA-A592-841F243DCB82}"
+			Class      = "EtherCAT_SDOBase"
+			Position   = "(2700,660)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ClassState"/>
+				<Server Name="CompleteAccess" Value="0"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ParaIndex"/>
+				<Server Name="ParaLength"/>
+				<Server Name="ParaReadWrite"/>
+				<Server Name="ParaString"/>
+				<Server Name="ParaSubIndex"/>
+				<Server Name="ParaType"/>
+				<Server Name="ParaValue"/>
+				<Server Name="Timeout" Value="100"/>
+				<Client Name="toSlave"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "EtherCAT_SDOBase2"
+			GUID       = "{5D4F9DAC-6514-43BF-86C7-3BC24B112E55}"
+			Class      = "EtherCAT_SDOBase"
+			Position   = "(2700,2520)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ClassState"/>
+				<Server Name="CompleteAccess" Value="0"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ParaIndex"/>
+				<Server Name="ParaLength"/>
+				<Server Name="ParaReadWrite"/>
+				<Server Name="ParaString"/>
+				<Server Name="ParaSubIndex"/>
+				<Server Name="ParaType"/>
+				<Server Name="ParaValue"/>
+				<Server Name="Timeout" Value="100"/>
+				<Client Name="toSlave"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "EtherCAT_SDOBase3"
+			GUID       = "{E6A63213-8555-451B-8166-B8AF9A59496A}"
+			Class      = "EtherCAT_SDOBase"
+			Position   = "(2700,4320)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ClassState"/>
+				<Server Name="CompleteAccess" Value="0"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ParaIndex"/>
+				<Server Name="ParaLength"/>
+				<Server Name="ParaReadWrite"/>
+				<Server Name="ParaString"/>
+				<Server Name="ParaSubIndex"/>
+				<Server Name="ParaType"/>
+				<Server Name="ParaValue"/>
+				<Server Name="Timeout" Value="100"/>
+				<Client Name="toSlave"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "EtherCAT_SDOBase4"
+			GUID       = "{F03C246D-8EEA-4CD7-8E0C-500BF1488039}"
+			Class      = "EtherCAT_SDOBase"
+			Position   = "(2700,6120)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="ClassState"/>
+				<Server Name="CompleteAccess" Value="0"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ParaIndex"/>
+				<Server Name="ParaLength"/>
+				<Server Name="ParaReadWrite"/>
+				<Server Name="ParaString"/>
+				<Server Name="ParaSubIndex"/>
+				<Server Name="ParaType"/>
+				<Server Name="ParaValue"/>
+				<Server Name="Timeout" Value="100"/>
+				<Client Name="toSlave"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="strSDOParaString" GUID="{98B9A5C1-8414-4C70-9E8B-4085B98A8848}" Class="String">
+							<Channels>
+								<Server Name="Data"/>
+								<Client Name="SingleRealloc" Value="1"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="_base" GUID="{B9D2D328-1416-469A-BE13-9F6CBBB1958D}" Class="StringInternal">
+											<Channels>
+												<Server Name="Data"/>
+												<Client Name="DataBuffer"/>
+												<Client Name="SingleRealloc" Value="1"/>
+											</Channels>
+											<!-- List of Networks in this component -->
+											<Networks>
+												<Network>
+													<!-- List of Components in this network -->
+													<Components>
+														<Object Name="_base" GUID="{6CBDDE57-D222-420A-BC45-D2266096244E}" Class="VirtualBaseInit">
+															<Channels>
+																<Server Name="Data"/>
+															</Channels>
+														</Object>
+													</Components>
+													<Connections>
+													</Connections>
+												</Network>
+											</Networks>
+										</Object>
+										<Object Name="MerkerEx0" GUID="{53955FF7-8ABE-4B49-B914-227100C3FDEF}" Class="MerkerEx">
+											<Channels>
+												<Server Name="m_udLength"/>
+												<Client Name="ThreadSafe" Value="0"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+	</Components>
+	<Comments>
+	</Comments>
+	<!-- List of Connections in this network -->
+	<Connections>
+		<Connection Source="Elmo_11.toMaster" Destination="EtherCAT_PLC1.EtherCATOut_1" Vertices="(1530,750),(1127,750),"/>
+		<Connection Source="Elmo_21.toMaster" Destination="Elmo_11.EtherCATOut_1" Vertices="(1530,2610),(1463,2610),(1463,2490),(2416,2490),(2416,2250),(2374,2250),"/>
+		<Connection Source="Elmo_31.toMaster" Destination="Elmo_21.EtherCATOut_1" Vertices="(1530,4410),(1463,4410),(1463,4290),(2416,4290),(2416,4230),(2374,4230),"/>
+		<Connection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(1530,6210),(1463,6210),(1463,6090),(2416,6090),(2416,6030),(2374,6030),"/>
+		<Connection Source="EtherCAT_SDOBase1.toSlave" Destination="Elmo_11.ClassState" Vertices="(2700,750),(2374,750),"/>
+		<Connection Source="EtherCAT_SDOBase2.toSlave" Destination="Elmo_21.ClassState" Vertices="(2700,2610),(2374,2610),"/>
+		<Connection Source="EtherCAT_SDOBase3.toSlave" Destination="Elmo_31.ClassState" Vertices="(2700,4410),(2374,4410),"/>
+		<Connection Source="EtherCAT_SDOBase4.toSlave" Destination="Elmo_41.ClassState" Vertices="(2700,6210),(2374,6210),"/>
+		<Connection Source="EtherCAT_PLC1.ToHwControl" Destination="HwControl1.Control"/>
+	</Connections>
+	<!-- Headerfiles -->
+	<Options>
+	</Options>
+</Network>

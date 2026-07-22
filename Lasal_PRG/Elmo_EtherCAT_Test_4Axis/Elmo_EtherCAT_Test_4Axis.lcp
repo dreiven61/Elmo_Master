@@ -252,11 +252,13 @@
 		<File Path=".\Class\LMCEcatInputLatch\LMCEcatInputLatch.st"/>
 		<File Path=".\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"/>
 		<File Path=".\Class\LMCRecorderStore\LMCRecorderStore.st"/>
+		<File Path=".\Class\EtherCAT_SDOBase\EtherCAT_SDOBase.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
 		<File Path=".\Network\Comm_Network\Comm_Network.lcn"/>
 		<File Path=".\Network\Motion_Network\Motion_Network.lcn"/>
+		<File Path=".\Network\EtherCAT_Network\EtherCAT_Network.lcn"/>
 	</NetworkFiles>
 	<ObjectFiles>
 		<File Path=".\Loader\Source\Loader.lob" Downloadable="false"/>
@@ -311,6 +313,7 @@
 		<Folder Name="Hardware">
 			<Folder Name="Communication">
 				<Folder Name="EtherCAT">
+					<Class Name="EtherCAT_SDOBase"/>
 					<Folder Name="Internal">
 						<Class Name="ECAT_DS402Base"/>
 						<Class Name="ECAT_Master_Base"/>

@@ -41,6 +41,10 @@
 			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive2" IOI="IOState" SortIndex="34" KeyName="000034" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive3" IOI="IOState" SortIndex="35" KeyName="000035" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive4" IOI="IOState" SortIndex="36" KeyName="000036" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_11" Server="ClassState" ObjClt="EtherCAT_SDOBase1" Client="toSlave" IOI="IOState" SortIndex="37" KeyName="000038" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="EtherCAT_SDOBase2" Client="toSlave" IOI="IOState" SortIndex="38" KeyName="000039" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="EtherCAT_SDOBase3" Client="toSlave" IOI="IOState" SortIndex="39" KeyName="000040" Advanced="0"/>
+			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="EtherCAT_SDOBase4" Client="toSlave" IOI="IOState" SortIndex="40" KeyName="000041" Advanced="0"/>
 		</IOConnections>
 	</Entry>
 	<!-- List of Folders -->

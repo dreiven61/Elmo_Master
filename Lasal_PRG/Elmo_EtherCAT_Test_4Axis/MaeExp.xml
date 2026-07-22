@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="63041898" Version="1.1" SubVersion="2">
+<File CRC="C86BD470" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -440,6 +440,17 @@
 				<Type Name="OperationModeSpec2" BitNo="14"/>
 				<Type Name="ManufactureSpec2" BitNo="15"/>
 				<Type Name="ManufactureSpec3" BitNo="16"/>
+			</Elements>
+		</Type>
+		<Type Name="iprStates" Datatype="UDINT" TypeId="ENUM">
+			<Elements>
+				<Type Name="READY" Value="0"/>
+				<Type Name="ERROR" Value="1"/>
+				<Type Name="ERROR_BUSY" Value="2"/>
+				<Type Name="BUSY" Value="3"/>
+				<Type Name="QUIT" Value="4"/>
+				<Type Name="STOP_BP" Value="5"/>
+				<Type Name="SINGLESTEP" Value="6"/>
 			</Elements>
 		</Type>
 		<Type Name="ProfileCommandStatus" Datatype="UDINT" TypeId="ENUM">
@@ -1212,6 +1223,28 @@
 			</Objects>
 		</Class>
 		<Class
+			Name     = "EtherCAT_SDOBase"
+			Datatype = "iprStates"
+			Size     = "356"
+			Guid     = "47421B46-76BD-4CB4-B2B2-8EEF7265063A">
+			<Servers>
+				<Server Name="ClassState" Datatype="iprStates" Guid="17AB54D3-7855-45B7-911A-9576DDCF8542" WriteProtected="true"/>
+				<Server Name="ParaReadWrite" Datatype="DINT" Guid="F7F3A11F-08AA-435F-B427-8F4E437665A3" WriteProtected="false"/>
+				<Server Name="ParaIndex" Datatype="HDINT" Guid="4979D147-33CC-40E4-BF4D-103FDF7CDD51" WriteProtected="false"/>
+				<Server Name="ParaSubIndex" Datatype="HDINT" Guid="37984192-41B7-4AB5-B298-660332D0CE9F" WriteProtected="false"/>
+				<Server Name="CompleteAccess" Datatype="DINT" Guid="169F4D23-3A87-40A6-9196-71482210E348" WriteProtected="false"/>
+				<Server Name="ParaType" Datatype="DINT" Guid="BE7C3AC0-BADC-4862-B1FF-721F6CC53433" WriteProtected="false"/>
+				<Server Name="ParaLength" Datatype="UDINT" Guid="81E23868-A40C-4C38-9A78-DAD5CBBBDB44" WriteProtected="false"/>
+				<Server Name="ParaValue" Datatype="DINT" Guid="37F60183-F4FA-47EF-A37C-506DFE25453D" WriteProtected="false"/>
+				<Server Name="ParaString" Datatype="STRING" Guid="E3ABA0FE-B2B7-4F92-84F6-53B2E9E267EF" WriteProtected="false"/>
+				<Server Name="ErrorCode" Datatype="HDINT" Guid="8E57551A-D82B-457E-ABF9-2947396D236F" WriteProtected="true"/>
+				<Server Name="Timeout" Datatype="UDINT" Guid="ABA1E8CE-60A4-4B2E-B1CC-0A713B759C1A" WriteProtected="false"/>
+			</Servers>
+			<Objects>
+				<Object Name="strSDOParaString" Datatype="String" Guid="98B9A5C1-8414-4C70-9E8B-4085B98A8848"/>
+			</Objects>
+		</Class>
+		<Class
 			Name     = "GetCILInterface"
 			Datatype = "DINT"
 			Size     = "12"
@@ -1386,6 +1419,10 @@
 		<Object Name="Elmo_31" Datatype="Elmo_3" Guid="C34DFC99-CE46-4D0E-A5C3-DC9ACEB167D5"/>
 		<Object Name="Elmo_41" Datatype="Elmo_4" Guid="8DDACCE9-3A73-4313-9905-815D01DD571E"/>
 		<Object Name="EtherCAT_PLC1" Datatype="EtherCAT_PLC" Guid="52EAFA73-AB9C-4D0B-8B19-F533C65655D5"/>
+		<Object Name="EtherCAT_SDOBase1" Datatype="EtherCAT_SDOBase" Guid="0D7AEF75-1805-41CA-A592-841F243DCB82"/>
+		<Object Name="EtherCAT_SDOBase2" Datatype="EtherCAT_SDOBase" Guid="5D4F9DAC-6514-43BF-86C7-3BC24B112E55"/>
+		<Object Name="EtherCAT_SDOBase3" Datatype="EtherCAT_SDOBase" Guid="E6A63213-8555-451B-8166-B8AF9A59496A"/>
+		<Object Name="EtherCAT_SDOBase4" Datatype="EtherCAT_SDOBase" Guid="F03C246D-8EEA-4CD7-8E0C-500BF1488039"/>
 		<Object Name="HwControl1" Datatype="HwControl" Guid="406A4ED8-33F6-4556-ADF2-F23B00CC917F"/>
 		<Object Name="PosController1" Datatype="PosController" Guid="637805E5-FCE3-4345-B84C-0FE8CBED0CA7"/>
 		<Object Name="PosController2" Datatype="PosController" Guid="5FAFF91E-5CF1-4877-9F73-3603EA6BC8A2"/>
