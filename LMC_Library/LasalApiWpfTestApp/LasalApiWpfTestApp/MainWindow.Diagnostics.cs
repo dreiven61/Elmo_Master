@@ -34,6 +34,7 @@ namespace LasalMotionControlApiExample
         private LMCOperationTicket diagnosticOperationTicket;
         private LMCOperationStatus diagnosticOperationStatus;
         private byte[] diagnosticOperationResult;
+        private bool diagnosticOperationCancelAccepted;
         private bool updatingRecorderConfigurationOptions;
 
         private void InitializeDiagnosticsUi()
@@ -851,6 +852,7 @@ namespace LasalMotionControlApiExample
                             CancellationToken.None);
                     diagnosticOperationStatus = null;
                     diagnosticOperationResult = null;
+                    diagnosticOperationCancelAccepted = false;
                     TextDiagnosticOperationSummary.Text = FormatOperationTicket(
                         diagnosticOperationTicket);
                 });
@@ -869,6 +871,7 @@ namespace LasalMotionControlApiExample
                         await RequireConnection().Diagnostics.GetOperationStatusAsync(
                             ticket,
                             CancellationToken.None);
+                    diagnosticOperationCancelAccepted = false;
                     if (diagnosticOperationStatus.IsSuccessful
                         && ticket.OperationKind == LMCOperationKind.SDORead)
                     {
@@ -1029,15 +1032,17 @@ namespace LasalMotionControlApiExample
                 {
                     var ticket = RequireDiagnosticOperationTicket();
                     if (diagnosticOperationStatus != null
-                        && diagnosticOperationStatus.IsTerminal)
+                        && diagnosticOperationStatus.State
+                            != LMCOperationState.Queued)
                     {
                         throw new InvalidOperationException(
-                            "The current diagnostics operation is already terminal.");
+                            "Only a queued diagnostics operation can be cancelled.");
                     }
 
                     await RequireConnection().Diagnostics.CancelOperationAsync(
                         ticket,
                         CancellationToken.None);
+                    diagnosticOperationCancelAccepted = true;
                     TextDiagnosticOperationSummary.Text =
                         "Cancel accepted for TicketId="
                         + ticket.TicketId
@@ -1083,6 +1088,7 @@ namespace LasalMotionControlApiExample
                             CancellationToken.None);
                     diagnosticOperationStatus = null;
                     diagnosticOperationResult = null;
+                    diagnosticOperationCancelAccepted = false;
                     TextDiagnosticOperationSummary.Text = FormatOperationTicket(
                         diagnosticOperationTicket);
                 });
@@ -1111,8 +1117,7 @@ namespace LasalMotionControlApiExample
                 LMCDiagnosticCapability.RecorderDoubleBank);
             var supportsPiWrite = SupportsCapability(
                 LMCDiagnosticCapability.PIWrite);
-            var supportsSdoRead = SupportsCapability(
-                LMCDiagnosticCapability.SDORead);
+            var supportsFirstSliceSdoRead = SupportsFirstSliceSdoRead();
             var hasCatalog = diagnosticCatalog != null;
             var hasBulk = bulkConfiguration != null
                 && !bulkConfiguration.IsReleased;
@@ -1258,14 +1263,17 @@ namespace LasalMotionControlApiExample
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitOperation
-                && supportsSdoRead;
+                && supportsFirstSliceSdoRead;
             ButtonRefreshDiagnosticOperation.IsEnabled = connected
                 && idle
                 && diagnosticOperationTicket != null;
             ButtonCancelDiagnosticOperation.IsEnabled = connected
                 && idle
                 && diagnosticOperationTicket != null
-                && !operationIsTerminal;
+                && !diagnosticOperationCancelAccepted
+                && (diagnosticOperationStatus == null
+                    || diagnosticOperationStatus.State
+                        == LMCOperationState.Queued);
             ButtonDownloadSdoResult.IsEnabled = connected
                 && idle
                 && diagnosticOperationTicket != null
@@ -1302,6 +1310,7 @@ namespace LasalMotionControlApiExample
             diagnosticOperationTicket = null;
             diagnosticOperationStatus = null;
             diagnosticOperationResult = null;
+            diagnosticOperationCancelAccepted = false;
             UpdateRecorderBufferModeOptions();
 
             if (GridSignalCatalog != null)
@@ -1344,6 +1353,18 @@ namespace LasalMotionControlApiExample
         {
             return diagnosticCapabilities != null
                 && diagnosticCapabilities.Supports(capability);
+        }
+
+        private bool SupportsFirstSliceSdoRead()
+        {
+            return diagnosticCapabilities != null
+                && diagnosticCapabilities.Supports(
+                    LMCDiagnosticCapability.SDORead)
+                && diagnosticCapabilities.DiagnosticsBootId != 0
+                && diagnosticCapabilities.MapRevision != 0
+                && diagnosticCapabilities.MaxSdoDataBytes >= 4
+                && diagnosticCapabilities.MaxRequestPayloadBytes >= 32
+                && diagnosticCapabilities.MaxResponsePayloadBytes >= 64;
         }
 
         private void EnsureCapability(
