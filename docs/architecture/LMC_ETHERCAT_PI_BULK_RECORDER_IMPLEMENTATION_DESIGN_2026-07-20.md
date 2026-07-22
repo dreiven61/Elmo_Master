@@ -1,9 +1,11 @@
 # LMC EtherCAT PI/Bulk/Recorder Implementation Design
 
 - 작성일: 2026-07-20
-- 상태: D1~D3와 D4 single-bank Ring/Trigger internal test source 활성,
-  D4 Double 및 D5 PLC 실행은 capability-off, D6 후속,
-  최신 외부 source 정적 계약 통과, PLC 통합·실장 검증 대기
+- 상태: D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline SDO Read
+  internal test source 활성, D4 Double 및 D5 Write/extended result는 capability-off,
+  기존 static/handle D6 계획은 후속 재평가, D1/D2 기반 PI/Bulk instance facade 구현,
+  최신 외부 source 정적 계약 통과, D5 legacy fixed-vector 4축 및 수정본
+  general-inline 1/2/4-byte 사용자 실기 PASS, 최종 성공 증거와 나머지 실장 검증 대기
 - 적용 대상:
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
   - `LMC_Library/LMC_API_Delivery/src`
@@ -55,9 +57,14 @@ flowchart TB
    마지막 호환 계층으로만 추가하며 이번 구현 범위에는 넣지 않는다.
 
 이 문서는 구현할 구조와 단계별 완료 조건을 정한 기준이다. 현재 internal test source는
-D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank manual Recorder와 D4 single-bank
-Ring/Trigger를 광고한다. D4 Double bank와 D5 PI/SDO 실행은 capability가 0이며 exact
-request에 `UnsupportedFeature`를 반환한다. 모든 단계는 실제 PLC runtime 검증 전이다.
+D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank manual Recorder, D4 single-bank
+  Ring/Trigger와 D5 general-inline SDO Read를 광고한다. D4 Double bank, D5 PI/SDO Write와
+extended result는 capability가 0이며 해당 exact request에 `UnsupportedFeature`를
+  반환한다. D5 legacy `0x1000:0` UInt32 4-byte Read는 Slave 1~4 happy path를
+  통과했다. 과거 BootId 6 general-inline 캡처의 `ResourceBusy(9)` executor 결함은
+  source state machine에서 수정했다. 이후 사용자가 수정본 general-inline
+  1/2/4-byte runtime 정상 동작을 확인했다. 최종 성공 pcap/log, D1~D4와 D5 fault
+  matrix는 실제 PLC runtime 검증 전이다.
 
 ### 1.1 Elmo API와의 기능 대응
 
@@ -115,23 +122,24 @@ contract를 대신한다고 간주하지 않는다.
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release, 동일 latch snapshot, session owner 검사 | retained `DiagnosticsBootCounter`에서 nonzero BootId가 발급될 때 bit 3 광고 |
 | D3 | internal test source 활성 | 1,280,000-byte 단일 bank, 최대 24채널, manual/no-trigger, finite capture, status/header/chunk/release와 exact/zero-ID adopt | nonzero BootId일 때 bit 4 광고. PLC RAM/jitter/chunk/adopt 검증 대기 |
 | D4 | single-bank Ring/Trigger internal test source 활성 | C# Ring/Double/Edge/Window/Mask model, `TriggerRecorder` sync/async, WPF 설정/호출, PLC pre-trigger ring과 edge/window/mask/forced trigger | bit 5=1. 단일 물리 bank만 사용하며 bit 6 Double=0, `RecorderBufferCount=1`. PLC runtime 검증 대기 |
-| D5 | public contract 구현 / PLC fail-closed | PI Write, SDO ticket/status/cancel, extended result chunk sync/async와 WPF flow | PLC allowlist/ticket/drive dispatcher 미구현, bit 7~9/12=0, exact reserved request에 UnsupportedFeature |
-| D6 | 후속 설계 | 현재 instance 기반 `LMCConnection` 유지 | static/handle facade 미구현; PLC와 wire 안정화 뒤 C# compatibility layer로만 추가 |
+| D5 | general-inline SDO Read source 활성 | 4축 derived executor, one-ticket submit/status/queued-cancel, timeout/orphan drain, typed 1/2/4-byte inline result와 WPF flow | bit 8+13=1, MaxSDO=4; legacy 4축 및 수정본 general-inline 1/2/4-byte 사용자 실기 PASS, 최종 성공 pcap/log와 fault matrix 대기. PI/SDO Write 및 extended result bit 7/9/12=0 |
+| D6 | 기존 static/handle 계획 후속 재평가 | Phase 1 D1/D2 기반 PI/Bulk instance facade 구현 | 별도 PLC wire는 만들지 않으며 static registry 필요성은 API 사용성 검증 뒤 결정 |
 
 D0 PLC test build의 정상 capability는 다음과 같다.
 
 ```text
 DiagnosticsBuild     = 1
-CapabilityBits       = 0x0000003F  // D1-D3 + D4 RecorderTrigger
+CapabilityBits       = 0x0000213F  // D1-D4 + D5 SDORead + GeneralInline
 MapRevision          = 0x957F101E
 DiagnosticsBootId    = nonzero retained generation
 MaxRequestPayload    = 1320
 MaxResponsePayload   = 2040
 MaxChunkData         = 1280
+MaxSdoDataBytes      = 4
 ```
 
-retentive counter가 wrap/fault이거나 service가 없으면 stateful bit 3~5는 0으로 내려간다.
-D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
+retentive counter가 wrap/fault이거나 service가 없으면 stateful bit 3~5, bit 8과 bit 13은 0으로
+내려가고 MaxSDO는 0이다. D1 service가 연결된 상태에서는 bit 0~2를 유지할 수 있다.
 
 현재 source의 실행 경로는 다음과 같다.
 
@@ -176,10 +184,12 @@ C81 compiler/library version warning은 6줄(project C78 1줄과 library mismatc
 남아 있다. 당시
 `Find in Implementation`은 InputLatch, RecorderStore, TCPMotionInterface.Diagnostics
 3건이 성공했고 smoke 기준 이후 `Lasal2.log`의 신규 `CInvalidArgException`은 0건이다.
-그 뒤 추가한 active Recorder zero-ID adopt, trigger health gate와 terminal race 보강은
-외부 `.st` source와 source-only/full-network 정적 계약으로 검증했다. 구현 로직은 외부
-편집기를 사용한다는 작업 기준에 따라 이 최종 implementation-only 변경 뒤 IDE
-Rebuild/Link를 반복하지 않았다. PLC download, System Trace RT ordering, packet capture,
+그 뒤 추가한 active Recorder zero-ID adopt, trigger health gate, terminal race와 D5
+executor recovery 보강은 외부 `.st` source와 source-only/full-network 정적 계약으로
+검증했다. `Classes.lcb`의 general `TryStartRead` declaration도 current source와
+동기화되어 두 정적 계약이 모두 PASS한다. 구현 로직은 외부 편집기를 사용한다는 작업
+기준에 따라 이 최종 implementation-only 변경 뒤 IDE Rebuild/Link를 반복하지 않았다.
+PLC download, System Trace RT ordering, packet capture,
 recorder RAM/jitter, disconnect/adopt 및 chunk hash 시험은 남아 있다.
 이 검증이 끝나기 전에는 D1~D4를 production 완료 또는 PLC 실장 완료로 분류하지 않는다.
 
@@ -1094,7 +1104,7 @@ P64     UDINT  DiagnosticsBootId
 `DiagnosticsBootId`는 diagnostics resource table이 초기화될 때마다 바뀌는 불투명
 server generation이다. C#은 capability를 connection generation에 묶어 보관하고,
 이 값이 달라지면 기존 Bulk/Recorder/ticket handle을 전부 폐기한다. 단,
-`CapabilityBits`의 stateful bit 3..9와 12가 모두 0인 D0/D1 build만 0 sentinel을
+`CapabilityBits`의 stateful bit 3..9, 12와 13이 모두 0인 D0/D1 build만 0 sentinel을
 허용한다. stateful bit가 켜진 response에서 0이면 malformed capability로 거부한다.
 
 `CapabilityBits`:
@@ -1113,6 +1123,7 @@ bit 9  SDOWrite
 bit 10 ApplicationPhaseSnapshot
 bit 11 ExtendedWkcDiagnostics
 bit 12 ExtendedSdoResultChunk
+bit 13 SDOReadGeneralInline
 ```
 
 미구현 기능은 command ID가 예약되어 있어도 capability bit를 0으로 반환한다.
@@ -1814,9 +1825,10 @@ P28     UDINT  DiagnosticsBootId
 P32     BYTE[] WriteData             // read이면 길이 0
 ```
 
-wire schema는 향후 read `DataLength` 4/8/12 bytes를 표현할 수 있고 read의
-`WriteData` 배열은 0 bytes다. 다만 최초 D5 Read-only 증분은 `DataLength=4`만
-허용하고 `MaxSdoDataBytes=4`만 광고한다. write에서는 이후 기능을 열 때
+wire schema는 read `DataLength`를 표현할 수 있고 read의 `WriteData` 배열은 0 bytes다.
+현재 general-inline D5 Read-only 범위는 ValueType과 정확히 일치하는
+`DataLength=1/2/4`만 허용하고 `MaxSdoDataBytes=4`를 광고한다. ObjectIndex는 nonzero,
+SubIndex는 임의 U8 값이다. 8/12-byte는 아직 비활성이며 write에서는 이후 기능을 열 때
 `WriteData` 길이가 `DataLength`와 정확히 같아야 한다.
 
 submit response는 즉시 실행 결과가 아니라 ticket만 반환한다.
@@ -1852,7 +1864,7 @@ P34     INT    OperationErrorId
 P36     UDINT  OperationDetail       // SDO abort code 등
 P40     UDINT  ResultLength
 P44     BYTE   ResultValueType
-P45     BYTE   ResultDataLength      // v1: 0, 4, 8, 12
+P45     BYTE   ResultDataLength      // current v1: 0, 1, 2, 4
 P46     UINT   Reserved
 P48     BYTE[12] ResultData
 P60     UDINT  DiagnosticsBootId
@@ -1894,9 +1906,30 @@ v1 최종 목표 상한:
 private fixed buffer로 직접 호출하고 callback metadata를 보존한다. 수동 `Para*` 실행
 경로는 override해 차단하고 ticket/session/timeout은 `LMCDiagnosticsService`가 관리한다.
 
-최초 증분은 실측된 `0x1000:0` UInt32 4-byte object만 allowlist에 넣는다. 허용된 결과는
-`GetOperationStatus`에 inline한다. 8/12-byte와 `ReadSDOResultChunk (0x7E51)`는 별도
-증분이며 현재 PLC dispatcher와 capability bit 12는 꺼져 있다. 정확한 class/network,
+executor 내부 상태 전이는 다음 계약을 따른다.
+
+```text
+Idle -> Arming -> Running -> ResultReady -> Releasing -> Idle
+                     \-> Orphaned --------> Releasing -> Idle
+any impossible ownership transition or unsolicited callback -> Quarantined
+```
+
+- `Running`은 `StartReadSDO` 호출 전에 공개한다. 짧은 SDO callback이 `Arming`을 보게
+  되는 race를 허용하지 않는다.
+- disconnected rollback, vendor 미수락, 정상 completion 소비와 orphan callback drain은
+  `Releasing`을 독점한 뒤 active metadata와 buffer를 지우고 마지막에 `Idle`을 공개한다.
+- 소유 중인 callback의 metadata/length 검증 실패는 terminal failure result로 공개해
+  service가 ticket을 `Failed`로 끝낸 뒤 executor를 재사용할 수 있게 한다.
+- unsolicited/duplicate callback과 compare-exchange invariant 위반만 hard
+  `Quarantined`다. public ticket/drain owner 없이 non-Idle인 executor는 새 Submit에
+  `InternalError(24)`를 반환하고, 실제 queued/running/drain owner가 있을 때만
+  `ResourceBusy(9)`를 반환한다.
+
+역사적 최초 증분은 실측된 `0x1000:0` UInt32 4-byte object만 allowlist에 넣었다. 이
+legacy 범위의 runtime 캡처는 보존한다. 현재 source는 bit 13으로 general-inline을 별도
+광고하며 nonzero ObjectIndex, 임의 SubIndex와 exact typed 1/2/4-byte Read를 허용한다.
+결과는 `GetOperationStatus`에 inline한다. 8/12-byte와 `ReadSDOResultChunk (0x7E51)`는
+별도 증분이며 현재 PLC dispatcher와 capability bit 12는 꺼져 있다. 정확한 class/network,
 callback mailbox와 orphan 정책은
 `LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 따른다.
 
@@ -2162,8 +2195,8 @@ nonzero `DiagnosticsBootId` 초기화까지 성공하면 D2/D3와 D4 Trigger cap
 - golden/malformed packet test
 - 기존 25 command regression
 
-검증 상태: PC golden/malformed contract test와 LASAL source-only/full-network contract가
-통과했다. class/network 통합 snapshot의 LASAL IDE Rebuild/Link는 0 error였고,
+당시 D0 검증 상태: PC golden/malformed contract test와 LASAL source-only/full-network
+contract가 통과했다. class/network 통합 snapshot의 LASAL IDE Rebuild/Link는 0 error였고,
 implementation smoke 3건과 신규 `CInvalidArgException` 0건을 확인했다. 최종
 implementation-only 보강 뒤 IDE build는 반복하지 않았으며 최신 source 검증은 정적
 계약 결과를 기준으로 한다.
@@ -2224,8 +2257,9 @@ fail-closed한다.
 
 현재 상태: single-bank Ring/Trigger internal test source 활성. public C# contract와
 개발용 WPF 설정/호출 경로, PLC pre-trigger ring, edge/window/mask 조건과
-`0x7E42` forced trigger가 구현됐다. 정상 retained BootId 경로는 bit 5를 광고해 전체
-`CapabilityBits=0x0000003F`를 반환한다. 물리 bank는 한 개이고
+`0x7E42` forced trigger가 구현됐다. D4 자체는 정상 retained BootId 경로에서 bit 5를
+광고한다. D5 test bit와 general-inline bit까지 포함한 전체 값은
+`CapabilityBits=0x0000213F`다. 물리 bank는 한 개이고
 `RecorderBufferCount=1`, BufferId=0이며 Double capability bit 6은 0이다.
 
 - 구현: pre-trigger ring, edge/window/mask/forced trigger, trigger cycle/header,
@@ -2239,11 +2273,14 @@ block되지 않는 것이다. 이 기준을 통과하기 전까지 bit 6은 켜�
 
 ### D5. 제한적 PI/SDO operation
 
-현재 상태: public C# contract/model과 개발용 WPF ticket/chunk flow는 구현,
-PLC는 `0x7E03/0x7E04/0x7E21/0x7E50/0x7E51`의 reserved request shape를 명시적으로
-검증한 뒤 fail-closed한다. 실행 queue, Drive callback과 ticket state machine은
-미구현이다. SDK와 PLC write allowlist는 기본 empty이고 capability bit 7~9/12는
-0이므로 read/write와 extended result는 활성되지 않는다.
+현재 상태: public C# contract/model과 개발용 WPF ticket flow가 구현돼 있다.
+PLC test source는 `LMCSdoExecutor : EtherCAT_SDOBase` 4개와 one-ticket state machine으로
+`0x7E50/0x7E03/0x7E04` general-inline Read를 실행하며 bit 8, bit 13과 MaxSDO=4를
+광고한다. Slave 1..4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed 1/2/4-byte
+길이가 현재 Read 계약이다. legacy `0x1000:0` Slave 1~4 happy path는 실제 PLC에서
+PASS했지만 general-inline/fault matrix는 남았다. SDK와 PLC write
+allowlist는 기본 empty이고 capability bit 7/9/12는 0이므로 PI/SDO Write와 extended
+result는 활성되지 않는다.
 
 - global default off
 - allowlist, type/range/state/owner 검사
@@ -2255,7 +2292,9 @@ PLC는 `0x7E03/0x7E04/0x7E21/0x7E50/0x7E51`의 reserved request shape를 명시�
 
 ### D6. Static compatibility facade
 
-현재 상태: 후속 설계. 구현하지 않았다.
+현재 상태: 기존 static/handle registry 계획은 구현하지 않았다. 대신 Phase 1에서
+`LMCConnection.Diagnostics.CreatePIBulkBuilder`와 `ReadPI` alias를 추가해 D1/D2 wire를
+그대로 쓰는 instance 기반 compatibility facade를 구현했다. 별도 D6 command는 없다.
 
 - handle registry adapter
 - static sync/async wrapper
@@ -2289,10 +2328,18 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
   compiler warning 6줄(C78 project 1줄과 C81 library mismatch 5줄)
 - 해당 snapshot `Find in Implementation`: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS, 신규 `CInvalidArgException` 0건
-- 최종 implementation-only 외부 source의 source-only/full-network contract: PASS
-- 최종 implementation-only 변경 뒤 IDE Rebuild/Link: 미반복
-- PC test: 102/102 PASS
-- 개발 WPF Debug/Release `TreatWarningsAsErrors`: PASS
+- 현재 외부 source의 SourceOnly/full static contract: PASS
+- `Classes.lcb` general `TryStartRead` declaration과 generated metadata 동기화: PASS
+- gate-on D5 fixed-source runtime download: 확인, 대응 IDE Rebuild/Link log는 미보존
+- 현행 PC 자동 테스트: Debug/Release 각 135/135 PASS
+- 개발 WPF Debug/Release build와 각 3초 startup smoke: PASS
+
+2026-07-22 legacy runtime에서 BootId 5, `0x13F`, MaxSDO=4와 Slave 1~4
+`0x1000:0` UInt32 4-byte SDO Read Completed/Success를 확인했다. 이 캡처는 현재
+`0x213F` general-inline 범위의 runtime 증거가 아니다. BootId 6 general-inline
+캡처는 첫 오류 뒤 Submit `ResourceBusy(9)` 고착을 재현했고, 이를 근거로 executor
+callback/release state machine을 수정했다. 수정 source의 general-inline 1/2/4-byte
+시험, IDE build/download/smoke log와 fault matrix는 별도 보존이 필요하다.
 
 - Class 생성, declaration 구조 변경과 Network 편집만 LASAL IDE에서 수행
 - 기존 class implementation은 외부 편집기에서 수정하고 정적 계약으로 우선 검증

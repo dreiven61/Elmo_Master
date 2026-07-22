@@ -29,7 +29,8 @@ LASAL-DINT adapter가 추가한 project-local extension이다.
 | `0x2051` | `GroupReadActualPosition` | static axis-order identity 위치를 읽어 68-byte DINT payload 반환 |
 | `0x20E7` | `SetKinTransformCartesian4Axis` | exact X/Y/Z/U identity 요청을 검증하고 static mapping을 등록 |
 
-이 상태는 source 구현 완료다. C# 46/46, LASAL source-only/full-network static
+이 상태는 source 구현 완료다. 2026-07-22 Phase 0 기준 C# 105/105와 LASAL
+source-only/full-network static
 contract와 WPF VS2019 Debug build는 통과했다. 현재 LASAL source는 IDE에서
 Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실제 장비
 동작도 검증하지 않았다.
@@ -91,8 +92,10 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 - request: deceleration DINT, jerk DINT, `BufferMode=Aborting(1)`, `Execute=1`
 - validation: `Deceleration>=0`, `Jerk>=0`; `Jerk>0`이면 `Deceleration>0`
 - action: `StopMove(Mode:=3, Decel, Jerk)`
-- 주의: ACK 성공은 stop command 접수다. 실제 standstill은
-  `GroupReadStatusResult`로 확인한다.
+- `StopMove()` 반환 `UDINT StopCmdNo`는 정지가 끝날 profile-buffer command
+  index이며 error/acceptance code가 아니다.
+- ACK 성공은 입력 검증, robot client 연결과 stop dispatch를 뜻한다. 실제
+  standstill과 profile error는 `GroupReadStatusResult`로 확인한다.
 
 ### MoveLinearAbsoluteEx
 
@@ -105,6 +108,7 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 - coordinate system: `None(0)`만 허용
 - transition: `ExactStop(0)` 또는 `ContinuousDirect(2)`
 - buffer: `Aborting(1)` 또는 `Buffered(2)`
+- C# serializer도 위 topology, dynamics와 option whitelist를 RPC 전 fail-fast한다.
 - `Aborting`은 `CmdConfig.MoveImmediately` bit 값 16으로, `Buffered`는 0으로
   mapping한다.
 - ACK 성공은 move 완료가 아니다. group status의 standby/in-position을 별도로
@@ -112,16 +116,17 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 
 ### GroupReadActualPosition
 
-- request coordinate enum: `None(0)`, `ACS(1)`, `MCS(2)`, `PCS(3)`
+- request coordinate enum: `None(0)`, `ACS(1)`만 지원
 - success response payload: `DINT[16] + UINT16 status + INT16 error`, exact 68 bytes
-- 현재 프로젝트에는 dynamic `CalcModel`이 연결되지 않았다. 네 enum은 모두
+- 현재 프로젝트에는 dynamic `CalcModel`이 연결되지 않았다. None/ACS는
   `GetRobotPosition(Mode:=_ACTPOS_APPUNITS, CoordSystem:=0)`의 동일 static
-  axis-order identity 위치로 읽는다.
+  member-slot alias로 읽는다. MCS/PCS는 C#에서 `NotSupportedException`, PLC에서
+  `ErrorId=-7`로 거부한다. 정의되지 않은 enum은 `-3`이다.
 - 현재 tracked handler는 `_LMCPROF_POS` 36 bytes(`Pos1..Pos9`)를 응답 slot
-  1..9에 복사하고 slot 10..16을 0으로 남긴다. 과거 4축-only read 설명과
-  충돌하므로 PLC 재캡처 뒤 1..9 readback을 승인하거나 handler가 5..16을
-  명시적으로 0 처리하도록 계약을 확정해야 한다. Move/SetKin/Lock의 4축 제한과
-  position read 범위를 같은 것으로 단정하지 않는다.
+  1..9에 복사하고 slot 10..16을 0으로 남긴다. 이는 현재 9개 software member
+  metadata와 일치하며, Move/SetKin/Lock의 physical X/Y/Z/U 4축 제한을 넓히지 않는다.
+- 결과의 `CoordinateSystem`은 PLC 응답 필드가 아니라 요청 enum의 PC-side echo다.
+- ACS alias의 실물 동등성은 PLC smoke/packet capture가 남아 있다.
 - PMAS legacy 136-byte LREAL response는 현재 PC parser가 거부한다.
 
 ### SetKinTransformCartesian4Axis

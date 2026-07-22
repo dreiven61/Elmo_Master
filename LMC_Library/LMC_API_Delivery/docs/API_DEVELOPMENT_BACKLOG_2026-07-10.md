@@ -2,14 +2,18 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-21
+Latest update: 2026-07-22
 
 > 이 문서는 2026-07-10 backlog snapshot을 보존하지만, 아래 상단 결론과
-> `현재 구현 완료도 판정` 표는 2026-07-21 current source 기준이다. 현재 diagnostics는
-> D4 single-bank Ring/Trigger가 활성이고 D4 Double과 D5 PLC 실행은
-> capability-off이며, diagnostics active는 19개, 전체 success-capable active path는
-> 44개, dispatcher/wire handled contract는 49개다. PC 자동 테스트는 102/102이고
-> diagnostics PLC runtime 시험은 아직 수행하지 않았다. 최신 상태와 검증 경계는
+> `현재 구현 완료도 판정` 표는 2026-07-22 current source 기준이다. 현재 diagnostics는
+> D4 single-bank Ring/Trigger와 D5 general-inline SDO Read가 test source에서 활성이고,
+> D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
+> 22개다. Phase 1 Admin active 3개를 포함한 전체 success-capable path는 50개,
+> dispatcher/wire handled contract는 52개다. PC 자동 테스트는 Debug/Release 각
+> 135/135다. D5 legacy `0x13F`와
+> general-inline 1/2/4-byte SDO Read는 사용자가 실제 PLC에서 정상 동작을 확인했다.
+> 이번 기준선에는 그 최종 확인에 대한 별도 신규 pcap/log가 첨부되지 않았다.
+> D5 fault matrix와 D0~D4 PLC runtime은 아직 수행하지 않았다. 최신 상태와 검증 경계는
 > [LMC EtherCAT PI/Bulk/Recorder Implementation Design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md)을
 > 기준으로 한다.
 
@@ -36,15 +40,17 @@ local extension 2개를 합한 25개다. 2026-07-14에 `GroupReset(0x2049)`,
 `GroupStop(0x2085)`, `GroupReadActualPosition(0x2051)`,
 `MoveLinearAbsoluteEx(0x20A4)`, `SetKinTransformEx(0x20E7)` handler를
 활성화해 이전 deterministic unsupported 5개를 해소했다.
-2026-07-21 current source의 LASAL-local diagnostics namespace에는 정확히 24개
+2026-07-22 current source의 LASAL-local diagnostics namespace에는 정확히 24개
 command ID가 있다. D0~D3 18개는 capability, Health/Catalog/PI Read, Bulk와
 single-bank manual Recorder의 성공 응답 경로가 있다. D4 `TriggerRecorder(0x7E42)`가
-single-bank Ring/Trigger 경로로 추가 활성화되어 diagnostics active는 19개다.
-D5 PLC 실행에 해당하는 나머지 5개 command 계약은 exact wire를 검사한 뒤 capability-off
-`UnsupportedFeature`로 fail-closed한다. D4 Double도 기존 Recorder command의
-capability-off mode다. 따라서 성공 응답 capable PLC active 범위는 기존 25 +
-diagnostics 19 = 44개이고, dispatcher/wire handled contract는 capability-off
-diagnostics 5개를 더한 49개다.
+  single-bank Ring/Trigger 경로로 추가 활성화됐다. D5에서는 general-inline SDO Read의
+`SubmitSDO(0x7E50)`, `GetOperationStatus(0x7E03)`, `CancelOperation(0x7E04)` 3개가
+test source에서 활성화되어 diagnostics active는 22개다. `SubmitPIWrite(0x7E21)`와
+`ReadSDOResultChunk(0x7E51)`는 exact wire를 검사한 뒤 `UnsupportedFeature`로
+fail-closed한다. D4 Double도 capability-off mode다. diagnostics 기준 성공 응답 capable
+범위는 기존 25 + diagnostics 22 = 47개이고 handled contract는 capability-off
+diagnostics 2개를 더한 49개다. Phase 1의 LASAL-local read-only Admin
+`0x7D00/0x7D10/0x7D20` 3개를 포함하면 전체 active는 50개, handled는 52개다.
 
 현재 runtime gate는 non-RT `CyWork()`에서 아래 18개 axis/group
 control·read·motion command를 허용한다. lifecycle과 name/member metadata
@@ -70,22 +76,26 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 102/102, LASAL source-only/full-network static
-contract와 개발 WPF VS2019 MSBuild Debug/Release `TreatWarningsAsErrors` build를
-통과했다. LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
+현재 source는 C# 자동 테스트 Debug/Release 각 135/135, LASAL SourceOnly/full static
+contract와 개발 WPF Debug/Release build 및 각 3초 startup smoke를 통과했다.
+`Classes.lcb`의 general `TryStartRead` declaration은 current source와 동기화되어 있다.
+gate-off D5 source의 LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
 compiler warning은 6줄(C78 project 1줄과 C81 library mismatch 5줄)이며,
 InputLatch/RecorderStore/
 TCPMotionInterface.Diagnostics implementation-search smoke 3건과 smoke 이후 신규
-`CInvalidArgException` 0건을 확인했다. PLC download와 실제 packet 재캡처는 아직
-없으므로 기존 motion/group E2E는 0/25이고 diagnostics PLC 시험 matrix는 미실시다.
+`CInvalidArgException` 0건을 확인했다. gate-on fixed-source runtime download는 BootId 5
+capture로 확인했지만 대응 IDE build/smoke log는 미보존이다. 기존 motion/group E2E는
+0/25이고 diagnostics D5 legacy 및 general-inline 1/2/4-byte Read는 사용자가 실제 PLC에서
+정상 동작을 확인했다. 이 최종 확인에 대한 별도 신규 pcap/log는 현재 기준선에 없으며,
+D5 fault와 D0~D4는 미실시다.
 
 PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame이나 IDE
 build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 
 1. CyWork와 motion RT thread의 CPU core/priority 조건 확인
 2. 기존 motion/group 25 command의 PLC smoke와 재캡처
-3. diagnostics D0~D3와 D4 single-bank Ring/Trigger runtime, D4 Double/D5 exact
-   fail-closed PLC 시험 matrix
+3. diagnostics D0~D4 runtime, D5 general-inline SDO Read/fault matrix, D4 Double 및 D5
+   Write/extended fail-closed PLC 시험 matrix
 4. static identity group coordinate/kinematic 제약의 장비 적용 승인
 5. 실제 callback sender/payload와 multi-PC session/ownership 정책
 
@@ -95,22 +105,25 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 |---|---:|---|
 | Wireshark 기준 대상 command | 23개 | 전체 범위 |
 | LASAL project-local extension | 2개 | `0x204A/0x204B`; 기존 캡처 명령이 아님 |
-| LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4 single-bank Trigger active 1 + D5 capability-off 5; D4 Double mode off |
-| 성공 응답 capable PLC active path | 44개 | 기존 motion/group 25 + diagnostics active 19 |
-| C#/dispatcher/wire handled contract | 49개 | active 44 + capability-off diagnostics 5 |
+| LASAL diagnostics extension | 24개 | D0~D3 active 18 + D4 Trigger 1 + D5 general-inline Read 3 active + D5 reserved 2; D4 Double mode off |
+| LASAL read-only Admin extension | 3개 | `0x7D00/0x7D10/0x7D20`; source/static active, IDE/PLC 미검증 |
+| 성공 응답 capable PLC active path | 50개 | 기존 motion/group 25 + diagnostics active 22 + Admin 3 |
+| C#/dispatcher/wire handled contract | 52개 | active 50 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork control/read/motion 범위 | 18개 | axis 8개와 group 10개; diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | 102/102 PASS | fake/synthetic/loopback/source contract 검증 |
-| LASAL source-only/full-network static contract | PASS | diagnostics D0~D5 wire/network 계약 포함 |
-| 개발 WPF VS2019 MSBuild | Debug/Release `TreatWarningsAsErrors` PASS | PLC 동작 승인이 아님 |
-| LASAL IDE build/smoke | D0-D4 통합 source 0 error, version warnings, smoke 3/3 PASS | 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |
+| C# 자동 테스트 | Debug/Release 각 135/135 PASS | fake/synthetic/loopback/source contract 검증 |
+| LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
+| LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
+| 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS | PLC 동작 승인이 아님 |
+| LASAL IDE build/smoke | 이전 통합 source 0 error, version warnings, smoke 3/3 PASS | 이번 executor state-machine 수정 뒤 build/download 필요 |
 | 기존 motion/group PLC E2E 및 재캡처 | 0/25 | diagnostics와 분리 |
-| diagnostics PLC 시험 matrix | 미실시 | D0~D3와 D4 single-bank Ring/Trigger runtime + D4 Double/D5 expected fail-closed |
+| diagnostics PLC 시험 matrix | legacy `0x13F`와 general-inline 1/2/4-byte D5 Read 사용자 실기 PASS | D0~D4, D5 fault + D4 Double/D5 Write/extended expected fail-closed 미실시; 최종 확인 신규 pcap/log 미첨부 |
 
 `0x2051 GroupReadActualPosition`은 exact 68-byte LASAL-DINT response
 (`DINT[16] + status/error`)를 반환한다. 현재 프로젝트에는 dynamic CalcModel이
-없으므로 None/ACS/MCS/PCS 요청을 모두 같은 static axis-order identity 위치로
-읽는다. captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`은 exact
+없으므로 None/ACS만 static member-slot alias로 읽고 MCS/PCS는 C# fail-fast/PLC
+`-7`로 거부한다. slot 1..9는 software member position, slot 10..16은 0이다.
+captured PMAS 136-byte LREAL response는 거부한다. `0x20E7`은 exact
 1320-byte Cartesian X/Y/Z/U identity 요청 전체를 검증하고 static mapping만
 설정한다. profile lock은 `0x2047 GroupEnable`이 별도로 수행하며 이것은 dynamic
 kinematic transform 생성 기능이 아니다.
@@ -128,8 +141,9 @@ locked standby와 unlocked disabled 조건에 연결한다.
 
 - **single-PC P0 MVP:** PC core와 LASAL source는 기존 motion/group 25개와
   diagnostics handled contract 24개를 갖췄고, 성공 응답 capable PLC active 범위는
-  총 44개다. diagnostics active는 D0~D3 18개와 D4 `TriggerRecorder` 1개를 합한
-  19개다. runtime axis/group control/read/motion command는 위 18개까지 열려 있다.
+  총 47개다. diagnostics active는 D0~D3 18개, D4 `TriggerRecorder` 1개와 D5
+  general-inline SDO Read 3개를 합한 22개다. runtime axis/group control/read/motion
+  command는 위 18개까지 열려 있다.
   same-core/priority 확인, PLC smoke와 재캡처가 남았다.
 - **기존 motion 23+2 command API:** source와 정적 계약은 완료됐지만 실제 callback sender,
   session/ownership과 기존 motion/group 25개 PLC 검증이 남아 있다. diagnostics는
@@ -210,19 +224,19 @@ locked standby와 unlocked disabled 조건에 연결한다.
   ACK 뒤 `GroupReadStatus`로 실제 error 해제를 확인한다.
 - `GroupStop(0x2085)`을 `LMCRobot.StopMove(Mode:=3, Decel, Jerk)`로 활성화했다.
   `Aborting(1)`, `Execute=1`, nonnegative deceleration/jerk를 검사하고 nonzero
-  jerk에는 positive deceleration을 요구한다. ACK는 정지 완료가 아니라 stop
-  command 접수다.
+  jerk에는 positive deceleration을 요구한다. 반환 `StopCmdNo`는 오류가 아니라
+  정지가 끝날 buffer index다. ACK는 검증된 dispatch이며 완료/error는 status poll이다.
 - `MoveLinearAbsoluteEx(0x20A4)`는 현재 static 4축만 허용한다. position slot
   1..4만 사용하고 5..16은 0이어야 한다. coordinate `None(0)`, transition
   `ExactStop(0)`/`ContinuousDirect(2)`, buffer `Aborting(1)`/`Buffered(2)`만
-  `LMCRobot.MoveLinearCoord`에 mapping한다.
+  `LMCRobot.MoveLinearCoord`에 mapping한다. C#도 같은 topology/dynamics/options를
+  RPC 전에 fail-fast한다.
 - group nonzero Jerk가 실제 적용되도록 canonical `_LMCRobotBase1`의
   `MoveType=_JERK_PROFILE`, `JMax=50000 mm`와 generated table을 맞췄다.
 - `GroupReadActualPosition(0x2051)`은 68-byte DINT 응답을 만든다. dynamic
-  CalcModel이 없는 현재 프로젝트에서는 None/ACS/MCS/PCS를 모두 동일한 static
-  axis-order 위치로 읽는다. 현재 tracked handler는 `_LMCPROF_POS`의 Pos1..Pos9를
-  복사하므로 과거 first-4-only 설명과 충돌한다. PLC 재캡처 뒤 4축 또는 9축
-  readback 계약을 확정해야 한다.
+  CalcModel이 없는 현재 프로젝트에서는 None/ACS를 동일 static member-slot alias로
+  읽고 MCS/PCS는 거부한다. `_LMCPROF_POS` Pos1..Pos9를 slot 1..9에 복사하고
+  slot 10..16은 0이다. ACS alias runtime은 PLC 재캡처가 남아 있다.
 - `SetKinTransformCartesian4Axis(0x20E7)`은 1,320-byte X/Y/Z/U identity 요청
   전체를 검증해 static mapping만 설정한다. `LockProfile`은 별도
   `GroupEnable(0x2047)`이 수행하며 dynamic transform을 생성하지 않는다.
@@ -408,12 +422,12 @@ padding을 17번째 position으로 해석하면 안 된다.
 
 LASAL-DINT v1 local contract는 response를 exact 68 bytes,
 `DINT[16] + UINT16 status + INT16 error`로 확정했다. PC typed parser는 이
-형태만 받고 captured legacy 136-byte LREAL response를 거부한다. LASAL은
-PMAS coordinate enum(None/ACS/MCS/PCS)을 검증하지만, dynamic CalcModel이 없는
-현재 static 4축 프로젝트에서는 모두 `GetRobotPosition`의 동일 axis-order
-axis-order 위치로 mapping한다. 현재 tracked source는 `_LMCPROF_POS` 9개 값을
-slot 1..9에 복사한다. Move/SetKin/Lock은 계속 4축이므로 readback slot 범위는
-PLC 재캡처 뒤 별도 계약으로 확정한다.
+형태만 받고 captured legacy 136-byte LREAL response를 거부한다. LASAL은 PMAS
+coordinate enum 중 None/ACS만 no-CalcModel static member-slot alias로 허용한다.
+MCS/PCS는 `ErrorId=-7`, 정의되지 않은 enum은 `-3`으로 거부한다. 현재 tracked
+source는 `_LMCPROF_POS` 9개 값을 slot 1..9에 복사하고 slot 10..16은 0으로
+고정한다. Move/SetKin/Lock은 계속 physical X/Y/Z/U 4축 전용이다. ACS alias의
+실제 PLC 동등성과 MCS/PCS 거부 응답은 재캡처가 남아 있다.
 
 ### `0x20E7 SetKinTransformEx/Cartesian`
 
@@ -551,8 +565,8 @@ distribution 외부 승인 기록에 보존해야 한다.
    - 권장: PMAS wire-compatible라고 부르지 말고 `LASAL-DINT v1`로 명시한다.
 3. `0x2051` response type
    - 결정 완료: LASAL-DINT v1 exact 68B `DINT[16]+status/error`.
-   - 현재 프로젝트는 dynamic CalcModel이 없어 None/ACS/MCS/PCS를 동일 static
-     axis-order identity 위치로 mapping한다.
+   - 현재 프로젝트는 dynamic CalcModel이 없어 None/ACS만 static member-slot alias로
+     허용하고 MCS/PCS는 지원하지 않는다.
 4. `0x20E7` 적용 방식
    - 결정 완료: PC는 exact 1320-byte captured Cartesian4 serializer를 사용.
    - LASAL은 exact identity shape를 1320-byte queue에서 검증하고 static 4축
@@ -607,9 +621,10 @@ distribution 외부 승인 기록에 보존해야 한다.
 
 ## 후속 개발 트랙: EtherCAT PI/Bulk/Recorder (2026-07-20 역사적 snapshot)
 
-아래 단계 표와 D0 반영 bullet은 2026-07-20 D0 착수 시점의 기록이다. 현재는 D1~D3와
-D4 single-bank Ring/Trigger까지 source-active이고, D4 Double과 D5 PLC 실행은
-capability-off다. 현재 수치와 검증 경계는 문서 상단의 `현재 구현 완료도 판정`을 따른다.
+아래 단계 표와 D0 반영 bullet은 2026-07-20 D0 착수 시점의 기록이다. 현재는 D1~D3,
+ D4 single-bank Ring/Trigger와 D5 general-inline SDO Read가 source-active이고, D4 Double,
+D5 Write/extended result는 capability-off다. 현재 수치와 검증 경계는 문서 상단의
+`현재 구현 완료도 판정`을 따른다.
 
 2026-07-20 당시 motion/control API 구조 검증 뒤 진행할 diagnostics 기능은 아래 단계로
 분리했다. 상세 구조, wire schema, RT/Non-RT 경계와 검증 gate는

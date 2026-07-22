@@ -18,9 +18,13 @@
 - Recorder: capability-gated Single/Ring/Double 및 Manual/Edge/Window/Mask configuration,
   start/stop/status/header, reconnect adoption, chunk download, CSV와 dependency-free
   downsample plot
-- SDO/Write Policy: SDO ticket submit/status/cancel, 4/8/12-byte inline 결과,
-  extended result chunk download/save, capability 및 allowlist로 차단되는 PI/SDO
-  Write 확인
+- SDO/Write Policy: general-inline SDO Read ticket submit/status/queued cancel,
+  nonzero ObjectIndex, 임의 U8 SubIndex와 typed 1/2/4-byte inline 결과 표시/save,
+  capability 및 write allowlist로
+  차단되는 PI/SDO Write와 extended result 확인
+- Read-only API: Admin capability를 선행 확인한 뒤 physical axis 1~4의 semantic
+  parameter, fixed group `0x0100` parameter, typed drive operation mode와 non-atomic
+  drive status를 읽는 Phase 1 실기 검증 화면
 - Execution Log: connection state, response 결과와 raw callback diagnostic
 
 Motion command는 현재 PLC 활성 경로만 노출한다. Diagnostics command는 SDK surface를
@@ -61,10 +65,28 @@ Window trigger의 기존 wire 필드는 `TriggerValue=lower bound`,
 TriggerMask를 항상 0으로 보내고 Mask는 BitField16/32와 non-zero TriggerMask를
 요구해 세 경로의 의미를 섞지 않는다.
 
-SDO 4/8/12-byte result는 `GetOperationStatusAsync` response의 `ResultData`로 표시한다.
-12 bytes 초과 Read는 `ExtendedSdoResultChunk` capability와 `MaxSdoDataBytes`를 확인한
-뒤 제출한다. terminal success 후 `ReadSdoResultChunkAsync(0x7E51)`를 offset/sequence로
-반복해 CRC가 검증된 전체 결과를 조립하고 raw binary로 저장한다.
+현재 SDO UI는 slave 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히
+맞는 1/2/4-byte Read를 제출한다. 활성화에는 bit 8 `SDORead`와 bit 13
+`SDOReadGeneralInline`이 모두 필요하다.
+`GetOperationStatusAsync`의 terminal `ResultData`를 raw bytes로 표시하고 저장한다.
+SDK와 WPF에 extended result parser/download scaffold가 있더라도 current inline policy와
+PLC capability가 8/12-byte 및 `0x7E51` 경로를 차단하므로 현재 화면 계약에 포함하지
+않는다. SDO Write와 PI Write도 non-empty SDK/PLC allowlist가 승인되기 전까지
+fail-closed한다.
+
+Read-only API 탭의 Admin 흐름은 `GetAdminCapabilitiesAsync(0x7D00)` 성공 결과를
+connection-local UI cache로 보관한 뒤에만 axis/group 버튼을 연다. capability refresh를
+시작하면 기존 cache를 먼저 폐기하고, 실패한 응답 뒤 stale capability로 read를 계속하지
+않는다. axis parameter는 physical reference 1~4와 6개 semantic key만, group parameter는
+reference `0x0100`과 3개 key의 선택 mask만 허용한다. Close/reconnect에서는 capability
+cache와 표시 결과를 모두 지운다.
+
+Drive read는 선택한 physical reference와 현재 loaded axis가 일치하면 그 handle을
+재사용하고, 아니면 `_LMCAxisN`을 새 session에서 lookup한 뒤 반환 reference를 다시
+검증한다. `ReadDriveStatusAsync`는 LASAL axis status, DS402 `0x6041:0`, operation mode
+`0x6061:0`을 순차 실행하므로 atomic same-cycle snapshot으로 표시하거나 해석하지 않는다.
+이 탭에는 motion/write control을 추가하지 않는다. Admin `0x7D00/10/20`은 LASAL IDE
+build/download와 live PLC 검증이 끝날 때까지 화면에도 그 검증 경계를 명시한다.
 
 ## 4. UNIT 규칙
 
@@ -178,11 +200,13 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
 - Group Power On/Off, profile Lock/Unlock, Reset/Stop/Read Position,
   Move Linear/Set Identity Kinematics의 UI-to-API handler와 group InPosition
   monitor 확인
-- 실제 실행 창과 두 탭의 layout/accessibility smoke test
+- 실제 실행 창과 모든 탭의 layout/accessibility smoke test
 - diagnostics capability fail-closed 상태, Catalog selection, Bulk resource lifecycle,
   Recorder mode/trigger capability gate, Ready/Header gate, reconnect adoption,
   download progress/cancel, metadata CSV와 plot smoke test
-- SDO ticket submit/status/cancel, terminal inline result, extended result chunk
-  download/save와 PI/SDO Write allowlist gate
+- general-inline SDO Read ticket submit/status/queued cancel, terminal typed 1/2/4-byte
+  inline result/save와 PI/SDO Write 및 extended result gate
+- Read-only API의 Admin capability fail-closed, axis/group semantic allowlist,
+  physical axis lookup/reference 검증과 drive status non-atomic 표기
 - 실제 PLC 시험은 Read Status/Position부터 시작하고 motion은 마지막에 수행
 - `MoveCircle`은 공개 API와 승인된 DINT wire 계약이 생기기 전까지 UI에 추가하지 않음

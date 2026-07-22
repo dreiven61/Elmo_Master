@@ -8,7 +8,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 
 ## 개발 상태
 
-2026-07-21 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
+2026-07-22 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
@@ -23,45 +23,86 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
 - LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 24개 ID 예약
   - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler 활성
   - D4: single-bank Ring/Trigger와 `0x7E42` 활성, Double bank는 미구현
-  - D5: PC 공개 API와 exact wire contract만 존재하며 PLC capability는 0이고
-    `UnsupportedFeature`를 반환
-  - D6: static compatibility facade 미구현
-- 성공 응답 capable PLC active command: 44개
-  (기존 motion/group 25 + diagnostics D0~D3 18 + D4 Trigger 1)
-- dispatcher/wire handled contract: 49개
-  (active 44 + D5 exact fail-closed 5)
+  - D5: test profile에서 축 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed
+    1/2/4-byte SDO Read ticket/status/queued cancel 활성; Write와 extended result는 비활성
+  - Phase 1 PI/Bulk compatibility facade: catalog alias PI Read와
+    `AddEntry/Configure/Upload/GetEntry` local builder/reader 구현; wire는 D1/D2 재사용
+- LASAL read-only admin command: 3개
+  (`0x7D00 GetAdminCapabilities`, `0x7D10 ReadAxisParameter`,
+  `0x7D20 ReadGroupParameters`)
+- 성공 응답 capable PLC active command: 50개
+  (기존 motion/group 25 + diagnostics D0~D3 18 + D4 Trigger 1 + D5 general-inline 3 + admin 3)
+- dispatcher/wire handled contract: 52개
+  (active 50 + D5 reserved `0x7E21/0x7E51` 2)
 - C# diagnostics 공개 API: D0~D5 sync/async contract 구현
 - LASAL diagnostics test build capability:
-  - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000003F`
+  - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000213F`
   - bit 0~2: Health, SignalCatalog, PIRead
   - nonzero retained BootId일 때 bit 3~4: BulkSnapshot, RecorderSingleBank
   - nonzero retained BootId일 때 bit 5: RecorderTrigger
-  - bit 6~12: 0
+  - nonzero retained BootId일 때 bit 8: SDORead, bit 13: SDOReadGeneralInline,
+    `MaxSdoDataBytes=4`
+  - bit 6, 7, 9~12: 0
 - CyWork axis/group control·read·motion command: 18개
   (lifecycle과 name/member metadata handler 제외)
   (`0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: 102/102 PASS
-- LASAL source-only/full-network static contract: PASS
-- 개발 WPF example VS2019 MSBuild Debug/Release `TreatWarningsAsErrors`: PASS
-- DiagnosticsBootCounter/D1~D4 single-bank 통합 source LASAL IDE Rebuild/Link: 0 error,
-  version mismatch warning. 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기
+- C# 자동 테스트 runner: Debug/Release 각 135/135 PASS
+  (Phase 1 admin/drive-read/PI-Bulk/error catalog와 reconnect race 포함)
+- LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
+  declaration과 current source 동기화 확인
+- 개발 WPF example Debug/Release build와 각 3초 startup smoke: PASS
+- DiagnosticsBootCounter/D1~D4 single-bank와 gate-off D5 source LASAL IDE
+  Rebuild/Link: 0 error, version mismatch warning. gate-on fixed-source runtime download는
+  BootId 5 capture로 확인했지만 대응 IDE build/smoke log는 미보존
 - 위 통합 source의 `Find in Implementation` smoke: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS; smoke 이후 `Lasal2.log`의 신규
   `CInvalidArgException` 0건
 - CyWork와 motion RT thread의 CPU core/priority 조건: 미검증
-- 현재 diagnostics PLC end-to-end와 Wireshark 재캡처: 미실시
+- diagnostics PLC: legacy 축 1~4와 general-inline 1/2/4-byte SDO Read는 사용자 실기
+  PASS. 최종 확인 신규 pcap/log와 D5 fault matrix/D1~D4 시험은 없음
 
 기존 motion/control PC API 범위는 캡처 기반 23개 command와 LASAL local motion
 extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
 `LMCConnection.Diagnostics` 아래 D0~D5 공개 API와 common envelope, capability,
 Catalog/Health/PI/Bulk/Recorder/ticket/chunk parser를 제공한다. 현재 PLC test build가
-광고하는 실제 실행 범위는 D1 read-only, D2 Bulk, D3 single-bank manual Recorder와
-D4 single-bank Ring/Edge/Window/Mask/forced Trigger다. D4 Double bank와 D5 PI/SDO
-operation은 PLC가 capability를 광고하지 않으므로 호출 전에 차단되거나
-`UnsupportedFeature`가 반환된다. D6 static compatibility facade는 구현하지 않았다.
+광고하는 실제 실행 범위는 D1 read-only, D2 Bulk, D3 single-bank manual Recorder,
+D4 single-bank Ring/Edge/Window/Mask/forced Trigger와 D5 general-inline SDO Read다.
+D5의 legacy `0x1000:0` 4축 path와 general-inline 1/2/4-byte SDO Read는 사용자가
+실제 PLC에서 정상 동작을 확인했다. 이 확인에 대한 신규 pcap/log는 이번 기준선에
+별도로 보존되지 않았다.
+D4 Double bank와 D5 PI/SDO Write 및 extended
+result는 capability-off라 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
+PI/Bulk compatibility facade는 `CreatePIBulkBuilder(catalog)`와 alias `ReadPI`로 구현했다.
+builder는 catalog의 exact `MapRevision`, readable flag, 최대 32개와 중복을 검사하며,
+`Upload` 뒤 `GetEntry/TryGetEntry`로 최신 snapshot을 조회한다. 별도 D6 wire를 만들지 않고
+D1/D2 wire를 그대로 사용한다.
+
+Phase 1 read-only 확장은 `LMCConnection.Admin`과 `LMCSingleAxis` facade로 제공한다.
+Admin capability `0x7D00`을 확인한 뒤 physical axis 1..4의 6개 semantic Int32 parameter를
+`0x7D10`으로 읽고, group `0x0100`의 path velocity/acceleration/jerk-time을 `0x7D20`으로
+읽는다. axis key 3의 정확한 이름은 `EndPositionToleranceWindow`이며 profile
+in-position 상태와 다른 값이다. `GetDriveOperationMode[Async]`는 D5 SDO
+`0x6061:0 Int8/1`을, `ReadDriveStatus[Async]`는 axis status -> `0x6041` -> `0x6061`을
+순차 조회한다. 이 composite는 atomic same-cycle snapshot이 아니다. async cancellation은
+PC의 ticket wait만 중단하며 제출된 PLC ticket을 자동 cancel하지 않는다. terminal poll
+간격은 PLC가 광고한 `BaseCycleTimeUs`에서 계산하고 최대 poll 수는
+`TimeoutCycles+32`다. 제출 뒤 취소는 ticket을 포함한
+`LMCSdoReadWaitCanceledException`으로 보고한다. 이미 진행 중인 status RPC는 caller
+token으로 transport를 끊지 않고 응답을 수신한 뒤 취소를 관찰하므로 connection과
+ticket 재조회 가능 상태를 보존한다.
+
+`../LasalApiWpfTestApp`의 `Read-only API` 탭은 이 Phase 1 surface를 실물에서 확인하는
+전용 UI다. Admin capability를 먼저 읽어야 axis/group parameter 버튼이 활성화되고,
+physical axis 1..4의 operation mode와 non-atomic drive status도 같은 탭에서 확인한다.
+이 화면은 read-only이며 LASAL IDE build/download와 live PLC 검증을 대신하지 않는다.
+
+`LMCErrorCatalog.TryDescribe`는 AdapterCommand, AdminDetail, DiagnosticsDetail,
+GroupProfile domain을
+명시한 project-local versioned description/resolution만 제공한다. Elmo Personality 전체
+error database가 아니며 같은 숫자를 domain 없이 해석하면 안 된다.
 새로
 추가한 `0x2051`은 LASAL-DINT v1 전용 68-byte success response
 (`DINT[16] + UINT16 status + INT16 error`)만 받으며 캡처의 PMAS legacy
@@ -82,10 +123,12 @@ group source는 local extension인 `GroupPowerOn(0x204A)`/`GroupPowerOff(0x204B)
 `GroupDisable(0x2048)`의 `UnlockProfile`이 담당한다. GroupDisable은
 `ProfileInPosition(_LMCPROF_ProfileFinished)`가 확인된 상태에서만 unlock한다.
 
-주의: current `0x2051` handler는 `_LMCPROF_POS`의 Pos1..Pos9를 DINT[16]
-response slot 1..9에 복사한다. 기존 4축-only position read 문서와 충돌하므로
-PLC 재캡처 뒤 4축 또는 9축 readback 계약을 확정해야 한다. 이 문제는
-Move/SetKin/Lock의 4축 제한을 9축 group motion으로 확대하지 않는다.
+current `0x2051` handler는 None/ACS만 허용하며, no-CalcModel static identity에서
+두 이름 모두 member-slot read alias다. MCS/PCS는 C#에서 fail-fast하고 구 SDK로
+요청하면 PLC가 `ErrorId=-7`로 거부한다. `_LMCPROF_POS`의 Pos1..Pos9는 DINT[16]
+response slot 1..9에 복사되고 slot 10..16은 0이다. 이는 software group member
+readback 계약이며 Move/SetKin/Lock의 4축 제한을 9축 group motion으로 확대하지
+않는다. ACS alias의 실물 동등성은 PLC 시험과 packet capture가 남아 있다.
 
 정상 group 순서는 `GroupPowerOn -> GroupReadStatus.IsPowerOn -> identity axes
 ReadStatus.IsReferenced -> SetKinTransform ->
@@ -98,15 +141,18 @@ LASAL project-local Power Ready 확장이다. `0x00020000`은 Maestro 표준
 현재 어댑터는 각각 locked standby(`IsStandby/IsEnabled`)와 unlocked
 disabled(`IsDisabled`) 조건에서 이 표준 mask를 설정한다.
 
-다만 이것은 PC/LASAL source, IDE build/smoke와 정적 계약 완료 판정이다. PLC
-download, runtime smoke test와 재캡처가 남아 있으므로 실제 장비 API 완료가 아니다.
+다만 전체 장비 API 완료가 아니다. D5 legacy fixed-vector Read의 PLC download와 축 1~4
+happy-path 재캡처는 완료했지만 current general-inline, 기존 motion/group, D1~D4와 D5
+fault matrix가 남아 있다.
+Phase 1 `0x7D00/0x7D10/0x7D20`은 C#/LASAL source와 정적 계약까지 구현됐지만 LASAL IDE
+Rebuild/Link, PLC download, 실물 parameter 값/UNIT과 packet capture는 아직 검증하지 않았다.
 callback은 payload 캡처가 없어 raw datagram event까지만
 제공한다.
 다중 PC의 읽기 공유·motion owner 정책은 LASAL session/ownership 계층에서
 구현해야 한다.
 
-실제 PLC 다운로드/packet 재캡처는 아직 수행하지 않았다. WPF example의 live
-command gate, 작은 기본값, 물리 E-stop과
+기존 motion/group과 D1~D4의 PLC download/packet 재캡처는 아직 수행하지 않았다.
+WPF example의 live command gate, 작은 기본값, 물리 E-stop과
 `../LasalApiWpfTestApp/README.md`의 순서를 지켜 단계별로 검증한다.
 
 tracked `TCPMotionInterface.Response()`는 최대 1,328-byte frame을 2,048-byte
@@ -184,9 +230,9 @@ receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 que
 - `docs/AUTOMATED_TESTS_2026-07-10.md`: 자동 테스트 범위와 실행법
 - `docs/SESSION_MANAGEMENT_DESIGN_2026-07-09.md`: 다중 PC 세션 관리 설계
 - [`../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md):
-  D1~D3와 D4 single-bank Ring/Trigger 내부 PLC 다운로드·실기 시험 순서와 판정 기준
+  D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline Read 내부 PLC 시험 순서와 판정 기준
 
-자동 테스트는 `RunPcTests`(C# 101 cases), `RunLasalContract`(tracked LASAL
+자동 테스트는 `RunPcTests`(C# Phase 1 case 포함), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
 분리돼 있다. 고객 배포 예제 build는 기본 `RunTests` 완료 조건에서 제외한다.
 
@@ -210,6 +256,9 @@ Group motion의 nonzero Jerk도 robot profile 설정이 필요하다. canonical
 `GroupReset`은 `AxQuitError(AxisNo:=0)` 기반 axis/hardware error reset이며 robot
 profile error 전체 초기화를 보장하지 않는다. `GroupReset`과 `GroupStop` ACK 뒤에는
 `GroupReadStatusResult`로 실제 상태를 확인한다.
+`StopMove()` 반환값은 오류가 아니라 정지가 끝날 profile-buffer `StopCmdNo`이므로
+ACK status/error로 해석하지 않는다. GroupStop success ACK는 입력 검증과 호출
+dispatch까지만 뜻한다.
 
 선형축 profile 예:
 

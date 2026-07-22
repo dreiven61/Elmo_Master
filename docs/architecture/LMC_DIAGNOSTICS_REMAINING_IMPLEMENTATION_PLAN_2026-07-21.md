@@ -4,14 +4,24 @@
 - 최종 검토일: 2026-07-22
 - 대상: LASAL PLC diagnostics D0-D6, C# SDK, `LasalApiWpfTestApp`,
   `Codex_PMAS_WPF_Version2`, native packet capture 비교
-- 현재 PLC capability baseline: `0x0000003F`
+- 현재 test-profile source capability: `0x0000213F`, `MaxSdoDataBytes=4`
 
 ## 1. 결론
 
 현재 Git source와 working implementation 기준으로 D0-D3, D4 single-bank Ring/Trigger와
-D5 first-slice SDO Read 실행부가 구현돼 있다. D5는 capability gate가 꺼져 있어 PLC가
-광고하거나 실행하지 않으며, D4 Double bank와 D6 static compatibility facade는 구현되지
-않았다.
+D5 general-inline SDO Read 실행부가 구현돼 있다. test-profile source는 D5 bit 8
+`SDORead`, bit 13 `SDOReadGeneralInline`과 `MaxSdoDataBytes=4`를 광고하도록
+활성화했다. gate-on 첫 runtime은 same-cycle immediate
+timeout으로 실패했고 request-local/class-member shadowing을 수정했다. 후속 download의
+Slave 1~4 happy path는 43~54 cycles 뒤 Completed/Success와 UInt32 4-byte 결과로
+PASS했다. 이것은 legacy `0x1000:0` fixed-vector runtime 증거다. nonzero Index,
+Sub-index 0-255와 exact typed 1/2/4-byte general-inline source는 구현됐다. 과거 BootId 6
+general-inline 캡처의 `ResourceBusy(9)` 결함은 callback ordering과 owned completion
+회수 source에서 수정했다. 이후 사용자가 general-inline 1/2/4-byte runtime 정상 동작을
+확인했다. 최종 확인 신규 pcap/log와 failure/timeout/cancel/orphan matrix는 남았다.
+D4 Double bank와 기존 D6 계획의 static/handle facade는 구현되지 않았다. Phase 1에는
+별도 D6 wire 없이 D1/D2를 재사용하는 instance 기반 PI/Bulk compatibility facade가
+구현됐다.
 
 이번 작업에서 Health 화면 예외, Recorder Stop 완료 경쟁과 Download/CSV 용어 혼동을
 수정했다. `LMCEcatInputLatch1` 중복 주기 실행 의심은 HEAD/current XML 재비교 결과
@@ -22,9 +32,15 @@ capture도 분석해 PMAS Version2 Recorder의 ready/header/range gate와 PI 선
 
 2026-07-22 `LMCSdoExecutor : EtherCAT_SDOBase`, 축별 executor 4개, service one-ticket
 실행부와 두 network의 연결을 구현했다. Recorder terminal Stop 멱등 처리도 유지했다.
-PC 자동 시험 103/103, WPF Debug/Release build, LASAL source-only/full-network 정적 계약과
-10:53 IDE Rebuild/Link가 통과했다. 최신 `Find in Implementation` smoke, PLC download,
-D1-D4 fault/capture 실장 시험과 실제 SDO runtime 시험은 아직 수행하지 않았다.
+PC 자동 시험 135/135, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정 LASAL SourceOnly/
+full static 계약이 통과했다. `Classes.lcb`의 `TryStartRead` declaration도 current source와
+동기화됐다. 10:53 IDE
+Rebuild/Link는 gate-off baseline 결과다. gate-on 첫 D5
+runtime은 Ticket 11 same-cycle Expired/TimedOut으로 실패했지만 수정 후 BootId 5의
+Slave 1~4 Ticket 5~8은 모두 Completed/Success로 통과했다. 이후 BootId 6 general-inline
+Submit은 `ResourceBusy`로 실패했고 callback recovery source를 수정했다. 수정본의
+general-inline 1/2/4-byte runtime은 사용자 실기 확인 PASS다. 최종 확인 신규 pcap/log,
+D5 fault matrix 및 D1-D4 fault/capture 실장 시험은 아직 남아 있다.
 
 이 문서에서 다음 표현은 구분한다.
 
@@ -42,21 +58,22 @@ D1-D4 fault/capture 실장 시험과 실제 SDO runtime 시험은 아직 수행�
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release | same-cycle 및 부하 PLC 검증 |
 | D3 | internal test source 활성 | 1,280,000-byte single bank, 최대 24채널 Manual Recorder, download/adopt/release | RAM, jitter, 장시간 upload, reconnect PLC 검증 |
 | D4 | single-bank Ring/Trigger 활성 | pre-trigger ring, Edge/Window/Mask, forced trigger, chronological upload | trigger PLC 검증 및 Double bank 구현 |
-| D5 | first-slice Read source/network 구현 및 IDE build 완료; capability off | 4축 derived executor, 한 ticket, status/queued cancel, timeout/orphan drain, SDK/WPF read-only policy | PLC runtime 검증 후 bit 8 승인; 이후 write policy |
-| D6 | 미구현 | instance 기반 `LMCConnection`은 유지 | C# static/handle compatibility facade |
+| D5 | general-inline Read source 구현; legacy 4축과 수정본 1/2/4-byte 사용자 실기 PASS | 4축 derived executor, 한 ticket, nonzero Index/any SubIndex, typed 1/2/4-byte inline status, queued cancel, timeout/orphan drain | 최종 성공 증거와 fault matrix 후 production 승인; 이후 write policy |
+| D6 | 기존 static/handle 계획 미구현 | Phase 1 D1/D2 기반 PI/Bulk instance facade는 구현 | 별도 wire 없이 static registry가 실제로 필요한지 재평가 |
 
 현재 정상 retained BootId 경로의 capability는 다음과 같다.
 
 ```text
-CapabilityBits       = 0x0000003F
+CapabilityBits       = 0x0000213F
 MapRevision          = 0x957F101E
 CatalogEntryCount    = 24
 RecorderBufferCount  = 1
-MaxSdoDataBytes      = 0
+MaxSdoDataBytes      = 4
 ```
 
-즉 bit 0-5만 활성이다. bit 6 `RecorderDoubleBank`, bit 7 `PIWrite`, bit 8
-`SDORead`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
+즉 bit 0-5, bit 8 `SDORead`와 bit 13 `SDOReadGeneralInline`이 활성이다. bit 13은
+bit 8과 `MaxSdoDataBytes=4`를 요구한다. bit 6 `RecorderDoubleBank`, bit 7
+`PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
 
 ## 3. 이번 작업에서 완료한 수정
 
@@ -87,7 +104,9 @@ Stop 전 authoritative status를 읽는다. 이미 terminal 상태이면 Stop co
 추가됐다고 잘못 판정했다. HEAD와 current XML 모두 이 객체에
 RealTime/Cyclic/Background scheduling 속성이 없다. 현재 실행 경로는 이미
 `_LMCAxis1.LMCPreRtWorkTrigger -> LMCEcatInputLatch1.ClassSvr` 하나이고
-full-network 정적 계약도 PASS다. `.lcn/.lcb` diff는 연결·scheduling 변경이 아니라
+해당 topology 검사는 이전 full-network 계약에서 PASS했다. 현재 `Classes.lcb`도
+`TryStartRead` declaration과 동기화돼 full static suite가 PASS한다.
+`.lcn/.lcb`의 당시 layout diff는 연결·scheduling 변경이 아니라
 IDE 시각 배치 metadata이므로 기능 수정으로 커밋하지 않는다.
 
 ### 3.5 native capture와 PMAS Version2 정렬
@@ -102,8 +121,9 @@ diagnostics `0x7Exx` packet은 포함하지 않는다. 분석 결과를 다음�
 - PMAS Recorder의 checked PI를 native `uiRv/uiRc`로 변환하는 local helper를 추가했다.
 - `uiSr` ready mask, global header `Rl`, selected buffer와 `[From..To]` 범위를 확인하기
   전에는 Header/Download를 실행하지 않는다. 실패한 RPC 뒤 stale cache도 재사용하지 않는다.
-- capture로 확인된 SDO 성공 범위는 `0x1000:0` UInt32 4 bytes뿐이다. D5 첫 증분은
-  4-byte Read-only로 제한하고 8/12-byte와 Write는 별도 gate 뒤에 연다.
+- capture로 확인된 SDO 성공 범위는 `0x1000:0` UInt32 4 bytes뿐이다. 이 값은 legacy
+  fixed-vector runtime 증거로 보존한다. 현재 source는 general-inline 1/2/4-byte Read로
+  확장했으며 8/12-byte와 Write는 계속 별도 gate 뒤에 둔다.
 
 PMAS Version2의 `uiSr=0` 차단과 `0x0104` ready flow는 source/build 수준으로만
 확인했다. 실제 controller UI smoke는 남아 있다.
@@ -117,15 +137,18 @@ case에 맡기지 않고 `LMCDiagnosticsService`의 명시적 handler와 one-tic
 - `0x7E03/0x7E04`는 exact 16-byte request만 구조적으로 유효하다.
 - `0x7E50`은 32-byte header, OperationFlags 0/1, reserved zero와 read/write별 정확한
   payload 길이를 검증한다.
-- malformed shape는 `BoundsInvalid`, 구조적으로 유효한 request는
-  gate-off 상태에서 `UnsupportedFeature`다.
-- capability는 계속 `0x0000003F`, `MaxSdoDataBytes=0`이다. ticket, drive callback과
-  SDO 실행 source는 존재하지만 compile-time gate 앞에서 비활성이다.
-- PC 회귀는 first-slice capability `MaxSdoDataBytes=4`에서 4-byte read를 허용하고
+- malformed shape는 `BoundsInvalid`이고, 구조적으로 유효한 general-inline request는
+  gate-on test source에서 ticket 실행 경로로 들어간다.
+- stable BootId에서 capability는 `0x0000213F`, `MaxSdoDataBytes=4`다. bit 13은 bit 8과
+  MaxSDO=4가 함께 있을 때만 유효하다. BootId가 0이거나
+  Diagnostics client가 없으면 MaxSDO는 0인 fail-closed 응답을 유지한다.
+- PC 회귀는 bit 13이 없을 때 legacy `0x1000:0` UInt32/4-byte만 허용하고, bit 13이
+  있으면 supported ValueType과 정확히 일치하는 1/2/4-byte general request를 허용하며
   8-byte read를 송신 전에 거부하는 경계를 포함한다.
 
-위 세 handler와 executor/service 실행부는 최신 정적 계약 및 10:53 LASAL IDE
-Rebuild/Link를 통과했다. 이것은 PLC mailbox 동작 성공 증거가 아니다.
+위 세 handler와 executor/service 실행부는 최신 정적 계약을 통과했다. 10:53 LASAL IDE
+Rebuild/Link는 gate-off source 기준이므로 gate-on source는 다시 Rebuild해야 한다. 어느
+결과도 PLC mailbox 동작 성공 증거가 아니다.
 
 ### 3.7 `EtherCAT_SDOBase` 파생 executor 구현
 
@@ -145,18 +168,41 @@ Rebuild/Link를 통과했다. 이것은 PLC mailbox 동작 성공 증거가 아�
 정확한 class, state machine, wire validation과 검증 gate는
 `LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 기준으로 한다.
 
+### 3.8 general-inline ResourceBusy 회귀와 executor recovery 수정
+
+`SDO_Test_Error.pcapng`에서 BootId 6 PLC는 `0x213F`, MaxSDO=4를 정상 광고했지만
+캡처된 두 Submit은 ticket 전 `ResourceBusy(9)`로 실패했다. 실제 wire request는
+`0x6061:0` UInt16/2와 Int8/1 두 건이다. `0x6041:0`, `0x1018:1`, accepted ticket과
+status는 이 capture에 없다.
+
+wire DetailCode 9는 service active/drain gate와 executor non-reusable gate를 구분하지
+않는다. 최초 callback도 capture 밖이므로 정확한 최초 trigger는 추정으로 남긴다. 다만
+실패 당시 source에서 다음 결함은 직접 확인했다.
+
+- vendor call 뒤에야 `Running`을 publish하는 callback race window
+- owned callback validation failure가 `Quarantined`로 된 뒤 `Idle`로 회수되지 않는 경로
+- orphan callback의 validation failure가 adapter 회수를 막을 수 있는 경로
+
+수정 source는 vendor call 전에 `Running`을 publish한다. request 미접수와 owned
+completion cleanup에는 내부 `Releasing=6`을 사용한다. owned validation failure는
+`ResultReady`로 publish해 service가 terminal Failed로 보고한 뒤 release하고, orphan
+callback은 public 결과 없이 release한다. active token이 없는 unsolicited/duplicate
+callback과 token/atomic ownership 불일치만 hard quarantine한다. SourceOnly/full static
+계약은 PASS했고 `Classes.lcb` declaration도 동기화됐다. 최신 IDE Rebuild/Link, PLC
+download와 같은 BootId의 연속 재사용 시험은 대기 중이다.
+
 ## 4. 구현 우선순위
 
 단계 번호는 설계 분류이고 아래 `P0-P5`는 실제 작업 순서다.
 
 | 우선순위 | 작업 | 완료 조건 |
 |---|---|---|
-| P0 | LASAL IDE save 회귀 복구 완료 | D5 실행 source와 Recorder terminal Stop 병합, 정적 계약, 10:53 Rebuild/Link 통과 |
-| P1 | 최신 LASAL source PLC 검증 | 최신 implementation smoke 후 5절의 D1-D4 행을 모두 통과하고 packet/trace 결과를 보존 |
-| P2 | D5 첫 증분: SDO Read-only runtime 승인 | 구현된 한 ticket/4축/4-byte inline source를 PLC에서 검증한 뒤 bit 8만 추가 광고 |
+| P0 | LASAL source 회귀와 D5 shadowing 수정 완료 | D5 실행 source, Recorder terminal Stop, request-local 수정과 정적 계약 통과; 10:53 build는 gate-off baseline |
+| P1 | executor 명시 초기화와 최신 LASAL source PLC 검증 | IDE에서 `LMCSdoExecutor` constructor declaration/`@STD` wiring을 생성하고 private state를 초기화한 뒤 gate-on source Rebuild/implementation smoke, 5절의 D1-D4 행과 D5 재시험을 통과해 packet/trace 결과 보존 |
+| P2 | D5 general-inline SDO Read-only | 한 ticket/4축/1·2·4-byte inline source와 bit 8+13 광고 구현; legacy 4축 및 수정본 general-inline 사용자 실기 success 확보, 최종 packet/log와 fault matrix가 잔여 gate |
 | P3 | D4 Double bank | 두 고정 bank의 capture/upload 소유권과 full 정책을 구현하고 RAM/jitter 기준 통과 후 bit 6 광고 |
 | P4 | D5 Write Policy | PI/SDO Write를 별도 증분으로 구현하고 기본 off, 이중 allowlist, type/range/state/owner 검증 |
-| P5 | D6 C# compatibility facade | PLC/wire 변경 없이 handle registry와 static sync/async wrapper 및 concurrency 시험 추가 |
+| P5 | D6 static/handle facade 재평가 | Phase 1 D1/D2 instance facade 사용성 검증 뒤 registry/static wrapper가 실제로 필요한 경우에만 추가 |
 
 P2를 P3보다 먼저 둔 이유는 SDO Read-only가 한 ticket과 4-byte 결과로 범위를
 고정할 수 있기 때문이다. Double bank는 PLC RAM, RT jitter, 두 bank ownership 및
@@ -192,18 +238,26 @@ reconnect 의미를 함께 검증해야 하므로 현재 single-bank 실장 기�
 - 물리 축 1-4의 SDO Read만 허용
 - `SubmitSDO (0x7E50)`, `GetOperationStatus (0x7E03)`,
   `CancelOperation (0x7E04)` 실행
-- 결과 길이 4 bytes만 허용
-- 4 bytes를 `GetOperationStatus` response에 inline
+- nonzero ObjectIndex와 SubIndex 0..255 허용
+- Bool/Int8/UInt8/BitField8은 1 byte, Int16/UInt16/BitField16은 2 bytes,
+  Int32/UInt32/Real32/BitField32는 4 bytes만 허용
+- 요청 type과 일치하는 1/2/4 bytes를 `GetOperationStatus` response에 inline
 - `Queued -> Running -> Completed/Failed` 상태와 queued-only cancel
 - drive busy는 bounded retry, start 실패와 SDO abort는 ticket failure로 반환
 - disconnect 시 queued ticket 취소, running callback 결과는 폐기한 뒤 slot 회수
-- 실제 object 크기가 확인된 read allowlist만 사용. 첫 실기 벡터는 `0x1000:0`
-  UInt32/4-byte read다.
+- first live regression vector는 `0x1000:0` UInt32/4-byte read다. 일반 Index/SubIndex는
+  object dictionary에서 크기와 read-only 성격을 확인한 항목으로 시험한다.
 
 2026-07-22 현재 위 세 command, `SdoAxis1..4` client, callback mailbox, one-ticket state
 machine, RT latch cycle 기반 실행 scheduling과 network/generated table까지 구현했다.
-10:53 Rebuild/Link도 통과했다. 그러나 compile-time gate는 `FALSE`이고 PLC download 및
-실제 axis 1-4 `0x1000:0` 성공/실패/timeout/orphan 동작은 미검증이다.
+10:53 gate-off Rebuild/Link는 baseline으로 통과했다. compile-time gate는 test 목적으로
+`TRUE`며 legacy stable BootId capability `0x13F`, MaxSDO=4도 캡처에서 확인했다. 첫
+`0x1000:0`은 request-local shadowing으로 same-cycle Expired 됐지만 수정 후 BootId 5의
+Slave 1~4 요청은 43~54 cycles 뒤 모두 Completed/Success, UInt32 4-byte 결과를
+반환했다. 이 캡처는 bit 13과 general-inline shape를 검증하지 않는다. current source의
+`0x213F` capability는 BootId 6 capture에서 확인됐지만 general-inline Submit 두 건이
+`ResourceBusy`로 실패했다. callback recovery 수정본의 1/2/4-byte 연속 성공과 실패 뒤
+무재부팅 재사용, failure/timeout/cancel/orphan qualification이 필요하다.
 
 ### 6.2 제외 범위
 
@@ -212,15 +266,18 @@ machine, RT latch cycle 기반 실행 scheduling과 network/generated table까�
 - 둘 이상의 동시 ticket 또는 축별 병렬 SDO
 - 동적 메모리와 무제한 retry
 
-첫 증분이 모든 gate를 통과하기 전에는 bit 8을 0으로 유지한다. 통과 후에도 새로 켜는
-bit는 `SDORead` bit 8 하나뿐이다. D4 Double이 계속 꺼진 현재 capability에 bit 8만
-더하면 `CapabilityBits=0x0000013F`, `MaxSdoDataBytes=4`다. bit 7, 9, 12는 계속 0이다.
+runtime 시험을 위해 test-profile source에서 `SDORead` bit 8과
+`SDOReadGeneralInline` bit 13을 열었다. D4 Double이 계속 꺼진 current source capability는
+`CapabilityBits=0x0000213F`, `MaxSdoDataBytes=4`다. bit 7, 9, 12는 계속 0이며 전체
+runtime matrix evidence 전에는 이 값을 production 승인으로 보지 않는다.
 
 기존 `ECAT_DS402Base::AddASyncEntryDS402` wrapper는 실제 반환 길이를 service에 전달하지
 않는다. 새 설계는 `LMCSdoExecutor : EtherCAT_SDOBase`에서 lower-level callback의
-`aPara[5]` actual length와 `aPara[6]` abort code를 직접 보존한다. 그래도 최초 allowlist는
-실측된 4-byte `0x1000:0`으로 제한하고 success, busy, timeout, cancel,
-disconnect/orphan을 PLC에서 시험한다. 8/12-byte는 first slice와 분리한다.
+`aPara[5]` actual length와 `aPara[6]` abort code를 직접 보존한다. current source는
+request별 1/2/4-byte actual length를 검증한다. legacy `0x1000:0` regression과 별도로
+확인된 1-byte, 2-byte, nondefault Index/SubIndex vector 및 success, busy, timeout,
+cancel, disconnect/orphan을 PLC에서 시험한다. 8/12-byte는 general-inline profile과
+분리한다.
 
 구현 구조와 정확한 상태 전이는
 `LMC_D5_ETHERCAT_SDO_DERIVED_EXECUTOR_DESIGN_2026-07-22.md`를 따른다.
@@ -253,27 +310,33 @@ D5 Write는 Read-only 증분과 섞지 않는다. 기본값은 off이며 SDK all
 allowlist가 모두 허용한 항목만 후보가 된다. 후보라도 type, 범위, owner, 물리 축,
 축 상태를 모두 검사한다. ControlWord와 Target 계열 direct write는 영구 차단한다.
 
-D6은 PLC command나 packet을 추가하지 않는다. 현재 instance API 위에 C# handle
-registry와 static sync/async wrapper를 추가하고 stale handle, dispose, concurrent call을
-시험한다. D1-D5 wire가 안정되기 전에 시작하지 않는다.
+D6은 PLC command나 packet을 추가하지 않는다. Phase 1에서 현재 instance API 위에
+D1/D2 기반 PI/Bulk builder/reader facade를 먼저 구현했다. 별도 handle registry와 static
+sync/async wrapper는 이 facade의 실제 사용성 검증 뒤 필요성이 확인된 경우에만 추가하고,
+추가한다면 stale handle, dispose와 concurrent call을 별도 시험한다.
 
 ## 9. 정확한 검증 gate
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `103/103 passed` | 통과 확인 |
-| WPF build | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj`, Debug/Release AnyCPU build | error 0 | 둘 다 통과 확인 |
-| LASAL source/network contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | `PASS LASAL.StaticContract` | 2026-07-22 source-only/full-network 통과 |
-| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 2026-07-22 10:53 최신 D5 executor/network 포함 통과 |
-| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | 최신 Rebuild는 통과; 별도 최신 smoke는 재실행 대기 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `135/135 passed` | 통과 확인 |
+| WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj` Debug build 후 3초 startup | error 0, startup exception 없음 | 통과 확인 |
+| LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly` | PASS | 통과 확인 |
+| LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | PASS | 통과 확인; `Classes.lcb` `TryStartRead` declaration 동기화 |
+| executor initialization | LASAL IDE에서 `LMCSdoExecutor` constructor 생성 후 state/buffer 명시 초기화 | declaration, generated `@STD` call, implementation 및 정적 assertion 일치 | 미완료; 자동 zero-init 보장을 확인하지 못했으며 current Busy의 직접 원인으로 확정된 것은 아님 |
+| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 10:53 gate-off baseline 통과; fixed-source runtime download 확인, build log 미보존 |
+| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | fixed-source smoke 기록은 미보존 |
 | LASAL IDE log | smoke 시작 시각 이후 `%TEMP%\Lasal2.log` 검색 | 신규 `CInvalidArgException` 0건 | 10:53 Rebuild error 0; 최신 implementation smoke 기준 검사는 대기 |
 | diff hygiene | `git diff --check`와 staging 시 `git diff --cached --check` | whitespace error 0 | 최종 작업 종료 시 반복 |
-| PLC capability | 변경 project download 후 `Refresh Capabilities` | 현재 baseline `0x0000003F`; D5 Read 승인 뒤 `0x0000013F` | 미검증 |
-| PLC runtime | 5절 매트릭스와 D5/D4 Double 단계별 시험 | 모든 행의 합격 기준과 증거 확보 | 미검증 |
+| PLC capability | 변경 project download 후 `Refresh Capabilities` | stable BootId에서 `0x0000213F`, MaxSDO=4 | BootId 6 capture에서 확인; 최종 runtime 증거/fault matrix 미비로 production 미승인 |
+| PLC runtime | 5절 매트릭스와 D5/D4 Double 단계별 시험 | 모든 행의 합격 기준과 증거 확보 | D5 legacy 축 1~4와 수정본 general-inline 1/2/4-byte 사용자 실기 PASS; 최종 pcap/log, D5 fault/D1-D4 재시험 대기 |
 
-D5 PLC runtime은 static/IDE gate를 통과한 test build에서 bit 8과 `MaxSdoDataBytes=4`를
-임시 활성화해 수행한다. 성공/실패/timeout/orphan evidence를 확보하기 전에는 그 값을
-production capability로 승인하지 않고 기본 source는 `0x3F`, MaxSdo=0을 유지한다.
+D5 PLC runtime을 위해 test source의 bit 8, bit 13과 `MaxSdoDataBytes=4`를 활성화했다.
+legacy fixed-vector 4축 success는 확보했다. BootId 6 general-inline capture는 capability와
+request shape를 확인했지만 Submit이 Busy로 실패한 과거 증거다. recovery 수정본의
+1/2/4-byte success는 사용자가 확인했다. 최종 성공 packet/log, failure 뒤 같은 executor
+재사용과 timeout/cancel/orphan evidence를 확보하기 전에는 이 값을 production
+capability로 승인하지 않는다.
 
 정적 계약 통과는 packet offset, source pattern, network 연결을 검증한다. LASAL
 Rebuild/Link는 IDE 통합과 compile/link 가능성을 검증한다. 어느 것도 PLC scheduling,
@@ -293,6 +356,9 @@ model을 저장해 외부 implementation을 덮어쓰지 않는다.
 3. 해당 단계의 PLC 시험 결과를 packet/log/trace로 저장한다.
 4. 사용자 문서와 release status의 수치 및 미구현 표기가 source와 일치한다.
 
-현재 working source에는 D1-D4와 gated D5 first-slice 실행부 및 4축 network가 있다.
-실제 PLC download와 5절 및 D5 runtime 검증을 하지 않았으므로 D1-D5를 production
-완료로 분류하지 않는다. D5 광고는 계속 `0x3F`, `MaxSdoDataBytes=0`이다.
+현재 working source에는 D1-D4와 활성화한 D5 general-inline 실행부, shadowing 수정 및
+4축 network가 있다. legacy `0x1000:0` Slave 1~4와 수정본 general-inline 1/2/4-byte
+happy path는 사용자 실기 확인을 통과했다. constructor 명시 초기화, 최종 성공 pcap/log,
+실패 뒤 executor 재사용, D5 fault matrix와 5절 검증이 남았다.
+따라서 D1-D5를 production 완료로 분류하지 않는다. current test source 광고값은
+`0x213F`, `MaxSdoDataBytes=4`다.

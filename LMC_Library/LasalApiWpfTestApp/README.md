@@ -50,9 +50,12 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 
 1. Connect 뒤 `Refresh Capabilities`를 먼저 누른다. PLC가 광고하지 않은 기능의
    버튼은 활성화되지 않는다.
-   현재 internal test build의 정상 retained 경로는 `CapabilityBits=0x0000003F`,
-   `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`다. bit 5
-   `RecorderTrigger`는 활성이고 bit 6 `RecorderDoubleBank`와 D5 bit 7~9/12는 0이다.
+   현재 internal test source의 정상 retained 경로는 `CapabilityBits=0x0000213F`,
+   `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`, `MaxSdoDataBytes=4`다. bit 5
+   `RecorderTrigger`, bit 8 `SDORead`와 bit 13 `SDOReadGeneralInline`은 활성이고 bit 6 `RecorderDoubleBank` 및
+   D5 bit 7 `PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
+   BootId 5 축 1~4 capture는 당시 `0x13F`와 `0x1000:0` UInt32 4-byte legacy 경로를
+   확인한 것이다. 현재 `0x213F` general-inline 범위의 runtime 확인은 별도다.
 2. `Read EtherCAT Health`에서 master state, invalid-cycle counter와 slave 1~4의
    Online/AL/DS402 상태를 확인한다.
 3. `Load PI Catalog`로 현재 map revision과 active PDO signal을 받은 뒤 사용할
@@ -124,16 +127,47 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
    `relative_time_us`, channel raw value가 기록된다. PLC buffer/config는 `Release`로
    명시적으로 반환한다. Adopt한 Recorder는 `Release`가 필요할 경우 Status metadata를
    먼저 복구한 뒤 buffer와 configuration을 모두 반환한다.
-10. SDO 탭의 public API/WPF flow는 `Submit SDO -> Refresh Ticket` 순서로 구성돼 있다.
-    그러나 현재 internal PLC build는 SDO Read/Write, PI Write와 extended result 실행을
-    모두 광고하지 않으며 bit 7~9/12와 `MaxSdoDataBytes`는 0이다. 따라서 현재 장비
-    시험 대상이 아니고 UI에서 비활성화돼야 한다. 향후 capability가 켜진 build에서만
-    4/8/12-byte Read 결과를 operation status에 inline으로 확인하고, 큰 결과를
-    `0x7E51` chunk로 조립한다. PI Write와 SDO Write는 capability 외에도 non-empty SDK/PLC
-    allowlist와 type/range/state/owner 검사를 모두 통과해야 한다.
+10. SDO 탭의 general-inline flow는 `Submit SDO Read -> Refresh Ticket` 순서다. 새 PLC
+    test build를 download하고 `Refresh Capabilities`에서 bit 8 `SDORead`, bit 13
+    `SDOReadGeneralInline`과 `MaxSdoDataBytes=4`를 확인하면 Submit이 활성화된다.
+    Slave 1~4, nonzero ObjectIndex, 임의 U8 SubIndex를 입력하고 ValueType에 맞춰
+    1-byte(Bool/Int8/UInt8/BitField8), 2-byte(Int16/UInt16/BitField16) 또는
+    4-byte(Int32/UInt32/Real32/BitField32) Read를 제출한다. terminal 상태까지
+    `Refresh Ticket`을 반복하고 inline 결과를 `Save Result`로 저장할 수 있다.
+    SDO Write, 8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
+    축 1~4 `0x1000:0` UInt32 4-byte legacy PC-PLC ticket/inline success만 확인됐으며
+    general-inline, busy, abort, timeout, disconnect/orphan과 EtherCAT mailbox frame
+    독립 관측은 production qualification으로 남아 있다.
 
-현재 PLC가 D0 capability(`CapabilityBits=0`)만 반환하면 위 진단 기능은 정상적으로
-비활성화된다. UI와 SDK가 존재한다는 사실이 PLC runtime 구현 완료를 뜻하지 않는다.
+## Read-only API 시험 순서
+
+이 탭은 Phase 1의 신규 읽기 API를 실물 PLC에서 확인하기 위한 화면이다. motion이나
+write command는 없다. `0x7D00/0x7D10/0x7D20`은 source와 정적 계약까지 구현됐지만,
+아래 시험 전에는 LASAL IDE에서 최신 source를 Rebuild/Link하고 PLC에 download해야 한다.
+
+1. Connect 뒤 `Refresh Admin Capabilities`를 먼저 실행한다. 성공 응답의 feature,
+   axis/group mask, physical axis count, fixed group reference `0x0100`과 error catalog
+   version을 확인한다. 이 응답이 없거나 기능 bit가 없으면 후속 Admin 버튼은
+   fail-closed 상태로 남는다.
+2. `Read Axis Parameter`에서 physical axis 1~4와 6개 semantic key를 순서대로 읽는다.
+   결과의 axis reference, key, signed Int32 value, type과 unit을 같이 기록한다.
+   `EndPositionToleranceWindow`는 profile in-position 상태가 아니라 축의 end-position
+   tolerance parameter다.
+3. `Read Group Parameters`에서 `PathVelocityLimit`, `PathAccelerationLimit`, `JerkTime`,
+   `All`을 각각 실행한다. 현재 v1 group reference는 `0x0100`으로 고정이다.
+4. `Get Drive Operation Mode`는 선택 축의 D5 SDO `0x6061:0 Int8/1` 결과와 ticket을
+   표시한다. `Read Drive Status`는 LASAL axis status, D5 SDO `0x6041:0`,
+   `0x6061:0`을 순서대로 읽는다.
+5. Drive Status는 같은 EtherCAT cycle의 atomic snapshot이 아니다. LASAL position-limit,
+   axis error flag와 DS402 internal-limit bit는 서로 다른 출처이므로 한 값으로 합쳐
+   원인을 추정하지 말고 화면에 표시된 각 source를 따로 확인한다.
+
+Admin command의 IDE build/download 및 live 결과가 확인되기 전에는 이 탭의 존재나
+PC build 성공만으로 Phase 1 runtime 완료를 선언하지 않는다.
+
+현재 PLC가 D0 capability(`CapabilityBits=0`)만 반환하면 EtherCAT/PI, Bulk, Recorder와
+SDO 진단 기능은 정상적으로 비활성화된다. UI와 SDK가 존재한다는 사실이 PLC runtime
+구현 완료를 뜻하지 않는다. Admin 기능은 별도 `0x7D00` capability 응답으로 판정한다.
 
 ## Load Axis 실패 진단
 

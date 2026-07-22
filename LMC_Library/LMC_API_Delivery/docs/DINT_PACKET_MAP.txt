@@ -1,25 +1,30 @@
 LMC DINT packet map
-Status 2026-07-21: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-07-22: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
-motion extensions, 0x204A and 0x204B. LASAL-DINT Diagnostics v1 reserves 24
-project-local command IDs in 0x7E00..0x7E51. D0-D3 and D4 single-bank
-Ring/Trigger are implemented for the internal PLC test build. D4 Double bank and
-all D5 PLC execution remain capability-off and return UnsupportedFeature.
-Therefore 44 command IDs are success-capable in the PLC source: 25 motion/group
-and 19 diagnostics. The dispatcher/wire contract handles 49 IDs including the
-five exact fail-closed D5 requests. These extensions are not captured Elmo
+motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 adds three read-only
+commands in 0x7D00..0x7D20. LASAL-DINT Diagnostics v1 reserves 24
+project-local command IDs in 0x7E00..0x7E51. D0-D3, D4 single-bank Ring/Trigger
+and the D5 general-inline SDO Read ticket flow are implemented for the internal
+PLC test build. D4 Double bank, PI/SDO Write and extended SDO results remain off.
+Therefore 50 command IDs are success-capable in the PLC source: 25 motion/group,
+3 read-only admin and 22 diagnostics. The dispatcher/wire contract handles 52 IDs
+including the two reserved D5 requests. These extensions are not captured Elmo
 commands.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. C# 102 tests, LASAL source-only/full-network static contracts and the
-development WPF VS2019 Debug/Release TreatWarningsAsErrors builds pass. The
+source. C# tests including Phase 1 pass 135/135 in Debug and Release, both LASAL SourceOnly and full
+static contracts pass, and the development WPF Debug/Release builds plus their
+3-second startup smokes pass. Classes.lcb contains the current general
+TryStartRead declaration and generated metadata. The
 class/network integration snapshot rebuilt and linked in the LASAL IDE with
 0 errors and 3 C78-project/C81-library-and-compiler version mismatch warnings.
 That snapshot passed Find in Implementation for InputLatch, RecorderStore and
 TCPMotionInterface.Diagnostics with 0 new CInvalidArgException entries. Final
-implementation-only active-adopt and trigger-health/race fixes were then edited
-externally and passed both static contracts; an IDE build was not repeated for
-those final source changes. It has NOT yet been verified on a PLC.
+implementation-only active-adopt, trigger-health/race, D5 executor recovery and
+read-only Admin changes were then edited externally and passed the applicable
+static contracts. An IDE build was not repeated for those final source changes.
+The D5 Read path has user runtime confirmation, but Admin 0x7D00/0x7D10/0x7D20
+has NOT yet been built/downloaded or verified on a PLC.
 CPU core/priority placement and packet recapture are also pending. The untracked
 _Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
 ../../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md.
@@ -55,6 +60,55 @@ LASAL project-local header: CommandId UINT[0], Reserved UINT[2] = 0,
 PayloadLength UINT[4], Reference UINT[6]. This is not the native MMCLib RPC
 header; native captures use the offset-2 field as a request numerator/response echo.
 
+LASAL-local Admin v1 common request payload:
+P0 SchemaVersion UINT16 = 1
+P2 Flags UINT16 = 0
+P4 RequestId UDINT, nonzero
+
+Admin common response payload:
+P0  SchemaVersion UINT16 = 1
+P2  ResponseFlags UINT16 = 0
+P4  CommandStatus UINT16, 0 success / 1 domain error
+P6  ErrorId INT16, domain error is -31000
+P8  Echoed RequestId UDINT
+P12 DetailCode UDINT: 1 schema, 2 flags, 3 request ID, 4 reference,
+    5 payload shape, 6 parameter key, 7 client, 8 selection mask
+
+0x7D00 GetAdminCapabilities, request payload 8 bytes, Reference=0.
+Success response payload is exactly 40 bytes:
+P16 FeatureBits U32 = 0x00000003 (axis/group parameter read)
+P20 AxisParameterMask U32 = 0x0000003F
+P24 GroupParameterMask U32 = 0x00000007
+P28 PhysicalAxisCount U16 = 4
+P30 MaxAxisParameterCount U16 = 1
+P32 MainGroupReference U16 = 0x0100
+P34 MaxGroupParameterCount U16 = 3
+P36 ErrorCatalogVersion U16 = 1
+P38 Reserved U16 = 0
+
+0x7D10 ReadAxisParameter, request payload 12 bytes, Reference=axis 1..4:
+P8 ParameterKey U16, P10 Reserved U16 = 0.
+Keys are project semantic IDs, not native MotionLib enum values:
+1 SoftwareMinPosition, 2 SoftwareMaxPosition,
+3 EndPositionToleranceWindow, 4 MaxVelocity, 5 MaxAcceleration,
+6 ReferencePosition. Values use application units.
+Success response payload is exactly 28 bytes:
+P16 ParameterKey U16, P18 ValueType U16 = 1 (Int32),
+P20 Unit U16 (1 app units, 2 app units/s, 3 app units/s^2),
+P22 Reserved U16 = 0, P24 Value DINT.
+Software limits use ReadSWEndPos application-unit modes. Key 3 uses
+LMCAXIS_PAR_RD_SWLIMWINDOW; it is the axis end-position tolerance window and is
+not the robot ProfileInPosition window.
+
+0x7D20 ReadGroupParameters, request payload 12 bytes, Reference=0x0100:
+P8 SelectionMask U32, nonzero subset of 0x07. Bits select path velocity limit,
+path acceleration limit and jerk time. Jerk time is milliseconds, not jerk rate.
+Success response payload is exactly 32 bytes:
+P16 PresentMask U32, P20 PathVelocityLimit DINT [app units/s],
+P24 PathAccelerationLimit DINT [app units/s^2], P28 JerkTime DINT [ms].
+The PLC maps the three semantic bits explicitly to ReadGroupParameter(GrpNo=1)
+and never accepts native enum values from the caller.
+
 0x7E00 GetDiagnosticsCapabilities, request payload 8 bytes
 [8]  SchemaVersion UINT16 = 1
 [10] RequestFlags UINT16 = 0
@@ -71,7 +125,9 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [24] DiagnosticsBuild UDINT = 1
 [28] CapabilityBits UDINT
      0x00000007 when D1 is available
-     0x0000003F when D1-D3, D4 RecorderTrigger and retained BootId are available
+     0x0000213F when D1-D3, D4 RecorderTrigger, D5 SDORead and
+     SDOReadGeneralInline with a retained BootId are available in the internal
+     test profile. Bit 13 requires bit 8 and MaxSdoDataBytes=4.
 [32] MapRevision UDINT = 0x957F101E when D1 is available
 [36] CatalogEntryCount UINT16 = 24 when D1 is available
 [38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
@@ -90,9 +146,10 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [60] SignalValueEntryStride UINT16 = 16
 [62] Reserved UINT16 = 0
 [64] RecorderBytesPerBank UDINT = 1280000 when D3 is available, otherwise 0
-[68] MaxSdoDataBytes UINT16 = 0
+[68] MaxSdoDataBytes UINT16 = 4 when D5 SDORead and retained BootId are
+     available, otherwise 0
 [70] Reserved UINT16 = 0
-[72] DiagnosticsBootId UDINT = retained nonzero generation for D2-D4;
+[72] DiagnosticsBootId UDINT = retained nonzero generation for D2-D5;
      0 only when the retained generation is unavailable/faulted
 
 Malformed diagnostics requests keep the same 68-byte response shape and set
@@ -188,11 +245,13 @@ identity: TriggerIndex=PreTriggerSamples and TriggerComplete SampleCount equals
 PreTriggerSamples+1+PostTriggerSamples. AdoptRecorder does not return that shape,
 so adopted identities are checked only against common frozen wire invariants.
 
-D5 reserved GetOperationStatus 0x7E03 and CancelOperation 0x7E04:
+D5 GetOperationStatus 0x7E03 and CancelOperation 0x7E04:
 Request payload is exactly 16 bytes:
 P8 TicketId U32, P12 DiagnosticsBootId U32.
-The current PLC validates the exact request size, then returns UnsupportedFeature.
-Malformed sizes return BoundsInvalid. The ticket executor remains capability-off.
+The general-inline test profile validates ticket, BootId and owner session. Status
+returns the fixed 64-byte operation envelope. Cancel succeeds only for the
+owning Queued ticket; Running and terminal tickets return InvalidState.
+Malformed sizes return BoundsInvalid. A gate-off build returns UnsupportedFeature.
 
 D5 reserved PI Write 0x7E21:
 Request payload is exactly 28 bytes:
@@ -209,10 +268,24 @@ D5 SubmitSDO 0x7E50 request header is 32 bytes plus write data:
 P8 MapRevision U32, P12 SlaveReference U16, P14 OperationFlags U16,
 P16 ObjectIndex U16, P18 SubIndex U8, P19 ValueType U8,
 P20 TimeoutCycles U32, P24 DataLength U16, P26 reserved,
-P28 DiagnosticsBootId U32, P32 WriteData[]. Current PLC bits 8-9 are zero.
-The capability-off parser accepts only OperationFlags 0/1, reserved=0, an exact
-32-byte read request, or an exact 32+DataLength-byte write request. Structurally
-valid requests return UnsupportedFeature; malformed shapes return BoundsInvalid.
+P28 DiagnosticsBootId U32, P32 WriteData[]. The current test profile sets bit 8
+SDORead and bit 13 SDOReadGeneralInline.
+The parser accepts only OperationFlags 0/1, reserved=0, an exact 32-byte read
+request, or an exact 32+DataLength-byte write request. The active general-inline
+profile allows only OperationFlags=0, slave 1..4, nonzero ObjectIndex, any U8
+SubIndex and TimeoutCycles=1..60000. DataLength must exactly match ValueType:
+Bool/Int8/UInt8/BitField8=1, Int16/UInt16/BitField16=2, and
+Int32/UInt32/Real32/BitField32=4. It returns a Queued operation ticket. A
+successful terminal status carries exactly 1, 2 or 4 inline bytes and all unused
+result-tail bytes are zero. Write, 8/12-byte reads and result chunks remain
+fail-closed; malformed shapes return BoundsInvalid or CapacityExceeded.
+The executor publishes Running before StartReadSDO can callback. It owns cleanup
+through a private Releasing state, returns an owned validation failure as a
+terminal ticket result, and releases a late orphan callback back to Idle. An
+unsolicited/duplicate callback or impossible compare-exchange transition remains
+hard Quarantined. Submit reports InternalError detail 24 when no public ticket or
+drain owns a non-Idle executor; ResourceBusy detail 9 is reserved for an owned
+queued/running/draining operation.
 
 D5 ReadSDOResultChunk 0x7E51 request is exactly 28 bytes:
 P8 TicketId U32, P12 ByteOffset U32, P16 RequestedBytes U16,
@@ -281,20 +354,25 @@ Current four-axis LASAL restrictions:
 - Execute must be 1.
 - Aborting maps to CmdConfig.MoveImmediately (bit 5, value 16); Buffered maps
   to CmdConfig 0. The LASAL call is LMCRobot.MoveLinearCoord.
+The C# request builder enforces this same whitelist before any RPC frame is
+sent. Defined but unsupported enum values throw NotSupportedException; unknown
+enum values and invalid numeric parameters are rejected as argument errors.
 
 0x2051 GroupReadActualPosition, payload 8 bytes
 [8] CoordinateSystem DINT: None=0, ACS=1, MCS=2, PCS=3
 [12] Enable BYTE = 1
 [13..15] Padding = 0
-The public enum is validated as None/ACS/MCS/PCS. This project has no dynamic
-CalcModel, so all four values currently use GetRobotPosition with
-CoordSystem:=0. Do not interpret the accepted MCS/PCS enum as a dynamic
-kinematic conversion. The current tracked handler copies the complete 36-byte
-_LMCPROF_POS (Pos1..Pos9) into response slots 1..9 and leaves slots 10..16 zero.
-This differs from the older documented four-axis-only read contract. PLC
-recapture must decide whether the public contract remains 1..9 readback or the
-handler must explicitly zero slots 5..16. Group Move/SetKin/Lock remains limited
-to axes 1..4 regardless of this readback issue.
+The v1 LASAL adapter accepts None and ACS only. With no dynamic CalcModel, both
+names are aliases for the statically wired member-slot identity read performed
+with GetRobotPosition(CoordSystem:=0). MCS and PCS are not converted: the C#
+builder throws NotSupportedException and the PLC returns ErrorId=-7 to older
+clients. Unknown coordinate values remain malformed input (ErrorId=-3).
+The tracked handler copies the complete 36-byte _LMCPROF_POS (Pos1..Pos9) into
+response slots 1..9 and leaves slots 10..16 zero. These are software group
+member slots; this does not expand Move/SetKin/Lock beyond the four physical
+X/Y/Z/U axes. The result CoordinateSystem property echoes the requested enum;
+it is not a coordinate field returned by the PLC. ACS runtime equivalence still
+requires a PLC test and packet capture.
 
 LASAL-DINT v1 success response payload is exactly 68 bytes:
 [8..71] Position DINT[16]
@@ -341,8 +419,11 @@ Same layout as Stop.
 Current LASAL validation requires BufferMode=Aborting (1), Execute=1,
 Deceleration>=0, Jerk>=0 and Deceleration>0 when Jerk>0. The handler calls
 LMCRobot.StopMove(Mode:=3, Decel, Jerk).
-The success ACK means the stop command was accepted, not that standstill has
-already been reached. Poll GroupReadStatus afterward.
+StopMove returns UDINT StopCmdNo, the profile-buffer command index where the
+stop ends; it is not an error or acceptance code and must not be mapped to ACK
+status/error. The success ACK means the request was validated, the robot client
+was connected and StopMove was dispatched. Poll GroupReadStatus afterward for
+ProfileError and in-position/standstill state.
 
 0x2049 GroupReset, payload 1 byte
 [8] Execute BYTE = 1

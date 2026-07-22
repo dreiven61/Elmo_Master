@@ -1,9 +1,9 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 1.4
+문서 버전: 1.5
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-발행일: 2026-07-16
+발행일: 2026-07-22
 
 \pagebreak
 
@@ -16,19 +16,22 @@
 | 1.2 | 2026-07-16 | API 기능, 인자 UNIT과 반환값 중심으로 간소화 |
 | 1.3 | 2026-07-16 | preview 안전 경고, 응답 판정과 4축 group 제한 보완 |
 | 1.4 | 2026-07-16 | group position read 계약 불일치와 static identity 제한 명시 |
+| 1.5 | 2026-07-22 | read-only Admin, typed drive status, PI/Bulk facade와 local error catalog 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
 reference는 아니다.
 
 > **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. PC 시험과
-> LASAL 정적 계약은 통과했지만 실제 PLC command E2E/재캡처는 `0/25`다.
+> LASAL 정적 계약은 통과했지만 기존 motion PLC command E2E/재캡처는 `0/25`다.
 > `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
 > `Dispose`, timeout과 cancellation은 Stop을 보내지 않는다. 실제 장비에서는 E-stop,
 > HW/SW limit, UNIT, Home/Reference와 이동 범위를 별도로 승인한다.
+> Phase 1 Admin `0x7D00/10/20`은 source와 정적 시험까지 완료했지만 LASAL IDE build,
+> PLC download와 실물 parameter 값/UNIT은 아직 검증하지 않았다.
 
-> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.4`지만 현재 Distribution의
+> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.5`지만 현재 Distribution의
 > DOCX/PDF는 아직 문서 버전 `1.0`이다. 아래 안전·group-read 보완은 외부 manual
 > 재생성 전까지 package README와 함께 전달해야 한다.
 
@@ -452,6 +455,45 @@ public Task<LMC_Response> MoveVelocityExAsync(
 | `LMC_Response` | MoveVelocity command 결과 |
 | `Task<LMC_Response>` | 비동기 MoveVelocity command 결과 |
 
+## 3.11 Drive operation mode와 composite status
+
+physical axis/slave 1..4의 CiA 402 operation mode와 status를 D5 SDO Read로 조회한다.
+
+```csharp
+public LMCDriveOperationModeResult GetDriveOperationMode()
+public LMCDriveOperationModeResult GetDriveOperationMode(uint timeoutCycles)
+public Task<LMCDriveOperationModeResult> GetDriveOperationModeAsync(
+    CancellationToken cancellationToken)
+public Task<LMCDriveOperationModeResult> GetDriveOperationModeAsync(
+    uint timeoutCycles,
+    CancellationToken cancellationToken)
+
+public LMCDriveStatus ReadDriveStatus()
+public LMCDriveStatus ReadDriveStatus(uint timeoutCycles)
+public Task<LMCDriveStatus> ReadDriveStatusAsync(
+    CancellationToken cancellationToken)
+public Task<LMCDriveStatus> ReadDriveStatusAsync(
+    uint timeoutCycles,
+    CancellationToken cancellationToken)
+```
+
+`GetDriveOperationMode`는 `0x6061:0 Int8/1`을 읽어 typed `Mode`와 signed `RawValue`를
+반환한다. unknown/manufacturer-specific 값은 `IsKnownMode=false`여도 `RawValue`에 보존된다.
+
+`ReadDriveStatus`는 LASAL `ReadStatus`, DS402 `0x6041:0 BitField16/2`,
+`0x6061:0 Int8/1`을 순차 실행한다. 같은 EtherCAT cycle의 atomic snapshot이 아니므로
+`IsAtomicSnapshot`은 항상 false다. `AxisStatus`, `Ds402StatusWord`, `OperationModeResult`와
+software/hardware/DS402 limit indication을 source별로 확인한다.
+
+`timeoutCycles`는 각 PLC SDO operation timeout이며 기본값은 1000 cycles다. library의
+terminal status poll 간격은 capability의 `BaseCycleTimeUs`에서 계산하며 최대 poll 수는
+`timeoutCycles+32`다. `BaseCycleTimeUs=0`이면 요청 전에 실패한다. terminal 실패는
+`LMCSdoReadOperationException`, PC poll 한계는 `LMCSdoReadPollingTimeoutException`으로
+ticket/status를 보존한다. 제출 뒤 async cancellation은 ticket을 포함한
+`LMCSdoReadWaitCanceledException`을 발생시키고 PC wait만 중단하며, 이미 제출한 PLC
+ticket을 자동 cancel하지 않는다. 이미 진행 중인 status RPC는 응답을 끝까지 수신한 뒤
+취소를 보고하므로 connection은 유지되고 보존된 ticket을 다시 조회할 수 있다.
+
 # 4. Group API
 
 ## 4.1 LMCGroupAxis 생성
@@ -606,6 +648,11 @@ public Task<LMC_Response> GroupStopAsync(
 | `LMC_Response` | Group Stop command 결과 |
 | `Task<LMC_Response>` | 비동기 Group Stop command 결과 |
 
+`deceleration`/`jerk` 조합은 PLC 계약에 맞게 RPC 전에 검사한다. success ACK는
+입력 검증, robot client 연결과 `StopMove(Mode:=3)` dispatch를 뜻하며 정지 완료가
+아니다. `StopMove()` 반환 `StopCmdNo`는 오류 코드가 아니라 정지가 끝날 buffer
+command index다. 실제 완료와 profile error는 `GroupReadStatusResult`로 확인한다.
+
 ## 4.9 GroupReadStatus
 
 Group power와 profile 상태를 읽는다.
@@ -640,19 +687,19 @@ public Task<LMCGroupReadActualPositionResult> GroupReadActualPositionAsync(
 
 | Parameter | Type | UNIT | 설명 |
 |---|---|---|---|
-| `coordinateSystem` | `LMC_COORD_SYSTEM` | Enum | 읽을 좌표계 |
+| `coordinateSystem` | `LMC_COORD_SYSTEM` | Enum | `None` 또는 `Acs` member-slot alias |
 | `cancellationToken` | `CancellationToken` | - | 비동기 호출 취소 token |
 
 | Return | UNIT | 설명 |
 |---|---|---|
-| `LMCGroupReadActualPositionResult` | Group application UNIT DINT | 고정 16-slot coordinate와 error 정보; 현재 source의 slot 1..9 공개 범위는 미확정 |
+| `LMCGroupReadActualPositionResult` | Group application UNIT DINT | slot 1..9 member position, slot 10..16 zero와 error 정보 |
 | `Task<LMCGroupReadActualPositionResult>` | Group application UNIT DINT | 비동기 group position 결과 |
 
-현재 adapter는 `None/Acs/Mcs/Pcs`를 모두 같은
-`GetRobotPosition(CoordSystem:=0)` static axis-order read로 처리한다. dynamic
-coordinate transform 결과로 해석하면 안 된다. tracked source는 slot 1..9를
-채우고 slot 10..16을 0으로 남기지만, 이 9축 readback은 PLC 재캡처와 공개 계약
-승인 전이다.
+현재 adapter는 no-CalcModel static identity에서 `None/Acs`를 같은
+`GetRobotPosition(CoordSystem:=0)` member-slot read alias로 처리한다. `Mcs/Pcs`는
+지원하지 않아 C#에서 `NotSupportedException`이 발생하며, 구 SDK 요청은 PLC가
+`ErrorId=-7`로 거부한다. slot 1..9는 software group member 순서이고 slot
+10..16은 0이다. `Acs` alias의 실물 동등성은 PLC 시험이 남아 있다.
 
 ## 4.11 SetKinTransformCartesian4Axis
 
@@ -742,6 +789,11 @@ public Task<LMC_Response> MoveLinearAbsoluteExAsync(
 | `LMC_Response` | MoveLinearAbsolute command 결과 |
 | `Task<LMC_Response>` | 비동기 MoveLinearAbsolute command 결과 |
 
+현재 C#과 PLC가 함께 허용하는 범위는 position slot 1..4 X/Y/Z/U, 나머지 0,
+양수 velocity/acceleration/deceleration, 0 이상 jerk, coordinate `None`, transition
+`ExactStop`/`ContinuousDirect`, buffer `Aborting`/`Buffered`, `Execute=true`다.
+정의됐지만 지원하지 않는 option은 RPC 전에 `NotSupportedException`으로 거부한다.
+
 ## 4.13 LMCGroupMotionOptions
 
 MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
@@ -767,6 +819,7 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 |---|---|---|---|
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
+| `IsReadSuccessful` | `bool` | - | RPC/function read 성공; native axis error 존재 여부와 분리 |
 | `State` | `uint` | Bit field | Raw axis state |
 | `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
 | `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
@@ -774,6 +827,8 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `IsReferenced` | `bool` | - | Home / Reference 완료 상태 |
 | `IsStandstill` | `bool` | - | Standstill 상태 |
 | `AxisErrorId` | `ushort` | Error ID | Axis error |
+| `HasAxisError` | `bool` | - | `AxisErrorId != 0` |
+| `AxisErrorFlags` | `ushort` | Bit field | raw LASAL `_LMCAXIS_ERROR`; DS402 statusword bit가 아님 |
 | `StatusWord` | `ushort` | Reserved | 현재 LASAL adapter는 0을 반환하며 DS402 statusword로 사용하지 않음 |
 | `ErrorId` | `short` | Error ID | Command error |
 
@@ -816,15 +871,15 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 |---|---|---|---|
 | `Response` | `LMC_Response` | - | 원본 command response |
 | `IsSuccess` | `bool` | - | 전체 결과 성공 여부 |
-| `CoordinateSystem` | `LMC_COORD_SYSTEM` | Enum | 반환 좌표계 |
-| `PositionsRaw` | `int[16]` | Group application UNIT DINT | 고정 16-slot 배열; 현재 slot 1..9 readback 계약 미확정 |
+| `CoordinateSystem` | `LMC_COORD_SYSTEM` | Enum | 요청에 사용한 좌표계의 PC-side echo; PLC 응답 필드가 아님 |
+| `PositionsRaw` | `int[16]` | Group application UNIT DINT | slot 1..9 software member position, slot 10..16 zero |
 | `FunctionStatus` | `ushort` | Bit field | MotionLib function status |
 | `HasCommandError` | `bool` | - | FunctionStatus command-error bit 여부 |
 | `ErrorId` | `short` | Error ID | Command error |
 
 현재 tracked PLC source는 `_LMCPROF_POS`의 Pos1..Pos9를 response slot 1..9에
-복사한다. 기존 4축-only read 문서와 충돌하므로 PLC 재캡처 뒤 공개 readback
-범위를 확정해야 한다. Move/SetKin/Lock의 4축 제한은 그대로다.
+복사하고 slot 10..16을 0으로 유지한다. Move/SetKin/Lock의 physical 4축 제한은
+그대로다.
 
 ## 5.5 LMCGroupMembersInfoResult
 
@@ -849,3 +904,93 @@ MoveLinearAbsolute의 좌표계와 motion mode를 설정한다.
 | `AxisReference` | `ushort` | Reference | Axis reference |
 | `DeviceId` | `ushort` | Device ID | PLC device ID |
 | `AxisName` | `string` | ASCII string | LASAL axis object name |
+
+# 6. Phase 1 Read-only Admin과 Diagnostics facade
+
+## 6.1 Admin capability와 semantic parameter read
+
+연결된 `LMCConnection.Admin`에서 LASAL-local read-only API를 사용한다. 각 parameter
+read는 먼저 `0x7D00` capability와 허용 mask를 확인한다.
+
+```csharp
+LMCAdminCapabilities capabilities = connection.Admin.GetCapabilities();
+
+LMCAxisParameterResult axisParameter = connection.Admin.ReadAxisParameter(
+    axis,
+    LMCAxisParameterKey.MaxVelocity);
+
+LMCGroupParametersResult groupParameters = connection.Admin.ReadGroupParameters(
+    group,
+    LMCGroupParameterSelection.All);
+```
+
+async 메서드는 `GetCapabilitiesAsync`, `ReadAxisParameterAsync`,
+`ReadGroupParametersAsync`이며 `CancellationToken`을 받는다. 축/group 객체 overload 외에
+`ushort` reference overload도 있다. 다른 connection 또는 reconnect 전 stale 객체는
+거부한다.
+
+axis read 제한:
+
+- physical AxisReference 1..4
+- key: `SoftwareMinPosition`, `SoftwareMaxPosition`,
+  `EndPositionToleranceWindow`, `MaxVelocity`, `MaxAcceleration`, `ReferencePosition`
+- 한 호출에 한 key, 반환 value type `Int32`
+
+`EndPositionToleranceWindow`는 profile의 in-position 상태가 아니라 축
+end-position tolerance parameter다. 결과의 `Unit`과 `Value`를 함께 확인한다.
+
+group read 제한:
+
+- GroupReference `0x0100`
+- selection: `PathVelocityLimit`, `PathAccelerationLimit`, `JerkTime` 또는 조합
+- 최대 3개; unit은 각각 application UNIT/s, application UNIT/s2, milliseconds
+
+지원하지 않는 PLC/schema/capability는 `LMCAdminNotSupportedException` 또는
+`NotSupportedException`, valid admin error response는 `LMCAdminCommandException`으로
+보고하며 `Response`에 status/error/detail을 보존한다. 이 API는 read-only이고 motion을
+생성하지 않는다.
+
+## 6.2 PI alias와 Bulk builder/reader
+
+먼저 `GetSignalCatalog`로 얻은 같은 boot/map의 catalog를 사용한다.
+
+```csharp
+LMCSignalValue value = connection.Diagnostics.ReadPI(
+    catalog,
+    "axis1.actual_position");
+
+LMCPIBulkBuilder builder = connection.Diagnostics.CreatePIBulkBuilder(catalog);
+builder.AddEntry("axis1.actual_position");
+builder.AddEntry("axis2.actual_position");
+LMCPIBulkReader reader = builder.Configure();
+LMCBulkSnapshot snapshot = reader.Upload();
+LMCSignalValueEntry entry = reader.GetEntry("axis1.actual_position");
+reader.Release();
+```
+
+builder는 readable catalog entry, 중복, 최대 32개와 exact `MapRevision`을 검사한다.
+Configure 성공 뒤 builder는 frozen된다. `GetEntry/TryGetEntry`는 마지막 성공 Upload의
+snapshot을 조회하며 새 PLC read를 수행하지 않는다. 별도 compatibility wire는 없고
+D1 PI Read와 D2 Bulk command를 재사용한다. sync 메서드에는 대응하는
+`ConfigureAsync`, `UploadAsync`, `ReadStatusAsync`, `ReleaseAsync`가 있다.
+
+## 6.3 Project-local error catalog
+
+```csharp
+LMCErrorDescription description;
+if (LMCErrorCatalog.TryDescribe(
+        LMCErrorDomain.AdapterCommand,
+        response.ErrorId,
+        out description))
+{
+    Console.WriteLine(description.Symbol);
+    Console.WriteLine(description.Resolution);
+}
+```
+
+지원 domain은 `AdapterCommand`, `AdminDetail`, `DiagnosticsDetail`, `GroupProfile`이다.
+같은 숫자라도
+domain마다 의미가 다르므로 domain을 추측하지 않는다. 반환 객체는 `Description`,
+`Resolution`, `CatalogVersion`, `SourceVersion`을 제공한다. unknown domain/value는 false를
+반환한다. 이 catalog는 현재 project-local 계약이며 Elmo Maestro Personality 전체 error
+database가 아니다.

@@ -1,10 +1,10 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
-- 문서 버전: `2.1`
-- 작성 기준: `2026-07-21`
+- 문서 버전: `2.3`
+- 작성 기준: `2026-07-22`
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
-- diagnostics 기준: 2026-07-21 current source
+- diagnostics/admin 기준: 2026-07-22 current source
 - 대상 독자: C# API, LASAL TCP adapter, MotionLib 연결과 배포 패키지를 유지보수하는 개발자
 
 이 문서는 공개 API의 signature와 인자를 다시 나열하는 문서가 아니다. 사용자 코드에서
@@ -17,14 +17,22 @@
 문서 버전 `1.0`은 빠른 API 참조다. 각 기능에서 sync/async signature를 함께 보여 주지만
 두 메서드가 내부적으로 같은 transport와 command를 공유한다는 사실은 설명하지 않는다.
 현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
-버전 `1.4`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
+버전 `1.5`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
-> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-21 current
-> source는 PC 자동 시험 102/102과 LASAL 정적 계약을 통과했다. D0-D4 통합 source의
-> IDE Rebuild/Link와 implementation smoke도 통과했지만 이후 Recorder Stop 멱등
-> 패치는 최신 source Rebuild 대기다. 기존 motion command의 실제 PLC E2E는 여전히 `0/25`이며,
-> diagnostics D1~D3와 D4 single-bank Ring/Trigger도 PLC runtime 시험과 packet 재캡처를
-> 수행하지 않았다. D4 Double과 D5 PLC 실행은 capability-off다.
+> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-22 current
+> source는 PC 자동 시험 Debug/Release와 LASAL SourceOnly/full 정적 계약,
+> WPF Debug/Release build와 각 3초 startup smoke를 통과했다. `Classes.lcb`의 general
+> `TryStartRead` declaration도 현재 source와 동기화되어 있다.
+> legacy `0x13F` PLC capture의 `0x1000:0` UInt32 4-byte SDO Read는 BootId 5에서 축 1~4
+> 모두 Completed/Success를 반환했다. 과거 BootId 6의 `0x213F` 캡처에서는 executor
+> 재사용 결함으로 Submit이 `ResourceBusy(9)`로 거부됐고, callback/rollback/release 상태
+> 전이를 수정했다. 이후 사용자가 general-inline 1/2/4-byte runtime 정상 동작을 확인했다.
+> 최종 확인에 대한 신규 pcap/log와 D5 fault matrix는 없고, motion command의 실제 PLC
+> E2E는 여전히 `0/25`이며 diagnostics D1~D4도 미실시다.
+> D4 Double, PI/SDO Write와 extended SDO result는 capability-off다.
+> Phase 1 read-only Admin `0x7D00/0x7D10/0x7D20`, typed drive read, PI/Bulk facade와
+> PC-local error catalog는 source와 자동/정적 시험까지 구현했다. 새 Admin command의
+> LASAL IDE Rebuild/Link, PLC download와 실물 값/UNIT 검증은 아직 수행하지 않았다.
 > 아래 설명에서 `구현됨`은 current source에 경로가 존재한다는 뜻이며 실기 완료를 뜻하지 않는다.
 
 ## 1. 먼저 바로잡아야 할 핵심 오해
@@ -66,7 +74,7 @@
 
 ```mermaid
 flowchart LR
-    APP["사용자 프로그램 / WPF"] --> FACADE["LMCSingleAxis / LMCGroupAxis"]
+    APP["사용자 프로그램 / WPF"] --> FACADE["LMCSingleAxis / LMCGroupAxis\nDiagnostics / Admin"]
     FACADE --> FRAME["LMC_Frame serializer"]
     FRAME --> CONN["LMCConnection\n단일 exchange gate"]
     CONN -->|"TCP LASAL-DINT v1"| SERVER["_TCPIPServer1 : 4000"]
@@ -369,6 +377,10 @@ typed response parser는 정상 command별 고정 길이 또는 4-byte short err
 | `LmcGroup.cs` | Group facade, lookup, kinematic axis validation, Group request 선택 |
 | `LmcGroupModels.cs` | public motion option과 internal captured kinematic model |
 | `LmcResults.cs` | typed result, status mask, command/axis/group success 판정 |
+| `LmcAxisDriveReads.cs`, `LmcDriveModels.cs` | D5 SDO 기반 operation mode와 non-atomic drive status composite |
+| `LmcAdmin*.cs` | `0x7D00/10/20` read-only admin builder/parser/facade와 semantic result |
+| `LmcDiagnosticsPIBulkFacade*.cs` | D1/D2 재사용 PI alias와 local Bulk builder/reader |
+| `LmcErrorCatalog.cs` | project-local error domain별 versioned description/resolution |
 | `LmcConnectionModels.cs` | lifecycle state와 timeout/callback option |
 | `LmcUnits.cs` | caller용 UNIT 상수, 자동 변환 로직 아님 |
 
@@ -407,6 +419,16 @@ malformed ACK는 예외다.
 | `GroupReadStatus()` | result 실패 시 `InvalidOperationException` | out response 사용 시 일부 확인 |
 
 신규 애플리케이션은 typed result API를 기본으로 사용한다.
+
+`GetDriveOperationMode[Async]`와 `ReadDriveStatus[Async]`는 D5 ticket이 terminal 상태가
+될 때까지 bounded poll한다. 실패 terminal은 `LMCSdoReadOperationException`, PC-side poll
+한계는 `LMCSdoReadPollingTimeoutException`으로 ticket/status를 보존한다. async token 취소는
+PC wait만 중단하고 이미 제출한 PLC ticket을 자동 cancel하지 않는다. poll 간격은
+capability의 `BaseCycleTimeUs`를 millisecond ceiling으로 변환하고, 최대 poll 수는
+`TimeoutCycles+32`다. `BaseCycleTimeUs=0`은 fail-fast한다. 제출 뒤 취소는 ticket을
+보존한 `LMCSdoReadWaitCanceledException`이다. ticket 제출 뒤 진행 중인 status RPC는
+caller token으로 transport를 끊지 않고 응답을 끝까지 수신한 다음 취소를 관찰한다.
+따라서 같은 connection에서 보존된 ticket을 다시 조회할 수 있다.
 
 ## 9. LASAL TCP ingress, queue와 dispatcher
 
@@ -641,9 +663,9 @@ Axis Reset의 `QuitError()`는 반환값이 없다. client가 연결되어 호�
 | `MoveLinearAbsoluteEx[Async]` | `0x20A4` | 96 / 8 | `MoveLinearCoord` | status/position polling |
 | `SetKinTransformCartesian4Axis[Async]` | `0x20E7` | 1320 / 4 | identity payload 검증, ready flag | 이후 Lock/status |
 
-current `GroupStop` handler는 `StopMove()`가 반환한 command number를 저장하지만 오류 판정에
-사용하지 않는다. Robot client가 연결되어 있으면 ACK가 성공할 수 있으므로 실제 정지는
-Group status와 in-position을 다시 읽어 확인한다.
+current `GroupStop` handler의 `StopMove()` 반환은 오류가 아니라 정지가 끝날
+profile-buffer `StopCmdNo`다. ACK는 입력 검증, Robot client 연결과 method dispatch를
+뜻하며 실제 정지 완료와 profile error는 Group status/in-position을 다시 읽어 확인한다.
 
 `0x204A`와 `0x204B`는 PMAS packet capture에 없는 project-local LASAL extension이다.
 
@@ -654,6 +676,45 @@ Group linear request는 DINT position 16개를 예약하지만 current PLC는 �
 - Transition: `ExactStop(0)`, `ContinuousDirect(2)`
 - Buffer: `Aborting(1)`, `Buffered(2)`
 - Execute: `true`
+
+C# request builder도 topology, 양수 velocity/acceleration/deceleration, 0 이상 jerk와
+위 option whitelist를 RPC 전에 검사한다. `0x2051` position read는 None/ACS만 static
+member-slot alias로 허용하고 MCS/PCS는 C# fail-fast/PLC `-7`로 거부한다. 응답 slot
+1..9는 software group member 순서, slot 10..16은 0이다.
+
+### 12.4 Read-only Admin extension
+
+| Public sync/async pair | Command | Request/Success payload | LASAL method/값 | 제한 |
+|---|---:|---:|---|---|
+| `connection.Admin.GetCapabilities[Async]` | `0x7D00` | 8 / 40 | schema/features/mask/limit 광고 | schema v1, RequestId nonzero |
+| `ReadAxisParameter[Async]` | `0x7D10` | 12 / 28 | `_LMCAxis.ReadSWEndPos/ReadParameter` | physical axis 1..4, 한 key |
+| `ReadGroupParameters[Async]` | `0x7D20` | 12 / 32 | `LMCRobot.ReadGroupParameter` | group `0x0100`, 최대 3개 선택 |
+
+Admin response는 16-byte common prefix에 schema, flags, command status/error,
+RequestId echo와 detail code를 둔다. C#은 각 read 전에 `0x7D00` capability와 key mask를
+확인하고 stale session/다른 connection 소유 axis/group를 거부한다.
+
+axis v1 key는 `SoftwareMinPosition`, `SoftwareMaxPosition`,
+`EndPositionToleranceWindow`, `MaxVelocity`, `MaxAcceleration`, `ReferencePosition`이다.
+`EndPositionToleranceWindow`는 profile in-position 상태가 아니라 축의 end-position
+tolerance parameter다. 모든 axis 결과는 Int32이고 unit은 key별 schema에 고정한다.
+
+group v1 selection은 `PathVelocityLimit`, `PathAccelerationLimit`, `JerkTime`이다.
+각각 application units/s, application units/s2, milliseconds로 해석한다. raw private
+MotionLib enum 또는 임의 parameter number를 wire에 노출하지 않는다.
+
+### 12.5 D5 typed drive read와 PI/Bulk compatibility facade
+
+- `GetDriveOperationMode[Async]`는 D5 SDO `0x6061:0 Int8/1`을 읽는다. 알려지지 않은
+  manufacturer-specific signed 값도 `RawValue`에 보존한다.
+- `ReadDriveStatus[Async]`는 `ReadStatus` -> DS402 `0x6041:0 BitField16/2` ->
+  `0x6061:0 Int8/1` 순서로 읽는다. `IsAtomicSnapshot`은 항상 false이며 LASAL axis error,
+  software/hardware limit와 DS402 internal-limit indication을 source별로 보존한다.
+- 두 API는 adapter의 physical axis/slave mapping 1..4만 허용한다.
+- `Diagnostics.ReadPI(catalog, alias)`는 catalog entry의 SignalId/type/MapRevision을 사용한다.
+- `CreatePIBulkBuilder(catalog)`는 readable entry, exact MapRevision, 최대 32개와 중복을
+  검사한다. Configure 후 builder는 frozen되고, reader는 `Upload[Async]` 후
+  `GetEntry/TryGetEntry`로 최신 snapshot을 조회한다. 별도 wire command는 없다.
 
 ## 13. Response, error와 완료 판정
 
@@ -717,6 +778,19 @@ DS402 StatusWord를 혼동하지 않는다.
 MotionLib의 넓은 error bit field가 16-bit wire error 범위를 벗어나면 `-6`으로 축약될 수 있다.
 원인 진단에는 PLC-side native error와 상태 readback이 추가로 필요하다.
 
+### 13.5 PC-local error catalog
+
+`LMCErrorCatalog.TryDescribe(domain, code, out description)`은 다음 domain만 다룬다.
+
+- `AdapterCommand`: current adapter local `-1..-8`
+- `AdminDetail`: read-only Admin schema detail code `0..8`
+- `DiagnosticsDetail`: diagnostics schema detail code
+- `GroupProfile`: current `_LMCProfile/_LMCRobotBase` profile error 값
+
+반환되는 `LMCErrorDescription`은 Symbol, Description, Resolution, CatalogVersion과
+SourceVersion을 가진다. 숫자 충돌 가능성 때문에 domain을 생략하거나 서로 바꿔 해석하지
+않는다. 이 catalog는 Elmo Maestro Personality database가 아니며 unknown 값은 false다.
+
 ## 14. Callback 구현과 현재 한계
 
 PC에는 별도 background UDP listener thread가 있다.
@@ -765,16 +839,19 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics 합계 | 102/102 PASS |
-| LASAL source/full-network static contract | PASS |
-| LASAL IDE rebuild/link | D0-D4 통합 source 0 error; 이후 Recorder Stop 멱등 패치는 최신 source Rebuild 대기 |
-| `Find in Implementation` smoke | 위 통합 source 3/3 PASS, 신규 `CInvalidArgException` 0건 |
-| LASAL diagnostics command contract | active 19/handled 24: D0~D3 18 + D4 `TriggerRecorder` 1 active, D5 계열 5개 fail-closed |
-| 전체 성공 응답 capable PLC active path | 44개: 기존 motion/group 25 + diagnostics 19 |
-| C#/dispatcher/wire handled contract | 49개: active 44 + capability-off diagnostics 5 |
+| PC request/parser/fake-RPC/diagnostics/admin 합계 | Debug/Release 각 135/135 PASS; Phase 1 신규 case 포함 |
+| 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS |
+| LASAL SourceOnly static contract | PASS |
+| LASAL full static contract | PASS; `Classes.lcb` general `TryStartRead` metadata 동기화 확인 |
+| LASAL IDE rebuild/link | 이전 snapshot 0 error 및 gate-on runtime download 확인; 이번 executor state-machine 수정 뒤 build/download는 재실행 필요 |
+| `Find in Implementation` smoke | 기존 통합 source 3/3 PASS, fixed-source 최신 smoke log 미보존 |
+| LASAL diagnostics command contract | active 22/handled 24: D0~D3 18 + D4 Trigger 1 + D5 Read submit/status/cancel 3 active, PI Write/extended result 2 fail-closed |
+| 전체 성공 응답 capable PLC active path | 50개: 기존 motion/group 25 + diagnostics 22 + read-only admin 3 |
+| C#/dispatcher/wire handled contract | 52개: active 50 + capability-off diagnostics 2 |
+| Phase 1 Admin LASAL IDE/PLC | `0x7D00/10/20` source/static PASS; IDE Rebuild/Link, download와 실물 E2E 미실시 |
 | 기존 motion PLC download 및 25 command E2E | 0/25 |
-| diagnostics D1~D3 및 D4 single-bank Ring/Trigger PLC runtime | 미실시 |
-| actual TCP/UDP recapture | 미검증 |
+| diagnostics D1~D4 및 D5 general-inline SDO Read PLC runtime | legacy 축 1~4와 general-inline 1/2/4-byte 사용자 실기 PASS; 최종 확인 신규 pcap/log, D5 fault와 D1~D4 시험은 없음 |
+| actual TCP/UDP recapture | D5 PC-PLC TCP capture 확보; 기존 motion/group 미검증 |
 | core/priority/jitter | 미검증 |
 
 PC 시험은 serializer, parser, loopback TCP/UDP lifecycle을 검증한다. 실제 MotionLib 상태 전이,
@@ -782,25 +859,23 @@ EtherCAT, Axis hardware와 PLC task 배치를 검증하지 않는다.
 
 ### 16.2 현재 주요 위험
 
-1. `GroupReadActualPosition` handler는 `_LMCPROF_POS`의 Pos1..Pos9를 response slot 1..9에
-   복사할 수 있지만 기존 공개 설명은 4축 중심이다. production 계약이 미확정이다.
-2. None/ACS/MCS/PCS group position 입력은 현재 CalcModel 없이 모두 `CoordSystem:=0` static
-   identity read로 처리된다.
-3. `SetKinTransformCartesian4Axis`는 dynamic transform 생성이 아니라 exact identity payload
+1. `GroupReadActualPosition`은 None/ACS member-slot alias와 slot 1..9/10..16 zero 계약으로
+   고정했지만 ACS의 실물 동등성은 PLC 시험/재캡처가 남아 있다.
+2. `SetKinTransformCartesian4Axis`는 dynamic transform 생성이 아니라 exact identity payload
    validation과 ready flag 설정이다.
-4. `_LMCAxis` method caller의 core/priority 조건을 실제 PLC에서 확인하지 않았다.
-5. `_TCPIPServer` base가 OS receive의 short-read를 어떻게 보장하는지 실기/매뉴얼 확인이 필요하다.
-6. `RobotPowerOn/Off/Lock/UnLock` legacy writable server channel은 queue/session을 우회해
+3. `_LMCAxis` method caller의 core/priority 조건을 실제 PLC에서 확인하지 않았다.
+4. `_TCPIPServer` base가 OS receive의 short-read를 어떻게 보장하는지 실기/매뉴얼 확인이 필요하다.
+5. `RobotPowerOn/Off/Lock/UnLock` legacy writable server channel은 queue/session을 우회해
    Robot method를 직접 호출한다. 외부 연결 금지 또는 제거가 필요하다.
-7. callback endpoint 등록은 필수지만 event sender가 없다.
-8. TCP port 4000, one connection 구조에 authentication, encryption과 multi-PC motion-owner
+6. callback endpoint 등록은 필수지만 event sender가 없다.
+7. TCP port 4000, one connection 구조에 authentication, encryption과 multi-PC motion-owner
    arbitration이 없다.
-9. C# reader는 command별 상한을 적용하기 전에 response header의 `UInt16` payload length를
+8. C# reader는 command별 상한을 적용하기 전에 response header의 `UInt16` payload length를
    읽는다. 비정상 peer가 최대 65535-byte 대기/할당을 유발할 수 있다.
 
 ### 16.3 EtherCAT diagnostics 확장의 내부 실행 경로
 
-2026-07-21 source에는 `LMCConnection.Diagnostics`가 추가됐다. 이 facade도 기존 motion
+2026-07-22 source의 `LMCConnection.Diagnostics`와 `LMCConnection.Admin`도 기존 motion
 API와 같은 TCP connection, 직렬 exchange gate와 LASAL-DINT request/response 경로를
 사용한다. 별도 UDP data transport가 아니다.
 
@@ -827,9 +902,12 @@ EtherCAT PDO update
   record를 `AdoptRecorder`로 인계한다.
 - D4 single-bank Ring/Trigger는 PLC에 활성화돼 있다. edge/window/mask 및 forced trigger를
   지원하지만 물리 bank는 하나뿐이며 Double capability bit는 0이다.
-- D4 Double과 D5 PI/SDO operation은 C# sync/async contract와 개발 WPF 흐름까지
-  존재하지만 PLC capability는 0이다. exact request는 `UnsupportedFeature`를 반환하고
-  write allowlist는 empty다.
+- D5 general-inline SDO Read는 bit 8+13, MaxSDO=4로 활성이다. Slave 1..4,
+  nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히 맞는 1/2/4-byte를 허용한다.
+  legacy 축 1~4와 general-inline 1/2/4-byte runtime은 사용자가 정상 동작을 확인했다.
+  최종 확인에 대한 신규 pcap/log와 fault matrix는 없다.
+  D4 Double, D5 PI/SDO Write와 extended result는 C# contract가 있어도 PLC capability는
+  0이다. exact request는 `UnsupportedFeature`를 반환하고 write allowlist는 empty다.
 - diagnostics 상태 변경 async 호출의 cancellation은 송신 전까지만 취소한다. PLC가
   요청을 수락한 뒤에는 handle/ticket/result identity를 잃지 않도록 응답을 끝까지
   수신한다. Recorder PC download cancellation은 PLC recording이나 motion stop이 아니다.

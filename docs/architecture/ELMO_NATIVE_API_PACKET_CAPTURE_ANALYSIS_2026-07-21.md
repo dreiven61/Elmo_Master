@@ -196,9 +196,15 @@ Begin Recording
 4. Custom LASAL Recorder는 identity, MapRevision, BootId, owner 검사를 통과한
    Ready/Uploading Stop을 idempotent success로 처리한다.
 5. D2 대응 native API를 PI bulk `0x1102/0x1103`으로 정정한다.
-6. D5 first slice는 4-byte SDO Read-only와 `MaxSdoDataBytes=4`로 제한한다.
-   현재 baseline은 `CapabilityBits=0x0000003F`, `MaxSdoDataBytes=0`이고 PLC dispatcher도
-   계속 off다. `0x0000013F`/4 bytes는 D5 구현과 gate 통과 뒤의 목표값이다.
+6. 최초 D5 증분은 native 실측 범위에 맞춰 4-byte SDO Read-only와
+   `MaxSdoDataBytes=4`로 제한했다. 분석 당시 baseline은 `CapabilityBits=0x0000003F`,
+   `MaxSdoDataBytes=0`이었고, legacy test source는 `0x0000013F`를 광고했다. 해당 후속
+   capture에서 Slave 1~4 `0x1000:0` UInt32 4-byte happy path가 모두
+   Completed/Success를 반환했다. 이 사실은 역사적 fixed-vector runtime 증거로 보존한다.
+   현재 source는 bit 13 `SDOReadGeneralInline`을 추가한 `0x0000213F`를 광고하고,
+   nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히 맞는 1/2/4-byte Read를
+   허용한다. Write, 8/12-byte와 extended result는 비활성이다. general-inline runtime,
+   fault matrix와 mailbox frame 독립 관측 전에는 production 승인값이 아니다.
 
 반영하지 않는다.
 

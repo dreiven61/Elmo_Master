@@ -122,7 +122,7 @@ runtime에서 검사하며 위반 시 `-7`을 반환한다.
 |---|---|
 | `0x2085 GroupStop` | `Aborting(1)`, `Execute=1`, decel/jerk nonnegative, jerk>0이면 decel>0 |
 | `0x20A4 MoveLinearAbsoluteEx` | position 4축만 사용, slot 5..16=0, coordinate None, ExactStop/ContinuousDirect, Aborting/Buffered |
-| `0x2051 GroupReadActualPosition` | None/ACS/MCS/PCS 입력은 모두 현재 static axis-order identity 위치로 읽음 |
+| `0x2051 GroupReadActualPosition` | None/ACS는 static member-slot alias, MCS/PCS는 `-7`, unknown enum은 `-3`으로 거부 |
 | `0x20E7 SetKinTransformCartesian4Axis` | exact X/Y/Z/U identity-shift, axis reference 1..4, Cartesian, Buffered만 허용; dynamic transform 생성 아님 |
 
 `GroupReset` ACK는 axis/hardware error reset 호출이 실행됐다는 뜻이다. robot

@@ -186,10 +186,10 @@ Custom PI snapshot corresponds semantically to native:
 
 Native generic parameter bulk `0x10C9/0x10CA` is out of current custom Diagnostics scope.
 
-### D5 first slice
+### D5 SDO Read: legacy evidence and current general-inline contract
 
-The only successful SDO capture is `0x1000:0`, UInt32, 4 bytes. The first custom
-SDO Read-only increment therefore uses:
+The only successful native SDO capture is `0x1000:0`, UInt32, 4 bytes. The initial custom
+SDO Read-only increment therefore used:
 
 ```text
 CapabilityBits after all gates = 0x0000013F
@@ -198,18 +198,28 @@ Allowed data length            = 4 only
 SDOWrite / PIWrite / result chunk bits = 0
 ```
 
-The capability remains off until live PLC tests pass. Required tests are success, busy,
-timeout, queued cancel, disconnect/orphan cleanup and stale BootId/owner rejection.
+The legacy internal test source advertised this capability and the retained capture remains
+valid evidence for that fixed vector. It is not evidence for the current general-inline scope
+or production approval.
 
-8/12-byte support is a later increment because the current drive callback does not expose
+The initial design deferred 8/12-byte support because the earlier callback path did not expose
 actual SDO response length. Zero-initialized trailing bytes could otherwise hide an object
 size mismatch.
 
-The 2026-07-22 prerequisite increment adds explicit capability-off parsing for `0x7E03`,
-`0x7E04` and `0x7E50`. It validates fixed sizes, SDO flags, the reserved field and exact
-read/write payload shape. Valid shapes still return UnsupportedFeature and malformed shapes
-return BoundsInvalid. Capability remains `0x0000003F` with `MaxSdoDataBytes=0`; no Drive
-client, callback mailbox or ticket executor is present yet.
+The current 2026-07-22 implementation parses `0x7E03`, `0x7E04` and `0x7E50`, uses four
+`LMCSdoExecutor : EtherCAT_SDOBase` drive clients, callback mailboxes and a one-ticket service
+state machine. It validates fixed sizes, SDO flags, the reserved field and exact read/write
+payload shape. Malformed shapes return BoundsInvalid. General-inline Read accepts slave 1..4,
+nonzero ObjectIndex, any U8 SubIndex, timeout 1..60000 and ValueType-matched 1/2/4-byte lengths.
+It requires capability bits 8 and 13; the stable-BootId test value is `0x0000213F` with
+`MaxSdoDataBytes=4`. Write, 8/12-byte and extended result remain fail-closed. The follow-up
+captures prove only the legacy `0x13F`, `0x1000:0` UInt32 4-byte path on slaves 1 through 4.
+The BootId 6 general-inline capture reproduced a submit-side `ResourceBusy(9)` lockout after an
+earlier error. No ticket/status frame was created for the rejected attempts. The executor source
+now publishes Running before the vendor request can callback, performs private cleanup through a
+Releasing state, returns owned validation failures as consumable terminal results, and reserves
+hard quarantine for unsolicited/duplicate callbacks or invariant failures. The fixed source still
+needs LASAL rebuild/download and general-inline/fault-path qualification.
 
 ## 7. Verification gates
 
@@ -217,12 +227,15 @@ Static/PC gates:
 
 - PMAS Version2 Debug/Release build: PASS to temporary outputs because the running app
   locked the normal Debug output executable
-- existing LMC PC tests: 102/102 PASS
-- `Verify-LasalContract.ps1`: PASS for the latest source
+- current LMC PC tests: Debug/Release 135/135 PASS
+- WPF Debug/Release builds and 3-second startup smokes: PASS
+- LASAL SourceOnly/full static contracts: PASS
+- `Classes.lcb` general `TryStartRead` declaration and generated metadata: synchronized
 - `git diff --check`: PASS before commit
 
-The latest idempotent `0x7E43` Stop patch was applied after the recorded 16:02 LASAL IDE
-Rebuild/Link. Rebuild/Link and implementation smoke must be repeated before PLC download.
+The gate-off D5 source passed the recorded LASAL IDE Rebuild/Link. BootId 5 and the four-axis
+runtime results prove that a gate-on PLC download ran, but the matching IDE Rebuild/Link and
+implementation-smoke log was not preserved.
 
 Live gates that remain manual:
 
@@ -230,4 +243,4 @@ Live gates that remain manual:
 - PMAS WPF: `uiSr=0x0104`, header `Rl=64` permits BufferIndex 0 and range `[0..63]`
 - custom LASAL: Ready/Uploading Stop succeeds for the owner and rejects wrong identity
 - custom `0x7E45/0x7E46` packet sequence and recorder data/CRC
-- D5 4-byte SDO lifecycle after capability implementation
+- D5 fault/cancel/orphan lifecycle after the four-axis 4-byte happy path PASS

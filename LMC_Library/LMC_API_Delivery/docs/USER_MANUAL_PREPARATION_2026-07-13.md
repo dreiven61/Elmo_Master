@@ -124,7 +124,7 @@ printable ASCII 1~79자여야 한다. 재접속 뒤에는 이전 axis/group 객�
 | `GroupReset` | `AxQuitError(AxisNo:=0)` 활성 | axis/hardware error reset이며 profile error 전체 reset이 아님을 명시 |
 | `GroupStop` | `StopMove(Mode:=3)` 활성 | deceleration/jerk, Aborting 제약과 ACK 후 상태 확인 포함 |
 | `MoveLinearAbsoluteEx` | static 4축 `MoveLinearCoord` 활성 | 승인된 coordinate/transition/buffer 조합만 예제화 |
-| `GroupReadActualPosition` | static identity axis-order 68B DINT 응답 활성 | None/ACS/MCS/PCS가 같은 현재 mapping임을 명시 |
+| `GroupReadActualPosition` | static member-slot 68B DINT 응답 활성 | None/ACS alias, MCS/PCS unsupported와 slot 1..9/10..16 zero를 명시 |
 | `SetKinTransformCartesian4Axis` | exact identity 검증과 static mapping 등록 활성 | profile lock이나 dynamic transform 생성 기능이 아님을 명시 |
 
 `MoveLinearAbsoluteEx`는 position 1..4만 사용하고 5..16은 0이어야 한다.
