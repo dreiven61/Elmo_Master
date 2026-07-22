@@ -91,5 +91,8 @@ Lasal_PRG/**/index.db
 # Temporary scraped files
 _tmp_*
 
+# Preserved source for the committed docs/history/260721 split set.
+/docs/history/Elmo_Master_history_260721.md
+
 # Office lock/temp files
 ~$*.xlsx
