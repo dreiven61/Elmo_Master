@@ -964,6 +964,7 @@ FUNCTION TCPMotionInterface::MsgPaser
     adminAxisParameter : _LMCAXIS_READPARAMETER;
     adminSwEndMode : _LMCAXIS_READSWENDPOS;
     adminAxisClientConnected : BOOL;
+    adminErrorId : INT;
   END_VAR
 
   // Motion/read/lookup commands are accepted only after this socket completed
@@ -990,7 +991,7 @@ FUNCTION TCPMotionInterface::MsgPaser
 
   case CommandID of
 
-    // LASAL-local read-only administrative capability negotiation.
+    // LASAL-local administrative capability negotiation.
     0x7D00:
 
       adminSchemaVersion := 0;
@@ -1033,7 +1034,7 @@ FUNCTION TCPMotionInterface::MsgPaser
       end_if;
 
       // Schema v1 supports six physical-axis keys and three group keys.
-      Sendbuf[24]$UDINT := 0x00000003;
+      Sendbuf[24]$UDINT := 0x00000007;
       Sendbuf[28]$UDINT := 0x0000003F;
       Sendbuf[32]$UDINT := 0x00000007;
       Sendbuf[36]$UINT := 4;
@@ -1278,6 +1279,150 @@ FUNCTION TCPMotionInterface::MsgPaser
           pData:=#Sendbuf[0], udSize:=24,
           dSocket:=CurrentSock, bDirect:=TRUE);
       end_if;
+
+    // Load one four-axis Cartesian move relative to the last buffered target.
+    0x7D22:
+
+      adminSchemaVersion := 0;
+      adminRequestFlags := 0;
+      adminRequestId := 0;
+      adminDetailCode := 0;
+      GroupCommandInputValid := FALSE;
+      GroupVelocity := 0;
+      GroupAccel := 0;
+      GroupDecel := 0;
+      GroupJerk := 0;
+      GroupCoordSystem := -1;
+      GroupTransitionModeInput := -1;
+      GroupTransitionRadius := 0;
+      GroupExecute := 0;
+      bufMode := 0;
+      GroupCommandConfig := 0;
+      GroupMoveRetCode := _LMCPROF_MOVECMD_ERROR;
+      adminErrorId := -31000;
+      powerIsOn := 0;
+      profileLockState := 0;
+      _memset(dest:=#GroupMovePos, usByte:=0, cntr:=sizeof(GroupMovePos));
+
+      if Payload >= 8 then
+        adminSchemaVersion := RequestBuf[8]$UINT;
+        adminRequestFlags := RequestBuf[10]$UINT;
+        adminRequestId := RequestBuf[12]$UDINT;
+      end_if;
+
+      if Payload <> 104 then
+        adminDetailCode := 5;
+      elsif AxisRef <> 0x0100 then
+        adminDetailCode := 4;
+      elsif adminSchemaVersion <> 1 then
+        adminDetailCode := 1;
+      elsif adminRequestFlags <> 0 then
+        adminDetailCode := 2;
+      elsif adminRequestId = 0 then
+        adminDetailCode := 3;
+      else
+        // This project has four connected axes. Wire slots 5..16 must be zero.
+        _StdLib.MemCpy(dest:=#GroupMovePos, source:=#RequestBuf[16], size:=16);
+        _StdLib.MemCpy(dest:=#GroupVelocity, source:=#RequestBuf[80], size:=4);
+        _StdLib.MemCpy(dest:=#GroupAccel, source:=#RequestBuf[84], size:=4);
+        _StdLib.MemCpy(dest:=#GroupDecel, source:=#RequestBuf[88], size:=4);
+        _StdLib.MemCpy(dest:=#GroupJerk, source:=#RequestBuf[92], size:=4);
+        _StdLib.MemCpy(dest:=#GroupCoordSystem, source:=#RequestBuf[96], size:=4);
+        _StdLib.MemCpy(
+          dest:=#GroupTransitionModeInput, source:=#RequestBuf[100], size:=4);
+        _StdLib.MemCpy(dest:=#bufMode, source:=#RequestBuf[104], size:=4);
+        _StdLib.MemCpy(dest:=#GroupExecute, source:=#RequestBuf[108], size:=4);
+
+        GroupCommandInputValid :=
+          (GroupVelocity > 0) & (GroupAccel > 0) & (GroupDecel > 0) &
+          (GroupJerk >= 0) & (GroupCoordSystem = 0) &
+          ((GroupTransitionModeInput = 0) |
+           (GroupTransitionModeInput = 2)) &
+          ((bufMode = 1) | (bufMode = 2)) & (GroupExecute = 1);
+
+        for kinIndex := 4 to 15 do
+          if RequestBuf[(16 + (kinIndex * 4))$DINT]$DINT <> 0 then
+            GroupCommandInputValid := FALSE;
+          end_if;
+        end_for;
+
+        if GroupCommandInputValid = FALSE then
+          adminDetailCode := 9;
+        end_if;
+      end_if;
+
+      case GroupTransitionModeInput of
+        0:
+          GroupTransitionMode := _LMCPROF_EXACT_STOP;
+        2:
+          GroupTransitionMode := _LMCPROF_CONT_DIRECT;
+      else
+        GroupTransitionMode := _LMCPROF_EXACT_STOP;
+      end_case;
+
+      if bufMode = 1 then
+        // _LMCPROFCMDCONFIG.MoveImmediately is bit 5 (value 16).
+        GroupCommandConfig := 16;
+      end_if;
+
+      if adminDetailCode = 0 then
+        if (IsClientConnected(#LMCRobot) = 1) &
+           (IsClientConnected(#LMCAxis1) = 1) &
+           (IsClientConnected(#LMCAxis2) = 1) &
+           (IsClientConnected(#LMCAxis3) = 1) &
+           (IsClientConnected(#LMCAxis4) = 1) then
+          powerIsOn := LMCRobot.RobotIsOn();
+          profileLockState := LMCRobot.ReadProfileParameter(
+            ParNo:=_LMCPROF_LockState);
+          if (GroupKinematicReady = TRUE) &
+             (powerIsOn <> 0) & (profileLockState <> 0) then
+            GroupMoveRetCode := LMCRobot.MoveRelativeCoord(
+              pDistances:=#GroupMovePos,
+              CmdConfig:=GroupCommandConfig,
+              Velocity:=GroupVelocity,
+              Accel:=GroupAccel,
+              Decel:=GroupDecel,
+              TransMode:=GroupTransitionMode,
+              TransRadius:=GroupTransitionRadius,
+              CoordSystem:=0,
+              Jerk:=GroupJerk);
+            if GroupMoveRetCode = _LMCPROF_NoError then
+              adminErrorId := 0;
+            else
+              adminDetailCode := 11;
+              if GroupMoveRetCode$UDINT <= 32767 then
+                adminErrorId := GroupMoveRetCode$INT;
+              else
+                adminErrorId := -6;
+              end_if;
+            end_if;
+          else
+            adminDetailCode := 10;
+          end_if;
+        else
+          adminDetailCode := 10;
+        end_if;
+      end_if;
+
+      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 16;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$UINT := 0;
+      Sendbuf[12]$UINT := 0;
+      Sendbuf[14]$INT := 0;
+      Sendbuf[16]$UDINT := adminRequestId;
+      Sendbuf[20]$UDINT := adminDetailCode;
+
+      if adminDetailCode <> 0 then
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := adminErrorId;
+      end_if;
+
+      SendData(
+        pData:=#Sendbuf[0], udSize:=24,
+        dSocket:=CurrentSock, bDirect:=TRUE);
 
     // LASAL-DINT diagnostics capability negotiation.
     0x7E00:

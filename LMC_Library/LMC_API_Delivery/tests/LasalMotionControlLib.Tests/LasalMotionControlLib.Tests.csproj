@@ -29,6 +29,7 @@
     <Compile Include="TestFrame.cs" />
     <Compile Include="FakeRpcServer.cs" />
     <Compile Include="AdminContractTests.cs" />
+    <Compile Include="AdminMotionContractTests.cs" />
     <Compile Include="ErrorCatalogTests.cs" />
     <Compile Include="RequestGoldenTests.cs" />
     <Compile Include="ResponseParserTests.cs" />

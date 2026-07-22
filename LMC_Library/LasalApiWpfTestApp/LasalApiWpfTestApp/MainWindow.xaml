@@ -454,19 +454,19 @@
                                         <ComboBox x:Name="ComboGroupUnit" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="1">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="X target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="X target / delta" />
                                         <TextBox x:Name="TextGroupPositionX" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Y target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Y target / delta" />
                                         <TextBox x:Name="TextGroupPositionY" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Z target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Z target / delta" />
                                         <TextBox x:Name="TextGroupPositionZ" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="1">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="U target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="U target / delta" />
                                         <TextBox x:Name="TextGroupPositionU" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="2">
@@ -504,10 +504,14 @@
                                                 x:Name="ButtonGroupMoveLinear"
                                                 Click="ButtonGroupMoveLinear_Click"
                                                 Content="6 Move Linear Absolute" />
+                                            <Button
+                                                x:Name="ButtonGroupMoveLinearRelative"
+                                                Click="ButtonGroupMoveLinearRelative_Click"
+                                                Content="6 Move Linear Relative" />
                                         </WrapPanel>
                                         <TextBlock
                                             Foreground="#8A4A00"
-                                            Text="Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Select None / raw DINT for values already converted by the caller. This PLC adapter currently accepts Coordinate=None."
+                                            Text="Absolute interprets X/Y/Z/U as targets; Relative interprets them as deltas. Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Select None / raw DINT for values already converted by the caller. This PLC adapter currently accepts Coordinate=None."
                                             TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>

@@ -8,6 +8,7 @@ namespace LasalMotionControlLib
         internal const ushort SchemaVersion = 1;
         internal const int CommonRequestPayloadLength = 8;
         internal const int ReadParameterRequestPayloadLength = 12;
+        internal const int GroupMoveLinearRelativeRequestPayloadLength = 104;
 
         internal static byte[] GetCapabilities(uint requestId)
         {
@@ -62,6 +63,77 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
+        internal static byte[] GroupMoveLinearRelative(
+            uint requestId,
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            ValidateGroupReference(groupReference);
+            ValidateGroupLinearRelative(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+
+            var buffer = CreateCommonRequest(
+                LMC_CommandId.GroupMoveLinearRelative,
+                groupReference,
+                GroupMoveLinearRelativeRequestPayloadLength,
+                requestId);
+            var motionOffset = LMC_Frame.HeaderSize
+                + CommonRequestPayloadLength;
+            LMC_Frame.WriteGroupLinearVector(
+                buffer,
+                motionOffset,
+                distance);
+            LMC_Frame.WriteInt32(buffer, motionOffset + 64, velocity);
+            LMC_Frame.WriteInt32(buffer, motionOffset + 68, acceleration);
+            LMC_Frame.WriteInt32(buffer, motionOffset + 72, deceleration);
+            LMC_Frame.WriteInt32(buffer, motionOffset + 76, jerk);
+            LMC_Frame.WriteInt32(
+                buffer,
+                motionOffset + 80,
+                (int)options.CoordinateSystem);
+            LMC_Frame.WriteInt32(
+                buffer,
+                motionOffset + 84,
+                (int)options.TransitionMode);
+            LMC_Frame.WriteInt32(
+                buffer,
+                motionOffset + 88,
+                (int)options.BufferMode);
+            LMC_Frame.WriteInt32(
+                buffer,
+                motionOffset + 92,
+                options.Execute ? 1 : 0);
+            return buffer;
+        }
+
+        internal static void ValidateGroupLinearRelative(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            LMC_Frame.ValidateGroupLinearMotion(
+                distance,
+                "distance",
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+        }
+
         internal static void ValidateAxisReference(ushort axisReference)
         {
             if (axisReference < 1 || axisReference > 4)
@@ -90,7 +162,7 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException(
                     "groupReference",
-                    "Phase 1 admin reads support the main group reference 0x0100 only.");
+                    "LASAL-local admin group commands support the main group reference 0x0100 only.");
             }
         }
 
@@ -152,6 +224,19 @@ namespace LasalMotionControlLib
             uint expectedRequestId,
             long connectionSessionGeneration)
         {
+            return ParseCapabilities(
+                raw,
+                expectedRequestId,
+                connectionSessionGeneration,
+                null);
+        }
+
+        internal static LMCAdminCapabilities ParseCapabilities(
+            byte[] raw,
+            uint expectedRequestId,
+            long connectionSessionGeneration,
+            LMCConnection connectionOwner)
+        {
             var transport = ParseTransport(
                 raw,
                 "GetAdminCapabilities",
@@ -177,7 +262,8 @@ namespace LasalMotionControlLib
 
             const LMCAdminFeature knownFeatures =
                 LMCAdminFeature.AxisParameterRead
-                | LMCAdminFeature.GroupParameterRead;
+                | LMCAdminFeature.GroupParameterRead
+                | LMCAdminFeature.GroupLinearRelative;
             const uint knownAxisMask = 0x0000003Fu;
 
             if ((features & ~knownFeatures) != 0
@@ -197,6 +283,8 @@ namespace LasalMotionControlLib
                     && (groupSelection == LMCGroupParameterSelection.None
                         || groupReference != 0x0100
                         || maxGroupParameterCount == 0))
+                || ((features & LMCAdminFeature.GroupLinearRelative) != 0
+                    && groupReference != 0x0100)
                 || errorCatalogVersion == 0)
             {
                 throw new InvalidDataException(
@@ -205,6 +293,7 @@ namespace LasalMotionControlLib
 
             return new LMCAdminCapabilities(
                 response,
+                connectionOwner,
                 connectionSessionGeneration,
                 features,
                 axisMask,
@@ -288,6 +377,26 @@ namespace LasalMotionControlLib
                 LMC_Frame.ReadInt32(payload, 28));
         }
 
+        internal static LMCAdminResponse ParseGroupMoveLinearRelative(
+            byte[] raw,
+            uint expectedRequestId)
+        {
+            var transport = ParseTransport(
+                raw,
+                "GroupMoveLinearRelative",
+                false);
+            var response = ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                true);
+            EnsurePayloadLength(
+                transport,
+                CommonResponsePayloadLength,
+                "GroupMoveLinearRelative");
+            ThrowIfCommandFailed("GroupMoveLinearRelative", response);
+            return response;
+        }
+
         private static LMCAdminUnit ExpectedAxisUnit(LMCAxisParameterKey key)
         {
             switch (key)
@@ -341,6 +450,17 @@ namespace LasalMotionControlLib
             LMC_Response transport,
             uint expectedRequestId)
         {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails)
+        {
             if (transport.Payload.Length < CommonResponsePayloadLength)
             {
                 throw new InvalidDataException(
@@ -367,10 +487,10 @@ namespace LasalMotionControlLib
                 || (commandStatus == 0
                     && (errorId != 0 || detailCode != 0))
                 || (commandStatus == 1
-                    && (errorId != AdminErrorId
-                        || detailCode == 0
-                        || detailCode
-                            > (uint)LMCAdminDetailCode.InvalidSelection)))
+                    && !IsValidCommandFailure(
+                        errorId,
+                        detailCode,
+                        allowMotionFailureDetails)))
             {
                 throw new InvalidDataException(
                     "Admin response contains an invalid status/error/detail combination.");
@@ -384,6 +504,36 @@ namespace LasalMotionControlLib
                 errorId,
                 requestId,
                 detailCode);
+        }
+
+        private static bool IsValidCommandFailure(
+            short errorId,
+            uint detailCode,
+            bool allowMotionFailureDetails)
+        {
+            if (detailCode >= (uint)LMCAdminDetailCode.UnsupportedSchema
+                && detailCode <= (uint)LMCAdminDetailCode.InvalidSelection)
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (!allowMotionFailureDetails)
+            {
+                return false;
+            }
+
+            if (detailCode == (uint)LMCAdminDetailCode.InvalidMotionParameters
+                || detailCode == (uint)LMCAdminDetailCode.InvalidState)
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (detailCode == (uint)LMCAdminDetailCode.NativeCommandRejected)
+            {
+                return errorId > 0 || errorId == -6;
+            }
+
+            return false;
         }
 
         private static void ThrowIfCommandFailed(

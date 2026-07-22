@@ -7,7 +7,8 @@ namespace LasalMotionControlLib
     {
         None = 0,
         AxisParameterRead = 1u << 0,
-        GroupParameterRead = 1u << 1
+        GroupParameterRead = 1u << 1,
+        GroupLinearRelative = 1u << 2
     }
 
     public enum LMCAxisParameterKey : ushort
@@ -61,7 +62,10 @@ namespace LasalMotionControlLib
         InvalidPayloadLength = 5,
         UnsupportedParameter = 6,
         MissingClient = 7,
-        InvalidSelection = 8
+        InvalidSelection = 8,
+        InvalidMotionParameters = 9,
+        InvalidState = 10,
+        NativeCommandRejected = 11
     }
 
     public sealed class LMCAdminResponse
@@ -112,6 +116,7 @@ namespace LasalMotionControlLib
     {
         internal LMCAdminCapabilities(
             LMCAdminResponse response,
+            LMCConnection connectionOwner,
             long connectionSessionGeneration,
             LMCAdminFeature features,
             uint axisParameterMask,
@@ -123,6 +128,7 @@ namespace LasalMotionControlLib
             ushort errorCatalogVersion)
         {
             Response = response;
+            ConnectionOwner = connectionOwner;
             ConnectionSessionGeneration = connectionSessionGeneration;
             Features = features;
             AxisParameterMask = axisParameterMask;
@@ -149,6 +155,7 @@ namespace LasalMotionControlLib
         public ushort ErrorCatalogVersion { get; private set; }
 
         internal long ConnectionSessionGeneration { get; private set; }
+        internal LMCConnection ConnectionOwner { get; private set; }
 
         public bool Supports(LMCAdminFeature feature)
         {

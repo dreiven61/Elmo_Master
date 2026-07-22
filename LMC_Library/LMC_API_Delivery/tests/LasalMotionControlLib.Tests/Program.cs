@@ -10,6 +10,7 @@ namespace LasalMotionControlLib.Tests
             var tests = new List<TestCase>();
 
             AdminContractTests.Register(tests);
+            AdminMotionContractTests.Register(tests);
             ErrorCatalogTests.Register(tests);
             RequestGoldenTests.Register(tests);
             ResponseParserTests.Register(tests);

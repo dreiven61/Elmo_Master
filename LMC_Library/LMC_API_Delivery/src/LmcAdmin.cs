@@ -5,8 +5,9 @@ using System.Threading.Tasks;
 namespace LasalMotionControlLib
 {
     /// <summary>
-    /// Read-only LASAL-local administrative API. These commands do not create
-    /// motion and do not expose native MotionLib enum values on the wire.
+    /// Versioned LASAL-local administrative API. Read operations and explicitly
+    /// advertised motion facades use stable wire values rather than native
+    /// MotionLib enum values.
     /// </summary>
     public sealed class LMCAdmin
     {
@@ -39,7 +40,8 @@ namespace LasalMotionControlLib
             var result = LMC_AdminParser.ParseCapabilities(
                 raw,
                 requestId,
-                sessionGeneration);
+                sessionGeneration,
+                connection);
             connection.EnsureSessionGeneration(sessionGeneration);
             return result;
         }
@@ -66,7 +68,8 @@ namespace LasalMotionControlLib
             var result = LMC_AdminParser.ParseCapabilities(
                 raw,
                 requestId,
-                sessionGeneration);
+                sessionGeneration,
+                connection);
             connection.EnsureSessionGeneration(sessionGeneration);
             return result;
         }
@@ -303,6 +306,340 @@ namespace LasalMotionControlLib
                 cancellationToken);
         }
 
+        public LMCAdminResponse GroupMoveLinearRelative(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk)
+        {
+            return GroupMoveLinearRelative(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                new LMCGroupMotionOptions());
+        }
+
+        public LMCAdminResponse GroupMoveLinearRelative(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            var sessionGeneration = connection.SessionGeneration;
+            return GroupMoveLinearRelativeCore(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                sessionGeneration);
+        }
+
+        public LMCAdminResponse GroupMoveLinearRelative(
+            LMCGroupAxis group,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            var sessionGeneration = ValidateGroupOwner(group);
+            return GroupMoveLinearRelativeCore(
+                group.GroupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                sessionGeneration);
+        }
+
+        public LMCAdminResponse GroupMoveLinearRelative(
+            LMCGroupAxis group,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            LMCAdminCapabilities verifiedCapabilities)
+        {
+            var sessionGeneration = ValidateGroupOwner(group);
+            return GroupMoveLinearRelativePreparedCore(
+                group.GroupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                verifiedCapabilities,
+                sessionGeneration);
+        }
+
+        private LMCAdminResponse GroupMoveLinearRelativeCore(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            long sessionGeneration)
+        {
+            LMC_AdminFrame.ValidateGroupReference(groupReference);
+            LMC_AdminFrame.ValidateGroupLinearRelative(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = GetCapabilitiesCore(sessionGeneration);
+            return GroupMoveLinearRelativePreparedCore(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                capabilities,
+                sessionGeneration);
+        }
+
+        private LMCAdminResponse GroupMoveLinearRelativePreparedCore(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            LMCAdminCapabilities verifiedCapabilities,
+            long sessionGeneration)
+        {
+            LMC_AdminFrame.ValidateGroupReference(groupReference);
+            LMC_AdminFrame.ValidateGroupLinearRelative(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+            ValidateGroupMotionCapabilities(
+                verifiedCapabilities,
+                sessionGeneration,
+                groupReference);
+
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_AdminFrame.GroupMoveLinearRelative(
+                    requestId,
+                    groupReference,
+                    distance,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    options),
+                sessionGeneration);
+            var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
+                raw,
+                requestId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return result;
+        }
+
+        public Task<LMCAdminResponse> GroupMoveLinearRelativeAsync(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            CancellationToken cancellationToken)
+        {
+            return GroupMoveLinearRelativeAsync(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                new LMCGroupMotionOptions(),
+                cancellationToken);
+        }
+
+        public Task<LMCAdminResponse> GroupMoveLinearRelativeAsync(
+            ushort groupReference,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            CancellationToken cancellationToken)
+        {
+            var sessionGeneration = connection.SessionGeneration;
+            return GroupMoveLinearRelativeCoreAsync(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                sessionGeneration,
+                cancellationToken);
+        }
+
+        public Task<LMCAdminResponse> GroupMoveLinearRelativeAsync(
+            LMCGroupAxis group,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            CancellationToken cancellationToken)
+        {
+            var sessionGeneration = ValidateGroupOwner(group);
+            return GroupMoveLinearRelativeCoreAsync(
+                group.GroupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                sessionGeneration,
+                cancellationToken);
+        }
+
+        public Task<LMCAdminResponse> GroupMoveLinearRelativeAsync(
+            LMCGroupAxis group,
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            LMCAdminCapabilities verifiedCapabilities,
+            CancellationToken cancellationToken)
+        {
+            var sessionGeneration = ValidateGroupOwner(group);
+            return GroupMoveLinearRelativePreparedCoreAsync(
+                group.GroupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                verifiedCapabilities,
+                sessionGeneration,
+                cancellationToken);
+        }
+
+        private async Task<LMCAdminResponse>
+            GroupMoveLinearRelativeCoreAsync(
+                ushort groupReference,
+                int[] distance,
+                int velocity,
+                int acceleration,
+                int deceleration,
+                int jerk,
+                LMCGroupMotionOptions options,
+                long sessionGeneration,
+                CancellationToken cancellationToken)
+        {
+            LMC_AdminFrame.ValidateGroupReference(groupReference);
+            LMC_AdminFrame.ValidateGroupLinearRelative(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = await GetCapabilitiesCoreAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return await GroupMoveLinearRelativePreparedCoreAsync(
+                groupReference,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                capabilities,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<LMCAdminResponse>
+            GroupMoveLinearRelativePreparedCoreAsync(
+                ushort groupReference,
+                int[] distance,
+                int velocity,
+                int acceleration,
+                int deceleration,
+                int jerk,
+                LMCGroupMotionOptions options,
+                LMCAdminCapabilities verifiedCapabilities,
+                long sessionGeneration,
+                CancellationToken cancellationToken)
+        {
+            LMC_AdminFrame.ValidateGroupReference(groupReference);
+            LMC_AdminFrame.ValidateGroupLinearRelative(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+            ValidateGroupMotionCapabilities(
+                verifiedCapabilities,
+                sessionGeneration,
+                groupReference);
+
+            var requestId = NextRequestId();
+            var raw = await connection.ExchangeAsync(
+                LMC_AdminFrame.GroupMoveLinearRelative(
+                    requestId,
+                    groupReference,
+                    distance,
+                    velocity,
+                    acceleration,
+                    deceleration,
+                    jerk,
+                    options),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
+                raw,
+                requestId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return result;
+        }
+
         private long ValidateAxisOwner(LMCSingleAxis axis)
         {
             if (axis == null)
@@ -377,6 +714,40 @@ namespace LasalMotionControlLib
             {
                 throw new NotSupportedException(
                     "The connected PLC does not advertise this group parameter read.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private void ValidateGroupMotionCapabilities(
+            LMCAdminCapabilities capabilities,
+            long expectedSessionGeneration,
+            ushort groupReference)
+        {
+            if (capabilities == null)
+            {
+                throw new ArgumentNullException("verifiedCapabilities");
+            }
+
+            if (!ReferenceEquals(capabilities.ConnectionOwner, connection))
+            {
+                throw new InvalidOperationException(
+                    "The supplied admin capabilities belong to another connection.");
+            }
+
+            if (capabilities.ConnectionSessionGeneration
+                != expectedSessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The supplied admin capabilities belong to another or stale connection session.");
+            }
+
+            if (!capabilities.Supports(
+                    LMCAdminFeature.GroupLinearRelative)
+                || groupReference != capabilities.GroupReference)
+            {
+                throw new NotSupportedException(
+                    "The connected PLC does not advertise the group linear-relative motion facade.");
             }
 
             connection.EnsureSessionGeneration(expectedSessionGeneration);

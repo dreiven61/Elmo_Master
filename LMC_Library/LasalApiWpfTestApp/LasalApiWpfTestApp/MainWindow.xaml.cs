@@ -1301,6 +1301,133 @@ namespace LasalMotionControlApiExample
                 noMovementExpected);
         }
 
+        private async void ButtonGroupMoveLinearRelative_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            const string operation = "Move Linear Relative";
+            if (!CanStartLiveCommand(operation))
+            {
+                return;
+            }
+
+            var safetyGeneration = safetyRequestGeneration;
+            LMCGroupAxis monitoredGroup = null;
+            var trackingGeneration = 0;
+            var noMovementExpected = false;
+
+            await RunOperationAsync(
+                operation + " Send",
+                async () =>
+                {
+                    var currentConnection = RequireConnection();
+                    var currentGroup = RequireGroup();
+                    EnsureGroupReadyForMotion();
+                    var input = ReadGroupMotionInput();
+                    var startPosition = await currentGroup
+                        .GroupReadActualPositionAsync(
+                            input.Options.CoordinateSystem,
+                            CancellationToken.None);
+                    EnsureGroupPositionSuccess(
+                        operation + " start position",
+                        startPosition);
+
+                    var currentPositions = startPosition.PositionsRaw;
+                    WriteLog(
+                        operation
+                        + " input: StartRaw="
+                        + FormatGroupPositionsRaw(currentPositions)
+                        + ", DeltaRaw="
+                        + FormatGroupPositionsRaw(input.PositionsRaw)
+                        + ", VelocityRaw="
+                        + input.VelocityRaw
+                        + ", AccelerationRaw="
+                        + input.AccelerationRaw
+                        + ", DecelerationRaw="
+                        + input.DecelerationRaw
+                        + ", JerkRaw="
+                        + input.JerkRaw
+                        + ", Transition="
+                        + input.Options.TransitionMode
+                        + ", Buffer="
+                        + input.Options.BufferMode
+                        + ".");
+                    noMovementExpected = input.PositionsRaw.All(
+                        distance => distance == 0);
+                    monitoredGroup = currentGroup;
+                    var verifiedCapabilities = await currentConnection.Admin
+                        .GetCapabilitiesAsync(CancellationToken.None);
+                    if (!verifiedCapabilities.Supports(
+                            LMCAdminFeature.GroupLinearRelative)
+                        || verifiedCapabilities.GroupReference
+                            != currentGroup.GroupReference)
+                    {
+                        throw new NotSupportedException(
+                            "The connected PLC does not advertise the group "
+                            + "linear-relative motion facade for the loaded "
+                            + "group.");
+                    }
+
+                    try
+                    {
+                        var response = await SendLiveCommandAsync(
+                            safetyGeneration,
+                            operation,
+                            async () =>
+                            {
+                                trackingGeneration = MarkMotionUncertain(
+                                    currentGroup.GroupName,
+                                    operation);
+                                return await currentGroup
+                                    .MoveLinearRelativeExAsync(
+                                        input.PositionsRaw,
+                                        input.VelocityRaw,
+                                        input.AccelerationRaw,
+                                        input.DecelerationRaw,
+                                        input.JerkRaw,
+                                        input.Options,
+                                        verifiedCapabilities,
+                                        CancellationToken.None);
+                            });
+
+                        ClearMotionOnConfirmedRejection(
+                            currentGroup.GroupName,
+                            operation,
+                            response);
+                        EnsureAdminResponseSuccess(operation, response);
+                        TextGroupResult.Text =
+                            FormatAdminResponse(response)
+                            + Environment.NewLine
+                            + "Command accepted; monitoring Group InPosition.";
+                    }
+                    catch (LMCAdminCommandException error)
+                    {
+                        ClearMotionOnConfirmedRejection(
+                            currentGroup.GroupName,
+                            operation,
+                            error.Response);
+                        TextGroupResult.Text = FormatAdminResponse(
+                            error.Response);
+                        throw;
+                    }
+                });
+
+            if (monitoredGroup == null
+                || trackingGeneration == 0
+                || !IsTrackedMotion(
+                    monitoredGroup.GroupName,
+                    trackingGeneration))
+            {
+                return;
+            }
+
+            await MonitorGroupFiniteMotionAsync(
+                operation,
+                monitoredGroup,
+                trackingGeneration,
+                noMovementExpected);
+        }
+
         private async void ButtonCheckKinHome_Click(
             object sender,
             RoutedEventArgs e)
@@ -2296,6 +2423,21 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private void ClearMotionOnConfirmedRejection(
+            string currentAxisName,
+            string operation,
+            LMCAdminResponse response)
+        {
+            if (response != null
+                && response.TransportResponse != null
+                && response.TransportResponse.IsFrameValid
+                && !response.IsSuccess
+                && IsTrackedMotionAxis(currentAxisName))
+            {
+                ClearMotionWarning(operation + " was rejected by a valid response");
+            }
+        }
+
         private void ClearMotionWarning(
             string reason,
             int? expectedTrackingGeneration = null)
@@ -2989,6 +3131,21 @@ namespace LasalMotionControlApiExample
                     : FormatResponse(response)));
         }
 
+        private static void EnsureAdminResponseSuccess(
+            string operation,
+            LMCAdminResponse response)
+        {
+            if (response != null && response.IsSuccess)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                operation
+                + " failed. "
+                + FormatAdminResponse(response));
+        }
+
         private static void EnsureAxisStatusSuccess(
             string operation,
             LMCReadStatusResult result)
@@ -3091,6 +3248,30 @@ namespace LasalMotionControlApiExample
                 + response.ErrorId
                 + ", Bytes="
                 + (response.Raw == null ? 0 : response.Raw.Length);
+        }
+
+        private static string FormatAdminResponse(LMCAdminResponse response)
+        {
+            if (response == null)
+            {
+                return "AdminResponse=<null>";
+            }
+
+            return
+                "Schema="
+                + response.SchemaVersion
+                + ", CommandStatus="
+                + response.CommandStatus
+                + ", ErrorId="
+                + response.ErrorId
+                + ", RequestId="
+                + response.RequestId
+                + ", Detail="
+                + response.DetailCode
+                + " ("
+                + response.DetailCodeValue
+                + "), Transport="
+                + FormatResponse(response.TransportResponse);
         }
 
         private void UpdateUiState()
@@ -3196,6 +3377,13 @@ namespace LasalMotionControlApiExample
                 && (!motionMayBeActive
                     || IsTrackedMotionAxis(group.GroupName));
             ButtonGroupMoveLinear.IsEnabled = groupReady
+                && liveCommandAllowed
+                && !groupPowerOffVerificationPending
+                && groupActiveVerified
+                && groupIdentityConfigured
+                && !groupProfileLockVerificationPending
+                && groupProfileLocked;
+            ButtonGroupMoveLinearRelative.IsEnabled = groupReady
                 && liveCommandAllowed
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified

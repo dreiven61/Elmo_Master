@@ -501,7 +501,7 @@ if ($caseIndex -lt 0) {
     throw 'TCPMotionInterface.MsgPaser command case was not found.'
 }
 $preCaseBlock = $msgParserBlock.Substring(0, $caseIndex)
-foreach ($commandId in @('2023', '2024', '2022', '2028', '202E', '209F', '20A0', '20A2', '2047', '2048', '2049', '204A', '204B', '2045', '2051', '2085', '20A4', '20E7', '7D00', '7D10', '7D20')) {
+foreach ($commandId in @('2023', '2024', '2022', '2028', '202E', '209F', '20A0', '20A2', '2047', '2048', '2049', '204A', '204B', '2045', '2051', '2085', '20A4', '20E7', '7D00', '7D10', '7D20', '7D22')) {
     if ($preCaseBlock -match "CommandID = 0x$commandId") {
         throw "Active command 0x$commandId is blocked before its CyWork handler."
     }
@@ -515,16 +515,20 @@ $adminAxisParameterCaseBlock = [regex]::Match(
     '(?s)0x7D10:.*?0x7D20:').Value
 $adminGroupParametersCaseBlock = [regex]::Match(
     $msgParserBlock,
-    '(?s)0x7D20:.*?0x7E00:').Value
+    '(?s)0x7D20:.*?0x7D22:').Value
+$adminGroupMoveRelativeCaseBlock = [regex]::Match(
+    $msgParserBlock,
+    '(?s)0x7D22:.*?0x7E00:').Value
 if ([string]::IsNullOrWhiteSpace($adminCapabilitiesCaseBlock) -or
     [string]::IsNullOrWhiteSpace($adminAxisParameterCaseBlock) -or
-    [string]::IsNullOrWhiteSpace($adminGroupParametersCaseBlock)) {
-    throw 'The 0x7D00/0x7D10/0x7D20 read-only admin cases were not found.'
+    [string]::IsNullOrWhiteSpace($adminGroupParametersCaseBlock) -or
+    [string]::IsNullOrWhiteSpace($adminGroupMoveRelativeCaseBlock)) {
+    throw 'The 0x7D00/0x7D10/0x7D20/0x7D22 admin cases were not found.'
 }
 
 Assert-Match $adminCapabilitiesCaseBlock '(?s)if Payload >= 8 then.*?RequestBuf\[8\]\$UINT.*?RequestBuf\[10\]\$UINT.*?RequestBuf\[12\]\$UDINT' '0x7D00 common request offsets are incomplete.'
 Assert-Match $adminCapabilitiesCaseBlock '(?s)Payload <> 8.*?AxisRef <> 0.*?adminSchemaVersion <> 1.*?adminRequestFlags <> 0.*?adminRequestId = 0' '0x7D00 request validation is incomplete.'
-Assert-Match $adminCapabilitiesCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*40.*?Sendbuf\[24\]\$UDINT\s*:=\s*0x00000003.*?Sendbuf\[28\]\$UDINT\s*:=\s*0x0000003F.*?Sendbuf\[32\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[36\]\$UINT\s*:=\s*4.*?Sendbuf\[40\]\$UINT\s*:=\s*0x0100.*?Sendbuf\[42\]\$UINT\s*:=\s*3.*?udSize:=48' '0x7D00 capability bits, masks, limits, or response framing are incomplete.'
+Assert-Match $adminCapabilitiesCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*40.*?Sendbuf\[24\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[28\]\$UDINT\s*:=\s*0x0000003F.*?Sendbuf\[32\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[36\]\$UINT\s*:=\s*4.*?Sendbuf\[40\]\$UINT\s*:=\s*0x0100.*?Sendbuf\[42\]\$UINT\s*:=\s*3.*?udSize:=48' '0x7D00 capability bits, masks, limits, or response framing are incomplete.'
 
 Assert-Match $adminAxisParameterCaseBlock '(?s)Payload <> 12.*?\(AxisRef < 1\) \| \(AxisRef > 4\).*?adminSchemaVersion <> 1.*?RequestBuf\[18\]\$UINT <> 0' '0x7D10 payload/reference/common/reserved validation is incomplete.'
 Assert-Match $adminAxisParameterCaseBlock '(?s)case adminParameterKey of.*?LMCAXIS_RD_SWMIN_APPUNIT.*?LMCAXIS_RD_SWMAX_APPUNIT.*?LMCAXIS_PAR_RD_SWLIMWINDOW.*?LMCAXIS_PAR_RD_V_MAX.*?LMCAXIS_PAR_RD_A_MAX.*?LMCAXIS_PAR_RD_REFPOS.*?adminDetailCode := 6' '0x7D10 semantic-to-native allowlist mapping is incomplete.'
@@ -544,6 +548,16 @@ if ([regex]::Matches($adminGroupParametersCaseBlock, '\bLMCRobot\.ReadGroupParam
     throw '0x7D20 must issue at most the three selected native parameter reads.'
 }
 Assert-Match $adminGroupParametersCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*32.*?Sendbuf\[24\]\$UDINT\s*:=\s*adminSelectionMask.*?Sendbuf\[28\]\$DINT\s*:=\s*adminGroupVelocityLimit.*?Sendbuf\[32\]\$DINT\s*:=\s*adminGroupAccelerationLimit.*?Sendbuf\[36\]\$DINT\s*:=\s*adminGroupJerkTime.*?udSize:=40' '0x7D20 fixed success response framing is incomplete.'
+
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)Payload <> 104.*?AxisRef <> 0x0100.*?adminSchemaVersion <> 1.*?adminRequestFlags <> 0.*?adminRequestId = 0' '0x7D22 payload/reference/common request validation is incomplete.'
+Assert-Match $adminGroupMoveRelativeCaseBlock 'adminErrorId := -31000' '0x7D22 local validation and state errors do not use the Admin error ID.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)source:=#RequestBuf\[16\].*?source:=#RequestBuf\[80\].*?source:=#RequestBuf\[84\].*?source:=#RequestBuf\[88\].*?source:=#RequestBuf\[92\].*?source:=#RequestBuf\[96\].*?source:=#RequestBuf\[100\].*?source:=#RequestBuf\[104\].*?source:=#RequestBuf\[108\]' '0x7D22 DINT field offsets are incomplete.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)\(GroupVelocity > 0\).*?\(GroupAccel > 0\).*?\(GroupDecel > 0\).*?\(GroupJerk >= 0\).*?\(GroupCoordSystem = 0\).*?\(GroupTransitionModeInput = 0\).*?\(GroupTransitionModeInput = 2\).*?\(bufMode = 1\).*?\(bufMode = 2\).*?\(GroupExecute = 1\).*?adminDetailCode := 9' '0x7D22 approved motion-parameter validation is incomplete.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)for kinIndex := 4 to 15 do.*?RequestBuf\[\(16 \+ \(kinIndex \* 4\)\)\$DINT\]\$DINT <> 0.*?GroupCommandInputValid := FALSE' '0x7D22 does not reject nonzero distances outside the four-axis topology.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)case GroupTransitionModeInput of.*?_LMCPROF_EXACT_STOP.*?_LMCPROF_CONT_DIRECT.*?if bufMode = 1 then.*?GroupCommandConfig := 16' '0x7D22 transition and buffer-mode mapping is incomplete.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)IsClientConnected\(#LMCRobot\).*?IsClientConnected\(#LMCAxis1\).*?IsClientConnected\(#LMCAxis2\).*?IsClientConnected\(#LMCAxis3\).*?IsClientConnected\(#LMCAxis4\).*?LMCRobot\.RobotIsOn\(\).*?LMCRobot\.ReadProfileParameter\(\s*ParNo:=_LMCPROF_LockState\).*?GroupKinematicReady = TRUE.*?powerIsOn <> 0.*?profileLockState <> 0.*?LMCRobot\.MoveRelativeCoord\(.*?pDistances:=#GroupMovePos.*?CmdConfig:=GroupCommandConfig.*?Velocity:=GroupVelocity.*?Accel:=GroupAccel.*?Decel:=GroupDecel.*?TransMode:=GroupTransitionMode.*?TransRadius:=GroupTransitionRadius.*?CoordSystem:=0.*?Jerk:=GroupJerk' '0x7D22 does not gate and dispatch the relative move through the configured, powered, locked four-axis profile.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)GroupMoveRetCode = _LMCPROF_NoError.*?adminErrorId := 0.*?adminDetailCode := 11.*?GroupMoveRetCode\$UDINT <= 32767.*?adminErrorId := GroupMoveRetCode\$INT.*?adminErrorId := -6' '0x7D22 does not preserve a representable native rejection code.'
+Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)adminDetailCode := 10.*?_memset\(dest:=#Sendbuf.*?Sendbuf\[2\]\$UINT\s*:=\s*16.*?Sendbuf\[8\]\$UINT\s*:=\s*1.*?Sendbuf\[10\]\$UINT\s*:=\s*0.*?Sendbuf\[12\]\$UINT\s*:=\s*0.*?Sendbuf\[14\]\$INT\s*:=\s*0.*?Sendbuf\[16\]\$UDINT\s*:=\s*adminRequestId.*?Sendbuf\[20\]\$UDINT\s*:=\s*adminDetailCode.*?adminDetailCode <> 0.*?Sendbuf\[12\]\$UINT\s*:=\s*1.*?Sendbuf\[14\]\$INT\s*:=\s*adminErrorId.*?udSize:=24' '0x7D22 state error or Admin response framing is incomplete.'
 
 $diagnosticsCapabilitiesCaseBlock = [regex]::Match(
     $msgParserBlock,
@@ -835,9 +849,19 @@ Assert-Match $protocol 'internal const ushort GetDiagnosticsCapabilities = 0x7E0
 Assert-Match $protocol 'internal const ushort GetAdminCapabilities = 0x7D00;' 'C# admin capability command ID is missing.'
 Assert-Match $protocol 'internal const ushort ReadAxisParameter = 0x7D10;' 'C# axis parameter command ID is missing.'
 Assert-Match $protocol 'internal const ushort ReadGroupParameters = 0x7D20;' 'C# group parameter command ID is missing.'
+Assert-Match $protocol 'internal const ushort GroupMoveLinearRelative = 0x7D22;' 'C# group relative-move command ID is missing.'
 Assert-Match $adminProtocol '(?s)GetCapabilities\(uint requestId\).*?CreateCommonRequest\(\s*LMC_CommandId\.GetAdminCapabilities,\s*0,\s*CommonRequestPayloadLength,\s*requestId\)' 'C# 0x7D00 request builder is incomplete.'
 Assert-Match $adminProtocol '(?s)ReadAxisParameter\(.*?CreateCommonRequest\(\s*LMC_CommandId\.ReadAxisParameter,\s*axisReference,\s*ReadParameterRequestPayloadLength,\s*requestId\).*?CommonRequestPayloadLength,\s*\(ushort\)key' 'C# 0x7D10 request builder is incomplete.'
 Assert-Match $adminProtocol '(?s)ReadGroupParameters\(.*?CreateCommonRequest\(\s*LMC_CommandId\.ReadGroupParameters,\s*groupReference,\s*ReadParameterRequestPayloadLength,\s*requestId\).*?CommonRequestPayloadLength,\s*\(uint\)selection' 'C# 0x7D20 request builder is incomplete.'
+Assert-Match $adminProtocol 'GroupMoveLinearRelativeRequestPayloadLength = 104;' 'C# 0x7D22 request payload length is not 104 bytes.'
+$adminGroupMoveRelativeFrameBlock = [regex]::Match(
+    $adminProtocol,
+    '(?s)internal static byte\[\] GroupMoveLinearRelative\(.*?internal static void ValidateGroupLinearRelative').Value
+if ([string]::IsNullOrWhiteSpace($adminGroupMoveRelativeFrameBlock)) {
+    throw 'C# 0x7D22 request builder was not found.'
+}
+Assert-Match $adminGroupMoveRelativeFrameBlock '(?s)CreateCommonRequest\(\s*LMC_CommandId\.GroupMoveLinearRelative,\s*groupReference,\s*GroupMoveLinearRelativeRequestPayloadLength,\s*requestId\).*?motionOffset = LMC_Frame\.HeaderSize\s*\+ CommonRequestPayloadLength.*?WriteGroupLinearVector\(\s*buffer,\s*motionOffset,\s*distance\)' 'C# 0x7D22 common envelope or 16-slot distance vector is incomplete.'
+Assert-Match $adminGroupMoveRelativeFrameBlock '(?s)motionOffset \+ 64, velocity.*?motionOffset \+ 68, acceleration.*?motionOffset \+ 72, deceleration.*?motionOffset \+ 76, jerk.*?motionOffset \+ 80,\s*\(int\)options\.CoordinateSystem.*?motionOffset \+ 84,\s*\(int\)options\.TransitionMode.*?motionOffset \+ 88,\s*\(int\)options\.BufferMode.*?motionOffset \+ 92,\s*options\.Execute \? 1 : 0' 'C# 0x7D22 motion field offsets are incomplete.'
 Assert-Match $diagnosticsProtocol '(?s)GetDiagnosticsCapabilities\(uint requestId\).*?CreateRequest\(\s*LMC_CommandId\.GetDiagnosticsCapabilities,\s*0,\s*CommonRequestPayloadLength\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize, SchemaVersion\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize \+ 2, 0\).*?WriteUInt32\(buffer, LMC_Frame\.HeaderSize \+ 4, requestId\)' 'C# diagnostics capability common request builder is incomplete.'
 
 $axisLookupBlock = [regex]::Match(
@@ -1172,8 +1196,8 @@ Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# g
 Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 
 if ($SourceOnly) {
-    Write-Host 'PASS LASAL.StaticContract.SourceOnly (CyWork queue, diagnostics D1-D4 and general inline derived D5 SDO Read active contracts, recorder bank, and session-close wiring)'
+    Write-Host 'PASS LASAL.StaticContract.SourceOnly (Admin reads and 0x7D22 relative motion, CyWork queue, diagnostics D1-D5, recorder bank, and session-close wiring)'
 }
 else {
-    Write-Host 'PASS LASAL.StaticContract (CyWork queue, diagnostics D1-D4 and general inline derived D5 SDO Read active contracts, four-axis network, recorder wiring, and generated metadata/tables)'
+    Write-Host 'PASS LASAL.StaticContract (Admin reads and 0x7D22 relative motion, CyWork queue, diagnostics D1-D5, four-axis network, recorder wiring, and generated metadata/tables)'
 }

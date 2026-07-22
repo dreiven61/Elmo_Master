@@ -146,6 +146,7 @@ namespace LasalMotionControlLib
         internal const ushort GetAdminCapabilities = 0x7D00;
         internal const ushort ReadAxisParameter = 0x7D10;
         internal const ushort ReadGroupParameters = 0x7D20;
+        internal const ushort GroupMoveLinearRelative = 0x7D22;
 
         internal const ushort GetDiagnosticsCapabilities = 0x7E00;
         internal const ushort GetSignalCatalogInfo = 0x7E01;
@@ -466,13 +467,18 @@ namespace LasalMotionControlLib
             int jerk,
             LMCGroupMotionOptions options)
         {
-            ValidateGroupPositions(position);
-            ValidateGroupMotionOptions(options);
-            ValidateGroupMotionParameters(velocity, acceleration, deceleration, jerk);
+            ValidateGroupLinearMotion(
+                position,
+                "position",
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
 
             var buffer = CreateRequest(LMC_CommandId.MoveLinear, reference, 96);
 
-            WriteLinearPositions(buffer, position);
+            WriteGroupLinearVector(buffer, HeaderSize, position);
             WriteInt32(buffer, HeaderSize + 64, velocity);
             WriteInt32(buffer, HeaderSize + 68, acceleration);
             WriteInt32(buffer, HeaderSize + 72, deceleration);
@@ -708,27 +714,28 @@ namespace LasalMotionControlLib
             return buffer;
         }
 
-        private static void WriteLinearPositions(
+        internal static void WriteGroupLinearVector(
             byte[] buffer,
-            int[] position)
+            int offset,
+            int[] values)
         {
             for (var axisIndex = 0; axisIndex < MaxLinearAxes; axisIndex++)
             {
-                var internalPosition = GetPosition(position, axisIndex);
-                var offset = HeaderSize + axisIndex * 4;
+                var value = GetVectorValue(values, axisIndex);
+                var valueOffset = offset + axisIndex * 4;
 
-                WriteInt32(buffer, offset, internalPosition);
+                WriteInt32(buffer, valueOffset, value);
             }
         }
 
-        private static int GetPosition(int[] position, int axisIndex)
+        private static int GetVectorValue(int[] values, int axisIndex)
         {
-            if (position == null || axisIndex >= position.Length)
+            if (values == null || axisIndex >= values.Length)
             {
                 return 0;
             }
 
-            return position[axisIndex];
+            return values[axisIndex];
         }
 
         private static void ValidateCoordinateSystem(
@@ -753,27 +760,47 @@ namespace LasalMotionControlLib
             }
         }
 
-        private static void ValidateGroupPositions(int[] position)
+        internal static void ValidateGroupLinearMotion(
+            int[] values,
+            string vectorParameterName,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
         {
-            if (position == null)
+            ValidateGroupVector(values, vectorParameterName);
+            ValidateGroupMotionOptions(options);
+            ValidateGroupMotionParameters(
+                velocity,
+                acceleration,
+                deceleration,
+                jerk);
+        }
+
+        private static void ValidateGroupVector(
+            int[] values,
+            string parameterName)
+        {
+            if (values == null)
             {
-                throw new ArgumentNullException("position");
+                throw new ArgumentNullException(parameterName);
             }
 
-            if (position.Length < 1 || position.Length > MaxLinearAxes)
+            if (values.Length < 1 || values.Length > MaxLinearAxes)
             {
                 throw new ArgumentOutOfRangeException(
-                    "position",
-                    "Group position vectors must contain 1 to 16 DINT values.");
+                    parameterName,
+                    "Group motion vectors must contain 1 to 16 DINT values.");
             }
 
-            for (var index = CurrentGroupMotionAxes; index < position.Length; index++)
+            for (var index = CurrentGroupMotionAxes; index < values.Length; index++)
             {
-                if (position[index] != 0)
+                if (values[index] != 0)
                 {
                     throw new ArgumentException(
-                        "The current four-axis LASAL group move contract requires position slots 5 through 16 to be zero.",
-                        "position");
+                        "The current four-axis LASAL group move contract requires vector slots 5 through 16 to be zero.",
+                        parameterName);
                 }
             }
         }
@@ -791,7 +818,7 @@ namespace LasalMotionControlLib
             if (options.CoordinateSystem != LMC_COORD_SYSTEM.None)
             {
                 throw new NotSupportedException(
-                    "The current LASAL 0x20A4 contract supports the None coordinate system only.");
+                    "The current LASAL group move contract supports the None coordinate system only.");
             }
 
             if (!Enum.IsDefined(
@@ -805,7 +832,7 @@ namespace LasalMotionControlLib
                 && options.TransitionMode != LMC_GROUP_TRANSITION_MODE.ContinuousDirect)
             {
                 throw new NotSupportedException(
-                    "The current LASAL 0x20A4 contract supports ExactStop and ContinuousDirect transitions only.");
+                    "The current LASAL group move contract supports ExactStop and ContinuousDirect transitions only.");
             }
 
             if (!Enum.IsDefined(typeof(LMC_BUFFER_MODE), options.BufferMode))
@@ -817,13 +844,13 @@ namespace LasalMotionControlLib
                 && options.BufferMode != LMC_BUFFER_MODE.Buffered)
             {
                 throw new NotSupportedException(
-                    "The current LASAL 0x20A4 contract supports Aborting and Buffered modes only.");
+                    "The current LASAL group move contract supports Aborting and Buffered modes only.");
             }
 
             if (!options.Execute)
             {
                 throw new NotSupportedException(
-                    "The current LASAL 0x20A4 contract requires Execute=true.");
+                    "The current LASAL group move contract requires Execute=true.");
             }
         }
 

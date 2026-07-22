@@ -213,6 +213,15 @@ namespace LasalMotionControlLib
             AddAdmin(entries, LMCAdminDetailCode.InvalidSelection,
                 "The group parameter selection is empty or contains unsupported bits.",
                 "Use a nonzero subset of the advertised group parameter selection mask.");
+            AddAdmin(entries, LMCAdminDetailCode.InvalidMotionParameters,
+                "The LASAL-local motion request contains an unsupported or out-of-range parameter.",
+                "Use the documented distance topology, positive dynamics, and supported motion options.");
+            AddAdmin(entries, LMCAdminDetailCode.InvalidState,
+                "The LASAL group is not ready to accept the requested motion.",
+                "Verify client wiring, kinematic readiness, power, profile ownership, and lock state.");
+            AddAdmin(entries, LMCAdminDetailCode.NativeCommandRejected,
+                "The native LASAL group profile command rejected the request.",
+                "Interpret a positive ErrorId in the GroupProfile domain; -6 is the adapter fallback when the native code cannot be preserved.");
 
             return entries;
         }

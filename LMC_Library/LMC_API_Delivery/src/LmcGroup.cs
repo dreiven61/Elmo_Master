@@ -351,6 +351,120 @@ namespace LasalMotionControlLib
                 cancellationToken);
         }
 
+        public LMCAdminResponse MoveLinearRelativeEx(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk)
+        {
+            return MoveLinearRelativeEx(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                new LMCGroupMotionOptions());
+        }
+
+        public LMCAdminResponse MoveLinearRelativeEx(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options)
+        {
+            return connection.Admin.GroupMoveLinearRelative(
+                this,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options);
+        }
+
+        public LMCAdminResponse MoveLinearRelativeEx(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            LMCAdminCapabilities verifiedCapabilities)
+        {
+            return connection.Admin.GroupMoveLinearRelative(
+                this,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                verifiedCapabilities);
+        }
+
+        public Task<LMCAdminResponse> MoveLinearRelativeExAsync(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            CancellationToken cancellationToken)
+        {
+            return MoveLinearRelativeExAsync(
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                new LMCGroupMotionOptions(),
+                cancellationToken);
+        }
+
+        public Task<LMCAdminResponse> MoveLinearRelativeExAsync(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            CancellationToken cancellationToken)
+        {
+            return connection.Admin.GroupMoveLinearRelativeAsync(
+                this,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                cancellationToken);
+        }
+
+        public Task<LMCAdminResponse> MoveLinearRelativeExAsync(
+            int[] distance,
+            int velocity,
+            int acceleration,
+            int deceleration,
+            int jerk,
+            LMCGroupMotionOptions options,
+            LMCAdminCapabilities verifiedCapabilities,
+            CancellationToken cancellationToken)
+        {
+            return connection.Admin.GroupMoveLinearRelativeAsync(
+                this,
+                distance,
+                velocity,
+                acceleration,
+                deceleration,
+                jerk,
+                options,
+                verifiedCapabilities,
+                cancellationToken);
+        }
+
         public LMC_Response SetKinTransformCartesian4Axis(
             LMCSingleAxis axisX,
             LMCSingleAxis axisY,
