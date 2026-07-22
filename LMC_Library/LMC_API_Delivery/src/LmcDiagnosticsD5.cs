@@ -89,7 +89,7 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("request");
             }
 
-            ValidateSdoWritePolicy(request);
+            ValidateSdoSubmitPolicy(request);
 
             var sessionGeneration = connection.SessionGeneration;
             return SubmitSdoCore(request, sessionGeneration);
@@ -153,7 +153,7 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("request");
             }
 
-            ValidateSdoWritePolicy(request);
+            ValidateSdoSubmitPolicy(request);
 
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
@@ -321,6 +321,12 @@ namespace LasalMotionControlLib
                 throw new InvalidOperationException(
                     "Direct SDO write is permanently blocked for DS402 control and target objects.");
             }
+        }
+
+        private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
+        {
+            ValidateSdoWritePolicy(request);
+            LMCDiagnosticsSdoPolicy.RequireFirstSliceReadAllowed(request);
         }
 
         private void ValidatePIWriteCapabilities(

@@ -978,7 +978,7 @@
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12">
-                        <GroupBox Header="Asynchronous SDO ticket">
+                        <GroupBox Header="Asynchronous SDO Read ticket (first slice)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -995,47 +995,46 @@
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation (fixed)" />
                                     <ComboBox
                                         x:Name="ComboSdoOperation"
                                         Width="150"
                                         SelectionChanged="SdoOperation_SelectionChanged" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="1">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Slave reference" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Slave reference (1..4)" />
                                     <TextBox x:Name="TextSdoSlaveReference" Width="105" Text="1" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="2">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index" />
-                                    <TextBox x:Name="TextSdoIndex" Width="105" Text="0x1000" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index (fixed)" />
+                                    <TextBox x:Name="TextSdoIndex" Width="105" IsReadOnly="True" Text="0x1000" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="3">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index" />
-                                    <TextBox x:Name="TextSdoSubIndex" Width="90" Text="0" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index (fixed)" />
+                                    <TextBox x:Name="TextSdoSubIndex" Width="90" IsReadOnly="True" Text="0" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="4">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type (fixed)" />
                                     <ComboBox x:Name="ComboSdoValueType" Width="150" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length (fixed)" />
                                     <ComboBox
                                         x:Name="ComboSdoDataLength"
-                                        Width="105"
-                                        IsEditable="True" />
+                                        Width="105" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="1">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (cycles)" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (1..60000 cycles)" />
                                     <TextBox x:Name="TextSdoTimeoutCycles" Width="105" Text="1000" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write data (little-endian hex bytes)" />
-                                    <TextBox x:Name="TextSdoWriteData" Width="390" Text="00 00 00 00" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write data (unavailable)" />
+                                    <TextBox x:Name="TextSdoWriteData" Width="390" IsEnabled="False" Text="SDO Write is unavailable" />
                                 </StackPanel>
 
                                 <WrapPanel Grid.Row="2" Grid.ColumnSpan="5">
-                                    <Button x:Name="ButtonSubmitSdo" Click="ButtonSubmitSdo_Click" Content="Submit SDO" />
+                                    <Button x:Name="ButtonSubmitSdo" Click="ButtonSubmitSdo_Click" Content="Submit SDO Read" />
                                     <Button x:Name="ButtonRefreshDiagnosticOperation" Click="ButtonRefreshDiagnosticOperation_Click" Content="Refresh Ticket" />
                                     <Button x:Name="ButtonDownloadSdoResult" Click="ButtonDownloadSdoResult_Click" Content="Download Result" />
                                     <Button x:Name="ButtonExportSdoResult" Click="ButtonExportSdoResult_Click" Content="Save Result" />
@@ -1047,7 +1046,7 @@
                                     Grid.Row="3"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
-                                    Text="SDO Read requires an advertised SDORead capability. Refresh Ticket returns 4/8/12 bytes inline; larger reads require ExtendedSdoResultChunk and Download Result after terminal success. SDO Write remains blocked unless its capability and SDK allowlist are enabled."
+                                    Text="First-slice SDO Read only: slave 1..4, object 0x1000:0, UInt32, 4 bytes, timeout 1..60000 cycles. Submit stays disabled until the PLC advertises SDORead; Refresh Ticket retrieves the inline result. SDO Write and extended-result download are unavailable."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>

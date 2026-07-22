@@ -2,6 +2,53 @@ using System;
 
 namespace LasalMotionControlLib
 {
+    internal static class LMCDiagnosticsSdoPolicy
+    {
+        internal const uint MaximumFirstSliceTimeoutCycles = 60000;
+
+        internal static void RequireFirstSliceReadAllowed(
+            LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            if (request.IsWrite)
+            {
+                throw new NotSupportedException(
+                    "The first-slice D5 SDO policy supports Read operations only.");
+            }
+
+            if (request.SlaveReference < 1 || request.SlaveReference > 4)
+            {
+                throw new NotSupportedException(
+                    "The first-slice D5 SDO policy supports SlaveReference 1 through 4 only.");
+            }
+
+            if (request.ObjectIndex != 0x1000
+                || request.SubIndex != 0)
+            {
+                throw new NotSupportedException(
+                    "The first-slice D5 SDO policy supports object 0x1000:0 only.");
+            }
+
+            if (request.ValueType != LMCSignalValueType.UInt32
+                || request.DataLength != 4)
+            {
+                throw new NotSupportedException(
+                    "The first-slice D5 SDO policy supports UInt32 4-byte reads only.");
+            }
+
+            if (request.TimeoutCycles < 1
+                || request.TimeoutCycles > MaximumFirstSliceTimeoutCycles)
+            {
+                throw new NotSupportedException(
+                    "The first-slice D5 SDO policy requires TimeoutCycles from 1 through 60000.");
+            }
+        }
+    }
+
     internal static class LMCDiagnosticsWritePolicy
     {
         // Add targets only after PLC mapping and hardware behavior are verified.

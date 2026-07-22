@@ -65,28 +65,17 @@ namespace LasalMotionControlApiExample
 
             ComboSdoOperation.ItemsSource = new[]
             {
-                SdoOperationMode.Read,
-                SdoOperationMode.Write
+                SdoOperationMode.Read
             };
             ComboSdoOperation.SelectedItem = SdoOperationMode.Read;
-            ComboSdoValueType.ItemsSource = Enum
-                .GetValues(typeof(LMCSignalValueType))
-                .Cast<LMCSignalValueType>()
-                .Where(value => value != LMCSignalValueType.Invalid)
-                .ToArray();
+            ComboSdoValueType.ItemsSource = new[]
+            {
+                LMCSignalValueType.UInt32
+            };
             ComboSdoValueType.SelectedItem = LMCSignalValueType.UInt32;
             ComboSdoDataLength.ItemsSource = new ushort[]
             {
-                4,
-                8,
-                12,
-                16,
-                32,
-                64,
-                128,
-                256,
-                512,
-                1024
+                4
             };
             ComboSdoDataLength.SelectedItem = (ushort)4;
             UpdateSdoOperationControls();
@@ -839,100 +828,23 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            LMCSdoRequest request;
+            string validationMessage;
+            if (!TryCreateFirstSliceSdoReadRequest(
+                out request,
+                out validationMessage))
+            {
+                TextDiagnosticOperationSummary.Text =
+                    "Not submitted: " + validationMessage;
+                TextOperationState.Text = "Submit SDO validation failed";
+                WriteLog("Submit SDO not submitted: " + validationMessage);
+                return;
+            }
+
             await RunOperationAsync(
-                "Submit SDO",
+                "Submit SDO Read",
                 async () =>
                 {
-                    var mode = RequireSelectedEnum<SdoOperationMode>(
-                        ComboSdoOperation,
-                        "SDO operation");
-                    EnsureCapability(
-                        mode == SdoOperationMode.Write
-                            ? LMCDiagnosticCapability.SDOWrite
-                            : LMCDiagnosticCapability.SDORead,
-                        mode == SdoOperationMode.Write
-                            ? "SDO Write"
-                            : "SDO Read");
-
-                    if (diagnosticOperationTicket != null
-                        && (diagnosticOperationStatus == null
-                            || !diagnosticOperationStatus.IsTerminal))
-                    {
-                        throw new InvalidOperationException(
-                            "Refresh or cancel the current operation ticket before submitting another SDO.");
-                    }
-
-                    var valueType = RequireSelectedEnum<LMCSignalValueType>(
-                        ComboSdoValueType,
-                        "SDO value type");
-                    var dataLength = ParseUInt16Wire(
-                        ComboSdoDataLength.Text,
-                        "SDO data length",
-                        false);
-                    var slaveReference = ParseUInt16Wire(
-                        TextSdoSlaveReference.Text,
-                        "SDO slave reference",
-                        false);
-                    var objectIndex = ParseUInt16Wire(
-                        TextSdoIndex.Text,
-                        "SDO object index",
-                        false);
-                    var subIndex = ParseByteWire(
-                        TextSdoSubIndex.Text,
-                        "SDO sub-index");
-                    var timeoutCycles = ParseUInt32(
-                        TextSdoTimeoutCycles.Text,
-                        "SDO timeout cycles");
-                    if (diagnosticCapabilities != null
-                        && dataLength > diagnosticCapabilities.MaxSdoDataBytes)
-                    {
-                        throw new InvalidOperationException(
-                            "SDO data length exceeds the PLC MaxSdoDataBytes capability ("
-                            + diagnosticCapabilities.MaxSdoDataBytes
-                            + ").");
-                    }
-
-                    LMCSdoRequest request;
-                    if (mode == SdoOperationMode.Write)
-                    {
-                        if (dataLength != 4
-                            && dataLength != 8
-                            && dataLength != 12)
-                        {
-                            throw new InvalidOperationException(
-                                "SDO Write data length must be exactly 4, 8, or 12 bytes.");
-                        }
-
-                        var writeData = ParseHexBytes(
-                            TextSdoWriteData.Text,
-                            dataLength,
-                            "SDO write data");
-                        request = LMCSdoRequest.CreateWrite(
-                            slaveReference,
-                            objectIndex,
-                            subIndex,
-                            valueType,
-                            writeData,
-                            timeoutCycles);
-                    }
-                    else
-                    {
-                        if (dataLength > 12)
-                        {
-                            EnsureCapability(
-                                LMCDiagnosticCapability.ExtendedSdoResultChunk,
-                                "Extended SDO Result Chunk");
-                        }
-
-                        request = LMCSdoRequest.CreateRead(
-                            slaveReference,
-                            objectIndex,
-                            subIndex,
-                            valueType,
-                            dataLength,
-                            timeoutCycles);
-                    }
-
                     diagnosticOperationTicket =
                         await RequireConnection().Diagnostics.SubmitSdoAsync(
                             request,
@@ -1201,8 +1113,6 @@ namespace LasalMotionControlApiExample
                 LMCDiagnosticCapability.PIWrite);
             var supportsSdoRead = SupportsCapability(
                 LMCDiagnosticCapability.SDORead);
-            var supportsSdoWrite = SupportsCapability(
-                LMCDiagnosticCapability.SDOWrite);
             var hasCatalog = diagnosticCatalog != null;
             var hasBulk = bulkConfiguration != null
                 && !bulkConfiguration.IsReleased;
@@ -1332,32 +1242,23 @@ namespace LasalMotionControlApiExample
                 && idle
                 && (hasRecorderIdentity || hasRecorderConfiguration);
 
-            var selectedSdoMode = ComboSdoOperation.SelectedItem
-                is SdoOperationMode
-                    ? (SdoOperationMode)ComboSdoOperation.SelectedItem
-                    : SdoOperationMode.Read;
-            var sdoCapabilityAvailable = selectedSdoMode
-                == SdoOperationMode.Write
-                    ? supportsSdoWrite
-                    : supportsSdoRead;
             var operationIsTerminal = diagnosticOperationStatus != null
                 && diagnosticOperationStatus.IsTerminal;
             var canSubmitOperation = diagnosticOperationTicket == null
                 || operationIsTerminal;
             var sdoInputsEnabled = idle && canSubmitOperation;
-            ComboSdoOperation.IsEnabled = sdoInputsEnabled;
+            ComboSdoOperation.IsEnabled = false;
             TextSdoSlaveReference.IsEnabled = sdoInputsEnabled;
-            TextSdoIndex.IsEnabled = sdoInputsEnabled;
-            TextSdoSubIndex.IsEnabled = sdoInputsEnabled;
-            ComboSdoValueType.IsEnabled = sdoInputsEnabled;
-            ComboSdoDataLength.IsEnabled = sdoInputsEnabled;
+            TextSdoIndex.IsEnabled = false;
+            TextSdoSubIndex.IsEnabled = false;
+            ComboSdoValueType.IsEnabled = false;
+            ComboSdoDataLength.IsEnabled = false;
             TextSdoTimeoutCycles.IsEnabled = sdoInputsEnabled;
-            TextSdoWriteData.IsEnabled = sdoInputsEnabled
-                && selectedSdoMode == SdoOperationMode.Write;
+            TextSdoWriteData.IsEnabled = false;
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitOperation
-                && sdoCapabilityAvailable;
+                && supportsSdoRead;
             ButtonRefreshDiagnosticOperation.IsEnabled = connected
                 && idle
                 && diagnosticOperationTicket != null;
@@ -1424,7 +1325,7 @@ namespace LasalMotionControlApiExample
                     "Load the PI Catalog and check Recordable signals first.";
                 TextRecorderPlotRange.Text = "No downloaded data.";
                 TextDiagnosticOperationSummary.Text =
-                    "SDO Read requires an advertised SDORead capability. Refresh Ticket returns 4/8/12 bytes inline; larger reads use Download Result after terminal success. SDO Write remains blocked unless its capability and SDK allowlist are enabled.";
+                    "First-slice SDO Read only: slave 1..4, object 0x1000:0, UInt32, 4 bytes, timeout 1..60000 cycles. Submit stays disabled until the PLC advertises SDORead; Refresh Ticket retrieves the inline result. SDO Write and extended-result download are unavailable.";
             }
         }
 
@@ -1981,10 +1882,129 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            TextSdoWriteData.IsEnabled = ComboSdoOperation.SelectedItem
-                is SdoOperationMode
-                && (SdoOperationMode)ComboSdoOperation.SelectedItem
-                    == SdoOperationMode.Write;
+            TextSdoWriteData.IsEnabled = false;
+        }
+
+        private bool TryCreateFirstSliceSdoReadRequest(
+            out LMCSdoRequest request,
+            out string validationMessage)
+        {
+            request = null;
+
+            if (diagnosticCapabilities == null)
+            {
+                validationMessage =
+                    "Refresh diagnostics capabilities first.";
+                return false;
+            }
+
+            if (!diagnosticCapabilities.Supports(
+                LMCDiagnosticCapability.SDORead))
+            {
+                validationMessage =
+                    "SDO Read is not advertised by the connected PLC.";
+                return false;
+            }
+
+            if (diagnosticOperationTicket != null
+                && (diagnosticOperationStatus == null
+                    || !diagnosticOperationStatus.IsTerminal))
+            {
+                validationMessage =
+                    "Refresh or cancel the current operation ticket before submitting another SDO Read.";
+                return false;
+            }
+
+            try
+            {
+                var mode = RequireSelectedEnum<SdoOperationMode>(
+                    ComboSdoOperation,
+                    "SDO operation");
+                var valueType = RequireSelectedEnum<LMCSignalValueType>(
+                    ComboSdoValueType,
+                    "SDO value type");
+                var dataLength = ParseUInt16Wire(
+                    ComboSdoDataLength.Text,
+                    "SDO data length",
+                    false);
+                var slaveReference = ParseUInt16Wire(
+                    TextSdoSlaveReference.Text,
+                    "SDO slave reference",
+                    false);
+                var objectIndex = ParseUInt16Wire(
+                    TextSdoIndex.Text,
+                    "SDO object index",
+                    false);
+                var subIndex = ParseByteWire(
+                    TextSdoSubIndex.Text,
+                    "SDO sub-index");
+                var timeoutCycles = ParseUInt32(
+                    TextSdoTimeoutCycles.Text,
+                    "SDO timeout cycles");
+
+                if (mode != SdoOperationMode.Read)
+                {
+                    validationMessage =
+                        "SDO Write is unavailable; select Read.";
+                    return false;
+                }
+
+                if (slaveReference < 1 || slaveReference > 4)
+                {
+                    validationMessage =
+                        "Slave reference must be between 1 and 4.";
+                    return false;
+                }
+
+                if (objectIndex != 0x1000 || subIndex != 0)
+                {
+                    validationMessage =
+                        "Only object 0x1000:0 is available in the first slice.";
+                    return false;
+                }
+
+                if (valueType != LMCSignalValueType.UInt32
+                    || dataLength != 4)
+                {
+                    validationMessage =
+                        "Only UInt32, 4-byte SDO Read is available in the first slice.";
+                    return false;
+                }
+
+                if (timeoutCycles < 1 || timeoutCycles > 60000)
+                {
+                    validationMessage =
+                        "Timeout must be between 1 and 60000 cycles.";
+                    return false;
+                }
+
+                if (diagnosticCapabilities.MaxSdoDataBytes < 4)
+                {
+                    validationMessage =
+                        "The PLC MaxSdoDataBytes capability is less than 4.";
+                    return false;
+                }
+
+                request = LMCSdoRequest.CreateRead(
+                    slaveReference,
+                    objectIndex,
+                    subIndex,
+                    valueType,
+                    dataLength,
+                    timeoutCycles);
+                validationMessage = null;
+                return true;
+            }
+            catch (InvalidOperationException error)
+            {
+                validationMessage = error.Message;
+                return false;
+            }
+            catch (ArgumentException error)
+            {
+                validationMessage = error.Message;
+                return false;
+            }
         }
 
         private LMCOperationTicket RequireDiagnosticOperationTicket()
@@ -2213,52 +2233,6 @@ namespace LasalMotionControlApiExample
             }
 
             return (byte)result;
-        }
-
-        private static byte[] ParseHexBytes(
-            string value,
-            ushort expectedLength,
-            string fieldName)
-        {
-            var compact = new string(
-                (value ?? string.Empty)
-                    .Where(character => !char.IsWhiteSpace(character)
-                        && character != '-'
-                        && character != ':'
-                        && character != ',')
-                    .ToArray());
-            if (compact.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            {
-                compact = compact.Substring(2);
-            }
-
-            if (compact.Length != expectedLength * 2)
-            {
-                throw new InvalidOperationException(
-                    fieldName
-                    + " must contain exactly "
-                    + expectedLength
-                    + " hexadecimal bytes.");
-            }
-
-            var bytes = new byte[expectedLength];
-            for (var index = 0; index < bytes.Length; index++)
-            {
-                byte parsed;
-                if (!byte.TryParse(
-                    compact.Substring(index * 2, 2),
-                    NumberStyles.AllowHexSpecifier,
-                    CultureInfo.InvariantCulture,
-                    out parsed))
-                {
-                    throw new InvalidOperationException(
-                        fieldName + " contains a non-hexadecimal byte.");
-                }
-
-                bytes[index] = parsed;
-            }
-
-            return bytes;
         }
 
         private static string FormatCapabilities(
@@ -3111,8 +3085,7 @@ namespace LasalMotionControlApiExample
 
         private enum SdoOperationMode
         {
-            Read,
-            Write
+            Read
         }
 
         private sealed class DiagnosticSignalRow : INotifyPropertyChanged

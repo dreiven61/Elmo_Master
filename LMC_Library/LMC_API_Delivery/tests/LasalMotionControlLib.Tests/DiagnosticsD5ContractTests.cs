@@ -22,6 +22,9 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.SdoRequestValidation",
                 SdoRequestValidation);
             tests.Add(
+                "Policy.DiagnosticsD5.FirstSliceSdoReadValidation",
+                FirstSliceSdoReadValidation);
+            tests.Add(
                 "Request.DiagnosticsD5.GoldenBytes",
                 D5RequestGoldenBytes);
             tests.Add(
@@ -249,6 +252,91 @@ namespace LasalMotionControlLib.Tests
                     () => connection.Diagnostics.SubmitSdo(unsafeWrite));
 
             }
+        }
+
+        private static void FirstSliceSdoReadValidation()
+        {
+            LMCDiagnosticsSdoPolicy.RequireFirstSliceReadAllowed(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    1));
+            LMCDiagnosticsSdoPolicy.RequireFirstSliceReadAllowed(
+                LMCSdoRequest.CreateRead(
+                    4,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    60000));
+
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateWrite(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    TestFrame.Hex("00 00 00 00"),
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    5,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1001,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    1,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.Int32,
+                    4,
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    8,
+                    100));
+            AssertFirstSliceSdoRejected(
+                LMCSdoRequest.CreateRead(
+                    1,
+                    0x1000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    60001));
+        }
+
+        private static void AssertFirstSliceSdoRejected(
+            LMCSdoRequest request)
+        {
+            AssertEx.Throws<NotSupportedException>(
+                () => LMCDiagnosticsSdoPolicy
+                    .RequireFirstSliceReadAllowed(request));
         }
 
         private static void D5RequestGoldenBytes()
@@ -654,9 +742,9 @@ namespace LasalMotionControlLib.Tests
             var secondTicketId = 0x22222222u;
             var request = LMCSdoRequest.CreateRead(
                 1,
-                0x6064,
+                0x1000,
                 0,
-                LMCSignalValueType.Int32,
+                LMCSignalValueType.UInt32,
                 4,
                 100);
 
@@ -971,14 +1059,14 @@ namespace LasalMotionControlLib.Tests
                     connection.Diagnostics,
                     true,
                     4,
-                    LMCSignalValueType.Int32);
+                    LMCSignalValueType.UInt32);
                 return StatusPayload(
                     requestId,
                     ticket,
                     LMCOperationState.Completed,
                     LMCOperationOutcome.Success,
                     4,
-                    LMCSignalValueType.Int32,
+                    LMCSignalValueType.UInt32,
                     TestFrame.Hex("78 56 34 12"));
             }
         }
@@ -998,7 +1086,7 @@ namespace LasalMotionControlLib.Tests
                     connection.Diagnostics,
                     true,
                     4,
-                    LMCSignalValueType.Int32);
+                    LMCSignalValueType.UInt32);
                 return CancelPayload(requestId, ticket);
             }
         }

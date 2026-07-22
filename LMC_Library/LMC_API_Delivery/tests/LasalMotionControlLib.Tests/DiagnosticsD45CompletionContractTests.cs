@@ -335,11 +335,12 @@ namespace LasalMotionControlLib.Tests
         {
             var sdoRead = LMCSdoRequest.CreateRead(
                 1,
-                0x2100,
+                0x1000,
                 0,
                 LMCSignalValueType.UInt32,
-                20,
+                4,
                 100);
+            var inlineData = TestFrame.Hex("78 56 34 12");
             var resultData = TestFrame.Hex(
                 "00 01 02 03 04 05 06 07 08 09 "
                 + "0A 0B 0C 0D 0E 0F 10 11 12 13");
@@ -366,7 +367,10 @@ namespace LasalMotionControlLib.Tests
                     0x7E03,
                     TestFrame.Response(
                         0,
-                        ExtendedStatusPayload(3, 0x33333333u, 20))),
+                        InlineStatusPayload(
+                            3,
+                            0x33333333u,
+                            inlineData))),
                 new FakeRpcStep(
                     0x7E51,
                     TestFrame.Response(
@@ -377,6 +381,7 @@ namespace LasalMotionControlLib.Tests
             {
                 Connect(connection, server.Port);
                 LMCOperationTicket readTicket;
+                LMCOperationTicket extendedTicket;
                 LMCOperationStatus status;
                 LMCSdoResultChunk chunk;
 
@@ -392,8 +397,17 @@ namespace LasalMotionControlLib.Tests
                             CancellationToken.None)
                         .GetAwaiter()
                         .GetResult();
+                    extendedTicket = ExtendedTicket(
+                        connection,
+                        readTicket,
+                        20,
+                        20);
                     chunk = connection.Diagnostics.ReadSdoResultChunkAsync(
-                            new LMCSdoResultChunkRequest(readTicket, 0, 20, 1),
+                            new LMCSdoResultChunkRequest(
+                                extendedTicket,
+                                0,
+                                20,
+                                1),
                             CancellationToken.None)
                         .GetAwaiter()
                         .GetResult();
@@ -402,15 +416,25 @@ namespace LasalMotionControlLib.Tests
                 {
                     readTicket = connection.Diagnostics.SubmitSdo(sdoRead);
                     status = connection.Diagnostics.GetOperationStatus(readTicket);
+                    extendedTicket = ExtendedTicket(
+                        connection,
+                        readTicket,
+                        20,
+                        20);
                     chunk = connection.Diagnostics.ReadSdoResultChunk(
-                        new LMCSdoResultChunkRequest(readTicket, 0, 20, 1));
+                        new LMCSdoResultChunkRequest(
+                            extendedTicket,
+                            0,
+                            20,
+                            1));
                 }
 
-                AssertEx.True(readTicket.UsesExtendedResultChunks);
-                AssertEx.Equal((ushort)20, readTicket.RequestedResultLength);
+                AssertEx.False(readTicket.UsesExtendedResultChunks);
+                AssertEx.Equal((ushort)4, readTicket.RequestedResultLength);
                 AssertEx.True(status.IsSuccessful);
-                AssertEx.Equal(20u, status.ResultLength);
-                AssertEx.Equal(0, status.ResultData.Length);
+                AssertEx.Equal(4u, status.ResultLength);
+                AssertEx.SequenceEqual(inlineData, status.ResultData);
+                AssertEx.True(extendedTicket.UsesExtendedResultChunks);
                 AssertEx.SequenceEqual(resultData, chunk.Data);
 
                 connection.CloseConnection();
@@ -447,15 +471,6 @@ namespace LasalMotionControlLib.Tests
                             LMCDiagnosticCapability.SignalCatalog
                                 | LMCDiagnosticCapability.PIWrite,
                             0,
-                            0))),
-                new FakeRpcStep(
-                    0x7E00,
-                    TestFrame.Response(
-                        0,
-                        CapabilitiesPayload(
-                            2,
-                            LMCDiagnosticCapability.SDOWrite,
-                            12,
                             0))),
                 CloseStep()))
             using (var connection = new LMCConnection())
@@ -532,7 +547,7 @@ namespace LasalMotionControlLib.Tests
                     Connect(connection, server.Port);
                     var request = LMCSdoRequest.CreateRead(
                         1,
-                        0x2100,
+                        0x1000,
                         0,
                         LMCSignalValueType.UInt32,
                         4,
@@ -560,12 +575,19 @@ namespace LasalMotionControlLib.Tests
 
         private static void D5FirstSliceSdoReadMaxSdoBoundary()
         {
+            RunD5FirstSliceSdoReadMaxSdoBoundary(false);
+            RunD5FirstSliceSdoReadMaxSdoBoundary(true);
+        }
+
+        private static void RunD5FirstSliceSdoReadMaxSdoBoundary(
+            bool useAsync)
+        {
             const uint ticketId = 0x44444444u;
             var submitStep = new FakeRpcStep(
                 0x7E50,
                 TestFrame.Response(
                     0,
-                    SubmitPayload(3, ticketId, LMCOperationKind.SDORead)))
+                    SubmitPayload(2, ticketId, LMCOperationKind.SDORead)))
             {
                 InspectRequest = request =>
                 {
@@ -596,15 +618,6 @@ namespace LasalMotionControlLib.Tests
                             LMCDiagnosticCapability.SDORead,
                             4,
                             0))),
-                new FakeRpcStep(
-                    0x7E00,
-                    TestFrame.Response(
-                        0,
-                        CapabilitiesPayload(
-                            2,
-                            LMCDiagnosticCapability.SDORead,
-                            4,
-                            0))),
                 submitStep,
                 CloseStep()))
             using (var connection = new LMCConnection())
@@ -617,13 +630,6 @@ namespace LasalMotionControlLib.Tests
                     LMCSignalValueType.UInt32,
                     8,
                     100);
-                AssertEx.Throws<InvalidDataException>(
-                    () => connection.Diagnostics.SubmitSdoAsync(
-                            oversizedRequest,
-                            CancellationToken.None)
-                        .GetAwaiter()
-                        .GetResult());
-
                 var firstSliceRequest = LMCSdoRequest.CreateRead(
                     1,
                     0x1000,
@@ -631,11 +637,29 @@ namespace LasalMotionControlLib.Tests
                     LMCSignalValueType.UInt32,
                     4,
                     100);
-                var ticket = connection.Diagnostics.SubmitSdoAsync(
-                        firstSliceRequest,
-                        CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult();
+                LMCOperationTicket ticket;
+                if (useAsync)
+                {
+                    AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdoAsync(
+                                oversizedRequest,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+                    ticket = connection.Diagnostics.SubmitSdoAsync(
+                            firstSliceRequest,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                {
+                    AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdo(
+                            oversizedRequest));
+                    ticket = connection.Diagnostics.SubmitSdo(
+                        firstSliceRequest);
+                }
 
                 AssertEx.Equal(ticketId, ticket.TicketId);
                 AssertEx.Equal((ushort)4, ticket.RequestedResultLength);
@@ -750,6 +774,28 @@ namespace LasalMotionControlLib.Tests
                 maxChunk);
         }
 
+        // Keeps the generic future chunk surface covered without widening the
+        // first-slice SubmitSdo policy.
+        private static LMCOperationTicket ExtendedTicket(
+            LMCConnection connection,
+            LMCOperationTicket submittedTicket,
+            ushort resultLength,
+            ushort maxChunk)
+        {
+            return new LMCOperationTicket(
+                submittedTicket.TicketId,
+                LMCOperationKind.SDORead,
+                submittedTicket.QueuedCycle,
+                submittedTicket.DiagnosticsBootId,
+                connection.SessionGeneration,
+                connection.Diagnostics,
+                true,
+                resultLength,
+                LMCSignalValueType.UInt32,
+                true,
+                maxChunk);
+        }
+
         private static byte[] ConfigurePayload(uint requestId)
         {
             var payload = CommonPayload(56, requestId);
@@ -810,10 +856,10 @@ namespace LasalMotionControlLib.Tests
             return payload;
         }
 
-        private static byte[] ExtendedStatusPayload(
+        private static byte[] InlineStatusPayload(
             uint requestId,
             uint ticketId,
-            uint resultLength)
+            byte[] resultData)
         {
             var payload = CommonPayload(64, requestId);
             TestFrame.WriteUInt32(payload, 16, ticketId);
@@ -822,8 +868,10 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt32(payload, 24, 100);
             TestFrame.WriteUInt32(payload, 28, 200);
             TestFrame.WriteUInt16(payload, 32, (ushort)LMCOperationOutcome.Success);
-            TestFrame.WriteUInt32(payload, 40, resultLength);
+            TestFrame.WriteUInt32(payload, 40, checked((uint)resultData.Length));
             payload[44] = (byte)LMCSignalValueType.UInt32;
+            payload[45] = checked((byte)resultData.Length);
+            Buffer.BlockCopy(resultData, 0, payload, 48, resultData.Length);
             TestFrame.WriteUInt32(payload, 60, BootId);
             return payload;
         }
