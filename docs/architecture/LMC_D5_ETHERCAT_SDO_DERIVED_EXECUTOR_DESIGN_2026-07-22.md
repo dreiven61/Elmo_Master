@@ -4,6 +4,8 @@
 - 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`, C# `LMCDiagnostics` D5 계약
 - 구현 증분: 물리 축 1-4, `0x1000:0`, UInt32, 4-byte SDO Read-only
 - 현재 capability baseline: `CapabilityBits=0x0000003F`, `MaxSdoDataBytes=0`
+- 현재 구현 상태: source/network와 IDE Rebuild/Link 완료, capability gate off,
+  PLC download/runtime 미검증
 
 ## 1. 결론
 
@@ -39,9 +41,11 @@ flowchart LR
 
 ## 2. 확인된 현재 계약
 
-2026-07-22 현재 `Class/EtherCAT_SDOBase/`와 `Network/EtherCAT_Network/`는 local
-working tree에만 있는 미추적 사용자 추가분이다. 아래 판단은 해당 local 파일을 직접
-검토한 결과이며, LASAL Rebuild/Link와 Git baseline 확정은 아직 하지 않았다.
+2026-07-22 현재 canonical tracked project에 `EtherCAT_SDOBase` 기반 topology와
+`LMCSdoExecutor`, service one-ticket 실행부 및 4축 network 연결이 반영돼 있다. 같은 날
+10:53 LASAL IDE Rebuild/Link가 compile/link error 0으로 끝났고 generated network table도
+full-network 정적 계약과 일치한다. 이 결과는 PLC download 또는 실제 drive mailbox 응답을
+검증한 것은 아니다.
 
 ### 2.1 `EtherCAT_SDOBase`
 
@@ -90,9 +94,11 @@ C# SDK에는 이미 다음 public contract가 있다.
 - ticket/state/outcome model
 - 4/8/12-byte inline result parser
 
-PLC에는 현재 capability-off request parser까지만 있어야 하고 실행부는 없다. Wire
-offset과 enum은 기존 계약을 변경하지 않는다. 첫 slice는 기존 4-byte inline 경로의
-부분집합이다.
+PLC에는 capability gate 뒤의 one-ticket 실행부, derived executor callback mailbox,
+status/cancel과 orphan/drain 처리가 구현돼 있다. 다만
+`LMC_DIAG_D5_SDO_READ_ENABLED=FALSE`라 `0x7E03/0x7E04/0x7E50`은 현재 정상 capability와
+동일하게 `UnsupportedFeature`로 닫혀 있다. Wire offset과 enum은 기존 계약을 변경하지
+않으며 첫 slice는 기존 4-byte inline 경로의 부분집합이다.
 
 ## 3. 대안 비교와 선택 이유
 
@@ -104,9 +110,10 @@ offset과 enum은 기존 계약을 변경하지 않는다. 첫 slice는 기존 4
 | ticket/session까지 축별 derived object에 구현 | 축별 독립성 | ticket state가 4곳에 중복되고 global one-ticket 정책과 TCP owner가 분산됨 | 사용 금지 |
 
 채택안의 상속 이점은 inherited `toSlave`와 vendor callback ABI 재사용이다. 상속된
-수동 UI를 재사용하는 것이 아니다. LASAL IDE에서 override가 예상대로 VMT에 등록되지
-않거나 base command forwarding이 불가능하면 standalone transport로 전환한다. Wire와
-service state machine은 그대로 유지한다.
+수동 UI를 재사용하는 것이 아니다. 현재 manual-channel override와 base command
+forwarding은 generated VMT, 정적 계약과 IDE compile에서 확인됐다. 향후 vendor class
+변경으로 이 계약을 유지할 수 없으면 standalone transport로 전환하되 wire와 service
+state machine은 그대로 유지한다.
 
 ## 4. `LMCSdoExecutor` 책임과 interface
 
@@ -130,10 +137,10 @@ service state machine은 그대로 유지한다.
 - global one-ticket 선택
 - capability 광고
 
-### 4.2 LASAL public method 초안
+### 4.2 구현된 LASAL public method
 
-정확한 declaration은 LASAL IDE에서 생성한다. 새 identifier, comment와 string은 모두
-7-bit ASCII로 작성한다.
+declaration은 LASAL IDE에서 생성했으며 현재 signature는 다음과 같다. 새 identifier,
+comment와 string은 모두 7-bit ASCII로 유지한다.
 
 ```text
 TryStartRead4(
@@ -173,9 +180,9 @@ IsReusable() : BOOL
 base method를 호출하지 않는다. 파생 object에서는 수동 channel write가 SDO를 시작하지
 못하게 fail-closed 처리한다. D5 실행은 오직 `TryStartRead4`로 들어온다.
 
-`ParaType::Write`와 `ParaString::Write`도 base의 수동 surface를 완전히 격리하기 위해
-no-op/reject override를 권장한다. 다른 inherited `Para*` 값이 바뀌더라도 executor는
-그 값을 입력이나 결과 buffer로 사용하지 않는다.
+`ParaType::Write`와 `ParaString::Write`도 base의 수동 surface를 완전히 격리하도록
+no-op override했다. 다른 inherited `Para*` 값이 바뀌더라도 executor는 그 값을 입력이나
+결과 buffer로 사용하지 않는다.
 
 #### `ClassState::NewInst`
 
@@ -189,27 +196,23 @@ no-op/reject override를 권장한다. 다른 inherited `Para*` 값이 바뀌더
 - active token이 non-zero
 - 성공 callback이면 actual length=4
 
-다른 command는 `EtherCAT_SDOBase::ClassState::NewInst`로 전달한다. SDO callback은 base에
-다시 전달하지 않는다.
+다른 command는 실제 LASAL base-call 문법인
+`EtherCAT_SDOBase::NewInst(pPara, pResult)`로 전달한다. SDO callback은 base에 다시
+전달하지 않는다.
 
 ### 4.4 private state
 
 개념적인 fixed state는 다음과 같다.
 
 ```text
-AdapterState       Idle / Running / ResultReady / Orphaned / Quarantined
+AdapterState       Idle / Arming / Running / ResultReady / Orphaned / Quarantined
 ActiveToken        UDINT
 ActiveIndex        UINT
 ActiveSubIndex     USINT
 ActiveLength       UINT (=4)
 ReadBuffer         BYTE[4]
 PublishSequence    UDINT
-PublishedToken     UDINT
-PublishedOsResult  DINT
-PublishedLength    UDINT
-PublishedAbort     UDINT
-PublishedData      BYTE[4]
-DiscardOnComplete  BOOL
+PublishedResult    LMCSdoExecutorResult (fixed 32 bytes)
 ```
 
 동적 메모리를 사용하지 않는다. inherited `ParaValue`와 `ParaString`은 production
@@ -220,7 +223,7 @@ buffer로 사용하지 않는다.
 EtherCAT callback writer와 TCP diagnostics reader가 같은 task/order에서 실행된다고
 가정하지 않는다. 단순 `BOOL ResultReady`만으로 publish하지 않는다.
 
-권장 publication은 single-writer/single-reader seqlock이다.
+구현 publication은 single-writer/single-reader seqlock이다.
 
 1. callback이 `PublishSequence`를 odd로 전환한다.
 2. OS result, abort, actual length, token과 4-byte data를 기록한다.
@@ -333,6 +336,10 @@ RT cycle을 사용한다.
 wire deadline이 먼저 끝나면 `Expired/TimedOut`으로 확정한다. 이미 Running이면 adapter를
 drain 상태로 유지하고 late callback 결과를 버린다. callback이 오지 않으면 adapter를
 억지로 재사용하지 않고 `ResourceBusy`를 유지한다.
+
+정확히 `Elapsed=TimeoutCycles`인 cycle에서 이미 publish된 completion은 timeout보다 먼저
+소비한다. `Elapsed>TimeoutCycles`에 소비된 결과는 adapter 정리를 위해 읽되 public
+결과로 노출하지 않고 `Expired/TimedOut`으로 확정한다.
 
 ## 7. first-slice policy
 
@@ -462,6 +469,12 @@ ticket 생성 전 오류는 common domain error다.
 ticket 접수 후 발생한 start error, abort, timeout과 result contract 오류는 RPC 자체 성공과
 분리해 operation terminal status로 보고한다.
 
+executor 내부 validation code는 wire DetailCode로 그대로 노출하지 않는다. actual-length
+불일치만 `TypeMismatch(5)`로 매핑하고 version/state/direction/index/sub-index/token
+불일치는 `InternalError(24)`로 매핑한다. `ECAT_Slave_Base`가 start 실패 때 raw OS result와
+합성 general abort `0x08000000`을 함께 주는 경우에는 raw OS result를 우선 보존한다. 그
+외 실제 SDO abort는 `ErrorId=-32000`과 actual abort code로 보존한다.
+
 ## 9. disconnect와 orphan 처리
 
 `TCPMotionInterface`가 전달하는 `NotifySessionClosed(SessionEpoch)`에서 다음을 수행한다.
@@ -469,7 +482,8 @@ ticket 접수 후 발생한 start error, abort, timeout과 result contract 오�
 - owner의 `Queued`: 내부 취소 후 즉시 slot 회수
 - owner의 `Running`: executor에 `MarkOrphan`, wire ticket을 외부에 노출하지 않고
   `OrphanWaiting`으로 전환
-- owner의 terminal ticket: 즉시 slot 회수
+- owner의 terminal ticket: drain이 없으면 즉시 slot 회수; late callback drain 중이면
+  public ticket만 숨기고 operation token과 drain state는 callback까지 유지
 - 다른 owner의 ticket: 변경하지 않음
 
 Orphan callback은 token, read flag, index, sub-index를 확인한 뒤 결과를 폐기하고 adapter와
@@ -478,8 +492,9 @@ buffer lifetime을 끝내지 않는다.
 
 ## 10. network 구조
 
-현재 plain `EtherCAT_SDOBase1..4`는 `Visualized=true`, `Remotely=true`다. production
-network에서는 이를 파생 object로 교체한다.
+현재 production network에는 plain `EtherCAT_SDOBase1..4`가 남아 있지 않다.
+`LMCSdoExecutor1..4` 네 object가 `Visualized=false`이고 remote surface 없이 배치돼
+있으며, 아래 두 단계 연결이 generated table까지 생성됐다.
 
 ```text
 EtherCAT_Network
@@ -495,12 +510,16 @@ Comm_Network
   LMCDiagnosticsService1.SdoAxis4 -> LMCSdoExecutor4.ClassState
 ```
 
-네 executor object는 `Visualized=false`, `Remotely=false`로 둔다. 수동 smoke가 필요하면
-debug 전용 구성에서만 plain `EtherCAT_SDOBase`를 사용한다. 같은 drive에 manual base와
-production executor를 동시에 활성화하지 않는다.
+네 executor object는 계속 `Visualized=false`, `Remotely=false`로 유지한다. 수동 smoke가
+필요하면 debug 전용 구성에서만 plain `EtherCAT_SDOBase`를 사용한다. 같은 drive에 manual
+base와 production executor를 동시에 활성화하지 않는다.
 
 class 생성, base class 지정, channel declaration과 network connection은 LASAL IDE에서
-수행한다. 생성된 `.st`의 user implementation 영역만 외부 편집기로 수정한다.
+수행한다. 생성된 `.st`의 user implementation 영역만 외부 편집기로 수정한다. IDE가 열린
+상태에서 외부 수정했다면 implementation editor를 저장하기 전에 `Reload Class`로 디스크
+source를 다시 읽는다. stale IDE model을 저장하면 외부 수정 implementation을 덮어쓸 수
+있으므로, 안전한 순서는 `IDE 저장/종료` -> `외부 편집` -> `IDE 재열기 또는 Reload
+Class` -> `Rebuild` -> `Find in Implementation smoke`다.
 
 ## 11. capability gate
 
@@ -511,8 +530,9 @@ CapabilityBits  = 0x0000003F
 MaxSdoDataBytes = 0
 ```
 
-`LMC_DIAG_D5_SDO_READ_ENABLED` compile-time gate를 추가한다. 아래 조건을 모두 만족한
-후에만 gate를 켠다.
+`LMC_DIAG_D5_SDO_READ_ENABLED` compile-time gate를 사용한다. 1-5를 만족한 뒤 test
+build에서만 gate를 열어 6-7을 검증하고, 6-7까지 만족해야 production capability를
+승인한다.
 
 1. executor 4개 client가 모두 연결됨
 2. non-zero retained DiagnosticsBootId 정상
@@ -538,22 +558,23 @@ bit 7 `PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 계속 0�
 사용자가 LASAL IDE에서 새 class/network를 저장하는 동안 tracked implementation의
 일부가 이전 상태로 덮였다. 다음을 사용자 변경과 병합해 복구했다.
 
-- `LMCDiagnosticsService`: `0x7E03`, `0x7E04`, `0x7E50` exact capability-off parser
+- `LMCDiagnosticsService`: `0x7E03`, `0x7E04`, `0x7E50` gated handler와 실행부
 - `LMCRecorderStore`: terminal `StopRecorder` idempotent 처리
 
-2026-07-22 `Verify-LasalContract.ps1` source-only/full-network와 PC 자동 시험 102/102,
-WPF Debug/Release build를 다시 통과했다. 최신 LASAL IDE Rebuild/Link와 implementation
-smoke는 아직 수행하지 않았다.
+2026-07-22 `Verify-LasalContract.ps1` source-only/full-network, PC 자동 시험 103/103과
+WPF Debug/Release build를 통과했다. 최신 source/network는 10:53 LASAL IDE
+Rebuild/Link도 error 0으로 통과했다. 별도의 최신 `Find in Implementation` smoke와 PLC
+runtime 시험은 아직 수행하지 않았다.
 
-### Phase 1. LASAL class/network skeleton
+### Phase 1. LASAL class/network skeleton 완료
 
 - LASAL IDE에서 `LMCSdoExecutor`를 `EtherCAT_SDOBase` derived class로 생성
 - public method/variables/override declaration 추가
 - plain base object 4개를 derived object 4개로 교체
 - inherited `toSlave`와 service `SdoAxis1..4` 연결
-- IDE Rebuild/Link와 class implementation smoke
+- IDE Rebuild/Link 완료; 최신 class implementation smoke는 별도 잔여 gate
 
-### Phase 2. adapter transport
+### Phase 2. adapter transport source 완료
 
 - fixed 4-byte buffer
 - `TryStartRead4`의 `READY/BUSY/ERROR` 보존
@@ -562,9 +583,9 @@ smoke는 아직 수행하지 않았다.
 - atomic/seqlock result publication
 - orphan/drain/quarantine 처리
 
-capability는 계속 off다.
+source와 정적 계약 및 IDE compile까지 완료했지만 capability는 계속 off다.
 
-### Phase 3. one-ticket executor와 wire
+### Phase 3. one-ticket executor와 wire source 완료
 
 - service fixed ticket state
 - `ProcessOperations`
@@ -573,18 +594,18 @@ capability는 계속 off다.
 - terminal replacement와 TicketId exhaustion 처리
 - `NotifySessionClosed` orphan lifecycle
 
-### Phase 4. PC/static regression
+### Phase 4. PC/static regression 완료
 
 - SDK의 first-slice read allowlist mirror
 - fake RPC의 queued/running/completed/failed/cancelled/expired/stale test
 - DINT map과 LASAL contract script 갱신
-- WPF Debug/Release build와 UI ticket flow smoke
+- WPF Debug/Release build 완료; 실제 UI ticket flow smoke는 PLC runtime 단계에서 수행
 
-### Phase 5. PLC runtime와 capability 승인
+### Phase 5. PLC runtime와 capability 승인 미완료
 
-- 아래 시험 매트릭스 실행
+- static/IDE gate 뒤 test build에서 bit 8을 임시 활성화해 아래 시험 매트릭스 실행
 - packet/trace/log 보존
-- 모든 gate 후 bit 8과 MaxSdo=4만 활성
+- 모든 runtime gate 후 production bit 8과 MaxSdo=4 승인
 
 ## 13. 검증 매트릭스
 
@@ -615,10 +636,11 @@ capability는 계속 off다.
 | capability before approval | `0x3F`, MaxSdo=0 |
 | capability after all gates | `0x13F`, MaxSdo=4 |
 
-PLC runtime 시험 전까지 이 설계와 static build 결과를 실제 EtherCAT SDO 동작 완료
-증거로 사용하지 않는다.
+PLC runtime 시험 전까지 이 설계, PC/WPF build, LASAL 정적 계약과 10:53 IDE
+Rebuild/Link 결과를 실제 EtherCAT SDO 동작 완료 증거로 사용하지 않는다. 현재 광고값은
+계속 `0x3F`, `MaxSdoDataBytes=0`이다.
 
-## 14. 변경 예상 파일
+## 14. 구현 및 변경 파일
 
 LASAL IDE와 구현:
 
@@ -634,7 +656,7 @@ PC와 계약:
 - `LMC_Library/LMC_API_Delivery/src/LmcDiagnosticsD5*.cs`
 - `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/**`
 - `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
-- `tools/Verify-LasalContract.ps1`
+- `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1`
 - 관련 architecture/release status 문서
 
 wire layout 자체를 바꾸지 않으므로 C# serializer/parser 재설계는 필요 없다. C# 변경의
