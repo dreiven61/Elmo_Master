@@ -14,6 +14,8 @@ namespace LasalMotionControlApiExample
     public partial class MainWindow : Window
     {
         private const int GroupLockDisabledSamplesForRetry = 3;
+        private const int MinimumGroupMotionMonitorMilliseconds = 15000;
+        private const int MaximumGroupMotionMonitorMilliseconds = 600000;
         private static readonly PlcUnitOption[] PlcUnitOptions =
         {
             new PlcUnitOption("None / raw DINT (no conversion)", "raw", 1, true),
@@ -67,6 +69,7 @@ namespace LasalMotionControlApiExample
             ComboDirection.SelectedItem = LMC_DIRECTION.Positive;
 
             ComboGroupCoordinate.Items.Add(LMC_COORD_SYSTEM.None);
+            ComboGroupCoordinate.Items.Add(LMC_COORD_SYSTEM.Acs);
             ComboGroupCoordinate.SelectedItem = LMC_COORD_SYSTEM.None;
 
             ComboGroupTransition.Items.Add(
@@ -82,6 +85,7 @@ namespace LasalMotionControlApiExample
 
             InitializeDiagnosticsUi();
             InitializeReadOnlyApiUi();
+            InitializeQualificationUi();
 
             WriteLog(
                 "Example ready. Connect, load _LMCAxis1, and start with Read Status. "
@@ -113,6 +117,13 @@ namespace LasalMotionControlApiExample
             Dispatcher.BeginInvoke(
                 DispatcherPriority.ContextIdle,
                 new Action(ScrollSelectedMotionTabToTop));
+        }
+
+        private void ComboGroupCoordinate_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            UpdateUiState();
         }
 
         private void ScrollSelectedMotionTabToTop()
@@ -391,6 +402,7 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonPowerOff_Click(object sender, RoutedEventArgs e)
         {
+            CancelQualificationForExternalSafety("Axis Power Off", false);
             LMCSingleAxis currentAxis = null;
             var sent = await RunSafetyCommandAsync(
                 "Power Off Send",
@@ -448,6 +460,7 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonStop_Click(object sender, RoutedEventArgs e)
         {
+            CancelQualificationForExternalSafety("Axis Stop", false);
             LMCSingleAxis currentAxis = null;
             var sent = await RunSafetyCommandAsync(
                 "Stop Send",
@@ -701,12 +714,21 @@ namespace LasalMotionControlApiExample
             string operation,
             LMCGroupAxis monitoredGroup,
             int trackingGeneration,
-            bool noMovementExpected)
+            bool noMovementExpected,
+            int timeoutMilliseconds)
         {
             WriteLog(
                 operation
-                + " group monitor started. Group Stop remains available.");
-            TextOperationState.Text = operation + " monitoring";
+                + " group monitor started with timeout "
+                + timeoutMilliseconds
+                + " ms. Group Stop remains available.");
+            TextOperationState.Text =
+                operation
+                + " monitoring (limit "
+                + (timeoutMilliseconds / 1000.0).ToString(
+                    "0.###",
+                    CultureInfo.InvariantCulture)
+                + " s)";
             UpdateUiState();
 
             try
@@ -715,7 +737,7 @@ namespace LasalMotionControlApiExample
                     monitoredGroup,
                     trackingGeneration,
                     noMovementExpected,
-                    15000);
+                    timeoutMilliseconds);
                 if (status == null)
                 {
                     WriteLog(
@@ -945,6 +967,14 @@ namespace LasalMotionControlApiExample
                         return;
                     }
 
+                    if (!result.IsPowerOn)
+                    {
+                        await RunGroupPowerOffSafetyMonitorAsync(
+                            "Read Group Status Power Off recovery",
+                            currentGroup);
+                        return;
+                    }
+
                     if (!IsGroupInPosition(result))
                     {
                         RecordMotionObserved(currentGroup.GroupName);
@@ -979,7 +1009,7 @@ namespace LasalMotionControlApiExample
                 async () =>
                 {
                     var currentGroup = RequireGroup();
-                    var coordinateSystem = ReadGroupCoordinateSystem();
+                    var coordinateSystem = ReadGroupPositionCoordinateSystem();
                     var unit = ReadGroupUnitSelection();
                     var result = await currentGroup
                         .GroupReadActualPositionAsync(
@@ -1030,11 +1060,13 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
-            await RunSafetyCommandAsync(
+            CancelQualificationForExternalSafety("Group Power Off", true);
+            LMCGroupAxis currentGroup = null;
+            var sent = await RunSafetyCommandAsync(
                 "Group Power Off Send",
                 async () =>
                 {
-                    var currentGroup = RequireGroup();
+                    currentGroup = RequireGroup();
                     var response = await currentGroup.GroupPowerOffAsync(
                         CancellationToken.None);
                     EnsureResponseSuccess("Group Power Off", response);
@@ -1051,6 +1083,13 @@ namespace LasalMotionControlApiExample
                         "Group Power Off accepted/start only. Read Status must "
                         + "verify PowerOn=False.");
                 });
+
+            if (sent && currentGroup != null)
+            {
+                await RunGroupPowerOffSafetyMonitorAsync(
+                    "Group Power Off",
+                    currentGroup);
+            }
         }
 
         private async void ButtonGroupEnable_Click(object sender, RoutedEventArgs e)
@@ -1155,6 +1194,7 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            CancelQualificationForExternalSafety("Group Stop", true);
             LMCGroupAxis currentGroup = null;
             var sent = await RunSafetyCommandAsync(
                 "Group Stop Send",
@@ -1193,6 +1233,8 @@ namespace LasalMotionControlApiExample
             LMCGroupAxis monitoredGroup = null;
             var trackingGeneration = 0;
             var noMovementExpected = false;
+            var monitorTimeoutMilliseconds =
+                MinimumGroupMotionMonitorMilliseconds;
 
             await RunOperationAsync(
                 "Move Linear Absolute Send",
@@ -1210,6 +1252,20 @@ namespace LasalMotionControlApiExample
                         startPosition);
 
                     var currentPositions = startPosition.PositionsRaw;
+                    var monitorDistances = input.PositionsRaw
+                        .Select(
+                            (target, index) =>
+                                (long)target - currentPositions[index])
+                        .ToArray();
+                    noMovementExpected = monitorDistances
+                        .Take(4)
+                        .All(distance => distance == 0);
+                    monitorTimeoutMilliseconds =
+                        CalculateGroupMotionMonitorTimeoutMilliseconds(
+                            monitorDistances,
+                            input.VelocityRaw,
+                            input.AccelerationRaw,
+                            input.DecelerationRaw);
                     WriteLog(
                         "Move Linear Absolute input: StartRaw="
                         + FormatGroupPositionsRaw(currentPositions)
@@ -1227,12 +1283,9 @@ namespace LasalMotionControlApiExample
                         + input.Options.TransitionMode
                         + ", Buffer="
                         + input.Options.BufferMode
+                        + ", MonitorTimeoutMs="
+                        + monitorTimeoutMilliseconds
                         + ".");
-                    noMovementExpected = input.PositionsRaw
-                        .Select(
-                            (target, index) =>
-                                target == currentPositions[index])
-                        .All(equal => equal);
                     monitoredGroup = currentGroup;
 
                     var response = await SendLiveCommandAsync(
@@ -1282,7 +1335,10 @@ namespace LasalMotionControlApiExample
                     TextGroupResult.Text =
                         FormatResponse(response)
                         + Environment.NewLine
-                        + "Command accepted; monitoring Group InPosition.";
+                        + "Command accepted; monitoring Group InPosition "
+                        + "with timeout "
+                        + monitorTimeoutMilliseconds
+                        + " ms.";
                 });
 
             if (monitoredGroup == null
@@ -1298,7 +1354,8 @@ namespace LasalMotionControlApiExample
                 "Move Linear Absolute",
                 monitoredGroup,
                 trackingGeneration,
-                noMovementExpected);
+                noMovementExpected,
+                monitorTimeoutMilliseconds);
         }
 
         private async void ButtonGroupMoveLinearRelative_Click(
@@ -1315,6 +1372,8 @@ namespace LasalMotionControlApiExample
             LMCGroupAxis monitoredGroup = null;
             var trackingGeneration = 0;
             var noMovementExpected = false;
+            var monitorTimeoutMilliseconds =
+                MinimumGroupMotionMonitorMilliseconds;
 
             await RunOperationAsync(
                 operation + " Send",
@@ -1333,6 +1392,18 @@ namespace LasalMotionControlApiExample
                         startPosition);
 
                     var currentPositions = startPosition.PositionsRaw;
+                    var monitorDistances = input.PositionsRaw
+                        .Select(distance => (long)distance)
+                        .ToArray();
+                    noMovementExpected = monitorDistances
+                        .Take(4)
+                        .All(distance => distance == 0);
+                    monitorTimeoutMilliseconds =
+                        CalculateGroupMotionMonitorTimeoutMilliseconds(
+                            monitorDistances,
+                            input.VelocityRaw,
+                            input.AccelerationRaw,
+                            input.DecelerationRaw);
                     WriteLog(
                         operation
                         + " input: StartRaw="
@@ -1351,9 +1422,9 @@ namespace LasalMotionControlApiExample
                         + input.Options.TransitionMode
                         + ", Buffer="
                         + input.Options.BufferMode
+                        + ", MonitorTimeoutMs="
+                        + monitorTimeoutMilliseconds
                         + ".");
-                    noMovementExpected = input.PositionsRaw.All(
-                        distance => distance == 0);
                     monitoredGroup = currentGroup;
                     var verifiedCapabilities = await currentConnection.Admin
                         .GetCapabilitiesAsync(CancellationToken.None);
@@ -1398,7 +1469,10 @@ namespace LasalMotionControlApiExample
                         TextGroupResult.Text =
                             FormatAdminResponse(response)
                             + Environment.NewLine
-                            + "Command accepted; monitoring Group InPosition.";
+                            + "Command accepted; monitoring Group InPosition "
+                            + "with timeout "
+                            + monitorTimeoutMilliseconds
+                            + " ms.";
                     }
                     catch (LMCAdminCommandException error)
                     {
@@ -1425,7 +1499,8 @@ namespace LasalMotionControlApiExample
                 operation,
                 monitoredGroup,
                 trackingGeneration,
-                noMovementExpected);
+                noMovementExpected,
+                monitorTimeoutMilliseconds);
         }
 
         private async void ButtonCheckKinHome_Click(
@@ -1739,10 +1814,11 @@ namespace LasalMotionControlApiExample
         {
             if (operationRunning
                 || safetyCommandRunning
-                || safetyMonitorCount > 0)
+                || safetyMonitorCount > 0
+                || qualificationRunning)
             {
                 WriteLog(
-                    "Another operation or safety verification is already running.");
+                    "Another operation, safety verification, or qualification is already running.");
                 return;
             }
 
@@ -1934,6 +2010,77 @@ namespace LasalMotionControlApiExample
                     + error.Message
                     + " Do not assume the group is stopped.");
                 TextOperationState.Text = operation + " verification failed";
+            }
+            finally
+            {
+                safetyMonitorCount--;
+                UpdateUiState();
+            }
+        }
+
+        private async Task RunGroupPowerOffSafetyMonitorAsync(
+            string operation,
+            LMCGroupAxis currentGroup)
+        {
+            safetyMonitorCount++;
+            TextOperationState.Text = operation + " verifying PowerOn=False";
+            WriteLog(
+                operation
+                + " accepted. Verifying three stable PowerOn=False samples; "
+                + "Group Stop remains available.");
+            UpdateUiState();
+
+            try
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(5);
+                var stableSamples = 0;
+                LMCGroupReadStatusResult latest = null;
+                while (DateTime.UtcNow < deadline)
+                {
+                    latest = await currentGroup.GroupReadStatusResultAsync(
+                        CancellationToken.None);
+                    EnsureGroupStatusSuccess(
+                        operation + " verification",
+                        latest);
+                    stableSamples = !latest.IsPowerOn
+                        ? stableSamples + 1
+                        : 0;
+                    if (stableSamples >= 3)
+                    {
+                        groupPowerVerificationPending = false;
+                        groupPowerOffVerificationPending = false;
+                        groupStatusRefreshRequired = false;
+                        groupActiveVerified = false;
+                        groupIdentityConfigured = false;
+                        ResetIdentityHomeCheckState();
+                        groupProfileLockVerificationPending = false;
+                        groupProfileLockDisabledSamples = 0;
+                        groupProfileLocked = false;
+                        DisplayGroupStatus(latest);
+                        ClearMotionWarning(
+                            operation
+                            + " and three stable PowerOn=False samples were verified");
+                        WriteLog(operation + " safety verification PASS.");
+                        TextOperationState.Text = operation + " verified";
+                        return;
+                    }
+
+                    await Task.Delay(50);
+                }
+
+                throw new TimeoutException(
+                    currentGroup.GroupName
+                    + " did not report three stable PowerOn=False samples within 5000 ms.");
+            }
+            catch (Exception error)
+            {
+                WriteLog(
+                    operation
+                    + " safety verification FAILED: "
+                    + error.Message
+                    + " Do not assume the group is powered off or stopped.");
+                TextOperationState.Text = operation + " verification failed";
+                ButtonGroupReadStatus.Focus();
             }
             finally
             {
@@ -2620,7 +2767,7 @@ namespace LasalMotionControlApiExample
                     "Group jerk"),
                 Options = new LMCGroupMotionOptions
                 {
-                    CoordinateSystem = ReadGroupCoordinateSystem(),
+                    CoordinateSystem = ReadGroupMotionCoordinateSystem(),
                     TransitionMode = transitionMode,
                     BufferMode = bufferMode,
                     Execute = true
@@ -2644,17 +2791,75 @@ namespace LasalMotionControlApiExample
             };
         }
 
-        private LMC_COORD_SYSTEM ReadGroupCoordinateSystem()
+        private LMC_COORD_SYSTEM ReadGroupPositionCoordinateSystem()
+        {
+            if (!(ComboGroupCoordinate.SelectedItem
+                is LMC_COORD_SYSTEM coordinateSystem)
+                || (coordinateSystem != LMC_COORD_SYSTEM.None
+                    && coordinateSystem != LMC_COORD_SYSTEM.Acs))
+            {
+                throw new InvalidOperationException(
+                    "Group Read Position supports Coordinate=None or ACS only.");
+            }
+
+            return coordinateSystem;
+        }
+
+        private LMC_COORD_SYSTEM ReadGroupMotionCoordinateSystem()
         {
             if (!(ComboGroupCoordinate.SelectedItem
                 is LMC_COORD_SYSTEM coordinateSystem)
                 || coordinateSystem != LMC_COORD_SYSTEM.None)
             {
                 throw new InvalidOperationException(
-                    "This PLC adapter currently supports group Coordinate=None only.");
+                    "Group motion currently supports Coordinate=None only. "
+                    + "Select None before Move Linear.");
             }
 
             return coordinateSystem;
+        }
+
+        private static int CalculateGroupMotionMonitorTimeoutMilliseconds(
+            long[] distancesRaw,
+            int velocityRaw,
+            int accelerationRaw,
+            int decelerationRaw)
+        {
+            if (distancesRaw == null || distancesRaw.Length < 4)
+            {
+                throw new ArgumentException(
+                    "Group monitor distance requires four XYZU values.",
+                    nameof(distancesRaw));
+            }
+
+            if (velocityRaw <= 0
+                || accelerationRaw <= 0
+                || decelerationRaw <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(velocityRaw),
+                    "Group monitor dynamics must be positive.");
+            }
+
+            var conservativePathRaw = distancesRaw
+                .Take(4)
+                .Sum(distance => Math.Abs((double)distance));
+            var nominalSeconds = conservativePathRaw / velocityRaw;
+            var accelerationSeconds = velocityRaw / (double)accelerationRaw;
+            var decelerationSeconds = velocityRaw / (double)decelerationRaw;
+            var estimatedMilliseconds = Math.Ceiling(
+                ((nominalSeconds
+                    + accelerationSeconds
+                    + decelerationSeconds)
+                    * 1.25
+                    + 5.0)
+                * 1000.0);
+
+            return (int)Math.Max(
+                MinimumGroupMotionMonitorMilliseconds,
+                Math.Min(
+                    MaximumGroupMotionMonitorMilliseconds,
+                    estimatedMilliseconds));
         }
 
         private PlcUnitOption ReadGroupUnitSelection()
@@ -3288,12 +3493,17 @@ namespace LasalMotionControlApiExample
             var groupReady = connected && group != null;
             var idle = !operationRunning
                 && !safetyCommandRunning
-                && safetyMonitorCount == 0;
+                && safetyMonitorCount == 0
+                && !qualificationRunning;
             var safetySendAvailable = !safetyCommandRunning
                 && !connectionTransitionRunning;
             var liveCommandAllowed = idle && !motionMayBeActive;
             var groupPowerTransitionPending = groupPowerVerificationPending
                 || groupPowerOffVerificationPending;
+            var groupMotionCoordinateReady =
+                ComboGroupCoordinate.SelectedItem is LMC_COORD_SYSTEM
+                    groupCoordinate
+                && groupCoordinate == LMC_COORD_SYSTEM.None;
 
             ButtonConnect.IsEnabled = idle && !motionMayBeActive;
             ButtonCloseConnection.IsEnabled =
@@ -3341,9 +3551,17 @@ namespace LasalMotionControlApiExample
                 && idle
                 && !motionMayBeActive
                 && !groupPowerTransitionPending;
-            ButtonGetMembers.IsEnabled = groupReady && idle && !motionMayBeActive;
+            ButtonGetMembers.IsEnabled = groupReady
+                && idle
+                && !motionMayBeActive
+                && !groupPowerOffVerificationPending;
             ButtonGroupReadStatus.IsEnabled = groupReady && idle;
-            ButtonGroupReadPosition.IsEnabled = groupReady && idle;
+            ButtonGroupReadStatus.Content = groupPowerOffVerificationPending
+                ? "7 Verify Power Off (Read Status)"
+                : "2 / 5 Read Status (Power Ready / Lock Ready)";
+            ButtonGroupReadPosition.IsEnabled = groupReady
+                && idle
+                && !groupPowerOffVerificationPending;
             ButtonGroupPowerOn.IsEnabled = groupReady
                 && liveCommandAllowed
                 && !groupActiveVerified
@@ -3382,15 +3600,19 @@ namespace LasalMotionControlApiExample
                 && groupActiveVerified
                 && groupIdentityConfigured
                 && !groupProfileLockVerificationPending
-                && groupProfileLocked;
+                && groupProfileLocked
+                && groupMotionCoordinateReady;
             ButtonGroupMoveLinearRelative.IsEnabled = groupReady
                 && liveCommandAllowed
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified
                 && groupIdentityConfigured
                 && !groupProfileLockVerificationPending
-                && groupProfileLocked;
-            ButtonCheckKinHome.IsEnabled = groupReady && idle;
+                && groupProfileLocked
+                && groupMotionCoordinateReady;
+            ButtonCheckKinHome.IsEnabled = groupReady
+                && idle
+                && !groupPowerOffVerificationPending;
             ButtonSetKinTransform.IsEnabled = groupReady
                 && liveCommandAllowed
                 && !groupPowerOffVerificationPending
@@ -3441,6 +3663,7 @@ namespace LasalMotionControlApiExample
 
             UpdateDiagnosticsUiState(connected, idle);
             UpdateReadOnlyApiUiState(connected, idle);
+            UpdateQualificationUiState(connected, idle);
 
             var trackedGroup = motionMayBeActive
                 && group != null
@@ -3568,12 +3791,20 @@ namespace LasalMotionControlApiExample
 
             if (operationRunning
                 || safetyCommandRunning
-                || safetyMonitorCount > 0)
+                || safetyMonitorCount > 0
+                || qualificationRunning)
             {
+                if (qualificationRunning)
+                {
+                    CancelQualification(
+                        "Window close requested",
+                        false);
+                }
+
                 WriteLog(
-                    "Window close is blocked while an API operation or safety "
-                    + "verification is running. "
-                    + "Wait for its timeout or completion.");
+                    "Window close is blocked while an API operation, safety "
+                    + "verification, or qualification cleanup is running. "
+                    + "Wait for its timeout or completion, then close again.");
                 return;
             }
 

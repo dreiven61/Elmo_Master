@@ -400,7 +400,7 @@
                                         <Button
                                             x:Name="ButtonGroupPowerOff"
                                             Click="ButtonGroupPowerOff_Click"
-                                            Content="Power Off" />
+                                            Content="7 Power Off" />
                                         <Button
                                             x:Name="ButtonGroupReadPosition"
                                             Click="ButtonGroupReadPosition_Click"
@@ -417,7 +417,7 @@
                                     <TextBlock
                                         Margin="4,2,4,0"
                                         Foreground="#8A4A00"
-                                        Text="Required order: 1 Power On -> 2 Read Status until PowerOn=True -> 3 Set Identity (automatic Home Check) -> 4 Enable (Lock Profile) -> 5 Read Status until Enabled/Locked Standby=True -> 6 Move -> Disable (Unlock Profile) -> Power Off -> Read Status until PowerOn=False."
+                                        Text="Required order: 1 Power On -> 2 Read Status until PowerOn=True -> 3 Set Identity (automatic Home Check) -> 4 Enable (Lock Profile) -> 5 Read Status until Enabled/Locked Standby=True -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off -> Verify Power Off (Read Status) until PowerOn=False. Read Position is disabled while Power Off verification is pending."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                             </GroupBox>
@@ -486,8 +486,10 @@
                                         <TextBox x:Name="TextGroupJerk" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="3" Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Coordinate system" />
-                                        <ComboBox x:Name="ComboGroupCoordinate" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Coordinate (Read: None/ACS; Motion: None)" />
+                                        <ComboBox
+                                            x:Name="ComboGroupCoordinate"
+                                            SelectionChanged="ComboGroupCoordinate_SelectionChanged" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="3" Grid.Column="1">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Transition" />
@@ -511,7 +513,7 @@
                                         </WrapPanel>
                                         <TextBlock
                                             Foreground="#8A4A00"
-                                            Text="Absolute interprets X/Y/Z/U as targets; Relative interprets them as deltas. Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Select None / raw DINT for values already converted by the caller. This PLC adapter currently accepts Coordinate=None."
+                                            Text="Absolute interprets X/Y/Z/U as targets; Relative interprets them as deltas. Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Read Position accepts None/ACS, but motion remains Coordinate=None only and Move buttons are disabled while ACS is selected. For axis-mapping captures, keep three deltas at 0 and move one X/Y/Z/U axis at a time. Completion timeout is calculated from distance, velocity, acceleration, and deceleration (15 to 600 seconds)."
                                             TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
@@ -592,6 +594,105 @@
                                     </StackPanel>
                                 </Grid>
                             </GroupBox>
+
+                            <GroupBox Header="Qualification automation (live PLC motion)">
+                                <StackPanel>
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="These tests send real group commands. Group Enable qualification starts powered with identity configured but unlocked/disabled. Buffered and Stop-first qualifications start powered, identity configured, and locked. Keep people and tooling clear. Group Stop and Power Off remain available. Buffered A/B returns to the captured start position only after a verified PASS; any uncertain motion is stopped and verified instead."
+                                        TextWrapping="Wrap" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Axis" />
+                                            <ComboBox x:Name="ComboQualificationGroupAxis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Delta A (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeltaA" Text="10000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Delta B (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeltaB" Text="20000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="3">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Tolerance (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationTolerance" Text="100" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="1" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Velocity (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationVelocity" Text="10000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Acceleration (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationAcceleration" Text="100000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Deceleration / Stop (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeceleration" Text="100000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="3">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Jerk (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationJerk" Text="0" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <WrapPanel>
+                                        <Button
+                                            x:Name="ButtonRunGroupEnableQualification"
+                                            Click="ButtonRunGroupEnableQualification_Click"
+                                            Content="Run Enable ACK -&gt; Locked" />
+                                        <Button
+                                            x:Name="ButtonRunBufferedQualification"
+                                            Click="ButtonRunBufferedQualification_Click"
+                                            Content="Run Buffered A -&gt; B" />
+                                        <Button
+                                            x:Name="ButtonRunStopFirstQualification"
+                                            Click="ButtonRunStopFirstQualification_Click"
+                                            Content="Run Deterministic Stop-First" />
+                                        <Button
+                                            x:Name="ButtonCancelQualification"
+                                            Click="ButtonCancelQualification_Click"
+                                            Content="Cancel Test" />
+                                        <Button
+                                            x:Name="ButtonSaveQualificationLog"
+                                            Click="ButtonSaveQualificationLog_Click"
+                                            Content="Save QTEST Log" />
+                                    </WrapPanel>
+                                    <ProgressBar
+                                        x:Name="ProgressQualification"
+                                        Height="18"
+                                        Margin="0,2,8,4"
+                                        Maximum="100"
+                                        Minimum="0" />
+                                    <TextBlock
+                                        x:Name="TextQualificationProgress"
+                                        Margin="0,0,0,4"
+                                        FontFamily="Consolas"
+                                        Text="No qualification has run yet."
+                                        TextWrapping="Wrap" />
+                                    <TextBox
+                                        x:Name="TextQualificationSummary"
+                                        Height="180"
+                                        FontFamily="Consolas"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        IsReadOnly="True"
+                                        Text="Structured QTEST results will appear here."
+                                        TextWrapping="NoWrap"
+                                        VerticalScrollBarVisibility="Auto" />
+                                </StackPanel>
+                            </GroupBox>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
@@ -627,6 +728,11 @@
                                     x:Name="TextDiagnosticsCapabilities"
                                     FontFamily="Consolas"
                                     Text="Connect, then refresh diagnostics capabilities."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    Foreground="#315A86"
+                                    Text="PI/Bulk capture order: Refresh Capabilities -> Load PI Catalog -> check Use signals -> Read Selected PI -> switch to Bulk Snapshot -> Configure Selected -> Refresh Status -> Read Snapshot -> Release."
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </GroupBox>
@@ -705,19 +811,19 @@
                                     <Button
                                         x:Name="ButtonConfigureBulk"
                                         Click="ButtonConfigureBulk_Click"
-                                        Content="Configure Selected" />
+                                        Content="1 Configure Selected" />
                                     <Button
                                         x:Name="ButtonReadBulkStatus"
                                         Click="ButtonReadBulkStatus_Click"
-                                        Content="Refresh Status" />
+                                        Content="2 Refresh Status" />
                                     <Button
                                         x:Name="ButtonReadBulkSnapshot"
                                         Click="ButtonReadBulkSnapshot_Click"
-                                        Content="Read Snapshot" />
+                                        Content="3 Read Snapshot" />
                                     <Button
                                         x:Name="ButtonReleaseBulk"
                                         Click="ButtonReleaseBulk_Click"
-                                        Content="Release" />
+                                        Content="4 Release" />
                                 </WrapPanel>
                                 <TextBlock
                                     x:Name="TextBulkSummary"
@@ -743,6 +849,64 @@
                                     <DataGridTextColumn Width="100" Binding="{Binding Detail}" Header="Detail" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                        </GroupBox>
+
+                        <GroupBox Header="Bulk qualification automation">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="The runner reloads Capabilities and the PI Catalog, selects exactly all 24 BulkReadable entries in Catalog order, uses the revision-bound builder facade, and always releases the reader. It does not inject an EtherCAT slave fault."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Iterations" />
+                                        <TextBox x:Name="TextQualificationBulkIterations" Width="110" Text="100" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Interval (ms)" />
+                                        <TextBox x:Name="TextQualificationBulkIntervalMs" Width="110" Text="10" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonRunBulkSnapshotSoakQualification"
+                                        Click="ButtonRunBulkSnapshotSoakQualification_Click"
+                                        Content="Run 24-entry Snapshot Soak" />
+                                    <Button
+                                        x:Name="ButtonRunBulkLifecycleQualification"
+                                        Click="ButtonRunBulkLifecycleQualification_Click"
+                                        Content="Run Configure/Read/Release Soak" />
+                                    <Button
+                                        x:Name="ButtonCancelBulkQualification"
+                                        Click="ButtonCancelQualification_Click"
+                                        Content="Cancel Test" />
+                                    <Button
+                                        x:Name="ButtonSaveBulkQualificationLog"
+                                        Click="ButtonSaveQualificationLog_Click"
+                                        Content="Save QTEST Log" />
+                                </WrapPanel>
+                                <ProgressBar
+                                    x:Name="ProgressBulkQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextBulkQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextBulkQualificationSummary"
+                                    Height="180"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
@@ -972,6 +1136,70 @@
                                 </Border>
                             </StackPanel>
                         </GroupBox>
+
+                        <GroupBox Header="Recorder qualification automation">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="Single validates two identical downloads. Ring uses the advertised local forced-trigger path. Trigger Soak repeats a compact 32-sample lifecycle and releases both buffer and configuration every cycle. Reconnect/adopt and external RT evidence remain separate operator workflows."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Soak iterations" />
+                                        <TextBox x:Name="TextQualificationRecorderIterations" Width="120" Text="100" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        x:Name="TextQualificationRecorderCapability"
+                                        Margin="8,24,0,0"
+                                        Foreground="#5F6B7A"
+                                        Text="Refresh Capabilities and load the PI Catalog."
+                                        TextWrapping="Wrap" />
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonRunRecorderSingleQualification"
+                                        Click="ButtonRunRecorderSingleQualification_Click"
+                                        Content="Run Single Manual" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderRingQualification"
+                                        Click="ButtonRunRecorderRingQualification_Click"
+                                        Content="Run Ring Forced Trigger" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderSoakQualification"
+                                        Click="ButtonRunRecorderSoakQualification_Click"
+                                        Content="Run Trigger Lifecycle Soak" />
+                                    <Button
+                                        x:Name="ButtonCancelRecorderQualification"
+                                        Click="ButtonCancelQualification_Click"
+                                        Content="Cancel Test" />
+                                    <Button
+                                        x:Name="ButtonSaveRecorderQualificationLog"
+                                        Click="ButtonSaveQualificationLog_Click"
+                                        Content="Save QTEST Log" />
+                                </WrapPanel>
+                                <ProgressBar
+                                    x:Name="ProgressRecorderQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextRecorderQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextRecorderQualificationSummary"
+                                    Height="180"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
+                        </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -1103,7 +1331,7 @@
                                 <TextBlock
                                     Margin="0,3,0,0"
                                     Foreground="#8A4A00"
-                                    Text="Admin commands 0x7D00/0x7D10/0x7D20 require the matching LASAL source to be built and downloaded. Source/static validation has passed, but LASAL IDE build and live PLC execution are not yet verified. Every command on this tab is read-only."
+                                    Text="Admin commands 0x7D00/0x7D10/0x7D20 require the matching LASAL source on the PLC. The 2026-07-23 axis 1..4/group happy-path capture passed; invalid-input, stale-session, and fault cases remain separate tests. Every command on this tab is read-only."
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
@@ -1120,6 +1348,11 @@
                                     x:Name="TextAdminCapabilities"
                                     FontFamily="Consolas"
                                     Text="Admin capabilities have not been read."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    Foreground="#315A86"
+                                    Text="Drive capture: scroll to Physical drive reads at the bottom of this tab, select axes 1..4, then run Get Drive Operation Mode and Read Drive Status."
                                     TextWrapping="Wrap" />
                             </StackPanel>
                         </GroupBox>
@@ -1223,7 +1456,7 @@
                                     Grid.Column="1"
                                     Margin="8,20,8,8"
                                     Click="ButtonGetDriveOperationMode_Click"
-                                    Content="Get Drive Operation Mode" />
+                                    Content="1 Get Drive Operation Mode" />
                                 <Button
                                     x:Name="ButtonReadDriveStatus"
                                     Grid.Row="0"
@@ -1231,7 +1464,7 @@
                                     Margin="0,20,8,8"
                                     HorizontalAlignment="Left"
                                     Click="ButtonReadDriveStatus_Click"
-                                    Content="Read Drive Status" />
+                                    Content="2 Read Drive Status" />
                                 <TextBlock
                                     x:Name="TextDriveReadResult"
                                     Grid.Row="1"
