@@ -112,9 +112,10 @@ EtherCAT/motion 동작 검증을 대체하지 않는다.
 
 | 단계 | 자동/정적 계약 상태 | 실제 PLC 상태 |
 |---|---|---|
-| D0 | 구현 및 test profile `CapabilityBits=0x0000213F` 계약 테스트 포함 | D1~D5와 함께 실기 검증 대기 |
-| D1~D3 | active source와 PC contract 테스트 포함 | end-to-end 미실시 |
+| D0 | 구현 및 test profile `CapabilityBits=0x0000213F` 계약 테스트 포함 | `11_PI_Bulk_Regression`에서 BootId 8의 동일 capability 응답 7회 PASS |
+| D1~D2 | active source와 PC contract 테스트 포함 | `11_PI_Bulk_Regression`의 Catalog/PI/Bulk happy path PASS; fault/soak 대기 |
+| D3 | active source와 PC contract 테스트 포함 | 기존 Recorder happy path 캡처 존재; trigger/fault/soak는 별도 gate |
 | D4 | single-bank Ring/Trigger active contract 포함 | runtime 미실시, Double 미구현 |
-| D5 | general-inline Read submit/status/cancel 및 executor release/race 계약 포함 | legacy 축 1~4와 general-inline 1/2/4-byte 사용자 실기 PASS; 최종 확인 신규 pcap/log와 fault matrix 없음 |
-| Phase 1 facade | typed drive read, PI/Bulk builder/reader와 error catalog PC contract 포함 | 기존 D5 SDO runtime 외 신규 Admin/facade E2E는 미실시 |
-| Admin | `0x7D00/10/20/22` C# golden/parser/fake-RPC와 LASAL SourceOnly mapping 포함 | LASAL IDE build/download, 실물 값/UNIT/relative motion/packet 미검증 |
+| D5 | general-inline Read submit/status/cancel 및 executor release/race 계약 포함 | `10`의 Int8/1·BitField16/2와 `12`의 UInt32/4·same-BootId TypeMismatch recovery PASS; offline/abort, timeout, cancel, orphan, contention 대기 |
+| Phase 1 facade | typed drive read, PI/Bulk builder/reader와 error catalog PC contract 포함 | `10_DriveRead_Axis1to4`, `11_PI_Bulk_Regression` happy path PASS |
+| Admin/group | `0x7D00/10/20/22` C# golden/parser/fake-RPC와 LASAL SourceOnly mapping 포함 | `01`~`08c`, `04b`, `09b`에서 happy path/dynamic monitor/PowerOff/None-ACS static alias 검증; `0x2047` accepted-then-poll 수정본, queue/race/fault gate 잔존 |

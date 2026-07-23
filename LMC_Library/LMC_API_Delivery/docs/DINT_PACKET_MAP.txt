@@ -23,9 +23,12 @@ TCPMotionInterface.Diagnostics with 0 new CInvalidArgException entries. Final
 implementation-only active-adopt, trigger-health/race, D5 executor recovery and
 read-only Admin changes were then edited externally and passed the applicable
 static contracts. An IDE build was not repeated for those final source changes.
-The D5 Read path has user runtime confirmation, but Admin 0x7D00/0x7D10/0x7D20/0x7D22
-has NOT yet been built/downloaded or verified on a PLC.
-CPU core/priority placement and packet recapture are also pending. The untracked
+On 2026-07-23 the live PLC captures passed Admin 0x7D00/0x7D10/0x7D20, 0x7D22
+Aborting/Buffered acceptance and per-axis XYZU mapping, dynamic group monitoring,
+PowerOff final status, axis 1..4 drive reads, the four-entry PI/Bulk happy path, and
+D5 general-inline 1/2/4-byte Read plus same-BootId TypeMismatch recovery.
+Fault/stale/queue-race matrices, CPU core/priority placement and broader packet
+recapture are still pending. The untracked
 _Edit variant is not canonical. See API_DEVELOPMENT_BACKLOG_2026-07-10.md and
 ../../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md.
 
@@ -454,13 +457,15 @@ LMCRobot.AxQuitError(AxisNo:=0).
 This resets connected axis/hardware errors; it is not a guaranteed reset of the
 robot profile error. Poll GroupReadStatus and inspect GroupErrorId afterward.
 
-0x204A GroupPowerOn, payload 1 byte (project-local LASAL extension; not captured)
+0x204A GroupPowerOn, payload 1 byte (project-local LASAL extension; absent from the
+original Elmo capture set, current LASAL live capture available)
 [8] Execute BYTE = 1
 The handler starts asynchronous LMCRobot.RobotOn processing. A success ACK means
 the request was accepted, not that every member axis is servo-ready. Poll
 GroupReadStatus until local state bit 0x00040000 (IsPowerOn) is set.
 
-0x204B GroupPowerOff, payload 1 byte (project-local LASAL extension; not captured)
+0x204B GroupPowerOff, payload 1 byte (project-local LASAL extension; absent from the
+original Elmo capture set, current LASAL frame plus final 0x2045 status captured)
 [8] Execute BYTE = 1
 The handler starts asynchronous LMCRobot.RobotOff processing. A success ACK means
 the request was accepted, not that every member axis is powered off. Poll
@@ -472,6 +477,12 @@ The handler calls LMCRobot.LockProfile for the validated static mapping. A succe
 ACK means the lock request was accepted. The standard Maestro
 NC_GROUP_STANDBY_MASK (0x00020000) identifies standby; this adapter sets it for
 the locked standby condition exposed as IsStandby/IsEnabled.
+The earlier live capture exposed a handler defect: after LockProfile returned
+_LMCPROF_NoError, the handler read LockState in the same CyWork call and could return
+ErrorId -6 before the asynchronous state update. The tracked LASAL source now ACKs
+native acceptance and verifies final lock only through 0x2045 polling; SourceOnly and
+full static contracts pass. A new LASAL IDE build/download and live acceptance capture
+are still required. Clients must never convert a native nonzero error to success.
 
 0x2048 GroupDisable / ProfileUnlock, payload 1 byte
 [8] Execute BYTE = 1

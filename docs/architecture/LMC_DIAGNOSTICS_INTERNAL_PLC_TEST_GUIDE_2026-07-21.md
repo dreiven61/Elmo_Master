@@ -13,8 +13,11 @@
   legacy fixed-vector D5 시험의 same-cycle timeout을 수정했고 후속 download의 Slave 1~4
   `0x1000:0` UInt32 4-byte 경로는 모두 Completed/Success, 43~54 cycles로 PASS했다.
   과거 BootId 6 general-inline 시험은 Submit 두 건이 ticket 전 `ResourceBusy`로
-  실패했지만 callback ordering/release source 수정 뒤 사용자가 1/2/4-byte runtime
-  정상 동작을 확인했다. 최종 확인 신규 pcap/log와 fault matrix가 필요하다.
+  실패했지만 callback ordering/release source 수정 뒤
+  `10_DriveRead_Axis1to4`에서 수정본 general-inline 1/2-byte 성공 ticket을
+  보존했다. `12_SDO_GeneralInline_4Byte_FailureRecovery`는 같은 BootId 8에서
+  UInt32/4-byte 성공, TypeMismatch 실패와 이어진 Int8/1-byte 성공을 보존했고
+  `ResourceBusy` 재발이 없었다. 전체 fault/timeout/cancel/orphan matrix는 아직 남아 있다.
   `LMCSdoExecutor` constructor를 통한 private state 명시 초기화도
   PLC 재시험 전 P1 조건이다. C78/C81 version mismatch warning은 남아 있다.
 
@@ -22,12 +25,12 @@
 
 | 단계 | 현재 source 상태 | 이 문서의 PLC 실기 상태 |
 |---|---|---|
-| D0 | common envelope, capability와 `0x7E00` 구현 | 아래 D1~D5 시험과 함께 검증 대기 |
-| D1 | Health/Catalog/PI Read 활성 | 미실시 |
-| D2 | 최대 24-entry Bulk 활성 | 미실시 |
+| D0 | common envelope, capability와 `0x7E00` 구현 | 2026-07-23 `0x213F`, MapRevision `0x957F101E`, BootId 8 live PASS |
+| D1 | Health/Catalog/PI Read 활성 | 24-entry Catalog와 축 1..4 actual-position PI happy path PASS; fault matrix 별도 |
+| D2 | 최대 24-entry Bulk 활성 | 4-entry Pending->Active, same-cycle snapshot, Release PASS; 24-entry/soak/fault 별도 |
 | D3 | single-bank finite/manual Recorder 활성 | 미실시 |
 | D4 | single-bank Ring, Edge/Window/Mask와 forced trigger 활성 | 미실시. Double bank는 미구현 |
-| D5 | general-inline SDO Read, callback ordering/release 수정 source 활성 | legacy 4축과 수정본 1/2/4-byte 사용자 실기 PASS; 최종 성공 pcap/log와 fault matrix 대기 |
+| D5 | general-inline SDO Read, callback ordering/release 수정 source 활성 | legacy 4-byte와 수정본 general-inline 1/2/4-byte capture PASS; TypeMismatch 후 같은 BootId recovery PASS; 나머지 fault/timeout/cancel/orphan matrix 대기 |
 | D6 | 기존 static/handle facade 후속 설계 | 미구현; Phase 1 D1/D2 기반 PI/Bulk instance facade는 구현 |
 
 따라서 정적 계약과 IDE Build/Link 통과를 실제 PLC 완료로 해석하지 않는다.
@@ -225,8 +228,12 @@ block되면 안 된다.
     terminal Failed 또는 SDO abort를 확인한 뒤, PLC를 재시작하지 않고 올바른 Int8/1을
     즉시 Submit한다. 두 번째 요청이 영구 `ResourceBusy`가 되면 FAIL이다.
 
-callback recovery 수정본의 general-inline 1/2/4-byte 연속 실기 시험 전에는 `0x213F`,
-MaxSDO=4를 production 승인으로 기록하지 않는다.
+callback recovery 수정본의 general-inline 1/2-byte happy path는 성공 캡처를 확보했다.
+`12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`에서 general-inline 4-byte 성공과
+의도한 TypeMismatch 뒤 같은 BootId의 Int8/1-byte recovery도 확인했다. 그러나
+SDO abort/offline, timeout, queued cancel, disconnect/orphan과 active contention을 포함한
+전체 matrix까지 확인하기 전에는 `0x213F`, MaxSDO=4를 production 승인으로
+기록하지 않는다.
 PC-PLC TCP 캡처에는 EtherCAT mailbox frame이 없을 수 있으므로 terminal packet과 함께
 executor callback/PLC trace 또는 별도 EtherCAT 관측 자료를 보존한다.
 
@@ -284,16 +291,23 @@ vector를 시도했다는 기록과 별개로 이 파일은 2-byte/4-byte genera
 실패 당시 source에서 vendor call 뒤 `Running` publish와 owned validation failure의
 미회수 결함을 확인했다. 현재 source는 vendor call 전 `Running`, private cleanup 중
 `Releasing`, owned completion 소비 후 release, orphan callback release와 unsolicited
-hard quarantine을 적용했고 full static 계약을 통과했다. 이것은 source/static 판정이며
-PLC 수정본 성공 증거가 아니다.
+hard quarantine을 적용했고 full static 계약을 통과했다. 이후
+`10_DriveRead_Axis1to4.pcapng`에서 수정본 general-inline 1/2-byte happy path는
+성공했다.
 
-수정본 download 후 같은 BootId에서 아래 순서를 재부팅 없이 실행한다.
+`12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`의 BootId 8에서는 다음 순서가
+재부팅 없이 실행됐다.
 
-1. `0x6061:0` Int8/1
-2. `0x6041:0` BitField16/2
-3. `0x1018:1` UInt32/4
-4. `0x6061:0` Int8/1 반복
-5. 의도한 terminal failure 뒤 올바른 Int8/1 재시도
+1. Ticket 13: `0x1018:1` UInt32/4, 17 cycles, Completed/Success,
+   result `9A 00 00 00`
+2. Ticket 14: `0x6061:0` UInt16/2, 30 cycles, Failed,
+   `ErrorId=-32001`, `DetailCode=5 TypeMismatch`
+3. Ticket 15: `0x6061:0` Int8/1, 36 cycles, Completed/Success, result `08`
+
+같은 BootId에서 TypeMismatch terminal result 후 executor가 재사용됐고 `ResourceBusy(9)`는
+발생하지 않았다. 이로써 general-inline UInt32/4-byte 성공과 한 failure-recovery
+vector는 PASS다. SDO abort/offline, timeout, queued cancel, disconnect/orphan, active
+contention은 여전히 별도로 시험한다.
 
 각 정상 요청은 Submit Queued와 terminal Completed/Success를 반환해야 한다. 의도한
 실패 뒤에도 다음 Submit이 진행돼야 한다. 실제 active/draining 구간의 일시적 Busy는

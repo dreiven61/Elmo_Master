@@ -4,8 +4,10 @@ Elmo PMAS/MMCLib 기준 동작을 분석하고 SIGMATEK/LASAL 전용 DINT API와
 예제로 이식·검증하는 저장소다.
 
 현재 개발 버전은 `LasalMotionControlLib 0.9.1-preview`다. PC 자동 시험과 LASAL
-정적 계약은 통과했지만 실제 PLC end-to-end와 packet 재캡처는 `0/25`이므로
-production 승인본이 아니다.
+정적 계약은 통과했다. 2026-07-23 live capture에서 Admin read, 상대/절대 group 대표
+경로, PowerOff, None/ACS static alias, D1 PI/D2 Bulk와 D5 SDO Read happy path를
+확인했지만 25-command 전체 matrix와 fault/race/soak 검증은 끝나지 않았다.
+따라서 production 승인본이 아니다.
 
 ## 현재 구성
 

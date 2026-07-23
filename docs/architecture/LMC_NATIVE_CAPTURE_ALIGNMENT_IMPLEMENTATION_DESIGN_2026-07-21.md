@@ -1,10 +1,11 @@
 # Native capture alignment implementation design
 
 - Date: 2026-07-21
-- Reviewed: 2026-07-22
+- Reviewed: 2026-07-23
 - Evidence: `ELMO_NATIVE_API_PACKET_CAPTURE_ANALYSIS_2026-07-21.md`
 - Implementation status: PMAS/custom Recorder and documentation changes applied;
-  live controller gates and D5 PLC execution remain open
+  D5 general-inline 1/2/4-byte plus TypeMismatch recovery live PASS, remaining
+  controller fault/Recorder gates open
 - Targets:
   - `Codex_PMAS_WPF_Version2`
   - LASAL custom Recorder `0x7E43`
@@ -212,14 +213,17 @@ state machine. It validates fixed sizes, SDO flags, the reserved field and exact
 payload shape. Malformed shapes return BoundsInvalid. General-inline Read accepts slave 1..4,
 nonzero ObjectIndex, any U8 SubIndex, timeout 1..60000 and ValueType-matched 1/2/4-byte lengths.
 It requires capability bits 8 and 13; the stable-BootId test value is `0x0000213F` with
-`MaxSdoDataBytes=4`. Write, 8/12-byte and extended result remain fail-closed. The follow-up
-captures prove only the legacy `0x13F`, `0x1000:0` UInt32 4-byte path on slaves 1 through 4.
+`MaxSdoDataBytes=4`. Write, 8/12-byte and extended result remain fail-closed. The earlier
+captures prove the legacy `0x13F`, `0x1000:0` UInt32 4-byte path on slaves 1 through 4.
 The BootId 6 general-inline capture reproduced a submit-side `ResourceBusy(9)` lockout after an
-earlier error. No ticket/status frame was created for the rejected attempts. The executor source
-now publishes Running before the vendor request can callback, performs private cleanup through a
-Releasing state, returns owned validation failures as consumable terminal results, and reserves
-hard quarantine for unsolicited/duplicate callbacks or invariant failures. The fixed source still
-needs LASAL rebuild/download and general-inline/fault-path qualification.
+earlier error. The executor source then changed to publish Running before the vendor request can
+callback, clean up through a private Releasing state, return owned validation failures as
+consumable terminal results, and reserve hard quarantine for unsolicited/duplicate callbacks or
+invariant failures. `10_DriveRead_Axis1to4` subsequently proved general-inline Int8/1-byte and
+BitField16/2-byte success. `12_SDO_GeneralInline_4Byte_FailureRecovery` proved UInt32/4-byte
+success and same-BootId TypeMismatch failure followed by Int8/1-byte success without
+ResourceBusy. Remaining qualification is abort/offline, timeout, queued cancel,
+disconnect/orphan, contention and duplicate/late callback behavior.
 
 ## 7. Verification gates
 
@@ -243,4 +247,6 @@ Live gates that remain manual:
 - PMAS WPF: `uiSr=0x0104`, header `Rl=64` permits BufferIndex 0 and range `[0..63]`
 - custom LASAL: Ready/Uploading Stop succeeds for the owner and rejects wrong identity
 - custom `0x7E45/0x7E46` packet sequence and recorder data/CRC
-- D5 fault/cancel/orphan lifecycle after the four-axis 4-byte happy path PASS
+- D5 abort/offline, timeout, queued cancel, disconnect/orphan, contention and
+  duplicate/late callback lifecycle after general-inline 1/2/4-byte and
+  TypeMismatch-recovery PASS

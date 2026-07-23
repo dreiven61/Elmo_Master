@@ -6,7 +6,7 @@
 - 원본 SHA-256: `A4441C88A489EE2898A8A6FA34182E387ABCA03C97B07EA9F68DB73AA29E34A4`
 - 판정 대상: 현재 Git working source의 C# 공개 API, TCP wire, LASAL handler/network, WPF 노출
 - 갱신일: 2026-07-23
-- 상태: Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22 GroupMoveLinearRelative` source 구현 완료. PC 자동 시험과 LASAL 정적 계약은 PASS이며, Admin LASAL IDE build/download와 실물 PLC 검증은 별도다.
+- 상태: Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22 GroupMoveLinearRelative` 구현 완료. PC 자동 시험/LASAL 정적 계약과 2026-07-23 기존 live capture가 PASS했고, 이후 `0x2047` accepted-then-poll 및 Group/Bulk/Recorder qualification UI는 code/build 완료했다. 신규 runner의 PLC live, fault/stale/reconnect/RT matrix는 별도다.
 - workbook 추출: OOXML read-only. 숨김 행과 수식은 없었고 실제 값은 A1:G68에 있었다. 현재 세션에는 workbook renderer가 없어 색/조건부 서식에 의미를 둔 판정은 하지 않았다.
 
 ## 1. 결론
@@ -37,14 +37,21 @@
 
 1. 우선순위 상 21개 중 기능 경로가 있는 항목은 17개다. `GroupStop`의 `StopMove()` 반환은 오류가 아니라 `StopCmdNo`이므로 기존 ACK 처리는 결함이 아니었다.
 2. 우선순위 상의 실제 공백은 `HomeDS402`, `HomeDS402Ex`, `SetOpMode`, `SetPosition` 4개다.
-3. SDO Read 1/2/4 byte 경로는 source-active이고 사용자가 실제 PLC에서 정상 동작을 확인했다. 이번 판정에서는 live PASS로 취급한다. 다만 이번 기준선에 별도 pcap/log가 추가된 것은 아니다.
+3. SDO Read 1/2/4 byte 경로는 source-active이며 live packet PASS다. `12` capture는
+   general-inline UInt32/4 성공과 동일 BootId의 의도한 TypeMismatch 실패 후 Int8/1
+   복구를 확인했다. offline/abort, timeout, queued cancel, disconnect/orphan과 contention은 별도다.
 4. PI Write, SDO Write, 8-byte SDO는 UI가 덜 만들어진 문제가 아니다. 현재 C# 계약만 있고 SDK/PLC policy와 capability가 의도적으로 fail-closed다.
 5. Recorder는 Maestro recorder wire의 복제가 아니라 LASAL D3/D4 recorder의 기능 동등 구현이다.
 6. `GroupEnable/Disable`은 실제로 LASAL Profile Lock/Unlock이며, `SetKinTransform`은 고정 X/Y/Z/U identity 검증이다. PMAS의 일반 의미와 같다고 문서화하면 안 된다.
 7. PC 자동 테스트와 정적 계약 PASS는 최신 PLC download 및 실물 모션 PASS를 의미하지 않는다.
 8. Phase 1에서 read-only Admin 3개 command, typed drive read, PI/Bulk facade와 PC-local error catalog를 source 구현했다. 이로써 No.6/18/34는 LASAL 적응 구현으로 이동했고 No.54는 제한적 부분 구현으로 이동했다.
-9. 새 Admin command는 아직 LASAL IDE/PLC에서 실행하지 않았으므로 source/static 완료와 runtime 완료를 분리한다.
-10. Phase 2 첫 슬라이스로 No.41 `Group MoveLinearRelativeEx`를 `0x7D22`와 LASAL `MoveRelativeCoord`로 source 구현했다. PC가 현재 위치를 합산하지 않으며 PLC profile queue가 상대 이동을 원자적으로 해석한다.
+9. 새 Admin `0x7D00/10/20`은 2026-07-23 live PLC happy path를 통과했다. physical axis 1..4, fixed group `0x0100`과 wire response를 확인했으며 invalid/stale/fault 경로는 아직 별도다.
+10. Phase 2 첫 슬라이스 No.41 `Group MoveLinearRelativeEx`는 `0x7D22`와 LASAL `MoveRelativeCoord`로 구현됐고 live PLC에서 Aborting/Buffered 수락과 X/Y/Z/U 축별 왕복을 확인했다. PC가 현재 위치를 합산하지 않으며 PLC profile queue가 상대 이동을 원자적으로 해석한다.
+11. 후속 qualification source는 `0x2047` acceptance/poll, true Buffered A/B,
+    deterministic stop-first, exact 24-entry Bulk snapshot/lifecycle와 Recorder
+    Single Manual/Ring forced-trigger/trigger soak를 구현하고 WPF Debug/Release build를
+    통과했다. 이는 live PLC 합격이 아니며 Recorder reconnect/adopt, slave offline,
+    raw negative, RT evidence와 D4 Double은 포함하지 않는다.
 
 ## 2. 판정 기준과 증거 경계
 
@@ -90,9 +97,21 @@
 | C# PC tests Release | 148/148 PASS | 위와 동일 |
 | LASAL contract SourceOnly | PASS | source 문자열/offset/호출 계약 정적 검사 |
 | LASAL contract network 포함 | PASS | 4축 network와 generated table 정적 검사 |
-| WPF Debug build | PASS | 실행 중인 기존 output lock을 피한 임시 output build; 화면 runtime/PLC smoke는 아님 |
-| WPF Release build | PASS | 실행 중인 기존 output lock을 피한 임시 output build; 화면 runtime/PLC smoke는 아님 |
-| SDO Read | 사용자 실기 확인 PASS | 이번 문서 작성 시 신규 capture/log 미첨부 |
+| WPF Debug build/visual startup | PASS | qualification UI/partial source 포함; Group/Bulk/Recorder panel 렌더와 prerequisite 미충족 초기 실행 버튼 disabled 확인. PLC live는 별도 |
+| WPF Release build | PASS | qualification UI/partial source 포함 |
+| qualification source | build PASS | Group/Bulk/Recorder runner와 cleanup/logging; Recorder 자동 Release는 Ready/Uploading만 허용하고 Fault는 resource를 보존. runtime pcap/QTEST 없음 |
+| SDO Read | 범위별 live PASS | `SDO_Test2`/`SDO_Test_Slave123`는 legacy 4-byte, `10_DriveRead_Axis1to4`는 general-inline 1/2-byte, `12_SDO_GeneralInline_4Byte_FailureRecovery`는 UInt32/4와 동일 BootId TypeMismatch recovery PASS |
+| Admin `0x7D00/10/20` | live capture PASS | happy path만 확인; invalid axis/key/selection과 stale session은 별도 |
+| Group relative `0x7D22` | 기존 live capture PASS | Aborting/Buffered 수락과 X/Y/Z/U mapping; true chaining runner code/build 완료, live는 별도 |
+| Drive read axis 1..4 | live capture PASS | `0x2028`, `0x6041`, `0x6061` 순차 read; atomic snapshot 아님 |
+| PI/Bulk 4 signals | live capture PASS | 기존 happy path PASS; 24-entry snapshot/lifecycle soak code/build 완료, live/fault는 별도 |
+| Recorder qualification | code/build/Debug visual smoke PASS | Single/Ring/trigger soak와 hash/state-gated cleanup 구현; PLC live, reconnect/adopt, RT와 Double은 별도 |
+| Group dynamic timeout | live behavior PASS | `04b`는 55.034 s 계산 한도로 20.152 s stable completion; TXT가 0 byte라 exact UI text는 미증명 |
+| PowerOff verification | live function PASS | `08c`에서 Disable -> PowerOff -> final `PowerOn=False`; button label/enable visual state는 미증명 |
+| Group position None/ACS | live static-alias PASS | `09b` coordinate 0/1의 exact 68-byte response가 byte-identical; true ACS transform나 MCS/PCS 증거는 아님 |
+
+2026-07-23 raw frame, request field와 결과 값은
+[SIGMATEK Phase 1/2 live capture 분석](SIGMATEK_PHASE1_PHASE2_LIVE_CAPTURE_ANALYSIS_2026-07-23.md)에 고정했다.
 
 ## 3. 65개 요구사항 전체 판정
 
@@ -117,7 +136,7 @@
 | 15 | 중 | Bulk Config | E | D2 `ConfigureBulk`, PLC `0x7E30`이 활성 경로다. |
 | 16 | 하 | Emergency typed callback | G | UDP listener와 raw callback log만 있다. PLC event producer와 typed schema가 없다. |
 | 17 | 하 | Group member info | D | `GetGroupMembersInfo`, PLC `0x20D2`; name/ref/device/count를 제공한다. software descriptor는 1..9, 실제 EtherCAT 축은 1..4다. |
-| 18 | 하 | Group parameter batch read | E | `connection.Admin.ReadGroupParameters[Async]`, local `0x7D20`; Group `0x0100`의 velocity/acceleration/jerk-time 선택 mask만 허용한다. |
+| 18 | 하 | Group parameter batch read | E | `connection.Admin.ReadGroupParameters[Async]`, local `0x7D20`; Group `0x0100`의 velocity/acceleration/jerk-time 선택 mask만 허용하며 2026-07-23 live happy path가 PASS했다. |
 | 19 | 상 | HomeDS402 | G | 공개 API/handler가 없다. `_LMCAxis.MoveReference`는 존재하지만 DS402 method 1..36과 동등하지 않다. |
 | 20 | 중 | Axis ReadStatus | D | `ReadStatus[Result][Async]`, PLC `0x2028`. |
 | 21 | 중 | GroupReadStatus | D | `GroupReadStatus[Result][Async]`, PLC `0x2045`. |
@@ -133,14 +152,14 @@
 | 31 | 상 | Axis PowerOff | D | `PowerOff[Async]`, PLC `0x2023 enable=0`. |
 | 32 | 상 | Group Disable | E | `GroupDisable[Async]`, PLC `0x2048`; 실제 의미는 LASAL `UnlockProfile`이다. |
 | 33 | 상 | SetOpMode | G | dedicated API가 없다. 0x6060 PDO는 Elmo 객체에서 disabled이고 unrestricted SDO Write도 OFF다. LMC mode ownership 결정이 먼저다. |
-| 34 | 하 | GetOpMode | E | `GetDriveOperationMode[Async]`가 D5 SDO `0x6061:0 Int8/1` ticket을 bounded poll하고 raw signed value와 typed mode를 반환한다. |
+| 34 | 하 | GetOpMode | E | `GetDriveOperationMode[Async]`가 D5 SDO `0x6061:0 Int8/1` ticket을 bounded poll하고 raw signed value와 typed mode를 반환한다. 축 1..4 live 결과는 모두 8(CSP)로 PASS했다. |
 | 35 | 상 | Axis PowerOn | D | `PowerOn[Async]`, PLC `0x2023 enable=1`. |
-| 36 | 상 | Group Enable | E | `GroupEnable[Async]`, PLC `0x2047`; 실제 의미는 LASAL `LockProfile`이다. |
+| 36 | 상 | Group Enable | E | `GroupEnable[Async]`, PLC `0x2047`; 실제 의미는 LASAL `LockProfile`이다. same-cycle `LockState` read를 제거하고 acceptance ACK + 후속 `0x2045` poll로 source/static 수정했으며 새 IDE/download/live 재캡처는 대기다. |
 | 37 | 하 | Profile Conditioning clear/enable | G | 검증된 SIGMATEK/LASAL 대응 기능이 없다. |
 | 38 | 하 | Profile Conditioning parameters | G | 검증된 SIGMATEK/LASAL 대응 기능이 없다. |
 | 39 | 상 | Axis actual position | E | `GetActualPosition[Result][Async]`, PLC `0x202E`; engineering double이 아니라 caller-scaled raw DINT다. |
 | 40 | 상 | MoveRelativeEx | D | `MoveRelativeEx[Async]`, PLC `0x20A0`; raw DINT와 제한된 buffer 의미를 사용한다. |
-| 41 | 중 | Group MoveLinearRelativeEx | D | `LMCGroupAxis.MoveLinearRelativeEx[Async]`, Admin `0x7D22`, LASAL `MoveRelativeCoord` 경로가 있다. source/static 완료이며 IDE/PLC 실동작은 미검증이다. |
+| 41 | 중 | Group MoveLinearRelativeEx | D | `LMCGroupAxis.MoveLinearRelativeEx[Async]`, Admin `0x7D22`, LASAL `MoveRelativeCoord` 경로가 있다. 기존 Aborting/Buffered 수락과 축별 왕복은 live PASS했고 true Buffered A/B runner는 code/build 완료, live queue/endpoint는 대기다. |
 | 42 | 상 | Axis Stop | D | `Stop[Async]`, PLC `0x2022`; decel/jerk를 지원하나 buffer mode는 미노출이다. |
 | 43 | 상 | Group Stop | D | `GroupStop[Async]`, PLC `0x2085`. ACK는 검증된 `StopMove(Mode:=3)` dispatch를 뜻하고 완료/error는 `GroupReadStatus`로 확인한다. |
 | 44 | 상 | MoveVelocityEx | D | `MoveVelocityEx[Async]`, PLC `0x20A2`; 실제 LASAL 호출은 `MoveEndless`, deceleration=0 제약이 있다. |
@@ -153,17 +172,17 @@
 | 51 | 중 | SDO Write Double | P | request model만 있고 PLC SDO Write capability/allowlist가 OFF다. `Real64`도 없다. |
 | 52 | 중 | SDO Write Int32 | P | `CreateWrite` scaffold는 있으나 SDK/PLC 이중 정책으로 항상 차단된다. |
 | 53 | 하 | Group parameter batch write | G | 공개 API/handler가 없다. LASAL native parameter method를 raw passthrough하지 말고 semantic key로 제한해야 한다. |
-| 54 | 하 | Axis GetParameter | P | `connection.Admin.ReadAxisParameter[Async]`, local `0x7D10`; physical axis 1..4와 6개 semantic Int32 key만 허용하는 제한 구현이다. |
-| 55 | 하 | Group actual position | P | `GroupReadActualPosition`, PLC `0x2051`; None/ACS member-slot alias만 지원하고 MCS/PCS 변환은 지원하지 않는다. |
-| 56 | 하 | StatusRegister/MCS limit | P | `ReadDriveStatus[Async]`가 axis status, DS402 `0x6041`, `0x6061`을 source별로 분리하고 limit indication을 제공한다. Maestro StatusRegister/MCS limit와 동일한 atomic register는 아니다. |
+| 54 | 하 | Axis GetParameter | P | `connection.Admin.ReadAxisParameter[Async]`, local `0x7D10`; physical axis 1..4와 6개 semantic Int32 key만 허용하는 제한 구현이며 이 범위의 live happy path가 PASS했다. |
+| 55 | 하 | Group actual position | P | `GroupReadActualPosition`, PLC `0x2051`; `09b`에서 None/ACS static member-slot alias의 byte-identical 68-byte 응답을 live 확인했다. true ACS transform는 아니며 MCS/PCS 변환은 지원하지 않는다. |
+| 56 | 하 | StatusRegister/MCS limit | P | `ReadDriveStatus[Async]`가 axis status, DS402 `0x6041`, `0x6061`을 source별로 분리하고 limit indication을 제공한다. 축 1..4 live 순차 read는 PASS했지만 Maestro StatusRegister/MCS limit와 동일한 atomic register는 아니다. |
 | 57 | 중 | ReadBoolParameter | X | workbook상 OPERA 미사용이며 목적은 current mode 확인이다. raw API를 복제하지 않고 No.34 typed mode read로 흡수한다. |
 | 58 | 상 | SetPosition | G | 공개 API/handler가 없다. `_LMCAxis.SetPosition`은 있으나 상태 제한이 필요한 고위험 operation이다. |
 | 59 | 중 | SetKinTransform | P | `SetKinTransformCartesian4Axis`, PLC `0x20E7`; fixed X/Y/Z/U identity ready 검증이지 generic kinematics가 아니다. |
-| 60 | 하 | StopRecording | E | D3/D4 `StopRecorder`, PLC `0x7E43`. |
-| 61 | 하 | Recording status | E | `GetRecorderStatus`, PLC `0x7E44`. |
-| 62 | 하 | BeginRecording | E | `ConfigureRecorder` + `StartRecorder`, PLC `0x7E40/41`로 분리 구현했다. |
-| 63 | 하 | UploadDataHeader | E | `GetRecorderHeader`, PLC `0x7E45`. |
-| 64 | 하 | UploadData | E | `ReadRecorderChunk`/`DownloadRecorderAsync`, PLC `0x7E46`. |
+| 60 | 하 | StopRecording | E | D3/D4 `StopRecorder`, PLC `0x7E43`; qualification cleanup은 final Status를 확인해 `Ready`/`Uploading`에서만 자동 Release하고 `Fault`는 resource를 보존한다. 신규 PLC live는 대기다. |
+| 61 | 하 | Recording status | E | `GetRecorderStatus`, PLC `0x7E44`; bounded qualification poll code/build 완료, live는 대기다. |
+| 62 | 하 | BeginRecording | E | `ConfigureRecorder` + `StartRecorder`, PLC `0x7E40/41`; Single/Ring/trigger-soak runner code/build 완료, live는 대기다. |
+| 63 | 하 | UploadDataHeader | E | `GetRecorderHeader`, PLC `0x7E45`; metadata assertion runner code/build 완료, live는 대기다. |
+| 64 | 하 | UploadData | E | `ReadRecorderChunk`/`DownloadRecorderAsync`, PLC `0x7E46`; exact byte count/double-download SHA-256 assertion code/build 완료, live는 대기다. |
 | 65 | 하 | WaitUntilConditionFB | X | PC polling은 여러 축/컨트롤러의 deterministic sync와 동등하지 않다. 실제 장비 동기화 요구가 확정될 때 PLC-owned arm/condition/start로 설계한다. |
 
 ## 4. 구현 전에 먼저 수정할 계약 불일치
@@ -194,6 +213,11 @@
 - `MCS/PCS`: C# public builder는 `NotSupportedException`, legacy/raw wire 요청은 PLC `ErrorId=-7`
 - 반환 slot 수: group member metadata와 일치시키고 남은 slot은 0
 - Cartesian position이 필요하면 generic group position과 분리된 새 typed command로 설계
+
+`09b` live capture는 coordinate 0/1 요청과 exact 68-byte 응답 두 건을 확보했다.
+`HeaderStatus=0`, `FunctionStatus=0x4000`, `ErrorId=0`이고 두 position vector는
+byte-identical하므로 위 static-alias 계약은 runtime PASS다. 이것은 true ACS transform나
+MCS/PCS transform/rejection의 runtime 증거가 아니다.
 
 ### 4.3 GroupStop command result
 
@@ -292,7 +316,7 @@ SDK와 PLC가 동일한 versioned allowlist를 각각 검사한다.
 - 기존 104개 회귀 테스트와 신규 Phase 0 matrix를 합친 105개가 Debug/Release에서 모두 PASS
 - group option invalid matrix golden/fake-RPC test 추가
 - GroupStop 입력 오류는 PC/PLC에서 거부되고, dispatch ACK와 runtime 완료/error가 명확히 분리됨
-- `0x2051` None/ACS source/fake-RPC PASS, MCS/PCS explicit reject. ACS 실물 동등성은 PLC 시험 대상
+- `0x2051` None/ACS source/fake-RPC와 `09b` live static-alias PASS, MCS/PCS explicit reject는 source/static이며 live negative는 별도
 
 Phase 0 source 결과:
 
@@ -300,7 +324,8 @@ Phase 0 source 결과:
 - LASAL `0x2051`은 None/ACS만 member-slot alias로 처리하고 MCS/PCS는 `ErrorId=-7`, 그 밖의 enum은 `-3`으로 거부한다.
 - LASAL `0x2085`는 `StopMove()`의 `StopCmdNo`를 ACK error로 사용하지 않는다. 완료와 profile error는 `GroupReadStatus(0x2045)`로 확인한다.
 - Debug/Release PC 시험 `105/105`, LASAL SourceOnly/full 정적 계약, WPF Debug/Release 임시 output build를 통과했다.
-- LASAL IDE build/download와 실제 PLC의 ACS alias, MCS/PCS 거부 및 GroupStop 완료 poll은 아직 검증하지 않았다.
+- 실제 PLC의 None/ACS static alias는 `09b`로 PASS했다. LASAL IDE 최신 build 증거,
+  MCS/PCS 거부와 GroupStop 완료 poll은 아직 별도다.
 
 ### Phase 1 - read-only admin과 compatibility facade
 
@@ -322,7 +347,10 @@ Phase 1 source 결과:
 - `CreatePIBulkBuilder`는 catalog의 exact `MapRevision`, readable flag, 최대 32개와 중복을 검사한다. `Upload` 후 `GetEntry/TryGetEntry`를 제공하며 wire는 D1/D2 그대로다.
 - `LMCErrorCatalog`는 project-local 네 domain(`AdapterCommand`, `AdminDetail`, `DiagnosticsDetail`, `GroupProfile`)을 명시적으로 구분한다. 같은 숫자를 domain 없이 해석하지 않으며 Elmo Personality database를 표방하지 않는다.
 - WPF example에 별도 `Read-only API` 탭을 추가했다. `0x7D00` capability가 성공한 뒤에만 axis/group semantic read가 열리고, physical axis 1~4의 typed operation mode와 non-atomic drive status를 같은 흐름에서 확인한다. motion/write control은 포함하지 않는다.
-- C# Debug/Release 자동 시험은 각각 `135/135`, LASAL SourceOnly 정적 계약은 PASS다. Phase 1 `0x7D00/10/20`의 LASAL IDE build/link, PLC download, 실물 값과 packet capture는 아직 검증하지 않았다.
+- C# Debug/Release 자동 시험은 각각 `148/148`, LASAL SourceOnly/full 정적 계약은
+  PASS다. 2026-07-23 live capture에서 Phase 1 `0x7D00/10/20`, Phase 2 `0x7D22`,
+  axis 1~4 drive read와 D1 PI/D2 Bulk happy path를 확인했다. fault/race/soak와
+  `0x2047` accepted-then-poll 수정본의 IDE build/download/live 재검증은 남아 있다.
 
 ### Phase 2 - LASAL-native motion/admin
 
@@ -426,13 +454,20 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 
 ## 8. 다음 구현 슬라이스
 
-Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22` source 구현은 완료했다. 다음 순서는 새 Admin capability 전체와 상대이동을 같은 PLC build에서 검증한 뒤, 물리 계약이 닫힌 기능만 추가하는 것이다.
+Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22`의 happy-path source/runtime 검증과
+`09b` None/ACS static-alias 검증은 완료했다. 이어 아래 1, 2, 4의 public-SDK
+qualification source/build와 Recorder Single/Ring/trigger soak source/build를 완료했다.
+다음 순서는 이 runner를 PLC에서 실행해 pcap/QTEST로 닫고, 외부 fault·race·stale matrix를
+진행한 뒤 물리 계약이 확정된 기능만 추가하는 것이다.
 
-1. `0x7D00/10/20/22` IDE Rebuild/Link와 implementation smoke
-2. WPF `Read-only API` 탭에서 axis 1..4의 6개 semantic parameter와 group 3개 parameter 값/UNIT 확인
-3. 같은 탭의 operation mode/status composite 및 기존 EtherCAT/PI 탭의 PI/Bulk facade live PLC regression과 packet capture
-4. WPF Group Motion 탭에서 작은 X/Y/Z/U 상대거리로 Aborting/Buffered 수락, `GroupReadStatus` 완료, Stop/PowerOff recovery와 packet capture 확인
-5. capability, invalid axis/key/selection/motion body, invalid state, native reject, timeout/stale-session failure matrix
-6. 위 runtime gate가 닫힌 뒤 axis velocity override의 persistence/read-back/ownership 계약을 확정하고, Reference/Homing은 physical IO 연결 확인 후 별도로 진행
+1. [source/static 완료, live 대기] `0x2047`을 accepted-then-poll 계약으로 수정했다. 새 LASAL IDE build/download 뒤 ACK 0과 후속 `0x2045` Locked/Standby를 재캡처한다.
+2. [code/build 완료, live 대기] command B를 A 완료 전에 보내는 true Buffered queue chaining과 safety generation을 이용한 deterministic stop-first를 Test UI에 추가했다.
+3. D5 offline/abort, timeout, queued cancel, disconnect/orphan, duplicate/late callback과 contention matrix를 실행한다.
+4. [code/build 부분 완료] PI/Bulk exact 24-entry/100 snapshot과 lifecycle/release-reuse를 자동화했다. PLC live, stale map/config/BootId, raw double-release와 partial-entry는 별도다.
+5. [code/build 부분 완료] Recorder D3 Single Manual, D4 Ring forced-trigger, 100-cycle trigger soak와 chunk data hash/cleanup을 자동화했다. PLC live, Window/Mask별 matrix, reconnect/adopt, RAM/jitter와 Double은 별도다.
+6. 위 runtime gate가 닫힌 뒤 axis velocity override의 persistence/read-back/ownership 계약을 확정하고, Reference/Homing은 physical IO 연결 확인 후 별도로 진행한다.
+
+구체적인 파일 변경 순서, 공통 scenario runner, 로그 schema와 packet acceptance는
+[SIGMATEK 다음 runtime qualification 및 Test UI 설계](SIGMATEK_NEXT_RUNTIME_QUALIFICATION_AND_TEST_UI_DESIGN_2026-07-23.md)를 따른다.
 
 Homing/SetPosition 같은 물리 위험 기능은 IO/상태/ownership 계약을 승인하기 전에는 capability를 광고하지 않는다.

@@ -12,6 +12,11 @@
 `RELEASE_MANIFEST`/`BUILD_METADATA`를 금지하고 hash를 console에 출력한다.
 외부 release 승인 시 이 기록을 current source commit과 함께 다시 생성한다.
 
+> **2026-07-23 갱신:** 아래 `0/25` 표기는 이 빌드가 생성된 2026-07-16의
+> provenance snapshot이다. 이후 실제 PLC 검증 결과는
+> [SIGMATEK Phase 1/2 Live Packet Capture Analysis](../../../docs/architecture/SIGMATEK_PHASE1_PHASE2_LIVE_CAPTURE_ANALYSIS_2026-07-23.md)를
+> 우선한다. 이 파일의 hash와 당시 미검증 목록은 소급 변경하지 않는다.
+
 ## 산출물 snapshot
 
 | 파일 | Bytes | SHA-256 |

@@ -61,8 +61,10 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   TCPMotionInterface.Diagnostics 3건 PASS; smoke 이후 `Lasal2.log`의 신규
   `CInvalidArgException` 0건
 - CyWork와 motion RT thread의 CPU core/priority 조건: 미검증
-- diagnostics PLC: legacy 축 1~4와 general-inline 1/2/4-byte SDO Read는 사용자 실기
-  PASS. 최종 확인 신규 pcap/log와 D5 fault matrix/D1~D4 시험은 없음
+- diagnostics PLC: `11_PI_Bulk_Regression`의 D0/D1/D2 happy path와
+  `10_DriveRead_Axis1to4`/`12_SDO_GeneralInline_4Byte_FailureRecovery`의
+  general-inline 1/2/4-byte 및 same-BootId TypeMismatch recovery packet PASS.
+  D1/D2 fault/soak, D3/D4 전체와 D5 나머지 fault matrix는 별도
 
 기존 motion/control PC API 범위는 캡처 기반 23개 command와 LASAL local motion
 extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
@@ -70,9 +72,10 @@ extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
 Catalog/Health/PI/Bulk/Recorder/ticket/chunk parser를 제공한다. 현재 PLC test build가
 광고하는 실제 실행 범위는 D1 read-only, D2 Bulk, D3 single-bank manual Recorder,
 D4 single-bank Ring/Edge/Window/Mask/forced Trigger와 D5 general-inline SDO Read다.
-D5의 legacy `0x1000:0` 4축 path와 general-inline 1/2/4-byte SDO Read는 사용자가
-실제 PLC에서 정상 동작을 확인했다. 이 확인에 대한 신규 pcap/log는 이번 기준선에
-별도로 보존되지 않았다.
+D5의 legacy `0x1000:0` 4축 path와 general-inline 1/2/4-byte SDO Read는 live packet으로
+확인했다. 의도한 TypeMismatch terminal failure 뒤 같은 BootId의 다음 Int8/1 ticket
+success도 확인했다. offline/abort, timeout, queued cancel, disconnect/orphan과
+contention은 아직 production qualification으로 남아 있다.
 D4 Double bank와 D5 PI/SDO Write 및 extended
 result는 capability-off라 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
 PI/Bulk compatibility facade는 `CreatePIBulkBuilder(catalog)`와 alias `ReadPI`로 구현했다.
@@ -138,7 +141,9 @@ current `0x2051` handler는 None/ACS만 허용하며, no-CalcModel static identi
 요청하면 PLC가 `ErrorId=-7`로 거부한다. `_LMCPROF_POS`의 Pos1..Pos9는 DINT[16]
 response slot 1..9에 복사되고 slot 10..16은 0이다. 이는 software group member
 readback 계약이며 Move/SetKin/Lock의 4축 제한을 9축 group motion으로 확대하지
-않는다. ACS alias의 실물 동등성은 PLC 시험과 packet capture가 남아 있다.
+않는다. `09_Group_ReadPosition_None_ACS_2051`에는 `0x2051`이 없었지만 후속 `09b`
+packet capture에서 None/ACS가 같은 static member-slot 순서와 값을 반환하는 것을
+확인했다. 이는 true ACS transform 또는 MCS/PCS 지원 증거가 아니다.
 
 정상 group 순서는 `GroupPowerOn -> GroupReadStatus.IsPowerOn -> identity axes
 ReadStatus.IsReferenced -> SetKinTransform ->
@@ -151,19 +156,27 @@ LASAL project-local Power Ready 확장이다. `0x00020000`은 Maestro 표준
 현재 어댑터는 각각 locked standby(`IsStandby/IsEnabled`)와 unlocked
 disabled(`IsDisabled`) 조건에서 이 표준 mask를 설정한다.
 
-다만 전체 장비 API 완료가 아니다. D5 legacy fixed-vector Read의 PLC download와 축 1~4
-happy-path 재캡처는 완료했지만 current general-inline, 기존 motion/group, D1~D4와 D5
+live capture에서는 `LockProfile`이 수락됐는데도 `0x2047` handler가 같은 CyWork의 stale
+LockState를 읽어 `ErrorId=-6`을 반환했다. PC에서 성공으로 바꾸지 않는다. PLC ACK를
+accepted-then-poll로 수정하고 최종 lock은 `0x2045`로 확인해야 한다.
+
+다만 전체 장비 API 완료가 아니다. 2026-07-23 capture에서 Admin
+`0x7D00/0x7D10/0x7D20/0x7D22`, 대표 absolute/relative group, Stop/PowerOff,
+`09b` None/ACS static alias, D1/D2와 D5 1/2/4-byte happy path는 PASS했다.
+`0x2047` ACK timing, true Buffered/stop-first, D1/D2 soak/fault, D3/D4와 D5 나머지
 fault matrix가 남아 있다.
-Admin `0x7D00/0x7D10/0x7D20/0x7D22`는 C#/LASAL source와 정적 계약까지 구현됐지만 LASAL IDE
-Rebuild/Link, PLC download, 실물 parameter/relative-motion 결과와 packet capture는 아직 검증하지 않았다.
 callback은 payload 캡처가 없어 raw datagram event까지만
 제공한다.
 다중 PC의 읽기 공유·motion owner 정책은 LASAL session/ownership 계층에서
 구현해야 한다.
 
-기존 motion/group과 D1~D4의 PLC download/packet 재캡처는 아직 수행하지 않았다.
+기존 motion/group 25-command 전체와 D3/D4 전체 packet matrix는 아직 수행하지 않았다.
 WPF example의 live command gate, 작은 기본값, 물리 E-stop과
 `../LasalApiWpfTestApp/README.md`의 순서를 지켜 단계별로 검증한다.
+
+다음 구현/시험 순서는
+[SIGMATEK runtime qualification 및 Test UI 설계](../../docs/architecture/SIGMATEK_NEXT_RUNTIME_QUALIFICATION_AND_TEST_UI_DESIGN_2026-07-23.md)를
+따른다.
 
 tracked `TCPMotionInterface.Response()`는 최대 1,328-byte frame을 2,048-byte
 receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 queue에

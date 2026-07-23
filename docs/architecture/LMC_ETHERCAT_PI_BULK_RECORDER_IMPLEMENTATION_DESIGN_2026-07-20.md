@@ -4,8 +4,9 @@
 - 상태: D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline SDO Read
   internal test source 활성, D4 Double 및 D5 Write/extended result는 capability-off,
   기존 static/handle D6 계획은 후속 재평가, D1/D2 기반 PI/Bulk instance facade 구현,
-  최신 외부 source 정적 계약 통과, D5 legacy fixed-vector 4축 및 수정본
-  general-inline 1/2/4-byte 사용자 실기 PASS, 최종 성공 증거와 나머지 실장 검증 대기
+  최신 외부 source 정적 계약 통과, D0/D1/D2와 D5 legacy 4-byte 및 수정본
+  general-inline 1/2/4-byte 성공 pcap PASS, TypeMismatch 후 same-Boot recovery PASS,
+  나머지 fault/timeout/cancel/orphan과 fault/soak 검증 대기
 - 적용 대상:
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
   - `LMC_Library/LMC_API_Delivery/src`
@@ -62,9 +63,12 @@ D1 Health/Catalog/PI Read, D2 Bulk, D3 single-bank manual Recorder, D4 single-ba
 extended result는 capability가 0이며 해당 exact request에 `UnsupportedFeature`를
   반환한다. D5 legacy `0x1000:0` UInt32 4-byte Read는 Slave 1~4 happy path를
   통과했다. 과거 BootId 6 general-inline 캡처의 `ResourceBusy(9)` executor 결함은
-  source state machine에서 수정했다. 이후 사용자가 수정본 general-inline
-  1/2/4-byte runtime 정상 동작을 확인했다. 최종 성공 pcap/log, D1~D4와 D5 fault
-  matrix는 실제 PLC runtime 검증 전이다.
+  source state machine에서 수정했다. 이후 `10_DriveRead_Axis1to4.pcapng`에서 수정본
+  general-inline 1/2-byte 성공을 확인했다.
+  `12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`에서 general-inline UInt32/4-byte
+  성공과 같은 BootId의 TypeMismatch 후 Int8/1-byte 복구도 확인했다.
+  `11_PI_Bulk_Regression.pcapng`에서 D0/D1/D2 happy path도 확인했지만
+  fault/soak와 D4/D5 나머지 fault matrix는 실제 PLC runtime 검증 전이다.
 
 ### 1.1 Elmo API와의 기능 대응
 
@@ -117,12 +121,12 @@ contract를 대신한다고 간주하지 않는다.
 
 | 단계 | 현재 분류 | 현재 source 범위 | wire 상태와 남은 조건 |
 |---|---|---|---|
-| D0 | 구현됨 | common envelope, capability parser/model, `0x7E00` PLC handler, sync/async PC API | active. service 연결 시 D1, nonzero BootId일 때 D2/D3 및 D4 Trigger capability 광고 |
-| D1 | internal test source 활성 | 4축 x 활성 PDO 6개인 24-entry Catalog, Health, PI Read, 304-byte RT latch와 seqlock copy | `LMC_DIAG_D1_ENABLED=TRUE`, capability bit 0~2 광고. PLC runtime 검증 대기 |
-| D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release, 동일 latch snapshot, session owner 검사 | retained `DiagnosticsBootCounter`에서 nonzero BootId가 발급될 때 bit 3 광고 |
+| D0 | 구현됨 | common envelope, capability parser/model, `0x7E00` PLC handler, sync/async PC API | active; BootId 8의 동일 capability 응답 7회 packet PASS |
+| D1 | internal test source 활성 | 4축 x 활성 PDO 6개인 24-entry Catalog, Health, PI Read, 304-byte RT latch와 seqlock copy | Catalog 24개와 4축 sequential PI happy path packet PASS; fault/soak 대기 |
+| D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release, 동일 latch snapshot, session owner 검사 | 4-entry Pending→Active, same-cycle snapshot, Release packet PASS; stale/fault/soak 대기 |
 | D3 | internal test source 활성 | 1,280,000-byte 단일 bank, 최대 24채널, manual/no-trigger, finite capture, status/header/chunk/release와 exact/zero-ID adopt | nonzero BootId일 때 bit 4 광고. PLC RAM/jitter/chunk/adopt 검증 대기 |
 | D4 | single-bank Ring/Trigger internal test source 활성 | C# Ring/Double/Edge/Window/Mask model, `TriggerRecorder` sync/async, WPF 설정/호출, PLC pre-trigger ring과 edge/window/mask/forced trigger | bit 5=1. 단일 물리 bank만 사용하며 bit 6 Double=0, `RecorderBufferCount=1`. PLC runtime 검증 대기 |
-| D5 | general-inline SDO Read source 활성 | 4축 derived executor, one-ticket submit/status/queued-cancel, timeout/orphan drain, typed 1/2/4-byte inline result와 WPF flow | bit 8+13=1, MaxSDO=4; legacy 4축 및 수정본 general-inline 1/2/4-byte 사용자 실기 PASS, 최종 성공 pcap/log와 fault matrix 대기. PI/SDO Write 및 extended result bit 7/9/12=0 |
+| D5 | general-inline SDO Read source 활성 | 4축 derived executor, one-ticket submit/status/queued-cancel, timeout/orphan drain, typed 1/2/4-byte inline result와 WPF flow | bit 8+13=1, MaxSDO=4; legacy/general-inline 1/2/4-byte 성공 pcap과 TypeMismatch 후 same-Boot recovery PASS, 나머지 fault/timeout/cancel/orphan matrix 대기. PI/SDO Write 및 extended result bit 7/9/12=0 |
 | D6 | 기존 static/handle 계획 후속 재평가 | Phase 1 D1/D2 기반 PI/Bulk instance facade 구현 | 별도 PLC wire는 만들지 않으며 static registry 필요성은 API 사용성 검증 뒤 결정 |
 
 D0 PLC test build의 정상 capability는 다음과 같다.
@@ -189,8 +193,9 @@ executor recovery 보강은 외부 `.st` source와 source-only/full-network 정�
 검증했다. `Classes.lcb`의 general `TryStartRead` declaration도 current source와
 동기화되어 두 정적 계약이 모두 PASS한다. 구현 로직은 외부 편집기를 사용한다는 작업
 기준에 따라 이 최종 implementation-only 변경 뒤 IDE Rebuild/Link를 반복하지 않았다.
-PLC download, System Trace RT ordering, packet capture,
-recorder RAM/jitter, disconnect/adopt 및 chunk hash 시험은 남아 있다.
+최신 source의 IDE Rebuild/download와 System Trace RT ordering, D3/D4 Recorder packet,
+RAM/jitter, disconnect/adopt 및 chunk hash 시험은 남아 있다. D0/D1/D2 happy-path packet은
+2026-07-23 캡처로 확보했다.
 이 검증이 끝나기 전에는 D1~D4를 production 완료 또는 PLC 실장 완료로 분류하지 않는다.
 
 ## 2. 확인된 현재 기준
@@ -2222,7 +2227,9 @@ raw 값을 정상값으로 오인하지 않는지 PLC에서 확인한다.
 현재 상태: internal test source 활성. session-scoped 최대 24-entry
 configure/status/snapshot/release와 동일 latch seqlock read가 있고
 `LMC_DIAG_D2_ENABLED=TRUE`다. retained `DiagnosticsBootCounter` 기반 nonzero BootId는
-source와 IDE class database에 반영됐으며 PLC 시험이 남아 있다.
+source와 IDE class database에 반영됐다. `11_PI_Bulk_Regression`에서 BootId 8,
+24-entry Catalog와 선택한 4-entry same-cycle Bulk happy path는 live PASS했다.
+24-entry 최대 구성, fault/stale/race와 반복 soak는 남아 있다.
 
 - retained nonzero `DiagnosticsBootId` generation과 wrap-fail 규칙 PLC 검증
 - config double bank
@@ -2277,8 +2284,10 @@ block되지 않는 것이다. 이 기준을 통과하기 전까지 bit 6은 켜�
 PLC test source는 `LMCSdoExecutor : EtherCAT_SDOBase` 4개와 one-ticket state machine으로
 `0x7E50/0x7E03/0x7E04` general-inline Read를 실행하며 bit 8, bit 13과 MaxSDO=4를
 광고한다. Slave 1..4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed 1/2/4-byte
-길이가 현재 Read 계약이다. legacy `0x1000:0` Slave 1~4 happy path는 실제 PLC에서
-PASS했지만 general-inline/fault matrix는 남았다. SDK와 PLC write
+길이가 현재 Read 계약이다. legacy `0x1000:0` Slave 1~4와 general-inline 1/2/4-byte
+happy path는 실제 PLC 성공 pcap을 확보했다. 12번 capture에서 TypeMismatch 후
+같은 BootId executor 재사용도 PASS했다. 나머지 fault/timeout/cancel/orphan matrix는
+남았다. SDK와 PLC write
 allowlist는 기본 empty이고 capability bit 7/9/12는 0이므로 PI/SDO Write와 extended
 result는 활성되지 않는다.
 
@@ -2338,8 +2347,10 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
 `0x1000:0` UInt32 4-byte SDO Read Completed/Success를 확인했다. 이 캡처는 현재
 `0x213F` general-inline 범위의 runtime 증거가 아니다. BootId 6 general-inline
 캡처는 첫 오류 뒤 Submit `ResourceBusy(9)` 고착을 재현했고, 이를 근거로 executor
-callback/release state machine을 수정했다. 수정 source의 general-inline 1/2/4-byte
-시험, IDE build/download/smoke log와 fault matrix는 별도 보존이 필요하다.
+callback/release state machine을 수정했다. 수정 source의 general-inline 1/2-byte는
+10번 capture, UInt32/4-byte와 TypeMismatch 후 same-Boot recovery는 12번 capture로 확인했다.
+최신 IDE build/download/smoke log와 나머지 fault/timeout/cancel/orphan matrix는 별도
+보존이 필요하다.
 
 - Class 생성, declaration 구조 변경과 Network 편집만 LASAL IDE에서 수행
 - 기존 class implementation은 외부 편집기에서 수정하고 정적 계약으로 우선 검증

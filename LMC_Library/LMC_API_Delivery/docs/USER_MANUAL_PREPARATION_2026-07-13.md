@@ -2,13 +2,17 @@
 
 작성일: 2026-07-13
 
-최종 상태 갱신: 2026-07-16
+최종 상태 갱신: 2026-07-23
 
 > 이 문서는 매뉴얼 제작 준비 기록이다. 현재 제품 구조, 검증 수치와 릴리스
 > 차단 항목은
 > [ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md](../../../docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md)를
-> 우선한다. 특히 실제 PLC command E2E/재캡처는 아직 `0/25`이며, 현재
-> `GroupReadActualPosition`의 slot 1..9 복사 동작은 공개 계약이 확정되지 않았다.
+> 우선한다. 2026-07-23 실기 캡처로 Admin/대표 motion/recovery, drive read와
+> PI/Bulk happy path를 확인했지만 25-command full matrix와 fault/soak는 미완료다.
+> 최신 packet 판정은
+> [SIGMATEK Phase 1/2 Live Packet Capture Analysis](../../../docs/architecture/SIGMATEK_PHASE1_PHASE2_LIVE_CAPTURE_ANALYSIS_2026-07-23.md)를
+> 따른다. `GroupReadActualPosition`의 None/ACS static slot 계약은 구현됐고
+> MCS/PCS는 지원하지 않는다.
 
 대상: `LasalMotionControlLib`
 
@@ -267,7 +271,7 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 | 오류 모델 | source 기준 준비됨, PLC 실패 캡처 필요 |
 | LASAL static contract | PASS |
 | 현재 LASAL IDE build | group/9-axis source 반영 뒤 미검증 |
-| PLC E2E 근거 | `0/25`, 미완료 |
+| PLC E2E 근거 | 2026-07-23 대표 happy path 캡처 PASS; 25-command full matrix와 fault/soak 미완료 |
 | 배포 버전/해시 | `0.9.1-preview` 산출물과 내부 hash 기록 존재, production 승인 아님 |
 | 최종 문서 형식 | DOCX/PDF 형식은 확정, 외부 문서 버전 1.0을 내부 Markdown 1.4로 재출판 필요 |
 

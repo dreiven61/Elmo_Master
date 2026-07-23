@@ -203,8 +203,9 @@ Begin Recording
    Completed/Success를 반환했다. 이 사실은 역사적 fixed-vector runtime 증거로 보존한다.
    현재 source는 bit 13 `SDOReadGeneralInline`을 추가한 `0x0000213F`를 광고하고,
    nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히 맞는 1/2/4-byte Read를
-   허용한다. Write, 8/12-byte와 extended result는 비활성이다. general-inline runtime,
-   fault matrix와 mailbox frame 독립 관측 전에는 production 승인값이 아니다.
+   허용한다. Write, 8/12-byte와 extended result는 비활성이다. 2026-07-23 custom
+   capture에서 general-inline 1/2/4-byte와 동일 BootId TypeMismatch recovery가 PASS했다.
+   나머지 fault matrix와 EtherCAT mailbox frame 독립 관측 전에는 production 승인값이 아니다.
 
 반영하지 않는다.
 
@@ -217,10 +218,12 @@ Begin Recording
 
 이 분석만으로 다음은 완료 판정할 수 없다.
 
-- Custom `0x7E10`, `0x7E45`, `0x7E46`, `0x7E50`의 live PLC capture
+- Custom `0x7E10` Catalog/PI/Bulk와 `0x7E50` general-inline 1/2/4-byte happy path는
+  live capture PASS. `0x7E45`, `0x7E46` Recorder chunk flow는 별도
 - Custom Recorder가 실제로 `1 x Header + N x Chunk`로 동작하는지
 - D3/D4 sample timing, CRC, reconnect/adopt와 immutable upload
-- D5 4-byte read의 busy, timeout, cancel, disconnect/orphan 처리
+- D5 abort/offline, timeout, queued cancel, disconnect/orphan, contention과
+  duplicate/late callback 처리
 - PMAS UI에서 `uiSr=0x0000` 차단과 `0x0104` ready flow의 smoke test
 
 ## 8. 재현 명령

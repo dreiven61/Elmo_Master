@@ -17,13 +17,15 @@ SourceOnly/full static 계약과 개발 WPF Debug/Release build 및 각 3초 sta
 물리축 1~4 모두 Completed/Success를 반환했다. 현재 `0x213F` general-inline
 캡처에서는 첫 오류 뒤 Submit `ResourceBusy(9)` 고착을 재현해 executor state machine을
 수정했고, 이후 1/2/4-byte runtime 정상 동작과 관련 capture 분석을 확인했다. 전체 D5
-fault matrix와 최신 IDE build/download/smoke log는 남아 있다. 기존 motion/group PLC
-E2E/packet 재캡처는 0/25이고 diagnostics D1~D4 runtime도 미실시다. D4 Double,
-PI/SDO Write와 8/12-byte/extended SDO result는 미구현이다. Phase 1의 D1/D2 기반
-PI/Bulk compatibility facade는 구현됐지만, 기존 D6 계획의 static/handle wrapper와
-별도 D6 wire는 구현하지 않았다. `0x7D00/10/20` read와 `0x7D22`
-GroupMoveLinearRelative Admin은 source/static만 완료됐고 LASAL IDE build/download와
-PLC parameter/relative-motion 검증이 남아 있다.
+fault matrix와 최신 IDE build/download/smoke log는 남아 있다. 2026-07-23 live capture는
+Admin `0x7D00/10/20/22`, 대표 absolute/relative group 경로, PowerOff final status,
+`0x2051` None/ACS static alias, axis 1~4 drive read, D1 PI/D2 Bulk happy path와 D5
+TypeMismatch 후 same-BootId 복구를 확인했다. 다만 기존 motion/group 25-command 전체
+matrix, fault/race/soak, D4 runtime은 미완료다. D4 Double, PI/SDO Write와
+8/12-byte/extended SDO result는 미구현이다. Phase 1의 D1/D2 기반 PI/Bulk
+compatibility facade는 구현됐지만, 기존 D6 계획의 static/handle wrapper와 별도 D6
+wire는 구현하지 않았다. `0x2047` accepted-then-poll 수정본은 source/static 계약만
+통과했으며 LASAL IDE build/download와 live ACK 재검증이 남아 있다.
 production 승인본으로 표기하지 않는다.
 
 ## 개발자 시작 위치

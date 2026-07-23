@@ -8,8 +8,15 @@
 - 현재 구현 상태: first runtime의 same-cycle timeout 결함을 수정한 뒤 Slave 1~4
   `0x1000:0` legacy vector는 43~54 cycles 뒤 모두 Completed/Success를 반환했다.
   과거 BootId 6 general-inline capture의 `ResourceBusy(9)` 결함도 callback ordering과
-  executor 회수 source에서 수정했다. 이후 사용자가 general-inline 1/2/4-byte PLC
-  runtime 정상 동작을 확인했다. 최종 확인 신규 pcap/log와 fault matrix는 없다.
+  executor 회수 source에서 수정했다. 이후 `10_DriveRead_Axis1to4.pcapng`에서
+  general-inline Int8/1-byte와 BitField16/2-byte가 전 축 Completed/Success로 확인됐다.
+  `12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`은 같은 BootId 8에서
+  `0x1018:1` UInt32/4-byte Completed/Success, `0x6061:0` UInt16/2-byte
+  TypeMismatch 실패, 이어진 Int8/1-byte Completed/Success를 보존했다.
+  따라서 general-inline 1/2/4-byte happy path와 한 TypeMismatch 후 executor
+  무재부팅 recovery는 packet으로 확인됐다. SDO abort/offline, timeout,
+  queued cancel, disconnect/orphan, active contention을 포함한 전체 fault matrix는
+  남아 있다.
   `LMCSdoExecutor` private state의 명시적 constructor
   초기화는 LASAL IDE declaration 작업이 필요한 별도 P1 release gate다.
 
@@ -771,9 +778,11 @@ Debug/Release build와 각 3초 startup smoke 및 `Verify-LasalContract.ps1` Sou
 `Classes.lcb`가 `TryStartRead` declaration과 동기화돼 full static 계약도 PASS한다.
 10:53 LASAL IDE Rebuild/Link 0 error는 shadowing 수정 전 gate-off baseline 결과다.
 이후 legacy Slave 1~4 재시험은 PASS했다. 6.8절의 BootId 6 general-inline Submit은
-`ResourceBusy`로 FAIL했지만 callback ordering/release source 수정 뒤 사용자가
-general-inline 1/2/4-byte PLC runtime 정상 동작을 확인했다. 최종 확인에 대한 신규
-pcap/log와 fault matrix는 남아 있다.
+`ResourceBusy`로 FAIL했지만 callback ordering/release source 수정 뒤
+`10_DriveRead_Axis1to4.pcapng`에서 general-inline 1/2-byte 연속 성공을 확인했다.
+`12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`에서 general-inline UInt32/4-byte
+성공과 같은 BootId TypeMismatch 후 Int8/1-byte 복구도 확인했다. 전체 fault
+matrix는 남아 있다.
 
 ### Phase 1. LASAL class/network skeleton 완료
 
@@ -794,9 +803,11 @@ pcap/log와 fault matrix는 남아 있다.
 - atomic/seqlock result publication
 - owned validation failure와 orphan callback release, unsolicited hard quarantine
 
-source와 정적 계약을 완료하고 test capability를 켰다. legacy vector의 Slave 1~4와
-callback recovery 수정본 general-inline 1/2/4-byte runtime은 사용자 실기 확인을
-통과했다. fault/cancel/orphan matrix와 최종 확인 신규 pcap/log는 남아 있다.
+source와 정적 계약을 완료하고 test capability를 켰다. legacy vector의 Slave 1~4
+UInt32/4-byte와 callback recovery 수정본 general-inline 1/2-byte는 성공 pcap을
+확보했다. `12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`으로 general-inline
+UInt32/4-byte 성공과 TypeMismatch 후 같은 executor 재사용도 확보했다.
+timeout/cancel/orphan, offline/abort와 active contention matrix는 남아 있다.
 
 ### Phase 3. one-ticket executor와 wire source 완료
 
@@ -825,9 +836,14 @@ callback recovery 수정본 general-inline 1/2/4-byte runtime은 사용자 실�
 - BootId 6 general-inline capture: `0x6061:0` UInt16/2와 Int8/1 Submit이 모두
   ticket 전 `ResourceBusy(9)`로 FAIL; `0x6041/0x1018`은 capture에 없음
 - callback ordering, owned completion release와 orphan release source 수정 및 full static PASS
-- 수정 source의 general-inline 1/2/4-byte 연속 성공은 사용자 실기 확인 PASS;
-  최종 확인 신규 pcap/log와 실패 뒤 무재부팅 재사용 증거는 없음
-- failure/timeout/cancel/orphan qualification 대기
+- 수정 source의 general-inline 1/2-byte 연속 성공은
+  `10_DriveRead_Axis1to4.pcapng` PASS
+- `12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`: BootId 8 general-inline
+  UInt32/4-byte Completed/Success PASS
+- 같은 capture의 TypeMismatch 실패 뒤 무재부팅 Int8/1-byte 재사용 PASS;
+  `ResourceBusy(9)` 재발 없음
+- SDO abort/offline, timeout, queued cancel, disconnect/orphan, active contention
+  qualification 대기
 - 최신 IDE build/smoke log와 추가 packet/trace/log 보존
 - 모든 runtime gate 후 production bit 8 + bit 13과 MaxSdo=4 승인
 
@@ -871,10 +887,12 @@ callback recovery 수정본 general-inline 1/2/4-byte runtime은 사용자 실�
 첫 PLC runtime은 immediate-timeout 결함을 확인했고 수정 후 Slave 1~4 legacy vector의
 terminal success를 확보했다. BootId 6 general-inline capture는 capability와 request
 shape까지만 확인했고 Submit이 `ResourceBusy`로 거부된 과거 실패 증거다. source에서
-callback ordering/release 결함을 수정한 뒤 사용자가 nondefault Index/SubIndex와
-1/2/4-byte runtime 정상 동작을 확인했다. 최종 성공 pcap/log, 실패 뒤 executor 재사용,
-fault/cancel/orphan matrix 및 EtherCAT mailbox frame의 독립 관측은 production
-qualification으로 남아 있다.
+callback ordering/release 결함을 수정한 뒤 `10_DriveRead_Axis1to4.pcapng`에서
+nondefault Index의 1/2-byte runtime 성공을 확인했다.
+`12_SDO_GeneralInline_4Byte_FailureRecovery.pcapng`에서 UInt32/4-byte success와
+TypeMismatch 후 같은 BootId의 Int8/1-byte executor 재사용까지 확인했다.
+다른 fault/timeout/cancel/orphan, offline/abort와 active contention matrix 및 EtherCAT
+mailbox frame의 독립 관측은 production qualification으로 남아 있다.
 
 ## 14. 구현 및 변경 파일
 

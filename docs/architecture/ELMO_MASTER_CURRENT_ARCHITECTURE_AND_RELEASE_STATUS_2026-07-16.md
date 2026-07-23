@@ -1,15 +1,21 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
 - 감사일: 2026-07-16
-- 마지막 source 상태 검토: 2026-07-23 diagnostics D1~D4 single-bank, test-profile D5
-  general-inline SDO Read 활성, 사용자 PLC 1/2/4-byte SDO Read 확인 PASS, group Phase 0
-  option/position 계약 정합, Phase 1 read-only Admin/facade, Phase 2 `0x7D22`
-  GroupMoveLinearRelative 및 PMAS native capture 정렬
+- 마지막 source/실기 상태 검토: 2026-07-23 diagnostics D1~D4 single-bank와
+  test-profile D5 general-inline SDO Read 활성, group Phase 0 option/position 계약 정합,
+  Phase 1 read-only Admin/facade, Phase 2 `0x7D22 GroupMoveLinearRelative` 및 PMAS native
+  capture 정렬. 같은 날 Admin/drive read/relative motion/D1 PI/D2 Bulk, 동적 group
+  monitor/PowerOff, `0x2051` None/ACS static alias, D5 general-inline 1/2/4-byte와
+  TypeMismatch 후 복구 capture PASS. 이후 `0x2047` accepted-then-poll와
+  Group/Bulk/Recorder qualification UI source 및 PC build 완료; 해당 신규 경로의 PLC
+  live 검증은 아직 없음
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
-- 판정: PC/WPF와 LASAL source/full static은 통과했지만 최신 IDE build와 PLC 재시험 gate가
-  남아 production 승인본은 아님
+- 판정: PC/WPF build와 LASAL source/full static, 주요 신규 API happy path는 통과했다.
+  Group/Bulk/Recorder 자동 qualification은 code/build 단계까지만 완료됐으며 PLC live,
+  fault, stale identity, reconnect/adopt, RT evidence와 장비 안전 matrix가 남아 production
+  승인본은 아님
 
 이 문서는 현재 Git source를 다시 대조해 프로젝트 전체의 역할, 구현 범위,
 검증 수준과 남은 위험을 한곳에 고정한 기준 문서다. 날짜가 더 오래된 설계·분석
@@ -46,14 +52,15 @@
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork legacy axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
 | PC 자동 테스트 | Debug/Release 각 148/148 PASS | 2026-07-23 working source 기준 |
-| 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS | 현재 working source 기준 |
+| 개발 WPF | qualification UI 포함 Debug/Release build PASS; Debug visual/startup smoke에서 신규 panel 렌더와 초기 disabled gate PASS | 실제 PLC scenario 실행은 별도 |
+| qualification 자동화 | `0x2047` poll, true Buffered, stop-first, Bulk 24-entry/100회, Recorder Single/Ring/soak code와 Debug/Release build 및 Debug visual/startup smoke PASS | 신규 runner의 PLC live packet 미검증 |
 | LASAL SourceOnly 정적 계약 | PASS | current `.st` source 계약 포함 |
 | LASAL full static 계약 | PASS | `Classes.lcb`의 `TryStartRead` declaration과 current source/network 동기화 확인 |
 | D5 executor 초기화 | constructor declaration/implementation 미완료 | 자동 zero-init 공식 보장 미확인; current Busy 직접 원인은 아니며 IDE declaration P1 필요 |
 | LASAL IDE | 10:53 gate-off baseline 0 error; 수정본 BootId 5 runtime 확인 | 최신 fixed-source build/smoke log는 미보존 |
-| Admin IDE/PLC | `0x7D00/10/20/22` C#/LASAL source와 static contract PASS | IDE build/download, 실물 값/UNIT/relative motion과 packet capture 미검증 |
-| 기존 motion/group PLC E2E·재캡처 | 0/25 | production blocker |
-| diagnostics PLC 시험 matrix | D5 legacy와 general-inline 1/2/4-byte SDO Read 사용자 확인 PASS | 이번 확인의 신규 pcap/log 없음; D5 fault 및 D0~D4/D4 Double matrix는 별도 기록 필요 |
+| Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static 수정 완료 | 새 `0x2047` IDE/download/ACK timing과 invalid/stale/fault는 별도 |
+| 기존 motion/group PLC E2E·재캡처 | 25-command 전체 matrix 미완료 | 기존 subset capture PASS; true Buffered/stop-first code/build 완료, live packet은 별도 |
+| diagnostics PLC 시험 matrix | D1 Catalog/4 PI, D2 4-entry Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery capture PASS | Bulk/Recorder soak code/build만 완료; live soak/fault, reconnect/adopt와 D5 나머지 fault는 별도 |
 
 프로젝트 폴더명에는 `4Axis`가 남아 있지만 현재 의미는 다음처럼 나눠야 한다.
 
@@ -127,13 +134,13 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | 구분 | ID | 기능 | source 상태 |
 |---|---|---|---|
 | Lifecycle | `0x8080`, `0x405C`, `0x405D` | init, callback 등록, close | active |
-| Admin | `0x7D00`, `0x7D10`, `0x7D20`, `0x7D22` | capability, axis/group semantic parameter read, group relative move | source/static active; IDE/PLC 미검증 |
+| Admin | `0x7D00`, `0x7D10`, `0x7D20`, `0x7D22` | capability, axis/group semantic parameter read, group relative move | source/static + 2026-07-23 live happy path PASS |
 | Diagnostics negotiation | `0x7E00` | capability/envelope | D1~D3 test capability, retained BootId 실패 시 fail-closed |
-| Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | internal test source 활성, PLC runtime 미검증 |
-| Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | internal test source 활성, PLC runtime 미검증 |
-| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | internal test source 활성, PLC runtime 미검증 |
-| Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | internal test source 활성, PLC runtime 미검증; Double은 거부 |
-| Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | `0x7E03/04/50` 활성; general-inline 1/2/4-byte Read 사용자 확인 PASS; `0x7E21/51` reserved |
+| Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | Catalog와 축 1..4 PI live PASS; Health fault matrix는 별도 |
+| Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | 4-entry live PASS; exact 24-entry snapshot/lifecycle soak UI code/build PASS, live soak/fault는 별도 |
+| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | Single Manual/header/double-download hash UI code/build PASS, PLC runtime과 reconnect/adopt 미검증 |
+| Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | Ring forced-trigger/100-cycle soak UI code/build PASS, PLC runtime 미검증; Double은 거부 |
+| Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | `0x7E03/04/50` 활성; general-inline 1/2/4-byte와 TypeMismatch recovery packet PASS; `0x7E21/51` reserved |
 | Lookup | `0x103C`, `0x1042`, `0x202B` | axis/group lookup, AxisInfo | active |
 | Axis control | `0x2023`, `0x2024`, `0x2022` | power, reset, stop | active, 축 1..9 |
 | Axis read | `0x2028`, `0x202E` | status, position | active, 축 1..9 |
@@ -143,20 +150,23 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Group lock | `0x2047`, `0x2048` | LockProfile, UnlockProfile | active, 축 1..4 mask |
 | Group reset/stop | `0x2049`, `0x2085` | error reset, stop | active |
 | Group power | `0x204A`, `0x204B` | RobotOn, RobotOff | project-local extension |
-| Group position | `0x2051` | DINT position vector | None/ACS member-slot alias, slot 1..9 + zero tail; MCS/PCS 거부 |
-| Group motion | `0x20A4`, `0x7D22` | MoveLinearAbsolute, MoveLinearRelative | active source, X/Y/Z/U 4축 제한; `0x7D22` IDE/PLC 미검증 |
+| Group position | `0x2051` | DINT position vector | None/ACS member-slot alias source/static + `09b` live PASS; true transform 아님, MCS/PCS 거부는 live 미검증 |
+| Group motion | `0x20A4`, `0x7D22` | MoveLinearAbsolute, MoveLinearRelative | X/Y/Z/U 4축 기존 live PASS; true Buffered/stop-first runner code/build PASS, 신규 live는 별도 |
 | Kinematics | `0x20E7` | Cartesian4 identity 설정 | active, dynamic transform 아님 |
 
 현재 성공 응답 capable PLC active 고유 ID는 51개다. 기존 motion/group 25개,
 diagnostics D0~D4 single-bank 19개, test profile에서 활성화한 D5
 `0x7E03/0x7E04/0x7E50` 3개와 Admin 4개를 합한 값이다.
 reserved `0x7E21/0x7E51`까지 포함한 dispatcher/wire contract는 53개다.
-Admin 4개는 source/static active 수에 포함하지만 IDE/PLC 검증은 아직 없다. D5는 first PLC runtime의 same-cycle timeout을
-수정했고 Slave 1~4 legacy happy-path 성공 증거를 확보했다. 과거 BootId 6
+Admin 4개는 source/static active 수에 포함하고 2026-07-23 happy-path PLC capture도
+통과했다. D5는 first PLC runtime의 same-cycle timeout을 수정했고 Slave 1~4 legacy happy-path 성공 증거를 확보했다. 과거 BootId 6
 general-inline capture에서는 두 Submit이 ticket 전 `ResourceBusy`로 거부됐지만,
-callback ordering/release source 수정 뒤 사용자가 general-inline 1/2/4-byte runtime
-정상 동작을 확인했다. 최종 확인에 대한 신규 pcap/log와 fault matrix는 없으므로
-production 승인 수치와는 계속 구분한다.
+callback ordering/release source 수정 뒤 `10_DriveRead_Axis1to4`에서 general-inline
+Int8/1과 BitField16/2 성공 ticket을 확보했다. 이어
+`12_SDO_GeneralInline_4Byte_FailureRecovery`에서 UInt32/4 성공, 의도한 UInt16/2
+TypeMismatch 실패, 같은 BootId 8의 Int8/1 복구 성공을 확보했다. timeout, queued cancel,
+offline/abort, disconnect/orphan과 contention matrix는 남아 production 승인 수치와는
+계속 구분한다.
 `0x204A/0x204B`, Admin 4개와 diagnostics 24개는
 PMAS 캡처에 없는 LASAL-local extension이다. 18개라는 CyWork 수치는 lifecycle,
 diagnostics와 name/member metadata handler를 제외한 axis/group
@@ -243,8 +253,14 @@ Move/SetKin/Lock은 계속 physical X/Y/Z/U 축 1..4만 대상으로 한다.
 좌표계는 None(0)/ACS(1)만 no-CalcModel static member-slot alias로 허용한다.
 MCS(2)/PCS(3)는 C#에서 RPC 전 `NotSupportedException`, 구 SDK 요청은 PLC에서
 `ErrorId=-7`로 거부한다. 알 수 없는 enum은 malformed `-3`이다. C# result의
-`CoordinateSystem`은 PLC 응답값이 아니라 요청 enum echo다. ACS alias의 실물
-동등성은 PLC smoke와 packet capture가 남아 있다.
+`CoordinateSystem`은 PLC 응답값이 아니라 요청 enum echo다.
+
+`09b_Group_ReadPosition_None_ACS_2051` live capture에서 coordinate 0/1 요청이 각각
+exact 68-byte typed payload를 반환했고, 두 응답은 byte-identical했다. 두 응답 모두
+`HeaderStatus=0`, `FunctionStatus=0x4000`, `ErrorId=0`이며 slot 1..4는
+`[-999997, -999998, -999997, -999998]`, slot 5..16은 0이었다. 이것은 정의된
+None/ACS static member-slot alias의 runtime 계약을 닫는다. true ACS transform가
+구현됐다는 뜻이 아니며 MCS/PCS transform 또는 rejection의 live 증거도 아니다.
 
 ### 6.4 GroupStop 반환 의미
 
@@ -299,7 +315,19 @@ cycle benchmark 재현 참고 용도로만 남긴다.
   non-atomic drive status를 실기 확인한다. motion/write command는 포함하지 않는다.
 - Group Motion 탭의 `Move Linear Relative`는 별도 Admin `0x7D22`를 사용하며
   absolute와 같은 power/identity/profile-lock, motion-uncertain, Stop과 완료 monitor를
-  재사용한다. source/static과 WPF smoke만 완료됐고 실동작은 미검증이다.
+  재사용한다. 2026-07-23 capture에서 Aborting/Buffered 수락과 X/Y/Z/U 축별 왕복,
+  Stop/PowerOff recovery가 PASS했다. 이후 true Buffered chaining과 deterministic
+  stop-first runner는 code/build 완료했지만 live packet/endpoint 검증은 별도다.
+- 기존 Group Motion, Bulk Snapshot, Recorder 탭에는 공통 `QTEST` runner와 scenario별
+  입력/cancel/save 영역을 추가했다. Bulk는 exact 24-entry snapshot/lifecycle,
+  Recorder는 Single Manual/Ring forced-trigger/trigger soak를 public SDK로 실행한다.
+  이 문단은 source/build 상태이며 실제 PLC 성공을 뜻하지 않는다.
+- `04b` capture에서 계산된 55.034초 감시 한도로 20.152초 장시간 absolute move의
+  stable InPosition을 확인해 과거 고정 15초 false-timeout을 닫았다. companion TXT가
+  0 byte라 화면의 정확한 timeout 문자열은 별도 UI 증거가 아니다.
+- `08c` capture/log에서 현재 UI의 Disable -> PowerOff -> final Read Status
+  `PowerOn=False` 흐름은 PASS했다. 버튼 label과 `IsEnabled`의 시각 상태는 screenshot
+  또는 UI automation으로 별도 확인한다.
 - 내부 PLC 시험과 API 계약이 확정된 뒤 검증된 DLL/예제/문서를 배포 폴더로 옮긴다.
 
 ## 8. 배포 상태
@@ -335,8 +363,9 @@ tracked 배포 패키지는 정확히 세 번호 폴더와 README로 구성한�
 `1.0`이다. 내부 Markdown 원본은 `1.5`이므로 현재 안전·계약 보완이 외부 manual에
 출판되지 않았다. 외부 문서에는 특히 다음 release 경고가 부족하다.
 
-- 기존 motion/group PLC E2E 0/25, diagnostics D5 첫 시험 FAIL 후 수정 및 1~4 happy
-  path PASS, D5 fault matrix와 D0~D4 미실시, non-production preview
+- motion/group 전체 25-command matrix는 미완료지만 2026-07-23 Admin/group relative/
+  Stop/PowerOff, D1 Catalog/PI, D2 Bulk와 D5 axis 1~4 happy path는 PASS했다. D3/D4 runtime,
+  D1/D2/D5 fault/soak live matrix는 미완료인 non-production preview
 - `Close`/`Dispose`/cancellation은 Stop이 아님
 - E-stop, software/hardware limit, UNIT, Home 확인 필요
 - DLL strong-name/AuthentiCode 서명 없음
@@ -367,7 +396,8 @@ tracked 배포 패키지는 정확히 세 번호 폴더와 README로 구성한�
 - 점검 범위의 Markdown relative link scan: broken link 없음
 
 자동 시험의 packet golden에는 PMAS 캡처 근거와 synthetic LASAL-DINT vector가
-섞여 있다. 특히 DINT position response는 실제 PLC 재캡처 golden으로 보지 않는다.
+섞여 있다. synthetic DINT position vector는 실제 PLC golden으로 보지 않는다.
+별도로 `09b`의 두 exact 68-byte response는 current PLC의 live static-alias 증거다.
 
 ### 9.2 미검증
 
@@ -377,8 +407,14 @@ tracked 배포 패키지는 정확히 세 번호 폴더와 README로 구성한�
 - PLC download와 Git network 일치
 - CyWork와 motion RT task의 CPU core/priority/jitter
 - 축 1..9 각 command 실제 동작
-- group power/configure/lock/move/stop/unlock/power-off 실제 상태 전이
-- 실제 TCP/UDP packet 재캡처
+- `0x2047 GroupEnable` accepted-then-poll 수정본의 LASAL IDE build/download와 live ACK 0.
+  source/static에서는 same-cycle LockState read를 제거했지만 후행 status와 packet은 아직
+  재검증하지 않았다.
+- true ACS/MCS/PCS coordinate transform. `09b`는 None/ACS static alias만 live PASS했고,
+  MCS/PCS rejection은 source/static 계약만 있으며 live negative capture가 없다.
+- true Buffered chaining과 stop-first race의 PLC live packet/final 상태. runner code/build만
+  완료했다.
+- 신규 command의 invalid/stale/fault packet matrix와 UDP typed event payload
 - callback sender와 payload schema
 - multi-PC motion ownership
 
@@ -399,6 +435,10 @@ tracked 배포 패키지는 정확히 세 번호 폴더와 README로 구성한�
 기존 캡처는 PMAS wire 근거로 유효하지만 current LASAL-DINT PLC 응답의 실기
 golden을 대신하지 않는다.
 
+2026-07-23 current LASAL-DINT Admin/relative/drive/PI/Bulk, dynamic group monitor,
+PowerOff와 D5 4-byte/recovery 증거는
+[SIGMATEK Phase 1/2 live capture 분석](SIGMATEK_PHASE1_PHASE2_LIVE_CAPTURE_ANALYSIS_2026-07-23.md)을 따른다.
+
 ## 10. 발견 사항과 우선순위
 
 ### P0: production 승인 전 필수
@@ -408,20 +448,25 @@ golden을 대신하지 않는다.
    legacy `0x1000:0` Slave 1~4는 모두 43~54 cycles 뒤 Completed/Success와 UInt32
    4-byte 결과를 반환했다. 과거 BootId 6 general-inline 캡처의 `ResourceBusy(9)` 원인은
    source에서 callback ordering과 owned completion 회수 결함으로 확인해 수정했다.
-   이후 사용자가 general-inline 1/2/4-byte runtime 정상 동작을 확인했지만, 최종 확인에
-   대한 신규 pcap/log와 D5 fault matrix는 없다. 기존 motion/group E2E는 0/25이고
-   D0-D4 및 D4 Double matrix도 별도 수행해야 한다.
+   이후 `10_DriveRead_Axis1to4`에서 general-inline Int8/1과 BitField16/2가 축 1~4에서
+   Completed/Success를 반환했다. `12_SDO_GeneralInline_4Byte_FailureRecovery`에서는
+   UInt32/4 성공과 동일 BootId TypeMismatch 후 Int8/1 복구도 PASS했다. D5의
+   offline/abort, timeout, queued cancel, disconnect/orphan, duplicate/late callback과
+   contention matrix는 아직 없다. Group/Bulk/Recorder qualification source와 build는
+   완료했지만 live evidence가 없으므로 motion/group 25-command 전체 matrix, D1/D2
+   fault/soak, D3/D4 runtime/reconnect-adopt 및 D4 Double matrix는 별도 수행해야 한다.
 2. 다운로드된 PLC의 UNIT, MaxModulo, BinOffset, reference offset과 실제 안전 limit를 확인해야 한다.
 3. tracked top-level network에서 `HWMin`, `HWMax`, `Emergency`, `RefSwitch` 외부 연결을
    확인하지 못했다. 이것은 장비에 안전 회로가 없다는 증거는 아니며 PLC/배선에서
    별도로 확인해야 한다.
-4. 외부 DOCX/PDF에 preview/motion 0-of-25/diagnostics-unverified/safe-stop 경고를
+4. 외부 DOCX/PDF에 preview/전체 motion matrix 미완료/diagnostics fault·soak 미완료/safe-stop 경고를
    반영해야 한다.
 
 ### P1: 계약 또는 runtime 위험
 
-1. `GroupReadActualPosition`의 None/ACS alias는 source 계약을 확정했지만 ACS 실물
-   동등성은 PLC smoke/재캡처가 필요하다.
+1. `GroupReadActualPosition`의 None/ACS static alias는 `09b` live capture까지
+   확인했다. true ACS transform는 구현되지 않았고 MCS/PCS rejection은 live negative
+   capture가 없어 generic Cartesian position 요구를 충족한 것으로 확대 해석하면 안 된다.
 2. `AxisInfo(0x202B)`는 payload 길이와 descriptor만 검사하고 canonical payload
    field 값을 엄격히 검증하지 않는다.
 3. callback endpoint 등록은 있지만 LASAL event sender와 typed schema가 없다.
@@ -466,8 +511,9 @@ golden을 대신하지 않는다.
 
 ## 12. 권장 실행 순서
 
-1. Phase 0 group option/position 계약 source와 자동 시험을 기준선으로 고정하고,
-   ACS alias 및 MCS/PCS rejection을 PLC에서 재캡처한다.
+1. Phase 0 group option/position source와 `09b` None/ACS static-alias live 결과를
+   기준선으로 고정한다. MCS/PCS rejection negative capture는 true transform와
+   구분해 별도 시험한다.
 2. [2026-07-22 gate-off baseline Rebuild/Link 완료, fixed-source runtime download 확인]
    shadowing 수정 D5 source의 IDE build/implementation smoke와 기준시각 이후 로그를
    별도 증거로 보존한다.
@@ -477,9 +523,11 @@ golden을 대신하지 않는다.
 6. 축별 Power/Move/Stop/PowerOff를 작은 값으로 시험한다.
 7. group은 `PowerOn -> power poll -> SetKin -> Lock -> Move -> Stop/InPosition ->
    Unlock -> PowerOff` 순서로 시험한다.
-8. 기존 motion/group 25 command의 request/success/expected failure와 상태 완료
-   근거를 저장하고, diagnostics는 D0~D4 single-bank runtime, D4 Double fail-closed와
-   D5 general-inline Read runtime/Write·extended fail-closed matrix로 분리해 저장한다.
+8. 구현된 Group true Buffered/stop-first, D1/D2 24-entry/lifecycle와 D3/D4
+   Single/Ring/trigger soak runner부터 pcap/QTEST 쌍으로 실행한다. 이어 기존 motion/group
+   25 command의 request/success/expected failure와 상태 완료 근거, D1/D2 fault,
+   Recorder reconnect/adopt, D4 Double fail-closed와 D5 offline/abort, timeout, queued cancel,
+   disconnect/orphan, contention, Write·extended fail-closed matrix를 분리 저장한다.
 9. callback과 multi-PC 정책은 실제 캡처 또는 승인된 local protocol 후 구현한다.
 10. 외부 DOCX/PDF 안전 경고와 최종 hash/provenance를 갱신한 뒤 production 승인한다.
 
@@ -538,14 +586,24 @@ TCPMotionInterface.CyWork
 두고 D2/D3/D4/D5 bit와 MaxSDO를 광고하지 않는다.
 
 D4 전체와 D5 전체를 완료로 오인하면 안 된다. D5 Read는 callback ordering/release와
-SDO executor 수정 뒤 사용자가 actual PLC에서 general-inline 1/2/4-byte 정상 동작을
-확인했다. 이번 확인에 대응하는 신규 pcap/log는 보존되지 않았다. D5 Write, 8-byte와
-extended result는 계속 capability-off다.
+SDO executor 수정 뒤 legacy UInt32/4-byte, `10_DriveRead_Axis1to4.pcapng`의
+general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_FailureRecovery`
+의 UInt32/4-byte와 동일 BootId TypeMismatch recovery pcap을 확보했다. D5 Write,
+8-byte와 extended result는 계속 capability-off다.
 
 - C#에는 Ring/Double/Edge/Window/Mask model, `TriggerRecorder`, PI Write, SDO ticket,
   extended SDO result chunk sync/async contract가 있다.
 - 개발 WPF에는 general-inline Submit/Status/queued Cancel과 inline result/save UI가 있다.
   extended download scaffold는 현재 policy에서 도달할 수 없다.
+- 개발 WPF의 qualification 영역에는 GroupEnable poll/true Buffered/stop-first,
+  Bulk 24-entry snapshot/lifecycle, Recorder Single/Ring/trigger soak가 구현되어
+  Debug/Release build를 통과했다. Debug visual/startup smoke에서는 세 qualification panel
+  렌더와 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 아직 PLC live
+  completion, reconnect/adopt와 RT evidence는 없다.
+- Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
+  시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
+  Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
+  필요하다.
 - PLC에는 single-bank Ring과 Edge/Window/Mask/forced Trigger가 구현되어 capability
   bit 5가 켜진다. Double bank는 아직 없으므로 bit 6은 0이고 요청은 거부된다.
 - D5에는 `LMCSdoExecutor : EtherCAT_SDOBase` 파생 adapter 4개,
@@ -563,13 +621,15 @@ extended result는 계속 capability-off다.
 확인된 범위:
 
 - 현행 C# request/parser/fake-RPC/golden/malformed 테스트 Debug/Release 각 148/148 PASS
-- 개발 WPF Debug/Release build와 각 3초 startup smoke PASS
+- 개발 WPF Debug/Release build PASS. 현행 qualification UI의 Debug visual/startup smoke에서
+  Group/Bulk/Recorder panel 렌더와 초기 disabled gate PASS
 - LASAL SourceOnly static contract PASS
 - LASAL full static contract PASS; `Classes.lcb`의 `TryStartRead` declaration 동기화 확인
 - 2026-07-22 10:53 gate-off D5 executor/network baseline LASAL IDE Rebuild/Link 0 error;
   shadowing 수정 test source는 BootId 5 runtime download 확인, 대응 IDE build log 미보존
 - 과거 BootId 6 capture의 Submit 두 건은 `ResourceBusy`로 실패했으나 callback
-  ordering/release 수정 뒤 사용자 general-inline 1/2/4-byte runtime 확인 PASS
+  ordering/release 수정 뒤 general-inline 1/2/4-byte packet PASS. Ticket 13 UInt32/4
+  성공, Ticket 14 TypeMismatch 실패, 같은 BootId 8 Ticket 15 Int8/1 복구까지 확인
 - 최신 Rebuild warning은 compile-time constant condition, manual write 차단 override의
   unused input과 C78/C81 compiler-version 차이다.
 - `Find in Implementation` 3건의 과거 smoke는 PASS지만 새 executor를 포함한 최신 smoke는
@@ -583,14 +643,19 @@ model을 저장하면 외부 편집 내용을 덮어쓸 수 있다.
 
 현재 남은 gate:
 
-- PLC download 후 capability, Health/Catalog/PI, Bulk, Recorder Ring/Trigger/chunk/adopt 실기 시험
-- legacy와 general-inline 1/2/4-byte SDO Read 사용자 확인 완료; 신규 pcap/log와
-  fault/recovery matrix 증거는 별도 보존 필요
-- busy/error/abort/timeout/cancel/disconnect evidence 전 production 승인 금지
+- capability/Catalog/PI와 4-entry Bulk happy path는 live capture PASS; 24-entry/100회와
+  lifecycle runner는 code/build PASS지만 live 실행, Health/partial/stale fault는 별도
+- Recorder Single/Ring/trigger soak runner는 code/build PASS; live 실행, reconnect/adopt,
+  fault matrix와 Double은 별도
+- legacy와 general-inline 1/2/4-byte SDO Read 및 TypeMismatch recovery capture 완료;
+  offline/abort, timeout, queued cancel, disconnect/orphan, duplicate/late callback과
+  contention matrix는 별도
+- 위 미확인 D5 fault evidence 전 production 승인 금지
 - 1 ms RT jitter, free RAM, 1.28 MB bank hash 불변성 확인
 - cable/slave fault의 stale/offline 상태와 malformed TCP response 확인
 
 고객 배포 폴더는 이 내부 시험이 끝난 뒤 갱신한다. 상세 wire와 단계별 완료 기준은
 `LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md`를 따른다. 실제 PLC
 시험 순서는 [LMC diagnostics 내부 PLC 시험 가이드](LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md)를
-사용한다.
+사용한다. 다음 구현/검증 순서와 자동화 경계는
+[SIGMATEK 다음 runtime qualification 및 Test UI 설계](SIGMATEK_NEXT_RUNTIME_QUALIFICATION_AND_TEST_UI_DESIGN_2026-07-23.md)를 따른다.

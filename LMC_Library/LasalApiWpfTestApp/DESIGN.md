@@ -25,6 +25,9 @@
 - Read-only API: Admin capability를 선행 확인한 뒤 physical axis 1~4의 semantic
   parameter, fixed group `0x0100` parameter, typed drive operation mode와 non-atomic
   drive status를 읽는 Phase 1 실기 검증 화면
+- Qualification: Group Enable accepted-then-locked, true Buffered A/B, deterministic
+  Stop-first, 24-entry Bulk snapshot/lifecycle soak, Recorder Single/Ring/trigger
+  lifecycle을 공통 상태·progress·구조화 로그로 실행하는 반복 시험 화면
 - Execution Log: connection state, response 결과와 raw callback diagnostic
 
 Motion command는 현재 PLC 활성 경로만 노출한다. Diagnostics command는 SDK surface를
@@ -86,7 +89,8 @@ Drive read는 선택한 physical reference와 현재 loaded axis가 일치하면
 검증한다. `ReadDriveStatusAsync`는 LASAL axis status, DS402 `0x6041:0`, operation mode
 `0x6061:0`을 순차 실행하므로 atomic same-cycle snapshot으로 표시하거나 해석하지 않는다.
 이 탭에는 motion/write control을 추가하지 않는다. Admin `0x7D00/10/20`은 LASAL IDE
-build/download와 live PLC 검증이 끝날 때까지 화면에도 그 검증 경계를 명시한다.
+build/download가 일치해야 한다. 화면은 2026-07-23 happy-path PASS와 아직 남은
+invalid/stale/fault 검증 경계를 함께 명시한다.
 
 ## 4. UNIT 규칙
 
@@ -123,11 +127,15 @@ var raw = checked((int)Math.Round(
 - 현재 저장된 축 설정은 `_JERK_PROFILE`, `JMax=75000 mm`다. 실제 시험에서는
   다운로드된 PLC 설정과 장비 제한을 별도로 확인한다.
 - Group position/dynamics도 별도 Group UNIT 콤보로 같은 DINT 변환을 수행한다.
-  현재 Move Linear Absolute는 X/Y/Z/U를 target으로, Relative는 같은 입력을 delta로
-  해석한다. 두 경로 모두 4개 값만 사용하고 coordinate는 `None`만 허용한다.
+  Read Position은 static member-slot alias인 `None/ACS`를 허용한다. Move Linear
+  Absolute는 X/Y/Z/U를 target으로, Relative는 같은 입력을 delta로 해석하며 두 motion
+  경로는 coordinate `None`만 허용한다. ACS 선택 중에는 Move 버튼을 비활성화한다.
 - Relative는 Admin `0x7D22` capability가 없는 PLC에서 API가 송신 전에 거부한다.
   PLC가 `MoveRelativeCoord`를 직접 호출하므로 UI는 현재 위치를 합산해 absolute target을
   만들지 않는다. Admin ACK는 queue 수락이며 완료는 기존 Group InPosition monitor다.
+- Group finite-motion monitor timeout은 첫 네 축의 absolute distance 합과
+  velocity/acceleration/deceleration으로 보수적으로 계산하고 25% 및 5초 여유를 더한 뒤
+  15~600초로 제한한다. timeout 뒤에도 motion-uncertain 상태와 Group Stop 경로는 유지한다.
 - group Jerk 입력도 `group application unit/s^3/1000` 값으로 보고 UNIT을 곱한다.
   canonical `_LMCRobotBase1`은 `_JERK_PROFILE`, `JMax=50000 mm`다.
 
@@ -138,16 +146,23 @@ var raw = checked((int)Math.Round(
 - Group 준비 순서는 `1 Power On -> 2 Read Status의 Power Ready/ACTIVE 확인 ->
   3 Set Identity -> 4 Enable(Lock Profile) -> 5 Read Status의
   Enabled/Locked Standby 확인 -> 6 Move`다. 종료는
-  `Disable(Unlock Profile) -> Power Off -> Read Status에서 PowerOn=False 확인`
+  `Disable(Unlock Profile) -> 7 Power Off -> Verify Power Off (Read Status)에서
+  PowerOn=False 확인`
   순서다.
 - Group Power On/Off 응답은 mode-change 요청 수락만 뜻한다. 화면은 Read
   Status에서 프로젝트 로컬 확장 `0x00040000` Power Ready를 확인한 뒤에만
   identity configuration 버튼을 활성화하고, Power Off 뒤에는 같은 비트가
-  해제될 때까지 다른 group 준비 명령을 막는다. `0x00010000`은
+  해제될 때까지 다른 group 준비 명령과 Read Position을 막고 Read Status 버튼을
+  Verify Power Off로 표시/focus한다. `0x00010000`은
   Disabled/Unlocked, `0x00020000`은 Enabled/Locked Standby로 표시한다.
 - Group Enable/Disable은 power가 아니라 configured profile Lock/Unlock이다.
   Enable ACK만으로 lock 완료를 판정하지 않는다. `Read Status`에서
   `0x00020000` Enabled/Locked Standby를 확인한 뒤에만 Move를 활성화한다.
+  현재 추적 PLC `0x2047` handler는 `LockProfile`의 `_LMCPROF_NoError`를 request
+  acceptance로 ACK하고 같은 cycle의 `LockState`를 완료 판정에 사용하지 않는다.
+  최종 완료는 PC가 `0x2045`를 poll해 판단하는 accepted-then-poll 계약이다. 이 변경은
+  source/static contract에는 반영됐지만 새 LASAL build/download와 실물 capture로 아직
+  재검증하지 않았다.
   Status가 Disabled/Unlocked를 3회 연속 보고하면 lock 대기를 해제해 Enable
   재시도를 허용한다. Status 조회가 실패하면 local Power Ready와 lock 판정을
   무효화하되 진행 중인 lock 확인은 보존하고, 다음 성공한 Status 조회 전에는
@@ -172,8 +187,8 @@ var raw = checked((int)Math.Round(
   간주하지 않고 Group Read Status의 state/error를 확인한다.
 - Stop은 position, velocity, acceleration 입력을 읽지 않고 Stop deceleration과
   Jerk만 변환한다. 다른 motion 입력의 오타가 Stop을 막지 않아야 한다.
-- Stop은 Standstill 3회, Power Off는 PowerOn=false 뒤 Standstill 3회까지 확인해야
-  안전 확인을 통과한다. PowerOn=false 하나만으로 정지 완료로 판단하지 않는다.
+- Stop은 Standstill/InPosition 3회, Power Off는 PowerOn=false 3회를 확인해야 안전
+  확인을 통과한다. 한 번의 상태 sample만으로 정지 또는 전원 차단 완료를 판단하지 않는다.
 - motion 전에 Read Status로 PowerOn을 확인한다.
 - 유한 motion은 ACK 뒤 non-standstill을 관측한 후 stable standstill 3회를 확인한다.
   대기 중에도 Stop과 Power Off는 실행할 수 있다.
@@ -185,18 +200,124 @@ var raw = checked((int)Math.Round(
   않은 motion은 취소되고 이미 송신된 motion 뒤에는 Stop/Power Off가 전송된다.
 - motion 가능성이 남아 있는 동안 UNIT, 위치, 속도, 가속도와 방향은 잠그고
   Stop deceleration과 Jerk만 수정할 수 있게 한다.
-- Cancel 버튼은 제공하지 않는다. in-flight 취소는 Stop이 아니며 transport와
-  PLC command 결과를 불명확하게 만들 수 있다.
+- 일반 motion Cancel 버튼은 제공하지 않는다. Qualification의 `Cancel Test`는 다음
+  RPC 전 취소와 scenario cleanup을 요청할 뿐이며, in-flight RPC를 끊거나 Stop을
+  대신하지 않는다.
 - 창을 닫을 때 motion 가능성이 남아 있어도 확인창이나 자동 Stop 없이 종료한다.
   종료 직전 경고 로그만 남기며 실제 정지는 사용자와 외부 장치의 책임이다.
 
-## 6. callback 범위
+## 6. Qualification runner
+
+### 6.1 공통 실행 계약
+
+- runner는 한 번에 하나만 실행한다. ordinary operation, safety verification 또는 다른
+  qualification이 실행 중이면 시작하지 않으며, 기존 `motionMayBeActive`가 남아 있어도
+  차단한다.
+- 공통 상태는 `BEGIN -> PASS/FAIL/SKIP/ABORTED`이며 progress와 최근 구조화 로그를
+  Group/Bulk/Recorder 세 탭에 같이 표시한다. 로그 한 줄은 UTC, elapsed ms, run GUID,
+  scenario, step과 assertion/cleanup field를 포함하고 사용자가 파일로 저장할 수 있다.
+- `NotSupportedException`으로 판정한 capability 부재는 `SKIP`, 고정 Catalog/identity/
+  limit 계약 불일치는 `FAIL`이다. Recorder의 명시적 capability/bank limit precheck는
+  `SKIP`으로 분류한다. UI에 버튼이 있다는 사실만으로 PLC가 해당 기능을 지원한다고
+  간주하지 않는다.
+- 각 qualification wire dispatch는 공용 send gate를 얻은 뒤 runner 시작 시점의
+  safety generation과 scenario token을 다시 확인한다. 송신을 시작한 단일 RPC에는
+  `CancellationToken.None`을 넘겨 응답/timeout을 확정한다. Recorder download는 SDK의
+  compound helper를 한 번에 호출하지 않고 header/chunk별 gate를 다시 얻어 chunk 사이
+  취소와 safety 선점을 허용한다. Bulk Catalog public helper는 cancellation이 connection을
+  강제 종료할 수 있으므로 `CancellationToken.None`으로 하나의 bounded compound
+  operation을 완료한다. cleanup은 cancellation과 독립적이며 진행 중인 safety
+  send/monitor를 먼저 통과시킨 뒤 같은 gate로 직렬화한다.
+- 실행 중 기존 Axis/Group Stop 또는 Power Off는 계속 사용할 수 있다. 이 safety
+  요청은 qualification token을 취소하며, Group motion scenario는 외부 Group Stop의
+  stable InPosition 또는 Group Power Off의 PowerOn=False 3회를 확인한다. 확인에
+  실패하면 자체 Group Stop cleanup으로 fallback한다.
+
+### 6.2 Group qualification
+
+- Enable scenario는 PowerOn + Disabled/Unlocked 3회 안정 preflight,
+  `0x2047 ErrorId=0`, 이어지는 `0x2045` PowerOn + Locked Standby 3회를 요구한다.
+  성공 상태는 profile locked이며 자동 Unlock/PowerOff하지 않는다. 취소도 lock
+  transition을 되돌리는 명령이 아니므로 이후 Read Status와 명시적 Disable이 필요하다.
+- Buffered scenario는 Admin capability와 fixed group reference, 4-member mapping,
+  선택 축 software min/max, group velocity/acceleration limit, initial stable InPosition을
+  확인한다. 첫 live slice는 동일 부호의 A/B, 각 delta 절대값 최대 1,000,000 raw,
+  `Jerk=0`, `Coordinate=None`, `ExactStop`, `BufferMode=Buffered`로 제한한다.
+  A의 non-InPosition을 관측한 뒤 B를 보내고 B ACK 직후에도 non-InPosition인지 확인한
+  다음 `start + A + B` endpoint/tolerance와 stable InPosition을 검사한다. 성공 시
+  Aborting relative command로 captured start에 복귀한다. motion 중 오류/취소는
+  Group Stop + stable InPosition cleanup 대상이며 cleanup failure는 원 오류와 합쳐
+  안전 상태 미확정 FAIL로 보고한다.
+- Stop-first scenario는 실제 이동을 만들지 않는다. shared send gate를 보유한 채
+  zero-delta Move task를 먼저 대기시키고 Stop task가 safety generation을 변경한 뒤
+  gate를 연다. Move delegate invocation 0, local pre-transmission cancellation,
+  Group Stop ACK와 stable InPosition을 요구한다. 이 assertion은 app ordering을
+  증명하지만 실제 wire의 `0x7D22=0`, `0x2085=1`은 packet capture로 별도 확인한다.
+
+### 6.3 Bulk qualification
+
+- 시작 시 capability와 Catalog를 다시 읽고 stable nonzero DiagnosticsBootId,
+  동일 MapRevision, CatalogEntryCount 24, BulkReadable 24개, MaxBulkSignals >= 24와
+  전 entry InputMapped phase를 요구한다. manual Bulk/Recorder resource가 남아 있으면
+  시작하지 않는다.
+- Snapshot Soak는 revision-bound public builder에 24개를 Catalog 순서 그대로 넣고
+  Active까지 최대 5초 bounded poll한다. 기본 100회, 10 ms 간격으로 읽으며 각 응답의
+  Boot/config/map identity, entry count/stride/order/type, SameCycle + InputMapped flags,
+  even SnapshotSequence, Partial=false, 모든 entry Valid/detail 0을 검사한다. cycle,
+  timestamp와 sequence는 unsigned wrap-aware nondecreasing으로 검사하고 RPC latency
+  min/avg/max와 cycle delta를 기록한다.
+- Lifecycle Soak는 지정 횟수마다 새 builder로
+  `Configure -> Active -> Snapshot -> Release`를 수행한다. 끝난 뒤 새 Configure/Active/
+  Release가 다시 성공해야 하며, released reader의 두 번째 Release는 local
+  `InvalidOperationException`으로 막혀 wire request가 없어야 한다.
+- 모든 생성 reader는 `finally` Release 대상이다. cleanup 실패는 PASS로 숨기지 않는다.
+  one-slave offline partial, reconnect stale handle과 raw old revision/BootId rejection은
+  일반 runner가 fault를 주입하지 않으므로 별도 시험이다.
+
+### 6.4 Recorder qualification
+
+- fresh capability와 이미 load한 동일 MapRevision Catalog를 대조하고 Catalog 순서의
+  첫 4개 Recordable signal을 고정 channel order로 사용한다. Single은
+  RecorderSingleBank, Ring/soak는 RecorderTrigger도 요구한다. Double capability는
+  표시만 하며 public qualification에서 사용하지 않는다.
+- Single Manual은 SamplePeriod 1 cycle, capacity 1000이다. 자연
+  `SampleCountComplete`와 1000 samples, zero dropped/overflow를 기다린 뒤 Header,
+  Download A/B의 identity/revision/channel order, 16-byte stride, 16,000-byte data와
+  raw SHA-256 일치를 검사한다. cleanup 후 buffer/configuration 각각의 두 번째 Release가
+  local guard에서 막히는지도 검사한다.
+- Ring forced trigger는 capacity 1000, pre 100/post 899, Edge와 자동 trigger가
+  도달하지 않는 threshold를 사용한다. Recording에서 pre-history 100개 이상을 확인한
+  뒤 `TriggerRecorderAsync`를 보내 `TriggerComplete`, TriggerIndex 100, 1000 samples,
+  Header/data identity와 qualification per-RPC gated exact chunk coverage를 검사한다.
+- Trigger Lifecycle Soak는 capacity 32, pre 16/post 15로 같은 forced-trigger lifecycle을
+  기본 100회(입력 상한 1000회) 반복한다. 매 회 buffer를 먼저 terminal/frozen 상태로
+  만든 뒤 buffer, configuration 순서로 Release하며 completed count, ResourceBusy,
+  dropped/overflow를 집계한다. WPF가 기록하는 `rtEvidence=NOT_MEASURED_BY_WPF`처럼 이
+  결과만으로 PLC RT jitter나 sample 무손실을 독립 증명하지 않는다.
+- cancellation/실패 cleanup은 active recorder에 Stop을 시도하고 final Status를 확인한다.
+  buffer와 configuration handle의 자동 Release는 `Ready` 또는 이미 frozen download가
+  시작된 `Uploading`에서만 수행한다. `Fault`는 releasable frozen state로 취급하지 않고
+  identity/resource를 보존하며 recovery-required QTEST failure를 남긴다. 이후 명시적
+  Status/error 진단과 수동 복구가 필요하다. reconnect/adopt, external fault,
+  BufferOverwritten와 Double bank는 구현된 qualification scenario 밖이다.
+
+### 6.5 검증 경계
+
+Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
+검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
+prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
+gate 확인일 뿐이다. Group queue chaining/Stop-first wire order, 수정된 `0x2047`,
+Bulk 100회, Recorder Single/Ring/soak는 해당 PLC build를 다운로드한 실물 장비에서
+아직 실행·packet capture하지 않았다. 따라서 runner의 `PASS`와 지정 capture의 wire
+조건을 모두 얻기 전에는 production qualification 완료로 표시하지 않는다.
+
+## 7. callback 범위
 
 Connect가 callback listener와 endpoint 등록까지 처리한다. 수신 payload는 시각,
 remote endpoint, 길이와 최대 48-byte hex preview로 기록한다. PLC event sender와
 typed callback payload가 정의되기 전에는 motion complete 신호로 해석하지 않는다.
 
-## 7. 검증 기준
+## 8. 검증 기준
 
 - Debug/Release solution rebuild
 - `LasalMotionControlLib` project reference 출력 DLL 확인
@@ -212,8 +333,13 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
   Recorder mode/trigger capability gate, Ready/Header gate, reconnect adoption,
   download progress/cancel, metadata CSV와 plot smoke test
 - general-inline SDO Read ticket submit/status/queued cancel, terminal typed 1/2/4-byte
-  inline result/save와 PI/SDO Write 및 extended result gate
+  inline result/save와 PI/SDO Write 및 extended result gate. live packet은 1/2/4-byte와
+  동일 BootId TypeMismatch recovery까지 PASS했고 나머지 fault matrix는 별도다.
 - Read-only API의 Admin capability fail-closed, axis/group semantic allowlist,
   physical axis lookup/reference 검증과 drive status non-atomic 표기
 - 실제 PLC 시험은 Read Status/Position부터 시작하고 motion은 마지막에 수행
 - `MoveCircle`은 공개 API와 승인된 DINT wire 계약이 생기기 전까지 UI에 추가하지 않음
+
+구현된 runtime qualification UI의 원 설계와 단계별 packet 합격 기준은
+`../../docs/architecture/SIGMATEK_NEXT_RUNTIME_QUALIFICATION_AND_TEST_UI_DESIGN_2026-07-23.md`를
+따른다.

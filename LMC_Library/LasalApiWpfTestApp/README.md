@@ -28,6 +28,8 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 8. Move Velocity는 마지막에 시험하고 반드시 Stop 또는 Power Off로 끝낸다.
 9. Group 기능은 실제 `_LMCRobotBase1`이 PLC network에 연결된 경우에만 사용한다.
 10. Load Group 뒤 Get Members와 Read Position으로 대상 구성을 먼저 확인한다.
+    Read Position은 `None`과 `ACS`를 지원하지만 group motion은 계속 `None`만
+    지원한다. `ACS` 선택 중에는 두 Move 버튼이 비활성화된다.
 11. `1 Power On`을 누른다. PASS는 mode-change 요청이 수락됐다는 뜻이며
     `_ROBOT_ACTIVE` 완료를 뜻하지 않는다.
 12. `2 / 5 Read Status (Power Ready / Lock Ready)`를 반복해 `PowerOn=True`를 확인한다.
@@ -45,14 +47,88 @@ Visual Studio 2019에서 `LasalApiWpfTestApp.sln`을 열고 `Debug|Any CPU` 또�
 17. 작은 X/Y/Z/U 목표로 `6 Move Linear Absolute`를 먼저 시험한다.
 18. `0x7D00`에 `GroupLinearRelative`가 광고된 최신 PLC에서 X/Y/Z/U를 작은
     delta로 바꿔 `6 Move Linear Relative`를 시험한다. PASS는 profile queue 수락이며
-    화면의 Group InPosition monitor가 완료될 때까지 기다린다.
+    화면의 Group InPosition monitor가 완료될 때까지 기다린다. monitor timeout은
+    XYZU 거리, velocity, acceleration과 deceleration으로 계산하며 15~600초로 제한한다.
+    축 순서 검증 capture는 나머지 세 delta를 0으로 두고 한 축씩 왕복한다.
 19. 종료 순서는 Group Stop 및 InPosition 확인, `Disable (Unlock Profile)`,
-    `Power Off`, `Read Status`에서 `PowerOn=False` 확인이다.
+    `7 Power Off`, `7 Verify Power Off (Read Status)`에서 `PowerOn=False` 확인이다.
+    Power Off 확인이 끝날 때까지 Read Position은 비활성화되고 Read Status로 focus가
+    이동한다.
 
 `Move Linear Relative`는 PC에서 현재 위치와 delta를 더하지 않는다. Admin `0x7D22`로
-delta를 보내고 PLC가 `MoveRelativeCoord`를 호출한다. 이 source는 C#/LASAL 정적 시험과
-WPF build/startup smoke까지만 통과했다. LASAL IDE build/download, 작은 거리 실동작,
-Stop/PowerOff recovery와 packet capture 전에는 runtime 완료로 판정하지 않는다.
+delta를 보내고 PLC가 `MoveRelativeCoord`를 호출한다. 2026-07-23 실기 capture에서
+Aborting 수락, Buffered 수락, X/Y/Z/U 축별 왕복, Stop 및 PowerOff 최종 상태를 확인했다.
+이 수동 capture는 각 명령의 수락 확인이며 진짜 Buffered queue chaining이나 stop-first
+우선순위의 증거는 아니다. 두 시나리오를 재현하는 Qualification runner는 구현됐지만
+실물 PLC와 packet capture 합격 판정은 아직 수행하지 않았다. fault/stale-session matrix도
+계속 별도 검증 항목이다.
+기존 `09_Group_ReadPosition_None_ACS_2051`은 Read Position이 아니라 Read Status를 두 번
+실행해 `0x2051`이 없으므로 None/ACS 증거가 아니다. 수정한 `09b`에서는 None과 ACS의
+`0x2051` request/response가 모두 PASS했고 두 결과가 같은 static member-slot 순서임을
+확인했다. 이는 실제 좌표 변환이나 MCS/PCS 지원 증거가 아니다.
+
+## Qualification 자동화
+
+Group Motion, Bulk Snapshot, Recorder 탭에는 한 번에 하나만 실행되는 Qualification
+runner가 있다. 실행 전 Connect를 완료한다. Group Enable 시험은 Power Ready/Set Identity
+후 Disabled/Unlocked에서 시작하고, Buffered/Stop-first는 Locked Standby까지 준비한다.
+Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
+수동 UI가 보유한 Bulk/Recorder resource는 먼저 Release해야 한다. 각 단계는
+`QTEST|utc=...|elapsedMs=...|run=...|scenario=...` 형식으로 Execution Log와 탭별
+결과창에 기록되며 `Save QTEST Log`로 저장할 수 있다.
+
+- `Group Enable accepted -> locked`는 PowerOn + Disabled/Unlocked 3회 안정 상태에서
+  `0x2047` ACK를 한 번 받은 뒤 `0x2045`의 Locked Standby를 3회 확인한다. 성공 후
+  profile은 잠긴 상태로 남으며 runner가 자동 Disable/PowerOff하지 않는다.
+- `True Buffered A -> B`는 선택한 X/Y/Z/U 한 축의 software min/max와 group dynamics
+  limit를 먼저 확인한다. 같은 방향의 제한된 raw delta A/B를 `Buffered`로 보내되 A가
+  아직 InPosition이 아닐 때 B를 송신하고, 누적 endpoint와 stable InPosition을 확인한
+  뒤 Aborting relative move로 시작 위치에 복귀한다. 실패나 취소로 motion 가능성이
+  남으면 Group Stop을 보내고 stable InPosition까지 확인하며, 이 cleanup도 실패하면
+  안전 상태 미확정으로 FAIL한다.
+- `Deterministic Stop-first`는 app send gate를 잡은 상태에서 zero-delta Move와 Group
+  Stop을 순서대로 대기시킨다. safety generation이 Move delegate를 wire 송신 전에
+  취소했는지와 Group Stop ACK/stable InPosition을 확인한다. 로그의
+  `moveWireExpected=0`은 local assertion이며 실제 `0x7D22` 0건/`0x2085` 1건 판정은
+  Wireshark capture가 필요하다.
+- Bulk Snapshot Soak는 fresh capability/Catalog에서 정확히 24개 BulkReadable signal을
+  Catalog 순서로 configure하고 Active까지 bounded poll한 뒤 기본 100회 snapshot을
+  읽는다. identity, 24-entry order/type/valid/detail, SameCycle + InputMapped flags,
+  even sequence, wrap-aware cycle/timestamp/sequence와 latency를 검사하고 `finally`에서
+  Release한다. Lifecycle Soak는 기본 100회 `Configure -> Active -> Snapshot -> Release`,
+  종료 후 새 Configure 재사용과 두 번째 Release의 local 차단까지 검사한다.
+- Recorder Single은 Catalog 순서의 첫 4개 Recordable signal, period 1 cycle, capacity
+  1000으로 자연 `SampleCountComplete`를 기다린다. Header와 두 번의 Download가 같은
+  identity/order/16,000 bytes/SHA-256인지 확인하고 buffer/configuration을 Release한 뒤
+  두 번째 Release의 local 차단을 검사한다.
+- Recorder Ring은 같은 4 channel에 capacity 1000, pre 100, post 899의 Edge 설정을
+  사용한다. 자동 edge가 일어나지 않는 threshold로 구성하고 pre-history 뒤
+  `TriggerRecorderAsync`를 보내 `TriggerComplete`, TriggerIndex 100, 1000 samples와
+  exact download coverage를 검사한다. Trigger Lifecycle Soak는 capacity 32,
+  pre 16/post 15를 지정 횟수 반복하며 ResourceBusy, dropped, overflow가 모두 0인지
+  집계한다. RecorderDoubleBank와 reconnect/adopt/fault 주입은 이 runner 범위가 아니다.
+
+Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
+download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
+frozen success로 취급하지 않고 자동 Release하지 않는다. QTEST에 recovery-required를
+남기고 identity/resource를 보존하므로 사용자가 Status/error를 진단한 뒤 명시적으로
+복구해야 한다.
+
+`Cancel Test`는 다음 RPC 전 취소를 요청하는 기능이지 PLC transport를 중간에 끊는
+기능이 아니다. Qualification의 각 wire dispatch는 공용 send gate를 얻은 뒤 시작 시점의
+safety generation과 token을 다시 확인한다. 이미 dispatch된 단일 RPC는
+`CancellationToken.None`으로 결과를 끝까지 받고, Recorder download는 header와 각 chunk
+사이에서 gate/token을 다시 확인한다. Bulk Catalog public helper는 연결 강제 종료를 피하기
+위해 하나의 bounded compound operation으로 gate 안에서 완료한다. cleanup은 별도
+non-cancelable gate 경로에서 진행 중인 Stop/Power Off send/monitor가 끝난 뒤 실행한다.
+Group Stop/Power Off를 누르면 진행 중 Group
+qualification을 취소하고 외부 safety 결과를 먼저 검증하며 필요하면 cleanup Group Stop으로
+fallback한다. 화면/SDK build와 정적 계약 통과는 실제 queue 실행, RT sample 무손실,
+packet 순서 또는 장비 안전을 대신하지 않는다.
+
+현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
+prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. Debug/Release build도 PASS했다.
+이 smoke는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
 
 ## EtherCAT / PI / Bulk / Recorder 시험 순서
 
@@ -63,15 +139,17 @@ Stop/PowerOff recovery와 packet capture 전에는 runtime 완료로 판정하�
    `RecorderTrigger`, bit 8 `SDORead`와 bit 13 `SDOReadGeneralInline`은 활성이고 bit 6 `RecorderDoubleBank` 및
    D5 bit 7 `PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
    BootId 5 축 1~4 capture는 당시 `0x13F`와 `0x1000:0` UInt32 4-byte legacy 경로를
-   확인한 것이다. 현재 `0x213F` general-inline 범위의 runtime 확인은 별도다.
+   확인했다. 최신 BootId 8 `0x213F` capture는 general-inline Int8/1,
+   BitField16/2, UInt32/4와 동일 BootId TypeMismatch 후 복구를 확인했다.
 2. `Read EtherCAT Health`에서 master state, invalid-cycle counter와 slave 1~4의
    Online/AL/DS402 상태를 확인한다.
 3. `Load PI Catalog`로 현재 map revision과 active PDO signal을 받은 뒤 사용할
    signal의 `Use`를 체크한다. 기본 선택은 네 축의 `actual_position`이다.
 4. `Read Selected PI`는 SDO가 아니라 PLC가 publish한 최신 cyclic image를 읽는다.
    Raw Value와 Entry Status를 함께 확인한다.
-5. Bulk 탭은 선택된 `BulkReadable` signal을 configure한 뒤 Status가 Active인지
-   확인하고 `Read Snapshot`을 실행한다. 모든 entry의 cycle/timestamp는 하나다.
+5. Bulk 탭은 `1 Configure Selected` -> `2 Refresh Status` -> `3 Read Snapshot` ->
+   `4 Release` 순서다. Status가 Active인지 확인한 뒤 snapshot을 읽는다. 모든
+   entry의 cycle/timestamp는 하나다.
 6. Recorder 탭은 선택된 `Recordable` signal, sample period와 capacity로 Recorder를
    configure/start한다. `Single + Manual`은 D3 기본 경로다. 현재 D4 경로는 한 개의
    물리 bank를 사용하는 `Ring + Edge/Window/Mask`이며 RT signal 조건 또는
@@ -133,8 +211,10 @@ Stop/PowerOff recovery와 packet capture 전에는 runtime 완료로 판정하�
    저장할 수 있다. CSV 앞부분에는 Recorder identity, map/cycle/timestamp와 채널별
    SignalId/alias/type/unit/scale metadata가, 이어서 `sample_index`,
    `relative_time_us`, channel raw value가 기록된다. PLC buffer/config는 `Release`로
-   명시적으로 반환한다. Adopt한 Recorder는 `Release`가 필요할 경우 Status metadata를
-   먼저 복구한 뒤 buffer와 configuration을 모두 반환한다.
+   명시적으로 반환한다. 단, 자동 반환은 Status가 `Ready` 또는 이미 frozen download가
+   시작된 `Uploading`일 때만 허용한다. `Fault`면 자동 Release하지 않고 identity와
+   resource를 보존해 명시적 진단/복구 대상으로 남긴다. Adopt한 Recorder는 `Release`가
+   필요할 경우 Status metadata를 먼저 복구한 뒤 같은 상태 gate를 적용한다.
 10. SDO 탭의 general-inline flow는 `Submit SDO Read -> Refresh Ticket` 순서다. 새 PLC
     test build를 download하고 `Refresh Capabilities`에서 bit 8 `SDORead`, bit 13
     `SDOReadGeneralInline`과 `MaxSdoDataBytes=4`를 확인하면 Submit이 활성화된다.
@@ -143,15 +223,17 @@ Stop/PowerOff recovery와 packet capture 전에는 runtime 완료로 판정하�
     4-byte(Int32/UInt32/Real32/BitField32) Read를 제출한다. terminal 상태까지
     `Refresh Ticket`을 반복하고 inline 결과를 `Save Result`로 저장할 수 있다.
     SDO Write, 8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
-    축 1~4 `0x1000:0` UInt32 4-byte legacy PC-PLC ticket/inline success만 확인됐으며
-    general-inline, busy, abort, timeout, disconnect/orphan과 EtherCAT mailbox frame
+    축 1~4 `0x1000:0` UInt32 4-byte legacy와 general-inline 1/2/4-byte Read의
+    PC-PLC ticket/inline success를 확인했다. `12_SDO_GeneralInline_4Byte_FailureRecovery`
+    에서는 TypeMismatch 실패 뒤 같은 BootId 복구도 PASS했다. offline/abort, timeout,
+    queued cancel, disconnect/orphan, deliberate contention과 EtherCAT mailbox frame
     독립 관측은 production qualification으로 남아 있다.
 
 ## Read-only API 시험 순서
 
 이 탭은 Phase 1의 신규 읽기 API를 실물 PLC에서 확인하기 위한 화면이다. motion이나
-write command는 없다. `0x7D00/0x7D10/0x7D20`은 source와 정적 계약까지 구현됐지만,
-아래 시험 전에는 LASAL IDE에서 최신 source를 Rebuild/Link하고 PLC에 download해야 한다.
+write command는 없다. `0x7D00/0x7D10/0x7D20`과 physical axis 1~4 drive read의
+2026-07-23 happy-path wire capture는 PASS다. 새 PLC build에서는 아래 순서를 다시 실행한다.
 
 1. Connect 뒤 `Refresh Admin Capabilities`를 먼저 실행한다. 성공 응답의 feature,
    axis/group mask, physical axis count, fixed group reference `0x0100`과 error catalog
@@ -163,15 +245,16 @@ write command는 없다. `0x7D00/0x7D10/0x7D20`은 source와 정적 계약까지
    tolerance parameter다.
 3. `Read Group Parameters`에서 `PathVelocityLimit`, `PathAccelerationLimit`, `JerkTime`,
    `All`을 각각 실행한다. 현재 v1 group reference는 `0x0100`으로 고정이다.
-4. `Get Drive Operation Mode`는 선택 축의 D5 SDO `0x6061:0 Int8/1` 결과와 ticket을
-   표시한다. `Read Drive Status`는 LASAL axis status, D5 SDO `0x6041:0`,
+4. 탭 아래쪽 `Physical drive reads`까지 scroll한다. `1 Get Drive Operation Mode`는
+   선택 축의 D5 SDO `0x6061:0 Int8/1` 결과와 ticket을 표시한다.
+   `2 Read Drive Status`는 LASAL axis status, D5 SDO `0x6041:0`,
    `0x6061:0`을 순서대로 읽는다.
 5. Drive Status는 같은 EtherCAT cycle의 atomic snapshot이 아니다. LASAL position-limit,
    axis error flag와 DS402 internal-limit bit는 서로 다른 출처이므로 한 값으로 합쳐
    원인을 추정하지 말고 화면에 표시된 각 source를 따로 확인한다.
 
-Admin command의 IDE build/download 및 live 결과가 확인되기 전에는 이 탭의 존재나
-PC build 성공만으로 Phase 1 runtime 완료를 선언하지 않는다.
+현재 happy-path PASS를 invalid axis/key/selection, stale session, timeout과 fault 결과까지
+확대 해석하지 않는다. 각 실패 경로는 별도 runtime matrix로 검증한다.
 
 현재 PLC가 D0 capability(`CapabilityBits=0`)만 반환하면 EtherCAT/PI, Bulk, Recorder와
 SDO 진단 기능은 정상적으로 비활성화된다. UI와 SDK가 존재한다는 사실이 PLC runtime
@@ -226,7 +309,8 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
   물리 jerk가 `1000 mm/s^3`이면 Jerk 칸에 `1`을 입력하고 UNIT `10000`을 사용한다.
 - 현재 저장된 `_LMCAxis1..9`는 `_JERK_PROFILE`, `JMax=75000 mm`다. nonzero
   Jerk 시험 전 다운로드된 PLC의 MoveType/JMax와 장비 허용 범위를 다시 확인한다.
-- Group UNIT 콤보도 PC UI가 적용한다. 현재 static group은 X/Y/Z/U 4축,
+- Group UNIT 콤보도 PC UI가 적용한다. 현재 static group은 X/Y/Z/U 4축이다.
+  Read Position은 `Coordinate=None/ACS` member-slot alias를 지원하고 motion은
   `Coordinate=None`, `ExactStop`/`ContinuousDirect`, `Aborting`/`Buffered`만
   지원한다. `_LMCRobotBase1`은 `_JERK_PROFILE`, `JMax=50000 mm`로 저장돼 있다.
 - Group Power On/Off는 각각 `0x204A`/`0x204B`의 별도 API다. 두 ACK 모두
