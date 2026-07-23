@@ -2406,11 +2406,9 @@ FUNCTION TCPMotionInterface::MsgPaser
               Axis1:=1, Axis2:=1, Axis3:=1, Axis4:=1, Axis5:=0,
               Axis6:=0, Axis7:=0, Axis8:=0, Axis9:=0);
             if GroupReadRetCode = _LMCPROF_NoError then
-              profileLockState := LMCRobot.ReadProfileParameter(
-                ParNo:=_LMCPROF_LockState);
-              if profileLockState <> 0 then
-                GroupReadErrorId := 0;
-              end_if;
+              // LockProfile success acknowledges request acceptance.
+              // GroupReadStatus reports the asynchronous lock transition.
+              GroupReadErrorId := 0;
             elsif GroupReadRetCode$UDINT <= 32767 then
               GroupReadErrorId := GroupReadRetCode$DINT;
             end_if;

@@ -1043,7 +1043,10 @@ if ([regex]::Matches($moveAbsBlock, 'Jerk:=jer').Count -ne 27) {
 
 $groupEnableCaseBlock = [regex]::Match($msgParserBlock, '(?s)0x2047:.*?0x2048:').Value
 $groupDisableCaseBlock = [regex]::Match($msgParserBlock, '(?s)0x2048:.*?0x2049:').Value
-Assert-Match $groupEnableCaseBlock '(?s)\(Payload = 1\).*?\(RequestBuf\[8\] = 1\).*?\(AxisRef = 0x0100\).*?GroupKinematicReady = TRUE.*?powerIsOn <> 0.*?LMCRobot\.LockProfile\(.*?Axis1:=1.*?Axis4:=1.*?Axis5:=0.*?Axis9:=0.*?ReadProfileParameter\(.*?_LMCPROF_LockState.*?udSize:=16' '0x2047 four-axis Cartesian profile-lock validation/dispatch/ACK is missing.'
+Assert-Match $groupEnableCaseBlock '(?s)\(Payload = 1\).*?\(RequestBuf\[8\] = 1\).*?\(AxisRef = 0x0100\).*?IsClientConnected\(#LMCRobot\).*?IsClientConnected\(#LMCAxis1\).*?IsClientConnected\(#LMCAxis2\).*?IsClientConnected\(#LMCAxis3\).*?IsClientConnected\(#LMCAxis4\).*?GroupReadErrorId := -6;.*?GroupKinematicReady = TRUE.*?powerIsOn <> 0.*?LMCRobot\.LockProfile\(.*?Axis1:=1.*?Axis4:=1.*?Axis5:=0.*?Axis9:=0.*?GroupReadRetCode = _LMCPROF_NoError then.*?GroupReadErrorId := 0;.*?elsif GroupReadRetCode\$UDINT <= 32767 then.*?GroupReadErrorId := GroupReadRetCode\$DINT;.*?udSize:=16' '0x2047 preconditions, four-axis profile-lock dispatch, acceptance mapping, native error preservation, or ACK is missing.'
+if ($groupEnableCaseBlock -match 'ReadProfileParameter|_LMCPROF_LockState') {
+    throw '0x2047 still treats the same-CyWork LockState read as command completion.'
+}
 Assert-Match $groupDisableCaseBlock '(?s)\(Payload = 1\).*?\(RequestBuf\[8\] = 1\).*?\(AxisRef = 0x0100\).*?IsClientConnected\(#LMCRobot\).*?ProfileInPosition\(.*?_LMCPROF_ProfileFinished.*?GroupReadInPosition <> 0.*?LMCRobot\.UnlockProfile\(\).*?ReadProfileParameter\(.*?_LMCPROF_LockState.*?udSize:=16' '0x2048 group profile-unlock standstill validation/dispatch/ACK is missing.'
 
 $groupPowerOnCaseBlock = [regex]::Match($msgParserBlock, '(?s)0x204A:.*?0x204B:').Value
