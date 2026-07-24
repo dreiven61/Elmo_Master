@@ -1,0 +1,16 @@
+[10:38:20.126] Get Drive Operation Mode started.
+[10:38:20.203] Get Drive Operation Mode PASS.
+[10:38:21.874] Read Drive Status started.
+[10:38:21.984] Read Drive Status PASS.
+[10:38:24.420] Get Drive Operation Mode started.
+[10:38:24.498] Get Drive Operation Mode PASS.
+[10:38:25.699] Read Drive Status started.
+[10:38:25.779] Read Drive Status PASS.
+[10:38:27.979] Get Drive Operation Mode started.
+[10:38:28.047] Get Drive Operation Mode PASS.
+[10:38:29.003] Read Drive Status started.
+[10:38:29.174] Read Drive Status PASS.
+[10:38:31.821] Get Drive Operation Mode started.
+[10:38:31.858] Get Drive Operation Mode PASS.
+[10:38:32.686] Read Drive Status started.
+[10:38:32.838] Read Drive Status PASS.

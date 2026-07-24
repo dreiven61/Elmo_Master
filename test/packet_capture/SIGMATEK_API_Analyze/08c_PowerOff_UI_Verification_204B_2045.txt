@@ -1,0 +1,10 @@
+[11:44:18.664] Group Disable (Unlock Profile) started.
+[11:44:18.683] Group Disable (Unlock Profile) PASS.
+[11:44:22.095] Group Power Off Send queued with safety priority.
+[11:44:22.102] Group Power Off Send transmitting.
+[11:44:22.104] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[11:44:22.105] Group Power Off Send PASS.
+[11:44:23.997] Read Group Status started.
+[11:44:24.003] Group status no longer reports PowerOn. The local Home, identity, and profile-lock state was cleared.
+[11:44:24.005] Group Power Off verified: Read Status reports PowerOn=False.
+[11:44:24.006] Read Group Status PASS.

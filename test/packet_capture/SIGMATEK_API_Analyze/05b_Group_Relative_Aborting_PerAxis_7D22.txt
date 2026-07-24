@@ -1,0 +1,403 @@
+[08:59:37.140] Example ready. Connect, load _LMCAxis1, and start with Read Status. No command is sent automatically.
+[09:06:32.440] Connect started.
+[09:06:32.461] Connection state Disconnected -> Connecting
+[09:06:32.474] Connection state Connecting -> Connected
+[09:06:32.475] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0xFFFFFFFF
+[09:06:32.475] Connect PASS.
+[09:06:39.108] Refresh Admin Capabilities started.
+[09:06:39.115] Refresh Admin Capabilities PASS.
+[09:06:52.450] Refresh Admin Capabilities started.
+[09:06:52.453] Refresh Admin Capabilities PASS.
+[09:10:38.977] Read Axis Parameter started.
+[09:10:38.990] Read Axis Parameter PASS.
+[09:10:42.763] Read Axis Parameter started.
+[09:10:42.768] Read Axis Parameter PASS.
+[09:10:47.426] Read Axis Parameter started.
+[09:10:47.430] Read Axis Parameter PASS.
+[09:10:51.191] Read Axis Parameter started.
+[09:10:51.195] Read Axis Parameter PASS.
+[09:11:37.418] Read Group Parameters started.
+[09:11:37.427] Read Group Parameters PASS.
+[09:12:33.357] Read Axis Parameter started.
+[09:12:33.365] Read Axis Parameter PASS.
+[09:12:40.271] Read Axis Parameter started.
+[09:12:40.276] Read Axis Parameter PASS.
+[09:12:44.331] Read Axis Parameter started.
+[09:12:44.335] Read Axis Parameter PASS.
+[09:12:47.683] Read Axis Parameter started.
+[09:12:47.687] Read Axis Parameter PASS.
+[09:12:51.001] Read Axis Parameter started.
+[09:12:51.005] Read Axis Parameter PASS.
+[09:12:54.143] Read Axis Parameter started.
+[09:12:54.146] Read Axis Parameter PASS.
+[09:12:59.306] Read Axis Parameter started.
+[09:12:59.310] Read Axis Parameter PASS.
+[09:13:02.336] Read Axis Parameter started.
+[09:13:02.340] Read Axis Parameter PASS.
+[09:13:06.157] Read Axis Parameter started.
+[09:13:06.161] Read Axis Parameter PASS.
+[09:13:09.041] Read Axis Parameter started.
+[09:13:09.044] Read Axis Parameter PASS.
+[09:13:12.334] Read Axis Parameter started.
+[09:13:12.339] Read Axis Parameter PASS.
+[09:13:15.202] Read Axis Parameter started.
+[09:13:15.206] Read Axis Parameter PASS.
+[09:13:19.063] Read Axis Parameter started.
+[09:13:19.067] Read Axis Parameter PASS.
+[09:13:21.987] Read Axis Parameter started.
+[09:13:21.991] Read Axis Parameter PASS.
+[09:13:24.806] Read Axis Parameter started.
+[09:13:24.810] Read Axis Parameter PASS.
+[09:13:27.996] Read Axis Parameter started.
+[09:13:28.003] Read Axis Parameter PASS.
+[09:13:31.468] Read Axis Parameter started.
+[09:13:31.472] Read Axis Parameter PASS.
+[09:13:34.578] Read Axis Parameter started.
+[09:13:34.582] Read Axis Parameter PASS.
+[09:13:39.042] Read Axis Parameter started.
+[09:13:39.046] Read Axis Parameter PASS.
+[09:13:41.925] Read Axis Parameter started.
+[09:13:41.929] Read Axis Parameter PASS.
+[09:13:44.664] Read Axis Parameter started.
+[09:13:44.668] Read Axis Parameter PASS.
+[09:13:47.581] Read Axis Parameter started.
+[09:13:47.586] Read Axis Parameter PASS.
+[09:13:51.238] Read Axis Parameter started.
+[09:13:51.242] Read Axis Parameter PASS.
+[09:13:54.333] Read Axis Parameter started.
+[09:13:54.342] Read Axis Parameter PASS.
+[09:14:28.772] Read Group Parameters started.
+[09:14:28.782] Read Group Parameters PASS.
+[09:14:31.841] Read Group Parameters started.
+[09:14:31.847] Read Group Parameters PASS.
+[09:14:35.195] Read Group Parameters started.
+[09:14:35.198] Read Group Parameters PASS.
+[09:14:38.232] Read Group Parameters started.
+[09:14:38.236] Read Group Parameters PASS.
+[09:15:39.307] Load Group started.
+[09:15:39.320] Group loaded. Name=_LMCRobotBase1, Ref=256
+[09:15:39.320] Load Group PASS.
+[09:15:48.630] Get Group Members started.
+[09:15:48.639] Get Group Members PASS.
+[09:15:52.101] Group Power On started.
+[09:15:52.112] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[09:15:52.112] Group Power On PASS.
+[09:15:55.025] Read Group Status started.
+[09:15:55.034] Group Power On was accepted/start only, but Power Ready is not verified yet. Read Status again after the LASAL mode change completes.
+[09:15:55.034] Read Group Status PASS.
+[09:15:58.246] Identity Home Check started.
+[09:15:58.284] Identity Home Check FAIL: 2/4 axes referenced.
+[09:15:58.325] Identity Home Check FAILED: Home Check failed. Reference the following identity axes before Set Identity: Z=_LMCAxis3, U=_LMCAxis4.
+[09:16:56.044] Identity Home Check started.
+[09:16:56.077] Identity Home Check PASS: 4/4 axes referenced.
+[09:16:56.077] Identity Home Check PASS.
+[09:17:00.489] Read Group Status started.
+[09:17:00.535] Read Group Status FAILED: Read Group Status failed. ErrorId=0, GroupErrorId=1000.
+[09:17:03.223] Group Power Off Send queued with safety priority.
+[09:17:03.223] Group Power Off Send transmitting.
+[09:17:03.225] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[09:17:03.225] Group Power Off Send PASS.
+[09:17:14.701] Read Group Status started.
+[09:17:14.709] Group status no longer reports PowerOn. The local Home, identity, and profile-lock state was cleared.
+[09:17:14.709] Group Power Off verified: Read Status reports PowerOn=False.
+[09:17:14.709] Read Group Status PASS.
+[09:17:23.055] Load Group started.
+[09:17:23.069] Group loaded. Name=_LMCRobotBase1, Ref=256
+[09:17:23.069] Load Group PASS.
+[09:17:25.732] Get Group Members started.
+[09:17:25.740] Get Group Members PASS.
+[09:17:28.238] Group Power On started.
+[09:17:28.247] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[09:17:28.248] Group Power On PASS.
+[09:17:29.847] Read Group Status started.
+[09:17:29.853] Group Power Ready/ACTIVE state verified. Set Identity is now available.
+[09:17:29.853] Read Group Status PASS.
+[09:17:32.024] Identity Home Check started.
+[09:17:32.056] Identity Home Check PASS: 4/4 axes referenced.
+[09:17:32.056] Identity Home Check PASS.
+[09:17:33.732] Set Identity Kinematics started.
+[09:17:33.760] Identity Home Check PASS: 4/4 axes referenced.
+[09:17:33.772] Set Identity Kinematics PASS.
+[09:17:36.454] Group Enable (Lock Profile) started.
+[09:17:36.499] Group Enable (Lock Profile) FAILED: Group Enable (Lock Profile) failed. FrameValid=True, Success=False, Status=1, ErrorId=-6, Bytes=16
+[09:17:38.252] Read Group Status started.
+[09:17:38.261] Read Group Status PASS.
+[09:18:10.673] Move Linear Absolute Send started.
+[09:18:10.707] Move Linear Absolute input: StartRaw=X=35839, Y=-947804, Z=15301, U=15301, TargetRaw=X=1000000, Y=1000000, Z=1000000, U=1000000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting.
+[09:18:10.711] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:18:10.718] Move Linear Absolute Send PASS.
+[09:18:10.721] Move Linear Absolute group monitor started. Group Stop remains available.
+[09:18:10.977] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:18:26.024] Move Linear Absolute monitor FAILED: _LMCRobotBase1 did not show motion followed by three stable Group InPosition samples within 15000 ms. Group Stop is still required.
+[09:18:54.576] Read Group Status started.
+[09:18:54.708] Motion warning cleared: Read Group Status verified three stable in-position samples.
+[09:18:54.709] Read Group Status PASS.
+[09:19:55.570] Group Power Off Send queued with safety priority.
+[09:19:55.570] Group Power Off Send transmitting.
+[09:19:55.583] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[09:19:55.583] Group Power Off Send PASS.
+[09:19:58.376] Read Group Status started.
+[09:19:58.382] Group status no longer reports PowerOn. The local Home, identity, and profile-lock state was cleared.
+[09:19:58.383] Group Power Off verified: Read Status reports PowerOn=False.
+[09:19:58.383] Read Group Status PASS.
+[09:20:04.974] Load Group started.
+[09:20:04.982] Group loaded. Name=_LMCRobotBase1, Ref=256
+[09:20:04.982] Load Group PASS.
+[09:20:06.987] Get Group Members started.
+[09:20:06.994] Get Group Members PASS.
+[09:20:08.508] Group Power On started.
+[09:20:08.519] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[09:20:08.519] Group Power On PASS.
+[09:20:10.595] Read Group Status started.
+[09:20:10.602] Group Power Ready/ACTIVE state verified. Set Identity is now available.
+[09:20:10.602] Read Group Status PASS.
+[09:20:12.223] Identity Home Check started.
+[09:20:12.259] Identity Home Check PASS: 4/4 axes referenced.
+[09:20:12.259] Identity Home Check PASS.
+[09:20:13.674] Set Identity Kinematics started.
+[09:20:13.701] Identity Home Check PASS: 4/4 axes referenced.
+[09:20:13.705] Set Identity Kinematics PASS.
+[09:20:15.154] Group Enable (Lock Profile) started.
+[09:20:15.196] Group Enable (Lock Profile) FAILED: Group Enable (Lock Profile) failed. FrameValid=True, Success=False, Status=1, ErrorId=-6, Bytes=16
+[09:20:17.411] Read Group Status started.
+[09:20:17.419] Read Group Status PASS.
+[09:20:38.391] Move Linear Relative Send started.
+[09:20:38.402] Move Linear Relative input: StartRaw=X=999997, Y=999998, Z=999998, U=999999, DeltaRaw=X=-10000, Y=-10000, Z=-10000, U=-10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting.
+[09:20:38.406] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:20:38.410] Move Linear Relative Send PASS.
+[09:20:38.412] Move Linear Relative group monitor started. Group Stop remains available.
+[09:20:38.665] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:20:39.472] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:20:39.473] Move Linear Relative completion PASS.
+[09:20:41.024] Move Linear Relative Send started.
+[09:20:41.031] Move Linear Relative input: StartRaw=X=989997, Y=989998, Z=989998, U=989999, DeltaRaw=X=-10000, Y=-10000, Z=-10000, U=-10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting.
+[09:20:41.032] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:20:41.045] Move Linear Relative Send PASS.
+[09:20:41.046] Move Linear Relative group monitor started. Group Stop remains available.
+[09:20:41.298] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:20:42.110] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:20:42.111] Move Linear Relative completion PASS.
+[09:20:53.906] Move Linear Relative Send started.
+[09:20:53.913] Move Linear Relative input: StartRaw=X=979997, Y=979998, Z=979998, U=979999, DeltaRaw=X=10000, Y=10000, Z=10000, U=10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting.
+[09:20:53.915] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:20:53.919] Move Linear Relative Send PASS.
+[09:20:53.920] Move Linear Relative group monitor started. Group Stop remains available.
+[09:20:54.172] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:20:54.986] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:20:54.987] Move Linear Relative completion PASS.
+[09:20:56.467] Move Linear Relative Send started.
+[09:20:56.475] Move Linear Relative input: StartRaw=X=989997, Y=989998, Z=989998, U=989999, DeltaRaw=X=10000, Y=10000, Z=10000, U=10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting.
+[09:20:56.478] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:20:56.482] Move Linear Relative Send PASS.
+[09:20:56.484] Move Linear Relative group monitor started. Group Stop remains available.
+[09:20:56.738] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:20:57.551] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:20:57.553] Move Linear Relative completion PASS.
+[09:21:15.472] Group Power Off Send queued with safety priority.
+[09:21:15.472] Group Power Off Send transmitting.
+[09:21:15.499] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[09:21:15.499] Group Power Off Send PASS.
+[09:21:34.566] Read Group Status started.
+[09:21:34.572] Group status no longer reports PowerOn. The local Home, identity, and profile-lock state was cleared.
+[09:21:34.572] Group Power Off verified: Read Status reports PowerOn=False.
+[09:21:34.572] Read Group Status PASS.
+[09:21:35.677] Group Power On started.
+[09:21:35.685] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[09:21:35.685] Group Power On PASS.
+[09:21:36.436] Read Group Status started.
+[09:21:36.442] Group Power Ready/ACTIVE state verified. Set Identity is now available.
+[09:21:36.442] Read Group Status PASS.
+[09:21:38.645] Identity Home Check started.
+[09:21:38.676] Identity Home Check PASS: 4/4 axes referenced.
+[09:21:38.676] Identity Home Check PASS.
+[09:21:39.206] Set Identity Kinematics started.
+[09:21:39.230] Identity Home Check PASS: 4/4 axes referenced.
+[09:21:39.236] Set Identity Kinematics PASS.
+[09:21:40.317] Group Enable (Lock Profile) started.
+[09:21:40.357] Group Enable (Lock Profile) FAILED: Group Enable (Lock Profile) failed. FrameValid=True, Success=False, Status=1, ErrorId=-6, Bytes=16
+[09:21:42.445] Read Group Status started.
+[09:21:42.456] Read Group Status PASS.
+[09:21:55.729] Move Linear Absolute Send started.
+[09:21:55.737] Move Linear Absolute input: StartRaw=X=999993, Y=999996, Z=999996, U=999997, TargetRaw=X=10000, Y=10000, Z=10000, U=10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:21:55.737] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:21:55.755] Move Linear Absolute Send PASS.
+[09:21:55.756] Move Linear Absolute group monitor started. Group Stop remains available.
+[09:21:56.010] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:21:59.146] Group Stop Send queued with safety priority.
+[09:21:59.146] Group Stop Send transmitting.
+[09:21:59.150] Group Stop Send PASS.
+[09:21:59.151] Group Stop accepted. Verifying three stable Group InPosition samples; Group Stop remains available.
+[09:22:00.294] Motion warning cleared: Group Stop and stable Group InPosition were verified.
+[09:22:00.294] Group Stop safety verification PASS.
+[09:22:00.321] Move Linear Absolute monitor ended because a safety action cleared tracking.
+[09:22:00.999] Read Group Status started.
+[09:22:01.007] Read Group Status PASS.
+[09:22:11.665] Move Linear Relative Send started.
+[09:22:11.673] Move Linear Relative input: StartRaw=X=829518, Y=829521, Z=829521, U=829522, DeltaRaw=X=10000, Y=10000, Z=10000, U=10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:22:11.676] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:22:11.678] Move Linear Relative Send PASS.
+[09:22:11.679] Move Linear Relative group monitor started. Group Stop remains available.
+[09:22:11.933] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:22:12.748] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:22:12.749] Move Linear Relative completion PASS.
+[09:22:25.442] Move Linear Relative Send started.
+[09:22:25.449] Move Linear Relative input: StartRaw=X=839518, Y=839521, Z=839521, U=839522, DeltaRaw=X=-10000, Y=-10000, Z=-10000, U=-10000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:22:25.451] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:22:25.455] Move Linear Relative Send PASS.
+[09:22:25.459] Move Linear Relative group monitor started. Group Stop remains available.
+[09:22:25.719] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:22:26.529] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[09:22:26.530] Move Linear Relative completion PASS.
+[09:23:51.680] Move Linear Relative Send started.
+[09:23:51.685] Move Linear Relative input: StartRaw=X=829518, Y=829521, Z=829521, U=829522, DeltaRaw=X=-100000, Y=-100000, Z=-100000, U=-100000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:23:51.693] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:23:51.696] Move Linear Relative Send PASS.
+[09:23:51.697] Move Linear Relative group monitor started. Group Stop remains available.
+[09:23:51.948] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:23:53.605] Group Stop Send queued with safety priority.
+[09:23:53.605] Group Stop Send transmitting.
+[09:23:53.609] Group Stop Send PASS.
+[09:23:53.609] Group Stop accepted. Verifying three stable Group InPosition samples; Group Stop remains available.
+[09:23:53.858] Motion warning cleared: Group Stop and stable Group InPosition were verified.
+[09:23:53.858] Group Stop safety verification PASS.
+[09:23:53.882] Move Linear Relative monitor ended because a safety action cleared tracking.
+[09:23:56.425] Move Linear Relative Send started.
+[09:23:56.432] Move Linear Relative input: StartRaw=X=819965, Y=819968, Z=819968, U=819969, DeltaRaw=X=-100000, Y=-100000, Z=-100000, U=-100000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:23:56.433] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:23:56.436] Move Linear Relative Send PASS.
+[09:23:56.437] Move Linear Relative group monitor started. Group Stop remains available.
+[09:23:56.689] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:23:57.407] Group Stop Send queued with safety priority.
+[09:23:57.407] Group Stop Send transmitting.
+[09:23:57.410] Group Stop Send PASS.
+[09:23:57.411] Group Stop accepted. Verifying three stable Group InPosition samples; Group Stop remains available.
+[09:23:57.658] Motion warning cleared: Group Stop and stable Group InPosition were verified.
+[09:23:57.658] Group Stop safety verification PASS.
+[09:23:57.666] Move Linear Relative monitor ended because a safety action cleared tracking.
+[09:23:59.357] Move Linear Relative Send started.
+[09:23:59.364] Move Linear Relative input: StartRaw=X=815102, Y=815105, Z=815105, U=815106, DeltaRaw=X=-100000, Y=-100000, Z=-100000, U=-100000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:23:59.368] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:23:59.371] Move Linear Relative Send PASS.
+[09:23:59.372] Move Linear Relative group monitor started. Group Stop remains available.
+[09:23:59.624] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:24:00.541] Group Stop Send queued with safety priority.
+[09:24:00.541] Group Stop Send transmitting.
+[09:24:00.545] Group Stop Send PASS.
+[09:24:00.546] Group Stop accepted. Verifying three stable Group InPosition samples; Group Stop remains available.
+[09:24:00.793] Motion warning cleared: Group Stop and stable Group InPosition were verified.
+[09:24:00.793] Group Stop safety verification PASS.
+[09:24:00.809] Move Linear Relative monitor ended because a safety action cleared tracking.
+[09:24:30.691] Move Linear Relative Send started.
+[09:24:30.703] Move Linear Relative input: StartRaw=X=809244, Y=809247, Z=809247, U=809248, DeltaRaw=X=-100000, Y=-100000, Z=-100000, U=-100000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[09:24:30.704] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[09:24:30.706] Move Linear Relative Send PASS.
+[09:24:30.707] Move Linear Relative group monitor started. Group Stop remains available.
+[09:24:30.964] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[09:24:32.286] Group Stop Send queued with safety priority.
+[09:24:32.286] Group Stop Send transmitting.
+[09:24:32.289] Group Stop Send PASS.
+[09:24:32.290] Group Stop accepted. Verifying three stable Group InPosition samples; Group Stop remains available.
+[09:24:32.531] Motion warning cleared: Group Stop and stable Group InPosition were verified.
+[09:24:32.531] Group Stop safety verification PASS.
+[09:24:32.553] Move Linear Relative monitor ended because a safety action cleared tracking.
+[09:24:43.075] Read Group Position started.
+[09:24:43.089] Read Group Position PASS.
+[09:24:46.204] Group Disable (Unlock Profile) started.
+[09:24:46.214] Group Disable (Unlock Profile) PASS.
+[09:24:48.729] Group Power Off Send queued with safety priority.
+[09:24:48.729] Group Power Off Send transmitting.
+[09:24:48.738] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[09:24:48.738] Group Power Off Send PASS.
+[09:24:51.389] Read Group Position started.
+[09:24:51.394] Read Group Position PASS.
+[10:33:01.356] Connect started.
+[10:33:01.389] Connection state Connected -> Closing
+[10:33:01.421] Connection state Disconnected -> Connecting
+[10:33:01.430] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0xFFFFFFFF
+[10:33:01.431] Connect PASS.
+[10:33:01.435] Connection state Connecting -> Connected
+[10:33:03.709] Load Group started.
+[10:33:03.715] Group loaded. Name=_LMCRobotBase1, Ref=256
+[10:33:03.717] Load Group PASS.
+[10:33:05.674] Get Group Members started.
+[10:33:05.682] Get Group Members PASS.
+[10:33:07.398] Group Power On started.
+[10:33:07.407] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[10:33:07.409] Group Power On PASS.
+[10:33:09.034] Read Group Status started.
+[10:33:09.046] Group Power Ready/ACTIVE state verified. Set Identity is now available.
+[10:33:09.048] Read Group Status PASS.
+[10:33:10.550] Identity Home Check started.
+[10:33:10.597] Identity Home Check PASS: 4/4 axes referenced.
+[10:33:10.599] Identity Home Check PASS.
+[10:33:12.765] Set Identity Kinematics started.
+[10:33:12.794] Identity Home Check PASS: 4/4 axes referenced.
+[10:33:12.798] Set Identity Kinematics PASS.
+[10:33:15.053] Group Enable (Lock Profile) started.
+[10:33:15.097] Group Enable (Lock Profile) FAILED: Group Enable (Lock Profile) failed. FrameValid=True, Success=False, Status=1, ErrorId=-6, Bytes=16
+[10:33:17.268] Read Group Status started.
+[10:33:17.277] Read Group Status PASS.
+[10:33:35.855] Move Linear Relative Send started.
+[10:33:35.864] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=801341, U=801343, DeltaRaw=X=10000, Y=0, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:33:35.868] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:33:35.872] Move Linear Relative Send PASS.
+[10:33:35.875] Move Linear Relative group monitor started. Group Stop remains available.
+[10:33:36.144] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:33:37.153] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:33:37.156] Move Linear Relative completion PASS.
+[10:33:48.543] Move Linear Relative Send started.
+[10:33:48.552] Move Linear Relative input: StartRaw=X=811340, Y=801341, Z=801341, U=801343, DeltaRaw=X=-10000, Y=0, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:33:48.557] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:33:48.565] Move Linear Relative Send PASS.
+[10:33:48.572] Move Linear Relative group monitor started. Group Stop remains available.
+[10:33:48.829] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:33:49.804] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:33:49.807] Move Linear Relative completion PASS.
+[10:33:56.470] Move Linear Relative Send started.
+[10:33:56.480] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=801341, U=801343, DeltaRaw=X=0, Y=10000, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:33:56.482] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:33:56.485] Move Linear Relative Send PASS.
+[10:33:56.487] Move Linear Relative group monitor started. Group Stop remains available.
+[10:33:56.752] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:33:57.774] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:33:57.777] Move Linear Relative completion PASS.
+[10:34:01.981] Move Linear Relative Send started.
+[10:34:01.990] Move Linear Relative input: StartRaw=X=801340, Y=811341, Z=801341, U=801343, DeltaRaw=X=0, Y=-10000, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:34:01.993] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:34:01.999] Move Linear Relative Send PASS.
+[10:34:02.001] Move Linear Relative group monitor started. Group Stop remains available.
+[10:34:02.258] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:34:03.254] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:34:03.258] Move Linear Relative completion PASS.
+[10:34:11.229] Move Linear Relative Send started.
+[10:34:11.245] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=801341, U=801343, DeltaRaw=X=0, Y=0, Z=10000, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:34:11.259] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:34:11.263] Move Linear Relative Send PASS.
+[10:34:11.265] Move Linear Relative group monitor started. Group Stop remains available.
+[10:34:11.521] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:34:12.519] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:34:12.534] Move Linear Relative completion PASS.
+[10:34:15.919] Move Linear Relative Send started.
+[10:34:15.929] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=811341, U=801343, DeltaRaw=X=0, Y=0, Z=-10000, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:34:15.933] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:34:15.938] Move Linear Relative Send PASS.
+[10:34:15.941] Move Linear Relative group monitor started. Group Stop remains available.
+[10:34:16.199] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:34:17.223] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:34:17.225] Move Linear Relative completion PASS.
+[10:34:22.647] Move Linear Relative Send started.
+[10:34:22.665] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=801341, U=801343, DeltaRaw=X=0, Y=0, Z=0, U=10000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:34:22.669] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:34:22.677] Move Linear Relative Send PASS.
+[10:34:22.681] Move Linear Relative group monitor started. Group Stop remains available.
+[10:34:22.937] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:34:23.956] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:34:23.959] Move Linear Relative completion PASS.
+[10:34:28.341] Move Linear Relative Send started.
+[10:34:28.349] Move Linear Relative input: StartRaw=X=801340, Y=801341, Z=801341, U=811343, DeltaRaw=X=0, Y=0, Z=0, U=-10000, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Buffered.
+[10:34:28.353] SAFETY: Move Linear Relative send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[10:34:28.358] Move Linear Relative Send PASS.
+[10:34:28.362] Move Linear Relative group monitor started. Group Stop remains available.
+[10:34:28.623] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[10:34:29.654] Motion warning cleared: Move Linear Relative completed at stable Group InPosition.
+[10:34:29.657] Move Linear Relative completion PASS.

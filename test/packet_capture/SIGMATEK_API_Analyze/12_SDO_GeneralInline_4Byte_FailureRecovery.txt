@@ -1,0 +1,14 @@
+[11:39:22.163] Refresh Diagnostics Capabilities started.
+[11:39:22.172] Refresh Diagnostics Capabilities PASS.
+[11:39:41.694] Submit SDO Read started.
+[11:39:41.708] Submit SDO Read PASS.
+[11:39:44.945] Refresh Diagnostics Operation started.
+[11:39:44.953] Refresh Diagnostics Operation PASS.
+[11:40:06.785] Submit SDO Read started.
+[11:40:06.794] Submit SDO Read PASS.
+[11:40:08.953] Refresh Diagnostics Operation started.
+[11:40:08.957] Refresh Diagnostics Operation PASS.
+[11:40:17.686] Submit SDO Read started.
+[11:40:17.692] Submit SDO Read PASS.
+[11:40:18.563] Refresh Diagnostics Operation started.
+[11:40:18.568] Refresh Diagnostics Operation PASS.

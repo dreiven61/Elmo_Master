@@ -1,0 +1,4 @@
+[11:37:54.670] Read Group Status started.
+[11:37:54.677] Read Group Status PASS.
+[11:37:59.731] Read Group Status started.
+[11:37:59.738] Read Group Status PASS.
