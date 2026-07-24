@@ -2,7 +2,14 @@
 
 - 작성일: 2026-07-23
 - 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- 상태: 설계 확정, Phase 1/1b·Phase 2·Phase 3A 완료, Phase 3B 원자 route 전환 대기
+- 상태: Phase 5 transport-only 외부 text cleanup 적용. `TCPMotionInterface` generated
+  server/client/data count는 `4/3/0`, 구현 함수는 8개이고 Diagnostics route는
+  `MsgPaser`에 inline됐다. TCP direct axis/robot 연결 10개를 `.lcn` text에서 제거하고
+  `ONE_Comm_Network_Table.st` external connection text를 26개에서 16개로 줄였다. tracked
+  `Classes.lcb`/`Networks.lcb`도 transport-only registration과 network tuple 계약을 만족해
+  switch 없는 `Phase5TransportClean` SourceOnly/full static이 PASS했다. 현재 worktree의 PC
+  Debug/Release 각 148 tests와 개발 WPF Debug/Release build도 PASS했다. LASAL IDE
+  Rebuild/Link/implementation smoke와 PLC runtime은 아직 검증하지 않았다
 - 우선순위: PLC 주기 성능 > wire 호환성 > 유지보수성 > 구현 편의
 
 ## 1. 목적
@@ -42,10 +49,10 @@ Phase 1 적용 후 확인값은 다음과 같다.
 | `MsgPaser` | 44,784 bytes | Group aggregate route만 보유 |
 | `HandleGroupCommands` | 23,926 bytes | Group 11개 본문 보유 |
 
-Phase 1b 적용 후 현재 UTF-8 source block 확인값은 다음과 같다. LASAL 저장으로 line
+Phase 1b 적용 당시 UTF-8 source block 확인값은 다음과 같다. LASAL 저장으로 line
 ending이 CRLF로 정규화됐으므로 Phase 1 수치와 단순 증감 비교하지 않는다.
 
-| 함수 | 현재 크기 | 상태 |
+| 함수 | 당시 크기 | 상태 |
 |---|---:|---|
 | `MsgPaser` | 5,392 bytes | session gate, lifecycle 3개, family aggregate route만 보유 |
 | `HandleAdminCommands` | 15,049 bytes | Admin 4개 본문 보유 |
@@ -53,6 +60,18 @@ ending이 CRLF로 정규화됐으므로 Phase 1 수치와 단순 증감 비교�
 | `HandleRegistryCommands` | 8,072 bytes | registry/info 3개 본문 보유 |
 | `HandleAxisCommands` | 11,219 bytes | axis 8개 본문 보유 |
 | `HandleGroupCommands` | 24,581 bytes | Group 11개 본문 보유 |
+
+Phase 5 cleanup 후의 현재 source inventory는 다음과 같다. tracked `Classes.lcb`/
+`Networks.lcb` registration도 이 구조와 정적으로 일치하지만 LASAL IDE Rebuild/Link와
+PLC download를 수행한 runtime 증거는 아니다.
+
+| 항목 | 외부 text 상태 |
+|---|---:|
+| `TCPMotionInterface` generated server/client/data count | `4/3/0` |
+| `TCPMotionInterface` 구현 함수 | 8개 |
+| TCP local domain/family/helper 함수 | 0개 |
+| TCP direct axis/robot client 및 `.lcn` 연결 | 0개 |
+| Comm Network generated external connection text | 16개, cleanup 전 26개 |
 
 이 크기 제한은 LASAL compiler의 공식 hard limit가 아니다. 구현이 다시 비대해지는 것을
 조기에 막기 위한 이 저장소의 정적 계약이다.
@@ -97,9 +116,10 @@ flowchart LR
     TCP -->|"one owner"| SEND["SendData"]
 ```
 
-최종 production network에서 `TCPMotionInterface`는 axis/robot client를 직접 소유하지
-않는다. 이행 중에는 아직 이동하지 않은 family 때문에 기존 연결을 임시 유지할 수
-있지만 한 command ID의 실행 소유자는 항상 하나뿐이어야 한다.
+현재 source와 tracked metadata 기준으로 `TCPMotionInterface`는 axis/robot client를 직접
+소유하지 않고 한 command ID의 실행 소유자도 하나뿐이다. 다만 이 구조를 최종 production
+network라고 부르려면 LASAL IDE에서 Reload/저장 후 generated table, Rebuild/Link와 PLC
+download를 다시 확인해야 한다.
 
 ## 5. command ownership
 
@@ -228,9 +248,11 @@ control state를 무효화해야 하는 항목이 확인되면 `NotifySessionClo
 8. accepted command와 후속 status poll 순서를 바꾸지 않는다.
 9. diagnostics `ProcessOperations`는 기존 request 처리 뒤 순서를 유지한다.
 
-정적 size gate는 현재 `MsgPaser`와 다섯 local family handler 모두 `32,768 bytes`
-이하다. 최종 분리 후 새 custom implementation method에도 같은 제한을 유지한다. 초과하면
-method family를 더 나눈다.
+정적 size gate는 service의 custom implementation method와 final `MsgPaser` 각각에
+`32,768 bytes` 기준을 유지한다. Phase 1b의 다섯 local family handler는 Phase 5 source에서
+제거됐다. switch 없는 `Phase5TransportClean` default checkpoint가 최종 size와 tracked
+method registration을 확인해 PASS했다. LASAL IDE compiler의 실제 수용 여부는 Rebuild/Link로
+별도 확인한다.
 
 ## 9. 프로토콜 및 동작 불변조건
 
@@ -289,9 +311,9 @@ metadata까지 저장했다. 이어 `GroupMovePos : _LMCPROF_POS`,
 `GroupKinematicReady : BOOL`, 그리고 `MoveLinearAbsEx`의
 `pRequestFrame : ^USINT`/`RequestFrameSize : UDINT` 입력 선언도 LASAL IDE에서 저장했다.
 Phase 2 구조 저장 시점에는 service method가 모두 `ResponseSize := -1`인 fail-closed
-골격이었다. 이후 Phase 3A에서 Group-domain body를 준비했지만 `HandleRequest`, registry,
-axis는 계속 fail-closed이고 `ControlCommands.HandleRequest` 호출도 0개라 기존 command
-route가 유지된다.
+골격이었다. 이후 Phase 3A에서 Group-domain body를 준비했지만 그 checkpoint에서는
+`HandleRequest`, registry, axis가 계속 fail-closed이고 `ControlCommands.HandleRequest`
+호출도 0개라 기존 command route가 유지됐다.
 
 `Comm_Network`에는 task 없는 `LMCControlCommandService1` 객체 한 개와 incoming 1개,
 axis/robot outgoing 10개를 합한 관련 연결 11개가 저장됐다. 성공 Rebuild가 삭제됐던
@@ -300,7 +322,7 @@ project load까지 성공했다. 따라서 선언 저장 직후의 미연결 `Co
 cascade 한 건은 해소됐다. 이 Download는 dormant service의 compile/topology 증거이며
 service runtime route 증거는 아니다.
 
-최종 checkpoint에서 SourceOnly/full `Phase3GroupDormant`, PC Debug/Release 각 148개,
+Phase 3A 최종 checkpoint에서 SourceOnly/full `Phase3GroupDormant`, PC Debug/Release 각 148개,
 개발 WPF Debug/Release build가 모두 PASS했다. IDE 종료 전 `TCPMotionInterface`의
 `ControlCommands`, `LMCAxis3` implementation search도 성공했고 전체
 `%TEMP%\Lasal2.log`의 `CInvalidArgException`은 0건이다.
@@ -361,10 +383,10 @@ fail-closed이므로 신규 body의 PLC runtime 승인을 뜻하지 않는다.
 
 #### Phase 3B — network 확인 후 원자 route 전환
 
-service object와 11개 연결, generated network table, full static gate는 2026-07-24
-완료됐다. 다음 한 checkpoint에서 위 13개 ID의 transport local route를
+service object와 11개 연결, generated network table, dormant full static gate는 2026-07-24
+완료됐다. 그 상태에서 위 13개 ID의 transport local route를
 `ControlCommands.HandleRequest` 한 번으로 바꾸고, legacy/service owner가 ID별 정확히 하나인지
-검사한다. 일부 ID만 먼저 전환하거나 full-static 실패 상태에서 route를 활성화하지 않는다.
+검사한다. 일부 ID만 전환하는 상태는 허용하지 않는다.
 
 이 route는 `MsgPaser` method-local `controlResponseSize : DINT` 하나만 사용한다. request와
 response를 복사하지 않고 `RequestBuf[0]`, `Sendbuf[0]` pointer를 그대로 전달하며
@@ -374,6 +396,18 @@ transport가 공통 12-byte `status=1/error=-1` frame으로 덮어쓰고
 `controlResponseSize := 12`로 바꾼다. 두 경로는 분기 뒤의 공통 `SendData` 한 번으로만
 전송한다. 이 규칙으로 channel call, frame copy와 send call을 각각 최소화한다.
 
+source 완료 상태(2026-07-24): service `HandleRequest`가 Group 11개와 Admin 2개만 명시적으로
+분기하고, `MsgPaser`는 해당 13개 ID를 하나의 zero-copy service route로 전달한다.
+`0x7D00`, `0x7D10`은 기존 Admin handler에 남고 Registry/Axis service route는 계속
+fail-closed다. verifier 기본 checkpoint와 MSBuild target은 `Phase3GroupRouted`로 바꿨으며
+SourceOnly/full network 계약은 PASS했다. PC/WPF, LASAL Rebuild/Link/Download와 PLC
+packet/performance 검증은 사용자의 구현 우선 결정에 따라 보류했다.
+
+온라인 hot-switch에서는 기존 `TCPMotionInterface.GroupKinematicReady` 값이 별도 service
+state로 승계되지 않는다. runtime 검증은 cold download/restart 후 새 session에서 `0x20E7`을
+다시 수행하는 조건으로 시작한다. route 전 legacy 성능 baseline은 source 전환 전에 측정하지
+않았으므로, 비교 시험 때 pre-route revision `65f8000`을 별도로 배포해 같은 조건으로 측정한다.
+
 ### Phase 4 — Axis, registry, remaining Admin 이동
 
 - axis 8개와 helper/state를 이동한다.
@@ -381,12 +415,48 @@ transport가 공통 12-byte `status=1/error=-1` frame으로 덮어쓰고
 - remaining Admin `0x7D00`, `0x7D10`을 마지막으로 이동한다.
 - family마다 source/full static, PC tests와 capture regression을 통과시킨다.
 
+source 완료 상태(2026-07-24): service `HandleRequest`가 Control 26개를 Registry 3개,
+Axis 8개, Group 11개, Admin 4개의 정확한 family set으로 분기한다. `MsgPaser`는 26개를
+하나의 zero-copy `ControlCommands.HandleRequest` call과 공통 `SendData`로 전달하며 네 local
+family handler caller는 0개다. Phase 4 checkpoint에서는 rollback과 Phase 5 선언 정리를
+위해 기존 TCP body/client/state를 남겨 뒀다. `Phase4AllControlRouted` SourceOnly/full static과
+임시 Phase 4 snapshot의 PC Debug/Release 각 148 tests, 개발 WPF Debug/Release build는
+통과했다. 이 결과는 현재 Phase 5 결과로 대체됐으며 IDE/PLC 증거가 아니다.
+
+### Phase 4D — Diagnostics 24-ID 단일 service route
+
+Phase 4D source 완료 상태(2026-07-24): `0x7E00` capability payload 생성을
+`LMCDiagnosticsService.HandleRequest`로 이동했다. Diagnostics 24개 모두 기존 payload-only
+zero-copy ABI를 사용했다. 이 checkpoint에서 TCP의 `HandleDiagnosticsCommands`는 outer
+8-byte header, 16..2040-byte response bound, 12-byte transport fallback과 공통
+`SendData` 한 번만 소유했다.
+service response는 68 bytes이고 TCP total frame은 76 bytes다. service method는 32,768-byte
+gate 미만이며 `Phase4DiagnosticsRouted` SourceOnly/full static을 통과했다.
+
+required Diagnostics client가 끊긴 비정상 topology에서는 기존 local degraded capability
+76-byte 응답 대신 12-byte transport `-1`을 반환한다. 정상 연결 경로는 기존 byte layout과
+동등하며 이 fault-path 변경은 service 단일 owner를 유지하기 위한 승인된 정책이다.
+
 ### Phase 5 — transport 정리와 성능 승인
 
-- `TCPMotionInterface`의 axis/robot clients와 domain state/helper를 제거한다.
+- 외부 text cleanup에서 `TCPMotionInterface`의 axis/robot clients, domain server/state와
+  local family/helper implementation을 제거했다. generated channel count는 `4/3/0`, 최종
+  구현 함수는 8개다.
+- `HandleDiagnosticsCommands`를 제거하고 Diagnostics 24-ID route를 `MsgPaser`에 inline했다.
+  transport에는 outer header, response bound, fallback과 최종 `SendData`만 남겼다.
+- `Comm_Network.lcn`의 TCP direct axis/robot 연결 10개를 제거하고 control service의
+  axis/robot 연결 10개와 TCP의 `ControlCommands`/`Diagnostics` service 연결을 유지했다.
+  `ONE_Comm_Network_Table.st` external connection text는 26개에서 16개로 정리했다.
+- tracked `Classes.lcb`/`Networks.lcb`의 scoped class/network record도 위 transport-only
+  구조와 일치한다. TCP object의 제거 대상 member와 direct axis/robot tuple은 0개이고,
+  control service의 axis/robot tuple 10개는 유지된다.
+- verifier/csproj에 `Phase5TransportClean`을 구현했다. switch 없는 SourceOnly/full static이
+  PASS했으며 `-AllowStaleLasalBinaryMetadata` 없이 binary registration gate까지 통과했다.
+  이 결과는 LASAL IDE Rebuild/Link나 PLC runtime 증거와는 별개다.
+- 현재 Phase 5 worktree에서 PC Debug/Release 각 148/148 tests와 개발 WPF Debug/Release
+  build가 경고 0/오류 0으로 PASS했다. 임시 Phase 4 snapshot 결과를 대체한다.
 - `MsgPaser`를 transport/session/static router 수준으로 축소하고 올바른 이름으로
   바꾸는 것은 별도 호환 commit에서 수행한다.
-- 임시 dual network connection을 제거한다.
 - 동일 PLC/build에서 전후 성능과 packet regression을 비교한다.
 
 ## 11. LASAL IDE 배치 가이드
@@ -425,43 +495,69 @@ transport가 공통 12-byte `status=1/error=-1` frame으로 덮어쓰고
    - `LMCControlCommandService1.LMCAxis1..9 -> _LMCAxis1..9.Control`
    - `LMCControlCommandService1.LMCRobot -> _LMCRobotBase1.Control`
 
-Phase 2에서는 기존 TCP axis/robot 연결을 삭제하지 않는다. 각 family 이동과 검증이
-끝난 뒤 Phase 5에서 제거한다. 배치·저장 뒤 LASAL을 종료한 상태에서 implementation을
-외부 편집한다.
+Phase 2에서는 rollback을 위해 기존 TCP axis/robot 연결을 유지했다. Phase 5 외부
+`Comm_Network.lcn` text에서는 TCP direct 연결 10개를 제거하고 위 service 관련 연결 11개를
+유지했다. tracked `Classes.lcb`/`Networks.lcb`도 이 정적 topology와 일치하지만 최종 LASAL
+IDE 저장/Rebuild/Link 완료 증거는 아니다.
 
-위 8~9번 배치와 generated table 확인은 완료됐다. 현재 객체에는 task가 없고
-`ONE_Comm_Network_Table.st`의 service metadata와 관련 연결 11개를 full static 계약으로
-확인했다. 기존 TCP axis/robot 연결은 Phase 5 전까지 유지한다.
+Phase 5를 완료하려면 IDE를 연 뒤 변경 class를 Reload Class/선언 동기화하고, Object Network를
+IDE에서 저장·재생성해야 한다. implementation source를 외부 편집하는 순서는 유지하되 `.lcn`
+text만 보고 network 완료를 선언하지 않는다. 저장 후 TCP direct 연결 10개가 없고 service
+관련 연결 11개가 유지되는지 generated table과 project metadata에서 함께 확인한다.
 
 ## 12. 검증과 승인 기준
 
-### 매 phase 자동 검증
+### Phase 5 자동 검증
+
+`Phase5TransportClean` checkpoint는 구현됐다. 현재 switch 없는 default SourceOnly/full은
+source/XML/`ONE_*` table과 tracked `Classes.lcb`/`Networks.lcb` registration을 모두 검사해
+PASS한다. 아래 명령은 binary registration gate를 우회하지 않는 최종 정적 검증이다.
+
+IDE 적용 전 external source/XML/`ONE_*` table만 중간 점검할 때는 verifier의
+`-AllowStaleLasalBinaryMetadata`를 사용할 수 있다. 이 switch는 binary registration gate를
+명시적으로 우회하므로 final static 결과에 사용하지 않는다.
+
+2026-07-24 commit-preparation 재검증 결과는 다음과 같다.
+
+- switch 없는 default SourceOnly/full: PASS
+- PC Debug/Release: 각 148/148 PASS
+- 개발 WPF Debug/Release build: 경고 0, 오류 0
+- `git diff --check`: PASS
+- 위 결과는 LASAL IDE Rebuild/Link, implementation smoke 또는 PLC runtime 증거가 아니다
 
 ```powershell
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   -File "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1" `
   -RepositoryRoot "." -SourceOnly `
-  -ControlServiceCheckpoint Phase3GroupDormant
+  -ControlServiceCheckpoint Phase5TransportClean
 
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   -File "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1" `
   -RepositoryRoot "." `
-  -ControlServiceCheckpoint Phase3GroupDormant
+  -ControlServiceCheckpoint Phase5TransportClean
 ```
 
-- 전체 C# request/parser tests PASS
+- Phase 5 external-cleanup source 기준 전체 C# request/parser tests Debug/Release 각 148/148 PASS
+- 개발 WPF Debug/Release build 경고 0/오류 0 PASS
 - `git diff --check` PASS
 - command ID별 owner 정확히 1개
 - `Response`/`CyWork`에서 domain helper 직접 호출 금지
-- control service에서 `SendData`, socket, queue 접근 금지
-- transport에서 최종 axis/robot client 접근 금지
+- control/diagnostics service에서 `SendData`, socket, queue 접근 금지
+- transport에서 axis/robot client와 local domain/helper 접근 금지
 
 ### LASAL IDE 검증
 
-- project build
-- 변경 class 각각 `Find in Implementation`
-- smoke 시작 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 0건
-- PLC download 후 기존 packet regression
+1. IDE를 닫은 상태에서 변경 전 Git 상태와 external text inventory를 기록한다.
+2. IDE를 열고 변경 class를 Reload Class한 뒤 declaration을 동기화한다.
+3. Object Network에서 TCP direct axis/robot 10개가 없고 service 관련 연결 11개가 유지되는지
+   확인한 뒤 저장·재생성한다. 외부에서 `.lcn`을 합성하지 않는다.
+4. 저장 후 `.st` implementation이 이전 내용으로 덮어써지지 않았는지 확인하고 generated
+   server/client/data `4/3/0`, 함수 8개, network external connection 16개를 다시 센다.
+5. Rebuild/Link error 0건을 확인한다.
+6. 변경 class 각각 앞/중간/뒤 implementation symbol을 `Find in Implementation`하고 smoke
+   시작 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 0건을 확인한다.
+7. 그 뒤에만 PLC download/cold restart를 수행하고 새 session에서 `0x20E7`부터 packet
+   regression을 시작한다.
 
 ### 성능 승인
 
@@ -484,23 +580,28 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
 
 | 흐름 | 다음 작업 | 같이 수행할 검증 | 완료 조건 |
 |---|---|---|---|
-| A. Phase 3B route | Group 11개와 Admin 2개를 `HandleRequest` 한 번으로 원자 전환 | SourceOnly/full `Phase3GroupRouted`, 148 PC tests, WPF Debug/Release build | 13-ID owner가 각각 정확히 하나, 공통 `SendData` 한 번, malformed fail-closed |
-| B. legacy/신규 성능 비교 | route 전 legacy baseline을 먼저 저장하고 같은 PLC/build 조건에서 전환 후 재측정 | 1 ms cycle jitter/overrun, dispatch P95, throughput, RAM, 10,000회 이상 soak | 12절 성능 gate 충족 및 원시 로그 보존 |
+| A. Phase 5 재검증 | 임시 Phase 4 snapshot 결과를 현재 Phase 5 source 결과로 대체 | `Phase5TransportClean` SourceOnly/full, PC/WPF Debug/Release, IDE Rebuild/Link/implementation smoke | final static과 IDE-generated state가 모두 일치하고 새 결과가 보존됨 |
+| B. legacy/신규 성능 비교 | pre-route `65f8000`을 배포해 legacy baseline을 얻고 같은 PLC/build 조건에서 routed source 재측정 | 1 ms cycle jitter/overrun, dispatch P95, throughput, RAM, 10,000회 이상 soak | 12절 성능 gate 충족 및 원시 로그 보존 |
 | C. packet 회귀 | read-only/identity를 먼저 확인한 뒤 저속 Group command를 안전 순서로 실행 | 정상·잘못된 size/reference/mode, Power/Enable/Stop, disconnect/reconnect, response byte 비교 | 기존 golden과 byte/status 동일, 이중 실행·stale session 0 |
-| D. Phase 4/5 | Axis, registry, 남은 Admin을 family 단위 이동 후 legacy direct client/state 정리 | family별 static/PC/capture 회귀와 매 단계 LASAL Rebuild/Link/smoke | transport가 session/FIFO/router/send만 소유 |
+| D. Phase 5 IDE 확인 | source와 tracked metadata의 `4/3/0`, 함수 8개, TCP direct 연결 0개, network external 16개 정적 계약은 PASS. 이를 IDE에서 재확인 | Reload Class, declaration/network IDE 저장·재생성, generated count, Rebuild/Link/smoke | IDE가 외부 구현을 보존하고 0 error로 최종 구조를 수용함 |
 | E. 9축 network | 새 `PosController5..9`와 `_LMCAxis5..9.LMCController` 연결을 축별 점검 | generated table, simulated axis position/status, axis-order readback | 1..9 매핑과 `0x2028`/`0x202E` 값 일치 |
 | F. diagnostics qualification | Group route 변경과 독립된 runner backlog 수행 | Bulk 24-entry/100회, Recorder soak/reconnect/adopt, SDO offline/abort/timeout/cancel/contention | happy path가 아닌 fault/soak 원시 결과까지 보존 |
 
-Phase 3B 전에 즉시 필요한 것은 B의 legacy 성능 baseline과 안전 시험 조건 확정이다. C와 F의
-PLC 실행은 서로 병렬 실행하지 않고, 장비 정지·저속·무부하 조건과 motion owner를 먼저
-확인한다. static/PC PASS만으로 production 승인하지 않는다.
+Phase 4 source 구현을 baseline보다 먼저 진행했으므로 B는 `65f8000`과 routed revision을
+각각 cold download해 같은 조건으로 비교한다. 현재 Phase 5 `Phase5TransportClean`
+SourceOnly/full static은 PASS했지만 IDE/PLC 검증은 대기 상태다. A/C/F의 PLC 실행은 서로 병렬
+실행하지 않고, 장비 정지·저속·무부하 조건과 motion owner를 먼저 확인한다. static PASS만으로
+production 승인하지 않는다.
 
 ## 14. rollback
 
 - Phase 1/1b: 해당 aggregate route를 원래 same-class case body로 되돌린다.
-- Phase 3/4: 해당 family route만 local handler로 되돌린다.
-- service와 기존 TCP client 연결은 family 검증이 끝날 때까지 함께 유지한다.
-- wire/API change가 없으므로 C# DLL rollback은 필요하지 않아야 한다.
+- Phase 3/4 checkpoint rollback은 승인된 pre-cleanup revision을 사용한다. Phase 5 source에는
+  local family handler와 TCP direct client가 없으므로 일부 route만 임의로 되살리지 않는다.
+- Phase 5 rollback은 `TCPMotionInterface.st`, service source, class declaration,
+  `Comm_Network`와 generated metadata를 같은 pre-cleanup checkpoint로 함께 복원한다.
+- wire/API change가 없으므로 C# DLL rollback은 필요하지 않아야 하지만 request/parser
+  regression은 rollback revision에서도 다시 확인한다.
 - project metadata를 되돌릴 때 `.st`만 수정하지 말고 IDE 등록과 network를 같은
   checkpoint로 복원한다.
 

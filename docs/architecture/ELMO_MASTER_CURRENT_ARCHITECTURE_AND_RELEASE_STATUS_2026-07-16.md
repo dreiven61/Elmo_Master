@@ -8,25 +8,42 @@
   monitor/PowerOff, `0x2051` None/ACS static alias, D5 general-inline 1/2/4-byte와
   TypeMismatch 후 복구 capture PASS. 이후 `0x2047` accepted-then-poll와
   Group/Bulk/Recorder qualification UI source 및 PC build 완료; 해당 신규 경로의 PLC
-  live 검증은 아직 없음. 같은 날 `TCPMotionInterface.MsgPaser`의 Admin, diagnostics,
-  registry, axis, Group 50개 command body를 다섯 private family handler로 byte-equivalent
-  분리했고 Phase 1 source/full static 계약 PASS. 2026-07-24 no-task
+  live 검증은 아직 없음. 같은 날 Phase 1 checkpoint에서 `TCPMotionInterface.MsgPaser`의
+  Admin, diagnostics, registry, axis, Group 50개 command body를 다섯 private family
+  handler로 byte-equivalent 분리했고 source/full static 계약을 통과했다. 2026-07-24 no-task
   `LMCControlCommandService`의 class/method/client/generated metadata와
   `GroupMovePos`/`GroupKinematicReady`/확장된 `MoveLinearAbsEx` 선언까지 저장했다. 이어
   Group 11개와 Group-domain Admin 2개 body를 dormant service에 구현하고 command별
   pointer/size/response/native-dispatch 의미 계약을 포함한 SourceOnly 검증을 통과했다.
-  `HandleRequest`는 계속 fail-closed라 실행 owner는 legacy transport 하나뿐이며 service
-  object와 관련 network 연결 11개는 task 없이 저장됐다. 성공 Rebuild가
-  `ONE_Comm_Network_Table.st`를 현재 network 기준으로 재생성했고 Link, PLC Download,
+  이어 Phase 3B source에서 `HandleRequest`의 명시적 13-ID 분기와 `MsgPaser`의 단일
+  zero-copy route를 활성화해 SourceOnly/full `Phase3GroupRouted`를 통과했다. Phase 4에서는
+  Registry 3개, Axis 8개, Group 11개, Admin 4개의 Control 26개 전체를 service의 exact family
+  route로 전환하고 TCP local family caller를 0개로 만들었다. SourceOnly/full
+  `Phase4AllControlRouted`를 통과했으며 service object와 관련 network 연결 11개는 그대로다.
+  이어 diagnostics `0x7E00` capability를 `LMCDiagnosticsService`로 이동하고 Diagnostics 24개를
+  payload-only single-call/single-send 경로로 통합해 SourceOnly/full
+  `Phase4DiagnosticsRouted`를 통과했다. 이후 Phase 5 external text cleanup으로
+  `TCPMotionInterface` generated server/client/data count를 `4/3/0`, 구현 함수를 8개로 줄이고
+  Diagnostics route를 `MsgPaser`에 inline했다. `Comm_Network.lcn`의 TCP direct axis/robot
+  연결 10개를 제거해 `ONE_Comm_Network_Table.st` external connection text도 26개에서
+  16개로 정리했다. tracked `Classes.lcb`/`Networks.lcb`도 transport-only registration과
+  network tuple 계약을 만족해 switch 없는 Phase 5 SourceOnly/full static이 PASS했다.
+  LASAL IDE Rebuild/Link/implementation smoke는 아직 완료하지 않았다.
+  Phase 3A에서 성공한 Rebuild는 당시
+  `ONE_Comm_Network_Table.st`를 당시 network 기준으로 재생성했고 Link, PLC Download,
   project load도 성공했다. 종료 전 `ControlCommands`/`LMCAxis3` implementation search와
-  전체 LASAL log의 `CInvalidArgException` 0건도 확인했다
+  전체 LASAL log의 `CInvalidArgException` 0건도 확인했다. 다만 이 IDE/PLC 증거는 route
+  활성화 전 checkpoint이며 Phase 4 routed source의 IDE/PLC 검증은 보류했다
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
-- 판정: PC Debug/Release 각 148 tests, 개발 WPF Debug/Release build, LASAL SourceOnly/full
-  `Phase3GroupDormant`, Rebuild/Link/Download와 주요 신규 API happy path는 통과했다.
-  Phase 2 network checkpoint와 Phase 3A dormant body는 완료됐지만 Group 13-ID route는
-  아직 기존 transport owner를 유지한다.
+- 판정: 임시 Phase 4 snapshot의 PC Debug/Release 각 148 tests, 개발 WPF Debug/Release build와
+  routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
+  source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
+  switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
+  Debug/Release 각 148/148 tests와 개발 WPF Debug/Release build도 PASS했다. IDE/PLC,
+  packet/performance
+  검증은 아직 수행하지 않았다.
   Group/Bulk/Recorder 자동 qualification은 code/build 단계까지만 완료됐으며 PLC live,
   fault, stale identity, reconnect/adopt, RT evidence와 장비 안전 matrix가 남아 production
   승인본은 아님
@@ -64,14 +81,14 @@
 | diagnostics 계약-only/비활성 범위 | D4 Double/D5 Write·extended | D4 Double, PI/SDO Write와 8/12-byte 및 extended result는 비활성 |
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
-| CyWork legacy axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | Debug/Release 각 148/148 PASS | 2026-07-23 working source 기준 |
-| 개발 WPF | qualification UI 포함 Debug/Release build PASS; Debug visual/startup smoke에서 신규 panel 렌더와 초기 disabled gate PASS | 실제 PLC scenario 실행은 별도 |
+| CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
+| PC 자동 테스트 | 현재 Phase 5 external-cleanup worktree Debug/Release 각 148/148 PASS | PLC 통합과 별도 |
+| 개발 WPF | 현재 Phase 5 worktree Debug/Release build 경고 0/오류 0 PASS; Phase 4 temporary snapshot의 Debug visual/startup smoke는 역사적 증거 | Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | `0x2047` poll, true Buffered, stop-first, Bulk 24-entry/100회, Recorder Single/Ring/soak code와 Debug/Release build 및 Debug visual/startup smoke PASS | 신규 runner의 PLC live packet 미검증 |
-| LASAL SourceOnly 정적 계약 | PASS | current `.st` source 계약 포함 |
-| LASAL full static 계약 | PASS | `Classes.lcb`의 `TryStartRead` declaration과 current source/network 동기화 확인 |
+| LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
+| LASAL full static 계약 | Phase 5 default PASS | source/XML/generated table/tracked network metadata 정적 일치; IDE Rebuild/Link는 별도 |
 | D5 executor 초기화 | constructor declaration/implementation 미완료 | 자동 zero-init 공식 보장 미확인; current Busy 직접 원인은 아니며 IDE declaration P1 필요 |
-| LASAL IDE | 10:53 gate-off baseline 0 error; 수정본 BootId 5 runtime 확인 | 최신 fixed-source build/smoke log는 미보존 |
+| LASAL IDE | 과거 10:53 gate-off baseline 0 error; 수정본 BootId 5 runtime 확인 | Phase 5 Reload Class/declaration/network sync, Rebuild/Link/smoke는 미수행 |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static 수정 완료 | 새 `0x2047` IDE/download/ACK timing과 invalid/stale/fault는 별도 |
 | 기존 motion/group PLC E2E·재캡처 | 25-command 전체 matrix 미완료 | 기존 subset capture PASS; true Buffered/stop-first code/build 완료, live packet은 별도 |
 | diagnostics PLC 시험 matrix | D1 Catalog/4 PI, D2 4-entry Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery capture PASS | Bulk/Recorder soak code/build만 완료; live soak/fault, reconnect/adopt와 D5 나머지 fault는 별도 |
@@ -97,9 +114,12 @@ flowchart LR
     subgraph Current["현재 SIGMATEK 경로"]
         APP["개발 WPF 또는 사용자 프로그램"] --> DLL["LasalMotionControlLib.dll"]
         DLL -->|"TCP LASAL-DINT v1"| TCP["_TCPIPServer1 : 4000"]
-        TCP --> IF["TCPMotionInterface\nResponse queue -> CyWork -> static family route"]
-        IF --> AX["_LMCAxis1..9"]
-        IF --> ROBOT["_LMCRobotBase1"]
+        TCP --> IF["TCPMotionInterface\nResponse queue -> CyWork -> transport router"]
+        IF --> CTRL["LMCControlCommandService\nControl 26-ID"]
+        IF --> DIAG["LMCDiagnosticsService\nDiagnostics 24-ID"]
+        CTRL --> AX["_LMCAxis1..9"]
+        CTRL --> ROBOT["_LMCRobotBase1"]
+        IF --> SEND["outer header / bound / fallback / SendData"]
         TCP -. "UDP callback 등록만 확인\ntyped event sender 없음" .-> DLL
     end
 
@@ -110,12 +130,14 @@ flowchart LR
 PMAS 캡처에는 LREAL/REAL ABI가 있고 현재 LASAL adapter는 caller가 변환한 DINT를
 전송하는 별도 `LASAL-DINT v1` 계약이다.
 
-현재 lifecycle 3개를 제외한 command body는 탐색성과 method 크기 제한을 위해 같은
-class의 `HandleAdminCommands`, `HandleDiagnosticsCommands`,
-`HandleRegistryCommands`, `HandleAxisCommands`, `HandleGroupCommands`로 분리돼 있다.
-최종 transport/control class 분리의 책임, 성능 불변조건과 단계별 network 이행은
+현재 source에서 control/diagnostics command body는 각각 no-task service가 소유하고
+`TCPMotionInterface`는 lifecycle/session, queue, route, outer response와 최종 send만 소유한다.
+TCP local family/helper와 direct axis/robot client는 제거됐다. tracked class/network
+metadata도 이 구조와 정적으로 일치하지만 LASAL IDE Rebuild/Link와 PLC runtime까지
+검증한 상태는 아니다. 최종 transport/control class 분리의 책임, 성능 불변조건과
+단계별 network 이행은
 [TCPMotionInterface 성능 우선 OOP 분리 설계](LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md)를
-따른다. 이 문서의 그림은 아직 배포된 현재 구조이며 설계 문서의 목표 구조와 구분한다.
+따른다.
 
 ## 4. 디렉터리별 책임
 
@@ -190,8 +212,8 @@ offline/abort, disconnect/orphan과 contention matrix는 남아 production 승�
 계속 구분한다.
 `0x204A/0x204B`, Admin 4개와 diagnostics 24개는
 PMAS 캡처에 없는 LASAL-local extension이다. 18개라는 CyWork 수치는 lifecycle,
-diagnostics와 name/member metadata handler를 제외한 axis/group
-legacy control·read·motion 명령의 합계다. 축 8개와 그룹 10개이며 Admin motion
+diagnostics와 name/member metadata handler를 제외하고 control service가 같은 CyWork
+호출 context에서 동기 실행하는 axis/group control·read·motion 명령의 합계다. 축 8개와 그룹 10개이며 Admin motion
 `0x7D22`도 같은 CyWork queue를 사용하지만 그 18개에는 포함하지 않는다.
 lookup과 `0x20D2`도 `_GetObjName` client metadata를 읽으므로 “전체 client-call
 수”라고 부르면 안 된다.
@@ -236,18 +258,24 @@ MaxModulo, BinOffset, absolute reference offset과 실제 기계 limit를 함께
 ### 6.1 task와 queue
 
 - `TCPMotionInterface`: RealtimeTask false, CyclicTask true, 기본 1 ms
-- client channel: `_StdLib` 1 + motion client 10 (`LMCAxis1..9`, `LMCRobot`)
-- `@CT_`: server 20, client 11
+- Phase 5 external text client: `_StdLib`, `ControlCommands`, `Diagnostics` 3개
+- Phase 5 external text generated channel: server 4 (`AxisRef`, `CommandID`, `CurrentSock`,
+  `Payload`), client 3, data 0
+- `LMCControlCommandService`: task 없음, motion client 10 (`LMCAxis1..9`, `LMCRobot`)
 - receive accumulator: 2048 bytes
 - request buffer: 1328 bytes
 - queue payload: 1320 bytes
 - queue depth: 8
 - TCP server: port 4000, `MaxConnections=1`
 
-`Response()`가 완전한 frame을 queue에 게시하고 non-RT `CyWork()`가 parser와
-client call을 실행한다. interface 전용 RT task, `RtWork()` mailbox와 atomic
+`Response()`가 완전한 frame을 queue에 게시하고 non-RT `CyWork()`가 parser를 실행한다.
+parser는 control/diagnostics service를 같은 CyWork call context에서 동기 호출하고 transport가
+최종 response를 전송한다. interface 전용 RT task, `RtWork()` mailbox와 atomic
 state는 현재 사용하지 않는다. 각 `_LMCAxis` object 자체는 1 ms realtime task를
 사용하므로 가상축 5개를 포함한 CPU load와 jitter는 PLC에서 확인해야 한다.
+
+위 count와 route는 source와 tracked metadata의 정적 근거다. LASAL IDE Rebuild/Link와
+PLC download 전에는 runtime topology 확정값으로 사용하지 않는다.
 
 ### 6.2 axis와 group 경계
 
@@ -422,6 +450,14 @@ tracked 배포 패키지는 정확히 세 번호 폴더와 README로 구성한�
 
 ### 9.2 미검증
 
+- Phase 5 source와 tracked metadata를 LASAL IDE에서 Reload Class하고 declaration/Object
+  Network 저장·재생성 결과가 그대로 유지되는지 확인
+- IDE-generated state에서 TCP direct axis/robot 연결 10개 부재, control service axis/robot
+  연결 10개와 TCP `ControlCommands`/`Diagnostics` 연결 유지, external connection 16개 확인
+- Phase 5 LASAL IDE Rebuild/Link와 implementation smoke. switch 없는
+  `Phase5TransportClean` SourceOnly/full static은 현재 PASS했다.
+- `-AllowStaleLasalBinaryMetadata`는 binary registration gate를 우회하는 중간 검사 옵션이며
+  현재 final static 결과에는 사용하지 않았다.
 - 9축/group 변경 후 LASAL IDE Rebuild/Link
 - 변경 class `Find in Implementation` smoke
 - smoke 이후 `%TEMP%/Lasal2.log` 신규 `CInvalidArgException` 부재
@@ -493,21 +529,23 @@ PowerOff와 D5 4-byte/recovery 증거는
 3. callback endpoint 등록은 있지만 LASAL event sender와 typed schema가 없다.
 4. TCP adapter는 port 4000, one connection이지만 인증·권한·암호화가 없다. 장비망
    격리와 motion owner 정책이 필요하다.
-5. legacy writable server channel은 현재 외부 연결이 확인되지 않지만 RPC/session/
-   queue를 우회해 robot method를 직접 호출한다. 연결 금지 또는 제거를 결정해야 한다.
+5. legacy writable server/data channel은 Phase 5 external source에서 제거돼 generated
+   server/client/data count가 `4/3/0`이고 tracked `Classes.lcb` record도 동일하다. 다만 LASAL
+   IDE가 외부 구현을 보존해 Rebuild/Link하는지와 generated count를 확인하기 전에는
+   이 위험을 해결 완료로 닫지 않는다.
 7. PC response reader는 command별 상한을 적용하기 전에 header의 `UInt16` payload
    length만큼 읽는다. 비정상 peer가 최대 65,535-byte 대기/할당을 유발할 수 있다.
 
 ### P2: 유지보수·제품화
 
-1. `TCPMotionInterface.st`는 약 3,752줄이지만 `MsgPaser`는 5,392 bytes로 축소됐다.
-   no-task control service의 선언, dormant Group-domain body, object와 관련 network 연결
-   11개는 저장됐고 SourceOnly/full static 및 LASAL compiler/link/download를 통과했다.
-   다만 Group domain 원자 route 전환 전이라 다섯 legacy family handler도 아직 같은
-   class에 있고 신규 service body는 runtime에서 호출되지 않는다. `LmcConnection.cs`와
+1. Phase 5 external text 기준 `TCPMotionInterface.st`는 `4/3/0`, 구현 함수 8개이고 local
+   family/helper와 TCP direct axis/robot client는 0개다. Control 26-ID와 Diagnostics 24-ID는
+   service가 소유하고 Diagnostics transport route는 `MsgPaser`에 inline됐다. `.lcn`의 direct
+   연결 10개 제거와 `ONE_Comm_Network_Table.st` external connection 26→16도 반영됐다.
+   `Classes.lcb`/`Networks.lcb`까지 포함한 switch 없는 final static은 PASS했고 LASAL IDE
+   Rebuild/Link/implementation smoke는 대기 상태다.
+2. `MsgPaser` 이름 교정은 호환 영향이 있는 별도 commit으로 남아 있다. `LmcConnection.cs`와
    개발 WPF `MainWindow.xaml.cs`도 여전히 책임이 집중돼 있다.
-2. 사용되지 않는 group LREAL scratch와 `ClampLRealToDint`가 남아 현재 DINT-only
-   경계를 흐린다.
 3. fuzz/property test, 장시간 reconnect/concurrency, callback handler 예외와
    reentrant close 시험이 없다.
 4. DLL strong-name/AuthentiCode 서명이 없다.
@@ -561,7 +599,7 @@ PowerOff와 D5 4-byte/recovery 증거는
 아래 조건을 모두 충족하기 전에는 `0.9.1-preview`를 production으로 바꾸지 않는다.
 
 - current source commit과 배포 DLL provenance가 기록됨
-- PC tests와 LASAL source/full-network contract 통과
+- Phase 5 PC tests와 `Phase5TransportClean` source/full-network contract 통과
 - LASAL IDE Rebuild/Link와 implementation smoke 통과
 - 다운로드된 PLC의 source/network/unit/task가 Git과 일치
 - 실제 장비 안전 chain과 limit 승인
@@ -577,6 +615,8 @@ PowerOff와 D5 4-byte/recovery 증거는
 - PC tests/static contract: `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests`
 - packet map: `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
 - LASAL dispatcher: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st`
+- LASAL control service: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st`
+- LASAL diagnostics service: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st`
 - generated motion table: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st`
 - canonical motion network: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/Motion_Network.lcn`
 - current developer guide: `LMC_Library/LMC_API/API_DEVELOPMENT_GUIDE.md`
@@ -645,11 +685,12 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 
 확인된 범위:
 
-- 현행 C# request/parser/fake-RPC/golden/malformed 테스트 Debug/Release 각 148/148 PASS
-- 개발 WPF Debug/Release build PASS. 현행 qualification UI의 Debug visual/startup smoke에서
-  Group/Bulk/Recorder panel 렌더와 초기 disabled gate PASS
-- LASAL SourceOnly static contract PASS
-- LASAL full static contract PASS; `Classes.lcb`의 `TryStartRead` declaration 동기화 확인
+- 현재 Phase 5 external-cleanup worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
+  Debug/Release 각 148/148 PASS.
+- 현재 Phase 5 worktree의 개발 WPF Debug/Release build 경고 0/오류 0 PASS. Phase 4 temporary
+  snapshot의 qualification UI Debug visual/startup smoke는 역사적 증거다.
+- switch 없는 `Phase5TransportClean` SourceOnly/full PASS. tracked class/network metadata의
+  transport-only registration까지 정적으로 확인했다.
 - 2026-07-22 10:53 gate-off D5 executor/network baseline LASAL IDE Rebuild/Link 0 error;
   shadowing 수정 test source는 BootId 5 runtime download 확인, 대응 IDE build log 미보존
 - 과거 BootId 6 capture의 Submit 두 건은 `ResourceBusy`로 실패했으나 callback
@@ -662,9 +703,20 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 - D1~D4 single-bank source handler, network wiring, C#/PLC byte offset 교차 확인
 
 LASAL implementation을 외부 편집한 뒤 IDE가 기존 class model을 유지하고 있다면 저장
-전에 `Reload Class`를 실행한다. 권장 순서는 IDE 저장/종료, tracked `.st` 외부 편집,
-IDE 재열기 또는 `Reload Class`, Rebuild, `Find in Implementation` smoke다. stale IDE
-model을 저장하면 외부 편집 내용을 덮어쓸 수 있다.
+전에 `Reload Class`를 실행한다. Phase 5 권장 순서는 다음과 같다.
+
+1. IDE 저장/종료와 Git 상태 기록
+2. tracked `.st` external text 편집
+3. IDE 재열기, 변경 class `Reload Class`와 declaration 동기화
+4. Object Network에서 TCP direct 연결 10개 부재와 service 관련 연결 11개 유지를 확인하고
+   IDE에서 저장·재생성
+5. external text가 덮어써지지 않았는지와 `4/3/0`, 함수 8개, external connection 16개 재확인
+6. Rebuild/Link 후 변경 class 앞/중간/뒤 `Find in Implementation` smoke와 smoke 시작 이후
+   `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 0건 확인
+7. `Phase5TransportClean` SourceOnly/full과 PC/WPF Debug/Release 재실행
+
+stale IDE model을 그대로 저장하면 external edit를 덮어쓸 수 있다. 위 검증과 PLC cold
+download를 마치기 전에는 Phase 5 구현 완료나 production 승인을 선언하지 않는다.
 
 현재 남은 gate:
 
