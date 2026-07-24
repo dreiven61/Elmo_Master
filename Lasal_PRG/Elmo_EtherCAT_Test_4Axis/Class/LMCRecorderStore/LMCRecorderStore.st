@@ -16,7 +16,7 @@
 	Automatic          = "false"
 	UpdateMode         = "Prescan"
 	SharedCommandTable = "true"
-	Objectsize         = "(284,120)">
+	Objectsize         = "(394,120)">
 	<Channels>
 		<Server Name="ClassSvr" GUID="{37C0DE4D-F6CE-42C0-8CC2-D8C475E084FC}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 	</Channels>

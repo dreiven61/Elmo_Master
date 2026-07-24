@@ -561,7 +561,7 @@ TO_UDINT(2328372307), "_LMCTableBuffer", 1$UINT, 23$UINT, 1$UINT,
 TO_UDINT(1198357413), "Controller", 1$UINT, 47$UINT, 0$UINT,
 TO_UDINT(3935910575), "LMCEcatInputLatch", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 1$UINT,
-TO_UDINT(28504452), "PosController", 2$UINT, 77$UINT, 4$UINT,
+TO_UDINT(28504452), "PosController", 2$UINT, 77$UINT, 9$UINT,
 
 
 1$UINT, TO_UDINT(1342472465), "_LMCAXIS1\_LMCABSENCODER1", 
@@ -773,6 +773,11 @@ _NO_ATTR, TO_UDINT(1762138751), "POSCONTROLLER1",
 _NO_ATTR, TO_UDINT(4026616773), "POSCONTROLLER2", 
 _NO_ATTR, TO_UDINT(2265348947), "POSCONTROLLER3", 
 _NO_ATTR, TO_UDINT(425914096), "POSCONTROLLER4", 
+_NO_ATTR, TO_UDINT(1852169830), "POSCONTROLLER5", 
+_NO_ATTR, TO_UDINT(4151087068), "POSCONTROLLER6", 
+_NO_ATTR, TO_UDINT(2154544970), "POSCONTROLLER7", 
+_NO_ATTR, TO_UDINT(282370779), "POSCONTROLLER8", 
+_NO_ATTR, TO_UDINT(1741918797), "POSCONTROLLER9", 
 
 //Internal connections
 0$UDINT,
@@ -940,7 +945,7 @@ TO_UDINT(159), "LMCMath_SO3", TO_UDINT(118),
 TO_UDINT(159), "_LMCRobotLog", TO_UDINT(160),
 TO_UDINT(159), "LMCBeltInternal", TO_UDINT(117),
 0$UDINT,
-163$UDINT,
+168$UDINT,
 TO_UDINT(9), "LMCController", TO_UDINT(174), "Signal_Input",
 TO_UDINT(9), "LMCPreRtWorkTrigger", TO_UDINT(172), "ClassSvr",
 TO_UDINT(9), "LMCMath", TO_UDINT(120), "ClassSvr",
@@ -966,26 +971,31 @@ TO_UDINT(12), "LMCSafety", TO_UDINT(164), "ClassSvr",
 TO_UDINT(12), "LMCReference", TO_UDINT(21), "RefInput",
 TO_UDINT(12), "LMCAbsEncoder", TO_UDINT(3), "ClassSvr",
 TO_UDINT(12), "LMCPublisher", TO_UDINT(153), "ClassSvr",
+TO_UDINT(13), "LMCController", TO_UDINT(178), "Signal_Input",
 TO_UDINT(13), "LMCMath", TO_UDINT(124), "ClassSvr",
 TO_UDINT(13), "LMCSafety", TO_UDINT(165), "ClassSvr",
 TO_UDINT(13), "LMCReference", TO_UDINT(22), "RefInput",
 TO_UDINT(13), "LMCAbsEncoder", TO_UDINT(4), "ClassSvr",
 TO_UDINT(13), "LMCPublisher", TO_UDINT(154), "ClassSvr",
+TO_UDINT(14), "LMCController", TO_UDINT(179), "Signal_Input",
 TO_UDINT(14), "LMCMath", TO_UDINT(125), "ClassSvr",
 TO_UDINT(14), "LMCSafety", TO_UDINT(166), "ClassSvr",
 TO_UDINT(14), "LMCReference", TO_UDINT(23), "RefInput",
 TO_UDINT(14), "LMCAbsEncoder", TO_UDINT(5), "ClassSvr",
 TO_UDINT(14), "LMCPublisher", TO_UDINT(155), "ClassSvr",
+TO_UDINT(15), "LMCController", TO_UDINT(180), "Signal_Input",
 TO_UDINT(15), "LMCMath", TO_UDINT(126), "ClassSvr",
 TO_UDINT(15), "LMCSafety", TO_UDINT(167), "ClassSvr",
 TO_UDINT(15), "LMCReference", TO_UDINT(24), "RefInput",
 TO_UDINT(15), "LMCAbsEncoder", TO_UDINT(6), "ClassSvr",
 TO_UDINT(15), "LMCPublisher", TO_UDINT(156), "ClassSvr",
+TO_UDINT(16), "LMCController", TO_UDINT(181), "Signal_Input",
 TO_UDINT(16), "LMCMath", TO_UDINT(127), "ClassSvr",
 TO_UDINT(16), "LMCSafety", TO_UDINT(168), "ClassSvr",
 TO_UDINT(16), "LMCReference", TO_UDINT(25), "RefInput",
 TO_UDINT(16), "LMCAbsEncoder", TO_UDINT(7), "ClassSvr",
 TO_UDINT(16), "LMCPublisher", TO_UDINT(157), "ClassSvr",
+TO_UDINT(17), "LMCController", TO_UDINT(182), "Signal_Input",
 TO_UDINT(17), "LMCMath", TO_UDINT(128), "ClassSvr",
 TO_UDINT(17), "LMCSafety", TO_UDINT(169), "ClassSvr",
 TO_UDINT(17), "LMCReference", TO_UDINT(26), "RefInput",
@@ -1107,7 +1117,7 @@ TO_UDINT(172), "RecorderStore", TO_UDINT(173), "ClassSvr",
 
 //Initialization values
 0$UDINT,
-284$UDINT,
+309$UDINT,
 TO_UDINT(0), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis1\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(1), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis2\_LMCABSEncoder1.AbsEncoder;
 TO_UDINT(2), "AbsEncoder", TO_UDINT(1),//|Motion_Network._LMCAxis3\_LMCABSEncoder1.AbsEncoder;
@@ -1392,6 +1402,31 @@ TO_UDINT(177), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController4.vHWDelay
 TO_UDINT(177), "oActive", TO_UDINT(0),//|Motion_Network.PosController4.oActive;
 TO_UDINT(177), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController4.cDragLimit;
 TO_UDINT(177), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController4.cDragCalcDelay;
+TO_UDINT(178), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController5.iHWErrors;
+TO_UDINT(178), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController5.vHWDelay;
+TO_UDINT(178), "oActive", TO_UDINT(0),//|Motion_Network.PosController5.oActive;
+TO_UDINT(178), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController5.cDragLimit;
+TO_UDINT(178), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController5.cDragCalcDelay;
+TO_UDINT(179), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController6.iHWErrors;
+TO_UDINT(179), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController6.vHWDelay;
+TO_UDINT(179), "oActive", TO_UDINT(0),//|Motion_Network.PosController6.oActive;
+TO_UDINT(179), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController6.cDragLimit;
+TO_UDINT(179), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController6.cDragCalcDelay;
+TO_UDINT(180), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController7.iHWErrors;
+TO_UDINT(180), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController7.vHWDelay;
+TO_UDINT(180), "oActive", TO_UDINT(0),//|Motion_Network.PosController7.oActive;
+TO_UDINT(180), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController7.cDragLimit;
+TO_UDINT(180), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController7.cDragCalcDelay;
+TO_UDINT(181), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController8.iHWErrors;
+TO_UDINT(181), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController8.vHWDelay;
+TO_UDINT(181), "oActive", TO_UDINT(0),//|Motion_Network.PosController8.oActive;
+TO_UDINT(181), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController8.cDragLimit;
+TO_UDINT(181), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController8.cDragCalcDelay;
+TO_UDINT(182), "iHWErrors", TO_UDINT(0),//|Motion_Network.PosController9.iHWErrors;
+TO_UDINT(182), "vHWDelay", TO_UDINT(0),//|Motion_Network.PosController9.vHWDelay;
+TO_UDINT(182), "oActive", TO_UDINT(0),//|Motion_Network.PosController9.oActive;
+TO_UDINT(182), "cDragLimit", TO_UDINT(0),//|Motion_Network.PosController9.cDragLimit;
+TO_UDINT(182), "cDragCalcDelay", TO_UDINT(0),//|Motion_Network.PosController9.cDragCalcDelay;
 
 //Symbolic initialization values
 0$UDINT,

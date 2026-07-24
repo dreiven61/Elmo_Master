@@ -6,7 +6,7 @@
 			Name           = "_TCPIPServer1"
 			GUID           = "{42E82217-EDCD-47A0-BF97-FCBD9C009436}"
 			Class          = "_TCPIPServer"
-			Position       = "(870,120)"
+			Position       = "(870,180)"
 			Visualized     = "true"
 			Remotely       = "true"
 			CyclicTime     = "1 ms"
@@ -177,10 +177,30 @@
 			</Networks>
 		</Object>
 		<Object
+			Name       = "LMCControlCommandService1"
+			GUID       = "{5E164D6C-7E45-4BA4-B0F7-F9DBCCE8C71B}"
+			Class      = "LMCControlCommandService"
+			Position   = "(930,1380)"
+			Visualized = "false">
+			<Channels>
+				<Server Name="ClassSvr"/>
+				<Client Name="LMCAxis1"/>
+				<Client Name="LMCAxis2"/>
+				<Client Name="LMCAxis3"/>
+				<Client Name="LMCAxis4"/>
+				<Client Name="LMCAxis5"/>
+				<Client Name="LMCAxis6"/>
+				<Client Name="LMCAxis7"/>
+				<Client Name="LMCAxis8"/>
+				<Client Name="LMCAxis9"/>
+				<Client Name="LMCRobot"/>
+			</Channels>
+		</Object>
+		<Object
 			Name       = "LMCDiagnosticsService1"
 			GUID       = "{F42F0DD4-D9CC-4E5B-B073-F88FACAD14A8}"
 			Class      = "LMCDiagnosticsService"
-			Position   = "(870,840)"
+			Position   = "(870,900)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
@@ -197,7 +217,7 @@
 			Name       = "TCPMotionInterface1"
 			GUID       = "{24D754E7-92FE-441C-AB95-543E8132A88F}"
 			Class      = "TCPMotionInterface"
-			Position   = "(2280,120)"
+			Position   = "(2220,180)"
 			Visualized = "false"
 			CyclicTime = "1 ms">
 			<Channels>
@@ -230,6 +250,7 @@
 				<Server Name="velo"/>
 				<Client Name="_StdLib"/>
 				<Client Name="_TCPIPServer"/>
+				<Client Name="ControlCommands"/>
 				<Client Name="Diagnostics"/>
 				<Client Name="LMCAxis1"/>
 				<Client Name="LMCAxis2"/>
@@ -280,14 +301,25 @@
 		<Connection Source="TCPMotionInterface1.LMCAxis7" Destination="_LMCAxis7.Control"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis8" Destination="_LMCAxis8.Control"/>
 		<Connection Source="TCPMotionInterface1.LMCAxis9" Destination="_LMCAxis9.Control"/>
-		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2280,930),(1486,930),"/>
+		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2220,990),(1486,990),"/>
 		<Connection Source="LMCDiagnosticsService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCDiagnosticsService1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr"/>
-		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(2280,210),(1476,210),"/>
+		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(2220,270),(1476,270),"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis1" Destination="LMCSdoExecutor1.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
+		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,1050),(1488,1470),"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis1" Destination="_LMCAxis1.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis2" Destination="_LMCAxis2.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis3" Destination="_LMCAxis3.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis4" Destination="_LMCAxis4.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis5" Destination="_LMCAxis5.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis6" Destination="_LMCAxis6.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis7" Destination="_LMCAxis7.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis8" Destination="_LMCAxis8.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCAxis9" Destination="_LMCAxis9.Control"/>
+		<Connection Source="LMCControlCommandService1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

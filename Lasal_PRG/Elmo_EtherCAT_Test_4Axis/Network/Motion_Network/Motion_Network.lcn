@@ -818,7 +818,7 @@
 			Name           = "_LMCAxis3"
 			GUID           = "{DE82A00B-9202-44C0-849B-BDE493B21833}"
 			Class          = "_LMCAxis"
-			Position       = "(3060,3990)"
+			Position       = "(3090,3990)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -1224,7 +1224,7 @@
 			Name           = "_LMCAxis4"
 			GUID           = "{36641238-C276-4350-BE64-4649B8745498}"
 			Class          = "_LMCAxis"
-			Position       = "(3060,5730)"
+			Position       = "(3090,5730)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -1630,7 +1630,7 @@
 			Name           = "_LMCAxis5"
 			GUID           = "{639C973F-851F-4056-95F1-C1738D797CB6}"
 			Class          = "_LMCAxis"
-			Position       = "(3060,7560)"
+			Position       = "(3090,7560)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -2036,7 +2036,7 @@
 			Name           = "_LMCAxis6"
 			GUID           = "{9E781B33-A368-4B95-AF2D-AA0FDE7CE0B5}"
 			Class          = "_LMCAxis"
-			Position       = "(3060,9480)"
+			Position       = "(3090,9480)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -2442,7 +2442,7 @@
 			Name           = "_LMCAxis7"
 			GUID           = "{064C973F-8832-4EFB-A80F-E3483F3A2480}"
 			Class          = "_LMCAxis"
-			Position       = "(3030,11250)"
+			Position       = "(3090,11250)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -2848,7 +2848,7 @@
 			Name           = "_LMCAxis8"
 			GUID           = "{0753FBBB-B5D3-4AB0-A7FB-2E67BD61CC7F}"
 			Class          = "_LMCAxis"
-			Position       = "(3030,12990)"
+			Position       = "(3090,12990)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -3254,7 +3254,7 @@
 			Name           = "_LMCAxis9"
 			GUID           = "{3787C705-87DA-4625-994F-8D424E7D15AE}"
 			Class          = "_LMCAxis"
-			Position       = "(3030,14700)"
+			Position       = "(3090,14700)"
 			Visualized     = "true"
 			Remotely       = "true"
 			RealTime       = "1 ms"
@@ -4397,7 +4397,7 @@
 			Name       = "LMCRecorderStore1"
 			GUID       = "{F66CC49D-6A07-48E5-9401-A11A6A2B928A}"
 			Class      = "LMCRecorderStore"
-			Position   = "(4860,3660)"
+			Position   = "(4740,3660)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
@@ -4481,7 +4481,7 @@
 			Name       = "PosController3"
 			GUID       = "{23CB87E5-7D2D-4540-BBC6-9125BC86C593}"
 			Class      = "PosController"
-			Position   = "(1920,4050)"
+			Position   = "(1950,4050)"
 			Visualized = "true"
 			Remotely   = "true">
 			<Channels>
@@ -4518,7 +4518,192 @@
 			Name       = "PosController4"
 			GUID       = "{001746F2-1E88-425F-829A-5AE933D62E68}"
 			Class      = "PosController"
-			Position   = "(1920,5790)"
+			Position   = "(1950,5790)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController5"
+			GUID       = "{3DCB24F1-881D-4CE7-BCFD-B70D1A567588}"
+			Class      = "PosController"
+			Position   = "(1920,7620)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController6"
+			GUID       = "{4BE7DE4C-C985-4C33-B26A-4ADEA5C533A3}"
+			Class      = "PosController"
+			Position   = "(1920,9540)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController7"
+			GUID       = "{BFF28872-10BB-425A-8580-E9B416A035E0}"
+			Class      = "PosController"
+			Position   = "(1920,11310)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController8"
+			GUID       = "{E6D9BAF9-D469-4698-B3EC-C997E2332D56}"
+			Class      = "PosController"
+			Position   = "(1920,13050)"
+			Visualized = "true"
+			Remotely   = "true">
+			<Channels>
+				<Server Name="Signal_Input"/>
+				<Server Name="XW"/>
+				<Server Name="XWMax"/>
+				<Client Name="cDragCalcDelay" Value="0"/>
+				<Client Name="cDragLimit" Value="0"/>
+				<Client Name="DriveEnabled"/>
+				<Client Name="HWErrorQuit"/>
+				<Client Name="iHWErrors" Value="0"/>
+				<Client Name="oActive" Value="0"/>
+				<Client Name="oOutputSignal"/>
+				<Client Name="PosOffset"/>
+				<Client Name="vHWDelay" Value="0"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{B691716C-8462-4CBF-B00E-25D77FA0C2C0}" Class="Controller">
+							<Channels>
+								<Server Name="Signal_Input"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name       = "PosController9"
+			GUID       = "{DD1683F0-18A2-4ADB-BE79-2848AB050801}"
+			Class      = "PosController"
+			Position   = "(1920,14760)"
 			Visualized = "true"
 			Remotely   = "true">
 			<Channels>
@@ -4556,8 +4741,8 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
-		<Connection Source="_LMCAxis1.LMCPreRtWorkTrigger" Destination="LMCEcatInputLatch1.ClassSvr" Vertices="(3090,510),(6150,3450),"/>
-		<Connection Source="LMCEcatInputLatch1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr" Vertices="(5850,3750),(5160,3750),"/>
+		<Connection Source="_LMCAxis1.LMCPreRtWorkTrigger" Destination="LMCEcatInputLatch1.ClassSvr" Vertices="(3090,510),(6312,3450),"/>
+		<Connection Source="LMCEcatInputLatch1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr" Vertices="(5850,3750),(5150,3750),"/>
 		<Connection Source="LMCEcatInputLatch1.EcatMaster" Destination="EtherCAT_PLC1.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.Drive1" Destination="Elmo_11.ClassState"/>
 		<Connection Source="LMCEcatInputLatch1.Drive2" Destination="Elmo_21.ClassState"/>
@@ -4591,23 +4776,28 @@
 		<Connection Source="_LMCAxis3.HWReady" Destination="Elmo_31.Online"/>
 		<Connection Source="PosController4.iHWErrors" Destination="Elmo_41.AxError"/>
 		<Connection Source="PosController4.HWErrorQuit" Destination="Elmo_41.AxErrorQuit"/>
-		<Connection Source="_LMCAxis3.LMCController" Destination="PosController3.Signal_Input" Vertices="(3060,4140),(2410,4140),"/>
+		<Connection Source="_LMCAxis3.LMCController" Destination="PosController3.Signal_Input" Vertices="(3090,4140),(2440,4140),"/>
 		<Connection Source="PosController4.oActive" Destination="Elmo_41.AxEnable"/>
 		<Connection Source="PosController4.oOutputSignal" Destination="Elmo_41.SetPos"/>
 		<Connection Source="PosController4.DriveEnabled" Destination="Elmo_41.AxEnable"/>
 		<Connection Source="_LMCAxis4.ActPosition" Destination="Elmo_41.ActPos"/>
 		<Connection Source="_LMCAxis4.HWError" Destination="Elmo_41.AxError"/>
 		<Connection Source="_LMCAxis4.HWReady" Destination="Elmo_41.Online"/>
-		<Connection Source="_LMCAxis4.LMCController" Destination="PosController4.Signal_Input" Vertices="(3060,5880),(2410,5880),"/>
+		<Connection Source="_LMCAxis4.LMCController" Destination="PosController4.Signal_Input" Vertices="(3090,5880),(2440,5880),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis1" Destination="_LMCAxis1.Control" Vertices="(5430,390),(3756,390),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5430,450),(5243,450),(5243,2310),(3756,2310),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5430,510),(5303,510),(5303,4080),(3726,4080),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5430,570),(5363,570),(5363,5820),(3726,5820),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis5" Destination="_LMCAxis5.Control" Vertices="(5430,630),(3726,7650),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis6" Destination="_LMCAxis6.Control" Vertices="(5430,690),(3726,9570),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis7" Destination="_LMCAxis7.Control" Vertices="(5430,750),(3696,11340),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis8" Destination="_LMCAxis8.Control" Vertices="(5430,810),(3696,13080),"/>
-		<Connection Source="_LMCRobotBase1.LMCAxis9" Destination="_LMCAxis9.Control" Vertices="(5430,870),(3696,14790),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5430,510),(5303,510),(5303,4080),(3756,4080),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5430,570),(5363,570),(5363,5820),(3756,5820),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis5" Destination="_LMCAxis5.Control" Vertices="(5430,630),(3756,7650),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis6" Destination="_LMCAxis6.Control" Vertices="(5430,690),(3756,9570),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis7" Destination="_LMCAxis7.Control" Vertices="(5430,750),(3756,11340),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis8" Destination="_LMCAxis8.Control" Vertices="(5430,810),(3756,13080),"/>
+		<Connection Source="_LMCRobotBase1.LMCAxis9" Destination="_LMCAxis9.Control" Vertices="(5430,870),(3756,14790),"/>
+		<Connection Source="_LMCAxis9.LMCController" Destination="PosController9.Signal_Input" Vertices="(3090,14850),(2410,14850),"/>
+		<Connection Source="_LMCAxis8.LMCController" Destination="PosController8.Signal_Input" Vertices="(3090,13140),(2410,13140),"/>
+		<Connection Source="_LMCAxis7.LMCController" Destination="PosController7.Signal_Input" Vertices="(3090,11400),(2410,11400),"/>
+		<Connection Source="_LMCAxis6.LMCController" Destination="PosController6.Signal_Input" Vertices="(3090,9630),(2410,9630),"/>
+		<Connection Source="_LMCAxis5.LMCController" Destination="PosController5.Signal_Input" Vertices="(3090,7710),(2410,7710),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

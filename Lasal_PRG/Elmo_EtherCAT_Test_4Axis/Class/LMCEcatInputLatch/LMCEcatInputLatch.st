@@ -16,7 +16,7 @@
 	Automatic          = "false"
 	UpdateMode         = "Prescan"
 	SharedCommandTable = "true"
-	Objectsize         = "(284,120)">
+	Objectsize         = "(446,120)">
 	<Channels>
 		<Server Name="ClassSvr" GUID="{1D35750E-B9AA-42DD-99A9-D5952CF0D80E}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Client Name="Drive1" Required="true" Internal="false"/>

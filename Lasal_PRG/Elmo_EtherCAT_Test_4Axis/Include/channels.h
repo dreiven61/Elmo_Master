@@ -426,6 +426,11 @@ TYPE
     dData : DINT;
     pCmd : ^I2CCDIAS;
   END_STRUCT;
+  CltChCmd_LMCControlCommandService : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^LMCControlCommandService;
+  END_STRUCT;
   CltChCmd_LMCDiagnosticsService : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

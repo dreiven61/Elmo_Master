@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="63041898" Version="1.1" SubVersion="2">
+<File CRC="E0038FFC" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -1391,6 +1391,11 @@
 		<Object Name="PosController2" Datatype="PosController" Guid="5FAFF91E-5CF1-4877-9F73-3603EA6BC8A2"/>
 		<Object Name="PosController3" Datatype="PosController" Guid="23CB87E5-7D2D-4540-BBC6-9125BC86C593"/>
 		<Object Name="PosController4" Datatype="PosController" Guid="001746F2-1E88-425F-829A-5AE933D62E68"/>
+		<Object Name="PosController5" Datatype="PosController" Guid="3DCB24F1-881D-4CE7-BCFD-B70D1A567588"/>
+		<Object Name="PosController6" Datatype="PosController" Guid="4BE7DE4C-C985-4C33-B26A-4ADEA5C533A3"/>
+		<Object Name="PosController7" Datatype="PosController" Guid="BFF28872-10BB-425A-8580-E9B416A035E0"/>
+		<Object Name="PosController8" Datatype="PosController" Guid="E6D9BAF9-D469-4698-B3EC-C997E2332D56"/>
+		<Object Name="PosController9" Datatype="PosController" Guid="DD1683F0-18A2-4ADB-BE79-2848AB050801"/>
 		<Object Name="SdiasPLC1" Datatype="SdiasPLC" Guid="43AA458B-5C1E-470D-AC43-542AFEF91F6F"/>
 	</Objects>
 	<UnitDefinitions>

@@ -595,6 +595,13 @@ typedef struct CltChCmd_I2CCDIAS
     I2CCDIAS *pCmd;
   } CltChCmd_I2CCDIAS;
 
+typedef struct CltChCmd_LMCControlCommandService 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    LMCControlCommandService *pCmd;
+  } CltChCmd_LMCControlCommandService;
+
 typedef struct CltChCmd_LMCDiagnosticsService 
   {
     struct SvrChCmd_DINT *pCh;
