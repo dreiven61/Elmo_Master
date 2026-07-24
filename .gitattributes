@@ -48,3 +48,9 @@
 # LASAL Class 2 regenerates vendor/project sources with IDE-owned trailing
 # spaces. Do not mechanically strip them; the EOL policy above still applies.
 Lasal_PRG/Elmo_EtherCAT_Test_4Axis/** -whitespace
+
+# Preserve the raw exported thread history byte-for-byte and suppress text diffs.
+docs/history/Elmo_Master_history_260724.md binary
+
+# Chunk hashes and readable rejoin hashes are computed from the preserved CRLF bytes.
+docs/history/260724/Elmo_Master_history_260724_part_*.md -text whitespace=cr-at-eol
