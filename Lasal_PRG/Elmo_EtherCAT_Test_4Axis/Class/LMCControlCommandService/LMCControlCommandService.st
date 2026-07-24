@@ -209,6 +209,54 @@ FUNCTION GLOBAL LMCControlCommandService::HandleRequest
 	END_VAR
 
 	ResponseSize := -1;
+	if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+	   (RequestFrameSize < 8) then
+		RETURN;
+	end_if;
+
+	case CommandId of
+
+		0x103C, 0x1042, 0x202B:
+			ResponseSize := HandleRegistryCommands(
+				CommandId:=CommandId,
+				Reference:=Reference,
+				pRequestFrame:=pRequestFrame,
+				RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+
+		0x2023, 0x2024, 0x2022, 0x2028,
+		0x202E, 0x209F, 0x20A0, 0x20A2:
+			ResponseSize := HandleAxisCommands(
+				CommandId:=CommandId,
+				Reference:=Reference,
+				pRequestFrame:=pRequestFrame,
+				RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+
+		0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
+		0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7:
+			ResponseSize := HandleGroupCommands(
+				CommandId:=CommandId,
+				Reference:=Reference,
+				pRequestFrame:=pRequestFrame,
+				RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+
+		0x7D00, 0x7D10, 0x7D20, 0x7D22:
+			ResponseSize := HandleAdminCommands(
+				CommandId:=CommandId,
+				Reference:=Reference,
+				pRequestFrame:=pRequestFrame,
+				RequestFrameSize:=RequestFrameSize,
+				pResponseFrame:=pResponseFrame,
+				ResponseCapacity:=ResponseCapacity);
+
+	else
+		ResponseSize := -1;
+	end_case;
 
 END_FUNCTION
 
@@ -225,8 +273,240 @@ FUNCTION LMCControlCommandService::HandleRegistryCommands
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
 	END_VAR
+	VAR
+		objectNameLength : UDINT;
+		objectName : ARRAY [0..255] OF CHAR;
+		resolvedReference : UINT;
+	END_VAR
 
 	ResponseSize := -1;
+	if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+	   (RequestFrameSize < 8) then
+		RETURN;
+	end_if;
+
+	case CommandId of
+
+		0x103C:
+			if ResponseCapacity < 14 then
+				RETURN;
+			end_if;
+			resolvedReference := 0;
+			if RequestFrameSize = 88 then
+				(pRequestFrame + 87)^ := 0;
+
+				if IsClientConnected(#LMCAxis1) = 1 then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis1.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 1;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis2) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis2.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 2;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis3) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis3.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 3;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis4) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis4.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 4;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis5) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis5.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 5;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis6) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis6.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 6;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis7) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis7.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 7;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis8) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis8.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 8;
+						end_if;
+					end_if;
+				end_if;
+
+				if (resolvedReference = 0) &
+				   (IsClientConnected(#LMCAxis9) = 1) then
+					_memset(dest:=#objectName[0], usByte:=0,
+						cntr:=sizeof(objectName));
+					objectNameLength := _GetObjName(
+						pThis:=LMCAxis9.pCmd, pName:=#objectName[0]);
+					if (objectNameLength > 0) & (objectNameLength <= 79) then
+						if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+							str2:=#objectName[0]) = 0 then
+							resolvedReference := 9;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+
+			if resolvedReference > 0 then
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=14);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 6;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UDINT := 0;
+				(pResponseFrame + 12)^$UINT := resolvedReference;
+				ResponseSize := 14;
+			else
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -2;
+				ResponseSize := 12;
+			end_if;
+
+		0x1042:
+			if ResponseCapacity < 14 then
+				RETURN;
+			end_if;
+			resolvedReference := 0;
+			if (RequestFrameSize = 88) &
+			   (IsClientConnected(#LMCRobot) = 1) then
+				(pRequestFrame + 87)^ := 0;
+				_memset(dest:=#objectName[0], usByte:=0,
+					cntr:=sizeof(objectName));
+				objectNameLength := _GetObjName(
+					pThis:=LMCRobot.pCmd, pName:=#objectName[0]);
+				if (objectNameLength > 0) & (objectNameLength <= 79) then
+					if _stricmp(str1:=(pRequestFrame + 8)$^CHAR,
+						str2:=#objectName[0]) = 0 then
+						resolvedReference := 0x0100;
+					end_if;
+				end_if;
+			end_if;
+
+			if resolvedReference = 0x0100 then
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=14);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 6;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UDINT := 0;
+				(pResponseFrame + 12)^$UINT := resolvedReference;
+				ResponseSize := 14;
+			else
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -2;
+				ResponseSize := 12;
+			end_if;
+
+		0x202B:
+			if (RequestFrameSize = 20) &
+			   (Reference >= 1) & (Reference <= 9) then
+				if ResponseCapacity < 16 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 8;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+				(pResponseFrame + 12)^$UINT := 0;
+				(pResponseFrame + 14)^$INT := 0;
+				ResponseSize := 16;
+			else
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+			end_if;
+
+	else
+		ResponseSize := -1;
+	end_case;
 
 END_FUNCTION
 
@@ -243,8 +523,875 @@ FUNCTION LMCControlCommandService::HandleAxisCommands
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
 	END_VAR
+	VAR
+		axisCommandState : _LMCAXIS_CMDERROR;
+		axisCommandStatus : UINT;
+		axisCommandErrorId : INT;
+		axisCommandInputValid : BOOL;
+		axisClientConnected : BOOL;
+		payloadReference : DINT;
+		axisStatusValue : _LMCAXIS_STATUS;
+		axisErrorValue : _LMCAXIS_ERROR;
+		readPosition : DINT;
+		position : DINT;
+		speed : DINT;
+		acceleration : DINT;
+		deceleration : DINT;
+		jerk : DINT;
+		direction : DINT;
+		bufferMode : DINT;
+		execute : DINT;
+		powerEnable : USINT;
+	END_VAR
 
 	ResponseSize := -1;
+	if (pRequestFrame = NIL) | (pResponseFrame = NIL) |
+	   (RequestFrameSize < 8) then
+		RETURN;
+	end_if;
+
+	case CommandId of
+
+		0x2023:
+			axisCommandInputValid := FALSE;
+			if RequestFrameSize = 16 then
+				axisCommandInputValid :=
+					(Reference >= 1) & (Reference <= 9) &
+					((pRequestFrame + 8)^$UDINT = 1) &
+					(((pRequestFrame + 12)^ = 0) |
+					 ((pRequestFrame + 12)^ = 1)) &
+					((pRequestFrame + 13)^ = 1) &
+					((pRequestFrame + 14)^ = 0) &
+					((pRequestFrame + 15)^ = 1);
+			end_if;
+			if axisCommandInputValid = FALSE then
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+				RETURN;
+			end_if;
+			if ResponseCapacity < 16 then
+				RETURN;
+			end_if;
+
+			powerEnable := (pRequestFrame + 12)^;
+			axisCommandState := 1;
+			axisClientConnected := FALSE;
+			case Reference of
+				1:
+					if IsClientConnected(#LMCAxis1) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis1.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis1.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				2:
+					if IsClientConnected(#LMCAxis2) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis2.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis2.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				3:
+					if IsClientConnected(#LMCAxis3) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis3.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis3.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				4:
+					if IsClientConnected(#LMCAxis4) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis4.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis4.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				5:
+					if IsClientConnected(#LMCAxis5) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis5.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis5.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				6:
+					if IsClientConnected(#LMCAxis6) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis6.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis6.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				7:
+					if IsClientConnected(#LMCAxis7) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis7.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis7.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				8:
+					if IsClientConnected(#LMCAxis8) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis8.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis8.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+				9:
+					if IsClientConnected(#LMCAxis9) = 1 then
+						axisClientConnected := TRUE;
+						if powerEnable = 1 then
+							axisCommandState := LMCAxis9.PowerOn(
+								Mode:=LMCAXIS_MOVE_SHORTEST_WAY);
+						else
+							axisCommandState := LMCAxis9.PowerOff(
+								Mode:=LMCAXIS_SMOOTH_STOPP);
+						end_if;
+					end_if;
+			else
+			end_case;
+			if axisClientConnected = TRUE then
+				axisCommandStatus := axisCommandState$UINT;
+				axisCommandErrorId := axisCommandState$INT;
+				if (axisCommandState$UDINT and 0xFFFF0000) <> 0 then
+					axisCommandStatus := 1;
+					axisCommandErrorId := -6;
+				end_if;
+			else
+				axisCommandStatus := 1;
+				axisCommandErrorId := -2;
+			end_if;
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 8;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+			(pResponseFrame + 12)^$UINT := axisCommandStatus;
+			(pResponseFrame + 14)^$INT := axisCommandErrorId;
+			ResponseSize := 16;
+
+		0x2024:
+			axisCommandInputValid := FALSE;
+			if RequestFrameSize = 9 then
+				axisCommandInputValid :=
+					((pRequestFrame + 8)^ = 1) &
+					(Reference >= 1) & (Reference <= 9);
+			end_if;
+			if axisCommandInputValid = FALSE then
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+				RETURN;
+			end_if;
+			if ResponseCapacity < 16 then
+				RETURN;
+			end_if;
+			axisCommandStatus := 1;
+			axisCommandErrorId := -2;
+			axisClientConnected := FALSE;
+			case Reference of
+				1:
+					if IsClientConnected(#LMCAxis1) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis1.QuitError();
+					end_if;
+				2:
+					if IsClientConnected(#LMCAxis2) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis2.QuitError();
+					end_if;
+				3:
+					if IsClientConnected(#LMCAxis3) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis3.QuitError();
+					end_if;
+				4:
+					if IsClientConnected(#LMCAxis4) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis4.QuitError();
+					end_if;
+				5:
+					if IsClientConnected(#LMCAxis5) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis5.QuitError();
+					end_if;
+				6:
+					if IsClientConnected(#LMCAxis6) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis6.QuitError();
+					end_if;
+				7:
+					if IsClientConnected(#LMCAxis7) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis7.QuitError();
+					end_if;
+				8:
+					if IsClientConnected(#LMCAxis8) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis8.QuitError();
+					end_if;
+				9:
+					if IsClientConnected(#LMCAxis9) = 1 then
+						axisClientConnected := TRUE;
+						LMCAxis9.QuitError();
+					end_if;
+			else
+			end_case;
+			if axisClientConnected = TRUE then
+				axisCommandStatus := 0;
+				axisCommandErrorId := 0;
+			end_if;
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 8;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+			(pResponseFrame + 12)^$UINT := axisCommandStatus;
+			(pResponseFrame + 14)^$INT := axisCommandErrorId;
+			ResponseSize := 16;
+
+		0x2022:
+			if (RequestFrameSize <> 24) |
+			   (Reference < 1) | (Reference > 9) then
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+				RETURN;
+			end_if;
+			if ResponseCapacity < 16 then
+				RETURN;
+			end_if;
+			deceleration := (pRequestFrame + 8)^$DINT;
+			jerk := (pRequestFrame + 12)^$DINT;
+			bufferMode := (pRequestFrame + 16)^$DINT;
+			execute := (pRequestFrame + 20)^$DINT;
+			axisCommandInputValid := (bufferMode = 1) & (execute = 1);
+			axisCommandState := 1;
+			axisClientConnected := FALSE;
+			if axisCommandInputValid = TRUE then
+				case Reference of
+					1:
+						if IsClientConnected(#LMCAxis1) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis1.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					2:
+						if IsClientConnected(#LMCAxis2) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis2.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					3:
+						if IsClientConnected(#LMCAxis3) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis3.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					4:
+						if IsClientConnected(#LMCAxis4) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis4.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					5:
+						if IsClientConnected(#LMCAxis5) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis5.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					6:
+						if IsClientConnected(#LMCAxis6) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis6.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					7:
+						if IsClientConnected(#LMCAxis7) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis7.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					8:
+						if IsClientConnected(#LMCAxis8) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis8.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+					9:
+						if IsClientConnected(#LMCAxis9) = 1 then
+							axisClientConnected := TRUE;
+							axisCommandState := LMCAxis9.StopMove(
+								Decel:=deceleration, Jerk:=jerk);
+						end_if;
+				else
+				end_case;
+			end_if;
+			if axisClientConnected = TRUE then
+				axisCommandStatus := axisCommandState$UINT;
+				axisCommandErrorId := axisCommandState$INT;
+				if (axisCommandState$UDINT and 0xFFFF0000) <> 0 then
+					axisCommandStatus := 1;
+					axisCommandErrorId := -6;
+				end_if;
+			elsif axisCommandInputValid = TRUE then
+				axisCommandStatus := 1;
+				axisCommandErrorId := -2;
+			else
+				axisCommandStatus := 1;
+				axisCommandErrorId := -7;
+			end_if;
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 8;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+			(pResponseFrame + 12)^$UINT := axisCommandStatus;
+			(pResponseFrame + 14)^$INT := axisCommandErrorId;
+			ResponseSize := 16;
+
+		0x2028:
+			axisCommandErrorId := -3;
+			axisCommandStatus := 1;
+			axisStatusValue := 0;
+			axisErrorValue := 0;
+			payloadReference := 0;
+			execute := 0;
+			if RequestFrameSize >= 16 then
+				payloadReference := (pRequestFrame + 8)^$DINT;
+				execute := (pRequestFrame + 12)^$DINT;
+			end_if;
+			if (RequestFrameSize = 16) &
+			   (Reference >= 1) & (Reference <= 9) &
+			   (payloadReference = TO_DINT(Reference)) & (execute = 1) then
+				if ResponseCapacity < 20 then
+					RETURN;
+				end_if;
+				axisCommandErrorId := -2;
+				case Reference of
+					1:
+						if IsClientConnected(#LMCAxis1) = 1 then
+							axisStatusValue := LMCAxis1.ReadAxisStatus();
+							axisErrorValue := LMCAxis1.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					2:
+						if IsClientConnected(#LMCAxis2) = 1 then
+							axisStatusValue := LMCAxis2.ReadAxisStatus();
+							axisErrorValue := LMCAxis2.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					3:
+						if IsClientConnected(#LMCAxis3) = 1 then
+							axisStatusValue := LMCAxis3.ReadAxisStatus();
+							axisErrorValue := LMCAxis3.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					4:
+						if IsClientConnected(#LMCAxis4) = 1 then
+							axisStatusValue := LMCAxis4.ReadAxisStatus();
+							axisErrorValue := LMCAxis4.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					5:
+						if IsClientConnected(#LMCAxis5) = 1 then
+							axisStatusValue := LMCAxis5.ReadAxisStatus();
+							axisErrorValue := LMCAxis5.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					6:
+						if IsClientConnected(#LMCAxis6) = 1 then
+							axisStatusValue := LMCAxis6.ReadAxisStatus();
+							axisErrorValue := LMCAxis6.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					7:
+						if IsClientConnected(#LMCAxis7) = 1 then
+							axisStatusValue := LMCAxis7.ReadAxisStatus();
+							axisErrorValue := LMCAxis7.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					8:
+						if IsClientConnected(#LMCAxis8) = 1 then
+							axisStatusValue := LMCAxis8.ReadAxisStatus();
+							axisErrorValue := LMCAxis8.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+					9:
+						if IsClientConnected(#LMCAxis9) = 1 then
+							axisStatusValue := LMCAxis9.ReadAxisStatus();
+							axisErrorValue := LMCAxis9.ReadAxisError();
+							axisCommandStatus := 0;
+							axisCommandErrorId := 0;
+						end_if;
+				else
+				end_case;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=20);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 12;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UDINT := axisStatusValue$UDINT;
+				(pResponseFrame + 12)^$UINT := axisCommandStatus;
+				(pResponseFrame + 14)^$INT := axisCommandErrorId;
+				(pResponseFrame + 16)^$UINT := axisErrorValue$UINT;
+				(pResponseFrame + 18)^$UINT := 0;
+				ResponseSize := 20;
+			else
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := axisCommandErrorId;
+				ResponseSize := 12;
+			end_if;
+
+		0x202E:
+			axisCommandInputValid := FALSE;
+			if RequestFrameSize = 9 then
+				axisCommandInputValid :=
+					((pRequestFrame + 8)^ = 0) &
+					(Reference >= 1) & (Reference <= 9);
+			end_if;
+			if axisCommandInputValid = FALSE then
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+				RETURN;
+			end_if;
+			if ResponseCapacity < 16 then
+				RETURN;
+			end_if;
+			axisCommandErrorId := -2;
+			axisCommandStatus := 1;
+			readPosition := 0;
+			case Reference of
+				1:
+					if IsClientConnected(#LMCAxis1) = 1 then
+						readPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				2:
+					if IsClientConnected(#LMCAxis2) = 1 then
+						readPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				3:
+					if IsClientConnected(#LMCAxis3) = 1 then
+						readPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				4:
+					if IsClientConnected(#LMCAxis4) = 1 then
+						readPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				5:
+					if IsClientConnected(#LMCAxis5) = 1 then
+						readPosition := LMCAxis5.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				6:
+					if IsClientConnected(#LMCAxis6) = 1 then
+						readPosition := LMCAxis6.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				7:
+					if IsClientConnected(#LMCAxis7) = 1 then
+						readPosition := LMCAxis7.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				8:
+					if IsClientConnected(#LMCAxis8) = 1 then
+						readPosition := LMCAxis8.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+				9:
+					if IsClientConnected(#LMCAxis9) = 1 then
+						readPosition := LMCAxis9.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						axisCommandStatus := 0;
+						axisCommandErrorId := 0;
+					end_if;
+			else
+			end_case;
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 8;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$DINT := readPosition;
+			(pResponseFrame + 12)^$UINT := axisCommandStatus;
+			(pResponseFrame + 14)^$INT := axisCommandErrorId;
+			ResponseSize := 16;
+
+		0x209F, 0x20A0, 0x20A2:
+			axisCommandInputValid := FALSE;
+			position := 0;
+			speed := 0;
+			acceleration := 0;
+			deceleration := 0;
+			jerk := 0;
+			direction := 0;
+			bufferMode := 0;
+			execute := 0;
+			if (CommandId = 0x209F) | (CommandId = 0x20A0) then
+				if RequestFrameSize = 40 then
+					position := (pRequestFrame + 8)^$DINT;
+					speed := (pRequestFrame + 12)^$DINT;
+					acceleration := (pRequestFrame + 16)^$DINT;
+					deceleration := (pRequestFrame + 20)^$DINT;
+					jerk := (pRequestFrame + 24)^$DINT;
+					direction := (pRequestFrame + 28)^$DINT;
+					bufferMode := (pRequestFrame + 32)^$DINT;
+					execute := (pRequestFrame + 36)^$DINT;
+					axisCommandInputValid :=
+						(Reference >= 1) & (Reference <= 9) &
+						(direction = 2) & (bufferMode = 1) &
+						(execute = 1);
+				end_if;
+			else
+				if RequestFrameSize = 32 then
+					speed := (pRequestFrame + 8)^$DINT;
+					acceleration := (pRequestFrame + 12)^$DINT;
+					deceleration := (pRequestFrame + 16)^$DINT;
+					jerk := (pRequestFrame + 20)^$DINT;
+					direction := (pRequestFrame + 24)^$DINT;
+					execute := (pRequestFrame + 28)^$DINT;
+					axisCommandInputValid :=
+						(Reference >= 1) & (Reference <= 9) &
+						(deceleration = 0) & (execute = 1) &
+						(((direction = 1) & (speed >= 0)) |
+						 ((direction = 3) & (speed <= 0)));
+				end_if;
+			end_if;
+
+			if (((CommandId = 0x209F) | (CommandId = 0x20A0)) &
+			    (RequestFrameSize <> 40)) |
+			   ((CommandId = 0x20A2) & (RequestFrameSize <> 32)) |
+			   (Reference < 1) | (Reference > 9) then
+				if ResponseCapacity < 12 then
+					RETURN;
+				end_if;
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=12);
+				pResponseFrame^$UINT := 1;
+				(pResponseFrame + 2)^$UINT := 4;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$INT := -3;
+				ResponseSize := 12;
+				RETURN;
+			end_if;
+			if ResponseCapacity < 16 then
+				RETURN;
+			end_if;
+
+			axisCommandState := 1;
+			axisClientConnected := FALSE;
+			if axisCommandInputValid = TRUE then
+				case Reference of
+					1:
+						if IsClientConnected(#LMCAxis1) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis1.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis1.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis1.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					2:
+						if IsClientConnected(#LMCAxis2) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis2.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis2.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis2.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					3:
+						if IsClientConnected(#LMCAxis3) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis3.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis3.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis3.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					4:
+						if IsClientConnected(#LMCAxis4) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis4.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis4.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis4.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					5:
+						if IsClientConnected(#LMCAxis5) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis5.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis5.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis5.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					6:
+						if IsClientConnected(#LMCAxis6) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis6.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis6.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis6.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					7:
+						if IsClientConnected(#LMCAxis7) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis7.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis7.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis7.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					8:
+						if IsClientConnected(#LMCAxis8) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis8.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis8.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis8.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+					9:
+						if IsClientConnected(#LMCAxis9) = 1 then
+							axisClientConnected := TRUE;
+							case CommandId of
+								0x209F:
+									axisCommandState := LMCAxis9.MoveShortestWay(
+										Position:=position, Speed:=speed,
+										Accel:=acceleration, Decel:=deceleration,
+										Jerk:=jerk);
+								0x20A0:
+									axisCommandState := LMCAxis9.MoveRelative(
+										Position:=position,
+										Mode:=LMCAXIS_MOVE_RELATIVE_TO_POSITION,
+										Speed:=speed, Accel:=acceleration,
+										Decel:=deceleration, Jerk:=jerk);
+								0x20A2:
+									axisCommandState := LMCAxis9.MoveEndless(
+										Speed:=speed, Accel:=acceleration,
+										Jerk:=jerk);
+							end_case;
+						end_if;
+				else
+				end_case;
+			end_if;
+
+			if axisClientConnected = TRUE then
+				axisCommandStatus := axisCommandState$UINT;
+				axisCommandErrorId := axisCommandState$INT;
+				if (axisCommandState$UDINT and 0xFFFF0000) <> 0 then
+					axisCommandStatus := 1;
+					axisCommandErrorId := -6;
+				end_if;
+			elsif axisCommandInputValid = TRUE then
+				axisCommandStatus := 1;
+				axisCommandErrorId := -2;
+			else
+				axisCommandStatus := 1;
+				axisCommandErrorId := -7;
+			end_if;
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=16);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 8;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$UDINT := TO_UDINT(Reference);
+			(pResponseFrame + 12)^$UINT := axisCommandStatus;
+			(pResponseFrame + 14)^$INT := axisCommandErrorId;
+			ResponseSize := 16;
+
+	else
+		ResponseSize := -1;
+	end_case;
 
 END_FUNCTION
 
@@ -951,11 +2098,18 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 		adminSchemaVersion : UINT;
 		adminRequestFlags : UINT;
 		adminRequestId : UDINT;
+		adminParameterKey : UINT;
 		adminSelectionMask : UDINT;
 		adminDetailCode : UDINT;
+		adminAxisValue : DINT;
 		adminGroupVelocityLimit : DINT;
 		adminGroupAccelerationLimit : DINT;
 		adminGroupJerkTime : DINT;
+		adminUnitCode : UINT;
+		adminAxisReadKind : UINT;
+		adminAxisParameter : _LMCAXIS_READPARAMETER;
+		adminSwEndMode : _LMCAXIS_READSWENDPOS;
+		adminAxisClientConnected : BOOL;
 		adminErrorId : INT;
 		groupVelocity : DINT;
 		groupAccel : DINT;
@@ -979,6 +2133,208 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 	end_if;
 
 	case CommandId of
+
+		0x7D00:
+			if ResponseCapacity < 48 then
+				RETURN;
+			end_if;
+			adminSchemaVersion := 0;
+			adminRequestFlags := 0;
+			adminRequestId := 0;
+			adminDetailCode := 0;
+
+			if RequestFrameSize >= 16 then
+				adminSchemaVersion := (pRequestFrame + 8)^$UINT;
+				adminRequestFlags := (pRequestFrame + 10)^$UINT;
+				adminRequestId := (pRequestFrame + 12)^$UDINT;
+			end_if;
+
+			if RequestFrameSize <> 16 then
+				adminDetailCode := 5;
+			elsif Reference <> 0 then
+				adminDetailCode := 4;
+			elsif adminSchemaVersion <> 1 then
+				adminDetailCode := 1;
+			elsif adminRequestFlags <> 0 then
+				adminDetailCode := 2;
+			elsif adminRequestId = 0 then
+				adminDetailCode := 3;
+			end_if;
+
+			_memset(dest:=pResponseFrame, usByte:=0, cntr:=48);
+			pResponseFrame^$UINT := 0;
+			(pResponseFrame + 2)^$UINT := 40;
+			(pResponseFrame + 4)^$UDINT := 0;
+			(pResponseFrame + 8)^$UINT := 1;
+			(pResponseFrame + 10)^$UINT := 0;
+			(pResponseFrame + 12)^$UINT := 0;
+			(pResponseFrame + 14)^$INT := 0;
+			(pResponseFrame + 16)^$UDINT := adminRequestId;
+			(pResponseFrame + 20)^$UDINT := adminDetailCode;
+			if adminDetailCode <> 0 then
+				(pResponseFrame + 12)^$UINT := 1;
+				(pResponseFrame + 14)^$INT := -31000;
+			end_if;
+			(pResponseFrame + 24)^$UDINT := 0x00000007;
+			(pResponseFrame + 28)^$UDINT := 0x0000003F;
+			(pResponseFrame + 32)^$UDINT := 0x00000007;
+			(pResponseFrame + 36)^$UINT := 4;
+			(pResponseFrame + 38)^$UINT := 1;
+			(pResponseFrame + 40)^$UINT := 0x0100;
+			(pResponseFrame + 42)^$UINT := 3;
+			(pResponseFrame + 44)^$UINT := 1;
+			(pResponseFrame + 46)^$UINT := 0;
+			ResponseSize := 48;
+
+		0x7D10:
+			if ResponseCapacity < 36 then
+				RETURN;
+			end_if;
+			adminSchemaVersion := 0;
+			adminRequestFlags := 0;
+			adminRequestId := 0;
+			adminParameterKey := 0;
+			adminDetailCode := 0;
+			adminAxisValue := 0;
+			adminUnitCode := 1;
+			adminAxisReadKind := 0;
+			adminAxisClientConnected := FALSE;
+
+			if RequestFrameSize >= 16 then
+				adminSchemaVersion := (pRequestFrame + 8)^$UINT;
+				adminRequestFlags := (pRequestFrame + 10)^$UINT;
+				adminRequestId := (pRequestFrame + 12)^$UDINT;
+			end_if;
+			if RequestFrameSize >= 20 then
+				adminParameterKey := (pRequestFrame + 16)^$UINT;
+			end_if;
+
+			if RequestFrameSize <> 20 then
+				adminDetailCode := 5;
+			elsif (Reference < 1) | (Reference > 4) then
+				adminDetailCode := 4;
+			elsif adminSchemaVersion <> 1 then
+				adminDetailCode := 1;
+			elsif adminRequestFlags <> 0 then
+				adminDetailCode := 2;
+			elsif adminRequestId = 0 then
+				adminDetailCode := 3;
+			elsif (pRequestFrame + 18)^$UINT <> 0 then
+				adminDetailCode := 5;
+			else
+				case adminParameterKey of
+					1:
+						adminAxisReadKind := 1;
+						adminSwEndMode := LMCAXIS_RD_SWMIN_APPUNIT;
+						adminUnitCode := 1;
+					2:
+						adminAxisReadKind := 1;
+						adminSwEndMode := LMCAXIS_RD_SWMAX_APPUNIT;
+						adminUnitCode := 1;
+					3:
+						adminAxisReadKind := 2;
+						adminAxisParameter := LMCAXIS_PAR_RD_SWLIMWINDOW;
+						adminUnitCode := 1;
+					4:
+						adminAxisReadKind := 2;
+						adminAxisParameter := LMCAXIS_PAR_RD_V_MAX;
+						adminUnitCode := 2;
+					5:
+						adminAxisReadKind := 2;
+						adminAxisParameter := LMCAXIS_PAR_RD_A_MAX;
+						adminUnitCode := 3;
+					6:
+						adminAxisReadKind := 2;
+						adminAxisParameter := LMCAXIS_PAR_RD_REFPOS;
+						adminUnitCode := 1;
+				else
+					adminDetailCode := 6;
+				end_case;
+			end_if;
+
+			if adminDetailCode = 0 then
+				case Reference of
+					1:
+						if IsClientConnected(#LMCAxis1) = 1 then
+							adminAxisClientConnected := TRUE;
+							if adminAxisReadKind = 1 then
+								adminAxisValue := LMCAxis1.ReadSWEndPos(
+									Mode:=adminSwEndMode);
+							else
+								adminAxisValue := LMCAxis1.ReadParameter(
+									ParNr:=adminAxisParameter, mode:=0);
+							end_if;
+						end_if;
+					2:
+						if IsClientConnected(#LMCAxis2) = 1 then
+							adminAxisClientConnected := TRUE;
+							if adminAxisReadKind = 1 then
+								adminAxisValue := LMCAxis2.ReadSWEndPos(
+									Mode:=adminSwEndMode);
+							else
+								adminAxisValue := LMCAxis2.ReadParameter(
+									ParNr:=adminAxisParameter, mode:=0);
+							end_if;
+						end_if;
+					3:
+						if IsClientConnected(#LMCAxis3) = 1 then
+							adminAxisClientConnected := TRUE;
+							if adminAxisReadKind = 1 then
+								adminAxisValue := LMCAxis3.ReadSWEndPos(
+									Mode:=adminSwEndMode);
+							else
+								adminAxisValue := LMCAxis3.ReadParameter(
+									ParNr:=adminAxisParameter, mode:=0);
+							end_if;
+						end_if;
+					4:
+						if IsClientConnected(#LMCAxis4) = 1 then
+							adminAxisClientConnected := TRUE;
+							if adminAxisReadKind = 1 then
+								adminAxisValue := LMCAxis4.ReadSWEndPos(
+									Mode:=adminSwEndMode);
+							else
+								adminAxisValue := LMCAxis4.ReadParameter(
+									ParNr:=adminAxisParameter, mode:=0);
+							end_if;
+						end_if;
+				else
+				end_case;
+				if adminAxisClientConnected = FALSE then
+					adminDetailCode := 7;
+				end_if;
+			end_if;
+
+			if adminDetailCode = 0 then
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=36);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 28;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$UINT := 0;
+				(pResponseFrame + 12)^$UINT := 0;
+				(pResponseFrame + 14)^$INT := 0;
+				(pResponseFrame + 16)^$UDINT := adminRequestId;
+				(pResponseFrame + 20)^$UDINT := 0;
+				(pResponseFrame + 24)^$UINT := adminParameterKey;
+				(pResponseFrame + 26)^$UINT := 1;
+				(pResponseFrame + 28)^$UINT := adminUnitCode;
+				(pResponseFrame + 30)^$UINT := 0;
+				(pResponseFrame + 32)^$DINT := adminAxisValue;
+				ResponseSize := 36;
+			else
+				_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
+				pResponseFrame^$UINT := 0;
+				(pResponseFrame + 2)^$UINT := 16;
+				(pResponseFrame + 4)^$UDINT := 0;
+				(pResponseFrame + 8)^$UINT := 1;
+				(pResponseFrame + 10)^$UINT := 0;
+				(pResponseFrame + 12)^$UINT := 1;
+				(pResponseFrame + 14)^$INT := -31000;
+				(pResponseFrame + 16)^$UDINT := adminRequestId;
+				(pResponseFrame + 20)^$UDINT := adminDetailCode;
+				ResponseSize := 24;
+			end_if;
 
 		0x7D20:
 			adminSchemaVersion := 0;
@@ -1017,6 +2373,9 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 			end_if;
 
 			if adminDetailCode = 0 then
+				if ResponseCapacity < 40 then
+					RETURN;
+				end_if;
 				if (adminSelectionMask and 0x00000001) <> 0 then
 					adminGroupVelocityLimit := LMCRobot.ReadGroupParameter(
 						GrpNo:=1, ParNo:=_LMCPROF_GRP_VEL_LIMIT);
@@ -1029,12 +2388,13 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 					adminGroupJerkTime := LMCRobot.ReadGroupParameter(
 						GrpNo:=1, ParNo:=_LMCPROF_GRP_TJERK);
 				end_if;
+			else
+				if ResponseCapacity < 24 then
+					RETURN;
+				end_if;
 			end_if;
 
 			if adminDetailCode = 0 then
-				if ResponseCapacity < 40 then
-					RETURN;
-				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=40);
 				pResponseFrame^$UINT := 0;
 				(pResponseFrame + 2)^$UINT := 32;
@@ -1051,9 +2411,6 @@ FUNCTION LMCControlCommandService::HandleAdminCommands
 				(pResponseFrame + 36)^$DINT := adminGroupJerkTime;
 				ResponseSize := 40;
 			else
-				if ResponseCapacity < 24 then
-					RETURN;
-				end_if;
 				_memset(dest:=pResponseFrame, usByte:=0, cntr:=24);
 				pResponseFrame^$UINT := 0;
 				(pResponseFrame + 2)^$UINT := 16;

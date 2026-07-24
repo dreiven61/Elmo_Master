@@ -172,7 +172,7 @@ TO_UDINT(10), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
 
 //External connections
 0$UDINT,
-26$UDINT,
+16$UDINT,
 TO_UDINT(2), "LMCAxis1", C_DIR, TO_UDINT(1307168646), "_LMCAxis1","Control",
 TO_UDINT(2), "LMCAxis2", C_DIR, TO_UDINT(3571490364), "_LMCAxis2","Control",
 TO_UDINT(2), "LMCAxis3", C_DIR, TO_UDINT(2749869738), "_LMCAxis3","Control",
@@ -189,16 +189,6 @@ TO_UDINT(3), "SdoAxis1", C_DIR, TO_UDINT(1999418485), "LMCSdoExecutor1","ClassSt
 TO_UDINT(3), "SdoAxis2", C_DIR, TO_UDINT(3995461071), "LMCSdoExecutor2","ClassState",
 TO_UDINT(3), "SdoAxis3", C_DIR, TO_UDINT(2569196889), "LMCSdoExecutor3","ClassState",
 TO_UDINT(3), "SdoAxis4", C_DIR, TO_UDINT(122044666), "LMCSdoExecutor4","ClassState",
-TO_UDINT(10), "LMCAxis1", C_DIR, TO_UDINT(1307168646), "_LMCAxis1","Control",
-TO_UDINT(10), "LMCAxis2", C_DIR, TO_UDINT(3571490364), "_LMCAxis2","Control",
-TO_UDINT(10), "LMCAxis3", C_DIR, TO_UDINT(2749869738), "_LMCAxis3","Control",
-TO_UDINT(10), "LMCAxis4", C_DIR, TO_UDINT(1032010505), "_LMCAxis4","Control",
-TO_UDINT(10), "LMCAxis5", C_DIR, TO_UDINT(1250167711), "_LMCAxis5","Control",
-TO_UDINT(10), "LMCAxis6", C_DIR, TO_UDINT(3549256229), "_LMCAxis6","Control",
-TO_UDINT(10), "LMCAxis7", C_DIR, TO_UDINT(2760534707), "_LMCAxis7","Control",
-TO_UDINT(10), "LMCAxis8", C_DIR, TO_UDINT(875919138), "_LMCAxis8","Control",
-TO_UDINT(10), "LMCAxis9", C_DIR, TO_UDINT(1127368628), "_LMCAxis9","Control",
-TO_UDINT(10), "LMCRobot", C_DIR, TO_UDINT(669706412), "_LMCRobotBase1","Control",
 
 //Magic internal connections
 0$UDINT,

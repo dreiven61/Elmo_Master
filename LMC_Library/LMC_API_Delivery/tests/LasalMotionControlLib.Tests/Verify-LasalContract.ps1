@@ -7,8 +7,12 @@ param(
     [ValidateSet(
         'Phase2Skeleton',
         'Phase3GroupDormant',
-        'Phase3GroupRouted')]
-    [string]$ControlServiceCheckpoint = 'Phase3GroupDormant'
+        'Phase3GroupRouted',
+        'Phase4AllControlRouted',
+        'Phase4DiagnosticsRouted',
+        'Phase5TransportClean')]
+    [string]$ControlServiceCheckpoint = 'Phase5TransportClean',
+    [switch]$AllowStaleLasalBinaryMetadata
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,6 +85,86 @@ function Assert-ExactLasalCommandCaseIds {
         throw (
             "$Owner command IDs are [$($actualCommandIds -join ', ')], " +
             "expected exactly [$($expected -join ', ')].")
+    }
+}
+
+function Get-LasalTopLevelCommandCaseIds {
+    param(
+        [string]$FunctionBlock
+    )
+
+    $commandIds = @()
+    $caseDepth = 0
+    $inCommandCase = $false
+    $pendingLabels = ''
+    foreach ($line in ($FunctionBlock -split "`r?`n")) {
+        if (-not $inCommandCase) {
+            if ($line -match '(?i)\bcase\s+CommandId\s+of\b') {
+                $inCommandCase = $true
+                $caseDepth = 1
+            }
+            continue
+        }
+
+        if ($line -match '(?i)^\s*case\b.*\bof\b') {
+            $caseDepth += 1
+            continue
+        }
+        if ($line -match '(?i)^\s*end_case\s*;') {
+            $caseDepth -= 1
+            if ($caseDepth -eq 0) {
+                break
+            }
+            continue
+        }
+        if ($caseDepth -ne 1) {
+            continue
+        }
+
+        $trimmedLine = $line.Trim()
+        if ($trimmedLine -match '^0x[0-9A-Fa-f]{4}') {
+            $pendingLabels += ' ' + $trimmedLine
+            if ($trimmedLine -match ':\s*$') {
+                foreach ($commandId in [regex]::Matches(
+                        $pendingLabels,
+                        '0x(?<Id>[0-9A-Fa-f]{4})')) {
+                    $commandIds +=
+                        $commandId.Groups['Id'].Value.ToUpperInvariant()
+                }
+                $pendingLabels = ''
+            }
+        }
+    }
+
+    return @($commandIds)
+}
+
+function Assert-ExactLasalTopLevelCommandCaseIds {
+    param(
+        [string]$FunctionBlock,
+        [string]$Owner,
+        [string[]]$ExpectedCommandIds
+    )
+
+    $actualCommandIds = @(Get-LasalTopLevelCommandCaseIds $FunctionBlock)
+    $duplicateCommandIds = @(
+        $actualCommandIds |
+            Group-Object |
+            Where-Object { $_.Count -ne 1 } |
+            ForEach-Object { $_.Name })
+    $expected = @($ExpectedCommandIds | ForEach-Object {
+            $_.ToUpperInvariant()
+        })
+    $difference = @(Compare-Object `
+        -ReferenceObject $expected `
+        -DifferenceObject $actualCommandIds)
+    if ($duplicateCommandIds.Count -ne 0 -or
+        $difference.Count -ne 0 -or
+        $actualCommandIds.Count -ne $expected.Count) {
+        throw (
+            "$Owner top-level command IDs are " +
+            "[$($actualCommandIds -join ', ')], expected exactly " +
+            "[$($expected -join ', ')].")
     }
 }
 
@@ -231,6 +315,31 @@ function Get-LasalClassDatabaseRecord {
 
     $recordEnd = $DatabaseText.IndexOf(
         '.\Class\',
+        $recordStart + $SourcePath.Length,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($recordEnd -lt 0) {
+        $recordEnd = $DatabaseText.Length
+    }
+
+    return $DatabaseText.Substring($recordStart, $recordEnd - $recordStart)
+}
+
+function Get-LasalNetworkDatabaseRecord {
+    param(
+        [string]$DatabaseText,
+        [string]$SourcePath,
+        [string]$NetworkName
+    )
+
+    $recordStart = $DatabaseText.IndexOf(
+        $SourcePath,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($recordStart -lt 0) {
+        throw "LASAL Networks.lcb record for $NetworkName was not found."
+    }
+
+    $recordEnd = $DatabaseText.IndexOf(
+        '.\Network\',
         $recordStart + $SourcePath.Length,
         [StringComparison]::OrdinalIgnoreCase)
     if ($recordEnd -lt 0) {
@@ -422,6 +531,7 @@ $motionNetworkPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network
 $motionNetworkTablePath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\ONE_Motion_Network_Table.st'
 $tcpServerRtPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TCPIPServer_RT\_TCPIPServer_RT.st'
 $classDbPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Classes.lcb'
+$networkDbPath = Join-Path $root 'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Networks.lcb'
 $protocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\LmcProtocol.cs'
 $adminProtocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\LmcAdminProtocol.cs'
 $diagnosticsProtocolPath = Join-Path $root 'LMC_Library\LMC_API_Delivery\src\LmcDiagnosticsProtocol.cs'
@@ -456,6 +566,8 @@ if (-not $SourceOnly) {
 $tcpServerRt = Get-Content -Raw -LiteralPath $tcpServerRtPath
 $classDbText = [Text.Encoding]::ASCII.GetString(
     [IO.File]::ReadAllBytes($classDbPath))
+$networkDbText = [Text.Encoding]::ASCII.GetString(
+    [IO.File]::ReadAllBytes($networkDbPath))
 $protocol = Get-Content -Raw -LiteralPath $protocolPath
 $adminProtocol = Get-Content -Raw -LiteralPath $adminProtocolPath
 $diagnosticsProtocol = Get-Content -Raw -LiteralPath $diagnosticsProtocolPath
@@ -651,7 +763,10 @@ $tcpClassDbRecord = Get-LasalClassDatabaseRecord `
     -DatabaseText $classDbText `
     -SourcePath '.\Class\TCPMotionInterface\TCPMotionInterface.st' `
     -ClassName 'TCPMotionInterface'
-Assert-Match $tcpClassDbRecord '(?<![A-Za-z0-9_])ControlCommands(?![A-Za-z0-9_])' 'LASAL Classes.lcb TCPMotionInterface record is missing ControlCommands.'
+if (-not ($ControlServiceCheckpoint -eq 'Phase5TransportClean' -and
+        $AllowStaleLasalBinaryMetadata)) {
+    Assert-Match $tcpClassDbRecord '(?<![A-Za-z0-9_])ControlCommands(?![A-Za-z0-9_])' 'LASAL Classes.lcb TCPMotionInterface record is missing ControlCommands.'
+}
 
 $controlServiceHandleRequestBlock = [regex]::Match(
     $controlCommandService,
@@ -698,6 +813,76 @@ $phase3GroupCommandIds = @(
     '2051',
     '20E7')
 $phase3AdminCommandIds = @('7D20', '7D22')
+$phase4GeneralAdminCommandIds = @('7D00', '7D10')
+$phase4RegistryCommandIds = @('103C', '1042', '202B')
+$phase4AxisCommandIds = @(
+    '2023',
+    '2024',
+    '2022',
+    '2028',
+    '202E',
+    '209F',
+    '20A0',
+    '20A2')
+$allAdminCommandIds = @(
+    $phase4GeneralAdminCommandIds + $phase3AdminCommandIds)
+$allControlCommandIds = @(
+    $allAdminCommandIds +
+    $phase4RegistryCommandIds +
+    $phase4AxisCommandIds +
+    $phase3GroupCommandIds)
+$diagnosticsCommandIds = @(
+    '7E00',
+    '7E01',
+    '7E02',
+    '7E03',
+    '7E04',
+    '7E10',
+    '7E20',
+    '7E21',
+    '7E30',
+    '7E31',
+    '7E32',
+    '7E33',
+    '7E40',
+    '7E41',
+    '7E42',
+    '7E43',
+    '7E44',
+    '7E45',
+    '7E46',
+    '7E47',
+    '7E48',
+    '7E49',
+    '7E50',
+    '7E51')
+
+$controlServiceGroupRouted = @(
+    'Phase3GroupRouted',
+    'Phase4AllControlRouted',
+    'Phase4DiagnosticsRouted',
+    'Phase5TransportClean') -contains $ControlServiceCheckpoint
+$controlServiceAllControlRouted = @(
+    'Phase4AllControlRouted',
+    'Phase4DiagnosticsRouted',
+    'Phase5TransportClean') -contains $ControlServiceCheckpoint
+$diagnosticsServiceRouted = @(
+    'Phase4DiagnosticsRouted',
+    'Phase5TransportClean') -contains $ControlServiceCheckpoint
+$transportClean =
+    $ControlServiceCheckpoint -eq 'Phase5TransportClean'
+if ($transportClean -and $AllowStaleLasalBinaryMetadata) {
+    Write-Warning (
+        'Phase5TransportClean is bypassing only TCPMotionInterface Classes.lcb ' +
+        'and Comm_Network Networks.lcb registration gates. Source, XML, and ' +
+        'generated ONE_* table contracts remain enforced.')
+}
+$transportControlCommandIds = if ($controlServiceAllControlRouted) {
+    $allControlCommandIds
+}
+else {
+    $phase3GroupCommandIds + $phase3AdminCommandIds
+}
 
 switch ($ControlServiceCheckpoint) {
     'Phase2Skeleton' {
@@ -836,9 +1021,91 @@ switch ($ControlServiceCheckpoint) {
             'else\s+ResponseSize\s*:=\s*-1\s*;\s*end_case') (
             'Phase3GroupRouted HandleRequest unsupported-command fail-closed path is missing.')
     }
+
+    { $_ -in @(
+            'Phase4AllControlRouted',
+            'Phase4DiagnosticsRouted',
+            'Phase5TransportClean') } {
+        Assert-LasalImplementedBody `
+            -FunctionBlock $controlServiceHandleRequestBlock `
+            -Owner 'LMCControlCommandService.HandleRequest' `
+            -Checkpoint $ControlServiceCheckpoint
+        foreach ($methodName in $controlServicePrivateMethods) {
+            Assert-LasalImplementedBody `
+                -FunctionBlock $controlServicePrivateBlocks[$methodName] `
+                -Owner "LMCControlCommandService.$methodName" `
+                -Checkpoint $ControlServiceCheckpoint
+        }
+        Assert-ExactLasalCommandCaseIds `
+            -FunctionBlock $controlServiceHandleRequestBlock `
+            -Owner 'LMCControlCommandService.HandleRequest' `
+            -ExpectedCommandIds $allControlCommandIds
+        Assert-ExactLasalCommandCaseIds `
+            -FunctionBlock $controlServicePrivateBlocks['HandleGroupCommands'] `
+            -Owner 'LMCControlCommandService.HandleGroupCommands' `
+            -ExpectedCommandIds $phase3GroupCommandIds
+        Assert-ExactLasalCommandCaseIds `
+            -FunctionBlock $controlServicePrivateBlocks['HandleAdminCommands'] `
+            -Owner 'LMCControlCommandService.HandleAdminCommands' `
+            -ExpectedCommandIds $allAdminCommandIds
+        Assert-ExactLasalCommandCaseIds `
+            -FunctionBlock $controlServicePrivateBlocks['HandleRegistryCommands'] `
+            -Owner 'LMCControlCommandService.HandleRegistryCommands' `
+            -ExpectedCommandIds $phase4RegistryCommandIds
+        Assert-ExactLasalTopLevelCommandCaseIds `
+            -FunctionBlock $controlServicePrivateBlocks['HandleAxisCommands'] `
+            -Owner 'LMCControlCommandService.HandleAxisCommands' `
+            -ExpectedCommandIds $phase4AxisCommandIds
+
+        foreach ($routeContract in @(
+                @{ Handler = 'HandleAdminCommands'; Ids = $allAdminCommandIds },
+                @{ Handler = 'HandleRegistryCommands'; Ids = $phase4RegistryCommandIds },
+                @{ Handler = 'HandleAxisCommands'; Ids = $phase4AxisCommandIds },
+                @{ Handler = 'HandleGroupCommands'; Ids = $phase3GroupCommandIds })) {
+            Assert-ExactLasalCommandRouteIds `
+                -RouterBlock $controlServiceHandleRequestBlock `
+                -Owner (
+                    'LMCControlCommandService.HandleRequest ' +
+                    $routeContract.Handler + ' ownership') `
+                -CallPattern (
+                    'ResponseSize\s*:=\s*' +
+                    [regex]::Escape($routeContract.Handler) + '\s*\(') `
+                -ExpectedCommandIds $routeContract.Ids
+
+            $handlerCallCount = [regex]::Matches(
+                $controlServiceHandleRequestBlock,
+                ('(?<![A-Za-z0-9_.])' +
+                 [regex]::Escape($routeContract.Handler) + '\s*\(')).Count
+            if ($handlerCallCount -ne 1) {
+                throw (
+                    "$ControlServiceCheckpoint LMCControlCommandService." +
+                    "HandleRequest $($routeContract.Handler) call count is " +
+                    "$handlerCallCount, expected one.")
+            }
+            Assert-Match $controlServiceHandleRequestBlock (
+                '(?s)ResponseSize\s*:=\s*' +
+                [regex]::Escape($routeContract.Handler) + '\(\s*' +
+                'CommandId:=CommandId\s*,\s*' +
+                'Reference:=Reference\s*,\s*' +
+                'pRequestFrame:=pRequestFrame\s*,\s*' +
+                'RequestFrameSize:=RequestFrameSize\s*,\s*' +
+                'pResponseFrame:=pResponseFrame\s*,\s*' +
+                'ResponseCapacity:=ResponseCapacity\s*\)') (
+                "$ControlServiceCheckpoint HandleRequest does not pass the " +
+                "complete zero-copy ABI to $($routeContract.Handler).")
+        }
+        Assert-Match $controlServiceHandleRequestBlock (
+            '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
+            'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+            '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+            '\(RequestFrameSize\s*<\s*8\)\s+then\s*RETURN;\s*end_if;.*?' +
+            'case\s+CommandId\s+of.*?' +
+            'else\s+ResponseSize\s*:=\s*-1\s*;\s*end_case') (
+            "$ControlServiceCheckpoint HandleRequest unsupported-command fail-closed path is missing.")
+    }
 }
 
-if ($ControlServiceCheckpoint -ne 'Phase3GroupRouted') {
+if (-not $controlServiceGroupRouted) {
     foreach ($methodName in $controlServicePrivateMethods) {
         if ($controlServiceHandleRequestBlock -match (
                 '(?<![A-Za-z0-9_.])' +
@@ -919,13 +1186,59 @@ $tcpCommandTableBlock = [regex]::Match(
 if ([string]::IsNullOrWhiteSpace($tcpCommandTableBlock)) {
     throw 'TCPMotionInterface generated command table was not found.'
 }
-Assert-Match $tcpCommandTableBlock '(?m)^\s*20\$UINT,\s*13\$UINT,\s*0\$UINT,\s*$' 'TCPMotionInterface generated client count is not 13.'
+$tcpClassMetadataBlock = [regex]::Match(
+    $st,
+    '(?s)<Class\s+.*?Name\s*=\s*"TCPMotionInterface".*?</Class>').Value
+if ([string]::IsNullOrWhiteSpace($tcpClassMetadataBlock)) {
+    throw 'TCPMotionInterface generated class metadata was not found.'
+}
+$tcpMetadataChannelsBlock = [regex]::Match(
+    $tcpClassMetadataBlock,
+    '(?s)<Channels>(?<Body>.*?)</Channels>\s*<Network').Groups['Body'].Value
+if ([string]::IsNullOrWhiteSpace($tcpMetadataChannelsBlock)) {
+    throw 'TCPMotionInterface top-level generated channel metadata was not found.'
+}
 
-$clientEntries = [regex]::Matches(
-    $tcpCommandTableBlock,
-    '\(::TCPMotionInterface\.(LMCAxis[1-9]|LMCRobot|_StdLib|Diagnostics|ControlCommands)\.pCh\)\$UINT').Count
-if ($clientEntries -ne 13) {
-    throw "TCPMotionInterface generated client entry count is $clientEntries, expected 13."
+if ($transportClean) {
+    $phase5DeclaredFunctionPattern =
+        '(?m)^\s*FUNCTION(?:\s+VIRTUAL)?(?:\s+GLOBAL)?(?:\s+TAB)?\s+' +
+        '(?<Value>[A-Za-z_@][A-Za-z0-9_@]*)\b'
+    $phase5ImplementedFunctionPattern =
+        '(?m)^\s*FUNCTION(?:\s+VIRTUAL)?(?:\s+GLOBAL)?(?:\s+TAB)?\s+' +
+        'TCPMotionInterface::(?<Value>[A-Za-z_@][A-Za-z0-9_@]*)\b'
+    Assert-Match $tcpCommandTableBlock '(?m)^\s*4\$UINT,\s*3\$UINT,\s*0\$UINT,\s*$' 'Phase5TransportClean TCPMotionInterface generated server/client/data counts are not 4/3/0.'
+    Assert-ExactRegexValueSet `
+        -Text $tcpCommandTableBlock `
+        -Pattern '\(::TCPMotionInterface\.(?<Value>[A-Za-z_][A-Za-z0-9_]*)\.pMeth\)\$UINT,\s*_CH_SVR\$UINT' `
+        -Owner 'Phase5TransportClean TCPMotionInterface generated servers' `
+        -ExpectedValues @('CurrentSock', 'CommandID', 'AxisRef', 'Payload')
+    Assert-ExactRegexValueSet `
+        -Text $tcpCommandTableBlock `
+        -Pattern '\(::TCPMotionInterface\.(?<Value>[A-Za-z_][A-Za-z0-9_]*)\.pCh\)\$UINT,\s*_CH_CLT_OBJ\$UINT' `
+        -Owner 'Phase5TransportClean TCPMotionInterface generated clients' `
+        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+    Assert-ExactRegexValueSet `
+        -Text $tcpMetadataChannelsBlock `
+        -Pattern '<Server\s+Name="(?<Value>[^"]+)"' `
+        -Owner 'Phase5TransportClean TCPMotionInterface metadata servers' `
+        -ExpectedValues @('CurrentSock', 'CommandID', 'AxisRef', 'Payload')
+    Assert-ExactRegexValueSet `
+        -Text $tcpMetadataChannelsBlock `
+        -Pattern '<Client\s+Name="(?<Value>[^"]+)"' `
+        -Owner 'Phase5TransportClean TCPMotionInterface metadata clients' `
+        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+    if ($tcpMetadataChannelsBlock -match '<Data\s+Name=') {
+        throw 'Phase5TransportClean TCPMotionInterface metadata still declares a data channel.'
+    }
+}
+else {
+    Assert-Match $tcpCommandTableBlock '(?m)^\s*20\$UINT,\s*13\$UINT,\s*0\$UINT,\s*$' 'TCPMotionInterface generated server/client/data counts are not 20/13/0.'
+    $clientEntries = [regex]::Matches(
+        $tcpCommandTableBlock,
+        '\(::TCPMotionInterface\.(LMCAxis[1-9]|LMCRobot|_StdLib|Diagnostics|ControlCommands)\.pCh\)\$UINT').Count
+    if ($clientEntries -ne 13) {
+        throw "TCPMotionInterface generated client entry count is $clientEntries, expected 13."
+    }
 }
 
 Assert-Match $tcpCommandTableBlock '\(::TCPMotionInterface\.Diagnostics\.pCh\)\$UINT.*"Diagnostics".*"LMCDiagnosticsService"' 'TCPMotionInterface Diagnostics client metadata is missing.'
@@ -936,8 +1249,7 @@ Assert-Match $st '(?m)^\s*#pragma usingLtd LMCControlCommandService\s*$' 'TCPMot
 $controlServiceCallCount = [regex]::Matches(
     $st,
     'ControlCommands\s*\.\s*HandleRequest\s*\(').Count
-$expectedControlServiceCallCount = if (
-    $ControlServiceCheckpoint -eq 'Phase3GroupRouted') { 1 } else { 0 }
+$expectedControlServiceCallCount = if ($controlServiceGroupRouted) { 1 } else { 0 }
 if ($controlServiceCallCount -ne $expectedControlServiceCallCount) {
     throw (
         "$ControlServiceCheckpoint TCPMotionInterface " +
@@ -945,12 +1257,241 @@ if ($controlServiceCallCount -ne $expectedControlServiceCallCount) {
         "expected $expectedControlServiceCallCount.")
 }
 
-foreach ($axisNumber in 1..9) {
-    $clientName = "LMCAxis$axisNumber"
-    $linkPattern = [regex]::Escape("TCPMotionInterface1.$clientName") +
-        '.*' +
-        [regex]::Escape("_LMCAxis$axisNumber.Control")
-    Assert-Match $commNetwork $linkPattern "Missing $clientName -> _LMCAxis$axisNumber.Control link in Comm_Network."
+if (-not $transportClean) {
+    foreach ($axisNumber in 1..9) {
+        $clientName = "LMCAxis$axisNumber"
+        $linkPattern = [regex]::Escape("TCPMotionInterface1.$clientName") +
+            '.*' +
+            [regex]::Escape("_LMCAxis$axisNumber.Control")
+        Assert-Match $commNetwork $linkPattern "Missing $clientName -> _LMCAxis$axisNumber.Control link in Comm_Network."
+    }
+}
+else {
+    $phase5TcpConnections = @(
+        $commNetworkXml.SelectNodes(
+            "/Network/Connections/Connection[starts-with(@Source,'TCPMotionInterface1.') ]"))
+    $phase5DirectMotionConnections = @(
+        $phase5TcpConnections | Where-Object {
+            $_.Source -match '^TCPMotionInterface1\.(?:LMCAxis[1-9]|LMCRobot)$'
+        })
+    if ($phase5DirectMotionConnections.Count -ne 0) {
+        throw (
+            'Phase5TransportClean TCPMotionInterface still has direct ' +
+            'axis/robot network connections: ' +
+            (($phase5DirectMotionConnections | ForEach-Object {
+                        "$($_.Source) -> $($_.Destination)"
+                    }) -join ', '))
+    }
+    $phase5ExpectedTcpConnections = [ordered]@{
+        'TCPMotionInterface1._TCPIPServer' = '_TCPIPServer1.Control'
+        'TCPMotionInterface1.Diagnostics' = 'LMCDiagnosticsService1.ClassSvr'
+        'TCPMotionInterface1.ControlCommands' = 'LMCControlCommandService1.ClassSvr'
+    }
+    if ($phase5TcpConnections.Count -ne $phase5ExpectedTcpConnections.Count) {
+        throw (
+            'Phase5TransportClean TCPMotionInterface outgoing network ' +
+            "connection count is $($phase5TcpConnections.Count), expected exactly three.")
+    }
+    foreach ($phase5Connection in $phase5ExpectedTcpConnections.GetEnumerator()) {
+        $connectionCount = @(
+            $phase5TcpConnections | Where-Object {
+                $_.Source -eq $phase5Connection.Key -and
+                $_.Destination -eq $phase5Connection.Value
+            }).Count
+        if ($connectionCount -ne 1) {
+            throw (
+                'Phase5TransportClean missing or duplicate network connection ' +
+                "$($phase5Connection.Key) -> $($phase5Connection.Value).")
+        }
+    }
+
+    $phase5ServiceMotionConnections = @(
+        $commNetworkXml.SelectNodes(
+            "/Network/Connections/Connection[starts-with(@Source,'LMCControlCommandService1.') ]") |
+            Where-Object {
+                $_.Source -match '^LMCControlCommandService1\.(?:LMCAxis[1-9]|LMCRobot)$'
+            })
+    if ($phase5ServiceMotionConnections.Count -ne 10) {
+        throw (
+            'Phase5TransportClean LMCControlCommandService axis/robot ' +
+            "connection count is $($phase5ServiceMotionConnections.Count), expected ten.")
+    }
+    foreach ($axisNumber in 1..9) {
+        $source = "LMCControlCommandService1.LMCAxis$axisNumber"
+        $destination = "_LMCAxis$axisNumber.Control"
+        if (@($phase5ServiceMotionConnections | Where-Object {
+                    $_.Source -eq $source -and $_.Destination -eq $destination
+                }).Count -ne 1) {
+            throw "Phase5TransportClean missing or duplicate $source -> $destination service connection."
+        }
+    }
+    if (@($phase5ServiceMotionConnections | Where-Object {
+                $_.Source -eq 'LMCControlCommandService1.LMCRobot' -and
+                $_.Destination -eq '_LMCRobotBase1.Control'
+            }).Count -ne 1) {
+        throw 'Phase5TransportClean missing or duplicate LMCControlCommandService1.LMCRobot -> _LMCRobotBase1.Control service connection.'
+    }
+
+    if (-not $AllowStaleLasalBinaryMetadata) {
+        $commNetworkDbRecord = Get-LasalNetworkDatabaseRecord `
+            -DatabaseText $networkDbText `
+            -SourcePath '.\Network\Comm_Network\Comm_Network.lcn' `
+            -NetworkName 'Comm_Network'
+        $tcpObjectRecordStart = $commNetworkDbRecord.IndexOf(
+            'TCPMotionInterface1',
+            [StringComparison]::OrdinalIgnoreCase)
+        $tcpObjectRecordEnd = $commNetworkDbRecord.IndexOf(
+            '_base',
+            $tcpObjectRecordStart + 'TCPMotionInterface1'.Length,
+            [StringComparison]::OrdinalIgnoreCase)
+        if ($tcpObjectRecordStart -lt 0 -or
+            $tcpObjectRecordEnd -le $tcpObjectRecordStart) {
+            throw (
+                'Phase5TransportClean Networks.lcb TCPMotionInterface1 ' +
+                'object registration record could not be isolated.')
+        }
+        $tcpObjectDbRecord = $commNetworkDbRecord.Substring(
+            $tcpObjectRecordStart,
+            $tcpObjectRecordEnd - $tcpObjectRecordStart)
+        foreach ($retainedTcpObjectMember in @(
+                'CurrentSock', 'CommandID', 'AxisRef', 'Payload',
+                '_StdLib', 'Diagnostics', 'ControlCommands')) {
+            Assert-Match $tcpObjectDbRecord (
+                '(?<![A-Za-z0-9_])' +
+                [regex]::Escape($retainedTcpObjectMember) +
+                '(?![A-Za-z0-9_])') (
+                'Phase5TransportClean Networks.lcb TCPMotionInterface1 ' +
+                "object record is missing $retainedTcpObjectMember.")
+        }
+        $staleTcpObjectMembers = @()
+        foreach ($removedTcpObjectMember in @(
+                'Power', 'pos', 'velo', 'acc', 'dec', 'jer', 'dir',
+                'bufMode', 'Exec', 'Reserved', 'ReadPos', 'RetCode',
+                'RobotPowerOn', 'RobotPowerOff', 'RobotLock', 'RobotUnLock',
+                'LMCAxis1', 'LMCAxis2', 'LMCAxis3', 'LMCAxis4', 'LMCAxis5',
+                'LMCAxis6', 'LMCAxis7', 'LMCAxis8', 'LMCAxis9', 'LMCRobot')) {
+            if ($tcpObjectDbRecord -match (
+                    '(?<![A-Za-z0-9_])' +
+                    [regex]::Escape($removedTcpObjectMember) +
+                    '(?![A-Za-z0-9_])')) {
+                $staleTcpObjectMembers += $removedTcpObjectMember
+            }
+        }
+        if ($staleTcpObjectMembers.Count -ne 0) {
+            throw (
+                'Phase5TransportClean Networks.lcb TCPMotionInterface1 ' +
+                'object registration is stale: ' +
+                ($staleTcpObjectMembers -join ', ') + '.')
+        }
+
+        $connectionSearchBlock = $commNetworkDbRecord.Substring(
+            $tcpObjectRecordEnd)
+        $connectionTableAnchor = [regex]::Match(
+            $connectionSearchBlock,
+            ('(?s)(?<![0-9])000000(?![0-9]).{0,16}' +
+             '(?<![A-Za-z0-9_])TCPMotionInterface1' +
+             '(?![A-Za-z0-9_])'))
+        if (-not $connectionTableAnchor.Success) {
+            throw (
+                'Phase5TransportClean Networks.lcb Comm_Network connection ' +
+                'table could not be isolated from the TCPMotionInterface1 source tuple.')
+        }
+        $connectionTableBlock = $connectionSearchBlock.Substring(
+            $connectionTableAnchor.Index)
+        $connectionRecords = @([regex]::Matches(
+            $connectionTableBlock,
+            ('(?s)(?<![0-9])(?<Id>[0-9]{6})(?![0-9])' +
+             '(?<Body>.*?)(?=(?<![0-9])[0-9]{6}(?![0-9])|\z)')))
+        $tcpSourceConnectionRecords = @(
+            $connectionRecords | Where-Object {
+                $_.Groups['Body'].Value -match (
+                    '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                    'TCPMotionInterface1(?![A-Za-z0-9_])')
+            })
+        $staleTcpDirectConnectionRecords = @(
+            $tcpSourceConnectionRecords | Where-Object {
+                $_.Groups['Body'].Value -match
+                    '(?<![A-Za-z0-9_])_LMC(?:Axis[1-9]|RobotBase)1?(?![A-Za-z0-9_])'
+            })
+        if ($staleTcpDirectConnectionRecords.Count -ne 0) {
+            $staleTcpDirectConnectionIds = @(
+                $staleTcpDirectConnectionRecords | ForEach-Object {
+                    $_.Groups['Id'].Value
+                }) -join ', '
+            throw (
+                'Phase5TransportClean Networks.lcb still registers direct ' +
+                'TCPMotionInterface1 axis/robot connection tuple IDs: ' +
+                $staleTcpDirectConnectionIds + '.')
+        }
+        if ($tcpSourceConnectionRecords.Count -ne 3) {
+            throw (
+                'Phase5TransportClean Networks.lcb TCPMotionInterface1 source ' +
+                "tuple count is $($tcpSourceConnectionRecords.Count), expected three.")
+        }
+        foreach ($expectedTcpTuple in @(
+                @('LMCDiagnosticsService1', 'Diagnostics', 'ClassSvr'),
+                @('_TCPIPServer1', '_TCPIPServer', 'Control'),
+                @('LMCControlCommandService1', 'ControlCommands', 'ClassSvr'))) {
+            $tuplePattern = (
+                '(?s)(?<![A-Za-z0-9_])TCPMotionInterface1' +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])' + [regex]::Escape($expectedTcpTuple[0]) +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])' + [regex]::Escape($expectedTcpTuple[1]) +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])' + [regex]::Escape($expectedTcpTuple[2]) +
+                '(?![A-Za-z0-9_])')
+            if (@($tcpSourceConnectionRecords | Where-Object {
+                        $_.Groups['Body'].Value -match $tuplePattern
+                    }).Count -ne 1) {
+                throw (
+                    'Phase5TransportClean Networks.lcb missing or duplicate ' +
+                    'TCPMotionInterface1 tuple to ' + $expectedTcpTuple[0] + '.')
+            }
+        }
+
+        $serviceSourceConnectionRecords = @(
+            $connectionRecords | Where-Object {
+                $_.Groups['Body'].Value -match (
+                    '(?s)^.{0,16}(?<![A-Za-z0-9_])' +
+                    'LMCControlCommandService1(?![A-Za-z0-9_])')
+            })
+        if ($serviceSourceConnectionRecords.Count -ne 10) {
+            throw (
+                'Phase5TransportClean Networks.lcb LMCControlCommandService1 ' +
+                "axis/robot source tuple count is $($serviceSourceConnectionRecords.Count), expected ten.")
+        }
+        foreach ($axisNumber in 1..9) {
+            $serviceTuplePattern = (
+                '(?s)(?<![A-Za-z0-9_])LMCControlCommandService1' +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])_LMCAxis' + $axisNumber +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])LMCAxis' + $axisNumber +
+                '(?![A-Za-z0-9_]).*?' +
+                '(?<![A-Za-z0-9_])Control(?![A-Za-z0-9_])')
+            if (@($serviceSourceConnectionRecords | Where-Object {
+                        $_.Groups['Body'].Value -match $serviceTuplePattern
+                    }).Count -ne 1) {
+                throw (
+                    'Phase5TransportClean Networks.lcb missing or duplicate ' +
+                    "LMCControlCommandService1.LMCAxis$axisNumber tuple.")
+            }
+        }
+        $serviceRobotTuplePattern = (
+            '(?s)(?<![A-Za-z0-9_])LMCControlCommandService1' +
+            '(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])_LMCRobotBase1(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])LMCRobot(?![A-Za-z0-9_]).*?' +
+            '(?<![A-Za-z0-9_])Control(?![A-Za-z0-9_])')
+        if (@($serviceSourceConnectionRecords | Where-Object {
+                    $_.Groups['Body'].Value -match $serviceRobotTuplePattern
+                }).Count -ne 1) {
+            throw (
+                'Phase5TransportClean Networks.lcb missing or duplicate ' +
+                'LMCControlCommandService1.LMCRobot tuple.')
+        }
+    }
 }
 
 if (-not $SourceOnly) {
@@ -1045,6 +1586,7 @@ if (-not $SourceOnly) {
     Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"LMCControlCommandService",.*$' 'Comm_Network generated table is stale: LMCControlCommandService class metadata is missing.'
     Assert-Match $commNetworkTable '(?m)^\s*_NO_ATTR,\s*TO_UDINT\(\d+\),\s*"LMCCONTROLCOMMANDSERVICE1",\s*$' 'Comm_Network generated table is stale: LMCControlCommandService1 object metadata is missing.'
     Assert-Match $commNetworkTable '(?m)^\s*TO_UDINT\(\d+\),\s*"ControlCommands",\s*TO_UDINT\(\d+\),\s*"ClassSvr",\s*$' 'Comm_Network generated table is stale: ControlCommands internal connection is missing.'
+    $expectedGeneratedMotionConnectionCount = if ($transportClean) { 1 } else { 2 }
     foreach ($axisNumber in 1..9) {
         $generatedAxisConnectionPattern = (
             '(?m)^\s*TO_UDINT\(\d+\),\s*"LMCAxis' + $axisNumber +
@@ -1053,17 +1595,38 @@ if (-not $SourceOnly) {
         $generatedAxisConnectionCount = [regex]::Matches(
             $commNetworkTable,
             $generatedAxisConnectionPattern).Count
-        if ($generatedAxisConnectionCount -ne 2) {
+        if ($generatedAxisConnectionCount -ne $expectedGeneratedMotionConnectionCount) {
             throw ("Comm_Network generated LMCAxis$axisNumber connection count is " +
-                "$generatedAxisConnectionCount, expected two retained TCP/service links.")
+                "$generatedAxisConnectionCount, expected " +
+                "$expectedGeneratedMotionConnectionCount retained service/TCP link(s).")
         }
     }
     $generatedRobotConnectionCount = [regex]::Matches(
         $commNetworkTable,
         '(?m)^\s*TO_UDINT\(\d+\),\s*"LMCRobot",\s*C_DIR,\s*TO_UDINT\(\d+\),\s*"_LMCRobotBase1",\s*"Control",\s*$').Count
-    if ($generatedRobotConnectionCount -ne 2) {
+    if ($generatedRobotConnectionCount -ne $expectedGeneratedMotionConnectionCount) {
         throw ("Comm_Network generated LMCRobot connection count is " +
-            "$generatedRobotConnectionCount, expected two retained TCP/service links.")
+            "$generatedRobotConnectionCount, expected " +
+            "$expectedGeneratedMotionConnectionCount retained service/TCP link(s).")
+    }
+    if ($transportClean) {
+        $phase5ExternalConnectionBlock = [regex]::Match(
+            $commNetworkTable,
+            '(?s)//External connections\s*' +
+            '0\$UDINT,\s*16\$UDINT,\s*' +
+            '(?<Body>.*?)//Magic internal connections').Value
+        if ([string]::IsNullOrWhiteSpace($phase5ExternalConnectionBlock)) {
+            throw 'Phase5TransportClean Comm_Network generated external connection count is not exactly 16.'
+        }
+        if ($phase5ExternalConnectionBlock -match
+            'TO_UDINT\(10\),\s*"(?:LMCAxis[1-9]|LMCRobot)"') {
+            throw 'Phase5TransportClean generated table still contains a TCPMotionInterface direct axis/robot connection.'
+        }
+        if ([regex]::Matches(
+                $phase5ExternalConnectionBlock,
+                'TO_UDINT\(2\),\s*"(?:LMCAxis[1-9]|LMCRobot)"').Count -ne 10) {
+            throw 'Phase5TransportClean generated table does not retain exactly ten control-service axis/robot connections.'
+        }
     }
     $generatedTaskBlock = [regex]::Match(
         $commNetworkTable,
@@ -1290,7 +1853,9 @@ if ($st -match '(?<![A-Za-z0-9_])LMCAxis(?![A-Za-z0-9_])') {
 }
 
 Assert-Match $st 'RequestQueue\s*:\s*ARRAY \[0\.\.7\] OF _TCPMI_REQUEST_ENTRY' 'Depth-8 LASAL request queue is missing.'
-Assert-Match $st 'TO_UDINT\(1663666918\),\s*"LMCAxis1".*TO_UDINT\(1422175863\),\s*"_LMCAxis"' 'LMCAxis1 client-name/type hashes are incorrect.'
+if (-not $transportClean) {
+    Assert-Match $st 'TO_UDINT\(1663666918\),\s*"LMCAxis1".*TO_UDINT\(1422175863\),\s*"_LMCAxis"' 'LMCAxis1 client-name/type hashes are incorrect.'
+}
 Assert-Match $st 'RealtimeTask\s*=\s*"false"' 'TCPMotionInterface still enables a RealTime task.'
 Assert-Match $st 'CyclicTask\s*=\s*"true"' 'TCPMotionInterface Cyclic task is disabled.'
 Assert-Match $st 'DefCyclictime\s*=\s*"1 ms"' 'TCPMotionInterface default cyclic time is not 1 ms.'
@@ -1299,44 +1864,172 @@ Assert-Match $st 'ReceiveBuf\s*:\s*ARRAY \[0\.\.2047\] OF BYTE' 'LASAL receive a
 Assert-Match $st 'RequestBuf\s*:\s*ARRAY \[0\.\.1327\] OF BYTE' 'LASAL active request buffer does not hold a 1328-byte kinematic frame.'
 Assert-Match $st 'if usPayloadLength > 1320 then' 'LASAL queue payload bound is not 1320 bytes.'
 Assert-Match $st 'IngressDiscardRemaining\s*:=\s*udFrameSize - ReceiveFill' 'Oversize frame bounded discard is missing.'
-Assert-Match $st 'GroupMoveRetCode\s*:=\s*_LMCPROF_MOVECMD_ERROR' 'Group move false-success guard is missing.'
+if (-not $transportClean) {
+    Assert-Match $st 'GroupMoveRetCode\s*:=\s*_LMCPROF_MOVECMD_ERROR' 'Group move false-success guard is missing.'
+}
 $classDeclarationBlock = [regex]::Match(
     $st,
     '(?s)TCPMotionInterface\s*:\s*CLASS.*?END_CLASS;').Value
-foreach ($persistentName in @(
-    'GroupCommandConfig',
-    'GroupCommandInputValid',
-    'GroupStopCommandNo',
-    'GroupReadPos',
-    'GroupReadRetCode',
-    'GroupKinematicReady',
-    'GroupReadInPosition',
-    'GroupReadState',
-    'GroupReadErrorId')) {
-    Assert-Match $classDeclarationBlock ([regex]::Escape($persistentName)) "LASAL class declaration is missing $persistentName."
-    Assert-Match $classDbText ([regex]::Escape($persistentName)) "Classes.lcb metadata is missing $persistentName. Save the variable through LASAL IDE."
-}
-foreach ($localOnlyName in @(
-    'GroupKinematicConfigured',
-    'GroupPowerIsOn',
-    'GroupProfileLocked',
-    'GroupProfileLockState')) {
-    if ($classDeclarationBlock -match [regex]::Escape($localOnlyName)) {
-        throw "$localOnlyName was added to the generated class declaration without matching LASAL class metadata."
+if (-not $transportClean) {
+    foreach ($persistentName in @(
+        'GroupCommandConfig',
+        'GroupCommandInputValid',
+        'GroupStopCommandNo',
+        'GroupReadPos',
+        'GroupReadRetCode',
+        'GroupKinematicReady',
+        'GroupReadInPosition',
+        'GroupReadState',
+        'GroupReadErrorId')) {
+        Assert-Match $classDeclarationBlock ([regex]::Escape($persistentName)) "LASAL class declaration is missing $persistentName."
+        Assert-Match $classDbText ([regex]::Escape($persistentName)) "Classes.lcb metadata is missing $persistentName. Save the variable through LASAL IDE."
+    }
+    foreach ($localOnlyName in @(
+        'GroupKinematicConfigured',
+        'GroupPowerIsOn',
+        'GroupProfileLocked',
+        'GroupProfileLockState')) {
+        if ($classDeclarationBlock -match [regex]::Escape($localOnlyName)) {
+            throw "$localOnlyName was added to the generated class declaration without matching LASAL class metadata."
+        }
     }
 }
-$localFamilyHandlerNames = @(
+$removedTcpMethodNames = @(
+    'PowerOn',
+    'PowerOff',
+    'MoveAbs',
+    'MoveStop',
+    'AxisReset',
+    'MoveLinearAbsEx',
+    'GroupReadStatus',
+    'ClampLRealToDint',
     'HandleAdminCommands',
     'HandleDiagnosticsCommands',
     'HandleRegistryCommands',
     'HandleAxisCommands',
-    'HandleGroupCommands')
+    'HandleGroupCommands',
+    'RobotPowerOn',
+    'RobotPowerOff',
+    'RobotLock',
+    'RobotUnLock')
+$removedTcpClassDbMethodNames = @(
+    'MoveAbs',
+    'MoveStop',
+    'AxisReset',
+    'MoveLinearAbsEx',
+    'GroupReadStatus',
+    'ClampLRealToDint',
+    'HandleAdminCommands',
+    'HandleDiagnosticsCommands',
+    'HandleRegistryCommands',
+    'HandleAxisCommands',
+    'HandleGroupCommands',
+    'RobotPowerOn',
+    'RobotPowerOff',
+    'RobotLock',
+    'RobotUnLock')
+$localFamilyHandlerNames = if ($transportClean) {
+    @()
+}
+else {
+    @(
+        'HandleAdminCommands',
+        'HandleDiagnosticsCommands',
+        'HandleRegistryCommands',
+        'HandleAxisCommands',
+        'HandleGroupCommands')
+}
 foreach ($handlerName in $localFamilyHandlerNames) {
     Assert-Match $classDeclarationBlock (
         'FUNCTION\s+' + [regex]::Escape($handlerName) + '\s*;') (
         "TCPMotionInterface.$handlerName declaration is missing.")
     Assert-Match $classDbText ([regex]::Escape($handlerName)) (
         "Classes.lcb metadata is missing $handlerName. Save the method through LASAL IDE.")
+}
+if ($transportClean) {
+    Assert-ExactRegexValueSet `
+        -Text $classDeclarationBlock `
+        -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*SvrCh_[A-Za-z0-9_]+' `
+        -Owner 'Phase5TransportClean TCPMotionInterface declared servers' `
+        -ExpectedValues @('CurrentSock', 'CommandID', 'AxisRef', 'Payload')
+    Assert-ExactRegexValueSet `
+        -Text $classDeclarationBlock `
+        -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*CltChCmd_[A-Za-z0-9_]+' `
+        -Owner 'Phase5TransportClean TCPMotionInterface declared clients' `
+        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+    Assert-ExactRegexValueSet `
+        -Text $classDeclarationBlock `
+        -Pattern $phase5DeclaredFunctionPattern `
+        -Owner 'Phase5TransportClean TCPMotionInterface declared functions' `
+        -ExpectedValues @(
+            '@CT_', '@STD', 'CyWork', 'ConnSocketInfo', 'DataHandling',
+            'SendData', 'Response', 'MsgPaser')
+    Assert-ExactRegexValueSet `
+        -Text $st `
+        -Pattern $phase5ImplementedFunctionPattern `
+        -Owner 'Phase5TransportClean TCPMotionInterface implemented functions' `
+        -ExpectedValues @(
+            '@CT_', '@STD', 'CyWork', 'ConnSocketInfo', 'DataHandling',
+            'SendData', 'Response', 'MsgPaser')
+    $phase5DeclaredFunctionCount = [regex]::Matches(
+        $classDeclarationBlock,
+        $phase5DeclaredFunctionPattern).Count
+    $phase5ImplementedFunctionCount = [regex]::Matches(
+        $st,
+        $phase5ImplementedFunctionPattern).Count
+    if ($phase5DeclaredFunctionCount -ne 8 -or
+        $phase5ImplementedFunctionCount -ne 8) {
+        throw (
+            'Phase5TransportClean TCPMotionInterface function count is ' +
+            "declared=$phase5DeclaredFunctionCount implemented=$phase5ImplementedFunctionCount, " +
+            'expected exactly 8/8 transport functions.')
+    }
+    Assert-ExactRegexValueSet `
+        -Text $st `
+        -Pattern '(?m)^\s*#pragma\s+usingLtd\s+(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*$' `
+        -Owner 'Phase5TransportClean TCPMotionInterface limited dependencies' `
+        -ExpectedValues @('_StdLib', 'LMCControlCommandService', 'LMCDiagnosticsService')
+
+    foreach ($removedMethodName in $removedTcpMethodNames) {
+        if ($classDeclarationBlock -match (
+                '(?m)^\s*FUNCTION[^\r\n]*\b' +
+                [regex]::Escape($removedMethodName) + '(?:::|\b)') -or
+            $st -match (
+                '(?m)^\s*FUNCTION[^\r\n]*TCPMotionInterface::' +
+                [regex]::Escape($removedMethodName) + '(?:::|\b)') -or
+            (-not $AllowStaleLasalBinaryMetadata -and
+             $removedTcpClassDbMethodNames -contains $removedMethodName -and
+             $tcpClassDbRecord -match (
+                 '(?<![A-Za-z0-9_])' +
+                 [regex]::Escape($removedMethodName) +
+                 '(?![A-Za-z0-9_])'))) {
+            throw "Phase5TransportClean removed TCPMotionInterface method $removedMethodName is still declared, implemented, or registered."
+        }
+    }
+    foreach ($removedChannelName in @(
+            'bufMode', 'ReadPos', 'RobotPowerOn', 'RobotPowerOff',
+            'RobotLock', 'RobotUnLock',
+            'LMCAxis1', 'LMCAxis2', 'LMCAxis3', 'LMCAxis4', 'LMCAxis5',
+            'LMCAxis6', 'LMCAxis7', 'LMCAxis8', 'LMCAxis9', 'LMCRobot')) {
+        if (-not $AllowStaleLasalBinaryMetadata -and
+            $tcpClassDbRecord -match (
+                '(?<![A-Za-z0-9_])' +
+                [regex]::Escape($removedChannelName) +
+                '(?![A-Za-z0-9_])')) {
+            throw "Phase5TransportClean removed TCPMotionInterface channel $removedChannelName is still registered in Classes.lcb."
+        }
+    }
+    foreach ($removedDomainStatePattern in @(
+            '(?<![A-Za-z0-9_])LMCAxis[1-9](?![A-Za-z0-9_])',
+            '(?<![A-Za-z0-9_])LMCRobot(?![A-Za-z0-9_])',
+            '(?<![A-Za-z0-9_])Group(?:Move|Transition|Velocity|Accel|Decel|Jerk|Coord|Superimposed|Execute|Command|Stop|Read|Kinematic|ObjectName)[A-Za-z0-9_]*',
+            '(?<![A-Za-z0-9_])Axis(?:ObjectName|Command|ClientConnected|StatusValue|ErrorValue)[A-Za-z0-9_]*',
+            '(?<![A-Za-z0-9_])ObjectRegistryReady(?![A-Za-z0-9_])',
+            '(?<![A-Za-z0-9_])PayloadReference(?![A-Za-z0-9_])')) {
+        if ($classDeclarationBlock -match $removedDomainStatePattern) {
+            throw "Phase5TransportClean TCPMotionInterface still declares domain state '$($Matches[0])'."
+        }
+    }
 }
 if ($st -match '(?:_TCPMI_RT_|RtRequest|RtResult|ActiveAwaitingRt|TCPMotionInterface::RtWork|CmdTable\.RtWork)') {
     throw 'TCPMotionInterface still contains an RT mailbox or RtWork dependency.'
@@ -1375,7 +2068,8 @@ $diagnosticsHandlerBlock = $localFamilyHandlerBlocks['HandleDiagnosticsCommands'
 $registryHandlerBlock = $localFamilyHandlerBlocks['HandleRegistryCommands']
 $axisHandlerBlock = $localFamilyHandlerBlocks['HandleAxisCommands']
 $groupHandlerBlock = $localFamilyHandlerBlocks['HandleGroupCommands']
-if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
+if (-not $transportClean) {
+if ($controlServiceGroupRouted) {
     foreach ($adminLocal in @(
             @{ Name = 'adminSchemaVersion'; Type = 'UINT' },
             @{ Name = 'adminRequestFlags'; Type = 'UINT' },
@@ -1398,10 +2092,32 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
 else {
     Assert-Match $adminHandlerBlock '(?s)VAR\s+kinIndex\s*:\s*DINT;.*?adminErrorId\s*:\s*INT;\s*END_VAR' 'HandleAdminCommands local declaration contract is incomplete.'
 }
-Assert-Match $diagnosticsHandlerBlock '(?s)VAR\s+diagnosticsSchemaVersion\s*:\s*UINT;.*?diagnosticsBootId\s*:\s*UDINT;\s*END_VAR' 'HandleDiagnosticsCommands local declaration contract is incomplete.'
+if ($diagnosticsServiceRouted) {
+    Assert-Match $diagnosticsHandlerBlock (
+        '(?s)\AFUNCTION\s+TCPMotionInterface::HandleDiagnosticsCommands\s*' +
+        'VAR\s+diagnosticsResponseSize\s*:\s*DINT;\s*END_VAR') (
+        'Phase4DiagnosticsRouted HandleDiagnosticsCommands must own only ' +
+        'the diagnosticsResponseSize local scratch value.')
+    $diagnosticsHandlerVarBlock = [regex]::Match(
+        $diagnosticsHandlerBlock,
+        '(?s)\AFUNCTION\s+TCPMotionInterface::HandleDiagnosticsCommands\s*' +
+        'VAR\s*(?<Body>.*?)\s*END_VAR').Groups['Body'].Value
+    $diagnosticsHandlerLocalCount = [regex]::Matches(
+        $diagnosticsHandlerVarBlock,
+        '(?m)^\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^;]+;\s*$').Count
+    if ($diagnosticsHandlerLocalCount -ne 1) {
+        throw (
+            'Phase4DiagnosticsRouted HandleDiagnosticsCommands local count is ' +
+            "$diagnosticsHandlerLocalCount, expected exactly one.")
+    }
+}
+else {
+    Assert-Match $diagnosticsHandlerBlock '(?s)VAR\s+diagnosticsSchemaVersion\s*:\s*UINT;.*?diagnosticsBootId\s*:\s*UDINT;\s*END_VAR' 'HandleDiagnosticsCommands local declaration contract is incomplete.'
+}
 Assert-Match $registryHandlerBlock '(?s)VAR\s+objectNameLength\s*:\s*UDINT;\s*END_VAR' 'HandleRegistryCommands local declaration contract is incomplete.'
-if ($ControlServiceCheckpoint -ne 'Phase3GroupRouted') {
+if (-not $controlServiceGroupRouted) {
     Assert-Match $groupHandlerBlock '(?s)VAR\s+objectNameLength\s*:\s*UDINT;\s*kinIndex\s*:\s*DINT;\s*kinValid\s*:\s*BOOL;\s*powerIsOn\s*:\s*DINT;\s*profileLockState\s*:\s*DINT;\s*END_VAR' 'HandleGroupCommands local declaration contract is incomplete or reordered.'
+}
 }
 $msgParserByteCount = [Text.Encoding]::UTF8.GetByteCount($msgParserBlock)
 if ($msgParserByteCount -gt 32768) {
@@ -1417,9 +2133,44 @@ foreach ($commandId in @('2023', '2024', '2022', '2028', '202E', '209F', '20A0',
         throw "Active command 0x$commandId is blocked before its CyWork handler."
     }
 }
-Assert-Match $msgParserBlock '(?s)0x7E00,\s*0x7E01,\s*0x7E02,\s*0x7E03,\s*0x7E04,\s*0x7E10,\s*0x7E20,\s*0x7E21,\s*0x7E30,\s*0x7E31,\s*0x7E32,\s*0x7E33,\s*0x7E40,\s*0x7E41,\s*0x7E42,\s*0x7E43,\s*0x7E44,\s*0x7E45,\s*0x7E46,\s*0x7E47,\s*0x7E48,\s*0x7E49,\s*0x7E50,\s*0x7E51:\s*HandleDiagnosticsCommands\(\);' 'MsgPaser diagnostics-family aggregate route is missing or reordered.'
-Assert-Match $msgParserBlock '(?s)0x103C,\s*0x1042,\s*0x202B:\s*HandleRegistryCommands\(\);' 'MsgPaser registry-family aggregate route is missing or reordered.'
-Assert-Match $msgParserBlock '(?s)0x2023,\s*0x2024,\s*0x2022,\s*0x2028,\s*0x202E,\s*0x209F,\s*0x20A0,\s*0x20A2:\s*HandleAxisCommands\(\);' 'MsgPaser axis-family aggregate route is missing or reordered.'
+if ($transportClean) {
+    Assert-ExactLasalCommandRouteIds `
+        -RouterBlock $msgParserBlock `
+        -Owner 'Phase5TransportClean TCPMotionInterface diagnostics-service route' `
+        -CallPattern 'Diagnostics\s*\.\s*HandleRequest\s*\(' `
+        -ExpectedCommandIds $diagnosticsCommandIds
+    $phase5DiagnosticsRoutePattern = (
+        '(?ms)^(?<Indent>[ \t]*)(?<Labels>0x[0-9A-Fa-f]{4}' +
+        '(?:[ \t]*,[ \t]*(?:\r?\n[ \t]*)?' +
+        '0x[0-9A-Fa-f]{4})*)[ \t]*:' +
+        '(?<Body>.*?)(?=^\k<Indent>(?:0x[0-9A-Fa-f]{4}|end_case\b))')
+    $phase5DiagnosticsRouteMatches = @(
+        [regex]::Matches($msgParserBlock, $phase5DiagnosticsRoutePattern) |
+            Where-Object {
+                $_.Groups['Body'].Value -match
+                    'Diagnostics\s*\.\s*HandleRequest\s*\('
+            })
+    if ($phase5DiagnosticsRouteMatches.Count -ne 1) {
+        throw 'Phase5TransportClean diagnostics-service route could not be isolated.'
+    }
+    $diagnosticsTransportBlock =
+        $phase5DiagnosticsRouteMatches[0].Groups['Body'].Value
+}
+else {
+    Assert-Match $msgParserBlock '(?s)0x7E00,\s*0x7E01,\s*0x7E02,\s*0x7E03,\s*0x7E04,\s*0x7E10,\s*0x7E20,\s*0x7E21,\s*0x7E30,\s*0x7E31,\s*0x7E32,\s*0x7E33,\s*0x7E40,\s*0x7E41,\s*0x7E42,\s*0x7E43,\s*0x7E44,\s*0x7E45,\s*0x7E46,\s*0x7E47,\s*0x7E48,\s*0x7E49,\s*0x7E50,\s*0x7E51:\s*HandleDiagnosticsCommands\(\);' 'MsgPaser diagnostics-family aggregate route is missing or reordered.'
+    if ($diagnosticsServiceRouted) {
+        Assert-ExactLasalCommandRouteIds `
+            -RouterBlock $msgParserBlock `
+            -Owner 'Phase4DiagnosticsRouted TCPMotionInterface diagnostics-service route' `
+            -CallPattern 'HandleDiagnosticsCommands\s*\(' `
+            -ExpectedCommandIds $diagnosticsCommandIds
+    }
+    $diagnosticsTransportBlock = $diagnosticsHandlerBlock
+}
+if (-not $controlServiceAllControlRouted) {
+    Assert-Match $msgParserBlock '(?s)0x103C,\s*0x1042,\s*0x202B:\s*HandleRegistryCommands\(\);' 'MsgPaser registry-family aggregate route is missing or reordered.'
+    Assert-Match $msgParserBlock '(?s)0x2023,\s*0x2024,\s*0x2022,\s*0x2028,\s*0x202E,\s*0x209F,\s*0x20A0,\s*0x20A2:\s*HandleAxisCommands\(\);' 'MsgPaser axis-family aggregate route is missing or reordered.'
+}
 $localHandlerExpectedCallCounts = [ordered]@{
     HandleAdminCommands = 1
     HandleDiagnosticsCommands = 1
@@ -1427,16 +2178,26 @@ $localHandlerExpectedCallCounts = [ordered]@{
     HandleAxisCommands = 1
     HandleGroupCommands = 1
 }
-if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
+if ($controlServiceGroupRouted) {
     $localHandlerExpectedCallCounts['HandleGroupCommands'] = 0
-    Assert-Match $msgParserBlock (
-        '(?s)0x7D00,\s*0x7D10:\s*HandleAdminCommands\(\);') (
-        'Phase3GroupRouted MsgPaser remaining Admin route is missing or reordered.')
+    if ($controlServiceAllControlRouted) {
+        $localHandlerExpectedCallCounts['HandleAdminCommands'] = 0
+        $localHandlerExpectedCallCounts['HandleRegistryCommands'] = 0
+        $localHandlerExpectedCallCounts['HandleAxisCommands'] = 0
+        if ($transportClean) {
+            $localHandlerExpectedCallCounts['HandleDiagnosticsCommands'] = 0
+        }
+    }
+    else {
+        Assert-Match $msgParserBlock (
+            '(?s)0x7D00,\s*0x7D10:\s*HandleAdminCommands\(\);') (
+            'Phase3GroupRouted MsgPaser remaining Admin route is missing or reordered.')
+    }
     Assert-ExactLasalCommandRouteIds `
         -RouterBlock $msgParserBlock `
-        -Owner 'Phase3GroupRouted TCPMotionInterface control-service route' `
+        -Owner "$ControlServiceCheckpoint TCPMotionInterface control-service route" `
         -CallPattern 'ControlCommands\s*\.\s*HandleRequest\s*\(' `
-        -ExpectedCommandIds ($phase3GroupCommandIds + $phase3AdminCommandIds)
+        -ExpectedCommandIds $transportControlCommandIds
 
     $controlServiceRoutePattern = (
         '(?ms)^[ \t]*(?<Labels>0x[0-9A-Fa-f]{4}' +
@@ -1450,7 +2211,7 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
                     'ControlCommands\s*\.\s*HandleRequest\s*\('
             })
     if ($controlServiceRouteMatches.Count -ne 1) {
-        throw ('Phase3GroupRouted control-service route could not be ' +
+        throw ("$ControlServiceCheckpoint control-service route could not be " +
             'isolated for transport-contract validation.')
     }
     $controlServiceRouteBlock = $controlServiceRouteMatches[0].Groups['Body'].Value
@@ -1468,7 +2229,7 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
          '(?:\$\^USINT)?\s*,\s*' +
          'ResponseCapacity\s*:=\s*sizeof\(Sendbuf\)\s*\)'))
     if (-not $controlServiceCallMatch.Success) {
-        throw ('Phase3GroupRouted must pass CommandID, AxisRef, the complete ' +
+        throw ("$ControlServiceCheckpoint must pass CommandID, AxisRef, the complete " +
             'request frame and size, and the complete response buffer and ' +
             'capacity to ControlCommands.HandleRequest in ABI order.')
     }
@@ -1487,7 +2248,7 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
         $msgParserVarBlock -notmatch (
             '(?m)^\s*' + $escapedControlResponseName +
             '\s*:\s*DINT\s*;\s*$')) {
-        throw ("Phase3GroupRouted response scratch $controlResponseName " +
+        throw ("$ControlServiceCheckpoint response scratch $controlResponseName " +
             'must be declared exactly once as a MsgPaser-local DINT.')
     }
     $controlResponseInitMatch = [regex]::Match(
@@ -1521,7 +2282,7 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
             $controlFallbackBlockMatch.Index -or
         ($controlFallbackBlockMatch.Index + $controlFallbackBlockMatch.Length) -gt
             $controlSharedSendMatch.Index) {
-        throw ('Phase3GroupRouted order must be result init, connected ' +
+        throw ("$ControlServiceCheckpoint order must be result init, connected " +
             'HandleRequest call, invalid-response normalization, then one ' +
             'shared SendData.')
     }
@@ -1539,12 +2300,12 @@ if ($ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
         'SendData\(\s*pData:=#Sendbuf\[0\],\s*' +
         'udSize:=' + $escapedControlResponseName + '\$UDINT,\s*' +
         'dSocket:=CurrentSock,\s*bDirect:=TRUE\s*\);') (
-        'Phase3GroupRouted invalid-response bound, common fail-closed frame, or single-send path is incomplete.')
+        "$ControlServiceCheckpoint invalid-response bound, common fail-closed frame, or single-send path is incomplete.")
     $controlRouteSendCount = [regex]::Matches(
         $controlServiceRouteBlock,
         '(?m)^\s*SendData\s*\(').Count
     if ($controlRouteSendCount -ne 1) {
-        throw ('Phase3GroupRouted control-service route SendData call count is ' +
+        throw ("$ControlServiceCheckpoint control-service route SendData call count is " +
             "$controlRouteSendCount, expected exactly one shared send.")
     }
 }
@@ -1571,38 +2332,46 @@ foreach ($handlerName in $localHandlerExpectedCallCounts.Keys) {
             "$handlerCallCount, expected $expectedCallCount MsgPaser caller(s).")
     }
 }
-
-$adminCapabilitiesCaseBlock = [regex]::Match(
-    $adminHandlerBlock,
-    '(?s)0x7D00:.*?0x7D10:').Value
-$adminAxisParameterCasePattern = if (
-    $ControlServiceCheckpoint -eq 'Phase3GroupRouted') {
-    '(?s)0x7D10:.*'
-}
-else {
-    '(?s)0x7D10:.*?0x7D20:'
-}
-$adminAxisParameterCaseBlock = [regex]::Match(
-    $adminHandlerBlock,
-    $adminAxisParameterCasePattern).Value
-if ([string]::IsNullOrWhiteSpace($adminCapabilitiesCaseBlock) -or
-    [string]::IsNullOrWhiteSpace($adminAxisParameterCaseBlock)) {
-    throw 'The local 0x7D00/0x7D10 admin cases were not found.'
+if ($transportClean) {
+    Assert-ExactRegexValueSet `
+        -Text $msgParserVarBlock `
+        -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*DINT\s*;\s*$' `
+        -Owner 'Phase5TransportClean TCPMotionInterface.MsgPaser local scratch' `
+        -ExpectedValues @('controlResponseSize', 'diagnosticsResponseSize')
 }
 
-Assert-Match $adminCapabilitiesCaseBlock '(?s)if Payload >= 8 then.*?RequestBuf\[8\]\$UINT.*?RequestBuf\[10\]\$UINT.*?RequestBuf\[12\]\$UDINT' '0x7D00 common request offsets are incomplete.'
-Assert-Match $adminCapabilitiesCaseBlock '(?s)Payload <> 8.*?AxisRef <> 0.*?adminSchemaVersion <> 1.*?adminRequestFlags <> 0.*?adminRequestId = 0' '0x7D00 request validation is incomplete.'
-Assert-Match $adminCapabilitiesCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*40.*?Sendbuf\[24\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[28\]\$UDINT\s*:=\s*0x0000003F.*?Sendbuf\[32\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[36\]\$UINT\s*:=\s*4.*?Sendbuf\[40\]\$UINT\s*:=\s*0x0100.*?Sendbuf\[42\]\$UINT\s*:=\s*3.*?udSize:=48' '0x7D00 capability bits, masks, limits, or response framing are incomplete.'
+if (-not $controlServiceAllControlRouted) {
+    $adminCapabilitiesCaseBlock = [regex]::Match(
+        $adminHandlerBlock,
+        '(?s)0x7D00:.*?0x7D10:').Value
+    $adminAxisParameterCasePattern = if ($controlServiceGroupRouted) {
+        '(?s)0x7D10:.*'
+    }
+    else {
+        '(?s)0x7D10:.*?0x7D20:'
+    }
+    $adminAxisParameterCaseBlock = [regex]::Match(
+        $adminHandlerBlock,
+        $adminAxisParameterCasePattern).Value
+    if ([string]::IsNullOrWhiteSpace($adminCapabilitiesCaseBlock) -or
+        [string]::IsNullOrWhiteSpace($adminAxisParameterCaseBlock)) {
+        throw 'The local 0x7D00/0x7D10 admin cases were not found.'
+    }
 
-Assert-Match $adminAxisParameterCaseBlock '(?s)Payload <> 12.*?\(AxisRef < 1\) \| \(AxisRef > 4\).*?adminSchemaVersion <> 1.*?RequestBuf\[18\]\$UINT <> 0' '0x7D10 payload/reference/common/reserved validation is incomplete.'
-Assert-Match $adminAxisParameterCaseBlock '(?s)case adminParameterKey of.*?LMCAXIS_RD_SWMIN_APPUNIT.*?LMCAXIS_RD_SWMAX_APPUNIT.*?LMCAXIS_PAR_RD_SWLIMWINDOW.*?LMCAXIS_PAR_RD_V_MAX.*?LMCAXIS_PAR_RD_A_MAX.*?LMCAXIS_PAR_RD_REFPOS.*?adminDetailCode := 6' '0x7D10 semantic-to-native allowlist mapping is incomplete.'
-if ([regex]::Matches($adminAxisParameterCaseBlock, '\bLMCAxis[1-4]\.ReadSWEndPos\s*\(').Count -ne 4 -or
-    [regex]::Matches($adminAxisParameterCaseBlock, '\bLMCAxis[1-4]\.ReadParameter\s*\(').Count -ne 4) {
-    throw '0x7D10 must expose both safe native read paths for each physical axis exactly once.'
+    Assert-Match $adminCapabilitiesCaseBlock '(?s)if Payload >= 8 then.*?RequestBuf\[8\]\$UINT.*?RequestBuf\[10\]\$UINT.*?RequestBuf\[12\]\$UDINT' '0x7D00 common request offsets are incomplete.'
+    Assert-Match $adminCapabilitiesCaseBlock '(?s)Payload <> 8.*?AxisRef <> 0.*?adminSchemaVersion <> 1.*?adminRequestFlags <> 0.*?adminRequestId = 0' '0x7D00 request validation is incomplete.'
+    Assert-Match $adminCapabilitiesCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*40.*?Sendbuf\[24\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[28\]\$UDINT\s*:=\s*0x0000003F.*?Sendbuf\[32\]\$UDINT\s*:=\s*0x00000007.*?Sendbuf\[36\]\$UINT\s*:=\s*4.*?Sendbuf\[40\]\$UINT\s*:=\s*0x0100.*?Sendbuf\[42\]\$UINT\s*:=\s*3.*?udSize:=48' '0x7D00 capability bits, masks, limits, or response framing are incomplete.'
+
+    Assert-Match $adminAxisParameterCaseBlock '(?s)Payload <> 12.*?\(AxisRef < 1\) \| \(AxisRef > 4\).*?adminSchemaVersion <> 1.*?RequestBuf\[18\]\$UINT <> 0' '0x7D10 payload/reference/common/reserved validation is incomplete.'
+    Assert-Match $adminAxisParameterCaseBlock '(?s)case adminParameterKey of.*?LMCAXIS_RD_SWMIN_APPUNIT.*?LMCAXIS_RD_SWMAX_APPUNIT.*?LMCAXIS_PAR_RD_SWLIMWINDOW.*?LMCAXIS_PAR_RD_V_MAX.*?LMCAXIS_PAR_RD_A_MAX.*?LMCAXIS_PAR_RD_REFPOS.*?adminDetailCode := 6' '0x7D10 semantic-to-native allowlist mapping is incomplete.'
+    if ([regex]::Matches($adminAxisParameterCaseBlock, '\bLMCAxis[1-4]\.ReadSWEndPos\s*\(').Count -ne 4 -or
+        [regex]::Matches($adminAxisParameterCaseBlock, '\bLMCAxis[1-4]\.ReadParameter\s*\(').Count -ne 4) {
+        throw '0x7D10 must expose both safe native read paths for each physical axis exactly once.'
+    }
+    Assert-Match $adminAxisParameterCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*28.*?Sendbuf\[24\]\$UINT\s*:=\s*adminParameterKey.*?Sendbuf\[26\]\$UINT\s*:=\s*1.*?Sendbuf\[28\]\$UINT\s*:=\s*adminUnitCode.*?Sendbuf\[32\]\$DINT\s*:=\s*adminAxisValue.*?udSize:=36.*?Sendbuf\[2\]\$UINT\s*:=\s*16.*?Sendbuf\[14\]\$INT\s*:=\s*-31000.*?udSize:=24' '0x7D10 success/error response framing is incomplete.'
 }
-Assert-Match $adminAxisParameterCaseBlock '(?s)Sendbuf\[2\]\$UINT\s*:=\s*28.*?Sendbuf\[24\]\$UINT\s*:=\s*adminParameterKey.*?Sendbuf\[26\]\$UINT\s*:=\s*1.*?Sendbuf\[28\]\$UINT\s*:=\s*adminUnitCode.*?Sendbuf\[32\]\$DINT\s*:=\s*adminAxisValue.*?udSize:=36.*?Sendbuf\[2\]\$UINT\s*:=\s*16.*?Sendbuf\[14\]\$INT\s*:=\s*-31000.*?udSize:=24' '0x7D10 success/error response framing is incomplete.'
 
-if ($ControlServiceCheckpoint -ne 'Phase3GroupRouted') {
+if (-not $controlServiceGroupRouted) {
     $adminGroupParametersCaseBlock = [regex]::Match(
         $adminHandlerBlock,
         '(?s)0x7D20:.*?0x7D22:').Value
@@ -1636,6 +2405,7 @@ if ($ControlServiceCheckpoint -ne 'Phase3GroupRouted') {
     Assert-Match $adminGroupMoveRelativeCaseBlock '(?s)adminDetailCode := 10.*?_memset\(dest:=#Sendbuf.*?Sendbuf\[2\]\$UINT\s*:=\s*16.*?Sendbuf\[8\]\$UINT\s*:=\s*1.*?Sendbuf\[10\]\$UINT\s*:=\s*0.*?Sendbuf\[12\]\$UINT\s*:=\s*0.*?Sendbuf\[14\]\$INT\s*:=\s*0.*?Sendbuf\[16\]\$UDINT\s*:=\s*adminRequestId.*?Sendbuf\[20\]\$UDINT\s*:=\s*adminDetailCode.*?adminDetailCode <> 0.*?Sendbuf\[12\]\$UINT\s*:=\s*1.*?Sendbuf\[14\]\$INT\s*:=\s*adminErrorId.*?udSize:=24' '0x7D22 state error or Admin response framing is incomplete.'
 }
 
+if (-not $diagnosticsServiceRouted) {
 $diagnosticsCapabilitiesCaseBlock = [regex]::Match(
     $diagnosticsHandlerBlock,
     '(?s)0x7E00:.*?0x7E01,').Value
@@ -1669,6 +2439,82 @@ if ([string]::IsNullOrWhiteSpace($diagnosticsDispatchBlock)) {
     throw 'The reserved diagnostics command family is not delegated to LMCDiagnosticsService.'
 }
 Assert-Match $diagnosticsDispatchBlock '(?s)IsClientConnected\(#Diagnostics\).*?Diagnostics\.HandleRequest\(.*?ResponseCapacity:=2040.*?diagnosticsResponseSize <= 2040.*?SendData' 'Diagnostics service delegation or response bound is incomplete.'
+}
+else {
+    $diagnosticsServiceCallCount = [regex]::Matches(
+        $st,
+        'Diagnostics\s*\.\s*HandleRequest\s*\(').Count
+    if ($diagnosticsServiceCallCount -ne 1) {
+        throw (
+            "$ControlServiceCheckpoint Diagnostics.HandleRequest call count is " +
+            "$diagnosticsServiceCallCount, expected exactly one.")
+    }
+    $diagnosticsSendCount = [regex]::Matches(
+        $diagnosticsTransportBlock,
+        '(?m)^\s*SendData\s*\(').Count
+    if ($diagnosticsSendCount -ne 1) {
+        throw (
+            "$ControlServiceCheckpoint diagnostics route SendData count is " +
+            "$diagnosticsSendCount, expected exactly one.")
+    }
+    if ([regex]::Matches(
+            $st,
+            '(?<![A-Za-z0-9_])GetDiagnosticsBootId\s*\(').Count -ne 0) {
+        throw (
+            "$ControlServiceCheckpoint TCPMotionInterface must not call " +
+            'GetDiagnosticsBootId directly.')
+    }
+    foreach ($forbiddenLocalCapabilityPattern in @(
+            '0x7E00',
+            '(?i)\bcase\s+CommandID\s+of\b',
+            'diagnosticsSchemaVersion',
+            'diagnosticsRequestFlags',
+            'diagnosticsRequestId',
+            'diagnosticsBootId',
+            '0x957F101E',
+            '0x0000213F')) {
+        if ($diagnosticsTransportBlock -match $forbiddenLocalCapabilityPattern) {
+            throw (
+                "$ControlServiceCheckpoint diagnostics transport still " +
+                "assembles local capability state '$($Matches[0])'.")
+        }
+    }
+
+    Assert-Match $diagnosticsTransportBlock (
+        '(?s)_memset\(dest:=#Sendbuf,\s*usByte:=0,\s*' +
+        'cntr:=sizeof\(Sendbuf\)\);\s*' +
+        'diagnosticsResponseSize\s*:=\s*-1;\s*' +
+        'if\s+IsClientConnected\(#Diagnostics\)\s+then\s*' +
+        'diagnosticsResponseSize\s*:=\s*Diagnostics\.HandleRequest\(\s*' +
+        'CommandId:=CommandID\$UINT\s*,\s*' +
+        'Reference:=AxisRef\$UINT\s*,\s*' +
+        'pRequest:=\(#RequestBuf\[8\]\)\$\^USINT\s*,\s*' +
+        'RequestSize:=Payload\$UDINT\s*,\s*' +
+        'pResponse:=\(#Sendbuf\[8\]\)\$\^USINT\s*,\s*' +
+        'ResponseCapacity:=2040\s*,\s*' +
+        'CallerSessionEpoch:=SessionEpoch\s*\);\s*end_if;') (
+        "$ControlServiceCheckpoint diagnostics payload-only zero-copy ABI, " +
+        'disconnected initialization, or connected-call gate is incomplete.')
+    Assert-Match $diagnosticsTransportBlock (
+        '(?s)if\s+\(diagnosticsResponseSize\s*>=\s*16\)\s*&\s*' +
+        '\(diagnosticsResponseSize\s*<=\s*2040\)\s+then\s*' +
+        'Sendbuf\[0\]\$UINT\s*:=\s*0;\s*' +
+        'Sendbuf\[2\]\$UINT\s*:=\s*diagnosticsResponseSize\$UINT;\s*' +
+        'Sendbuf\[4\]\$UDINT\s*:=\s*0;\s*' +
+        'diagnosticsResponseSize\s*:=\s*diagnosticsResponseSize\s*\+\s*8;\s*' +
+        'else\s*' +
+        'Sendbuf\[0\]\$UINT\s*:=\s*1;\s*' +
+        'Sendbuf\[2\]\$UINT\s*:=\s*4;\s*' +
+        'Sendbuf\[4\]\$UDINT\s*:=\s*0;\s*' +
+        'Sendbuf\[8\]\$UINT\s*:=\s*1;\s*' +
+        'Sendbuf\[10\]\$INT\s*:=\s*-1;\s*' +
+        'diagnosticsResponseSize\s*:=\s*12;\s*end_if;\s*' +
+        'SendData\(\s*pData:=#Sendbuf\[0\],\s*' +
+        'udSize:=diagnosticsResponseSize\$UDINT,\s*' +
+        'dSocket:=CurrentSock,\s*bDirect:=TRUE\s*\);') (
+        "$ControlServiceCheckpoint valid 16..2040 response wrapping, +8 outer " +
+        'header, disconnected/invalid 12-byte -1 fallback, or shared send is incomplete.')
+}
 
 Assert-Match $diagnosticsLatch 'RealtimeTask\s*=\s*"true"' 'LMCEcatInputLatch is not declared as an RT class.'
 Assert-Match $diagnosticsLatch 'SnapshotBytes\s*:\s*ARRAY \[0\.\.511\] OF USINT' 'LMCEcatInputLatch fixed snapshot storage is not 512 bytes.'
@@ -1784,6 +2630,100 @@ $diagnosticsServiceHandleBlock = [regex]::Match(
     '(?s)FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest.*?END_FUNCTION').Value
 if ([string]::IsNullOrWhiteSpace($diagnosticsServiceHandleBlock)) {
     throw 'LMCDiagnosticsService.HandleRequest implementation was not found.'
+}
+if ($diagnosticsServiceRouted) {
+    $diagnosticsServiceHandleByteCount =
+        [Text.Encoding]::UTF8.GetByteCount($diagnosticsServiceHandleBlock)
+    if ($diagnosticsServiceHandleByteCount -gt 32768) {
+        throw (
+            'Phase4DiagnosticsRouted LMCDiagnosticsService.HandleRequest is ' +
+            "$diagnosticsServiceHandleByteCount bytes, expected at most 32768.")
+    }
+
+    Assert-Match $diagnosticsServiceHandleBlock (
+        '(?s)ResponseSize\s*:=\s*-1;.*?' +
+        '\(CommandId\s*=\s*0x7E00\)\s*&\s*' +
+        '\(ResponseCapacity\s*<\s*68\).*?RETURN;.*?' +
+        'schemaVersion\s*:=\s*pRequest\^\$UINT;.*?' +
+        'requestFlags\s*:=\s*\(pRequest\s*\+\s*2\)\^\$UINT;.*?' +
+        'requestId\s*:=\s*\(pRequest\s*\+\s*4\)\^\$UDINT;.*?' +
+        '\(pRequest\s*=\s*NIL\)\s*\|\s*' +
+        '\(RequestSize\s*<\s*8\)\s*\|\s*' +
+        '\(Reference\s*<>\s*0\).*?detailCode\s*:=\s*12;.*?' +
+        'schemaVersion\s*<>\s*LMC_DIAG_SCHEMA_VERSION.*?' +
+        'requestFlags\s*<>\s*0.*?' +
+        'requestId\s*=\s*0.*?detailCode\s*:=\s*12;') (
+        'Phase4DiagnosticsRouted 0x7E00 common request decode, exact ' +
+        'reference/schema/flags/nonzero-requestId gate, or 68-byte capacity guard is incomplete.')
+
+    $diagnosticsServiceCapabilitiesBlock = [regex]::Match(
+        $diagnosticsServiceHandleBlock,
+        '(?s)if\s+CommandId\s*=\s*0x7E00\s+then.*?' +
+        'ResponseSize\s*:=\s*68;\s*RETURN;\s*end_if;').Value
+    if ([string]::IsNullOrWhiteSpace($diagnosticsServiceCapabilitiesBlock)) {
+        throw 'Phase4DiagnosticsRouted LMCDiagnosticsService 0x7E00 case was not found.'
+    }
+    Assert-Match $diagnosticsServiceCapabilitiesBlock (
+        '(?s)if\s+RequestSize\s*<>\s*8\s+then\s*' +
+        'detailCode\s*:=\s*12;\s*end_if;.*?' +
+        'if\s+detailCode\s*<>\s*0\s+then\s*' +
+        '\(pResponse\s*\+\s*4\)\^\$UINT\s*:=\s*1;\s*' +
+        '\(pResponse\s*\+\s*6\)\^\$INT\s*:=\s*LMC_DIAG_ERROR_ID;\s*' +
+        '\(pResponse\s*\+\s*12\)\^\$UDINT\s*:=\s*detailCode;\s*' +
+        'end_if;.*?ResponseSize\s*:=\s*68;\s*RETURN;') (
+        'Phase4DiagnosticsRouted 0x7E00 must return the fixed 68-byte ' +
+        'capability payload even for malformed requests.')
+
+    $capabilityOffsetContracts = [ordered]@{
+        0 = 'pResponse\^\$UINT\s*:=\s*LMC_DIAG_SCHEMA_VERSION'
+        2 = '\(pResponse\s*\+\s*2\)\^\$UINT\s*:=\s*0'
+        4 = '\(pResponse\s*\+\s*4\)\^\$UINT\s*:=\s*0'
+        6 = '\(pResponse\s*\+\s*6\)\^\$INT\s*:=\s*0'
+        8 = '\(pResponse\s*\+\s*8\)\^\$UDINT\s*:=\s*requestId'
+        12 = '\(pResponse\s*\+\s*12\)\^\$UDINT\s*:=\s*0'
+        16 = '\(pResponse\s*\+\s*16\)\^\$UDINT\s*:=\s*1'
+        20 = '\(pResponse\s*\+\s*20\)\^\$UDINT\s*:=\s*0x00000007'
+        24 = '\(pResponse\s*\+\s*24\)\^\$UDINT\s*:=\s*LMC_DIAG_MAP_REVISION'
+        28 = '\(pResponse\s*\+\s*28\)\^\$UINT\s*:=\s*24'
+        30 = '\(pResponse\s*\+\s*30\)\^\$UINT\s*:=\s*0'
+        32 = '\(pResponse\s*\+\s*32\)\^\$UINT\s*:=\s*0'
+        34 = '\(pResponse\s*\+\s*34\)\^\$UINT\s*:=\s*0'
+        36 = '\(pResponse\s*\+\s*36\)\^\$UDINT\s*:=\s*0'
+        40 = '\(pResponse\s*\+\s*40\)\^\$UDINT\s*:=\s*1000'
+        44 = '\(pResponse\s*\+\s*44\)\^\$UINT\s*:=\s*1320'
+        46 = '\(pResponse\s*\+\s*46\)\^\$UINT\s*:=\s*2040'
+        48 = '\(pResponse\s*\+\s*48\)\^\$UINT\s*:=\s*1280'
+        50 = '\(pResponse\s*\+\s*50\)\^\$UINT\s*:=\s*80'
+        52 = '\(pResponse\s*\+\s*52\)\^\$UINT\s*:=\s*16'
+        54 = '\(pResponse\s*\+\s*54\)\^\$UINT\s*:=\s*0'
+        56 = '\(pResponse\s*\+\s*56\)\^\$UDINT\s*:=\s*0'
+        60 = '\(pResponse\s*\+\s*60\)\^\$UINT\s*:=\s*0'
+        62 = '\(pResponse\s*\+\s*62\)\^\$UINT\s*:=\s*0'
+        64 = '\(pResponse\s*\+\s*64\)\^\$UDINT\s*:=\s*currentBootId'
+    }
+    foreach ($capabilityOffset in $capabilityOffsetContracts.Keys) {
+        $capabilityOffsetOwnerBlock = if ($capabilityOffset -lt 16) {
+            $diagnosticsServiceHandleBlock
+        }
+        else {
+            $diagnosticsServiceCapabilitiesBlock
+        }
+        Assert-Match $capabilityOffsetOwnerBlock `
+            $capabilityOffsetContracts[$capabilityOffset] (
+            'Phase4DiagnosticsRouted 0x7E00 response field at inner offset ' +
+            "$capabilityOffset is missing or has the wrong value.")
+    }
+    Assert-Match $diagnosticsServiceCapabilitiesBlock (
+        '(?s)if\s+currentBootId\s*<>\s*0\s+then\s*' +
+        '\(pResponse\s*\+\s*20\)\^\$UDINT\s*:=\s*0x0000213F;\s*' +
+        '\(pResponse\s*\+\s*30\)\^\$UINT\s*:=\s*24;\s*' +
+        '\(pResponse\s*\+\s*32\)\^\$UINT\s*:=\s*24;\s*' +
+        '\(pResponse\s*\+\s*34\)\^\$UINT\s*:=\s*1;\s*' +
+        '\(pResponse\s*\+\s*36\)\^\$UDINT\s*:=\s*320000;\s*' +
+        '\(pResponse\s*\+\s*56\)\^\$UDINT\s*:=\s*1280000;\s*' +
+        '\(pResponse\s*\+\s*60\)\^\$UINT\s*:=\s*4;\s*end_if;') (
+        'Phase4DiagnosticsRouted 0x7E00 stable-BootId capability bits, ' +
+        'stateful limits, recorder bytes, or inline SDO limit is incomplete.')
 }
 Assert-Match $diagnosticsServiceHandleBlock '(?s)currentBootId := GetDiagnosticsBootId\(\).*?\(CommandId >= 0x7E30\).*?\(CommandId <= 0x7E33\).*?\(CommandId >= 0x7E40\).*?\(CommandId <= 0x7E49\).*?currentBootId = 0.*?detailCode := 11' 'LMCDiagnosticsService does not fail closed for raw stateful D2/D3 calls when BootId is unavailable.'
 Assert-Match $diagnosticsServiceHandleBlock '(?s)if \(CommandId >= 0x7E40\)\s*&\s*\(CommandId <= 0x7E49\).*?IsClientConnected\(#RecorderStore\) = FALSE.*?\(pResponse \+ 4\)\^\$UINT := 1.*?\(pResponse \+ 12\)\^\$UDINT := 11.*?ResponseSize := 16.*?RETURN' 'LMCDiagnosticsService RecorderStore disconnected path is not fail-closed.'
@@ -1941,6 +2881,7 @@ Assert-Match $adminGroupMoveRelativeFrameBlock '(?s)CreateCommonRequest\(\s*LMC_
 Assert-Match $adminGroupMoveRelativeFrameBlock '(?s)motionOffset \+ 64, velocity.*?motionOffset \+ 68, acceleration.*?motionOffset \+ 72, deceleration.*?motionOffset \+ 76, jerk.*?motionOffset \+ 80,\s*\(int\)options\.CoordinateSystem.*?motionOffset \+ 84,\s*\(int\)options\.TransitionMode.*?motionOffset \+ 88,\s*\(int\)options\.BufferMode.*?motionOffset \+ 92,\s*options\.Execute \? 1 : 0' 'C# 0x7D22 motion field offsets are incomplete.'
 Assert-Match $diagnosticsProtocol '(?s)GetDiagnosticsCapabilities\(uint requestId\).*?CreateRequest\(\s*LMC_CommandId\.GetDiagnosticsCapabilities,\s*0,\s*CommonRequestPayloadLength\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize, SchemaVersion\).*?WriteUInt16\(buffer, LMC_Frame\.HeaderSize \+ 2, 0\).*?WriteUInt32\(buffer, LMC_Frame\.HeaderSize \+ 4, requestId\)' 'C# diagnostics capability common request builder is incomplete.'
 
+if (-not $controlServiceAllControlRouted) {
 $axisLookupBlock = [regex]::Match(
     $registryHandlerBlock,
     '(?s)0x103C:.*?0x1042:').Value
@@ -2063,8 +3004,9 @@ if ([regex]::Matches($moveAbsBlock, 'IsClientConnected\(#LMCAxis[1-9]\)').Count 
 if ([regex]::Matches($moveAbsBlock, 'Jerk:=jer').Count -ne 27) {
     throw 'MoveAbs does not forward the received Jerk through all 27 axis motion dispatch paths.'
 }
+}
 
-if ($ControlServiceCheckpoint -ne 'Phase3GroupRouted') {
+if (-not $controlServiceGroupRouted) {
 $groupMembersCaseBlock = [regex]::Match(
     $groupHandlerBlock,
     '(?s)0x20D2:.*?0x2047:').Value
@@ -2899,6 +3841,14 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         throw 'Service 0x7D20 must expose exactly three selected native reads.'
     }
     Assert-Match $serviceAdminGroupParametersCaseBlock (
+        '(?s)if\s+adminDetailCode\s*=\s*0\s+then\s*' +
+        'if\s+ResponseCapacity\s*<\s*40\s+then\s*RETURN;\s*end_if;.*?' +
+        'LMCRobot\.ReadGroupParameter\(.*?' +
+        'else\s*if\s+ResponseCapacity\s*<\s*24\s+then\s*' +
+        'RETURN;\s*end_if;\s*end_if;') (
+        'Service 0x7D20 must prove success/error response capacity before ' +
+        'performing any selected native read.')
+    Assert-Match $serviceAdminGroupParametersCaseBlock (
         '(?s)ResponseCapacity\s*<\s*40.*?' +
         '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*32.*?' +
         '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*0.*?' +
@@ -2907,7 +3857,7 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         '\(pResponseFrame\s*\+\s*28\)\^\$DINT\s*:=\s*' +
         'adminGroupVelocityLimit.*?' +
         '\(pResponseFrame\s*\+\s*36\)\^\$DINT\s*:=\s*' +
-        'adminGroupJerkTime.*?ResponseCapacity\s*<\s*24.*?' +
+        'adminGroupJerkTime.*?' +
         '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*16.*?' +
         '\(pResponseFrame\s*\+\s*12\)\^\$UINT\s*:=\s*1.*?' +
         '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*-31000') (
@@ -3015,6 +3965,290 @@ if ($ControlServiceCheckpoint -ne 'Phase2Skeleton') {
         'Service 0x7D22 fixed outer-success Admin response framing is incomplete.')
 }
 
+if ($controlServiceAllControlRouted) {
+    $serviceRegistryHandlerBlock =
+        $controlServicePrivateBlocks['HandleRegistryCommands']
+    $serviceAxisHandlerBlock =
+        $controlServicePrivateBlocks['HandleAxisCommands']
+    $serviceAdminHandlerBlock =
+        $controlServicePrivateBlocks['HandleAdminCommands']
+
+    foreach ($pointerHandler in @(
+            @{ Name = 'Registry'; Block = $serviceRegistryHandlerBlock },
+            @{ Name = 'Axis'; Block = $serviceAxisHandlerBlock },
+            @{ Name = 'Admin'; Block = $serviceAdminHandlerBlock })) {
+        Assert-Match $pointerHandler.Block (
+            '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
+            'if\s+\(pRequestFrame\s*=\s*NIL\)\s*\|\s*' +
+            '\(pResponseFrame\s*=\s*NIL\)\s*\|\s*' +
+            '\(RequestFrameSize\s*<\s*8\)\s+then\s*' +
+            'RETURN;\s*end_if;') (
+            "Service $($pointerHandler.Name) pointer/minimum-frame guard is missing.")
+    }
+
+    $serviceRegistryAxisLookupCaseBlock = [regex]::Match(
+        $serviceRegistryHandlerBlock,
+        '(?s)0x103C:.*?0x1042:').Value
+    $serviceRegistryGroupLookupCaseBlock = [regex]::Match(
+        $serviceRegistryHandlerBlock,
+        '(?s)0x1042:.*?0x202B:').Value
+    $serviceRegistryReferenceCaseBlock = [regex]::Match(
+        $serviceRegistryHandlerBlock,
+        '(?s)0x202B:.*?(?=\s+else\s+ResponseSize\s*:=\s*-1)').Value
+    foreach ($registryCase in @(
+            @{ Name = '0x103C'; Block = $serviceRegistryAxisLookupCaseBlock },
+            @{ Name = '0x1042'; Block = $serviceRegistryGroupLookupCaseBlock },
+            @{ Name = '0x202B'; Block = $serviceRegistryReferenceCaseBlock })) {
+        if ([string]::IsNullOrWhiteSpace($registryCase.Block)) {
+            throw "Service Registry $($registryCase.Name) case was not found."
+        }
+    }
+    Assert-ExactRegexValueSet `
+        -Text $serviceRegistryHandlerBlock `
+        -Pattern 'ResponseSize\s*:=\s*(?<Value>[1-9][0-9]*)\s*;' `
+        -Owner 'Service Registry response sizes' `
+        -ExpectedValues @('12', '14', '16')
+    Assert-ExactRegexValueSet `
+        -Text $serviceRegistryHandlerBlock `
+        -Pattern 'ResponseCapacity\s*<\s*(?<Value>[1-9][0-9]*)' `
+        -Owner 'Service Registry response capacities' `
+        -ExpectedValues @('12', '14', '16')
+
+    $registryAxisSizeGate = [regex]::Match(
+        $serviceRegistryAxisLookupCaseBlock,
+        'if\s+RequestFrameSize\s*=\s*88\s+then')
+    $registryAxisFirstDereference = [regex]::Match(
+        $serviceRegistryAxisLookupCaseBlock,
+        '\(pRequestFrame\s*\+')
+    if (-not $registryAxisSizeGate.Success -or
+        -not $registryAxisFirstDereference.Success -or
+        $registryAxisSizeGate.Index -ge $registryAxisFirstDereference.Index) {
+        throw 'Service 0x103C must prove the exact 88-byte frame before dereference.'
+    }
+    Assert-Match $serviceRegistryAxisLookupCaseBlock (
+        '(?s)ResponseCapacity\s*<\s*14.*?' +
+        '\(pRequestFrame\s*\+\s*87\)\^\s*:=\s*0.*?' +
+        '_stricmp\(str1:=\(pRequestFrame\s*\+\s*8\)\$\^CHAR') (
+        'Service 0x103C capacity, bounded name terminator, or name-pointer ' +
+        'offset is missing.')
+    Assert-ExactLasalConnectedClientSet `
+        -Text $serviceRegistryAxisLookupCaseBlock `
+        -Owner 'Service 0x103C axis lookup' `
+        -ExpectedClients @(
+            'LMCAxis1', 'LMCAxis2', 'LMCAxis3',
+            'LMCAxis4', 'LMCAxis5', 'LMCAxis6',
+            'LMCAxis7', 'LMCAxis8', 'LMCAxis9')
+    if ([regex]::Matches(
+            $serviceRegistryAxisLookupCaseBlock,
+            '_GetObjName\(\s*pThis:=LMCAxis[1-9]\.pCmd').Count -ne 9 -or
+        [regex]::Matches(
+            $serviceRegistryAxisLookupCaseBlock,
+            '_stricmp\(str1:=\(pRequestFrame\s*\+\s*8\)\$\^CHAR').Count -ne 9) {
+        throw 'Service 0x103C must query and compare all nine axis names once.'
+    }
+    if ($serviceRegistryAxisLookupCaseBlock -match
+        'ObjectRegistryReady|_strcmp') {
+        throw 'Service 0x103C must use independent case-insensitive lookup state.'
+    }
+
+    $registryGroupSizeGate = [regex]::Match(
+        $serviceRegistryGroupLookupCaseBlock,
+        '(?s)if\s+\(RequestFrameSize\s*=\s*88\)\s*&\s*' +
+        '\(IsClientConnected\(#LMCRobot\)\s*=\s*1\)\s+then')
+    $registryGroupFirstDereference = [regex]::Match(
+        $serviceRegistryGroupLookupCaseBlock,
+        '\(pRequestFrame\s*\+')
+    if (-not $registryGroupSizeGate.Success -or
+        -not $registryGroupFirstDereference.Success -or
+        $registryGroupSizeGate.Index -ge $registryGroupFirstDereference.Index) {
+        throw 'Service 0x1042 must prove the exact 88-byte frame before dereference.'
+    }
+    Assert-Match $serviceRegistryGroupLookupCaseBlock (
+        '(?s)ResponseCapacity\s*<\s*14.*?' +
+        '\(pRequestFrame\s*\+\s*87\)\^\s*:=\s*0.*?' +
+        '_GetObjName\(\s*pThis:=LMCRobot\.pCmd.*?' +
+        '_stricmp\(str1:=\(pRequestFrame\s*\+\s*8\)\$\^CHAR.*?' +
+        'resolvedReference\s*:=\s*0x0100') (
+        'Service 0x1042 pointer bounds or robot lookup mapping is incomplete.')
+    Assert-Match $serviceRegistryReferenceCaseBlock (
+        '(?s)\(RequestFrameSize\s*=\s*20\)\s*&\s*' +
+        '\(Reference\s*>=\s*1\)\s*&\s*\(Reference\s*<=\s*9\).*?' +
+        'ResponseCapacity\s*<\s*16.*?' +
+        '\(pResponseFrame\s*\+\s*8\)\^\$UDINT\s*:=\s*' +
+        'TO_UDINT\(Reference\).*?ResponseSize\s*:=\s*16.*?' +
+        'else\s*if\s+ResponseCapacity\s*<\s*12') (
+        'Service 0x202B exact envelope or reference response is incomplete.')
+    if ($serviceRegistryReferenceCaseBlock -match '\(pRequestFrame\s*\+') {
+        throw 'Service 0x202B must not dereference its payload-free request frame.'
+    }
+
+    $serviceAxisPowerCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x2023:.*?0x2024:').Value
+    $serviceAxisResetCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x2024:.*?0x2022:').Value
+    $serviceAxisStopCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x2022:.*?0x2028:').Value
+    $serviceAxisStatusCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x2028:.*?0x202E:').Value
+    $serviceAxisPositionCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x202E:.*?0x209F,\s*0x20A0,\s*0x20A2:').Value
+    $serviceAxisMotionCaseBlock = [regex]::Match(
+        $serviceAxisHandlerBlock,
+        '(?s)0x209F,\s*0x20A0,\s*0x20A2:.*').Value
+    foreach ($axisCase in @(
+            @{ Name = '0x2023'; Block = $serviceAxisPowerCaseBlock },
+            @{ Name = '0x2024'; Block = $serviceAxisResetCaseBlock },
+            @{ Name = '0x2022'; Block = $serviceAxisStopCaseBlock },
+            @{ Name = '0x2028'; Block = $serviceAxisStatusCaseBlock },
+            @{ Name = '0x202E'; Block = $serviceAxisPositionCaseBlock },
+            @{ Name = '0x209F/0x20A0/0x20A2'; Block = $serviceAxisMotionCaseBlock })) {
+        if ([string]::IsNullOrWhiteSpace($axisCase.Block)) {
+            throw "Service Axis $($axisCase.Name) case was not found."
+        }
+    }
+    Assert-ExactRegexValueSet `
+        -Text $serviceAxisHandlerBlock `
+        -Pattern 'ResponseSize\s*:=\s*(?<Value>[1-9][0-9]*)\s*;' `
+        -Owner 'Service Axis response sizes' `
+        -ExpectedValues @('12', '16', '20')
+    Assert-ExactRegexValueSet `
+        -Text $serviceAxisHandlerBlock `
+        -Pattern 'ResponseCapacity\s*<\s*(?<Value>[1-9][0-9]*)' `
+        -Owner 'Service Axis response capacities' `
+        -ExpectedValues @('12', '16', '20')
+
+    foreach ($exactAxisFrame in @(
+            @{ Name = '0x2023'; Block = $serviceAxisPowerCaseBlock; Size = 16 },
+            @{ Name = '0x2024'; Block = $serviceAxisResetCaseBlock; Size = 9 },
+            @{ Name = '0x202E'; Block = $serviceAxisPositionCaseBlock; Size = 9 })) {
+        $sizeGate = [regex]::Match(
+            $exactAxisFrame.Block,
+            'if\s+RequestFrameSize\s*=\s*' + $exactAxisFrame.Size +
+            '\s+then')
+        $firstDereference = [regex]::Match(
+            $exactAxisFrame.Block,
+            '\(pRequestFrame\s*\+')
+        if (-not $sizeGate.Success -or -not $firstDereference.Success -or
+            $sizeGate.Index -ge $firstDereference.Index) {
+            throw (
+                "Service $($exactAxisFrame.Name) must prove the exact " +
+                "$($exactAxisFrame.Size)-byte frame before dereference.")
+        }
+    }
+    Assert-Match $serviceAxisStopCaseBlock (
+        '(?s)if\s+\(RequestFrameSize\s*<>\s*24\).*?' +
+        'ResponseSize\s*:=\s*12;\s*RETURN;\s*end_if;.*?' +
+        'ResponseCapacity\s*<\s*16.*?' +
+        'deceleration\s*:=\s*\(pRequestFrame\s*\+\s*8\)\^\$DINT.*?' +
+        'jerk\s*:=\s*\(pRequestFrame\s*\+\s*12\)\^\$DINT.*?' +
+        'bufferMode\s*:=\s*\(pRequestFrame\s*\+\s*16\)\^\$DINT.*?' +
+        'execute\s*:=\s*\(pRequestFrame\s*\+\s*20\)\^\$DINT') (
+        'Service 0x2022 exact frame rejection or pointer offsets are incomplete.')
+    Assert-Match $serviceAxisStatusCaseBlock (
+        '(?s)if\s+RequestFrameSize\s*>=\s*16\s+then\s*' +
+        'payloadReference\s*:=\s*\(pRequestFrame\s*\+\s*8\)\^\$DINT.*?' +
+        'execute\s*:=\s*\(pRequestFrame\s*\+\s*12\)\^\$DINT.*?' +
+        'if\s+\(RequestFrameSize\s*=\s*16\)\s*&.*?' +
+        'ResponseCapacity\s*<\s*20') (
+        'Service 0x2028 bounded decode or exact envelope validation is incomplete.')
+    Assert-Match $serviceAxisMotionCaseBlock (
+        '(?s)\(CommandId\s*=\s*0x209F\)\s*\|\s*' +
+        '\(CommandId\s*=\s*0x20A0\).*?' +
+        'if\s+RequestFrameSize\s*=\s*40\s+then.*?' +
+        'position\s*:=\s*\(pRequestFrame\s*\+\s*8\)\^\$DINT.*?' +
+        'jerk\s*:=\s*\(pRequestFrame\s*\+\s*24\)\^\$DINT.*?' +
+        'else\s*if\s+RequestFrameSize\s*=\s*32\s+then.*?' +
+        'speed\s*:=\s*\(pRequestFrame\s*\+\s*8\)\^\$DINT.*?' +
+        'jerk\s*:=\s*\(pRequestFrame\s*\+\s*20\)\^\$DINT') (
+        'Service axis motion exact frame gates or pointer offsets are incomplete.')
+    foreach ($nativeAxisCall in @(
+            'PowerOn', 'PowerOff', 'QuitError', 'StopMove',
+            'ReadAxisStatus', 'ReadAxisError', 'ReadPosition',
+            'MoveShortestWay', 'MoveRelative', 'MoveEndless')) {
+        $nativeAxisCallCount = [regex]::Matches(
+            $serviceAxisHandlerBlock,
+            ('\bLMCAxis[1-9]\.' + [regex]::Escape($nativeAxisCall) +
+             '\s*\(')).Count
+        if ($nativeAxisCallCount -ne 9) {
+            throw (
+                "Service Axis $nativeAxisCall call count is " +
+                "$nativeAxisCallCount, expected exactly nine.")
+        }
+    }
+
+    $serviceAdminCapabilitiesCaseBlock = [regex]::Match(
+        $serviceAdminHandlerBlock,
+        '(?s)0x7D00:.*?0x7D10:').Value
+    $serviceAdminAxisParameterCaseBlock = [regex]::Match(
+        $serviceAdminHandlerBlock,
+        '(?s)0x7D10:.*?0x7D20:').Value
+    if ([string]::IsNullOrWhiteSpace($serviceAdminCapabilitiesCaseBlock) -or
+        [string]::IsNullOrWhiteSpace($serviceAdminAxisParameterCaseBlock)) {
+        throw 'Service Admin 0x7D00/0x7D10 cases were not found.'
+    }
+    Assert-ExactRegexValueSet `
+        -Text $serviceAdminCapabilitiesCaseBlock `
+        -Pattern 'ResponseSize\s*:=\s*(?<Value>[1-9][0-9]*)\s*;' `
+        -Owner 'Service Admin 0x7D00 response sizes' `
+        -ExpectedValues @('48')
+    Assert-ExactRegexValueSet `
+        -Text $serviceAdminAxisParameterCaseBlock `
+        -Pattern 'ResponseSize\s*:=\s*(?<Value>[1-9][0-9]*)\s*;' `
+        -Owner 'Service Admin 0x7D10 response sizes' `
+        -ExpectedValues @('24', '36')
+    Assert-Match $serviceAdminCapabilitiesCaseBlock (
+        '(?s)ResponseCapacity\s*<\s*48.*?' +
+        'if\s+RequestFrameSize\s*>=\s*16\s+then\s*' +
+        'adminSchemaVersion\s*:=\s*\(pRequestFrame\s*\+\s*8\)\^\$UINT.*?' +
+        'adminRequestFlags\s*:=\s*\(pRequestFrame\s*\+\s*10\)\^\$UINT.*?' +
+        'adminRequestId\s*:=\s*\(pRequestFrame\s*\+\s*12\)\^\$UDINT.*?' +
+        'RequestFrameSize\s*<>\s*16.*?Reference\s*<>\s*0.*?' +
+        '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*40.*?' +
+        '\(pResponseFrame\s*\+\s*24\)\^\$UDINT\s*:=\s*0x00000007.*?' +
+        '\(pResponseFrame\s*\+\s*42\)\^\$UINT\s*:=\s*3.*?' +
+        'ResponseSize\s*:=\s*48') (
+        'Service 0x7D00 pointer envelope or capability response is incomplete.')
+    Assert-Match $serviceAdminAxisParameterCaseBlock (
+        '(?s)ResponseCapacity\s*<\s*36.*?' +
+        'if\s+RequestFrameSize\s*>=\s*16\s+then.*?' +
+        'pRequestFrame\s*\+\s*8.*?pRequestFrame\s*\+\s*10.*?' +
+        'pRequestFrame\s*\+\s*12.*?' +
+        'if\s+RequestFrameSize\s*>=\s*20\s+then.*?' +
+        'adminParameterKey\s*:=\s*\(pRequestFrame\s*\+\s*16\)\^\$UINT.*?' +
+        'RequestFrameSize\s*<>\s*20.*?' +
+        '\(pRequestFrame\s*\+\s*18\)\^\$UINT\s*<>\s*0') (
+        'Service 0x7D10 bounded common/parameter pointer decode is incomplete.')
+    Assert-Match $serviceAdminAxisParameterCaseBlock (
+        '(?s)case\s+adminParameterKey\s+of.*?' +
+        'LMCAXIS_RD_SWMIN_APPUNIT.*?LMCAXIS_RD_SWMAX_APPUNIT.*?' +
+        'LMCAXIS_PAR_RD_SWLIMWINDOW.*?LMCAXIS_PAR_RD_V_MAX.*?' +
+        'LMCAXIS_PAR_RD_A_MAX.*?LMCAXIS_PAR_RD_REFPOS.*?' +
+        'adminDetailCode\s*:=\s*6') (
+        'Service 0x7D10 semantic-to-native allowlist mapping is incomplete.')
+    if ([regex]::Matches(
+            $serviceAdminAxisParameterCaseBlock,
+            '\bLMCAxis[1-4]\.ReadSWEndPos\s*\(').Count -ne 4 -or
+        [regex]::Matches(
+            $serviceAdminAxisParameterCaseBlock,
+            '\bLMCAxis[1-4]\.ReadParameter\s*\(').Count -ne 4) {
+        throw 'Service 0x7D10 must expose both native read paths for four axes.'
+    }
+    Assert-Match $serviceAdminAxisParameterCaseBlock (
+        '(?s)\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*28.*?' +
+        '\(pResponseFrame\s*\+\s*24\)\^\$UINT\s*:=\s*adminParameterKey.*?' +
+        '\(pResponseFrame\s*\+\s*32\)\^\$DINT\s*:=\s*adminAxisValue.*?' +
+        'ResponseSize\s*:=\s*36.*?else.*?' +
+        '\(pResponseFrame\s*\+\s*2\)\^\$UINT\s*:=\s*16.*?' +
+        '\(pResponseFrame\s*\+\s*14\)\^\$INT\s*:=\s*-31000.*?' +
+        'ResponseSize\s*:=\s*24') (
+        'Service 0x7D10 success/error pointer response framing is incomplete.')
+}
+
 $responseBlock = [regex]::Match(
     $st,
     '(?s)FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response.*?END_FUNCTION').Value
@@ -3086,31 +4320,47 @@ if ($st -match '(?m)^\s*0x208[1-4]\s*:') {
 }
 
 $upperBitMappings = [regex]::Matches($st, 'AxisCommandState\$UDINT\s+and\s+0xFFFF0000').Count
-if ($upperBitMappings -ne 4) {
-    throw "32-bit axis error truncation guards=$upperBitMappings, expected 4."
+if ($transportClean) {
+    if ($upperBitMappings -ne 0 -or
+        $st -match '(?<![A-Za-z0-9_])AxisObjectName[1-9](?![A-Za-z0-9_])' -or
+        $st -match '(?<![A-Za-z0-9_])AxisCommandInputValid(?![A-Za-z0-9_])') {
+        throw 'Phase5TransportClean TCPMotionInterface still contains legacy axis-domain implementation state.'
+    }
 }
-
-Assert-Match $st 'AxisObjectName1\s*:\s*ARRAY \[0\.\.255\] OF CHAR' 'LASAL object-name buffer is not 256 bytes.'
-if ($st -match 'AxisObjectName[5-9]\s*:\s*ARRAY') {
-    throw 'Axes 5..9 must reuse an IDE-registered object-name buffer instead of adding CodeGenerator-only class variables.'
+else {
+    if ($upperBitMappings -ne 4) {
+        throw "32-bit axis error truncation guards=$upperBitMappings, expected 4."
+    }
+    Assert-Match $st 'AxisObjectName1\s*:\s*ARRAY \[0\.\.255\] OF CHAR' 'LASAL object-name buffer is not 256 bytes.'
+    if ($st -match 'AxisObjectName[5-9]\s*:\s*ARRAY') {
+        throw 'Axes 5..9 must reuse an IDE-registered object-name buffer instead of adding CodeGenerator-only class variables.'
+    }
+    Assert-Match $st '(?s)AxisCommandInputValid\s*:=.*?\(dir = 2\).*?\(bufMode = 1\).*?\(Exec = 1\)' 'Shortest-only axis direction validation is missing.'
+    Assert-Match $st '(?s)\(dec = 0\).*?\(Exec = 1\)' 'MoveVelocity deceleration/execute validation is missing.'
 }
-Assert-Match $st '(?s)AxisCommandInputValid\s*:=.*?\(dir = 2\).*?\(bufMode = 1\).*?\(Exec = 1\)' 'Shortest-only axis direction validation is missing.'
-Assert-Match $st '(?s)\(dec = 0\).*?\(Exec = 1\)' 'MoveVelocity deceleration/execute validation is missing.'
 Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize, reference\);\s*WriteInt32\(buffer, HeaderSize \+ 4, 1\);' 'C# read-status descriptor payload is missing.'
 Assert-Match $protocol 'WriteInt32\(buffer, HeaderSize \+ 64, velocity\);' 'C# group velocity offset is not 64 bytes into payload.'
 Assert-Match $protocol 'WriteInt32\(\s*buffer,\s*HeaderSize \+ 92,\s*options\.Execute \? 1 : 0\s*\);' 'C# group execute option is not serialized at payload offset 92.'
 
+$binaryMetadataResult = if ($transportClean -and
+    $AllowStaleLasalBinaryMetadata) {
+    '; LASAL binary metadata explicitly bypassed'
+}
+else {
+    ''
+}
 if ($SourceOnly) {
     Write-Host (
         "PASS LASAL.StaticContract.SourceOnly ($ControlServiceCheckpoint; " +
         'Admin reads and 0x7D22 relative motion, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, recorder bank, ' +
-        'and session-close wiring)')
+        'and session-close wiring' + $binaryMetadataResult + ')')
 }
 else {
     Write-Host (
         "PASS LASAL.StaticContract ($ControlServiceCheckpoint; " +
         'Admin reads and 0x7D22 relative motion, CyWork queue, ' +
         'control-service checkpoint, diagnostics D1-D5, nine-axis network, ' +
-        'recorder wiring, and generated metadata/tables)')
+        'recorder wiring, and generated metadata/tables' +
+        $binaryMetadataResult + ')')
 }

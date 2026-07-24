@@ -964,6 +964,9 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	if (pResponse = NIL) | (ResponseCapacity < 16) then
 		RETURN;
 	end_if;
+	if (CommandId = 0x7E00) & (ResponseCapacity < 68) then
+		RETURN;
+	end_if;
 	currentBootId := GetDiagnosticsBootId();
 
 	_memset(dest:=pResponse, usByte:=0, cntr:=ResponseCapacity);
@@ -1008,6 +1011,47 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		(((CommandId >= 0x7E40) & (CommandId <= 0x7E49)) &
 		(LMC_DIAG_D3_ENABLED = FALSE)) then
 		detailCode := 2;
+	end_if;
+
+	if CommandId = 0x7E00 then
+		if RequestSize <> 8 then
+			detailCode := 12;
+		end_if;
+		if detailCode <> 0 then
+			(pResponse + 4)^$UINT := 1;
+			(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+			(pResponse + 12)^$UDINT := detailCode;
+		end_if;
+		(pResponse + 16)^$UDINT := 1;
+		(pResponse + 20)^$UDINT := 0x00000007;
+		(pResponse + 24)^$UDINT := LMC_DIAG_MAP_REVISION;
+		(pResponse + 28)^$UINT := 24;
+		(pResponse + 30)^$UINT := 0;
+		(pResponse + 32)^$UINT := 0;
+		(pResponse + 34)^$UINT := 0;
+		(pResponse + 36)^$UDINT := 0;
+		(pResponse + 40)^$UDINT := 1000;
+		(pResponse + 44)^$UINT := 1320;
+		(pResponse + 46)^$UINT := 2040;
+		(pResponse + 48)^$UINT := 1280;
+		(pResponse + 50)^$UINT := 80;
+		(pResponse + 52)^$UINT := 16;
+		(pResponse + 54)^$UINT := 0;
+		(pResponse + 56)^$UDINT := 0;
+		(pResponse + 60)^$UINT := 0;
+		(pResponse + 62)^$UINT := 0;
+		(pResponse + 64)^$UDINT := currentBootId;
+		if currentBootId <> 0 then
+			(pResponse + 20)^$UDINT := 0x0000213F;
+			(pResponse + 30)^$UINT := 24;
+			(pResponse + 32)^$UINT := 24;
+			(pResponse + 34)^$UINT := 1;
+			(pResponse + 36)^$UDINT := 320000;
+			(pResponse + 56)^$UDINT := 1280000;
+			(pResponse + 60)^$UINT := 4;
+		end_if;
+		ResponseSize := 68;
+		RETURN;
 	end_if;
 
 	if detailCode <> 0 then

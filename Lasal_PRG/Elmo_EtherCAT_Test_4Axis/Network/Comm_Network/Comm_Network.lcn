@@ -221,47 +221,21 @@
 			Visualized = "false"
 			CyclicTime = "1 ms">
 			<Channels>
-				<Server Name="acc"/>
 				<Server Name="AxisRef"/>
-				<Server Name="bufMode"/>
 				<Server Name="ClassSvr"/>
 				<Server Name="CommandID"/>
 				<Server Name="ConnectedClients"/>
 				<Server Name="CurrentSock"/>
-				<Server Name="dec"/>
-				<Server Name="dir"/>
 				<Server Name="ErrorCode"/>
 				<Server Name="ErrorGroup"/>
 				<Server Name="ErrorSocket"/>
 				<Server Name="ErrorState"/>
-				<Server Name="Exec"/>
-				<Server Name="jer"/>
 				<Server Name="Payload"/>
-				<Server Name="pos"/>
-				<Server Name="Power"/>
-				<Server Name="ReadPos"/>
-				<Server Name="Reserved"/>
-				<Server Name="RetCode"/>
-				<Server Name="RobotLock"/>
-				<Server Name="RobotPowerOff"/>
-				<Server Name="RobotPowerOn"/>
-				<Server Name="RobotUnLock"/>
 				<Server Name="State"/>
-				<Server Name="velo"/>
 				<Client Name="_StdLib"/>
 				<Client Name="_TCPIPServer"/>
 				<Client Name="ControlCommands"/>
 				<Client Name="Diagnostics"/>
-				<Client Name="LMCAxis1"/>
-				<Client Name="LMCAxis2"/>
-				<Client Name="LMCAxis3"/>
-				<Client Name="LMCAxis4"/>
-				<Client Name="LMCAxis5"/>
-				<Client Name="LMCAxis6"/>
-				<Client Name="LMCAxis7"/>
-				<Client Name="LMCAxis8"/>
-				<Client Name="LMCAxis9"/>
-				<Client Name="LMCRobot"/>
 			</Channels>
 			<!-- List of Networks in this component -->
 			<Networks>
@@ -291,17 +265,7 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
-		<Connection Source="TCPMotionInterface1.LMCAxis1" Destination="_LMCAxis1.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis2" Destination="_LMCAxis2.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis3" Destination="_LMCAxis3.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis4" Destination="_LMCAxis4.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis5" Destination="_LMCAxis5.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis6" Destination="_LMCAxis6.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis7" Destination="_LMCAxis7.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis8" Destination="_LMCAxis8.Control"/>
-		<Connection Source="TCPMotionInterface1.LMCAxis9" Destination="_LMCAxis9.Control"/>
-		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2220,990),(1486,990),"/>
+		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2220,390),(1486,990),"/>
 		<Connection Source="LMCDiagnosticsService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCDiagnosticsService1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr"/>
 		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="_TCPIPServer1.Control" Vertices="(2220,270),(1476,270),"/>
@@ -309,7 +273,7 @@
 		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
-		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,1050),(1488,1470),"/>
+		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,450),(1488,1470),"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis1" Destination="_LMCAxis1.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis2" Destination="_LMCAxis2.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis3" Destination="_LMCAxis3.Control"/>
