@@ -2,7 +2,7 @@
 
 작성일: 2026-06-17
 
-최종 갱신: 2026-07-16
+최종 갱신: 2026-07-23
 
 이 문서는 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`에서 LASAL 코드를 수정할 때
 매번 확인할 실무 규칙이다. IDE 장애 예방과 복구 절차는
@@ -37,6 +37,11 @@
 ## 3. Class 작성 규칙
 
 - 통신, 파서, 큐, 축 제어, 응답 생성을 한 클래스에 계속 몰아넣지 않는다.
+- `TCPMotionInterface`의 확정 분리 구조와 성능 gate는
+  [`LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md`](LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md)를
+  따른다. 현재 Phase 1/1b는 lifecycle 3개를 제외한 50개 ID 본문을 다섯 private
+  family handler로 분리한 상태이며, 최종 목표는 no-task
+  `LMCControlCommandService` 조합 구조다.
 - 권장 분리:
   - TCP facade: 외부 수신, command queue, dispatch
   - Parser: command id, payload length, endian, target 검증

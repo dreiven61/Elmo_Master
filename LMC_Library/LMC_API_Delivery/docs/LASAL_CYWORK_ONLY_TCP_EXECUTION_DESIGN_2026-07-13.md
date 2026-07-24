@@ -2,14 +2,22 @@
 
 작성일: 2026-07-13
 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-상태: 2026-07-16 9축 dispatcher와 group API/large frame queue 반영,
-LASAL IDE Rebuild/PLC 재검증 대기
+상태: 2026-07-24 9축 dispatcher와 group API/large frame queue 반영,
+lifecycle 3개를 제외한 50개 command body의 다섯 동일-class family method 분리 및
+Phase 1 source/full static PASS. no-task control service의 dormant Group-domain body,
+generated class/client metadata, task 없는 service object와 관련 network 연결 11개까지
+저장했고 SourceOnly/full `Phase3GroupDormant` PASS. 최신 이행 설계는 아래 문서 참조
+
+후속 OOP 분리는 이 문서의 single CyWork/queue/ordering 결정을 바꾸지 않는다.
+[TCPMotionInterface 성능 우선 OOP 분리 설계](../../../docs/architecture/LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md)가
+class 책임, 추가 copy 금지와 단계별 이행의 최신 기준이다.
 
 `Motion_Network.lcn`과 `ONE_Motion_Network_Table.st`는 no-RT 설정으로 함께
 재생성됐다. `_TCPIPServer1.Config=0`, `MaxConnections=1`이며
 `TCPMotionInterface1`은 cyclic table에만 있고 RT task entry가 없다. 이전
-no-RT baseline의 Rebuild/Link는 성공했지만 2026-07-14 group handler와 buffer
-확장 뒤 현재 source는 아직 Rebuild/Link하지 않았다.
+no-RT baseline 이후 group handler, large buffer, dormant control service와 현재 network는
+2026-07-24 Rebuild/Link/PLC Download를 통과했다. service public route는 아직 fail-closed라
+실제 command 실행은 기존 TCP handler가 소유한다.
 
 ## 1. 결정
 
@@ -49,8 +57,11 @@ flowchart LR
     B --> C["Response frame accumulator"]
     C --> D["Depth-8 request queue"]
     D --> E["TCPMotionInterface CyWork"]
-    E --> F["MsgPaser validation"]
-    F --> G["Approved LMCAxis or LMCRobot call"]
+    E --> F["MsgPaser session gate + static family route"]
+    F --> F2["Five private family handlers\ncurrent same-class Phase 1/1b"]
+    F --> L["Lifecycle 3 local cases"]
+    F2 --> G["Approved axis, robot, or diagnostics call"]
+    L --> H
     G --> H["Typed response frame"]
     H --> I["SendData direct send"]
 ```
@@ -95,24 +106,24 @@ protocol 범위는 기존 캡처 기반 23개와 LASAL project-local extension 2
 
 | 명령 | 실행 위치 | 동작 |
 |---|---|---|
-| `0x2023 Power` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.PowerOn()` 또는 `PowerOff()` 호출, ACK |
-| `0x2024 Reset` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.QuitError()` 호출, ACK |
-| `0x2022 Stop` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.StopMove()` 호출, ACK |
-| `0x202E ReadActualPosition` | `MsgPaser()`의 CyWork context | 연결 확인 후 `LMCAxis1..9.ReadPosition()` 호출, 16바이트 응답 |
-| `0x2028 ReadStatus` | `MsgPaser()`의 CyWork context | 연결 확인 후 `ReadAxisStatus()`와 `ReadAxisError()` 호출, 20바이트 응답 |
-| `0x209F MoveAbsoluteEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveShortestWay()` 호출, ACK |
-| `0x20A0 MoveRelativeEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveRelative()` 호출, ACK |
-| `0x20A2 MoveVelocityEx` | `MsgPaser()`의 CyWork context | `LMCAxis1..9.MoveEndless()` 호출, ACK |
-| `0x204A GroupPowerOn` | `MsgPaser()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOn()` 시작 요청, 접수 ACK |
-| `0x204B GroupPowerOff` | `MsgPaser()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOff()` 시작 요청, 접수 ACK |
-| `0x2047 GroupEnable` | `MsgPaser()`의 CyWork context | 검증된 static mapping을 `LMCRobot.LockProfile()`로 lock, ACK |
-| `0x2048 GroupDisable` | `MsgPaser()`의 CyWork context | `ProfileInPosition` 확인 뒤 `LMCRobot.UnlockProfile()`로 profile unlock, ACK |
-| `0x2045 GroupReadStatus` | `MsgPaser()`의 CyWork context | local `0x00040000=Power Ready`, Maestro 표준 `0x00020000=NC_GROUP_STANDBY_MASK`/`0x00010000=NC_GROUP_DISABLED_MASK`를 현재 lock/unlock 조건에 mapping하고 profile error 반환 |
-| `0x2049 GroupReset` | `MsgPaser()`의 CyWork context | 축/하드웨어 오류용 `LMCRobot.AxQuitError(AxisNo:=0)` 호출, ACK |
-| `0x2085 GroupStop` | `MsgPaser()`의 CyWork context | `LMCRobot.StopMove(Mode:=3, Decel, Jerk)` 호출, command 접수 ACK |
-| `0x20A4 MoveLinearAbsoluteEx` | `MsgPaser()`의 CyWork context | static 4축과 승인된 mode를 검사해 `LMCRobot.MoveLinearCoord()` 호출, ACK |
-| `0x2051 GroupReadActualPosition` | `MsgPaser()`의 CyWork context | `GetRobotPosition()`의 Pos1..Pos9를 현재 source가 복사, 76바이트 frame/68바이트 payload 반환; 공개 4-vs-9 read 계약 재확정 필요 |
-| `0x20E7 SetKinTransformCartesian4Axis` | `MsgPaser()`의 CyWork context | exact 1,320-byte X/Y/Z/U identity 요청의 static mapping 검증/설정만 수행, 4바이트 ACK payload; profile lock은 하지 않음 |
+| `0x2023 Power` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.PowerOn()` 또는 `PowerOff()` 호출, ACK |
+| `0x2024 Reset` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.QuitError()` 호출, ACK |
+| `0x2022 Stop` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.StopMove()` 호출, ACK |
+| `0x202E ReadActualPosition` | `HandleAxisCommands()`의 CyWork context | 연결 확인 후 `LMCAxis1..9.ReadPosition()` 호출, 16바이트 응답 |
+| `0x2028 ReadStatus` | `HandleAxisCommands()`의 CyWork context | 연결 확인 후 `ReadAxisStatus()`와 `ReadAxisError()` 호출, 20바이트 응답 |
+| `0x209F MoveAbsoluteEx` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.MoveShortestWay()` 호출, ACK |
+| `0x20A0 MoveRelativeEx` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.MoveRelative()` 호출, ACK |
+| `0x20A2 MoveVelocityEx` | `HandleAxisCommands()`의 CyWork context | `LMCAxis1..9.MoveEndless()` 호출, ACK |
+| `0x204A GroupPowerOn` | `HandleGroupCommands()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOn()` 시작 요청, 접수 ACK |
+| `0x204B GroupPowerOff` | `HandleGroupCommands()`의 CyWork context | LASAL project-local extension. 비동기 `LMCRobot.RobotOff()` 시작 요청, 접수 ACK |
+| `0x2047 GroupEnable` | `HandleGroupCommands()`의 CyWork context | 검증된 static mapping을 `LMCRobot.LockProfile()`로 lock, ACK |
+| `0x2048 GroupDisable` | `HandleGroupCommands()`의 CyWork context | `ProfileInPosition` 확인 뒤 `LMCRobot.UnlockProfile()`로 profile unlock, ACK |
+| `0x2045 GroupReadStatus` | `HandleGroupCommands()`의 CyWork context | local `0x00040000=Power Ready`, Maestro 표준 `0x00020000=NC_GROUP_STANDBY_MASK`/`0x00010000=NC_GROUP_DISABLED_MASK`를 현재 lock/unlock 조건에 mapping하고 profile error 반환 |
+| `0x2049 GroupReset` | `HandleGroupCommands()`의 CyWork context | 축/하드웨어 오류용 `LMCRobot.AxQuitError(AxisNo:=0)` 호출, ACK |
+| `0x2085 GroupStop` | `HandleGroupCommands()`의 CyWork context | `LMCRobot.StopMove(Mode:=3, Decel, Jerk)` 호출, command 접수 ACK |
+| `0x20A4 MoveLinearAbsoluteEx` | `HandleGroupCommands()`의 CyWork context | static 4축과 승인된 mode를 검사해 `LMCRobot.MoveLinearCoord()` 호출, ACK |
+| `0x2051 GroupReadActualPosition` | `HandleGroupCommands()`의 CyWork context | `GetRobotPosition()`의 Pos1..Pos9를 현재 source가 복사, 76바이트 frame/68바이트 payload 반환; 공개 4-vs-9 read 계약 재확정 필요 |
+| `0x20E7 SetKinTransformCartesian4Axis` | `HandleGroupCommands()`의 CyWork context | exact 1,320-byte X/Y/Z/U identity 요청의 static mapping 검증/설정만 수행, 4바이트 ACK payload; profile lock은 하지 않음 |
 | RPC init/callback/close, name lookup | CyWork | 기존 non-motion 처리 유지 |
 
 기존 deterministic unsupported 5개는 source에서 활성화됐다. 다음 제한은
@@ -239,6 +250,7 @@ PLC에서는 추가로 아래를 확인한다.
 - 1 ms cyclic task 및 motion RT cycle jitter
 - TCP send 실패 시 session quarantine와 reconnect 동작
 
-기존 no-RT network의 LASAL IDE build는 완료했지만 2026-07-14 group handler와
-buffer 확장 이후 Rebuild/Link와 PLC download는 다시 수행해야 한다. PLC runtime
-검증과 packet 재캡처 전에는 실기 완료 또는 production 승인으로 표시하지 않는다.
+현재 no-RT network와 buffer 확장본의 LASAL IDE Rebuild/Link/PLC Download는 완료됐다.
+다만 신규 control service는 dormant route라 runtime 검증 대상에 아직 진입하지 않았다.
+Phase 3B route 전환 뒤 PLC runtime, packet 회귀와 성능 측정을 다시 수행하기 전에는 실기
+완료 또는 production 승인으로 표시하지 않는다.

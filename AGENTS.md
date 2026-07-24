@@ -22,6 +22,7 @@
    - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Include/**/*`
 2. 프로젝트 분석 문서
    - `docs/architecture/ELMO_MASTER_CURRENT_ARCHITECTURE_AND_RELEASE_STATUS_2026-07-16.md`
+   - `docs/architecture/LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md`
    - `docs/PMAS_LASAL_Integrated_Analysis_2026-04-10.md`
    - `docs/architecture/SIGMATEK_LASAL_coding_rules.md`
    - `docs/architecture/SIGMATEK_LASAL_programming_method_study.md`

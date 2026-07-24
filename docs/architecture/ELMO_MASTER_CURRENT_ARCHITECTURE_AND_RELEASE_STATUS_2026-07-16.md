@@ -1,18 +1,32 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
 - 감사일: 2026-07-16
-- 마지막 source/실기 상태 검토: 2026-07-23 diagnostics D1~D4 single-bank와
+- 마지막 source/실기 상태 검토: 2026-07-24 diagnostics D1~D4 single-bank와
   test-profile D5 general-inline SDO Read 활성, group Phase 0 option/position 계약 정합,
   Phase 1 read-only Admin/facade, Phase 2 `0x7D22 GroupMoveLinearRelative` 및 PMAS native
   capture 정렬. 같은 날 Admin/drive read/relative motion/D1 PI/D2 Bulk, 동적 group
   monitor/PowerOff, `0x2051` None/ACS static alias, D5 general-inline 1/2/4-byte와
   TypeMismatch 후 복구 capture PASS. 이후 `0x2047` accepted-then-poll와
   Group/Bulk/Recorder qualification UI source 및 PC build 완료; 해당 신규 경로의 PLC
-  live 검증은 아직 없음
+  live 검증은 아직 없음. 같은 날 `TCPMotionInterface.MsgPaser`의 Admin, diagnostics,
+  registry, axis, Group 50개 command body를 다섯 private family handler로 byte-equivalent
+  분리했고 Phase 1 source/full static 계약 PASS. 2026-07-24 no-task
+  `LMCControlCommandService`의 class/method/client/generated metadata와
+  `GroupMovePos`/`GroupKinematicReady`/확장된 `MoveLinearAbsEx` 선언까지 저장했다. 이어
+  Group 11개와 Group-domain Admin 2개 body를 dormant service에 구현하고 command별
+  pointer/size/response/native-dispatch 의미 계약을 포함한 SourceOnly 검증을 통과했다.
+  `HandleRequest`는 계속 fail-closed라 실행 owner는 legacy transport 하나뿐이며 service
+  object와 관련 network 연결 11개는 task 없이 저장됐다. 성공 Rebuild가
+  `ONE_Comm_Network_Table.st`를 현재 network 기준으로 재생성했고 Link, PLC Download,
+  project load도 성공했다. 종료 전 `ControlCommands`/`LMCAxis3` implementation search와
+  전체 LASAL log의 `CInvalidArgException` 0건도 확인했다
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
-- 판정: PC/WPF build와 LASAL source/full static, 주요 신규 API happy path는 통과했다.
+- 판정: PC Debug/Release 각 148 tests, 개발 WPF Debug/Release build, LASAL SourceOnly/full
+  `Phase3GroupDormant`, Rebuild/Link/Download와 주요 신규 API happy path는 통과했다.
+  Phase 2 network checkpoint와 Phase 3A dormant body는 완료됐지만 Group 13-ID route는
+  아직 기존 transport owner를 유지한다.
   Group/Bulk/Recorder 자동 qualification은 code/build 단계까지만 완료됐으며 PLC live,
   fault, stale identity, reconnect/adopt, RT evidence와 장비 안전 matrix가 남아 production
   승인본은 아님
@@ -83,7 +97,7 @@ flowchart LR
     subgraph Current["현재 SIGMATEK 경로"]
         APP["개발 WPF 또는 사용자 프로그램"] --> DLL["LasalMotionControlLib.dll"]
         DLL -->|"TCP LASAL-DINT v1"| TCP["_TCPIPServer1 : 4000"]
-        TCP --> IF["TCPMotionInterface\nResponse queue -> CyWork"]
+        TCP --> IF["TCPMotionInterface\nResponse queue -> CyWork -> static family route"]
         IF --> AX["_LMCAxis1..9"]
         IF --> ROBOT["_LMCRobotBase1"]
         TCP -. "UDP callback 등록만 확인\ntyped event sender 없음" .-> DLL
@@ -95,6 +109,13 @@ flowchart LR
 두 경로는 API 이름과 시험 의도를 비교할 수 있지만 wire 호환으로 취급하면 안 된다.
 PMAS 캡처에는 LREAL/REAL ABI가 있고 현재 LASAL adapter는 caller가 변환한 DINT를
 전송하는 별도 `LASAL-DINT v1` 계약이다.
+
+현재 lifecycle 3개를 제외한 command body는 탐색성과 method 크기 제한을 위해 같은
+class의 `HandleAdminCommands`, `HandleDiagnosticsCommands`,
+`HandleRegistryCommands`, `HandleAxisCommands`, `HandleGroupCommands`로 분리돼 있다.
+최종 transport/control class 분리의 책임, 성능 불변조건과 단계별 network 이행은
+[TCPMotionInterface 성능 우선 OOP 분리 설계](LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md)를
+따른다. 이 문서의 그림은 아직 배포된 현재 구조이며 설계 문서의 목표 구조와 구분한다.
 
 ## 4. 디렉터리별 책임
 
@@ -479,8 +500,12 @@ PowerOff와 D5 4-byte/recovery 증거는
 
 ### P2: 유지보수·제품화
 
-1. `TCPMotionInterface.st` 약 3,041줄, `LmcConnection.cs` 약 1,523줄,
-   개발 WPF `MainWindow.xaml.cs` 약 3,516줄로 책임이 집중돼 있다.
+1. `TCPMotionInterface.st`는 약 3,752줄이지만 `MsgPaser`는 5,392 bytes로 축소됐다.
+   no-task control service의 선언, dormant Group-domain body, object와 관련 network 연결
+   11개는 저장됐고 SourceOnly/full static 및 LASAL compiler/link/download를 통과했다.
+   다만 Group domain 원자 route 전환 전이라 다섯 legacy family handler도 아직 같은
+   class에 있고 신규 service body는 runtime에서 호출되지 않는다. `LmcConnection.cs`와
+   개발 WPF `MainWindow.xaml.cs`도 여전히 책임이 집중돼 있다.
 2. 사용되지 않는 group LREAL scratch와 `ClampLRealToDint`가 남아 현재 DINT-only
    경계를 흐린다.
 3. fuzz/property test, 장시간 reconnect/concurrency, callback handler 예외와
