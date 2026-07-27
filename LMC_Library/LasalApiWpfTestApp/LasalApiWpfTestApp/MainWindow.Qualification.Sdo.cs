@@ -1499,91 +1499,43 @@ namespace LasalMotionControlApiExample
                 firstCapabilities,
                 capabilities,
                 "orphan recovery preflight");
-            var ownerChangedEvidenceCount = orphanedTickets.Count(
-                item => !ReferenceEquals(
-                        item.OwnerConnection,
-                        currentConnection));
-            var sameOwnerEvidenceCount = orphanedTickets.Count(
-                item => ReferenceEquals(
-                    item.OwnerConnection,
-                    currentConnection));
-            var bootChangedEvidenceCount = orphanedTickets.Count(
-                item => item.DiagnosticsBootId
-                    != capabilities.DiagnosticsBootId);
-            var mapChangedEvidenceCount = orphanedTickets.Count(
-                item => item.MapRevision != capabilities.MapRevision);
-            var sameIdentityEvidenceCount = orphanedTickets.Count(
-                item => ReferenceEquals(item.OwnerConnection, currentConnection)
-                    && item.DiagnosticsBootId
-                        == capabilities.DiagnosticsBootId
-                    && item.MapRevision == capabilities.MapRevision);
-            var firstEvidence = orphanedTickets[0];
-            var allEvidenceShareOwner = orphanedTickets.All(
-                item => ReferenceEquals(
-                    item.OwnerConnection,
-                    firstEvidence.OwnerConnection));
-            var allEvidenceShareSubmissionIdentity = orphanedTickets.All(
-                item => item.DiagnosticsBootId
-                        == firstEvidence.DiagnosticsBootId
-                    && item.MapRevision == firstEvidence.MapRevision);
-            var allEvidenceMatchCurrentIdentity =
-                sameIdentityEvidenceCount == orphanedTickets.Length;
-            var ownerConnectionChangedForAllEvidence =
-                ownerChangedEvidenceCount == orphanedTickets.Length;
-            var sameOwnerForAllEvidence =
-                sameOwnerEvidenceCount == orphanedTickets.Length;
-            var isNewDiagnosticsIdentitySession =
-                sameOwnerForAllEvidence
-                && allEvidenceShareSubmissionIdentity
-                && !allEvidenceMatchCurrentIdentity;
-            var isNewConnectionSession =
-                ownerConnectionChangedForAllEvidence
-                && allEvidenceShareOwner
-                && allEvidenceShareSubmissionIdentity;
-            var mixedEvidenceSessions =
-                !allEvidenceMatchCurrentIdentity
-                && !isNewDiagnosticsIdentitySession
-                && !isNewConnectionSession;
-            var proofScope = allEvidenceMatchCurrentIdentity
-                ? "same_owner_connection_recovery"
-                : isNewDiagnosticsIdentitySession
-                    ? "new_diagnostics_identity_session"
-                    : isNewConnectionSession
-                        ? "new_connection_session"
-                        : "mixed_evidence_sessions";
-            var proofScopeText = allEvidenceMatchCurrentIdentity
-                ? "same-owner connection recovery"
-                : isNewDiagnosticsIdentitySession
-                    ? "new diagnostics identity session"
-                    : isNewConnectionSession
-                        ? "new connection session"
-                        : "mixed evidence sessions";
+            var recoveryScope = D5SdoRecoveryScopePolicy.Evaluate(
+                orphanedTickets,
+                currentConnection,
+                capabilities.DiagnosticsBootId,
+                capabilities.MapRevision);
             WriteD5SdoQualificationLog(
                 "event=D5_QUARANTINE_PROOF_SCOPE",
-                "scope=" + proofScope,
+                "scope=" + recoveryScope.ScopeCode,
                 "currentBootId=0x"
                     + capabilities.DiagnosticsBootId.ToString("X8"),
                 "currentMapRevision=0x"
                     + capabilities.MapRevision.ToString("X8"),
-                "evidenceCount=" + orphanedTickets.Length.ToString(
+                "evidenceCount=" + recoveryScope.EvidenceCount.ToString(
                     CultureInfo.InvariantCulture),
-                "ownerChangedEvidence=" + ownerChangedEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "sameOwnerEvidence=" + sameOwnerEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "bootChangedEvidence=" + bootChangedEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "mapChangedEvidence=" + mapChangedEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
+                "ownerChangedEvidence="
+                    + recoveryScope.OwnerChangedEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                "sameOwnerEvidence="
+                    + recoveryScope.SameOwnerEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                "bootChangedEvidence="
+                    + recoveryScope.BootChangedEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                "mapChangedEvidence="
+                    + recoveryScope.MapChangedEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
                 "sameIdentityEvidence="
-                    + sameIdentityEvidenceCount.ToString(
+                    + recoveryScope.SameIdentityEvidenceCount.ToString(
                         CultureInfo.InvariantCulture),
                 "newConnectionRecovery="
-                    + (isNewConnectionSession
+                    + (recoveryScope.NewConnectionRecovery
                         ? "true"
                         : "false"),
                 "mixedEvidenceSessions="
-                    + (mixedEvidenceSessions ? "true" : "false"),
+                    + (recoveryScope.MixedEvidenceSessions
+                        ? "true"
+                        : "false"),
                 "orphanQualified=false",
                 "orphanProof=NOT_PROVEN_BY_WPF");
             var terminalWaitMilliseconds =
@@ -1614,7 +1566,7 @@ namespace LasalMotionControlApiExample
             SetD5SdoQualificationProgress(
                 35,
                 "Submitting first "
-                    + proofScopeText
+                    + recoveryScope.ScopeText
                     + " "
                     + proofObjectText
                     + " recovery proof");
@@ -1656,7 +1608,7 @@ namespace LasalMotionControlApiExample
             SetD5SdoQualificationProgress(
                 65,
                 "Submitting second exact-value "
-                    + proofScopeText
+                    + recoveryScope.ScopeText
                     + " "
                     + proofObjectText
                     + " recovery proof");
@@ -1743,25 +1695,30 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture),
                     "proofTicket2=" + secondTicket.TicketId.ToString(
                         CultureInfo.InvariantCulture),
-                    "proofScope=" + proofScope,
+                    "proofScope=" + recoveryScope.ScopeCode,
                     "ownerChangedEvidence="
-                        + ownerChangedEvidenceCount.ToString(
+                        + recoveryScope.OwnerChangedEvidenceCount.ToString(
                             CultureInfo.InvariantCulture),
-                    "sameOwnerEvidence=" + sameOwnerEvidenceCount.ToString(
-                        CultureInfo.InvariantCulture),
-                    "bootChangedEvidence=" + bootChangedEvidenceCount.ToString(
-                        CultureInfo.InvariantCulture),
-                    "mapChangedEvidence=" + mapChangedEvidenceCount.ToString(
-                        CultureInfo.InvariantCulture),
+                    "sameOwnerEvidence="
+                        + recoveryScope.SameOwnerEvidenceCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "bootChangedEvidence="
+                        + recoveryScope.BootChangedEvidenceCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "mapChangedEvidence="
+                        + recoveryScope.MapChangedEvidenceCount.ToString(
+                            CultureInfo.InvariantCulture),
                     "sameIdentityEvidence="
-                        + sameIdentityEvidenceCount.ToString(
+                        + recoveryScope.SameIdentityEvidenceCount.ToString(
                             CultureInfo.InvariantCulture),
                     "newConnectionRecovery="
-                        + (isNewConnectionSession
+                        + (recoveryScope.NewConnectionRecovery
                             ? "true"
                             : "false"),
                     "mixedEvidenceSessions="
-                        + (mixedEvidenceSessions ? "true" : "false"),
+                        + (recoveryScope.MixedEvidenceSessions
+                            ? "true"
+                            : "false"),
                     "orphanQualified=false",
                     "orphanProof=NOT_PROVEN_BY_WPF",
                     "proof=two_distinct_exact_type_length_value_reads",
