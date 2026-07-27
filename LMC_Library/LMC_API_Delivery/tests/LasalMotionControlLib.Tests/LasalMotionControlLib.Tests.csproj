@@ -44,6 +44,7 @@
     <Compile Include="D5SdoQualificationAnalysisTests.cs" />
     <Compile Include="D5ExternalReadFailureOrchestratorTests.cs" />
     <Compile Include="D5SdoQuarantineLedgerTests.cs" />
+    <Compile Include="D5SdoQuarantineLedgerConcurrencyTests.cs" />
     <Compile Include="D5SdoRecoveryScopePolicyTests.cs" />
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TransportQualificationAnalysis.cs">
       <Link>TransportQualificationAnalysis.cs</Link>
