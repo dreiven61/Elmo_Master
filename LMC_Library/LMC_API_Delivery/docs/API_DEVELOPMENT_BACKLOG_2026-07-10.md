@@ -10,7 +10,7 @@ Latest update: 2026-07-27
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
 > 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
 > 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
-> Debug/Release 각 225/225 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
+> Debug/Release 각 236/236 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
 > dynamic group monitor/PowerOff, D0/D1/D2 PI/Bulk와 D5 general-inline 1/2/4-byte
 > happy path를 확인했다. 같은 BootId의 의도한 TypeMismatch 실패 후 Int8/1 복구도
 > PASS했다. read-only D5 SDO abort -> recovery runner/analyzer와 internal negative-wire
@@ -79,7 +79,7 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 225/225를 통과했다.
+현재 source는 C# 자동 테스트 Debug/Release 각 236/236 PASS를 확인했다.
 LASAL SourceOnly/full static contract와 D5 runner 포함 개발 WPF Debug/Release build를
 통과했다. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS했으며 D5 panel
 visual은 별도다.
@@ -118,9 +118,17 @@ Phase 1 facade의 diagnostics domain command 실패는
 `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling` stage를
 노출하고 status 실패에는 accepted ticket을 보존한다. WPF는 pre-ticket command rejection의
 guard를 해제하고 status command failure의 known ticket을 보존한다. 기존
-`LMCDiagnosticsCommandException` catch 호환성도 유지한다. transport/malformed/local-session
-예외까지 포괄하는 all-failure attempt context는 후속 UX 부채이며 현재는 unknown evidence로
-fail-closed한다. PI Write는 SDK compile-time allowlist empty와 WPF
+`LMCDiagnosticsCommandException` catch 호환성도 유지한다. facade의 transport/malformed/
+local-session/axis-status 포함 모든 실패는 원래 exception 객체와 타입을 바꾸지
+않고 `LMCDriveReadFailureContext.TryGet`으로 context를 제공한다. phase는
+`FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/`StatusPolling`/
+`ResultMaterialization`, outcome은 `NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`다.
+각 attempt는 확보된 실제 `DiagnosticsBootId`/`MapRevision`, request, ticket, 마지막
+status를 보존하고 capability identity 확보 전은 0 sentinel로 표시한다. WPF는
+no-submit/명시적 rejection/terminal status면 guard를 해제하고, `OutcomeUncertain`은
+quarantine하며, `Accepted` nonterminal은 exact ticket을 보존한다. context가 없거나
+증거가 일관되지 않으면 fail-closed한다. raw manual `SubmitSdo[Async]`는 facade
+context가 없으므로 여전히 보수적 처리를 유지한다. PI Write는 SDK compile-time allowlist empty와 WPF
 `Phase1AllowsPiWrite=false`의 button/handler 이중 차단으로 송신할 수 없다.
 pending cleanup은 원 terminal deadline을 반영한 15~120초 bound다. 이 보호도 PLC
 live/pcap 증거는 아니다.
@@ -147,7 +155,7 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 225/225 PASS | 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개 + drive-read command stage/ticket 및 non-domain unknown 계약 2개 |
+| C# 자동 테스트 | Debug/Release 각 236/236 PASS | 기존 225개 + D5 external-read WPF routing orchestrator 7개 + drive-read all-failure facade context 4개 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
 | 개발 WPF | D5 포함 Debug/Release build PASS | startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS; D5 visual과 PLC 동작 승인은 별도 |

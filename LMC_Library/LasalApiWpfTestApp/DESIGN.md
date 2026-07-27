@@ -378,18 +378,27 @@ var raw = checked((int)Math.Round(
 - manual SDO와 Drive read의 external tracker event는 마지막 qualification context에 붙이지
   않고 별도 `D5ExternalTracking:<stage>` run ID/step/elapsed context를 사용한다. unresolved
   상태에서는 이 원본 context를 유지하고 Resolve가 끝난 뒤에만 close한다.
-- Phase 1 read-only facade의 diagnostics domain command 실패는
-  `LMCSdoReadCommandException`의 `CapabilityPreflight`/`Submission`/`StatusPolling` stage와
-  accepted ticket을 사용한다. WPF는 pre-ticket rejection guard를 해제하고 status failure의
-  known ticket을 보존한다. transport/malformed/local-session 예외의 all-failure context는
-  아직 없으므로 unknown evidence로 fail-closed하는 후속 operator UX 부채다.
+- Phase 1 drive-read facade는 원래 exception type/stack을 그대로 다시 던지고
+  `LMCDriveReadFailureContext.TryGet`으로 typed all-failure context를 제공한다. phase는
+  `FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`,
+  `ResultMaterialization`이고, 각 SDO attempt는 `NotAttempted`, `Rejected`,
+  `OutcomeUncertain`, `Accepted` submission outcome과 실제 capability의
+  `DiagnosticsBootId`/`MapRevision`, ticket, 마지막 status를 불변 snapshot으로 보존한다.
+  이전 attempt가 terminal이 아니면 다음 attempt를 만들 수 없다. WPF orchestrator는
+  no-submit/rejected/accepted-terminal context의 guard를 해제하고, uncertain은 실제 Submit
+  identity로 unknown evidence를 보정해 quarantine하며, accepted nonterminal은 exact ticket을
+  보존하고 guard를 해제한다. context 누락, 둘 이상의 nonterminal ticket 또는 불일치 상태는
+  fail-closed한다. 수동 `Submit SDO Read`가 직접 호출하는 `LMCDiagnostics.SubmitSdoAsync`는
+  이 facade context 범위 밖이므로 non-domain 실패를 계속 보수적으로 quarantine한다.
 
 ### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. Group queue chaining/Stop-first wire order, 수정된 `0x2047`,
+gate 확인일 뿐이다. API Debug/Release는 각각 236/236 PASS이며 기존 225개에 WPF failure
+orchestrator 7개와 facade context 등록 4개가 추가됐다. Group queue chaining/Stop-first wire
+order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
 아직 실행·packet capture하지 않았다. 따라서 runner의 `PASS`와 지정 capture의 wire

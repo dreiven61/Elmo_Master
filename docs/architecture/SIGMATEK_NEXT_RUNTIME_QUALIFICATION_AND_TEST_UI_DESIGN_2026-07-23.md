@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 225/225 계약 시험 PASS; 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개 + drive-read exception 계약 2개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 236/236 계약 시험 PASS; 기존 225개 + WPF failure orchestrator 7개 + facade context 등록 4개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -39,7 +39,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 | GroupEnable `0x2047` | same-cycle 상태 read 제거와 정적 계약 PASS | 새 PLC build/download 뒤 acceptance ACK 0 및 후속 `0x2045` poll live 확인 |
 | D1/D2 PI/Bulk | 기존 24-entry Catalog, 4 PI, 4-entry snapshot/release live PASS; 24-entry snapshot/lifecycle soak와 operator checkpoint 기반 one-slave-offline partial/recovery code, 9개 순수 판정 시험 및 WPF build PASS | 100회와 partial workflow live 실행/capture, stale/raw-negative |
 | D3/D4 Recorder | Single/Ring forced-trigger/trigger-soak와 reconnect exact/0/0 discovery runner code 및 WPF build PASS | PLC live Single/Ring/100회/reconnect-adopt; fault, RAM/jitter와 Double은 별도 |
-| D5 SDO Read | general-inline/TypeMismatch recovery live PASS. abort runner/analyzer와 submit outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate, 15~120초 cleanup code/build/test 완료 | abort/orphan live/pcap, offline, timeout, queued cancel, contention |
+| D5 SDO Read | general-inline/TypeMismatch recovery live PASS. abort runner/analyzer, all-failure drive-read context, submit outcome/BootId/MapRevision quarantine, multi-evidence two-ticket proof, unresolved mutation gate, 15~120초 cleanup code/build/test 완료 | abort/orphan live/pcap, offline, timeout, queued cancel, contention |
 
 최신 세부 사실은 다음과 같다.
 
@@ -634,11 +634,17 @@ motion Stop/PowerOff와 read-only는 허용한다. reconnect는 외부 connectio
 `D5SdoPendingCleanup` Resolve는 기존 `qualificationLogLines`를 clear하지 않고 append하며
 `D5_LOG_CONTINUATION`을 기록한다. 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 resolution proof를
 같은 저장 QTEST log에 보존한다.
-Phase 1 facade의 diagnostics domain command 실패는 `LMCSdoReadCommandException`이
-`CapabilityPreflight`/`Submission`/`StatusPolling`과 accepted ticket을 구분한다. WPF는
-pre-ticket rejection guard를 해제하고 status failure ticket을 보존한다.
-transport/malformed/local-session 예외의 all-failure context는 아직 없으므로 unknown evidence로
-fail-closed하는 후속 부채다.
+Phase 1 drive-read facade는 원래 exception type/stack을 그대로 유지하고
+`LMCDriveReadFailureContext.TryGet`으로 all-failure context를 제공한다. phase는
+`FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`,
+`ResultMaterialization`이고 각 SDO attempt는 `NotAttempted`, `Rejected`,
+`OutcomeUncertain`, `Accepted` outcome과 실제 capability `DiagnosticsBootId`/`MapRevision`,
+accepted ticket, 마지막 valid status를 보존한다. WPF는 no-submit/rejected/accepted-terminal이면
+guard를 해제하고 uncertain이면 실제 Submit identity로 unknown evidence를 보정해 quarantine하며,
+accepted nonterminal이면 exact ticket을 보존한다. context 누락, 둘 이상의 nonterminal ticket,
+identity 불일치는 fail-closed한다. 수동 `Submit SDO Read`가 직접 호출하는 raw
+`LMCDiagnostics.SubmitSdoAsync`에는 아직 같은 facade context가 없어 non-domain failure를
+계속 보수적으로 outcome-uncertain 처리한다.
 
 파일명은 한 파일에 뭉뚱그리지 않고 다음처럼 분리한다.
 
@@ -663,6 +669,7 @@ fail-closed하는 후속 부채다.
 | `LMC_Library/LasalApiWpfTestApp/.../BulkPartialQualificationAnalysis.cs` | 4축 x 6 topology, baseline/fault/recovery 순수 계약 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, reconnect exact/0/0 discovery, hash assertion과 normal/adopted cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
+| `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive-read failure context의 no-submit/rejected/uncertain/accepted-terminal/nonterminal disposition을 UI 비종속 callback으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
@@ -672,7 +679,8 @@ fail-closed하는 후속 부채다.
 | `LMC_Library/.../tests/.../D5SdoQualificationAnalysisTests.cs` | abort/recovery identity, state/error/detail/result 8개와 generic UInt32 exact/type/value/length 4개, 총 12개 자동 시험 |
 | `LMC_Library/.../tests/.../NegativeWireTool.cs`와 `NegativeWireToolTests.cs` | explicit mode/dry-run/live gate, fixed 5개 allowlist와 금지 command, exact response/report 계약 9개 |
 | `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 225/225 PASS; 기존 202개 회귀 + negative-wire 9개 + D5 analyzer 12개 + drive-read exception 계약 2개 |
+| `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 236/236 PASS; 기존 225개 + WPF failure orchestrator 7개 + facade context 등록 4개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -683,7 +691,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 225/225
+1. [완료] Debug/Release API tests 각 236/236
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -742,7 +750,7 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
   local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
 - [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
   diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
-- [완료] Debug/Release PC tests 각 225/225, 새 LASAL static contract, WPF build와 Debug
+- [완료] Debug/Release PC tests 각 236/236, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

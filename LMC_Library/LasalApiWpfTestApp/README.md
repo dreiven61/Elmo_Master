@@ -172,11 +172,18 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
 - qualification 밖의 manual SDO/Drive read tracker는 직전 qualification의 run/scenario를
   재사용하지 않는다. 별도 `D5ExternalTracking:<stage>` run ID와 step/elapsed 문맥으로
   기록하고, unresolved evidence가 생기면 그 원본 문맥을 Resolve log와 함께 보존한다.
-- `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]`의 diagnostics domain command 실패는
-  `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling`을 구분한다.
-  WPF는 앞의 두 pre-ticket rejection이면 guard를 해제하고, status failure이면 exception의
-  accepted ticket을 보존한다. transport/malformed/local-session 같은 나머지 예외에는 아직
-  all-failure stage/ticket context가 없으므로 unknown evidence로 안전하게 fail-closed한다.
+- `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]`는 원래 예외 형식과 stack을 바꾸지
+  않고 caught exception을 `LMCDriveReadFailureContext.TryGet`에 전달해 전체 시도 문맥을
+  조회한다. phase는 `FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`,
+  `StatusPolling`, `ResultMaterialization`이고 각 SDO 시도의 submission outcome은
+  `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted` 중 하나다. 실제 Submit에 사용한
+  capability `DiagnosticsBootId`와 `MapRevision`, accepted ticket과 마지막 status도 snapshot에
+  함께 보존한다. WPF는 submit 없음/명시적 rejection/terminal이면 guard를 해제하고,
+  `OutcomeUncertain`이면 실제 capability identity로 unknown evidence를 보정해 quarantine한다.
+  accepted nonterminal은 정확한 ticket을 보존한 뒤 guard를 해제한다. context가 없거나 서로
+  모순되면 기존 unknown evidence로 fail-closed한다. 이 계약은 drive-read facade 전용이다.
+  수동 `Submit SDO Read`의 raw `LMCDiagnostics.SubmitSdoAsync`에는 아직 같은 facade context가
+  없으므로 명시적 domain rejection 외의 실패는 계속 보수적으로 outcome-uncertain 처리한다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
@@ -203,8 +210,9 @@ fallback한다. 화면/SDK build와 정적 계약 통과는 실제 queue 실행,
 packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
-prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. D5 runner 포함 Debug/Release
-build도 PASS했지만 D5 panel visual smoke는 대기 중이다.
+prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
+236/236 PASS이며 기존 225개에 WPF failure orchestrator 7개와 facade context 등록 4개가
+추가됐다. D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는 대기 중이다.
 이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
 
 ## EtherCAT / PI / Bulk / Recorder 시험 순서

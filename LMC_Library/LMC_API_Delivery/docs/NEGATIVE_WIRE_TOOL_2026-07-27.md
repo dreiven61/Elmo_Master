@@ -3,7 +3,7 @@
 - 작성일: 2026-07-27
 - 위치: `tests/LasalMotionControlLib.Tests/NegativeWireTool.cs`
 - 실행 파일: `LasalMotionControlLib.Tests.exe`
-- 상태: PC Debug/Release 각 225/225 중 전용 계약 시험 9개와 dry-run PASS;
+- 상태: PC Debug/Release 각 236/236 중 전용 계약 시험 9개와 dry-run PASS;
   실제 PLC raw rejection/pcap은 미실행
 
 ## 목적과 경계
@@ -16,6 +16,17 @@ public SDK는 stale handle, stale session과 두 번째 Release를 wire 전 차�
 SDK에 포함되지 않으며 임의 command ID, reference 또는 hex payload를 받지 않는다. raw
 allowlist는 아래 다섯 고정 시나리오뿐이다. motion, Admin, 모든 write, SDO Submit,
 Recorder 명령은 생성하거나 송신할 수 없다.
+
+전체 236개는 기존 225개 + D5 external-read WPF routing orchestrator 7개 +
+drive-read all-failure facade context 4개다. facade context는 원래 exception 객체/타입을
+바꾸지 않고 `LMCDriveReadFailureContext.TryGet`으로 제공한다. phase는
+`FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/`StatusPolling`/
+`ResultMaterialization`, outcome은 `NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`다.
+각 attempt는 확보된 실제 `DiagnosticsBootId`/`MapRevision`을 보존하며, WPF는
+no-submit/rejected/terminal은 guard 해제, uncertain은 quarantine, accepted nonterminal은 exact
+ticket 보존, context 누락·불일치는 fail-closed로 처리한다. 이는 drive-read
+facade 계약이며 raw manual `SubmitSdo[Async]`는 context가 없어 여전히 보수적으로
+처리한다. negative-wire 모드 자체는 SDO Submit을 전혀 생성하지 않는다.
 
 | 시나리오 | raw command | 고정 변형 | 기대 Detail | resource 처리 |
 |---|---:|---|---:|---|
