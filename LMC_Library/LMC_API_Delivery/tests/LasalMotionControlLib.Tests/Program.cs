@@ -5,7 +5,25 @@ namespace LasalMotionControlLib.Tests
 {
     internal static class Program
     {
-        private static int Main()
+        private static int Main(string[] args)
+        {
+            if (args != null && args.Length != 0)
+            {
+                if (NegativeWireTool.IsInvocation(args))
+                {
+                    return NegativeWireTool.Run(args);
+                }
+
+                Console.Error.WriteLine(
+                    "ERROR arguments are accepted only for the exact negative-wire tool mode.");
+                NegativeWireTool.WriteUsage(Console.Error);
+                return NegativeWireTool.UsageExitCode;
+            }
+
+            return RunTests();
+        }
+
+        private static int RunTests()
         {
             var tests = new List<TestCase>();
 
@@ -14,6 +32,14 @@ namespace LasalMotionControlLib.Tests
             ErrorCatalogTests.Register(tests);
             RequestGoldenTests.Register(tests);
             ResponseParserTests.Register(tests);
+            NegativeWireToolTests.Register(tests);
+            ResponsePayloadLimitTests.Register(tests);
+            TransportQualificationAnalysisTests.Register(tests);
+            RecorderReconnectQualificationPolicyTests.Register(tests);
+            GroupStopQualificationOrchestratorTests.Register(tests);
+            BulkQualificationCleanupOrchestratorTests.Register(tests);
+            BulkPartialQualificationAnalysisTests.Register(tests);
+            D5SdoQualificationAnalysisTests.Register(tests);
             RpcIntegrationTests.Register(tests);
             DriveReadFacadeTests.Register(tests);
             DiagnosticsContractTests.Register(tests);

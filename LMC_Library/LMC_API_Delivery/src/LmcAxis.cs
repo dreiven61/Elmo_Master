@@ -41,7 +41,7 @@ namespace LasalMotionControlLib
                 "AxisInfo");
 
             EnsureSuccess("AxisInfo", AxisInfoResponse);
-            ValidateAxisInfoResponse(AxisInfoResponse);
+            ValidateAxisInfoResponse(AxisInfoResponse, AxisReference);
         }
 
         private LMCSingleAxis(
@@ -97,7 +97,7 @@ namespace LasalMotionControlLib
                 "AxisInfo");
 
             EnsureSuccess("AxisInfo", axisInfoResponse);
-            ValidateAxisInfoResponse(axisInfoResponse);
+            ValidateAxisInfoResponse(axisInfoResponse, axisReference);
             connection.EnsureSessionGeneration(generation);
 
             return new LMCSingleAxis(
@@ -108,7 +108,9 @@ namespace LasalMotionControlLib
                 axisInfoResponse);
         }
 
-        private static void ValidateAxisInfoResponse(LMC_Response response)
+        private static void ValidateAxisInfoResponse(
+            LMC_Response response,
+            ushort expectedAxisReference)
         {
             if (response == null
                 || !response.IsFrameValid
@@ -117,6 +119,17 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidDataException(
                     "AxisInfo response must contain an 8-byte acknowledgement payload.");
+            }
+
+            var actualAxisReference = LMC_Frame.ReadUInt32(response.Payload, 0);
+            if (actualAxisReference != expectedAxisReference)
+            {
+                throw new InvalidDataException(
+                    "AxisInfo response descriptor 0x"
+                    + actualAxisReference.ToString("X8")
+                    + " does not match expected axis reference 0x"
+                    + expectedAxisReference.ToString("X4")
+                    + ".");
             }
         }
 

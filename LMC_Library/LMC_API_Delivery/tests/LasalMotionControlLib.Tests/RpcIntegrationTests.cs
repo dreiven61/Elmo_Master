@@ -13,13 +13,22 @@ namespace LasalMotionControlLib.Tests
         internal static void Register(ICollection<TestCase> tests)
         {
             tests.Add("Rpc.Success.EphemeralCallbackUdpAndClose", SuccessEphemeralCallbackUdpAndClose);
+            tests.Add("Rpc.Callback.HandlerFailureReportsAndListenerContinues", CallbackHandlerFailureReportsAndListenerContinues);
+            tests.Add("Rpc.Callback.ErrorHandlerFailureDoesNotStopListener", CallbackErrorHandlerFailureDoesNotStopListener);
+            tests.Add("Rpc.Callback.ReentrantCloseConnectionStopsListener", ReentrantCallbackCloseConnectionStopsListener);
+            tests.Add("Rpc.Callback.ReentrantDisposeStopsListener", ReentrantCallbackDisposeStopsListener);
             tests.Add("Rpc.Failure.InitStatusCleansUp", InitStatusFailureCleansUp);
             tests.Add("Rpc.Failure.MalformedInitShapeCleansUp", MalformedInitShapeCleansUp);
             tests.Add("Rpc.Failure.CallbackAckCleansUp", CallbackAckFailureCleansUp);
             tests.Add("Rpc.Failure.MalformedCallbackAckCleansUp", MalformedCallbackAckCleansUp);
             tests.Add("Rpc.Failure.TruncatedResponseCleansUp", TruncatedResponseCleansUp);
+            tests.Add("Rpc.Failure.OversizedInitResponseRejectedBeforeBodyRead", OversizedInitResponseRejectedBeforeBodyRead);
+            tests.Add("Rpc.Failure.OversizedDiagnosticsResponseInvalidatesTransport", OversizedDiagnosticsResponseInvalidatesTransport);
+            tests.Add("Rpc.ResponseLimit.MaximumRecorderChunkAllowed", MaximumRecorderChunkAllowed);
+            tests.Add("Rpc.ResponseLimit.OversizedRecorderChunkInvalidatesTransport", OversizedRecorderChunkInvalidatesTransport);
             tests.Add("Rpc.Validation.ConcreteLocalIpv4Required", ConcreteLocalIpv4Required);
             tests.Add("Rpc.Validation.OptionsAreClonedAndValidated", OptionsAreClonedAndValidated);
+            tests.Add("Rpc.Validation.UnknownCommandRejectedBeforeWire", UnknownCommandRejectedBeforeWire);
             tests.Add("Rpc.Callback.RejectsUnexpectedSource", RejectsUnexpectedCallbackSource);
             tests.Add("Rpc.Validation.InvalidReconnectKeepsCurrentSession", InvalidReconnectKeepsCurrentSession);
             tests.Add("Rpc.Lifecycle.CloseErrorThrowsAndCleansUp", CloseErrorThrowsAndCleansUp);
@@ -29,6 +38,8 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.Lifecycle.ReconnectRejectsStaleGroup", ReconnectRejectsStaleGroup);
             tests.Add("Rpc.Async.InitAndClose", AsyncInitAndClose);
             tests.Add("Rpc.AxisConstructor.AxisInfoSuccess", AxisConstructorAxisInfoSuccess);
+            tests.Add("Rpc.AxisConstructor.MismatchedAxisInfoDescriptorRejected", AxisConstructorMismatchedAxisInfoDescriptorRejected);
+            tests.Add("Rpc.AxisCreateAsync.MismatchedAxisInfoDescriptorRejected", AxisCreateAsyncMismatchedAxisInfoDescriptorRejected);
             tests.Add("Rpc.AxisConstructor.MalformedAxisInfoRejected", AxisConstructorMalformedAxisInfoRejected);
             tests.Add("Rpc.AxisConstructor.CommandErrorRejected", AxisConstructorCommandErrorRejected);
             tests.Add("Rpc.AxisConstructor.ShortAxisInfoErrorPreserved", AxisConstructorShortAxisInfoErrorPreserved);
@@ -171,6 +182,212 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void CallbackHandlerFailureReportsAndListenerContinues()
+        {
+            var callbackCount = 0;
+            Exception reportedException = null;
+
+            using (var errorSignal = new ManualResetEventSlim(false))
+            using (var secondCallbackSignal = new ManualResetEventSlim(false))
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.CallbackReceived += delegate
+                {
+                    if (Interlocked.Increment(ref callbackCount) == 1)
+                    {
+                        throw new InvalidOperationException(
+                            "Expected callback handler failure.");
+                    }
+
+                    secondCallbackSignal.Set();
+                };
+                connection.CallbackListenerError += delegate(
+                    object sender,
+                    LMCCallbackErrorEventArgs e)
+                {
+                    reportedException = e.Exception;
+                    errorSignal.Set();
+                };
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("01 02 03 04"));
+
+                AssertEx.True(
+                    errorSignal.Wait(2000),
+                    "Callback handler failure was not reported.");
+                AssertEx.NotNull(reportedException);
+                AssertEx.Equal(
+                    typeof(InvalidOperationException),
+                    reportedException.GetType());
+                AssertEx.Contains(
+                    "Expected callback handler failure",
+                    reportedException.Message);
+                AssertEx.True(connection.IsCallbackListenerRunning);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("05 06 07 08"));
+
+                AssertEx.True(
+                    secondCallbackSignal.Wait(2000),
+                    "Callback listener did not deliver a callback after a handler failure.");
+                AssertEx.Equal(2, callbackCount);
+                AssertEx.True(connection.IsCallbackListenerRunning);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void CallbackErrorHandlerFailureDoesNotStopListener()
+        {
+            var callbackCount = 0;
+            var errorCount = 0;
+
+            using (var errorSignal = new ManualResetEventSlim(false))
+            using (var secondCallbackSignal = new ManualResetEventSlim(false))
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.CallbackReceived += delegate
+                {
+                    if (Interlocked.Increment(ref callbackCount) == 1)
+                    {
+                        throw new InvalidOperationException(
+                            "Trigger callback listener error event.");
+                    }
+
+                    secondCallbackSignal.Set();
+                };
+                connection.CallbackListenerError += delegate
+                {
+                    Interlocked.Increment(ref errorCount);
+                    errorSignal.Set();
+                    throw new InvalidOperationException(
+                        "Expected callback error handler failure.");
+                };
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("10 20 30 40"));
+
+                AssertEx.True(
+                    errorSignal.Wait(2000),
+                    "Callback listener error handler was not invoked.");
+                AssertEx.Equal(1, errorCount);
+                AssertEx.True(connection.IsCallbackListenerRunning);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("50 60 70 80"));
+
+                AssertEx.True(
+                    secondCallbackSignal.Wait(2000),
+                    "Callback listener stopped after its error handler threw.");
+                AssertEx.Equal(2, callbackCount);
+                AssertEx.True(connection.IsCallbackListenerRunning);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void ReentrantCallbackCloseConnectionStopsListener()
+        {
+            RunReentrantCallbackShutdown(
+                "CloseConnection",
+                connection => connection.CloseConnection());
+        }
+
+        private static void ReentrantCallbackDisposeStopsListener()
+        {
+            RunReentrantCallbackShutdown(
+                "Dispose",
+                connection => connection.Dispose());
+        }
+
+        private static void RunReentrantCallbackShutdown(
+            string operationName,
+            Action<LMCConnection> shutdown)
+        {
+            var options = new LMCConnectionOptions
+            {
+                CallbackThreadJoinTimeoutMilliseconds = 5000
+            };
+            Exception shutdownException = null;
+
+            using (var shutdownSignal = new ManualResetEventSlim(false))
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection(options))
+            {
+                connection.CallbackReceived += delegate
+                {
+                    try
+                    {
+                        shutdown(connection);
+                    }
+                    catch (Exception ex)
+                    {
+                        shutdownException = ex;
+                    }
+                    finally
+                    {
+                        shutdownSignal.Set();
+                    }
+                };
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("AA BB CC DD"));
+
+                AssertEx.True(
+                    shutdownSignal.Wait(2000),
+                    operationName
+                    + " did not return from the callback listener thread; "
+                    + "a callback-thread self-join is likely.");
+                AssertEx.Equal<Exception>(null, shutdownException);
+                AssertEx.Equal(
+                    LMCConnectionState.Disconnected,
+                    connection.State);
+                AssertEx.False(connection.IsConnected);
+                AssertConnectionClosed(connection);
+
+                server.Verify();
+            }
+        }
+
         private static void InitStatusFailureCleansUp()
         {
             using (var server = new FakeRpcServer(
@@ -287,6 +504,135 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void OversizedInitResponseRejectedBeforeBodyRead()
+        {
+            var oversizedHeader = new byte[8];
+            TestFrame.WriteUInt16(oversizedHeader, 2, 25);
+
+            using (var server = new FakeRpcServer(
+                new FakeRpcStep(0x8080, oversizedHeader)
+                {
+                    CloseAfterResponse = true
+                }))
+            using (var connection = new LMCConnection())
+            {
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () => connection.RpcInitConnection(
+                        "127.0.0.1",
+                        server.Port,
+                        "127.0.0.1",
+                        0,
+                        LMCConnection.DefaultEventMask));
+
+                AssertEx.Contains("0x8080", exception.Message);
+                AssertEx.Contains("maximum allowed is 24", exception.Message);
+                AssertEx.True(
+                    connection.LastTransportException is InvalidDataException,
+                    "An oversized response must invalidate the transport as malformed input.");
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertConnectionClosed(connection);
+                server.Verify();
+            }
+        }
+
+        private static void OversizedDiagnosticsResponseInvalidatesTransport()
+        {
+            var oversizedHeader = new byte[8];
+            TestFrame.WriteUInt16(oversizedHeader, 2, 69);
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(0x7E00, oversizedHeader)
+                {
+                    CloseAfterResponse = true
+                }))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () => connection.Diagnostics.GetCapabilities());
+
+                AssertEx.Contains("0x7E00", exception.Message);
+                AssertEx.Contains("maximum allowed is 68", exception.Message);
+                AssertEx.True(
+                    connection.LastTransportException is InvalidDataException,
+                    "An oversized response must invalidate an initialized transport.");
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertConnectionClosed(connection);
+                server.Verify();
+            }
+        }
+
+        private static void MaximumRecorderChunkAllowed()
+        {
+            const int maximumPayloadLength = 1972;
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E46,
+                    TestFrame.Response(0, new byte[maximumPayloadLength])),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var raw = connection.Exchange(
+                    TestFrame.Request(0x7E46, 0, new byte[0]));
+
+                AssertEx.Equal(8 + maximumPayloadLength, raw.Length);
+                AssertEx.True(connection.IsConnected);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void OversizedRecorderChunkInvalidatesTransport()
+        {
+            var oversizedHeader = new byte[8];
+            TestFrame.WriteUInt16(oversizedHeader, 2, 1973);
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(0x7E46, oversizedHeader)
+                {
+                    CloseAfterResponse = true
+                }))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () => connection.Exchange(
+                        TestFrame.Request(0x7E46, 0, new byte[0])));
+
+                AssertEx.Contains("maximum allowed is 1972", exception.Message);
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertConnectionClosed(connection);
+                server.Verify();
+            }
+        }
+
         private static void ConcreteLocalIpv4Required()
         {
             using (var connection = new LMCConnection())
@@ -337,6 +683,34 @@ namespace LasalMotionControlLib.Tests
             var exception = AssertEx.Throws<ArgumentOutOfRangeException>(
                 () => new LMCConnection(invalid));
             AssertEx.Equal("ReceiveTimeoutMilliseconds", exception.ParamName);
+        }
+
+        private static void UnknownCommandRejectedBeforeWire()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var exception = AssertEx.Throws<NotSupportedException>(
+                    () => connection.Exchange(
+                        TestFrame.Request(0xFFFF, 0, new byte[0])));
+
+                AssertEx.Contains("0xFFFF", exception.Message);
+                AssertEx.True(connection.IsConnected);
+                AssertEx.Equal<Exception>(null, connection.LastTransportException);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
         }
 
         private static void RejectsUnexpectedCallbackSource()
@@ -692,9 +1066,7 @@ namespace LasalMotionControlLib.Tests
         private static void AxisConstructorAxisInfoSuccess()
         {
             RunAxisConstructorScenario(
-                TestFrame.Response(
-                    0,
-                    TestFrame.Hex("44 33 22 11 00 00 00 00")),
+                AxisInfoResponse(0x1234),
                 connection =>
                 {
                     var axis = new LMCAxis(connection, "_LMCAxis1");
@@ -705,6 +1077,37 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.True(axis.AxisInfoResponse.IsFrameValid);
                     AssertEx.True(axis.AxisInfoResponse.HasCommandResult);
                     AssertEx.True(axis.AxisInfoResponse.IsSuccess);
+                });
+        }
+
+        private static void AxisConstructorMismatchedAxisInfoDescriptorRejected()
+        {
+            RunAxisConstructorScenario(
+                AxisInfoResponse(0x4321),
+                connection =>
+                {
+                    var exception = AssertEx.Throws<InvalidDataException>(
+                        () => new LMCAxis(connection, "_LMCAxis1"));
+
+                    AssertEx.Contains("0x00004321", exception.Message);
+                    AssertEx.Contains("0x1234", exception.Message);
+                });
+        }
+
+        private static void AxisCreateAsyncMismatchedAxisInfoDescriptorRejected()
+        {
+            RunAxisConstructorScenario(
+                AxisInfoResponse(0x4321),
+                connection =>
+                {
+                    var exception = AssertEx.Throws<InvalidDataException>(
+                        () => LMCSingleAxis.CreateAsync(
+                            connection,
+                            "_LMCAxis1",
+                            CancellationToken.None).GetAwaiter().GetResult());
+
+                    AssertEx.Contains("0x00004321", exception.Message);
+                    AssertEx.Contains("0x1234", exception.Message);
                 });
         }
 
@@ -719,9 +1122,7 @@ namespace LasalMotionControlLib.Tests
         private static void AxisConstructorCommandErrorRejected()
         {
             RunAxisConstructorScenario(
-                TestFrame.Response(
-                    0,
-                    TestFrame.Hex("44 33 22 11 10 00 F8 FF")),
+                AxisInfoResponse(0x1234, 16, -8),
                 connection =>
                 {
                     var exception = AssertEx.Throws<InvalidOperationException>(
@@ -906,7 +1307,7 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.WriteUInt16(lookupPayload, 4, reference);
 
                 steps.Add(new FakeRpcStep(0x103C, TestFrame.Response(0, lookupPayload)));
-                steps.Add(new FakeRpcStep(0x202B, longSuccessAck));
+                steps.Add(new FakeRpcStep(0x202B, AxisInfoResponse(reference)));
             }
 
             steps.Add(
@@ -1136,6 +1537,18 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static byte[] AxisInfoResponse(
+            ushort axisReference,
+            ushort commandStatus = 0,
+            short errorId = 0)
+        {
+            var payload = new byte[8];
+            TestFrame.WriteUInt32(payload, 0, axisReference);
+            TestFrame.WriteUInt16(payload, 4, commandStatus);
+            TestFrame.WriteInt16(payload, 6, errorId);
+            return TestFrame.Response(0, payload);
+        }
+
         private static FakeRpcStep InitStep()
         {
             var payload = new byte[24];
@@ -1161,6 +1574,22 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Response(
                     0,
                     TestFrame.Hex("00 00 00 00")));
+        }
+
+        private static void SendCallback(
+            LMCConnection connection,
+            byte[] payload)
+        {
+            var destination = connection.CallbackLocalEndPoint;
+            AssertEx.NotNull(destination);
+
+            using (var sender = new UdpClient(AddressFamily.InterNetwork))
+            {
+                sender.Send(
+                    payload,
+                    payload.Length,
+                    destination);
+            }
         }
 
         private static byte[] NamePayload(string value)

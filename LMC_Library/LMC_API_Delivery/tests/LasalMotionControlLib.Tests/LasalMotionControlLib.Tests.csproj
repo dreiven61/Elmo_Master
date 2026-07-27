@@ -25,6 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="NegativeWireTool.cs" />
+    <Compile Include="NegativeWireToolTests.cs" />
     <Compile Include="AssertEx.cs" />
     <Compile Include="TestFrame.cs" />
     <Compile Include="FakeRpcServer.cs" />
@@ -33,6 +35,34 @@
     <Compile Include="ErrorCatalogTests.cs" />
     <Compile Include="RequestGoldenTests.cs" />
     <Compile Include="ResponseParserTests.cs" />
+    <Compile Include="ResponsePayloadLimitTests.cs" />
+    <Compile Include="TransportQualificationAnalysisTests.cs" />
+    <Compile Include="RecorderReconnectQualificationPolicyTests.cs" />
+    <Compile Include="GroupStopQualificationOrchestratorTests.cs" />
+    <Compile Include="BulkQualificationCleanupOrchestratorTests.cs" />
+    <Compile Include="BulkPartialQualificationAnalysisTests.cs" />
+    <Compile Include="D5SdoQualificationAnalysisTests.cs" />
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TransportQualificationAnalysis.cs">
+      <Link>TransportQualificationAnalysis.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderReconnectQualificationPolicy.cs">
+      <Link>RecorderReconnectQualificationPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\GroupStopQualificationOrchestrator.cs">
+      <Link>GroupStopQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\BulkQualificationCleanupOrchestrator.cs">
+      <Link>BulkQualificationCleanupOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\BulkPartialQualificationAnalysis.cs">
+      <Link>BulkPartialQualificationAnalysis.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoQualificationAnalysis.cs">
+      <Link>D5SdoQualificationAnalysis.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderQualificationCleanupOrchestrator.cs">
+      <Link>RecorderQualificationCleanupOrchestrator.cs</Link>
+    </Compile>
     <Compile Include="RpcIntegrationTests.cs" />
     <Compile Include="DriveReadFacadeTests.cs" />
     <Compile Include="DiagnosticsContractTests.cs" />

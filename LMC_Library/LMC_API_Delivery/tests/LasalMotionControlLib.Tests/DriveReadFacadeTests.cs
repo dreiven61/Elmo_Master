@@ -358,7 +358,7 @@ namespace LasalMotionControlLib.Tests
                 InitStep(),
                 CallbackStep(),
                 AxisLookupStep(5),
-                AxisInfoStep(),
+                AxisInfoStep(5),
                 CloseStep()))
             using (var connection = new LMCConnection())
             {
@@ -569,13 +569,14 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Response(0, payload));
         }
 
-        private static FakeRpcStep AxisInfoStep()
+        private static FakeRpcStep AxisInfoStep(
+            ushort axisReference = AxisReference)
         {
+            var payload = new byte[8];
+            TestFrame.WriteUInt32(payload, 0, axisReference);
             return new FakeRpcStep(
                 0x202B,
-                TestFrame.Response(
-                    0,
-                    TestFrame.Hex("01 00 00 00 00 00 00 00")));
+                TestFrame.Response(0, payload));
         }
 
         private static FakeRpcStep CapabilitiesStep(

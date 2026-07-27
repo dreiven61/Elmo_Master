@@ -416,11 +416,27 @@ namespace LasalMotionControlLib
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
+                    var command = LMC_Frame.GetRequestCommand(request);
+                    var maximumPayloadLength =
+                        LMC_ResponsePayloadLimits.GetMaximumPayloadLength(command);
                     var stream = operationClient.GetStream();
                     stream.Write(request, 0, request.Length);
 
                     var header = ReadExact(stream, LMC_Frame.HeaderSize);
                     var payloadLength = LMC_Frame.GetResponsePayloadLength(header);
+
+                    if (payloadLength > maximumPayloadLength)
+                    {
+                        throw new InvalidDataException(
+                            "RPC response for command 0x"
+                            + command.ToString("X4")
+                            + " declares "
+                            + payloadLength
+                            + " payload bytes; the maximum allowed is "
+                            + maximumPayloadLength
+                            + ".");
+                    }
+
                     var payload = payloadLength == 0
                         ? new byte[0]
                         : ReadExact(stream, payloadLength);
@@ -1471,6 +1487,7 @@ namespace LasalMotionControlLib
         private static bool IsTransportException(Exception exception)
         {
             return exception is IOException
+                || exception is InvalidDataException
                 || exception is SocketException
                 || exception is ObjectDisposedException
                 || exception is TimeoutException;

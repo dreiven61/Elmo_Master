@@ -220,6 +220,11 @@ namespace LasalMotionControlLib
             return ReadUInt16(header, ResponsePayloadLengthOffset);
         }
 
+        internal static ushort GetRequestCommand(byte[] request)
+        {
+            return ReadUInt16(request, CommandOffset);
+        }
+
         internal static byte[] RpcSessionInit()
         {
             return CreateRequest(LMC_CommandId.RpcSessionInit, 0, 1);

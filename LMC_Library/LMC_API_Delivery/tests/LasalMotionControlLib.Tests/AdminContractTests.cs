@@ -305,7 +305,7 @@ namespace LasalMotionControlLib.Tests
                     0x202B,
                     TestFrame.Response(
                         0,
-                        TestFrame.Hex("00 00 00 00 00 00 00 00"))),
+                        TestFrame.Hex("02 00 00 00 00 00 00 00"))),
                 CloseStep()))
             using (var secondServer = new FakeRpcServer(
                 InitStep(),
