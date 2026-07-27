@@ -106,6 +106,9 @@
     <Compile Include="D5SdoRecoveryScopePolicy.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="D5SdoPendingCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="RecorderQualificationCleanupOrchestrator.cs">
       <SubType>Code</SubType>
     </Compile>

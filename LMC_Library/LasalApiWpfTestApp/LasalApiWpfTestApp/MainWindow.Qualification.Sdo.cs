@@ -1094,137 +1094,91 @@ namespace LasalMotionControlApiExample
             }
 
             var currentConnection = RequireConnection();
-            if (d5SdoQualificationActiveConnection != null
-                && !ReferenceEquals(
-                    d5SdoQualificationActiveConnection,
-                    currentConnection))
-            {
-                throw new InvalidOperationException(
-                    "The preserved D5 ticket belongs to an earlier LMCConnection. Use the quarantine recovery proof instead of querying it from the new session.");
-            }
-
             var diagnostics = currentConnection.Diagnostics;
-            var currentCapabilities =
-                await SendQualificationCleanupCommandAsync(
-                    "D5 SDO pending ticket identity preflight",
-                    () => diagnostics.GetCapabilitiesAsync(
-                        CancellationToken.None));
-            if (currentCapabilities == null
-                || currentCapabilities.DiagnosticsBootId == 0
-                || currentCapabilities.MapRevision == 0)
-            {
-                throw new InvalidOperationException(
-                    "D5 ticket cleanup requires a non-zero current DiagnosticsBootId and MapRevision.");
-            }
-
-            if (currentCapabilities.DiagnosticsBootId
-                != ticket.DiagnosticsBootId)
-            {
-                QuarantineStaleSessionD5SdoQualificationTicket(
-                    "diagnostics_boot_id_changed");
-                return false;
-            }
-
-            if (currentCapabilities.MapRevision
-                != d5SdoQualificationActiveMapRevision)
-            {
-                QuarantineStaleSessionD5SdoQualificationTicket(
-                    "diagnostics_map_revision_changed");
-                return false;
-            }
-
-            var status = d5SdoQualificationActiveStatus;
-            WriteD5SdoQualificationLog(
-                "event=D5_CLEANUP",
-                "ticket=" + ticket.TicketId.ToString(
-                    CultureInfo.InvariantCulture),
-                "action=INSPECT_PENDING_TICKET",
-                "plcStopCommand=false",
-                "verdict=START");
-
-            if (status == null || !status.IsTerminal)
-            {
-                status = await SendQualificationCleanupCommandAsync(
-                    "D5 SDO pending ticket status",
-                    () => diagnostics.GetOperationStatusAsync(
-                        ticket,
-                        CancellationToken.None));
-                d5SdoQualificationActiveStatus = status;
-            }
-
-            var cancelAccepted = false;
-            if (status.State == LMCOperationState.Queued)
-            {
-                try
+            var initialStatusRead = true;
+            var result = await D5SdoPendingCleanupOrchestrator.CleanupAsync(
+                new D5SdoPendingCleanupRequest(
+                    ticket,
+                    d5SdoQualificationActiveStatus,
+                    d5SdoQualificationActiveConnection,
+                    currentConnection,
+                    d5SdoQualificationActiveMapRevision,
+                    d5SdoQualificationActiveDeadlineUtc),
+                new D5SdoPendingCleanupOperations
                 {
-                    await SendQualificationCleanupCommandAsync(
-                        "D5 SDO queued ticket cancel",
-                        () => diagnostics.CancelOperationAsync(
-                            ticket,
-                            CancellationToken.None));
-                    cancelAccepted = true;
-                    WriteD5SdoQualificationLog(
+                    ReadCapabilitiesAsync = () =>
+                        SendQualificationCleanupCommandAsync(
+                            "D5 SDO pending ticket identity preflight",
+                            () => diagnostics.GetCapabilitiesAsync(
+                                CancellationToken.None)),
+                    ReadStatusAsync = async pendingTicket =>
+                    {
+                        var operation = initialStatusRead
+                            ? "D5 SDO pending ticket status"
+                            : "D5 SDO cleanup terminal status";
+                        initialStatusRead = false;
+                        return await SendQualificationCleanupCommandAsync(
+                            operation,
+                            () => diagnostics.GetOperationStatusAsync(
+                                pendingTicket,
+                                CancellationToken.None));
+                    },
+                    CancelAsync = async pendingTicket =>
+                    {
+                        await SendQualificationCleanupCommandAsync(
+                            "D5 SDO queued ticket cancel",
+                            () => diagnostics.CancelOperationAsync(
+                                pendingTicket,
+                                CancellationToken.None));
+                    },
+                    DelayAsync = milliseconds => Task.Delay(milliseconds),
+                    ReadUtcNow = () => DateTime.UtcNow,
+                    StatusObserved = observedStatus =>
+                        d5SdoQualificationActiveStatus = observedStatus,
+                    CleanupStarted = () => WriteD5SdoQualificationLog(
+                        "event=D5_CLEANUP",
+                        "ticket=" + ticket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                        "action=INSPECT_PENDING_TICKET",
+                        "plcStopCommand=false",
+                        "verdict=START"),
+                    CancelAccepted = () => WriteD5SdoQualificationLog(
                         "event=D5_CLEANUP",
                         "ticket=" + ticket.TicketId.ToString(
                             CultureInfo.InvariantCulture),
                         "action=CANCEL_QUEUED_TICKET",
                         "plcStopCommand=false",
-                        "verdict=ACCEPTED");
-                }
-                catch (LMCDiagnosticsCommandException error)
-                {
-                    if (error.Response == null
-                        || error.Response.Detail
-                            != LMCDiagnosticsDetailCode.InvalidState)
-                    {
-                        throw;
-                    }
-
-                    WriteD5SdoQualificationLog(
+                        "verdict=ACCEPTED"),
+                    CancelRaceResolved = () => WriteD5SdoQualificationLog(
                         "event=D5_CLEANUP",
                         "ticket=" + ticket.TicketId.ToString(
                             CultureInfo.InvariantCulture),
                         "action=CANCEL_QUEUED_TICKET",
                         "result=RACE_TO_NONQUEUED",
-                        "plcStopCommand=false");
-                }
+                        "plcStopCommand=false")
+                },
+                D5SdoQualificationPollMilliseconds);
+
+            if (!result.IsResolved)
+            {
+                QuarantineStaleSessionD5SdoQualificationTicket(
+                    result.QuarantineReason);
+                return false;
             }
 
-            if (!status.IsTerminal || cancelAccepted)
-            {
-                var cleanupWaitMilliseconds =
-                    GetD5SdoQualificationCleanupWaitMilliseconds();
-                status = await WaitForD5SdoQualificationCleanupTerminalAsync(
-                    diagnostics,
-                    ticket,
-                    cleanupWaitMilliseconds);
-            }
-
-            if (!status.IsTerminal)
-            {
-                throw new TimeoutException(
-                    "D5 SDO cleanup did not resolve the pending ticket.");
-            }
-
-            if (cancelAccepted
-                && (status.State != LMCOperationState.Cancelled
-                    || status.Outcome != LMCOperationOutcome.Cancelled))
-            {
-                throw new InvalidOperationException(
-                    "CancelOperation was accepted but the D5 SDO ticket did not become Cancelled/Cancelled.");
-            }
+            var status = result.Status;
 
             d5SdoQualificationActiveStatus = status;
             SynchronizeManualDiagnosticOperationTerminal(
                 ticket,
                 status,
-                cancelAccepted);
+                result.CancelAccepted);
             ClearActiveD5SdoQualificationTicket();
             WriteD5SdoQualificationLog(
                 "event=D5_CLEANUP",
                 "ticket=" + ticket.TicketId.ToString(
                     CultureInfo.InvariantCulture),
-                "action=" + (cancelAccepted
+                "action=" + (result.CancelAccepted
                     ? "CANCEL_QUEUED_TICKET"
                     : "WAIT_RUNNING_OR_TERMINAL"),
                 "state=" + status.State,
@@ -1232,62 +1186,6 @@ namespace LasalMotionControlApiExample
                 "plcStopCommand=false",
                 "verdict=PASS");
             return true;
-        }
-
-        private async Task<LMCOperationStatus>
-            WaitForD5SdoQualificationCleanupTerminalAsync(
-                LMCDiagnostics diagnostics,
-                LMCOperationTicket ticket,
-                int timeoutMilliseconds)
-        {
-            var timeout = Stopwatch.StartNew();
-            LMCOperationStatus status = null;
-            while (timeout.ElapsedMilliseconds
-                <= timeoutMilliseconds)
-            {
-                status = await SendQualificationCleanupCommandAsync(
-                    "D5 SDO cleanup terminal status",
-                    () => diagnostics.GetOperationStatusAsync(
-                        ticket,
-                        CancellationToken.None));
-                d5SdoQualificationActiveStatus = status;
-                if (status.IsTerminal)
-                {
-                    return status;
-                }
-
-                await Task.Delay(D5SdoQualificationPollMilliseconds);
-            }
-
-            throw new TimeoutException(
-                "D5 SDO ticket "
-                + ticket.TicketId.ToString(CultureInfo.InvariantCulture)
-                + " remained "
-                + (status == null ? "unknown" : status.State.ToString())
-                + " beyond the "
-                + timeoutMilliseconds.ToString(
-                    CultureInfo.InvariantCulture)
-                + " ms cleanup bound. The Cancel Test button does not send a PLC Stop command.");
-        }
-
-        private int GetD5SdoQualificationCleanupWaitMilliseconds()
-        {
-            var remainingMilliseconds = 0L;
-            if (d5SdoQualificationActiveDeadlineUtc.HasValue)
-            {
-                remainingMilliseconds = Math.Max(
-                    0L,
-                    (long)Math.Ceiling(
-                        (d5SdoQualificationActiveDeadlineUtc.Value
-                            - DateTime.UtcNow).TotalMilliseconds));
-            }
-
-            var requested = Math.Max(
-                D5SdoQualificationCleanupTimeoutMilliseconds,
-                remainingMilliseconds + 1000L);
-            return checked((int)Math.Min(
-                D5SdoQualificationMaximumTerminalWaitMilliseconds,
-                requested));
         }
 
         private async Task ResolvePreservedD5SdoQualificationAsync(
