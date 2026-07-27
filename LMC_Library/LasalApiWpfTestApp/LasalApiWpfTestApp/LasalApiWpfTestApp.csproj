@@ -100,6 +100,9 @@
     <Compile Include="D5SdoQualificationAnalysis.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="D5ExternalReadFailureOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="RecorderQualificationCleanupOrchestrator.cs">
       <SubType>Code</SubType>
     </Compile>

@@ -36,6 +36,18 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.DriveRead.NonDomainSubmitFailureRemainsUnknown",
                 NonDomainSubmitFailureRemainsUnknown);
             tests.Add(
+                "Rpc.DriveRead.NonDomainPreSubmissionContext",
+                NonDomainPreSubmissionContext);
+            tests.Add(
+                "Rpc.DriveRead.NonDomainStatusContext",
+                NonDomainStatusContext);
+            tests.Add(
+                "Rpc.DriveRead.CompositeSecondSubmitContext",
+                CompositeSecondSubmitContext);
+            tests.Add(
+                "Rpc.DriveRead.PreSubmitCancellationContext",
+                PreSubmitCancellationContext);
+            tests.Add(
                 "Rpc.DriveRead.ScopeAndStaleSession",
                 ScopeAndStaleSession);
             tests.Add(
@@ -279,6 +291,17 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(
                     0x12345678u,
                     exception.OperationStatus.OperationDetail);
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.StatusPolling,
+                    failureContext.Phase);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.Accepted,
+                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.True(failureContext.CurrentSdoAttempt.IsTerminal);
+                AssertEx.True(ReferenceEquals(
+                    exception.Ticket,
+                    failureContext.CurrentSdoAttempt.Ticket));
 
                 connection.CloseConnection();
                 server.Verify();
@@ -352,6 +375,14 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Contains("after 33 status polls", exception.Message);
                 AssertEx.Contains("was not cancelled", exception.Message);
                 AssertEx.Contains(ticketId.ToString(), exception.Message);
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.Accepted,
+                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
+                AssertEx.True(ReferenceEquals(
+                    exception.Ticket,
+                    failureContext.CurrentSdoAttempt.Ticket));
 
                 connection.CloseConnection();
                 server.Verify();
@@ -489,6 +520,28 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.True(exception.Ticket == null);
                 }
 
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(1, failureContext.SdoAttempts.Count);
+                var expectedPhase = expectedStage
+                    == LMCSdoReadCommandStage.CapabilityPreflight
+                    ? LMCDriveReadAttemptPhase.CapabilityPreflight
+                    : expectedStage == LMCSdoReadCommandStage.Submission
+                        ? LMCDriveReadAttemptPhase.Submission
+                        : LMCDriveReadAttemptPhase.StatusPolling;
+                AssertEx.Equal(expectedPhase, failureContext.Phase);
+                var expectedOutcome = expectedStage
+                    == LMCSdoReadCommandStage.CapabilityPreflight
+                    ? LMCSdoReadSubmissionOutcome.NotAttempted
+                    : expectedStage == LMCSdoReadCommandStage.Submission
+                        ? LMCSdoReadSubmissionOutcome.Rejected
+                        : LMCSdoReadSubmissionOutcome.Accepted;
+                AssertEx.Equal(
+                    expectedOutcome,
+                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.Equal(
+                    exception.Ticket,
+                    failureContext.CurrentSdoAttempt.Ticket);
+
                 connection.CloseConnection();
                 server.Verify();
             }
@@ -555,6 +608,22 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(
                     operationModeTicketId,
                     exception.Ticket.TicketId);
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(2, failureContext.SdoAttempts.Count);
+                AssertEx.True(failureContext.SdoAttempts[0].IsTerminal);
+                AssertEx.Equal(
+                    (ushort)0x6041,
+                    failureContext.SdoAttempts[0].Request.ObjectIndex);
+                AssertEx.Equal(
+                    (ushort)0x6061,
+                    failureContext.SdoAttempts[1].Request.ObjectIndex);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.Accepted,
+                    failureContext.SdoAttempts[1].SubmissionOutcome);
+                AssertEx.False(failureContext.SdoAttempts[1].IsTerminal);
+                AssertEx.True(ReferenceEquals(
+                    exception.Ticket,
+                    failureContext.SdoAttempts[1].Ticket));
 
                 connection.CloseConnection();
                 server.Verify();
@@ -624,12 +693,335 @@ namespace LasalMotionControlLib.Tests
                     });
 
                 AssertEx.False(exception is LMCSdoReadCommandException);
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.Submission,
+                    failureContext.Phase);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.OutcomeUncertain,
+                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.True(failureContext.CurrentSdoAttempt.Ticket == null);
                 if (!responseLoss)
                 {
                     AssertEx.True(exception is InvalidDataException);
                     connection.CloseConnection();
                 }
 
+                server.Verify();
+            }
+        }
+
+        private static void NonDomainPreSubmissionContext()
+        {
+            AssertMalformedCapabilityContext(false);
+            AssertMalformedCapabilityContext(true);
+            AssertAxisStatusFailureContext();
+        }
+
+        private static void AssertMalformedCapabilityContext(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CommonPayload(67, 1))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () =>
+                    {
+                        if (useAsync)
+                        {
+                            axis.GetDriveOperationModeAsync(
+                                    100,
+                                    CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult();
+                        }
+                        else
+                        {
+                            axis.GetDriveOperationMode(100);
+                        }
+                    });
+
+                var context = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.CapabilityPreflight,
+                    context.Phase);
+                AssertEx.Equal(1, context.SdoAttempts.Count);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.NotAttempted,
+                    context.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.True(context.CurrentSdoAttempt.Ticket == null);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void AssertAxisStatusFailureContext()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                new FakeRpcStep(
+                    0x2028,
+                    TestFrame.Response(0, new byte[0])),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () => axis.ReadDriveStatus(100));
+                var context = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.AxisStatusRead,
+                    context.Phase);
+                AssertEx.False(context.AxisStatusReadCompleted);
+                AssertEx.Equal(0, context.SdoAttempts.Count);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void NonDomainStatusContext()
+        {
+            AssertMalformedStatusContext(false);
+            AssertMalformedStatusContext(true);
+            AssertLostStatusContext();
+        }
+
+        private static void AssertLostStatusContext()
+        {
+            const uint ticketId = 0x85868788u;
+            var lostStatus = new FakeRpcStep(0x7E03, new byte[0])
+            {
+                CloseAfterResponse = true
+            };
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                CapabilitiesStep(1),
+                SdoSubmitStep(
+                    2,
+                    ticketId,
+                    0x6061,
+                    LMCSignalValueType.Int8,
+                    1,
+                    100),
+                lostStatus))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                var exception = AssertEx.Throws<Exception>(
+                    () => axis.GetDriveOperationModeAsync(
+                            100,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+                AssertEx.False(exception is LMCSdoReadCommandException);
+                var context = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.StatusPolling,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.Accepted,
+                    context.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.Equal(
+                    ticketId,
+                    context.CurrentSdoAttempt.Ticket.TicketId);
+                AssertEx.True(
+                    context.CurrentSdoAttempt.LastOperationStatus == null);
+
+                server.Verify();
+            }
+        }
+
+        private static void AssertMalformedStatusContext(bool useAsync)
+        {
+            const uint ticketId = 0x81828384u;
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                CapabilitiesStep(1),
+                SdoSubmitStep(
+                    2,
+                    ticketId,
+                    0x6061,
+                    LMCSignalValueType.Int8,
+                    1,
+                    100),
+                new FakeRpcStep(
+                    0x7E03,
+                    TestFrame.Response(0, CommonPayload(63, 3))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () =>
+                    {
+                        if (useAsync)
+                        {
+                            axis.GetDriveOperationModeAsync(
+                                    100,
+                                    CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult();
+                        }
+                        else
+                        {
+                            axis.GetDriveOperationMode(100);
+                        }
+                    });
+
+                var context = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.StatusPolling,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.Accepted,
+                    context.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.Equal(
+                    ticketId,
+                    context.CurrentSdoAttempt.Ticket.TicketId);
+                AssertEx.True(
+                    context.CurrentSdoAttempt.LastOperationStatus == null);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void CompositeSecondSubmitContext()
+        {
+            AssertCompositeSecondSubmitContext(false);
+            AssertCompositeSecondSubmitContext(true);
+        }
+
+        private static void PreSubmitCancellationContext()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            using (var cancellation = new CancellationTokenSource())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+                cancellation.Cancel();
+
+                var exception = AssertEx.Throws<OperationCanceledException>(
+                    () => axis.GetDriveOperationModeAsync(
+                            100,
+                            cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult());
+                AssertEx.False(exception is LMCSdoReadWaitCanceledException);
+                var context = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.CapabilityPreflight,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.NotAttempted,
+                    context.CurrentSdoAttempt.SubmissionOutcome);
+                AssertEx.True(context.CurrentSdoAttempt.Ticket == null);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void AssertCompositeSecondSubmitContext(bool useAsync)
+        {
+            const uint statusWordTicketId = 0x91929394u;
+            var axisStatusPayload = new byte[12];
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                AxisLookupStep(),
+                AxisInfoStep(),
+                new FakeRpcStep(
+                    0x2028,
+                    TestFrame.Response(0, axisStatusPayload)),
+                CapabilitiesStep(1),
+                SdoSubmitStep(
+                    2,
+                    statusWordTicketId,
+                    0x6041,
+                    LMCSignalValueType.BitField16,
+                    2,
+                    100),
+                OperationStatusStep(
+                    3,
+                    statusWordTicketId,
+                    LMCOperationState.Completed,
+                    LMCOperationOutcome.Success,
+                    LMCSignalValueType.BitField16,
+                    TestFrame.Hex("00 08")),
+                CapabilitiesStep(4),
+                new FakeRpcStep(
+                    0x7E50,
+                    TestFrame.Response(0, CommonPayload(31, 5))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server);
+                var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                var exception = AssertEx.Throws<InvalidDataException>(
+                    () =>
+                    {
+                        if (useAsync)
+                        {
+                            axis.ReadDriveStatusAsync(
+                                    100,
+                                    CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult();
+                        }
+                        else
+                        {
+                            axis.ReadDriveStatus(100);
+                        }
+                    });
+
+                var context = RequireFailureContext(exception);
+                AssertEx.True(context.AxisStatusReadCompleted);
+                AssertEx.Equal(2, context.SdoAttempts.Count);
+                AssertEx.True(context.SdoAttempts[0].IsTerminal);
+                AssertEx.Equal(
+                    LMCSdoReadSubmissionOutcome.OutcomeUncertain,
+                    context.SdoAttempts[1].SubmissionOutcome);
+                AssertEx.Equal(
+                    (ushort)0x6061,
+                    context.SdoAttempts[1].Request.ObjectIndex);
+                AssertEx.True(context.SdoAttempts[1].Ticket == null);
+
+                connection.CloseConnection();
                 server.Verify();
             }
         }
@@ -681,6 +1073,11 @@ namespace LasalMotionControlLib.Tests
                 var exception = AssertEx.Throws<InvalidOperationException>(
                     () => staleAxis.GetDriveOperationMode(100));
                 AssertEx.Contains("inactive RPC session", exception.Message);
+                var failureContext = RequireFailureContext(exception);
+                AssertEx.Equal(
+                    LMCDriveReadAttemptPhase.FacadePreflight,
+                    failureContext.Phase);
+                AssertEx.Equal(0, failureContext.SdoAttempts.Count);
 
                 connection.CloseConnection();
                 firstServer.Verify();
@@ -737,6 +1134,14 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Equal(ticketId, exception.Ticket.TicketId);
                     AssertEx.True(exception.CancellationToken.IsCancellationRequested);
                     AssertEx.Contains("was not cancelled", exception.Message);
+                    var failureContext = RequireFailureContext(exception);
+                    AssertEx.Equal(
+                        LMCSdoReadSubmissionOutcome.Accepted,
+                        failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                    AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
+                    AssertEx.True(ReferenceEquals(
+                        exception.Ticket,
+                        failureContext.CurrentSdoAttempt.Ticket));
 
                     connection.CloseConnection();
                     server.Verify();
@@ -801,6 +1206,11 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Equal(
                         LMCConnectionState.Connected,
                         connection.State);
+                    var failureContext = RequireFailureContext(exception);
+                    AssertEx.Equal(
+                        LMCSdoReadSubmissionOutcome.Accepted,
+                        failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                    AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
 
                     var status = connection.Diagnostics.GetOperationStatus(
                         exception.Ticket);
@@ -825,6 +1235,17 @@ namespace LasalMotionControlLib.Tests
                 "127.0.0.1",
                 0,
                 LMCConnection.DefaultEventMask);
+        }
+
+        private static LMCDriveReadFailureContext RequireFailureContext(
+            Exception exception)
+        {
+            LMCDriveReadFailureContext context;
+            AssertEx.True(
+                LMCDriveReadFailureContext.TryGet(exception, out context),
+                "Expected typed drive-read failure context.");
+            AssertEx.NotNull(context);
+            return context;
         }
 
         private static FakeRpcStep InitStep()

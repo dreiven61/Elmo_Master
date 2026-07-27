@@ -42,6 +42,7 @@
     <Compile Include="BulkQualificationCleanupOrchestratorTests.cs" />
     <Compile Include="BulkPartialQualificationAnalysisTests.cs" />
     <Compile Include="D5SdoQualificationAnalysisTests.cs" />
+    <Compile Include="D5ExternalReadFailureOrchestratorTests.cs" />
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TransportQualificationAnalysis.cs">
       <Link>TransportQualificationAnalysis.cs</Link>
     </Compile>
@@ -59,6 +60,9 @@
     </Compile>
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoQualificationAnalysis.cs">
       <Link>D5SdoQualificationAnalysis.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5ExternalReadFailureOrchestrator.cs">
+      <Link>D5ExternalReadFailureOrchestrator.cs</Link>
     </Compile>
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderQualificationCleanupOrchestrator.cs">
       <Link>RecorderQualificationCleanupOrchestrator.cs</Link>

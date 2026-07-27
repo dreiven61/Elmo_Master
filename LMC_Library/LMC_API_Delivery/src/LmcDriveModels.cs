@@ -1,8 +1,554 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace LasalMotionControlLib
 {
+    public enum LMCDriveReadOperationKind
+    {
+        DriveOperationMode = 0,
+        DriveStatus = 1
+    }
+
+    public enum LMCDriveReadAttemptPhase
+    {
+        FacadePreflight = 0,
+        AxisStatusRead = 1,
+        CapabilityPreflight = 2,
+        Submission = 3,
+        StatusPolling = 4,
+        ResultMaterialization = 5
+    }
+
+    public enum LMCSdoReadSubmissionOutcome
+    {
+        NotAttempted = 0,
+        Rejected = 1,
+        OutcomeUncertain = 2,
+        Accepted = 3
+    }
+
+    /// <summary>
+    /// Immutable state of one SDO Read inside a drive-read facade call.
+    /// SubmissionOutcome describes only whether the 0x7E50 command could have
+    /// created a PLC ticket. Terminal state is reported independently through
+    /// LastOperationStatus.
+    /// </summary>
+    public sealed class LMCSdoReadAttemptSnapshot
+    {
+        internal LMCSdoReadAttemptSnapshot(
+            int attemptNumber,
+            LMCSdoRequest request,
+            LMCSdoReadSubmissionOutcome submissionOutcome,
+            LMCOperationTicket ticket,
+            LMCOperationStatus lastOperationStatus,
+            uint diagnosticsBootId = 0,
+            uint mapRevision = 0)
+        {
+            if (attemptNumber < 1)
+            {
+                throw new ArgumentOutOfRangeException("attemptNumber");
+            }
+
+            Request = request ?? throw new ArgumentNullException("request");
+            if (request.IsWrite)
+            {
+                throw new ArgumentException(
+                    "Drive-read attempt snapshots require an SDO Read request.",
+                    "request");
+            }
+
+            if (submissionOutcome == LMCSdoReadSubmissionOutcome.Accepted)
+            {
+                if (ticket == null)
+                {
+                    throw new ArgumentNullException(
+                        "ticket",
+                        "An accepted SDO Read submission requires its ticket.");
+                }
+            }
+            else if (ticket != null || lastOperationStatus != null)
+            {
+                throw new ArgumentException(
+                    "Only an accepted SDO Read submission can have a ticket or status.");
+            }
+
+            if (submissionOutcome
+                    != LMCSdoReadSubmissionOutcome.NotAttempted
+                && (diagnosticsBootId == 0 || mapRevision == 0))
+            {
+                throw new ArgumentException(
+                    "A dispatched SDO Read requires its capability BootId and MapRevision.");
+            }
+
+            if (ticket != null
+                && ticket.DiagnosticsBootId != diagnosticsBootId)
+            {
+                throw new ArgumentException(
+                    "The accepted ticket does not match the SDO Read capability BootId.",
+                    "ticket");
+            }
+
+            if (lastOperationStatus != null
+                && (lastOperationStatus.TicketId != ticket.TicketId
+                    || lastOperationStatus.OperationKind
+                        != ticket.OperationKind
+                    || lastOperationStatus.DiagnosticsBootId
+                        != ticket.DiagnosticsBootId))
+            {
+                throw new ArgumentException(
+                    "The SDO Read status does not belong to the accepted ticket.",
+                    "lastOperationStatus");
+            }
+
+            AttemptNumber = attemptNumber;
+            SubmissionOutcome = submissionOutcome;
+            Ticket = ticket;
+            LastOperationStatus = lastOperationStatus;
+            DiagnosticsBootId = diagnosticsBootId;
+            MapRevision = mapRevision;
+        }
+
+        public int AttemptNumber { get; private set; }
+        public LMCSdoRequest Request { get; private set; }
+        public LMCSdoReadSubmissionOutcome SubmissionOutcome
+        {
+            get;
+            private set;
+        }
+
+        public LMCOperationTicket Ticket { get; private set; }
+        public LMCOperationStatus LastOperationStatus { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public uint MapRevision { get; private set; }
+
+        public bool IsTerminal
+        {
+            get
+            {
+                return LastOperationStatus != null
+                    && LastOperationStatus.IsTerminal;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Typed failure context for GetDriveOperationMode and ReadDriveStatus.
+    /// The original exception type is preserved. Call TryGet with the caught
+    /// exception to inspect whether an SDO was never attempted, explicitly
+    /// rejected, outcome-uncertain, or accepted with a known ticket.
+    /// </summary>
+    public sealed class LMCDriveReadFailureContext
+    {
+        private static readonly object FailureContextSync = new object();
+        private static readonly ConditionalWeakTable<
+            Exception,
+            LMCDriveReadFailureContext> FailureContexts =
+                new ConditionalWeakTable<
+                    Exception,
+                    LMCDriveReadFailureContext>();
+
+        private readonly ReadOnlyCollection<LMCSdoReadAttemptSnapshot>
+            sdoAttempts;
+
+        internal LMCDriveReadFailureContext(
+            LMCDriveReadOperationKind operationKind,
+            ushort axisReference,
+            LMCDriveReadAttemptPhase phase,
+            bool axisStatusReadCompleted,
+            IList<LMCSdoReadAttemptSnapshot> attempts)
+        {
+            if (!Enum.IsDefined(typeof(LMCDriveReadOperationKind), operationKind))
+            {
+                throw new ArgumentOutOfRangeException("operationKind");
+            }
+
+            if (axisReference == 0)
+            {
+                throw new ArgumentOutOfRangeException("axisReference");
+            }
+
+            if (!Enum.IsDefined(typeof(LMCDriveReadAttemptPhase), phase))
+            {
+                throw new ArgumentOutOfRangeException("phase");
+            }
+
+            if (attempts == null)
+            {
+                throw new ArgumentNullException("attempts");
+            }
+
+            var copiedAttempts = new List<LMCSdoReadAttemptSnapshot>(attempts);
+            for (var index = 0; index < copiedAttempts.Count; index++)
+            {
+                if (copiedAttempts[index] == null
+                    || copiedAttempts[index].AttemptNumber != index + 1)
+                {
+                    throw new ArgumentException(
+                        "SDO Read attempts must be non-null and sequentially numbered.",
+                        "attempts");
+                }
+
+                if (index + 1 < copiedAttempts.Count
+                    && !copiedAttempts[index].IsTerminal)
+                {
+                    throw new ArgumentException(
+                        "A later SDO Read cannot start before the previous ticket is terminal.",
+                        "attempts");
+                }
+            }
+
+            OperationKind = operationKind;
+            AxisReference = axisReference;
+            Phase = phase;
+            AxisStatusReadCompleted = axisStatusReadCompleted;
+            sdoAttempts = copiedAttempts.AsReadOnly();
+        }
+
+        public LMCDriveReadOperationKind OperationKind { get; private set; }
+        public ushort AxisReference { get; private set; }
+        public LMCDriveReadAttemptPhase Phase { get; private set; }
+        public bool AxisStatusReadCompleted { get; private set; }
+
+        public IReadOnlyList<LMCSdoReadAttemptSnapshot> SdoAttempts
+        {
+            get { return sdoAttempts; }
+        }
+
+        public LMCSdoReadAttemptSnapshot CurrentSdoAttempt
+        {
+            get
+            {
+                return sdoAttempts.Count == 0
+                    ? null
+                    : sdoAttempts[sdoAttempts.Count - 1];
+            }
+        }
+
+        public static bool TryGet(
+            Exception exception,
+            out LMCDriveReadFailureContext context)
+        {
+            if (exception == null)
+            {
+                context = null;
+                return false;
+            }
+
+            return FailureContexts.TryGetValue(exception, out context);
+        }
+
+        internal static void Attach(
+            Exception exception,
+            LMCDriveReadFailureContext context)
+        {
+            if (exception == null)
+            {
+                throw new ArgumentNullException("exception");
+            }
+
+            if (context == null)
+            {
+                throw new ArgumentNullException("context");
+            }
+
+            lock (FailureContextSync)
+            {
+                FailureContexts.Remove(exception);
+                FailureContexts.Add(exception, context);
+            }
+        }
+    }
+
+    internal sealed class LMCDriveReadAttemptTracker
+    {
+        private sealed class MutableSdoReadAttempt
+        {
+            internal MutableSdoReadAttempt(int attemptNumber, LMCSdoRequest request)
+            {
+                AttemptNumber = attemptNumber;
+                Request = request;
+                SubmissionOutcome =
+                    LMCSdoReadSubmissionOutcome.NotAttempted;
+            }
+
+            internal int AttemptNumber { get; private set; }
+            internal LMCSdoRequest Request { get; private set; }
+            internal LMCSdoReadSubmissionOutcome SubmissionOutcome
+            {
+                get;
+                set;
+            }
+
+            internal LMCOperationTicket Ticket { get; set; }
+            internal LMCOperationStatus LastOperationStatus { get; set; }
+            internal uint DiagnosticsBootId { get; set; }
+            internal uint MapRevision { get; set; }
+        }
+
+        private readonly object sync = new object();
+        private readonly LMCDriveReadOperationKind operationKind;
+        private readonly ushort axisReference;
+        private readonly List<MutableSdoReadAttempt> attempts =
+            new List<MutableSdoReadAttempt>();
+        private LMCDriveReadAttemptPhase phase =
+            LMCDriveReadAttemptPhase.FacadePreflight;
+        private bool axisStatusReadCompleted;
+
+        internal LMCDriveReadAttemptTracker(
+            LMCDriveReadOperationKind operationKind,
+            ushort axisReference)
+        {
+            if (!Enum.IsDefined(typeof(LMCDriveReadOperationKind), operationKind))
+            {
+                throw new ArgumentOutOfRangeException("operationKind");
+            }
+
+            if (axisReference == 0)
+            {
+                throw new ArgumentOutOfRangeException("axisReference");
+            }
+
+            this.operationKind = operationKind;
+            this.axisReference = axisReference;
+        }
+
+        internal void BeginAxisStatusRead()
+        {
+            lock (sync)
+            {
+                phase = LMCDriveReadAttemptPhase.AxisStatusRead;
+            }
+        }
+
+        internal void MarkAxisStatusReadCompleted()
+        {
+            lock (sync)
+            {
+                if (phase != LMCDriveReadAttemptPhase.AxisStatusRead)
+                {
+                    throw new InvalidOperationException(
+                        "Axis status completion requires the AxisStatusRead phase.");
+                }
+
+                axisStatusReadCompleted = true;
+            }
+        }
+
+        internal void BeginSdoRead(LMCSdoRequest request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            if (request.IsWrite)
+            {
+                throw new ArgumentException(
+                    "Drive-read tracking accepts SDO Read requests only.",
+                    "request");
+            }
+
+            lock (sync)
+            {
+                if (attempts.Count != 0)
+                {
+                    var previous = attempts[attempts.Count - 1];
+                    if (previous.SubmissionOutcome
+                            != LMCSdoReadSubmissionOutcome.Accepted
+                        || previous.LastOperationStatus == null
+                        || !previous.LastOperationStatus.IsTerminal)
+                    {
+                        throw new InvalidOperationException(
+                            "A new SDO Read cannot start before the previous ticket is terminal.");
+                    }
+                }
+
+                attempts.Add(new MutableSdoReadAttempt(
+                    attempts.Count + 1,
+                    request));
+                phase = LMCDriveReadAttemptPhase.CapabilityPreflight;
+            }
+        }
+
+        internal void BeginSubmission()
+        {
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                phase = LMCDriveReadAttemptPhase.Submission;
+            }
+        }
+
+        internal void RecordCapabilityIdentity(
+            uint diagnosticsBootId,
+            uint mapRevision)
+        {
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                if (phase != LMCDriveReadAttemptPhase.CapabilityPreflight)
+                {
+                    throw new InvalidOperationException(
+                        "Capability identity must be recorded during capability preflight.");
+                }
+
+                CurrentAttempt.DiagnosticsBootId = diagnosticsBootId;
+                CurrentAttempt.MapRevision = mapRevision;
+            }
+        }
+
+        internal void MarkSubmissionOutcomeUncertain()
+        {
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                phase = LMCDriveReadAttemptPhase.Submission;
+                CurrentAttempt.SubmissionOutcome =
+                    LMCSdoReadSubmissionOutcome.OutcomeUncertain;
+            }
+        }
+
+        internal void MarkSubmissionRejected()
+        {
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.OutcomeUncertain);
+                CurrentAttempt.SubmissionOutcome =
+                    LMCSdoReadSubmissionOutcome.Rejected;
+            }
+        }
+
+        internal void MarkSubmissionAccepted(LMCOperationTicket ticket)
+        {
+            if (ticket == null)
+            {
+                throw new ArgumentNullException("ticket");
+            }
+
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.OutcomeUncertain);
+                CurrentAttempt.SubmissionOutcome =
+                    LMCSdoReadSubmissionOutcome.Accepted;
+                CurrentAttempt.Ticket = ticket;
+            }
+        }
+
+        internal void BeginStatusPolling()
+        {
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.Accepted);
+                phase = LMCDriveReadAttemptPhase.StatusPolling;
+            }
+        }
+
+        internal void RecordOperationStatus(LMCOperationStatus status)
+        {
+            if (status == null)
+            {
+                throw new ArgumentNullException("status");
+            }
+
+            lock (sync)
+            {
+                RequireCurrentOutcome(
+                    LMCSdoReadSubmissionOutcome.Accepted);
+                var ticket = CurrentAttempt.Ticket;
+                if (status.TicketId != ticket.TicketId
+                    || status.OperationKind != ticket.OperationKind
+                    || status.DiagnosticsBootId != ticket.DiagnosticsBootId)
+                {
+                    throw new ArgumentException(
+                        "The operation status does not belong to the tracked SDO Read ticket.",
+                        "status");
+                }
+
+                CurrentAttempt.LastOperationStatus = status;
+            }
+        }
+
+        internal void BeginResultMaterialization()
+        {
+            lock (sync)
+            {
+                for (var index = 0; index < attempts.Count; index++)
+                {
+                    if (attempts[index].SubmissionOutcome
+                            != LMCSdoReadSubmissionOutcome.Accepted
+                        || attempts[index].LastOperationStatus == null
+                        || !attempts[index].LastOperationStatus.IsTerminal)
+                    {
+                        throw new InvalidOperationException(
+                            "Result materialization requires every SDO Read ticket to be terminal.");
+                    }
+                }
+
+                phase = LMCDriveReadAttemptPhase.ResultMaterialization;
+            }
+        }
+
+        internal LMCDriveReadFailureContext CreateFailureContext()
+        {
+            lock (sync)
+            {
+                var snapshots = new List<LMCSdoReadAttemptSnapshot>(
+                    attempts.Count);
+                foreach (var attempt in attempts)
+                {
+                    snapshots.Add(new LMCSdoReadAttemptSnapshot(
+                        attempt.AttemptNumber,
+                        attempt.Request,
+                        attempt.SubmissionOutcome,
+                        attempt.Ticket,
+                        attempt.LastOperationStatus,
+                        attempt.DiagnosticsBootId,
+                        attempt.MapRevision));
+                }
+
+                return new LMCDriveReadFailureContext(
+                    operationKind,
+                    axisReference,
+                    phase,
+                    axisStatusReadCompleted,
+                    snapshots);
+            }
+        }
+
+        private MutableSdoReadAttempt CurrentAttempt
+        {
+            get
+            {
+                if (attempts.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        "No SDO Read attempt is active.");
+                }
+
+                return attempts[attempts.Count - 1];
+            }
+        }
+
+        private void RequireCurrentOutcome(
+            LMCSdoReadSubmissionOutcome expectedOutcome)
+        {
+            if (CurrentAttempt.SubmissionOutcome != expectedOutcome)
+            {
+                throw new InvalidOperationException(
+                    "The SDO Read attempt state transition is invalid.");
+            }
+        }
+    }
+
     /// <summary>
     /// CiA 402 modes of operation read from object 0x6061:0.
     /// Unknown and manufacturer-specific signed values remain available through

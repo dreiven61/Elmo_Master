@@ -1022,6 +1022,7 @@ namespace LasalMotionControlApiExample
                         ArmExternalD5SubmissionOutcomeGuard(
                             currentConnection,
                             capabilities.DiagnosticsBootId,
+                            capabilities.MapRevision,
                             request.SlaveReference,
                             request.TimeoutCycles,
                             "manual-sdo-submit");
@@ -1046,7 +1047,8 @@ namespace LasalMotionControlApiExample
                     {
                         PreserveExternalD5SubmissionOutcomeUncertain(
                             submissionEvidence,
-                            error);
+                            error,
+                            null);
                         throw;
                     }
 

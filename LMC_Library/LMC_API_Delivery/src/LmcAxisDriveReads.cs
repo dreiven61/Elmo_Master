@@ -20,14 +20,22 @@ namespace LasalMotionControlLib
         public LMCDriveOperationModeResult GetDriveOperationMode(
             uint timeoutCycles)
         {
-            EnsureDriveReadAxis();
-            var completion = connection.Diagnostics.ReadInlineSdoToTerminal(
-                CreateOperationModeRequest(timeoutCycles),
-                sessionGeneration);
-            EnsureCurrentSessionForUse();
-            return new LMCDriveOperationModeResult(
-                AxisReference,
-                completion);
+            return RunTrackedDriveRead(
+                LMCDriveReadOperationKind.DriveOperationMode,
+                attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
+                    var completion = connection.Diagnostics
+                        .ReadInlineSdoToTerminal(
+                            CreateOperationModeRequest(timeoutCycles),
+                            sessionGeneration,
+                            attemptTracker);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    return new LMCDriveOperationModeResult(
+                        AxisReference,
+                        completion);
+                });
         }
 
         public Task<LMCDriveOperationModeResult> GetDriveOperationModeAsync(
@@ -48,16 +56,23 @@ namespace LasalMotionControlLib
                 uint timeoutCycles,
                 CancellationToken cancellationToken)
         {
-            EnsureDriveReadAxis();
-            var completion = await connection.Diagnostics
-                .ReadInlineSdoToTerminalAsync(
-                    CreateOperationModeRequest(timeoutCycles),
-                    sessionGeneration,
-                    cancellationToken).ConfigureAwait(false);
-            EnsureCurrentSessionForUse();
-            return new LMCDriveOperationModeResult(
-                AxisReference,
-                completion);
+            return await RunTrackedDriveReadAsync(
+                LMCDriveReadOperationKind.DriveOperationMode,
+                async attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
+                    var completion = await connection.Diagnostics
+                        .ReadInlineSdoToTerminalAsync(
+                            CreateOperationModeRequest(timeoutCycles),
+                            sessionGeneration,
+                            attemptTracker,
+                            cancellationToken).ConfigureAwait(false);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    return new LMCDriveOperationModeResult(
+                        AxisReference,
+                        completion);
+                }).ConfigureAwait(false);
         }
 
         public LMCDriveStatus ReadDriveStatus()
@@ -71,32 +86,42 @@ namespace LasalMotionControlLib
         /// </summary>
         public LMCDriveStatus ReadDriveStatus(uint sdoTimeoutCycles)
         {
-            EnsureDriveReadAxis();
+            return RunTrackedDriveRead(
+                LMCDriveReadOperationKind.DriveStatus,
+                attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
 
-            var axisStatus = ReadStatusResult();
-            EnsureSuccess(
-                "ReadDriveStatus axis ReadStatus",
-                axisStatus.IsReadSuccessful,
-                axisStatus.Response);
+                    attemptTracker.BeginAxisStatusRead();
+                    var axisStatus = ReadStatusResult();
+                    EnsureSuccess(
+                        "ReadDriveStatus axis ReadStatus",
+                        axisStatus.IsReadSuccessful,
+                        axisStatus.Response);
+                    attemptTracker.MarkAxisStatusReadCompleted();
 
-            var statusWordCompletion = connection.Diagnostics
-                .ReadInlineSdoToTerminal(
-                    CreateStatusWordRequest(sdoTimeoutCycles),
-                    sessionGeneration);
-            var operationModeCompletion = connection.Diagnostics
-                .ReadInlineSdoToTerminal(
-                    CreateOperationModeRequest(sdoTimeoutCycles),
-                    sessionGeneration);
+                    var statusWordCompletion = connection.Diagnostics
+                        .ReadInlineSdoToTerminal(
+                            CreateStatusWordRequest(sdoTimeoutCycles),
+                            sessionGeneration,
+                            attemptTracker);
+                    var operationModeCompletion = connection.Diagnostics
+                        .ReadInlineSdoToTerminal(
+                            CreateOperationModeRequest(sdoTimeoutCycles),
+                            sessionGeneration,
+                            attemptTracker);
 
-            EnsureCurrentSessionForUse();
-            var operationMode = new LMCDriveOperationModeResult(
-                AxisReference,
-                operationModeCompletion);
-            return new LMCDriveStatus(
-                AxisReference,
-                axisStatus,
-                statusWordCompletion,
-                operationMode);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    var operationMode = new LMCDriveOperationModeResult(
+                        AxisReference,
+                        operationModeCompletion);
+                    return new LMCDriveStatus(
+                        AxisReference,
+                        axisStatus,
+                        statusWordCompletion,
+                        operationMode);
+                });
         }
 
         public Task<LMCDriveStatus> ReadDriveStatusAsync(
@@ -116,35 +141,95 @@ namespace LasalMotionControlLib
             uint sdoTimeoutCycles,
             CancellationToken cancellationToken)
         {
-            EnsureDriveReadAxis();
+            return await RunTrackedDriveReadAsync(
+                LMCDriveReadOperationKind.DriveStatus,
+                async attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
 
-            var axisStatus = await ReadStatusResultAsync(cancellationToken)
-                .ConfigureAwait(false);
-            EnsureSuccess(
-                "ReadDriveStatus axis ReadStatus",
-                axisStatus.IsReadSuccessful,
-                axisStatus.Response);
+                    attemptTracker.BeginAxisStatusRead();
+                    var axisStatus = await ReadStatusResultAsync(
+                        cancellationToken).ConfigureAwait(false);
+                    EnsureSuccess(
+                        "ReadDriveStatus axis ReadStatus",
+                        axisStatus.IsReadSuccessful,
+                        axisStatus.Response);
+                    attemptTracker.MarkAxisStatusReadCompleted();
 
-            var statusWordCompletion = await connection.Diagnostics
-                .ReadInlineSdoToTerminalAsync(
-                    CreateStatusWordRequest(sdoTimeoutCycles),
-                    sessionGeneration,
-                    cancellationToken).ConfigureAwait(false);
-            var operationModeCompletion = await connection.Diagnostics
-                .ReadInlineSdoToTerminalAsync(
-                    CreateOperationModeRequest(sdoTimeoutCycles),
-                    sessionGeneration,
-                    cancellationToken).ConfigureAwait(false);
+                    var statusWordCompletion = await connection.Diagnostics
+                        .ReadInlineSdoToTerminalAsync(
+                            CreateStatusWordRequest(sdoTimeoutCycles),
+                            sessionGeneration,
+                            attemptTracker,
+                            cancellationToken).ConfigureAwait(false);
+                    var operationModeCompletion = await connection.Diagnostics
+                        .ReadInlineSdoToTerminalAsync(
+                            CreateOperationModeRequest(sdoTimeoutCycles),
+                            sessionGeneration,
+                            attemptTracker,
+                            cancellationToken).ConfigureAwait(false);
 
-            EnsureCurrentSessionForUse();
-            var operationMode = new LMCDriveOperationModeResult(
-                AxisReference,
-                operationModeCompletion);
-            return new LMCDriveStatus(
-                AxisReference,
-                axisStatus,
-                statusWordCompletion,
-                operationMode);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    var operationMode = new LMCDriveOperationModeResult(
+                        AxisReference,
+                        operationModeCompletion);
+                    return new LMCDriveStatus(
+                        AxisReference,
+                        axisStatus,
+                        statusWordCompletion,
+                        operationMode);
+                }).ConfigureAwait(false);
+        }
+
+        private T RunTrackedDriveRead<T>(
+            LMCDriveReadOperationKind operationKind,
+            Func<LMCDriveReadAttemptTracker, T> read)
+        {
+            if (read == null)
+            {
+                throw new ArgumentNullException("read");
+            }
+
+            var attemptTracker = new LMCDriveReadAttemptTracker(
+                operationKind,
+                AxisReference);
+            try
+            {
+                return read(attemptTracker);
+            }
+            catch (Exception exception)
+            {
+                LMCDriveReadFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
+        private async Task<T> RunTrackedDriveReadAsync<T>(
+            LMCDriveReadOperationKind operationKind,
+            Func<LMCDriveReadAttemptTracker, Task<T>> read)
+        {
+            if (read == null)
+            {
+                throw new ArgumentNullException("read");
+            }
+
+            var attemptTracker = new LMCDriveReadAttemptTracker(
+                operationKind,
+                AxisReference);
+            try
+            {
+                return await read(attemptTracker).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCDriveReadFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
         }
 
         private void EnsureDriveReadAxis()

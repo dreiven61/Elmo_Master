@@ -1783,6 +1783,7 @@ namespace LasalMotionControlApiExample
             ArmExternalD5SubmissionOutcomeGuard(
                 LMCConnection ownerConnection,
                 uint expectedDiagnosticsBootId,
+                uint expectedMapRevision,
                 ushort slaveReference,
                 uint timeoutCycles,
                 string stage)
@@ -1795,7 +1796,8 @@ namespace LasalMotionControlApiExample
                 ownerConnection,
                 stage,
                 "external_submit_response_unavailable",
-                Guid.NewGuid().ToString("N"));
+                Guid.NewGuid().ToString("N"),
+                expectedMapRevision);
             d5SdoQualificationOrphanedTickets.Add(evidence);
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_SUBMIT_GUARD",
@@ -1804,6 +1806,7 @@ namespace LasalMotionControlApiExample
                 "slave=" + slaveReference.ToString(
                     CultureInfo.InvariantCulture),
                 "bootId=0x" + expectedDiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + expectedMapRevision.ToString("X8"),
                 "state=ARMED_BEFORE_SUBMIT");
             return evidence;
         }
@@ -1832,7 +1835,8 @@ namespace LasalMotionControlApiExample
 
         private void PreserveExternalD5SubmissionOutcomeUncertain(
             D5SdoQualificationOrphanEvidence evidence,
-            Exception error)
+            Exception error,
+            LMCDriveReadFailureContext failureContext)
         {
             if (evidence == null
                 || !d5SdoQualificationOrphanedTickets.Contains(evidence))
@@ -1840,6 +1844,35 @@ namespace LasalMotionControlApiExample
                 throw new InvalidOperationException(
                     "The external D5 uncertain-submission evidence was lost.",
                     error);
+            }
+
+            var currentAttempt = failureContext == null
+                ? null
+                : failureContext.CurrentSdoAttempt;
+            if (currentAttempt != null
+                && currentAttempt.SubmissionOutcome
+                    == LMCSdoReadSubmissionOutcome.OutcomeUncertain)
+            {
+                var previousBootId = evidence.DiagnosticsBootId;
+                var previousMapRevision = evidence.MapRevision;
+                evidence.ReconcileSubmissionIdentity(
+                    currentAttempt.DiagnosticsBootId,
+                    currentAttempt.MapRevision);
+                if (previousBootId != evidence.DiagnosticsBootId
+                    || previousMapRevision != evidence.MapRevision)
+                {
+                    WriteExternalD5TrackingLog(
+                        "event=D5_EXTERNAL_SUBMIT_IDENTITY_RECONCILED",
+                        "stage=" + evidence.Stage,
+                        "evidence=" + evidence.EvidenceId,
+                        "previousBootId=0x" + previousBootId.ToString("X8"),
+                        "actualBootId=0x"
+                            + evidence.DiagnosticsBootId.ToString("X8"),
+                        "previousMapRevision=0x"
+                            + previousMapRevision.ToString("X8"),
+                        "actualMapRevision=0x"
+                            + evidence.MapRevision.ToString("X8"));
+                }
             }
 
             WriteExternalD5TrackingLog(
@@ -1956,6 +1989,7 @@ namespace LasalMotionControlApiExample
             var evidence = ArmExternalD5SubmissionOutcomeGuard(
                 ownerConnection,
                 capabilities.DiagnosticsBootId,
+                capabilities.MapRevision,
                 slaveReference,
                 timeoutCycles,
                 stage);
@@ -1968,89 +2002,26 @@ namespace LasalMotionControlApiExample
                     "all_internal_tickets_terminal");
                 return result;
             }
-            catch (LMCSdoReadPollingTimeoutException error)
+            catch (Exception error)
             {
-                PreserveExternalD5Ticket(
-                    error.Ticket,
-                    ownerConnection,
-                    slaveReference,
-                    timeoutCycles,
-                    stage);
-                DisarmExternalD5SubmissionOutcomeGuard(
-                    evidence,
-                    "KNOWN_TICKET_PRESERVED",
-                    "polling_timeout");
-                throw;
-            }
-            catch (LMCSdoReadWaitCanceledException error)
-            {
-                PreserveExternalD5Ticket(
-                    error.Ticket,
-                    ownerConnection,
-                    slaveReference,
-                    timeoutCycles,
-                    stage);
-                DisarmExternalD5SubmissionOutcomeGuard(
-                    evidence,
-                    "KNOWN_TICKET_PRESERVED",
-                    "wait_cancelled");
-                throw;
-            }
-            catch (LMCSdoReadOperationException error)
-            {
-                DisarmExternalD5SubmissionOutcomeGuard(
-                    evidence,
-                    "TERMINAL_OPERATION_FAILURE",
-                    error.OperationStatus.State
-                        + "/"
-                        + error.OperationStatus.Outcome);
-                throw;
-            }
-            catch (LMCSdoReadCommandException error)
-            {
-                if (error.Stage == LMCSdoReadCommandStage.CapabilityPreflight
-                    || error.Stage == LMCSdoReadCommandStage.Submission)
-                {
-                    DisarmExternalD5SubmissionOutcomeGuard(
-                        evidence,
-                        "PRE_TICKET_COMMAND_REJECTED",
-                        error.Stage
-                            + ":"
-                            + (error.Response == null
-                                ? "response_unavailable"
-                                : error.Response.Detail.ToString()));
-                }
-                else if (error.Stage == LMCSdoReadCommandStage.StatusPolling
-                    && error.Ticket != null)
-                {
-                    PreserveExternalD5Ticket(
-                        error.Ticket,
+                D5ExternalReadFailureOrchestrator.RouteFailure(
+                    error,
+                    (state, detail) =>
+                        DisarmExternalD5SubmissionOutcomeGuard(
+                            evidence,
+                            state,
+                            detail),
+                    ticket => PreserveExternalD5Ticket(
+                        ticket,
                         ownerConnection,
                         slaveReference,
                         timeoutCycles,
-                        stage);
-                    DisarmExternalD5SubmissionOutcomeGuard(
-                        evidence,
-                        "KNOWN_TICKET_PRESERVED",
-                        "status_command_failure:"
-                            + (error.Response == null
-                                ? "response_unavailable"
-                                : error.Response.Detail.ToString()));
-                }
-                else
-                {
-                    PreserveExternalD5SubmissionOutcomeUncertain(
-                        evidence,
-                        error);
-                }
-
-                throw;
-            }
-            catch (Exception error)
-            {
-                PreserveExternalD5SubmissionOutcomeUncertain(
-                    evidence,
-                    error);
+                        stage),
+                    (unresolvedError, failureContext) =>
+                        PreserveExternalD5SubmissionOutcomeUncertain(
+                            evidence,
+                            unresolvedError,
+                            failureContext));
                 throw;
             }
         }
@@ -2214,7 +2185,8 @@ namespace LasalMotionControlApiExample
                 LMCConnection ownerConnection,
                 string stage,
                 string reason,
-                string evidenceId)
+                string evidenceId,
+                uint mapRevision = 0)
             {
                 TicketId = ticketId;
                 DiagnosticsBootId = diagnosticsBootId;
@@ -2224,16 +2196,39 @@ namespace LasalMotionControlApiExample
                 Stage = stage;
                 Reason = reason;
                 EvidenceId = evidenceId;
+                MapRevision = mapRevision;
             }
 
             internal uint TicketId { get; private set; }
             internal uint DiagnosticsBootId { get; private set; }
+            internal uint MapRevision { get; private set; }
             internal ushort SlaveReference { get; private set; }
             internal uint TimeoutCycles { get; private set; }
             internal LMCConnection OwnerConnection { get; private set; }
             internal string Stage { get; private set; }
             internal string Reason { get; private set; }
             internal string EvidenceId { get; private set; }
+
+            internal void ReconcileSubmissionIdentity(
+                uint diagnosticsBootId,
+                uint mapRevision)
+            {
+                if (TicketId != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Only unknown-ticket evidence can reconcile submission identity.");
+                }
+
+                if (diagnosticsBootId == 0 || mapRevision == 0)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        "diagnosticsBootId",
+                        "Submission identity requires non-zero BootId and MapRevision.");
+                }
+
+                DiagnosticsBootId = diagnosticsBootId;
+                MapRevision = mapRevision;
+            }
         }
 
         private sealed class D5SdoQualificationInput

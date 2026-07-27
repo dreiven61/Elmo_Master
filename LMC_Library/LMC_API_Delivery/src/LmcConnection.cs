@@ -391,12 +391,27 @@ namespace LasalMotionControlLib
                 expectedGeneration);
         }
 
+        internal byte[] Exchange(
+            byte[] request,
+            long expectedGeneration,
+            Action onWriteStarting)
+        {
+            return ExchangeCore(
+                request,
+                client,
+                false,
+                CancellationToken.None,
+                expectedGeneration,
+                onWriteStarting);
+        }
+
         private byte[] ExchangeCore(
             byte[] request,
             TcpClient operationClient,
             bool allowLifecycleState,
             CancellationToken cancellationToken,
-            long expectedGeneration)
+            long expectedGeneration,
+            Action onWriteStarting = null)
         {
             if (request == null)
             {
@@ -420,6 +435,11 @@ namespace LasalMotionControlLib
                     var maximumPayloadLength =
                         LMC_ResponsePayloadLimits.GetMaximumPayloadLength(command);
                     var stream = operationClient.GetStream();
+                    if (onWriteStarting != null)
+                    {
+                        onWriteStarting();
+                    }
+
                     stream.Write(request, 0, request.Length);
 
                     var header = ReadExact(stream, LMC_Frame.HeaderSize);
