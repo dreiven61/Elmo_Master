@@ -149,14 +149,18 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   여러 known/unknown evidence는 그대로 유지한 채 stable BootId/MapRevision 아래 current
   capability가 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
   서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 모두 확인해야 해제된다.
-  proof scope는 owner+BootId+MapRevision이 동질인 경우에만
+  UI 독립 `D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로
+  scope를 순수 판정한다. MainWindow는 proof 시작 로그와 PASS 로그에 같은 decision을 쓴다.
+  owner+BootId+MapRevision이 동질인 경우에만
   `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
   `new_connection_session` 중 하나다. current owner+identity와 모두 같으면 첫 scope,
   current owner와 한 previous BootId+MapRevision을 공유하면 둘째 scope, 모두 current owner와
   다르면서 한 previous owner+identity를 공유하면 셋째 scope다. owner 또는 submission
-  identity가 섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 첫
+  identity가 섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다.
+  mixed도 two-ticket application recovery proof와 성공 시 quarantine clear는 허용한다. 첫
   scope는 old terminal이나 disconnect/orphan 증거가 아니고 둘째도 orphan PASS가 아니다.
-  셋째 scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
+  한 previous owner+identity로 동질인 셋째 scope만 decision의
+  `NewConnectionRecovery=true`이고 `newConnectionRecovery=true`로 기록한다. WPF는 항상
   `orphanQualified=false`를 기록한다. 셋째 scope는 새 RPC connection에서 application
   recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다.
   실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
@@ -234,8 +238,8 @@ packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
-249/249 PASS다. 직전 244개에 UI 독립 D5 quarantine ledger 상태 전이/복구 commit 계약 시험
-5개가 추가됐다. D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
+256/256 PASS다. 직전 249개에 UI 독립 D5 recovery scope policy 계약 시험 7개가 추가됐다.
+D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
 대기 중이다.
 이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
 

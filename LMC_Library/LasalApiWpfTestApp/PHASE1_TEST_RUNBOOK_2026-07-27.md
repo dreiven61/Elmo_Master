@@ -35,9 +35,9 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 249/249 PASS`, `Release 249/249
-PASS`; this is the prior 244 tests plus five UI-independent D5 quarantine
-ledger state-transition and recovery-commit tests. WPF `Debug/Release
+Current PC baseline: API tests `Debug 256/256 PASS`, `Release 256/256
+PASS`; this is the prior 249 tests plus seven UI-independent D5 recovery scope
+policy tests. WPF `Debug/Release
 build PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
@@ -175,13 +175,18 @@ connection session is quarantined instead of being treated as terminal. During
 active resolution, either a current BootId change or a current MapRevision
 change quarantines the ticket before status polling.
 
-Only homogeneous owner+BootId+MapRevision evidence receives a same/new-session
-scope. Evidence matching the current owner and identity is
+The UI-independent `D5SdoRecoveryScopePolicy` classifies only the owner
+reference+BootId+MapRevision combination, and MainWindow uses the same decision
+for its proof-start and PASS logs. Only homogeneous evidence receives a
+same/new-session scope. Evidence matching the current owner and identity is
 `same_owner_connection_recovery`; evidence on the current owner with one
 previous BootId+MapRevision is `new_diagnostics_identity_session`; evidence on
 one previous owner and identity is `new_connection_session`. Mixed owner or
 submission identities are `mixed_evidence_sessions`, not one of those
-same/new-session proofs. The same-owner scope does not prove disconnect/orphan
+same/new-session proofs. Mixed evidence may still complete the two-ticket
+application recovery proof and clear an unchanged quarantine. Only a homogeneous
+previous owner+identity decision sets `NewConnectionRecovery=true`. The
+same-owner scope does not prove disconnect/orphan
 cleanup or the old ticket's terminal state. The new-connection scope proves
 only that a new RPC connection can submit two valid reads. WPF always records
 `orphanQualified=false`; actual orphan/late-callback qualification needs

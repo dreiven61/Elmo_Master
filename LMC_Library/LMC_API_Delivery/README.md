@@ -49,8 +49,9 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 249/249 PASS
-  (기존 225개 Phase 1/2 회귀, 53-command response hard limit, AxisInfo descriptor,
+- C# 자동 테스트 runner: Debug/Release 각 256/256 PASS
+  (직전 249개 + UI 독립 D5 recovery scope policy 7개. 직전 249개는 기존 225개 Phase 1/2
+  회귀, 53-command response hard limit, AxisInfo descriptor,
   read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
   two-session exact/discovery adoption, pre-close transport-fault exact recovery,
   Fault mutation 차단, cancel/Stop-race/release retry/quarantine, Bulk cleanup/retry와
@@ -59,7 +60,7 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   command stage/ticket 및 non-domain 계약 2개 포함 + D5 external-read WPF
   routing orchestrator 7개 + drive-read all-failure facade context 4개 + raw
   `SubmitSdo` submission context 7개 + manual failure router 1개 + owner-bound
-  immutable D5 quarantine ledger/atomic recovery commit 5개)
+  immutable D5 quarantine ledger/atomic recovery commit 5개로 구성)
 - LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
   declaration과 current source 동기화 확인
 - 개발 WPF example Debug/Release build: PASS. startup smoke는 기존
@@ -103,14 +104,18 @@ exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전 ticket이 te
 여러 evidence의 recovery proof는 current capability가 GeneralInline이면 서로 다른 두
 `0x6061:0 Int8/1` ticket, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket을
 사용한다. stable BootId/MapRevision 아래 두 결과의 exact type/length/bytes가 같고 proof 중
-evidence 목록이 불변일 때만 quarantine을 해제한다. 모든 evidence가 current
+evidence 목록이 불변일 때만 quarantine을 해제한다. UI 독립
+`D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로 scope를 순수
+판정하고 MainWindow는 proof 시작 로그와 PASS 로그에 같은 decision을 사용한다. 모든 evidence가 current
 owner+BootId+MapRevision과 같은 동질 집합이면 `same_owner_connection_recovery`, current
 owner를 공유하면서 이전의 한 BootId+MapRevision으로 동질이면
 `new_diagnostics_identity_session`, 모두 current owner와 다르면서 한 previous
 owner+BootId+MapRevision으로 동질이면 `new_connection_session`이다. owner 또는 submission
 identity가 섞이면 `mixed_evidence_sessions`로 분류하며 same/new session 증거로 세지 않는다.
+mixed도 two-ticket application recovery proof와 성공 시 quarantine clear는 허용한다.
 `same_owner_connection_recovery`는 old terminal/disconnect/orphan PASS가 아니다.
-`new_connection_session`은 `newConnectionRecovery=true`로 기록하지만, WPF는 항상
+한 previous owner+identity로 동질인 `new_connection_session`만 decision의
+`NewConnectionRecovery=true`이고 로그에 `newConnectionRecovery=true`로 기록한다. WPF는 항상
 `orphanQualified=false`로 기록한다. 이는 새 RPC connection에서 application
 recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다.
 실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가

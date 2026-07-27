@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 249/249 계약 시험 PASS; 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 256/256 계약 시험 PASS; 직전 249개 + UI 독립 D5 recovery scope policy 7개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -84,12 +84,16 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
   `TicketNotFound`는 이전 ticket terminal만 증명해 outcome `UNKNOWN`으로 해제한다. 여러
   evidence는 GeneralInline의 `0x6061:0 Int8/1` 또는 legacy SDORead-only의
   `0x1000:0 UInt32/4` 중 capability에 맞는 서로 다른 두 ticket의 exact type/length/bytes로 proof한다.
+  UI 독립 `D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로 scope를
+  순수 판정하고 MainWindow는 proof 시작/PASS 로그에 같은 decision을 사용한다.
   owner+BootId+MapRevision이 동질인 경우에만 scope를
   `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
   `new_connection_session`으로 나눈다. owner 또는 submission identity가 섞이면
-  `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 모든 evidence가 한
-  previous owner+identity에 속하는 `new_connection_session`은
-  `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 실제 orphan
+  `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. mixed도 application
+  recovery proof와 성공 시 quarantine clear는 허용한다. 모든 evidence가 한 previous
+  owner+identity에 속하는 `new_connection_session`만 decision의
+  `NewConnectionRecovery=true`이고 로그의 `newConnectionRecovery=true`가 된다. WPF는 항상
+  `orphanQualified=false`다. 실제 orphan
   PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
   unresolved 새 mutation gate와 15~120초 deadline-aware cleanup을 적용한다.
 - PC test executable의 명시적 `negative-wire` 모드는 기본 dry-run이고 fixed 5개 raw
@@ -599,13 +603,17 @@ Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이
 여러 개면 모두 같은 slave여야 하며, stable BootId/MapRevision 아래 GeneralInline이면 서로
 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket의
 exact type/length/bytes가 같고 proof 도중 evidence 목록이 불변일 때만 전체 quarantine을 해제한다.
+UI 독립 `D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로 scope를
+순수 판정하고 MainWindow는 proof 시작 로그와 PASS 로그에 같은 decision을 사용한다.
 owner+BootId+MapRevision이 동질인 경우에만 current owner+identity는
 `same_owner_connection_recovery`, current owner+한 previous identity는
 `new_diagnostics_identity_session`, 모두 current owner와 다르면서 한 previous
 owner+identity를 공유하면 `new_connection_session`이다. owner 또는 submission identity가
-섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 첫 scope는
-disconnect/orphan PASS가 아니다. `new_connection_session`은
-`newConnectionRecovery=true`로 기록하지만 WPF는 항상 `orphanQualified=false`를 기록한다.
+섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. mixed도
+two-ticket application recovery proof와 성공 시 quarantine clear는 허용한다. 첫 scope는
+disconnect/orphan PASS가 아니다. 한 previous owner+identity로 동질인
+`new_connection_session`만 decision의 `NewConnectionRecovery=true`이고 로그의
+`newConnectionRecovery=true`로 기록한다. WPF는 항상 `orphanQualified=false`를 기록한다.
 이는 새 RPC connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan
 cleanup이나 late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket,
 실제 owner loss와 별도 PLC hook/capture가 필요하다. QTEST는
@@ -689,9 +697,10 @@ candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Bulk.cs` | 24-entry snapshot/lifecycle soak와 release cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../BulkPartialQualificationAnalysis.cs` | 4축 x 6 topology, baseline/fault/recovery 순수 계약 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, reconnect exact/0/0 discovery, hash assertion과 normal/adopted cleanup |
-| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
+| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId·MapRevision quarantine, 공통 scope decision의 proof 시작/PASS 로그, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive/raw submission disposition과 owner-bound immutable D5 quarantine ledger, atomic recovery commit을 UI 비종속으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
+| `LMC_Library/LasalApiWpfTestApp/.../D5SdoRecoveryScopePolicy.cs` | owner reference+BootId+MapRevision 기반 네 recovery scope 순수 판정; MainWindow와 PC test가 동일 source 사용 |
 | `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../LasalApiWpfTestApp.csproj` | 새 Compile item 등록 |
@@ -701,7 +710,8 @@ candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 | `LMC_Library/.../tests/.../NegativeWireTool.cs`와 `NegativeWireToolTests.cs` | explicit mode/dry-run/live gate, fixed 5개 allowlist와 금지 command, exact response/report 계약 9개 |
 | `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
 | `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 249/249 PASS; 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개 |
+| `LMC_Library/.../tests/.../D5SdoRecoveryScopePolicyTests.cs` | same/new/mixed scope, homogeneous previous owner와 invalid input fail-closed 7개 자동 시험 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 256/256 PASS; 직전 249개 + UI 독립 D5 recovery scope policy 7개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -712,7 +722,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 249/249
+1. [완료] Debug/Release API tests 각 256/256
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -766,14 +776,15 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
   두 exact type/length/bytes read로 해제하며, unresolved 상태변경 gate와 15~120초
   deadline-aware cleanup을 적용한다. 네 proof scope와
   `evidenceBootIds`/`evidenceMapRevisions`, `recoveryBootId`/`recoveryMapRevision`을 기록한다.
-  혼합 evidence는 `mixed_evidence_sessions`다. 모든 evidence가 한 previous owner+identity에
-  속하면 `newConnectionRecovery=true`지만 WPF는 항상
+  혼합 evidence는 `mixed_evidence_sessions`이며 application recovery proof는 허용하지만
+  same/new session 증거로 세지 않는다. 모든 evidence가 한 previous owner+identity에
+  속할 때만 `NewConnectionRecovery=true`이고 로그의 `newConnectionRecovery=true`가 된다. WPF는 항상
   `orphanQualified=false`다. 실제 orphan PASS에는 별도 PLC hook/capture가 필요하다.
   새 mutation 차단 중에도 기존 resource cleanup/Stop/PowerOff/read-only는 허용한다.
   local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
 - [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
   diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
-- [완료] Debug/Release PC tests 각 249/249, 새 LASAL static contract, WPF build와 Debug
+- [완료] Debug/Release PC tests 각 256/256, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

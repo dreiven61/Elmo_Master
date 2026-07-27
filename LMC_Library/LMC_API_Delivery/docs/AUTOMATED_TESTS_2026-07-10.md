@@ -79,11 +79,15 @@
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 검증한다. unresolved Group Disable
   포함 새 mutation gate와 15~120초 deadline-aware cleanup도 포함된다.
   기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와 read-only는 계속 허용한다.
-  proof scope는 owner+BootId+MapRevision이 동질인 경우에만
+  UI 독립 `D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로
+  scope를 순수 판정하고 MainWindow는 proof 시작/PASS 로그에 같은 decision을 사용한다.
+  owner+BootId+MapRevision이 동질인 경우에만
   `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
   `new_connection_session`으로 나뉜다. owner 또는 submission identity가 섞인 evidence는
-  `mixed_evidence_sessions`이며 same/new session으로 세지 않는다. 모든 evidence가 한 previous
-  owner+identity에 속하는 `new_connection_session`만 `newConnectionRecovery=true`를 뜻한다.
+  `mixed_evidence_sessions`이며 same/new session으로 세지 않는다. mixed도 two-ticket
+  application recovery proof와 성공 시 quarantine clear는 허용한다. 모든 evidence가 한
+  previous owner+identity에 속하는 `new_connection_session`만 decision의
+  `NewConnectionRecovery=true`와 로그의 `newConnectionRecovery=true`를 뜻한다.
   WPF는 `orphanQualified=false`를 고정 기록하며 실제 orphan PASS에는 known Running old
   ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다. `D5SdoPendingCleanup`
   Resolve는 기존 qualification log에 `D5_LOG_CONTINUATION`을 이어 써 원래
@@ -125,6 +129,9 @@
   `SubmissionMapRevision` 계약도 이 경로에서 확인한다.
   PI Write는 SDK compile-time allowlist empty와 WPF button/handler 이중 차단을 적용한다.
   이 항목은 code/test 계약이며 PLC live/pcap 증거가 아니다.
+- D5 recovery scope policy 7개는 same-owner exact/new identity, homogeneous previous owner,
+  current+foreign owner 혼합, multiple previous owner 혼합, submission identity 혼합과 invalid
+  input fail-closed를 검사한다. 이 UI 독립 policy source를 MainWindow와 PC test가 함께 쓴다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -154,7 +161,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `249/249 PASS`
+- `RunPcTests`: Debug/Release 각 `256/256 PASS`
+  직전 249개에 UI 독립 D5 recovery scope policy 7개를 추가했다.
   (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault

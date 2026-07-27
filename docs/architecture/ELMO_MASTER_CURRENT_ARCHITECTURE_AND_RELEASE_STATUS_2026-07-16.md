@@ -44,8 +44,8 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 249/249 tests가 PASS했다. 직전 244개에 UI 독립 D5 quarantine ledger
-  상태 전이/복구 commit 계약 시험 5개가 추가됐다. 개발 WPF build도
+  Debug/Release 각 256/256 tests가 PASS했다. 직전 249개에 UI 독립 D5 recovery scope policy
+  계약 시험 7개가 추가됐다. 개발 WPF build도
   PASS했다. LASAL
   Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
   아직 수행하지 않았다.
@@ -91,9 +91,9 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 249/249 PASS | 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개; PLC 통합과 별도 |
+| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 256/256 PASS | 직전 249개 + UI 독립 D5 recovery scope policy 7개; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
-| qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId quarantine, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
+| qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
 | LASAL full static 계약 | Phase 5 default PASS | source/XML/generated table/tracked network metadata 정적 일치; IDE Compiler/Linker도 2026-07-24 log PASS |
 | D5 executor 초기화 | constructor declaration/implementation 미완료 | 자동 zero-init 공식 보장 미확인; current Busy 직접 원인은 아니며 IDE declaration P1 필요 |
@@ -547,7 +547,7 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 249/249 tests가 exact table,
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 256/256 tests가 exact table,
    header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
@@ -710,12 +710,16 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   outcome `UNKNOWN`으로 해제한다. known/unknown evidence 전체는 stable BootId/MapRevision 아래
   GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes가 같고 proof 중 목록이 불변일 때만 해제한다.
+  UI 독립 `D5SdoRecoveryScopePolicy`는 owner reference+BootId+MapRevision 조합만으로
+  scope를 순수 판정하며 MainWindow는 proof 시작 로그와 PASS 로그에 같은 decision을 사용한다.
   owner+BootId+MapRevision이 동질인 경우에만 current owner+identity는
   `same_owner_connection_recovery`, current owner+한 previous identity는
   `new_diagnostics_identity_session`, 한 previous owner+identity는 `new_connection_session`이다.
   owner 또는 submission identity가 섞이면 `mixed_evidence_sessions`이며 same/new session
-  proof로 세지 않는다. 첫 scope는 disconnect/orphan PASS가 아니다.
-  `new_connection_session`은 `newConnectionRecovery=true`지만 WPF는 항상
+  proof로 세지 않는다. mixed도 two-ticket application recovery proof와 성공 시 quarantine
+  clear는 허용한다. 첫 scope는 disconnect/orphan PASS가 아니다. 한 previous
+  owner+identity로 동질인 `new_connection_session`만 decision의
+  `NewConnectionRecovery=true`이며 로그의 `newConnectionRecovery=true`가 된다. WPF는 항상
   `orphanQualified=false`다. 이는 새 RPC
   connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나
   late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket, 실제
@@ -785,8 +789,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 확인된 범위:
 
 - 현재 Phase 5 all-failure-context worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 249/249 PASS. 직전 244개에 UI 독립 D5 quarantine ledger 상태 전이/복구
-  commit 계약 시험 5개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
+  Debug/Release 각 256/256 PASS. 직전 249개에 UI 독립 D5 recovery scope policy 계약 시험
+  7개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
   qualification analysis, callback lifecycle, internal negative-wire, D5 abort/recovery analyzer와
   largest variable response의 max/max+1 transport 경계를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.
