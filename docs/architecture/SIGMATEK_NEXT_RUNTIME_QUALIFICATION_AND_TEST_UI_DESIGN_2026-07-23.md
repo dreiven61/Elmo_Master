@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 260/260 계약 시험 PASS; 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 269/269 계약 시험 PASS; 직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -39,7 +39,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 | GroupEnable `0x2047` | same-cycle 상태 read 제거와 정적 계약 PASS | 새 PLC build/download 뒤 acceptance ACK 0 및 후속 `0x2045` poll live 확인 |
 | D1/D2 PI/Bulk | 기존 24-entry Catalog, 4 PI, 4-entry snapshot/release live PASS; 24-entry snapshot/lifecycle soak와 operator checkpoint 기반 one-slave-offline partial/recovery code, 9개 순수 판정 시험 및 WPF build PASS | 100회와 partial workflow live 실행/capture, stale/raw-negative |
 | D3/D4 Recorder | Single/Ring forced-trigger/trigger-soak와 reconnect exact/0/0 discovery runner code 및 WPF build PASS | PLC live Single/Ring/100회/reconnect-adopt; fault, RAM/jitter와 Double은 별도 |
-| D5 SDO Read | general-inline/TypeMismatch recovery live PASS. abort runner/analyzer, all-failure drive-read context, submit outcome/BootId/MapRevision quarantine, multi-evidence two-ticket proof, unresolved mutation gate, 15~120초 cleanup code/build/test 완료 | abort/orphan live/pcap, offline, timeout, queued cancel, contention |
+| D5 SDO Read | general-inline/TypeMismatch recovery live PASS. abort runner/analyzer, all-failure drive-read context, submit outcome/BootId/MapRevision quarantine, multi-evidence two-ticket proof, unresolved mutation gate, owner/ticket/Map fail-closed와 Boot-first quarantine를 포함한 UI 독립 15~120초 pending cleanup code/build/test 완료 | abort/orphan live/pcap, offline, timeout, queued cancel, contention |
 
 최신 세부 사실은 다음과 같다.
 
@@ -701,6 +701,7 @@ candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 | `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive/raw submission disposition과 owner-bound immutable D5 quarantine ledger, atomic recovery commit을 UI 비종속으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoRecoveryScopePolicy.cs` | owner reference+BootId+MapRevision 기반 네 recovery scope 순수 판정; MainWindow와 PC test가 동일 source 사용 |
+| `LMC_Library/LasalApiWpfTestApp/.../D5SdoPendingCleanupOrchestrator.cs` | owner/ticket/stored Map preflight, Boot 우선·Map mismatch 무송신 quarantine, cached terminal/pending, Queued cancel/race, Running wait, exact cancelled terminal, status 보존과 15~120초 `<=` 경계를 UI 비종속으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../LasalApiWpfTestApp.csproj` | 새 Compile item 등록 |
@@ -712,7 +713,8 @@ candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 | `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
 | `LMC_Library/.../tests/.../D5SdoRecoveryScopePolicyTests.cs` | same/new/mixed scope, homogeneous previous owner와 invalid input fail-closed 7개 자동 시험 |
 | `LMC_Library/.../tests/.../D5SdoQuarantineLedgerConcurrencyTests.cs` | 각 등록 test 50회; candidate 뒤 clear 전 mutation, atomic clear 뒤 Arm, callback 예외 waiter/reuse, concurrent Disarm exact-once를 bounded wait/no `Thread.Sleep`로 검증하는 4개 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 260/260 PASS; 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 |
+| `LMC_Library/.../tests/.../D5SdoPendingCleanupOrchestratorTests.cs` | identity fail-closed/quarantine 무송신, cached terminal/pending, Queued cancel/race, Running wait, exact cancel terminal, status/exception 보존과 wait boundary 9개 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 269/269 PASS; 직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -723,7 +725,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 260/260
+1. [완료] Debug/Release API tests 각 269/269
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -788,7 +790,13 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
 - [PC test 완료, PLC live 증거 아님] D5 quarantine ledger deterministic concurrency 4개는 각
   등록 test를 50회 반복하고 bounded wait만 사용한다. production/wire/LASAL 변경은 없으며
   `Thread.Sleep`도 사용하지 않는다.
-- [완료] Debug/Release PC tests 각 260/260, 새 LASAL static contract, WPF build와 Debug
+- [코드/test/build 완료, PLC live/pcap 증거 아님] D5 pending cleanup orchestrator 9개는
+  owner/current connection, ticket owner와 stored MapRevision을 fail-closed하고 Boot-first/Map
+  mismatch를 status/cancel 없이 quarantine한다. cached terminal/pending, Queued-only cancel과
+  `InvalidState` race, Running wait, exact `Cancelled/Cancelled`, status/exception 보존과
+  min15s/remaining+1s/max120s 및 `<=` poll boundary를 검사한다. production WPF adapter는 같은
+  source를 호출하지만 wire/LASAL 변경은 없다.
+- [완료] Debug/Release PC tests 각 269/269, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

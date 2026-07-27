@@ -3,7 +3,7 @@
 - 작성일: 2026-07-27
 - 위치: `tests/LasalMotionControlLib.Tests/NegativeWireTool.cs`
 - 실행 파일: `LasalMotionControlLib.Tests.exe`
-- 상태: PC Debug/Release 각 260/260 중 전용 계약 시험 9개와 dry-run PASS;
+- 상태: PC Debug/Release 각 269/269 중 전용 계약 시험 9개와 dry-run PASS;
   실제 PLC raw rejection/pcap은 미실행
 
 ## 목적과 경계
@@ -17,8 +17,15 @@ SDK에 포함되지 않으며 임의 command ID, reference 또는 hex payload를
 allowlist는 아래 다섯 고정 시나리오뿐이다. motion, Admin, 모든 write, SDO Submit,
 Recorder 명령은 생성하거나 송신할 수 없다.
 
-전체 260개는 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개다.
-각 등록 test는 50회 반복해 candidate snapshot 뒤 clear 전 mutation, atomic clear 뒤 Arm
+전체 269개는 직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개다. 새 9개는
+owner/current connection, ticket owner와 stored MapRevision fail-closed, capability BootId 우선
+판정과 MapRevision mismatch의 status/cancel 무송신 quarantine, cached terminal의
+status/cancel 무송신과
+cached pending refresh, Queued-only cancel/`InvalidState` race, Running wait, exact
+`Cancelled/Cancelled`, status/exception 보존, 최소 15초/남은 deadline+1초/최대 120초 및 `<=`
+poll 경계를 검사한다. production WPF cleanup adapter도 같은 source를 호출하도록 변경됐지만
+wire/LASAL 변경이나 PLC live/pcap 증거는 아니다. 직전 concurrency 4개는
+각 등록 test를 50회 반복해 candidate snapshot 뒤 clear 전 mutation, atomic clear 뒤 Arm
 보존, callback 예외 뒤 waiter/ledger 재사용과 concurrent Disarm exact-once를 bounded wait로
 검증하며 `Thread.Sleep`을 사용하지 않는다. 이 추가분은 PC test뿐이고
 production/wire/LASAL 변경이나 PLC live/pcap 증거가 아니다. 기존 UI 독립

@@ -35,9 +35,9 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 260/260 PASS`, `Release 260/260
-PASS`; this is the prior 256 tests plus four UI-independent deterministic D5
-quarantine-ledger concurrency tests. WPF `Debug/Release
+Current PC baseline: API tests `Debug 269/269 PASS`, `Release 269/269
+PASS`; this is the prior 260 tests plus nine UI-independent D5 pending-cleanup
+orchestrator tests. WPF `Debug/Release
 build PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
@@ -153,6 +153,18 @@ manual operation state and the D5 tracker and then disarming.
 Missing or inconsistent context fails closed. Save the log, and do not classify
 any quarantine as a PLC failure without packet evidence.
 
+Pending-ticket cleanup uses the same UI-independent orchestrator in the WPF and
+PC tests. Before any status or cancel request, it fails closed unless the active
+and current `LMCConnection`, ticket owner, and stored submission MapRevision
+agree. Current capability BootId is checked before MapRevision; either mismatch
+quarantines without a status/cancel dispatch. A cached terminal status causes no
+status/cancel call, while cached pending state is refreshed. Only a current
+`Queued` status is cancelled; `InvalidState` is treated as a queue-to-running
+race and waited to terminal, and `Running` is never cancelled. Accepted cancel
+must finish as exact `Cancelled/Cancelled`, and each fresh status is preserved.
+The wait is min 15 s, remaining original deadline + 1 s, max 120 s, including a
+poll at the exact `<=` boundary.
+
 The quarantine ledger keeps immutable ticket/BootId/MapRevision/owner evidence.
 An accepted ticket is admitted only when `BelongsTo` confirms the owner and its
 `DiagnosticsBootId`/`SubmissionMapRevision` exactly match the evidence identity.
@@ -166,8 +178,10 @@ Each concurrency test registration repeats its scenario 50 times. The four
 scenarios verify mutation after the candidate snapshot but before clear, Arm
 survival after atomic clear, waiter progress and ledger reuse after a callback
 exception, and exact-once concurrent Disarm. They use bounded waits and no
-`Thread.Sleep`. These are PC-only tests: production, wire, and LASAL behavior
-are unchanged, and the results are not PLC-live evidence.
+`Thread.Sleep`. Those four tests did not change production, wire, or LASAL
+behavior. The newer pending-cleanup checkpoint changes the production WPF
+adapter to use the shared orchestrator, but it changes neither wire nor LASAL
+behavior. Neither result is PLC-live or pcap evidence.
 
 External manual/drive tracking lines use their own
 `scenario=D5ExternalTracking:<stage>` run ID. They must not inherit the run ID

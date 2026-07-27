@@ -215,6 +215,15 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   clear 전 mutation, atomic clear 뒤 Arm 보존, callback 예외 뒤 waiter/ledger 재사용과
   concurrent Disarm exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다.
   이 추가분은 PC test뿐이고 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
+- D5 pending-ticket cleanup은 WPF와 PC test가 같은 UI 독립 orchestrator를 쓴다. active/current
+  `LMCConnection`, ticket owner와 저장 `SubmissionMapRevision`을 dispatch 전에 fail-closed하고,
+  current capability BootId mismatch를 MapRevision보다 먼저 판정해 두 경우 모두 status/cancel
+  없이 quarantine한다. cached terminal은 무송신으로 끝내고 cached pending은 refresh한다.
+  `Queued`에서만 cancel하며 `InvalidState` race와 `Running`은 terminal까지 기다린다. cancel
+  accepted면 exact `Cancelled/Cancelled`만 허용하고 fresh status를 active state에 보존한다.
+  wait는 최소 15초, 남은 원 deadline+1초, 최대 120초이며 timeout과 같은 `<=` 경계 poll도
+  유지한다. 이 checkpoint는 production WPF adapter를 변경했지만 wire/LASAL 변경이나 PLC
+  live/pcap 증거는 아니다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
@@ -242,8 +251,8 @@ packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
-260/260 PASS다. 직전 256개에 UI 독립 D5 quarantine ledger deterministic concurrency 계약
-시험 4개가 추가됐다.
+269/269 PASS다. 직전 260개에 UI 독립 D5 pending cleanup orchestrator 계약 시험 9개가
+추가됐다.
 D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
 대기 중이다.
 이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.

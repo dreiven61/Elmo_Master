@@ -138,6 +138,15 @@
   evidence와 ledger 재사용성이 보존되는지, concurrent Disarm이 성공 1회/stale 1회인지
   검증한다. 모든 동기화는 bounded wait이며 `Thread.Sleep`을 사용하지 않는다. 이 4개는 PC
   test 강화일 뿐 production/wire/LASAL 변경이나 PLC live/pcap 증거가 아니다.
+- D5 pending cleanup orchestrator 9개는 owner/current connection, ticket owner와 저장
+  `SubmissionMapRevision`을 dispatch 전 fail-closed하는지 검사한다. current capability는
+  BootId를 먼저 판정하고 MapRevision mismatch와 함께 status/cancel 무송신 quarantine을
+  보장한다. cached terminal은 status/cancel을 생략하고 cached pending은 refresh한다.
+  Queued에서만 cancel하며 `InvalidState` race는 terminal까지 기다리고 Running은 cancel 없이
+  기다린다. cancel accepted 뒤 exact `Cancelled/Cancelled`, fresh status의 caller 보존,
+  command exception 원본 보존도 검사한다. wait 계산은 최소 15초, 남은 deadline+1초, 최대
+  120초이며 elapsed가 timeout과 같은 `<=` 경계 poll도 고정한다. production WPF cleanup
+  adapter가 이 UI 독립 source를 호출하지만 wire/LASAL 변경은 없고 PLC live/pcap 증거도 아니다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -167,8 +176,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `260/260 PASS`
-  직전 256개에 UI 독립 D5 quarantine ledger deterministic concurrency 4개를 추가했다.
+- `RunPcTests`: Debug/Release 각 `269/269 PASS`
+  직전 260개에 UI 독립 D5 pending cleanup orchestrator 9개를 추가했다.
   (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
@@ -178,7 +187,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   stage/ticket 및 non-domain 계약 2개 포함; 추가 24개: external-read WPF routing
   orchestrator 7개 + all-failure facade context 4개 + raw `SubmitSdo` context 7개 +
   manual failure router 1개 + D5 quarantine ledger 5개; 추가 7개: D5 recovery scope policy;
-  추가 4개: D5 quarantine ledger deterministic concurrency)
+  추가 4개: D5 quarantine ledger deterministic concurrency; 추가 9개: D5 pending cleanup
+  orchestrator)
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,

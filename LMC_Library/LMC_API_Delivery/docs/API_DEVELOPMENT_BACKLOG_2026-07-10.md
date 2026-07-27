@@ -10,7 +10,7 @@ Latest update: 2026-07-27
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
 > 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
 > 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
-> Debug/Release 각 260/260 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
+> Debug/Release 각 269/269 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
 > dynamic group monitor/PowerOff, D0/D1/D2 PI/Bulk와 D5 general-inline 1/2/4-byte
 > happy path를 확인했다. 같은 BootId의 의도한 TypeMismatch 실패 후 Int8/1 복구도
 > PASS했다. read-only D5 SDO abort -> recovery runner/analyzer와 internal negative-wire
@@ -79,12 +79,18 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 260/260 PASS를 확인했다. 직전 256개에 UI
-독립 D5 quarantine ledger deterministic concurrency 4개가 추가됐다. 각 등록 test는 50회
+현재 source는 C# 자동 테스트 Debug/Release 각 269/269 PASS를 확인했다. 직전 260개에 UI
+독립 D5 pending cleanup orchestrator 계약 9개가 추가됐다. owner/current connection, ticket
+owner와 저장 MapRevision을 dispatch 전 fail-closed하고, capability BootId를 먼저 판정한 뒤
+MapRevision mismatch를 status/cancel 없이 quarantine한다. cached terminal은 status/cancel을
+보내지 않고 cached pending은 refresh하며, Queued-only cancel과 `InvalidState` race, Running
+wait, cancel accepted 뒤 exact `Cancelled/Cancelled`, 마지막 status 보존을 검사한다. cleanup
+bound는 최소 15초, 남은 deadline+1초, 최대 120초이고 `<=` poll 경계도 고정했다. production
+WPF cleanup은 같은 orchestrator를 호출하도록 변경됐지만 wire/LASAL 변경이나 PLC live/pcap
+증거는 아니다. 직전 concurrency 4개는 각 등록 test를 50회
 반복하며 candidate snapshot 뒤 clear 전 mutation, atomic clear 뒤 competing Arm, callback 예외
 뒤 waiter/ledger 재사용, concurrent Disarm exact-once를 bounded wait로 검증하고
-`Thread.Sleep`을 사용하지 않는다. 이 추가분은 PC test뿐이며 production/wire/LASAL 변경이나
-PLC live 증거가 아니다.
+`Thread.Sleep`을 사용하지 않는다.
 LASAL SourceOnly/full static contract와 D5 runner 포함 개발 WPF Debug/Release build를
 통과했다. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS했으며 D5 panel
 visual은 별도다.
@@ -162,8 +168,14 @@ TicketId/BootId/MapRevision/owner를 포함한 immutable evidence, exact-once di
 `DiagnosticsBootId`와 실제 제출 `SubmissionMapRevision`으로 ledger evidence에 exact
 match시킨다. recovery proof의 두 임시 accepted guard는 허용하지만 persistent evidence 변경,
 candidate 이후 ABA, PASS log 실패는 원자 clear를 거부한다.
-pending cleanup은 원 terminal deadline을 반영한 15~120초 bound다. 이 보호도 PLC
-live/pcap 증거는 아니다.
+pending cleanup은 UI 독립 orchestrator가 owner/current connection, ticket owner와 저장
+MapRevision을 먼저 검증한다. current capability BootId mismatch를 MapRevision보다 우선
+quarantine하며 두 mismatch 모두 status/cancel을 보내지 않는다. cached terminal은 재조회하지
+않고 cached pending은 refresh한다. Queued에서만 cancel하고 `InvalidState` race는 terminal까지
+기다리며 Running은 cancel하지 않는다. cancel accepted면 exact `Cancelled/Cancelled`만 허용하고
+마지막 관측 status를 보존한다. wait는 원 terminal deadline을 반영한 최소 15초, 남은
+deadline+1초, 최대 120초 bound이며 `<=` 경계 poll을 유지한다. production WPF adapter와 PC
+test가 같은 source를 쓰지만 wire/LASAL 변경이나 PLC live/pcap 증거는 아니다.
 
 PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame이나 IDE
 build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
@@ -187,7 +199,7 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 260/260 PASS | 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 |
+| C# 자동 테스트 | Debug/Release 각 269/269 PASS | 직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
 | 개발 WPF | D5 포함 Debug/Release build PASS | startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS; D5 visual과 PLC 동작 승인은 별도 |

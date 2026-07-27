@@ -49,8 +49,8 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 260/260 PASS
-  (직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개. 직전 256개는
+- C# 자동 테스트 runner: Debug/Release 각 269/269 PASS
+  (직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개. 직전 260개는
   기존 225개 Phase 1/2
   회귀, 53-command response hard limit, AxisInfo descriptor,
   read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
@@ -61,11 +61,19 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   command stage/ticket 및 non-domain 계약 2개 포함 + D5 external-read WPF
   routing orchestrator 7개 + drive-read all-failure facade context 4개 + raw
   `SubmitSdo` submission context 7개 + manual failure router 1개 + owner-bound
-  immutable D5 quarantine ledger/atomic recovery commit 5개 + recovery scope policy 7개로 구성)
+  immutable D5 quarantine ledger/atomic recovery commit 5개 + recovery scope policy 7개 +
+  quarantine ledger deterministic concurrency 4개로 구성)
   concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤 clear 전 mutation 거부, atomic clear
   뒤 competing Arm 보존, callback 예외 뒤 waiter 진행과 ledger 재사용, concurrent Disarm
   exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다. 이는 PC test 강화일
   뿐 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
+  pending cleanup 9개는 owner/current connection, ticket owner와 저장 MapRevision을 wire 전
+  fail-closed하고, capability BootId를 우선 판정한 뒤 MapRevision 불일치를 status/cancel 없이
+  quarantine한다. cached terminal status/cancel 무송신, cached pending refresh, Queued-only cancel과
+  `InvalidState` race, Running wait, cancel accepted 뒤 exact `Cancelled/Cancelled`, 마지막 status
+  보존, 최소 15초/남은 deadline+1초/최대 120초 및 `<=` poll 경계를 검증한다. production WPF는
+  같은 UI 독립 orchestrator를 호출하도록 변경됐지만 wire/LASAL은 변경하지 않았고 PLC
+  live/pcap 증거는 아니다.
 - LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
   declaration과 current source 동기화 확인
 - 개발 WPF example Debug/Release build: PASS. startup smoke는 기존

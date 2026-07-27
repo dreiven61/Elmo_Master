@@ -336,10 +336,15 @@ var raw = checked((int)Math.Round(
 - abort PASS 계약은 status RPC 성공, terminal `Failed/Failed`,
   `OperationErrorId=-32000`, `OperationDetail`의 nonzero raw EtherCAT SDO abort code와
   result 없음이다. local transport error, timeout과 cancel은 abort 증거가 아니다.
-- cancel 요청 시 실제 `Queued` ticket만 public Cancel을 보낸다. 이미 `Running`이면 PLC
-  Stop이나 transport close 없이 원래 terminal deadline의 남은 시간+1초를 반영한다.
-  cleanup wait는 최소 15초, 최대 120초이며, 끝나지 않으면 ticket identity를 지우지 않은
-  채 cleanup timeout으로 실패한다.
+- pending cleanup은 UI 독립 orchestrator가 active/current `LMCConnection`, ticket owner와
+  저장 MapRevision을 dispatch 전에 fail-closed한다. current capability BootId mismatch를
+  MapRevision보다 우선 quarantine하고 두 mismatch 모두 status/cancel을 보내지 않는다.
+  cached terminal은 재조회하지 않고 cached pending은 먼저 refresh한다. 실제 `Queued`에서만
+  public Cancel을 보내며 `InvalidState` race면 terminal까지 기다리고 `Running`이면 cancel하지
+  않는다. cancel accepted 뒤에는 exact `Cancelled/Cancelled`만 허용하고 마지막 fresh status를
+  active state에 보존한다. PLC Stop이나 transport close 없이 원래 terminal deadline의 남은
+  시간+1초를 반영하며 cleanup wait는 최소 15초, 최대 120초이고 `<=` 경계에서도 한 번 더
+  poll한다. 끝나지 않으면 ticket identity를 지우지 않은 채 cleanup timeout으로 실패한다.
 - Submit wire 호출 전에 ticket ID 0의 outcome evidence를 먼저 quarantine ledger에 넣는다.
   명시적 PLC command rejection이면 제거하고, 응답 유실/transport 예외면 unknown-ticket
   evidence로 보존한다. ticket 응답을 받았으면 active ticket/owner connection/deadline을
@@ -420,14 +425,18 @@ var raw = checked((int)Math.Round(
   clear 전 mutation, atomic clear 뒤 Arm 보존, callback 예외 뒤 waiter/ledger 재사용과
   concurrent Disarm exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다.
   이는 PC test 강화이며 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
+  별도 UI 독립 pending cleanup orchestrator 9개는 owner/ticket/Map preflight, Boot 우선·Map
+  mismatch quarantine 무송신, cached terminal/pending, Queued cancel과 race, Running wait,
+  exact cancelled terminal, status/exception 보존 및 15~120초 `<=` 경계를 검사한다. production
+  WPF adapter는 이 orchestrator를 호출하지만 wire/LASAL 변경이나 PLC live/pcap 증거는 아니다.
 
 ### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. API Debug/Release는 각각 260/260 PASS다. 직전 256개에 UI 독립 D5
-quarantine ledger deterministic concurrency 계약 시험 4개가 추가됐다. Group queue chaining/Stop-first wire
+gate 확인일 뿐이다. API Debug/Release는 각각 269/269 PASS다. 직전 260개에 UI 독립 D5
+pending cleanup orchestrator 계약 시험 9개가 추가됐다. Group queue chaining/Stop-first wire
 order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
