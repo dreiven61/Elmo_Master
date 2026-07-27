@@ -113,6 +113,12 @@ namespace LasalMotionControlLib.Tests
                 | ((uint)buffer[offset + 3] << 24);
         }
 
+        internal static ulong ReadUInt64(byte[] buffer, int offset)
+        {
+            return ReadUInt32(buffer, offset)
+                | ((ulong)ReadUInt32(buffer, offset + 4) << 32);
+        }
+
         internal static void WriteUInt16(byte[] buffer, int offset, ushort value)
         {
             buffer[offset] = (byte)value;
@@ -130,6 +136,12 @@ namespace LasalMotionControlLib.Tests
             buffer[offset + 1] = (byte)(value >> 8);
             buffer[offset + 2] = (byte)(value >> 16);
             buffer[offset + 3] = (byte)(value >> 24);
+        }
+
+        internal static void WriteUInt64(byte[] buffer, int offset, ulong value)
+        {
+            WriteUInt32(buffer, offset, unchecked((uint)value));
+            WriteUInt32(buffer, offset + 4, unchecked((uint)(value >> 32)));
         }
 
         internal static void WriteInt32(byte[] buffer, int offset, int value)

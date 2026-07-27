@@ -149,7 +149,12 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
      0x0000213F when D1-D3, D4 RecorderTrigger, D5 SDORead and
      SDOReadGeneralInline with a retained BootId are available in the internal
      test profile. Bit 13 requires bit 8 and MaxSdoDataBytes=4. Bit 9 SDOWrite
-     remains zero while the PLC target gates are disabled.
+     remains zero while the PLC target gates are disabled. Bits 14
+     EtherCATTopology, 15 EtherCATNodeHealth, 16 DigitalIORead, and 17
+     DigitalIOWrite are defined by the C# SDK contract but remain zero until
+     matching PLC handlers and runtime sources are implemented and qualified.
+     Bit 15 and bit 16 require bit 14. Bit 17 requires bits 14..16 and a
+     nonzero DiagnosticsBootId.
 [32] MapRevision UDINT = 0x957F101E when D1 is available
 [36] CatalogEntryCount UINT16 = 24 when D1 is available
 [38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
@@ -177,8 +182,10 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 Malformed diagnostics requests keep the same 68-byte response shape and set
 CommandStatus=1, ErrorId=-32000, and DetailCode to 1 UnsupportedSchema,
 2 UnsupportedFeature, or 12 BoundsInvalid. DiagnosticsBootId=0 is legal only
-while all stateful Bulk, Recorder, PI Write, and SDO capability bits are zero.
-A nonzero retained boot generation is required before D2-D4 can be advertised.
+while all stateful Bulk, Recorder, PI Write, SDO, and DigitalIOWrite capability
+bits are zero.
+A nonzero retained boot generation is required before any stateful D2-D5 or
+DigitalIOWrite capability can be advertised.
 RequestId zero is reserved and returns BoundsInvalid. If a malformed request
 declares at least the complete 8-byte common envelope, the response still
 echoes the received RequestId; a shorter request cannot provide an ID to echo.
@@ -204,6 +211,111 @@ D1 active read-only commands:
 - 0x7E20 ReadPI: request 20, response 52 bytes
   P8 ExpectedMapRevision U32, P12 SignalId U32, P16 ExpectedType U8,
   P17..19 reserved zero
+
+EtherCAT topology and digital IO SDK contract, PLC capability off:
+
+- 0x7E11 GetEtherCATTopologyInfo: request 8, response exactly 44 bytes
+  P16 TopologyRevision U32, nonzero canonical entry CRC32
+  P20 TotalNodeCount U16
+  P22 EntryStride U16 = 96
+  P24 MaxEntriesPerChunk U16, range 1..16
+  P26 ConfiguredSlaveCount U16
+  P28 SlotModuleCount U16
+  P30 PhysicalAxisCount U16
+  P32 TopologyFlags U32 = 0x0000000F: fixed stride, ASCII name,
+      canonical CRC, and opaque NodeId
+  P36 CrcKind U32 = 1, CRC32/ISO-HDLC
+  P40 Reserved U32 = 0
+  TopologyRevision is independent from the D1 signal MapRevision. A zero CRC
+  result is encoded as 0xFFFFFFFF.
+
+- 0x7E12 GetEtherCATTopologyChunk: request 16, response 28 + 96*N bytes
+  Request P8 ExpectedTopologyRevision U32, P12 StartIndex U16,
+  P14 MaxEntries U16 in range 1..16.
+  Response P16 TopologyRevision U32, P20 StartIndex U16,
+  P22 ReturnedCount U16, P24 TotalNodeCount U16, P26 EntryStride U16 = 96,
+  and entries at P28. ResponseFlags is LastChunk only for the final range.
+  ReturnedCount must equal min(requested MaxEntries, TotalNodeCount-StartIndex).
+  Maximum response payload is 1564 bytes.
+
+  Topology entry, 96 bytes:
+  E0 NodeId U32, nonzero opaque identifier
+  E4 ParentNodeId U32, zero for an EtherCAT slave and parent slave for a slot
+  E8 TopologyIndex U16
+  E10 MasterSlaveIndex U16; index zero is valid, 0xFFFF means absent
+  E12 NodeKind U8: 1 EtherCATSlave, 2 SlotModule
+  E13 Reserved U8 = 0
+  E14 NodeFlags U16: bit 0 master index, bit 1 SDO, bit 2 physical axis,
+      bit 3 input, bit 4 output, bit 5 DS402, bit 6 IO coupler,
+      bit 7 digital IO
+  E16 SdoSlaveReference U16, zero when absent
+  E18 PhysicalAxisReference U16, zero when absent
+  E20 SlotIndex U16, 0xFFFF for a slave
+  E22 Reserved U16 = 0
+  E24 VendorId U32, E28 ProductCode U32, both nonzero
+  E32 RevisionNumber U32, E36 SerialNumber U32
+  E40 InputBytes U16, E42 OutputBytes U16
+  E44 Name ASCII[48], NUL terminated and zero padded
+  E92 IOReference U32, zero when no public digital IO target exists
+  Complete topology validation requires slave MasterSlaveIndex values in
+  canonical 0..N-1 order, unique nonzero SDO/physical-axis/IO references, and
+  unique SlotIndex values per parent. A nonzero IOReference requires at least
+  one input/output direction and at most 8 bytes per direction. The same
+  IOReference may select input and output separately with ExpectedDirection.
+
+- 0x7E13 ReadEtherCATNodeHealth: request 16, response exactly 72 bytes
+  Request P8 TopologyRevision U32, P12 NodeId U32; both nonzero.
+  Response P16 TopologyRevision U32, P20 NodeId U32,
+  P24 CapturePhase U16 = InputMapped(1), P26 HealthFlags U16,
+  P28 CycleCounter U32, P32 TimestampMicroseconds U64,
+  P40 SnapshotSequence U32, nonzero and even, P44 Online U8,
+  P45 EtherCATState U8,
+  P46 ALStatusCode U16, P48 SlaveState U32, P52 ClassState U32,
+  P56 DS402StatusWord U32, P60 AxisError U32,
+  P64 LastValidCycle U32, P68 LastStateChangeCycle U32.
+  HealthFlags bits 0..5 are Configured, Detected, IdentityMatched, DataValid,
+  DataDefaulted, and DS402DataPresent. Configured is required, Online equals
+  Detected, detected requires a nonzero EtherCATState, and offline requires
+  EtherCATState zero. Exactly one of DataValid/DataDefaulted is set. DataValid
+  requires Detected and IdentityMatched. Offline/defaulted is not valid data.
+
+- 0x7E22 ReadDigitalIO: request 20, response exactly 56 bytes
+  Request P8 TopologyRevision U32, P12 IOReference U32,
+  P16 ExpectedDirection U8: 1 input or 2 output,
+  P17 ExpectedBitWidth U8 in range 1..64, P18 Reserved U16 = 0.
+  Response P16 TopologyRevision U32, P20 IOReference U32, P24 NodeId U32,
+  P28 Direction U8, P29 BitWidth U8, P30 StatusFlags U16,
+  P32 Value U64, P40 ValidMask U64, P48 CycleCounter U32,
+  P52 OutputRevision U32. Input requires OutputRevision=0; an output shadow
+  requires a nonzero revision. Status bits are Valid, StaleFrame,
+  MasterNotOperational, NodeOffline, NodeNotOperational, AlError,
+  SourceUnavailable, IdentityMismatch, and DataDefaulted. A Valid response has
+  no fault flags.
+
+- 0x7E23 SubmitDigitalOutputWrite: request 40, response ticket 32 bytes
+  Request P8 TopologyRevision U32, P12 IOReference U32,
+  P16 Value U64, P24 Mask U64, P32 ExpectedOutputRevision U32,
+  P36 DiagnosticsBootId U32. Revision, IOReference, mask, output revision, and
+  BootId are nonzero. Value bits outside Mask must be zero. The PLC RT owner
+  must atomically reject a stale output revision or apply
+  NewOutput=(OldOutput & ~Mask) | (Value & Mask). Whole-word write uses the
+  complete advertised output valid mask. PC-side read-modify-write is forbidden.
+  Success returns OperationKind=DigitalOutputWrite(4) and reuses 0x7E03/0x7E04
+  for status/cancel. The ticket exposes SubmissionTopologyRevision while its
+  SubmissionMapRevision is zero.
+
+The SDK validates capability dependencies before sending these commands. The
+digital-output SDK allowlist is currently empty, so 0x7E23 is blocked even if a
+target accidentally advertises bit 17. No matching PLC dispatcher or LASAL RT
+IO owner exists in the current source, so bits 14..17 remain zero and these
+entries are not a claim of PLC or hardware support.
+
+Topology/IO diagnostics detail codes reserved by the SDK contract are:
+26 TopologyRevisionMismatch, 27 NodeNotFound, 28 IOReferenceNotFound,
+29 OutputRevisionMismatch, 30 OutputMaskInvalid, 31 RTOwnerUnavailable.
+Malformed shape remains BoundsInvalid(12), write policy denial uses
+WriteDenied(7) or UnsafeWriteBlocked(8), BootId mismatch is 25, and slave
+offline is 18.
 
 D2 active Bulk commands:
 - 0x7E30 ConfigureBulk: request 20 + 4*N, response 36 bytes

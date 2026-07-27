@@ -38,7 +38,7 @@ namespace LasalMotionControlLib
 
         private const ushort KnownResponseFlagsMask = 0x0003;
         private const uint MaximumDefinedDetailCode =
-            (uint)LMCDiagnosticsDetailCode.BootIdMismatch;
+            (uint)LMCDiagnosticsDetailCode.RTOwnerUnavailable;
         private const uint StatefulCapabilityMask =
             (uint)(LMCDiagnosticCapability.BulkSnapshot
                 | LMCDiagnosticCapability.RecorderSingleBank
@@ -48,7 +48,8 @@ namespace LasalMotionControlLib
                 | LMCDiagnosticCapability.SDORead
                 | LMCDiagnosticCapability.SDOWrite
                 | LMCDiagnosticCapability.ExtendedSdoResultChunk
-                | LMCDiagnosticCapability.SDOReadGeneralInline);
+                | LMCDiagnosticCapability.SDOReadGeneralInline
+                | LMCDiagnosticCapability.DigitalIOWrite);
 
         internal static LMCDiagnosticCapabilities ParseCapabilities(
             byte[] raw,
@@ -164,6 +165,23 @@ namespace LasalMotionControlLib
             var generalInlineSdoReadEnabled =
                 (capabilityBits
                     & (uint)LMCDiagnosticCapability.SDOReadGeneralInline) != 0;
+            var topologyEnabled =
+                (capabilityBits
+                    & (uint)LMCDiagnosticCapability.EtherCATTopology) != 0;
+            var topologyDependentEnabled =
+                (capabilityBits
+                    & (uint)(LMCDiagnosticCapability.EtherCATNodeHealth
+                        | LMCDiagnosticCapability.DigitalIORead
+                        | LMCDiagnosticCapability.DigitalIOWrite)) != 0;
+            var nodeHealthEnabled =
+                (capabilityBits
+                    & (uint)LMCDiagnosticCapability.EtherCATNodeHealth) != 0;
+            var digitalIOReadEnabled =
+                (capabilityBits
+                    & (uint)LMCDiagnosticCapability.DigitalIORead) != 0;
+            var digitalIOWriteEnabled =
+                (capabilityBits
+                    & (uint)LMCDiagnosticCapability.DigitalIOWrite) != 0;
 
             if (piReadEnabled && !signalCatalogEnabled)
             {
@@ -181,6 +199,19 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidDataException(
                     "PIWrite capability requires SignalCatalog capability.");
+            }
+
+            if (topologyDependentEnabled && !topologyEnabled)
+            {
+                throw new InvalidDataException(
+                    "EtherCATNodeHealth, DigitalIORead, and DigitalIOWrite capabilities require EtherCATTopology capability.");
+            }
+
+            if (digitalIOWriteEnabled
+                && (!nodeHealthEnabled || !digitalIOReadEnabled))
+            {
+                throw new InvalidDataException(
+                    "DigitalIOWrite requires EtherCATNodeHealth and DigitalIORead capabilities.");
             }
 
             if (extendedSdoResultEnabled

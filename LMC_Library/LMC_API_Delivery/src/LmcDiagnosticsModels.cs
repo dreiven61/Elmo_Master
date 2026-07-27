@@ -19,7 +19,11 @@ namespace LasalMotionControlLib
         ApplicationPhaseSnapshot = 1u << 10,
         ExtendedWkcDiagnostics = 1u << 11,
         ExtendedSdoResultChunk = 1u << 12,
-        SDOReadGeneralInline = 1u << 13
+        SDOReadGeneralInline = 1u << 13,
+        EtherCATTopology = 1u << 14,
+        EtherCATNodeHealth = 1u << 15,
+        DigitalIORead = 1u << 16,
+        DigitalIOWrite = 1u << 17
     }
 
     [Flags]
@@ -57,7 +61,13 @@ namespace LasalMotionControlLib
         BufferIdentityMismatch = 22,
         TicketNotFound = 23,
         InternalError = 24,
-        BootIdMismatch = 25
+        BootIdMismatch = 25,
+        TopologyRevisionMismatch = 26,
+        NodeNotFound = 27,
+        IOReferenceNotFound = 28,
+        OutputRevisionMismatch = 29,
+        OutputMaskInvalid = 30,
+        RTOwnerUnavailable = 31
     }
 
     public sealed class LMCDiagnosticsResponse

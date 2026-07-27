@@ -94,11 +94,26 @@ namespace LasalMotionControlLib
                         + (EtherCATSlaveCount
                             * LMC_DiagnosticsParser.SlaveHealthEntryStride);
 
+                case LMC_CommandId.GetEtherCATTopologyInfo:
+                    return LMC_DiagnosticsParser.TopologyInfoPayloadLength;
+
+                case LMC_CommandId.GetEtherCATTopologyChunk:
+                    return LMC_DiagnosticsParser.TopologyChunkHeaderPayloadLength
+                        + (LMC_DiagnosticsFrame.MaxTopologyEntriesPerChunk
+                            * LMC_DiagnosticsParser.TopologyEntryStride);
+
+                case LMC_CommandId.ReadEtherCATNodeHealth:
+                    return LMC_DiagnosticsParser.NodeHealthPayloadLength;
+
                 case LMC_CommandId.ReadPI:
                     return LMC_DiagnosticsParser.ReadPIPayloadLength;
 
+                case LMC_CommandId.ReadDigitalIO:
+                    return LMC_DiagnosticsParser.DigitalIOPayloadLength;
+
                 case LMC_CommandId.SubmitPIWrite:
                 case LMC_CommandId.SubmitSdo:
+                case LMC_CommandId.SubmitDigitalOutputWrite:
                     return LMC_DiagnosticsParser.SubmitOperationPayloadLength;
 
                 case LMC_CommandId.ReadBulkSnapshot:

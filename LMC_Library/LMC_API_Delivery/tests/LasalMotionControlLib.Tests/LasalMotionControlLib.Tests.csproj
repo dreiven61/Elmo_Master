@@ -84,6 +84,7 @@
     <Compile Include="DiagnosticsD2ContractTests.cs" />
     <Compile Include="DiagnosticsPIBulkFacadeContractTests.cs" />
     <Compile Include="DiagnosticsD5ContractTests.cs" />
+    <Compile Include="DiagnosticsTopologyIoContractTests.cs" />
     <Compile Include="DiagnosticsD45CompletionContractTests.cs" />
     <Compile Include="DiagnosticsRecorderContractTests.cs" />
     <None Include="Verify-LasalContract.ps1" />

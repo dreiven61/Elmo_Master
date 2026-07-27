@@ -52,6 +52,7 @@ namespace LasalMotionControlLib.Tests
             DiagnosticsD2ContractTests.Register(tests);
             DiagnosticsPIBulkFacadeContractTests.Register(tests);
             DiagnosticsD5ContractTests.Register(tests);
+            DiagnosticsTopologyIoContractTests.Register(tests);
             DiagnosticsD45CompletionContractTests.Register(tests);
             DiagnosticsRecorderContractTests.Register(tests);
 

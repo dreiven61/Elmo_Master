@@ -225,7 +225,7 @@ namespace LasalMotionControlLib
             string commandName)
         {
             if (expectedKind <= LMCOperationKind.None
-                || expectedKind > LMCOperationKind.SDOWrite)
+                || expectedKind > LMCOperationKind.DigitalOutputWrite)
             {
                 throw new ArgumentOutOfRangeException("expectedKind");
             }

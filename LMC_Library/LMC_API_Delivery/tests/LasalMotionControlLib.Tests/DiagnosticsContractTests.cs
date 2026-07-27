@@ -197,7 +197,7 @@ namespace LasalMotionControlLib.Tests
             AssertMalformed(errorWithoutDetail, GoldenRequestId);
 
             var errorWithUnknownDetail = (byte[])errorWithoutDetail.Clone();
-            TestFrame.WriteUInt32(errorWithUnknownDetail, 12, 26);
+            TestFrame.WriteUInt32(errorWithUnknownDetail, 12, 32);
             AssertMalformed(errorWithUnknownDetail, GoldenRequestId);
 
             AssertMalformed(
@@ -221,6 +221,71 @@ namespace LasalMotionControlLib.Tests
                 (uint)LMCDiagnosticCapability.RecorderDoubleBank,
                 1);
             AssertMalformed(recorderDoubleWithoutBase, GoldenRequestId);
+
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)LMCDiagnosticCapability.EtherCATNodeHealth,
+                    0),
+                GoldenRequestId);
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)LMCDiagnosticCapability.DigitalIORead,
+                    0),
+                GoldenRequestId);
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)LMCDiagnosticCapability.DigitalIOWrite,
+                    1),
+                GoldenRequestId);
+
+            var statelessTopology = LMC_DiagnosticsParser.ParseCapabilities(
+                TestFrame.Response(
+                    0,
+                    CapabilitiesPayload(
+                        GoldenRequestId,
+                        (uint)(LMCDiagnosticCapability.EtherCATTopology
+                            | LMCDiagnosticCapability.EtherCATNodeHealth
+                            | LMCDiagnosticCapability.DigitalIORead),
+                        0)),
+                GoldenRequestId,
+                1);
+            AssertEx.False(statelessTopology.HasStableDiagnosticsBootId);
+
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)(LMCDiagnosticCapability.EtherCATTopology
+                        | LMCDiagnosticCapability.DigitalIOWrite),
+                    1),
+                GoldenRequestId);
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)(LMCDiagnosticCapability.EtherCATTopology
+                        | LMCDiagnosticCapability.EtherCATNodeHealth
+                        | LMCDiagnosticCapability.DigitalIOWrite),
+                    1),
+                GoldenRequestId);
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)(LMCDiagnosticCapability.EtherCATTopology
+                        | LMCDiagnosticCapability.DigitalIORead
+                        | LMCDiagnosticCapability.DigitalIOWrite),
+                    1),
+                GoldenRequestId);
+            AssertMalformed(
+                CapabilitiesPayload(
+                    GoldenRequestId,
+                    (uint)(LMCDiagnosticCapability.EtherCATTopology
+                        | LMCDiagnosticCapability.EtherCATNodeHealth
+                        | LMCDiagnosticCapability.DigitalIORead
+                        | LMCDiagnosticCapability.DigitalIOWrite),
+                    0),
+                GoldenRequestId);
 
             var zeroMapRevision = CapabilitiesPayload(
                 GoldenRequestId,
@@ -317,9 +382,28 @@ namespace LasalMotionControlLib.Tests
 
         private static void DiagnosticsReservedCommandIds()
         {
+            AssertEx.Equal((ushort)0x7E10, LMC_CommandId.ReadEtherCATHealth);
+            AssertEx.Equal((ushort)0x7E11, LMC_CommandId.GetEtherCATTopologyInfo);
+            AssertEx.Equal((ushort)0x7E12, LMC_CommandId.GetEtherCATTopologyChunk);
+            AssertEx.Equal((ushort)0x7E13, LMC_CommandId.ReadEtherCATNodeHealth);
             AssertEx.Equal((ushort)0x7E21, LMC_CommandId.SubmitPIWrite);
+            AssertEx.Equal((ushort)0x7E22, LMC_CommandId.ReadDigitalIO);
+            AssertEx.Equal((ushort)0x7E23, LMC_CommandId.SubmitDigitalOutputWrite);
             AssertEx.Equal((ushort)0x7E42, LMC_CommandId.TriggerRecorder);
             AssertEx.Equal((ushort)0x7E51, LMC_CommandId.ReadSdoResultChunk);
+
+            var ids = new HashSet<ushort>();
+            foreach (var field in typeof(LMC_CommandId).GetFields(
+                System.Reflection.BindingFlags.Static
+                    | System.Reflection.BindingFlags.NonPublic))
+            {
+                if (field.IsLiteral && field.FieldType == typeof(ushort))
+                {
+                    AssertEx.True(
+                        ids.Add((ushort)field.GetRawConstantValue()),
+                        "Duplicate LMC command identifier: " + field.Name + ".");
+                }
+            }
         }
 
         private static void DiagnosticsCapabilitiesDomainErrorPreserved()
@@ -364,6 +448,26 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(
                 GoldenRequestId,
                 boundsException.Response.RequestId);
+
+            var topologyPayload = CapabilitiesPayload(
+                GoldenRequestId,
+                0,
+                0);
+            TestFrame.WriteUInt16(topologyPayload, 4, 1);
+            TestFrame.WriteInt16(topologyPayload, 6, -32000);
+            TestFrame.WriteUInt32(
+                topologyPayload,
+                12,
+                (uint)LMCDiagnosticsDetailCode.TopologyRevisionMismatch);
+            var topologyException =
+                AssertEx.Throws<LMCDiagnosticsCommandException>(
+                    () => LMC_DiagnosticsParser.ParseCapabilities(
+                        TestFrame.Response(0, topologyPayload),
+                        GoldenRequestId,
+                        1));
+            AssertEx.Equal(
+                LMCDiagnosticsDetailCode.TopologyRevisionMismatch,
+                topologyException.Response.Detail);
         }
 
         private static void DiagnosticsCapabilitiesSyncAndAsync()

@@ -803,7 +803,8 @@ namespace LasalMotionControlLib
         None = 0,
         PIWrite = 1,
         SDORead = 2,
-        SDOWrite = 3
+        SDOWrite = 3,
+        DigitalOutputWrite = 4
     }
 
     public enum LMCOperationOutcome : ushort
@@ -1279,7 +1280,7 @@ namespace LasalMotionControlLib
             LMCOperationKind operationKind,
             uint queuedCycle,
             uint diagnosticsBootId,
-            uint submissionMapRevision,
+            uint submissionRevision,
             long connectionSessionGeneration,
             LMCDiagnostics owner,
             bool expectsResultData,
@@ -1294,7 +1295,7 @@ namespace LasalMotionControlLib
             }
 
             if (operationKind <= LMCOperationKind.None
-                || operationKind > LMCOperationKind.SDOWrite)
+                || operationKind > LMCOperationKind.DigitalOutputWrite)
             {
                 throw new ArgumentOutOfRangeException("operationKind");
             }
@@ -1304,10 +1305,10 @@ namespace LasalMotionControlLib
                 throw new ArgumentOutOfRangeException("diagnosticsBootId");
             }
 
-            if (submissionMapRevision == 0)
+            if (submissionRevision == 0)
             {
                 throw new ArgumentOutOfRangeException(
-                    "submissionMapRevision");
+                    "submissionRevision");
             }
 
             var isSdoRead = operationKind == LMCOperationKind.SDORead;
@@ -1346,7 +1347,7 @@ namespace LasalMotionControlLib
             OperationKind = operationKind;
             QueuedCycle = queuedCycle;
             DiagnosticsBootId = diagnosticsBootId;
-            SubmissionMapRevision = submissionMapRevision;
+            SubmissionRevision = submissionRevision;
             ConnectionSessionGeneration = connectionSessionGeneration;
             ExpectsResultData = expectsResultData;
             ExpectedResultLength = expectedResultLength;
@@ -1359,7 +1360,24 @@ namespace LasalMotionControlLib
         public LMCOperationKind OperationKind { get; private set; }
         public uint QueuedCycle { get; private set; }
         public uint DiagnosticsBootId { get; private set; }
-        public uint SubmissionMapRevision { get; private set; }
+        public uint SubmissionMapRevision
+        {
+            get
+            {
+                return OperationKind == LMCOperationKind.DigitalOutputWrite
+                    ? 0
+                    : SubmissionRevision;
+            }
+        }
+        public uint SubmissionTopologyRevision
+        {
+            get
+            {
+                return OperationKind == LMCOperationKind.DigitalOutputWrite
+                    ? SubmissionRevision
+                    : 0;
+            }
+        }
         public bool UsesExtendedResultChunks { get; private set; }
         public ushort RequestedResultLength { get { return ExpectedResultLength; } }
         public LMCSignalValueType ResultValueType
@@ -1381,6 +1399,7 @@ namespace LasalMotionControlLib
         }
 
         internal long ConnectionSessionGeneration { get; private set; }
+        internal uint SubmissionRevision { get; private set; }
         internal LMCDiagnostics Owner { get; private set; }
         internal bool ExpectsResultData { get; private set; }
         internal ushort ExpectedResultLength { get; private set; }

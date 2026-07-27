@@ -154,8 +154,13 @@ namespace LasalMotionControlLib
         internal const ushort GetOperationStatus = 0x7E03;
         internal const ushort CancelOperation = 0x7E04;
         internal const ushort ReadEtherCATHealth = 0x7E10;
+        internal const ushort GetEtherCATTopologyInfo = 0x7E11;
+        internal const ushort GetEtherCATTopologyChunk = 0x7E12;
+        internal const ushort ReadEtherCATNodeHealth = 0x7E13;
         internal const ushort ReadPI = 0x7E20;
         internal const ushort SubmitPIWrite = 0x7E21;
+        internal const ushort ReadDigitalIO = 0x7E22;
+        internal const ushort SubmitDigitalOutputWrite = 0x7E23;
         internal const ushort ConfigureBulk = 0x7E30;
         internal const ushort ReadBulkStatus = 0x7E31;
         internal const ushort ReadBulkSnapshot = 0x7E32;
@@ -664,6 +669,12 @@ namespace LasalMotionControlLib
                 | ((uint)buffer[offset + 3] << 24);
         }
 
+        internal static ulong ReadUInt64(byte[] buffer, int offset)
+        {
+            return ReadUInt32(buffer, offset)
+                | ((ulong)ReadUInt32(buffer, offset + 4) << 32);
+        }
+
         internal static int ReadInt32(byte[] buffer, int offset)
         {
             return unchecked((int)ReadUInt32(buffer, offset));
@@ -681,6 +692,12 @@ namespace LasalMotionControlLib
             buffer[offset + 1] = (byte)(value >> 8);
             buffer[offset + 2] = (byte)(value >> 16);
             buffer[offset + 3] = (byte)(value >> 24);
+        }
+
+        internal static void WriteUInt64(byte[] buffer, int offset, ulong value)
+        {
+            WriteUInt32(buffer, offset, unchecked((uint)value));
+            WriteUInt32(buffer, offset + 4, unchecked((uint)(value >> 32)));
         }
 
         internal static void WriteInt32(byte[] buffer, int offset, int value)

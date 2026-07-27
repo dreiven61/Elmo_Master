@@ -309,6 +309,24 @@ namespace LasalMotionControlLib
             AddDiagnostic(entries, LMCDiagnosticsDetailCode.BootIdMismatch,
                 "The operation belongs to a different diagnostics PLC boot.",
                 "Refresh capabilities and discard handles or tickets from the previous boot.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.TopologyRevisionMismatch,
+                "The supplied EtherCAT topology revision does not match the PLC topology.",
+                "Reload the EtherCAT topology and retry with its current topology revision.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.NodeNotFound,
+                "The requested EtherCAT topology node does not exist.",
+                "Reload the EtherCAT topology and select an advertised node identifier.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.IOReferenceNotFound,
+                "The requested digital IO reference does not exist.",
+                "Use a non-zero IOReference advertised by the current EtherCAT topology.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.OutputRevisionMismatch,
+                "The expected digital output revision is stale.",
+                "Read the output again and retry only after validating its current revision.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.OutputMaskInvalid,
+                "The digital output write mask is invalid for the selected IO target.",
+                "Use a non-zero mask limited to writable bits advertised for the target.");
+            AddDiagnostic(entries, LMCDiagnosticsDetailCode.RTOwnerUnavailable,
+                "The real-time owner required for the diagnostics operation is unavailable.",
+                "Restore the owning cyclic task or service before retrying.");
 
             return entries;
         }
