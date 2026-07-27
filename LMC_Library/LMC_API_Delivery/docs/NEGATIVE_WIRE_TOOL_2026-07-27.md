@@ -3,7 +3,7 @@
 - 작성일: 2026-07-27
 - 위치: `tests/LasalMotionControlLib.Tests/NegativeWireTool.cs`
 - 실행 파일: `LasalMotionControlLib.Tests.exe`
-- 상태: PC Debug/Release 각 236/236 중 전용 계약 시험 9개와 dry-run PASS;
+- 상태: PC Debug/Release 각 244/244 중 전용 계약 시험 9개와 dry-run PASS;
   실제 PLC raw rejection/pcap은 미실행
 
 ## 목적과 경계
@@ -17,16 +17,26 @@ SDK에 포함되지 않으며 임의 command ID, reference 또는 hex payload를
 allowlist는 아래 다섯 고정 시나리오뿐이다. motion, Admin, 모든 write, SDO Submit,
 Recorder 명령은 생성하거나 송신할 수 없다.
 
-전체 236개는 기존 225개 + D5 external-read WPF routing orchestrator 7개 +
-drive-read all-failure facade context 4개다. facade context는 원래 exception 객체/타입을
-바꾸지 않고 `LMCDriveReadFailureContext.TryGet`으로 제공한다. phase는
+전체 244개는 이전 236개 + raw `SubmitSdo` context 7개 + manual failure router
+1개다. drive facade context는 원래 exception 객체/타입/stack을 바꾸지 않고
+`LMCDriveReadFailureContext.TryGet`으로 제공한다. drive phase는
 `FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/`StatusPolling`/
-`ResultMaterialization`, outcome은 `NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`다.
+`ResultMaterialization`, `GenericSubmissionOutcome`은 공용 `LMCSdoSubmissionOutcome`
+(`NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`)이다. 기존
+`SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을 유지한다.
 각 attempt는 확보된 실제 `DiagnosticsBootId`/`MapRevision`을 보존하며, WPF는
 no-submit/rejected/terminal은 guard 해제, uncertain은 quarantine, accepted nonterminal은 exact
-ticket 보존, context 누락·불일치는 fail-closed로 처리한다. 이는 drive-read
-facade 계약이며 raw manual `SubmitSdo[Async]`는 context가 없어 여전히 보수적으로
-처리한다. negative-wire 모드 자체는 SDO Submit을 전혀 생성하지 않는다.
+ticket 보존, context 누락·불일치는 fail-closed로 처리한다.
+raw manual `SubmitSdo[Async]`는 동일하게 예외 객체/타입/stack을 보존하고
+`LMCSdoSubmissionFailureContext.TryGet`으로 `LMCSdoSubmissionPhase`
+(`RequestValidation`/`SessionPreflight`/`CapabilityPreflight`/`Submission`/
+`PostSubmissionValidation`), 공통 outcome, request, capability identity 확보 후의 실제
+BootId/MapRevision과 accepted ticket을 제공한다. identity 확보 전 실패는 두 값을 `0`
+sentinel로 둔다. WPF manual router는 no-submit/rejected를
+disarm하고, uncertain은 actual BootId/MapRevision을 reconcile한 뒤 quarantine하며,
+accepted는 exact ticket을 manual diagnostic state+D5 tracker에 보존한 뒤 disarm한다.
+누락·불일치는 fail-closed다. 이는 code/test 계약이며 PLC live/pcap 증거가
+아니다. negative-wire 모드 자체는 SDO Submit을 전혀 생성하지 않는다.
 
 | 시나리오 | raw command | 고정 변형 | 기대 Detail | resource 처리 |
 |---|---:|---|---:|---|

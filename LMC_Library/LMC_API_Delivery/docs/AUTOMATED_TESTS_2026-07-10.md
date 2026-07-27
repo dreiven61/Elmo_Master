@@ -91,16 +91,30 @@
   ticket을 구분한다. sync/async와 composite 두 번째 SDO status failure까지 PC 계약으로
   검사한다. 추가 all-failure 계약은 예외를 wrapper로 바꾸지 않고 원래 객체와
   타입을 보존하며 `LMCDriveReadFailureContext.TryGet`으로 읽는다.
-  phase는 `FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/
-  `StatusPolling`/`ResultMaterialization`, submission outcome은 `NotAttempted`/`Rejected`/
-  `OutcomeUncertain`/`Accepted`다. 각 SDO attempt는 확보된 실제
+  drive phase는 `FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/
+  `StatusPolling`/`ResultMaterialization`, `GenericSubmissionOutcome`은 공용
+  `LMCSdoSubmissionOutcome` (`NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`)이다.
+  기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`도 같은 값과 getter 형식을 유지하는지
+  검사한다. 각 SDO attempt는 확보된 실제
   `DiagnosticsBootId`/`MapRevision`과 request, accepted ticket, 마지막 status를 스냅샷으로
   보존하며 capability identity 확보 전에는 0 sentinel을 사용한다.
 - WPF external-read failure router 7개는 no-submit/명시적 rejection/terminal status에서
   guard 해제, `OutcomeUncertain`에서 quarantine, `Accepted` nonterminal에서 exact ticket
-  보존, context 누락·불일치에서 fail-closed를 검사한다. facade를 거치지 않는
-  raw manual `SubmitSdo[Async]`는 all-failure context가 없어 보수적 처리를 유지한다.
+  보존, context 누락·불일치에서 fail-closed를 검사한다.
+- raw manual `SubmitSdo[Async]` context registration 7개는 원래 exception 객체/타입/stack
+  보존과 `LMCSdoSubmissionFailureContext.TryGet`, `LMCSdoSubmissionPhase`
+  (`RequestValidation`/`SessionPreflight`/`CapabilityPreflight`/`Submission`/
+  `PostSubmissionValidation`), 공통 `LMCSdoSubmissionOutcome`, capability identity 확보 후의
+  실제 `DiagnosticsBootId`/`MapRevision` 및 accepted ticket을 검사한다. identity 확보 전
+  실패는 두 값이 `0` sentinel인지 검사한다. read/write model compatibility 항목의 write
+  accepted context는 compile-time empty allowlist 때문에 tracker model로만 검사하며 wire
+  write를 만들지 않는다. accepted-session-race 항목은 public sync/async `SubmitSdo` 호출에서
+  실제 close 경합을 만들어 post-submit context 부착 순서를 검사한다. manual failure router
+  1개는 no-submit/rejected/uncertain/accepted의
+  disposition callback과 accepted ticket 보존-before-disarm 순서를 검사한다. MainWindow의
+  실제 field 변경, identity reconcile log, UI 동작을 실행하는 시험은 아니다.
   PI Write는 SDK compile-time allowlist empty와 WPF button/handler 이중 차단을 적용한다.
+  이 항목은 code/test 계약이며 PLC live/pcap 증거가 아니다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -130,15 +144,16 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `236/236 PASS`
+- `RunPcTests`: Debug/Release 각 `244/244 PASS`
   (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
   recovery, Fault no-mutation, cancel/Stop-race/release retry/quarantine 및 cleanup
   state/route/manual-recovery policy, Bulk cancel/release retry와 one-slave-partial 순수 판정,
   internal negative-wire 9개, D5 abort/recovery analyzer 12개와 drive-read command
-  stage/ticket 및 non-domain 계약 2개 포함; 추가 11개: external-read WPF routing
-  orchestrator 7개 + all-failure facade context 4개)
+  stage/ticket 및 non-domain 계약 2개 포함; 추가 19개: external-read WPF routing
+  orchestrator 7개 + all-failure facade context 4개 + raw `SubmitSdo` context 7개 +
+  manual failure router 1개)
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,

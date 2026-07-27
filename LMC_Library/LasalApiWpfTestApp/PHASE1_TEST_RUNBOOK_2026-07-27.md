@@ -35,9 +35,10 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 236/236 PASS`, `Release 236/236
-PASS`; this is the prior 225 tests plus seven WPF failure-orchestrator tests
-and four facade-context registration tests. WPF `Debug/Release Rebuild PASS`.
+Current PC baseline: API tests `Debug 244/244 PASS`, `Release 244/244
+PASS`; this is the prior 236 tests plus seven raw `SubmitSdo[Async]` context
+registration tests and one manual failure-router test. WPF `Debug/Release
+build PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
 write allowlist is also empty. Do not treat PI Write as a Phase 1 test item.
@@ -116,28 +117,40 @@ If the UI shows `Resolve D5 Quarantine`:
 - press `Resolve D5 Quarantine` and save the resulting log
 
 Manual `Submit SDO Read`, `Get Drive Operation Mode`, and `Read Drive Status`
-share the fail-closed D5 tracker, but only the two drive-read facade calls have
-the complete typed attempt context described below. A response loss or polling
-timeout can enable `Resolve D5 Quarantine` and block new state-changing work.
-This is expected safety behavior, not a request to bypass the interlock.
+share the fail-closed D5 tracker and now have typed all-failure contexts. A
+response loss or polling timeout can enable `Resolve D5 Quarantine` and block
+new state-changing work. This is expected safety behavior, not a request to
+bypass the interlock.
 
 `Get Drive Operation Mode` and `Read Drive Status` preserve the original
 exception type. The caught exception can be passed to
 `LMCDriveReadFailureContext.TryGet`. Its phase is `FacadePreflight`,
 `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`, or
-`ResultMaterialization`; each SDO attempt reports `NotAttempted`, `Rejected`,
-`OutcomeUncertain`, or `Accepted`. The snapshot also carries the actual
-capability `DiagnosticsBootId` and `MapRevision` used for Submit, an accepted
-ticket, and the last valid operation status when available.
+`ResultMaterialization`; this drive context still has six phases. Each SDO
+attempt reports the shared `LMCSdoSubmissionOutcome` through
+`GenericSubmissionOutcome`: `NotAttempted`, `Rejected`, `OutcomeUncertain`, or
+`Accepted`. The legacy `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome` getter
+keeps the same value for source and binary compatibility. The snapshot also carries the
+actual capability `DiagnosticsBootId` and `MapRevision` used for Submit, an
+accepted ticket, and the last valid operation status when available.
 
 The WPF releases the guard for no-submit, explicit rejection, and accepted
 terminal failures. It quarantines `OutcomeUncertain` with the actual Submit
 identity, preserves the exact ticket for an accepted nonterminal attempt, and
-fails closed if context is missing or inconsistent. Manual `Submit SDO Read`
-calls raw `LMCDiagnostics.SubmitSdoAsync`; it does not yet have the same facade
-context. Its non-domain failures therefore remain conservatively uncertain.
-Save the log, and do not classify any quarantine as a PLC failure without
-packet evidence.
+fails closed if context is missing or inconsistent.
+
+Manual `Submit SDO Read` calls raw `LMCDiagnostics.SubmitSdoAsync`. Its caught
+exception can be passed to `LMCSdoSubmissionFailureContext.TryGet`; phases are
+`RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
+and `PostSubmissionValidation`, with the same generic
+`LMCSdoSubmissionOutcome`. A dispatched attempt records the actual capability
+`DiagnosticsBootId` and `MapRevision`, and `Accepted` carries its exact ticket.
+The manual router disarms for `NotAttempted` or `Rejected`, reconciles the
+actual identity and quarantines `OutcomeUncertain`, and clears the previous
+manual status/result/cancel flags before storing an `Accepted` ticket in both
+manual operation state and the D5 tracker and then disarming.
+Missing or inconsistent context fails closed. Save the log, and do not classify
+any quarantine as a PLC failure without packet evidence.
 
 External manual/drive tracking lines use their own
 `scenario=D5ExternalTracking:<stage>` run ID. They must not inherit the run ID

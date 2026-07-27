@@ -44,8 +44,8 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 236/236 tests가 PASS했다. 기존 225개에 WPF failure orchestrator 7개와
-  facade context 등록 4개가 추가됐다. 개발 WPF build도
+  Debug/Release 각 244/244 tests가 PASS했다. 직전 236개에 raw `SubmitSdo[Async]` context
+  등록 7개와 manual failure router 1개가 추가됐다. 개발 WPF build도
   PASS했다. LASAL
   Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
   아직 수행하지 않았다.
@@ -91,7 +91,7 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 236/236 PASS | 기존 225개 + WPF failure orchestrator 7개 + facade context 등록 4개; PLC 통합과 별도 |
+| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 244/244 PASS | 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId quarantine, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
@@ -547,13 +547,13 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 236/236 tests가 exact table,
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 244/244 tests가 exact table,
    header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
    거부하고 기존 4-byte command error 의미는 보존한다. PMAS 38개와 SIGMATEK 32개
    capture sample에서 descriptor mismatch 0건을 확인했으며 mismatch 회귀 시험을
-   현재 236-test suite에 포함된다.
+   현재 244-test suite에 포함된다.
 3. read-only `0x2045` qualification의 요청 수 경계, nearest-rank percentile,
    throughput, SHA-256/raw cleanup, PASS evidence와 FAIL/ABORTED CSV 계약을 UI 독립
    `TransportQualificationAnalysis`로 분리했다. 같은 source를 PC test project에 linked
@@ -727,14 +727,22 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   Phase 1 drive-read facade는 원래 exception type/stack을 그대로 유지하고 caught exception을
   `LMCDriveReadFailureContext.TryGet`에 전달해 all-failure context를 조회한다. phase는
   `FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`,
-  `ResultMaterialization`이며 각 SDO attempt는 `NotAttempted`, `Rejected`,
-  `OutcomeUncertain`, `Accepted` outcome을 가진다. snapshot에는 실제 capability의
+  `ResultMaterialization`의 6개이며 각 SDO attempt의 `GenericSubmissionOutcome`은 공용
+  `LMCSdoSubmissionOutcome`의 `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted`이다.
+  기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을 유지한다.
+  snapshot에는 실제 capability의
   `DiagnosticsBootId`/`MapRevision`, accepted ticket과 마지막 valid status가 포함된다. WPF는
   no-submit/rejected/accepted-terminal이면 guard를 해제하고, uncertain이면 실제 Submit
   identity로 unknown evidence를 보정해 quarantine하며, accepted nonterminal이면 exact ticket을
   보존한다. context 누락/불일치는 fail-closed한다. 수동 `Submit SDO Read`의 raw
-  `LMCDiagnostics.SubmitSdoAsync`는 이 facade context 범위가 아니므로 non-domain failure를
-  계속 보수적으로 outcome-uncertain 처리한다.
+  `LMCDiagnostics.SubmitSdo[Async]`도 원래 exception을 보존하고
+  `LMCSdoSubmissionFailureContext.TryGet`으로 별도 context를 조회한다. phase는
+  `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
+  `PostSubmissionValidation`의 5개이고 같은 `LMCSdoSubmissionOutcome`을 사용한다. dispatch된
+  attempt에는 실제 `DiagnosticsBootId`/`MapRevision`이 들어가며 `Accepted`에는 exact ticket이
+  들어간다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를 reconcile해
+  quarantine한다. accepted ticket은 manual operation state와 D5 tracker에 모두 보존한 뒤
+  disarm하며 context 누락/불일치는 fail-closed한다.
 - Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
   Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
@@ -760,8 +768,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 확인된 범위:
 
 - 현재 Phase 5 all-failure-context worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 236/236 PASS. 기존 225개에 WPF failure orchestrator 7개와 facade context
-  등록 4개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
+  Debug/Release 각 244/244 PASS. 직전 236개에 raw `SubmitSdo[Async]` context 등록 7개와 manual
+  failure router 1개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
   qualification analysis, callback lifecycle, internal negative-wire, D5 abort/recovery analyzer와
   largest variable response의 max/max+1 transport 경계를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.

@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 236/236 계약 시험 PASS; 기존 225개 + WPF failure orchestrator 7개 + facade context 등록 4개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 244/244 계약 시험 PASS; 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -637,14 +637,20 @@ motion Stop/PowerOff와 read-only는 허용한다. reconnect는 외부 connectio
 Phase 1 drive-read facade는 원래 exception type/stack을 그대로 유지하고
 `LMCDriveReadFailureContext.TryGet`으로 all-failure context를 제공한다. phase는
 `FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`,
-`ResultMaterialization`이고 각 SDO attempt는 `NotAttempted`, `Rejected`,
-`OutcomeUncertain`, `Accepted` outcome과 실제 capability `DiagnosticsBootId`/`MapRevision`,
+`ResultMaterialization`의 6개이고 각 SDO attempt의 `GenericSubmissionOutcome`은 공용
+`LMCSdoSubmissionOutcome`의 값을 가진다. 기존 `SubmissionOutcome`/
+`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을 유지한다. snapshot은 실제 capability `DiagnosticsBootId`/`MapRevision`,
 accepted ticket, 마지막 valid status를 보존한다. WPF는 no-submit/rejected/accepted-terminal이면
 guard를 해제하고 uncertain이면 실제 Submit identity로 unknown evidence를 보정해 quarantine하며,
 accepted nonterminal이면 exact ticket을 보존한다. context 누락, 둘 이상의 nonterminal ticket,
 identity 불일치는 fail-closed한다. 수동 `Submit SDO Read`가 직접 호출하는 raw
-`LMCDiagnostics.SubmitSdoAsync`에는 아직 같은 facade context가 없어 non-domain failure를
-계속 보수적으로 outcome-uncertain 처리한다.
+`LMCDiagnostics.SubmitSdo[Async]`도 원래 exception에 `LMCSdoSubmissionFailureContext`를
+연결하고 `TryGet`으로 조회한다. phase는 `RequestValidation`, `SessionPreflight`,
+`CapabilityPreflight`, `Submission`, `PostSubmissionValidation`의 5개이고 같은
+`LMCSdoSubmissionOutcome`을 사용한다. dispatch에는 실제 capability
+`DiagnosticsBootId`/`MapRevision`을 기록한다. manual router는 no-submit/rejected를 disarm하고
+uncertain identity를 reconcile해 quarantine하며, accepted exact ticket은 manual operation
+state와 D5 tracker에 모두 보존한 뒤 disarm한다. context 누락/불일치는 fail-closed한다.
 
 파일명은 한 파일에 뭉뚱그리지 않고 다음처럼 분리한다.
 
@@ -663,13 +669,13 @@ identity 불일치는 fail-closed한다. 수동 `Submit SDO Read`가 직접 호�
 | `LMC_Library/.../tests/.../Verify-LasalContract.ps1` | 새 accepted-then-poll 정적 계약과 금지 패턴 |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.xaml` | 기존 탭별 Qualification GroupBox와 결과 영역 |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.xaml.cs` | qualification state/UI gate, 필요한 공통 Task helper 추출 |
-| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Diagnostics.cs` | 직접 변경 없이 partial class의 기존 diagnostics resource 상태/formatter 재사용 |
+| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Diagnostics.cs` | raw manual Submit 실패를 typed context로 route하고 accepted exact ticket을 manual/D5 state에 보존 |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.cs` | 공통 runner, Group scenario, logging, safety cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Bulk.cs` | 24-entry snapshot/lifecycle soak와 release cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../BulkPartialQualificationAnalysis.cs` | 4축 x 6 topology, baseline/fault/recovery 순수 계약 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, reconnect exact/0/0 discovery, hash assertion과 normal/adopted cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
-| `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive-read failure context의 no-submit/rejected/uncertain/accepted-terminal/nonterminal disposition을 UI 비종속 callback으로 실행 |
+| `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive-read context와 raw manual submission context의 no-submit/rejected/uncertain/accepted disposition을 UI 비종속 callback으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
@@ -680,7 +686,7 @@ identity 불일치는 fail-closed한다. 수동 `Submit SDO Read`가 직접 호�
 | `LMC_Library/.../tests/.../NegativeWireTool.cs`와 `NegativeWireToolTests.cs` | explicit mode/dry-run/live gate, fixed 5개 allowlist와 금지 command, exact response/report 계약 9개 |
 | `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
 | `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 236/236 PASS; 기존 225개 + WPF failure orchestrator 7개 + facade context 등록 4개 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 244/244 PASS; 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -691,7 +697,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 236/236
+1. [완료] Debug/Release API tests 각 244/244
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -750,7 +756,7 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
   local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
 - [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
   diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
-- [완료] Debug/Release PC tests 각 236/236, 새 LASAL static contract, WPF build와 Debug
+- [완료] Debug/Release PC tests 각 244/244, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

@@ -381,23 +381,33 @@ var raw = checked((int)Math.Round(
 - Phase 1 drive-read facade는 원래 exception type/stack을 그대로 다시 던지고
   `LMCDriveReadFailureContext.TryGet`으로 typed all-failure context를 제공한다. phase는
   `FacadePreflight`, `AxisStatusRead`, `CapabilityPreflight`, `Submission`, `StatusPolling`,
-  `ResultMaterialization`이고, 각 SDO attempt는 `NotAttempted`, `Rejected`,
-  `OutcomeUncertain`, `Accepted` submission outcome과 실제 capability의
+  `ResultMaterialization`의 6개이고, 각 SDO attempt의 `GenericSubmissionOutcome`은 공용
+  `LMCSdoSubmissionOutcome`의 `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted`이다.
+  기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을 유지한다.
+  snapshot은 실제 capability의
   `DiagnosticsBootId`/`MapRevision`, ticket, 마지막 status를 불변 snapshot으로 보존한다.
   이전 attempt가 terminal이 아니면 다음 attempt를 만들 수 없다. WPF orchestrator는
   no-submit/rejected/accepted-terminal context의 guard를 해제하고, uncertain은 실제 Submit
   identity로 unknown evidence를 보정해 quarantine하며, accepted nonterminal은 exact ticket을
   보존하고 guard를 해제한다. context 누락, 둘 이상의 nonterminal ticket 또는 불일치 상태는
-  fail-closed한다. 수동 `Submit SDO Read`가 직접 호출하는 `LMCDiagnostics.SubmitSdoAsync`는
-  이 facade context 범위 밖이므로 non-domain 실패를 계속 보수적으로 quarantine한다.
+  fail-closed한다.
+- 수동 `Submit SDO Read`가 직접 호출하는 `LMCDiagnostics.SubmitSdo[Async]`는 원래 exception에
+  `LMCSdoSubmissionFailureContext`를 연결하며 `TryGet`으로 조회한다. phase는
+  `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
+  `PostSubmissionValidation`의 5개이고 같은 `LMCSdoSubmissionOutcome`을 사용한다. dispatch된
+  attempt는 실제 capability `DiagnosticsBootId`/`MapRevision`을 보존하고 accepted failure는
+  exact ticket을 가진다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를
+  reconcile해 quarantine한다. accepted ticket은 이전 manual status/result/cancel flag를
+  초기화하고 manual operation state와 D5 tracker 양쪽에 보존한 뒤 disarm하며, context
+  누락/불일치는 fail-closed한다.
 
 ### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. API Debug/Release는 각각 236/236 PASS이며 기존 225개에 WPF failure
-orchestrator 7개와 facade context 등록 4개가 추가됐다. Group queue chaining/Stop-first wire
+gate 확인일 뿐이다. API Debug/Release는 각각 244/244 PASS다. 직전 236개에 raw
+`SubmitSdo[Async]` context 등록 7개와 manual failure router 1개가 추가됐다. Group queue chaining/Stop-first wire
 order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서

@@ -49,7 +49,7 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 236/236 PASS
+- C# 자동 테스트 runner: Debug/Release 각 244/244 PASS
   (기존 225개 Phase 1/2 회귀, 53-command response hard limit, AxisInfo descriptor,
   read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
   two-session exact/discovery adoption, pre-close transport-fault exact recovery,
@@ -57,7 +57,8 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   one-slave-partial 순수 판정, Group Stop-first fallback/UI-context orchestration,
   internal negative-wire 계약 9개, D5 abort/recovery analyzer 12개와 drive-read
   command stage/ticket 및 non-domain 계약 2개 포함 + D5 external-read WPF
-  routing orchestrator 7개 + drive-read all-failure facade context 4개)
+  routing orchestrator 7개 + drive-read all-failure facade context 4개 + raw
+  `SubmitSdo` submission context 7개 + manual failure router 1개)
 - LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
   declaration과 current source 동기화 확인
 - 개발 WPF example Debug/Release build: PASS. startup smoke는 기존
@@ -120,18 +121,29 @@ Phase 1 read-only facade는 diagnostics domain command 실패를 기존
 ticket이 보존된다. WPF는 pre-ticket command rejection이면 outcome guard를 해제하고 status
 command failure이면 known ticket을 보존한다. 기존 base exception catch 호환성은 유지된다.
 `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]`의 모든 실패는 새 wrapper로
-바꾸지 않고 던져진 예외 객체와 원래 타입을 그대로 보존한다. 호출자는
+바꾸지 않고 던져진 예외 객체, 원래 타입과 stack을 그대로 보존한다. 호출자는
 `LMCDriveReadFailureContext.TryGet(exception, out context)`으로
 `FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/`StatusPolling`/
-`ResultMaterialization` phase와 각 SDO attempt의 `NotAttempted`/`Rejected`/
-`OutcomeUncertain`/`Accepted` submission outcome을 읽는다. attempt snapshot은
+`ResultMaterialization` phase와 각 SDO attempt의 `GenericSubmissionOutcome`에서 공용
+`LMCSdoSubmissionOutcome` (`NotAttempted`/`Rejected`/`OutcomeUncertain`/`Accepted`)을
+읽는다. 기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 source/binary 호환용으로
+같은 값을 유지한다. attempt snapshot은
 capability identity가 확보된 경우 실제 Submit에 사용한 `DiagnosticsBootId`/`MapRevision`을
 보존하고, 확보 전 실패는 0 sentinel을 사용한다. WPF는 no-submit, explicit
 rejection 또는 terminal status가 있는 실패는 guard를 해제하고,
 `OutcomeUncertain`은 quarantine하며, `Accepted` nonterminal은 exact ticket을 보존한다.
 context가 없거나 내부 증거가 일관되지 않으면 기존 UNKNOWN quarantine을 유지한다.
-반면 facade를 거치지 않는 raw manual `LMCConnection.Diagnostics.SubmitSdo[Async]`는 이
-all-failure context를 제공하지 않으므로 WPF/manual 경로는 여전히 보수적으로 처리한다.
+raw manual `LMCConnection.Diagnostics.SubmitSdo[Async]`도 원래 exception 객체/타입/stack을
+보존하고 `LMCSdoSubmissionFailureContext.TryGet(exception, out context)`으로
+`LMCSdoSubmissionPhase` (`RequestValidation`/`SessionPreflight`/`CapabilityPreflight`/
+`Submission`/`PostSubmissionValidation`)와 공통 `LMCSdoSubmissionOutcome`, request,
+capability identity 확보 후의 실제 `DiagnosticsBootId`/`MapRevision`, accepted ticket을
+제공한다. identity 확보 전 실패는 두 값을 `0` sentinel로 둔다. WPF manual router는
+`NotAttempted`/`Rejected`를 disarm하고, `OutcomeUncertain`은 context의 실제 identity로
+unknown-ticket evidence를 reconcile한 뒤 quarantine하며, `Accepted`는 exact ticket을 manual
+diagnostic state와 D5 tracker 둘 다에 보존한 뒤 disarm한다. context가 없거나
+일관되지 않으면 fail-closed한다. 이 경로는 code/test 계약이며 PLC live/pcap
+증거가 아니다.
 D4 Double bank와 D5 PI/SDO Write 및 extended
 result는 capability-off라 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
 Phase 1 WPF의 PI Write는 SDK compile-time allowlist가 empty인 것에 더해
