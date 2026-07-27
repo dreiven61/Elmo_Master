@@ -455,7 +455,7 @@ required Diagnostics client가 끊긴 비정상 topology에서는 기존 local d
 - verifier/csproj에 `Phase5TransportClean`을 구현했다. switch 없는 SourceOnly/full static이
   PASS했으며 `-AllowStaleLasalBinaryMetadata` 없이 binary registration gate까지 통과했다.
   이 결과는 LASAL IDE Rebuild/Link나 PLC runtime 증거와는 별개다.
-- 현재 Phase 5 worktree에서 PC Debug/Release 각 223/223 tests가 PASS했다. 개발 WPF
+- 현재 Phase 5 worktree에서 PC Debug/Release 각 225/225 tests가 PASS했다. 개발 WPF
   build도 PASS해 임시 Phase 4 snapshot 결과를 대체한다.
 - PC response reader는 53개 command 각각의 정상 최대 payload를 body read 전에 검사한다.
   가장 큰 정상 payload는 Recorder chunk의 1,972 bytes이고, 초과 선언은 stream desync를
@@ -539,7 +539,7 @@ IDE 적용 전 external source/XML/`ONE_*` table만 중간 점검할 때는 veri
 2026-07-24 commit-preparation 재검증 결과는 다음과 같다.
 
 - switch 없는 default SourceOnly/full: PASS
-- PC Debug/Release: 각 223/223 PASS
+- PC Debug/Release: 각 225/225 PASS
 - 개발 WPF Debug/Release build: 경고 0, 오류 0
 - `git diff --check`: PASS
 - LASAL main project Compiler/Linker, ERROR/FATAL 0, `CInvalidArgException` 0: PASS
@@ -558,8 +558,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
 ```
 
 - Phase 5 external-cleanup source 기준 전체 C# request/parser tests Debug/Release 각
-  223/223 PASS. 신규 범위는 internal negative-wire 9개와 D5
-  abort/recovery analyzer 12개다.
+  225/225 PASS. 신규 범위는 internal negative-wire 9개와 D5
+  abort/recovery analyzer 12개, drive-read exception 계약 2개다.
 - D5 WPF runner는 transport/domain 분리를 유지한 public API 경로로 Submit 전 outcome
   guard/unknown-ticket quarantine, same-connection BootId/exact `BootIdMismatch` quarantine,
   stale local session quarantine과 capability별 two-ticket recovery proof를 구현했다.
@@ -574,9 +574,11 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   `orphanQualified=false`를 기록한다. 실제 orphan PASS에는 known Running old ticket, 실제
   owner loss와 별도 PLC hook/capture가 필요하다. Group Disable 포함 새 mutation은 막되 기존
   resource cleanup, Stop/PowerOff와 read-only는 허용한다. `D5SdoPendingCleanup` Resolve는
-  `D5_LOG_CONTINUATION`으로 원래 qualification log에 이어 쓴다. facade가 pre-submit/status
-  stage와 ticket을 모든 예외에 노출하지 않아 false quarantine할 수 있지만 fail-closed하며
-  SDK stage+ticket exception UX는 후속 부채다. Phase 1 PI Write는 SDK empty allowlist와
+  `D5_LOG_CONTINUATION`으로 원래 qualification log에 이어 쓴다. facade의 diagnostics domain
+  command 실패는 `LMCSdoReadCommandException`이 capability/submission/status stage와 accepted
+  ticket을 구분하고 WPF가 pre-ticket guard 해제 또는 known-ticket 보존을 수행한다.
+  transport/malformed/local-session 예외의 all-failure context는 아직 없으므로 unknown evidence로
+  fail-closed한다. Phase 1 PI Write는 SDK empty allowlist와
   WPF button/handler로 이중 차단한다. PLC live/pcap 증거는 아직 없다.
 - 개발 WPF Debug/Release build 경고 0/오류 0 PASS
 - `git diff --check` PASS

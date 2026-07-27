@@ -35,7 +35,7 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 223/223 PASS`, `Release 223/223
+Current PC baseline: API tests `Debug 225/225 PASS`, `Release 225/225
 PASS`; WPF `Debug/Release Rebuild PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
@@ -120,11 +120,13 @@ of these paths can therefore enable `Resolve D5 Quarantine` and block new
 state-changing work until resolution. This is expected safety behavior, not a
 request to bypass the interlock.
 
-The drive facade does not yet expose whether a generic command exception
-happened before submission or during ticket status polling. Such an exception
-is therefore quarantined conservatively even when no ticket may have been
-accepted. Save the log; do not classify this false-positive possibility as a
-PLC failure without packet evidence.
+The drive facade now exposes diagnostics domain command failures as
+`CapabilityPreflight`, `Submission`, or `StatusPolling`. A pre-ticket command
+rejection releases the outcome guard; a status-polling command failure preserves
+the accepted ticket for `Resolve D5 Quarantine`. Transport, malformed-response,
+local-session, and axis-status failures do not yet carry the same complete
+attempt context and remain conservatively quarantined. Save the log; do not
+classify such a quarantine as a PLC failure without packet evidence.
 
 External manual/drive tracking lines use their own
 `scenario=D5ExternalTracking:<stage>` run ID. They must not inherit the run ID

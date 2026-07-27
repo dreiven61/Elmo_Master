@@ -86,10 +86,13 @@
   Resolve는 기존 qualification log에 `D5_LOG_CONTINUATION`을 이어 써 원래
   `FAIL`/`OUTCOME_UNCERTAIN`을 보존한다. 이 항목은
   analyzer 12개의 순수 상태 판정 범위를 넘어서는 UI/runtime contract이며 PLC live 증거가 아니다.
-- Phase 1 facade의 예외는 pre-submit/status stage와 ticket을 항상 노출하지 않아 false
-  quarantine이 가능하지만 WPF는 fail-closed한다. SDK stage+ticket exception UX는 후속
-  부채다. PI Write는 SDK compile-time allowlist empty와 WPF button/handler 이중 차단을
-  적용한다.
+- Phase 1 facade의 diagnostics domain command 실패는
+  `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling`과 accepted
+  ticket을 구분한다. sync/async와 composite 두 번째 SDO status failure까지 PC 계약으로
+  검사한다. WPF는 pre-ticket command rejection guard를 해제하고 status failure ticket을
+  보존한다. transport/malformed/local-session 예외의 all-failure context는 아직 없으므로
+  unknown evidence로 fail-closed한다. PI Write는 SDK compile-time allowlist empty와 WPF
+  button/handler 이중 차단을 적용한다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -119,13 +122,14 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `223/223 PASS`
+- `RunPcTests`: Debug/Release 각 `225/225 PASS`
   (response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
   recovery, Fault no-mutation, cancel/Stop-race/release retry/quarantine 및 cleanup
   state/route/manual-recovery policy, Bulk cancel/release retry와 one-slave-partial 순수 판정,
-  internal negative-wire 9개와 D5 abort/recovery analyzer 12개 포함)
+  internal negative-wire 9개, D5 abort/recovery analyzer 12개와 drive-read command
+  stage/ticket 및 non-domain unknown 계약 2개 포함)
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,

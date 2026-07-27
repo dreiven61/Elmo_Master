@@ -44,7 +44,7 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 223/223 tests가 PASS했다. 개발 WPF build도
+  Debug/Release 각 225/225 tests가 PASS했다. 개발 WPF build도
   PASS했다. LASAL
   Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
   아직 수행하지 않았다.
@@ -90,7 +90,7 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 external-cleanup worktree Debug/Release 각 223/223 PASS | 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개; PLC 통합과 별도 |
+| PC 자동 테스트 | 현재 Phase 5 external-cleanup worktree Debug/Release 각 225/225 PASS | 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개 + drive-read exception 계약 2개; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId quarantine, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
@@ -546,7 +546,7 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 223/223 tests가 exact table,
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 225/225 tests가 exact table,
    header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
@@ -723,8 +723,11 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   `D5SdoPendingCleanup` Resolve는 기존 qualification log를 지우지 않고
   `D5_LOG_CONTINUATION`을 이어 써 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 해결 증거를 같은 QTEST
   log에 보존한다.
-  Phase 1 facade가 pre-submit/status stage와 ticket을 모든 예외에 노출하지 않아 false
-  quarantine할 수 있으나 WPF는 fail-closed한다. SDK stage+ticket exception UX는 후속 부채다.
+  Phase 1 facade의 diagnostics domain command 실패는
+  `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling`과 accepted
+  ticket을 구분한다. WPF는 pre-ticket rejection guard를 해제하고 status failure ticket을
+  보존한다. transport/malformed/local-session 예외의 all-failure context는 아직 없으므로
+  unknown evidence로 fail-closed하는 후속 부채다.
 - Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
   Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
@@ -750,9 +753,10 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 확인된 범위:
 
 - 현재 Phase 5 external-cleanup worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 223/223 PASS. 53-command response payload hard limit,
+  Debug/Release 각 225/225 PASS. 53-command response payload hard limit,
   AxisInfo descriptor, qualification analysis, callback lifecycle, internal negative-wire 9개와
-  D5 abort/recovery analyzer 12개 및 largest variable response의 max/max+1 transport 경계를 포함한다.
+  D5 abort/recovery analyzer 12개, drive-read exception 계약 2개 및 largest variable response의
+  max/max+1 transport 경계를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.
   Phase 4 temporary snapshot의 qualification UI Debug visual/startup smoke는
   역사적 증거다.

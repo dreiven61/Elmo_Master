@@ -172,10 +172,11 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
 - qualification 밖의 manual SDO/Drive read tracker는 직전 qualification의 run/scenario를
   재사용하지 않는다. 별도 `D5ExternalTracking:<stage>` run ID와 step/elapsed 문맥으로
   기록하고, unresolved evidence가 생기면 그 원본 문맥을 Resolve log와 함께 보존한다.
-- `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]` 같은 Phase 1 facade는 모든 예외에
-  pre-submit/status stage와 ticket을 노출하지 않는다. 그래서 실제 submit 전 예외도 unknown
-  evidence로 false quarantine될 수 있지만 WPF는 안전하게 fail-closed한다. SDK가 stage+ticket
-  exception을 제공해 operator가 이를 구분하게 하는 작업은 후속 UX 부채다.
+- `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]`의 diagnostics domain command 실패는
+  `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling`을 구분한다.
+  WPF는 앞의 두 pre-ticket rejection이면 guard를 해제하고, status failure이면 exception의
+  accepted ticket을 보존한다. transport/malformed/local-session 같은 나머지 예외에는 아직
+  all-failure stage/ticket context가 없으므로 unknown evidence로 안전하게 fail-closed한다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는

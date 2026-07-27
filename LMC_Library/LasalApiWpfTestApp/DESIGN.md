@@ -378,9 +378,11 @@ var raw = checked((int)Math.Round(
 - manual SDO와 Drive read의 external tracker event는 마지막 qualification context에 붙이지
   않고 별도 `D5ExternalTracking:<stage>` run ID/step/elapsed context를 사용한다. unresolved
   상태에서는 이 원본 context를 유지하고 Resolve가 끝난 뒤에만 close한다.
-- Phase 1 read-only facade의 예외 계약은 pre-submit/status stage와 ticket을 항상 노출하지
-  않는다. WPF가 이 예외를 unknown evidence로 false quarantine할 수 있지만 fail-closed이며,
-  SDK stage+ticket exception을 추가하는 것은 향후 operator UX 부채다.
+- Phase 1 read-only facade의 diagnostics domain command 실패는
+  `LMCSdoReadCommandException`의 `CapabilityPreflight`/`Submission`/`StatusPolling` stage와
+  accepted ticket을 사용한다. WPF는 pre-ticket rejection guard를 해제하고 status failure의
+  known ticket을 보존한다. transport/malformed/local-session 예외의 all-failure context는
+  아직 없으므로 unknown evidence로 fail-closed하는 후속 operator UX 부채다.
 
 ### 6.6 검증 경계
 
