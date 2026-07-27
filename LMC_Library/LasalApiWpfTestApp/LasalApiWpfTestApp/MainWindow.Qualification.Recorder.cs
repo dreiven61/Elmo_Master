@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +16,7 @@ namespace LasalMotionControlApiExample
         private const int RecorderQualificationChannelCount = 4;
         private const int RecorderQualificationPollMilliseconds = 25;
         private const int RecorderQualificationRpcTimeoutMilliseconds = 15000;
+        private const int RecorderReconnectAdoptTimeoutMilliseconds = 5000;
 
         private async void ButtonRunRecorderSingleQualification_Click(
             object sender,
@@ -41,6 +43,29 @@ namespace LasalMotionControlApiExample
             await RunQualificationAsync(
                 "RecorderTriggerLifecycleSoak",
                 RunRecorderSoakQualificationAsync);
+        }
+
+        private async void ButtonRunRecorderReconnectExactQualification_Click(
+            object sender,
+            System.Windows.RoutedEventArgs e)
+        {
+            await RunQualificationAsync(
+                "RecorderReconnectExactAdopt",
+                cancellationToken => RunRecorderReconnectQualificationAsync(
+                    false,
+                    cancellationToken));
+        }
+
+        private async void
+            ButtonRunRecorderReconnectDiscoveryQualification_Click(
+                object sender,
+                System.Windows.RoutedEventArgs e)
+        {
+            await RunQualificationAsync(
+                "RecorderReconnectDiscoveryAdopt",
+                cancellationToken => RunRecorderReconnectQualificationAsync(
+                    true,
+                    cancellationToken));
         }
 
         private async Task RunRecorderSingleQualificationAsync(
@@ -383,6 +408,356 @@ namespace LasalMotionControlApiExample
                     "RING",
                     primaryError);
             }
+        }
+
+        private async Task RunRecorderReconnectQualificationAsync(
+            bool discoverActive,
+            CancellationToken cancellationToken)
+        {
+            const uint sampleCapacity = 1000;
+            const uint preTriggerSamples = 100;
+            const uint postTriggerSamples = 899;
+            var context = await PrepareRecorderQualificationAsync(
+                sampleCapacity,
+                true,
+                cancellationToken);
+            if (discoverActive
+                && (context.Capabilities.RecorderBufferCount != 1
+                    || context.Capabilities.Supports(
+                        LMCDiagnosticCapability.RecorderDoubleBank)))
+            {
+                ThrowRecorderQualificationSkip(
+                    "0/0 active Recorder discovery is defined only for a single-bank PLC.");
+            }
+
+            var endpoint = CaptureRecorderReconnectEndpoint();
+            var originalConnection = RequireConnection();
+            var originalDiagnostics = originalConnection.Diagnostics;
+            LMCRecorderConfigurationHandle handle = null;
+            LMCRecorderIdentity originalIdentity = null;
+            LMCRecorderIdentity adoptedIdentity = null;
+            LMCConnection adoptedConnection = null;
+            RecorderReconnectExpectation expectation = null;
+            var adoptionValidated = false;
+            Exception primaryError = null;
+            var scope = discoverActive
+                ? "RECONNECT_DISCOVERY"
+                : "RECONNECT_EXACT";
+
+            try
+            {
+                SetQualificationProgress(
+                    8,
+                    "Configuring active Ring Recorder for reconnect/adopt");
+                var configuration = BuildForcedTriggerRecorderConfiguration(
+                    context,
+                    sampleCapacity,
+                    preTriggerSamples,
+                    postTriggerSamples);
+                handle = await SendQualificationCommandAsync(
+                    "Recorder reconnect Configure",
+                    cancellationToken,
+                    () => originalDiagnostics.ConfigureRecorderAsync(
+                        configuration,
+                        CancellationToken.None));
+                AssertRecorderConfigurationHandle(
+                    handle,
+                    context,
+                    sampleCapacity,
+                    LMCRecorderBufferMode.Ring,
+                    LMCRecorderTriggerType.Edge);
+
+                originalIdentity = await SendQualificationCommandAsync(
+                    "Recorder reconnect Start",
+                    cancellationToken,
+                    () => originalDiagnostics.StartRecorderAsync(
+                        handle,
+                        CancellationToken.None));
+                AssertRecorderIdentity(originalIdentity, handle, context);
+                expectation = CreateRecorderReconnectExpectation(
+                    handle,
+                    originalIdentity,
+                    context);
+                UpdateRecorderAdoptionFields(originalIdentity);
+                WriteQualificationLog(
+                    "event=RECORDER_IDENTITY_CHECKPOINT",
+                    "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                    "bootId=0x" + expectation.DiagnosticsBootId.ToString("X8"),
+                    "recordId=" + expectation.RecordId,
+                    "bufferId=" + expectation.BufferId,
+                    "ownerSessionEpoch=" + expectation.OwnerSessionEpoch,
+                    "verdict=PASS");
+
+                SetQualificationProgress(
+                    18,
+                    "Waiting for active Ring pre-history before disconnect");
+                var activeStatus = await WaitForRecorderStateAsync(
+                    originalDiagnostics,
+                    originalIdentity,
+                    handle,
+                    value => value.State == LMCRecorderState.Recording
+                        && value.SampleCount >= preTriggerSamples,
+                    RecorderQualificationRpcTimeoutMilliseconds,
+                    cancellationToken,
+                    "RECONNECT_PREHISTORY");
+                if (activeStatus.IsFrozen)
+                {
+                    throw new InvalidOperationException(
+                        "Reconnect Recorder froze before the intentional connection close.");
+                }
+
+                WriteQualificationLog(
+                    "event=RECORDER_IDENTITY_PRESERVED",
+                    "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                    "bootId=0x" + expectation.DiagnosticsBootId.ToString("X8"),
+                    "recordId=" + expectation.RecordId,
+                    "bufferId=" + expectation.BufferId,
+                    "ownerSessionEpoch=" + expectation.OwnerSessionEpoch,
+                    "configId=" + expectation.ConfigId,
+                    "configRevision=" + expectation.ConfigRevision,
+                    "mapRevision=0x" + expectation.MapRevision.ToString("X8"),
+                    "bufferMode=" + expectation.BufferMode,
+                    "triggerType=" + expectation.TriggerType,
+                    "preTrigger=" + expectation.PreTriggerSamples,
+                    "postTrigger=" + expectation.PostTriggerSamples,
+                    "signals=" + FormatRecorderQualificationSignalIds(
+                        expectation.SignalIds),
+                    "samplesBeforeClose=" + activeStatus.SampleCount);
+
+                SetQualificationProgress(
+                    28,
+                    "Closing the owning RPC connection while Recorder remains active");
+                await CloseRecorderQualificationConnectionAsync(
+                    originalConnection,
+                    cancellationToken);
+
+                WriteQualificationLog(
+                    "event=CONNECTION_CLOSED",
+                    "resourceReleased=false",
+                    "identityPreserved=true");
+
+                SetQualificationProgress(
+                    38,
+                    "Reconnecting and refreshing diagnostics capabilities");
+                adoptedConnection = await OpenRecorderQualificationConnectionAsync(
+                    endpoint,
+                    cancellationToken,
+                    false);
+                var capabilities =
+                    await RefreshRecorderReconnectCapabilitiesAsync(
+                        adoptedConnection,
+                        expectation,
+                        discoverActive,
+                        cancellationToken,
+                        false);
+                ApplyRecorderReconnectCapabilitiesToUi(capabilities);
+
+                SetQualificationProgress(
+                    50,
+                    discoverActive
+                        ? "Adopting the preserved Recorder through the 0/0 discovery sentinel"
+                        : "Adopting the preserved Recorder by exact RecordId/BufferId");
+                var diagnostics = adoptedConnection.Diagnostics;
+                adoptedIdentity = await AdoptRecorderReconnectAsync(
+                    diagnostics,
+                    expectation,
+                    discoverActive,
+                    cancellationToken,
+                    false,
+                    "Recorder reconnect");
+                WriteQualificationLog(
+                    "event=RECORDER_ADOPT_RESPONSE",
+                    "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                    "expectedBootId=0x"
+                        + expectation.DiagnosticsBootId.ToString("X8"),
+                    "actualBootId=0x"
+                        + adoptedIdentity.DiagnosticsBootId.ToString("X8"),
+                    "expectedRecordId=" + expectation.RecordId,
+                    "actualRecordId=" + adoptedIdentity.RecordId,
+                    "expectedBufferId=" + expectation.BufferId,
+                    "actualBufferId=" + adoptedIdentity.BufferId,
+                    "oldOwnerSessionEpoch=" + expectation.OwnerSessionEpoch,
+                    "actualOwnerSessionEpoch="
+                        + adoptedIdentity.OwnerSessionEpoch,
+                    "initialState=" + adoptedIdentity.InitialState);
+                AssertRecorderReconnectAdoption(
+                    adoptedIdentity,
+                    expectation);
+                adoptionValidated = true;
+                WriteQualificationLog(
+                    "event=RECORDER_ADOPTED",
+                    "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                    "bootId=0x" + adoptedIdentity.DiagnosticsBootId.ToString("X8"),
+                    "recordId=" + adoptedIdentity.RecordId,
+                    "bufferId=" + adoptedIdentity.BufferId,
+                    "oldOwnerSessionEpoch=" + expectation.OwnerSessionEpoch,
+                    "newOwnerSessionEpoch=" + adoptedIdentity.OwnerSessionEpoch,
+                    "initialState=" + adoptedIdentity.InitialState,
+                    "verdict=PASS");
+
+                SetQualificationProgress(
+                    60,
+                    "Reading adopted Recorder status and stopping it if still active");
+                var reconnectStateOperations =
+                    CreateRecorderReconnectStateOperations(
+                        diagnostics,
+                        adoptedIdentity,
+                        expectation,
+                        cancellationToken,
+                        false,
+                        scope + "_ACTIVE");
+                var releasableState =
+                    await RecorderQualificationCleanupOrchestrator
+                        .EnsureReleasableStateAsync(
+                            reconnectStateOperations,
+                            RecorderQualificationRpcTimeoutMilliseconds,
+                            RecorderQualificationPollMilliseconds);
+                var status = releasableState.Status;
+                var stopSent = releasableState.StopAttempted;
+
+                SetQualificationProgress(
+                    70,
+                    "Reading frozen adopted header and downloading immutable data");
+                var header = await SendQualificationCommandAsync(
+                    "Recorder reconnect adopted Header",
+                    cancellationToken,
+                    () => diagnostics.GetRecorderHeaderAsync(
+                        adoptedIdentity,
+                        CancellationToken.None));
+                AssertRecorderReconnectHeader(
+                    header,
+                    adoptedIdentity,
+                    handle,
+                    context);
+                var data = await DownloadRecorderQualificationAsync(
+                    diagnostics,
+                    adoptedIdentity,
+                    capabilities.MaxChunkDataBytes,
+                    cancellationToken,
+                    scope);
+                AssertRecorderData(
+                    data,
+                    adoptedIdentity,
+                    handle,
+                    context,
+                    header.SampleCount,
+                    header.StopReason,
+                    header.HasTrigger,
+                    header.TriggerIndex);
+                WriteQualificationLog(
+                    "event=ASSERT",
+                    "name=RecorderReconnectAdoptDownload",
+                    "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                    "stopSent=" + stopSent,
+                    "stopReason=" + header.StopReason,
+                    "samples=" + header.SampleCount,
+                    "bytes=" + data.Data.Length,
+                    "sha256=" + ComputeRecorderQualificationSha256(data.Data),
+                    "identityMatch=PASS",
+                    "bootIdMatch=PASS",
+                    "ownerEpochChanged=PASS",
+                    "verdict=PASS");
+                SetQualificationProgress(
+                    88,
+                    "Reconnect/adopt assertions PASS; releasing adopted resources");
+            }
+            catch (Exception error)
+            {
+                primaryError = error;
+                throw;
+            }
+            finally
+            {
+                var originalSessionUsable =
+                    ReferenceEquals(connection, originalConnection)
+                    && originalConnection.IsConnected;
+                var cleanupRoute = RecorderReconnectQualificationPolicy
+                    .SelectCleanupRoute(
+                        originalSessionUsable,
+                        expectation != null,
+                        adoptedIdentity != null,
+                        adoptionValidated);
+                WriteQualificationLog(
+                    "event=RECORDER_CLEANUP_ROUTE",
+                    "route=" + cleanupRoute,
+                    "originalSessionUsable=" + originalSessionUsable,
+                    "hasExpectation=" + (expectation != null),
+                    "hasAdoptedIdentity=" + (adoptedIdentity != null),
+                    "adoptionValidated=" + adoptionValidated);
+
+                if (cleanupRoute
+                    == RecorderReconnectCleanupRoute.OriginalSession)
+                {
+                    await CleanupRecorderQualificationPreservingPrimaryAsync(
+                        originalDiagnostics,
+                        handle,
+                        originalIdentity,
+                        scope + "_ORIGINAL_SESSION",
+                        primaryError);
+                }
+                else if (cleanupRoute
+                    == RecorderReconnectCleanupRoute.ExactReconnect)
+                {
+                    var cleanupOwnership =
+                        await CleanupRecorderReconnectPreservingPrimaryAsync(
+                            endpoint,
+                            expectation,
+                            adoptedConnection,
+                            adoptedIdentity,
+                            adoptionValidated,
+                            scope,
+                            primaryError);
+                    adoptedConnection = cleanupOwnership.Connection;
+                    adoptedIdentity = cleanupOwnership.Identity;
+                }
+                else
+                {
+                    if (adoptedIdentity != null
+                        && !adoptionValidated
+                        && adoptedConnection != null
+                        && adoptedConnection.IsConnected
+                        && ReferenceEquals(connection, adoptedConnection))
+                    {
+                        PreserveUnvalidatedRecorderAdoption(
+                            adoptedIdentity,
+                            scope,
+                            primaryError);
+                    }
+                    WriteQualificationLog(
+                        "event=CLEANUP_RECOVERY_REQUIRED",
+                        "scope=" + scope,
+                        "reason=no_safe_automatic_cleanup_route",
+                        "automaticMutation=false",
+                        "verdict=FAIL");
+                    var recoveryError = new InvalidOperationException(
+                        "Recorder reconnect cleanup has no safe automatic route. The original session is unavailable and no fully validated exact-recovery identity is available.");
+                    if (primaryError == null)
+                    {
+                        throw recoveryError;
+                    }
+
+                    throw CreateRecorderQualificationCleanupException(
+                        scope,
+                        primaryError,
+                        recoveryError);
+                }
+            }
+
+            if (adoptedIdentity == null
+                || !adoptedIdentity.IsBufferReleased
+                || !adoptedIdentity.IsRecorderReleased)
+            {
+                throw new InvalidOperationException(
+                    "Reconnect/adopt qualification did not release both adopted Recorder resources.");
+            }
+
+            WriteQualificationLog(
+                "event=ASSERT",
+                "name=RecorderReconnectAdoptCleanup",
+                "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                "bufferReleased=true",
+                "configurationReleased=true",
+                "verdict=PASS");
         }
 
         private async Task RunRecorderSoakQualificationAsync(
@@ -740,6 +1115,724 @@ namespace LasalMotionControlApiExample
             return context;
         }
 
+        private RecorderReconnectEndpoint CaptureRecorderReconnectEndpoint()
+        {
+            return new RecorderReconnectEndpoint
+            {
+                RemoteIp = RequiredText(TextRemoteIp.Text, "PLC IP"),
+                RemotePort = ParsePort(
+                    TextRemotePort.Text,
+                    "TCP port",
+                    false),
+                LocalIp = RequiredText(TextLocalIp.Text, "PC local IPv4"),
+                CallbackPort = ParsePort(
+                    TextCallbackPort.Text,
+                    "Callback UDP port",
+                    true)
+            };
+        }
+
+        private static RecorderReconnectExpectation
+            CreateRecorderReconnectExpectation(
+                LMCRecorderConfigurationHandle handle,
+                LMCRecorderIdentity identity,
+                RecorderQualificationContext context)
+        {
+            return new RecorderReconnectExpectation
+            {
+                DiagnosticsBootId = identity.DiagnosticsBootId,
+                RecordId = identity.RecordId,
+                BufferId = identity.BufferId,
+                OwnerSessionEpoch = identity.OwnerSessionEpoch,
+                ConfigId = handle.ConfigId,
+                ConfigRevision = handle.ConfigRevision,
+                MapRevision = handle.MapRevision,
+                Capacity = handle.AcceptedCapacity,
+                SamplePeriodUs = handle.SamplePeriodUs,
+                ChannelCount = handle.ChannelCount,
+                BufferMode = handle.Configuration.BufferMode,
+                TriggerType = handle.Configuration.TriggerType,
+                PreTriggerSamples = handle.Configuration.PreTriggerSamples,
+                PostTriggerSamples = handle.Configuration.PostTriggerSamples,
+                SignalIds = context.SignalIds.ToArray()
+            };
+        }
+
+        private async Task CloseRecorderQualificationConnectionAsync(
+            LMCConnection expectedConnection,
+            CancellationToken cancellationToken)
+        {
+            Exception closeError = null;
+            var priorConnectionTransition = connectionTransitionRunning;
+            connectionTransitionRunning = true;
+            UpdateUiState();
+            try
+            {
+                await SendQualificationCommandAsync(
+                    "Recorder reconnect CloseConnection",
+                    cancellationToken,
+                    () => expectedConnection.CloseConnectionAsync(
+                        CancellationToken.None));
+            }
+            catch (Exception error)
+            {
+                closeError = error;
+            }
+            finally
+            {
+                if (ReferenceEquals(connection, expectedConnection))
+                {
+                    connection = null;
+                }
+
+                DetachConnection(expectedConnection);
+                expectedConnection.Dispose();
+                ClearLoadedObjects();
+                connectionTransitionRunning = priorConnectionTransition;
+                UpdateUiState();
+            }
+
+            if (closeError != null)
+            {
+                ExceptionDispatchInfo.Capture(closeError).Throw();
+            }
+        }
+
+        private async Task<LMCConnection>
+            OpenRecorderQualificationConnectionAsync(
+                RecorderReconnectEndpoint endpoint,
+                CancellationToken cancellationToken,
+                bool cleanupGate)
+        {
+            var priorConnectionTransition = connectionTransitionRunning;
+            connectionTransitionRunning = true;
+            UpdateUiState();
+            LMCConnection newConnection = null;
+            try
+            {
+                var priorConnection = connection;
+                if (priorConnection != null)
+                {
+                    if (priorConnection.IsConnected)
+                    {
+                        throw new InvalidOperationException(
+                            "Recorder reconnect cannot replace an active unexpected connection.");
+                    }
+
+                    connection = null;
+                    DetachConnection(priorConnection);
+                    priorConnection.Dispose();
+                    ClearLoadedObjects();
+                }
+
+                newConnection = new LMCConnection();
+                AttachConnection(newConnection);
+                connection = newConnection;
+                ClearLoadedObjects();
+                UpdateUiState();
+
+                Func<Task> connect = () =>
+                    newConnection.RpcInitConnectionAsync(
+                        endpoint.RemoteIp,
+                        endpoint.RemotePort,
+                        endpoint.LocalIp,
+                        endpoint.CallbackPort,
+                        LMCConnection.DefaultEventMask,
+                        CancellationToken.None);
+                if (cleanupGate)
+                {
+                    await SendQualificationCleanupCommandAsync(
+                        "Recorder reconnect cleanup RpcInitConnection",
+                        connect);
+                }
+                else
+                {
+                    await SendQualificationCommandAsync(
+                        "Recorder reconnect RpcInitConnection",
+                        cancellationToken,
+                        connect);
+                }
+
+                WriteQualificationLog(
+                    "event=CONNECTION_REOPENED",
+                    "endpoint=" + QualificationValue(
+                        endpoint.RemoteIp + ":" + endpoint.RemotePort),
+                    "callback=" + QualificationValue(
+                        newConnection.CallbackLocalEndPoint == null
+                            ? "none"
+                            : newConnection.CallbackLocalEndPoint.ToString()));
+                return newConnection;
+            }
+            catch
+            {
+                if (newConnection != null
+                    && ReferenceEquals(connection, newConnection))
+                {
+                    connection = null;
+                }
+
+                if (newConnection != null)
+                {
+                    DetachConnection(newConnection);
+                    newConnection.Dispose();
+                }
+
+                ClearLoadedObjects();
+                throw;
+            }
+            finally
+            {
+                connectionTransitionRunning = priorConnectionTransition;
+                UpdateUiState();
+            }
+        }
+
+        private async Task<LMCDiagnosticCapabilities>
+            RefreshRecorderReconnectCapabilitiesAsync(
+                LMCConnection currentConnection,
+                RecorderReconnectExpectation expectation,
+                bool discoverActive,
+                CancellationToken cancellationToken,
+                bool cleanupGate)
+        {
+            LMCDiagnosticCapabilities capabilities;
+            if (cleanupGate)
+            {
+                capabilities = await SendQualificationCleanupCommandAsync(
+                    "Recorder reconnect cleanup capabilities",
+                    () => currentConnection.Diagnostics.GetCapabilitiesAsync(
+                        CancellationToken.None));
+            }
+            else
+            {
+                capabilities = await SendQualificationCommandAsync(
+                    "Recorder reconnect capabilities",
+                    cancellationToken,
+                    () => currentConnection.Diagnostics.GetCapabilitiesAsync(
+                        CancellationToken.None));
+            }
+
+            AssertRecorderReconnectCapabilities(
+                capabilities,
+                expectation,
+                discoverActive);
+            WriteQualificationLog(
+                "event=RECONNECT_CAPABILITIES",
+                "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                "recorderBuffers=" + capabilities.RecorderBufferCount,
+                "sameBoot=PASS",
+                "sameMapRevision=PASS");
+            return capabilities;
+        }
+
+        private void ApplyRecorderReconnectCapabilitiesToUi(
+            LMCDiagnosticCapabilities capabilities)
+        {
+            diagnosticCapabilities = capabilities;
+            TextDiagnosticsCapabilities.Text = FormatCapabilities(capabilities);
+            UpdateRecorderBufferModeOptions();
+            UpdateUiState();
+        }
+
+        private static void AssertRecorderReconnectCapabilities(
+            LMCDiagnosticCapabilities capabilities,
+            RecorderReconnectExpectation expectation,
+            bool discoverActive)
+        {
+            var requiredBytes = checked(
+                (ulong)expectation.Capacity
+                * expectation.ChannelCount
+                * sizeof(uint));
+            if (capabilities == null
+                || capabilities.Response == null
+                || !capabilities.Response.IsSuccess
+                || !capabilities.HasStableDiagnosticsBootId
+                || capabilities.DiagnosticsBootId
+                    != expectation.DiagnosticsBootId
+                || capabilities.MapRevision != expectation.MapRevision
+                || !capabilities.Supports(
+                    LMCDiagnosticCapability.RecorderSingleBank)
+                || !capabilities.Supports(
+                    LMCDiagnosticCapability.RecorderTrigger)
+                || capabilities.MaxRecorderChannels
+                    < expectation.ChannelCount
+                || capabilities.MaxRecorderSamples < expectation.Capacity
+                || capabilities.MaxChunkDataBytes
+                    < expectation.ChannelCount * sizeof(uint)
+                || capabilities.RecorderBytesPerBank < requiredBytes
+                || (discoverActive
+                    && (capabilities.RecorderBufferCount != 1
+                        || capabilities.Supports(
+                            LMCDiagnosticCapability.RecorderDoubleBank))))
+            {
+                throw new InvalidOperationException(
+                    "Reconnect capabilities do not match the preserved Recorder resource or adoption mode.");
+            }
+        }
+
+        private static void AssertRecorderReconnectAdoption(
+            LMCRecorderIdentity adoptedIdentity,
+            RecorderReconnectExpectation expectation)
+        {
+            RecorderQualificationCleanupOrchestrator
+                .ValidateReconnectAdoption(
+                    adoptedIdentity,
+                    expectation.DiagnosticsBootId,
+                    expectation.RecordId,
+                    expectation.BufferId,
+                    expectation.MapRevision,
+                    expectation.OwnerSessionEpoch);
+        }
+
+        private async Task<LMCRecorderIdentity> AdoptRecorderReconnectAsync(
+            LMCDiagnostics diagnostics,
+            RecorderReconnectExpectation expectation,
+            bool discoverActive,
+            CancellationToken cancellationToken,
+            bool cleanupGate,
+            string operation)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var attempt = 0;
+            while (true)
+            {
+                attempt++;
+                try
+                {
+                    Func<Task<LMCRecorderIdentity>> adopt = discoverActive
+                        ? (Func<Task<LMCRecorderIdentity>>)(() =>
+                            diagnostics.AdoptActiveRecorderAsync(
+                                expectation.DiagnosticsBootId,
+                                CancellationToken.None))
+                        : () => diagnostics.AdoptRecorderAsync(
+                            expectation.DiagnosticsBootId,
+                            expectation.RecordId,
+                            expectation.BufferId,
+                            CancellationToken.None);
+                    return cleanupGate
+                        ? await SendQualificationCleanupCommandAsync(
+                            operation + " exact Adopt",
+                            adopt)
+                        : await SendQualificationCommandAsync(
+                            operation
+                                + (discoverActive
+                                    ? " 0/0 discovery Adopt"
+                                    : " exact Adopt"),
+                            cancellationToken,
+                            adopt);
+                }
+                catch (LMCDiagnosticsCommandException error)
+                    when (error.Response != null
+                        && error.Response.Detail
+                            == LMCDiagnosticsDetailCode.HandleOrGenerationStale
+                        && stopwatch.ElapsedMilliseconds
+                            < RecorderReconnectAdoptTimeoutMilliseconds)
+                {
+                    WriteQualificationLog(
+                        "event=RECORDER_ADOPT_RETRY",
+                        "operation=" + QualificationValue(operation),
+                        "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
+                        "attempt=" + attempt,
+                        "detail=" + error.Response.Detail,
+                        "elapsedMs=" + stopwatch.ElapsedMilliseconds);
+                    if (cleanupGate)
+                    {
+                        await Task.Delay(RecorderQualificationPollMilliseconds);
+                    }
+                    else
+                    {
+                        await Task.Delay(
+                            RecorderQualificationPollMilliseconds,
+                            cancellationToken);
+                    }
+                }
+            }
+        }
+
+        private static void AssertRecorderReconnectStatus(
+            LMCRecorderStatus status,
+            LMCRecorderIdentity identity,
+            RecorderReconnectExpectation expectation)
+        {
+            RecorderQualificationCleanupOrchestrator
+                .ValidateReconnectStatus(
+                    status,
+                    identity,
+                    expectation.DiagnosticsBootId,
+                    expectation.RecordId,
+                    expectation.BufferId,
+                    expectation.ConfigId,
+                    expectation.ConfigRevision,
+                    expectation.MapRevision,
+                    expectation.Capacity);
+        }
+
+        private static void AssertRecorderReconnectHeader(
+            LMCRecorderHeader header,
+            LMCRecorderIdentity identity,
+            LMCRecorderConfigurationHandle handle,
+            RecorderQualificationContext context)
+        {
+            if (header == null
+                || header.SampleCount == 0
+                || header.SampleCount > handle.AcceptedCapacity
+                || (header.StopReason != LMCRecorderStopReason.UserStop
+                    && header.StopReason
+                        != LMCRecorderStopReason.TriggerComplete)
+                || (header.HasTrigger
+                    && header.TriggerIndex
+                        != handle.Configuration.PreTriggerSamples)
+                || (!header.HasTrigger
+                    && header.TriggerIndex != uint.MaxValue))
+            {
+                throw new InvalidOperationException(
+                    "Adopted Recorder header does not satisfy the reconnect qualification terminal contract.");
+            }
+
+            AssertRecorderHeader(
+                header,
+                identity,
+                handle,
+                context,
+                header.SampleCount,
+                header.StopReason,
+                header.HasTrigger,
+                header.TriggerIndex);
+        }
+
+        private RecorderQualificationCleanupOperations
+            CreateRecorderReconnectStateOperations(
+                LMCDiagnostics diagnostics,
+                LMCRecorderIdentity identity,
+                RecorderReconnectExpectation expectation,
+                CancellationToken cancellationToken,
+                bool cleanupGate,
+                string scope)
+        {
+            return new RecorderQualificationCleanupOperations
+            {
+                ReadStatusAsync = () => cleanupGate
+                    ? SendQualificationCleanupCommandAsync(
+                        "Recorder adopted cleanup Status " + scope,
+                        () => diagnostics.GetRecorderStatusAsync(
+                            identity,
+                            CancellationToken.None))
+                    : SendQualificationCommandAsync(
+                        "Recorder reconnect adopted Status " + scope,
+                        cancellationToken,
+                        () => diagnostics.GetRecorderStatusAsync(
+                            identity,
+                            CancellationToken.None)),
+                StopAsync = () => cleanupGate
+                    ? SendQualificationCleanupCommandAsync(
+                        "Recorder adopted cleanup Stop " + scope,
+                        () => diagnostics.StopRecorderAsync(
+                            identity,
+                            CancellationToken.None))
+                    : SendQualificationCommandAsync(
+                        "Recorder reconnect adopted Stop " + scope,
+                        cancellationToken,
+                        () => diagnostics.StopRecorderAsync(
+                            identity,
+                            CancellationToken.None)),
+                ValidateStatus = status => AssertRecorderReconnectStatus(
+                    status,
+                    identity,
+                    expectation),
+                DelayAsync = milliseconds => cleanupGate
+                    ? Task.Delay(milliseconds)
+                    : Task.Delay(milliseconds, cancellationToken),
+                StopRaceResolved = status => WriteQualificationLog(
+                    "event=RECORDER_STOP_RACE_RESOLVED",
+                    "scope=" + scope,
+                    "state=" + status.State,
+                    "stopReason=" + status.StopReason,
+                    "verdict=PASS"),
+                RecoveryRequired = status => WriteQualificationLog(
+                    "event=CLEANUP_RECOVERY_REQUIRED",
+                    "scope=" + scope,
+                    "state=" + status.State,
+                    "recordId=" + identity.RecordId,
+                    "bufferId=" + identity.BufferId,
+                    "automaticRelease=false",
+                    "verdict=FAIL"),
+                IsBufferReleasePending = () => !identity.IsBufferReleased,
+                IsConfigurationReleasePending = () =>
+                    !identity.IsRecorderReleased,
+                ReleaseBufferAsync = async () =>
+                {
+                    await SendQualificationCleanupCommandAsync(
+                        "Recorder adopted cleanup buffer Release " + scope,
+                        () => diagnostics.ReleaseRecorderBufferAsync(
+                            identity,
+                            CancellationToken.None));
+                    WriteQualificationLog(
+                        "event=CLEANUP_BUFFER_RELEASE",
+                        "scope=" + scope,
+                        "releasePath=ADOPTED_IDENTITY",
+                        "recordId=" + identity.RecordId,
+                        "bufferId=" + identity.BufferId,
+                        "verdict=PASS");
+                },
+                ReleaseConfigurationAsync = async () =>
+                {
+                    await SendQualificationCleanupCommandAsync(
+                        "Recorder adopted cleanup configuration Release "
+                            + scope,
+                        () => diagnostics.ReleaseRecorderAsync(
+                            identity,
+                            CancellationToken.None));
+                    WriteQualificationLog(
+                        "event=CLEANUP_CONFIG_RELEASE",
+                        "scope=" + scope,
+                        "releasePath=ADOPTED_IDENTITY",
+                        "configId=" + expectation.ConfigId,
+                        "verdict=PASS");
+                }
+            };
+        }
+
+        private RecorderQualificationCleanupOperations
+            CreateRecorderOwnedCleanupOperations(
+                LMCDiagnostics diagnostics,
+                LMCRecorderConfigurationHandle handle,
+                LMCRecorderIdentity identity,
+                string scope)
+        {
+            return new RecorderQualificationCleanupOperations
+            {
+                ReadStatusAsync = () => SendQualificationCleanupCommandAsync(
+                    "Recorder cleanup Status " + scope,
+                    () => diagnostics.GetRecorderStatusAsync(
+                        identity,
+                        CancellationToken.None)),
+                StopAsync = () => SendQualificationCleanupCommandAsync(
+                    "Recorder cleanup Stop " + scope,
+                    () => diagnostics.StopRecorderAsync(
+                        identity,
+                        CancellationToken.None)),
+                ValidateStatus = status => AssertRecorderStatusIdentity(
+                    status,
+                    identity,
+                    handle),
+                DelayAsync = milliseconds => Task.Delay(milliseconds),
+                StopRaceResolved = status => WriteQualificationLog(
+                    "event=RECORDER_STOP_RACE_RESOLVED",
+                    "scope=" + scope,
+                    "state=" + status.State,
+                    "stopReason=" + status.StopReason,
+                    "verdict=PASS"),
+                RecoveryRequired = status => WriteQualificationLog(
+                    "event=CLEANUP_RECOVERY_REQUIRED",
+                    "scope=" + scope,
+                    "state=" + status.State,
+                    "bufferReleased=false",
+                    "configurationReleased=false",
+                    "verdict=FAIL"),
+                IsBufferReleasePending = () => identity != null
+                    && !identity.IsBufferReleased,
+                IsConfigurationReleasePending = () => handle != null
+                    && !handle.IsReleased,
+                ReleaseBufferAsync = async () =>
+                {
+                    await SendQualificationCleanupCommandAsync(
+                        "Recorder cleanup buffer Release " + scope,
+                        () => diagnostics.ReleaseRecorderBufferAsync(
+                            identity,
+                            CancellationToken.None));
+                    WriteQualificationLog(
+                        "event=CLEANUP_BUFFER_RELEASE",
+                        "scope=" + scope,
+                        "releasePath=ORIGINAL_IDENTITY",
+                        "recordId=" + identity.RecordId,
+                        "bufferId=" + identity.BufferId,
+                        "verdict=PASS");
+                },
+                ReleaseConfigurationAsync = async () =>
+                {
+                    await SendQualificationCleanupCommandAsync(
+                        "Recorder cleanup configuration Release " + scope,
+                        () => diagnostics.ReleaseRecorderAsync(
+                            handle,
+                            CancellationToken.None));
+                    WriteQualificationLog(
+                        "event=CLEANUP_CONFIG_RELEASE",
+                        "scope=" + scope,
+                        "configId=" + handle.ConfigId,
+                        "releasePath=CONFIGURATION_HANDLE",
+                        "verdict=PASS");
+                }
+            };
+        }
+
+        private async Task<RecorderReconnectOwnership>
+            CleanupRecorderReconnectPreservingPrimaryAsync(
+                RecorderReconnectEndpoint endpoint,
+                RecorderReconnectExpectation expectation,
+                LMCConnection adoptedConnection,
+                LMCRecorderIdentity adoptedIdentity,
+                bool adoptionValidated,
+                string scope,
+                Exception primaryError)
+        {
+            RecorderReconnectOwnership ownership = null;
+            await RecorderQualificationCleanupOrchestrator
+                .CleanupAndRethrowPrimaryAsync(
+                    primaryError,
+                    async () =>
+                    {
+                        try
+                        {
+                            ownership = await CleanupRecorderReconnectAsync(
+                                endpoint,
+                                expectation,
+                                adoptedConnection,
+                                adoptedIdentity,
+                                adoptionValidated,
+                                scope);
+                        }
+                        catch (Exception cleanupError)
+                        {
+                            if (recorderIdentity != null
+                                && !recorderIdentity.IsRecorderReleased)
+                            {
+                                PreserveRecorderQualificationRecovery(
+                                    null,
+                                    recorderIdentity,
+                                    scope,
+                                    cleanupError);
+                            }
+
+                            WriteQualificationLog(
+                                "event=CLEANUP_RECOVERY_REQUIRED",
+                                "scope=" + scope,
+                                "bootId=0x"
+                                    + expectation.DiagnosticsBootId.ToString("X8"),
+                                "recordId=" + expectation.RecordId,
+                                "bufferId=" + expectation.BufferId,
+                                "primaryError=" + QualificationValue(
+                                    primaryError == null
+                                        ? "none"
+                                        : primaryError.GetType().Name + ": "
+                                            + primaryError.Message),
+                                "cleanupError=" + QualificationValue(
+                                    cleanupError.GetType().Name + ": "
+                                    + cleanupError.Message),
+                                "automaticRelease=false",
+                                "recoveryHandle=" + (recorderIdentity == null
+                                    ? "UNAVAILABLE"
+                                    : "PRESERVED_IN_MANUAL_RECORDER_UI"),
+                                "verdict=FAIL");
+                            throw;
+                        }
+                    },
+                    (primary, cleanup) =>
+                        CreateRecorderQualificationCleanupException(
+                            scope,
+                            primary,
+                            cleanup));
+            return ownership;
+        }
+
+        private async Task<RecorderReconnectOwnership>
+            CleanupRecorderReconnectAsync(
+                RecorderReconnectEndpoint endpoint,
+                RecorderReconnectExpectation expectation,
+                LMCConnection adoptedConnection,
+                LMCRecorderIdentity adoptedIdentity,
+                bool adoptionValidated,
+                string scope)
+        {
+            RecorderReconnectQualificationPolicy
+                .EnsureAutomaticCleanupAllowed(
+                    adoptedIdentity != null,
+                    adoptionValidated);
+
+            var currentConnection = adoptedConnection;
+            var identity = adoptedIdentity;
+            var ownsIdentity = currentConnection != null
+                && ReferenceEquals(connection, currentConnection)
+                && currentConnection.IsConnected
+                && identity != null;
+            if (!ownsIdentity)
+            {
+                currentConnection = connection;
+                if (currentConnection == null || !currentConnection.IsConnected)
+                {
+                    currentConnection =
+                        await OpenRecorderQualificationConnectionAsync(
+                            endpoint,
+                            CancellationToken.None,
+                            true);
+                }
+
+                var capabilities =
+                    await RefreshRecorderReconnectCapabilitiesAsync(
+                        currentConnection,
+                        expectation,
+                        false,
+                        CancellationToken.None,
+                        true);
+                ApplyRecorderReconnectCapabilitiesToUi(capabilities);
+                identity = await AdoptRecorderReconnectAsync(
+                    currentConnection.Diagnostics,
+                    expectation,
+                    false,
+                    CancellationToken.None,
+                    true,
+                    "Recorder reconnect cleanup");
+                AssertRecorderReconnectAdoption(identity, expectation);
+                WriteQualificationLog(
+                    "event=CLEANUP_RECOVERY_ADOPT",
+                    "scope=" + scope,
+                    "recordId=" + identity.RecordId,
+                    "bufferId=" + identity.BufferId,
+                    "newOwnerSessionEpoch=" + identity.OwnerSessionEpoch,
+                    "verdict=PASS");
+            }
+
+            recorderConfiguration = null;
+            recorderIdentity = identity;
+            recorderQualificationRecoveryReleaseOnly = false;
+            recorderQualificationRecoveryStatusConfirmed = false;
+            recorderStatus = null;
+            await CleanupAdoptedRecorderQualificationAsync(
+                currentConnection.Diagnostics,
+                identity,
+                expectation,
+                scope);
+            if (ReferenceEquals(recorderIdentity, identity)
+                && identity.IsRecorderReleased)
+            {
+                recorderIdentity = null;
+            }
+
+            return new RecorderReconnectOwnership(
+                currentConnection,
+                identity);
+        }
+
+        private async Task CleanupAdoptedRecorderQualificationAsync(
+            LMCDiagnostics diagnostics,
+            LMCRecorderIdentity identity,
+            RecorderReconnectExpectation expectation,
+            string scope)
+        {
+            var operations = CreateRecorderReconnectStateOperations(
+                diagnostics,
+                identity,
+                expectation,
+                CancellationToken.None,
+                true,
+                scope + "_ADOPTED");
+            await RecorderQualificationCleanupOrchestrator
+                .CleanupOwnedResourcesAsync(
+                    operations,
+                    RecorderQualificationRpcTimeoutMilliseconds,
+                    RecorderQualificationPollMilliseconds);
+        }
+
         private void EnsureNoActiveRecorderQualificationConflict()
         {
             if ((recorderConfiguration != null
@@ -918,6 +2011,8 @@ namespace LasalMotionControlApiExample
                 () => diagnostics.GetRecorderHeaderAsync(
                     identity,
                     CancellationToken.None));
+            RecorderQualificationCleanupOrchestrator
+                .ThrowIfCancellationRequestedAfterRpc(cancellationToken);
             if (header == null)
             {
                 throw new InvalidOperationException(
@@ -979,6 +2074,8 @@ namespace LasalMotionControlApiExample
                     () => diagnostics.ReadRecorderChunkAsync(
                         request,
                         CancellationToken.None));
+                RecorderQualificationCleanupOrchestrator
+                    .ThrowIfCancellationRequestedAfterRpc(cancellationToken);
                 if (chunk == null)
                 {
                     throw new InvalidOperationException(
@@ -1028,6 +2125,9 @@ namespace LasalMotionControlApiExample
                 }
             }
 
+            RecorderQualificationCleanupOrchestrator
+                .ThrowIfCancellationRequestedAfterRpc(cancellationToken);
+
             WriteQualificationLog(
                 "event=RECORDER_DOWNLOAD",
                 "stage=" + stage,
@@ -1049,38 +2149,118 @@ namespace LasalMotionControlApiExample
             string scope,
             Exception primaryError)
         {
-            try
-            {
-                await CleanupRecorderQualificationAsync(
-                    diagnostics,
-                    handle,
-                    identity,
-                    scope);
-            }
-            catch (Exception cleanupError)
-            {
-                WriteQualificationLog(
-                    "event=CLEANUP",
-                    "scope=" + scope,
-                    "verdict=FAIL",
-                    "primaryError=" + QualificationValue(
-                        primaryError == null
-                            ? "none"
-                            : primaryError.GetType().Name + ": "
-                                + primaryError.Message),
-                    "cleanupError=" + QualificationValue(
-                        cleanupError.GetType().Name + ": "
-                        + cleanupError.Message));
-                if (primaryError == null)
-                {
-                    throw;
-                }
-
-                throw CreateRecorderQualificationCleanupException(
-                    scope,
+            await RecorderQualificationCleanupOrchestrator
+                .CleanupAndRethrowPrimaryAsync(
                     primaryError,
-                    cleanupError);
+                    async () =>
+                    {
+                        try
+                        {
+                            await CleanupRecorderQualificationAsync(
+                                diagnostics,
+                                handle,
+                                identity,
+                                scope);
+                        }
+                        catch (Exception cleanupError)
+                        {
+                            PreserveRecorderQualificationRecovery(
+                                handle,
+                                identity,
+                                scope,
+                                cleanupError);
+                            WriteQualificationLog(
+                                "event=CLEANUP",
+                                "scope=" + scope,
+                                "verdict=FAIL",
+                                "primaryError=" + QualificationValue(
+                                    primaryError == null
+                                        ? "none"
+                                        : primaryError.GetType().Name + ": "
+                                            + primaryError.Message),
+                                "cleanupError=" + QualificationValue(
+                                    cleanupError.GetType().Name + ": "
+                                    + cleanupError.Message),
+                                "recoveryHandle=PRESERVED_IN_MANUAL_RECORDER_UI");
+                            throw;
+                        }
+                    },
+                    (primary, cleanup) =>
+                        CreateRecorderQualificationCleanupException(
+                            scope,
+                            primary,
+                            cleanup));
+        }
+
+        private void PreserveRecorderQualificationRecovery(
+            LMCRecorderConfigurationHandle handle,
+            LMCRecorderIdentity identity,
+            string scope,
+            Exception cleanupError)
+        {
+            if (handle != null && !handle.IsReleased)
+            {
+                recorderConfiguration = handle;
             }
+
+            if (identity != null && !identity.IsRecorderReleased)
+            {
+                recorderIdentity = identity;
+            }
+
+            recorderQualificationRecoveryReleaseOnly = true;
+            recorderQualificationRecoveryStatusConfirmed = false;
+            recorderStatus = null;
+            TextRecorderSummary.Text =
+                "Recorder qualification cleanup failed for "
+                + scope
+                + ". The same-session ownership was quarantined; inspect Status "
+                + "before explicit state-aware Release cleanup. Config-only "
+                + "tails can be retried without Status. Error="
+                + cleanupError.Message;
+            UpdateUiState();
+        }
+
+        private void PreserveUnvalidatedRecorderAdoption(
+            LMCRecorderIdentity adoptedIdentity,
+            string scope,
+            Exception validationError)
+        {
+            RecorderReconnectQualificationPolicy
+                .QuarantineUnvalidatedAdoption(
+                    adoptedIdentity,
+                    false,
+                    identity =>
+                    {
+                        recorderConfiguration = null;
+                        recorderIdentity = identity;
+                        recorderQualificationRecoveryReleaseOnly = true;
+                        recorderQualificationRecoveryStatusConfirmed = false;
+                    });
+            recorderStatus = null;
+            UpdateRecorderAdoptionFields(adoptedIdentity);
+            TextRecorderSummary.Text =
+                "Recorder Adopt returned an ownership handle, but reconnect "
+                + "identity validation failed for "
+                + scope
+                + ". No automatic Status, Stop, or Release command was sent. "
+                    + "Read Status manually to confirm the quarantined identity. "
+                    + "Release Recorder will then run the allowed state-aware "
+                    + "Stop/poll/Release route. Error="
+                + (validationError == null
+                    ? "unknown"
+                    : validationError.Message);
+            WriteQualificationLog(
+                "event=RECORDER_RECOVERY_HANDLE_QUARANTINED",
+                "scope=" + scope,
+                "recordId=" + adoptedIdentity.RecordId,
+                "bufferId=" + adoptedIdentity.BufferId,
+                "ownerSessionEpoch=" + adoptedIdentity.OwnerSessionEpoch,
+                "automaticMutation=false",
+                "statusConfirmationRequired=true",
+                "recoveryHandle=PRESERVED_IN_MANUAL_RECORDER_UI",
+                "verdict=FAIL");
+            UpdateUiState();
         }
 
         private static InvalidOperationException
@@ -1109,105 +2289,26 @@ namespace LasalMotionControlApiExample
             LMCRecorderIdentity identity,
             string scope)
         {
-            if (identity != null && !identity.IsBufferReleased)
+            var operations = CreateRecorderOwnedCleanupOperations(
+                diagnostics,
+                handle,
+                identity,
+                scope);
+            await RecorderQualificationCleanupOrchestrator
+                .CleanupOwnedResourcesAsync(
+                    operations,
+                    RecorderQualificationRpcTimeoutMilliseconds,
+                    RecorderQualificationPollMilliseconds);
+            if (ReferenceEquals(recorderIdentity, identity)
+                && (identity == null || identity.IsRecorderReleased))
             {
-                var status = await SendQualificationCleanupCommandAsync(
-                    "Recorder cleanup status " + scope,
-                    () => diagnostics.GetRecorderStatusAsync(
-                        identity,
-                        CancellationToken.None));
-                AssertRecorderStatusIdentity(status, identity, handle);
-                if (status.State == LMCRecorderState.Armed
-                    || status.State == LMCRecorderState.Recording)
-                {
-                    try
-                    {
-                        await SendQualificationCleanupCommandAsync(
-                            "Recorder cleanup Stop " + scope,
-                            () => diagnostics.StopRecorderAsync(
-                                identity,
-                                CancellationToken.None));
-                    }
-                    catch (LMCDiagnosticsCommandException error)
-                        when (error.Response != null
-                            && error.Response.Detail
-                                == LMCDiagnosticsDetailCode.InvalidState)
-                    {
-                        status = await SendQualificationCleanupCommandAsync(
-                            "Recorder cleanup status after rejected Stop "
-                                + scope,
-                            () => diagnostics.GetRecorderStatusAsync(
-                                identity,
-                                CancellationToken.None));
-                        AssertRecorderStatusIdentity(status, identity, handle);
-                        if (!status.IsFrozen)
-                        {
-                            throw;
-                        }
-                    }
-
-                    status = await WaitForRecorderCleanupReadyAsync(
-                        diagnostics,
-                        identity,
-                        handle,
-                        scope);
-                }
-
-                if (status.State == LMCRecorderState.Fault)
-                {
-                    WriteQualificationLog(
-                        "event=CLEANUP_RECOVERY_REQUIRED",
-                        "scope=" + scope,
-                        "state=Fault",
-                        "bufferReleased=false",
-                        "configurationReleased=false",
-                        "verdict=FAIL");
-                    throw new InvalidOperationException(
-                        "Recorder cleanup found a Fault buffer. PLC 0x7E47 does not release Fault state; explicit recovery is required.");
-                }
-
-                if (status.State != LMCRecorderState.Ready
-                    && status.State != LMCRecorderState.Uploading)
-                {
-                    throw new InvalidOperationException(
-                        "Recorder cleanup cannot release a buffer in State="
-                        + status.State
-                        + ".");
-                }
-
-                await SendQualificationCleanupCommandAsync(
-                    "Recorder cleanup buffer Release " + scope,
-                    () => diagnostics.ReleaseRecorderBufferAsync(
-                        identity,
-                        CancellationToken.None));
-                WriteQualificationLog(
-                    "event=CLEANUP_BUFFER_RELEASE",
-                    "scope=" + scope,
-                    "recordId=" + identity.RecordId,
-                    "bufferId=" + identity.BufferId,
-                    "stateBeforeRelease=" + status.State,
-                    "verdict=PASS");
+                recorderIdentity = null;
             }
 
-            if (handle != null && !handle.IsReleased)
+            if (ReferenceEquals(recorderConfiguration, handle)
+                && (handle == null || handle.IsReleased))
             {
-                if (identity != null && !identity.IsBufferReleased)
-                {
-                    throw new InvalidOperationException(
-                        "Recorder configuration release was blocked because its buffer is not released.");
-                }
-
-                await SendQualificationCleanupCommandAsync(
-                    "Recorder cleanup configuration Release " + scope,
-                    () => diagnostics.ReleaseRecorderAsync(
-                        handle,
-                        CancellationToken.None));
-                WriteQualificationLog(
-                    "event=CLEANUP_CONFIG_RELEASE",
-                    "scope=" + scope,
-                    "configId=" + handle.ConfigId,
-                    "releasePath=CONFIGURATION_HANDLE",
-                    "verdict=PASS");
+                recorderConfiguration = null;
             }
         }
 
@@ -1312,51 +2413,6 @@ namespace LasalMotionControlApiExample
                 "configurationLocalBlock=PASS",
                 "secondWireExpected=0",
                 "verdict=PASS");
-        }
-
-        private async Task<LMCRecorderStatus> WaitForRecorderCleanupReadyAsync(
-            LMCDiagnostics diagnostics,
-            LMCRecorderIdentity identity,
-            LMCRecorderConfigurationHandle handle,
-            string scope)
-        {
-            var stopwatch = Stopwatch.StartNew();
-            while (stopwatch.ElapsedMilliseconds
-                <= RecorderQualificationRpcTimeoutMilliseconds)
-            {
-                var status = await SendQualificationCleanupCommandAsync(
-                    "Recorder cleanup Ready poll " + scope,
-                    () => diagnostics.GetRecorderStatusAsync(
-                        identity,
-                        CancellationToken.None));
-                AssertRecorderStatusIdentity(status, identity, handle);
-                if (status.State == LMCRecorderState.Fault)
-                {
-                    WriteQualificationLog(
-                        "event=CLEANUP_RECOVERY_REQUIRED",
-                        "scope=" + scope,
-                        "state=Fault",
-                        "bufferReleased=false",
-                        "configurationReleased=false",
-                        "verdict=FAIL");
-                    throw new InvalidOperationException(
-                        "Recorder cleanup entered Fault state; PLC 0x7E47 cannot release this buffer.");
-                }
-
-                if (status.State == LMCRecorderState.Ready)
-                {
-                    return status;
-                }
-
-                await Task.Delay(RecorderQualificationPollMilliseconds);
-            }
-
-            throw new TimeoutException(
-                "Recorder cleanup "
-                + scope
-                + " did not reach releasable Ready state within "
-                + RecorderQualificationRpcTimeoutMilliseconds
-                + " ms.");
         }
 
         private static void AssertRecorderConfigurationHandle(
@@ -1605,6 +2661,47 @@ namespace LasalMotionControlApiExample
             public LMCSignalCatalogEntry[] Signals { get; set; }
             public uint[] SignalIds { get; set; }
             public LMCSignalCatalogEntry TriggerSignal { get; set; }
+        }
+
+        private sealed class RecorderReconnectEndpoint
+        {
+            public string RemoteIp { get; set; }
+            public int RemotePort { get; set; }
+            public string LocalIp { get; set; }
+            public int CallbackPort { get; set; }
+        }
+
+        private sealed class RecorderReconnectExpectation
+        {
+            public uint DiagnosticsBootId { get; set; }
+            public uint RecordId { get; set; }
+            public uint BufferId { get; set; }
+            public uint OwnerSessionEpoch { get; set; }
+            public uint ConfigId { get; set; }
+            public uint ConfigRevision { get; set; }
+            public uint MapRevision { get; set; }
+            public uint Capacity { get; set; }
+            public uint SamplePeriodUs { get; set; }
+            public ushort ChannelCount { get; set; }
+            public LMCRecorderBufferMode BufferMode { get; set; }
+            public LMCRecorderTriggerType TriggerType { get; set; }
+            public uint PreTriggerSamples { get; set; }
+            public uint PostTriggerSamples { get; set; }
+            public uint[] SignalIds { get; set; }
+        }
+
+        private sealed class RecorderReconnectOwnership
+        {
+            public RecorderReconnectOwnership(
+                LMCConnection connection,
+                LMCRecorderIdentity identity)
+            {
+                Connection = connection;
+                Identity = identity;
+            }
+
+            public LMCConnection Connection { get; private set; }
+            public LMCRecorderIdentity Identity { get; private set; }
         }
 
         private sealed class RecorderQualificationDownload

@@ -74,6 +74,35 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="MainWindow.Qualification.Transport.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.Sdo.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TransportQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderReconnectQualificationPolicy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupStopQualificationOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BulkQualificationCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BulkPartialQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="D5SdoQualificationAnalysis.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecorderQualificationCleanupOrchestrator.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MainWindow.Qualification.Bulk.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

@@ -648,6 +648,41 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <Border
+                                        Margin="0,8,8,4"
+                                        Padding="8"
+                                        BorderBrush="#CBD3DC"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="Phase 5 read-only transport qualification" />
+                                            <TextBlock
+                                                Foreground="#5F6B7A"
+                                                Text="Sequentially reads Group Status (0x2045) and requires stable InPosition throughout. Run only with an exclusive PLC session. Reported latency is the PC API RPC elapsed time (UI dispatch and command-gate wait excluded); it is not PLC dispatch time, task jitter, or an overrun measurement. Cancel takes effect before the next RPC; the current RPC is allowed to finish."
+                                                TextWrapping="Wrap" />
+                                            <WrapPanel Margin="0,4,0,0">
+                                                <StackPanel Width="150">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Warm-up requests" />
+                                                    <TextBox x:Name="TextQualificationTransportWarmup" Text="100" />
+                                                </StackPanel>
+                                                <StackPanel Width="170">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Measured requests (min 10000)" />
+                                                    <TextBox x:Name="TextQualificationTransportIterations" Text="10000" />
+                                                </StackPanel>
+                                                <Button
+                                                    x:Name="ButtonRunTransportQualification"
+                                                    Click="ButtonRunTransportQualification_Click"
+                                                    Content="Run Read-only 0x2045 RPC" />
+                                                <Button
+                                                    x:Name="ButtonSaveTransportQualificationCsv"
+                                                    Click="ButtonSaveTransportQualificationCsv_Click"
+                                                    Content="Save RPC CSV" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+
                                     <WrapPanel>
                                         <Button
                                             x:Name="ButtonRunGroupEnableQualification"
@@ -855,7 +890,7 @@
                             <StackPanel>
                                 <TextBlock
                                     Foreground="#5F6B7A"
-                                    Text="The runner reloads Capabilities and the PI Catalog, selects exactly all 24 BulkReadable entries in Catalog order, uses the revision-bound builder facade, and always releases the reader. It does not inject an EtherCAT slave fault."
+                                    Text="The runner reloads Capabilities and the PI Catalog, selects exactly all 24 BulkReadable entries in Catalog order, uses the revision-bound builder facade, and always releases the reader. The Partial workflow never injects a fault: with Group PowerOff and Disabled, the operator makes exactly one slave Online=False (not merely non-OP), resumes, restores that same slave to OP, and resumes again."
                                     TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,4,0,0">
                                     <StackPanel>
@@ -876,6 +911,15 @@
                                         x:Name="ButtonRunBulkLifecycleQualification"
                                         Click="ButtonRunBulkLifecycleQualification_Click"
                                         Content="Run Configure/Read/Release Soak" />
+                                    <Button
+                                        x:Name="ButtonRunBulkPartialQualification"
+                                        Click="ButtonRunBulkPartialQualification_Click"
+                                        Content="Run One-Slave-Offline Partial" />
+                                    <Button
+                                        x:Name="ButtonResumeBulkPartialQualification"
+                                        Click="ButtonResumeBulkPartialQualification_Click"
+                                        Content="Resume External Step"
+                                        IsEnabled="False" />
                                     <Button
                                         x:Name="ButtonCancelBulkQualification"
                                         Click="ButtonCancelQualification_Click"
@@ -1141,7 +1185,7 @@
                             <StackPanel>
                                 <TextBlock
                                     Foreground="#5F6B7A"
-                                    Text="Single validates two identical downloads. Ring uses the advertised local forced-trigger path. Trigger Soak repeats a compact 32-sample lifecycle and releases both buffer and configuration every cycle. Reconnect/adopt and external RT evidence remain separate operator workflows."
+                                    Text="Single validates two identical downloads. Ring uses the advertised local forced-trigger path. Trigger Soak repeats a compact 32-sample lifecycle. Reconnect Exact and Discovery intentionally close and reopen this app's RPC connection, adopt the preserved Ring Recorder, download it, and release it. External RT evidence remains a separate operator workflow."
                                     TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,4,0,0">
                                     <StackPanel>
@@ -1168,6 +1212,14 @@
                                         x:Name="ButtonRunRecorderSoakQualification"
                                         Click="ButtonRunRecorderSoakQualification_Click"
                                         Content="Run Trigger Lifecycle Soak" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderReconnectExactQualification"
+                                        Click="ButtonRunRecorderReconnectExactQualification_Click"
+                                        Content="Run Reconnect Exact Adopt" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderReconnectDiscoveryQualification"
+                                        Click="ButtonRunRecorderReconnectDiscoveryQualification_Click"
+                                        Content="Run Reconnect 0/0 Discovery" />
                                     <Button
                                         x:Name="ButtonCancelRecorderQualification"
                                         Click="ButtonCancelQualification_Click"
@@ -1284,6 +1336,111 @@
                                     Text="SDO Read: bit 13 enables editable nonzero object index, sub-index 0..255, and exact 1/2/4-byte typed reads. A bit-8-only PLC falls back to fixed 0x1000:0 UInt32/4. Refresh Ticket retrieves the inline result; SDO Write is unavailable."
                                     TextWrapping="Wrap" />
                             </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="D5 SDO Abort -&gt; Recovery qualification (read-only)">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#8A4A00"
+                                    Text="This runner never writes an SDO and never injects an EtherCAT fault. Select a manufacturer-approved nonexistent read-only object/sub-index that produces a real SDO abort. The selected Slave 1..4 is mapped to _LMCAxis1..4; the runner requires three stable PowerOn=False, Standstill=True position samples before submitting any D5 ticket."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    Foreground="#5F6B7A"
+                                    Text="Sequence: stable nonzero BootId/MapRevision -&gt; baseline 0x6061:0 Int8/1 -&gt; abort candidate -&gt; new 0x6061:0 Int8/1 with the exact baseline value. PASS requires abort Failed/Failed, ErrorId=-32000, a nonzero raw abort code, no result, and exact same-Boot recovery. Cancel Runner does not send PLC Stop; it cancels a queued D5 ticket when possible or waits a bounded time for a running ticket to become terminal. Stop and PowerOff retain priority."
+                                    TextWrapping="Wrap" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort slave (1..4)" />
+                                        <TextBox x:Name="TextD5SdoAbortSlaveReference" Width="105" Text="1" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort object index" />
+                                        <TextBox x:Name="TextD5SdoAbortIndex" Width="130" Text="0xFFFF" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort sub-index" />
+                                        <TextBox x:Name="TextD5SdoAbortSubIndex" Width="105" Text="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="3">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort value type" />
+                                        <ComboBox
+                                            x:Name="ComboD5SdoAbortValueType"
+                                            Width="125"
+                                            SelectedIndex="4">
+                                            <ComboBoxItem Content="Bool" />
+                                            <ComboBoxItem Content="Int8" />
+                                            <ComboBoxItem Content="UInt8" />
+                                            <ComboBoxItem Content="BitField8" />
+                                            <ComboBoxItem Content="UInt32" />
+                                            <ComboBoxItem Content="Int32" />
+                                            <ComboBoxItem Content="Real32" />
+                                            <ComboBoxItem Content="BitField32" />
+                                            <ComboBoxItem Content="Int16" />
+                                            <ComboBoxItem Content="UInt16" />
+                                            <ComboBoxItem Content="BitField16" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="4">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Data length" />
+                                        <TextBox x:Name="TextD5SdoAbortDataLength" Width="105" Text="4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="5">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout cycles" />
+                                        <TextBox x:Name="TextD5SdoAbortTimeoutCycles" Width="120" Text="1000" />
+                                    </StackPanel>
+
+                                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="6">
+                                        <Button
+                                            x:Name="ButtonRunD5SdoAbortQualification"
+                                            Click="ButtonRunD5SdoAbortQualification_Click"
+                                            Content="Run D5 Abort -&gt; Recovery" />
+                                        <Button
+                                            x:Name="ButtonCancelD5SdoQualification"
+                                            Click="ButtonCancelD5SdoQualification_Click"
+                                            Content="Cancel Runner (not PLC Stop)"
+                                            IsEnabled="False" />
+                                        <Button
+                                            x:Name="ButtonSaveD5SdoQualificationLog"
+                                            Click="ButtonSaveQualificationLog_Click"
+                                            Content="Save QTEST Log" />
+                                    </WrapPanel>
+                                </Grid>
+                                <ProgressBar
+                                    x:Name="ProgressD5SdoQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextD5SdoQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No D5 SDO qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextD5SdoQualificationSummary"
+                                    Height="200"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured D5 QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
                         </GroupBox>
 
                         <GroupBox Header="PI Write policy gate">

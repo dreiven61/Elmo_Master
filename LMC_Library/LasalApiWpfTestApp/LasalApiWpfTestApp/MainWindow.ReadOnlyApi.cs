@@ -81,8 +81,12 @@ namespace LasalMotionControlApiExample
             ButtonReadAdminGroupParameters.IsEnabled = connected
                 && idle
                 && canReadGroupParameters;
-            ButtonGetDriveOperationMode.IsEnabled = connected && idle;
-            ButtonReadDriveStatus.IsEnabled = connected && idle;
+            ButtonGetDriveOperationMode.IsEnabled = connected
+                && idle
+                && !HasUnresolvedD5SdoQualificationTicket;
+            ButtonReadDriveStatus.IsEnabled = connected
+                && idle
+                && !HasUnresolvedD5SdoQualificationTicket;
 
             ComboAdminAxisReference.IsEnabled = idle;
             ComboAdminAxisParameter.IsEnabled = idle;
@@ -181,12 +185,21 @@ namespace LasalMotionControlApiExample
                 "Get Drive Operation Mode",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Get Drive Operation Mode");
                     var axisReference = RequirePhysicalAxisReference(
                         ComboDriveReadAxisReference,
                         "Drive axis reference");
+                    var currentConnection = RequireConnection();
                     var currentAxis = await GetPhysicalAxisAsync(axisReference);
-                    var result = await currentAxis.GetDriveOperationModeAsync(
-                        CancellationToken.None);
+                    var result = await RunTrackedExternalD5ReadAsync(
+                        currentConnection,
+                        axisReference,
+                        LMCSingleAxis.DefaultDriveReadTimeoutCycles,
+                        "drive-operation-mode-0x6061",
+                        1,
+                        () => currentAxis.GetDriveOperationModeAsync(
+                            CancellationToken.None));
                     TextDriveReadResult.Text =
                         FormatDriveOperationMode(result);
                 });
@@ -200,12 +213,21 @@ namespace LasalMotionControlApiExample
                 "Read Drive Status",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Read Drive Status");
                     var axisReference = RequirePhysicalAxisReference(
                         ComboDriveReadAxisReference,
                         "Drive axis reference");
+                    var currentConnection = RequireConnection();
                     var currentAxis = await GetPhysicalAxisAsync(axisReference);
-                    var result = await currentAxis.ReadDriveStatusAsync(
-                        CancellationToken.None);
+                    var result = await RunTrackedExternalD5ReadAsync(
+                        currentConnection,
+                        axisReference,
+                        LMCSingleAxis.DefaultDriveReadTimeoutCycles,
+                        "drive-status-0x6041-0x6061",
+                        2,
+                        () => currentAxis.ReadDriveStatusAsync(
+                            CancellationToken.None));
                     TextDriveReadResult.Text = FormatDriveStatus(result);
                 });
         }

@@ -169,6 +169,14 @@ namespace LasalMotionControlApiExample
                 "Connect",
                 async () =>
                 {
+                    if (HasUnresolvedD5SdoQualificationTicket
+                        && connection != null
+                        && connection.IsConnected)
+                    {
+                        throw new InvalidOperationException(
+                            "Reconnect is blocked while a D5 ticket or submission outcome is unresolved. Resolve it first; reconnect is allowed only after an external connection loss.");
+                    }
+
                     if (motionMayBeActive)
                     {
                         throw new InvalidOperationException(
@@ -230,7 +238,16 @@ namespace LasalMotionControlApiExample
         {
             await RunOperationAsync(
                 "Close Connection",
-                () => CloseCurrentConnectionAsync(true),
+                () =>
+                {
+                    if (HasUnresolvedD5SdoQualificationTicket)
+                    {
+                        throw new InvalidOperationException(
+                            "Close Connection is blocked while a D5 ticket or submission outcome is unresolved. Resolve D5 Quarantine first.");
+                    }
+
+                    return CloseCurrentConnectionAsync(true);
+                },
                 true);
         }
 
@@ -402,7 +419,6 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonPowerOff_Click(object sender, RoutedEventArgs e)
         {
-            CancelQualificationForExternalSafety("Axis Power Off", false);
             LMCSingleAxis currentAxis = null;
             var sent = await RunSafetyCommandAsync(
                 "Power Off Send",
@@ -413,7 +429,10 @@ namespace LasalMotionControlApiExample
                         CancellationToken.None);
                     EnsureResponseSuccess("Power Off", response);
                     TextAxisResult.Text = FormatResponse(response);
-                });
+                },
+                () => CancelQualificationForExternalSafety(
+                    "Axis Power Off",
+                    false));
 
             if (!sent || currentAxis == null)
             {
@@ -460,7 +479,6 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonStop_Click(object sender, RoutedEventArgs e)
         {
-            CancelQualificationForExternalSafety("Axis Stop", false);
             LMCSingleAxis currentAxis = null;
             var sent = await RunSafetyCommandAsync(
                 "Stop Send",
@@ -474,7 +492,10 @@ namespace LasalMotionControlApiExample
                         CancellationToken.None);
                     EnsureResponseSuccess("Stop", response);
                     TextAxisResult.Text = FormatResponse(response);
-                });
+                },
+                () => CancelQualificationForExternalSafety(
+                    "Axis Stop",
+                    false));
 
             if (!sent || currentAxis == null)
             {
@@ -1060,7 +1081,6 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
-            CancelQualificationForExternalSafety("Group Power Off", true);
             LMCGroupAxis currentGroup = null;
             var sent = await RunSafetyCommandAsync(
                 "Group Power Off Send",
@@ -1082,7 +1102,10 @@ namespace LasalMotionControlApiExample
                     WriteLog(
                         "Group Power Off accepted/start only. Read Status must "
                         + "verify PowerOn=False.");
-                });
+                },
+                () => CancelQualificationForExternalSafety(
+                    "Group Power Off",
+                    true));
 
             if (sent && currentGroup != null)
             {
@@ -1143,6 +1166,8 @@ namespace LasalMotionControlApiExample
                 "Group Disable (Unlock Profile)",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Group Disable (Unlock Profile)");
                     var currentGroup = RequireGroup();
                     var response = await SendSerializedCommandAsync(
                         () => currentGroup.GroupDisableAsync(
@@ -1194,7 +1219,6 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
-            CancelQualificationForExternalSafety("Group Stop", true);
             LMCGroupAxis currentGroup = null;
             var sent = await RunSafetyCommandAsync(
                 "Group Stop Send",
@@ -1208,7 +1232,10 @@ namespace LasalMotionControlApiExample
                         CancellationToken.None);
                     EnsureResponseSuccess("Group Stop", response);
                     TextGroupResult.Text = FormatResponse(response);
-                });
+                },
+                () => CancelQualificationForExternalSafety(
+                    "Group Stop",
+                    true));
 
             if (!sent || currentGroup == null)
             {
@@ -1849,7 +1876,8 @@ namespace LasalMotionControlApiExample
 
         private async Task<bool> RunSafetyCommandAsync(
             string operation,
-            Func<Task> action)
+            Func<Task> action,
+            Action safetyReserved = null)
         {
             safetyRequestGeneration++;
             if (safetyCommandRunning)
@@ -1864,6 +1892,11 @@ namespace LasalMotionControlApiExample
 
             try
             {
+                if (safetyReserved != null)
+                {
+                    safetyReserved();
+                }
+
                 WriteLog(operation + " queued with safety priority.");
                 await commandSendGate.WaitAsync();
                 try
@@ -1901,6 +1934,7 @@ namespace LasalMotionControlApiExample
             await commandSendGate.WaitAsync();
             try
             {
+                EnsureNoUnresolvedD5SdoQualificationTicket(operation);
                 EnsureNoNewSafetyRequest(
                     expectedSafetyGeneration,
                     operation);
@@ -2522,6 +2556,14 @@ namespace LasalMotionControlApiExample
 
         private bool CanStartLiveCommand(string operation)
         {
+            if (HasUnresolvedD5SdoQualificationTicket)
+            {
+                WriteLog(
+                    operation
+                    + " blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                return false;
+            }
+
             if (motionMayBeActive)
             {
                 WriteLog(
@@ -3497,7 +3539,11 @@ namespace LasalMotionControlApiExample
                 && !qualificationRunning;
             var safetySendAvailable = !safetyCommandRunning
                 && !connectionTransitionRunning;
-            var liveCommandAllowed = idle && !motionMayBeActive;
+            var d5TicketUnresolved =
+                HasUnresolvedD5SdoQualificationTicket;
+            var liveCommandAllowed = idle
+                && !motionMayBeActive
+                && !d5TicketUnresolved;
             var groupPowerTransitionPending = groupPowerVerificationPending
                 || groupPowerOffVerificationPending;
             var groupMotionCoordinateReady =
@@ -3505,11 +3551,14 @@ namespace LasalMotionControlApiExample
                     groupCoordinate
                 && groupCoordinate == LMC_COORD_SYSTEM.None;
 
-            ButtonConnect.IsEnabled = idle && !motionMayBeActive;
+            ButtonConnect.IsEnabled = idle
+                && !motionMayBeActive
+                && (!d5TicketUnresolved || !connected);
             ButtonCloseConnection.IsEnabled =
                 idle
                 && currentConnection != null
                 && !motionMayBeActive
+                && !d5TicketUnresolved
                 && !groupPowerTransitionPending;
             TextRemoteIp.IsEnabled = idle && currentConnection == null;
             TextRemotePort.IsEnabled = idle && currentConnection == null;
@@ -3585,6 +3634,7 @@ namespace LasalMotionControlApiExample
             ButtonGroupDisable.IsEnabled = groupReady
                 && idle
                 && !motionMayBeActive
+                && !d5TicketUnresolved
                 && !groupPowerOffVerificationPending
                 && groupProfileLocked;
             ButtonGroupReset.IsEnabled = groupReady
@@ -3676,7 +3726,9 @@ namespace LasalMotionControlApiExample
                     + (trackedGroup
                         ? ". Use Group Stop and verify InPosition."
                         : ". Use Stop or PowerOff and verify standstill.")
-                : "Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion.";
+                : d5TicketUnresolved
+                    ? "SAFETY: a D5 ticket or submission outcome is unresolved. New motion/diagnostic mutation and Close are blocked; Stop, PowerOff, existing-resource cleanup, read-only checks, and Resolve remain available."
+                    : "Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion.";
         }
 
         private string GetGroupPreparationStateText(bool groupReady)
@@ -3816,6 +3868,13 @@ namespace LasalMotionControlApiExample
                     + " may still be active on "
                     + motionAxisName
                     + ". No Stop command is sent automatically.");
+            }
+
+            if (HasUnresolvedD5SdoQualificationTicket)
+            {
+                WriteLog(
+                    "Window close is blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                return;
             }
 
             shutdownInProgress = true;

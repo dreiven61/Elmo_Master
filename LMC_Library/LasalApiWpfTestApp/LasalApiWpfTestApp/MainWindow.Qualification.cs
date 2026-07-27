@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ namespace LasalMotionControlApiExample
     {
         private const int QualificationStableSamples = 3;
         private const int QualificationPollMilliseconds = 50;
+        private const int QualificationCleanupGateTimeoutMilliseconds = 15000;
         private const int MaximumQualificationDeltaMagnitudeRaw = 1000000;
 
         private readonly List<string> qualificationLogLines =
@@ -126,6 +128,19 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
+            var isD5PendingCleanup = string.Equals(
+                scenario,
+                "D5SdoPendingCleanup",
+                StringComparison.Ordinal);
+            if (HasUnresolvedD5SdoQualificationTicket
+                && !isD5PendingCleanup)
+            {
+                WriteLog(
+                    scenario
+                    + " qualification is blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                return;
+            }
+
             var currentConnection = connection;
             if (currentConnection == null || !currentConnection.IsConnected)
             {
@@ -153,7 +168,13 @@ namespace LasalMotionControlApiExample
             qualificationExternalSafetyOperation = null;
             qualificationExternalGroupSafety = false;
             qualificationSafetyGeneration = safetyRequestGeneration;
-            qualificationLogLines.Clear();
+            var preservedQualificationLogLineCount =
+                qualificationLogLines.Count;
+            if (!isD5PendingCleanup)
+            {
+                qualificationLogLines.Clear();
+                preservedQualificationLogLineCount = 0;
+            }
             SetQualificationProgress(0, scenario + " preflight");
             TextOperationState.Text = scenario + " running";
             UpdateUiState();
@@ -166,6 +187,15 @@ namespace LasalMotionControlApiExample
                         TextRemoteIp.Text
                         + ":"
                         + TextRemotePort.Text));
+                if (preservedQualificationLogLineCount > 0)
+                {
+                    WriteQualificationLog(
+                        "event=D5_LOG_CONTINUATION",
+                        "preservedLines="
+                            + preservedQualificationLogLineCount.ToString(
+                                CultureInfo.InvariantCulture),
+                        "reason=preserve_original_failure_and_uncertain_submission_evidence");
+                }
                 await action(qualificationCancellation.Token);
                 qualificationCancellation.Token.ThrowIfCancellationRequested();
                 SetQualificationProgress(100, scenario + " PASS");
@@ -266,21 +296,7 @@ namespace LasalMotionControlApiExample
             string operation,
             Func<Task<T>> send)
         {
-            while (true)
-            {
-                while (safetyCommandRunning || safetyMonitorCount > 0)
-                {
-                    await Task.Delay(25);
-                }
-
-                await commandSendGate.WaitAsync();
-                if (!safetyCommandRunning && safetyMonitorCount == 0)
-                {
-                    break;
-                }
-
-                commandSendGate.Release();
-            }
+            await AcquireQualificationCleanupGateAsync(operation);
 
             try
             {
@@ -296,21 +312,7 @@ namespace LasalMotionControlApiExample
             string operation,
             Func<Task> send)
         {
-            while (true)
-            {
-                while (safetyCommandRunning || safetyMonitorCount > 0)
-                {
-                    await Task.Delay(25);
-                }
-
-                await commandSendGate.WaitAsync();
-                if (!safetyCommandRunning && safetyMonitorCount == 0)
-                {
-                    break;
-                }
-
-                commandSendGate.Release();
-            }
+            await AcquireQualificationCleanupGateAsync(operation);
 
             try
             {
@@ -320,6 +322,60 @@ namespace LasalMotionControlApiExample
             {
                 commandSendGate.Release();
             }
+        }
+
+        private async Task AcquireQualificationCleanupGateAsync(
+            string operation)
+        {
+            var timeout = Stopwatch.StartNew();
+            while (true)
+            {
+                while (safetyCommandRunning || safetyMonitorCount > 0)
+                {
+                    var safetyWaitRemaining =
+                        QualificationCleanupGateTimeoutMilliseconds
+                        - checked((int)Math.Min(
+                            int.MaxValue,
+                            timeout.ElapsedMilliseconds));
+                    if (safetyWaitRemaining <= 0)
+                    {
+                        throw CreateQualificationCleanupGateTimeout(
+                            operation);
+                    }
+
+                    await Task.Delay(Math.Min(25, safetyWaitRemaining));
+                }
+
+                var gateWaitRemaining =
+                    QualificationCleanupGateTimeoutMilliseconds
+                    - checked((int)Math.Min(
+                        int.MaxValue,
+                        timeout.ElapsedMilliseconds));
+                if (gateWaitRemaining <= 0
+                    || !await commandSendGate.WaitAsync(gateWaitRemaining))
+                {
+                    throw CreateQualificationCleanupGateTimeout(operation);
+                }
+
+                if (!safetyCommandRunning && safetyMonitorCount == 0)
+                {
+                    return;
+                }
+
+                commandSendGate.Release();
+            }
+        }
+
+        private static TimeoutException CreateQualificationCleanupGateTimeout(
+            string operation)
+        {
+            return new TimeoutException(
+                "Qualification cleanup could not acquire the command gate "
+                + "within "
+                + QualificationCleanupGateTimeoutMilliseconds.ToString(
+                    CultureInfo.InvariantCulture)
+                + " ms while preserving safety-command priority. Operation="
+                + operation);
         }
 
         private async Task RunGroupEnableQualificationAsync(
@@ -910,24 +966,32 @@ namespace LasalMotionControlApiExample
             SetQualificationProgress(20, "Holding command gate");
 
             var gateOwned = false;
-            Task<LMCAdminResponse> moveTask = null;
-            Task<bool> stopTask = null;
+            Action releaseGate = () =>
+            {
+                if (gateOwned)
+                {
+                    commandSendGate.Release();
+                    gateOwned = false;
+                }
+            };
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await commandSendGate.WaitAsync(cancellationToken);
+            gateOwned = true;
+            var expectedGeneration = safetyRequestGeneration;
+            var zeroDelta = new int[4];
+            var options = new LMCGroupMotionOptions
+            {
+                CoordinateSystem = LMC_COORD_SYSTEM.None,
+                TransitionMode = LMC_GROUP_TRANSITION_MODE.ExactStop,
+                BufferMode = LMC_BUFFER_MODE.Buffered,
+                Execute = true
+            };
             var moveDelegateInvocationCount = 0;
+            Task<LMCAdminResponse> moveTask;
+            Task<GroupStopStableStandbyResult> stopTask;
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await commandSendGate.WaitAsync(cancellationToken);
-                gateOwned = true;
-                var expectedGeneration = safetyRequestGeneration;
-                var zeroDelta = new int[4];
-                var options = new LMCGroupMotionOptions
-                {
-                    CoordinateSystem = LMC_COORD_SYSTEM.None,
-                    TransitionMode = LMC_GROUP_TRANSITION_MODE.ExactStop,
-                    BufferMode = LMC_BUFFER_MODE.Buffered,
-                    Execute = true
-                };
-
                 moveTask = SendLiveCommandAsync(
                     expectedGeneration,
                     "Qualification queued zero-delta Move",
@@ -944,26 +1008,33 @@ namespace LasalMotionControlApiExample
                             capabilities,
                             CancellationToken.None);
                     });
-                stopTask = RunSafetyCommandAsync(
-                    "Qualification deterministic Group Stop",
-                    async () =>
-                    {
-                        var response = await currentGroup.GroupStopAsync(
-                            input.DecelerationRaw,
-                            input.JerkRaw,
-                            CancellationToken.None);
-                        EnsureResponseSuccess(
+                stopTask = GroupStopQualificationOrchestrator
+                    .StopAndVerifyStableStandbyAsync(
+                        currentGroup,
+                        input.DecelerationRaw,
+                        input.JerkRaw,
+                        stop => DispatchQualificationGroupStopAsync(
                             "Qualification deterministic Group Stop",
-                            response);
-                        WriteQualificationLog(
-                            "event=ACK",
-                            "cmd=0x2085",
-                            "verdict=PASS");
-                    });
+                            stop,
+                            true),
+                        status => SendQualificationCleanupCommandAsync(
+                            "Qualification deterministic Group Stop status",
+                            status),
+                        5000,
+                        QualificationPollMilliseconds,
+                        milliseconds => Task.Delay(milliseconds));
+            }
+            catch
+            {
+                releaseGate();
+                throw;
+            }
 
+            await GroupStopQualificationOrchestrator.RunWithFallbackAsync(
+                async () =>
+                {
                 SetQualificationProgress(45, "Releasing gate after Stop request");
-                commandSendGate.Release();
-                gateOwned = false;
+                releaseGate();
 
                 Exception moveError = null;
                 try
@@ -975,12 +1046,7 @@ namespace LasalMotionControlApiExample
                     moveError = error;
                 }
 
-                var stopSent = await stopTask;
-                if (!stopSent)
-                {
-                    throw new InvalidOperationException(
-                        "The deterministic Group Stop send failed.");
-                }
+                var stopResult = await stopTask;
 
                 var expectedMessage =
                     "was cancelled before transmission because Stop or Power Off was requested";
@@ -1007,27 +1073,70 @@ namespace LasalMotionControlApiExample
                     "moveWireExpected=0",
                     "stopWireExpected=1",
                     "verdict=PASS");
-                SetQualificationProgress(70, "Verifying stable InPosition");
-                var status = await WaitForQualificationGroupInPositionAsync(
-                    currentGroup,
-                    5000,
-                    CancellationToken.None,
-                    true);
-                DisplayGroupStatus(status);
+                SetQualificationProgress(
+                    70,
+                    "Verifying stable Group IsStandby");
+                DisplayGroupStatus(stopResult.Status);
                 WriteQualificationLog(
                     "event=ASSERT",
-                    "name=StableInPosition",
-                    "samples=" + QualificationStableSamples,
+                    "name=StableIsStandby",
+                    "stableSamples="
+                        + GroupStopQualificationOrchestrator
+                            .RequiredStableStandbySamples,
+                    "statusReads=" + stopResult.StatusReadCount,
                     "verdict=PASS");
                 SetQualificationProgress(95, "Stop-first qualification PASS");
-            }
-            finally
-            {
-                if (gateOwned)
+                },
+                releaseGate,
+                () => CleanupQualificationGroupMotionAsync(
+                    currentGroup,
+                    input.DecelerationRaw,
+                    input.JerkRaw),
+                CreateQualificationUnsafeCleanupException);
+        }
+
+        private async Task<LMC_Response>
+            DispatchQualificationGroupStopAsync(
+                string operation,
+                Func<Task<LMC_Response>> nonCancelableStop,
+                bool logAcknowledgement)
+        {
+            LMC_Response response = null;
+            Exception sendError = null;
+            var sent = await RunSafetyCommandAsync(
+                operation,
+                async () =>
                 {
-                    commandSendGate.Release();
-                }
+                    try
+                    {
+                        response = await nonCancelableStop();
+                        EnsureResponseSuccess(operation, response);
+                        if (logAcknowledgement)
+                        {
+                            WriteQualificationLog(
+                                "event=ACK",
+                                "cmd=0x2085",
+                                "verdict=PASS");
+                        }
+                    }
+                    catch (Exception error)
+                    {
+                        sendError = error;
+                        throw;
+                    }
+                });
+            if (sent)
+            {
+                return response;
             }
+
+            if (sendError != null)
+            {
+                ExceptionDispatchInfo.Capture(sendError).Throw();
+            }
+
+            throw new InvalidOperationException(
+                operation + " could not be sent.");
         }
 
         private async Task ReturnQualificationGroupToStartAsync(
@@ -1151,54 +1260,43 @@ namespace LasalMotionControlApiExample
 
             WriteQualificationLog(
                 "event=CLEANUP",
-                "action=GroupStop_then_stable_InPosition",
+                "action=GroupStop_then_stable_IsStandby",
                 "verdict=START");
-            var sent = await RunSafetyCommandAsync(
-                "Qualification cleanup Group Stop",
-                async () =>
-                {
-                    var response = await currentGroup.GroupStopAsync(
-                        decelerationRaw,
-                        jerkRaw,
-                        CancellationToken.None);
-                    EnsureResponseSuccess(
-                        "Qualification cleanup Group Stop",
-                        response);
-                });
-            if (!sent)
-            {
-                WriteQualificationLog(
-                    "event=CLEANUP",
-                    "action=GroupStop",
-                    "verdict=FAIL");
-                throw new InvalidOperationException(
-                    "Qualification cleanup Group Stop could not be sent; safe state is not verified.");
-            }
-
             try
             {
-                var status = await WaitForQualificationGroupInPositionAsync(
-                    currentGroup,
-                    5000,
-                    CancellationToken.None,
-                    true);
-                DisplayGroupStatus(status);
+                var result = await GroupStopQualificationOrchestrator
+                    .StopAndVerifyStableStandbyAsync(
+                        currentGroup,
+                        decelerationRaw,
+                        jerkRaw,
+                        stop => DispatchQualificationGroupStopAsync(
+                            "Qualification cleanup Group Stop",
+                            stop,
+                            false),
+                        status => SendQualificationCleanupCommandAsync(
+                            "Qualification cleanup Group Stop status",
+                            status),
+                        5000,
+                        QualificationPollMilliseconds,
+                        milliseconds => Task.Delay(milliseconds));
+                DisplayGroupStatus(result.Status);
                 ClearMotionWarning(
-                    "Qualification cleanup Group Stop and stable InPosition verified");
+                    "Qualification cleanup Group Stop and stable IsStandby verified");
                 WriteQualificationLog(
                     "event=CLEANUP",
-                    "action=GroupStop_then_stable_InPosition",
+                    "action=GroupStop_then_stable_IsStandby",
+                    "statusReads=" + result.StatusReadCount,
                     "verdict=PASS");
             }
             catch (Exception cleanupError)
             {
                 WriteQualificationLog(
                     "event=CLEANUP",
-                    "action=GroupStop_then_stable_InPosition",
+                    "action=GroupStop_then_stable_IsStandby",
                     "verdict=FAIL",
                     "error=" + QualificationValue(cleanupError.Message));
                 throw new InvalidOperationException(
-                    "Qualification cleanup Group Stop was sent, but stable InPosition was not verified.",
+                    "Qualification cleanup Group Stop and stable IsStandby were not verified.",
                     cleanupError);
             }
         }
@@ -1597,12 +1695,18 @@ namespace LasalMotionControlApiExample
             var canRunGroup = groupReady
                 && idle
                 && !motionMayBeActive
+                && !HasUnresolvedD5SdoQualificationTicket
                 && !groupPowerOffVerificationPending;
             var motionReady = canRunGroup
                 && groupActiveVerified
                 && groupIdentityConfigured
                 && groupProfileLocked
                 && !groupProfileLockVerificationPending;
+            var transportQualificationReady = canRunGroup
+                && !groupPowerVerificationPending
+                && !groupPowerOffVerificationPending
+                && !groupProfileLockVerificationPending
+                && !groupStatusRefreshRequired;
 
             ButtonRunGroupEnableQualification.IsEnabled = canRunGroup
                 && groupActiveVerified
@@ -1611,9 +1715,15 @@ namespace LasalMotionControlApiExample
                 && !groupProfileLocked;
             ButtonRunBufferedQualification.IsEnabled = motionReady;
             ButtonRunStopFirstQualification.IsEnabled = motionReady;
+            ButtonRunTransportQualification.IsEnabled =
+                transportQualificationReady;
             ButtonCancelQualification.IsEnabled = qualificationRunning;
             ButtonSaveQualificationLog.IsEnabled =
                 qualificationLogLines.Count > 0;
+            ButtonSaveTransportQualificationCsv.IsEnabled =
+                !qualificationRunning
+                && (transportQualificationSummary != null
+                    || transportQualificationSamples.Count > 0);
 
             var hasBulkResource = bulkConfiguration != null
                 && !bulkConfiguration.IsReleased;
@@ -1623,6 +1733,7 @@ namespace LasalMotionControlApiExample
                 && !recorderIdentity.IsRecorderReleased;
             var diagnosticsReady = connected
                 && idle
+                && !HasUnresolvedD5SdoQualificationTicket
                 && diagnosticCapabilities != null
                 && diagnosticCatalog != null
                 && !hasBulkResource
@@ -1646,6 +1757,15 @@ namespace LasalMotionControlApiExample
                 && diagnosticCapabilities.MaxBulkSignals >= 24;
             ButtonRunBulkSnapshotSoakQualification.IsEnabled = bulkReady;
             ButtonRunBulkLifecycleQualification.IsEnabled = bulkReady;
+            ButtonRunBulkPartialQualification.IsEnabled = bulkReady
+                && groupReady;
+            ButtonResumeBulkPartialQualification.IsEnabled =
+                qualificationRunning
+                && bulkPartialCheckpoint != null;
+            ButtonResumeBulkPartialQualification.ToolTip =
+                bulkPartialCheckpointName == null
+                    ? "No external Bulk checkpoint is waiting."
+                    : "Waiting checkpoint: " + bulkPartialCheckpointName;
             ButtonCancelBulkQualification.IsEnabled = qualificationRunning;
             ButtonSaveBulkQualificationLog.IsEnabled =
                 qualificationLogLines.Count > 0;
@@ -1675,6 +1795,13 @@ namespace LasalMotionControlApiExample
                 recorderTriggerReady;
             ButtonRunRecorderSoakQualification.IsEnabled =
                 recorderTriggerReady;
+            ButtonRunRecorderReconnectExactQualification.IsEnabled =
+                recorderTriggerReady;
+            ButtonRunRecorderReconnectDiscoveryQualification.IsEnabled =
+                recorderTriggerReady
+                && diagnosticCapabilities.RecorderBufferCount == 1
+                && !diagnosticCapabilities.Supports(
+                    LMCDiagnosticCapability.RecorderDoubleBank);
             ButtonCancelRecorderQualification.IsEnabled =
                 qualificationRunning;
             ButtonSaveRecorderQualificationLog.IsEnabled =
@@ -1695,9 +1822,54 @@ namespace LasalMotionControlApiExample
                             ? "advertised"
                             : "SKIP: capability absent")
                         + ", Recordable="
-                        + recordableCount;
+                        + recordableCount
+                        + ", ReconnectExact="
+                        + recorderTriggerReady
+                        + ", ReconnectDiscovery="
+                        + (recorderTriggerReady
+                            && diagnosticCapabilities.RecorderBufferCount == 1
+                            && !diagnosticCapabilities.Supports(
+                                LMCDiagnosticCapability.RecorderDoubleBank));
 
-            var inputEnabled = connected && idle;
+            var manualD5OperationPending = diagnosticOperationTicket != null
+                && (diagnosticOperationStatus == null
+                    || !diagnosticOperationStatus.IsTerminal);
+            var d5QualificationRunning = qualificationRunning
+                && string.Equals(
+                    qualificationScenario,
+                    "D5SdoAbortRecovery",
+                    StringComparison.Ordinal);
+            var d5QualificationReady = connected
+                && idle
+                && !motionMayBeActive
+                && !manualD5OperationPending
+                && !HasUnresolvedD5SdoQualificationTicket;
+            TextD5SdoAbortSlaveReference.IsEnabled = d5QualificationReady;
+            TextD5SdoAbortIndex.IsEnabled = d5QualificationReady;
+            TextD5SdoAbortSubIndex.IsEnabled = d5QualificationReady;
+            ComboD5SdoAbortValueType.IsEnabled = d5QualificationReady;
+            TextD5SdoAbortDataLength.IsEnabled = d5QualificationReady;
+            TextD5SdoAbortTimeoutCycles.IsEnabled = d5QualificationReady;
+            ButtonRunD5SdoAbortQualification.IsEnabled =
+                d5QualificationReady;
+            ButtonCancelD5SdoQualification.IsEnabled =
+                d5QualificationRunning
+                || (connected
+                    && idle
+                    && !motionMayBeActive
+                    && HasUnresolvedD5SdoQualificationTicket);
+            ButtonCancelD5SdoQualification.Content =
+                d5QualificationRunning
+                    ? "Cancel Runner (not PLC Stop)"
+                    : HasUnresolvedD5SdoQualificationTicket
+                        ? "Resolve D5 Quarantine"
+                        : "Cancel Runner (not PLC Stop)";
+            ButtonSaveD5SdoQualificationLog.IsEnabled =
+                qualificationLogLines.Count > 0;
+
+            var inputEnabled = connected
+                && idle
+                && !HasUnresolvedD5SdoQualificationTicket;
             ComboQualificationGroupAxis.IsEnabled = inputEnabled;
             TextQualificationDeltaA.IsEnabled = inputEnabled;
             TextQualificationDeltaB.IsEnabled = inputEnabled;
@@ -1706,6 +1878,10 @@ namespace LasalMotionControlApiExample
             TextQualificationDeceleration.IsEnabled = inputEnabled;
             TextQualificationJerk.IsEnabled = inputEnabled;
             TextQualificationTolerance.IsEnabled = inputEnabled;
+            TextQualificationTransportWarmup.IsEnabled =
+                transportQualificationReady;
+            TextQualificationTransportIterations.IsEnabled =
+                transportQualificationReady;
         }
 
         private void CancelQualificationForExternalSafety(

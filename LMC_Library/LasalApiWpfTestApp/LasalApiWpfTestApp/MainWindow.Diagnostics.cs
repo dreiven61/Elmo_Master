@@ -19,14 +19,20 @@ namespace LasalMotionControlApiExample
 {
     public partial class MainWindow
     {
+        private const int RecorderManualCleanupTimeoutMilliseconds = 15000;
+        private const int RecorderManualCleanupPollMilliseconds = 25;
+
         private readonly List<DiagnosticSignalRow> diagnosticSignalRows =
             new List<DiagnosticSignalRow>();
 
         private LMCDiagnosticCapabilities diagnosticCapabilities;
         private LMCSignalCatalog diagnosticCatalog;
         private LMCBulkConfiguration bulkConfiguration;
+        private bool bulkQualificationRecoveryPending;
         private LMCRecorderConfigurationHandle recorderConfiguration;
         private LMCRecorderIdentity recorderIdentity;
+        private bool recorderQualificationRecoveryReleaseOnly;
+        private bool recorderQualificationRecoveryStatusConfirmed;
         private LMCRecorderStatus recorderStatus;
         private LMCRecorderHeader recorderHeader;
         private LMCRecorderData recorderData;
@@ -230,6 +236,8 @@ namespace LasalMotionControlApiExample
                 "Configure Bulk Snapshot",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Configure Bulk Snapshot");
                     EnsureCapability(
                         LMCDiagnosticCapability.BulkSnapshot,
                         "Bulk Snapshot");
@@ -250,6 +258,7 @@ namespace LasalMotionControlApiExample
                         await RequireConnection().Diagnostics.ConfigureBulkAsync(
                             selected.Select(row => row.Entry.SignalId).ToArray(),
                             CancellationToken.None);
+                    bulkQualificationRecoveryPending = false;
 
                     GridBulkSnapshot.ItemsSource = Array.Empty<BulkValueRow>();
                     TextBulkSummary.Text = FormatBulkConfiguration(
@@ -319,6 +328,7 @@ namespace LasalMotionControlApiExample
                         configuration,
                         CancellationToken.None);
                     bulkConfiguration = null;
+                    bulkQualificationRecoveryPending = false;
                     GridBulkSnapshot.ItemsSource = Array.Empty<BulkValueRow>();
                     TextBulkSummary.Text = "Bulk configuration released.";
                 });
@@ -332,6 +342,8 @@ namespace LasalMotionControlApiExample
                 "Configure Recorder",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Configure Recorder");
                     EnsureCapability(
                         LMCDiagnosticCapability.RecorderSingleBank,
                         "Recorder Single Bank");
@@ -369,6 +381,8 @@ namespace LasalMotionControlApiExample
                             configuration,
                             CancellationToken.None);
                     recorderIdentity = null;
+                    recorderQualificationRecoveryReleaseOnly = false;
+                    recorderQualificationRecoveryStatusConfirmed = false;
                     recorderStatus = null;
                     ClearRecorderDownload();
                     TextRecorderSummary.Text = FormatRecorderConfiguration(
@@ -384,11 +398,15 @@ namespace LasalMotionControlApiExample
                 "Start Recorder",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Start Recorder");
                     var configuration = RequireRecorderConfiguration();
                     recorderIdentity =
                         await RequireConnection().Diagnostics.StartRecorderAsync(
                             configuration,
                             CancellationToken.None);
+                    recorderQualificationRecoveryReleaseOnly = false;
+                    recorderQualificationRecoveryStatusConfirmed = false;
                     recorderStatus = null;
                     ClearRecorderDownload();
                     UpdateRecorderAdoptionFields(recorderIdentity);
@@ -405,6 +423,8 @@ namespace LasalMotionControlApiExample
                 "Adopt Recorder",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Adopt Recorder");
                     EnsureCapability(
                         LMCDiagnosticCapability.RecorderSingleBank,
                         "Recorder");
@@ -453,6 +473,8 @@ namespace LasalMotionControlApiExample
                                 bufferId,
                                 CancellationToken.None);
                     }
+                    recorderQualificationRecoveryReleaseOnly = false;
+                    recorderQualificationRecoveryStatusConfirmed = false;
                     recorderStatus = null;
                     ClearRecorderDownload();
                     UpdateRecorderAdoptionFields(recorderIdentity);
@@ -535,6 +557,8 @@ namespace LasalMotionControlApiExample
                 "Trigger Recorder",
                 async () =>
                 {
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Trigger Recorder");
                     EnsureCapability(
                         LMCDiagnosticCapability.RecorderTrigger,
                         "Recorder Trigger");
@@ -574,6 +598,34 @@ namespace LasalMotionControlApiExample
                             CancellationToken.None);
                     TextRecorderSummary.Text = FormatRecorderStatus(
                         recorderStatus);
+                    if (recorderQualificationRecoveryReleaseOnly)
+                    {
+                        recorderQualificationRecoveryStatusConfirmed = true;
+                        var cleanupAction = RecorderReconnectQualificationPolicy
+                            .SelectCleanupAction(recorderStatus.State);
+                        if (cleanupAction
+                            == RecorderQualificationCleanupAction.StopAndRefresh)
+                        {
+                            TextRecorderSummary.Text += Environment.NewLine
+                                + "Quarantined recovery identity Status confirmed. "
+                                + "Release Recorder is enabled and will explicitly "
+                                + "Stop, wait for Ready/Uploading, then release.";
+                        }
+                        else if (cleanupAction
+                            == RecorderQualificationCleanupAction.Release)
+                        {
+                            TextRecorderSummary.Text += Environment.NewLine
+                                + "Quarantined recovery identity Status confirmed in "
+                                + "a releasable state. Release Recorder is enabled.";
+                        }
+                        else
+                        {
+                            TextRecorderSummary.Text += Environment.NewLine
+                                + "Quarantined recovery remains mutation-blocked in State="
+                                + recorderStatus.State
+                                + ". Recover the PLC resource externally and refresh Status.";
+                        }
+                    }
                 });
         }
 
@@ -729,49 +781,137 @@ namespace LasalMotionControlApiExample
         {
             await RunOperationAsync(
                 "Release Recorder",
-                async () =>
+                ReleaseManualRecorderResourcesAsync);
+        }
+
+        private async Task ReleaseManualRecorderResourcesAsync()
+        {
+            var diagnostics = RequireConnection().Diagnostics;
+            var identity = recorderIdentity;
+            var configuration = recorderConfiguration;
+            var bufferReleasePending = identity != null
+                && !identity.IsBufferReleased;
+            var configurationReleasePending = configuration != null
+                ? !configuration.IsReleased
+                : identity != null && !identity.IsRecorderReleased;
+            if (!RecorderReconnectQualificationPolicy.CanRunManualCleanup(
+                recorderQualificationRecoveryReleaseOnly,
+                recorderQualificationRecoveryStatusConfirmed,
+                bufferReleasePending,
+                configurationReleasePending,
+                recorderStatus == null
+                    ? (LMCRecorderState?)null
+                    : recorderStatus.State))
+            {
+                throw new InvalidOperationException(
+                    "Recorder recovery cleanup is blocked until Status confirms Armed, Recording, Ready, or Uploading. Config-only cleanup does not require Status.");
+            }
+
+            var statusValidatedThisAttempt = false;
+            var operations = new RecorderQualificationCleanupOperations
+            {
+                ReadStatusAsync = async () =>
                 {
-                    var diagnostics = RequireConnection().Diagnostics;
-                    var identity = recorderIdentity;
-                    if (identity != null
-                        && !identity.IsRecorderReleased
-                        && !identity.HasConfigurationMetadata)
-                    {
-                        recorderStatus = await diagnostics.GetRecorderStatusAsync(
-                            identity,
-                            CancellationToken.None);
-                    }
+                    recorderStatus = await diagnostics.GetRecorderStatusAsync(
+                        identity,
+                        CancellationToken.None);
+                    return recorderStatus;
+                },
+                StopAsync = () => diagnostics.StopRecorderAsync(
+                    identity,
+                    CancellationToken.None),
+                ValidateStatus = status =>
+                {
+                    AssertManualRecorderStatusIdentity(status, identity);
+                    statusValidatedThisAttempt = true;
+                },
+                DelayAsync = milliseconds => Task.Delay(milliseconds),
+                RecoveryRequired = status => recorderStatus = status,
+                IsBufferReleasePending = () => identity != null
+                    && !identity.IsBufferReleased,
+                IsConfigurationReleasePending = () => configuration != null
+                    ? !configuration.IsReleased
+                    : identity != null && !identity.IsRecorderReleased,
+                ReleaseBufferAsync = () => diagnostics.ReleaseRecorderBufferAsync(
+                    identity,
+                    CancellationToken.None),
+                ReleaseConfigurationAsync = () => configuration != null
+                    ? diagnostics.ReleaseRecorderAsync(
+                        configuration,
+                        CancellationToken.None)
+                    : diagnostics.ReleaseRecorderAsync(
+                        identity,
+                        CancellationToken.None)
+            };
 
-                    if (identity != null
-                        && !identity.IsBufferReleased)
-                    {
-                        await diagnostics.ReleaseRecorderBufferAsync(
-                            identity,
-                            CancellationToken.None);
-                    }
+            try
+            {
+                await RecorderQualificationCleanupOrchestrator
+                    .CleanupOwnedResourcesAsync(
+                        operations,
+                        RecorderManualCleanupTimeoutMilliseconds,
+                        RecorderManualCleanupPollMilliseconds);
+            }
+            catch (Exception error)
+            {
+                var bufferStillPending = identity != null
+                    && !identity.IsBufferReleased;
+                var configurationStillPending = configuration != null
+                    ? !configuration.IsReleased
+                    : identity != null && !identity.IsRecorderReleased;
+                if (bufferStillPending || configurationStillPending)
+                {
+                    recorderQualificationRecoveryReleaseOnly = true;
+                    recorderQualificationRecoveryStatusConfirmed =
+                        bufferStillPending && statusValidatedThisAttempt;
+                    TextRecorderSummary.Text =
+                        "Recorder cleanup did not complete. Remaining ownership "
+                        + "is quarantined for explicit retry; bufferPending="
+                        + bufferStillPending
+                        + ", configurationPending="
+                        + configurationStillPending
+                        + ", lastState="
+                        + (recorderStatus == null
+                            ? "unknown"
+                            : recorderStatus.State.ToString())
+                        + ". Error="
+                        + error.Message;
+                    UpdateUiState();
+                }
 
-                    if (recorderConfiguration != null
-                        && !recorderConfiguration.IsReleased)
-                    {
-                        await diagnostics.ReleaseRecorderAsync(
-                            recorderConfiguration,
-                            CancellationToken.None);
-                    }
-                    else if (identity != null
-                        && !identity.IsRecorderReleased)
-                    {
-                        await diagnostics.ReleaseRecorderAsync(
-                            identity,
-                            CancellationToken.None);
-                    }
+                throw;
+            }
 
-                    recorderIdentity = null;
-                    recorderConfiguration = null;
-                    recorderStatus = null;
-                    TextRecorderSummary.Text = recorderData == null
-                        ? "Recorder resources released."
-                        : "Recorder PLC resources released. Downloaded PC data remains available for plot and CSV export.";
-                });
+            recorderIdentity = null;
+            recorderConfiguration = null;
+            recorderQualificationRecoveryReleaseOnly = false;
+            recorderQualificationRecoveryStatusConfirmed = false;
+            recorderStatus = null;
+            TextRecorderSummary.Text = recorderData == null
+                ? "Recorder resources released."
+                : "Recorder PLC resources released. Downloaded PC data remains available for plot and CSV export.";
+        }
+
+        private static void AssertManualRecorderStatusIdentity(
+            LMCRecorderStatus status,
+            LMCRecorderIdentity identity)
+        {
+            if (status == null
+                || status.Response == null
+                || !status.Response.IsSuccess
+                || identity == null
+                || status.DiagnosticsBootId != identity.DiagnosticsBootId
+                || status.RecordId != identity.RecordId
+                || status.BufferId != identity.BufferId
+                || status.ConfigId != identity.ConfigId
+                || status.ConfigRevision != identity.ConfigRevision
+                || status.MapRevision != identity.MapRevision
+                || status.Capacity != identity.Capacity
+                || status.OwnerSessionEpoch != identity.OwnerSessionEpoch)
+            {
+                throw new InvalidOperationException(
+                    "Recorder manual cleanup Status does not match the adopted or locally owned identity.");
+            }
         }
 
         private void ComboRecorderPlotSignal_SelectionChanged(
@@ -869,10 +1009,58 @@ namespace LasalMotionControlApiExample
                 "Submit SDO Read",
                 async () =>
                 {
-                    diagnosticOperationTicket =
-                        await RequireConnection().Diagnostics.SubmitSdoAsync(
-                            request,
-                            CancellationToken.None);
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Manual Submit SDO Read");
+                    var currentConnection = RequireConnection();
+                    var capabilities =
+                        await ReadExternalD5TrackingCapabilitiesAsync(
+                            currentConnection,
+                            "manual-sdo-submit",
+                            request.DataLength,
+                            RequiresGeneralInlineSdoRead(request));
+                    var submissionEvidence =
+                        ArmExternalD5SubmissionOutcomeGuard(
+                            currentConnection,
+                            capabilities.DiagnosticsBootId,
+                            request.SlaveReference,
+                            request.TimeoutCycles,
+                            "manual-sdo-submit");
+                    try
+                    {
+                        diagnosticOperationTicket = await currentConnection
+                            .Diagnostics.SubmitSdoAsync(
+                                request,
+                                CancellationToken.None);
+                    }
+                    catch (LMCDiagnosticsCommandException error)
+                    {
+                        DisarmExternalD5SubmissionOutcomeGuard(
+                            submissionEvidence,
+                            "EXPLICIT_PLC_REJECTION",
+                            error.Response == null
+                                ? "none"
+                                : error.Response.Detail.ToString());
+                        throw;
+                    }
+                    catch (Exception error)
+                    {
+                        PreserveExternalD5SubmissionOutcomeUncertain(
+                            submissionEvidence,
+                            error);
+                        throw;
+                    }
+
+                    PreserveExternalD5Ticket(
+                        diagnosticOperationTicket,
+                        currentConnection,
+                        request.SlaveReference,
+                        request.TimeoutCycles,
+                        "manual-sdo-submit");
+                    DisarmExternalD5SubmissionOutcomeGuard(
+                        submissionEvidence,
+                        "ACCEPTED_TICKET",
+                        diagnosticOperationTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture));
                     diagnosticOperationStatus = null;
                     diagnosticOperationResult = null;
                     diagnosticOperationCancelAccepted = false;
@@ -894,6 +1082,10 @@ namespace LasalMotionControlApiExample
                         await RequireConnection().Diagnostics.GetOperationStatusAsync(
                             ticket,
                             CancellationToken.None);
+                    CompleteExternalD5TicketIfTerminal(
+                        ticket,
+                        diagnosticOperationStatus,
+                        "manual-sdo-status");
                     diagnosticOperationCancelAccepted = false;
                     if (diagnosticOperationStatus.IsSuccessful
                         && ticket.OperationKind == LMCOperationKind.SDORead)
@@ -1081,6 +1273,14 @@ namespace LasalMotionControlApiExample
                 "Submit PI Write",
                 async () =>
                 {
+                    if (!Phase1AllowsPiWrite)
+                    {
+                        throw new NotSupportedException(
+                            "PI Write is disabled in Phase 1 because a lost submit response cannot be reconciled safely by the read-only D5 recovery proof.");
+                    }
+
+                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                        "Manual Submit PI Write");
                     EnsureCapability(
                         LMCDiagnosticCapability.PIWrite,
                         "PI Write");
@@ -1142,6 +1342,8 @@ namespace LasalMotionControlApiExample
                 LMCDiagnosticCapability.PIWrite);
             var supportsSdoRead = SupportsSdoRead();
             var supportsGeneralSdoRead = SupportsGeneralInlineSdoRead();
+            var d5QualificationStateUnresolved =
+                HasUnresolvedD5SdoQualificationTicket;
             var hasCatalog = diagnosticCatalog != null;
             var hasBulk = bulkConfiguration != null
                 && !bulkConfiguration.IsReleased;
@@ -1149,6 +1351,11 @@ namespace LasalMotionControlApiExample
                 && !recorderConfiguration.IsReleased;
             var hasRecorderIdentity = recorderIdentity != null
                 && !recorderIdentity.IsRecorderReleased;
+            var recorderBufferReleasePending = hasRecorderIdentity
+                && !recorderIdentity.IsBufferReleased;
+            var recorderConfigurationReleasePending =
+                hasRecorderConfiguration
+                || (hasRecorderIdentity && recorderConfiguration == null);
             var downloadRunning = recorderDownloadCancellation != null;
             var recorderCanStop = recorderStatus == null
                 || recorderStatus.State == LMCRecorderState.Armed
@@ -1187,14 +1394,22 @@ namespace LasalMotionControlApiExample
 
             ButtonConfigureBulk.IsEnabled = connected
                 && idle
+                && !d5QualificationStateUnresolved
                 && supportsBulk
                 && hasCatalog
                 && !hasBulk;
-            ButtonReadBulkStatus.IsEnabled = connected && idle && hasBulk;
-            ButtonReadBulkSnapshot.IsEnabled = connected && idle && hasBulk;
+            ButtonReadBulkStatus.IsEnabled = connected
+                && idle
+                && hasBulk
+                && !bulkQualificationRecoveryPending;
+            ButtonReadBulkSnapshot.IsEnabled = connected
+                && idle
+                && hasBulk
+                && !bulkQualificationRecoveryPending;
             ButtonReleaseBulk.IsEnabled = connected && idle && hasBulk;
 
             var recorderInputsEnabled = idle
+                && !d5QualificationStateUnresolved
                 && !hasRecorderConfiguration
                 && !hasRecorderIdentity;
             var recorderTriggerInputsEnabled = recorderInputsEnabled
@@ -1217,12 +1432,14 @@ namespace LasalMotionControlApiExample
                         == LMCRecorderTriggerType.Mask);
             ButtonConfigureRecorder.IsEnabled = connected
                 && idle
+                && !d5QualificationStateUnresolved
                 && supportsRecorder
                 && hasCatalog
                 && !hasRecorderConfiguration
                 && !hasRecorderIdentity
                 && recorderOptionSupported;
             var recorderAdoptionInputsEnabled = idle
+                && !d5QualificationStateUnresolved
                 && !hasRecorderConfiguration
                 && !hasRecorderIdentity;
             TextRecorderAdoptBootId.IsEnabled = recorderAdoptionInputsEnabled;
@@ -1230,22 +1447,27 @@ namespace LasalMotionControlApiExample
             TextRecorderAdoptBufferId.IsEnabled = recorderAdoptionInputsEnabled;
             ButtonAdoptRecorder.IsEnabled = connected
                 && idle
+                && !d5QualificationStateUnresolved
                 && supportsRecorder
                 && !hasRecorderConfiguration
                 && !hasRecorderIdentity;
             ButtonStartRecorder.IsEnabled = connected
                 && idle
+                && !d5QualificationStateUnresolved
                 && hasRecorderConfiguration
                 && !hasRecorderIdentity;
             ButtonStopRecorder.IsEnabled = connected
                 && idle
                 && hasRecorderIdentity
+                && !recorderQualificationRecoveryReleaseOnly
                 && !recorderIdentity.IsBufferReleased
                 && recorderCanStop;
             ButtonTriggerRecorder.IsEnabled = connected
                 && idle
+                && !d5QualificationStateUnresolved
                 && supportsRecorderTrigger
                 && hasRecorderIdentity
+                && !recorderQualificationRecoveryReleaseOnly
                 && hasRecorderConfiguration
                 && recorderConfiguration.Configuration.TriggerType
                     != LMCRecorderTriggerType.Manual
@@ -1257,10 +1479,12 @@ namespace LasalMotionControlApiExample
             ButtonReadRecorderHeader.IsEnabled = connected
                 && idle
                 && hasRecorderIdentity
+                && !recorderQualificationRecoveryReleaseOnly
                 && !recorderIdentity.IsBufferReleased;
             ButtonDownloadRecorder.IsEnabled = connected
                 && idle
                 && hasRecorderIdentity
+                && !recorderQualificationRecoveryReleaseOnly
                 && ((recorderStatus != null && recorderStatus.IsFrozen)
                     || recorderHeader != null)
                 && !downloadRunning;
@@ -1269,12 +1493,21 @@ namespace LasalMotionControlApiExample
                 && recorderData != null;
             ButtonReleaseRecorder.IsEnabled = connected
                 && idle
-                && (hasRecorderIdentity || hasRecorderConfiguration);
+                && RecorderReconnectQualificationPolicy.CanRunManualCleanup(
+                    recorderQualificationRecoveryReleaseOnly,
+                    recorderQualificationRecoveryStatusConfirmed,
+                    recorderBufferReleasePending,
+                    recorderConfigurationReleasePending,
+                    recorderStatus == null
+                        ? (LMCRecorderState?)null
+                        : recorderStatus.State);
 
             var operationIsTerminal = diagnosticOperationStatus != null
                 && diagnosticOperationStatus.IsTerminal;
             var canSubmitOperation = diagnosticOperationTicket == null
                 || operationIsTerminal;
+            canSubmitOperation = canSubmitOperation
+                && !HasUnresolvedD5SdoQualificationTicket;
             var sdoInputsEnabled = idle && canSubmitOperation;
             if (supportsSdoRead
                 && !supportsGeneralSdoRead
@@ -1321,9 +1554,10 @@ namespace LasalMotionControlApiExample
                 && diagnosticOperationResult == null;
             ButtonExportSdoResult.IsEnabled = idle
                 && diagnosticOperationResult != null;
-            TextPiWriteRawValue.IsEnabled = idle;
+            TextPiWriteRawValue.IsEnabled = idle && Phase1AllowsPiWrite;
             ButtonSubmitPiWrite.IsEnabled = connected
                 && idle
+                && Phase1AllowsPiWrite
                 && supportsPiWrite
                 && hasCatalog
                 && canSubmitOperation;
@@ -1340,8 +1574,11 @@ namespace LasalMotionControlApiExample
             diagnosticCatalog = null;
             diagnosticSignalRows.Clear();
             bulkConfiguration = null;
+            bulkQualificationRecoveryPending = false;
             recorderConfiguration = null;
             recorderIdentity = null;
+            recorderQualificationRecoveryReleaseOnly = false;
+            recorderQualificationRecoveryStatusConfirmed = false;
             recorderStatus = null;
             recorderHeader = null;
             recorderData = null;
