@@ -416,14 +416,18 @@ var raw = checked((int)Math.Round(
   exact match한 뒤 전이한다. recovery는 proof 자체의 두 임시 accepted
   guard는 허용하지만 persistent evidence 변경이나 candidate 이후 ABA를 거부하며, PASS log
   callback 성공과 clear를 같은 ledger lock에서 commit한다.
+  UI 독립 deterministic concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤
+  clear 전 mutation, atomic clear 뒤 Arm 보존, callback 예외 뒤 waiter/ledger 재사용과
+  concurrent Disarm exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다.
+  이는 PC test 강화이며 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
 
 ### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. API Debug/Release는 각각 256/256 PASS다. 직전 249개에 UI 독립 D5
-recovery scope policy 계약 시험 7개가 추가됐다. Group queue chaining/Stop-first wire
+gate 확인일 뿐이다. API Debug/Release는 각각 260/260 PASS다. 직전 256개에 UI 독립 D5
+quarantine ledger deterministic concurrency 계약 시험 4개가 추가됐다. Group queue chaining/Stop-first wire
 order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서

@@ -10,7 +10,7 @@ Latest update: 2026-07-27
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
 > 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
 > 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
-> Debug/Release 각 256/256 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
+> Debug/Release 각 260/260 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
 > dynamic group monitor/PowerOff, D0/D1/D2 PI/Bulk와 D5 general-inline 1/2/4-byte
 > happy path를 확인했다. 같은 BootId의 의도한 TypeMismatch 실패 후 Int8/1 복구도
 > PASS했다. read-only D5 SDO abort -> recovery runner/analyzer와 internal negative-wire
@@ -79,7 +79,12 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 256/256 PASS를 확인했다.
+현재 source는 C# 자동 테스트 Debug/Release 각 260/260 PASS를 확인했다. 직전 256개에 UI
+독립 D5 quarantine ledger deterministic concurrency 4개가 추가됐다. 각 등록 test는 50회
+반복하며 candidate snapshot 뒤 clear 전 mutation, atomic clear 뒤 competing Arm, callback 예외
+뒤 waiter/ledger 재사용, concurrent Disarm exact-once를 bounded wait로 검증하고
+`Thread.Sleep`을 사용하지 않는다. 이 추가분은 PC test뿐이며 production/wire/LASAL 변경이나
+PLC live 증거가 아니다.
 LASAL SourceOnly/full static contract와 D5 runner 포함 개발 WPF Debug/Release build를
 통과했다. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS했으며 D5 panel
 visual은 별도다.
@@ -182,7 +187,7 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 256/256 PASS | 직전 249개 + UI 독립 D5 recovery scope policy 7개 |
+| C# 자동 테스트 | Debug/Release 각 260/260 PASS | 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
 | 개발 WPF | D5 포함 Debug/Release build PASS | startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS; D5 visual과 PLC 동작 승인은 별도 |

@@ -132,6 +132,12 @@
 - D5 recovery scope policy 7개는 same-owner exact/new identity, homogeneous previous owner,
   current+foreign owner 혼합, multiple previous owner 혼합, submission identity 혼합과 invalid
   input fail-closed를 검사한다. 이 UI 독립 policy source를 MainWindow와 PC test가 함께 쓴다.
+- D5 quarantine ledger deterministic concurrency 4개는 각 등록 test를 50회 반복한다.
+  candidate snapshot 뒤 clear 전 competing Arm이면 clear를 거부하고 두 evidence를 보존하는지,
+  atomic clear callback 뒤 기다리던 Arm만 남는지, callback 예외 뒤 waiter가 진행하고 기존
+  evidence와 ledger 재사용성이 보존되는지, concurrent Disarm이 성공 1회/stale 1회인지
+  검증한다. 모든 동기화는 bounded wait이며 `Thread.Sleep`을 사용하지 않는다. 이 4개는 PC
+  test 강화일 뿐 production/wire/LASAL 변경이나 PLC live/pcap 증거가 아니다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -161,8 +167,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `256/256 PASS`
-  직전 249개에 UI 독립 D5 recovery scope policy 7개를 추가했다.
+- `RunPcTests`: Debug/Release 각 `260/260 PASS`
+  직전 256개에 UI 독립 D5 quarantine ledger deterministic concurrency 4개를 추가했다.
   (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
@@ -171,7 +177,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   internal negative-wire 9개, D5 abort/recovery analyzer 12개와 drive-read command
   stage/ticket 및 non-domain 계약 2개 포함; 추가 24개: external-read WPF routing
   orchestrator 7개 + all-failure facade context 4개 + raw `SubmitSdo` context 7개 +
-  manual failure router 1개 + D5 quarantine ledger 5개)
+  manual failure router 1개 + D5 quarantine ledger 5개; 추가 7개: D5 recovery scope policy;
+  추가 4개: D5 quarantine ledger deterministic concurrency)
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,

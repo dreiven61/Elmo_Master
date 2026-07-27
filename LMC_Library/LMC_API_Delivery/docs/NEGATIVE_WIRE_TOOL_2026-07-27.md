@@ -3,7 +3,7 @@
 - 작성일: 2026-07-27
 - 위치: `tests/LasalMotionControlLib.Tests/NegativeWireTool.cs`
 - 실행 파일: `LasalMotionControlLib.Tests.exe`
-- 상태: PC Debug/Release 각 256/256 중 전용 계약 시험 9개와 dry-run PASS;
+- 상태: PC Debug/Release 각 260/260 중 전용 계약 시험 9개와 dry-run PASS;
   실제 PLC raw rejection/pcap은 미실행
 
 ## 목적과 경계
@@ -17,7 +17,12 @@ SDK에 포함되지 않으며 임의 command ID, reference 또는 hex payload를
 allowlist는 아래 다섯 고정 시나리오뿐이다. motion, Admin, 모든 write, SDO Submit,
 Recorder 명령은 생성하거나 송신할 수 없다.
 
-전체 256개는 직전 249개 + UI 독립 `D5SdoRecoveryScopePolicy` 7개다. 이 policy는 owner
+전체 260개는 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개다.
+각 등록 test는 50회 반복해 candidate snapshot 뒤 clear 전 mutation, atomic clear 뒤 Arm
+보존, callback 예외 뒤 waiter/ledger 재사용과 concurrent Disarm exact-once를 bounded wait로
+검증하며 `Thread.Sleep`을 사용하지 않는다. 이 추가분은 PC test뿐이고
+production/wire/LASAL 변경이나 PLC live/pcap 증거가 아니다. 기존 UI 독립
+`D5SdoRecoveryScopePolicy`는 owner
 reference+BootId+MapRevision 조합으로 네 scope를 순수 판정하고 MainWindow의 proof 시작/PASS
 로그가 같은 decision을 쓴다. `mixed_evidence_sessions`도 application recovery proof는 허용하지만
 same/new session 증거로 세지 않으며, 한 previous owner+identity의 동질 집합만

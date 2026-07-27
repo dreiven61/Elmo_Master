@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 256/256 계약 시험 PASS; 직전 249개 + UI 독립 D5 recovery scope policy 7개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 260/260 계약 시험 PASS; 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -711,7 +711,8 @@ candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 | `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
 | `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
 | `LMC_Library/.../tests/.../D5SdoRecoveryScopePolicyTests.cs` | same/new/mixed scope, homogeneous previous owner와 invalid input fail-closed 7개 자동 시험 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 256/256 PASS; 직전 249개 + UI 독립 D5 recovery scope policy 7개 |
+| `LMC_Library/.../tests/.../D5SdoQuarantineLedgerConcurrencyTests.cs` | 각 등록 test 50회; candidate 뒤 clear 전 mutation, atomic clear 뒤 Arm, callback 예외 waiter/reuse, concurrent Disarm exact-once를 bounded wait/no `Thread.Sleep`로 검증하는 4개 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 260/260 PASS; 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -722,7 +723,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 256/256
+1. [완료] Debug/Release API tests 각 260/260
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -784,7 +785,10 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
   local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
 - [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
   diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
-- [완료] Debug/Release PC tests 각 256/256, 새 LASAL static contract, WPF build와 Debug
+- [PC test 완료, PLC live 증거 아님] D5 quarantine ledger deterministic concurrency 4개는 각
+  등록 test를 50회 반복하고 bounded wait만 사용한다. production/wire/LASAL 변경은 없으며
+  `Thread.Sleep`도 사용하지 않는다.
+- [완료] Debug/Release PC tests 각 260/260, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

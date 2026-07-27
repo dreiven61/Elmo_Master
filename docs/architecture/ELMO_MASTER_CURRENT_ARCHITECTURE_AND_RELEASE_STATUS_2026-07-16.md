@@ -44,8 +44,8 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 256/256 tests가 PASS했다. 직전 249개에 UI 독립 D5 recovery scope policy
-  계약 시험 7개가 추가됐다. 개발 WPF build도
+  Debug/Release 각 260/260 tests가 PASS했다. 직전 256개에 UI 독립 D5 quarantine ledger
+  deterministic concurrency 계약 시험 4개가 추가됐다. 개발 WPF build도
   PASS했다. LASAL
   Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
   아직 수행하지 않았다.
@@ -91,7 +91,7 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 256/256 PASS | 직전 249개 + UI 독립 D5 recovery scope policy 7개; PLC 통합과 별도 |
+| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 260/260 PASS | 직전 256개 + UI 독립 D5 quarantine ledger deterministic concurrency 4개; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
@@ -547,7 +547,7 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 256/256 tests가 exact table,
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 260/260 tests가 exact table,
    header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
@@ -574,8 +574,10 @@ PowerOff와 D5 4-byte/recovery 증거는
    Compiler/Linker와 오류 로그도 PASS했다. implementation smoke와 PLC runtime은 대기 상태다.
 2. `MsgPaser` 이름 교정은 호환 영향이 있는 별도 commit으로 남아 있다. `LmcConnection.cs`와
    개발 WPF `MainWindow.xaml.cs`도 여전히 책임이 집중돼 있다.
-3. fuzz/property test와 장시간 reconnect/concurrency 시험은 없다. callback handler/error
-   handler 예외 격리와 callback thread의 reentrant close/dispose는 자동 시험을 추가했다.
+3. fuzz/property test와 장시간 reconnect/concurrency 시험은 없다. D5 quarantine ledger의
+   bounded deterministic concurrency 4개는 존재하지만 장시간 stress를 대신하지 않는다.
+   callback handler/error handler 예외 격리와 callback thread의 reentrant close/dispose도
+   자동 시험을 추가했다.
 4. DLL strong-name/AuthentiCode 서명이 없다.
 5. Home 실행 API, MoveCircle, generic kinematics, typed callback은 현재 범위 밖이다.
 
@@ -764,6 +766,10 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   한 lock에서 확인하고 PASS log callback 성공과 함께 commit한다. proof 자체의 임시
   accepted guard 두 개는 최종 상태가 원복되면 허용하지만 persistent evidence 변경,
   candidate 이후 ABA, log 실패는 clear하지 않는다.
+  deterministic concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤 clear 전
+  mutation, atomic clear 뒤 Arm 보존, callback 예외 뒤 waiter/ledger 재사용과 concurrent
+  Disarm exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다. 이 추가분은
+  PC test뿐이고 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
 - Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
   Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
@@ -789,8 +795,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 확인된 범위:
 
 - 현재 Phase 5 all-failure-context worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 256/256 PASS. 직전 249개에 UI 독립 D5 recovery scope policy 계약 시험
-  7개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
+  Debug/Release 각 260/260 PASS. 직전 256개에 UI 독립 D5 quarantine ledger deterministic
+  concurrency 계약 시험 4개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
   qualification analysis, callback lifecycle, internal negative-wire, D5 abort/recovery analyzer와
   largest variable response의 max/max+1 transport 경계를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.

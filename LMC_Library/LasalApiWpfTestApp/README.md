@@ -211,6 +211,10 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   snapshot과 최종 snapshot의 전체 내용·순서·revision을 비교하되 proof 자체의 두 임시
   accepted ticket arm/disarm은 허용한다. PASS log callback과 clear는 같은 ledger lock에서
   commit하므로 로그 실패나 concurrent mutation이면 evidence를 삭제하지 않는다.
+  UI 독립 deterministic concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤
+  clear 전 mutation, atomic clear 뒤 Arm 보존, callback 예외 뒤 waiter/ledger 재사용과
+  concurrent Disarm exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다.
+  이 추가분은 PC test뿐이고 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
@@ -238,7 +242,8 @@ packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
-256/256 PASS다. 직전 249개에 UI 독립 D5 recovery scope policy 계약 시험 7개가 추가됐다.
+260/260 PASS다. 직전 256개에 UI 독립 D5 quarantine ledger deterministic concurrency 계약
+시험 4개가 추가됐다.
 D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
 대기 중이다.
 이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.

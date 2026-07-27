@@ -35,9 +35,9 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 256/256 PASS`, `Release 256/256
-PASS`; this is the prior 249 tests plus seven UI-independent D5 recovery scope
-policy tests. WPF `Debug/Release
+Current PC baseline: API tests `Debug 260/260 PASS`, `Release 260/260
+PASS`; this is the prior 256 tests plus four UI-independent deterministic D5
+quarantine-ledger concurrency tests. WPF `Debug/Release
 build PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
@@ -161,6 +161,13 @@ identical, the final snapshot is still current, and the PASS log callback
 succeeds. The two proof reads may arm, accept, and disarm their own temporary
 guards; any persistent reconcile/transition/replacement or post-snapshot
 mutation keeps the quarantine unresolved.
+
+Each concurrency test registration repeats its scenario 50 times. The four
+scenarios verify mutation after the candidate snapshot but before clear, Arm
+survival after atomic clear, waiter progress and ledger reuse after a callback
+exception, and exact-once concurrent Disarm. They use bounded waits and no
+`Thread.Sleep`. These are PC-only tests: production, wire, and LASAL behavior
+are unchanged, and the results are not PLC-live evidence.
 
 External manual/drive tracking lines use their own
 `scenario=D5ExternalTracking:<stage>` run ID. They must not inherit the run ID
