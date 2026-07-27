@@ -16,12 +16,49 @@
   원 Write owner/current session/BootId/MapRevision에서 일치할 때까지 mutation과 Close를
   차단한다. identity mismatch는 Read submit 전에 거부한다. 불명확한 Write outcome은 Read proof로
   quarantine 해제하지 않는다.
-- PC Debug/Release는 각 277/277, WPF Debug/Release 별도 output build와 LASAL SourceOnly는
+- PC Debug/Release는 현재 각 286/286, WPF Debug/Release 별도 output build와 LASAL SourceOnly는
   PASS했다. tracked `Classes.lcb`가 신규 Write declaration과 아직 동기화되지 않아 switch 없는
   full static은 의도적으로 FAIL하며 LASAL IDE Reload Class/저장/Rebuild가 필요하다.
 - 실제 활성화 전 남은 gate는 UI[24] 미사용/시험 축 확정, PLC/SDK 동일 gate 활성화, LASAL
   build/smoke/download, same-value Write/readback/restore와 mailbox/pcap 증거, 그리고 강제
   종료/전원 손실 뒤 pending Write/readback을 복구할 durable journal/운영자 ACK 정책이다.
+
+## 2026-07-27 CREVIS topology 및 digital I/O checkpoint
+
+- 현재 working source의 configured physical order는 `GL_9086_11(SlaveIndex 0) ->
+  Elmo_11..41(SlaveIndex 1..4)`인 5-slave 구성이다. 이것은 source/ENI/network 확인 결과이며
+  현재 변경의 LASAL Rebuild/Link, PLC download와 실제 I/O PASS는 아니다.
+- slave 순서/identity, slot module, PDO index/sub-index, I/O 폭과 generated process-image
+  mapping은 configured topology에 고정한다. Online/EtherCAT state/AL status, value와
+  valid/fresh/stale quality만 runtime에 변한다. 물리 순서를 바꾸면 ENI/network를 다시
+  생성해야 하며 API가 runtime discovery로 schema를 바꾸지 않는다.
+- 기존 `0x7E10 ReadEtherCATHealth`의 exact 200-byte, 4-entry Elmo subset은 유지한다.
+  기존 wire `SlaveIndex=0..3`은 호환용 legacy drive index다. actual physical node index
+  0..4는 신규 topology API에서만 제공한다.
+- C# SDK contract command는 `0x7E11/0x7E12` topology info/chunk, `0x7E13` node health,
+  `0x7E22` digital I/O read, `0x7E23` output write submit이다. model/parser/golden과 capability-off
+  pre-wire 검증은 구현했다. capability bit 14~17은 PLC handler와 data source가 구현·검증될
+  때까지 모두 0으로 두며 현재 `CapabilityBits=0x0000213F`와 active command 수는 변하지 않는다.
+- output write는 GT-22BA output slot-module의 configured `IOReference`와 valid mask만 허용한다. whole-word와 atomic
+  masked write를 하나의 PLC RT owner가 적용하고, non-RT diagnostics service는 owner/session,
+  BootId/topology revision과 ticket을 소유한다. validation 실패, stale/offline/not-OP,
+  mailbox/owner 불가와 uncertain outcome은 fail-closed하며 자동 replay하지 않는다.
+
+구현 순서는 다음으로 고정한다.
+
+| 순서 | 구현 | capability |
+|---:|---|---|
+| IO-0 | current 5-slave LASAL Rebuild/Link와 실제 configured order 확인 | 모두 off |
+| IO-1 | C# model/protocol/golden과 capability-off facade | 완료, 모두 off |
+| IO-1B | PLC reserved handler와 exact `UnsupportedFeature` 응답 | 미구현, 모두 off |
+| IO-2 | configured topology info/chunk와 revision | bit 14를 runtime PASS 뒤 활성 |
+| IO-3 | node health와 DI/output-shadow coherent snapshot | bit 15/16을 각각 runtime PASS 뒤 활성 |
+| IO-4 | RT single-writer, whole/masked mailbox와 `0x7E23` ticket | bit 17 off |
+| IO-5 | invalid mask/offline/stale/contention/response-loss/RT 및 physical output matrix | bit 17을 최종 활성 |
+
+exact field layout, local Elmo API 근거와 수정 파일은
+[LMC EtherCAT Topology 및 Digital I/O API 설계](LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md)를
+기준으로 한다.
 
 ## 1. 결론
 
@@ -78,7 +115,7 @@ matrix, D1/D2 fault/soak와 D3/D4 실장 시험은 아직 남아 있다.
 | 단계 | 현재 상태 | 구현 범위 | 남은 작업 |
 |---|---|---|---|
 | D0 | 구현됨 | common envelope, capability, BootId, C#/PLC dispatcher | 회귀 시험 유지 |
-| D1 | internal test source 활성 | 4축 Health, 24-entry Catalog, PI Read, RT latch/seqlock | fault 조건 PLC 검증 |
+| D1 | internal test source 활성 | legacy 4-drive Health, 24-entry Catalog, PI Read, RT latch/seqlock | fault 조건 PLC 검증; 5 slaves + 2 slot-module entry topology/I/O extension은 C# contract만 구현, PLC capability off |
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release | same-cycle 및 부하 PLC 검증 |
 | D3 | internal test source 활성 | 1,280,000-byte single bank, 최대 24채널 Manual Recorder, download/adopt/release | RAM, jitter, 장시간 upload, reconnect PLC 검증 |
 | D4 | single-bank Ring/Trigger 활성 | pre-trigger ring, Edge/Window/Mask, forced trigger, chronological upload | trigger PLC 검증 및 Double bank 구현 |
@@ -349,7 +386,7 @@ sync/async wrapper는 이 facade의 실제 사용성 검증 뒤 필요성이 확
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU` | `277/277 passed` | Debug/Release 통과 확인 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU` | `286/286 passed` | Debug/Release 통과 확인; topology/I/O contract 9개 포함 |
 | WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj` Debug/Release build | error 0 | 별도 output build 통과; current D5 visual/startup smoke는 대기 |
 | LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly` | PASS | 통과 확인 |
 | LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | PASS | 현재 의도적 FAIL; `Classes.lcb` 신규 Write declaration 동기화/IDE Rebuild 뒤 재실행 |
@@ -357,6 +394,9 @@ sync/async wrapper는 이 facade의 실제 사용성 검증 뒤 필요성이 확
 | LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 10:53 gate-off baseline 통과; fixed-source runtime download 확인, build log 미보존 |
 | LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | fixed-source smoke 기록은 미보존 |
 | LASAL IDE log | smoke 시작 시각 이후 `%TEMP%\Lasal2.log` 검색 | 신규 `CInvalidArgException` 0건 | 10:53 Rebuild error 0; 최신 implementation smoke 기준 검사는 대기 |
+| CREVIS configured topology | current project Rebuild/Link, download 후 EtherCAT diagnostics | GL=physical index 0, Elmo=1..4인 5-slave configured order와 Vendor/Product/slot/PDO exact | source/ENI/network만 확인; build/download/live 대기 |
+| topology/I/O read | `0x7E11/12/13/22` golden과 PLC read | topology revision/order exact, legacy `0x7E10` byte-identical, node state/quality만 동적, DI bit pattern 일치 | C# contract/parser/golden 완료; PLC/LASAL/WPF 미구현, capability bit 14~16은 0 |
+| digital output write | `0x7E23` CAS ticket whole/masked/fault/RT matrix | single RT owner, stale output revision 거부, unmasked bit 보존, invalid/stale/offline에서 mutation 0, response-loss 자동 replay 0 | C# request/ticket/policy test 완료, SDK allowlist empty; PLC/LASAL/WPF 미구현, capability bit 17은 0 |
 | diff hygiene | `git diff --check`와 staging 시 `git diff --cached --check` | whitespace error 0 | 최종 작업 종료 시 반복 |
 | PLC capability | 변경 project download 후 `Refresh Capabilities` | stable BootId에서 `0x0000213F`, MaxSDO=4 | BootId 6 capture에서 확인; 최종 runtime 증거/fault matrix 미비로 production 미승인 |
 | PLC runtime | 5절 매트릭스와 D5/D4 Double 단계별 시험 | 모든 행의 합격 기준과 증거 확보 | D0/D1/D2와 D5 legacy/general-inline 1/2/4-byte happy path pcap PASS; TypeMismatch 후 same-Boot recovery PASS; D5 나머지 fault/D1-D4 fault 재시험 대기 |
@@ -388,9 +428,10 @@ model을 저장해 외부 implementation을 덮어쓰지 않는다.
 4. 사용자 문서와 release status의 수치 및 미구현 표기가 source와 일치한다.
 
 현재 working source에는 D1-D4와 활성화한 D5 general-inline 실행부, shadowing 수정 및
-4축 network가 있다. legacy `0x1000:0` Slave 1~4와 수정본 general-inline 1/2/4-byte
+4개 Elmo에 앞선 GL-9086을 포함한 configured 5-slave network source가 있다. 후자는 아직
+LASAL build/download/live I/O 증거가 없다. legacy `0x1000:0` drive 1~4와 수정본 general-inline 1/2/4-byte
 happy path는 성공 pcap을 확보했고 TypeMismatch 후 same-Boot executor 재사용도
 확인했다. constructor 명시 초기화, 나머지 D5 fault/timeout/cancel/orphan matrix와
-5절 검증이 남았다.
+5절 검증 및 위 IO-0~IO-5가 남았다.
 따라서 D1-D5를 production 완료로 분류하지 않는다. current test source 광고값은
 `0x213F`, `MaxSdoDataBytes=4`다.

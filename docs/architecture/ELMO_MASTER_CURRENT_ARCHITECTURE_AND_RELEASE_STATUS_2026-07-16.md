@@ -45,7 +45,7 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 SDO
   Write source의 `Phase5TransportClean` SourceOnly는 PASS한다. 그러나 tracked
   `Classes.lcb`에는 신규 Write declaration이 없어 switch 없는 full static은 의도적으로
-  FAIL한다. 현재 Phase 5 worktree의 PC Debug/Release 각 277/277 tests가 PASS했고 D5 SDO
+  FAIL한다. Phase 5의 PC Debug/Release 각 277/277 tests가 PASS했고 D5 SDO
   Write target policy, Read/Write-aware quarantine/cleanup과 성공 Write 뒤 exact manual
   readback interlock 계약까지 포함한다. 개발 WPF Debug/Release build도 별도 output에서
   PASS했다. 현재 Write 변경의 LASAL Compiler/Linker, implementation smoke,
@@ -57,6 +57,12 @@
   PLC live, fault, stale identity, reconnect/adopt/abort/raw rejection wire
   evidence, RT evidence와 장비 안전 matrix가 남아 production
   승인본은 아님
+- 2026-07-27 EtherCAT topology checkpoint: current working source에는 CREVIS
+  `GL_9086_11`이 physical `SlaveIndex 0`, 네 Elmo가 `SlaveIndex 1..4`인 configured
+  5-slave topology가 생성돼 있다. source/ENI/network 확인 결과이며 current 변경의 LASAL
+  Rebuild/Link, PLC download와 실제 CREVIS I/O PASS는 아니다. 신규 topology/node-health/
+  digital-I/O의 C# SDK contract와 PC test는 구현했지만 PLC/LASAL handler와 WPF는 없고
+  capability bit 14~17은 모두 비활성이다.
 
 이 문서는 현재 Git source를 다시 대조해 프로젝트 전체의 역할, 구현 범위,
 검증 수준과 남은 위험을 한곳에 고정한 기준 문서다. 날짜가 더 오래된 설계·분석
@@ -83,6 +89,7 @@
 | 현재 개발·실기 진단 WPF | `LMC_Library/LasalApiWpfTestApp` | canonical API source ProjectReference 사용 |
 | 외부 배포 예제 | `LMC_Library/LMC_API_Distribution` | 내부 PLC 시험 종료 전 동결; 현재 완료 기준에서 제외 |
 | 현재 PLC source | `Lasal_PRG/Elmo_EtherCAT_Test_4Axis` | canonical tracked LASAL project |
+| current configured EtherCAT source | GL-9086 physical index 0 + Elmo physical index 1..4 | working source/ENI/network 확인; 새 구성의 LASAL build/download/live는 미검증 |
 | single-axis 범위 | descriptor `1..9` | 축 1~4 physical, 축 5~9 simulated |
 | Cartesian group move/lock | X/Y/Z/U 축 1~4 | 9축 group interpolation이 아님 |
 | 기존 motion/group command | 25개 | 캡처 기반 23 + local motion extension 2 |
@@ -92,7 +99,7 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 SDO Write checkpoint Debug/Release 각 277/277 PASS | SDK target policy, Read/Write-aware quarantine/cleanup과 identity-bound exact readback interlock 포함; PLC 통합과 별도 |
+| PC 자동 테스트 | current SDK Debug/Release 각 286/286 PASS | Phase 5 SDO Write 계약과 EtherCAT topology/I/O SDK contract/capability-off/empty-output-allowlist 포함; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | current external `.st` source 계약 확인 |
@@ -190,6 +197,7 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Admin | `0x7D00`, `0x7D10`, `0x7D20`, `0x7D22` | capability, axis/group semantic parameter read, group relative move | source/static + 2026-07-23 live happy path PASS |
 | Diagnostics negotiation | `0x7E00` | capability/envelope | D1~D3 test capability, retained BootId 실패 시 fail-closed |
 | Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | Catalog와 축 1..4 PI live PASS; Health fault matrix는 별도 |
+| Diagnostics topology/I/O extension | `0x7E11`, `0x7E12`, `0x7E13`, `0x7E22`, `0x7E23` | configured topology, node health, digital I/O read와 RT output ticket | C# SDK contract/parser/test 구현; PLC/LASAL/WPF 미구현, capability off, active/handled command 수에 미포함 |
 | Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | 4-entry live PASS; exact 24-entry snapshot/lifecycle 및 operator-only one-slave-offline partial/recovery UI code/build와 PC 순수 판정 PASS, live soak/fault는 별도 |
 | Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | Single Manual/header/double-download와 reconnect exact/0/0 discovery UI code/build PASS, PLC runtime/wire 미검증 |
 | Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | Ring forced-trigger/100-cycle soak UI code/build PASS, PLC runtime 미검증; Double은 거부 |
@@ -327,6 +335,43 @@ None/ACS static member-slot alias의 runtime 계약을 닫는다. true ACS trans
 정지가 끝날 profile-buffer command index다. 0/비0을 성공/실패로 해석하면 안 된다.
 `0x2085` success ACK는 입력 검증, robot client 연결과 method dispatch를 뜻한다.
 실제 정지 완료와 profile error는 `0x2045 GroupReadStatus`로 확인한다.
+
+### 6.5 2026-07-27 configured EtherCAT topology와 I/O 경계
+
+current working source의 physical bus order는 아래와 같다.
+
+```text
+EtherCAT master
+  -> GL_9086_11       SlaveIndex 0
+  -> Elmo_11          SlaveIndex 1 / physical axis 1
+  -> Elmo_21          SlaveIndex 2 / physical axis 2
+  -> Elmo_31          SlaveIndex 3 / physical axis 3
+  -> Elmo_41          SlaveIndex 4 / physical axis 4
+```
+
+GL-9086에는 Slot 0 `GT-12FA` input 4 bytes (`0x6000:01..04`)와 Slot 1
+`GT-22BA` output 4 bytes (`0x7010:01..04`)가 configured돼 있다. slave 순서/identity,
+slot/PDO schema와 generated process-image mapping은 고정 configuration이고,
+Online/EtherCAT state/AL status, I/O value와 valid/fresh/stale quality만 동적이다.
+물리 순서를 바꾸면 LASAL network/ENI를 다시 생성해야 하며 runtime discovery로 public
+schema를 바꾸지 않는다.
+
+기존 `0x7E10 ReadEtherCATHealth`는 exact 4-drive subset을 유지한다. 기존 entry의
+`SlaveIndex=0..3`은 호환용 legacy drive index이고 actual physical index 0..4가 아니다.
+public axis 1..4와 `_LMCAxis1..4 -> Elmo_11..41` 연결도 그대로다. GL-9086을 기존
+`0x7E10`의 첫 entry로 넣거나 count를 5로 늘리지 않는다.
+
+actual topology는 `0x7E11/12`, node state/quality는 `0x7E13`, `IOReference`별 digital I/O
+value는 `0x7E22`, output mutation은 `0x7E23` RT-owner ticket으로 분리한다. C# SDK contract와
+parser/golden test는 구현됐지만 capability는 PLC implementation과 runtime evidence 전까지
+모두 0이고 현재 active/handled command count를 바꾸지 않는다. output write는 nonzero mask와
+fresh `ExpectedOutputRevision`을 요구하고 RT에서 atomic하게 적용한다. stale topology/BootId/
+output revision, invalid mask, offline/not-OP, mailbox/owner 실패와 uncertain outcome에서는
+fail-closed하고 자동 replay하지 않는다. 현재 SDK output allowlist도 empty다.
+
+exact contract, local Elmo API 근거와 구현/검증 순서는
+[LMC EtherCAT Topology 및 Digital I/O API 설계](LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md)를
+따른다.
 
 ## 7. WPF 앱 판정
 
@@ -546,11 +591,12 @@ PowerOff와 D5 4-byte/recovery 증거는
 
 ### 2026-07-24 해결된 runtime 위험
 
-1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
+1. PC response reader는 58개 SDK command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-    command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 277/277 tests가 exact table,
-   header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
+    command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 286/286 tests가 exact table,
+   header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다. 이 수는 PC가 인식하는
+   capability-off 신규 contract 5개를 포함하며 PLC handled command count가 58이라는 뜻은 아니다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
    거부하고 기존 4-byte command error 의미는 보존한다. PMAS 38개와 SIGMATEK 32개
@@ -588,11 +634,12 @@ PowerOff와 D5 4-byte/recovery 증거는
 현재 상태는 다음 순서로 읽는다.
 
 1. 이 문서
-2. `LMC_Library/LMC_API/API_DEVELOPMENT_GUIDE.md`
-3. `LMC_Library/LMC_API_Delivery/README.md`
-4. `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
-5. `LMC_Library/LMC_API_Delivery/docs/NINE_AXIS_DISPATCH_IMPLEMENTATION_2026-07-15.md`
-6. current source와 tests
+2. `docs/architecture/LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md`
+3. `LMC_Library/LMC_API/API_DEVELOPMENT_GUIDE.md`
+4. `LMC_Library/LMC_API_Delivery/README.md`
+5. `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`
+6. `LMC_Library/LMC_API_Delivery/docs/NINE_AXIS_DISPATCH_IMPLEMENTATION_2026-07-15.md`
+7. current source와 tests
 
 다음 문서는 목적상 과거 snapshot 또는 근거 자료다.
 
@@ -623,8 +670,11 @@ PowerOff와 D5 4-byte/recovery 증거는
    25 command의 request/success/expected failure와 상태 완료 근거, D1/D2 fault,
    Recorder reconnect/adopt, D4 Double fail-closed와 D5 offline/abort, timeout, queued cancel,
    disconnect/orphan, contention, Write·extended fail-closed matrix를 분리 저장한다.
-9. callback과 multi-PC 정책은 실제 캡처 또는 승인된 local protocol 후 구현한다.
-10. 외부 DOCX/PDF 안전 경고와 최종 hash/provenance를 갱신한 뒤 production 승인한다.
+9. current 5-slave project를 Rebuild/Link/download해 configured order와 CREVIS PDO를 먼저
+   확인한다. topology/node-health/DI read-only를 구현한 뒤 whole/masked RT output ticket을
+   별도 safety/fault/RT matrix로 진행하며 해당 단계 전 capability는 off로 둔다.
+10. callback과 multi-PC 정책은 실제 캡처 또는 승인된 local protocol 후 구현한다.
+11. 외부 DOCX/PDF 안전 경고와 최종 hash/provenance를 갱신한 뒤 production 승인한다.
 
 ## 13. production Definition of Done
 
@@ -818,12 +868,13 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 
 확인된 범위:
 
-- 현재 Phase 5 SDO Write checkpoint의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 277/277 PASS. SDK Write target policy, Read/Write-aware quarantine/cleanup과
+- 현재 C# request/parser/fake-RPC/golden/malformed 테스트 Debug/Release 각 286/286 PASS.
+  Phase 5 SDK Write target policy, Read/Write-aware quarantine/cleanup과
   원 owner/session/BootId/MapRevision에 묶인 exact manual readback interlock을
   포함하며, 53-command response payload hard limit, AxisInfo descriptor,
   qualification analysis, callback lifecycle, internal negative-wire, D5 abort/recovery analyzer와
-  largest variable response의 max/max+1 transport 경계를 포함한다.
+  largest variable response의 max/max+1 transport 경계, 신규 EtherCAT topology/I/O golden,
+  canonical CRC, capability-off와 empty output allowlist를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.
   Phase 4 temporary snapshot의 qualification UI Debug visual/startup smoke는
   역사적 증거다.

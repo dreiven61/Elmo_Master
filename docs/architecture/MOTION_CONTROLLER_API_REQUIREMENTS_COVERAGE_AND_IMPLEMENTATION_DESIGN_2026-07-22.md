@@ -5,8 +5,12 @@
 - 대상 시트/범위: `API 목록!A4:G68`
 - 원본 SHA-256: `A4441C88A489EE2898A8A6FA34182E387ABCA03C97B07EA9F68DB73AA29E34A4`
 - 판정 대상: 현재 Git working source의 C# 공개 API, TCP wire, LASAL handler/network, WPF 노출
-- 갱신일: 2026-07-23
+- 갱신일: 2026-07-27
 - 상태: Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22 GroupMoveLinearRelative` 구현 완료. PC 자동 시험/LASAL 정적 계약과 2026-07-23 기존 live capture가 PASS했고, 이후 `0x2047` accepted-then-poll 및 Group/Bulk/Recorder qualification UI는 code/build 완료했다. 신규 runner의 PLC live, fault/stale/reconnect/RT matrix는 별도다.
+- 2026-07-27 supplement: current LASAL working source의 CREVIS GL-9086 + Elmo 4개
+  configured topology와 별도 topology/node-health/digital-I/O API 설계를 추가했다. 신규 C#
+  command contract/parser/test는 구현했지만 PLC/LASAL handler와 capability 광고는 미구현이며,
+  이 supplement는 workbook 65개 판정 수를 바꾸지 않는다.
 - workbook 추출: OOXML read-only. 숨김 행과 수식은 없었고 실제 값은 A1:G68에 있었다. 현재 세션에는 workbook renderer가 없어 색/조건부 서식에 의미를 둔 판정은 하지 않았다.
 
 ## 1. 결론
@@ -52,6 +56,11 @@
     Single Manual/Ring forced-trigger/trigger soak를 구현하고 WPF Debug/Release build를
     통과했다. 이는 live PLC 합격이 아니며 Recorder reconnect/adopt, slave offline,
     raw negative, RT evidence와 D4 Double은 포함하지 않는다.
+12. current configured source는 physical `GL-9086 SlaveIndex 0`, `Elmo SlaveIndex 1..4`다.
+    기존 `0x7E10`은 4-drive subset과 legacy drive index 0..3을 그대로 유지한다. actual
+    topology와 CREVIS I/O는 `0x7E11/12/13/22/23`으로 분리한다. C# SDK contract/parser/test는
+    구현했지만 capability는 PLC implementation/runtime 전까지 off다. 이 기능은 workbook
+    항목의 Elmo ABI 복제가 아니라 LASAL-local extension이다.
 
 ## 2. 판정 기준과 증거 경계
 
@@ -85,6 +94,12 @@
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_LMCAxis/_LMCAxis.st`
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_LMCRobotBase/_LMCRobotBase.st`
   - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/**/*.lcn`
+- CREVIS/topology configured source와 설계:
+  - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Eni.xml`
+  - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/GL_9086_1/GL_9086_1.st`
+  - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/GL_9086_1_Slot00/GL_9086_1_Slot00.st`
+  - `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/GL_9086_1_Slot01/GL_9086_1_Slot01.st`
+  - `docs/architecture/LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md`
 - WPF:
   - `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow*.cs`
   - `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/MainWindow.xaml`
@@ -302,6 +317,41 @@ v1 write 후보는 실제 장비 요구가 확인된 최소 집합만 승인한�
 
 SDK와 PLC가 동일한 versioned allowlist를 각각 검사한다.
 
+### 5.4 EtherCAT configured topology와 digital I/O extension
+
+현재 source의 configured physical order는 `GL_9086_11(SlaveIndex 0) ->
+Elmo_11..41(SlaveIndex 1..4)`다. public axis는 계속 1..4다. 기존
+`0x7E10 ReadEtherCATHealth`의 `SlaveIndex=0..3`은 actual physical index가 아니라
+호환용 legacy drive index로 유지한다.
+
+local C# SDK contract는 아래와 같다.
+
+| Command | ID | 목적 | 상태 |
+|---|:---:|---|---|
+| GetEtherCATTopologyInfo | `0x7E11` | configured topology revision/count/stride | SDK 구현, PLC/capability off |
+| GetEtherCATTopologyChunk | `0x7E12` | opaque `NodeId`, actual `MasterSlaveIndex`와 configured identity/schema | SDK 구현, PLC/capability off |
+| ReadEtherCATNodeHealth | `0x7E13` | node별 runtime state와 data-valid/defaulted quality | SDK 구현, PLC/capability off |
+| ReadDigitalIO | `0x7E22` | `IOReference`별 input 또는 PLC output-shadow word | SDK 구현, PLC/capability off |
+| SubmitDigitalOutputWrite | `0x7E23` | RT-owned CAS whole-word/atomic masked write ticket | SDK 구현, PLC/capability off |
+
+configured slave order/identity, slot/PDO index-subindex, I/O width와 process-image mapping은
+schema다. Online/EtherCAT state/AL status, digital value와 quality만 동적이다. runtime
+discovery로 schema를 바꾸거나 raw process-image bit offset을 public API에 노출하지 않는다.
+
+capability bit 14~17을 각각 topology, node health, digital I/O read, digital output write로
+예약하되 현재 `0x7E00`에는 광고하지 않는다. output write는 bit 14~16, nonzero BootId,
+exact topology revision, fresh output revision, SDK/PLC allowlist와 single PLC RT owner를 모두
+요구한다. whole-word는 exact output valid mask, masked write는 nonzero subset mask를 사용하며
+validation/offline/stale/owner 실패에서는 어떤 output bit도 바꾸지 않는다. accepted request는
+reconnect 뒤 자동 재생하지 않는다. 현재 SDK allowlist는 empty다.
+
+local Elmo 문서에서 확인한 대응 근거는 `MMC_GetEthercatCommStatistics`,
+`MMC_GetCommDiagnosticsEx`, `MMC_ECATIOReadDigitalInput`과
+`MMC_ECATIOWriteDigitalOutput`이다. EtherCAT physical topology graph API는 확인하지
+못했으므로 신규 topology wire를 Elmo parity로 부르지 않는다. exact schema와 구현 순서는
+[LMC EtherCAT Topology 및 Digital I/O API 설계](LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md)를
+따른다.
+
 ## 6. 단계별 구현 순서
 
 ### Phase 0 - 현재 계약 정합
@@ -408,6 +458,9 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 4. SDO Write allowlist는 `(slave,index,subindex,type,length)` 전체 tuple을 검사한다.
 5. `0x6040`, `0x607A`, `0x60FF`, `0x6071` 같은 직접 motion/control target은 general SDO Write에서 영구 차단한다.
 6. capability bit와 max length는 PLC runtime path가 실제 활성화된 뒤에만 광고한다.
+7. CREVIS digital output은 general PI/SDO Write에 섞지 않는다. `0x7E23`의 configured
+   GT-22BA output slot-module `IOReference`, whole/masked valid mask와 RT single-writer ticket으로
+   분리하고 capability bit 17은 physical output/fault/RT matrix 전까지 0으로 둔다.
 
 ### Phase 4 - 선택 기능
 
@@ -435,6 +488,8 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 - axis 1..4와 invalid descriptor 분기
 - native method call count와 return propagation
 - queue depth/session generation/busy handling
+- configured topology revision/order와 legacy `0x7E10` 4-drive byte 호환
+- digital output whole/masked canonical form, RT owner와 invalid/stale/offline mutation 0
 - `Verify-LasalContract.ps1` SourceOnly/full 갱신
 
 ### 7.3 LASAL IDE
@@ -451,6 +506,10 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 - Stop/PowerOff recovery
 - packet capture로 request/response/sequence 확인
 - capability 광고와 실제 수행 가능 범위 일치
+- GL=physical index 0, Elmo=1..4인 5 slaves + 2 slot-module entry inventory와 node별
+  disconnect/recovery quality
+- CREVIS DI bit/byte pattern, whole/masked output, unmasked bit 보존과 physical output readback
+- output response-loss/reconnect에서 자동 replay가 없고 unresolved mutation이 차단되는지 확인
 
 ## 8. 다음 구현 슬라이스
 
@@ -466,6 +525,10 @@ qualification source/build와 Recorder Single/Ring/trigger soak source/build를 
 4. [code/build 부분 완료] PI/Bulk exact 24-entry/100 snapshot과 lifecycle/release-reuse를 자동화했다. PLC live, stale map/config/BootId, raw double-release와 partial-entry는 별도다.
 5. [code/build 부분 완료] Recorder D3 Single Manual, D4 Ring forced-trigger, 100-cycle trigger soak와 chunk data hash/cleanup을 자동화했다. PLC live, Window/Mask별 matrix, reconnect/adopt, RAM/jitter와 Double은 별도다.
 6. 위 runtime gate가 닫힌 뒤 axis velocity override의 persistence/read-back/ownership 계약을 확정하고, Reference/Homing은 physical IO 연결 확인 후 별도로 진행한다.
+7. [C# contract 완료, PLC/LASAL/WPF 구현 전] current 5-slave LASAL project를 먼저
+   Rebuild/Link/download해 configured order를 고정한다. 이후 `0x7E11/12/13/22` PLC
+   read-only source를 구현·검증하고, `0x7E23` RT CAS whole/masked output write는 별도 최종
+   gate로 진행한다. 신규 capability는 각 PLC runtime 단계가 끝날 때까지 off다.
 
 구체적인 파일 변경 순서, 공통 scenario runner, 로그 schema와 packet acceptance는
 [SIGMATEK 다음 runtime qualification 및 Test UI 설계](SIGMATEK_NEXT_RUNTIME_QUALIFICATION_AND_TEST_UI_DESIGN_2026-07-23.md)를 따른다.

@@ -13,20 +13,24 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
 EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
-Ring/Trigger와 D5 Read 및 fail-closed Write 공개 API가 포함됩니다.
+Ring/Trigger, D5 Read 및 fail-closed Write와 capability-off EtherCAT topology/digital I/O
+SDK contract가 포함됩니다.
 
 현재 완료도를 구분하면 다음과 같습니다.
 
 - 기존 Wireshark 캡처 기준 command: 23개
 - LASAL project-local extension command: 2개
   (`0x204A GroupPowerOn`, `0x204B GroupPowerOff`; 기존 캡처 명령이 아님)
-- LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 24개 ID 예약
+- LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 29개 ID 예약
   - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler 활성
   - D4: single-bank Ring/Trigger와 `0x7E42` 활성, Double bank는 미구현
   - D5: test profile에서 축 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed
     1/2/4-byte SDO Read ticket/status/queued cancel 활성. SDO Write의
     parser/executor/API/WPF 경로는 구현됐지만 승인 target과 capability는 비활성이고,
     extended result도 비활성
+  - EtherCAT topology/I/O: `0x7E11/12/13/22/23` C# model/parser/public API와 golden test
+    구현. PLC/LASAL handler와 WPF는 미구현이며 capability bit 14~17과 SDK output
+    allowlist는 비활성
   - Phase 1 PI/Bulk compatibility facade: catalog alias PI Read와
     `AddEntry/Configure/Upload/GetEntry` local builder/reader 구현; wire는 D1/D2 재사용
 - LASAL admin command: 4개
@@ -36,7 +40,7 @@ Ring/Trigger와 D5 Read 및 fail-closed Write 공개 API가 포함됩니다.
   (기존 motion/group 25 + diagnostics D0~D3 18 + D4 Trigger 1 + D5 general-inline 3 + admin 4)
 - dispatcher/wire handled contract: 53개
   (active 51 + D5 reserved `0x7E21/0x7E51` 2)
-- C# diagnostics 공개 API: D0~D5 sync/async contract 구현
+- C# diagnostics 공개 API: D0~D5와 capability-off EtherCAT topology/I/O sync/async contract 구현
 - LASAL diagnostics test build capability:
   - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000213F`
   - bit 0~2: Health, SignalCatalog, PIRead
@@ -44,15 +48,17 @@ Ring/Trigger와 D5 Read 및 fail-closed Write 공개 API가 포함됩니다.
   - nonzero retained BootId일 때 bit 5: RecorderTrigger
   - nonzero retained BootId일 때 bit 8: SDORead, bit 13: SDOReadGeneralInline,
     `MaxSdoDataBytes=4`
-  - bit 6, 7, 9~12: 0
+  - bit 6, 7, 9~12, 14~17: 0
 - CyWork axis/group control·read·motion command: 18개
   (lifecycle과 name/member metadata handler 제외)
   (`0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 277/277 PASS
-  (SDO Write target policy와 operation-kind별 quarantine 회귀 포함. 기존 269개는
+- C# 자동 테스트 runner: Debug/Release 각 286/286 PASS
+  (직전 277개에 EtherCAT topology/I/O wire/parser/capability-off/empty-output-allowlist
+  회귀 9개를 추가했다. SDO Write target policy와 operation-kind별 quarantine 회귀 포함.
+  기존 269개는
   직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개이고, 직전 260개는
   기존 225개 Phase 1/2
   회귀, 53-command response hard limit, AxisInfo descriptor,
@@ -112,6 +118,12 @@ success도 확인했다. offline/abort, timeout, queued cancel, disconnect/orpha
 contention은 아직 production qualification으로 남아 있다. abort -> recovery는
 `0x6061:0 Int8/1` baseline과 같은 BootId/MapRevision의 복구를 판정하는 WPF runner까지
 구현했지만 실제 abort code와 recovery packet은 아직 확보하지 않았다.
+
+신규 topology/I/O 공개 API는 `GetEtherCATTopology*`, `ReadEtherCATNodeHealth`,
+`ReadDigitalIO`, `SubmitDigitalOutputWrite`다. 현재 PLC는 이를 광고하거나 처리하지 않는다.
+`SubmitDigitalOutputWrite`는 nonzero topology/output revision, mask와 BootId를 요구하고
+`OperationKind=4` ticket을 사용하지만 SDK write allowlist가 empty이므로 신규 command를
+송신하지 않는다. 이 C# contract는 LASAL build나 CREVIS runtime 지원 증거가 아니다.
 
 D5 qualification은 Submit 전에 outcome evidence를 arm해 응답 유실을 unknown-ticket로
 quarantine한다. accepted `LMCOperationTicket`은 owner `LMCConnection`, `DiagnosticsBootId`,
