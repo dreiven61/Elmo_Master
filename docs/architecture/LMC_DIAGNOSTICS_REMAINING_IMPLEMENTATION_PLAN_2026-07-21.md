@@ -1,10 +1,27 @@
 # LMC Diagnostics 남은 구현 및 검증 계획
 
 - 기준일: 2026-07-21
-- 최종 검토일: 2026-07-23
+- 최종 검토일: 2026-07-27
 - 대상: LASAL PLC diagnostics D0-D6, C# SDK, `LasalApiWpfTestApp`,
   `Codex_PMAS_WPF_Version2`, native packet capture 비교
 - 현재 test-profile source capability: `0x0000213F`, `MaxSdoDataBytes=4`
+
+## 2026-07-27 SDO Write checkpoint
+
+- LASAL `0x7E50`, C# API와 WPF의 exact Int32/4-byte SDO Write 경로를 구현했다.
+- 후보는 Gold `UI[24] 0x2F00:24`, local range `-1073741823..1073741823`이지만 drive
+  program 미사용 여부와 첫 적용 축이 확정되지 않아 PLC/SDK global 및 axis 1..4 gate는 모두
+  FALSE다. 현재 실제 승인 target은 0개다.
+- WPF는 Write `Completed/Success` 뒤 동일 target/type/length의 exact 4-byte Readback이
+  원 Write owner/current session/BootId/MapRevision에서 일치할 때까지 mutation과 Close를
+  차단한다. identity mismatch는 Read submit 전에 거부한다. 불명확한 Write outcome은 Read proof로
+  quarantine 해제하지 않는다.
+- PC Debug/Release는 각 277/277, WPF Debug/Release 별도 output build와 LASAL SourceOnly는
+  PASS했다. tracked `Classes.lcb`가 신규 Write declaration과 아직 동기화되지 않아 switch 없는
+  full static은 의도적으로 FAIL하며 LASAL IDE Reload Class/저장/Rebuild가 필요하다.
+- 실제 활성화 전 남은 gate는 UI[24] 미사용/시험 축 확정, PLC/SDK 동일 gate 활성화, LASAL
+  build/smoke/download, same-value Write/readback/restore와 mailbox/pcap 증거, 그리고 강제
+  종료/전원 손실 뒤 pending Write/readback을 복구할 durable journal/운영자 ACK 정책이다.
 
 ## 1. 결론
 
@@ -332,10 +349,10 @@ sync/async wrapper는 이 facade의 실제 사용성 검증 뒤 필요성이 확
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunTests /p:Configuration=Debug /p:Platform=AnyCPU` | `148/148 passed` | 통과 확인 |
-| WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj` Debug build 후 3초 startup | error 0, startup exception 없음 | 통과 확인 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU` | `277/277 passed` | Debug/Release 통과 확인 |
+| WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.csproj` Debug/Release build | error 0 | 별도 output build 통과; current D5 visual/startup smoke는 대기 |
 | LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly` | PASS | 통과 확인 |
-| LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | PASS | 통과 확인; `Classes.lcb` `TryStartRead` declaration 동기화 |
+| LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | PASS | 현재 의도적 FAIL; `Classes.lcb` 신규 Write declaration 동기화/IDE Rebuild 뒤 재실행 |
 | executor initialization | LASAL IDE에서 `LMCSdoExecutor` constructor 생성 후 state/buffer 명시 초기화 | declaration, generated `@STD` call, implementation 및 정적 assertion 일치 | 미완료; 자동 zero-init 보장을 확인하지 못했으며 current Busy의 직접 원인으로 확정된 것은 아님 |
 | LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 10:53 gate-off baseline 통과; fixed-source runtime download 확인, build log 미보존 |
 | LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | fixed-source smoke 기록은 미보존 |

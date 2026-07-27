@@ -7,8 +7,9 @@
   `MsgPaser`에 inline됐다. TCP direct axis/robot 연결 10개를 `.lcn` text에서 제거하고
   `ONE_Comm_Network_Table.st` external connection text를 26개에서 16개로 줄였다. tracked
   `Classes.lcb`/`Networks.lcb`도 transport-only registration과 network tuple 계약을 만족해
-  switch 없는 `Phase5TransportClean` SourceOnly/full static이 PASS했다. 현재 worktree의 PC
-  Debug/Release 각 269/269 tests와 개발 WPF Debug/Release build도 PASS했다. 2026-07-24
+  switch 없는 `Phase5TransportClean` SourceOnly/full static이 PASS했다. 이후 SDO Write
+  checkpoint의 현재 worktree PC Debug/Release 각 277/277 tests와 개발 WPF Debug/Release
+  별도 output build도 PASS했다. 2026-07-24
   14:40~14:46 LASAL log에서 현재 Phase 5 main project의 Compiler/Linker 완료,
   ERROR/FATAL 0건과 `CInvalidArgException` 0건을 확인했다. `Find in Implementation` smoke와
   PLC runtime은 아직 검증하지 않았다
@@ -452,10 +453,11 @@ required Diagnostics client가 끊긴 비정상 topology에서는 기존 local d
 - tracked `Classes.lcb`/`Networks.lcb`의 scoped class/network record도 위 transport-only
   구조와 일치한다. TCP object의 제거 대상 member와 direct axis/robot tuple은 0개이고,
   control service의 axis/robot tuple 10개는 유지된다.
-- verifier/csproj에 `Phase5TransportClean`을 구현했다. switch 없는 SourceOnly/full static이
-  PASS했으며 `-AllowStaleLasalBinaryMetadata` 없이 binary registration gate까지 통과했다.
-  이 결과는 LASAL IDE Rebuild/Link나 PLC runtime 증거와는 별개다.
-- 현재 Phase 5 worktree에서 PC Debug/Release 각 269/269 tests가 PASS했다. 개발 WPF
+- verifier/csproj에 `Phase5TransportClean`을 구현했다. transport-only checkpoint 당시 switch
+  없는 SourceOnly/full static이 PASS했고 `-AllowStaleLasalBinaryMetadata` 없이 binary
+  registration gate까지 통과했다. 현재 SDO Write source는 `Classes.lcb` 동기화 전이므로 이
+  과거 full 결과를 재사용하지 않는다.
+- 현재 Phase 5 worktree에서 PC Debug/Release 각 277/277 tests가 PASS했다. 개발 WPF
   build도 PASS해 임시 Phase 4 snapshot 결과를 대체한다.
 - PC response reader는 53개 command 각각의 정상 최대 payload를 body read 전에 검사한다.
   가장 큰 정상 payload는 Recorder chunk의 1,972 bytes이고, 초과 선언은 stream desync를
@@ -528,22 +530,26 @@ text만 보고 network 완료를 선언하지 않는다. 저장 후 TCP direct �
 
 ### Phase 5 자동 검증
 
-`Phase5TransportClean` checkpoint는 구현됐다. 현재 switch 없는 default SourceOnly/full은
-source/XML/`ONE_*` table과 tracked `Classes.lcb`/`Networks.lcb` registration을 모두 검사해
-PASS한다. 아래 명령은 binary registration gate를 우회하지 않는 최종 정적 검증이다.
+`Phase5TransportClean` checkpoint는 구현됐다. 현재 SDO Write external source의 default
+SourceOnly는 PASS한다. 그러나 tracked `Classes.lcb`에 신규 Write declaration이 아직 없어
+switch 없는 full은 의도적으로 FAIL한다. 아래 full 명령은 LASAL IDE에서 Reload Class/저장/Rebuild
+후 binary registration gate를 우회하지 않는 최종 정적 검증으로 다시 실행해야 한다.
 
 IDE 적용 전 external source/XML/`ONE_*` table만 중간 점검할 때는 verifier의
 `-AllowStaleLasalBinaryMetadata`를 사용할 수 있다. 이 switch는 binary registration gate를
 명시적으로 우회하므로 final static 결과에 사용하지 않는다.
 
-2026-07-24 commit-preparation static/IDE 재검증과 2026-07-27 PC 재검증 결과는
+2026-07-24 transport-only IDE 재검증과 2026-07-27 SDO Write source/PC 재검증 결과는
 다음과 같다.
 
-- switch 없는 default SourceOnly/full: PASS
-- PC Debug/Release: 각 269/269 PASS
+- default SourceOnly: PASS
+- switch 없는 full: 의도적 FAIL(`Classes.lcb` SDO Write declaration 미동기화)
+- `-AllowStaleLasalBinaryMetadata` full: PASS, final/build 증거로 사용 금지
+- PC Debug/Release: 각 277/277 PASS
 - 개발 WPF Debug/Release build: 경고 0, 오류 0
 - `git diff --check`: PASS
-- LASAL main project Compiler/Linker, ERROR/FATAL 0, `CInvalidArgException` 0: PASS
+- 2026-07-24 transport-only LASAL main project Compiler/Linker, ERROR/FATAL 0,
+  `CInvalidArgException` 0: PASS. 현재 SDO Write 변경은 IDE build 전
 - 위 결과는 `Find in Implementation` smoke 또는 PLC runtime 증거가 아니다
 
 ```powershell
@@ -558,9 +564,10 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   -ControlServiceCheckpoint Phase5TransportClean
 ```
 
-- Phase 5 all-failure-context source 기준 전체 C# request/parser tests Debug/Release 각
-  269/269 PASS. 직전 260개에 UI 독립 D5 pending cleanup orchestrator 계약 시험 9개가
-  추가됐다. 이 orchestrator는 owner/current connection, ticket owner와 저장 MapRevision을
+- Phase 5 SDO Write checkpoint source 기준 전체 C# request/parser tests Debug/Release 각
+  277/277 PASS. SDK Write target policy, Read/Write-aware quarantine/cleanup과 성공 Write 뒤
+  원 owner/session/BootId/MapRevision에 묶인 exact manual readback interlock 계약을 포함한다.
+  pending cleanup orchestrator는 owner/current connection, ticket owner와 저장 MapRevision을
   dispatch 전에 fail-closed하고 capability BootId를 우선 판정한 뒤 Map mismatch를
   status/cancel 없이 quarantine한다. cached terminal status/cancel 무송신/cached pending refresh,
   Queued-only cancel과 `InvalidState` race, Running wait, exact `Cancelled/Cancelled`, fresh status와
@@ -603,6 +610,10 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   `DiagnosticsBootId`/`MapRevision`을 기록하며, WPF manual router는 no-submit/rejected를
   disarm하고 uncertain identity를 reconcile해 quarantine한다. accepted exact ticket은 manual
   operation state와 D5 tracker에 보존한 뒤 disarm하며 context 누락/불일치는 fail-closed한다.
+  quarantine evidence는 operation kind를 보존하고 Read recovery proof로 Write uncertainty를
+  해제하지 않는다. `0x7E50` exact Int32/4-byte Write executor/API/WPF 경로는 구현됐지만
+  `UI[24] 0x2F00:24` 예약과 적용 축 확정 전에는 SDK/PLC global+per-axis gate가 off이므로
+  capability bit 9와 GUI submit은 fail-closed한다.
   Phase 1 PI Write는 SDK empty allowlist와
   WPF button/handler로 이중 차단한다. PLC live/pcap 증거는 아직 없다.
 - 개발 WPF Debug/Release build 경고 0/오류 0 PASS
@@ -654,17 +665,17 @@ test 폴더를 수정하거나 자동 동기화하지 않는다.
 
 | 흐름 | 다음 작업 | 같이 수행할 검증 | 완료 조건 |
 |---|---|---|---|
-| A. Phase 5 재검증 | 임시 Phase 4 snapshot 결과를 현재 Phase 5 source 결과로 대체 | `Phase5TransportClean` SourceOnly/full, PC/WPF Debug/Release와 Compiler/Linker는 PASS. implementation smoke와 장비시험 진행 | final static, IDE-generated state와 장비 결과가 모두 보존됨 |
+| A. Phase 5 재검증 | 임시 Phase 4 snapshot 결과를 현재 Phase 5 source 결과로 대체 | `Phase5TransportClean` SourceOnly와 PC/WPF Debug/Release는 PASS. current SDO Write declaration의 full/Compiler/Linker, implementation smoke와 장비시험 진행 | final static, IDE-generated state와 장비 결과가 모두 보존됨 |
 | B. legacy/신규 성능 비교 | pre-route `65f8000`을 배포해 legacy baseline을 얻고 같은 PLC/build 조건에서 routed source 재측정 | 1 ms cycle jitter/overrun, dispatch P95, throughput, RAM, 10,000회 이상 soak | 12절 성능 gate 충족 및 원시 로그 보존 |
 | C. packet 회귀 | read-only/identity를 먼저 확인한 뒤 저속 Group command를 안전 순서로 실행 | 정상·잘못된 size/reference/mode, Power/Enable/Stop, disconnect/reconnect, response byte 비교 | 기존 golden과 byte/status 동일, 이중 실행·stale session 0 |
 | D. Phase 5 IDE 확인 | source와 tracked metadata의 `4/3/0`, 함수 8개, TCP direct 연결 0개, network external 16개 정적 계약은 PASS. 2026-07-24 Compiler/Linker와 오류 로그 확인도 PASS | `Find in Implementation` smoke, generated count 최종 확인 | IDE가 외부 구현을 보존하고 smoke까지 최종 구조를 수용함 |
 | E. 9축 network | 새 `PosController5..9`와 `_LMCAxis5..9.LMCController` 연결을 축별 점검 | generated table, simulated axis position/status, axis-order readback | 1..9 매핑과 `0x2028`/`0x202E` 값 일치 |
-| F. diagnostics qualification | Group route 변경과 독립된 runner backlog 수행 | Bulk/Recorder와 read-only D5 abort/recovery code/build 완료. D5 outcome/BootId quarantine, two-ticket recovery proof, unresolved mutation gate와 deadline-aware cleanup 포함; negative-wire PC test/dry-run 완료. PLC live/pcap 및 SDO offline/timeout/cancel/contention 수행 | happy path가 아닌 fault/soak 원시 결과까지 보존 |
+| F. diagnostics qualification | Group route 변경과 독립된 runner backlog 수행 | Bulk/Recorder와 read-only D5 abort/recovery code/build 완료. exact allowlist SDO Write 경로는 gate-off checkpoint 완료. D5 outcome/BootId/operation-kind quarantine, two-ticket Read recovery proof, unresolved mutation gate와 deadline-aware cleanup 포함; negative-wire PC test/dry-run 완료. PLC live/pcap 및 SDO Read fault matrix와 승인 target의 same-value Write/readback/restore 수행 | happy path가 아닌 fault/soak와 Write 복구 원시 결과까지 보존 |
 
 Phase 4 source 구현을 baseline보다 먼저 진행했으므로 B는 `65f8000`과 routed revision을
 각각 cold download해 같은 조건으로 비교한다. 현재 Phase 5 `Phase5TransportClean`
-SourceOnly/full static과 Compiler/Linker는 PASS했지만 implementation smoke와 PLC runtime은
-대기 상태다. A/C/F의 PLC 실행은 서로 병렬
+SourceOnly는 PASS했지만 SDO Write declaration의 full static과 Compiler/Linker,
+implementation smoke 및 PLC runtime은 대기 상태다. A/C/F의 PLC 실행은 서로 병렬
 실행하지 않고, 장비 정지·저속·무부하 조건과 motion owner를 먼저 확인한다. static PASS만으로
 production 승인하지 않는다.
 

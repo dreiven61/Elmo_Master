@@ -193,7 +193,7 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   accepted nonterminal은 정확한 ticket을 보존한 뒤 guard를 해제한다. context가 없거나 서로
   모순되면 기존 unknown evidence로 fail-closed한다. drive-read context의 phase는 계속 위의
   6개다.
-- 수동 `Submit SDO Read`의 raw `LMCDiagnostics.SubmitSdo[Async]`도 원래 exception을 유지하면서
+- 수동 `Submit SDO Read/Write`의 raw `LMCDiagnostics.SubmitSdo[Async]`도 원래 exception을 유지하면서
   `LMCSdoSubmissionFailureContext.TryGet`으로 별도 all-failure context를 제공한다. phase는
   `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
   `PostSubmissionValidation`의 5개이고 outcome은 같은 `LMCSdoSubmissionOutcome`을 사용한다.
@@ -203,6 +203,10 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   failure는 이전 manual status/result/cancel flag를 지우고 exact ticket을 manual operation
   state와 D5 tracker에 모두 보존한 뒤 guard를 해제한다. context 누락이나 불일치는
   fail-closed한다.
+- 성공 Write 뒤 exact Readback은 원 Write ticket/owner/session/`DiagnosticsBootId`/
+  `MapRevision`을 보존하고 guarded `SubmitSdo[Async]`로만 제출한다. owner/session mismatch는
+  capability RPC 전, Boot/map mismatch는 `0x7E50` 전 거부한다. terminal status와 exact
+  4-byte 결과까지 같은 identity일 때만 pending interlock을 해제한다.
 - D5 tracker의 quarantine evidence는 UI field 안의 mutable list가 아니라 잠금된 ledger에
   저장한다. opaque handle은 생성 ledger와 exact entry에 귀속되고, evidence snapshot은
   TicketId/BootId/MapRevision/owner/stage/reason/revision을 불변 복사한다. accepted 전이는
@@ -251,11 +255,12 @@ packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
-269/269 PASS다. 직전 260개에 UI 독립 D5 pending cleanup orchestrator 계약 시험 9개가
-추가됐다.
+277/277 PASS다. SDO Write target policy, operation-kind별 quarantine와 성공 Write 뒤 exact
+manual readback interlock 회귀를 포함한다.
 D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
 대기 중이다.
-이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
+이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다. 특히 현재
+SDO Write source는 LASAL IDE build, PLC download, 실축 및 EtherCAT mailbox로 검증하지 않았다.
 
 ## EtherCAT / PI / Bulk / Recorder 시험 순서
 
@@ -267,6 +272,10 @@ D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
    D5 bit 7 `PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
    Phase 1 PI Write는 이 capability-off와 별도로 SDK compile-time allowlist가 empty이고,
    WPF도 `Phase1AllowsPiWrite=false`로 입력/button을 끈 뒤 click handler에서 다시 거부한다.
+   SDO Write도 PLC와 SDK의 global gate 및 UI[24] axis 1~4 per-axis gate가 모두 `FALSE`이고
+   SDK approved target 목록이 empty라 GUI에서 비활성이다. Gold UI[24] `0x2F00:24`는
+   사용자 drive program에서 미사용인지와 적용 축이 확정되기 전까지 승인 target이 아니다.
+   배포 설정에서는 확인한 한 축의 gate만 활성화한다.
    BootId 5 축 1~4 capture는 당시 `0x13F`와 `0x1000:0` UInt32 4-byte legacy 경로를
    확인했다. 최신 BootId 8 `0x213F` capture는 general-inline Int8/1,
    BitField16/2, UInt32/4와 동일 BootId TypeMismatch 후 복구를 확인했다.
@@ -344,14 +353,33 @@ D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
    시작된 `Uploading`일 때만 허용한다. `Fault`면 자동 Release하지 않고 identity와
    resource를 보존해 명시적 진단/복구 대상으로 남긴다. Adopt한 Recorder는 `Release`가
    필요할 경우 Status metadata를 먼저 복구한 뒤 같은 상태 gate를 적용한다.
-10. SDO 탭의 general-inline flow는 `Submit SDO Read -> Refresh Ticket` 순서다. 새 PLC
+10. SDO 탭의 활성 general-inline flow는 `Submit SDO Read -> Refresh Ticket` 순서다. 새 PLC
     test build를 download하고 `Refresh Capabilities`에서 bit 8 `SDORead`, bit 13
     `SDOReadGeneralInline`과 `MaxSdoDataBytes=4`를 확인하면 Submit이 활성화된다.
     Slave 1~4, nonzero ObjectIndex, 임의 U8 SubIndex를 입력하고 ValueType에 맞춰
     1-byte(Bool/Int8/UInt8/BitField8), 2-byte(Int16/UInt16/BitField16) 또는
     4-byte(Int32/UInt32/Real32/BitField32) Read를 제출한다. terminal 상태까지
     `Refresh Ticket`을 반복하고 inline 결과를 `Save Result`로 저장할 수 있다.
-    SDO Write, 8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
+    8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
+    SDO Write UI/API/PLC source 인프라는 `OperationFlags=1`, exact 36-byte request,
+    `ValueType=Int32(4)`, `DataLength=4`, `OperationKind=SDOWrite(3)` 계약으로 준비됐다.
+    그러나 현재 bit 9가 0이고 SDK allowlist가 empty이므로 Write mode를 선택해도 target과
+    submit 버튼은 활성화되지 않는다. 승인 후보 Gold UI[24] `0x2F00:24`는 drive program
+    미사용 여부와 축을 확정한 뒤 PLC와 SDK 양쪽 allowlist에 동시에 반영해야 한다.
+    임의 SDO address와 DS402 motion/control object는 계속 차단된다.
+
+    승인 후 Write submit도 exact SDK target만 선택할 수 있다. WPF는 capability를 다시
+    확인하고 `_LMCAxisN`의 `PowerOn=False`, `Standstill=True`, actual position 3회 안정을
+    검사한 뒤 target/value/wire bytes 확인창에서 사용자가 명시적으로 승인해야 전송한다.
+    submit 직전 operation-kind별 quarantine guard를 등록하며, 결과가 불명확한 Write는
+    Read recovery proof로 자동 해제하지 않는다. Write가 `Completed/Success`여도 GUI는 동일
+    Slave/Index/SubIndex/Type/Length의 Read 화면을 고정하고 원 owner/session/BootId/MapRevision을
+    재검증한다. terminal result의 type/length와 4-byte 값이 Write 값과 정확히 일치할 때까지
+    다른 mutation과 Close를 차단한다. Stop,
+    PowerOff와 기존 resource cleanup은 계속 허용한다. pending readback은 프로세스 재시작을
+    견디는 journal로 영속화하지 않았으므로 강제 종료/전원 손실 복구는 남은 release gate다.
+    현재 이 Write 절차는 PC code/build/test 계약만 있고 LASAL build, PLC download, 실축 또는
+    packet capture 합격 증거는 없다.
     축 1~4 `0x1000:0` UInt32 4-byte legacy와 general-inline 1/2/4-byte Read의
     PC-PLC ticket/inline success를 확인했다. `12_SDO_GeneralInline_4Byte_FailureRecovery`
     에서는 TypeMismatch 실패 뒤 같은 BootId 복구도 PASS했다. read-only abort -> recovery

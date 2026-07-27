@@ -39,7 +39,7 @@
 | Recorder Buffer / Configuration Release | `0x7E47`, `0x7E48` | `ReleaseRecorderBufferAsync`, `ReleaseRecorderAsync` |
 | Recorder Reconnect Adoption | `0x7E49` | `AdoptRecorderAsync` |
 | PI Write ticket submit | `0x7E21` | `SubmitPIWriteAsync` |
-| SDO ticket submit | `0x7E50` | `SubmitSdoAsync` |
+| SDO Read / Write ticket submit | `0x7E50` | `SubmitSdoAsync` |
 | Extended SDO result chunk | `0x7E51` | `ReadSdoResultChunkAsync` |
 | Diagnostics ticket status / cancel | `0x7E03`, `0x7E04` | `GetOperationStatusAsync`, `CancelOperationAsync` |
 
@@ -66,6 +66,26 @@ SDO의 4/8/12-byte 결과는 `0x7E03 GetOperationStatus` response에 inline으�
 포함된다. 더 큰 Read는 `ExtendedSdoResultChunk` capability가 필요하고 terminal
 success 뒤 `0x7E51 ReadSdoResultChunk`를 반복해 전체 결과를 조립한다. PI/SDO Write
 버튼은 PLC capability와 SDK allowlist가 모두 허용하지 않으면 실행되지 않는다.
+
+현재 `0x7E50` SDO Write 인프라는 `OperationFlags=1`, exact 36-byte request,
+`ValueType=Int32(4)`, `DataLength=4`만 받으며 ticket의 `OperationKind`는
+`SDOWrite(3)`이다. 승인 후보는 Gold UI[24] `0x2F00:24`지만 사용자 drive program에서
+미사용인지와 적용 축이 확정되지 않았다. 따라서 PLC와 SDK의 global gate 및 UI[24]
+axis 1~4 per-axis gate는 모두 `FALSE`, SDK approved target 목록은 empty, capability
+bit 9는 0이고 GUI Write도 비활성이다. 배포 설정에서는 확인한 한 축의 gate만 활성화한다. 임의
+SDO address, DS402 motion/control object, PI Write `0x7E21`, extended result
+`0x7E51`은 허용하지 않는다.
+
+승인 후에도 GUI submit은 exact SDK target 선택, PLC capability 재확인, 선택 축의
+`PowerOn=False`/`Standstill=True`와 actual position 3회 안정, 명시적 확인 및 D5
+quarantine 등록을 요구한다. Write outcome이 불명확하면 read recovery proof로 자동
+해제하지 않는다. Write가 `Completed/Success`여도 동일 Slave/Index/SubIndex/Type/Length를
+원 Write의 owner/current session, `DiagnosticsBootId`, `MapRevision`에 묶인 guarded Read로
+다시 읽어 exact 4-byte 값이 일치할 때까지 mutation과 Close를 차단한다. identity mismatch는
+`0x7E50` Read submit 전에 거부하고 interlock을 유지한다. 이 pending readback은 현재
+프로세스 메모리에만 있으므로 강제 종료/전원 손실 뒤 복구 journal은 아직
+없다. 현재 Write 경로는 PC 자동 테스트 대상일 뿐 LASAL build, PLC download, 실축 및
+EtherCAT mailbox로 검증되지 않았다.
 
 Motion 인자는 PC 프로그램이 `engineering value × PLC UNIT`으로 변환하거나
 이미 변환된 raw 값으로 제공한 LASAL DINT다. DLL 내부에서는 단위 변환을 수행하지 않는다. 예제의 UNIT

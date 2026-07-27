@@ -4,12 +4,14 @@
 - 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
 - PC 시험 앱: `LMC_Library/LasalApiWpfTestApp`
 - 범위: D1 Health/Catalog/PI Read, D2 Bulk, D3 Recorder v1,
-  D4 single-bank Ring/Trigger, D5 general-inline SDO Read
-- 제외: 고객 배포 패키지 갱신, D4 Double bank, PI/SDO Write, 8/12-byte 및
+  D4 single-bank Ring/Trigger, D5 general-inline SDO Read와 gate-off exact SDO Write checkpoint
+- 제외: 고객 배포 패키지 갱신, D4 Double bank, PI Write, arbitrary SDO Write, 8/12-byte 및
   extended SDO result, 기존 D6 static/handle facade
-- preflight 상태: PC 자동 테스트 148/148, WPF Debug/Release build와 각 3초 startup smoke 및 현재 수정
-  LASAL SourceOnly/full static 계약 PASS. `Classes.lcb`의 `TryStartRead` declaration도 current
-  source와 동기화됐다.
+- preflight 상태: PC 자동 테스트 Debug/Release 각 277/277와 WPF Debug/Release 별도 output
+  build PASS. LASAL SourceOnly 정적 계약은 PASS했다. 새 `TryStartWrite`, `ActiveIsWrite`,
+  `WriteBuffer`, `SdoWriteData`, `GetSdoWritePolicyDetail` declaration은 tracked `.st`에만 있고
+  `Classes.lcb`에는 아직 없으므로 switch 없는 full static은 현재 의도적으로 FAIL한다.
+  사용자가 LASAL IDE에서 declaration 동기화·저장·build한 뒤 full을 다시 통과시켜야 한다.
   legacy fixed-vector D5 시험의 same-cycle timeout을 수정했고 후속 download의 Slave 1~4
   `0x1000:0` UInt32 4-byte 경로는 모두 Completed/Success, 43~54 cycles로 PASS했다.
   과거 BootId 6 general-inline 시험은 Submit 두 건이 ticket 전 `ResourceBusy`로
@@ -41,7 +43,7 @@
 
 1. LASAL IDE에서 `LMCDiagnosticsService`, `LMCSdoExecutor`, `LMCEcatInputLatch`,
    `LMCRecorderStore`, `TCPMotionInterface`를 Reload Class 후 저장한다.
-2. `LMCSdoExecutor`에 class constructor가 있고 `AdapterState/Active*`, `ReadBuffer`,
+2. `LMCSdoExecutor`에 class constructor가 있고 `AdapterState/Active*`, `ReadBuffer`, `WriteBuffer`,
    `PublishSequence`, `PublishedResult`를 명시적으로 초기화한다. declaration/`@STD` wiring은
    LASAL IDE가 생성해야 한다.
 3. Rebuild와 Link가 0 error다.
@@ -66,8 +68,9 @@
 
 - 첫 시험은 축 power off와 정지 상태에서 수행한다.
 - D1~D4는 read/record 경로이며 motion command를 발생시키지 않아야 한다.
-- PI Write와 SDO Write control은 현재 SDK allowlist와 PLC capability가 모두 off인 것이
-  정상이다. 활성화해서 시험하지 않는다.
+- PI Write는 계속 off다. SDO Write는 사용자 drive program에서 예약한 정확한 축의
+  `UI[24] 0x2F00:24`만 SDK global+per-axis allowlist와 PLC global+per-axis gate를 함께
+  활성화한 뒤 8.4절 순서로만 시험한다. 예약 확인 전에는 bit 9와 GUI submit이 off인 것이 정상이다.
 - `ControlWord`, `TargetPosition`, `TargetVelocity`, `TargetTorque` direct write는 금지한다.
 - PLC reboot, diagnostics service 재초기화 또는 BootId 변경 뒤 기존 Bulk/Recorder
   handle을 재사용하지 않는다.
@@ -99,7 +102,7 @@ DiagnosticsBootId      nonzero
 `AcceptedCapacity=min(requested, floor(1280000 / (channelCount * 4)))`가 실제 상한이며,
 16채널은 20,000 samples, 24채널은 13,333 samples까지다.
 
-BootId가 0이면 D2/D3, D4 Trigger와 D5 SDORead/general-inline bit가 꺼지고 MaxSDO가 0인 것이 정상
+BootId가 0이면 D2/D3, D4 Trigger와 D5 SDORead/general-inline/Write bit가 꺼지고 MaxSDO가 0인 것이 정상
 fail-closed다. 이 경우 Recorder나 SDO를 강행하지 말고 `DiagnosticsBootCounter`
 retentive restore/write/read-back부터 확인한다.
 
@@ -221,8 +224,9 @@ block되면 안 된다.
 7. Queued ticket은 Cancelled가 되고 Running ticket cancel은 InvalidState인지 확인한다.
 8. Queued/Running 중 TCP session 종료 후 새 session에서 old ticket이 stale 처리되고,
    late callback 결과가 새 ticket에 노출되지 않는지 확인한다.
-9. ObjectIndex 0, ValueType/DataLength 불일치, raw 8/12-byte Read, SDO Write가 계속
-   거부되는지 확인한다. SubIndex 0 이외의 값은 그 자체로 거부 조건이 아니다.
+9. ObjectIndex 0, ValueType/DataLength 불일치와 raw 8/12-byte Read가 계속 거부되는지
+   확인한다. 현재 gate-off checkpoint에서는 SDO Write도 거부되어야 한다. SubIndex 0
+   이외의 값은 그 자체로 Read 거부 조건이 아니다.
 10. callback failure recovery는 같은 BootId와 같은 slave에서 수행한다. drive object의
     실제 길이와 다른 `0x6061:0` UInt16/2처럼 SDK shape 자체는 유효한 요청을 실행해
     terminal Failed 또는 SDO abort를 확인한 뒤, PLC를 재시작하지 않고 올바른 Int8/1을
@@ -309,6 +313,42 @@ hard quarantine을 적용했고 full static 계약을 통과했다. 이후
 vector는 PASS다. SDO abort/offline, timeout, queued cancel, disconnect/orphan, active
 contention은 여전히 별도로 시험한다.
 
+### 8.4 SDO Write 활성화 및 첫 시험
+
+이 절은 사용자 drive program에서 시험 축의 `UI[24]`가 미사용이라고 확인한 뒤에만 수행한다.
+임의 축 전체를 한 번에 열지 않는다.
+
+1. 첫 시험 축 하나를 정하고 SDK의 global gate와 해당 `UI24 Axis N` gate, PLC의 global gate와
+   같은 축의 per-axis gate만 TRUE로 변경한다. 다른 세 축 gate는 FALSE로 유지한다.
+2. LASAL IDE에서 `LMCSdoExecutor.TryStartWrite` declaration을 동기화하고 저장·Rebuild/Link한다.
+   변경 class의 앞/중간/뒤 `Find in Implementation`과 smoke 시작 이후 `%TEMP%\Lasal2.log`의
+   신규 `CInvalidArgException=0`을 확인한다.
+3. PC API/WPF Debug/Release와 source-only/full static 계약을 다시 실행한다. capability는 bit 8,
+   bit 9, bit 13, MaxSDO=4와 nonzero BootId를 광고해야 하며 GUI target 목록에는 승인한 축
+   하나의 `0x2F00:24 Int32/4`만 보여야 한다. 이때 verifier에는 선택 축 번호를
+   `-ExpectedSdoWriteAxis N`으로 전달한다. gate-off baseline은 기본값 `0`이다.
+4. drive program/EAS에서 원래 `UI[24]` 값을 기록한다. 축은 PowerOff, DS402 Switch On Disabled,
+   WPF `PowerOn=False`, `Standstill=True`, position 3회 동일 상태여야 한다.
+   PLC의 DS402 재검사는 async EtherCAT mailbox가 실제 실행되는 순간까지 상태를 고정하는
+   hard interlock이 아니라 submit-time precondition이므로 시험 중 다른 조작을 하지 않는다.
+5. 먼저 원래 값과 동일한 값을 Write한다. 확인 대화상자의 Slave/Object/Type/value/wire bytes를
+   대조한 뒤 제출하고 `Queued/Running -> Completed/Success`, Error/Detail 0,
+   ResultLength/ResultData 0을 확인한다. GUI는 이 terminal을 전송 성공으로만 표시하고 exact
+   readback이 끝날 때까지 mutation과 Close를 계속 차단해야 한다.
+6. GUI가 자동 설정한 같은 Slave/Object/SubIndex/Type/Length로 SDO Read한다. 이 Read는 원
+   Write의 owner/current session, BootId, MapRevision에 묶여야 하며 identity mismatch면 submit
+   없이 interlock을 유지해야 한다. terminal type/length와 4-byte 값이 Write 값과 정확히
+   일치할 때만 interlock이 해제되어야 한다.
+   mismatch/failure 또는 불명확한 submit outcome이면 새 mutation을 중단한다. Write uncertainty는
+   Read recovery proof로 quarantine 해제할 수 없다. 현재 pending readback은 프로세스 메모리에만
+   있으므로 강제 종료/전원 손실 없이 시험하고, production 활성화 전 durable journal/restart
+   recovery를 별도 구현한다.
+7. 별도 sentinel 시험이 필요하면 승인한 conservative range 안의 값 하나를 Write하고 즉시
+   Readback한 뒤 원래 값을 복원하고 다시 Readback한다. PLC/TCP terminal packet, EtherCAT
+   mailbox 관측 또는 executor callback trace를 함께 보존한다.
+8. offline/timeout/cancel/session-loss 시험은 same-value happy path와 restore가 모두 PASS한 뒤
+   별도 수행한다. direct `0x6040/0x607A/0x60FF/0x6071` write는 항상 금지한다.
+
 각 정상 요청은 Submit Queued와 terminal Completed/Success를 반환해야 한다. 의도한
 실패 뒤에도 다음 Submit이 진행돼야 한다. 실제 active/draining 구간의 일시적 Busy는
 정상이지만 terminal 처리 뒤 지속되는 Busy는 FAIL이다. 상세 packet 사실과 source 추정
@@ -329,12 +369,13 @@ contention은 여전히 별도로 시험한다.
 
 - D4 Double Buffer
 - D5 `SubmitPIWrite (0x7E21)`
-- D5 PI/SDO Write와 8/12-byte Read
+- D5 PI Write, arbitrary/non-allowlisted SDO Write와 8/12-byte Read
 - extended SDO `ReadSDOResultChunk (0x7E51)`
 - D6 static/handle compatibility facade. Phase 1 D1/D2 instance facade는 시험 범위에 포함한다.
 
 D4 Double과 D5 Write/extended capability가 0인 동안 WPF는 해당 control을
-비활성화하거나 API가 호출 전 차단해야 한다. `0x7E21/0x7E51` exact request는
+비활성화하거나 API가 호출 전 차단해야 한다. 승인 축을 활성화해도 arbitrary Write는
+SDK와 PLC 양쪽에서 차단해야 한다. `0x7E21/0x7E51` exact request는
 `UnsupportedFeature`를 반환해야 한다. D6에는 호출할 PLC command 자체가 없고 Phase 1
 PI/Bulk facade도 기존 D1/D2 command만 사용한다.
 

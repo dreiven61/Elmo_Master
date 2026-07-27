@@ -18,10 +18,10 @@
 - Recorder: capability-gated Single/Ring/Double 및 Manual/Edge/Window/Mask configuration,
   start/stop/status/header, reconnect adoption, chunk download, CSV와 dependency-free
   downsample plot
-- SDO/Write Policy: general-inline SDO Read ticket submit/status/queued cancel,
-  nonzero ObjectIndex, 임의 U8 SubIndex와 typed 1/2/4-byte inline 결과 표시/save,
-  capability 및 write allowlist로
-  차단되는 PI/SDO Write와 extended result 확인
+- SDO/Write Policy: general-inline SDO Read와 exact allowlist 기반 SDO Write의 ticket
+  submit/status/queued cancel, Read의 typed 1/2/4-byte inline 결과 표시/save, Write의
+  safe-axis preflight와 명시적 확인, capability 및 write allowlist로 차단되는 임의 Write와
+  extended result 확인
 - Read-only API: Admin capability를 선행 확인한 뒤 physical axis 1~4의 semantic
   parameter, fixed group `0x0100` parameter, typed drive operation mode와 non-atomic
   drive status를 읽는 Phase 1 실기 검증 화면
@@ -70,13 +70,20 @@ TriggerMask를 항상 0으로 보내고 Mask는 BitField16/32와 non-zero Trigge
 요구해 세 경로의 의미를 섞지 않는다.
 
 현재 SDO UI는 slave 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히
-맞는 1/2/4-byte Read를 제출한다. 활성화에는 bit 8 `SDORead`와 bit 13
+맞는 1/2/4-byte Read를 제출한다. general-inline 활성화에는 bit 8 `SDORead`와 bit 13
 `SDOReadGeneralInline`이 모두 필요하다.
 `GetOperationStatusAsync`의 terminal `ResultData`를 raw bytes로 표시하고 저장한다.
 SDK와 WPF에 extended result parser/download scaffold가 있더라도 current inline policy와
 PLC capability가 8/12-byte 및 `0x7E51` 경로를 차단하므로 현재 화면 계약에 포함하지
-않는다. SDO Write와 PI Write도 non-empty SDK/PLC allowlist가 승인되기 전까지
-fail-closed한다. Phase 1 PI Write는 SDK compile-time allowlist가 empty인 것에 더해
+않는다. SDO Write 인프라는 `0x7E50`의 exact Int32/4-byte request, SDK target descriptor,
+PLC global+per-axis compile-time gate와 제출 직전 DS402 상태 재검사, WPF PowerOff/Standstill/stable
+position preflight와 확인 대화상자까지 구현했다. 다만 준비 후보 `UI[24] 0x2F00:24`가
+drive program에서 미사용인지와 적용 축을 확정하기 전이므로 SDK global+per-axis gate와 PLC
+global+per-axis gate는 모두 FALSE이며 capability bit 9도 0이다. PLC의 DS402 검사는 async
+mailbox 실행 시점까지 상태를 고정하는 hard interlock이 아니라 submit-time precondition이다.
+따라서 현재 build에서는 Write 선택 화면은
+보이지만 제출은 fail-closed한다. Phase 1 PI Write는 SDK compile-time allowlist가 empty인
+것에 더해
 `Phase1AllowsPiWrite=false`가 input/button을 비활성화하고 click handler도 다시 거부한다.
 
 Read-only API 탭의 Admin 흐름은 `GetAdminCapabilitiesAsync(0x7D00)` 성공 결과를
@@ -356,6 +363,12 @@ var raw = checked((int)Math.Round(
   stale인 예외도 quarantine한다. 같은 Boot/session의 exact `TicketNotFound`는 terminal-slot
   교체 계약상 이전 ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로
   해당 ticket을 해제한다.
+- Write terminal이 exact `Completed/Success`이면 성공 전송 자체로 mutation을 다시 열지 않는다.
+  immutable request fingerprint를 pending readback으로 보존하고 동일
+  Slave/Index/SubIndex/Type/Length의 SDO Read만 허용한다. 그 Read가 exact terminal success이며
+  result type/length/4-byte 값까지 Write 값과 일치할 때만 mutation/Close interlock을 해제한다.
+  mismatch/failure는 pending을 유지하고 Stop, PowerOff, 기존 resource cleanup만 예외로 둔다.
+  이 pending 상태의 crash-safe journal과 재시작 recovery/운영자 ACK는 아직 구현하지 않았다.
 - quarantine은 known ticket과 submit-outcome unknown evidence를 여러 개 보존할 수 있다.
   모두 같은 slave여야 자동 recovery proof가 가능하다. stable BootId/MapRevision 아래 서로
   다른 두 ticket을 사용하되 GeneralInline capability면 `0x6061:0 Int8/1`, legacy
@@ -405,7 +418,7 @@ var raw = checked((int)Math.Round(
   identity로 unknown evidence를 보정해 quarantine하며, accepted nonterminal은 exact ticket을
   보존하고 guard를 해제한다. context 누락, 둘 이상의 nonterminal ticket 또는 불일치 상태는
   fail-closed한다.
-- 수동 `Submit SDO Read`가 직접 호출하는 `LMCDiagnostics.SubmitSdo[Async]`는 원래 exception에
+- 수동 `Submit SDO Read/Write`가 직접 호출하는 `LMCDiagnostics.SubmitSdo[Async]`는 원래 exception에
   `LMCSdoSubmissionFailureContext`를 연결하며 `TryGet`으로 조회한다. phase는
   `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
   `PostSubmissionValidation`의 5개이고 같은 `LMCSdoSubmissionOutcome`을 사용한다. dispatch된
@@ -413,7 +426,14 @@ var raw = checked((int)Math.Round(
   같은 `DiagnosticsBootId`/`SubmissionMapRevision`을 가진 exact ticket을 보존한다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를
   reconcile해 quarantine한다. accepted ticket은 이전 manual status/result/cancel flag를
   초기화하고 manual operation state와 D5 tracker 양쪽에 보존한 뒤 disarm하며, context
-  누락/불일치는 fail-closed한다.
+  누락/불일치는 fail-closed한다. quarantine evidence에는 Read/Write operation kind를 함께
+  보존한다. Read recovery proof는 Write uncertainty를 해제할 수 없으며, Write 결과가
+  불명확하면 자동 복구 없이 quarantine을 유지한다.
+- 성공 Write의 exact manual readback은 원 Write ticket/owner를 불변 보존하고 guarded
+  `SubmitSdo[Async]` overload로만 제출한다. owner/current session은 capability RPC 전에,
+  fresh `DiagnosticsBootId`/`MapRevision`은 `0x7E50` 전에 검사한다. terminal 해제도 Read
+  ticket/status/fresh capability가 원 identity와 모두 일치하고 exact 4-byte 값이 같을 때만
+  허용한다.
 - D5 quarantine은 UI field의 mutable list가 아니라 `D5SdoQuarantineLedger`가 소유한다.
   owner-bound opaque handle, immutable evidence snapshot, entry/global revision과 exact-once
   disarm을 사용한다. accepted ticket은 `LMCOperationTicket.BelongsTo`로 owner connection을
@@ -435,8 +455,9 @@ var raw = checked((int)Math.Round(
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. API Debug/Release는 각각 269/269 PASS다. 직전 260개에 UI 독립 D5
-pending cleanup orchestrator 계약 시험 9개가 추가됐다. Group queue chaining/Stop-first wire
+  gate 확인일 뿐이다. API Debug/Release는 각각 277/277 PASS다. 기존 pending cleanup 계약에
+  SDO Write target/격리/terminal cleanup 및 exact manual readback interlock 계약 시험이 추가됐다.
+  Group queue chaining/Stop-first wire
 order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
@@ -464,10 +485,12 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
 - diagnostics capability fail-closed 상태, Catalog selection, Bulk resource lifecycle,
   Recorder mode/trigger capability gate, Ready/Header gate, reconnect adoption,
   download progress/cancel, metadata CSV와 plot smoke test
-- general-inline SDO Read ticket submit/status/queued cancel, terminal typed 1/2/4-byte
-  inline result/save와 PI/SDO Write 및 extended result gate. live packet은 1/2/4-byte와
+- general-inline SDO Read와 exact allowlist SDO Write ticket submit/status/queued cancel,
+  terminal Read typed 1/2/4-byte inline result/save, Write safe-axis/confirmation/quarantine 및
+  PI Write/extended result gate. Read live packet은 1/2/4-byte와
   동일 BootId TypeMismatch recovery까지 PASS했다. read-only abort/recovery runner와
-  analyzer는 code/build/test 완료지만 PLC live/pcap과 나머지 fault matrix는 별도다.
+  analyzer 및 disabled-by-default Write 경로는 code/build/test 완료지만 Write의 LASAL IDE build,
+  PLC live/pcap과 나머지 fault matrix는 별도다.
 - Read-only API의 Admin capability fail-closed, axis/group semantic allowlist,
   physical axis lookup/reference 검증과 drive status non-atomic 표기
 - 실제 PLC 시험은 Read Status/Position부터 시작하고 motion은 마지막에 수행

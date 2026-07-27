@@ -13,7 +13,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
 EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
-Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
+Ring/Trigger와 D5 Read 및 fail-closed Write 공개 API가 포함됩니다.
 
 현재 완료도를 구분하면 다음과 같습니다.
 
@@ -24,7 +24,9 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler 활성
   - D4: single-bank Ring/Trigger와 `0x7E42` 활성, Double bank는 미구현
   - D5: test profile에서 축 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed
-    1/2/4-byte SDO Read ticket/status/queued cancel 활성; Write와 extended result는 비활성
+    1/2/4-byte SDO Read ticket/status/queued cancel 활성. SDO Write의
+    parser/executor/API/WPF 경로는 구현됐지만 승인 target과 capability는 비활성이고,
+    extended result도 비활성
   - Phase 1 PI/Bulk compatibility facade: catalog alias PI Read와
     `AddEntry/Configure/Upload/GetEntry` local builder/reader 구현; wire는 D1/D2 재사용
 - LASAL admin command: 4개
@@ -49,8 +51,9 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 269/269 PASS
-  (직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개. 직전 260개는
+- C# 자동 테스트 runner: Debug/Release 각 277/277 PASS
+  (SDO Write target policy와 operation-kind별 quarantine 회귀 포함. 기존 269개는
+  직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개이고, 직전 260개는
   기존 225개 Phase 1/2
   회귀, 53-command response hard limit, AxisInfo descriptor,
   read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
@@ -65,17 +68,20 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   quarantine ledger deterministic concurrency 4개로 구성)
   concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤 clear 전 mutation 거부, atomic clear
   뒤 competing Arm 보존, callback 예외 뒤 waiter 진행과 ledger 재사용, concurrent Disarm
-  exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다. 이는 PC test 강화일
-  뿐 production/wire/LASAL 변경이나 PLC live 증거가 아니다.
+  exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다. 성공한 Write 뒤에는
+  동일 Slave/Index/SubIndex/Type/Length의 Read 결과가 exact 4-byte Write 값과 일치할 때만
+  mutation/Close interlock을 해제하는 순수 계약 시험 1개도 포함한다. 이는 PC test 강화일 뿐
+  production/wire/LASAL 변경이나 PLC live 증거가 아니다.
   pending cleanup 9개는 owner/current connection, ticket owner와 저장 MapRevision을 wire 전
   fail-closed하고, capability BootId를 우선 판정한 뒤 MapRevision 불일치를 status/cancel 없이
   quarantine한다. cached terminal status/cancel 무송신, cached pending refresh, Queued-only cancel과
   `InvalidState` race, Running wait, cancel accepted 뒤 exact `Cancelled/Cancelled`, 마지막 status
   보존, 최소 15초/남은 deadline+1초/최대 120초 및 `<=` poll 경계를 검증한다. production WPF는
-  같은 UI 독립 orchestrator를 호출하도록 변경됐지만 wire/LASAL은 변경하지 않았고 PLC
-  live/pcap 증거는 아니다.
-- LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
-  declaration과 current source 동기화 확인
+  같은 UI 독립 orchestrator를 호출한다. 이 검증은 PC test이며 PLC live/pcap 증거는 아니다.
+- LASAL SourceOnly static contract: PASS. 새 `TryStartWrite`, `ActiveIsWrite`, `WriteBuffer`,
+  `SdoWriteData`, `GetSdoWritePolicyDetail` declaration은 tracked `Classes.lcb`에 아직 없으므로
+  switch 없는 full static은 의도적으로 FAIL한다. `-AllowStaleLasalBinaryMetadata` PASS는
+  external source 중간 검사일 뿐 LASAL IDE 동기화/빌드 증거가 아니다.
 - 개발 WPF example Debug/Release build: PASS. startup smoke는 기존
   Group/Bulk/Recorder panel까지 PASS이며 D5 panel visual은 별도
 - DiagnosticsBootCounter/D1~D4 single-bank와 gate-off D5 source LASAL IDE
@@ -84,6 +90,8 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
 - 위 통합 source의 `Find in Implementation` smoke: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS; smoke 이후 `Lasal2.log`의 신규
   `CInvalidArgException` 0건
+- 위 LASAL IDE build/smoke 증거는 현재 SDO Write 변경 전 snapshot이다. Write 경로는
+  아직 LASAL build, PLC download, 실축 또는 EtherCAT mailbox로 검증하지 않았다.
 - CyWork와 motion RT thread의 CPU core/priority 조건: 미검증
 - diagnostics PLC: `11_PI_Bulk_Regression`의 D0/D1/D2 happy path와
   `10_DriveRead_Axis1to4`/`12_SDO_GeneralInline_4Byte_FailureRecovery`의
@@ -173,8 +181,24 @@ diagnostic state와 D5 tracker 둘 다에 보존한 뒤 disarm한다. 이때 tic
 `LMCConnection`에 exact match시킨다. context가 없거나
 일관되지 않으면 fail-closed한다. 이 경로는 code/test 계약이며 PLC live/pcap
 증거가 아니다.
-D4 Double bank와 D5 PI/SDO Write 및 extended
-result는 capability-off라 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
+성공한 Write 뒤 exact Readback에는 원 Write ticket을 받는 guarded
+`SubmitSdo[Async]` overload를 사용한다. 이 overload는 owner/current session을 capability
+RPC 전에 확인하고, fresh capability의 `DiagnosticsBootId`와 `MapRevision`을 원 ticket과
+대조한 뒤에만 `0x7E50`을 송신한다. 어느 identity라도 다르면 Read request를 보내지 않는다.
+D4 Double bank와 D5 PI Write 및 extended result는 capability-off다. SDO Write는
+`0x7E50`의 `OperationFlags=1`, exact 36-byte, Int32 4-byte request와
+`OperationKind=SDOWrite(3)` parser/executor 및 C# API/WPF까지 구현했지만,
+현재 PLC의 global gate와 UI[24] axis 1~4 per-axis gate가 모두 `FALSE`이고 SDK의
+`SdoWriteEnabled`/`SdoWriteUi24Axis1Enabled..Axis4Enabled` 및
+`AllowedSdoWrites`도 closed/empty라 실행할 수 없다.
+승인 후보는 Gold
+UI[24] `0x2F00:24`, exact Int32 4-byte지만 사용자 drive program에서 미사용인지와 적용
+축이 확정되지 않았다. 배포 설정에서는 확인한 한 축의 gate만 활성화한다. 임의 SDO address와
+DS402 motion/control object는 승인할 수 없다.
+WPF는 PLC bit 9, SDK target allowlist, 선택 축의 `PowerOn=False`/`Standstill=True`, actual
+position 3회 안정, 명시적 확인과 operation-kind별 quarantine을 모두 통과해야만 Write를
+submit한다. write outcome이 불명확하면 read recovery로 자동 해제하지 않는다. 이 경로의
+LASAL build/PLC/실축 검증은 아직 없다.
 Phase 1 WPF의 PI Write는 SDK compile-time allowlist가 empty인 것에 더해
 `Phase1AllowsPiWrite=false`가 입력/button을 비활성화하고 click handler도 다시 거부하는
 이중 차단이다.
