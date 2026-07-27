@@ -67,7 +67,10 @@ namespace LasalMotionControlLib
             }
 
             connection.EnsureSessionGeneration(sessionGeneration);
-            return CreatePIWriteTicket(submission, sessionGeneration);
+            return CreatePIWriteTicket(
+                submission,
+                capabilities.MapRevision,
+                sessionGeneration);
         }
 
         public async Task<LMCOperationTicket> SubmitPIWriteAsync(
@@ -191,6 +194,7 @@ namespace LasalMotionControlLib
                 submission,
                 sessionGeneration,
                 request,
+                capabilities.MapRevision,
                 capabilities.MaxChunkDataBytes);
             if (attemptTracker != null)
             {
@@ -830,6 +834,7 @@ namespace LasalMotionControlLib
             LMCOperationSubmission submission,
             long sessionGeneration,
             LMCSdoRequest request,
+            uint submissionMapRevision,
             ushort maxChunkDataBytes)
         {
             return new LMCOperationTicket(
@@ -837,6 +842,7 @@ namespace LasalMotionControlLib
                 submission.OperationKind,
                 submission.QueuedCycle,
                 submission.DiagnosticsBootId,
+                submissionMapRevision,
                 sessionGeneration,
                 this,
                 !request.IsWrite,
@@ -856,6 +862,7 @@ namespace LasalMotionControlLib
 
         private LMCOperationTicket CreatePIWriteTicket(
             LMCOperationSubmission submission,
+            uint submissionMapRevision,
             long sessionGeneration)
         {
             return new LMCOperationTicket(
@@ -863,6 +870,7 @@ namespace LasalMotionControlLib
                 submission.OperationKind,
                 submission.QueuedCycle,
                 submission.DiagnosticsBootId,
+                submissionMapRevision,
                 sessionGeneration,
                 this,
                 false,

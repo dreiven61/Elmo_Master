@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -28,9 +27,9 @@ namespace LasalMotionControlApiExample
         private LMCConnection d5SdoQualificationActiveConnection;
         private ushort d5SdoQualificationActiveSlaveReference;
         private uint d5SdoQualificationActiveTimeoutCycles;
-        private readonly List<D5SdoQualificationOrphanEvidence>
-            d5SdoQualificationOrphanedTickets =
-                new List<D5SdoQualificationOrphanEvidence>();
+        private uint d5SdoQualificationActiveMapRevision;
+        private readonly D5SdoQuarantineLedger d5SdoQualificationQuarantine =
+            new D5SdoQuarantineLedger();
         private string d5ExternalTrackingRunId;
         private string d5ExternalTrackingScenario;
         private int d5ExternalTrackingStep;
@@ -41,7 +40,7 @@ namespace LasalMotionControlApiExample
             get
             {
                 return d5SdoQualificationActiveTicket != null
-                    || d5SdoQualificationOrphanedTickets.Count != 0;
+                    || d5SdoQualificationQuarantine.HasEntries;
             }
         }
 
@@ -134,7 +133,7 @@ namespace LasalMotionControlApiExample
                 await CleanupPendingD5SdoQualificationAsync();
             }
 
-            if (d5SdoQualificationOrphanedTickets.Count != 0)
+            if (d5SdoQualificationQuarantine.HasEntries)
             {
                 throw new InvalidOperationException(
                     "A D5 ticket or uncertain submission remains quarantined. Use Resolve D5 Quarantine before starting a new qualification.");
@@ -217,6 +216,7 @@ namespace LasalMotionControlApiExample
                     diagnostics,
                     recoveryRequest,
                     capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
                     cancellationToken,
                      "baseline",
                      "0x6061",
@@ -262,6 +262,7 @@ namespace LasalMotionControlApiExample
                     diagnostics,
                     input.AbortRequest,
                     capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
                     cancellationToken,
                      "abort",
                      "0x" + input.ObjectIndex.ToString("X4"),
@@ -300,6 +301,7 @@ namespace LasalMotionControlApiExample
                     diagnostics,
                     recoveryRequest,
                     capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
                     cancellationToken,
                      "recovery",
                      "0x6061",
@@ -366,7 +368,11 @@ namespace LasalMotionControlApiExample
             Exception cleanupError = null;
             try
             {
-                await CleanupPendingD5SdoQualificationAsync();
+                if (!await CleanupPendingD5SdoQualificationAsync())
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO cleanup moved the accepted ticket to quarantine because its submission identity changed.");
+                }
             }
             catch (Exception error)
             {
@@ -758,6 +764,7 @@ namespace LasalMotionControlApiExample
             LMCDiagnostics diagnostics,
             LMCSdoRequest request,
             uint expectedDiagnosticsBootId,
+            uint expectedMapRevision,
             CancellationToken cancellationToken,
             string stage,
             string objectIndex,
@@ -775,15 +782,14 @@ namespace LasalMotionControlApiExample
                     "D5 SDO submission requires a non-zero expected DiagnosticsBootId.");
             }
 
-            var submissionEvidence = new D5SdoQualificationOrphanEvidence(
-                0,
-                expectedDiagnosticsBootId,
-                request.SlaveReference,
-                request.TimeoutCycles,
-                ownerConnection,
-                stage,
-                "submit_response_unavailable",
-                Guid.NewGuid().ToString("N"));
+            if (expectedMapRevision == 0)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO submission requires a non-zero expected MapRevision.");
+            }
+
+            var evidenceId = Guid.NewGuid().ToString("N");
+            D5SdoQuarantineHandle submissionGuard = null;
             var outcomeArmed = false;
             LMCOperationTicket ticket;
             try
@@ -793,13 +799,21 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () =>
                     {
-                        d5SdoQualificationOrphanedTickets.Add(
-                            submissionEvidence);
+                        submissionGuard =
+                            d5SdoQualificationQuarantine.ArmUnknown(
+                                ownerConnection,
+                                expectedDiagnosticsBootId,
+                                expectedMapRevision,
+                                request.SlaveReference,
+                                request.TimeoutCycles,
+                                stage,
+                                "submit_response_unavailable",
+                                evidenceId);
                         outcomeArmed = true;
                         WriteD5SdoQualificationLog(
                             "event=D5_SUBMIT_OUTCOME_GUARD",
                             "stage=" + stage,
-                            "evidence=" + submissionEvidence.EvidenceId,
+                            "evidence=" + evidenceId,
                             "bootId=0x"
                                 + expectedDiagnosticsBootId.ToString("X8"),
                             "slave=" + request.SlaveReference.ToString(
@@ -810,57 +824,112 @@ namespace LasalMotionControlApiExample
                             CancellationToken.None);
                     });
             }
-            catch (LMCDiagnosticsCommandException error)
+            catch (Exception error)
             {
                 if (outcomeArmed)
                 {
-                    d5SdoQualificationOrphanedTickets.Remove(
-                        submissionEvidence);
+                    D5ExternalReadFailureOrchestrator
+                        .RouteSubmissionFailure(
+                            error,
+                            (state, detail) =>
+                            {
+                                var released =
+                                    d5SdoQualificationQuarantine.Disarm(
+                                        submissionGuard);
+                                WriteD5SdoQualificationLog(
+                                    "event=D5_SUBMIT_OUTCOME_GUARD",
+                                    "stage=" + stage,
+                                    "evidence=" + released.EvidenceId,
+                                    "ticket=" + (released.TicketId == 0
+                                        ? "UNKNOWN"
+                                        : released.TicketId.ToString(
+                                            CultureInfo.InvariantCulture)),
+                                    "bootId=0x"
+                                        + released.DiagnosticsBootId.ToString(
+                                            "X8"),
+                                    "mapRevision=0x"
+                                        + released.MapRevision.ToString("X8"),
+                                    "state=" + state,
+                                    "detail=" + QualificationValue(detail),
+                                    "quarantine=false");
+                            },
+                            (acceptedTicket,
+                                actualBootId,
+                                actualMapRevision) =>
+                            {
+                                d5SdoQualificationQuarantine
+                                    .TransitionToAccepted(
+                                        submissionGuard,
+                                        acceptedTicket,
+                                        actualBootId,
+                                        actualMapRevision);
+                                PreserveD5SdoQualificationAcceptedTicket(
+                                    acceptedTicket,
+                                    ownerConnection,
+                                    request.SlaveReference,
+                                    request.TimeoutCycles,
+                                    actualMapRevision,
+                                    terminalWaitMilliseconds,
+                                    stage);
+                            },
+                            (unresolvedError, failureContext) =>
+                            {
+                                var evidence =
+                                    d5SdoQualificationQuarantine.GetEvidence(
+                                        submissionGuard);
+                                if (failureContext != null
+                                    && failureContext.SubmissionOutcome
+                                        == LMCSdoSubmissionOutcome
+                                            .OutcomeUncertain)
+                                {
+                                    evidence = d5SdoQualificationQuarantine
+                                        .ReconcileUnknown(
+                                            submissionGuard,
+                                            failureContext.DiagnosticsBootId,
+                                            failureContext.MapRevision);
+                                }
+
+                                WriteD5SdoQualificationLog(
+                                    "event=D5_SUBMIT_OUTCOME_GUARD",
+                                    "stage=" + stage,
+                                    "evidence=" + evidence.EvidenceId,
+                                    "state=OUTCOME_UNCERTAIN",
+                                    "errorType="
+                                        + unresolvedError.GetType().Name,
+                                    "bootId=0x"
+                                        + evidence.DiagnosticsBootId.ToString(
+                                            "X8"),
+                                    "mapRevision=0x"
+                                        + evidence.MapRevision.ToString("X8"),
+                                    "quarantine=true",
+                                    "oldTerminalConfirmed=false");
+                            });
                 }
 
-                WriteD5SdoQualificationLog(
-                    "event=D5_SUBMIT_OUTCOME_GUARD",
-                    "stage=" + stage,
-                    "evidence=" + submissionEvidence.EvidenceId,
-                    "state=EXPLICIT_PLC_REJECTION",
-                    "detail=" + (error.Response == null
-                        ? "none"
-                        : error.Response.Detail.ToString()),
-                    "quarantine=false");
-                throw;
-            }
-            catch (Exception error)
-            {
-                if (outcomeArmed
-                    && d5SdoQualificationOrphanedTickets.Contains(
-                        submissionEvidence))
-                {
-                    WriteD5SdoQualificationLog(
-                        "event=D5_SUBMIT_OUTCOME_GUARD",
-                        "stage=" + stage,
-                        "evidence=" + submissionEvidence.EvidenceId,
-                        "state=OUTCOME_UNCERTAIN",
-                        "errorType=" + error.GetType().Name,
-                        "quarantine=true",
-                        "oldTerminalConfirmed=false");
-                }
-
                 throw;
             }
 
-            d5SdoQualificationActiveTicket = ticket;
-            d5SdoQualificationActiveStatus = null;
-            d5SdoQualificationActiveDeadlineUtc = DateTime.UtcNow.AddMilliseconds(
-                terminalWaitMilliseconds);
-            d5SdoQualificationActiveConnection = ownerConnection;
-            d5SdoQualificationActiveSlaveReference = request.SlaveReference;
-            d5SdoQualificationActiveTimeoutCycles = request.TimeoutCycles;
-            if (!d5SdoQualificationOrphanedTickets.Remove(
-                submissionEvidence))
+            d5SdoQualificationQuarantine.TransitionToAccepted(
+                submissionGuard,
+                ticket,
+                ticket.DiagnosticsBootId,
+                ticket.SubmissionMapRevision);
+            PreserveD5SdoQualificationAcceptedTicket(
+                ticket,
+                ownerConnection,
+                request.SlaveReference,
+                request.TimeoutCycles,
+                ticket.SubmissionMapRevision,
+                terminalWaitMilliseconds,
+                stage);
+            if (ticket.DiagnosticsBootId != expectedDiagnosticsBootId
+                || ticket.SubmissionMapRevision != expectedMapRevision)
             {
                 throw new InvalidOperationException(
-                    "The D5 submission outcome guard was lost after an accepted ticket. The accepted ticket remains preserved for cleanup.");
+                    "The D5 submission capability identity changed after the qualification preflight. The accepted ticket remains preserved and quarantined for cleanup.");
             }
+
+            d5SdoQualificationQuarantine.Disarm(submissionGuard);
 
             WriteD5SdoQualificationLog(
                 "event=D5_SUBMIT",
@@ -880,8 +949,52 @@ namespace LasalMotionControlApiExample
                     "terminalWaitMs=" + terminalWaitMilliseconds.ToString(
                         CultureInfo.InvariantCulture),
                 "bootId=0x" + ticket.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x"
+                    + ticket.SubmissionMapRevision.ToString("X8"),
                 "wireMutation=false");
             return ticket;
+        }
+
+        private void PreserveD5SdoQualificationAcceptedTicket(
+            LMCOperationTicket ticket,
+            LMCConnection ownerConnection,
+            ushort slaveReference,
+            uint timeoutCycles,
+            uint mapRevision,
+            int terminalWaitMilliseconds,
+            string stage)
+        {
+            if (ticket == null)
+            {
+                throw new ArgumentNullException("ticket");
+            }
+
+            if (d5SdoQualificationActiveTicket != null)
+            {
+                throw new InvalidOperationException(
+                    "Another D5 qualification ticket is already preserved.");
+            }
+
+            if (mapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException("mapRevision");
+            }
+
+            d5SdoQualificationActiveTicket = ticket;
+            d5SdoQualificationActiveStatus = null;
+            d5SdoQualificationActiveDeadlineUtc =
+                DateTime.UtcNow.AddMilliseconds(terminalWaitMilliseconds);
+            d5SdoQualificationActiveConnection = ownerConnection;
+            d5SdoQualificationActiveSlaveReference = slaveReference;
+            d5SdoQualificationActiveTimeoutCycles = timeoutCycles;
+            d5SdoQualificationActiveMapRevision = mapRevision;
+            WriteD5SdoQualificationLog(
+                "event=D5_TICKET_PRESERVED",
+                "stage=" + stage,
+                "ticket=" + ticket.TicketId.ToString(
+                    CultureInfo.InvariantCulture),
+                "bootId=0x" + ticket.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + mapRevision.ToString("X8"));
         }
 
         private async Task<LMCOperationStatus>
@@ -972,12 +1085,12 @@ namespace LasalMotionControlApiExample
                     CultureInfo.InvariantCulture));
         }
 
-        private async Task CleanupPendingD5SdoQualificationAsync()
+        private async Task<bool> CleanupPendingD5SdoQualificationAsync()
         {
             var ticket = d5SdoQualificationActiveTicket;
             if (ticket == null)
             {
-                return;
+                return true;
             }
 
             var currentConnection = RequireConnection();
@@ -991,6 +1104,35 @@ namespace LasalMotionControlApiExample
             }
 
             var diagnostics = currentConnection.Diagnostics;
+            var currentCapabilities =
+                await SendQualificationCleanupCommandAsync(
+                    "D5 SDO pending ticket identity preflight",
+                    () => diagnostics.GetCapabilitiesAsync(
+                        CancellationToken.None));
+            if (currentCapabilities == null
+                || currentCapabilities.DiagnosticsBootId == 0
+                || currentCapabilities.MapRevision == 0)
+            {
+                throw new InvalidOperationException(
+                    "D5 ticket cleanup requires a non-zero current DiagnosticsBootId and MapRevision.");
+            }
+
+            if (currentCapabilities.DiagnosticsBootId
+                != ticket.DiagnosticsBootId)
+            {
+                QuarantineStaleSessionD5SdoQualificationTicket(
+                    "diagnostics_boot_id_changed");
+                return false;
+            }
+
+            if (currentCapabilities.MapRevision
+                != d5SdoQualificationActiveMapRevision)
+            {
+                QuarantineStaleSessionD5SdoQualificationTicket(
+                    "diagnostics_map_revision_changed");
+                return false;
+            }
+
             var status = d5SdoQualificationActiveStatus;
             WriteD5SdoQualificationLog(
                 "event=D5_CLEANUP",
@@ -1089,6 +1231,7 @@ namespace LasalMotionControlApiExample
                 "outcome=" + status.Outcome,
                 "plcStopCommand=false",
                 "verdict=PASS");
+            return true;
         }
 
         private async Task<LMCOperationStatus>
@@ -1156,61 +1299,40 @@ namespace LasalMotionControlApiExample
                     d5SdoQualificationActiveConnection,
                     currentConnection))
             {
-                var currentCapabilities =
-                    await SendQualificationCleanupCommandAsync(
-                        "D5 SDO preserved ticket BootId preflight",
-                        () => currentConnection.Diagnostics
-                            .GetCapabilitiesAsync(CancellationToken.None));
-                if (currentCapabilities == null
-                    || currentCapabilities.DiagnosticsBootId == 0)
+                try
                 {
-                    throw new InvalidOperationException(
-                        "D5 ticket resolution requires a non-zero current DiagnosticsBootId.");
+                    await CleanupPendingD5SdoQualificationAsync();
                 }
-
-                if (currentCapabilities.DiagnosticsBootId
-                    != d5SdoQualificationActiveTicket.DiagnosticsBootId)
+                catch (LMCDiagnosticsCommandException error)
+                    when (error.Response != null
+                        && error.Response.Detail
+                            == LMCDiagnosticsDetailCode.BootIdMismatch)
                 {
                     QuarantineStaleSessionD5SdoQualificationTicket(
-                        "diagnostics_boot_id_changed");
+                        "plc_boot_id_mismatch_response");
                 }
-                else
+                catch (LMCDiagnosticsCommandException error)
+                    when (error.Response != null
+                        && error.Response.Detail
+                            == LMCDiagnosticsDetailCode
+                                .HandleOrGenerationStale)
                 {
-                    try
-                    {
-                        await CleanupPendingD5SdoQualificationAsync();
-                    }
-                    catch (LMCDiagnosticsCommandException error)
-                        when (error.Response != null
-                            && error.Response.Detail
-                                == LMCDiagnosticsDetailCode.BootIdMismatch)
-                    {
-                        QuarantineStaleSessionD5SdoQualificationTicket(
-                            "plc_boot_id_mismatch_response");
-                    }
-                    catch (LMCDiagnosticsCommandException error)
-                        when (error.Response != null
-                            && error.Response.Detail
-                                == LMCDiagnosticsDetailCode
-                                    .HandleOrGenerationStale)
-                    {
-                        QuarantineStaleSessionD5SdoQualificationTicket(
-                            "plc_owner_session_epoch_stale");
-                    }
-                    catch (LMCDiagnosticsCommandException error)
-                        when (error.Response != null
-                            && error.Response.Detail
-                                == LMCDiagnosticsDetailCode.TicketNotFound)
-                    {
-                        ResolveSupersededD5SdoQualificationTicket(
-                            "plc_ticket_slot_superseded");
-                    }
-                    catch (InvalidOperationException error)
-                        when (IsStaleD5OperationTicketException(error))
-                    {
-                        QuarantineStaleSessionD5SdoQualificationTicket(
-                            "local_ticket_session_invalid");
-                    }
+                    QuarantineStaleSessionD5SdoQualificationTicket(
+                        "plc_owner_session_epoch_stale");
+                }
+                catch (LMCDiagnosticsCommandException error)
+                    when (error.Response != null
+                        && error.Response.Detail
+                            == LMCDiagnosticsDetailCode.TicketNotFound)
+                {
+                    ResolveSupersededD5SdoQualificationTicket(
+                        "plc_ticket_slot_superseded");
+                }
+                catch (InvalidOperationException error)
+                    when (IsStaleD5OperationTicketException(error))
+                {
+                    QuarantineStaleSessionD5SdoQualificationTicket(
+                        "local_ticket_session_invalid");
                 }
             }
 
@@ -1220,7 +1342,7 @@ namespace LasalMotionControlApiExample
                     "connection_owner_or_session_changed");
             }
 
-            if (d5SdoQualificationOrphanedTickets.Count != 0)
+            if (d5SdoQualificationQuarantine.HasEntries)
             {
                 await ProveStaleSessionD5SdoRecoveryAsync(
                     currentConnection,
@@ -1239,37 +1361,37 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            var evidence = new D5SdoQualificationOrphanEvidence(
-                d5SdoQualificationActiveTicket.TicketId,
-                d5SdoQualificationActiveTicket.DiagnosticsBootId,
+            var ticket = d5SdoQualificationActiveTicket;
+            var handle = d5SdoQualificationQuarantine.QuarantineKnownTicket(
+                ticket,
+                d5SdoQualificationActiveConnection,
                 d5SdoQualificationActiveSlaveReference,
                 d5SdoQualificationActiveTimeoutCycles,
-                d5SdoQualificationActiveConnection,
                 "preserved-ticket",
                 reason,
                 "ticket-"
-                    + d5SdoQualificationActiveTicket.TicketId.ToString(
-                        CultureInfo.InvariantCulture)
+                    + ticket.TicketId.ToString(CultureInfo.InvariantCulture)
                     + "-boot-"
-                    + d5SdoQualificationActiveTicket.DiagnosticsBootId
-                        .ToString("X8"));
-            d5SdoQualificationOrphanedTickets.Add(evidence);
+                    + ticket.DiagnosticsBootId.ToString("X8"),
+                d5SdoQualificationActiveMapRevision);
+            var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
             WriteD5SdoQualificationLog(
                 "event=D5_ORPHAN_QUARANTINE",
                 "ticket=" + evidence.TicketId.ToString(
                     CultureInfo.InvariantCulture),
                 "oldBootId=0x"
                     + evidence.DiagnosticsBootId.ToString("X8"),
+                "oldMapRevision=0x" + evidence.MapRevision.ToString("X8"),
                 "slave=" + evidence.SlaveReference.ToString(
                     CultureInfo.InvariantCulture),
                 "quarantineCount="
-                    + d5SdoQualificationOrphanedTickets.Count.ToString(
+                    + d5SdoQualificationQuarantine.Count.ToString(
                         CultureInfo.InvariantCulture),
                 "oldTerminalConfirmed=false",
                 "reason=" + QualificationValue(reason),
                 "verdict=ORPHAN_UNVERIFIED");
             InvalidateQuarantinedManualDiagnosticOperation(
-                d5SdoQualificationActiveTicket,
+                ticket,
                 reason);
             d5SdoQualificationActiveStatus = null;
             ClearActiveD5SdoQualificationTicket();
@@ -1319,7 +1441,9 @@ namespace LasalMotionControlApiExample
             LMCConnection currentConnection,
             CancellationToken cancellationToken)
         {
-            var orphanedTickets = d5SdoQualificationOrphanedTickets.ToArray();
+            var quarantineBaseline =
+                d5SdoQualificationQuarantine.CaptureSnapshot();
+            var orphanedTickets = quarantineBaseline.Entries.ToArray();
             if (orphanedTickets.Length == 0)
             {
                 return;
@@ -1376,8 +1500,7 @@ namespace LasalMotionControlApiExample
                 capabilities,
                 "orphan recovery preflight");
             var ownerChangedEvidenceCount = orphanedTickets.Count(
-                item => item.OwnerConnection != null
-                    && !ReferenceEquals(
+                item => !ReferenceEquals(
                         item.OwnerConnection,
                         currentConnection));
             var sameOwnerEvidenceCount = orphanedTickets.Count(
@@ -1387,31 +1510,61 @@ namespace LasalMotionControlApiExample
             var bootChangedEvidenceCount = orphanedTickets.Count(
                 item => item.DiagnosticsBootId
                     != capabilities.DiagnosticsBootId);
-            var hasSameOwnerAndBootEvidence = orphanedTickets.Any(
+            var mapChangedEvidenceCount = orphanedTickets.Count(
+                item => item.MapRevision != capabilities.MapRevision);
+            var sameIdentityEvidenceCount = orphanedTickets.Count(
                 item => ReferenceEquals(item.OwnerConnection, currentConnection)
                     && item.DiagnosticsBootId
-                        == capabilities.DiagnosticsBootId);
+                        == capabilities.DiagnosticsBootId
+                    && item.MapRevision == capabilities.MapRevision);
+            var firstEvidence = orphanedTickets[0];
+            var allEvidenceShareOwner = orphanedTickets.All(
+                item => ReferenceEquals(
+                    item.OwnerConnection,
+                    firstEvidence.OwnerConnection));
+            var allEvidenceShareSubmissionIdentity = orphanedTickets.All(
+                item => item.DiagnosticsBootId
+                        == firstEvidence.DiagnosticsBootId
+                    && item.MapRevision == firstEvidence.MapRevision);
+            var allEvidenceMatchCurrentIdentity =
+                sameIdentityEvidenceCount == orphanedTickets.Length;
             var ownerConnectionChangedForAllEvidence =
                 ownerChangedEvidenceCount == orphanedTickets.Length;
-            var hasSameOwnerBootChange = orphanedTickets.Any(
-                item => ReferenceEquals(item.OwnerConnection, currentConnection)
-                    && item.DiagnosticsBootId
-                        != capabilities.DiagnosticsBootId);
-            var proofScope = hasSameOwnerAndBootEvidence
+            var sameOwnerForAllEvidence =
+                sameOwnerEvidenceCount == orphanedTickets.Length;
+            var isNewDiagnosticsIdentitySession =
+                sameOwnerForAllEvidence
+                && allEvidenceShareSubmissionIdentity
+                && !allEvidenceMatchCurrentIdentity;
+            var isNewConnectionSession =
+                ownerConnectionChangedForAllEvidence
+                && allEvidenceShareOwner
+                && allEvidenceShareSubmissionIdentity;
+            var mixedEvidenceSessions =
+                !allEvidenceMatchCurrentIdentity
+                && !isNewDiagnosticsIdentitySession
+                && !isNewConnectionSession;
+            var proofScope = allEvidenceMatchCurrentIdentity
                 ? "same_owner_connection_recovery"
-                : hasSameOwnerBootChange
-                    ? "new_diagnostics_boot_session"
-                    : "new_connection_session";
-            var proofScopeText = hasSameOwnerAndBootEvidence
+                : isNewDiagnosticsIdentitySession
+                    ? "new_diagnostics_identity_session"
+                    : isNewConnectionSession
+                        ? "new_connection_session"
+                        : "mixed_evidence_sessions";
+            var proofScopeText = allEvidenceMatchCurrentIdentity
                 ? "same-owner connection recovery"
-                : hasSameOwnerBootChange
-                    ? "new diagnostics-Boot session"
-                    : "new connection session";
+                : isNewDiagnosticsIdentitySession
+                    ? "new diagnostics identity session"
+                    : isNewConnectionSession
+                        ? "new connection session"
+                        : "mixed evidence sessions";
             WriteD5SdoQualificationLog(
                 "event=D5_QUARANTINE_PROOF_SCOPE",
                 "scope=" + proofScope,
                 "currentBootId=0x"
                     + capabilities.DiagnosticsBootId.ToString("X8"),
+                "currentMapRevision=0x"
+                    + capabilities.MapRevision.ToString("X8"),
                 "evidenceCount=" + orphanedTickets.Length.ToString(
                     CultureInfo.InvariantCulture),
                 "ownerChangedEvidence=" + ownerChangedEvidenceCount.ToString(
@@ -1420,10 +1573,17 @@ namespace LasalMotionControlApiExample
                     CultureInfo.InvariantCulture),
                 "bootChangedEvidence=" + bootChangedEvidenceCount.ToString(
                     CultureInfo.InvariantCulture),
+                "mapChangedEvidence=" + mapChangedEvidenceCount.ToString(
+                    CultureInfo.InvariantCulture),
+                "sameIdentityEvidence="
+                    + sameIdentityEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
                 "newConnectionRecovery="
-                    + (ownerConnectionChangedForAllEvidence
+                    + (isNewConnectionSession
                         ? "true"
                         : "false"),
+                "mixedEvidenceSessions="
+                    + (mixedEvidenceSessions ? "true" : "false"),
                 "orphanQualified=false",
                 "orphanProof=NOT_PROVEN_BY_WPF");
             var terminalWaitMilliseconds =
@@ -1463,6 +1623,7 @@ namespace LasalMotionControlApiExample
                 diagnostics,
                 request,
                 capabilities.DiagnosticsBootId,
+                capabilities.MapRevision,
                 cancellationToken,
                 "orphan-recovery-1",
                 proofObjectText,
@@ -1504,6 +1665,7 @@ namespace LasalMotionControlApiExample
                 diagnostics,
                 request,
                 capabilities.DiagnosticsBootId,
+                capabilities.MapRevision,
                 cancellationToken,
                 "orphan-recovery-2",
                 proofObjectText,
@@ -1536,66 +1698,82 @@ namespace LasalMotionControlApiExample
                 capabilities,
                 finalCapabilities,
                 "orphan recovery full proof");
-            if (d5SdoQualificationOrphanedTickets.Count
-                    != orphanedTickets.Length
-                || !d5SdoQualificationOrphanedTickets.SequenceEqual(
-                    orphanedTickets))
+            var quarantineCandidate =
+                d5SdoQualificationQuarantine.CaptureSnapshot();
+            Action writeRecoveryPassLog = () =>
+                WriteD5SdoQualificationLog(
+                    "event=D5_QUARANTINE_RECOVERY",
+                    "oldTickets=" + string.Join(
+                        ",",
+                        orphanedTickets.Select(
+                            item => item.TicketId == 0
+                                ? "UNKNOWN:" + item.EvidenceId
+                                : item.TicketId.ToString(
+                                    CultureInfo.InvariantCulture))),
+                    "evidenceBootIds=" + string.Join(
+                        ",",
+                        orphanedTickets.Select(
+                            item => "0x"
+                                + item.DiagnosticsBootId.ToString("X8"))),
+                    "evidenceMapRevisions=" + string.Join(
+                        ",",
+                        orphanedTickets.Select(
+                            item => "0x" + item.MapRevision.ToString("X8"))),
+                    "quarantineCount=" + orphanedTickets.Length.ToString(
+                        CultureInfo.InvariantCulture),
+                    "uncertainSubmissions=" + orphanedTickets.Count(
+                        item => item.TicketId == 0).ToString(
+                            CultureInfo.InvariantCulture),
+                    "evidenceStages=" + string.Join(
+                        ",",
+                        orphanedTickets.Select(item => item.Stage)),
+                    "evidenceReasons=" + string.Join(
+                        ",",
+                        orphanedTickets.Select(item => item.Reason)),
+                    "oldTerminalConfirmed=false",
+                    "recoveryBootId=0x"
+                        + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "recoveryMapRevision=0x"
+                        + capabilities.MapRevision.ToString("X8"),
+                    "proofObject=" + proofObjectText,
+                    "proofValueType=" + proofValueType,
+                    "proofLength=" + proofDataLength.ToString(
+                        CultureInfo.InvariantCulture),
+                    "proofTicket1=" + firstTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture),
+                    "proofTicket2=" + secondTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture),
+                    "proofScope=" + proofScope,
+                    "ownerChangedEvidence="
+                        + ownerChangedEvidenceCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "sameOwnerEvidence=" + sameOwnerEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                    "bootChangedEvidence=" + bootChangedEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                    "mapChangedEvidence=" + mapChangedEvidenceCount.ToString(
+                        CultureInfo.InvariantCulture),
+                    "sameIdentityEvidence="
+                        + sameIdentityEvidenceCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "newConnectionRecovery="
+                        + (isNewConnectionSession
+                            ? "true"
+                            : "false"),
+                    "mixedEvidenceSessions="
+                        + (mixedEvidenceSessions ? "true" : "false"),
+                    "orphanQualified=false",
+                    "orphanProof=NOT_PROVEN_BY_WPF",
+                    "proof=two_distinct_exact_type_length_value_reads",
+                    "verdict=PASS");
+            if (!d5SdoQualificationQuarantine.TryClearAfterProof(
+                quarantineBaseline,
+                quarantineCandidate,
+                writeRecoveryPassLog))
             {
                 throw new InvalidOperationException(
                     "The D5 orphan quarantine changed during recovery proof; it will not be cleared.");
             }
-
-            WriteD5SdoQualificationLog(
-                "event=D5_QUARANTINE_RECOVERY",
-                "oldTickets=" + string.Join(
-                    ",",
-                    orphanedTickets.Select(
-                        item => item.TicketId == 0
-                            ? "UNKNOWN:" + item.EvidenceId
-                            : item.TicketId.ToString(
-                                CultureInfo.InvariantCulture))),
-                "evidenceBootIds=" + string.Join(
-                    ",",
-                    orphanedTickets.Select(
-                        item => "0x" + item.DiagnosticsBootId.ToString("X8"))),
-                "quarantineCount=" + orphanedTickets.Length.ToString(
-                    CultureInfo.InvariantCulture),
-                "uncertainSubmissions=" + orphanedTickets.Count(
-                    item => item.TicketId == 0).ToString(
-                        CultureInfo.InvariantCulture),
-                "evidenceStages=" + string.Join(
-                    ",",
-                    orphanedTickets.Select(item => item.Stage)),
-                "evidenceReasons=" + string.Join(
-                    ",",
-                    orphanedTickets.Select(item => item.Reason)),
-                "oldTerminalConfirmed=false",
-                "recoveryBootId=0x"
-                    + capabilities.DiagnosticsBootId.ToString("X8"),
-                "proofObject=" + proofObjectText,
-                "proofValueType=" + proofValueType,
-                "proofLength=" + proofDataLength.ToString(
-                    CultureInfo.InvariantCulture),
-                "proofTicket1=" + firstTicket.TicketId.ToString(
-                    CultureInfo.InvariantCulture),
-                "proofTicket2=" + secondTicket.TicketId.ToString(
-                    CultureInfo.InvariantCulture),
-                "proofScope=" + proofScope,
-                "ownerChangedEvidence=" + ownerChangedEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "sameOwnerEvidence=" + sameOwnerEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "bootChangedEvidence=" + bootChangedEvidenceCount.ToString(
-                    CultureInfo.InvariantCulture),
-                "newConnectionRecovery="
-                    + (ownerConnectionChangedForAllEvidence
-                        ? "true"
-                        : "false"),
-                "orphanQualified=false",
-                "orphanProof=NOT_PROVEN_BY_WPF",
-                "proof=two_distinct_exact_type_length_value_reads",
-                "verdict=PASS");
-            d5SdoQualificationOrphanedTickets.Clear();
         }
 
         private void ClearActiveD5SdoQualificationTicket()
@@ -1605,6 +1783,7 @@ namespace LasalMotionControlApiExample
             d5SdoQualificationActiveConnection = null;
             d5SdoQualificationActiveSlaveReference = 0;
             d5SdoQualificationActiveTimeoutCycles = 0;
+            d5SdoQualificationActiveMapRevision = 0;
         }
 
         private void SynchronizeManualDiagnosticOperationTerminal(
@@ -1779,7 +1958,7 @@ namespace LasalMotionControlApiExample
             get { return false; }
         }
 
-        private D5SdoQualificationOrphanEvidence
+        private D5SdoQuarantineHandle
             ArmExternalD5SubmissionOutcomeGuard(
                 LMCConnection ownerConnection,
                 uint expectedDiagnosticsBootId,
@@ -1788,17 +1967,15 @@ namespace LasalMotionControlApiExample
                 uint timeoutCycles,
                 string stage)
         {
-            var evidence = new D5SdoQualificationOrphanEvidence(
-                0,
+            var handle = d5SdoQualificationQuarantine.ArmUnknown(
+                ownerConnection,
                 expectedDiagnosticsBootId,
+                expectedMapRevision,
                 slaveReference,
                 timeoutCycles,
-                ownerConnection,
                 stage,
-                "external_submit_response_unavailable",
-                Guid.NewGuid().ToString("N"),
-                expectedMapRevision);
-            d5SdoQualificationOrphanedTickets.Add(evidence);
+                "external_submit_response_unavailable");
+            var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_SUBMIT_GUARD",
                 "stage=" + stage,
@@ -1808,25 +1985,26 @@ namespace LasalMotionControlApiExample
                 "bootId=0x" + expectedDiagnosticsBootId.ToString("X8"),
                 "mapRevision=0x" + expectedMapRevision.ToString("X8"),
                 "state=ARMED_BEFORE_SUBMIT");
-            return evidence;
+            return handle;
         }
 
         private void DisarmExternalD5SubmissionOutcomeGuard(
-            D5SdoQualificationOrphanEvidence evidence,
+            D5SdoQuarantineHandle handle,
             string state,
             string detail)
         {
-            if (evidence == null
-                || !d5SdoQualificationOrphanedTickets.Remove(evidence))
-            {
-                throw new InvalidOperationException(
-                    "The external D5 submission outcome guard could not be released.");
-            }
+            var evidence = d5SdoQualificationQuarantine.Disarm(handle);
 
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_SUBMIT_GUARD",
                 "stage=" + evidence.Stage,
                 "evidence=" + evidence.EvidenceId,
+                "ticket=" + (evidence.TicketId == 0
+                    ? "UNKNOWN"
+                    : evidence.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "bootId=0x" + evidence.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + evidence.MapRevision.ToString("X8"),
                 "state=" + state,
                 "detail=" + QualificationValue(detail),
                 "quarantine=false");
@@ -1834,7 +2012,7 @@ namespace LasalMotionControlApiExample
         }
 
         private void PreserveExternalD5SubmissionOutcomeUncertain(
-            D5SdoQualificationOrphanEvidence evidence,
+            D5SdoQuarantineHandle handle,
             Exception error,
             LMCDriveReadFailureContext failureContext)
         {
@@ -1842,7 +2020,7 @@ namespace LasalMotionControlApiExample
                 ? null
                 : failureContext.CurrentSdoAttempt;
             PreserveExternalD5SubmissionOutcomeUncertainCore(
-                evidence,
+                handle,
                 error,
                 currentAttempt != null
                     && currentAttempt.GenericSubmissionOutcome
@@ -1854,12 +2032,12 @@ namespace LasalMotionControlApiExample
         }
 
         private void PreserveExternalD5RawSubmissionOutcomeUncertain(
-            D5SdoQualificationOrphanEvidence evidence,
+            D5SdoQuarantineHandle handle,
             Exception error,
             LMCSdoSubmissionFailureContext failureContext)
         {
             PreserveExternalD5SubmissionOutcomeUncertainCore(
-                evidence,
+                handle,
                 error,
                 failureContext != null
                     && failureContext.SubmissionOutcome
@@ -1871,25 +2049,32 @@ namespace LasalMotionControlApiExample
         }
 
         private void PreserveExternalD5SubmissionOutcomeUncertainCore(
-            D5SdoQualificationOrphanEvidence evidence,
+            D5SdoQuarantineHandle handle,
             Exception error,
             bool reconcileIdentity,
             uint diagnosticsBootId,
             uint mapRevision)
         {
-            if (evidence == null
-                || !d5SdoQualificationOrphanedTickets.Contains(evidence))
+            D5SdoQuarantineEvidence evidence;
+            try
+            {
+                evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
+            }
+            catch (Exception ledgerError)
             {
                 throw new InvalidOperationException(
                     "The external D5 uncertain-submission evidence was lost.",
-                    error);
+                    error == null
+                        ? ledgerError
+                        : new AggregateException(error, ledgerError));
             }
 
             if (reconcileIdentity)
             {
                 var previousBootId = evidence.DiagnosticsBootId;
                 var previousMapRevision = evidence.MapRevision;
-                evidence.ReconcileSubmissionIdentity(
+                evidence = d5SdoQualificationQuarantine.ReconcileUnknown(
+                    handle,
                     diagnosticsBootId,
                     mapRevision);
                 if (previousBootId != evidence.DiagnosticsBootId
@@ -1913,6 +2098,8 @@ namespace LasalMotionControlApiExample
                 "event=D5_EXTERNAL_SUBMIT_GUARD",
                 "stage=" + evidence.Stage,
                 "evidence=" + evidence.EvidenceId,
+                "bootId=0x" + evidence.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + evidence.MapRevision.ToString("X8"),
                 "state=OUTCOME_UNCERTAIN",
                 "errorType=" + (error == null
                     ? "Unknown"
@@ -1921,16 +2108,35 @@ namespace LasalMotionControlApiExample
                 "oldTerminalConfirmed=false");
         }
 
+        private void TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+            D5SdoQuarantineHandle handle,
+            LMCOperationTicket ticket,
+            uint actualDiagnosticsBootId,
+            uint actualMapRevision)
+        {
+            d5SdoQualificationQuarantine.TransitionToAccepted(
+                handle,
+                ticket,
+                actualDiagnosticsBootId,
+                actualMapRevision);
+        }
+
         private void PreserveExternalD5Ticket(
             LMCOperationTicket ticket,
             LMCConnection ownerConnection,
             ushort slaveReference,
             uint timeoutCycles,
+            uint mapRevision,
             string stage)
         {
             if (ticket == null)
             {
                 throw new ArgumentNullException("ticket");
+            }
+
+            if (mapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException("mapRevision");
             }
 
             if (d5SdoQualificationActiveTicket != null)
@@ -1948,6 +2154,7 @@ namespace LasalMotionControlApiExample
             d5SdoQualificationActiveConnection = ownerConnection;
             d5SdoQualificationActiveSlaveReference = slaveReference;
             d5SdoQualificationActiveTimeoutCycles = timeoutCycles;
+            d5SdoQualificationActiveMapRevision = mapRevision;
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_TICKET_PRESERVED",
                 "stage=" + stage,
@@ -1956,6 +2163,7 @@ namespace LasalMotionControlApiExample
                 "slave=" + slaveReference.ToString(
                     CultureInfo.InvariantCulture),
                 "bootId=0x" + ticket.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + mapRevision.ToString("X8"),
                 "terminalWaitMs=" + terminalWaitMilliseconds.ToString(
                     CultureInfo.InvariantCulture));
         }
@@ -2020,7 +2228,7 @@ namespace LasalMotionControlApiExample
                     stage,
                     requiredDataBytes,
                     true);
-            var evidence = ArmExternalD5SubmissionOutcomeGuard(
+            var submissionGuard = ArmExternalD5SubmissionOutcomeGuard(
                 ownerConnection,
                 capabilities.DiagnosticsBootId,
                 capabilities.MapRevision,
@@ -2031,7 +2239,7 @@ namespace LasalMotionControlApiExample
             {
                 var result = await read();
                 DisarmExternalD5SubmissionOutcomeGuard(
-                    evidence,
+                    submissionGuard,
                     "TERMINAL_SUCCESS",
                     "all_internal_tickets_terminal");
                 return result;
@@ -2042,18 +2250,27 @@ namespace LasalMotionControlApiExample
                     error,
                     (state, detail) =>
                         DisarmExternalD5SubmissionOutcomeGuard(
-                            evidence,
+                            submissionGuard,
                             state,
                             detail),
-                    ticket => PreserveExternalD5Ticket(
-                        ticket,
-                        ownerConnection,
-                        slaveReference,
-                        timeoutCycles,
-                        stage),
+                    (ticket, actualBootId, actualMapRevision) =>
+                    {
+                        TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                            submissionGuard,
+                            ticket,
+                            actualBootId,
+                            actualMapRevision);
+                        PreserveExternalD5Ticket(
+                            ticket,
+                            ownerConnection,
+                            slaveReference,
+                            timeoutCycles,
+                            actualMapRevision,
+                            stage);
+                    },
                     (unresolvedError, failureContext) =>
                         PreserveExternalD5SubmissionOutcomeUncertain(
-                            evidence,
+                            submissionGuard,
                             unresolvedError,
                             failureContext));
                 throw;
@@ -2207,62 +2424,6 @@ namespace LasalMotionControlApiExample
                     : string.Join(
                         Environment.NewLine,
                         qualificationLogLines.Skip(start));
-        }
-
-        private sealed class D5SdoQualificationOrphanEvidence
-        {
-            internal D5SdoQualificationOrphanEvidence(
-                uint ticketId,
-                uint diagnosticsBootId,
-                ushort slaveReference,
-                uint timeoutCycles,
-                LMCConnection ownerConnection,
-                string stage,
-                string reason,
-                string evidenceId,
-                uint mapRevision = 0)
-            {
-                TicketId = ticketId;
-                DiagnosticsBootId = diagnosticsBootId;
-                SlaveReference = slaveReference;
-                TimeoutCycles = timeoutCycles;
-                OwnerConnection = ownerConnection;
-                Stage = stage;
-                Reason = reason;
-                EvidenceId = evidenceId;
-                MapRevision = mapRevision;
-            }
-
-            internal uint TicketId { get; private set; }
-            internal uint DiagnosticsBootId { get; private set; }
-            internal uint MapRevision { get; private set; }
-            internal ushort SlaveReference { get; private set; }
-            internal uint TimeoutCycles { get; private set; }
-            internal LMCConnection OwnerConnection { get; private set; }
-            internal string Stage { get; private set; }
-            internal string Reason { get; private set; }
-            internal string EvidenceId { get; private set; }
-
-            internal void ReconcileSubmissionIdentity(
-                uint diagnosticsBootId,
-                uint mapRevision)
-            {
-                if (TicketId != 0)
-                {
-                    throw new InvalidOperationException(
-                        "Only unknown-ticket evidence can reconcile submission identity.");
-                }
-
-                if (diagnosticsBootId == 0 || mapRevision == 0)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        "diagnosticsBootId",
-                        "Submission identity requires non-zero BootId and MapRevision.");
-                }
-
-                DiagnosticsBootId = diagnosticsBootId;
-                MapRevision = mapRevision;
-            }
         }
 
         private sealed class D5SdoQualificationInput

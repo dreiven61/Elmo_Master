@@ -43,6 +43,7 @@
     <Compile Include="BulkPartialQualificationAnalysisTests.cs" />
     <Compile Include="D5SdoQualificationAnalysisTests.cs" />
     <Compile Include="D5ExternalReadFailureOrchestratorTests.cs" />
+    <Compile Include="D5SdoQuarantineLedgerTests.cs" />
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TransportQualificationAnalysis.cs">
       <Link>TransportQualificationAnalysis.cs</Link>
     </Compile>

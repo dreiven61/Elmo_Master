@@ -88,6 +88,14 @@ namespace LasalMotionControlLib
                         "An accepted ticket failure must occur during post-submission validation.",
                         "phase");
                 }
+
+                if (ticket.DiagnosticsBootId != diagnosticsBootId
+                    || ticket.SubmissionMapRevision != mapRevision)
+                {
+                    throw new ArgumentException(
+                        "The accepted SDO ticket does not match the submission identity.",
+                        "ticket");
+                }
             }
             else if (ticket != null)
             {
@@ -301,7 +309,8 @@ namespace LasalMotionControlLib
                     : LMCOperationKind.SDORead;
                 if (acceptedTicket.OperationKind != expectedKind
                     || acceptedTicket.DiagnosticsBootId
-                        != diagnosticsBootId)
+                        != diagnosticsBootId
+                    || acceptedTicket.SubmissionMapRevision != mapRevision)
                 {
                     throw new ArgumentException(
                         "The accepted ticket does not match the tracked SDO submission.",
@@ -1006,6 +1015,7 @@ namespace LasalMotionControlLib
             LMCOperationKind operationKind,
             uint queuedCycle,
             uint diagnosticsBootId,
+            uint submissionMapRevision,
             long connectionSessionGeneration,
             LMCDiagnostics owner,
             bool expectsResultData,
@@ -1028,6 +1038,12 @@ namespace LasalMotionControlLib
             if (diagnosticsBootId == 0)
             {
                 throw new ArgumentOutOfRangeException("diagnosticsBootId");
+            }
+
+            if (submissionMapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "submissionMapRevision");
             }
 
             var isSdoRead = operationKind == LMCOperationKind.SDORead;
@@ -1066,6 +1082,7 @@ namespace LasalMotionControlLib
             OperationKind = operationKind;
             QueuedCycle = queuedCycle;
             DiagnosticsBootId = diagnosticsBootId;
+            SubmissionMapRevision = submissionMapRevision;
             ConnectionSessionGeneration = connectionSessionGeneration;
             ExpectsResultData = expectsResultData;
             ExpectedResultLength = expectedResultLength;
@@ -1078,11 +1095,18 @@ namespace LasalMotionControlLib
         public LMCOperationKind OperationKind { get; private set; }
         public uint QueuedCycle { get; private set; }
         public uint DiagnosticsBootId { get; private set; }
+        public uint SubmissionMapRevision { get; private set; }
         public bool UsesExtendedResultChunks { get; private set; }
         public ushort RequestedResultLength { get { return ExpectedResultLength; } }
         public LMCSignalValueType ResultValueType
         {
             get { return ExpectedResultValueType; }
+        }
+
+        public bool BelongsTo(LMCConnection connection)
+        {
+            return connection != null
+                && ReferenceEquals(Owner, connection.Diagnostics);
         }
 
         internal long ConnectionSessionGeneration { get; private set; }

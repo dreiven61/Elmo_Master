@@ -130,12 +130,23 @@ namespace LasalMotionControlLib.Tests
                         }));
 
                 LMCOperationTicket preserved = null;
-                var calls = Route(error, value => preserved = value);
+                uint preservedBootId = 0;
+                uint preservedMapRevision = 0;
+                var calls = Route(
+                    error,
+                    (value, bootId, mapRevision) =>
+                    {
+                        preserved = value;
+                        preservedBootId = bootId;
+                        preservedMapRevision = mapRevision;
+                    });
 
                 AssertEx.Equal(2, calls.Count);
                 AssertEx.Equal("P:" + ticket.TicketId, calls[0]);
                 AssertEx.Contains("D:KNOWN_TICKET_PRESERVED", calls[1]);
                 AssertEx.True(ReferenceEquals(ticket, preserved));
+                AssertEx.Equal(DiagnosticsBootId, preservedBootId);
+                AssertEx.Equal(MapRevision, preservedMapRevision);
             }
         }
 
@@ -318,32 +329,41 @@ namespace LasalMotionControlLib.Tests
                         ticket));
 
                 LMCOperationTicket preserved = null;
+                uint preservedBootId = 0;
+                uint preservedMapRevision = 0;
                 var acceptedCalls = RouteSubmission(
                     acceptedError,
-                    value => preserved = value);
+                    (value, bootId, mapRevision) =>
+                    {
+                        preserved = value;
+                        preservedBootId = bootId;
+                        preservedMapRevision = mapRevision;
+                    });
                 AssertEx.Equal(2, acceptedCalls.Count);
                 AssertEx.Equal("P:" + ticket.TicketId, acceptedCalls[0]);
                 AssertEx.Contains(
                     "D:KNOWN_TICKET_PRESERVED",
                     acceptedCalls[1]);
                 AssertEx.True(ReferenceEquals(ticket, preserved));
+                AssertEx.Equal(DiagnosticsBootId, preservedBootId);
+                AssertEx.Equal(MapRevision, preservedMapRevision);
             }
         }
 
         private static List<string> Route(
             Exception error,
-            Action<LMCOperationTicket> captureTicket)
+            Action<LMCOperationTicket, uint, uint> captureTicket)
         {
             var calls = new List<string>();
             D5ExternalReadFailureOrchestrator.RouteFailure(
                 error,
                 (state, detail) => calls.Add("D:" + state + ":" + detail),
-                ticket =>
+                (ticket, bootId, mapRevision) =>
                 {
                     calls.Add("P:" + ticket.TicketId);
                     if (captureTicket != null)
                     {
-                        captureTicket(ticket);
+                        captureTicket(ticket, bootId, mapRevision);
                     }
                 },
                 (unresolved, context) => calls.Add(
@@ -363,18 +383,18 @@ namespace LasalMotionControlLib.Tests
 
         private static List<string> RouteSubmission(
             Exception error,
-            Action<LMCOperationTicket> captureTicket)
+            Action<LMCOperationTicket, uint, uint> captureTicket)
         {
             var calls = new List<string>();
             D5ExternalReadFailureOrchestrator.RouteSubmissionFailure(
                 error,
                 (state, detail) => calls.Add("D:" + state + ":" + detail),
-                ticket =>
+                (ticket, bootId, mapRevision) =>
                 {
                     calls.Add("P:" + ticket.TicketId);
                     if (captureTicket != null)
                     {
-                        captureTicket(ticket);
+                        captureTicket(ticket, bootId, mapRevision);
                     }
                 },
                 (unresolved, context) => calls.Add(
@@ -437,6 +457,7 @@ namespace LasalMotionControlLib.Tests
                 LMCOperationKind.SDORead,
                 10,
                 DiagnosticsBootId,
+                MapRevision,
                 1,
                 diagnostics,
                 true,

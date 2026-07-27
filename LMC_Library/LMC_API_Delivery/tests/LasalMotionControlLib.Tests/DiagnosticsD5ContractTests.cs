@@ -1211,6 +1211,7 @@ namespace LasalMotionControlLib.Tests
 
                 AssertEx.Equal(firstTicketId, first.TicketId);
                 AssertEx.Equal(DiagnosticsBootId, first.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, first.SubmissionMapRevision);
                 AssertEx.True(status.IsSuccessful);
                 AssertEx.Equal(0x12345678u, BitConverter.ToUInt32(status.ResultData, 0));
 
@@ -1330,6 +1331,7 @@ namespace LasalMotionControlLib.Tests
                 kind,
                 100,
                 DiagnosticsBootId,
+                MapRevision,
                 0,
                 owner,
                 expectsData,
@@ -1448,6 +1450,7 @@ namespace LasalMotionControlLib.Tests
                     LMCOperationKind.SDORead,
                     100,
                     DiagnosticsBootId,
+                    MapRevision,
                     0,
                     connection.Diagnostics,
                     true,
@@ -1475,6 +1478,7 @@ namespace LasalMotionControlLib.Tests
                     LMCOperationKind.SDORead,
                     100,
                     DiagnosticsBootId,
+                    MapRevision,
                     0,
                     connection.Diagnostics,
                     true,

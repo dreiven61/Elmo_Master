@@ -1018,7 +1018,7 @@ namespace LasalMotionControlApiExample
                             "manual-sdo-submit",
                             request.DataLength,
                             RequiresGeneralInlineSdoRead(request));
-                    var submissionEvidence =
+                    var submissionGuard =
                         ArmExternalD5SubmissionOutcomeGuard(
                             currentConnection,
                             capabilities.DiagnosticsBootId,
@@ -1026,12 +1026,13 @@ namespace LasalMotionControlApiExample
                             request.SlaveReference,
                             request.TimeoutCycles,
                             "manual-sdo-submit");
+                    LMCOperationTicket submittedTicket;
                     try
                     {
-                        AdoptDiagnosticOperationTicket(
+                        submittedTicket =
                             await currentConnection.Diagnostics.SubmitSdoAsync(
                                 request,
-                                CancellationToken.None));
+                                CancellationToken.None);
                     }
                     catch (Exception error)
                     {
@@ -1040,35 +1041,48 @@ namespace LasalMotionControlApiExample
                                 error,
                                 (state, detail) =>
                                     DisarmExternalD5SubmissionOutcomeGuard(
-                                        submissionEvidence,
+                                        submissionGuard,
                                         state,
                                         detail),
-                                ticket =>
+                                (ticket, actualBootId, actualMapRevision) =>
                                 {
+                                    TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                                        submissionGuard,
+                                        ticket,
+                                        actualBootId,
+                                        actualMapRevision);
                                     AdoptDiagnosticOperationTicket(ticket);
                                     PreserveExternalD5Ticket(
                                         ticket,
                                         currentConnection,
                                         request.SlaveReference,
                                         request.TimeoutCycles,
+                                        actualMapRevision,
                                         "manual-sdo-submit");
                                 },
                                 (unresolvedError, failureContext) =>
                                     PreserveExternalD5RawSubmissionOutcomeUncertain(
-                                        submissionEvidence,
+                                        submissionGuard,
                                         unresolvedError,
                                         failureContext));
                         throw;
                     }
 
+                    TransitionExternalD5SubmissionOutcomeGuardToAccepted(
+                        submissionGuard,
+                        submittedTicket,
+                        submittedTicket.DiagnosticsBootId,
+                        submittedTicket.SubmissionMapRevision);
+                    AdoptDiagnosticOperationTicket(submittedTicket);
                     PreserveExternalD5Ticket(
-                        diagnosticOperationTicket,
+                        submittedTicket,
                         currentConnection,
                         request.SlaveReference,
                         request.TimeoutCycles,
+                        submittedTicket.SubmissionMapRevision,
                         "manual-sdo-submit");
                     DisarmExternalD5SubmissionOutcomeGuard(
-                        submissionEvidence,
+                        submissionGuard,
                         "ACCEPTED_TICKET",
                         diagnosticOperationTicket.TicketId.ToString(
                             CultureInfo.InvariantCulture));
@@ -2845,6 +2859,8 @@ namespace LasalMotionControlApiExample
                 + ticket.QueuedCycle
                 + ", BootId=0x"
                 + ticket.DiagnosticsBootId.ToString("X8")
+                + ", MapRevision=0x"
+                + ticket.SubmissionMapRevision.ToString("X8")
                 + (ticket.UsesExtendedResultChunks
                     ? ", ExtendedResult="
                         + ticket.RequestedResultLength

@@ -10,6 +10,7 @@ namespace LasalMotionControlLib.Tests
         private const uint AbortTicketId = 0x10203040u;
         private const uint RecoveryTicketId = 0x10203041u;
         private const uint DiagnosticsBootId = 0x89ABCDEFu;
+        private const uint MapRevision = 0x957F101Eu;
         private const uint SdoAbortCode = 0x06020000u;
         private const sbyte ExpectedValue = -3;
 
@@ -84,6 +85,12 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(AbortTicketId, result.AbortTicketId);
                 AssertEx.Equal(RecoveryTicketId, result.RecoveryTicketId);
                 AssertEx.Equal(DiagnosticsBootId, result.DiagnosticsBootId);
+                AssertEx.Equal(
+                    MapRevision,
+                    abortTicket.SubmissionMapRevision);
+                AssertEx.Equal(
+                    MapRevision,
+                    recoveryTicket.SubmissionMapRevision);
                 AssertEx.Equal(SdoAbortCode, result.AbortCode);
                 AssertEx.Equal(ExpectedValue, result.RecoveredValue);
             }
@@ -517,6 +524,7 @@ namespace LasalMotionControlLib.Tests
                 LMCOperationKind.SDORead,
                 10,
                 diagnosticsBootId,
+                MapRevision,
                 1,
                 diagnostics,
                 true,
@@ -534,6 +542,7 @@ namespace LasalMotionControlLib.Tests
                 LMCOperationKind.SDOWrite,
                 10,
                 diagnosticsBootId,
+                MapRevision,
                 1,
                 diagnostics,
                 false,

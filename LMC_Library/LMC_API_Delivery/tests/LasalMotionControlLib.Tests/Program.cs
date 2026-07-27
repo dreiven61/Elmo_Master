@@ -41,6 +41,7 @@ namespace LasalMotionControlLib.Tests
             BulkPartialQualificationAnalysisTests.Register(tests);
             D5SdoQualificationAnalysisTests.Register(tests);
             D5ExternalReadFailureOrchestratorTests.Register(tests);
+            D5SdoQuarantineLedgerTests.Register(tests);
             RpcIntegrationTests.Register(tests);
             DriveReadFacadeTests.Register(tests);
             DiagnosticsContractTests.Register(tests);

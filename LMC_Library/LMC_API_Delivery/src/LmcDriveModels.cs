@@ -91,10 +91,11 @@ namespace LasalMotionControlLib
             }
 
             if (ticket != null
-                && ticket.DiagnosticsBootId != diagnosticsBootId)
+                && (ticket.DiagnosticsBootId != diagnosticsBootId
+                    || ticket.SubmissionMapRevision != mapRevision))
             {
                 throw new ArgumentException(
-                    "The accepted ticket does not match the SDO Read capability BootId.",
+                    "The accepted ticket does not match the SDO Read capability identity.",
                     "ticket");
             }
 
