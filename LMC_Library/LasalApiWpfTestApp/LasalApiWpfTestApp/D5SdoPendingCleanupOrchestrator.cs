@@ -10,7 +10,199 @@ namespace LasalMotionControlApiExample
     {
         Resolved = 0,
         QuarantineDiagnosticsBootIdChanged = 1,
-        QuarantineMapRevisionChanged = 2
+        QuarantineMapRevisionChanged = 2,
+        QuarantineWriteTerminalOutcomeUnverified = 3
+    }
+
+    internal enum D5SdoTicketNotFoundDisposition
+    {
+        ResolveReadBySlotContract = 0,
+        QuarantineWriteOutcomeUnverified = 1
+    }
+
+    internal enum D5SdoTerminalResolutionDisposition
+    {
+        Resolve = 0,
+        QuarantineWriteOutcomeUnverified = 1
+    }
+
+    internal enum D5SdoWriteReadbackVerdict
+    {
+        Pending = 0,
+        Verified = 1
+    }
+
+    internal sealed class D5SdoWriteReadbackRequirement
+    {
+        private readonly byte[] expectedWriteData;
+
+        internal D5SdoWriteReadbackRequirement(
+            LMCSdoRequest writeRequest,
+            LMCOperationTicket writeTicket,
+            LMCConnection ownerConnection)
+        {
+            if (writeRequest == null)
+            {
+                throw new ArgumentNullException("writeRequest");
+            }
+
+            if (writeTicket == null)
+            {
+                throw new ArgumentNullException("writeTicket");
+            }
+
+            if (ownerConnection == null)
+            {
+                throw new ArgumentNullException("ownerConnection");
+            }
+
+            if (!writeRequest.IsWrite
+                || writeRequest.DataLength != 4
+                || writeRequest.WriteData.Length != 4)
+            {
+                throw new ArgumentException(
+                    "Pending SDO Write readback requires an exact four-byte Write request.",
+                    "writeRequest");
+            }
+
+            if (writeTicket.OperationKind != LMCOperationKind.SDOWrite
+                || !writeTicket.BelongsToCurrentSession(ownerConnection))
+            {
+                throw new ArgumentException(
+                    "Pending SDO Write readback requires the accepted Write ticket from the owner's current connection session.",
+                    "writeTicket");
+            }
+
+            SlaveReference = writeRequest.SlaveReference;
+            ObjectIndex = writeRequest.ObjectIndex;
+            SubIndex = writeRequest.SubIndex;
+            ValueType = writeRequest.ValueType;
+            DataLength = writeRequest.DataLength;
+            TimeoutCycles = writeRequest.TimeoutCycles;
+            expectedWriteData = writeRequest.WriteData;
+            WriteTicket = writeTicket;
+            OwnerConnection = ownerConnection;
+            DiagnosticsBootId = writeTicket.DiagnosticsBootId;
+            SubmissionMapRevision = writeTicket.SubmissionMapRevision;
+        }
+
+        internal ushort SlaveReference { get; private set; }
+        internal ushort ObjectIndex { get; private set; }
+        internal byte SubIndex { get; private set; }
+        internal LMCSignalValueType ValueType { get; private set; }
+        internal ushort DataLength { get; private set; }
+        internal uint TimeoutCycles { get; private set; }
+        internal LMCOperationTicket WriteTicket { get; private set; }
+        internal LMCConnection OwnerConnection { get; private set; }
+        internal uint DiagnosticsBootId { get; private set; }
+        internal uint SubmissionMapRevision { get; private set; }
+        internal byte[] ExpectedWriteData
+        {
+            get { return (byte[])expectedWriteData.Clone(); }
+        }
+
+        internal LMCSdoRequest CreateReadRequest(uint timeoutCycles)
+        {
+            return LMCSdoRequest.CreateRead(
+                SlaveReference,
+                ObjectIndex,
+                SubIndex,
+                ValueType,
+                DataLength,
+                timeoutCycles);
+        }
+
+        internal bool MatchesReadRequest(LMCSdoRequest request)
+        {
+            return request != null
+                && !request.IsWrite
+                && request.SlaveReference == SlaveReference
+                && request.ObjectIndex == ObjectIndex
+                && request.SubIndex == SubIndex
+                && request.ValueType == ValueType
+                && request.DataLength == DataLength;
+        }
+
+        internal bool MatchesCurrentIdentity(
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities freshCapabilities)
+        {
+            return MatchesOwnerCurrentSession(currentConnection)
+                && freshCapabilities != null
+                && freshCapabilities.DiagnosticsBootId
+                    == DiagnosticsBootId
+                && freshCapabilities.MapRevision
+                    == SubmissionMapRevision;
+        }
+
+        internal bool MatchesOwnerCurrentSession(
+            LMCConnection currentConnection)
+        {
+            return currentConnection != null
+                && ReferenceEquals(OwnerConnection, currentConnection)
+                && WriteTicket.BelongsToCurrentSession(currentConnection);
+        }
+
+        internal bool MatchesReadTicketIdentity(
+            LMCOperationTicket readTicket,
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities freshCapabilities)
+        {
+            return MatchesCurrentIdentity(
+                    currentConnection,
+                    freshCapabilities)
+                && readTicket != null
+                && readTicket.OperationKind == LMCOperationKind.SDORead
+                && readTicket.BelongsToCurrentSession(currentConnection)
+                && readTicket.DiagnosticsBootId == DiagnosticsBootId
+                && readTicket.SubmissionMapRevision
+                    == SubmissionMapRevision;
+        }
+
+        internal D5SdoWriteReadbackVerdict Evaluate(
+            LMCSdoRequest request,
+            LMCOperationTicket readTicket,
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities freshCapabilities,
+            LMCOperationStatus status)
+        {
+            if (!MatchesReadRequest(request)
+                || !MatchesReadTicketIdentity(
+                    readTicket,
+                    currentConnection,
+                    freshCapabilities)
+                || status == null
+                || status.TicketId != readTicket.TicketId
+                || status.OperationKind != LMCOperationKind.SDORead
+                || status.DiagnosticsBootId != DiagnosticsBootId
+                || !status.IsSuccessful
+                || status.ResultValueType != ValueType
+                || status.ResultLength != DataLength
+                || !ByteArraysEqual(status.ResultData, expectedWriteData))
+            {
+                return D5SdoWriteReadbackVerdict.Pending;
+            }
+
+            return D5SdoWriteReadbackVerdict.Verified;
+        }
+
+        private static bool ByteArraysEqual(byte[] left, byte[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] != right[index])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 
     internal sealed class D5SdoPendingCleanupRequest
@@ -21,7 +213,8 @@ namespace LasalMotionControlApiExample
             LMCConnection ownerConnection,
             LMCConnection currentConnection,
             uint mapRevision,
-            DateTime? deadlineUtc)
+            DateTime? deadlineUtc,
+            bool queuedCancelAccepted = false)
         {
             Ticket = ticket;
             CachedStatus = cachedStatus;
@@ -29,6 +222,7 @@ namespace LasalMotionControlApiExample
             CurrentConnection = currentConnection;
             MapRevision = mapRevision;
             DeadlineUtc = deadlineUtc;
+            QueuedCancelAccepted = queuedCancelAccepted;
         }
 
         internal LMCOperationTicket Ticket { get; private set; }
@@ -37,6 +231,7 @@ namespace LasalMotionControlApiExample
         internal LMCConnection CurrentConnection { get; private set; }
         internal uint MapRevision { get; private set; }
         internal DateTime? DeadlineUtc { get; private set; }
+        internal bool QueuedCancelAccepted { get; private set; }
     }
 
     internal sealed class D5SdoPendingCleanupOperations
@@ -114,6 +309,59 @@ namespace LasalMotionControlApiExample
         internal const int MinimumWaitMilliseconds = 15000;
         internal const int MaximumWaitMilliseconds = 120000;
 
+        internal static D5SdoTicketNotFoundDisposition
+            EvaluateTicketNotFound(LMCOperationTicket ticket)
+        {
+            RequireSdoTicket(ticket);
+            return ticket.OperationKind == LMCOperationKind.SDOWrite
+                ? D5SdoTicketNotFoundDisposition
+                    .QuarantineWriteOutcomeUnverified
+                : D5SdoTicketNotFoundDisposition
+                    .ResolveReadBySlotContract;
+        }
+
+        internal static D5SdoTerminalResolutionDisposition
+            EvaluateTerminalResolution(
+                LMCOperationTicket ticket,
+                LMCOperationStatus status,
+                bool queuedCancelAccepted,
+                bool cancelRaceResolved)
+        {
+            RequireSdoTicket(ticket);
+            ValidateStatus(ticket, status, "status");
+            if (!status.IsTerminal)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO terminal resolution requires a terminal status.");
+            }
+
+            if (ticket.OperationKind != LMCOperationKind.SDOWrite)
+            {
+                return D5SdoTerminalResolutionDisposition.Resolve;
+            }
+
+            if (cancelRaceResolved)
+            {
+                return D5SdoTerminalResolutionDisposition
+                    .QuarantineWriteOutcomeUnverified;
+            }
+
+            if (queuedCancelAccepted)
+            {
+                return status.State == LMCOperationState.Cancelled
+                    && status.Outcome == LMCOperationOutcome.Cancelled
+                        ? D5SdoTerminalResolutionDisposition.Resolve
+                        : D5SdoTerminalResolutionDisposition
+                            .QuarantineWriteOutcomeUnverified;
+            }
+
+            return status.State == LMCOperationState.Completed
+                && status.Outcome == LMCOperationOutcome.Success
+                    ? D5SdoTerminalResolutionDisposition.Resolve
+                    : D5SdoTerminalResolutionDisposition
+                        .QuarantineWriteOutcomeUnverified;
+        }
+
         internal static async Task<D5SdoPendingCleanupResult> CleanupAsync(
             D5SdoPendingCleanupRequest request,
             D5SdoPendingCleanupOperations operations,
@@ -164,16 +412,19 @@ namespace LasalMotionControlApiExample
                 statusReadCount++;
             }
 
-            var cancelAttempted = false;
-            var cancelAccepted = false;
+            var cancelAttempted = request.QueuedCancelAccepted;
+            var cancelAccepted = request.QueuedCancelAccepted;
+            var cancelAcceptedThisCleanup = false;
             var cancelRaceResolved = false;
-            if (status.State == LMCOperationState.Queued)
+            if (status.State == LMCOperationState.Queued
+                && !cancelAccepted)
             {
                 cancelAttempted = true;
                 try
                 {
                     await operations.CancelAsync(request.Ticket);
                     cancelAccepted = true;
+                    cancelAcceptedThisCleanup = true;
                     if (operations.CancelAccepted != null)
                     {
                         operations.CancelAccepted();
@@ -197,7 +448,7 @@ namespace LasalMotionControlApiExample
             }
 
             var waitMilliseconds = 0;
-            if (!status.IsTerminal || cancelAccepted)
+            if (!status.IsTerminal || cancelAcceptedThisCleanup)
             {
                 waitMilliseconds = CalculateWaitMilliseconds(
                     request.DeadlineUtc,
@@ -217,7 +468,31 @@ namespace LasalMotionControlApiExample
                     "D5 SDO cleanup did not resolve the pending ticket.");
             }
 
+            var terminalResolution = EvaluateTerminalResolution(
+                request.Ticket,
+                status,
+                cancelAccepted,
+                cancelRaceResolved);
+            if (terminalResolution
+                == D5SdoTerminalResolutionDisposition
+                    .QuarantineWriteOutcomeUnverified)
+            {
+                return new D5SdoPendingCleanupResult(
+                    D5SdoPendingCleanupDisposition
+                        .QuarantineWriteTerminalOutcomeUnverified,
+                    "write_terminal_outcome_unverified",
+                    status,
+                    usedCachedTerminal,
+                    cancelAttempted,
+                    cancelAccepted,
+                    cancelRaceResolved,
+                    statusReadCount,
+                    waitMilliseconds);
+            }
+
             if (cancelAccepted
+                && request.Ticket.OperationKind
+                    != LMCOperationKind.SDOWrite
                 && (status.State != LMCOperationState.Cancelled
                     || status.Outcome != LMCOperationOutcome.Cancelled))
             {
@@ -341,6 +616,8 @@ namespace LasalMotionControlApiExample
                     "request");
             }
 
+            RequireSdoTicket(request.Ticket);
+
             if (request.CurrentConnection == null)
             {
                 throw new ArgumentException(
@@ -372,6 +649,21 @@ namespace LasalMotionControlApiExample
                     request.Ticket,
                     request.CachedStatus,
                     "cachedStatus");
+            }
+        }
+
+        private static void RequireSdoTicket(LMCOperationTicket ticket)
+        {
+            if (ticket == null)
+            {
+                throw new ArgumentNullException("ticket");
+            }
+
+            if (ticket.OperationKind != LMCOperationKind.SDORead
+                && ticket.OperationKind != LMCOperationKind.SDOWrite)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO cleanup requires an SDO Read or SDO Write ticket.");
             }
         }
 

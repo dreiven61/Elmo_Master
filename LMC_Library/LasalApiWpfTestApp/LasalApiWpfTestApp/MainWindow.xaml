@@ -1262,7 +1262,7 @@
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12">
-                        <GroupBox Header="Asynchronous SDO Read ticket">
+                        <GroupBox Header="Asynchronous SDO Read / Write ticket">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -1276,10 +1276,11 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation (fixed)" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation" />
                                     <ComboBox
                                         x:Name="ComboSdoOperation"
                                         Width="150"
@@ -1316,11 +1317,20 @@
                                     <TextBox x:Name="TextSdoTimeoutCycles" Width="105" Text="1000" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write data (unavailable)" />
-                                    <TextBox x:Name="TextSdoWriteData" Width="390" IsEnabled="False" Text="SDO Write is unavailable" />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write value (decimal or raw 0x hex)" />
+                                    <TextBox x:Name="TextSdoWriteData" Width="390" IsEnabled="False" Text="0" />
                                 </StackPanel>
 
-                                <WrapPanel Grid.Row="2" Grid.ColumnSpan="5">
+                                <StackPanel Grid.Row="2" Grid.ColumnSpan="5">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="SDK-approved SDO Write target" />
+                                    <ComboBox
+                                        x:Name="ComboSdoWriteTarget"
+                                        Width="760"
+                                        HorizontalAlignment="Left"
+                                        SelectionChanged="SdoWriteTarget_SelectionChanged" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="3" Grid.ColumnSpan="5">
                                     <Button x:Name="ButtonSubmitSdo" Click="ButtonSubmitSdo_Click" Content="Submit SDO Read" />
                                     <Button x:Name="ButtonRefreshDiagnosticOperation" Click="ButtonRefreshDiagnosticOperation_Click" Content="Refresh Ticket" />
                                     <Button x:Name="ButtonDownloadSdoResult" Click="ButtonDownloadSdoResult_Click" Content="Download Result" />
@@ -1330,10 +1340,10 @@
 
                                 <TextBlock
                                     x:Name="TextDiagnosticOperationSummary"
-                                    Grid.Row="3"
+                                    Grid.Row="4"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
-                                    Text="SDO Read: bit 13 enables editable nonzero object index, sub-index 0..255, and exact 1/2/4-byte typed reads. A bit-8-only PLC falls back to fixed 0x1000:0 UInt32/4. Refresh Ticket retrieves the inline result; SDO Write is unavailable."
+                                    Text="SDO Read supports exact 1/2/4-byte typed values. SDO Write requires PLC bit 9 and an exact SDK-approved target; arbitrary object writes remain blocked."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>

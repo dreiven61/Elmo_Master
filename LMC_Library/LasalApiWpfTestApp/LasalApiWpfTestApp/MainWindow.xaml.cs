@@ -174,7 +174,9 @@ namespace LasalMotionControlApiExample
                         && connection.IsConnected)
                     {
                         throw new InvalidOperationException(
-                            "Reconnect is blocked while a D5 ticket or submission outcome is unresolved. Resolve it first; reconnect is allowed only after an external connection loss.");
+                            "Reconnect is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                            + GetD5SdoResolutionGuidance()
+                            + " Reconnect is allowed only after an external connection loss.");
                     }
 
                     if (motionMayBeActive)
@@ -243,7 +245,8 @@ namespace LasalMotionControlApiExample
                     if (HasUnresolvedD5SdoQualificationTicket)
                     {
                         throw new InvalidOperationException(
-                            "Close Connection is blocked while a D5 ticket or submission outcome is unresolved. Resolve D5 Quarantine first.");
+                            "Close Connection is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                            + GetD5SdoResolutionGuidance());
                     }
 
                     return CloseCurrentConnectionAsync(true);
@@ -2560,7 +2563,8 @@ namespace LasalMotionControlApiExample
             {
                 WriteLog(
                     operation
-                    + " blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                    + " blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                    + GetD5SdoResolutionGuidance());
                 return false;
             }
 
@@ -3727,7 +3731,8 @@ namespace LasalMotionControlApiExample
                         ? ". Use Group Stop and verify InPosition."
                         : ". Use Stop or PowerOff and verify standstill.")
                 : d5TicketUnresolved
-                    ? "SAFETY: a D5 ticket or submission outcome is unresolved. New motion/diagnostic mutation and Close are blocked; Stop, PowerOff, existing-resource cleanup, read-only checks, and Resolve remain available."
+                    ? "SAFETY: a D5 ticket, submission outcome, or Write readback is unresolved. New motion/diagnostic mutation and Close are blocked. "
+                        + GetD5SdoResolutionGuidance()
                     : "Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion.";
         }
 
@@ -3873,7 +3878,8 @@ namespace LasalMotionControlApiExample
             if (HasUnresolvedD5SdoQualificationTicket)
             {
                 WriteLog(
-                    "Window close is blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                    "Window close is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                    + GetD5SdoResolutionGuidance());
                 return;
             }
 

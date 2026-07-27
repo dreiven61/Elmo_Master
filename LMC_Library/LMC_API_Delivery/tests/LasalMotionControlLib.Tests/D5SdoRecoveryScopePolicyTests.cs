@@ -33,6 +33,9 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.D5RecoveryScope.SubmissionIdentityMixed",
                 SubmissionIdentityMixed);
             tests.Add(
+                "Qualification.D5RecoveryScope.WriteEvidenceFailsClosed",
+                WriteEvidenceFailsClosed);
+            tests.Add(
                 "Qualification.D5RecoveryScope.ValidationFailsClosed",
                 ValidationFailsClosed);
         }
@@ -219,6 +222,44 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void WriteEvidenceFailsClosed()
+        {
+            using (var current = new LMCConnection())
+            {
+                var writeEvidence = Evidence(
+                    2,
+                    current,
+                    BootId2,
+                    MapRevision2,
+                    LMCOperationKind.SDOWrite);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    writeEvidence.OperationKind);
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => Evaluate(
+                        current,
+                        Evidence(1, current, BootId2, MapRevision2),
+                        writeEvidence));
+                AssertEx.Contains("evidence-2", error.Message);
+                AssertEx.Contains("index 1", error.Message);
+                AssertEx.Contains("SDOWrite", error.Message);
+                AssertEx.Contains(
+                    "Automatic recovery is unavailable",
+                    error.Message);
+                AssertEx.Contains(
+                    "quarantine must remain active",
+                    error.Message);
+
+                var directGuardError =
+                    AssertEx.Throws<InvalidOperationException>(
+                        () => D5SdoRecoveryScopePolicy
+                            .RequireReadRecoveryEvidence(
+                                new[] { writeEvidence }));
+                AssertEx.Contains("SDOWrite", directGuardError.Message);
+            }
+        }
+
         private static void ValidationFailsClosed()
         {
             using (var current = new LMCConnection())
@@ -309,14 +350,26 @@ namespace LasalMotionControlLib.Tests
             long entryId,
             LMCConnection ownerConnection,
             uint diagnosticsBootId,
-            uint mapRevision)
+            uint mapRevision,
+            LMCOperationKind operationKind = LMCOperationKind.SDORead)
         {
+            var request = operationKind == LMCOperationKind.SDOWrite
+                ? LMCSdoRequest.CreateWrite(
+                    1,
+                    0x2000,
+                    1,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    100)
+                : null;
             return new D5SdoQuarantineEvidence(
                 entryId,
                 1,
                 0,
                 diagnosticsBootId,
                 mapRevision,
+                operationKind,
+                request,
                 1,
                 100,
                 ownerConnection,

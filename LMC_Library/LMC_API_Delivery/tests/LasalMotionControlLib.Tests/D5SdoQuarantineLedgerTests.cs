@@ -27,6 +27,9 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.D5QuarantineLedger.AcceptedIdentityIsExact",
                 AcceptedIdentityIsExact);
             tests.Add(
+                "Qualification.D5QuarantineLedger.OperationKindsAreExact",
+                OperationKindsAreExact);
+            tests.Add(
                 "Qualification.D5QuarantineLedger.RecoveryClearIsConditional",
                 RecoveryClearIsConditional);
         }
@@ -303,16 +306,6 @@ namespace LasalMotionControlLib.Tests
                         boot1Ticket,
                         BootId1,
                         0));
-                AssertEx.Throws<ArgumentException>(
-                    () => ledger.TransitionToAccepted(
-                        mismatch,
-                        SdoWriteTicket(
-                            connection,
-                            0x03040506u,
-                            BootId1),
-                        BootId1,
-                        MapRevision1));
-
                 var duplicateLedger = new D5SdoQuarantineLedger();
                 var knownHandle = duplicateLedger.QuarantineKnownTicket(
                     ticket,
@@ -429,6 +422,163 @@ namespace LasalMotionControlLib.Tests
                             foreignConnection,
                             foreignEvidence.OwnerConnection));
                 }
+            }
+        }
+
+        private static void OperationKindsAreExact()
+        {
+            using (var connection = new LMCConnection())
+            {
+                var ledger = new D5SdoQuarantineLedger();
+                var writeRequest = SdoWriteRequest();
+                var defaultRead = ledger.ArmUnknown(
+                    connection,
+                    BootId1,
+                    MapRevision1,
+                    1,
+                    100,
+                    "test-stage",
+                    "test-reason",
+                    "default-read");
+                AssertEx.Equal(
+                    LMCOperationKind.SDORead,
+                    ledger.GetEvidence(defaultRead).OperationKind);
+
+                var writeGuard = ArmUnknown(
+                    ledger,
+                    connection,
+                    "write-accepted",
+                    BootId1,
+                    MapRevision1,
+                    LMCOperationKind.SDOWrite,
+                    writeRequest);
+                AssertWriteAudit(
+                    ledger.GetEvidence(writeGuard),
+                    writeRequest);
+                var writeTicket = SdoWriteTicket(
+                    connection,
+                    0x03040506u,
+                    BootId1);
+                var writeAccepted = ledger.TransitionToAccepted(
+                    writeGuard,
+                    writeTicket,
+                    BootId1,
+                    MapRevision1);
+                AssertEvidence(
+                    writeAccepted,
+                    writeTicket.TicketId,
+                    BootId1,
+                    MapRevision1,
+                    2,
+                    connection,
+                    "write-accepted",
+                    LMCOperationKind.SDOWrite);
+                AssertWriteAudit(writeAccepted, writeRequest);
+                var alteredWriteEvidence = new D5SdoQuarantineEvidence(
+                    writeAccepted.EntryId,
+                    writeAccepted.EntryRevision,
+                    writeAccepted.TicketId,
+                    writeAccepted.DiagnosticsBootId,
+                    writeAccepted.MapRevision,
+                    writeAccepted.OperationKind,
+                    LMCSdoRequest.CreateWrite(
+                        1,
+                        0x2000,
+                        1,
+                        LMCSignalValueType.UInt32,
+                        new byte[] { 0x79, 0x56, 0x34, 0x12 },
+                        100),
+                    writeAccepted.SlaveReference,
+                    writeAccepted.TimeoutCycles,
+                    writeAccepted.OwnerConnection,
+                    writeAccepted.Stage,
+                    writeAccepted.Reason,
+                    writeAccepted.EvidenceId);
+                AssertEx.False(
+                    writeAccepted.ContentEquals(alteredWriteEvidence));
+
+                var knownWriteLedger = new D5SdoQuarantineLedger();
+                var knownWrite = knownWriteLedger.QuarantineKnownTicket(
+                    writeTicket,
+                    writeRequest,
+                    connection,
+                    1,
+                    100,
+                    "test-stage",
+                    "test-reason",
+                    "known-write",
+                    MapRevision1);
+                AssertWriteAudit(
+                    knownWriteLedger.GetEvidence(knownWrite),
+                    writeRequest);
+
+                var missingRequestLedger = new D5SdoQuarantineLedger();
+                AssertEx.Throws<ArgumentNullException>(
+                    () => missingRequestLedger.ArmUnknown(
+                        LMCOperationKind.SDOWrite,
+                        connection,
+                        BootId1,
+                        MapRevision1,
+                        1,
+                        100,
+                        "test-stage",
+                        "test-reason",
+                        "missing-write-request"));
+                AssertEx.Throws<ArgumentNullException>(
+                    () => missingRequestLedger.QuarantineKnownTicket(
+                        writeTicket,
+                        connection,
+                        1,
+                        100,
+                        "test-stage",
+                        "test-reason",
+                        "missing-known-write-request",
+                        MapRevision1));
+                AssertEx.Equal(0, missingRequestLedger.Count);
+
+                var readGuard = ArmUnknown(
+                    ledger,
+                    connection,
+                    "read-write-mismatch");
+                var mismatch = AssertEx.Throws<InvalidOperationException>(
+                    () => ledger.TransitionToAccepted(
+                        readGuard,
+                        SdoWriteTicket(
+                            connection,
+                            0x04050607u,
+                            BootId1),
+                        BootId1,
+                        MapRevision1));
+                AssertEx.Contains("operation kind", mismatch.Message);
+                AssertEx.Equal(
+                    LMCOperationKind.SDORead,
+                    ledger.GetEvidence(readGuard).OperationKind);
+                AssertEx.Equal(0u, ledger.GetEvidence(readGuard).TicketId);
+
+                AssertEx.Throws<ArgumentOutOfRangeException>(
+                    () => ledger.ArmUnknown(
+                        LMCOperationKind.PIWrite,
+                        connection,
+                        BootId1,
+                        MapRevision1,
+                        1,
+                        100,
+                        "test-stage",
+                        "test-reason",
+                        "invalid-kind"));
+                AssertEx.Throws<ArgumentException>(
+                    () => ledger.QuarantineKnownTicket(
+                        PiWriteTicket(
+                            connection,
+                            0x05060708u,
+                            BootId1),
+                        connection,
+                        1,
+                        100,
+                        "test-stage",
+                        "test-reason",
+                        "pi-write",
+                        MapRevision1));
             }
         }
 
@@ -633,6 +783,58 @@ namespace LasalMotionControlLib.Tests
                         mutationRetry,
                         mutationRetry,
                         () => { }));
+
+                var writeLedger = new D5SdoQuarantineLedger();
+                ArmUnknown(
+                    writeLedger,
+                    connection,
+                    "write-uncertain",
+                    BootId1,
+                    MapRevision1,
+                    LMCOperationKind.SDOWrite);
+                var writeBaseline = writeLedger.CaptureSnapshot();
+                var writeCandidate = writeLedger.CaptureSnapshot();
+                var writeCallbackCount = 0;
+                var writeError = AssertEx.Throws<InvalidOperationException>(
+                    () => writeLedger.TryClearAfterProof(
+                        writeBaseline,
+                        writeCandidate,
+                        () => writeCallbackCount++));
+                AssertEx.Contains("write-uncertain", writeError.Message);
+                AssertEx.Contains("SDOWrite", writeError.Message);
+                AssertEx.Contains(
+                    "Automatic recovery is unavailable",
+                    writeError.Message);
+                AssertEx.Contains(
+                    "quarantine must remain active",
+                    writeError.Message);
+                AssertEx.Equal(0, writeCallbackCount);
+                AssertEx.Equal(1, writeLedger.Count);
+
+                var staleWriteLedger = new D5SdoQuarantineLedger();
+                var staleWrite = ArmUnknown(
+                    staleWriteLedger,
+                    connection,
+                    "stale-write",
+                    BootId1,
+                    MapRevision1,
+                    LMCOperationKind.SDOWrite);
+                var staleWriteBaseline =
+                    staleWriteLedger.CaptureSnapshot();
+                var staleWriteCandidate =
+                    staleWriteLedger.CaptureSnapshot();
+                staleWriteLedger.Disarm(staleWrite);
+                var liveAfterDisarm = staleWriteLedger.CaptureSnapshot();
+                var staleWriteCallbackCount = 0;
+                AssertEx.False(
+                    staleWriteLedger.TryClearAfterProof(
+                        staleWriteBaseline,
+                        staleWriteCandidate,
+                        () => staleWriteCallbackCount++));
+                AssertEx.Equal(0, staleWriteCallbackCount);
+                AssertSnapshotUnchanged(
+                    liveAfterDisarm,
+                    staleWriteLedger.CaptureSnapshot());
             }
         }
 
@@ -641,9 +843,19 @@ namespace LasalMotionControlLib.Tests
             LMCConnection ownerConnection,
             string evidenceId,
             uint diagnosticsBootId = BootId1,
-            uint mapRevision = MapRevision1)
+            uint mapRevision = MapRevision1,
+            LMCOperationKind operationKind = LMCOperationKind.SDORead,
+            LMCSdoRequest request = null)
         {
+            if (operationKind == LMCOperationKind.SDOWrite
+                && request == null)
+            {
+                request = SdoWriteRequest();
+            }
+
             return ledger.ArmUnknown(
+                operationKind,
+                request,
                 ownerConnection,
                 diagnosticsBootId,
                 mapRevision,
@@ -652,6 +864,17 @@ namespace LasalMotionControlLib.Tests
                 "test-stage",
                 "test-reason",
                 evidenceId);
+        }
+
+        private static LMCSdoRequest SdoWriteRequest()
+        {
+            return LMCSdoRequest.CreateWrite(
+                1,
+                0x2000,
+                1,
+                LMCSignalValueType.UInt32,
+                new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                100);
         }
 
         private static LMCOperationTicket SdoReadTicket(
@@ -692,6 +915,25 @@ namespace LasalMotionControlLib.Tests
                 LMCSignalValueType.Invalid);
         }
 
+        private static LMCOperationTicket PiWriteTicket(
+            LMCConnection connection,
+            uint ticketId,
+            uint diagnosticsBootId,
+            uint mapRevision = MapRevision1)
+        {
+            return new LMCOperationTicket(
+                ticketId,
+                LMCOperationKind.PIWrite,
+                10,
+                diagnosticsBootId,
+                mapRevision,
+                1,
+                connection.Diagnostics,
+                false,
+                0,
+                LMCSignalValueType.Invalid);
+        }
+
         private static void AssertEvidence(
             D5SdoQuarantineEvidence evidence,
             uint ticketId,
@@ -699,12 +941,14 @@ namespace LasalMotionControlLib.Tests
             uint mapRevision,
             long entryRevision,
             LMCConnection ownerConnection,
-            string evidenceId)
+            string evidenceId,
+            LMCOperationKind operationKind = LMCOperationKind.SDORead)
         {
             AssertEx.NotNull(evidence);
             AssertEx.Equal(ticketId, evidence.TicketId);
             AssertEx.Equal(diagnosticsBootId, evidence.DiagnosticsBootId);
             AssertEx.Equal(mapRevision, evidence.MapRevision);
+            AssertEx.Equal(operationKind, evidence.OperationKind);
             AssertEx.Equal(entryRevision, evidence.EntryRevision);
             AssertEx.Equal((ushort)1, evidence.SlaveReference);
             AssertEx.Equal(100u, evidence.TimeoutCycles);
@@ -713,6 +957,24 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal("test-stage", evidence.Stage);
             AssertEx.Equal("test-reason", evidence.Reason);
             AssertEx.Equal(evidenceId, evidence.EvidenceId);
+        }
+
+        private static void AssertWriteAudit(
+            D5SdoQuarantineEvidence evidence,
+            LMCSdoRequest request)
+        {
+            AssertEx.NotNull(evidence);
+            AssertEx.True(evidence.HasRequestMetadata);
+            AssertEx.Equal(LMCOperationKind.SDOWrite, evidence.OperationKind);
+            AssertEx.Equal(request.ObjectIndex, evidence.ObjectIndex);
+            AssertEx.Equal(request.SubIndex, evidence.SubIndex);
+            AssertEx.Equal(request.ValueType, evidence.ValueType);
+            AssertEx.Equal(request.DataLength, evidence.DataLength);
+            AssertEx.SequenceEqual(request.WriteData, evidence.WriteData);
+
+            var returnedWriteData = evidence.WriteData;
+            returnedWriteData[0] ^= 0xFF;
+            AssertEx.SequenceEqual(request.WriteData, evidence.WriteData);
         }
 
         private static void AssertSnapshotUnchanged(

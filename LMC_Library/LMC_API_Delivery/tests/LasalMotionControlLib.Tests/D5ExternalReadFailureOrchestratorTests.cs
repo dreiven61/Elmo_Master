@@ -37,6 +37,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Qualification.D5ManualSubmit.FailureRouting",
                 ManualSubmissionFailureRouting);
+            tests.Add(
+                "Qualification.D5ManualSubmit.WriteFailureRouting",
+                ManualWriteSubmissionFailureRouting);
         }
 
         private static void MissingContextQuarantines()
@@ -350,6 +353,142 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void ManualWriteSubmissionFailureRouting()
+        {
+            var request = LMCSdoRequest.CreateWrite(
+                1,
+                0x2000,
+                0,
+                LMCSignalValueType.UInt32,
+                new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                100);
+
+            using (var connection = new LMCConnection())
+            {
+                var uncertainLedger = new D5SdoQuarantineLedger();
+                var uncertainGuard = uncertainLedger.ArmUnknown(
+                    LMCOperationKind.SDOWrite,
+                    request,
+                    connection,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    1,
+                    100,
+                    "manual-submit",
+                    "pre-submit-guard",
+                    "write-uncertain");
+                var uncertainError = new InvalidDataException(
+                    "malformed write response");
+                var uncertainContext = new LMCSdoSubmissionFailureContext(
+                    request,
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.OutcomeUncertain,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    null);
+                LMCSdoSubmissionFailureContext.Attach(
+                    uncertainError,
+                    uncertainContext);
+                var uncertainDisarmCount = 0;
+                var uncertainPreserveCount = 0;
+                var uncertainQuarantineCount = 0;
+                D5ExternalReadFailureOrchestrator.RouteSubmissionFailure(
+                    uncertainError,
+                    (state, detail) => uncertainDisarmCount++,
+                    (ticket, bootId, mapRevision) =>
+                        uncertainPreserveCount++,
+                    (unresolved, context) =>
+                    {
+                        uncertainQuarantineCount++;
+                        AssertEx.True(ReferenceEquals(
+                            uncertainContext,
+                            context));
+                        AssertEx.True(context.Request.IsWrite);
+                    });
+
+                AssertEx.Equal(0, uncertainDisarmCount);
+                AssertEx.Equal(0, uncertainPreserveCount);
+                AssertEx.Equal(1, uncertainQuarantineCount);
+                var uncertainEvidence =
+                    uncertainLedger.GetEvidence(uncertainGuard);
+                AssertEx.Equal(0u, uncertainEvidence.TicketId);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    uncertainEvidence.OperationKind);
+
+                var acceptedLedger = new D5SdoQuarantineLedger();
+                var acceptedGuard = acceptedLedger.ArmUnknown(
+                    LMCOperationKind.SDOWrite,
+                    request,
+                    connection,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    1,
+                    100,
+                    "manual-submit",
+                    "pre-submit-guard",
+                    "write-accepted");
+                var writeTicket = WriteTicket(
+                    connection.Diagnostics,
+                    0x55667788u);
+                var acceptedError = new InvalidOperationException(
+                    "session changed after write acceptance");
+                LMCSdoSubmissionFailureContext.Attach(
+                    acceptedError,
+                    new LMCSdoSubmissionFailureContext(
+                        request,
+                        LMCSdoSubmissionPhase.PostSubmissionValidation,
+                        LMCSdoSubmissionOutcome.Accepted,
+                        DiagnosticsBootId,
+                        MapRevision,
+                        writeTicket));
+                var acceptedEvents = new List<string>();
+                D5SdoQuarantineEvidence acceptedEvidence = null;
+                D5SdoQuarantineEvidence disarmedEvidence = null;
+                var acceptedQuarantineCount = 0;
+                D5ExternalReadFailureOrchestrator.RouteSubmissionFailure(
+                    acceptedError,
+                    (state, detail) =>
+                    {
+                        acceptedEvents.Add("D:" + state);
+                        disarmedEvidence =
+                            acceptedLedger.Disarm(acceptedGuard);
+                    },
+                    (preserved, bootId, mapRevision) =>
+                    {
+                        acceptedEvents.Add("P:" + preserved.TicketId);
+                        acceptedEvidence = acceptedLedger.TransitionToAccepted(
+                            acceptedGuard,
+                            preserved,
+                            bootId,
+                            mapRevision);
+                    },
+                    (unresolved, context) => acceptedQuarantineCount++);
+
+                AssertEx.Equal(2, acceptedEvents.Count);
+                AssertEx.Equal(
+                    "P:" + writeTicket.TicketId,
+                    acceptedEvents[0]);
+                AssertEx.Equal("D:KNOWN_TICKET_PRESERVED", acceptedEvents[1]);
+                AssertEx.Equal(0, acceptedQuarantineCount);
+                AssertEx.NotNull(acceptedEvidence);
+                AssertEx.Equal(
+                    writeTicket.TicketId,
+                    acceptedEvidence.TicketId);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    acceptedEvidence.OperationKind);
+                AssertEx.True(ReferenceEquals(
+                    connection,
+                    acceptedEvidence.OwnerConnection));
+                AssertEx.NotNull(disarmedEvidence);
+                AssertEx.True(
+                    acceptedEvidence.ContentEquals(
+                        disarmedEvidence));
+                AssertEx.False(acceptedLedger.HasEntries);
+            }
+        }
+
         private static List<string> Route(
             Exception error,
             Action<LMCOperationTicket, uint, uint> captureTicket)
@@ -463,6 +602,23 @@ namespace LasalMotionControlLib.Tests
                 true,
                 1,
                 LMCSignalValueType.Int8);
+        }
+
+        private static LMCOperationTicket WriteTicket(
+            LMCDiagnostics diagnostics,
+            uint ticketId)
+        {
+            return new LMCOperationTicket(
+                ticketId,
+                LMCOperationKind.SDOWrite,
+                10,
+                DiagnosticsBootId,
+                MapRevision,
+                1,
+                diagnostics,
+                false,
+                0,
+                LMCSignalValueType.Invalid);
         }
 
         private static LMCOperationStatus Status(

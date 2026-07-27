@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace LasalMotionControlLib
@@ -430,13 +433,234 @@ namespace LasalMotionControlLib
         }
     }
 
+    /// <summary>
+    /// Immutable compile-time SDO Write target intended to be mirrored by the
+    /// PLC policy. Applications must not treat an arbitrary SDO address as a
+    /// writable target, and submission still verifies both policies.
+    /// </summary>
+    public sealed class LMCSdoWriteTarget
+    {
+        internal LMCSdoWriteTarget(
+            string displayName,
+            ushort slaveReference,
+            ushort objectIndex,
+            byte subIndex,
+            LMCSignalValueType valueType,
+            ushort dataLength,
+            long minimumIntegerValue,
+            long maximumIntegerValue)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                throw new ArgumentException(
+                    "An SDO Write target display name is required.",
+                    "displayName");
+            }
+
+            if (slaveReference == 0)
+            {
+                throw new ArgumentOutOfRangeException("slaveReference");
+            }
+
+            if (objectIndex == 0
+                || LMCSdoRequest.IsPermanentlyUnsafeObject(objectIndex))
+            {
+                throw new ArgumentOutOfRangeException(
+                    "objectIndex",
+                    "Direct motion/control objects cannot be approved for SDO Write.");
+            }
+
+            if (valueType != LMCSignalValueType.Int32
+                && valueType != LMCSignalValueType.UInt32)
+            {
+                throw new NotSupportedException(
+                    "The active SDO Write policy supports only 32-bit integer targets.");
+            }
+
+            if (dataLength != 4)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "dataLength",
+                    "The active SDO Write policy supports exactly four data bytes.");
+            }
+
+            if (minimumIntegerValue > maximumIntegerValue)
+            {
+                throw new ArgumentOutOfRangeException("minimumIntegerValue");
+            }
+
+            if (valueType == LMCSignalValueType.Int32
+                && (minimumIntegerValue < int.MinValue
+                    || maximumIntegerValue > int.MaxValue))
+            {
+                throw new ArgumentOutOfRangeException(
+                    "maximumIntegerValue",
+                    "The target range does not fit Int32.");
+            }
+
+            if (valueType == LMCSignalValueType.UInt32
+                && (minimumIntegerValue < uint.MinValue
+                    || maximumIntegerValue > uint.MaxValue))
+            {
+                throw new ArgumentOutOfRangeException(
+                    "maximumIntegerValue",
+                    "The target range does not fit UInt32.");
+            }
+
+            DisplayName = displayName;
+            SlaveReference = slaveReference;
+            ObjectIndex = objectIndex;
+            SubIndex = subIndex;
+            ValueType = valueType;
+            DataLength = dataLength;
+            MinimumIntegerValue = minimumIntegerValue;
+            MaximumIntegerValue = maximumIntegerValue;
+        }
+
+        public string DisplayName { get; private set; }
+        public ushort SlaveReference { get; private set; }
+        public ushort ObjectIndex { get; private set; }
+        public byte SubIndex { get; private set; }
+        public LMCSignalValueType ValueType { get; private set; }
+        public ushort DataLength { get; private set; }
+        public long MinimumIntegerValue { get; private set; }
+        public long MaximumIntegerValue { get; private set; }
+
+        /// <summary>
+        /// Creates a canonical four-byte little-endian request for this
+        /// approved target. Submission still rechecks the central allowlist.
+        /// </summary>
+        public LMCSdoRequest CreateRequest(
+            long integerValue,
+            uint timeoutCycles)
+        {
+            if (timeoutCycles < 1
+                || timeoutCycles
+                    > LMCDiagnosticsSdoPolicy.MaximumReadTimeoutCycles)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "timeoutCycles",
+                    "The active D5 SDO policy requires TimeoutCycles from 1 through 60000.");
+            }
+
+            if (integerValue < MinimumIntegerValue
+                || integerValue > MaximumIntegerValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "integerValue",
+                    "The SDO Write value is outside the approved target range.");
+            }
+
+            uint raw;
+            if (ValueType == LMCSignalValueType.Int32)
+            {
+                raw = unchecked((uint)(int)integerValue);
+            }
+            else
+            {
+                raw = checked((uint)integerValue);
+            }
+
+            return LMCSdoRequest.CreateWrite(
+                SlaveReference,
+                ObjectIndex,
+                SubIndex,
+                ValueType,
+                new[]
+                {
+                    (byte)raw,
+                    (byte)(raw >> 8),
+                    (byte)(raw >> 16),
+                    (byte)(raw >> 24)
+                },
+                timeoutCycles);
+        }
+
+        public override string ToString()
+        {
+            return DisplayName
+                + " | Slave " + SlaveReference.ToString(
+                    CultureInfo.InvariantCulture)
+                + " | 0x" + ObjectIndex.ToString(
+                    "X4",
+                    CultureInfo.InvariantCulture)
+                + ":" + SubIndex.ToString(CultureInfo.InvariantCulture)
+                + " | " + ValueType
+                + " | " + MinimumIntegerValue.ToString(
+                    CultureInfo.InvariantCulture)
+                + ".." + MaximumIntegerValue.ToString(
+                    CultureInfo.InvariantCulture);
+        }
+
+        internal bool Matches(LMCSdoRequest request)
+        {
+            if (request == null
+                || request.SlaveReference != SlaveReference
+                || request.ObjectIndex != ObjectIndex
+                || request.SubIndex != SubIndex
+                || request.ValueType != ValueType
+                || request.DataLength != DataLength
+                || request.TimeoutCycles < 1
+                || request.TimeoutCycles
+                    > LMCDiagnosticsSdoPolicy.MaximumReadTimeoutCycles)
+            {
+                return false;
+            }
+
+            var data = request.WriteDataUnsafe;
+            if (data == null || data.Length != 4)
+            {
+                return false;
+            }
+
+            long value;
+            if (ValueType == LMCSignalValueType.Int32)
+            {
+                value = unchecked((int)(
+                    (uint)data[0]
+                    | ((uint)data[1] << 8)
+                    | ((uint)data[2] << 16)
+                    | ((uint)data[3] << 24)));
+            }
+            else
+            {
+                value = (uint)data[0]
+                    | ((uint)data[1] << 8)
+                    | ((uint)data[2] << 16)
+                    | ((uint)data[3] << 24);
+            }
+
+            return value >= MinimumIntegerValue
+                && value <= MaximumIntegerValue;
+        }
+    }
+
     internal static class LMCDiagnosticsWritePolicy
     {
-        // Add targets only after PLC mapping and hardware behavior are verified.
-        // Empty lists make all diagnostic writes fail closed by default.
+        // Enable a target only after its PLC mapping, drive-program ownership,
+        // and hardware behavior are verified. The global and per-axis gates
+        // deliberately require two source changes before any target is exposed.
+        private static readonly bool SdoWriteEnabled = false;
+        private static readonly bool SdoWriteUi24Axis1Enabled = false;
+        private static readonly bool SdoWriteUi24Axis2Enabled = false;
+        private static readonly bool SdoWriteUi24Axis3Enabled = false;
+        private static readonly bool SdoWriteUi24Axis4Enabled = false;
+
         private static readonly uint[] AllowedPIWriteSignalIds = new uint[0];
-        private static readonly SdoWriteTarget[] AllowedSdoWrites =
-            new SdoWriteTarget[0];
+        private static readonly LMCSdoWriteTarget[] AllowedSdoWrites =
+            CreateAllowedSdoWriteTargets(
+                SdoWriteEnabled,
+                SdoWriteUi24Axis1Enabled,
+                SdoWriteUi24Axis2Enabled,
+                SdoWriteUi24Axis3Enabled,
+                SdoWriteUi24Axis4Enabled);
+        private static readonly ReadOnlyCollection<LMCSdoWriteTarget>
+            ApprovedSdoWriteTargets = Array.AsReadOnly(AllowedSdoWrites);
+
+        internal static IReadOnlyList<LMCSdoWriteTarget> GetApprovedSdoWriteTargets()
+        {
+            return ApprovedSdoWriteTargets;
+        }
 
         internal static void RequirePIWriteAllowed(LMCPIWriteRequest request)
         {
@@ -483,37 +707,77 @@ namespace LasalMotionControlLib
                 "SDO Write is blocked because the target is not in the SDK compile-time allowlist.");
         }
 
-        private sealed class SdoWriteTarget
+        internal static void RequireSdoWriteVerificationCapabilities(
+            LMCDiagnosticCapabilities capabilities)
         {
-            internal SdoWriteTarget(
-                ushort slaveReference,
-                ushort objectIndex,
-                byte subIndex,
-                LMCSignalValueType valueType,
-                ushort dataLength)
+            if (capabilities == null)
             {
-                SlaveReference = slaveReference;
-                ObjectIndex = objectIndex;
-                SubIndex = subIndex;
-                ValueType = valueType;
-                DataLength = dataLength;
+                throw new ArgumentNullException("capabilities");
             }
 
-            private ushort SlaveReference { get; set; }
-            private ushort ObjectIndex { get; set; }
-            private byte SubIndex { get; set; }
-            private LMCSignalValueType ValueType { get; set; }
-            private ushort DataLength { get; set; }
-
-            internal bool Matches(LMCSdoRequest request)
+            if (!capabilities.Supports(LMCDiagnosticCapability.SDORead)
+                || !capabilities.Supports(
+                    LMCDiagnosticCapability.SDOReadGeneralInline))
             {
-                return request.SlaveReference == SlaveReference
-                    && request.ObjectIndex == ObjectIndex
-                    && request.SubIndex == SubIndex
-                    && request.ValueType == ValueType
-                    && request.DataLength == DataLength;
+                throw new NotSupportedException(
+                    "SDO Write requires SDO Read and general-inline Read support for exact-target verification and recovery evidence.");
             }
         }
+
+        internal static LMCSdoWriteTarget[] CreateAllowedSdoWriteTargets(
+            bool globalEnabled,
+            bool axis1Enabled,
+            bool axis2Enabled,
+            bool axis3Enabled,
+            bool axis4Enabled)
+        {
+            if (!globalEnabled)
+            {
+                return new LMCSdoWriteTarget[0];
+            }
+
+            var targets = new List<LMCSdoWriteTarget>(4);
+            AddUi24TargetIfEnabled(
+                targets,
+                1,
+                axis1Enabled);
+            AddUi24TargetIfEnabled(
+                targets,
+                2,
+                axis2Enabled);
+            AddUi24TargetIfEnabled(
+                targets,
+                3,
+                axis3Enabled);
+            AddUi24TargetIfEnabled(
+                targets,
+                4,
+                axis4Enabled);
+            return targets.ToArray();
+        }
+
+        private static void AddUi24TargetIfEnabled(
+            ICollection<LMCSdoWriteTarget> targets,
+            ushort slaveReference,
+            bool enabled)
+        {
+            if (!enabled)
+            {
+                return;
+            }
+
+            targets.Add(
+                new LMCSdoWriteTarget(
+                    "Reserved diagnostic UI[24]",
+                    slaveReference,
+                    0x2F00,
+                    24,
+                    LMCSignalValueType.Int32,
+                    4,
+                    -1073741823,
+                    1073741823));
+        }
+
     }
 
     [Flags]
@@ -1107,6 +1371,13 @@ namespace LasalMotionControlLib
         {
             return connection != null
                 && ReferenceEquals(Owner, connection.Diagnostics);
+        }
+
+        public bool BelongsToCurrentSession(LMCConnection connection)
+        {
+            return BelongsTo(connection)
+                && ConnectionSessionGeneration
+                    == connection.SessionGeneration;
         }
 
         internal long ConnectionSessionGeneration { get; private set; }

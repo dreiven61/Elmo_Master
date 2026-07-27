@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +16,16 @@ namespace LasalMotionControlLib
         private const uint InlineSdoPollIntervalMicroseconds = 1000;
         private readonly SemaphoreSlim inlineSdoReadGate =
             new SemaphoreSlim(1, 1);
+
+        /// <summary>
+        /// Returns the immutable compile-time SDO Write targets approved by
+        /// this SDK build. An empty list means every SDO Write is blocked
+        /// before transmission.
+        /// </summary>
+        public IReadOnlyList<LMCSdoWriteTarget> GetApprovedSdoWriteTargets()
+        {
+            return LMCDiagnosticsWritePolicy.GetApprovedSdoWriteTargets();
+        }
 
         public LMCOperationTicket SubmitPIWrite(
             LMCPIWriteRequest request)
@@ -118,17 +129,75 @@ namespace LasalMotionControlLib
             }
         }
 
+        public LMCOperationTicket SubmitSdo(
+            LMCSdoRequest request,
+            LMCOperationTicket requiredIdentityTicket)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                if (requiredIdentityTicket == null)
+                {
+                    throw new ArgumentNullException(
+                        "requiredIdentityTicket");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                ValidateRequiredSdoSubmissionIdentity(
+                    requiredIdentityTicket,
+                    sessionGeneration,
+                    null);
+                return SubmitSdoTrackedCore(
+                    request,
+                    sessionGeneration,
+                    attemptTracker,
+                    requiredIdentityTicket);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
         private LMCOperationTicket SubmitSdoTrackedCore(
             LMCSdoRequest request,
             long sessionGeneration,
-            LMCSdoSubmissionAttemptTracker attemptTracker)
+            LMCSdoSubmissionAttemptTracker attemptTracker,
+            LMCOperationTicket requiredIdentityTicket = null)
         {
             connection.EnsureSessionGeneration(sessionGeneration);
+            if (requiredIdentityTicket != null)
+            {
+                ValidateRequiredSdoSubmissionIdentity(
+                    requiredIdentityTicket,
+                    sessionGeneration,
+                    null);
+            }
+
             attemptTracker.BeginCapabilityPreflight();
             var capabilities = GetCapabilities();
             attemptTracker.RecordCapabilityIdentity(
                 capabilities.DiagnosticsBootId,
                 capabilities.MapRevision);
+            if (requiredIdentityTicket != null)
+            {
+                ValidateRequiredSdoSubmissionIdentity(
+                    requiredIdentityTicket,
+                    sessionGeneration,
+                    capabilities);
+            }
+
             return SubmitSdoCore(
                 request,
                 sessionGeneration,
@@ -227,6 +296,50 @@ namespace LasalMotionControlLib
                         request,
                         sessionGeneration,
                         attemptTracker),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
+        public async Task<LMCOperationTicket> SubmitSdoAsync(
+            LMCSdoRequest request,
+            LMCOperationTicket requiredIdentityTicket,
+            CancellationToken cancellationToken)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                if (requiredIdentityTicket == null)
+                {
+                    throw new ArgumentNullException(
+                        "requiredIdentityTicket");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                ValidateRequiredSdoSubmissionIdentity(
+                    requiredIdentityTicket,
+                    sessionGeneration,
+                    null);
+                return await RunStateMutatingAsync(
+                    () => SubmitSdoTrackedCore(
+                        request,
+                        sessionGeneration,
+                        attemptTracker,
+                        requiredIdentityTicket),
                     cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception)
@@ -775,6 +888,12 @@ namespace LasalMotionControlLib
                     "The connected PLC does not advertise the requested SDO operation.");
             }
 
+            if (request.IsWrite)
+            {
+                LMCDiagnosticsWritePolicy
+                    .RequireSdoWriteVerificationCapabilities(capabilities);
+            }
+
             if (!request.IsWrite
                 && !LMCDiagnosticsSdoPolicy.IsLegacyFirstSliceRead(request)
                 && !capabilities.Supports(
@@ -826,6 +945,52 @@ namespace LasalMotionControlLib
             }
 
             LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private void ValidateRequiredSdoSubmissionIdentity(
+            LMCOperationTicket requiredIdentityTicket,
+            long expectedSessionGeneration,
+            LMCDiagnosticCapabilities freshCapabilities)
+        {
+            if (requiredIdentityTicket == null)
+            {
+                throw new ArgumentNullException(
+                    "requiredIdentityTicket");
+            }
+
+            if (!ReferenceEquals(requiredIdentityTicket.Owner, this))
+            {
+                throw new InvalidOperationException(
+                    "The required SDO identity ticket belongs to a different LMCConnection.");
+            }
+
+            if (requiredIdentityTicket.ConnectionSessionGeneration
+                    != expectedSessionGeneration
+                || expectedSessionGeneration
+                    != connection.SessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The required SDO identity ticket belongs to a stale connection session.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+            if (freshCapabilities == null)
+            {
+                return;
+            }
+
+            if (freshCapabilities.ConnectionSessionGeneration
+                    != expectedSessionGeneration
+                || freshCapabilities.DiagnosticsBootId
+                    != requiredIdentityTicket.DiagnosticsBootId
+                || freshCapabilities.MapRevision
+                    != requiredIdentityTicket.SubmissionMapRevision)
+            {
+                throw new InvalidOperationException(
+                    "The current diagnostics BootId or MapRevision does not match the required SDO identity ticket.");
+            }
 
             connection.EnsureSessionGeneration(expectedSessionGeneration);
         }

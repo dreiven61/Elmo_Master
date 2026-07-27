@@ -25,6 +25,9 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.SdoReadValidation",
                 SdoReadValidation);
             tests.Add(
+                "Policy.DiagnosticsD5.SdoWriteTargetPolicy",
+                SdoWriteTargetPolicy);
+            tests.Add(
                 "Request.DiagnosticsD5.GoldenBytes",
                 D5RequestGoldenBytes);
             tests.Add(
@@ -42,6 +45,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.DiagnosticsD5.NarrowReadSyncAndAsync",
                 DiagnosticsD5NarrowReadSyncAndAsync);
+            tests.Add(
+                "Rpc.DiagnosticsD5.RequiredIdentitySubmitSyncAndAsync",
+                RequiredIdentitySubmitSyncAndAsync);
         }
 
         private static void PIWriteValidation()
@@ -139,6 +145,175 @@ namespace LasalMotionControlLib.Tests
                     targetPosition,
                     LMCSignalValueType.Int32,
                     10));
+        }
+
+        private static void SdoWriteTargetPolicy()
+        {
+            IReadOnlyList<LMCSdoWriteTarget> approved;
+            using (var connection = new LMCConnection())
+            {
+                approved = connection.Diagnostics.GetApprovedSdoWriteTargets();
+                AssertEx.Equal(0, approved.Count);
+            }
+
+            var target = new LMCSdoWriteTarget(
+                "Reserved diagnostic UI[24]",
+                2,
+                0x2F00,
+                24,
+                LMCSignalValueType.Int32,
+                4,
+                -100,
+                100);
+            AssertEx.Equal("Reserved diagnostic UI[24]", target.DisplayName);
+            AssertEx.Equal((ushort)2, target.SlaveReference);
+            AssertEx.Equal((ushort)0x2F00, target.ObjectIndex);
+            AssertEx.Equal((byte)24, target.SubIndex);
+            AssertEx.Equal(LMCSignalValueType.Int32, target.ValueType);
+            AssertEx.Equal((ushort)4, target.DataLength);
+            AssertEx.Equal(-100L, target.MinimumIntegerValue);
+            AssertEx.Equal(100L, target.MaximumIntegerValue);
+            AssertEx.Throws<NotSupportedException>(
+                () => ((IList<LMCSdoWriteTarget>)approved).Add(target));
+            AssertEx.True(
+                target.ToString().Contains("0x2F00:24"));
+
+            AssertEx.Equal(
+                0,
+                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
+                    false,
+                    true,
+                    true,
+                    true,
+                    true).Length);
+            var axis2Only =
+                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
+                    true,
+                    false,
+                    true,
+                    false,
+                    false);
+            AssertEx.Equal(1, axis2Only.Length);
+            AssertEx.Equal((ushort)2, axis2Only[0].SlaveReference);
+            AssertEx.Equal((ushort)0x2F00, axis2Only[0].ObjectIndex);
+            AssertEx.Equal((byte)24, axis2Only[0].SubIndex);
+            AssertEx.Equal(
+                LMCSignalValueType.Int32,
+                axis2Only[0].ValueType);
+            AssertEx.Equal((ushort)4, axis2Only[0].DataLength);
+            AssertEx.Equal(-1073741823L, axis2Only[0].MinimumIntegerValue);
+            AssertEx.Equal(1073741823L, axis2Only[0].MaximumIntegerValue);
+            AssertEx.True(
+                axis2Only[0].Matches(
+                    axis2Only[0].CreateRequest(-1, 100)));
+            var axes1And4 =
+                LMCDiagnosticsWritePolicy.CreateAllowedSdoWriteTargets(
+                    true,
+                    true,
+                    false,
+                    false,
+                    true);
+            AssertEx.Equal(2, axes1And4.Length);
+            AssertEx.Equal((ushort)1, axes1And4[0].SlaveReference);
+            AssertEx.Equal((ushort)4, axes1And4[1].SlaveReference);
+
+            var minimumRequest = target.CreateRequest(-100, 100);
+            AssertEx.SequenceEqual(
+                TestFrame.Hex("9C FF FF FF"),
+                minimumRequest.WriteData);
+            AssertEx.True(
+                target.Matches(minimumRequest));
+            AssertEx.True(
+                target.Matches(
+                    target.CreateRequest(100, 100)));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => target.CreateRequest(101, 100));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => target.CreateRequest(0, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => target.CreateRequest(0, 60001));
+            AssertEx.False(
+                target.Matches(
+                    LMCSdoRequest.CreateWrite(
+                        2,
+                        0x2F00,
+                        24,
+                        LMCSignalValueType.Int32,
+                        TestFrame.Hex("00 00 00 00"),
+                        60001)));
+            AssertEx.False(
+                target.Matches(
+                    LMCSdoRequest.CreateWrite(
+                        2,
+                        0x2F00,
+                        24,
+                        LMCSignalValueType.Int32,
+                        TestFrame.Hex("65 00 00 00"),
+                        100)));
+            AssertEx.False(
+                target.Matches(
+                    LMCSdoRequest.CreateWrite(
+                        1,
+                        0x2F00,
+                        24,
+                        LMCSignalValueType.Int32,
+                        TestFrame.Hex("00 00 00 00"),
+                        100)));
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => new LMCSdoWriteTarget(
+                    "Unsafe control word",
+                    1,
+                    0x6040,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    4,
+                    0,
+                    65535));
+            AssertEx.Throws<NotSupportedException>(
+                () => new LMCSdoWriteTarget(
+                    "Unsupported narrow target",
+                    1,
+                    0x2F00,
+                    24,
+                    LMCSignalValueType.UInt16,
+                    4,
+                    0,
+                    100));
+
+            var blocked = LMCSdoRequest.CreateWrite(
+                2,
+                0x2F00,
+                24,
+                LMCSignalValueType.Int32,
+                TestFrame.Hex("00 00 00 00"),
+                100);
+            AssertEx.Throws<NotSupportedException>(
+                () => LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(blocked));
+
+            AssertEx.Throws<ArgumentNullException>(
+                () => LMCDiagnosticsWritePolicy
+                    .RequireSdoWriteVerificationCapabilities(null));
+            AssertEx.Throws<NotSupportedException>(
+                () => LMCDiagnosticsWritePolicy
+                    .RequireSdoWriteVerificationCapabilities(
+                        SdoCapabilities(
+                            LMCDiagnosticCapability.SDOWrite
+                                | LMCDiagnosticCapability.SDORead)));
+            AssertEx.Throws<NotSupportedException>(
+                () => LMCDiagnosticsWritePolicy
+                    .RequireSdoWriteVerificationCapabilities(
+                        SdoCapabilities(
+                            LMCDiagnosticCapability.SDOWrite
+                                | LMCDiagnosticCapability
+                                    .SDOReadGeneralInline)));
+            LMCDiagnosticsWritePolicy
+                .RequireSdoWriteVerificationCapabilities(
+                    SdoCapabilities(
+                        LMCDiagnosticCapability.SDOWrite
+                            | LMCDiagnosticCapability.SDORead
+                            | LMCDiagnosticCapability
+                                .SDOReadGeneralInline));
         }
 
         private static void SdoRequestValidation()
@@ -952,6 +1127,275 @@ namespace LasalMotionControlLib.Tests
             RunDiagnosticsD5NarrowRead(true);
         }
 
+        private static void RequiredIdentitySubmitSyncAndAsync()
+        {
+            RunGuardedSdoIdentitySuccess(false);
+            RunGuardedSdoIdentitySuccess(true);
+            RunGuardedSdoCapabilityMismatch(false, true);
+            RunGuardedSdoCapabilityMismatch(true, true);
+            RunGuardedSdoCapabilityMismatch(false, false);
+            RunGuardedSdoCapabilityMismatch(true, false);
+            RunGuardedSdoForeignOwner(false);
+            RunGuardedSdoForeignOwner(true);
+            RunGuardedSdoStaleSession(false);
+            RunGuardedSdoStaleSession(true);
+        }
+
+        private static void RunGuardedSdoIdentitySuccess(bool useAsync)
+        {
+            const uint guardedTicketId = 0x51515151u;
+            var request = GuardedReadRequest();
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                SdoSubmitStep(
+                    2,
+                    guardedTicketId,
+                    request.SlaveReference,
+                    request.ObjectIndex,
+                    request.SubIndex,
+                    request.ValueType,
+                    request.DataLength),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requiredIdentityTicket = RequiredWriteIdentityTicket(
+                    connection);
+                AssertEx.True(requiredIdentityTicket
+                    .BelongsToCurrentSession(connection));
+
+                var submitted = SubmitGuardedSdo(
+                    connection,
+                    request,
+                    requiredIdentityTicket,
+                    useAsync);
+                AssertEx.Equal(guardedTicketId, submitted.TicketId);
+                AssertEx.Equal(
+                    DiagnosticsBootId,
+                    submitted.DiagnosticsBootId);
+                AssertEx.Equal(
+                    MapRevision,
+                    submitted.SubmissionMapRevision);
+                AssertEx.True(submitted.BelongsToCurrentSession(connection));
+                AssertEx.Equal(4, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    (ushort)0x7E50,
+                    TestFrame.ReadUInt16(
+                        server.ReceivedRequests[3],
+                        0));
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunGuardedSdoCapabilityMismatch(
+            bool useAsync,
+            bool mismatchBootId)
+        {
+            var request = GuardedReadRequest();
+            var currentBootId = mismatchBootId
+                ? DiagnosticsBootId + 1
+                : DiagnosticsBootId;
+            var currentMapRevision = mismatchBootId
+                ? MapRevision
+                : MapRevision + 1;
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            currentMapRevision,
+                            currentBootId))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requiredIdentityTicket = RequiredWriteIdentityTicket(
+                    connection);
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => SubmitGuardedSdo(
+                        connection,
+                        request,
+                        requiredIdentityTicket,
+                        useAsync));
+                var context = RequireSdoSubmissionFailureContext(error);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.CapabilityPreflight,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.SubmissionOutcome);
+                AssertEx.Equal(currentBootId, context.DiagnosticsBootId);
+                AssertEx.Equal(
+                    currentMapRevision,
+                    context.MapRevision);
+                AssertEx.True(context.Ticket == null);
+                AssertEx.Equal(3, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    (ushort)0x7E00,
+                    TestFrame.ReadUInt16(
+                        server.ReceivedRequests[2],
+                        0));
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunGuardedSdoForeignOwner(bool useAsync)
+        {
+            var request = GuardedReadRequest();
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            using (var foreignConnection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var foreignTicket = RequiredWriteIdentityTicket(
+                    foreignConnection);
+                AssertEx.False(foreignTicket
+                    .BelongsToCurrentSession(connection));
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => SubmitGuardedSdo(
+                        connection,
+                        request,
+                        foreignTicket,
+                        useAsync));
+                AssertSessionPreflightFailure(error);
+                AssertEx.Equal(2, server.ReceivedRequests.Count);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunGuardedSdoStaleSession(bool useAsync)
+        {
+            var request = GuardedReadRequest();
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                var staleTicket = RequiredWriteIdentityTicket(connection);
+                AssertEx.True(staleTicket
+                    .BelongsToCurrentSession(connection));
+                Connect(connection, server.Port);
+                AssertEx.False(staleTicket
+                    .BelongsToCurrentSession(connection));
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => SubmitGuardedSdo(
+                        connection,
+                        request,
+                        staleTicket,
+                        useAsync));
+                AssertSessionPreflightFailure(error);
+                AssertEx.Equal(2, server.ReceivedRequests.Count);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static LMCSdoRequest GuardedReadRequest()
+        {
+            return LMCSdoRequest.CreateRead(
+                2,
+                0x2000,
+                3,
+                LMCSignalValueType.UInt32,
+                4,
+                100);
+        }
+
+        private static LMCOperationTicket RequiredWriteIdentityTicket(
+            LMCConnection connection)
+        {
+            return new LMCOperationTicket(
+                0x50505050u,
+                LMCOperationKind.SDOWrite,
+                100,
+                DiagnosticsBootId,
+                MapRevision,
+                connection.SessionGeneration,
+                connection.Diagnostics,
+                false,
+                0,
+                LMCSignalValueType.Invalid);
+        }
+
+        private static LMCOperationTicket SubmitGuardedSdo(
+            LMCConnection connection,
+            LMCSdoRequest request,
+            LMCOperationTicket requiredIdentityTicket,
+            bool useAsync)
+        {
+            return useAsync
+                ? connection.Diagnostics.SubmitSdoAsync(
+                        request,
+                        requiredIdentityTicket,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                : connection.Diagnostics.SubmitSdo(
+                    request,
+                    requiredIdentityTicket);
+        }
+
+        private static void AssertSessionPreflightFailure(
+            Exception error)
+        {
+            var context = RequireSdoSubmissionFailureContext(error);
+            AssertEx.Equal(
+                LMCSdoSubmissionPhase.SessionPreflight,
+                context.Phase);
+            AssertEx.Equal(
+                LMCSdoSubmissionOutcome.NotAttempted,
+                context.SubmissionOutcome);
+            AssertEx.Equal(0u, context.DiagnosticsBootId);
+            AssertEx.Equal(0u, context.MapRevision);
+            AssertEx.True(context.Ticket == null);
+        }
+
+        private static LMCSdoSubmissionFailureContext
+            RequireSdoSubmissionFailureContext(Exception error)
+        {
+            LMCSdoSubmissionFailureContext context;
+            AssertEx.True(
+                LMCSdoSubmissionFailureContext.TryGet(
+                    error,
+                    out context),
+                "Expected an SDO submission failure context.");
+            return context;
+        }
+
+        private static void Connect(
+            LMCConnection connection,
+            int port)
+        {
+            connection.RpcInitConnection(
+                "127.0.0.1",
+                port,
+                "127.0.0.1",
+                0,
+                LMCConnection.DefaultEventMask);
+        }
+
         private static void RunDiagnosticsD5NarrowRead(bool useAsync)
         {
             const uint int8TicketId = 0x33333333u;
@@ -1408,7 +1852,10 @@ namespace LasalMotionControlLib.Tests
             return payload;
         }
 
-        private static byte[] CapabilitiesPayload(uint requestId)
+        private static byte[] CapabilitiesPayload(
+            uint requestId,
+            uint mapRevision = MapRevision,
+            uint diagnosticsBootId = DiagnosticsBootId)
         {
             var payload = CommonPayload(68, requestId);
             TestFrame.WriteUInt32(payload, 16, 5);
@@ -1417,13 +1864,38 @@ namespace LasalMotionControlLib.Tests
                 20,
                 (uint)(LMCDiagnosticCapability.SDORead
                     | LMCDiagnosticCapability.SDOReadGeneralInline));
-            TestFrame.WriteUInt32(payload, 24, MapRevision);
+            TestFrame.WriteUInt32(payload, 24, mapRevision);
             TestFrame.WriteUInt32(payload, 40, 1000);
             TestFrame.WriteUInt16(payload, 44, 1320);
             TestFrame.WriteUInt16(payload, 46, 2040);
             TestFrame.WriteUInt16(payload, 60, 4);
-            TestFrame.WriteUInt32(payload, 64, DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 64, diagnosticsBootId);
             return payload;
+        }
+
+        private static LMCDiagnosticCapabilities SdoCapabilities(
+            LMCDiagnosticCapability capabilities)
+        {
+            return new LMCDiagnosticCapabilities(
+                null,
+                1,
+                1,
+                (uint)capabilities,
+                MapRevision,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1000,
+                1320,
+                2040,
+                1280,
+                80,
+                16,
+                0,
+                4,
+                DiagnosticsBootId);
         }
 
         private static byte[] IntegrationStatusPayload(

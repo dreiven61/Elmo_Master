@@ -281,12 +281,46 @@ namespace LasalMotionControlApiExample
 
     internal sealed class D5SdoQuarantineEvidence
     {
+        private readonly byte[] writeData;
+
         internal D5SdoQuarantineEvidence(
             long entryId,
             long entryRevision,
             uint ticketId,
             uint diagnosticsBootId,
             uint mapRevision,
+            LMCOperationKind operationKind,
+            ushort slaveReference,
+            uint timeoutCycles,
+            LMCConnection ownerConnection,
+            string stage,
+            string reason,
+            string evidenceId)
+            : this(
+                entryId,
+                entryRevision,
+                ticketId,
+                diagnosticsBootId,
+                mapRevision,
+                operationKind,
+                null,
+                slaveReference,
+                timeoutCycles,
+                ownerConnection,
+                stage,
+                reason,
+                evidenceId)
+        {
+        }
+
+        internal D5SdoQuarantineEvidence(
+            long entryId,
+            long entryRevision,
+            uint ticketId,
+            uint diagnosticsBootId,
+            uint mapRevision,
+            LMCOperationKind operationKind,
+            LMCSdoRequest request,
             ushort slaveReference,
             uint timeoutCycles,
             LMCConnection ownerConnection,
@@ -294,17 +328,34 @@ namespace LasalMotionControlApiExample
             string reason,
             string evidenceId)
         {
+            RequireSdoOperationKind(operationKind, "operationKind");
+            ValidateRequestMetadata(
+                operationKind,
+                request,
+                slaveReference,
+                timeoutCycles);
             EntryId = entryId;
             EntryRevision = entryRevision;
             TicketId = ticketId;
             DiagnosticsBootId = diagnosticsBootId;
             MapRevision = mapRevision;
+            OperationKind = operationKind;
             SlaveReference = slaveReference;
             TimeoutCycles = timeoutCycles;
             OwnerConnection = ownerConnection;
             Stage = stage;
             Reason = reason;
             EvidenceId = evidenceId;
+            HasRequestMetadata = request != null;
+            ObjectIndex = request == null ? (ushort)0 : request.ObjectIndex;
+            SubIndex = request == null ? (byte)0 : request.SubIndex;
+            ValueType = request == null
+                ? LMCSignalValueType.Invalid
+                : request.ValueType;
+            DataLength = request == null ? (ushort)0 : request.DataLength;
+            writeData = request == null
+                ? new byte[0]
+                : request.WriteData;
         }
 
         internal long EntryId { get; private set; }
@@ -312,12 +363,22 @@ namespace LasalMotionControlApiExample
         internal uint TicketId { get; private set; }
         internal uint DiagnosticsBootId { get; private set; }
         internal uint MapRevision { get; private set; }
+        internal LMCOperationKind OperationKind { get; private set; }
         internal ushort SlaveReference { get; private set; }
         internal uint TimeoutCycles { get; private set; }
         internal LMCConnection OwnerConnection { get; private set; }
         internal string Stage { get; private set; }
         internal string Reason { get; private set; }
         internal string EvidenceId { get; private set; }
+        internal bool HasRequestMetadata { get; private set; }
+        internal ushort ObjectIndex { get; private set; }
+        internal byte SubIndex { get; private set; }
+        internal LMCSignalValueType ValueType { get; private set; }
+        internal ushort DataLength { get; private set; }
+        internal byte[] WriteData
+        {
+            get { return (byte[])writeData.Clone(); }
+        }
 
         internal bool ContentEquals(D5SdoQuarantineEvidence other)
         {
@@ -327,6 +388,7 @@ namespace LasalMotionControlApiExample
                 && TicketId == other.TicketId
                 && DiagnosticsBootId == other.DiagnosticsBootId
                 && MapRevision == other.MapRevision
+                && OperationKind == other.OperationKind
                 && SlaveReference == other.SlaveReference
                 && TimeoutCycles == other.TimeoutCycles
                 && ReferenceEquals(OwnerConnection, other.OwnerConnection)
@@ -335,7 +397,95 @@ namespace LasalMotionControlApiExample
                 && string.Equals(
                     EvidenceId,
                     other.EvidenceId,
-                    StringComparison.Ordinal);
+                    StringComparison.Ordinal)
+                && HasRequestMetadata == other.HasRequestMetadata
+                && ObjectIndex == other.ObjectIndex
+                && SubIndex == other.SubIndex
+                && ValueType == other.ValueType
+                && DataLength == other.DataLength
+                && ByteArraysEqual(writeData, other.writeData);
+        }
+
+        internal static void ValidateRequestMetadata(
+            LMCOperationKind operationKind,
+            LMCSdoRequest request,
+            ushort slaveReference,
+            uint timeoutCycles)
+        {
+            if (request == null)
+            {
+                if (operationKind == LMCOperationKind.SDOWrite)
+                {
+                    throw new ArgumentNullException(
+                        "request",
+                        "SDO Write quarantine evidence requires exact request metadata.");
+                }
+
+                return;
+            }
+
+            var requestOperationKind = request.IsWrite
+                ? LMCOperationKind.SDOWrite
+                : LMCOperationKind.SDORead;
+            if (requestOperationKind != operationKind)
+            {
+                throw new ArgumentException(
+                    "D5 quarantine request metadata does not match its operation kind.",
+                    "request");
+            }
+
+            if (request.SlaveReference != slaveReference
+                || request.TimeoutCycles != timeoutCycles)
+            {
+                throw new ArgumentException(
+                    "D5 quarantine request metadata does not match its slave or timeout evidence.",
+                    "request");
+            }
+
+            if (operationKind == LMCOperationKind.SDOWrite
+                && (request.DataLength != 4
+                    || request.WriteData.Length != 4))
+            {
+                throw new ArgumentException(
+                    "SDO Write quarantine evidence requires exactly four immutable WriteData bytes.",
+                    "request");
+            }
+        }
+
+        private static void RequireSdoOperationKind(
+            LMCOperationKind operationKind,
+            string parameterName)
+        {
+            if (operationKind != LMCOperationKind.SDORead
+                && operationKind != LMCOperationKind.SDOWrite)
+            {
+                throw new ArgumentOutOfRangeException(
+                    parameterName,
+                    "D5 quarantine evidence requires SDO Read or SDO Write operation kind.");
+            }
+        }
+
+        private static bool ByteArraysEqual(byte[] left, byte[] right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] != right[index])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -378,6 +528,8 @@ namespace LasalMotionControlApiExample
             internal uint TicketId;
             internal uint DiagnosticsBootId;
             internal uint MapRevision;
+            internal LMCOperationKind OperationKind;
+            internal LMCSdoRequest Request;
             internal ushort SlaveReference;
             internal uint TimeoutCycles;
             internal LMCConnection OwnerConnection;
@@ -393,6 +545,8 @@ namespace LasalMotionControlApiExample
                     TicketId,
                     DiagnosticsBootId,
                     MapRevision,
+                    OperationKind,
+                    Request,
                     SlaveReference,
                     TimeoutCycles,
                     OwnerConnection,
@@ -441,10 +595,60 @@ namespace LasalMotionControlApiExample
             string reason,
             string evidenceId = null)
         {
+            return ArmUnknown(
+                LMCOperationKind.SDORead,
+                ownerConnection,
+                diagnosticsBootId,
+                mapRevision,
+                slaveReference,
+                timeoutCycles,
+                stage,
+                reason,
+                evidenceId);
+        }
+
+        internal D5SdoQuarantineHandle ArmUnknown(
+            LMCOperationKind operationKind,
+            LMCConnection ownerConnection,
+            uint diagnosticsBootId,
+            uint mapRevision,
+            ushort slaveReference,
+            uint timeoutCycles,
+            string stage,
+            string reason,
+            string evidenceId = null)
+        {
+            return ArmUnknown(
+                operationKind,
+                null,
+                ownerConnection,
+                diagnosticsBootId,
+                mapRevision,
+                slaveReference,
+                timeoutCycles,
+                stage,
+                reason,
+                evidenceId);
+        }
+
+        internal D5SdoQuarantineHandle ArmUnknown(
+            LMCOperationKind operationKind,
+            LMCSdoRequest request,
+            LMCConnection ownerConnection,
+            uint diagnosticsBootId,
+            uint mapRevision,
+            ushort slaveReference,
+            uint timeoutCycles,
+            string stage,
+            string reason,
+            string evidenceId = null)
+        {
             return AddEntry(
                 0,
                 diagnosticsBootId,
                 mapRevision,
+                operationKind,
+                request,
                 slaveReference,
                 timeoutCycles,
                 ownerConnection,
@@ -463,7 +667,30 @@ namespace LasalMotionControlApiExample
             string evidenceId,
             uint mapRevision)
         {
-            RequireSdoReadTicket(ticket);
+            return QuarantineKnownTicket(
+                ticket,
+                null,
+                ownerConnection,
+                slaveReference,
+                timeoutCycles,
+                stage,
+                reason,
+                evidenceId,
+                mapRevision);
+        }
+
+        internal D5SdoQuarantineHandle QuarantineKnownTicket(
+            LMCOperationTicket ticket,
+            LMCSdoRequest request,
+            LMCConnection ownerConnection,
+            ushort slaveReference,
+            uint timeoutCycles,
+            string stage,
+            string reason,
+            string evidenceId,
+            uint mapRevision)
+        {
+            RequireSdoTicket(ticket);
             RequireTicketOwner(ticket, ownerConnection);
             if (ticket.SubmissionMapRevision != mapRevision)
             {
@@ -475,6 +702,8 @@ namespace LasalMotionControlApiExample
                 ticket.TicketId,
                 ticket.DiagnosticsBootId,
                 mapRevision,
+                ticket.OperationKind,
+                request,
                 slaveReference,
                 timeoutCycles,
                 ownerConnection,
@@ -535,7 +764,7 @@ namespace LasalMotionControlApiExample
             uint actualDiagnosticsBootId,
             uint actualMapRevision)
         {
-            RequireSdoReadTicket(ticket);
+            RequireSdoTicket(ticket);
             if (actualDiagnosticsBootId == 0)
             {
                 throw new ArgumentOutOfRangeException(
@@ -562,6 +791,12 @@ namespace LasalMotionControlApiExample
                 {
                     throw new InvalidOperationException(
                         "Only unknown-ticket evidence can transition to an accepted ticket.");
+                }
+
+                if (entry.OperationKind != ticket.OperationKind)
+                {
+                    throw new InvalidOperationException(
+                        "The accepted D5 ticket operation kind does not match the armed quarantine evidence.");
                 }
 
                 RequireTicketOwner(ticket, entry.OwnerConnection);
@@ -647,6 +882,8 @@ namespace LasalMotionControlApiExample
                     return false;
                 }
 
+                RequireReadRecoveryEvidence(live.Entries);
+
                 RequireVersionAvailable();
                 proofCommitInProgress = true;
                 try
@@ -668,6 +905,8 @@ namespace LasalMotionControlApiExample
             uint ticketId,
             uint diagnosticsBootId,
             uint mapRevision,
+            LMCOperationKind operationKind,
+            LMCSdoRequest request,
             ushort slaveReference,
             uint timeoutCycles,
             LMCConnection ownerConnection,
@@ -678,6 +917,8 @@ namespace LasalMotionControlApiExample
             ValidateEvidence(
                 diagnosticsBootId,
                 mapRevision,
+                operationKind,
+                request,
                 slaveReference,
                 timeoutCycles,
                 ownerConnection,
@@ -725,6 +966,8 @@ namespace LasalMotionControlApiExample
                     TicketId = ticketId,
                     DiagnosticsBootId = diagnosticsBootId,
                     MapRevision = mapRevision,
+                    OperationKind = operationKind,
+                    Request = request,
                     SlaveReference = slaveReference,
                     TimeoutCycles = timeoutCycles,
                     OwnerConnection = ownerConnection,
@@ -828,6 +1071,8 @@ namespace LasalMotionControlApiExample
         private static void ValidateEvidence(
             uint diagnosticsBootId,
             uint mapRevision,
+            LMCOperationKind operationKind,
+            LMCSdoRequest request,
             ushort slaveReference,
             uint timeoutCycles,
             LMCConnection ownerConnection,
@@ -835,6 +1080,13 @@ namespace LasalMotionControlApiExample
             string reason,
             string evidenceId)
         {
+            RequireSdoOperationKind(operationKind, "operationKind");
+            D5SdoQuarantineEvidence.ValidateRequestMetadata(
+                operationKind,
+                request,
+                slaveReference,
+                timeoutCycles);
+
             if (diagnosticsBootId == 0)
             {
                 throw new ArgumentOutOfRangeException("diagnosticsBootId");
@@ -882,7 +1134,7 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private static void RequireSdoReadTicket(LMCOperationTicket ticket)
+        private static void RequireSdoTicket(LMCOperationTicket ticket)
         {
             if (ticket == null)
             {
@@ -891,11 +1143,45 @@ namespace LasalMotionControlApiExample
 
             if (ticket.TicketId == 0
                 || ticket.DiagnosticsBootId == 0
-                || ticket.OperationKind != LMCOperationKind.SDORead)
+                || (ticket.OperationKind != LMCOperationKind.SDORead
+                    && ticket.OperationKind != LMCOperationKind.SDOWrite))
             {
                 throw new ArgumentException(
-                    "D5 quarantine requires a non-zero SDO Read ticket.",
+                    "D5 quarantine requires a non-zero SDO Read or SDO Write ticket.",
                     "ticket");
+            }
+        }
+
+        private static void RequireSdoOperationKind(
+            LMCOperationKind operationKind,
+            string parameterName)
+        {
+            if (operationKind != LMCOperationKind.SDORead
+                && operationKind != LMCOperationKind.SDOWrite)
+            {
+                throw new ArgumentOutOfRangeException(
+                    parameterName,
+                    "D5 quarantine requires SDO Read or SDO Write operation kind.");
+            }
+        }
+
+        private static void RequireReadRecoveryEvidence(
+            IReadOnlyList<D5SdoQuarantineEvidence> evidence)
+        {
+            for (var index = 0; index < evidence.Count; index++)
+            {
+                var item = evidence[index];
+                if (item.OperationKind == LMCOperationKind.SDORead)
+                {
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    "D5 SDO Read recovery proof cannot clear quarantine evidence '"
+                        + item.EvidenceId
+                        + "' for operation "
+                        + item.OperationKind
+                        + ". Automatic recovery is unavailable for SDO Write uncertainty; the quarantine must remain active.");
             }
         }
 

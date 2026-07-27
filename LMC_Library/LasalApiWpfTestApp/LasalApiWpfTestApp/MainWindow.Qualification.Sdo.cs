@@ -28,6 +28,9 @@ namespace LasalMotionControlApiExample
         private ushort d5SdoQualificationActiveSlaveReference;
         private uint d5SdoQualificationActiveTimeoutCycles;
         private uint d5SdoQualificationActiveMapRevision;
+        private LMCSdoRequest d5SdoQualificationActiveRequest;
+        private D5SdoWriteReadbackRequirement
+            d5SdoPendingWriteReadback;
         private readonly D5SdoQuarantineLedger d5SdoQualificationQuarantine =
             new D5SdoQuarantineLedger();
         private string d5ExternalTrackingRunId;
@@ -39,9 +42,59 @@ namespace LasalMotionControlApiExample
         {
             get
             {
+                return HasD5SdoTicketOrQuarantine
+                    || HasPendingD5SdoWriteReadback;
+            }
+        }
+
+        private bool HasD5SdoTicketOrQuarantine
+        {
+            get
+            {
                 return d5SdoQualificationActiveTicket != null
                     || d5SdoQualificationQuarantine.HasEntries;
             }
+        }
+
+        private bool HasPendingD5SdoWriteReadback
+        {
+            get { return d5SdoPendingWriteReadback != null; }
+        }
+
+        private bool HasD5SdoWriteQuarantineEvidence
+        {
+            get
+            {
+                return d5SdoQualificationQuarantine
+                    .CaptureSnapshot()
+                    .Entries
+                    .Any(item => item.OperationKind
+                        == LMCOperationKind.SDOWrite);
+            }
+        }
+
+        private string GetD5SdoResolutionGuidance()
+        {
+            if (HasD5SdoWriteQuarantineEvidence)
+            {
+                return "SDO Write evidence is quarantined. Resolve D5 Quarantine cannot clear it with the current Read recovery proof; the quarantine must remain active. Stop, PowerOff, and existing-resource cleanup remain available.";
+            }
+
+            if (HasPendingD5SdoWriteReadback)
+            {
+                if (!d5SdoPendingWriteReadback
+                    .MatchesOwnerCurrentSession(connection))
+                {
+                    return "The SDO Write readback belongs to a different or stale LMCConnection session. This session cannot submit or clear it; mutation and Close remain blocked. Stop, PowerOff, and existing-resource cleanup remain available.";
+                }
+
+                return "SDO Write transport completed but exact manual readback is pending for "
+                    + FormatD5SdoWriteReadbackTarget(
+                        d5SdoPendingWriteReadback)
+                    + ". Only that exact SDO Read under the original BootId/MapRevision, Stop, PowerOff, and existing-resource cleanup are allowed; mutation and Close remain blocked.";
+            }
+
+            return "Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.";
         }
 
         private async void ButtonRunD5SdoAbortQualification_Click(
@@ -86,8 +139,15 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             if (!qualificationRunning
-                && HasUnresolvedD5SdoQualificationTicket)
+                && HasD5SdoTicketOrQuarantine)
             {
+                if (d5SdoQualificationActiveTicket == null
+                    && HasD5SdoWriteQuarantineEvidence)
+                {
+                    WriteLog(GetD5SdoResolutionGuidance());
+                    return;
+                }
+
                 await RunQualificationAsync(
                     "D5SdoPendingCleanup",
                     async cancellationToken =>
@@ -100,7 +160,9 @@ namespace LasalMotionControlApiExample
                             cancellationToken);
                         SetD5SdoQualificationProgress(
                             100,
-                            "Preserved D5 quarantine resolution proof completed");
+                            HasPendingD5SdoWriteReadback
+                                ? "Ticket cleanup completed; exact SDO Write readback remains required"
+                                : "Preserved D5 quarantine resolution proof completed");
                     });
                 UpdateUiState();
                 RefreshD5SdoQualificationOutput();
@@ -136,7 +198,8 @@ namespace LasalMotionControlApiExample
             if (d5SdoQualificationQuarantine.HasEntries)
             {
                 throw new InvalidOperationException(
-                    "A D5 ticket or uncertain submission remains quarantined. Use Resolve D5 Quarantine before starting a new qualification.");
+                    "A D5 ticket or uncertain submission remains quarantined. "
+                    + GetD5SdoResolutionGuidance());
             }
 
             d5SdoQualificationActiveStatus = null;
@@ -865,6 +928,7 @@ namespace LasalMotionControlApiExample
                                         actualMapRevision);
                                 PreserveD5SdoQualificationAcceptedTicket(
                                     acceptedTicket,
+                                    request,
                                     ownerConnection,
                                     request.SlaveReference,
                                     request.TimeoutCycles,
@@ -916,6 +980,7 @@ namespace LasalMotionControlApiExample
                 ticket.SubmissionMapRevision);
             PreserveD5SdoQualificationAcceptedTicket(
                 ticket,
+                request,
                 ownerConnection,
                 request.SlaveReference,
                 request.TimeoutCycles,
@@ -957,6 +1022,7 @@ namespace LasalMotionControlApiExample
 
         private void PreserveD5SdoQualificationAcceptedTicket(
             LMCOperationTicket ticket,
+            LMCSdoRequest request,
             LMCConnection ownerConnection,
             ushort slaveReference,
             uint timeoutCycles,
@@ -980,6 +1046,12 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentOutOfRangeException("mapRevision");
             }
 
+            D5SdoQuarantineEvidence.ValidateRequestMetadata(
+                ticket.OperationKind,
+                request,
+                slaveReference,
+                timeoutCycles);
+
             d5SdoQualificationActiveTicket = ticket;
             d5SdoQualificationActiveStatus = null;
             d5SdoQualificationActiveDeadlineUtc =
@@ -988,6 +1060,7 @@ namespace LasalMotionControlApiExample
             d5SdoQualificationActiveSlaveReference = slaveReference;
             d5SdoQualificationActiveTimeoutCycles = timeoutCycles;
             d5SdoQualificationActiveMapRevision = mapRevision;
+            d5SdoQualificationActiveRequest = request;
             WriteD5SdoQualificationLog(
                 "event=D5_TICKET_PRESERVED",
                 "stage=" + stage,
@@ -1103,7 +1176,11 @@ namespace LasalMotionControlApiExample
                     d5SdoQualificationActiveConnection,
                     currentConnection,
                     d5SdoQualificationActiveMapRevision,
-                    d5SdoQualificationActiveDeadlineUtc),
+                    d5SdoQualificationActiveDeadlineUtc,
+                    IsSameDiagnosticOperationTicket(
+                        ticket,
+                        diagnosticOperationTicket)
+                        && diagnosticOperationCancelAccepted),
                 new D5SdoPendingCleanupOperations
                 {
                     ReadCapabilitiesAsync = () =>
@@ -1168,12 +1245,33 @@ namespace LasalMotionControlApiExample
 
             var status = result.Status;
 
+            LMCDiagnosticCapabilities readbackTerminalCapabilities = null;
+            if (d5SdoPendingWriteReadback != null
+                && ticket.OperationKind == LMCOperationKind.SDORead)
+            {
+                readbackTerminalCapabilities =
+                    await SendQualificationCleanupCommandAsync(
+                        "D5 SDO Write readback terminal identity preflight",
+                        () => diagnostics.GetCapabilitiesAsync(
+                            CancellationToken.None));
+            }
+
             d5SdoQualificationActiveStatus = status;
             SynchronizeManualDiagnosticOperationTerminal(
                 ticket,
                 status,
                 result.CancelAccepted);
-            ClearActiveD5SdoQualificationTicket();
+            var readbackHandled = HandleD5SdoWriteReadbackTerminal(
+                ticket,
+                status,
+                "pending-cleanup",
+                currentConnection,
+                readbackTerminalCapabilities);
+            if (!readbackHandled)
+            {
+                ClearActiveD5SdoQualificationTicket();
+            }
+
             WriteD5SdoQualificationLog(
                 "event=D5_CLEANUP",
                 "ticket=" + ticket.TicketId.ToString(
@@ -1184,7 +1282,10 @@ namespace LasalMotionControlApiExample
                 "state=" + status.State,
                 "outcome=" + status.Outcome,
                 "plcStopCommand=false",
-                "verdict=PASS");
+                "verdict=" + (readbackHandled
+                        && HasPendingD5SdoWriteReadback
+                    ? "READBACK_PENDING"
+                    : "PASS"));
             return true;
         }
 
@@ -1223,8 +1324,22 @@ namespace LasalMotionControlApiExample
                         && error.Response.Detail
                             == LMCDiagnosticsDetailCode.TicketNotFound)
                 {
-                    ResolveSupersededD5SdoQualificationTicket(
-                        "plc_ticket_slot_superseded");
+                    var ticketNotFoundDisposition =
+                        D5SdoPendingCleanupOrchestrator
+                            .EvaluateTicketNotFound(
+                                d5SdoQualificationActiveTicket);
+                    if (ticketNotFoundDisposition
+                        == D5SdoTicketNotFoundDisposition
+                            .QuarantineWriteOutcomeUnverified)
+                    {
+                        QuarantineStaleSessionD5SdoQualificationTicket(
+                            "plc_ticket_not_found_write_outcome_unverified");
+                    }
+                    else
+                    {
+                        ResolveSupersededD5SdoQualificationTicket(
+                            "plc_ticket_slot_superseded");
+                    }
                 }
                 catch (InvalidOperationException error)
                     when (IsStaleD5OperationTicketException(error))
@@ -1262,6 +1377,7 @@ namespace LasalMotionControlApiExample
             var ticket = d5SdoQualificationActiveTicket;
             var handle = d5SdoQualificationQuarantine.QuarantineKnownTicket(
                 ticket,
+                d5SdoQualificationActiveRequest,
                 d5SdoQualificationActiveConnection,
                 d5SdoQualificationActiveSlaveReference,
                 d5SdoQualificationActiveTimeoutCycles,
@@ -1280,8 +1396,30 @@ namespace LasalMotionControlApiExample
                 "oldBootId=0x"
                     + evidence.DiagnosticsBootId.ToString("X8"),
                 "oldMapRevision=0x" + evidence.MapRevision.ToString("X8"),
+                "operationKind=" + evidence.OperationKind,
                 "slave=" + evidence.SlaveReference.ToString(
                     CultureInfo.InvariantCulture),
+                "requestMetadata=" + (evidence.HasRequestMetadata
+                    ? "AVAILABLE"
+                    : "UNAVAILABLE"),
+                "object=" + (evidence.HasRequestMetadata
+                    ? "0x" + evidence.ObjectIndex.ToString("X4")
+                    : "N/A"),
+                "subIndex=" + (evidence.HasRequestMetadata
+                    ? evidence.SubIndex.ToString(
+                        CultureInfo.InvariantCulture)
+                    : "N/A"),
+                "valueType=" + (evidence.HasRequestMetadata
+                    ? evidence.ValueType.ToString()
+                    : "N/A"),
+                "dataLength=" + (evidence.HasRequestMetadata
+                    ? evidence.DataLength.ToString(
+                        CultureInfo.InvariantCulture)
+                    : "N/A"),
+                "writeData=" + (evidence.OperationKind
+                        == LMCOperationKind.SDOWrite
+                    ? BitConverter.ToString(evidence.WriteData)
+                    : "N/A"),
                 "quarantineCount="
                     + d5SdoQualificationQuarantine.Count.ToString(
                         CultureInfo.InvariantCulture),
@@ -1346,6 +1484,9 @@ namespace LasalMotionControlApiExample
             {
                 return;
             }
+
+            D5SdoRecoveryScopePolicy.RequireReadRecoveryEvidence(
+                orphanedTickets);
 
             var slaveReference = orphanedTickets[0].SlaveReference;
             if (slaveReference < 1 || slaveReference > 4)
@@ -1639,6 +1780,7 @@ namespace LasalMotionControlApiExample
             d5SdoQualificationActiveSlaveReference = 0;
             d5SdoQualificationActiveTimeoutCycles = 0;
             d5SdoQualificationActiveMapRevision = 0;
+            d5SdoQualificationActiveRequest = null;
         }
 
         private void SynchronizeManualDiagnosticOperationTerminal(
@@ -1664,7 +1806,13 @@ namespace LasalMotionControlApiExample
             TextDiagnosticOperationSummary.Text =
                 FormatOperationStatus(status)
                 + Environment.NewLine
-                + "Resolved by D5 quarantine cleanup.";
+                + "Resolved by D5 quarantine cleanup."
+                + (status != null
+                    && status.IsSuccessful
+                    && ticket.OperationKind == LMCOperationKind.SDOWrite
+                    ? FormatSdoWriteManualReadbackWarning(
+                        d5SdoQualificationActiveRequest)
+                    : string.Empty);
         }
 
         private void InvalidateQuarantinedManualDiagnosticOperation(
@@ -1785,7 +1933,7 @@ namespace LasalMotionControlApiExample
                 || capabilities.MaxSdoDataBytes < requiredDataBytes)
             {
                 throw new NotSupportedException(
-                    "External D5 tracking requires the requested SDO read length to fit MaxSdoDataBytes.");
+                    "External D5 tracking requires the requested SDO data length to fit MaxSdoDataBytes.");
             }
 
             if (requireGeneralInline
@@ -1793,7 +1941,7 @@ namespace LasalMotionControlApiExample
                     LMCDiagnosticCapability.SDOReadGeneralInline))
             {
                 throw new NotSupportedException(
-                    "This external D5 read requires SDOReadGeneralInline capability.");
+                    "This external D5 operation requires SDOReadGeneralInline capability.");
             }
         }
 
@@ -1822,7 +1970,52 @@ namespace LasalMotionControlApiExample
                 uint timeoutCycles,
                 string stage)
         {
+            return ArmExternalD5SubmissionOutcomeGuard(
+                LMCOperationKind.SDORead,
+                null,
+                ownerConnection,
+                expectedDiagnosticsBootId,
+                expectedMapRevision,
+                slaveReference,
+                timeoutCycles,
+                stage);
+        }
+
+        private D5SdoQuarantineHandle
+            ArmExternalD5SubmissionOutcomeGuard(
+                LMCOperationKind operationKind,
+                LMCConnection ownerConnection,
+                uint expectedDiagnosticsBootId,
+                uint expectedMapRevision,
+                ushort slaveReference,
+                uint timeoutCycles,
+                string stage)
+        {
+            return ArmExternalD5SubmissionOutcomeGuard(
+                operationKind,
+                null,
+                ownerConnection,
+                expectedDiagnosticsBootId,
+                expectedMapRevision,
+                slaveReference,
+                timeoutCycles,
+                stage);
+        }
+
+        private D5SdoQuarantineHandle
+            ArmExternalD5SubmissionOutcomeGuard(
+                LMCOperationKind operationKind,
+                LMCSdoRequest request,
+                LMCConnection ownerConnection,
+                uint expectedDiagnosticsBootId,
+                uint expectedMapRevision,
+                ushort slaveReference,
+                uint timeoutCycles,
+                string stage)
+        {
             var handle = d5SdoQualificationQuarantine.ArmUnknown(
+                operationKind,
+                request,
                 ownerConnection,
                 expectedDiagnosticsBootId,
                 expectedMapRevision,
@@ -1831,15 +2024,53 @@ namespace LasalMotionControlApiExample
                 stage,
                 "external_submit_response_unavailable");
             var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
-            WriteExternalD5TrackingLog(
-                "event=D5_EXTERNAL_SUBMIT_GUARD",
-                "stage=" + stage,
-                "evidence=" + evidence.EvidenceId,
-                "slave=" + slaveReference.ToString(
-                    CultureInfo.InvariantCulture),
-                "bootId=0x" + expectedDiagnosticsBootId.ToString("X8"),
-                "mapRevision=0x" + expectedMapRevision.ToString("X8"),
-                "state=ARMED_BEFORE_SUBMIT");
+            try
+            {
+                WriteExternalD5TrackingLog(
+                    "event=D5_EXTERNAL_SUBMIT_GUARD",
+                    "stage=" + stage,
+                    "evidence=" + evidence.EvidenceId,
+                    "slave=" + slaveReference.ToString(
+                        CultureInfo.InvariantCulture),
+                    "bootId=0x" + expectedDiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + expectedMapRevision.ToString("X8"),
+                    "operationKind=" + operationKind,
+                    "requestMetadata=" + (evidence.HasRequestMetadata
+                        ? "AVAILABLE"
+                        : "UNAVAILABLE"),
+                    "object=" + (evidence.HasRequestMetadata
+                        ? "0x" + evidence.ObjectIndex.ToString("X4")
+                        : "N/A"),
+                    "subIndex=" + (evidence.HasRequestMetadata
+                        ? evidence.SubIndex.ToString(
+                            CultureInfo.InvariantCulture)
+                        : "N/A"),
+                    "valueType=" + (evidence.HasRequestMetadata
+                        ? evidence.ValueType.ToString()
+                        : "N/A"),
+                    "dataLength=" + (evidence.HasRequestMetadata
+                        ? evidence.DataLength.ToString(
+                            CultureInfo.InvariantCulture)
+                        : "N/A"),
+                    "writeData=" + (operationKind
+                            == LMCOperationKind.SDOWrite
+                        ? BitConverter.ToString(evidence.WriteData)
+                        : "N/A"),
+                    "state=ARMED_BEFORE_SUBMIT");
+            }
+            catch
+            {
+                try
+                {
+                    d5SdoQualificationQuarantine.Disarm(handle);
+                }
+                finally
+                {
+                    ResetExternalD5TrackingLogContext();
+                }
+
+                throw;
+            }
             return handle;
         }
 
@@ -1955,6 +2186,28 @@ namespace LasalMotionControlApiExample
                 "evidence=" + evidence.EvidenceId,
                 "bootId=0x" + evidence.DiagnosticsBootId.ToString("X8"),
                 "mapRevision=0x" + evidence.MapRevision.ToString("X8"),
+                "operationKind=" + evidence.OperationKind,
+                "requestMetadata=" + (evidence.HasRequestMetadata
+                    ? "AVAILABLE"
+                    : "UNAVAILABLE"),
+                "object=" + (evidence.HasRequestMetadata
+                    ? "0x" + evidence.ObjectIndex.ToString("X4")
+                    : "N/A"),
+                "subIndex=" + (evidence.HasRequestMetadata
+                    ? evidence.SubIndex.ToString(
+                        CultureInfo.InvariantCulture)
+                    : "N/A"),
+                "valueType=" + (evidence.HasRequestMetadata
+                    ? evidence.ValueType.ToString()
+                    : "N/A"),
+                "dataLength=" + (evidence.HasRequestMetadata
+                    ? evidence.DataLength.ToString(
+                        CultureInfo.InvariantCulture)
+                    : "N/A"),
+                "writeData=" + (evidence.OperationKind
+                        == LMCOperationKind.SDOWrite
+                    ? BitConverter.ToString(evidence.WriteData)
+                    : "N/A"),
                 "state=OUTCOME_UNCERTAIN",
                 "errorType=" + (error == null
                     ? "Unknown"
@@ -1984,6 +2237,25 @@ namespace LasalMotionControlApiExample
             uint mapRevision,
             string stage)
         {
+            PreserveExternalD5Ticket(
+                ticket,
+                null,
+                ownerConnection,
+                slaveReference,
+                timeoutCycles,
+                mapRevision,
+                stage);
+        }
+
+        private void PreserveExternalD5Ticket(
+            LMCOperationTicket ticket,
+            LMCSdoRequest request,
+            LMCConnection ownerConnection,
+            ushort slaveReference,
+            uint timeoutCycles,
+            uint mapRevision,
+            string stage)
+        {
             if (ticket == null)
             {
                 throw new ArgumentNullException("ticket");
@@ -2000,6 +2272,12 @@ namespace LasalMotionControlApiExample
                     "Another D5 ticket is already preserved.");
             }
 
+            D5SdoQuarantineEvidence.ValidateRequestMetadata(
+                ticket.OperationKind,
+                request,
+                slaveReference,
+                timeoutCycles);
+
             var terminalWaitMilliseconds =
                 GetExternalD5TerminalWaitMilliseconds(timeoutCycles);
             d5SdoQualificationActiveTicket = ticket;
@@ -2010,6 +2288,7 @@ namespace LasalMotionControlApiExample
             d5SdoQualificationActiveSlaveReference = slaveReference;
             d5SdoQualificationActiveTimeoutCycles = timeoutCycles;
             d5SdoQualificationActiveMapRevision = mapRevision;
+            d5SdoQualificationActiveRequest = request;
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_TICKET_PRESERVED",
                 "stage=" + stage,
@@ -2019,6 +2298,27 @@ namespace LasalMotionControlApiExample
                     CultureInfo.InvariantCulture),
                 "bootId=0x" + ticket.DiagnosticsBootId.ToString("X8"),
                 "mapRevision=0x" + mapRevision.ToString("X8"),
+                "operationKind=" + ticket.OperationKind,
+                "requestMetadata=" + (request == null
+                    ? "UNAVAILABLE"
+                    : "AVAILABLE"),
+                "object=" + (request == null
+                    ? "N/A"
+                    : "0x" + request.ObjectIndex.ToString("X4")),
+                "subIndex=" + (request == null
+                    ? "N/A"
+                    : request.SubIndex.ToString(
+                        CultureInfo.InvariantCulture)),
+                "valueType=" + (request == null
+                    ? "N/A"
+                    : request.ValueType.ToString()),
+                "dataLength=" + (request == null
+                    ? "N/A"
+                    : request.DataLength.ToString(
+                        CultureInfo.InvariantCulture)),
+                "writeData=" + (request != null && request.IsWrite
+                    ? BitConverter.ToString(request.WriteData)
+                    : "N/A"),
                 "terminalWaitMs=" + terminalWaitMilliseconds.ToString(
                     CultureInfo.InvariantCulture));
         }
@@ -2036,10 +2336,140 @@ namespace LasalMotionControlApiExample
             return D5SdoQualificationCleanupTimeoutMilliseconds;
         }
 
+        private bool HandleD5SdoWriteReadbackTerminal(
+            LMCOperationTicket ticket,
+            LMCOperationStatus status,
+            string stage,
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities freshCapabilities)
+        {
+            if (ticket.OperationKind == LMCOperationKind.SDOWrite
+                && status.IsSuccessful)
+            {
+                if (d5SdoPendingWriteReadback != null)
+                {
+                    throw new InvalidOperationException(
+                        "A previous SDO Write exact-readback interlock is still active.");
+                }
+
+                var requirement = new D5SdoWriteReadbackRequirement(
+                    d5SdoQualificationActiveRequest,
+                    ticket,
+                    d5SdoQualificationActiveConnection);
+                d5SdoPendingWriteReadback = requirement;
+                WriteExternalD5TrackingLog(
+                    "event=D5_WRITE_READBACK_INTERLOCK",
+                    "stage=" + stage,
+                    "ticket=" + ticket.TicketId.ToString(
+                        CultureInfo.InvariantCulture),
+                    "target=" + QualificationValue(
+                        FormatD5SdoWriteReadbackTarget(requirement)),
+                    "expectedWriteData="
+                        + BitConverter.ToString(
+                            requirement.ExpectedWriteData),
+                    "ownerCurrentSession="
+                        + requirement.MatchesOwnerCurrentSession(
+                            d5SdoQualificationActiveConnection),
+                    "bootId=0x"
+                        + requirement.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x"
+                        + requirement.SubmissionMapRevision.ToString("X8"),
+                    "terminalState=" + status.State,
+                    "terminalOutcome=" + status.Outcome,
+                    "state=PENDING_MANUAL_EXACT_READBACK",
+                    "mutationBlocked=true",
+                    "closeBlocked=true");
+                ClearActiveD5SdoQualificationTicket();
+                ApplyPendingD5SdoWriteReadbackToUi();
+                return true;
+            }
+
+            var pending = d5SdoPendingWriteReadback;
+            if (pending == null
+                || ticket.OperationKind != LMCOperationKind.SDORead)
+            {
+                return false;
+            }
+
+            var readRequest = d5SdoQualificationActiveRequest;
+            var currentIdentityExact = pending.MatchesCurrentIdentity(
+                currentConnection,
+                freshCapabilities);
+            var readTicketIdentityExact =
+                pending.MatchesReadTicketIdentity(
+                    ticket,
+                    currentConnection,
+                    freshCapabilities);
+            var verdict = pending.Evaluate(
+                readRequest,
+                ticket,
+                currentConnection,
+                freshCapabilities,
+                status);
+            var requestExact = pending.MatchesReadRequest(readRequest);
+            ClearActiveD5SdoQualificationTicket();
+            WriteExternalD5TrackingLog(
+                "event=D5_WRITE_READBACK_INTERLOCK",
+                "stage=" + stage,
+                "ticket=" + ticket.TicketId.ToString(
+                    CultureInfo.InvariantCulture),
+                "target=" + QualificationValue(
+                    FormatD5SdoWriteReadbackTarget(pending)),
+                "requestExact=" + requestExact,
+                "ownerSessionAndCapabilityIdentityExact="
+                    + currentIdentityExact,
+                "readTicketIdentityExact="
+                    + readTicketIdentityExact,
+                "requiredBootId=0x"
+                    + pending.DiagnosticsBootId.ToString("X8"),
+                "requiredMapRevision=0x"
+                    + pending.SubmissionMapRevision.ToString("X8"),
+                "currentBootId=" + (freshCapabilities == null
+                    ? "UNAVAILABLE"
+                    : "0x" + freshCapabilities.DiagnosticsBootId
+                        .ToString("X8")),
+                "currentMapRevision=" + (freshCapabilities == null
+                    ? "UNAVAILABLE"
+                    : "0x" + freshCapabilities.MapRevision
+                        .ToString("X8")),
+                "state=" + status.State,
+                "outcome=" + status.Outcome,
+                "resultType=" + status.ResultValueType,
+                "resultLength=" + status.ResultLength.ToString(
+                    CultureInfo.InvariantCulture),
+                "resultData=" + BitConverter.ToString(status.ResultData),
+                "expectedWriteData="
+                    + BitConverter.ToString(pending.ExpectedWriteData),
+                "verdict=" + verdict,
+                "mutationBlocked="
+                    + (verdict == D5SdoWriteReadbackVerdict.Pending),
+                "closeBlocked="
+                    + (verdict == D5SdoWriteReadbackVerdict.Pending));
+
+            if (verdict == D5SdoWriteReadbackVerdict.Verified)
+            {
+                d5SdoPendingWriteReadback = null;
+                TextDiagnosticOperationSummary.Text =
+                    FormatOperationStatus(status)
+                    + Environment.NewLine
+                    + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared.";
+                CloseExternalD5TrackingLogIfResolved(
+                    "WRITE_EXACT_READBACK_VERIFIED");
+            }
+            else
+            {
+                ApplyPendingD5SdoWriteReadbackToUi();
+            }
+
+            return true;
+        }
+
         private void CompleteExternalD5TicketIfTerminal(
             LMCOperationTicket ticket,
             LMCOperationStatus status,
-            string stage)
+            string stage,
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities freshCapabilities)
         {
             if (ticket == null
                 || status == null
@@ -2052,6 +2482,42 @@ namespace LasalMotionControlApiExample
             }
 
             d5SdoQualificationActiveStatus = status;
+            var terminalResolution =
+                D5SdoPendingCleanupOrchestrator
+                    .EvaluateTerminalResolution(
+                        ticket,
+                        status,
+                        diagnosticOperationCancelAccepted,
+                        false);
+            if (terminalResolution
+                == D5SdoTerminalResolutionDisposition
+                    .QuarantineWriteOutcomeUnverified)
+            {
+                WriteExternalD5TrackingLog(
+                    "event=D5_EXTERNAL_TICKET_TERMINAL",
+                    "stage=" + stage,
+                    "ticket=" + ticket.TicketId.ToString(
+                        CultureInfo.InvariantCulture),
+                    "state=" + status.State,
+                    "outcome=" + status.Outcome,
+                    "queuedCancelAccepted="
+                        + diagnosticOperationCancelAccepted,
+                    "verdict=QUARANTINED_WRITE_OUTCOME_UNVERIFIED");
+                QuarantineStaleSessionD5SdoQualificationTicket(
+                    "write_terminal_outcome_unverified");
+                return;
+            }
+
+            if (HandleD5SdoWriteReadbackTerminal(
+                    ticket,
+                    status,
+                    stage,
+                    currentConnection,
+                    freshCapabilities))
+            {
+                return;
+            }
+
             ClearActiveD5SdoQualificationTicket();
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_TICKET_TERMINAL",
@@ -2139,7 +2605,8 @@ namespace LasalMotionControlApiExample
             {
                 throw new InvalidOperationException(
                     operation
-                    + " is blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                    + " is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                    + GetD5SdoResolutionGuidance());
             }
         }
 

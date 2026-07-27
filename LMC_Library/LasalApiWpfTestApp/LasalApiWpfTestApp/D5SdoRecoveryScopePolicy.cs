@@ -44,11 +44,8 @@ namespace LasalMotionControlApiExample
 
     internal static class D5SdoRecoveryScopePolicy
     {
-        internal static D5SdoRecoveryScopeDecision Evaluate(
-            IReadOnlyList<D5SdoQuarantineEvidence> evidence,
-            LMCConnection currentConnection,
-            uint currentDiagnosticsBootId,
-            uint currentMapRevision)
+        internal static void RequireReadRecoveryEvidence(
+            IReadOnlyList<D5SdoQuarantineEvidence> evidence)
         {
             if (evidence == null)
             {
@@ -61,6 +58,20 @@ namespace LasalMotionControlApiExample
                     "D5 recovery scope requires quarantine evidence.",
                     "evidence");
             }
+
+            for (var index = 0; index < evidence.Count; index++)
+            {
+                RequireEvidence(evidence[index], index);
+            }
+        }
+
+        internal static D5SdoRecoveryScopeDecision Evaluate(
+            IReadOnlyList<D5SdoQuarantineEvidence> evidence,
+            LMCConnection currentConnection,
+            uint currentDiagnosticsBootId,
+            uint currentMapRevision)
+        {
+            RequireReadRecoveryEvidence(evidence);
 
             if (currentConnection == null)
             {
@@ -203,6 +214,18 @@ namespace LasalMotionControlApiExample
                         + index
                         + ".",
                     "evidence");
+            }
+
+            if (evidence.OperationKind != LMCOperationKind.SDORead)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO Read recovery proof cannot clear quarantine evidence '"
+                        + evidence.EvidenceId
+                        + "' at index "
+                        + index
+                        + " for operation "
+                        + evidence.OperationKind
+                        + ". Automatic recovery is unavailable for SDO Write uncertainty; the quarantine must remain active.");
             }
 
             return evidence;

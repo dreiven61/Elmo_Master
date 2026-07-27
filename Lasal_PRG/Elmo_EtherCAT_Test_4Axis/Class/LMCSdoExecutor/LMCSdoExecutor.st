@@ -104,7 +104,9 @@ LMCSdoExecutor : CLASS
 		ActiveIndex 	: UINT;
 		ActiveSubIndex 	: USINT;
 		ActiveLength 	: UINT;
+		ActiveIsWrite 	: BOOL;
 		ReadBuffer : ARRAY [0..3] OF USINT;
+		WriteBuffer : ARRAY [0..3] OF USINT;
 
 		PublishSequence 	: UDINT;
 		PublishedResult 	: LMCSdoExecutorResult;
@@ -116,6 +118,19 @@ LMCSdoExecutor : CLASS
 			ObjectIndex 	: UINT;
 			SubIndex 	: USINT;
 			ReadLength 	: UINT;
+			TimeoutMs 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ret_code 	: iprStates;
+		END_VAR;
+	
+	FUNCTION GLOBAL TryStartWrite
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			ObjectIndex 	: UINT;
+			SubIndex 	: USINT;
+			pWriteData 	: ^USINT;
+			WriteLength 	: UINT;
 			TimeoutMs 	: UDINT;
 		END_VAR
 		VAR_OUTPUT
@@ -372,7 +387,9 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 	ActiveIndex := ObjectIndex;
 	ActiveSubIndex := SubIndex;
 	ActiveLength := ReadLength;
+	ActiveIsWrite := FALSE;
 	_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
+	_memset(dest:=#WriteBuffer[0], usByte:=0, cntr:=sizeof(WriteBuffer));
 	_memset(dest:=#PublishedResult, usByte:=0, cntr:=sizeof(PublishedResult));
 
 	if IsClientConnected(#toSlave) = FALSE then
@@ -385,8 +402,11 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
 			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
 			_memset(dest:=#ReadBuffer[0], usByte:=0,
 				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#WriteBuffer[0], usByte:=0,
+				cntr:=sizeof(WriteBuffer));
 			_memset(dest:=#PublishedResult, usByte:=0,
 				cntr:=sizeof(PublishedResult));
 			previousState := sigclib_atomic_cmpxchgU32(
@@ -439,8 +459,11 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
 			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
 			_memset(dest:=#ReadBuffer[0], usByte:=0,
 				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#WriteBuffer[0], usByte:=0,
+				cntr:=sizeof(WriteBuffer));
 			_memset(dest:=#PublishedResult, usByte:=0,
 				cntr:=sizeof(PublishedResult));
 			previousState := sigclib_atomic_cmpxchgU32(
@@ -456,6 +479,141 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartRead
 		else
 			// ECAT_Slave_Base guarantees that BUSY or ERROR did not accept the
 			// request and cannot callback. Any state change is an invariant fault.
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+			ret_code := ERROR;
+		end_if;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
+	VAR_INPUT
+		OperationToken : UDINT;
+		ObjectIndex : UINT;
+		SubIndex : USINT;
+		pWriteData : ^USINT;
+		WriteLength : UINT;
+		TimeoutMs : UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ret_code : iprStates;
+	END_VAR
+	VAR
+		previousState : UDINT;
+		startResult : iprStates;
+	END_VAR
+
+	ret_code := ERROR;
+	if (sizeof(LMCSdoExecutorResult) <> 32) | (OperationToken = 0) |
+		(pWriteData = NIL) | (WriteLength <> 4) |
+		(TimeoutMs = 0) | (TimeoutMs > 60000) then
+		RETURN;
+	end_if;
+
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_IDLE,
+		newVal:=LMC_SDO_EXEC_ARMING);
+	if previousState <> LMC_SDO_EXEC_IDLE then
+		ret_code := BUSY;
+		RETURN;
+	end_if;
+
+	ActiveToken := OperationToken;
+	ActiveIndex := ObjectIndex;
+	ActiveSubIndex := SubIndex;
+	ActiveLength := WriteLength;
+	ActiveIsWrite := TRUE;
+	_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
+	_memcpy(ptr1:=#WriteBuffer[0], ptr2:=pWriteData,
+		cntr:=sizeof(WriteBuffer));
+	_memset(dest:=#PublishedResult, usByte:=0, cntr:=sizeof(PublishedResult));
+
+	if IsClientConnected(#toSlave) = FALSE then
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_ARMING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_ARMING then
+			ActiveToken := 0;
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
+			_memset(dest:=#ReadBuffer[0], usByte:=0,
+				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#WriteBuffer[0], usByte:=0,
+				cntr:=sizeof(WriteBuffer));
+			_memset(dest:=#PublishedResult, usByte:=0,
+				cntr:=sizeof(PublishedResult));
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+			end_if;
+		else
+			sigclib_atomic_setU32(
+				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		end_if;
+		RETURN;
+	end_if;
+
+	// Publish RUNNING before the vendor request can callback. WriteBuffer stays
+	// owned by this executor until completion or orphan drain releases it.
+	previousState := sigclib_atomic_cmpxchgU32(
+		pValue:=#AdapterState,
+		cmpVal:=LMC_SDO_EXEC_ARMING,
+		newVal:=LMC_SDO_EXEC_RUNNING);
+	if previousState <> LMC_SDO_EXEC_ARMING then
+		sigclib_atomic_setU32(
+			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
+		RETURN;
+	end_if;
+
+	startResult := toSlave.StartWriteSDO(
+		ObjectIndex$HINT,
+		SubIndex$HSINT,
+		0,
+		(#WriteBuffer[0])$^USINT,
+		TO_UDINT(WriteLength),
+		TimeoutMs,
+		THIS);
+	ret_code := startResult;
+
+	if startResult <> READY then
+		previousState := sigclib_atomic_cmpxchgU32(
+			pValue:=#AdapterState,
+			cmpVal:=LMC_SDO_EXEC_RUNNING,
+			newVal:=LMC_SDO_EXEC_RELEASING);
+		if previousState = LMC_SDO_EXEC_RUNNING then
+			ActiveToken := 0;
+			ActiveIndex := 0;
+			ActiveSubIndex := 0;
+			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
+			_memset(dest:=#ReadBuffer[0], usByte:=0,
+				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#WriteBuffer[0], usByte:=0,
+				cntr:=sizeof(WriteBuffer));
+			_memset(dest:=#PublishedResult, usByte:=0,
+				cntr:=sizeof(PublishedResult));
+			previousState := sigclib_atomic_cmpxchgU32(
+				pValue:=#AdapterState,
+				cmpVal:=LMC_SDO_EXEC_RELEASING,
+				newVal:=LMC_SDO_EXEC_IDLE);
+			if previousState <> LMC_SDO_EXEC_RELEASING then
+				sigclib_atomic_setU32(
+					pValue:=#AdapterState,
+					value:=LMC_SDO_EXEC_QUARANTINED);
+				ret_code := ERROR;
+			end_if;
+		else
 			sigclib_atomic_setU32(
 				pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 			ret_code := ERROR;
@@ -529,8 +687,11 @@ FUNCTION GLOBAL LMCSdoExecutor::CopyCompletion
 				ActiveIndex := 0;
 				ActiveSubIndex := 0;
 				ActiveLength := 0;
+				ActiveIsWrite := FALSE;
 				_memset(dest:=#ReadBuffer[0], usByte:=0,
 					cntr:=sizeof(ReadBuffer));
+				_memset(dest:=#WriteBuffer[0], usByte:=0,
+					cntr:=sizeof(WriteBuffer));
 				_memset(dest:=#PublishedResult, usByte:=0,
 					cntr:=sizeof(PublishedResult));
 				previousState := sigclib_atomic_cmpxchgU32(
@@ -641,7 +802,8 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 	elsif (stateValue <> LMC_SDO_EXEC_RUNNING) &
 		(stateValue <> LMC_SDO_EXEC_ORPHANED) then
 		validationCode := LMC_SDO_EXEC_INVALID_STATE;
-	elsif callbackIsWrite <> 0 then
+	elsif (((callbackIsWrite = 0) & (ActiveIsWrite = TRUE)) |
+		((callbackIsWrite <> 0) & (ActiveIsWrite = FALSE))) then
 		validationCode := LMC_SDO_EXEC_INVALID_DIRECTION;
 	elsif callbackIndex <> ActiveIndex then
 		validationCode := LMC_SDO_EXEC_INVALID_INDEX;
@@ -664,8 +826,8 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 	end_if;
 
 	// The public ticket was removed on disconnect or timeout. Once its late
-	// callback arrives, the vendor no longer owns ReadBuffer, so release it
-	// even when the callback reports invalid metadata.
+	// callback arrives, the vendor no longer owns either persistent buffer, so
+	// release both even when the callback reports invalid metadata.
 	if stateValue = LMC_SDO_EXEC_ORPHANED then
 		previousState := sigclib_atomic_cmpxchgU32(
 			pValue:=#AdapterState,
@@ -680,7 +842,9 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 		ActiveIndex := 0;
 		ActiveSubIndex := 0;
 		ActiveLength := 0;
+		ActiveIsWrite := FALSE;
 		_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
+		_memset(dest:=#WriteBuffer[0], usByte:=0, cntr:=sizeof(WriteBuffer));
 		_memset(dest:=#PublishedResult, usByte:=0,
 			cntr:=sizeof(PublishedResult));
 		previousState := sigclib_atomic_cmpxchgU32(
@@ -710,7 +874,11 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 	PublishedResult.SubIndex := callbackSubIndex;
 	PublishedResult.IsWrite := callbackIsWrite;
 	PublishedResult.ValidationCode := validationCode;
-	PublishedResult.Data := ReadBuffer[0]$UDINT;
+	if ActiveIsWrite then
+		PublishedResult.Data := 0;
+	else
+		PublishedResult.Data := ReadBuffer[0]$UDINT;
+	end_if;
 	PublishedResult.Reserved := 0;
 
 	finalSequence := writeSequence + 1;
@@ -738,8 +906,11 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 			ActiveIndex := 0;
 			ActiveSubIndex := 0;
 			ActiveLength := 0;
+			ActiveIsWrite := FALSE;
 			_memset(dest:=#ReadBuffer[0], usByte:=0,
 				cntr:=sizeof(ReadBuffer));
+			_memset(dest:=#WriteBuffer[0], usByte:=0,
+				cntr:=sizeof(WriteBuffer));
 			_memset(dest:=#PublishedResult, usByte:=0,
 				cntr:=sizeof(PublishedResult));
 			previousState := sigclib_atomic_cmpxchgU32(

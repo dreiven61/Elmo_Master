@@ -137,7 +137,8 @@ namespace LasalMotionControlApiExample
             {
                 WriteLog(
                     scenario
-                    + " qualification is blocked while a D5 ticket or submission outcome is unresolved. Use Resolve D5 Quarantine; Stop, PowerOff, and existing-resource cleanup remain available.");
+                    + " qualification is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
+                    + GetD5SdoResolutionGuidance());
                 return;
             }
 
@@ -1852,18 +1853,32 @@ namespace LasalMotionControlApiExample
             TextD5SdoAbortTimeoutCycles.IsEnabled = d5QualificationReady;
             ButtonRunD5SdoAbortQualification.IsEnabled =
                 d5QualificationReady;
+            var d5ActiveTicketCleanupAvailable =
+                d5SdoQualificationActiveTicket != null;
+            var d5ResolutionAvailable =
+                d5ActiveTicketCleanupAvailable
+                || (HasD5SdoTicketOrQuarantine
+                    && !HasD5SdoWriteQuarantineEvidence);
             ButtonCancelD5SdoQualification.IsEnabled =
                 d5QualificationRunning
                 || (connected
                     && idle
                     && !motionMayBeActive
-                    && HasUnresolvedD5SdoQualificationTicket);
+                    && d5ResolutionAvailable);
             ButtonCancelD5SdoQualification.Content =
                 d5QualificationRunning
                     ? "Cancel Runner (not PLC Stop)"
-                    : HasUnresolvedD5SdoQualificationTicket
-                        ? "Resolve D5 Quarantine"
-                        : "Cancel Runner (not PLC Stop)";
+                    : HasD5SdoWriteQuarantineEvidence
+                        ? d5ActiveTicketCleanupAvailable
+                            ? "Clean Active D5 Ticket (Write quarantine remains)"
+                            : "SDO Write Quarantine (Read proof unavailable)"
+                        : HasPendingD5SdoWriteReadback
+                            ? HasD5SdoTicketOrQuarantine
+                                ? "Resolve D5 Ticket (Readback remains)"
+                                : "Exact SDO Write Readback Required"
+                            : HasD5SdoTicketOrQuarantine
+                            ? "Resolve D5 Quarantine"
+                            : "Cancel Runner (not PLC Stop)";
             ButtonSaveD5SdoQualificationLog.IsEnabled =
                 qualificationLogLines.Count > 0;
 

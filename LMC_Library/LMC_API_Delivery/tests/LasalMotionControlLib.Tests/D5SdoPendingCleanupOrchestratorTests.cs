@@ -38,6 +38,15 @@ namespace LasalMotionControlLib.Tests
                 "Qualification.D5PendingCleanup.RunningWaitsWithoutCancel",
                 RunningWaitsWithoutCancel);
             tests.Add(
+                "Qualification.D5PendingCleanup.WriteTerminalAndCancel",
+                WriteTerminalAndCancel);
+            tests.Add(
+                "Qualification.D5PendingCleanup.WriteUnverifiedTerminalQuarantines",
+                WriteUnverifiedTerminalQuarantines);
+            tests.Add(
+                "Qualification.D5PendingCleanup.WriteReadbackInterlockExact",
+                WriteReadbackInterlockExact);
+            tests.Add(
                 "Qualification.D5PendingCleanup.CommandFailuresPreserved",
                 CommandFailuresPreserved);
             tests.Add(
@@ -100,6 +109,48 @@ namespace LasalMotionControlLib.Tests
                         mapHarness));
                 AssertEx.Contains("MapRevision", mapError.Message);
                 mapHarness.AssertNoDispatch();
+
+                var operationKindHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                var operationKindError =
+                    AssertEx.Throws<InvalidOperationException>(
+                        () => Resolve(
+                            Request(
+                                current,
+                                Ticket(
+                                    current,
+                                    3,
+                                    LMCOperationKind.PIWrite),
+                                null,
+                                null),
+                            operationKindHarness));
+                AssertEx.Contains(
+                    "SDO Read or SDO Write",
+                    operationKindError.Message);
+                operationKindHarness.AssertNoDispatch();
+
+                AssertEx.Equal(
+                    D5SdoTicketNotFoundDisposition
+                        .ResolveReadBySlotContract,
+                    D5SdoPendingCleanupOrchestrator
+                        .EvaluateTicketNotFound(currentTicket));
+                AssertEx.Equal(
+                    D5SdoTicketNotFoundDisposition
+                        .QuarantineWriteOutcomeUnverified,
+                    D5SdoPendingCleanupOrchestrator
+                        .EvaluateTicketNotFound(
+                            Ticket(
+                                current,
+                                4,
+                                LMCOperationKind.SDOWrite)));
+                AssertEx.Throws<InvalidOperationException>(
+                    () => D5SdoPendingCleanupOrchestrator
+                        .EvaluateTicketNotFound(
+                            Ticket(
+                                current,
+                                5,
+                                LMCOperationKind.PIWrite)));
 
                 var wrongStatus = Status(
                     foreignTicket,
@@ -449,6 +500,709 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void WriteTerminalAndCancel()
+        {
+            using (var connection = new LMCConnection())
+            {
+                var terminalTicket = Ticket(
+                    connection,
+                    55,
+                    LMCOperationKind.SDOWrite);
+                var terminalStatus = Status(
+                    terminalTicket,
+                    LMCOperationState.Completed,
+                    LMCOperationOutcome.Success);
+                var terminalHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                var terminalResult = Resolve(
+                    Request(
+                        connection,
+                        terminalTicket,
+                        terminalStatus,
+                        null),
+                    terminalHarness);
+
+                AssertEx.True(terminalResult.IsResolved);
+                AssertEx.True(terminalResult.UsedCachedTerminal);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    terminalResult.Status.OperationKind);
+                AssertEx.Equal(0u, terminalResult.Status.ResultLength);
+                AssertEx.Equal(
+                    LMCSignalValueType.Invalid,
+                    terminalResult.Status.ResultValueType);
+                AssertEx.Equal(0, terminalResult.Status.ResultData.Length);
+                AssertEx.False(terminalResult.CancelAttempted);
+                AssertEx.Equal(0, terminalHarness.StatusCount);
+                AssertEx.Equal(0, terminalHarness.CancelCount);
+
+                var queuedTicket = Ticket(
+                    connection,
+                    56,
+                    LMCOperationKind.SDOWrite);
+                var cancelHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                cancelHarness.Statuses.Enqueue(Status(
+                    queuedTicket,
+                    LMCOperationState.Queued,
+                    LMCOperationOutcome.NoneOrPending));
+                cancelHarness.Statuses.Enqueue(Status(
+                    queuedTicket,
+                    LMCOperationState.Cancelled,
+                    LMCOperationOutcome.Cancelled));
+                var cancelResult = Resolve(
+                    Request(connection, queuedTicket, null, null),
+                    cancelHarness);
+
+                AssertEx.True(cancelResult.IsResolved);
+                AssertEx.True(cancelResult.CancelAttempted);
+                AssertEx.True(cancelResult.CancelAccepted);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    cancelResult.Status.OperationKind);
+                AssertEx.Equal(
+                    LMCOperationState.Cancelled,
+                    cancelResult.Status.State);
+                AssertEx.Equal(
+                    LMCOperationOutcome.Cancelled,
+                    cancelResult.Status.Outcome);
+                AssertEx.Equal(2, cancelResult.StatusReadCount);
+                AssertEx.Equal(1, cancelHarness.CancelCount);
+
+                var priorCancelTicket = Ticket(
+                    connection,
+                    560,
+                    LMCOperationKind.SDOWrite);
+                var priorCancelled = Status(
+                    priorCancelTicket,
+                    LMCOperationState.Cancelled,
+                    LMCOperationOutcome.Cancelled);
+                var priorCancelHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                var priorCancelResult = Resolve(
+                    Request(
+                        connection,
+                        priorCancelTicket,
+                        priorCancelled,
+                        null,
+                        true),
+                    priorCancelHarness);
+                AssertEx.True(priorCancelResult.IsResolved);
+                AssertEx.True(priorCancelResult.CancelAccepted);
+                AssertEx.Equal(0, priorCancelHarness.StatusCount);
+                AssertEx.Equal(0, priorCancelHarness.CancelCount);
+
+                var priorPendingTicket = Ticket(
+                    connection,
+                    561,
+                    LMCOperationKind.SDOWrite);
+                var priorPendingHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                priorPendingHarness.Statuses.Enqueue(Status(
+                    priorPendingTicket,
+                    LMCOperationState.Queued,
+                    LMCOperationOutcome.NoneOrPending));
+                priorPendingHarness.Statuses.Enqueue(Status(
+                    priorPendingTicket,
+                    LMCOperationState.Cancelled,
+                    LMCOperationOutcome.Cancelled));
+                var priorPendingResult = Resolve(
+                    Request(
+                        connection,
+                        priorPendingTicket,
+                        null,
+                        null,
+                        true),
+                    priorPendingHarness);
+                AssertEx.True(priorPendingResult.IsResolved);
+                AssertEx.True(priorPendingResult.CancelAccepted);
+                AssertEx.Equal(2, priorPendingHarness.StatusCount);
+                AssertEx.Equal(0, priorPendingHarness.CancelCount);
+            }
+        }
+
+        private static void WriteUnverifiedTerminalQuarantines()
+        {
+            using (var connection = new LMCConnection())
+            {
+                var failedTicket = Ticket(
+                    connection,
+                    57,
+                    LMCOperationKind.SDOWrite);
+                var failedStatus = Status(
+                    failedTicket,
+                    LMCOperationState.Failed,
+                    LMCOperationOutcome.Failed);
+                var failedHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                var failedResult = Resolve(
+                    Request(
+                        connection,
+                        failedTicket,
+                        failedStatus,
+                        null),
+                    failedHarness);
+
+                AssertEx.False(failedResult.IsResolved);
+                AssertEx.Equal(
+                    D5SdoPendingCleanupDisposition
+                        .QuarantineWriteTerminalOutcomeUnverified,
+                    failedResult.Disposition);
+                AssertEx.Equal(
+                    "write_terminal_outcome_unverified",
+                    failedResult.QuarantineReason);
+                AssertEx.True(ReferenceEquals(failedStatus, failedResult.Status));
+                AssertEx.Equal(0, failedHarness.StatusCount);
+                AssertEx.Equal(0, failedHarness.CancelCount);
+
+                var expiredTicket = Ticket(
+                    connection,
+                    58,
+                    LMCOperationKind.SDOWrite);
+                var raceHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                raceHarness.CancelError = DiagnosticsError(
+                    LMCDiagnosticsDetailCode.InvalidState);
+                raceHarness.Statuses.Enqueue(Status(
+                    expiredTicket,
+                    LMCOperationState.Queued,
+                    LMCOperationOutcome.NoneOrPending));
+                raceHarness.Statuses.Enqueue(Status(
+                    expiredTicket,
+                    LMCOperationState.Running,
+                    LMCOperationOutcome.NoneOrPending));
+                var completedAfterRace = Status(
+                    expiredTicket,
+                    LMCOperationState.Completed,
+                    LMCOperationOutcome.Success);
+                raceHarness.Statuses.Enqueue(completedAfterRace);
+
+                var raceResult = Resolve(
+                    Request(connection, expiredTicket, null, null),
+                    raceHarness);
+                AssertEx.False(raceResult.IsResolved);
+                AssertEx.Equal(
+                    D5SdoPendingCleanupDisposition
+                        .QuarantineWriteTerminalOutcomeUnverified,
+                    raceResult.Disposition);
+                AssertEx.True(raceResult.CancelAttempted);
+                AssertEx.False(raceResult.CancelAccepted);
+                AssertEx.True(raceResult.CancelRaceResolved);
+                AssertEx.True(ReferenceEquals(
+                    completedAfterRace,
+                    raceResult.Status));
+
+                var cancelAcceptedTicket = Ticket(
+                    connection,
+                    59,
+                    LMCOperationKind.SDOWrite);
+                var cancelAcceptedHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                cancelAcceptedHarness.Statuses.Enqueue(Status(
+                    cancelAcceptedTicket,
+                    LMCOperationState.Queued,
+                    LMCOperationOutcome.NoneOrPending));
+                var completedAfterCancel = Status(
+                    cancelAcceptedTicket,
+                    LMCOperationState.Completed,
+                    LMCOperationOutcome.Success);
+                cancelAcceptedHarness.Statuses.Enqueue(completedAfterCancel);
+
+                var cancelAcceptedResult = Resolve(
+                    Request(
+                        connection,
+                        cancelAcceptedTicket,
+                        null,
+                        null),
+                    cancelAcceptedHarness);
+                AssertEx.False(cancelAcceptedResult.IsResolved);
+                AssertEx.True(cancelAcceptedResult.CancelAccepted);
+                AssertEx.True(ReferenceEquals(
+                    completedAfterCancel,
+                    cancelAcceptedResult.Status));
+
+                var priorCompletedTicket = Ticket(
+                    connection,
+                    590,
+                    LMCOperationKind.SDOWrite);
+                var priorCompleted = Status(
+                    priorCompletedTicket,
+                    LMCOperationState.Completed,
+                    LMCOperationOutcome.Success);
+                var priorCompletedHarness = new Harness(
+                    DiagnosticsBootId,
+                    MapRevision);
+                var priorCompletedResult = Resolve(
+                    Request(
+                        connection,
+                        priorCompletedTicket,
+                        priorCompleted,
+                        null,
+                        true),
+                    priorCompletedHarness);
+                AssertEx.False(priorCompletedResult.IsResolved);
+                AssertEx.True(priorCompletedResult.CancelAccepted);
+                AssertEx.Equal(0, priorCompletedHarness.StatusCount);
+                AssertEx.Equal(0, priorCompletedHarness.CancelCount);
+
+                var cancelledWithoutProof = Status(
+                    failedTicket,
+                    LMCOperationState.Cancelled,
+                    LMCOperationOutcome.Cancelled);
+                AssertEx.Equal(
+                    D5SdoTerminalResolutionDisposition
+                        .QuarantineWriteOutcomeUnverified,
+                    D5SdoPendingCleanupOrchestrator
+                        .EvaluateTerminalResolution(
+                            failedTicket,
+                            cancelledWithoutProof,
+                            false,
+                            false));
+                AssertEx.Equal(
+                    D5SdoTerminalResolutionDisposition.Resolve,
+                    D5SdoPendingCleanupOrchestrator
+                        .EvaluateTerminalResolution(
+                            failedTicket,
+                            cancelledWithoutProof,
+                            true,
+                            false));
+                AssertEx.Equal(
+                    D5SdoTerminalResolutionDisposition
+                        .QuarantineWriteOutcomeUnverified,
+                    D5SdoPendingCleanupOrchestrator
+                        .EvaluateTerminalResolution(
+                            failedTicket,
+                            Status(
+                                failedTicket,
+                                LMCOperationState.Expired,
+                                LMCOperationOutcome.TimedOut),
+                            false,
+                            false));
+                AssertEx.Throws<InvalidOperationException>(
+                    () => D5SdoPendingCleanupOrchestrator
+                        .EvaluateTerminalResolution(
+                            failedTicket,
+                            Status(
+                                failedTicket,
+                                LMCOperationState.Running,
+                                LMCOperationOutcome.NoneOrPending),
+                            false,
+                            false));
+            }
+        }
+
+        private static void WriteReadbackInterlockExact()
+        {
+            var source = new byte[] { 0x78, 0x56, 0x34, 0x12 };
+            var writeRequest = LMCSdoRequest.CreateWrite(
+                2,
+                0x2000,
+                3,
+                LMCSignalValueType.UInt32,
+                source,
+                100);
+            using (var ownerConnection = new LMCConnection())
+            using (var foreignConnection = new LMCConnection())
+            {
+                var writeTicket = new LMCOperationTicket(
+                    590,
+                    LMCOperationKind.SDOWrite,
+                    9,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    ownerConnection.SessionGeneration,
+                    ownerConnection.Diagnostics,
+                    false,
+                    0,
+                    LMCSignalValueType.Invalid);
+                var requirement = new D5SdoWriteReadbackRequirement(
+                    writeRequest,
+                    writeTicket,
+                    ownerConnection);
+                source[0] = 0;
+
+                AssertEx.True(ReferenceEquals(
+                    writeTicket,
+                    requirement.WriteTicket));
+                AssertEx.True(ReferenceEquals(
+                    ownerConnection,
+                    requirement.OwnerConnection));
+                AssertEx.True(
+                    writeTicket.BelongsToCurrentSession(ownerConnection));
+                AssertEx.False(
+                    writeTicket.BelongsToCurrentSession(foreignConnection));
+                AssertEx.Equal(
+                    DiagnosticsBootId,
+                    requirement.DiagnosticsBootId);
+                AssertEx.Equal(
+                    MapRevision,
+                    requirement.SubmissionMapRevision);
+                AssertEx.Equal((ushort)2, requirement.SlaveReference);
+                AssertEx.Equal((ushort)0x2000, requirement.ObjectIndex);
+                AssertEx.Equal((byte)3, requirement.SubIndex);
+                AssertEx.Equal(
+                    LMCSignalValueType.UInt32,
+                    requirement.ValueType);
+                AssertEx.Equal((ushort)4, requirement.DataLength);
+                AssertEx.SequenceEqual(
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    requirement.ExpectedWriteData);
+                var exposedExpected = requirement.ExpectedWriteData;
+                exposedExpected[0] = 0;
+                AssertEx.Equal(
+                    (byte)0x78,
+                    requirement.ExpectedWriteData[0]);
+
+                var exactRead = requirement.CreateReadRequest(200);
+                AssertEx.True(requirement.MatchesReadRequest(exactRead));
+                AssertEx.False(requirement.MatchesReadRequest(
+                    LMCSdoRequest.CreateRead(
+                        1,
+                        0x2000,
+                        3,
+                        LMCSignalValueType.UInt32,
+                        4,
+                        200)));
+                AssertEx.False(requirement.MatchesReadRequest(
+                    LMCSdoRequest.CreateRead(
+                        2,
+                        0x2001,
+                        3,
+                        LMCSignalValueType.UInt32,
+                        4,
+                        200)));
+                AssertEx.False(requirement.MatchesReadRequest(
+                    LMCSdoRequest.CreateRead(
+                        2,
+                        0x2000,
+                        4,
+                        LMCSignalValueType.UInt32,
+                        4,
+                        200)));
+                AssertEx.False(requirement.MatchesReadRequest(
+                    LMCSdoRequest.CreateRead(
+                        2,
+                        0x2000,
+                        3,
+                        LMCSignalValueType.Int32,
+                        4,
+                        200)));
+                AssertEx.False(requirement.MatchesReadRequest(
+                    LMCSdoRequest.CreateRead(
+                        2,
+                        0x2000,
+                        3,
+                        LMCSignalValueType.UInt16,
+                        2,
+                        200)));
+                AssertEx.False(
+                    requirement.MatchesReadRequest(writeRequest));
+
+                var exactCapabilities = ReadbackCapabilities(
+                    ownerConnection.SessionGeneration,
+                    DiagnosticsBootId,
+                    MapRevision);
+                AssertEx.True(requirement.MatchesCurrentIdentity(
+                    ownerConnection,
+                    exactCapabilities));
+                AssertEx.False(requirement.MatchesCurrentIdentity(
+                    foreignConnection,
+                    exactCapabilities));
+                AssertEx.False(requirement.MatchesCurrentIdentity(
+                    ownerConnection,
+                    ReadbackCapabilities(
+                        ownerConnection.SessionGeneration,
+                        DiagnosticsBootId + 1,
+                        MapRevision)));
+                AssertEx.False(requirement.MatchesCurrentIdentity(
+                    ownerConnection,
+                    ReadbackCapabilities(
+                        ownerConnection.SessionGeneration,
+                        DiagnosticsBootId,
+                        MapRevision + 1)));
+                AssertEx.False(requirement.MatchesCurrentIdentity(
+                    ownerConnection,
+                    null));
+
+                var readTicket = new LMCOperationTicket(
+                    591,
+                    LMCOperationKind.SDORead,
+                    10,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    ownerConnection.SessionGeneration,
+                    ownerConnection.Diagnostics,
+                    true,
+                    4,
+                    LMCSignalValueType.UInt32);
+                var exactStatus = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    4,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    readTicket.DiagnosticsBootId);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Verified,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        exactStatus));
+
+                var wrongStatusTicket = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId + 1,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    4,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    readTicket.DiagnosticsBootId);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        wrongStatusTicket));
+                var wrongStatusBoot = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    4,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    readTicket.DiagnosticsBootId + 1);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        wrongStatusBoot));
+
+                var mismatchStatus = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    4,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x79, 0x56, 0x34, 0x12 },
+                    readTicket.DiagnosticsBootId);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        mismatchStatus));
+                var wrongTypeStatus = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    4,
+                    LMCSignalValueType.Int32,
+                    new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                    readTicket.DiagnosticsBootId);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        wrongTypeStatus));
+                var wrongLengthStatus = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    readTicket.TicketId,
+                    readTicket.OperationKind,
+                    LMCOperationState.Completed,
+                    10,
+                    11,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    3,
+                    LMCSignalValueType.UInt32,
+                    new byte[] { 0x78, 0x56, 0x34 },
+                    readTicket.DiagnosticsBootId);
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        wrongLengthStatus));
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        Status(
+                            readTicket,
+                            LMCOperationState.Failed,
+                            LMCOperationOutcome.Failed)));
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        LMCSdoRequest.CreateRead(
+                            2,
+                            0x2001,
+                            3,
+                            LMCSignalValueType.UInt32,
+                            4,
+                            200),
+                        readTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        exactStatus));
+
+                var wrongBootTicket = new LMCOperationTicket(
+                    592,
+                    LMCOperationKind.SDORead,
+                    10,
+                    DiagnosticsBootId + 1,
+                    MapRevision,
+                    ownerConnection.SessionGeneration,
+                    ownerConnection.Diagnostics,
+                    true,
+                    4,
+                    LMCSignalValueType.UInt32);
+                AssertEx.False(requirement.MatchesReadTicketIdentity(
+                    wrongBootTicket,
+                    ownerConnection,
+                    exactCapabilities));
+                AssertEx.Equal(
+                    D5SdoWriteReadbackVerdict.Pending,
+                    requirement.Evaluate(
+                        exactRead,
+                        wrongBootTicket,
+                        ownerConnection,
+                        exactCapabilities,
+                        exactStatus));
+
+                var wrongMapTicket = new LMCOperationTicket(
+                    593,
+                    LMCOperationKind.SDORead,
+                    10,
+                    DiagnosticsBootId,
+                    MapRevision + 1,
+                    ownerConnection.SessionGeneration,
+                    ownerConnection.Diagnostics,
+                    true,
+                    4,
+                    LMCSignalValueType.UInt32);
+                AssertEx.False(requirement.MatchesReadTicketIdentity(
+                    wrongMapTicket,
+                    ownerConnection,
+                    exactCapabilities));
+                AssertEx.False(requirement.MatchesReadTicketIdentity(
+                    readTicket,
+                    foreignConnection,
+                    exactCapabilities));
+                AssertEx.False(requirement.MatchesReadTicketIdentity(
+                    readTicket,
+                    ownerConnection,
+                    ReadbackCapabilities(
+                        ownerConnection.SessionGeneration,
+                        DiagnosticsBootId + 1,
+                        MapRevision)));
+
+                using (var failedReconnectServer = new FakeRpcServer(
+                    new FakeRpcStep(
+                        0x8080,
+                        TestFrame.Response(7, new byte[0]))))
+                {
+                    AssertEx.Throws<InvalidOperationException>(
+                        () => ownerConnection.RpcInitConnection(
+                            "127.0.0.1",
+                            failedReconnectServer.Port,
+                            "127.0.0.1"));
+                    AssertEx.False(
+                        writeTicket.BelongsToCurrentSession(
+                            ownerConnection));
+                    AssertEx.False(
+                        requirement.MatchesOwnerCurrentSession(
+                            ownerConnection));
+                    AssertEx.Equal(
+                        D5SdoWriteReadbackVerdict.Pending,
+                        requirement.Evaluate(
+                            exactRead,
+                            readTicket,
+                            ownerConnection,
+                            exactCapabilities,
+                            exactStatus));
+                    failedReconnectServer.Verify();
+                }
+
+                AssertEx.Throws<ArgumentNullException>(
+                    () => new D5SdoWriteReadbackRequirement(
+                        null,
+                        writeTicket,
+                        ownerConnection));
+                AssertEx.Throws<ArgumentNullException>(
+                    () => new D5SdoWriteReadbackRequirement(
+                        writeRequest,
+                        null,
+                        ownerConnection));
+                AssertEx.Throws<ArgumentNullException>(
+                    () => new D5SdoWriteReadbackRequirement(
+                        writeRequest,
+                        writeTicket,
+                        null));
+                AssertEx.Throws<ArgumentException>(
+                    () => new D5SdoWriteReadbackRequirement(
+                        exactRead,
+                        writeTicket,
+                        ownerConnection));
+            }
+        }
+
         private static void CommandFailuresPreserved()
         {
             using (var connection = new LMCConnection())
@@ -653,7 +1407,8 @@ namespace LasalMotionControlLib.Tests
             LMCConnection connection,
             LMCOperationTicket ticket,
             LMCOperationStatus cachedStatus,
-            DateTime? deadlineUtc)
+            DateTime? deadlineUtc,
+            bool queuedCancelAccepted = false)
         {
             return new D5SdoPendingCleanupRequest(
                 ticket,
@@ -661,24 +1416,29 @@ namespace LasalMotionControlLib.Tests
                 connection,
                 connection,
                 MapRevision,
-                deadlineUtc);
+                deadlineUtc,
+                queuedCancelAccepted);
         }
 
         private static LMCOperationTicket Ticket(
             LMCConnection connection,
-            uint ticketId)
+            uint ticketId,
+            LMCOperationKind operationKind = LMCOperationKind.SDORead)
         {
+            var isRead = operationKind == LMCOperationKind.SDORead;
             return new LMCOperationTicket(
                 ticketId,
-                LMCOperationKind.SDORead,
+                operationKind,
                 10,
                 DiagnosticsBootId,
                 MapRevision,
                 1,
                 connection.Diagnostics,
-                true,
-                1,
-                LMCSignalValueType.Int8);
+                isRead,
+                isRead ? (ushort)1 : (ushort)0,
+                isRead
+                    ? LMCSignalValueType.Int8
+                    : LMCSignalValueType.Invalid);
         }
 
         private static LMCOperationStatus Status(
@@ -690,6 +1450,8 @@ namespace LasalMotionControlLib.Tests
                 || state == LMCOperationState.Running;
             var successful = state == LMCOperationState.Completed
                 && outcome == LMCOperationOutcome.Success;
+            var hasReadResult = successful
+                && ticket.OperationKind == LMCOperationKind.SDORead;
             return new LMCOperationStatus(
                 Response(LMCDiagnosticsDetailCode.None),
                 ticket.TicketId,
@@ -700,12 +1462,40 @@ namespace LasalMotionControlLib.Tests
                 outcome,
                 pending || successful ? (short)0 : (short)-1,
                 pending || successful ? 0u : 1u,
-                successful ? 1u : 0u,
-                successful
+                hasReadResult ? 1u : 0u,
+                hasReadResult
                     ? LMCSignalValueType.Int8
                     : LMCSignalValueType.Invalid,
-                successful ? new byte[] { 8 } : new byte[0],
+                hasReadResult ? new byte[] { 8 } : new byte[0],
                 ticket.DiagnosticsBootId);
+        }
+
+        private static LMCDiagnosticCapabilities ReadbackCapabilities(
+            long connectionSessionGeneration,
+            uint diagnosticsBootId,
+            uint mapRevision)
+        {
+            return new LMCDiagnosticCapabilities(
+                Response(LMCDiagnosticsDetailCode.None),
+                connectionSessionGeneration,
+                1,
+                (uint)(LMCDiagnosticCapability.SDORead
+                    | LMCDiagnosticCapability.SDOReadGeneralInline),
+                mapRevision,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1000,
+                1320,
+                2040,
+                1280,
+                80,
+                16,
+                0,
+                4,
+                diagnosticsBootId);
         }
 
         private static LMCDiagnosticsCommandException DiagnosticsError(

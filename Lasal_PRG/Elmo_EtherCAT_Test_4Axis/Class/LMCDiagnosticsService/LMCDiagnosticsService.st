@@ -75,6 +75,7 @@ LMCDiagnosticsService : CLASS
 		SdoOperationDetail 	: UDINT;
 		SdoResultLength 	: UDINT;
 		SdoResultData 	: UDINT;
+		SdoWriteData 	: UDINT;
 		SdoInternalDrainState 	: UINT;
 		DiagnosticsBootId 	: UDINT;
 		BootIdInitialized 	: BOOL;
@@ -113,6 +114,22 @@ LMCDiagnosticsService : CLASS
 		END_VAR
 		VAR_OUTPUT
 			Ready 	: BOOL;
+		END_VAR;
+	
+	FUNCTION GetSdoWritePolicyDetail
+		VAR_INPUT
+			SlaveReference 	: UINT;
+			ObjectIndex 	: UINT;
+			SubIndex 	: USINT;
+			ValueType 	: USINT;
+			DataLength 	: UINT;
+			WriteData 	: UDINT;
+			CheckAxisState 	: BOOL;
+			pSnapshot 	: ^USINT;
+			SnapshotSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			DetailCode 	: UDINT;
 		END_VAR;
 	
 	FUNCTION GLOBAL GetDiagnosticsBootId
@@ -214,6 +231,11 @@ END_FUNCTION
 #define LMC_DIAG_D2_ENABLED           TRUE
 #define LMC_DIAG_D3_ENABLED           TRUE
 #define LMC_DIAG_D5_SDO_READ_ENABLED  TRUE
+#define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED FALSE
+#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED FALSE
+#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED FALSE
+#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED FALSE
+#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED FALSE
 #define LMC_DIAG_MAX_BULK_SIGNALS     24
 #define LMC_DIAG_SDO_LOCAL_ERROR_ID    -32001
 #define LMC_DIAG_SDO_ABORT_TIMEOUT     0x05040000
@@ -402,7 +424,8 @@ FUNCTION LMCDiagnosticsService::IsSdoReadReady
 	END_VAR
 
 	Ready := FALSE;
-	if LMC_DIAG_D5_SDO_READ_ENABLED = FALSE then
+	if (LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) &
+		(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE) then
 		RETURN;
 	end_if;
 
@@ -428,6 +451,101 @@ FUNCTION LMCDiagnosticsService::IsSdoReadReady
 END_FUNCTION
 
 
+FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
+	VAR_INPUT
+		SlaveReference : UINT;
+		ObjectIndex : UINT;
+		SubIndex : USINT;
+		ValueType : USINT;
+		DataLength : UINT;
+		WriteData : UDINT;
+		CheckAxisState : BOOL;
+		pSnapshot : ^USINT;
+		SnapshotSize : UDINT;
+	END_VAR
+	VAR_OUTPUT
+		DetailCode : UDINT;
+	END_VAR
+	VAR
+		axisHealthOffset : UDINT;
+		statusWord : UDINT;
+		writeValue : DINT;
+	END_VAR
+
+	DetailCode := 0;
+	if (ObjectIndex = 0x6040) | (ObjectIndex = 0x607A) |
+		(ObjectIndex = 0x60FF) | (ObjectIndex = 0x6071) then
+		DetailCode := 8;
+		RETURN;
+	end_if;
+
+	// UI[24] is only a prepared candidate. The global and per-axis gates stay
+	// FALSE until each drive program use and hardware behavior are confirmed.
+	if LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE then
+		DetailCode := 7;
+		RETURN;
+	end_if;
+	if (SlaveReference < 1) | (SlaveReference > 4) |
+		(ObjectIndex <> 0x2F00) | (SubIndex <> 24) |
+		(ValueType <> 4) | (DataLength <> 4) then
+		DetailCode := 7;
+		RETURN;
+	end_if;
+	case SlaveReference of
+		1:
+			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = FALSE then
+				DetailCode := 7;
+				RETURN;
+			end_if;
+		2:
+			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = FALSE then
+				DetailCode := 7;
+				RETURN;
+			end_if;
+		3:
+			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = FALSE then
+				DetailCode := 7;
+				RETURN;
+			end_if;
+		4:
+			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = FALSE then
+				DetailCode := 7;
+				RETURN;
+			end_if;
+	end_case;
+
+	// Conservative local policy range; this is not the vendor UI range.
+	writeValue := WriteData$DINT;
+	if (writeValue < -1073741823) | (writeValue > 1073741823) then
+		DetailCode := 12;
+		RETURN;
+	end_if;
+	if CheckAxisState = FALSE then
+		RETURN;
+	end_if;
+
+	if (pSnapshot = NIL) | (SnapshotSize < 304) then
+		DetailCode := 19;
+		RETURN;
+	end_if;
+	axisHealthOffset := 64 + TO_UDINT(SlaveReference - 1) * 36;
+	statusWord := (pSnapshot + axisHealthOffset + 20)^$UDINT;
+	if (pSnapshot^$UDINT = 0) |
+		((pSnapshot + 12)^$UDINT <> 8) |
+		((pSnapshot + 16)^$UDINT <> 0) |
+		(((pSnapshot + 40)^$UDINT and 3) <> 1) |
+		((pSnapshot + axisHealthOffset)^$DINT = 0) |
+		((pSnapshot + axisHealthOffset + 4)^$UDINT <> 8) |
+		((pSnapshot + axisHealthOffset + 12)^$UDINT <> 0) |
+		((pSnapshot + axisHealthOffset + 24)^$DINT <> 0) |
+		((pSnapshot + axisHealthOffset + 28)^$UDINT <> pSnapshot^$UDINT) |
+		((statusWord and 0x0000006F) <> 0x00000040) then
+		DetailCode := 19;
+	end_if;
+
+END_FUNCTION
+
+
 FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 	VAR
 		snapshot : ARRAY [0..303] OF USINT;
@@ -441,9 +559,11 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		startResult : iprStates;
 		executorConnected : BOOL;
 		wasRunning : BOOL;
+		writePolicyDetail : UDINT;
 	END_VAR
 
-	if LMC_DIAG_D5_SDO_READ_ENABLED = FALSE then
+	if (LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) &
+		(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE) then
 		RETURN;
 	end_if;
 
@@ -507,6 +627,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 				SdoOperationDetail := 0;
 				SdoResultLength := 0;
 				SdoResultData := 0;
+				SdoWriteData := 0;
 			end_if;
 			SdoInternalDrainState := 0;
 		end_if;
@@ -557,6 +678,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		OperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;
 		SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 		SdoOperationDetail := 11;
+		SdoWriteData := 0;
 		if wasRunning then
 			SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 		end_if;
@@ -605,6 +727,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 			SdoCompletionCycle := currentCycle;
 			SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 			SdoOperationDetail := 11;
+			SdoWriteData := 0;
 			SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 			RETURN;
 		end_if;
@@ -621,6 +744,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 			SdoOperationDetail := LMC_DIAG_SDO_ABORT_TIMEOUT;
 			SdoResultLength := 0;
 			SdoResultData := 0;
+			SdoWriteData := 0;
 			RETURN;
 		elsif completionResult = 0 then
 			SdoCompletionCycle := currentCycle;
@@ -658,7 +782,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 				SdoOperationDetail := 5;
 			elsif (completion.ObjectIndex <> SdoObjectIndex) |
 				(completion.SubIndex <> SdoSubIndex) |
-				(completion.IsWrite <> 0) then
+				((OperationKind = 2) & (completion.IsWrite <> 0)) |
+				((OperationKind = 3) & (completion.IsWrite = 0)) then
 				OperationState := LMC_DIAG_SDO_STATE_FAILED;
 				OperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;
 				SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
@@ -668,12 +793,18 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 				OperationOutcome := LMC_DIAG_SDO_OUTCOME_SUCCESS;
 				SdoOperationErrorId := 0;
 				SdoOperationDetail := 0;
-				SdoResultLength := completion.ActualLength;
-				SdoResultData := completion.Data;
+				if OperationKind = 2 then
+					SdoResultLength := completion.ActualLength;
+					SdoResultData := completion.Data;
+				else
+					SdoResultLength := 0;
+					SdoResultData := 0;
+				end_if;
 			end_if;
 			if IsSdoReadReady(SlaveReference:=SdoSlaveReference) = FALSE then
 				SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 			end_if;
+			SdoWriteData := 0;
 			RETURN;
 		elsif (completionResult <> -2) & (completionResult <> -3) then
 			OperationState := LMC_DIAG_SDO_STATE_FAILED;
@@ -681,6 +812,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 			SdoCompletionCycle := currentCycle;
 			SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 			SdoOperationDetail := 24;
+			SdoWriteData := 0;
 			if IsSdoReadReady(SlaveReference:=SdoSlaveReference) = FALSE then
 				SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 			end_if;
@@ -711,6 +843,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 				SdoOperationDetail := LMC_DIAG_SDO_ABORT_TIMEOUT;
 				SdoResultLength := 0;
 				SdoResultData := 0;
+				SdoWriteData := 0;
 				SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 			elsif orphanResult = -1 then
 				OperationState := LMC_DIAG_SDO_STATE_FAILED;
@@ -718,6 +851,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 				SdoCompletionCycle := currentCycle;
 				SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 				SdoOperationDetail := 24;
+				SdoWriteData := 0;
 				SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_EXPIRED;
 			end_if;
 		end_if;
@@ -736,7 +870,25 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		SdoCompletionCycle := currentCycle;
 		SdoOperationErrorId := 0;
 		SdoOperationDetail := LMC_DIAG_SDO_ABORT_TIMEOUT;
+		SdoWriteData := 0;
 		RETURN;
+	end_if;
+	if OperationKind = 3 then
+		writePolicyDetail := GetSdoWritePolicyDetail(
+			SdoSlaveReference, SdoObjectIndex, SdoSubIndex, SdoValueType,
+			SdoRequestedLength, SdoWriteData, TRUE, #snapshot[0],
+			sizeof(snapshot));
+		if writePolicyDetail <> 0 then
+			OperationState := LMC_DIAG_SDO_STATE_FAILED;
+			OperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;
+			SdoCompletionCycle := currentCycle;
+			SdoOperationErrorId := LMC_DIAG_ERROR_ID;
+			SdoOperationDetail := writePolicyDetail;
+			SdoResultLength := 0;
+			SdoResultData := 0;
+			SdoWriteData := 0;
+			RETURN;
+		end_if;
 	end_if;
 
 	remainingCycles := SdoTimeoutCycles - elapsedCycles;
@@ -746,42 +898,82 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		1:
 			executorConnected := IsClientConnected(#SdoAxis1) <> 0;
 			if executorConnected then
-				startResult := SdoAxis1.TryStartRead(
-					OperationToken:=OperationToken,
-					ObjectIndex:=SdoObjectIndex,
-					SubIndex:=SdoSubIndex,
-					ReadLength:=SdoRequestedLength,
-					TimeoutMs:=remainingCycles);
+				if OperationKind = 3 then
+					startResult := SdoAxis1.TryStartWrite(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						pWriteData:=(#SdoWriteData)$^USINT,
+						WriteLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				else
+					startResult := SdoAxis1.TryStartRead(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						ReadLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				end_if;
 			end_if;
 		2:
 			executorConnected := IsClientConnected(#SdoAxis2) <> 0;
 			if executorConnected then
-				startResult := SdoAxis2.TryStartRead(
-					OperationToken:=OperationToken,
-					ObjectIndex:=SdoObjectIndex,
-					SubIndex:=SdoSubIndex,
-					ReadLength:=SdoRequestedLength,
-					TimeoutMs:=remainingCycles);
+				if OperationKind = 3 then
+					startResult := SdoAxis2.TryStartWrite(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						pWriteData:=(#SdoWriteData)$^USINT,
+						WriteLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				else
+					startResult := SdoAxis2.TryStartRead(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						ReadLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				end_if;
 			end_if;
 		3:
 			executorConnected := IsClientConnected(#SdoAxis3) <> 0;
 			if executorConnected then
-				startResult := SdoAxis3.TryStartRead(
-					OperationToken:=OperationToken,
-					ObjectIndex:=SdoObjectIndex,
-					SubIndex:=SdoSubIndex,
-					ReadLength:=SdoRequestedLength,
-					TimeoutMs:=remainingCycles);
+				if OperationKind = 3 then
+					startResult := SdoAxis3.TryStartWrite(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						pWriteData:=(#SdoWriteData)$^USINT,
+						WriteLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				else
+					startResult := SdoAxis3.TryStartRead(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						ReadLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				end_if;
 			end_if;
 		4:
 			executorConnected := IsClientConnected(#SdoAxis4) <> 0;
 			if executorConnected then
-				startResult := SdoAxis4.TryStartRead(
-					OperationToken:=OperationToken,
-					ObjectIndex:=SdoObjectIndex,
-					SubIndex:=SdoSubIndex,
-					ReadLength:=SdoRequestedLength,
-					TimeoutMs:=remainingCycles);
+				if OperationKind = 3 then
+					startResult := SdoAxis4.TryStartWrite(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						pWriteData:=(#SdoWriteData)$^USINT,
+						WriteLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				else
+					startResult := SdoAxis4.TryStartRead(
+						OperationToken:=OperationToken,
+						ObjectIndex:=SdoObjectIndex,
+						SubIndex:=SdoSubIndex,
+						ReadLength:=SdoRequestedLength,
+						TimeoutMs:=remainingCycles);
+				end_if;
 			end_if;
 	end_case;
 
@@ -791,14 +983,19 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		SdoCompletionCycle := currentCycle;
 		SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 		SdoOperationDetail := 11;
+		SdoWriteData := 0;
 	elsif startResult = READY then
 		OperationState := LMC_DIAG_SDO_STATE_RUNNING;
+		if OperationKind = 3 then
+			SdoWriteData := 0;
+		end_if;
 	elsif startResult = ERROR then
 		OperationState := LMC_DIAG_SDO_STATE_FAILED;
 		OperationOutcome := LMC_DIAG_SDO_OUTCOME_FAILED;
 		SdoCompletionCycle := currentCycle;
 		SdoOperationErrorId := LMC_DIAG_SDO_LOCAL_ERROR_ID;
 		SdoOperationDetail := 24;
+		SdoWriteData := 0;
 	end_if;
 
 END_FUNCTION
@@ -828,7 +1025,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::NotifySessionClosed
 			cntr:=sizeof(BulkSignalIds));
 	end_if;
 
-	if (LMC_DIAG_D5_SDO_READ_ENABLED = TRUE) &
+	if ((LMC_DIAG_D5_SDO_READ_ENABLED = TRUE) |
+		(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE)) &
 		(SessionEpoch = OwnerSessionEpoch) then
 		if OperationState = LMC_DIAG_SDO_STATE_RUNNING then
 			orphanResult := -1;
@@ -858,6 +1056,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::NotifySessionClosed
 			OwnerSessionEpoch := 0;
 			TicketBootId := 0;
 			TicketMapRevision := 0;
+			SdoWriteData := 0;
 			SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_ORPHAN;
 		elsif (OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
 			(SdoInternalDrainState = 0) then
@@ -882,6 +1081,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::NotifySessionClosed
 			SdoOperationDetail := 0;
 			SdoResultLength := 0;
 			SdoResultData := 0;
+			SdoWriteData := 0;
 			SdoInternalDrainState := 0;
 		else
 			// A terminal timed-out operation still owns a draining adapter. Hide
@@ -890,6 +1090,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::NotifySessionClosed
 			OwnerSessionEpoch := 0;
 			TicketBootId := 0;
 			TicketMapRevision := 0;
+			SdoWriteData := 0;
 			SdoInternalDrainState := LMC_DIAG_SDO_DRAIN_ORPHAN;
 		end_if;
 	end_if;
@@ -953,6 +1154,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		requestSdoSubIndex : USINT;
 		requestSdoValueType : USINT;
 		requestSdoTimeoutCycles : UDINT;
+		requestSdoWriteData : UDINT;
+		writePolicyDetail : UDINT;
 		sdoBootId : UDINT;
 		sdoTicketId : UDINT;
 		currentCycle : UDINT;
@@ -1000,7 +1203,9 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	elsif ((((CommandId >= 0x7E30) & (CommandId <= 0x7E33)) |
 		 ((CommandId >= 0x7E40) & (CommandId <= 0x7E49)) |
 		 (((CommandId = 0x7E03) | (CommandId = 0x7E04) |
-		   (CommandId = 0x7E50)) & LMC_DIAG_D5_SDO_READ_ENABLED)) &
+		   (CommandId = 0x7E50)) &
+		  ((LMC_DIAG_D5_SDO_READ_ENABLED = TRUE) |
+		   (LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE)))) &
 		(currentBootId = 0)) then
 		detailCode := 11;
 	elsif (((CommandId = 0x7E01) | (CommandId = 0x7E02) |
@@ -1049,6 +1254,14 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			(pResponse + 36)^$UDINT := 320000;
 			(pResponse + 56)^$UDINT := 1280000;
 			(pResponse + 60)^$UINT := 4;
+			if (LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE) &
+				((LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = TRUE) |
+				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = TRUE) |
+				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = TRUE) |
+				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = TRUE)) then
+				(pResponse + 20)^$UDINT :=
+					(pResponse + 20)^$UDINT | 0x00000200;
+			end_if;
 		end_if;
 		ResponseSize := 68;
 		RETURN;
@@ -1279,7 +1492,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		0x7E03:
 			if RequestSize <> 16 then
 				detailCode := 12;
-			elsif LMC_DIAG_D5_SDO_READ_ENABLED = FALSE then
+			elsif (LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) &
+				(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE) then
 				detailCode := 2;
 			elsif ResponseCapacity < 64 then
 				detailCode := 20;
@@ -1306,7 +1520,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					(pResponse + 34)^$INT := SdoOperationErrorId;
 					(pResponse + 36)^$UDINT := SdoOperationDetail;
 					if (OperationState = LMC_DIAG_SDO_STATE_COMPLETED) &
-						(OperationOutcome = LMC_DIAG_SDO_OUTCOME_SUCCESS) then
+						(OperationOutcome = LMC_DIAG_SDO_OUTCOME_SUCCESS) &
+						(OperationKind = 2) then
 						(pResponse + 40)^$UDINT := SdoResultLength;
 						(pResponse + 44)^$USINT := SdoValueType;
 						(pResponse + 45)^$USINT := SdoResultLength$USINT;
@@ -1320,7 +1535,8 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		0x7E04:
 			if RequestSize <> 16 then
 				detailCode := 12;
-			elsif LMC_DIAG_D5_SDO_READ_ENABLED = FALSE then
+			elsif (LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) &
+				(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE) then
 				detailCode := 2;
 			elsif ResponseCapacity < 28 then
 				detailCode := 20;
@@ -1355,6 +1571,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					SdoOperationDetail := 0;
 					SdoResultLength := 0;
 					SdoResultData := 0;
+					SdoWriteData := 0;
 					(pResponse + 16)^$UDINT := TicketId;
 					(pResponse + 20)^$UINT := OperationState;
 					(pResponse + 22)^$UINT := OperationOutcome;
@@ -1676,11 +1893,11 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			end_if;
 
 		0x7E50:
-			// Validate the generic D5 envelope even when the SDO Read gate is
-			// disabled so malformed requests fail deterministically.
 			if RequestSize < 32 then
 				detailCode := 12;
 			else
+				requestSdoWriteData := 0;
+				writePolicyDetail := 0;
 				expectedMapRevision := (pRequest + 8)^$UDINT;
 				requestSdoSlaveReference := (pRequest + 12)^$UINT;
 				sdoOperationFlags := (pRequest + 14)^$UINT;
@@ -1695,10 +1912,19 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				if sdoOperationFlags = 1 then
 					expectedRequestSize += TO_UDINT(sdoDataLength);
 				end_if;
+				if (sdoOperationFlags = 1) & (sdoDataLength = 4) &
+					(RequestSize = 36) then
+					requestSdoWriteData := (pRequest + 32)^$UDINT;
+					writePolicyDetail := GetSdoWritePolicyDetail(
+						requestSdoSlaveReference, requestSdoObjectIndex,
+						requestSdoSubIndex, requestSdoValueType, sdoDataLength,
+						requestSdoWriteData, FALSE, NIL, 0);
+				end_if;
 				if (sdoOperationFlags > 1) | (sdoReserved <> 0) |
 					(RequestSize <> expectedRequestSize) then
 					detailCode := 12;
-				elsif LMC_DIAG_D5_SDO_READ_ENABLED = FALSE then
+				elsif (sdoOperationFlags = 0) &
+					(LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) then
 					detailCode := 2;
 				elsif ResponseCapacity < 32 then
 					detailCode := 20;
@@ -1710,25 +1936,30 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					detailCode := 3;
 				elsif (sdoBootId = 0) | (sdoBootId <> currentBootId) then
 					detailCode := 25;
-				elsif sdoOperationFlags = 1 then
-					detailCode := 2;
-				elsif sdoDataLength > 4 then
+				elsif (sdoOperationFlags = 0) & (sdoDataLength > 4) then
 					detailCode := 20;
-				elsif (sdoDataLength <> 1) & (sdoDataLength <> 2) &
+				elsif (sdoOperationFlags = 0) &
+					(sdoDataLength <> 1) & (sdoDataLength <> 2) &
 					(sdoDataLength <> 4) then
 					detailCode := 12;
 				elsif requestSdoObjectIndex = 0 then
 					detailCode := 12;
 				elsif (requestSdoValueType < 1) | (requestSdoValueType > 11) then
 					detailCode := 5;
-				elsif (((requestSdoValueType = 1) | (requestSdoValueType = 9) |
+				elsif (sdoOperationFlags = 1) &
+					((requestSdoValueType <> 4) | (sdoDataLength <> 4)) then
+					detailCode := 5;
+				elsif (sdoOperationFlags = 1) & (writePolicyDetail <> 0) then
+					detailCode := writePolicyDetail;
+				elsif (sdoOperationFlags = 0) &
+					((((requestSdoValueType = 1) | (requestSdoValueType = 9) |
 					  (requestSdoValueType = 10) | (requestSdoValueType = 11)) &
 					 (sdoDataLength <> 1)) |
 					(((requestSdoValueType = 2) | (requestSdoValueType = 3) |
 					  (requestSdoValueType = 7)) & (sdoDataLength <> 2)) |
 					(((requestSdoValueType = 4) | (requestSdoValueType = 5) |
 					  (requestSdoValueType = 6) | (requestSdoValueType = 8)) &
-					 (sdoDataLength <> 4)) then
+					 (sdoDataLength <> 4))) then
 					detailCode := 5;
 				elsif ((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
 					(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
@@ -1771,8 +2002,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 						if executorConnected = FALSE then
 							detailCode := 11;
 						elsif executorReusable = FALSE then
-							// No active public ticket owns this executor. A non-Idle
-							// adapter is an internal invariant fault, not normal Busy.
+							// Unowned non-Idle executor is an invariant fault.
 							detailCode := 24;
 						elsif (NextTicketId = 0xFFFFFFFF) |
 							(NextOperationToken = 0xFFFFFFFF) then
@@ -1789,6 +2019,9 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 								TicketMapRevision := expectedMapRevision;
 								OperationToken := NextOperationToken;
 								OperationKind := 2;
+								if sdoOperationFlags = 1 then
+									OperationKind := 3;
+								end_if;
 								OperationState := LMC_DIAG_SDO_STATE_QUEUED;
 								OperationOutcome := 0;
 								SdoSlaveReference := requestSdoSlaveReference;
@@ -1804,6 +2037,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 								SdoOperationDetail := 0;
 								SdoResultLength := 0;
 								SdoResultData := 0;
+								SdoWriteData := requestSdoWriteData;
 								SdoInternalDrainState := 0;
 								(pResponse + 16)^$UDINT := TicketId;
 								(pResponse + 20)^$UINT := OperationKind;
@@ -1878,6 +2112,7 @@ FUNCTION LMCDiagnosticsService::LMCDiagnosticsService
 	SdoOperationDetail := 0;
 	SdoResultLength := 0;
 	SdoResultData := 0;
+	SdoWriteData := 0;
 	SdoInternalDrainState := 0;
 	DiagnosticsBootId := 0;
 	BootIdInitialized := FALSE;
