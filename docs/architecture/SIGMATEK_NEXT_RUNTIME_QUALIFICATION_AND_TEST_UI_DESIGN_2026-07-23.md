@@ -29,7 +29,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | 현재 Debug/Release 각 244/244 계약 시험 PASS; 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개 | PLC live와 packet evidence 추가 |
+| PC API | 현재 Debug/Release 각 249/249 계약 시험 PASS; 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개 | PLC live와 packet evidence 추가 |
 | 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
@@ -78,13 +78,17 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 - `MainWindow.Qualification.Sdo.cs`와 `D5SdoQualificationAnalysis.cs`: PowerOff/Standstill 및
   3회 동일 position preflight, `0x6061:0 Int8/1` baseline, 실제 raw abort code와
   same-Boot/Map recovery를 구현했다. Submit 전 outcome guard는 응답 유실을 unknown-ticket
-  evidence로 보존하고, 같은 connection의 BootId change/exact `BootIdMismatch`를 stale-session
+  evidence로 보존하고, 같은 connection의 BootId 또는 MapRevision change/exact
+  `BootIdMismatch`를 stale-session
   quarantine한다. stale local session도 quarantine하며 같은 Boot/session의 exact
   `TicketNotFound`는 이전 ticket terminal만 증명해 outcome `UNKNOWN`으로 해제한다. 여러
   evidence는 GeneralInline의 `0x6061:0 Int8/1` 또는 legacy SDORead-only의
   `0x1000:0 UInt32/4` 중 capability에 맞는 서로 다른 두 ticket의 exact type/length/bytes로 proof한다.
-  scope는 `same_owner_connection_recovery`, `new_diagnostics_boot_session`,
-  `new_connection_session`으로 나눈다. 모든 evidence owner가 바뀐 셋째 scope는
+  owner+BootId+MapRevision이 동질인 경우에만 scope를
+  `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
+  `new_connection_session`으로 나눈다. owner 또는 submission identity가 섞이면
+  `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 모든 evidence가 한
+  previous owner+identity에 속하는 `new_connection_session`은
   `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 실제 orphan
   PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
   unresolved 새 mutation gate와 15~120초 deadline-aware cleanup을 적용한다.
@@ -586,23 +590,28 @@ PLC rejection이면 제거하지만 응답 유실/transport uncertainty이면 un
 보존한다. ticket 응답을 받은 경로도 active ticket/owner connection/deadline 저장 뒤 guard
 제거 성공을 확인한다.
 
-Resolve는 같은 `LMCConnection`이라도 current capability BootId를 먼저 비교한다. old ticket과
-다르거나 status가 exact `BootIdMismatch`이면 terminal을 추정하지 않고 known ticket을
+모든 pending-ticket cleanup은 status/cancel 전에 같은 `LMCConnection`의 current capability
+BootId/MapRevision을 old ticket의 `DiagnosticsBootId`/`SubmissionMapRevision`과 먼저 비교한다.
+둘 중 하나가 다르거나 status가 exact `BootIdMismatch`이면 terminal을 추정하지 않고 known ticket을
 stale-session quarantine한다. stale local session exception도 quarantine한다. 같은
 Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전 ticket terminal만
 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해제한다. known/unknown evidence가
 여러 개면 모두 같은 slave여야 하며, stable BootId/MapRevision 아래 GeneralInline이면 서로
 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket의
 exact type/length/bytes가 같고 proof 도중 evidence 목록이 불변일 때만 전체 quarantine을 해제한다.
-같은 owner object+Boot의 unknown outcome 또는 `HandleOrGenerationStale(10)`은
-`same_owner_connection_recovery` proof이며 disconnect/orphan
-PASS로 표시하지 않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner
-변화는 `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
+owner+BootId+MapRevision이 동질인 경우에만 current owner+identity는
+`same_owner_connection_recovery`, current owner+한 previous identity는
+`new_diagnostics_identity_session`, 모두 current owner와 다르면서 한 previous
+owner+identity를 공유하면 `new_connection_session`이다. owner 또는 submission identity가
+섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 첫 scope는
+disconnect/orphan PASS가 아니다. `new_connection_session`은
 `newConnectionRecovery=true`로 기록하지만 WPF는 항상 `orphanQualified=false`를 기록한다.
 이는 새 RPC connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan
 cleanup이나 late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket,
-실제 owner loss와 별도 PLC hook/capture가 필요하다. QTEST는 `evidenceBootIds`,
-`recoveryBootId`, `proofScope`, `newConnectionRecovery`, `orphanQualified=false`를 분리한다.
+실제 owner loss와 별도 PLC hook/capture가 필요하다. QTEST는
+`evidenceBootIds`/`evidenceMapRevisions`, `recoveryBootId`/`recoveryMapRevision`,
+`proofScope`, `mapChangedEvidence`, `sameIdentityEvidence`, `mixedEvidenceSessions`,
+`newConnectionRecovery`, `orphanQualified=false`를 분리한다.
 
 남은 항목:
 
@@ -649,8 +658,14 @@ identity 불일치는 fail-closed한다. 수동 `Submit SDO Read`가 직접 호�
 `CapabilityPreflight`, `Submission`, `PostSubmissionValidation`의 5개이고 같은
 `LMCSdoSubmissionOutcome`을 사용한다. dispatch에는 실제 capability
 `DiagnosticsBootId`/`MapRevision`을 기록한다. manual router는 no-submit/rejected를 disarm하고
-uncertain identity를 reconcile해 quarantine하며, accepted exact ticket은 manual operation
+uncertain identity를 reconcile해 quarantine하며, accepted exact ticket의 실제 제출
+`SubmissionMapRevision`은 context의 MapRevision과 일치해야 한다. ticket은 manual operation
 state와 D5 tracker에 모두 보존한 뒤 disarm한다. context 누락/불일치는 fail-closed한다.
+D5 quarantine evidence는 UI 독립 ledger가 owner-bound opaque handle과 immutable
+TicketId/BootId/MapRevision/owner snapshot으로 관리한다. accepted 전이는 ticket의 owner와
+`DiagnosticsBootId`/`SubmissionMapRevision`을 ledger owner/BootId/MapRevision과 exact
+match하고, recovery commit은 proof-owned 임시 accepted guard만 허용하며 persistent 변경,
+candidate 이후 ABA 또는 PASS log 실패 시 clear하지 않는다.
 
 파일명은 한 파일에 뭉뚱그리지 않고 다음처럼 분리한다.
 
@@ -675,7 +690,7 @@ state와 D5 tracker에 모두 보존한 뒤 disarm한다. context 누락/불일�
 | `LMC_Library/LasalApiWpfTestApp/.../BulkPartialQualificationAnalysis.cs` | 4축 x 6 topology, baseline/fault/recovery 순수 계약 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, reconnect exact/0/0 discovery, hash assertion과 normal/adopted cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
-| `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive-read context와 raw manual submission context의 no-submit/rejected/uncertain/accepted disposition을 UI 비종속 callback으로 실행 |
+| `LMC_Library/LasalApiWpfTestApp/.../D5ExternalReadFailureOrchestrator.cs` | drive/raw submission disposition과 owner-bound immutable D5 quarantine ledger, atomic recovery commit을 UI 비종속으로 실행 |
 | `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
@@ -686,7 +701,7 @@ state와 D5 tracker에 모두 보존한 뒤 disarm한다. context 누락/불일�
 | `LMC_Library/.../tests/.../NegativeWireTool.cs`와 `NegativeWireToolTests.cs` | explicit mode/dry-run/live gate, fixed 5개 allowlist와 금지 command, exact response/report 계약 9개 |
 | `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
 | `LMC_Library/.../tests/.../D5ExternalReadFailureOrchestratorTests.cs` | no-submit/rejected/uncertain/accepted nonterminal/terminal/missing context와 composite 두 번째 시도 disposition 7개 자동 시험 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 244/244 PASS; 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 249/249 PASS; 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -697,7 +712,7 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 각 244/244
+1. [완료] Debug/Release API tests 각 249/249
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
 3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
@@ -746,17 +761,19 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
   선택하며 Fault/불완전 ownership은 Stop/Release 없이 보존한다.
 - [코드/빌드/PC 판정 완료, PLC live 미검증] D5 abort/recovery는 read-only preflight,
   baseline, actual raw abort code, same-Boot/Map exact recovery와 queued/running cleanup을
-  구현했다. Submit outcome unknown과 BootId mismatch를 quarantine하고 multi-evidence를
+  구현했다. Submit outcome unknown과 BootId/MapRevision mismatch를 quarantine하고 multi-evidence를
   GeneralInline `0x6061:0 Int8/1` 또는 legacy SDORead-only `0x1000:0 UInt32/4`의 서로 다른
   두 exact type/length/bytes read로 해제하며, unresolved 상태변경 gate와 15~120초
-  deadline-aware cleanup을 적용한다. 세 proof scope와 `evidenceBootIds`/`recoveryBootId`를
-  기록한다. 모든 evidence owner가 바뀌면 `newConnectionRecovery=true`지만 WPF는 항상
+  deadline-aware cleanup을 적용한다. 네 proof scope와
+  `evidenceBootIds`/`evidenceMapRevisions`, `recoveryBootId`/`recoveryMapRevision`을 기록한다.
+  혼합 evidence는 `mixed_evidence_sessions`다. 모든 evidence가 한 previous owner+identity에
+  속하면 `newConnectionRecovery=true`지만 WPF는 항상
   `orphanQualified=false`다. 실제 orphan PASS에는 별도 PLC hook/capture가 필요하다.
   새 mutation 차단 중에도 기존 resource cleanup/Stop/PowerOff/read-only는 허용한다.
   local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
 - [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
   diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
-- [완료] Debug/Release PC tests 각 244/244, 새 LASAL static contract, WPF build와 Debug
+- [완료] Debug/Release PC tests 각 249/249, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
 - [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
   capture가 필요하다.

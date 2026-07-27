@@ -10,7 +10,7 @@ Latest update: 2026-07-27
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
 > 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
 > 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
-> Debug/Release 각 244/244 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
+> Debug/Release 각 249/249 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
 > dynamic group monitor/PowerOff, D0/D1/D2 PI/Bulk와 D5 general-inline 1/2/4-byte
 > happy path를 확인했다. 같은 BootId의 의도한 TypeMismatch 실패 후 Int8/1 복구도
 > PASS했다. read-only D5 SDO abort -> recovery runner/analyzer와 internal negative-wire
@@ -79,7 +79,7 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 244/244 PASS를 확인했다.
+현재 source는 C# 자동 테스트 Debug/Release 각 249/249 PASS를 확인했다.
 LASAL SourceOnly/full static contract와 D5 runner 포함 개발 WPF Debug/Release build를
 통과했다. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS했으며 D5 panel
 visual은 별도다.
@@ -94,20 +94,26 @@ motion/group의 대표 absolute/relative/recovery 경로와 Admin read, D0/D1/D2
   general-inline 1/2/4-byte와 TypeMismatch recovery를 확인했다. 전체 25-command matrix,
   D4와 D5 나머지 fault matrix는 여전히 미완료다. D5 abort -> same-Boot recovery는 WPF
   read-only runner와 12개 analyzer 시험까지 완료했지만 실제 PLC abort/recovery packet은 없다.
-D5 runner는 submit-response 유실 전 outcome guard와 unknown-ticket quarantine, 같은
-`LMCConnection`의 BootId 변화/exact `BootIdMismatch` 및 stale local session quarantine을
-구현했다. 같은 Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전
+D5 runner는 submit-response 유실 전 outcome guard와 unknown-ticket quarantine을 적용한다.
+모든 pending-ticket cleanup은 status/cancel 전에 같은 `LMCConnection`의 BootId와 MapRevision을
+선검증하며, 둘 중 하나의 변화/exact `BootIdMismatch` 및 stale local session을 quarantine한다.
+같은 Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전
 ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해제한다. 여러
 evidence recovery는 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
 서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 stable BootId/MapRevision
-아래 확인한다. 같은 owner object+Boot의 unknown outcome 또는
-`HandleOrGenerationStale(10)`은 `same_owner_connection_recovery` proof로만 판정하고 disconnect/orphan PASS로 세지
-않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
-`new_connection_session`이다. 모든 evidence owner가 바뀐 경우는
-`newConnectionRecovery=true`일 뿐이며 WPF는 `orphanQualified=false`를 고정 기록한다.
+아래 확인한다. 모든 evidence가 current owner+BootId+MapRevision과 같은 동질 집합이면
+`same_owner_connection_recovery`, current owner와 한 previous BootId+MapRevision을 공유하면
+`new_diagnostics_identity_session`, 모두 current owner와 다르면서 한 previous
+owner+BootId+MapRevision을 공유하면 `new_connection_session`이다. owner 또는 submission
+identity가 섞이면 `mixed_evidence_sessions`이며 same/new session proof로 세지 않는다.
+`same_owner_connection_recovery`는 disconnect/orphan PASS가 아니다.
+`new_connection_session`만 `newConnectionRecovery=true`이며 WPF는
+`orphanQualified=false`를 고정 기록한다.
 실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
-필요하다. 로그는 `evidenceBootIds`, `recoveryBootId`, `proofScope`,
-`newConnectionRecovery`, `orphanQualified=false`를 분리한다. unresolved 동안
+필요하다. 로그는 `evidenceBootIds`/`evidenceMapRevisions`,
+`recoveryBootId`/`recoveryMapRevision`, `proofScope`, `mapChangedEvidence`,
+`sameIdentityEvidence`, `mixedEvidenceSessions`, `newConnectionRecovery`,
+`orphanQualified=false`를 분리한다. unresolved 동안
 Group Disable을 포함한 새 mutation과 모든
 다른 qualification은 차단하되 기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와
 read-only는 허용한다. Resolve는 same-session/new-Boot에서도 실행하며 reconnect는 외부 연결
@@ -141,6 +147,12 @@ quarantine하며, `Accepted`는 exact ticket을 manual diagnostic state와 D5 tr
 보존한 뒤 disarm한다. context 누락·불일치는 fail-closed한다. 이 보호는
 code/test 계약이며 PLC live/pcap 증거가 아니다. PI Write는 SDK compile-time allowlist empty와 WPF
 `Phase1AllowsPiWrite=false`의 button/handler 이중 차단으로 송신할 수 없다.
+WPF의 D5 quarantine은 UI 독립 ledger로 추출됐다. owner-bound opaque handle,
+TicketId/BootId/MapRevision/owner를 포함한 immutable evidence, exact-once disarm과 revision을
+사용한다. accepted `LMCOperationTicket`의 owner는 공개 `BelongsTo`로, 제출 identity는
+`DiagnosticsBootId`와 실제 제출 `SubmissionMapRevision`으로 ledger evidence에 exact
+match시킨다. recovery proof의 두 임시 accepted guard는 허용하지만 persistent evidence 변경,
+candidate 이후 ABA, PASS log 실패는 원자 clear를 거부한다.
 pending cleanup은 원 terminal deadline을 반영한 15~120초 bound다. 이 보호도 PLC
 live/pcap 증거는 아니다.
 
@@ -166,7 +178,7 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 244/244 PASS | 이전 236개 + raw `SubmitSdo` context 7개 + manual failure router 1개 |
+| C# 자동 테스트 | Debug/Release 각 249/249 PASS | 이전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
 | 개발 WPF | D5 포함 Debug/Release build PASS | startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS; D5 visual과 PLC 동작 승인은 별도 |

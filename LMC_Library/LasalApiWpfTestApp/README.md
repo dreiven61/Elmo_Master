@@ -139,8 +139,9 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   submit 응답이 유실되거나 transport 결과가 불명확하면 ticket ID를 모르는 evidence도
   quarantine에 보존한다. ticket 응답을 받은 뒤 guard 제거가 확인돼야 일반 active-ticket
   추적으로 전환한다.
-- 보존 ticket을 같은 `LMCConnection`으로 Resolve할 때도 capability BootId를 먼저 대조한다.
-  BootId가 바뀌었거나 status가 정확히 `BootIdMismatch`를 반환하면 old ticket을 조회·해제한
+- 보존 ticket의 모든 cleanup은 status/cancel 전에 같은 `LMCConnection`의 capability
+  BootId/MapRevision을 먼저 대조한다. 둘 중 하나가 바뀌었거나 status가 정확히
+  `BootIdMismatch`를 반환하면 old ticket을 조회·해제한
   것으로 간주하지 않고 stale-session quarantine으로 이동한다. local ticket의 session
   generation이 stale인 경우도 quarantine한다. 같은 Boot/session에서 status가 정확히
   `TicketNotFound`이면 one-terminal-slot 교체 계약상 이전 ticket terminal만 확정하고
@@ -148,23 +149,26 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   여러 known/unknown evidence는 그대로 유지한 채 stable BootId/MapRevision 아래 current
   capability가 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
   서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 모두 확인해야 해제된다.
-  proof scope는 정확히
-  `same_owner_connection_recovery`, `new_diagnostics_boot_session`, `new_connection_session`
-  세 가지다. 같은 owner object+Boot의 unknown outcome 또는 PLC
-  `HandleOrGenerationStale(10)`은 첫 scope이며 old terminal이나
-  disconnect/orphan 증거가 아니다. 같은 owner의 Boot 변화는 둘째 scope이고 역시 orphan
-  PASS가 아니다. 모든 격리 evidence의 owner `LMCConnection`이 현재 owner와 달라 셋째
-  scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
+  proof scope는 owner+BootId+MapRevision이 동질인 경우에만
+  `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
+  `new_connection_session` 중 하나다. current owner+identity와 모두 같으면 첫 scope,
+  current owner와 한 previous BootId+MapRevision을 공유하면 둘째 scope, 모두 current owner와
+  다르면서 한 previous owner+identity를 공유하면 셋째 scope다. owner 또는 submission
+  identity가 섞이면 `mixed_evidence_sessions`이며 same/new session 증거로 세지 않는다. 첫
+  scope는 old terminal이나 disconnect/orphan 증거가 아니고 둘째도 orphan PASS가 아니다.
+  셋째 scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
   `orphanQualified=false`를 기록한다. 셋째 scope는 새 RPC connection에서 application
   recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다.
   실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
-  필요하다. QTEST는 `evidenceBootIds`, `recoveryBootId`, `proofScope`,
-  `newConnectionRecovery`, `orphanQualified=false`를 분리 기록한다.
+  필요하다. QTEST는 `evidenceBootIds`/`evidenceMapRevisions`,
+  `recoveryBootId`/`recoveryMapRevision`, `proofScope`, `mapChangedEvidence`,
+  `sameIdentityEvidence`, `mixedEvidenceSessions`, `newConnectionRecovery`,
+  `orphanQualified=false`를 분리 기록한다.
 - unresolved ticket/evidence가 하나라도 있으면 Configure Bulk, Recorder Configure/Adopt/
   Start/Trigger, Group Disable, motion/PowerOn/Reset, manual SDO/PI, Close와 모든 다른
   qualification 같은 새 mutation을 차단한다. 기존 resource의 Bulk Release, Recorder
   Stop/Release, queued diagnostic Cancel, motion Stop/PowerOff와 read-only는 허용한다.
-  `Resolve Preserved D5 Ticket`은 같은 session/새 Boot session에서도 바로 실행할 수 있다.
+  `Resolve Preserved D5 Ticket`은 같은 session/새 diagnostics identity session에서도 바로 실행할 수 있다.
   reconnect 자체는 외부 connection loss 뒤에만 허용하며 새 connection에서 Resolve한다.
   `D5SdoPendingCleanup` Resolve는 기존 `qualificationLogLines`를 지우지 않고 이어 쓰며
   `D5_LOG_CONTINUATION`을 기록한다. 따라서 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 resolution
@@ -179,7 +183,7 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   공용 `LMCSdoSubmissionOutcome`의 `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted`
   중 하나다. 기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을
   유지한다. 실제 Submit에 사용한 capability `DiagnosticsBootId`와 `MapRevision`, accepted
-  ticket과 마지막 status도 snapshot에 함께 보존한다. WPF는 submit 없음/명시적
+  ticket의 실제 제출 `SubmissionMapRevision`과 마지막 status도 snapshot에 함께 보존한다. WPF는 submit 없음/명시적
   rejection/terminal이면 guard를 해제하고,
   `OutcomeUncertain`이면 실제 capability identity로 unknown evidence를 보정해 quarantine한다.
   accepted nonterminal은 정확한 ticket을 보존한 뒤 guard를 해제한다. context가 없거나 서로
@@ -190,11 +194,19 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
   `PostSubmissionValidation`의 5개이고 outcome은 같은 `LMCSdoSubmissionOutcome`을 사용한다.
   실제 dispatch에는 capability `DiagnosticsBootId`/`MapRevision`을 기록하고 `Accepted`에는
-  exact ticket을 보존한다. WPF manual router는 `NotAttempted`와 `Rejected`에서 guard를
+  같은 `DiagnosticsBootId`/`SubmissionMapRevision`을 가진 exact ticket을 보존한다. WPF manual router는 `NotAttempted`와 `Rejected`에서 guard를
   해제하고, `OutcomeUncertain`은 실제 identity로 evidence를 보정해 quarantine한다. `Accepted`
   failure는 이전 manual status/result/cancel flag를 지우고 exact ticket을 manual operation
   state와 D5 tracker에 모두 보존한 뒤 guard를 해제한다. context 누락이나 불일치는
   fail-closed한다.
+- D5 tracker의 quarantine evidence는 UI field 안의 mutable list가 아니라 잠금된 ledger에
+  저장한다. opaque handle은 생성 ledger와 exact entry에 귀속되고, evidence snapshot은
+  TicketId/BootId/MapRevision/owner/stage/reason/revision을 불변 복사한다. accepted 전이는
+  `LMCOperationTicket.BelongsTo`로 owner connection을 확인하고 ticket의
+  `DiagnosticsBootId`/`SubmissionMapRevision`을 ledger BootId/MapRevision과 exact match한다. recovery proof는 시작
+  snapshot과 최종 snapshot의 전체 내용·순서·revision을 비교하되 proof 자체의 두 임시
+  accepted ticket arm/disarm은 허용한다. PASS log callback과 clear는 같은 ledger lock에서
+  commit하므로 로그 실패나 concurrent mutation이면 evidence를 삭제하지 않는다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
@@ -222,8 +234,8 @@ packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 현재 API Debug/Release는 각각
-244/244 PASS다. 직전 236개에 raw `SubmitSdo[Async]` context 등록 7개와 manual failure router
-1개가 추가됐다. D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
+249/249 PASS다. 직전 244개에 UI 독립 D5 quarantine ledger 상태 전이/복구 commit 계약 시험
+5개가 추가됐다. D5 runner 포함 Debug/Release build도 PASS했지만 D5 panel visual smoke는
 대기 중이다.
 이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
 

@@ -44,14 +44,14 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 244/244 tests가 PASS했다. 직전 236개에 raw `SubmitSdo[Async]` context
-  등록 7개와 manual failure router 1개가 추가됐다. 개발 WPF build도
+  Debug/Release 각 249/249 tests가 PASS했다. 직전 244개에 UI 독립 D5 quarantine ledger
+  상태 전이/복구 commit 계약 시험 5개가 추가됐다. 개발 WPF build도
   PASS했다. LASAL
   Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
   아직 수행하지 않았다.
   Group/Bulk/Recorder 자동 qualification, Recorder exact/0/0 reconnect-adopt와 read-only
   D5 abort/recovery runner, internal negative-wire 도구는 code/build/test 단계까지만 완료됐으며
-  D5에는 submit-outcome unknown quarantine, same-connection BootId mismatch 격리,
+  D5에는 submit-outcome unknown quarantine, same-connection BootId/MapRevision mismatch 격리,
   multi-evidence two-ticket recovery proof와 unresolved 상태변경 gate까지 반영됐다.
   PLC live, fault, stale identity, reconnect/adopt/abort/raw rejection wire
   evidence, RT evidence와 장비 안전 matrix가 남아 production
@@ -91,7 +91,7 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 244/244 PASS | 직전 236개 + raw `SubmitSdo[Async]` context 등록 7개 + manual failure router 1개; PLC 통합과 별도 |
+| PC 자동 테스트 | 현재 Phase 5 all-failure-context worktree Debug/Release 각 249/249 PASS | 직전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit 5개; PLC 통합과 별도 |
 | 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId quarantine, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
@@ -547,13 +547,13 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
    최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
    `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
-   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 244/244 tests가 exact table,
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 249/249 tests가 exact table,
    header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
 2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
    `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
    거부하고 기존 4-byte command error 의미는 보존한다. PMAS 38개와 SIGMATEK 32개
    capture sample에서 descriptor mismatch 0건을 확인했으며 mismatch 회귀 시험을
-   현재 244-test suite에 포함된다.
+   현재 249-test suite에 포함된다.
 3. read-only `0x2045` qualification의 요청 수 경계, nearest-rank percentile,
    throughput, SHA-256/raw cleanup, PASS evidence와 FAIL/ABORTED CSV 계약을 UI 독립
    `TransportQualificationAnalysis`로 분리했다. 같은 source를 PC test project에 linked
@@ -698,25 +698,31 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   completion, Bulk partial/recovery, reconnect/adopt 및 D5 abort/recovery wire evidence와
   RT evidence는 없다.
 - D5 Submit은 wire 호출 전에 outcome evidence를 arm한다. explicit PLC reject가 아닌
-  응답 유실/transport uncertainty는 ticket ID 0 evidence로 보존한다. accepted ticket은
-  owner connection과 terminal deadline을 보존하며 cleanup은 남은 deadline+1초를 반영한
+  응답 유실/transport uncertainty는 ticket ID 0 evidence로 보존한다. accepted
+  `LMCOperationTicket`은 owner connection, `DiagnosticsBootId`, 실제 제출
+  `SubmissionMapRevision`과 terminal deadline을 보존하며 cleanup은 남은 deadline+1초를 반영한
   최소 15초/최대 120초 bound를 사용한다.
-- Resolve 중 같은 `LMCConnection`의 capability BootId가 바뀌거나 status가 exact
+- 모든 pending-ticket cleanup은 status/cancel 전에 같은 `LMCConnection`의 capability BootId와
+  MapRevision을 선검증한다. 둘 중 하나가 바뀌거나 status가 exact
   `BootIdMismatch`면 old terminal을 추정하지 않고 known ticket을 stale-session quarantine한다.
   stale local session exception도 quarantine한다. 같은 Boot/session의 exact `TicketNotFound`는
   one-terminal-slot 교체 계약상 이전 ticket terminal만 증명하므로 `TERMINAL_INFERRED`,
   outcome `UNKNOWN`으로 해제한다. known/unknown evidence 전체는 stable BootId/MapRevision 아래
   GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes가 같고 proof 중 목록이 불변일 때만 해제한다.
-  같은 owner object+Boot의 unknown outcome 또는 `HandleOrGenerationStale(10)`은
-  `same_owner_connection_recovery` proof이며 disconnect/orphan
-  PASS가 아니다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
-  `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
-  `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 이는 새 RPC
+  owner+BootId+MapRevision이 동질인 경우에만 current owner+identity는
+  `same_owner_connection_recovery`, current owner+한 previous identity는
+  `new_diagnostics_identity_session`, 한 previous owner+identity는 `new_connection_session`이다.
+  owner 또는 submission identity가 섞이면 `mixed_evidence_sessions`이며 same/new session
+  proof로 세지 않는다. 첫 scope는 disconnect/orphan PASS가 아니다.
+  `new_connection_session`은 `newConnectionRecovery=true`지만 WPF는 항상
+  `orphanQualified=false`다. 이는 새 RPC
   connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나
   late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket, 실제
-  owner loss와 별도 PLC hook/capture가 필요하다. 로그는 `evidenceBootIds`, `recoveryBootId`,
-  `proofScope`, `newConnectionRecovery`, `orphanQualified=false`를 분리한다.
+  owner loss와 별도 PLC hook/capture가 필요하다. 로그는
+  `evidenceBootIds`/`evidenceMapRevisions`, `recoveryBootId`/`recoveryMapRevision`,
+  `proofScope`, `mapChangedEvidence`, `sameIdentityEvidence`, `mixedEvidenceSessions`,
+  `newConnectionRecovery`, `orphanQualified=false`를 분리한다.
   unresolved 동안 Group Disable 포함 새 mutation/모든 다른 qualification/Close/connected
   reconnect는 차단한다.
   기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와 read-only는 허용하며 reconnect는
@@ -731,7 +737,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   `LMCSdoSubmissionOutcome`의 `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted`이다.
   기존 `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome`은 호환용으로 같은 값을 유지한다.
   snapshot에는 실제 capability의
-  `DiagnosticsBootId`/`MapRevision`, accepted ticket과 마지막 valid status가 포함된다. WPF는
+  `DiagnosticsBootId`/`MapRevision`, 실제 제출 `SubmissionMapRevision`을 가진 accepted ticket과
+  마지막 valid status가 포함된다. WPF는
   no-submit/rejected/accepted-terminal이면 guard를 해제하고, uncertain이면 실제 Submit
   identity로 unknown evidence를 보정해 quarantine하며, accepted nonterminal이면 exact ticket을
   보존한다. context 누락/불일치는 fail-closed한다. 수동 `Submit SDO Read`의 raw
@@ -743,6 +750,16 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   들어간다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를 reconcile해
   quarantine한다. accepted ticket은 manual operation state와 D5 tracker에 모두 보존한 뒤
   disarm하며 context 누락/불일치는 fail-closed한다.
+- D5 quarantine 저장은 `MainWindow`의 mutable evidence list에서 UI 독립
+  `D5SdoQuarantineLedger`로 이동했다. ledger는 owner-bound opaque handle, immutable deep
+  snapshot, entry/global revision과 exact-once disarm을 사용한다. accepted ticket은
+  `LMCOperationTicket.BelongsTo`로 `LMCConnection` owner를 확인하고 ticket의
+  `DiagnosticsBootId`/`SubmissionMapRevision`을 실제 BootId/MapRevision과 exact match한 뒤
+  unknown evidence를 known evidence로 전이해 active state에 보존한다. recovery
+  clear는 baseline/candidate evidence 전체 내용·순서·revision 및 candidate current version을
+  한 lock에서 확인하고 PASS log callback 성공과 함께 commit한다. proof 자체의 임시
+  accepted guard 두 개는 최종 상태가 원복되면 허용하지만 persistent evidence 변경,
+  candidate 이후 ABA, log 실패는 clear하지 않는다.
 - Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
   Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
@@ -768,8 +785,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 확인된 범위:
 
 - 현재 Phase 5 all-failure-context worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 244/244 PASS. 직전 236개에 raw `SubmitSdo[Async]` context 등록 7개와 manual
-  failure router 1개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
+  Debug/Release 각 249/249 PASS. 직전 244개에 UI 독립 D5 quarantine ledger 상태 전이/복구
+  commit 계약 시험 5개가 추가됐으며, 53-command response payload hard limit, AxisInfo descriptor,
   qualification analysis, callback lifecycle, internal negative-wire, D5 abort/recovery analyzer와
   largest variable response의 max/max+1 transport 경계를 포함한다.
 - 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.

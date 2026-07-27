@@ -71,16 +71,19 @@
   `Failed/Failed`, `OperationErrorId=-32000`, nonzero raw abort code, result 없음이며
   recovery는 새 ticket의 `0x6061:0 Int8/1` exact baseline 값 성공
 - WPF build 범위에는 Submit 전 outcome guard/unknown-ticket quarantine, same-connection
-  BootId change, exact `BootIdMismatch`와 stale local session quarantine이 포함된다. 같은
+  BootId 또는 MapRevision change, exact `BootIdMismatch`와 stale local session quarantine이
+  포함된다. 같은
   Boot/session의 exact `TicketNotFound`는 terminal-slot 교체 계약상 이전 ticket terminal만
   증명하고 outcome `UNKNOWN`으로 해제한다. multi-evidence recovery는 GeneralInline이면
   서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 검증한다. unresolved Group Disable
   포함 새 mutation gate와 15~120초 deadline-aware cleanup도 포함된다.
   기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와 read-only는 계속 허용한다.
-  proof scope는 `same_owner_connection_recovery`, `new_diagnostics_boot_session`,
-  `new_connection_session`으로 나뉘며,
-  모든 evidence owner가 바뀐 셋째 scope는 `newConnectionRecovery=true`만 뜻한다.
+  proof scope는 owner+BootId+MapRevision이 동질인 경우에만
+  `same_owner_connection_recovery`, `new_diagnostics_identity_session`,
+  `new_connection_session`으로 나뉜다. owner 또는 submission identity가 섞인 evidence는
+  `mixed_evidence_sessions`이며 same/new session으로 세지 않는다. 모든 evidence가 한 previous
+  owner+identity에 속하는 `new_connection_session`만 `newConnectionRecovery=true`를 뜻한다.
   WPF는 `orphanQualified=false`를 고정 기록하며 실제 orphan PASS에는 known Running old
   ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다. `D5SdoPendingCleanup`
   Resolve는 기존 qualification log에 `D5_LOG_CONTINUATION`을 이어 써 원래
@@ -113,6 +116,13 @@
   1개는 no-submit/rejected/uncertain/accepted의
   disposition callback과 accepted ticket 보존-before-disarm 순서를 검사한다. MainWindow의
   실제 field 변경, identity reconcile log, UI 동작을 실행하는 시험은 아니다.
+- D5 quarantine ledger 5개는 unknown arm/exact-once disarm, immutable evidence snapshot과
+  identity reconcile revision, accepted ticket의 owner와
+  `DiagnosticsBootId`/`SubmissionMapRevision` exact 전이,
+  foreign/stale handle 및 duplicate ticket 거부, proof 중 두 accepted 임시 guard 허용,
+  persistent evidence 변경과 candidate 이후 ABA 거부, PASS log callback 실패 시 무삭제를
+  검사한다. `LMCOperationTicket.BelongsTo`의 owner reference 및 제출
+  `SubmissionMapRevision` 계약도 이 경로에서 확인한다.
   PI Write는 SDK compile-time allowlist empty와 WPF button/handler 이중 차단을 적용한다.
   이 항목은 code/test 계약이며 PLC live/pcap 증거가 아니다.
 
@@ -144,16 +154,16 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `244/244 PASS`
+- `RunPcTests`: Debug/Release 각 `249/249 PASS`
   (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
   callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
   aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
   recovery, Fault no-mutation, cancel/Stop-race/release retry/quarantine 및 cleanup
   state/route/manual-recovery policy, Bulk cancel/release retry와 one-slave-partial 순수 판정,
   internal negative-wire 9개, D5 abort/recovery analyzer 12개와 drive-read command
-  stage/ticket 및 non-domain 계약 2개 포함; 추가 19개: external-read WPF routing
+  stage/ticket 및 non-domain 계약 2개 포함; 추가 24개: external-read WPF routing
   orchestrator 7개 + all-failure facade context 4개 + raw `SubmitSdo` context 7개 +
-  manual failure router 1개)
+  manual failure router 1개 + D5 quarantine ledger 5개)
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,

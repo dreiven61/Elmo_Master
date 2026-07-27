@@ -8,7 +8,7 @@
   `ONE_Comm_Network_Table.st` external connection text를 26개에서 16개로 줄였다. tracked
   `Classes.lcb`/`Networks.lcb`도 transport-only registration과 network tuple 계약을 만족해
   switch 없는 `Phase5TransportClean` SourceOnly/full static이 PASS했다. 현재 worktree의 PC
-  Debug/Release 각 244/244 tests와 개발 WPF Debug/Release build도 PASS했다. 2026-07-24
+  Debug/Release 각 249/249 tests와 개발 WPF Debug/Release build도 PASS했다. 2026-07-24
   14:40~14:46 LASAL log에서 현재 Phase 5 main project의 Compiler/Linker 완료,
   ERROR/FATAL 0건과 `CInvalidArgException` 0건을 확인했다. `Find in Implementation` smoke와
   PLC runtime은 아직 검증하지 않았다
@@ -455,7 +455,7 @@ required Diagnostics client가 끊긴 비정상 topology에서는 기존 local d
 - verifier/csproj에 `Phase5TransportClean`을 구현했다. switch 없는 SourceOnly/full static이
   PASS했으며 `-AllowStaleLasalBinaryMetadata` 없이 binary registration gate까지 통과했다.
   이 결과는 LASAL IDE Rebuild/Link나 PLC runtime 증거와는 별개다.
-- 현재 Phase 5 worktree에서 PC Debug/Release 각 244/244 tests가 PASS했다. 개발 WPF
+- 현재 Phase 5 worktree에서 PC Debug/Release 각 249/249 tests가 PASS했다. 개발 WPF
   build도 PASS해 임시 Phase 4 snapshot 결과를 대체한다.
 - PC response reader는 53개 command 각각의 정상 최대 payload를 body read 전에 검사한다.
   가장 큰 정상 payload는 Recorder chunk의 1,972 bytes이고, 초과 선언은 stream desync를
@@ -540,7 +540,7 @@ IDE 적용 전 external source/XML/`ONE_*` table만 중간 점검할 때는 veri
 다음과 같다.
 
 - switch 없는 default SourceOnly/full: PASS
-- PC Debug/Release: 각 244/244 PASS
+- PC Debug/Release: 각 249/249 PASS
 - 개발 WPF Debug/Release build: 경고 0, 오류 0
 - `git diff --check`: PASS
 - LASAL main project Compiler/Linker, ERROR/FATAL 0, `CInvalidArgException` 0: PASS
@@ -559,8 +559,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
 ```
 
 - Phase 5 all-failure-context source 기준 전체 C# request/parser tests Debug/Release 각
-  244/244 PASS. 직전 236개에 raw `SubmitSdo[Async]` context 등록 7개와 manual failure
-  router 1개가 추가됐다.
+  249/249 PASS. 직전 244개에 UI 독립 D5 quarantine ledger 상태 전이/복구 commit 계약
+  시험 5개가 추가됐다.
 - D5 WPF runner는 transport/domain 분리를 유지한 public API 경로로 Submit 전 outcome
   guard/unknown-ticket quarantine, same-connection BootId/exact `BootIdMismatch` quarantine,
   stale local session quarantine과 capability별 two-ticket recovery proof를 구현했다.

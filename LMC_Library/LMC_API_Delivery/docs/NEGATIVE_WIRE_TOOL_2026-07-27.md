@@ -3,7 +3,7 @@
 - 작성일: 2026-07-27
 - 위치: `tests/LasalMotionControlLib.Tests/NegativeWireTool.cs`
 - 실행 파일: `LasalMotionControlLib.Tests.exe`
-- 상태: PC Debug/Release 각 244/244 중 전용 계약 시험 9개와 dry-run PASS;
+- 상태: PC Debug/Release 각 249/249 중 전용 계약 시험 9개와 dry-run PASS;
   실제 PLC raw rejection/pcap은 미실행
 
 ## 목적과 경계
@@ -17,8 +17,8 @@ SDK에 포함되지 않으며 임의 command ID, reference 또는 hex payload를
 allowlist는 아래 다섯 고정 시나리오뿐이다. motion, Admin, 모든 write, SDO Submit,
 Recorder 명령은 생성하거나 송신할 수 없다.
 
-전체 244개는 이전 236개 + raw `SubmitSdo` context 7개 + manual failure router
-1개다. drive facade context는 원래 exception 객체/타입/stack을 바꾸지 않고
+전체 249개는 이전 244개 + UI 독립 D5 quarantine ledger 상태 전이/복구 commit
+5개다. drive facade context는 원래 exception 객체/타입/stack을 바꾸지 않고
 `LMCDriveReadFailureContext.TryGet`으로 제공한다. drive phase는
 `FacadePreflight`/`AxisStatusRead`/`CapabilityPreflight`/`Submission`/`StatusPolling`/
 `ResultMaterialization`, `GenericSubmissionOutcome`은 공용 `LMCSdoSubmissionOutcome`

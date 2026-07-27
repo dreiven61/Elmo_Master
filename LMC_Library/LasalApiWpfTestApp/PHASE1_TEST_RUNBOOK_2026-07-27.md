@@ -35,9 +35,9 @@ Default Debug executable after a normal build:
 
 `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Debug/LasalMotionControlApiExample.exe`
 
-Current PC baseline: API tests `Debug 244/244 PASS`, `Release 244/244
-PASS`; this is the prior 236 tests plus seven raw `SubmitSdo[Async]` context
-registration tests and one manual failure-router test. WPF `Debug/Release
+Current PC baseline: API tests `Debug 249/249 PASS`, `Release 249/249
+PASS`; this is the prior 244 tests plus five UI-independent D5 quarantine
+ledger state-transition and recovery-commit tests. WPF `Debug/Release
 build PASS`.
 
 PI Write is deliberately disabled in the Phase 1 WPF UI and handler. The SDK
@@ -132,7 +132,8 @@ attempt reports the shared `LMCSdoSubmissionOutcome` through
 `Accepted`. The legacy `SubmissionOutcome`/`LMCSdoReadSubmissionOutcome` getter
 keeps the same value for source and binary compatibility. The snapshot also carries the
 actual capability `DiagnosticsBootId` and `MapRevision` used for Submit, an
-accepted ticket, and the last valid operation status when available.
+accepted ticket whose actual submitted map is `SubmissionMapRevision`, and the
+last valid operation status when available.
 
 The WPF releases the guard for no-submit, explicit rejection, and accepted
 terminal failures. It quarantines `OutcomeUncertain` with the actual Submit
@@ -152,6 +153,15 @@ manual operation state and the D5 tracker and then disarming.
 Missing or inconsistent context fails closed. Save the log, and do not classify
 any quarantine as a PLC failure without packet evidence.
 
+The quarantine ledger keeps immutable ticket/BootId/MapRevision/owner evidence.
+An accepted ticket is admitted only when `BelongsTo` confirms the owner and its
+`DiagnosticsBootId`/`SubmissionMapRevision` exactly match the evidence identity.
+Recovery clears it only when the baseline and final evidence sequences are
+identical, the final snapshot is still current, and the PASS log callback
+succeeds. The two proof reads may arm, accept, and disarm their own temporary
+guards; any persistent reconcile/transition/replacement or post-snapshot
+mutation keeps the quarantine unresolved.
+
 External manual/drive tracking lines use their own
 `scenario=D5ExternalTracking:<stage>` run ID. They must not inherit the run ID
 or scenario of the previously completed Group/Bulk/Recorder qualification.
@@ -161,18 +171,21 @@ Recovery uses two distinct tickets with exact type, length, and byte equality:
 `0x1000:0 UInt32/4` read on an SDORead-only PLC. `TicketNotFound` during known
 ticket cleanup means the PLC terminal slot was replaced: it proves the prior
 ticket had become terminal, but its outcome remains `UNKNOWN`. A stale local
-connection session is quarantined instead of being treated as terminal.
+connection session is quarantined instead of being treated as terminal. During
+active resolution, either a current BootId change or a current MapRevision
+change quarantines the ticket before status polling.
 
-`same_owner_connection_recovery` proves only that two distinct known-valid
-reads can run after an uncertain submit outcome or an owner-session
-`HandleOrGenerationStale(10)` response. It does not prove disconnect/orphan
-cleanup or the old ticket's terminal state. `new_connection_session` with
-`newConnectionRecovery=true` proves the new
-connection can submit two valid reads, but it still does not by itself prove
-the PLC's internal orphan/late-callback path. WPF always records
-`orphanQualified=false`; that matrix needs separate PLC instrumentation and/or
-approved capture evidence. `new_diagnostics_boot_session` is a separate PLC
-Boot recovery case.
+Only homogeneous owner+BootId+MapRevision evidence receives a same/new-session
+scope. Evidence matching the current owner and identity is
+`same_owner_connection_recovery`; evidence on the current owner with one
+previous BootId+MapRevision is `new_diagnostics_identity_session`; evidence on
+one previous owner and identity is `new_connection_session`. Mixed owner or
+submission identities are `mixed_evidence_sessions`, not one of those
+same/new-session proofs. The same-owner scope does not prove disconnect/orphan
+cleanup or the old ticket's terminal state. The new-connection scope proves
+only that a new RPC connection can submit two valid reads. WPF always records
+`orphanQualified=false`; actual orphan/late-callback qualification needs
+separate PLC instrumentation and/or approved capture evidence.
 
 Suggested capture name:
 

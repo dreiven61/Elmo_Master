@@ -340,12 +340,13 @@ var raw = checked((int)Math.Round(
   Stop이나 transport close 없이 원래 terminal deadline의 남은 시간+1초를 반영한다.
   cleanup wait는 최소 15초, 최대 120초이며, 끝나지 않으면 ticket identity를 지우지 않은
   채 cleanup timeout으로 실패한다.
-- Submit wire 호출 전에 ticket ID 0의 outcome evidence를 먼저 quarantine list에 넣는다.
+- Submit wire 호출 전에 ticket ID 0의 outcome evidence를 먼저 quarantine ledger에 넣는다.
   명시적 PLC command rejection이면 제거하고, 응답 유실/transport 예외면 unknown-ticket
   evidence로 보존한다. ticket 응답을 받았으면 active ticket/owner connection/deadline을
   먼저 저장한 뒤 outcome evidence 제거 성공을 확인한다.
-- Resolve는 같은 `LMCConnection`에서도 current capability BootId를 old ticket BootId와
-  먼저 비교한다. 변경됐거나 status가 exact `BootIdMismatch`면 old terminal을 추정하지 않고
+- 모든 pending-ticket cleanup은 status/cancel 전에 같은 `LMCConnection`의 current capability
+  BootId/MapRevision을 old ticket의 `DiagnosticsBootId`/`SubmissionMapRevision`과 먼저
+  비교한다. 둘 중 하나가 변경됐거나 status가 exact `BootIdMismatch`면 old terminal을 추정하지 않고
   known ticket을 stale-session quarantine으로 이동한다. local ticket의 session generation이
   stale인 예외도 quarantine한다. 같은 Boot/session의 exact `TicketNotFound`는 terminal-slot
   교체 계약상 이전 ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로
@@ -354,17 +355,20 @@ var raw = checked((int)Math.Round(
   모두 같은 slave여야 자동 recovery proof가 가능하다. stable BootId/MapRevision 아래 서로
   다른 두 ticket을 사용하되 GeneralInline capability면 `0x6061:0 Int8/1`, legacy
   SDORead-only면 `0x1000:0 UInt32/4`를 선택한다. 두 결과의 exact type/length/bytes가 같고 proof
-  동안 evidence 목록이 불변일 때만 quarantine 전체를 해제한다. scope는
-  `same_owner_connection_recovery`,
-  `new_diagnostics_boot_session`, `new_connection_session` 세 가지다. 같은 owner object+Boot의
-  unknown outcome 또는 `HandleOrGenerationStale(10)`은 current-owner recovery만,
-  같은 owner의 Boot 변화는 diagnostics-Boot session만
-  증명하며 둘 다 orphan PASS가 아니다. 모든 evidence owner가 현재 `LMCConnection`과 달라
-  new-connection scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
+  동안 evidence 목록이 불변일 때만 quarantine 전체를 해제한다. owner+BootId+MapRevision이
+  동질인 경우에만 scope는 `same_owner_connection_recovery`,
+  `new_diagnostics_identity_session`, `new_connection_session` 중 하나다. current owner와
+  current identity를 모두 공유하면 첫 scope, current owner와 한 previous identity를 공유하면
+  둘째 scope, 모두 current owner와 다르면서 한 previous owner+identity를 공유하면 셋째
+  scope다. owner 또는 submission identity가 섞이면 `mixed_evidence_sessions`이며 same/new
+  session 증거로 세지 않는다. 첫 scope와 둘째 scope는 orphan PASS가 아니다. 셋째 scope가
+  성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
   `orphanQualified=false`를 기록한다. 이 scope는 새 RPC connection에서 application recovery가
   성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다. 실제
   orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
-  QTEST는 `evidenceBootIds`, `recoveryBootId`, `proofScope`, `newConnectionRecovery`,
+  QTEST는 `evidenceBootIds`/`evidenceMapRevisions`,
+  `recoveryBootId`/`recoveryMapRevision`, `proofScope`, `mapChangedEvidence`,
+  `sameIdentityEvidence`, `mixedEvidenceSessions`, `newConnectionRecovery`,
   `orphanQualified=false`를 따로 기록한다.
 - unresolved가 하나라도 있으면 Configure Bulk, Recorder Configure/Adopt/Start/Trigger,
   Group Disable, motion/PowerOn/Reset, manual SDO/PI, Close와 모든 다른 qualification 같은
@@ -396,18 +400,25 @@ var raw = checked((int)Math.Round(
   `RequestValidation`, `SessionPreflight`, `CapabilityPreflight`, `Submission`,
   `PostSubmissionValidation`의 5개이고 같은 `LMCSdoSubmissionOutcome`을 사용한다. dispatch된
   attempt는 실제 capability `DiagnosticsBootId`/`MapRevision`을 보존하고 accepted failure는
-  exact ticket을 가진다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를
+  같은 `DiagnosticsBootId`/`SubmissionMapRevision`을 가진 exact ticket을 보존한다. manual router는 no-submit/rejected를 disarm하고 uncertain identity를
   reconcile해 quarantine한다. accepted ticket은 이전 manual status/result/cancel flag를
   초기화하고 manual operation state와 D5 tracker 양쪽에 보존한 뒤 disarm하며, context
   누락/불일치는 fail-closed한다.
+- D5 quarantine은 UI field의 mutable list가 아니라 `D5SdoQuarantineLedger`가 소유한다.
+  owner-bound opaque handle, immutable evidence snapshot, entry/global revision과 exact-once
+  disarm을 사용한다. accepted ticket은 `LMCOperationTicket.BelongsTo`로 owner connection을
+  검증하고 ticket의 `DiagnosticsBootId`/`SubmissionMapRevision`을 actual BootId/MapRevision과
+  exact match한 뒤 전이한다. recovery는 proof 자체의 두 임시 accepted
+  guard는 허용하지만 persistent evidence 변경이나 candidate 이후 ABA를 거부하며, PASS log
+  callback 성공과 clear를 같은 ledger lock에서 commit한다.
 
 ### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
-gate 확인일 뿐이다. API Debug/Release는 각각 244/244 PASS다. 직전 236개에 raw
-`SubmitSdo[Async]` context 등록 7개와 manual failure router 1개가 추가됐다. Group queue chaining/Stop-first wire
+gate 확인일 뿐이다. API Debug/Release는 각각 249/249 PASS다. 직전 244개에 UI 독립 D5
+quarantine ledger 상태 전이/복구 commit 계약 시험 5개가 추가됐다. Group queue chaining/Stop-first wire
 order, 수정된 `0x2047`,
 Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
 D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
