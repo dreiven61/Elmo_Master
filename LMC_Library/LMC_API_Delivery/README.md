@@ -8,7 +8,7 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 
 ## 개발 상태
 
-2026-07-23 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
+2026-07-27 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
@@ -49,11 +49,17 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 148/148 PASS
-  (Phase 1 회귀와 Phase 2 `0x7D22` golden/validation/parser/fake-RPC/capability/generation 포함)
+- C# 자동 테스트 runner: Debug/Release 각 223/223 PASS
+  (Phase 1/2 회귀, 53-command response hard limit, AxisInfo descriptor,
+  read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
+  two-session exact/discovery adoption, pre-close transport-fault exact recovery,
+  Fault mutation 차단, cancel/Stop-race/release retry/quarantine, Bulk cleanup/retry와
+  one-slave-partial 순수 판정, Group Stop-first fallback/UI-context orchestration,
+  internal negative-wire 계약 9개와 D5 abort/recovery analyzer 12개 포함)
 - LASAL SourceOnly/full static contract: PASS; `Classes.lcb` general `TryStartRead`
   declaration과 current source 동기화 확인
-- 개발 WPF example Debug/Release build와 각 3초 startup smoke: PASS
+- 개발 WPF example Debug/Release build: PASS. startup smoke는 기존
+  Group/Bulk/Recorder panel까지 PASS이며 D5 panel visual은 별도
 - DiagnosticsBootCounter/D1~D4 single-bank와 gate-off D5 source LASAL IDE
   Rebuild/Link: 0 error, version mismatch warning. gate-on fixed-source runtime download는
   BootId 5 capture로 확인했지만 대응 IDE build/smoke log는 미보존
@@ -64,7 +70,9 @@ Ring/Trigger와 D5 예약 공개 API가 포함됩니다.
 - diagnostics PLC: `11_PI_Bulk_Regression`의 D0/D1/D2 happy path와
   `10_DriveRead_Axis1to4`/`12_SDO_GeneralInline_4Byte_FailureRecovery`의
   general-inline 1/2/4-byte 및 same-BootId TypeMismatch recovery packet PASS.
-  D1/D2 fault/soak, D3/D4 전체와 D5 나머지 fault matrix는 별도
+  D1/D2 partial 판정 코드는 완료됐지만 fault/soak live capture, D3/D4 전체와
+  D5 나머지 fault matrix는 별도. read-only D5 abort -> known-valid recovery WPF runner와
+  순수 판정 코드는 build/test 완료했지만 PLC live와 pcap은 미검증
 
 기존 motion/control PC API 범위는 캡처 기반 23개 command와 LASAL local motion
 extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
@@ -75,9 +83,43 @@ D4 single-bank Ring/Edge/Window/Mask/forced Trigger와 D5 general-inline SDO Rea
 D5의 legacy `0x1000:0` 4축 path와 general-inline 1/2/4-byte SDO Read는 live packet으로
 확인했다. 의도한 TypeMismatch terminal failure 뒤 같은 BootId의 다음 Int8/1 ticket
 success도 확인했다. offline/abort, timeout, queued cancel, disconnect/orphan과
-contention은 아직 production qualification으로 남아 있다.
+contention은 아직 production qualification으로 남아 있다. abort -> recovery는
+`0x6061:0 Int8/1` baseline과 같은 BootId/MapRevision의 복구를 판정하는 WPF runner까지
+구현했지만 실제 abort code와 recovery packet은 아직 확보하지 않았다.
+
+D5 qualification은 Submit 전에 outcome evidence를 arm해 응답 유실을 unknown-ticket로
+quarantine한다. accepted ticket은 owner `LMCConnection`과 15~120초 deadline-aware cleanup
+정보를 보존한다. Resolve 중 같은 connection의 BootId 변화, exact `BootIdMismatch` 또는
+stale local session은 old terminal로 간주하지 않고 quarantine한다. 반면 같은 Boot/session의
+exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전 ticket이 terminal이었다는 사실만
+증명한다. 상태는 `TERMINAL_INFERRED`, outcome은 `UNKNOWN`으로 기록하고 해당 ticket을 해제한다.
+여러 evidence의 recovery proof는 current capability가 GeneralInline이면 서로 다른 두
+`0x6061:0 Int8/1` ticket, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket을
+사용한다. stable BootId/MapRevision 아래 두 결과의 exact type/length/bytes가 같고 proof 중
+evidence 목록이 불변일 때만 quarantine을 해제한다. 같은 owner+Boot의 unknown outcome은
+`same_session_executor_reuse` proof일 뿐
+old terminal/disconnect/orphan PASS가 아니다. 같은 owner의 Boot 변화는 별도
+`new_diagnostics_boot_session`, owner connection 변화는 `new_connection_session`이다.
+모든 evidence의 owner가 바뀐 셋째 scope는 `newConnectionRecovery=true`로 기록하지만,
+WPF는 항상 `orphanQualified=false`로 기록한다. 이는 새 RPC connection에서 application
+recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다.
+실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
+필요하다. 로그는 `evidenceBootIds`, `recoveryBootId`, `proofScope`,
+`newConnectionRecovery`, `orphanQualified=false`를 구분한다. unresolved
+동안 Group Disable을 포함한 새 mutation과 모든 다른 qualification은 차단하되 기존 Bulk/Recorder/queued-ticket
+cleanup, Stop/PowerOff와 read-only는 허용한다. Resolve는 same-session/new-Boot에서도
+실행할 수 있고 reconnect는 외부 connection loss 뒤 new-connection proof에만 사용한다.
+`D5SdoPendingCleanup` Resolve는 기존 qualification log를 지우지 않고 이어 쓰며
+`D5_LOG_CONTINUATION`을 남겨 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 해결 증거를 같은 QTEST
+log에 보존한다.
+Phase 1 read-only facade는 pre-submit/status 어느 단계에서 예외가 났는지와 ticket을 모든
+예외형에서 노출하지 않는다. WPF가 이 경우 unknown evidence를 보존해 false quarantine할 수
+있지만 fail-closed 동작이며, SDK exception에 stage+ticket을 노출하는 것은 후속 UX 부채다.
 D4 Double bank와 D5 PI/SDO Write 및 extended
 result는 capability-off라 호출 전에 차단되거나 `UnsupportedFeature`가 반환된다.
+Phase 1 WPF의 PI Write는 SDK compile-time allowlist가 empty인 것에 더해
+`Phase1AllowsPiWrite=false`가 입력/button을 비활성화하고 click handler도 다시 거부하는
+이중 차단이다.
 PI/Bulk compatibility facade는 `CreatePIBulkBuilder(catalog)`와 alias `ReadPI`로 구현했다.
 builder는 catalog의 exact `MapRevision`, readable flag, 최대 32개와 중복을 검사하며,
 `Upload` 뒤 `GetEntry/TryGetEntry`로 최신 snapshot을 조회한다. 별도 D6 wire를 만들지 않고
@@ -252,6 +294,8 @@ control/read/motion command 및 `0x7D22` Admin motion을
 - `docs/NINE_AXIS_DISPATCH_IMPLEMENTATION_2026-07-15.md`: 9축 single-axis dispatcher 범위와 group 분리 원칙
 - `docs/LASAL_COMMAND_QUEUE_RTWORK_DESIGN_2026-07-10.md`: 폐기된 RtWork 대안 검토 기록
 - `docs/AUTOMATED_TESTS_2026-07-10.md`: 자동 테스트 범위와 실행법
+- `docs/NEGATIVE_WIRE_TOOL_2026-07-27.md`: public SDK 보호를 유지한 internal-only
+  diagnostics raw rejection 도구, 실행 확인 절차와 report/pcap 증거 경계
 - `docs/SESSION_MANAGEMENT_DESIGN_2026-07-09.md`: 다중 PC 세션 관리 설계
 - [`../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md):
   D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline Read 내부 PLC 시험 순서와 판정 기준

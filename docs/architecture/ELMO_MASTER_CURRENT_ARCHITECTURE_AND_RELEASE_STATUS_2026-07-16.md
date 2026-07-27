@@ -1,7 +1,7 @@
 # Elmo Master 현재 아키텍처 및 릴리스 상태 재분석
 
 - 감사일: 2026-07-16
-- 마지막 source/실기 상태 검토: 2026-07-24 diagnostics D1~D4 single-bank와
+- 마지막 source/실기 상태 검토: 2026-07-27 diagnostics D1~D4 single-bank와
   test-profile D5 general-inline SDO Read 활성, group Phase 0 option/position 계약 정합,
   Phase 1 read-only Admin/facade, Phase 2 `0x7D22 GroupMoveLinearRelative` 및 PMAS native
   capture 정렬. 같은 날 Admin/drive read/relative motion/D1 PI/D2 Bulk, 동적 group
@@ -28,12 +28,15 @@
   연결 10개를 제거해 `ONE_Comm_Network_Table.st` external connection text도 26개에서
   16개로 정리했다. tracked `Classes.lcb`/`Networks.lcb`도 transport-only registration과
   network tuple 계약을 만족해 switch 없는 Phase 5 SourceOnly/full static이 PASS했다.
-  LASAL IDE Rebuild/Link/implementation smoke는 아직 완료하지 않았다.
+  2026-07-24 14:40~14:46 main project LASAL log에서 Compiler/Linker 완료,
+  ERROR/FATAL 0건과 `CInvalidArgException` 0건을 확인했다. `Find in Implementation` smoke와
+  PLC runtime은 아직 완료하지 않았다.
   Phase 3A에서 성공한 Rebuild는 당시
   `ONE_Comm_Network_Table.st`를 당시 network 기준으로 재생성했고 Link, PLC Download,
   project load도 성공했다. 종료 전 `ControlCommands`/`LMCAxis3` implementation search와
-  전체 LASAL log의 `CInvalidArgException` 0건도 확인했다. 다만 이 IDE/PLC 증거는 route
-  활성화 전 checkpoint이며 Phase 4 routed source의 IDE/PLC 검증은 보류했다
+  전체 LASAL log의 `CInvalidArgException` 0건도 확인했다. 이 과거 PLC runtime 증거는 route
+  활성화 전 checkpoint다. 현재 Phase 5는 Compiler/Linker까지만 새로 통과했고 PLC runtime은
+  사용자의 별도 테스트 폴더 구동시험 결과를 기다린다
 - 기준 branch: `main`
 - 감사 시작 기준 commit: `f8f99a299f72c118c9a243d0165368d666d0cd0f`
 - 현재 API 표기: `LasalMotionControlLib 0.9.1-preview`
@@ -41,11 +44,16 @@
   routed static PASS는 역사적 checkpoint 증거이며 현재 Phase 5 결과로 대체됐다. 현재 Phase 5
   source/network와 tracked binary metadata는 transport-only 구조로 정적으로 일치하고,
   switch 없는 `Phase5TransportClean` SourceOnly/full이 PASS했다. 현재 Phase 5 worktree의 PC
-  Debug/Release 각 148/148 tests와 개발 WPF Debug/Release build도 PASS했다. IDE/PLC,
-  packet/performance
-  검증은 아직 수행하지 않았다.
-  Group/Bulk/Recorder 자동 qualification은 code/build 단계까지만 완료됐으며 PLC live,
-  fault, stale identity, reconnect/adopt, RT evidence와 장비 안전 matrix가 남아 production
+  Debug/Release 각 223/223 tests가 PASS했다. 개발 WPF build도
+  PASS했다. LASAL
+  Compiler/Linker는 통과했고 implementation smoke, PLC packet/runtime/performance 검증은
+  아직 수행하지 않았다.
+  Group/Bulk/Recorder 자동 qualification, Recorder exact/0/0 reconnect-adopt와 read-only
+  D5 abort/recovery runner, internal negative-wire 도구는 code/build/test 단계까지만 완료됐으며
+  D5에는 submit-outcome unknown quarantine, same-connection BootId mismatch 격리,
+  multi-evidence two-ticket recovery proof와 unresolved 상태변경 gate까지 반영됐다.
+  PLC live, fault, stale identity, reconnect/adopt/abort/raw rejection wire
+  evidence, RT evidence와 장비 안전 matrix가 남아 production
   승인본은 아님
 
 이 문서는 현재 Git source를 다시 대조해 프로젝트 전체의 역할, 구현 범위,
@@ -82,16 +90,16 @@
 | 성공 응답 capable PLC active command | 51개 | 기존 motion/group 25 + diagnostics 22 + Admin 4 |
 | dispatcher/wire handled contract | 53개 | active 51 + reserved D5 `0x7E21/0x7E51` 2 |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
-| PC 자동 테스트 | 현재 Phase 5 external-cleanup worktree Debug/Release 각 148/148 PASS | PLC 통합과 별도 |
-| 개발 WPF | 현재 Phase 5 worktree Debug/Release build 경고 0/오류 0 PASS; Phase 4 temporary snapshot의 Debug visual/startup smoke는 역사적 증거 | Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
-| qualification 자동화 | `0x2047` poll, true Buffered, stop-first, Bulk 24-entry/100회, Recorder Single/Ring/soak code와 Debug/Release build 및 Debug visual/startup smoke PASS | 신규 runner의 PLC live packet 미검증 |
+| PC 자동 테스트 | 현재 Phase 5 external-cleanup worktree Debug/Release 각 223/223 PASS | 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개; PLC 통합과 별도 |
+| 개발 WPF | D5 포함 Debug/Release build 경고 0/오류 0 PASS; Phase 4 Group/Bulk/Recorder visual/startup smoke는 역사적 증거 | D5 panel visual, Phase 5 앱 실행 및 실제 PLC scenario는 별도 |
+| qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId quarantine, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | Phase 5 default PASS | source와 tracked class registration 일치; binary gate 우회 없음 |
-| LASAL full static 계약 | Phase 5 default PASS | source/XML/generated table/tracked network metadata 정적 일치; IDE Rebuild/Link는 별도 |
+| LASAL full static 계약 | Phase 5 default PASS | source/XML/generated table/tracked network metadata 정적 일치; IDE Compiler/Linker도 2026-07-24 log PASS |
 | D5 executor 초기화 | constructor declaration/implementation 미완료 | 자동 zero-init 공식 보장 미확인; current Busy 직접 원인은 아니며 IDE declaration P1 필요 |
-| LASAL IDE | 과거 10:53 gate-off baseline 0 error; 수정본 BootId 5 runtime 확인 | Phase 5 Reload Class/declaration/network sync, Rebuild/Link/smoke는 미수행 |
+| LASAL IDE | Phase 5 main project Compiler/Linker, ERROR/FATAL 0, `CInvalidArgException` 0 PASS | `Find in Implementation` smoke와 PLC download/runtime은 별도 |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static 수정 완료 | 새 `0x2047` IDE/download/ACK timing과 invalid/stale/fault는 별도 |
 | 기존 motion/group PLC E2E·재캡처 | 25-command 전체 matrix 미완료 | 기존 subset capture PASS; true Buffered/stop-first code/build 완료, live packet은 별도 |
-| diagnostics PLC 시험 matrix | D1 Catalog/4 PI, D2 4-entry Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery capture PASS | Bulk/Recorder soak code/build만 완료; live soak/fault, reconnect/adopt와 D5 나머지 fault는 별도 |
+| diagnostics PLC 시험 matrix | D1 Catalog/4 PI, D2 4-entry Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery capture PASS | Bulk/Recorder soak, Bulk operator partial/recovery와 Recorder reconnect/adopt code/build만 완료; live soak/fault/reconnect/adopt와 D5 나머지 fault는 별도 |
 
 프로젝트 폴더명에는 `4Axis`가 남아 있지만 현재 의미는 다음처럼 나눠야 한다.
 
@@ -180,8 +188,8 @@ socket 작업을 `Task.Run`으로 감싸므로 비동기 wire pipelining을 제�
 | Admin | `0x7D00`, `0x7D10`, `0x7D20`, `0x7D22` | capability, axis/group semantic parameter read, group relative move | source/static + 2026-07-23 live happy path PASS |
 | Diagnostics negotiation | `0x7E00` | capability/envelope | D1~D3 test capability, retained BootId 실패 시 fail-closed |
 | Diagnostics D1 | `0x7E01`, `0x7E02`, `0x7E10`, `0x7E20` | Catalog, Health, PI Read | Catalog와 축 1..4 PI live PASS; Health fault matrix는 별도 |
-| Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | 4-entry live PASS; exact 24-entry snapshot/lifecycle soak UI code/build PASS, live soak/fault는 별도 |
-| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | Single Manual/header/double-download hash UI code/build PASS, PLC runtime과 reconnect/adopt 미검증 |
+| Diagnostics D2 | `0x7E30`~`0x7E33` | Bulk configure/status/snapshot/release | 4-entry live PASS; exact 24-entry snapshot/lifecycle 및 operator-only one-slave-offline partial/recovery UI code/build와 PC 순수 판정 PASS, live soak/fault는 별도 |
+| Diagnostics D3 | `0x7E40`, `0x7E41`, `0x7E43`~`0x7E49` | single-bank Recorder lifecycle/upload | Single Manual/header/double-download와 reconnect exact/0/0 discovery UI code/build PASS, PLC runtime/wire 미검증 |
 | Diagnostics D4 single-bank | `0x7E40`, `0x7E42` | Ring capture, Edge/Window/Mask/forced Trigger | Ring forced-trigger/100-cycle soak UI code/build PASS, PLC runtime 미검증; Double은 거부 |
 | Diagnostics D5 | `0x7E03`, `0x7E04`, `0x7E21`, `0x7E50`, `0x7E51` | PI/SDO ticket/chunk | `0x7E03/04/50` 활성; general-inline 1/2/4-byte와 TypeMismatch recovery packet PASS; `0x7E21/51` reserved |
 | Lookup | `0x103C`, `0x1042`, `0x202B` | axis/group lookup, AxisInfo | active |
@@ -368,7 +376,8 @@ cycle benchmark 재현 참고 용도로만 남긴다.
   Stop/PowerOff recovery가 PASS했다. 이후 true Buffered chaining과 deterministic
   stop-first runner는 code/build 완료했지만 live packet/endpoint 검증은 별도다.
 - 기존 Group Motion, Bulk Snapshot, Recorder 탭에는 공통 `QTEST` runner와 scenario별
-  입력/cancel/save 영역을 추가했다. Bulk는 exact 24-entry snapshot/lifecycle,
+  입력/cancel/save 영역을 추가했다. Bulk는 exact 24-entry snapshot/lifecycle과
+  Group PowerOff/Disabled 기반 one-slave-offline/restore 두 operator checkpoint,
   Recorder는 Single Manual/Ring forced-trigger/trigger soak를 public SDK로 실행한다.
   이 문단은 source/build 상태이며 실제 PLC 성공을 뜻하지 않는다.
 - `04b` capture에서 계산된 55.034초 감시 한도로 20.152초 장시간 absolute move의
@@ -524,17 +533,35 @@ PowerOff와 D5 4-byte/recovery 증거는
 1. `GroupReadActualPosition`의 None/ACS static alias는 `09b` live capture까지
    확인했다. true ACS transform는 구현되지 않았고 MCS/PCS rejection은 live negative
    capture가 없어 generic Cartesian position 요구를 충족한 것으로 확대 해석하면 안 된다.
-2. `AxisInfo(0x202B)`는 payload 길이와 descriptor만 검사하고 canonical payload
-   field 값을 엄격히 검증하지 않는다.
-3. callback endpoint 등록은 있지만 LASAL event sender와 typed schema가 없다.
-4. TCP adapter는 port 4000, one connection이지만 인증·권한·암호화가 없다. 장비망
+2. callback endpoint 등록은 있지만 LASAL event sender와 typed schema가 없다.
+3. TCP adapter는 port 4000, one connection이지만 인증·권한·암호화가 없다. 장비망
    격리와 motion owner 정책이 필요하다.
-5. legacy writable server/data channel은 Phase 5 external source에서 제거돼 generated
-   server/client/data count가 `4/3/0`이고 tracked `Classes.lcb` record도 동일하다. 다만 LASAL
-   IDE가 외부 구현을 보존해 Rebuild/Link하는지와 generated count를 확인하기 전에는
-   이 위험을 해결 완료로 닫지 않는다.
-7. PC response reader는 command별 상한을 적용하기 전에 header의 `UInt16` payload
-   length만큼 읽는다. 비정상 peer가 최대 65,535-byte 대기/할당을 유발할 수 있다.
+4. legacy writable server/data channel은 Phase 5 external source에서 제거돼 generated
+   server/client/data count가 `4/3/0`이고 tracked `Classes.lcb` record도 동일하다. LASAL
+   Compiler/Linker와 오류 로그는 통과했지만 `Find in Implementation` smoke와 generated
+   count 최종 확인 전에는 IDE 적용을 완전히 닫지 않는다.
+
+### 2026-07-24 해결된 runtime 위험
+
+1. PC response reader는 53개 command별 hard maximum을 response body read 전에 적용한다.
+   최대 정상 payload는 Recorder chunk의 1,972 bytes다. 초과 길이는 allocation/read 전에
+   `InvalidDataException`으로 거부하고 transport를 detach해 `Faulted`로 바꾸며, 미등록
+   command는 wire 송신 전에 거부한다. 현재 Debug/Release 각 223/223 tests가 exact table,
+   header-only 초과 응답, 최대값 허용과 최대값+1 거부를 검증한다.
+2. `AxisInfo(0x202B)` 성공 응답의 payload `[0..3]` descriptor를 요청한
+   `AxisReference`와 sync/async 모두 대조한다. 불일치는 `InvalidDataException`으로
+   거부하고 기존 4-byte command error 의미는 보존한다. PMAS 38개와 SIGMATEK 32개
+   capture sample에서 descriptor mismatch 0건을 확인했으며 mismatch 회귀 시험을
+   167-test suite에 추가했다.
+3. read-only `0x2045` qualification의 요청 수 경계, nearest-rank percentile,
+   throughput, SHA-256/raw cleanup, PASS evidence와 FAIL/ABORTED CSV 계약을 UI 독립
+   `TransportQualificationAnalysis`로 분리했다. 같은 source를 PC test project에 linked
+   compile해 WPF와 시험 코드의 판정 로직이 갈라지지 않게 했다. PASS는 10,000회 이상
+   전량 완료, 정상 20-byte/12-byte 응답, 전체 hash와 byte stability를 모두 요구한다.
+4. UDP callback handler 예외와 error-handler 예외 뒤 listener 계속 동작, callback
+   thread 내부 `CloseConnection`/`Dispose` 재진입 종료를 loopback으로 검증했다. 네 경로는
+   deadlock 없이 Disconnected/listener-stopped 상태로 끝났고 production source 수정은
+   필요하지 않았다.
 
 ### P2: 유지보수·제품화
 
@@ -543,11 +570,11 @@ PowerOff와 D5 4-byte/recovery 증거는
    service가 소유하고 Diagnostics transport route는 `MsgPaser`에 inline됐다. `.lcn`의 direct
    연결 10개 제거와 `ONE_Comm_Network_Table.st` external connection 26→16도 반영됐다.
    `Classes.lcb`/`Networks.lcb`까지 포함한 switch 없는 final static은 PASS했고 LASAL IDE
-   Rebuild/Link/implementation smoke는 대기 상태다.
+   Compiler/Linker와 오류 로그도 PASS했다. implementation smoke와 PLC runtime은 대기 상태다.
 2. `MsgPaser` 이름 교정은 호환 영향이 있는 별도 commit으로 남아 있다. `LmcConnection.cs`와
    개발 WPF `MainWindow.xaml.cs`도 여전히 책임이 집중돼 있다.
-3. fuzz/property test, 장시간 reconnect/concurrency, callback handler 예외와
-   reentrant close 시험이 없다.
+3. fuzz/property test와 장시간 reconnect/concurrency 시험은 없다. callback handler/error
+   handler 예외 격리와 callback thread의 reentrant close/dispose는 자동 시험을 추가했다.
 4. DLL strong-name/AuthentiCode 서명이 없다.
 5. Home 실행 API, MoveCircle, generic kinematics, typed callback은 현재 범위 밖이다.
 
@@ -661,14 +688,49 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
 - 개발 WPF에는 general-inline Submit/Status/queued Cancel과 inline result/save UI가 있다.
   extended download scaffold는 현재 policy에서 도달할 수 없다.
 - 개발 WPF의 qualification 영역에는 GroupEnable poll/true Buffered/stop-first,
-  Bulk 24-entry snapshot/lifecycle, Recorder Single/Ring/trigger soak가 구현되어
-  Debug/Release build를 통과했다. Debug visual/startup smoke에서는 세 qualification panel
+  Bulk 24-entry snapshot/lifecycle 및 one-slave-offline partial/recovery checkpoint,
+  Recorder Single/Ring/trigger soak와 reconnect
+  exact/0/0 discovery가 구현되어 직전 Debug/Release build를 통과했다. D5 read-only
+  abort/recovery runner도 구현돼 Debug/Release build를 통과했다. Debug visual/startup
+  smoke에서는 기존 세 qualification panel
   렌더와 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 아직 PLC live
-  completion, reconnect/adopt와 RT evidence는 없다.
+  completion, Bulk partial/recovery, reconnect/adopt 및 D5 abort/recovery wire evidence와
+  RT evidence는 없다.
+- D5 Submit은 wire 호출 전에 outcome evidence를 arm한다. explicit PLC reject가 아닌
+  응답 유실/transport uncertainty는 ticket ID 0 evidence로 보존한다. accepted ticket은
+  owner connection과 terminal deadline을 보존하며 cleanup은 남은 deadline+1초를 반영한
+  최소 15초/최대 120초 bound를 사용한다.
+- Resolve 중 같은 `LMCConnection`의 capability BootId가 바뀌거나 status가 exact
+  `BootIdMismatch`면 old terminal을 추정하지 않고 known ticket을 stale-session quarantine한다.
+  stale local session exception도 quarantine한다. 같은 Boot/session의 exact `TicketNotFound`는
+  one-terminal-slot 교체 계약상 이전 ticket terminal만 증명하므로 `TERMINAL_INFERRED`,
+  outcome `UNKNOWN`으로 해제한다. known/unknown evidence 전체는 stable BootId/MapRevision 아래
+  GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두
+  `0x1000:0 UInt32/4` ticket의 exact type/length/bytes가 같고 proof 중 목록이 불변일 때만 해제한다.
+  같은 owner+Boot unknown outcome은 `same_session_executor_reuse` proof이며 disconnect/orphan
+  PASS가 아니다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
+  `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
+  `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 이는 새 RPC
+  connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나
+  late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket, 실제
+  owner loss와 별도 PLC hook/capture가 필요하다. 로그는 `evidenceBootIds`, `recoveryBootId`,
+  `proofScope`, `newConnectionRecovery`, `orphanQualified=false`를 분리한다.
+  unresolved 동안 Group Disable 포함 새 mutation/모든 다른 qualification/Close/connected
+  reconnect는 차단한다.
+  기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와 read-only는 허용하며 reconnect는
+  외부 connection loss 뒤에만 가능하다. Resolve 자체는 same-session/new-Boot에서도 실행한다.
+  `D5SdoPendingCleanup` Resolve는 기존 qualification log를 지우지 않고
+  `D5_LOG_CONTINUATION`을 이어 써 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 해결 증거를 같은 QTEST
+  log에 보존한다.
+  Phase 1 facade가 pre-submit/status stage와 ticket을 모든 예외에 노출하지 않아 false
+  quarantine할 수 있으나 WPF는 fail-closed한다. SDK stage+ticket exception UX는 후속 부채다.
 - Recorder qualification cleanup은 final Status가 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`일 때만 buffer/configuration을 자동 Release한다. `Fault`는 자동
   Release하지 않고 identity/resource를 보존하며 명시적 Status/error 진단과 수동 복구가
-  필요하다.
+  필요하다. 보존 ownership은 manual UI에서 quarantine하며 Status 확인 전 mutation을
+  막는다. 확인 상태가 Armed/Recording이면 명시적 Release가 Stop -> Ready/Uploading poll
+  -> buffer/configuration Release를 수행하고, Fault/Empty는 보존한다. config-only tail은
+  Status 없이 Release retry할 수 있다.
 - PLC에는 single-bank Ring과 Edge/Window/Mask/forced Trigger가 구현되어 capability
   bit 5가 켜진다. Double bank는 아직 없으므로 bit 6은 0이고 요청은 거부된다.
 - D5에는 `LMCSdoExecutor : EtherCAT_SDOBase` 파생 adapter 4개,
@@ -681,18 +743,23 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   활성이고 bit 7, 9, 12와 `0x7E21/0x7E51`은 계속 0/비활성이다.
 - Read 입력은 Slave 1..4, nonzero ObjectIndex, 임의 U8 SubIndex, ValueType과 정확히
   일치하는 1/2/4-byte 길이만 허용한다. Write, 8/12-byte와 extended result는 꺼져 있다.
-- SDK와 PLC write allowlist는 기본 empty로 유지한다.
+- SDK와 PLC write allowlist는 기본 empty로 유지한다. Phase 1 WPF PI Write는 추가로
+  `Phase1AllowsPiWrite=false`가 button을 비활성화하고 handler도 다시 거부한다.
 
 확인된 범위:
 
 - 현재 Phase 5 external-cleanup worktree의 C# request/parser/fake-RPC/golden/malformed 테스트
-  Debug/Release 각 148/148 PASS.
-- 현재 Phase 5 worktree의 개발 WPF Debug/Release build 경고 0/오류 0 PASS. Phase 4 temporary
-  snapshot의 qualification UI Debug visual/startup smoke는 역사적 증거다.
+  Debug/Release 각 223/223 PASS. 53-command response payload hard limit,
+  AxisInfo descriptor, qualification analysis, callback lifecycle, internal negative-wire 9개와
+  D5 abort/recovery analyzer 12개 및 largest variable response의 max/max+1 transport 경계를 포함한다.
+- 현재 Phase 5 worktree의 D5 포함 개발 WPF Debug/Release build 경고 0/오류 0 PASS.
+  Phase 4 temporary snapshot의 qualification UI Debug visual/startup smoke는
+  역사적 증거다.
 - switch 없는 `Phase5TransportClean` SourceOnly/full PASS. tracked class/network metadata의
   transport-only registration까지 정적으로 확인했다.
-- 2026-07-22 10:53 gate-off D5 executor/network baseline LASAL IDE Rebuild/Link 0 error;
-  shadowing 수정 test source는 BootId 5 runtime download 확인, 대응 IDE build log 미보존
+- 2026-07-24 14:40~14:46 Phase 5 main project LASAL Compiler/Linker 완료,
+  ERROR/FATAL 0건과 `CInvalidArgException` 0건 확인. `Find in Implementation` smoke와
+  현재 Phase 5 PLC runtime은 별도 대기
 - 과거 BootId 6 capture의 Submit 두 건은 `ResourceBusy`로 실패했으나 callback
   ordering/release 수정 뒤 general-inline 1/2/4-byte packet PASS. Ticket 13 UInt32/4
   성공, Ticket 14 TypeMismatch 실패, 같은 BootId 8 Ticket 15 Int8/1 복구까지 확인
@@ -721,12 +788,15 @@ download를 마치기 전에는 Phase 5 구현 완료나 production 승인을 �
 현재 남은 gate:
 
 - capability/Catalog/PI와 4-entry Bulk happy path는 live capture PASS; 24-entry/100회와
-  lifecycle runner는 code/build PASS지만 live 실행, Health/partial/stale fault는 별도
-- Recorder Single/Ring/trigger soak runner는 code/build PASS; live 실행, reconnect/adopt,
-  fault matrix와 Double은 별도
-- legacy와 general-inline 1/2/4-byte SDO Read 및 TypeMismatch recovery capture 완료;
-  offline/abort, timeout, queued cancel, disconnect/orphan, duplicate/late callback과
-  contention matrix는 별도
+  lifecycle 및 one-slave-offline partial/recovery runner는 code/build PASS지만 live 실행,
+  Health/partial/stale fault capture는 별도
+- Recorder Single/Ring/trigger soak와 reconnect exact/0/0 discovery runner는 code/build
+  PASS; live 실행/capture, fault matrix와 Double은 별도
+- legacy와 general-inline 1/2/4-byte SDO Read 및 TypeMismatch recovery capture 완료.
+  read-only abort -> same-Boot recovery WPF runner/analyzer는 code/build/test 완료지만 실제
+  PLC abort code/recovery packet과 pcap은 없다. outcome/BootId quarantine과 two-ticket
+  recovery proof도 code/build뿐이며 실제 response-loss/reboot/orphan packet은 없다. offline,
+  timeout, queued cancel, disconnect/orphan, duplicate/late callback과 contention matrix도 별도
 - 위 미확인 D5 fault evidence 전 production 승인 금지
 - 1 ms RT jitter, free RAM, 1.28 MB bank hash 불변성 확인
 - cable/slave fault의 stale/offline 상태와 malformed TCP response 확인

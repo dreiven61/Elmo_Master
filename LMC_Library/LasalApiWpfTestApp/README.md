@@ -69,7 +69,7 @@ Aborting 수락, Buffered 수락, X/Y/Z/U 축별 왕복, Stop 및 PowerOff 최�
 
 ## Qualification 자동화
 
-Group Motion, Bulk Snapshot, Recorder 탭에는 한 번에 하나만 실행되는 Qualification
+Group Motion, Bulk Snapshot, Recorder와 SDO / Write Policy 탭에는 한 번에 하나만 실행되는 Qualification
 runner가 있다. 실행 전 Connect를 완료한다. Group Enable 시험은 Power Ready/Set Identity
 후 Disabled/Unlocked에서 시작하고, Buffered/Stop-first는 Locked Standby까지 준비한다.
 Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
@@ -88,7 +88,9 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   안전 상태 미확정으로 FAIL한다.
 - `Deterministic Stop-first`는 app send gate를 잡은 상태에서 zero-delta Move와 Group
   Stop을 순서대로 대기시킨다. safety generation이 Move delegate를 wire 송신 전에
-  취소했는지와 Group Stop ACK/stable InPosition을 확인한다. 로그의
+  취소했는지와 Group Stop ACK/stable Standby 3회를 확인한다. Stop 전송, local assertion,
+  stable-state 검증 중 하나라도 실패하면 gate를 먼저 반환하고 non-cancelable fallback
+  Group Stop + stable Standby 3회를 실행한다. fallback 실패는 원 오류와 함께 보존한다. 로그의
   `moveWireExpected=0`은 local assertion이며 실제 `0x7D22` 0건/`0x2085` 1건 판정은
   Wireshark capture가 필요하다.
 - Bulk Snapshot Soak는 fresh capability/Catalog에서 정확히 24개 BulkReadable signal을
@@ -97,6 +99,15 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   even sequence, wrap-aware cycle/timestamp/sequence와 latency를 검사하고 `finally`에서
   Release한다. Lifecycle Soak는 기본 100회 `Configure -> Active -> Snapshot -> Release`,
   종료 후 새 Configure 재사용과 두 번째 Release의 local 차단까지 검사한다.
+- Bulk One-Slave-Offline Partial은 먼저 loaded Group의 `PowerOn=False`, `Disabled=True`,
+  `Standby=False`를 확인하고, baseline 직후 checkpoint를 열기 전에 같은 상태와 4축
+  actual-position 3회 동일값을 다시 확인한다. 첫 checkpoint에서 사용자가 승인된 외부 방법으로 정확히
+  한 slave를 `Online=False`로 만든 뒤 Resume하고, 24-entry 응답 중 그 SourceIndex의
+  6개만 `SlaveOffline` bit/Detail 18이며 나머지 18개가 exact Valid인지 확인한다.
+  PLC가 OR하는 `SlaveNotOperational`/`AlError` 같은 추가 상태 bit는 허용하지만 Valid bit는
+  허용하지 않는다. 첫 Partial이 다른 축까지 invalid이면 즉시 실패한다. 두 번째
+  checkpoint에서 같은 slave를 OP로 복구한 뒤 Resume하면 최대 15초 동안 최종
+  24 Valid를 기다리고 Release한다. 프로그램은 EtherCAT fault를 직접 만들지 않는다.
 - Recorder Single은 Catalog 순서의 첫 4개 Recordable signal, period 1 cycle, capacity
   1000으로 자연 `SampleCountComplete`를 기다린다. Header와 두 번의 Download가 같은
   identity/order/16,000 bytes/SHA-256인지 확인하고 buffer/configuration을 Release한 뒤
@@ -106,16 +117,79 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   `TriggerRecorderAsync`를 보내 `TriggerComplete`, TriggerIndex 100, 1000 samples와
   exact download coverage를 검사한다. Trigger Lifecycle Soak는 capacity 32,
   pre 16/post 15를 지정 횟수 반복하며 ResourceBusy, dropped, overflow가 모두 0인지
-  집계한다. RecorderDoubleBank와 reconnect/adopt/fault 주입은 이 runner 범위가 아니다.
+  집계한다.
+- Recorder Reconnect Exact/0/0 Discovery는 같은 Ring 설정을 active 상태로 만든 뒤
+  BootId/RecordId/BufferId/config revision/signal order를 보존하고 앱 RPC connection을
+  실제로 close/reopen한다. 새 capability의 BootId/MapRevision을 대조하고 exact 또는
+  single-bank 0/0 discovery로 새 OwnerSessionEpoch를 얻은 뒤 Status, 필요 시 Stop,
+  Header, Download와 adopted identity 기반 buffer/configuration Release를 수행한다.
+  Start ACK 직후 exact recovery identity를 먼저 보존하므로 pre-history Status의 transport
+  fault도 실제 connection 상태에 따라 exact reconnect cleanup으로 회수한다. 두 버튼은
+  별도 run이다. RecorderDoubleBank와 fault 주입은 이 runner 범위가 아니다.
+- D5 SDO Abort -> Recovery는 SDO Read만 사용한다. 선택 slave에 대응하는 `_LMCAxis1..4`가
+  `PowerOn=False`, `Standstill=True`이고 actual position 3회가 동일한지 확인한 뒤,
+  `0x6061:0 Int8/1` baseline을 읽고 사용자가 제조사 기준으로 선택한 존재하지 않는
+  read-only object/subindex를 조회한다. PASS는 abort ticket이 `Failed/Failed`,
+  `OperationErrorId=-32000`, `OperationDetail`에 실제 nonzero raw EtherCAT SDO abort code,
+  result 없음이고, 같은 BootId/MapRevision의 새 `0x6061:0` ticket이 baseline과 같은 값으로
+  성공해야 한다. Cancel Runner는 PLC Stop을 보내지 않는다. 실제 Queued ticket만 cancel하고
+  Running ticket은 원래 terminal deadline을 고려한 15~120초 bounded wait로 회수한다.
+  코드는 build/test 완료했지만 실제 PLC abort/recovery와 pcap은 아직 검증하지 않았다.
+- D5 Submit 호출 직전에 outcome guard를 먼저 등록한다. 명시적인 PLC rejection이면 제거하지만,
+  submit 응답이 유실되거나 transport 결과가 불명확하면 ticket ID를 모르는 evidence도
+  quarantine에 보존한다. ticket 응답을 받은 뒤 guard 제거가 확인돼야 일반 active-ticket
+  추적으로 전환한다.
+- 보존 ticket을 같은 `LMCConnection`으로 Resolve할 때도 capability BootId를 먼저 대조한다.
+  BootId가 바뀌었거나 status가 정확히 `BootIdMismatch`를 반환하면 old ticket을 조회·해제한
+  것으로 간주하지 않고 stale-session quarantine으로 이동한다. local ticket의 session
+  generation이 stale인 경우도 quarantine한다. 같은 Boot/session에서 status가 정확히
+  `TicketNotFound`이면 one-terminal-slot 교체 계약상 이전 ticket terminal만 확정하고
+  `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해당 ticket을 해제한다.
+  여러 known/unknown evidence는 그대로 유지한 채 stable BootId/MapRevision 아래 current
+  capability가 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
+  서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 모두 확인해야 해제된다.
+  proof scope는 정확히
+  `same_session_executor_reuse`, `new_diagnostics_boot_session`, `new_connection_session`
+  세 가지다. 같은 owner+Boot의 unknown outcome은 첫 scope이며 old terminal이나
+  disconnect/orphan 증거가 아니다. 같은 owner의 Boot 변화는 둘째 scope이고 역시 orphan
+  PASS가 아니다. 모든 격리 evidence의 owner `LMCConnection`이 현재 owner와 달라 셋째
+  scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
+  `orphanQualified=false`를 기록한다. 셋째 scope는 새 RPC connection에서 application
+  recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다.
+  실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
+  필요하다. QTEST는 `evidenceBootIds`, `recoveryBootId`, `proofScope`,
+  `newConnectionRecovery`, `orphanQualified=false`를 분리 기록한다.
+- unresolved ticket/evidence가 하나라도 있으면 Configure Bulk, Recorder Configure/Adopt/
+  Start/Trigger, Group Disable, motion/PowerOn/Reset, manual SDO/PI, Close와 모든 다른
+  qualification 같은 새 mutation을 차단한다. 기존 resource의 Bulk Release, Recorder
+  Stop/Release, queued diagnostic Cancel, motion Stop/PowerOff와 read-only는 허용한다.
+  `Resolve Preserved D5 Ticket`은 같은 session/새 Boot session에서도 바로 실행할 수 있다.
+  reconnect 자체는 외부 connection loss 뒤에만 허용하며 새 connection에서 Resolve한다.
+  `D5SdoPendingCleanup` Resolve는 기존 `qualificationLogLines`를 지우지 않고 이어 쓰며
+  `D5_LOG_CONTINUATION`을 기록한다. 따라서 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 resolution
+  proof가 같은 저장 QTEST log에 남는다.
+- qualification 밖의 manual SDO/Drive read tracker는 직전 qualification의 run/scenario를
+  재사용하지 않는다. 별도 `D5ExternalTracking:<stage>` run ID와 step/elapsed 문맥으로
+  기록하고, unresolved evidence가 생기면 그 원본 문맥을 Resolve log와 함께 보존한다.
+- `GetDriveOperationMode[Async]`/`ReadDriveStatus[Async]` 같은 Phase 1 facade는 모든 예외에
+  pre-submit/status stage와 ticket을 노출하지 않는다. 그래서 실제 submit 전 예외도 unknown
+  evidence로 false quarantine될 수 있지만 WPF는 안전하게 fail-closed한다. SDK가 stage+ticket
+  exception을 제공해 operator가 이를 구분하게 하는 작업은 후속 UX 부채다.
 
 Recorder qualification의 자동 cleanup은 final Status가 `Ready` 또는 이미 frozen
 download가 시작된 `Uploading`일 때만 buffer와 configuration을 Release한다. `Fault`는
 frozen success로 취급하지 않고 자동 Release하지 않는다. QTEST에 recovery-required를
 남기고 identity/resource를 보존하므로 사용자가 Status/error를 진단한 뒤 명시적으로
-복구해야 한다.
+복구해야 한다. 보존된 resource는 수동 UI에서 격리되며 Status 확인 전 Stop/Release를
+막는다. 확인 상태가 Armed/Recording이면 사용자가 `Release Recorder`를 눌렀을 때
+Status -> Stop -> Ready/Uploading poll -> buffer/configuration Release를 수행한다.
+Fault/Empty는 mutation을 계속 막고, buffer가 이미 해제된 config-only tail은 Status 없이
+Release retry를 허용한다.
 
-`Cancel Test`는 다음 RPC 전 취소를 요청하는 기능이지 PLC transport를 중간에 끊는
-기능이 아니다. Qualification의 각 wire dispatch는 공용 send gate를 얻은 뒤 시작 시점의
+`Cancel Test`는 다음 RPC 전 취소를 요청하는 기능이다. Reconnect qualification의 명시적
+close/reopen 단계를 제외하면 PLC transport를 중간에 끊지 않는다. Reconnect close 뒤
+취소/실패가 발생하면 보존한 exact identity로 non-cancelable reconnect/adopt cleanup을
+시도한다. Qualification의 각 wire dispatch는 공용 send gate를 얻은 뒤 시작 시점의
 safety generation과 token을 다시 확인한다. 이미 dispatch된 단일 RPC는
 `CancellationToken.None`으로 결과를 끝까지 받고, Recorder download는 header와 각 chunk
 사이에서 gate/token을 다시 확인한다. Bulk Catalog public helper는 연결 강제 종료를 피하기
@@ -127,8 +201,9 @@ fallback한다. 화면/SDK build와 정적 계약 통과는 실제 queue 실행,
 packet 순서 또는 장비 안전을 대신하지 않는다.
 
 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder qualification panel 렌더와
-prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. Debug/Release build도 PASS했다.
-이 smoke는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
+prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. D5 runner 포함 Debug/Release
+build도 PASS했지만 D5 panel visual smoke는 대기 중이다.
+이 smoke/build는 실제 PLC qualification 실행이나 packet 검증 결과가 아니다.
 
 ## EtherCAT / PI / Bulk / Recorder 시험 순서
 
@@ -138,6 +213,8 @@ prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. Debug/Rele
    `MapRevision=0x957F101E`, nonzero `DiagnosticsBootId`, `MaxSdoDataBytes=4`다. bit 5
    `RecorderTrigger`, bit 8 `SDORead`와 bit 13 `SDOReadGeneralInline`은 활성이고 bit 6 `RecorderDoubleBank` 및
    D5 bit 7 `PIWrite`, bit 9 `SDOWrite`, bit 12 `ExtendedSdoResultChunk`는 0이다.
+   Phase 1 PI Write는 이 capability-off와 별도로 SDK compile-time allowlist가 empty이고,
+   WPF도 `Phase1AllowsPiWrite=false`로 입력/button을 끈 뒤 click handler에서 다시 거부한다.
    BootId 5 축 1~4 capture는 당시 `0x13F`와 `0x1000:0` UInt32 4-byte legacy 경로를
    확인했다. 최신 BootId 8 `0x213F` capture는 general-inline Int8/1,
    BitField16/2, UInt32/4와 동일 BootId TypeMismatch 후 복구를 확인했다.
@@ -225,7 +302,8 @@ prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. Debug/Rele
     SDO Write, 8/12-byte Read, `0x7E51` extended result와 PI Write는 계속 비활성이다.
     축 1~4 `0x1000:0` UInt32 4-byte legacy와 general-inline 1/2/4-byte Read의
     PC-PLC ticket/inline success를 확인했다. `12_SDO_GeneralInline_4Byte_FailureRecovery`
-    에서는 TypeMismatch 실패 뒤 같은 BootId 복구도 PASS했다. offline/abort, timeout,
+    에서는 TypeMismatch 실패 뒤 같은 BootId 복구도 PASS했다. read-only abort -> recovery
+    qualification은 code/build와 analyzer test만 완료했다. 실제 abort/pcap, offline, timeout,
     queued cancel, disconnect/orphan, deliberate contention과 EtherCAT mailbox frame
     독립 관측은 production qualification으로 남아 있다.
 

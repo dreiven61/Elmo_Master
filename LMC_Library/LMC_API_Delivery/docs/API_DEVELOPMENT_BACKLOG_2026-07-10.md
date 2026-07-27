@@ -2,18 +2,20 @@
 
 Date: 2026-07-10
 
-Latest update: 2026-07-23
+Latest update: 2026-07-27
 
 > 이 문서는 2026-07-10 backlog snapshot을 보존하지만, 아래 상단 결론과
-> `현재 구현 완료도 판정` 표는 2026-07-23 current source 기준이다. 현재 diagnostics는
+> `현재 구현 완료도 판정` 표는 2026-07-27 current source 기준이다. 현재 diagnostics는
 > D4 single-bank Ring/Trigger와 D5 general-inline SDO Read가 test source에서 활성이고,
 > D4 Double, PI/SDO Write와 extended SDO result는 capability-off다. diagnostics active는
 > 22개다. Admin read 3개와 Phase 2 `0x7D22`를 포함한 전체 success-capable path는
 > 51개, dispatcher/wire handled contract는 53개다. PC 자동 테스트는
-> Debug/Release 각 148/148다. 2026-07-23 실기 캡처로 Admin/relative-motion,
+> Debug/Release 각 223/223 PASS다. 2026-07-23 실기 캡처로 Admin/relative-motion,
 > dynamic group monitor/PowerOff, D0/D1/D2 PI/Bulk와 D5 general-inline 1/2/4-byte
 > happy path를 확인했다. 같은 BootId의 의도한 TypeMismatch 실패 후 Int8/1 복구도
-> PASS했다. D4와 D5 나머지 fault matrix, D1/D2 fault/soak는 아직 남았다. 최신 판정은
+> PASS했다. read-only D5 SDO abort -> recovery runner/analyzer와 internal negative-wire
+> 도구는 code/build/test 완료했지만 PLC live/pcap은 없다. D4와 D5 나머지 fault matrix,
+> D1/D2 fault/soak는 아직 남았다. 최신 판정은
 > [SIGMATEK Phase 1/2 Live Packet Capture Analysis](../../../docs/architecture/SIGMATEK_PHASE1_PHASE2_LIVE_CAPTURE_ANALYSIS_2026-07-23.md)을
 > 기준으로 한다.
 
@@ -77,8 +79,10 @@ callback source 검증을 반영했다. tracked LASAL에는 RPC lifecycle, 실�
 object-name lookup, opaque descriptor와 9축 single-axis/4축 Cartesian group
 DINT dispatcher를 반영했다.
 
-현재 source는 C# 자동 테스트 Debug/Release 각 148/148, LASAL SourceOnly/full static
-contract와 개발 WPF Debug/Release build 및 각 3초 startup smoke를 통과했다.
+현재 source는 C# 자동 테스트 Debug/Release 각 223/223을 통과했다.
+LASAL SourceOnly/full static contract와 D5 runner 포함 개발 WPF Debug/Release build를
+통과했다. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS했으며 D5 panel
+visual은 별도다.
 `Classes.lcb`의 general `TryStartRead` declaration은 current source와 동기화되어 있다.
 gate-off D5 source의 LASAL IDE Rebuild/Link는 0 error, C78 project와 C81 library/compiler
 compiler warning은 6줄(C78 project 1줄과 C81 library mismatch 5줄)이며,
@@ -88,7 +92,34 @@ TCPMotionInterface.Diagnostics implementation-search smoke 3건과 smoke 이후 
 capture로 확인했지만 대응 IDE build/smoke log는 미보존이다. 2026-07-23 캡처는 기존
 motion/group의 대표 absolute/relative/recovery 경로와 Admin read, D0/D1/D2 및 D5
 general-inline 1/2/4-byte와 TypeMismatch recovery를 확인했다. 전체 25-command matrix,
-D4와 D5 나머지 fault matrix는 여전히 미완료다.
+D4와 D5 나머지 fault matrix는 여전히 미완료다. D5 abort -> same-Boot recovery는 WPF
+read-only runner와 8개 analyzer 시험까지 완료했지만 실제 PLC abort/recovery packet은 없다.
+D5 runner는 submit-response 유실 전 outcome guard와 unknown-ticket quarantine, 같은
+`LMCConnection`의 BootId 변화/exact `BootIdMismatch` 및 stale local session quarantine을
+구현했다. 같은 Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전
+ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해제한다. 여러
+evidence recovery는 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
+서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 stable BootId/MapRevision
+아래 확인한다. 같은 owner+Boot unknown
+outcome은 `same_session_executor_reuse` proof로만 판정하고 disconnect/orphan PASS로 세지
+않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
+`new_connection_session`이다. 모든 evidence owner가 바뀐 경우는
+`newConnectionRecovery=true`일 뿐이며 WPF는 `orphanQualified=false`를 고정 기록한다.
+실제 orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가
+필요하다. 로그는 `evidenceBootIds`, `recoveryBootId`, `proofScope`,
+`newConnectionRecovery`, `orphanQualified=false`를 분리한다. unresolved 동안
+Group Disable을 포함한 새 mutation과 모든
+다른 qualification은 차단하되 기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와
+read-only는 허용한다. Resolve는 same-session/new-Boot에서도 실행하며 reconnect는 외부 연결
+유실 뒤 new-connection proof에만 사용한다.
+`D5SdoPendingCleanup` Resolve는 `D5_LOG_CONTINUATION`과 함께 기존 qualification log에
+이어 써 원래 `FAIL`/`OUTCOME_UNCERTAIN` 증거를 보존한다.
+Phase 1 facade가 pre-submit/status stage와 ticket을 모든 예외에 노출하지 않아 WPF가
+unknown evidence를 false quarantine할 수 있다. 이는 fail-closed이며 SDK stage+ticket
+exception UX는 후속 부채다. PI Write는 SDK compile-time allowlist empty와 WPF
+`Phase1AllowsPiWrite=false`의 button/handler 이중 차단으로 송신할 수 없다.
+pending cleanup은 원 terminal deadline을 반영한 15~120초 bound다. 이 보호도 PLC
+live/pcap 증거는 아니다.
 
 PC packet API와 현재 공개 LASAL handler의 남은 핵심 blocker는 신규 frame이나 IDE
 build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
@@ -112,13 +143,13 @@ build가 아니다. 먼저 아래 PLC/실기 검증을 끝내야 한다.
 | C#/dispatcher/wire handled contract | 53개 | active 51 + capability-off diagnostics 2 |
 | 캡처 기반 LASAL deterministic unsupported | 0/23 | 기존 group 5개 command source 활성화 |
 | 현재 CyWork legacy control/read/motion 범위 | 18개 | axis 8개와 group 10개; Admin `0x7D22`, diagnostics/lifecycle/metadata 제외 |
-| C# 자동 테스트 | Debug/Release 각 148/148 PASS | fake/synthetic/loopback/source contract 검증 |
+| C# 자동 테스트 | Debug/Release 각 223/223 PASS | 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개 |
 | LASAL SourceOnly static contract | PASS | diagnostics D0~D5 source 계약 포함 |
 | LASAL full static contract | PASS | `Classes.lcb` general `TryStartRead` metadata 동기화 포함 |
-| 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS | PLC 동작 승인이 아님 |
+| 개발 WPF | D5 포함 Debug/Release build PASS | startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS; D5 visual과 PLC 동작 승인은 별도 |
 | LASAL IDE build/smoke | 이전 통합 source 0 error, version warnings, smoke 3/3 PASS | 이번 executor state-machine 수정 뒤 build/download 필요 |
 | 기존 motion/group PLC E2E 및 재캡처 | 25-command full matrix 미완료 | 2026-07-23 absolute/relative/stop/recovery 대표 경로 packet PASS; 세부 race/fault 잔존 |
-| diagnostics PLC 시험 matrix | D0/D1/D2 PI/Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery packet PASS | D1/D2 fault/soak, D4, D5 나머지 fault, Double/Write/extended fail-closed 미실시 |
+| diagnostics PLC 시험 matrix | D0/D1/D2 PI/Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery packet PASS | D1/D2 one-slave partial 및 D5 abort/recovery/outcome-quarantine/recovery-proof 코드는 완료, live fault/soak/abort/orphan과 D4, D5 나머지 fault, Double/Write/extended fail-closed 미실시 |
 
 `0x2051 GroupReadActualPosition`은 exact 68-byte LASAL-DINT response
 (`DINT[16] + status/error`)를 반환한다. 현재 프로젝트에는 dynamic CalcModel이

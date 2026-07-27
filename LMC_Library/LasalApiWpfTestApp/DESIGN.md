@@ -27,7 +27,8 @@
   drive status를 읽는 Phase 1 실기 검증 화면
 - Qualification: Group Enable accepted-then-locked, true Buffered A/B, deterministic
   Stop-first, 24-entry Bulk snapshot/lifecycle soak, Recorder Single/Ring/trigger
-  lifecycle을 공통 상태·progress·구조화 로그로 실행하는 반복 시험 화면
+  lifecycle과 reconnect exact/0/0 discovery, read-only D5 SDO abort -> recovery를
+  공통 상태·progress·구조화 로그로 실행하는 반복 시험 화면
 - Execution Log: connection state, response 결과와 raw callback diagnostic
 
 Motion command는 현재 PLC 활성 경로만 노출한다. Diagnostics command는 SDK surface를
@@ -75,7 +76,8 @@ TriggerMask를 항상 0으로 보내고 Mask는 BitField16/32와 non-zero Trigge
 SDK와 WPF에 extended result parser/download scaffold가 있더라도 current inline policy와
 PLC capability가 8/12-byte 및 `0x7E51` 경로를 차단하므로 현재 화면 계약에 포함하지
 않는다. SDO Write와 PI Write도 non-empty SDK/PLC allowlist가 승인되기 전까지
-fail-closed한다.
+fail-closed한다. Phase 1 PI Write는 SDK compile-time allowlist가 empty인 것에 더해
+`Phase1AllowsPiWrite=false`가 input/button을 비활성화하고 click handler도 다시 거부한다.
 
 Read-only API 탭의 Admin 흐름은 `GetAdminCapabilitiesAsync(0x7D00)` 성공 결과를
 connection-local UI cache로 보관한 뒤에만 axis/group 버튼을 연다. capability refresh를
@@ -251,7 +253,9 @@ var raw = checked((int)Math.Round(
 - Stop-first scenario는 실제 이동을 만들지 않는다. shared send gate를 보유한 채
   zero-delta Move task를 먼저 대기시키고 Stop task가 safety generation을 변경한 뒤
   gate를 연다. Move delegate invocation 0, local pre-transmission cancellation,
-  Group Stop ACK와 stable InPosition을 요구한다. 이 assertion은 app ordering을
+  Group Stop ACK와 stable Standby 3회를 요구한다. Stop/검증 실패 시 gate를 먼저 반환하고
+  non-cancelable fallback Stop + stable Standby를 실행하며, fallback도 실패하면 primary와
+  cleanup 오류를 aggregate한다. 이 assertion은 app ordering을
   증명하지만 실제 wire의 `0x7D22=0`, `0x2085=1`은 packet capture로 별도 확인한다.
 
 ### 6.3 Bulk qualification
@@ -271,8 +275,13 @@ var raw = checked((int)Math.Round(
   Release가 다시 성공해야 하며, released reader의 두 번째 Release는 local
   `InvalidOperationException`으로 막혀 wire request가 없어야 한다.
 - 모든 생성 reader는 `finally` Release 대상이다. cleanup 실패는 PASS로 숨기지 않는다.
-  one-slave offline partial, reconnect stale handle과 raw old revision/BootId rejection은
-  일반 runner가 fault를 주입하지 않으므로 별도 시험이다.
+- one-slave offline partial은 Group PowerOff/Disabled와 4축 actual-position 3회 동일값을
+  checkpoint 직전에 확인한 뒤 프로그램이 fault를 만들지 않는 두 operator checkpoint로
+  구현한다. baseline 24 Valid, 한 SourceIndex의 6개 `SlaveOffline` bit/Detail 18과
+  나머지 18 exact Valid, 같은 slave 복구 뒤 24 Valid를 요구한다. offline 축의 status는
+  PLC가 OR하는 추가 invalid bit를 허용하되 Valid bit는 금지하며, 첫 Partial에서 다른 축도
+  invalid이면 즉시 실패한다.
+  reconnect stale handle과 raw old revision/BootId rejection은 별도 내부 시험이다.
 
 ### 6.4 Recorder qualification
 
@@ -294,20 +303,92 @@ var raw = checked((int)Math.Round(
   만든 뒤 buffer, configuration 순서로 Release하며 completed count, ResourceBusy,
   dropped/overflow를 집계한다. WPF가 기록하는 `rtEvidence=NOT_MEASURED_BY_WPF`처럼 이
   결과만으로 PLC RT jitter나 sample 무손실을 독립 증명하지 않는다.
+- Reconnect qualification은 Start ACK 직후 BootId/RecordId/BufferId, old OwnerSessionEpoch,
+  config/map revision과 signal order를 snapshot으로 보존하고, Ring Recorder가
+  Recording/pre-history 상태임을 확인한 뒤 앱 RPC connection을 실제 close/reopen한다. fresh capability의
+  same BootId/MapRevision을 확인한 뒤 exact와 single-bank 0/0 discovery를 별도 run으로
+  실행한다. 반환 identity가 snapshot과 일치하고 OwnerSessionEpoch가 새 값인지 확인한 뒤
+  Status -> 필요 시 Stop -> Header -> exact-coverage Download 순서로 검증한다. discovery가
+  다른 active resource를 반환하면 Adopt 응답 identity 검증에서 즉시 실패하며 해당
+  resource에 Status/Stop/Release를 보내지 않는다.
 - cancellation/실패 cleanup은 active recorder에 Stop을 시도하고 final Status를 확인한다.
   buffer와 configuration handle의 자동 Release는 `Ready` 또는 이미 frozen download가
   시작된 `Uploading`에서만 수행한다. `Fault`는 releasable frozen state로 취급하지 않고
-  identity/resource를 보존하며 recovery-required QTEST failure를 남긴다. 이후 명시적
-  Status/error 진단과 수동 복구가 필요하다. reconnect/adopt, external fault,
-  BufferOverwritten와 Double bank는 구현된 qualification scenario 밖이다.
+  identity/resource를 보존하며 recovery-required QTEST failure를 남긴다. reconnect
+  close 전 transport fault를 포함한 cancellation/실패 cleanup은 실제 original connection
+  상태와 보존 expectation을 기준으로 route를 선택하고, 필요하면 exact identity로
+  connection/adoption을 복구한 뒤 adopted identity로 buffer와 configuration을 해제한다. 이후 명시적
+  Status/error 진단과 수동 복구가 필요하다. 보존 ownership은 manual UI에서 quarantine하고
+  Status 확인 전 mutation을 막는다. 확인 상태가 Armed/Recording이면 명시적 Release가
+  Stop -> Ready/Uploading poll -> buffer/configuration Release를 수행하며 Fault/Empty는
+  계속 보존한다. buffer/configuration 중 configuration만 남은 tail은 Status 없이 retry한다.
+  external fault, BufferOverwritten와
+  Double bank는 구현된 qualification scenario 밖이다.
 
-### 6.5 검증 경계
+### 6.5 D5 SDO abort -> recovery qualification
+
+- runner는 SDO Read만 생성하며 write와 EtherCAT fault injection은 하지 않는다.
+- 선택 slave와 `_LMCAxis1..4`를 일치시키고 `PowerOn=False`, `Standstill=True`, actual
+  position 3회 동일값을 확인한 뒤 D5 ticket을 제출한다.
+- 먼저 `0x6061:0 Int8/1` baseline을 읽는다. 사용자가 제조사 기준으로 선택한 존재하지 않는
+  read-only object/subindex가 실제 abort를 반환한 뒤 같은 BootId/MapRevision의 새
+  `0x6061:0` ticket이 baseline과 같은 값을 반환해야 한다.
+- abort PASS 계약은 status RPC 성공, terminal `Failed/Failed`,
+  `OperationErrorId=-32000`, `OperationDetail`의 nonzero raw EtherCAT SDO abort code와
+  result 없음이다. local transport error, timeout과 cancel은 abort 증거가 아니다.
+- cancel 요청 시 실제 `Queued` ticket만 public Cancel을 보낸다. 이미 `Running`이면 PLC
+  Stop이나 transport close 없이 원래 terminal deadline의 남은 시간+1초를 반영한다.
+  cleanup wait는 최소 15초, 최대 120초이며, 끝나지 않으면 ticket identity를 지우지 않은
+  채 cleanup timeout으로 실패한다.
+- Submit wire 호출 전에 ticket ID 0의 outcome evidence를 먼저 quarantine list에 넣는다.
+  명시적 PLC command rejection이면 제거하고, 응답 유실/transport 예외면 unknown-ticket
+  evidence로 보존한다. ticket 응답을 받았으면 active ticket/owner connection/deadline을
+  먼저 저장한 뒤 outcome evidence 제거 성공을 확인한다.
+- Resolve는 같은 `LMCConnection`에서도 current capability BootId를 old ticket BootId와
+  먼저 비교한다. 변경됐거나 status가 exact `BootIdMismatch`면 old terminal을 추정하지 않고
+  known ticket을 stale-session quarantine으로 이동한다. local ticket의 session generation이
+  stale인 예외도 quarantine한다. 같은 Boot/session의 exact `TicketNotFound`는 terminal-slot
+  교체 계약상 이전 ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로
+  해당 ticket을 해제한다.
+- quarantine은 known ticket과 submit-outcome unknown evidence를 여러 개 보존할 수 있다.
+  모두 같은 slave여야 자동 recovery proof가 가능하다. stable BootId/MapRevision 아래 서로
+  다른 두 ticket을 사용하되 GeneralInline capability면 `0x6061:0 Int8/1`, legacy
+  SDORead-only면 `0x1000:0 UInt32/4`를 선택한다. 두 결과의 exact type/length/bytes가 같고 proof
+  동안 evidence 목록이 불변일 때만 quarantine 전체를 해제한다. scope는
+  `same_session_executor_reuse`,
+  `new_diagnostics_boot_session`, `new_connection_session` 세 가지다. 같은 owner+Boot unknown
+  outcome은 executor reuse만, 같은 owner의 Boot 변화는 diagnostics-Boot session만
+  증명하며 둘 다 orphan PASS가 아니다. 모든 evidence owner가 현재 `LMCConnection`과 달라
+  new-connection scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
+  `orphanQualified=false`를 기록한다. 이 scope는 새 RPC connection에서 application recovery가
+  성립했다는 뜻일 뿐 PLC 내부 orphan cleanup이나 late callback을 증명하지 않는다. 실제
+  orphan PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
+  QTEST는 `evidenceBootIds`, `recoveryBootId`, `proofScope`, `newConnectionRecovery`,
+  `orphanQualified=false`를 따로 기록한다.
+- unresolved가 하나라도 있으면 Configure Bulk, Recorder Configure/Adopt/Start/Trigger,
+  Group Disable, motion/PowerOn/Reset, manual SDO/PI, Close와 모든 다른 qualification 같은
+  새 mutation을 차단한다. 기존 resource cleanup인 Bulk Release, Recorder Stop/Release와
+  queued diagnostic Cancel, motion Stop/PowerOff 및 read-only는 허용한다. reconnect는 외부
+  connection loss 뒤에만 허용한다. Resolve는 reconnect 없이 same-session/new-Boot proof에도
+  사용하고, 외부 loss 후에는 새 connection proof에 사용한다.
+- `D5SdoPendingCleanup` Resolve는 기존 `qualificationLogLines`를 clear하지 않고 append하며
+  `D5_LOG_CONTINUATION`을 기록한다. 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 resolution proof를
+  같은 저장 QTEST log에 보존한다.
+- manual SDO와 Drive read의 external tracker event는 마지막 qualification context에 붙이지
+  않고 별도 `D5ExternalTracking:<stage>` run ID/step/elapsed context를 사용한다. unresolved
+  상태에서는 이 원본 context를 유지하고 Resolve가 끝난 뒤에만 close한다.
+- Phase 1 read-only facade의 예외 계약은 pre-submit/status stage와 ticket을 항상 노출하지
+  않는다. WPF가 이 예외를 unknown evidence로 false quarantine할 수 있지만 fail-closed이며,
+  SDK stage+ticket exception을 추가하는 것은 향후 operator UX 부채다.
+
+### 6.6 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
 검사할 수 있다. 현행 Debug visual/startup smoke에서는 Group/Bulk/Recorder panel 렌더와
 prerequisite 미충족 초기 실행 버튼 disabled를 확인했다. 이는 WPF 렌더와 fail-closed
 gate 확인일 뿐이다. Group queue chaining/Stop-first wire order, 수정된 `0x2047`,
-Bulk 100회, Recorder Single/Ring/soak는 해당 PLC build를 다운로드한 실물 장비에서
+Bulk 100회와 one-slave-offline partial/recovery, Recorder Single/Ring/soak/reconnect-adopt,
+D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
 아직 실행·packet capture하지 않았다. 따라서 runner의 `PASS`와 지정 capture의 wire
 조건을 모두 얻기 전에는 production qualification 완료로 표시하지 않는다.
 
@@ -334,7 +415,8 @@ typed callback payload가 정의되기 전에는 motion complete 신호로 해�
   download progress/cancel, metadata CSV와 plot smoke test
 - general-inline SDO Read ticket submit/status/queued cancel, terminal typed 1/2/4-byte
   inline result/save와 PI/SDO Write 및 extended result gate. live packet은 1/2/4-byte와
-  동일 BootId TypeMismatch recovery까지 PASS했고 나머지 fault matrix는 별도다.
+  동일 BootId TypeMismatch recovery까지 PASS했다. read-only abort/recovery runner와
+  analyzer는 code/build/test 완료지만 PLC live/pcap과 나머지 fault matrix는 별도다.
 - Read-only API의 Admin capability fail-closed, axis/group semantic allowlist,
   physical axis lookup/reference 검증과 drive status non-atomic 표기
 - 실제 PLC 시험은 Read Status/Position부터 시작하고 motion은 마지막에 수행

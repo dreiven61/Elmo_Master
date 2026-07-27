@@ -1,6 +1,7 @@
 # SIGMATEK 다음 Runtime Qualification 및 Test UI 설계
 
 - 작성일: 2026-07-23
+- 최신 구현 갱신: 2026-07-27
 - 대상 PC 앱: `LMC_Library/LasalApiWpfTestApp`
 - 대상 API: `LMC_Library/LMC_API_Delivery/src`
 - 대상 PLC: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
@@ -28,17 +29,17 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 | 영역 | 현재 판정 | 남은 핵심 gate |
 |---|---|---|
-| PC API | Debug/Release 148/148 계약 시험 PASS | 새 runner helper의 순수 로직 시험 추가 |
-| 개발 WPF | 공통 runner, Group/Bulk/Recorder qualification UI source와 Debug/Release build PASS; Debug visual/startup smoke PASS | 실제 PLC scenario 실행 |
+| PC API | 현재 Debug/Release 각 223/223 계약 시험 PASS; 기존 202개 회귀 + internal negative-wire 9개 + D5 abort/recovery analyzer 12개 | PLC live와 packet evidence 추가 |
+| 개발 WPF | D5 runner 포함 Debug/Release build PASS; visual/startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS | D5 panel visual과 실제 PLC scenario 실행 |
 | LASAL source/network | `0x2047` accepted-then-poll source 수정과 SourceOnly/full static contract PASS | IDE Rebuild/Link/smoke/download 및 live ACK 재검증 |
 | Admin `0x7D00/10/20` | live happy path PASS | invalid/stale/fault |
 | Group absolute/relative | 기존 acceptance/per-axis/dynamic-timeout live PASS; true Buffered/stop-first runner code와 WPF build PASS | runner의 실제 PLC packet/final-position 검증과 전체 fault matrix |
 | Group PowerOff | final `PowerOn=False` packet/log PASS | button label/enable visual assertion |
 | Group position `0x2051` | source/static + `09b` live static-alias PASS | true ACS transform는 미구현이며 MCS/PCS live negative는 별도 |
 | GroupEnable `0x2047` | same-cycle 상태 read 제거와 정적 계약 PASS | 새 PLC build/download 뒤 acceptance ACK 0 및 후속 `0x2045` poll live 확인 |
-| D1/D2 PI/Bulk | 기존 24-entry Catalog, 4 PI, 4-entry snapshot/release live PASS; 24-entry snapshot/lifecycle soak code와 WPF build PASS | 100회 live 실행, stale/fault/partial external workflow |
-| D3/D4 Recorder | Single/Ring forced-trigger/trigger-soak runner code와 WPF build PASS | PLC live Single/Ring/100회; reconnect/adopt, fault, RAM/jitter와 Double은 별도 |
-| D5 SDO Read | general-inline 1/2/4-byte와 TypeMismatch recovery PASS | offline/abort, timeout, queued cancel, orphan, contention |
+| D1/D2 PI/Bulk | 기존 24-entry Catalog, 4 PI, 4-entry snapshot/release live PASS; 24-entry snapshot/lifecycle soak와 operator checkpoint 기반 one-slave-offline partial/recovery code, 9개 순수 판정 시험 및 WPF build PASS | 100회와 partial workflow live 실행/capture, stale/raw-negative |
+| D3/D4 Recorder | Single/Ring forced-trigger/trigger-soak와 reconnect exact/0/0 discovery runner code 및 WPF build PASS | PLC live Single/Ring/100회/reconnect-adopt; fault, RAM/jitter와 Double은 별도 |
+| D5 SDO Read | general-inline/TypeMismatch recovery live PASS. abort runner/analyzer와 submit outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate, 15~120초 cleanup code/build/test 완료 | abort/orphan live/pcap, offline, timeout, queued cancel, contention |
 
 최신 세부 사실은 다음과 같다.
 
@@ -55,7 +56,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 
 ### 2.1 2026-07-23 구현 체크포인트
 
-현재 working source에는 다음이 구현됐고 PC 쪽 Debug/Release build가 통과했다.
+현재 working source에는 다음이 구현됐고 D5 runner 포함 PC Debug/Release build가 통과했다.
 
 - `TCPMotionInterface.st`: `0x2047`은 `LockProfile` native acceptance만 ACK하고 같은 cycle의
   `_LMCPROF_LockState` 완료 검사를 제거했다. 정적 계약은 PASS지만 LASAL IDE build/download와
@@ -63,10 +64,33 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
 - `MainWindow.Qualification.cs`: 단일 active scenario, cancel, `QTEST` 구조화 로그,
   GroupEnable 후속 poll, true Buffered A/B, deterministic stop-first와 cleanup을 구현했다.
 - `MainWindow.Qualification.Bulk.cs`: exact 24-entry Snapshot soak와
-  Configure -> Active -> Snapshot -> Release lifecycle soak를 구현했다.
+  Configure -> Active -> Snapshot -> Release lifecycle soak, Group PowerOff/Disabled 및
+  checkpoint 직전 4축 actual-position 3회 동일값 preflight,
+  operator-only offline/restore checkpoint와 bounded partial/recovery poll을 구현했다.
+- `BulkPartialQualificationAnalysis.cs`: axis1..4 x 6 fixed Catalog entry 계약, baseline 24 Valid,
+  한 SourceIndex의 정확한 6개 `SlaveOffline` bit/Detail 18, 복합 invalid bit 허용,
+  다른 18 entry exact Valid와 복구 중 동일 축 제한 및 최종
+  24 Valid 계약을 UI와 PC test가 같은 source로 판정한다.
 - `MainWindow.Qualification.Recorder.cs`: 4-channel Single Manual, Ring forced trigger,
-  100-cycle 기본 trigger soak, frozen metadata/byte count/SHA-256와 handle/buffer cleanup을
+  100-cycle 기본 trigger soak, frozen metadata/byte count/SHA-256와 handle/buffer cleanup,
+  그리고 별도 run의 reconnect exact/0/0 discovery Adopt와 adopted-identity cleanup을
   구현했다.
+- `MainWindow.Qualification.Sdo.cs`와 `D5SdoQualificationAnalysis.cs`: PowerOff/Standstill 및
+  3회 동일 position preflight, `0x6061:0 Int8/1` baseline, 실제 raw abort code와
+  same-Boot/Map recovery를 구현했다. Submit 전 outcome guard는 응답 유실을 unknown-ticket
+  evidence로 보존하고, 같은 connection의 BootId change/exact `BootIdMismatch`를 stale-session
+  quarantine한다. stale local session도 quarantine하며 같은 Boot/session의 exact
+  `TicketNotFound`는 이전 ticket terminal만 증명해 outcome `UNKNOWN`으로 해제한다. 여러
+  evidence는 GeneralInline의 `0x6061:0 Int8/1` 또는 legacy SDORead-only의
+  `0x1000:0 UInt32/4` 중 capability에 맞는 서로 다른 두 ticket의 exact type/length/bytes로 proof한다.
+  scope는 `same_session_executor_reuse`, `new_diagnostics_boot_session`,
+  `new_connection_session`으로 나눈다. 모든 evidence owner가 바뀐 셋째 scope는
+  `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 실제 orphan
+  PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
+  unresolved 새 mutation gate와 15~120초 deadline-aware cleanup을 적용한다.
+- PC test executable의 명시적 `negative-wire` 모드는 기본 dry-run이고 fixed 5개 raw
+  diagnostics rejection만 허용한다. code/build/9개 계약 시험과 dry-run은 PASS했지만
+  PLC live와 pcap은 없다.
 - `MainWindow.xaml`과 project file에는 위 시나리오의 입력, 실행/cancel/save UI와 partial
   source 등록을 반영했다.
 - Debug 실행 visual/startup smoke에서 Group/Bulk/Recorder qualification panel 렌더와
@@ -74,9 +98,11 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
   fail-closed UI gate 확인이며 PLC RPC, packet 또는 scenario runtime PASS는 아니다.
 
 이 체크포인트의 `구현/빌드 완료`는 PLC runtime PASS가 아니다. Group packet 14/15,
-Bulk packet 16/17, Recorder packet 19/20/22와 companion `QTEST` 로그가 생기기 전에는
-각 scenario를 live 완료로 표시하지 않는다. Recorder reconnect/adopt, 한 slave offline,
-별도 raw negative, RT RAM/jitter 및 D4 Double은 이 구현 체크포인트에 포함되지 않는다.
+Bulk packet 16/17/18, Recorder packet 19/20/21/22와 D5 packet 23a 및 companion `QTEST`
+로그가 생기기
+전에는 각 scenario를 live 완료로 표시하지 않는다. 한 slave offline은 코드에는
+포함됐지만 실제 operator 실행은 미실시다. raw negative 도구도 PC/dry-run까지만
+완료됐으며 PLC live/pcap, RT RAM/jitter 및 D4 Double은 이 구현 체크포인트에 포함되지 않는다.
 
 ## 3. 구현 결정
 
@@ -88,21 +114,25 @@ SDO / Write Policy 탭에 `Qualification automation` 영역을 추가한다. 사
 공유한다.
 
 자동화 코드는 공통/Group의 `MainWindow.Qualification.cs`, Bulk의
-`MainWindow.Qualification.Bulk.cs`, Recorder의 `MainWindow.Qualification.Recorder.cs`
-partial file에 격리한다. 기존 public SDK를 우회하거나 async UI handler를 서로 호출하지
-않는다.
+`MainWindow.Qualification.Bulk.cs`, Recorder의 `MainWindow.Qualification.Recorder.cs`,
+D5의 `MainWindow.Qualification.Sdo.cs` partial file에 격리한다. 기존 public SDK를
+우회하거나 async UI handler를 서로 호출하지 않는다.
 
 ### 3.2 일반 UI와 negative raw-wire 시험을 분리한다
 
 public SDK는 stale handle, stale session과 double release를 송신 전에 차단한다. 이 보호를
-약화해서 PLC 오류 응답을 만들지 않는다.
+약화해서 PLC 오류 응답을 만들지 않는다. 별도 도구는 기존 PC test executable의 정확한
+첫 token `negative-wire`일 때만 진입하고, 인자가 없으면 기존 자동 테스트를 그대로 실행한다.
 
 - 일반 Test UI: public API happy path, soak, local guard와 external fault checkpoint
-- 별도 내부 도구: 고의의 stale MapRevision/ConfigRevision/BootId, raw duplicate release,
-  malformed payload
+- 별도 내부 도구: 고정된 malformed payload, stale MapRevision/BootId/ConfigRevision과
+  public Release 뒤 raw duplicate Bulk Release의 다섯 시나리오
 
-별도 도구는 배포 예제에 포함하지 않고 diagnostics read/resource 명령만 허용한다.
-motion raw frame은 만들지 않는다.
+별도 도구는 배포 예제에 포함하지 않고 기본 dry-run으로 socket을 열지 않는다. live는
+`--execute-live`, exact `--confirm PLC-RAW-NEGATIVE`, host/local IPv4와 새 output 경로를
+모두 요구한다. arbitrary command/reference/hex 입력은 없고 motion, Admin, write,
+SDO Submit과 Recorder raw frame은 생성하지 않는다. report는 request/response hex와
+SHA-256을 남기고 `PCAP_EVIDENCE=NOT_CAPTURED_BY_TOOL`로 독립 capture 미수집을 명시한다.
 
 ### 3.3 motion 취소는 Stop으로 끝낸다
 
@@ -121,10 +151,10 @@ motion-uncertain 경고를 유지한다.
 | 4 | 코드/빌드 완료, live 대기: true Buffered chaining | A 동작 중 B queue와 누적 endpoint packet 검증 필요 |
 | 5 | 코드/빌드 완료, live 대기: deterministic stop-first preemption | Move 0건/Stop 1건 packet 증명 필요 |
 | 6 | 코드/빌드 완료, live 대기: Bulk 24-entry/100 snapshot 및 lifecycle soak | 실제 100회 resource/sequence 검증 필요 |
-| 7 | 미구현/수동 대기: Bulk partial external-fault workflow | 한 slave offline checkpoint와 복구는 사용자 승인 필요 |
-| 8 | 부분 코드/빌드 완료: Recorder Single/Ring/Trigger soak | PLC live 실행 대기; reconnect/adopt, RT evidence와 Double은 아직 범위 밖 |
-| 9 | D5 나머지 fault matrix | 외부 fault와 timing hook이 필요한 항목을 분리 실행 |
-| 10 | 별도 negative-wire 도구 | SDK 보호를 유지한 뒤 PLC raw rejection만 검증 |
+| 7 | 코드/PC 판정 완료, live 대기: Bulk partial external-fault workflow | 프로그램은 fault를 만들지 않으며 한 slave Online=False/복구 checkpoint를 사용자가 승인해 실행해야 함 |
+| 8 | 코드/빌드 완료: Recorder Single/Ring/Trigger soak와 reconnect exact/0/0 discovery | PLC live 실행/capture 대기; fault, RT evidence와 Double은 아직 범위 밖 |
+| 9 | D5 abort/recovery·outcome/orphan quarantine·two-ticket proof 코드/PC 판정 완료, live 대기 | 실제 abort/response-loss/reboot/recovery packet과 외부 fault·timing hook 항목을 분리 실행 |
+| 10 | internal negative-wire code/test/dry-run 완료, live 대기 | SDK 보호를 유지한 채 fixed 5개 PLC raw rejection과 별도 pcap 검증 |
 
 ## 5. `09b` Group Position 재캡처 결과
 
@@ -423,7 +453,8 @@ cleanup 뒤 새 Configure가 다시 성공해야 한다.
 
 ### 9.2 partial external-fault workflow
 
-UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 no-motion을 확인한 뒤
+UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 4축 actual-position
+3회 동일값으로 no-motion을 확인한 뒤
 `Inject one slave offline, then Resume` checkpoint를 표시하고 사용자가 승인된 방법으로
 한 slave를 non-OP/offline 처리한다.
 
@@ -431,7 +462,8 @@ UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 no-motio
 
 - baseline: Partial=false, 24 Valid
 - fault: RPC envelope success, Partial=true
-- 해당 축 6 entry만 Invalid + Detail 18 `SlaveOffline`
+- 해당 축 6 entry만 Valid bit 없음 + `SlaveOffline` bit 포함 + Detail 18
+- offline 축의 추가 OR 상태 bit는 허용하지만 다른 18 entry는 exact Valid/None
 - 나머지 18 entry Valid
 - 복구: Partial=false, 24 Valid
 - Release 성공
@@ -453,8 +485,17 @@ UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 no-motio
 - raw duplicate `0x7E33`
 - capability-off Double request
 
-이 raw rejection은 마지막 단계의 internal-only protocol tool에서
-`HandleOrGenerationStale(10)`와 `MapRevisionMismatch(3)`를 별도 확인한다.
+internal-only `negative-wire` 도구는 다음 fixed 5개만 만든다.
+
+- malformed `0x7E01` 9-byte payload -> `BoundsInvalid(12)`
+- stale map `0x7E02` -> `MapRevisionMismatch(3)`
+- stale BootId `0x7E03` -> `BootIdMismatch(25)`
+- public-configured Bulk의 stale ConfigRevision `0x7E31` -> `HandleOrGenerationStale(10)`
+- public Release 뒤 raw duplicate `0x7E33` -> `HandleOrGenerationStale(10)`
+
+각 PASS는 outer status/reserved, exact 16-byte common envelope, schema/flags/status/error,
+request echo와 Detail 전체를 검사한다. PC 계약 시험과 dry-run만 완료됐고 실제 PLC raw
+rejection과 pcap은 아직 없다.
 
 ## 10. Recorder qualification
 
@@ -484,6 +525,11 @@ UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 no-motio
 
 ### 10.3 reconnect/adopt
 
+현재 WPF에는 아래 exact와 0/0 discovery가 각각 별도 qualification 버튼으로 구현됐고
+Debug/Release build가 통과했다. PC fake-RPC는 서로 다른 두 connection session에서
+두 방식의 Adopt, 새 OwnerSessionEpoch, Status metadata 복구, Header/Download와
+buffer/configuration release를 검증했다. 실제 PLC packet/QTEST는 아직 없다.
+
 1. Ring Recorder start 뒤 identity를 보존하고 connection close
 2. 같은 BootId PLC에 reconnect/capability refresh
 3. exact RecordId/BufferId Adopt 시험
@@ -491,6 +537,12 @@ UI가 EtherCAT fault를 만들지 않는다. group PowerOff/Disabled와 no-motio
 5. 새 OwnerSessionEpoch로 Status -> 필요 시 Stop -> Header -> Download -> Release
 
 old BootId, identity mismatch 또는 다른 active resource를 성공으로 adopt하면 실패다.
+
+취소 또는 중간 오류가 connection close 뒤 발생하면 저장한 exact identity로
+cancel-independent reconnect/adopt cleanup을 시도한다. adopted identity의 final Status가
+`Ready`/`Uploading`일 때만 identity 경로로 buffer와 configuration을 순서대로 Release한다.
+`Fault`, BootId/MapRevision/identity 불일치에서는 자동 Release하지 않고 recovery-required
+로그와 보존 ID를 남긴다.
 
 파일명: `21_Recorder_Reconnect_ExactAndDiscovery_7E49.pcapng/.txt`
 
@@ -521,15 +573,45 @@ Release하지 않는다. 이 경우 QTEST에 recovery-required를 남기고 iden
 - TypeMismatch terminal failure
 - 같은 BootId에서 failure 후 다음 ticket success
 
+현재 WPF의 read-only abort -> recovery runner와 순수 analyzer는 code/build/test 완료다.
+선택 축의 PowerOff/Standstill과 actual position 3회 동일값을 확인하고, stable nonzero
+BootId/MapRevision에서 `0x6061:0 Int8/1` baseline을 읽은 뒤 abort candidate와 새
+known-valid recovery ticket을 순서대로 실행한다. runner는 SDO Write나 EtherCAT fault를
+만들지 않는다.
+Phase 1 PI Write는 SDK compile-time allowlist empty에 더해 WPF의
+`Phase1AllowsPiWrite=false`가 input/button과 click handler를 각각 막는다.
+
+Submit 호출 직전 ticket ID 0 outcome evidence를 quarantine list에 먼저 등록한다. explicit
+PLC rejection이면 제거하지만 응답 유실/transport uncertainty이면 unknown-ticket으로
+보존한다. ticket 응답을 받은 경로도 active ticket/owner connection/deadline 저장 뒤 guard
+제거 성공을 확인한다.
+
+Resolve는 같은 `LMCConnection`이라도 current capability BootId를 먼저 비교한다. old ticket과
+다르거나 status가 exact `BootIdMismatch`이면 terminal을 추정하지 않고 known ticket을
+stale-session quarantine한다. stale local session exception도 quarantine한다. 같은
+Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전 ticket terminal만
+증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해제한다. known/unknown evidence가
+여러 개면 모두 같은 slave여야 하며, stable BootId/MapRevision 아래 GeneralInline이면 서로
+다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket의
+exact type/length/bytes가 같고 proof 도중 evidence 목록이 불변일 때만 전체 quarantine을 해제한다.
+같은 owner+Boot의 unknown outcome은 `same_session_executor_reuse` proof이며 disconnect/orphan
+PASS로 표시하지 않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner
+변화는 `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
+`newConnectionRecovery=true`로 기록하지만 WPF는 항상 `orphanQualified=false`를 기록한다.
+이는 새 RPC connection에서 application recovery가 성립했다는 뜻일 뿐 PLC 내부 orphan
+cleanup이나 late callback을 증명하지 않는다. 실제 orphan PASS에는 known Running old ticket,
+실제 owner loss와 별도 PLC hook/capture가 필요하다. QTEST는 `evidenceBootIds`,
+`recoveryBootId`, `proofScope`, `newConnectionRecovery`, `orphanQualified=false`를 분리한다.
+
 남은 항목:
 
 | 시나리오 | 실행 방법 | 합격 경계 |
 |---|---|---|
-| SDO abort | 존재하지 않는 read-only object/subindex를 안전하게 조회 | terminal Failed, Detail `SdoAbort`, abort code 보존, 다음 valid read 성공 |
+| SDO abort | 제조사 기준으로 승인된 존재하지 않는 read-only object/subindex를 안전하게 조회 | terminal `Failed/Failed`, `OperationErrorId=-32000`, `OperationDetail`에 실제 nonzero raw EtherCAT SDO abort code, result 없음, 같은 BootId/MapRevision의 새 `0x6061:0 Int8/1`이 baseline exact 값으로 성공 |
 | slave offline | no-motion/PowerOff 뒤 외부 checkpoint로 한 slave offline | offline/failed terminal 또는 명시적 submit reject, 다른 축과 복구 후 valid read 성공 |
 | timeout | 승인된 느린/offline 조건과 작은 nonzero TimeoutCycles | terminal Expired/TimedOut, error envelope 일관성, resource 회수 |
 | queued cancel | ticket이 실제 Queued인 구간에서 Cancel | Cancelled/Cancelled, result 없음, 다음 submit 성공 |
-| disconnect/orphan | long-running read 직후 owner session disconnect/reconnect | old ticket/owner 재사용 차단, executor orphan cleanup 뒤 새 submit 성공 |
+| disconnect/new-connection recovery | long-running read 직후 owner connection의 외부 loss/reconnect | old evidence quarantine와 new-connection two-ticket proof는 `newConnectionRecovery=true`만 판정. same-owner executor-reuse와 diagnostics-Boot-change proof도 orphan PASS로 세지 않음. 실제 orphan은 known Running old ticket, owner loss와 별도 PLC hook/capture 필요 |
 | deliberate contention | first ticket terminal 전 second submit | second `ResourceBusy`, first terminal 뒤 third submit 성공 |
 | duplicate/late callback | instrumented test build 또는 장시간 race soak | 이전 ticket 결과가 새 ticket에 섞이지 않고 owner/ticket identity 유지 |
 
@@ -537,6 +619,23 @@ queued cancel과 duplicate/late callback은 수동 클릭만으로 deterministic
 재현 가능한 PLC test hook 또는 timing evidence 없이 PASS로 표시하지 않는다. EtherCAT SDO
 mailbox frame을 독립 확인하려면 PC-LASAL TCP capture가 아니라 EtherCAT link capture가
 필요하다.
+
+abort runner 취소 cleanup은 status가 실제 `Queued`일 때만 public Cancel을 보내고,
+`Running`이면 PLC Stop/transport close 없이 기존 terminal deadline의 남은 시간+1초를
+반영한다. wait는 최소 15초, 최대 120초다.
+local transport failure, timeout과 cancel은 실제 SDO abort 증거로 인정하지 않는다.
+unresolved ticket/evidence가 있으면 Configure Bulk, Recorder Configure/Adopt/Start/Trigger,
+Group Disable, motion/PowerOn/Reset, manual SDO/PI, Close와 모든 다른 qualification 같은
+새 mutation을 막는다. 기존 Bulk Release, Recorder Stop/Release, queued diagnostic Cancel,
+motion Stop/PowerOff와 read-only는 허용한다. reconnect는 외부 connection loss 뒤에만
+허용한다. `Resolve Preserved D5 Ticket`은 same-session/new-Boot에서도 바로 실행하고,
+외부 loss 뒤에는 new-connection proof를 수행한다.
+`D5SdoPendingCleanup` Resolve는 기존 `qualificationLogLines`를 clear하지 않고 append하며
+`D5_LOG_CONTINUATION`을 기록한다. 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 resolution proof를
+같은 저장 QTEST log에 보존한다.
+Phase 1 facade는 pre-submit/status stage와 ticket을 모든 예외에 노출하지 않는다. WPF가
+unknown evidence를 false quarantine할 수 있지만 fail-closed하며, SDK stage+ticket exception
+UX는 후속 부채다.
 
 파일명은 한 파일에 뭉뚱그리지 않고 다음처럼 분리한다.
 
@@ -558,9 +657,19 @@ mailbox frame을 독립 확인하려면 PC-LASAL TCP capture가 아니라 EtherC
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Diagnostics.cs` | 직접 변경 없이 partial class의 기존 diagnostics resource 상태/formatter 재사용 |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.cs` | 공통 runner, Group scenario, logging, safety cleanup |
 | `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Bulk.cs` | 24-entry snapshot/lifecycle soak와 release cleanup |
-| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, hash assertion과 buffer/config cleanup |
+| `LMC_Library/LasalApiWpfTestApp/.../BulkPartialQualificationAnalysis.cs` | 4축 x 6 topology, baseline/fault/recovery 순수 계약 판정; PC test와 동일 source linked compile |
+| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Recorder.cs` | Single/Ring/trigger soak, reconnect exact/0/0 discovery, hash assertion과 normal/adopted cleanup |
+| `LMC_Library/LasalApiWpfTestApp/.../MainWindow.Qualification.Sdo.cs` | read-only baseline/abort/recovery, outcome/BootId quarantine, multi-evidence two-ticket proof, unresolved mutation gate와 15~120초 deadline-aware cleanup |
+| `LMC_Library/LasalApiWpfTestApp/.../D5SdoQualificationAnalysis.cs` | actual raw abort code와 generic exact type/length/bytes recovery 순수 판정; PC test와 동일 source linked compile |
+| `LMC_Library/LasalApiWpfTestApp/.../GroupStopQualificationOrchestrator.cs` | UI 비종속 Group Stop + stable Standby와 failure fallback/aggregate; PC test와 동일 source linked compile |
+| `LMC_Library/LasalApiWpfTestApp/.../TransportQualificationAnalysis.cs` | read-only transport count/statistics/hash/PASS/CSV 순수 판정; PC test project와 동일 source linked compile |
 | `LMC_Library/LasalApiWpfTestApp/.../LasalApiWpfTestApp.csproj` | 새 Compile item 등록 |
-| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 기존 148개 회귀 PASS; qualification 전용 fake-RPC test는 아직 추가하지 않음 |
+| `LMC_Library/.../tests/.../TransportQualificationAnalysisTests.cs` | count/percentile/throughput/hash/PASS/FAIL/ABORTED/CSV 6개 자동 시험 |
+| `LMC_Library/.../tests/.../BulkPartialQualificationAnalysisTests.cs` | baseline/recovery, 정확한 한 축, composite offline flags, 산개 축, wrong detail, 5-entry, recovery transition, topology와 fixed Catalog contract 9개 자동 시험 |
+| `LMC_Library/.../tests/.../D5SdoQualificationAnalysisTests.cs` | abort/recovery identity, state/error/detail/result 8개와 generic UInt32 exact/type/value/length 4개, 총 12개 자동 시험 |
+| `LMC_Library/.../tests/.../NegativeWireTool.cs`와 `NegativeWireToolTests.cs` | explicit mode/dry-run/live gate, fixed 5개 allowlist와 금지 command, exact response/report 계약 9개 |
+| `LMC_Library/.../docs/NEGATIVE_WIRE_TOOL_2026-07-27.md` | internal-only 실행법, cleanup과 report/pcap 증거 경계 |
+| `LMC_Library/.../tests/LasalMotionControlLib.Tests` | 현재 Debug/Release 각 223/223 PASS; 기존 202개 회귀 + negative-wire 9개 + D5 analyzer 12개 |
 | 관련 README/DESIGN/current-status 문서 | 실제 구현/packet 결과만 단계별 갱신 |
 
 SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 중 public API가
@@ -571,12 +680,17 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 
 ### 13.1 PC 변경
 
-1. [완료] Debug/Release API tests 148/148
+1. [완료] Debug/Release API tests 각 223/223
 2. [완료] `Verify-LasalContract.ps1` SourceOnly/full
-3. [완료] WPF Debug/Release build
+3. [완료] D5 runner를 포함한 WPF build
 4. [완료] Debug qualification UI visual/startup smoke: Group/Bulk/Recorder panel 렌더와
    prerequisite 미충족 초기 실행 버튼 disabled 확인
-5. [대기] scenario helper fake-RPC success/failure/cancel/cleanup tests
+5. [완료] read-only transport 순수 판정 6개, callback lifecycle 4개 loopback,
+   Group Stop-first failure fallback/UI context 4개, Bulk cleanup/retry와 partial 판정 9개,
+   Recorder two-session exact/discovery, pre-close transport-fault exact recovery,
+   cancel/Stop-race/release-failure retry/quarantine 및 Fault no-mutation,
+   negative-wire 9개와 D5 abort/recovery analyzer 12개 PASS. D5 WPF outcome/quarantine/
+   recovery-proof/state gate는 build 검증이며 PLC live 증거가 아님
 6. [완료] `git diff --check`
 
 ### 13.2 LASAL 변경
@@ -602,17 +716,40 @@ wire PASS라고 쓰지 않고, screenshot이 없으면 visual state PASS라고 �
 - [코드/빌드 완료, live 미검증] WPF는 Standby 전 Move를 차단하고 Group qualification을
   ordinary operation과 직렬화한다.
 - [코드/빌드 완료, live 미검증] true Buffered A/B와 deterministic stop-first runner가 있다.
+  Stop-first의 Stop/검증 실패는 non-cancelable fallback Stop + stable Standby 3회로 끝내며,
+  fallback 실패는 원 오류와 cleanup 오류를 함께 보존한다.
 - [코드/빌드 완료, live 미검증] Group/Bulk 실패·취소 path와 Recorder의 state-gated cleanup
   결과를 구조화 로그로 남긴다. Recorder 자동 Release는 `Ready`/`Uploading`에서만
   수행하며 `Fault`는 resource를 보존하고 명시적 복구가 필요하다.
-- [완료] 기존 PC tests, 새 LASAL static contract, WPF Debug/Release build와 Debug
+- [코드/빌드 완료, live 미검증] Recorder reconnect exact/0/0 discovery는 실제 connection을
+  close/reopen하고 same BootId/MapRevision, preserved identity와 새 OwnerSessionEpoch를
+  검사한 뒤 adopted identity로 Status/Header/Download/Release를 수행한다.
+- [PC fake-RPC 완료, PLC live 미검증] Start ACK 직후 exact recovery identity를 보존한다.
+  의도적 Close 전 transport fault도 실제 connection 상태를 기준으로 reconnect/adopt cleanup을
+  선택하며 Fault/불완전 ownership은 Stop/Release 없이 보존한다.
+- [코드/빌드/PC 판정 완료, PLC live 미검증] D5 abort/recovery는 read-only preflight,
+  baseline, actual raw abort code, same-Boot/Map exact recovery와 queued/running cleanup을
+  구현했다. Submit outcome unknown과 BootId mismatch를 quarantine하고 multi-evidence를
+  GeneralInline `0x6061:0 Int8/1` 또는 legacy SDORead-only `0x1000:0 UInt32/4`의 서로 다른
+  두 exact type/length/bytes read로 해제하며, unresolved 상태변경 gate와 15~120초
+  deadline-aware cleanup을 적용한다. 세 proof scope와 `evidenceBootIds`/`recoveryBootId`를
+  기록한다. 모든 evidence owner가 바뀌면 `newConnectionRecovery=true`지만 WPF는 항상
+  `orphanQualified=false`다. 실제 orphan PASS에는 별도 PLC hook/capture가 필요하다.
+  새 mutation 차단 중에도 기존 resource cleanup/Stop/PowerOff/read-only는 허용한다.
+  local transport/timeout/cancel은 abort PASS로 인정하지 않는다.
+- [코드/test/dry-run 완료, PLC live/pcap 미검증] internal negative-wire는 fixed 5개
+  diagnostics rejection만 허용하고 request/response hex/SHA-256을 report에 남긴다.
+- [완료] Debug/Release PC tests 각 223/223, 새 LASAL static contract, WPF build와 Debug
   qualification UI visual/startup smoke가 PASS했다.
-- [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder live capture가 필요하다.
+- [대기] LASAL IDE build/download/smoke와 Group/Bulk/Recorder/D5/negative-wire live
+  capture가 필요하다.
 
-추가로 Bulk 24-entry snapshot/lifecycle와 Recorder Single/Ring/trigger soak는 code/build
-단계까지 구현됐지만 Definition of Done의 PLC runtime gate는 아직 열려 있다.
+추가로 Bulk 24-entry snapshot/lifecycle 및 operator-driven one-slave partial/recovery와
+Recorder Single/Ring/trigger soak/reconnect-adopt는 code/build 단계까지 구현됐지만
+Definition of Done의 PLC runtime gate는 아직 열려 있다.
 
-다음 순서는 구현된 Group/Bulk/Recorder runner의 PLC capture를 확보하고, 이후 수동
-external-fault, Recorder reconnect/adopt, D5 fault matrix와 별도 raw/RT evidence를
-진행하는 것이다. 이 gate가 끝나기 전에는 Homing, SetPosition, PI/SDO Write 또는
+다음 순서는 구현된 Group/Bulk/Recorder/reconnect-adopt와 D5 abort/recovery runner의 PLC
+capture를 확보하고, internal negative-wire live/report/pcap을 분리 실행하는 것이다. 이후
+D5 나머지 fault matrix와 별도 RT evidence를 진행한다. 이 gate가 끝나기 전에는
+Homing, SetPosition, PI/SDO Write 또는
 production version 승격을 시작하지 않는다.
