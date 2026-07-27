@@ -267,6 +267,106 @@ namespace LasalMotionControlLib
         }
     }
 
+    public enum LMCSdoReadCommandStage
+    {
+        CapabilityPreflight = 0,
+        Submission = 1,
+        StatusPolling = 2
+    }
+
+    /// <summary>
+    /// Reports a diagnostics command rejection raised by the bounded SDO Read
+    /// facade. CapabilityPreflight and Submission failures have no accepted
+    /// ticket. StatusPolling failures preserve the accepted PLC ticket for
+    /// explicit recovery.
+    /// </summary>
+    public sealed class LMCSdoReadCommandException
+        : LMCDiagnosticsCommandException
+    {
+        internal LMCSdoReadCommandException(
+            LMCSdoReadCommandStage stage,
+            LMCOperationTicket ticket,
+            LMCDiagnosticsCommandException innerException)
+            : base(
+                CreateMessage(stage, ticket, innerException),
+                innerException == null ? null : innerException.Response,
+                innerException)
+        {
+            if (innerException == null)
+            {
+                throw new ArgumentNullException("innerException");
+            }
+
+            if (stage == LMCSdoReadCommandStage.CapabilityPreflight
+                || stage == LMCSdoReadCommandStage.Submission)
+            {
+                if (ticket != null)
+                {
+                    throw new ArgumentException(
+                        "Pre-ticket SDO Read command failures cannot have an accepted ticket.",
+                        "ticket");
+                }
+            }
+            else if (stage == LMCSdoReadCommandStage.StatusPolling)
+            {
+                if (ticket == null)
+                {
+                    throw new ArgumentNullException(
+                        "ticket",
+                        "Status-polling SDO Read failures require the accepted ticket.");
+                }
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("stage");
+            }
+
+            Stage = stage;
+            Ticket = ticket;
+        }
+
+        public LMCSdoReadCommandStage Stage { get; private set; }
+
+        /// <summary>
+        /// Gets the accepted PLC ticket for StatusPolling failures, or null when
+        /// the diagnostics command failed before a ticket was accepted.
+        /// </summary>
+        public LMCOperationTicket Ticket { get; private set; }
+
+        private static string CreateMessage(
+            LMCSdoReadCommandStage stage,
+            LMCOperationTicket ticket,
+            LMCDiagnosticsCommandException innerException)
+        {
+            var commandMessage = innerException == null
+                ? "The diagnostics command failed."
+                : innerException.Message;
+
+            if (stage == LMCSdoReadCommandStage.CapabilityPreflight)
+            {
+                return "SDO Read diagnostics command failed during capability preflight. Stage=CapabilityPreflight. "
+                    + commandMessage;
+            }
+
+            if (stage == LMCSdoReadCommandStage.Submission)
+            {
+                return "SDO Read diagnostics command failed before a PLC ticket was accepted. Stage=Submission. "
+                    + commandMessage;
+            }
+
+            if (stage == LMCSdoReadCommandStage.StatusPolling)
+            {
+                return "SDO Read diagnostics command failed while polling PLC ticket status. Stage=StatusPolling, TicketId="
+                    + (ticket == null ? 0u : ticket.TicketId)
+                    + ". "
+                    + commandMessage;
+            }
+
+            return "SDO Read diagnostics command failed at an unknown facade stage. "
+                + commandMessage;
+        }
+    }
+
     /// <summary>
     /// Reports a terminal D5 SDO Read failure while preserving the PLC ticket
     /// and terminal status fields.

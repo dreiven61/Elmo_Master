@@ -187,12 +187,20 @@ namespace LasalMotionControlLib
         }
     }
 
-    public sealed class LMCDiagnosticsCommandException : InvalidOperationException
+    public class LMCDiagnosticsCommandException : InvalidOperationException
     {
         internal LMCDiagnosticsCommandException(
             string message,
             LMCDiagnosticsResponse response)
-            : base(message)
+            : this(message, response, null)
+        {
+        }
+
+        internal LMCDiagnosticsCommandException(
+            string message,
+            LMCDiagnosticsResponse response,
+            Exception innerException)
+            : base(message, innerException)
         {
             Response = response;
         }

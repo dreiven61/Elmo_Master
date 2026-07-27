@@ -2006,6 +2006,46 @@ namespace LasalMotionControlApiExample
                         + error.OperationStatus.Outcome);
                 throw;
             }
+            catch (LMCSdoReadCommandException error)
+            {
+                if (error.Stage == LMCSdoReadCommandStage.CapabilityPreflight
+                    || error.Stage == LMCSdoReadCommandStage.Submission)
+                {
+                    DisarmExternalD5SubmissionOutcomeGuard(
+                        evidence,
+                        "PRE_TICKET_COMMAND_REJECTED",
+                        error.Stage
+                            + ":"
+                            + (error.Response == null
+                                ? "response_unavailable"
+                                : error.Response.Detail.ToString()));
+                }
+                else if (error.Stage == LMCSdoReadCommandStage.StatusPolling
+                    && error.Ticket != null)
+                {
+                    PreserveExternalD5Ticket(
+                        error.Ticket,
+                        ownerConnection,
+                        slaveReference,
+                        timeoutCycles,
+                        stage);
+                    DisarmExternalD5SubmissionOutcomeGuard(
+                        evidence,
+                        "KNOWN_TICKET_PRESERVED",
+                        "status_command_failure:"
+                            + (error.Response == null
+                                ? "response_unavailable"
+                                : error.Response.Detail.ToString()));
+                }
+                else
+                {
+                    PreserveExternalD5SubmissionOutcomeUncertain(
+                        evidence,
+                        error);
+                }
+
+                throw;
+            }
             catch (Exception error)
             {
                 PreserveExternalD5SubmissionOutcomeUncertain(

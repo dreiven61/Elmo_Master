@@ -332,13 +332,14 @@ namespace LasalMotionControlLib
             connection.EnsureSessionGeneration(expectedSessionGeneration);
 
             inlineSdoReadGate.Wait();
+            LMCOperationTicket ticket = null;
             try
             {
                 connection.EnsureSessionGeneration(expectedSessionGeneration);
                 var submission = SubmitInlineSdoRead(
                     request,
                     expectedSessionGeneration);
-                var ticket = submission.Ticket;
+                ticket = submission.Ticket;
                 var pollLimit = GetInlineSdoTerminalPollLimit(
                     request.TimeoutCycles);
                 var pollDelayMilliseconds =
@@ -360,6 +361,19 @@ namespace LasalMotionControlLib
                 }
 
                 throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
+            }
+            catch (LMCSdoReadCommandException)
+            {
+                throw;
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                throw CreateInlineSdoCommandException(
+                    ticket == null
+                        ? LMCSdoReadCommandStage.Submission
+                        : LMCSdoReadCommandStage.StatusPolling,
+                    ticket,
+                    exception);
             }
             finally
             {
@@ -417,6 +431,19 @@ namespace LasalMotionControlLib
 
                 throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
             }
+            catch (LMCSdoReadCommandException)
+            {
+                throw;
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                throw CreateInlineSdoCommandException(
+                    ticket == null
+                        ? LMCSdoReadCommandStage.Submission
+                        : LMCSdoReadCommandStage.StatusPolling,
+                    ticket,
+                    exception);
+            }
             catch (OperationCanceledException exception)
             {
                 if (ticket == null)
@@ -433,6 +460,18 @@ namespace LasalMotionControlLib
             {
                 inlineSdoReadGate.Release();
             }
+        }
+
+        private static LMCSdoReadCommandException
+            CreateInlineSdoCommandException(
+                LMCSdoReadCommandStage stage,
+                LMCOperationTicket ticket,
+                LMCDiagnosticsCommandException exception)
+        {
+            return new LMCSdoReadCommandException(
+                stage,
+                ticket,
+                exception);
         }
 
         internal static int GetInlineSdoPollDelayMilliseconds(
@@ -456,13 +495,37 @@ namespace LasalMotionControlLib
             long expectedSessionGeneration)
         {
             connection.EnsureSessionGeneration(expectedSessionGeneration);
-            var capabilities = GetCapabilities();
+            LMCDiagnosticCapabilities capabilities;
+            try
+            {
+                capabilities = GetCapabilities();
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                throw CreateInlineSdoCommandException(
+                    LMCSdoReadCommandStage.CapabilityPreflight,
+                    null,
+                    exception);
+            }
+
             GetInlineSdoPollDelayMilliseconds(
                 capabilities.BaseCycleTimeUs);
-            var ticket = SubmitSdoCore(
-                request,
-                expectedSessionGeneration,
-                capabilities);
+            LMCOperationTicket ticket;
+            try
+            {
+                ticket = SubmitSdoCore(
+                    request,
+                    expectedSessionGeneration,
+                    capabilities);
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                throw CreateInlineSdoCommandException(
+                    LMCSdoReadCommandStage.Submission,
+                    null,
+                    exception);
+            }
+
             return new LMCInlineSdoReadSubmission(
                 ticket,
                 capabilities.BaseCycleTimeUs);
