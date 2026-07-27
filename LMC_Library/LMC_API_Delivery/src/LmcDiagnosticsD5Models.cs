@@ -1,7 +1,346 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace LasalMotionControlLib
 {
+    public enum LMCSdoSubmissionPhase
+    {
+        RequestValidation = 0,
+        SessionPreflight = 1,
+        CapabilityPreflight = 2,
+        Submission = 3,
+        PostSubmissionValidation = 4
+    }
+
+    public enum LMCSdoSubmissionOutcome
+    {
+        NotAttempted = 0,
+        Rejected = 1,
+        OutcomeUncertain = 2,
+        Accepted = 3
+    }
+
+    /// <summary>
+    /// Immutable failure context for LMCDiagnostics.SubmitSdo and
+    /// SubmitSdoAsync. The original exception object and type are preserved;
+    /// call TryGet with the caught exception to distinguish local preflight,
+    /// explicit PLC rejection, uncertain wire outcome, and an accepted ticket.
+    /// </summary>
+    public sealed class LMCSdoSubmissionFailureContext
+    {
+        private static readonly object FailureContextSync = new object();
+        private static readonly ConditionalWeakTable<
+            Exception,
+            LMCSdoSubmissionFailureContext> FailureContexts =
+                new ConditionalWeakTable<
+                    Exception,
+                    LMCSdoSubmissionFailureContext>();
+
+        internal LMCSdoSubmissionFailureContext(
+            LMCSdoRequest request,
+            LMCSdoSubmissionPhase phase,
+            LMCSdoSubmissionOutcome submissionOutcome,
+            uint diagnosticsBootId,
+            uint mapRevision,
+            LMCOperationTicket ticket)
+        {
+            if (!Enum.IsDefined(typeof(LMCSdoSubmissionPhase), phase))
+            {
+                throw new ArgumentOutOfRangeException("phase");
+            }
+
+            if (!Enum.IsDefined(
+                typeof(LMCSdoSubmissionOutcome),
+                submissionOutcome))
+            {
+                throw new ArgumentOutOfRangeException("submissionOutcome");
+            }
+
+            if (submissionOutcome != LMCSdoSubmissionOutcome.NotAttempted
+                && request == null)
+            {
+                throw new ArgumentNullException(
+                    "request",
+                    "A dispatched SDO submission requires its request.");
+            }
+
+            if (request == null
+                && phase != LMCSdoSubmissionPhase.RequestValidation)
+            {
+                throw new ArgumentException(
+                    "A null SDO request can fail only during request validation.",
+                    "phase");
+            }
+
+            if (submissionOutcome == LMCSdoSubmissionOutcome.Accepted)
+            {
+                if (ticket == null)
+                {
+                    throw new ArgumentNullException(
+                        "ticket",
+                        "An accepted SDO submission requires its ticket.");
+                }
+
+                if (phase
+                    != LMCSdoSubmissionPhase.PostSubmissionValidation)
+                {
+                    throw new ArgumentException(
+                        "An accepted ticket failure must occur during post-submission validation.",
+                        "phase");
+                }
+            }
+            else if (ticket != null)
+            {
+                throw new ArgumentException(
+                    "Only an accepted SDO submission can have a ticket.",
+                    "ticket");
+            }
+
+            if ((submissionOutcome == LMCSdoSubmissionOutcome.Rejected
+                    || submissionOutcome
+                        == LMCSdoSubmissionOutcome.OutcomeUncertain)
+                && phase != LMCSdoSubmissionPhase.Submission)
+            {
+                throw new ArgumentException(
+                    "Rejected and outcome-uncertain SDO submissions require the Submission phase.",
+                    "phase");
+            }
+
+            if (submissionOutcome != LMCSdoSubmissionOutcome.NotAttempted
+                && (diagnosticsBootId == 0 || mapRevision == 0))
+            {
+                throw new ArgumentException(
+                    "A dispatched SDO submission requires its capability BootId and MapRevision.");
+            }
+
+            if (ticket != null)
+            {
+                var expectedKind = request.IsWrite
+                    ? LMCOperationKind.SDOWrite
+                    : LMCOperationKind.SDORead;
+                if (ticket.OperationKind != expectedKind
+                    || ticket.DiagnosticsBootId != diagnosticsBootId)
+                {
+                    throw new ArgumentException(
+                        "The accepted ticket does not match the SDO request and capability identity.",
+                        "ticket");
+                }
+            }
+
+            Request = request;
+            Phase = phase;
+            SubmissionOutcome = submissionOutcome;
+            DiagnosticsBootId = diagnosticsBootId;
+            MapRevision = mapRevision;
+            Ticket = ticket;
+        }
+
+        /// <summary>
+        /// Gets the submitted request, or null when a null argument failed
+        /// during RequestValidation.
+        /// </summary>
+        public LMCSdoRequest Request { get; private set; }
+        public LMCSdoSubmissionPhase Phase { get; private set; }
+        public LMCSdoSubmissionOutcome SubmissionOutcome { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public uint MapRevision { get; private set; }
+        public LMCOperationTicket Ticket { get; private set; }
+
+        public static bool TryGet(
+            Exception exception,
+            out LMCSdoSubmissionFailureContext context)
+        {
+            if (exception == null)
+            {
+                context = null;
+                return false;
+            }
+
+            return FailureContexts.TryGetValue(exception, out context);
+        }
+
+        internal static void Attach(
+            Exception exception,
+            LMCSdoSubmissionFailureContext context)
+        {
+            if (exception == null)
+            {
+                throw new ArgumentNullException("exception");
+            }
+
+            if (context == null)
+            {
+                throw new ArgumentNullException("context");
+            }
+
+            lock (FailureContextSync)
+            {
+                FailureContexts.Remove(exception);
+                FailureContexts.Add(exception, context);
+            }
+        }
+    }
+
+    internal interface ILMCSdoSubmissionAttemptTracker
+    {
+        void RecordCapabilityIdentity(uint diagnosticsBootId, uint mapRevision);
+        void BeginSubmission();
+        void MarkSubmissionOutcomeUncertain();
+        void MarkSubmissionRejected();
+        void MarkSubmissionAccepted(LMCOperationTicket ticket);
+    }
+
+    internal sealed class LMCSdoSubmissionAttemptTracker
+        : ILMCSdoSubmissionAttemptTracker
+    {
+        private readonly object sync = new object();
+        private readonly LMCSdoRequest request;
+        private LMCSdoSubmissionPhase phase =
+            LMCSdoSubmissionPhase.RequestValidation;
+        private LMCSdoSubmissionOutcome submissionOutcome =
+            LMCSdoSubmissionOutcome.NotAttempted;
+        private uint diagnosticsBootId;
+        private uint mapRevision;
+        private LMCOperationTicket ticket;
+
+        internal LMCSdoSubmissionAttemptTracker(LMCSdoRequest request)
+        {
+            this.request = request;
+        }
+
+        internal void BeginSessionPreflight()
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.RequestValidation,
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                phase = LMCSdoSubmissionPhase.SessionPreflight;
+            }
+        }
+
+        internal void BeginCapabilityPreflight()
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.SessionPreflight,
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                phase = LMCSdoSubmissionPhase.CapabilityPreflight;
+            }
+        }
+
+        public void RecordCapabilityIdentity(
+            uint actualDiagnosticsBootId,
+            uint actualMapRevision)
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.CapabilityPreflight,
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                diagnosticsBootId = actualDiagnosticsBootId;
+                mapRevision = actualMapRevision;
+            }
+        }
+
+        public void BeginSubmission()
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.CapabilityPreflight,
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                if (diagnosticsBootId == 0 || mapRevision == 0)
+                {
+                    throw new InvalidOperationException(
+                        "SDO submission requires a validated capability identity.");
+                }
+
+                phase = LMCSdoSubmissionPhase.Submission;
+            }
+        }
+
+        public void MarkSubmissionOutcomeUncertain()
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                submissionOutcome =
+                    LMCSdoSubmissionOutcome.OutcomeUncertain;
+            }
+        }
+
+        public void MarkSubmissionRejected()
+        {
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.OutcomeUncertain);
+                submissionOutcome = LMCSdoSubmissionOutcome.Rejected;
+            }
+        }
+
+        public void MarkSubmissionAccepted(LMCOperationTicket acceptedTicket)
+        {
+            if (acceptedTicket == null)
+            {
+                throw new ArgumentNullException("acceptedTicket");
+            }
+
+            lock (sync)
+            {
+                RequireState(
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.OutcomeUncertain);
+                var expectedKind = request.IsWrite
+                    ? LMCOperationKind.SDOWrite
+                    : LMCOperationKind.SDORead;
+                if (acceptedTicket.OperationKind != expectedKind
+                    || acceptedTicket.DiagnosticsBootId
+                        != diagnosticsBootId)
+                {
+                    throw new ArgumentException(
+                        "The accepted ticket does not match the tracked SDO submission.",
+                        "acceptedTicket");
+                }
+
+                ticket = acceptedTicket;
+                submissionOutcome = LMCSdoSubmissionOutcome.Accepted;
+                phase = LMCSdoSubmissionPhase.PostSubmissionValidation;
+            }
+        }
+
+        internal LMCSdoSubmissionFailureContext CreateFailureContext()
+        {
+            lock (sync)
+            {
+                return new LMCSdoSubmissionFailureContext(
+                    request,
+                    phase,
+                    submissionOutcome,
+                    diagnosticsBootId,
+                    mapRevision,
+                    ticket);
+            }
+        }
+
+        private void RequireState(
+            LMCSdoSubmissionPhase expectedPhase,
+            LMCSdoSubmissionOutcome expectedOutcome)
+        {
+            if (phase != expectedPhase
+                || submissionOutcome != expectedOutcome)
+            {
+                throw new InvalidOperationException(
+                    "The SDO submission attempt state transition is invalid.");
+            }
+        }
+    }
+
     internal static class LMCDiagnosticsSdoPolicy
     {
         internal const uint MaximumReadTimeoutCycles = 60000;

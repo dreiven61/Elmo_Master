@@ -49,6 +49,27 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.DiagnosticsD5.StatefulCancellationBoundary",
                 D5StatefulCancellationBoundary);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.LocalPreflightContext",
+                D5SubmitSdoLocalPreflightContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.CapabilityPreflightContext",
+                D5SubmitSdoCapabilityPreflightContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.ExplicitRejectionContext",
+                D5SubmitSdoExplicitRejectionContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.OutcomeUncertainContext",
+                D5SubmitSdoOutcomeUncertainContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.AcceptedSessionRaceContext",
+                D5SubmitSdoAcceptedSessionRaceContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.AsyncPreCancellationContext",
+                D5SubmitSdoAsyncPreCancellationContext);
+            tests.Add(
+                "Rpc.DiagnosticsD5.SubmitSdo.ReadWriteModelCompatibility",
+                D5SubmitSdoReadWriteModelCompatibility);
         }
 
         private static void TriggerRecorderGoldenAndAck()
@@ -693,6 +714,464 @@ namespace LasalMotionControlLib.Tests
                 connection.CloseConnection();
                 server.Verify();
             }
+        }
+
+        private static void D5SubmitSdoLocalPreflightContext()
+        {
+            using (var connection = new LMCConnection())
+            {
+                var syncError = AssertEx.Throws<ArgumentNullException>(
+                    () => connection.Diagnostics.SubmitSdo(null));
+                var syncContext = RequireSubmissionFailureContext(syncError);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.RequestValidation,
+                    syncContext.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    syncContext.SubmissionOutcome);
+                AssertEx.True(syncContext.Request == null);
+
+                var asyncError = AssertEx.Throws<ArgumentNullException>(
+                    () => connection.Diagnostics.SubmitSdoAsync(
+                            null,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+                var asyncContext = RequireSubmissionFailureContext(asyncError);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.RequestValidation,
+                    asyncContext.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    asyncContext.SubmissionOutcome);
+                AssertEx.True(asyncContext.Request == null);
+
+                var writeRequest = LMCSdoRequest.CreateWrite(
+                    1,
+                    0x2000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    TestFrame.Hex("78 56 34 12"),
+                    100);
+                var writeError = AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics.SubmitSdo(writeRequest));
+                var writeContext =
+                    RequireSubmissionFailureContext(writeError);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.RequestValidation,
+                    writeContext.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    writeContext.SubmissionOutcome);
+                AssertEx.True(ReferenceEquals(
+                    writeRequest,
+                    writeContext.Request));
+                AssertEx.True(writeContext.Request.IsWrite);
+            }
+        }
+
+        private static void D5SubmitSdoCapabilityPreflightContext()
+        {
+            AssertD5SubmitSdoCapabilityPreflightContext(false);
+            AssertD5SubmitSdoCapabilityPreflightContext(true);
+        }
+
+        private static void AssertD5SubmitSdoCapabilityPreflightContext(
+            bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CommonPayload(67, 1))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var request = SubmissionReadRequest();
+                var error = AssertEx.Throws<InvalidDataException>(
+                    () => SubmitSdo(connection, request, useAsync));
+                var context = RequireSubmissionFailureContext(error);
+
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.CapabilityPreflight,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.SubmissionOutcome);
+                AssertEx.True(ReferenceEquals(request, context.Request));
+                AssertEx.Equal(0u, context.DiagnosticsBootId);
+                AssertEx.Equal(0u, context.MapRevision);
+                AssertEx.True(context.Ticket == null);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void D5SubmitSdoExplicitRejectionContext()
+        {
+            AssertD5SubmitSdoExplicitRejectionContext(false);
+            AssertD5SubmitSdoExplicitRejectionContext(true);
+        }
+
+        private static void AssertD5SubmitSdoExplicitRejectionContext(
+            bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
+                new FakeRpcStep(
+                    0x7E50,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            2,
+                            LMCDiagnosticsDetailCode.InvalidState))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var request = SubmissionReadRequest();
+                var error = AssertEx.Throws<LMCDiagnosticsCommandException>(
+                    () => SubmitSdo(connection, request, useAsync));
+                var context = RequireSubmissionFailureContext(error);
+
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.Submission,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.Rejected,
+                    context.SubmissionOutcome);
+                AssertEx.Equal(BootId, context.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, context.MapRevision);
+                AssertEx.True(context.Ticket == null);
+                AssertEx.Equal(
+                    LMCDiagnosticsDetailCode.InvalidState,
+                    error.Response.Detail);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void D5SubmitSdoOutcomeUncertainContext()
+        {
+            AssertD5SubmitSdoOutcomeUncertainContext(false, false);
+            AssertD5SubmitSdoOutcomeUncertainContext(true, true);
+        }
+
+        private static void AssertD5SubmitSdoOutcomeUncertainContext(
+            bool useAsync,
+            bool responseLoss)
+        {
+            var submitStep = responseLoss
+                ? new FakeRpcStep(0x7E50, new byte[0])
+                {
+                    CloseAfterResponse = true
+                }
+                : new FakeRpcStep(
+                    0x7E50,
+                    TestFrame.Response(0, CommonPayload(31, 2)));
+            var steps = new List<FakeRpcStep>
+            {
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
+                submitStep
+            };
+            if (!responseLoss)
+            {
+                steps.Add(CloseStep());
+            }
+
+            using (var server = new FakeRpcServer(steps.ToArray()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var request = SubmissionReadRequest();
+                var error = AssertEx.Throws<Exception>(
+                    () => SubmitSdo(connection, request, useAsync));
+                var context = RequireSubmissionFailureContext(error);
+
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.Submission,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.OutcomeUncertain,
+                    context.SubmissionOutcome);
+                AssertEx.Equal(BootId, context.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, context.MapRevision);
+                AssertEx.True(context.Ticket == null);
+                AssertEx.False(error is LMCDiagnosticsCommandException);
+
+                if (!responseLoss)
+                {
+                    AssertEx.True(error is InvalidDataException);
+                    connection.CloseConnection();
+                }
+
+                server.Verify();
+            }
+        }
+
+        private static void D5SubmitSdoAcceptedSessionRaceContext()
+        {
+            AssertD5SubmitSdoAcceptedSessionRaceContext(false);
+            AssertD5SubmitSdoAcceptedSessionRaceContext(true);
+        }
+
+        private static void AssertD5SubmitSdoAcceptedSessionRaceContext(
+            bool useAsync)
+        {
+            const uint ticketId = 0x51525354u;
+            LMCConnection connection = null;
+            Thread closeThread = null;
+            Exception closeError = null;
+            var submitStep = new FakeRpcStep(
+                0x7E50,
+                TestFrame.Response(
+                    0,
+                    SubmitPayload(
+                        2,
+                        ticketId,
+                        LMCOperationKind.SDORead)))
+            {
+                InspectRequest = request =>
+                {
+                    closeThread = new Thread(
+                        () =>
+                        {
+                            try
+                            {
+                                connection.CloseConnection();
+                            }
+                            catch (Exception error)
+                            {
+                                closeError = error;
+                            }
+                        })
+                    {
+                        IsBackground = true,
+                        Name = "LMC accepted-ticket session-race close"
+                    };
+                    closeThread.Start();
+                    if (!SpinWait.SpinUntil(
+                            () => connection.State
+                                == LMCConnectionState.Closing,
+                            3000))
+                    {
+                        throw new TimeoutException(
+                            "The session-race close did not enter Closing state.");
+                    }
+                }
+            };
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            LMCDiagnosticCapability.SDORead,
+                            4,
+                            0))),
+                submitStep,
+                CloseStep()))
+            using (connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var request = SubmissionReadRequest();
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => SubmitSdo(connection, request, useAsync));
+                AssertEx.Contains("inactive RPC session", error.Message);
+                var attached = RequireSubmissionFailureContext(error);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.PostSubmissionValidation,
+                    attached.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.Accepted,
+                    attached.SubmissionOutcome);
+                AssertEx.True(ReferenceEquals(request, attached.Request));
+                AssertEx.Equal(ticketId, attached.Ticket.TicketId);
+                AssertEx.Equal(
+                    LMCOperationKind.SDORead,
+                    attached.Ticket.OperationKind);
+                AssertEx.Equal(BootId, attached.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, attached.MapRevision);
+
+                AssertEx.True(
+                    closeThread != null && closeThread.Join(3000),
+                    "The session-race close did not finish.");
+                if (closeError != null)
+                {
+                    throw new InvalidOperationException(
+                        "The session-race close failed.",
+                        closeError);
+                }
+
+                server.Verify();
+            }
+        }
+
+        private static void D5SubmitSdoAsyncPreCancellationContext()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            using (var cancellation = new CancellationTokenSource())
+            {
+                Connect(connection, server.Port);
+                cancellation.Cancel();
+                var request = SubmissionReadRequest();
+                var error = AssertEx.Throws<OperationCanceledException>(
+                    () => connection.Diagnostics.SubmitSdoAsync(
+                            request,
+                            cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult());
+                var context = RequireSubmissionFailureContext(error);
+
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.SessionPreflight,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.SubmissionOutcome);
+                AssertEx.True(ReferenceEquals(request, context.Request));
+                AssertEx.Equal(0u, context.DiagnosticsBootId);
+                AssertEx.Equal(0u, context.MapRevision);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void D5SubmitSdoReadWriteModelCompatibility()
+        {
+            using (var connection = new LMCConnection())
+            {
+                var readRequest = SubmissionReadRequest();
+                var readContext = CreateAcceptedSubmissionContext(
+                    connection,
+                    readRequest,
+                    0x61626364u);
+                AssertEx.False(readContext.Request.IsWrite);
+                AssertEx.Equal(
+                    LMCOperationKind.SDORead,
+                    readContext.Ticket.OperationKind);
+
+                var writeRequest = LMCSdoRequest.CreateWrite(
+                    1,
+                    0x2000,
+                    0,
+                    LMCSignalValueType.UInt32,
+                    TestFrame.Hex("78 56 34 12"),
+                    100);
+                var writeContext = CreateAcceptedSubmissionContext(
+                    connection,
+                    writeRequest,
+                    0x71727374u);
+                AssertEx.True(writeContext.Request.IsWrite);
+                AssertEx.Equal(
+                    LMCOperationKind.SDOWrite,
+                    writeContext.Ticket.OperationKind);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.Accepted,
+                    writeContext.SubmissionOutcome);
+            }
+        }
+
+        private static LMCSdoSubmissionFailureContext
+            CreateAcceptedSubmissionContext(
+                LMCConnection connection,
+                LMCSdoRequest request,
+                uint ticketId)
+        {
+            var tracker = new LMCSdoSubmissionAttemptTracker(request);
+            tracker.BeginSessionPreflight();
+            tracker.BeginCapabilityPreflight();
+            tracker.RecordCapabilityIdentity(BootId, MapRevision);
+            tracker.BeginSubmission();
+            tracker.MarkSubmissionOutcomeUncertain();
+
+            var kind = request.IsWrite
+                ? LMCOperationKind.SDOWrite
+                : LMCOperationKind.SDORead;
+            var ticket = new LMCOperationTicket(
+                ticketId,
+                kind,
+                10,
+                BootId,
+                1,
+                connection.Diagnostics,
+                !request.IsWrite,
+                request.IsWrite ? (ushort)0 : request.DataLength,
+                request.IsWrite
+                    ? LMCSignalValueType.Invalid
+                    : request.ValueType);
+            tracker.MarkSubmissionAccepted(ticket);
+            return tracker.CreateFailureContext();
+        }
+
+        private static LMCOperationTicket SubmitSdo(
+            LMCConnection connection,
+            LMCSdoRequest request,
+            bool useAsync)
+        {
+            return useAsync
+                ? connection.Diagnostics.SubmitSdoAsync(
+                        request,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                : connection.Diagnostics.SubmitSdo(request);
+        }
+
+        private static LMCSdoRequest SubmissionReadRequest()
+        {
+            return LMCSdoRequest.CreateRead(
+                1,
+                0x1000,
+                0,
+                LMCSignalValueType.UInt32,
+                4,
+                100);
+        }
+
+        private static LMCSdoSubmissionFailureContext
+            RequireSubmissionFailureContext(Exception exception)
+        {
+            LMCSdoSubmissionFailureContext context;
+            AssertEx.True(
+                LMCSdoSubmissionFailureContext.TryGet(
+                    exception,
+                    out context),
+                "Expected an SDO submission failure context.");
+            return context;
         }
 
         private static LMCPIWriteRequest PiWriteRequest()

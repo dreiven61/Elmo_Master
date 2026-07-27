@@ -88,34 +88,56 @@ namespace LasalMotionControlLib
 
         public LMCOperationTicket SubmitSdo(LMCSdoRequest request)
         {
-            if (request == null)
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
             {
-                throw new ArgumentNullException("request");
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                return SubmitSdoTrackedCore(
+                    request,
+                    sessionGeneration,
+                    attemptTracker);
             }
-
-            ValidateSdoSubmitPolicy(request);
-
-            var sessionGeneration = connection.SessionGeneration;
-            return SubmitSdoCore(request, sessionGeneration);
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
         }
 
-        private LMCOperationTicket SubmitSdoCore(
+        private LMCOperationTicket SubmitSdoTrackedCore(
             LMCSdoRequest request,
-            long sessionGeneration)
+            long sessionGeneration,
+            LMCSdoSubmissionAttemptTracker attemptTracker)
         {
             connection.EnsureSessionGeneration(sessionGeneration);
+            attemptTracker.BeginCapabilityPreflight();
             var capabilities = GetCapabilities();
+            attemptTracker.RecordCapabilityIdentity(
+                capabilities.DiagnosticsBootId,
+                capabilities.MapRevision);
             return SubmitSdoCore(
                 request,
                 sessionGeneration,
-                capabilities);
+                capabilities,
+                attemptTracker);
         }
 
         private LMCOperationTicket SubmitSdoCore(
             LMCSdoRequest request,
             long sessionGeneration,
             LMCDiagnosticCapabilities capabilities,
-            LMCDriveReadAttemptTracker attemptTracker = null)
+            ILMCSdoSubmissionAttemptTracker attemptTracker = null)
         {
             ValidateSdoCapabilities(
                 capabilities,
@@ -124,6 +146,10 @@ namespace LasalMotionControlLib
             RememberOperationBootId(
                 sessionGeneration,
                 capabilities.DiagnosticsBootId);
+            if (attemptTracker != null)
+            {
+                attemptTracker.BeginSubmission();
+            }
 
             var requestId = NextRequestId();
             var raw = connection.Exchange(
@@ -179,18 +205,33 @@ namespace LasalMotionControlLib
             LMCSdoRequest request,
             CancellationToken cancellationToken)
         {
-            if (request == null)
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
             {
-                throw new ArgumentNullException("request");
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                return await RunStateMutatingAsync(
+                    () => SubmitSdoTrackedCore(
+                        request,
+                        sessionGeneration,
+                        attemptTracker),
+                    cancellationToken).ConfigureAwait(false);
             }
-
-            ValidateSdoSubmitPolicy(request);
-
-            var sessionGeneration = connection.SessionGeneration;
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return await RunStateMutatingAsync(
-                () => SubmitSdoCore(request, sessionGeneration),
-                cancellationToken).ConfigureAwait(false);
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
         }
 
         public LMCOperationStatus GetOperationStatus(
@@ -550,7 +591,6 @@ namespace LasalMotionControlLib
                 capabilities.MapRevision);
             GetInlineSdoPollDelayMilliseconds(
                 capabilities.BaseCycleTimeUs);
-            attemptTracker.BeginSubmission();
             LMCOperationTicket ticket;
             try
             {
@@ -644,7 +684,18 @@ namespace LasalMotionControlLib
 
         private static void ValidateSdoSubmitPolicy(LMCSdoRequest request)
         {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
             ValidateSdoWritePolicy(request);
+            if (request.IsWrite)
+            {
+                LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(request);
+                return;
+            }
+
             LMCDiagnosticsSdoPolicy.RequireReadAllowed(request);
         }
 

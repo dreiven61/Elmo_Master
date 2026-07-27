@@ -43,15 +43,15 @@ namespace LasalMotionControlApiExample
             for (var index = 0; index < context.SdoAttempts.Count; index++)
             {
                 var attempt = context.SdoAttempts[index];
-                if (attempt.SubmissionOutcome
-                    == LMCSdoReadSubmissionOutcome.OutcomeUncertain)
+                if (attempt.GenericSubmissionOutcome
+                    == LMCSdoSubmissionOutcome.OutcomeUncertain)
                 {
                     quarantineUnknown(error, context);
                     return;
                 }
 
-                if (attempt.SubmissionOutcome
-                        == LMCSdoReadSubmissionOutcome.Accepted
+                if (attempt.GenericSubmissionOutcome
+                        == LMCSdoSubmissionOutcome.Accepted
                     && !attempt.IsTerminal)
                 {
                     acceptedNonTerminal = attempt;
@@ -76,8 +76,8 @@ namespace LasalMotionControlApiExample
 
             var currentAttempt = context.CurrentSdoAttempt;
             if (currentAttempt == null
-                || currentAttempt.SubmissionOutcome
-                    == LMCSdoReadSubmissionOutcome.NotAttempted)
+                || currentAttempt.GenericSubmissionOutcome
+                    == LMCSdoSubmissionOutcome.NotAttempted)
             {
                 disarmGuard(
                     "PRE_SUBMISSION_FAILURE",
@@ -85,8 +85,8 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            if (currentAttempt.SubmissionOutcome
-                == LMCSdoReadSubmissionOutcome.Rejected)
+            if (currentAttempt.GenericSubmissionOutcome
+                == LMCSdoSubmissionOutcome.Rejected)
             {
                 disarmGuard(
                     "PRE_TICKET_COMMAND_REJECTED",
@@ -94,8 +94,8 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            if (currentAttempt.SubmissionOutcome
-                    == LMCSdoReadSubmissionOutcome.Accepted
+            if (currentAttempt.GenericSubmissionOutcome
+                    == LMCSdoSubmissionOutcome.Accepted
                 && currentAttempt.IsTerminal)
             {
                 var operationFailure = error as LMCSdoReadOperationException;
@@ -122,6 +122,72 @@ namespace LasalMotionControlApiExample
             }
 
             quarantineUnknown(error, context);
+        }
+
+        internal static void RouteSubmissionFailure(
+            Exception error,
+            Action<string, string> disarmGuard,
+            Action<LMCOperationTicket> preserveKnownTicket,
+            Action<Exception, LMCSdoSubmissionFailureContext>
+                quarantineUnknown)
+        {
+            if (error == null)
+            {
+                throw new ArgumentNullException("error");
+            }
+
+            if (disarmGuard == null)
+            {
+                throw new ArgumentNullException("disarmGuard");
+            }
+
+            if (preserveKnownTicket == null)
+            {
+                throw new ArgumentNullException("preserveKnownTicket");
+            }
+
+            if (quarantineUnknown == null)
+            {
+                throw new ArgumentNullException("quarantineUnknown");
+            }
+
+            LMCSdoSubmissionFailureContext context;
+            if (!LMCSdoSubmissionFailureContext.TryGet(error, out context))
+            {
+                quarantineUnknown(error, null);
+                return;
+            }
+
+            switch (context.SubmissionOutcome)
+            {
+                case LMCSdoSubmissionOutcome.NotAttempted:
+                    disarmGuard(
+                        "PRE_SUBMISSION_FAILURE",
+                        context.Phase + ":" + error.GetType().Name);
+                    return;
+
+                case LMCSdoSubmissionOutcome.Rejected:
+                    disarmGuard(
+                        "EXPLICIT_PLC_REJECTION",
+                        CreateSubmissionRejectedDetail(error, context));
+                    return;
+
+                case LMCSdoSubmissionOutcome.OutcomeUncertain:
+                    quarantineUnknown(error, context);
+                    return;
+
+                case LMCSdoSubmissionOutcome.Accepted:
+                    preserveKnownTicket(context.Ticket);
+                    disarmGuard(
+                        "KNOWN_TICKET_PRESERVED",
+                        "post_submission_validation:"
+                            + error.GetType().Name);
+                    return;
+
+                default:
+                    quarantineUnknown(error, context);
+                    return;
+            }
         }
 
         private static string CreateKnownTicketDetail(Exception error)
@@ -160,6 +226,21 @@ namespace LasalMotionControlApiExample
                     + (commandFailure.Response == null
                         ? "response_unavailable"
                         : commandFailure.Response.Detail.ToString());
+            }
+
+            return context.Phase + ":" + error.GetType().Name;
+        }
+
+        private static string CreateSubmissionRejectedDetail(
+            Exception error,
+            LMCSdoSubmissionFailureContext context)
+        {
+            var commandFailure = error as LMCDiagnosticsCommandException;
+            if (commandFailure != null)
+            {
+                return commandFailure.Response == null
+                    ? "response_unavailable"
+                    : commandFailure.Response.Detail.ToString();
             }
 
             return context.Phase + ":" + error.GetType().Name;

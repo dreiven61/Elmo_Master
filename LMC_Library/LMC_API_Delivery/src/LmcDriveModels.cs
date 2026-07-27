@@ -41,7 +41,7 @@ namespace LasalMotionControlLib
         internal LMCSdoReadAttemptSnapshot(
             int attemptNumber,
             LMCSdoRequest request,
-            LMCSdoReadSubmissionOutcome submissionOutcome,
+            LMCSdoSubmissionOutcome submissionOutcome,
             LMCOperationTicket ticket,
             LMCOperationStatus lastOperationStatus,
             uint diagnosticsBootId = 0,
@@ -60,7 +60,14 @@ namespace LasalMotionControlLib
                     "request");
             }
 
-            if (submissionOutcome == LMCSdoReadSubmissionOutcome.Accepted)
+            if (!Enum.IsDefined(
+                typeof(LMCSdoSubmissionOutcome),
+                submissionOutcome))
+            {
+                throw new ArgumentOutOfRangeException("submissionOutcome");
+            }
+
+            if (submissionOutcome == LMCSdoSubmissionOutcome.Accepted)
             {
                 if (ticket == null)
                 {
@@ -76,7 +83,7 @@ namespace LasalMotionControlLib
             }
 
             if (submissionOutcome
-                    != LMCSdoReadSubmissionOutcome.NotAttempted
+                    != LMCSdoSubmissionOutcome.NotAttempted
                 && (diagnosticsBootId == 0 || mapRevision == 0))
             {
                 throw new ArgumentException(
@@ -104,7 +111,8 @@ namespace LasalMotionControlLib
             }
 
             AttemptNumber = attemptNumber;
-            SubmissionOutcome = submissionOutcome;
+            GenericSubmissionOutcome = submissionOutcome;
+            SubmissionOutcome = (LMCSdoReadSubmissionOutcome)submissionOutcome;
             Ticket = ticket;
             LastOperationStatus = lastOperationStatus;
             DiagnosticsBootId = diagnosticsBootId;
@@ -113,7 +121,18 @@ namespace LasalMotionControlLib
 
         public int AttemptNumber { get; private set; }
         public LMCSdoRequest Request { get; private set; }
+        /// <summary>
+        /// Legacy drive-read projection retained for source and binary
+        /// compatibility. GenericSubmissionOutcome exposes the same state
+        /// through the shared SDO submission enum.
+        /// </summary>
         public LMCSdoReadSubmissionOutcome SubmissionOutcome
+        {
+            get;
+            private set;
+        }
+
+        public LMCSdoSubmissionOutcome GenericSubmissionOutcome
         {
             get;
             private set;
@@ -263,6 +282,7 @@ namespace LasalMotionControlLib
     }
 
     internal sealed class LMCDriveReadAttemptTracker
+        : ILMCSdoSubmissionAttemptTracker
     {
         private sealed class MutableSdoReadAttempt
         {
@@ -271,12 +291,12 @@ namespace LasalMotionControlLib
                 AttemptNumber = attemptNumber;
                 Request = request;
                 SubmissionOutcome =
-                    LMCSdoReadSubmissionOutcome.NotAttempted;
+                    LMCSdoSubmissionOutcome.NotAttempted;
             }
 
             internal int AttemptNumber { get; private set; }
             internal LMCSdoRequest Request { get; private set; }
-            internal LMCSdoReadSubmissionOutcome SubmissionOutcome
+            internal LMCSdoSubmissionOutcome SubmissionOutcome
             {
                 get;
                 set;
@@ -357,7 +377,7 @@ namespace LasalMotionControlLib
                 {
                     var previous = attempts[attempts.Count - 1];
                     if (previous.SubmissionOutcome
-                            != LMCSdoReadSubmissionOutcome.Accepted
+                            != LMCSdoSubmissionOutcome.Accepted
                         || previous.LastOperationStatus == null
                         || !previous.LastOperationStatus.IsTerminal)
                     {
@@ -373,24 +393,32 @@ namespace LasalMotionControlLib
             }
         }
 
-        internal void BeginSubmission()
+        public void BeginSubmission()
         {
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                    LMCSdoSubmissionOutcome.NotAttempted);
+                if (phase != LMCDriveReadAttemptPhase.CapabilityPreflight
+                    || CurrentAttempt.DiagnosticsBootId == 0
+                    || CurrentAttempt.MapRevision == 0)
+                {
+                    throw new InvalidOperationException(
+                        "SDO Read submission requires a validated capability identity.");
+                }
+
                 phase = LMCDriveReadAttemptPhase.Submission;
             }
         }
 
-        internal void RecordCapabilityIdentity(
+        public void RecordCapabilityIdentity(
             uint diagnosticsBootId,
             uint mapRevision)
         {
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                    LMCSdoSubmissionOutcome.NotAttempted);
                 if (phase != LMCDriveReadAttemptPhase.CapabilityPreflight)
                 {
                     throw new InvalidOperationException(
@@ -402,30 +430,30 @@ namespace LasalMotionControlLib
             }
         }
 
-        internal void MarkSubmissionOutcomeUncertain()
+        public void MarkSubmissionOutcomeUncertain()
         {
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.NotAttempted);
+                    LMCSdoSubmissionOutcome.NotAttempted);
                 phase = LMCDriveReadAttemptPhase.Submission;
                 CurrentAttempt.SubmissionOutcome =
-                    LMCSdoReadSubmissionOutcome.OutcomeUncertain;
+                    LMCSdoSubmissionOutcome.OutcomeUncertain;
             }
         }
 
-        internal void MarkSubmissionRejected()
+        public void MarkSubmissionRejected()
         {
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.OutcomeUncertain);
+                    LMCSdoSubmissionOutcome.OutcomeUncertain);
                 CurrentAttempt.SubmissionOutcome =
-                    LMCSdoReadSubmissionOutcome.Rejected;
+                    LMCSdoSubmissionOutcome.Rejected;
             }
         }
 
-        internal void MarkSubmissionAccepted(LMCOperationTicket ticket)
+        public void MarkSubmissionAccepted(LMCOperationTicket ticket)
         {
             if (ticket == null)
             {
@@ -435,9 +463,9 @@ namespace LasalMotionControlLib
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.OutcomeUncertain);
+                    LMCSdoSubmissionOutcome.OutcomeUncertain);
                 CurrentAttempt.SubmissionOutcome =
-                    LMCSdoReadSubmissionOutcome.Accepted;
+                    LMCSdoSubmissionOutcome.Accepted;
                 CurrentAttempt.Ticket = ticket;
             }
         }
@@ -447,7 +475,7 @@ namespace LasalMotionControlLib
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.Accepted);
+                    LMCSdoSubmissionOutcome.Accepted);
                 phase = LMCDriveReadAttemptPhase.StatusPolling;
             }
         }
@@ -462,7 +490,7 @@ namespace LasalMotionControlLib
             lock (sync)
             {
                 RequireCurrentOutcome(
-                    LMCSdoReadSubmissionOutcome.Accepted);
+                    LMCSdoSubmissionOutcome.Accepted);
                 var ticket = CurrentAttempt.Ticket;
                 if (status.TicketId != ticket.TicketId
                     || status.OperationKind != ticket.OperationKind
@@ -484,7 +512,7 @@ namespace LasalMotionControlLib
                 for (var index = 0; index < attempts.Count; index++)
                 {
                     if (attempts[index].SubmissionOutcome
-                            != LMCSdoReadSubmissionOutcome.Accepted
+                            != LMCSdoSubmissionOutcome.Accepted
                         || attempts[index].LastOperationStatus == null
                         || !attempts[index].LastOperationStatus.IsTerminal)
                     {
@@ -539,7 +567,7 @@ namespace LasalMotionControlLib
         }
 
         private void RequireCurrentOutcome(
-            LMCSdoReadSubmissionOutcome expectedOutcome)
+            LMCSdoSubmissionOutcome expectedOutcome)
         {
             if (CurrentAttempt.SubmissionOutcome != expectedOutcome)
             {

@@ -1028,27 +1028,36 @@ namespace LasalMotionControlApiExample
                             "manual-sdo-submit");
                     try
                     {
-                        diagnosticOperationTicket = await currentConnection
-                            .Diagnostics.SubmitSdoAsync(
+                        AdoptDiagnosticOperationTicket(
+                            await currentConnection.Diagnostics.SubmitSdoAsync(
                                 request,
-                                CancellationToken.None);
-                    }
-                    catch (LMCDiagnosticsCommandException error)
-                    {
-                        DisarmExternalD5SubmissionOutcomeGuard(
-                            submissionEvidence,
-                            "EXPLICIT_PLC_REJECTION",
-                            error.Response == null
-                                ? "none"
-                                : error.Response.Detail.ToString());
-                        throw;
+                                CancellationToken.None));
                     }
                     catch (Exception error)
                     {
-                        PreserveExternalD5SubmissionOutcomeUncertain(
-                            submissionEvidence,
-                            error,
-                            null);
+                        D5ExternalReadFailureOrchestrator
+                            .RouteSubmissionFailure(
+                                error,
+                                (state, detail) =>
+                                    DisarmExternalD5SubmissionOutcomeGuard(
+                                        submissionEvidence,
+                                        state,
+                                        detail),
+                                ticket =>
+                                {
+                                    AdoptDiagnosticOperationTicket(ticket);
+                                    PreserveExternalD5Ticket(
+                                        ticket,
+                                        currentConnection,
+                                        request.SlaveReference,
+                                        request.TimeoutCycles,
+                                        "manual-sdo-submit");
+                                },
+                                (unresolvedError, failureContext) =>
+                                    PreserveExternalD5RawSubmissionOutcomeUncertain(
+                                        submissionEvidence,
+                                        unresolvedError,
+                                        failureContext));
                         throw;
                     }
 
@@ -1063,12 +1072,23 @@ namespace LasalMotionControlApiExample
                         "ACCEPTED_TICKET",
                         diagnosticOperationTicket.TicketId.ToString(
                             CultureInfo.InvariantCulture));
-                    diagnosticOperationStatus = null;
-                    diagnosticOperationResult = null;
-                    diagnosticOperationCancelAccepted = false;
                     TextDiagnosticOperationSummary.Text = FormatOperationTicket(
                         diagnosticOperationTicket);
                 });
+        }
+
+        private void AdoptDiagnosticOperationTicket(
+            LMCOperationTicket ticket)
+        {
+            if (ticket == null)
+            {
+                throw new ArgumentNullException("ticket");
+            }
+
+            diagnosticOperationTicket = ticket;
+            diagnosticOperationStatus = null;
+            diagnosticOperationResult = null;
+            diagnosticOperationCancelAccepted = false;
         }
 
         private async void ButtonRefreshDiagnosticOperation_Click(

@@ -296,6 +296,9 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveReadAttemptPhase.StatusPolling,
                     failureContext.Phase);
                 AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.Accepted,
+                    failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
+                AssertEx.Equal(
                     LMCSdoReadSubmissionOutcome.Accepted,
                     failureContext.CurrentSdoAttempt.SubmissionOutcome);
                 AssertEx.True(failureContext.CurrentSdoAttempt.IsTerminal);
@@ -377,8 +380,8 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Contains(ticketId.ToString(), exception.Message);
                 var failureContext = RequireFailureContext(exception);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.Accepted,
-                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.Accepted,
+                    failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
                 AssertEx.True(ReferenceEquals(
                     exception.Ticket,
@@ -531,13 +534,13 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(expectedPhase, failureContext.Phase);
                 var expectedOutcome = expectedStage
                     == LMCSdoReadCommandStage.CapabilityPreflight
-                    ? LMCSdoReadSubmissionOutcome.NotAttempted
+                    ? LMCSdoSubmissionOutcome.NotAttempted
                     : expectedStage == LMCSdoReadCommandStage.Submission
-                        ? LMCSdoReadSubmissionOutcome.Rejected
-                        : LMCSdoReadSubmissionOutcome.Accepted;
+                        ? LMCSdoSubmissionOutcome.Rejected
+                        : LMCSdoSubmissionOutcome.Accepted;
                 AssertEx.Equal(
                     expectedOutcome,
-                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                    failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.Equal(
                     exception.Ticket,
                     failureContext.CurrentSdoAttempt.Ticket);
@@ -618,8 +621,8 @@ namespace LasalMotionControlLib.Tests
                     (ushort)0x6061,
                     failureContext.SdoAttempts[1].Request.ObjectIndex);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.Accepted,
-                    failureContext.SdoAttempts[1].SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.Accepted,
+                    failureContext.SdoAttempts[1].GenericSubmissionOutcome);
                 AssertEx.False(failureContext.SdoAttempts[1].IsTerminal);
                 AssertEx.True(ReferenceEquals(
                     exception.Ticket,
@@ -698,8 +701,8 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveReadAttemptPhase.Submission,
                     failureContext.Phase);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.OutcomeUncertain,
-                    failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.OutcomeUncertain,
+                    failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.True(failureContext.CurrentSdoAttempt.Ticket == null);
                 if (!responseLoss)
                 {
@@ -757,8 +760,8 @@ namespace LasalMotionControlLib.Tests
                     context.Phase);
                 AssertEx.Equal(1, context.SdoAttempts.Count);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.NotAttempted,
-                    context.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.True(context.CurrentSdoAttempt.Ticket == null);
 
                 connection.CloseConnection();
@@ -841,8 +844,8 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveReadAttemptPhase.StatusPolling,
                     context.Phase);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.Accepted,
-                    context.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.Accepted,
+                    context.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.Equal(
                     ticketId,
                     context.CurrentSdoAttempt.Ticket.TicketId);
@@ -900,8 +903,8 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveReadAttemptPhase.StatusPolling,
                     context.Phase);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.Accepted,
-                    context.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.Accepted,
+                    context.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.Equal(
                     ticketId,
                     context.CurrentSdoAttempt.Ticket.TicketId);
@@ -946,8 +949,8 @@ namespace LasalMotionControlLib.Tests
                     LMCDriveReadAttemptPhase.CapabilityPreflight,
                     context.Phase);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.NotAttempted,
-                    context.CurrentSdoAttempt.SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.CurrentSdoAttempt.GenericSubmissionOutcome);
                 AssertEx.True(context.CurrentSdoAttempt.Ticket == null);
 
                 connection.CloseConnection();
@@ -1014,8 +1017,8 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(2, context.SdoAttempts.Count);
                 AssertEx.True(context.SdoAttempts[0].IsTerminal);
                 AssertEx.Equal(
-                    LMCSdoReadSubmissionOutcome.OutcomeUncertain,
-                    context.SdoAttempts[1].SubmissionOutcome);
+                    LMCSdoSubmissionOutcome.OutcomeUncertain,
+                    context.SdoAttempts[1].GenericSubmissionOutcome);
                 AssertEx.Equal(
                     (ushort)0x6061,
                     context.SdoAttempts[1].Request.ObjectIndex);
@@ -1136,8 +1139,8 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Contains("was not cancelled", exception.Message);
                     var failureContext = RequireFailureContext(exception);
                     AssertEx.Equal(
-                        LMCSdoReadSubmissionOutcome.Accepted,
-                        failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                        LMCSdoSubmissionOutcome.Accepted,
+                        failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
                     AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
                     AssertEx.True(ReferenceEquals(
                         exception.Ticket,
@@ -1208,8 +1211,8 @@ namespace LasalMotionControlLib.Tests
                         connection.State);
                     var failureContext = RequireFailureContext(exception);
                     AssertEx.Equal(
-                        LMCSdoReadSubmissionOutcome.Accepted,
-                        failureContext.CurrentSdoAttempt.SubmissionOutcome);
+                        LMCSdoSubmissionOutcome.Accepted,
+                        failureContext.CurrentSdoAttempt.GenericSubmissionOutcome);
                     AssertEx.False(failureContext.CurrentSdoAttempt.IsTerminal);
 
                     var status = connection.Diagnostics.GetOperationStatus(

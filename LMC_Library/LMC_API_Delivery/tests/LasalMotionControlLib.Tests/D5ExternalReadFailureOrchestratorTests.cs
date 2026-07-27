@@ -34,6 +34,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Qualification.D5ExternalRead.CompositeSecondPreSubmitDisarms",
                 CompositeSecondPreSubmitDisarms);
+            tests.Add(
+                "Qualification.D5ManualSubmit.FailureRouting",
+                ManualSubmissionFailureRouting);
         }
 
         private static void MissingContextQuarantines()
@@ -67,7 +70,7 @@ namespace LasalMotionControlLib.Tests
                         Snapshot(
                             1,
                             0x6061,
-                            LMCSdoReadSubmissionOutcome.Rejected,
+                            LMCSdoSubmissionOutcome.Rejected,
                             null,
                             null)
                     }));
@@ -90,7 +93,7 @@ namespace LasalMotionControlLib.Tests
                         Snapshot(
                             1,
                             0x6061,
-                            LMCSdoReadSubmissionOutcome.OutcomeUncertain,
+                            LMCSdoSubmissionOutcome.OutcomeUncertain,
                             null,
                             null)
                     }));
@@ -121,7 +124,7 @@ namespace LasalMotionControlLib.Tests
                             Snapshot(
                                 1,
                                 0x6061,
-                                LMCSdoReadSubmissionOutcome.Accepted,
+                                LMCSdoSubmissionOutcome.Accepted,
                                 ticket,
                                 status)
                         }));
@@ -155,7 +158,7 @@ namespace LasalMotionControlLib.Tests
                             Snapshot(
                                 1,
                                 0x6061,
-                                LMCSdoReadSubmissionOutcome.Accepted,
+                                LMCSdoSubmissionOutcome.Accepted,
                                 ticket,
                                 status)
                         }));
@@ -185,7 +188,7 @@ namespace LasalMotionControlLib.Tests
                             Snapshot(
                                 1,
                                 0x6061,
-                                LMCSdoReadSubmissionOutcome.Accepted,
+                                LMCSdoSubmissionOutcome.Accepted,
                                 ticket,
                                 status)
                         }));
@@ -218,13 +221,13 @@ namespace LasalMotionControlLib.Tests
                             Snapshot(
                                 1,
                                 0x6041,
-                                LMCSdoReadSubmissionOutcome.Accepted,
+                                LMCSdoSubmissionOutcome.Accepted,
                                 firstTicket,
                                 firstStatus),
                             Snapshot(
                                 2,
                                 0x6061,
-                                LMCSdoReadSubmissionOutcome.NotAttempted,
+                                LMCSdoSubmissionOutcome.NotAttempted,
                                 null,
                                 null)
                         }));
@@ -232,6 +235,98 @@ namespace LasalMotionControlLib.Tests
                 var calls = Route(error, null);
                 AssertEx.Equal(1, calls.Count);
                 AssertEx.Contains("D:PRE_SUBMISSION_FAILURE", calls[0]);
+            }
+        }
+
+        private static void ManualSubmissionFailureRouting()
+        {
+            var request = LMCSdoRequest.CreateRead(
+                1,
+                0x1000,
+                0,
+                LMCSignalValueType.UInt32,
+                4,
+                100);
+
+            var missingCalls = RouteSubmission(
+                new IOException("missing context"),
+                null);
+            AssertEx.Equal(1, missingCalls.Count);
+            AssertEx.Equal("Q:IOException:none", missingCalls[0]);
+
+            var preflightError = new OperationCanceledException();
+            LMCSdoSubmissionFailureContext.Attach(
+                preflightError,
+                new LMCSdoSubmissionFailureContext(
+                    request,
+                    LMCSdoSubmissionPhase.SessionPreflight,
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    0,
+                    0,
+                    null));
+            var preflightCalls = RouteSubmission(preflightError, null);
+            AssertEx.Equal(1, preflightCalls.Count);
+            AssertEx.Contains(
+                "D:PRE_SUBMISSION_FAILURE",
+                preflightCalls[0]);
+
+            var rejectedError = new InvalidOperationException("rejected");
+            LMCSdoSubmissionFailureContext.Attach(
+                rejectedError,
+                new LMCSdoSubmissionFailureContext(
+                    request,
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.Rejected,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    null));
+            var rejectedCalls = RouteSubmission(rejectedError, null);
+            AssertEx.Equal(1, rejectedCalls.Count);
+            AssertEx.Contains(
+                "D:EXPLICIT_PLC_REJECTION",
+                rejectedCalls[0]);
+
+            var uncertainError = new InvalidDataException("malformed");
+            LMCSdoSubmissionFailureContext.Attach(
+                uncertainError,
+                new LMCSdoSubmissionFailureContext(
+                    request,
+                    LMCSdoSubmissionPhase.Submission,
+                    LMCSdoSubmissionOutcome.OutcomeUncertain,
+                    DiagnosticsBootId,
+                    MapRevision,
+                    null));
+            var uncertainCalls = RouteSubmission(uncertainError, null);
+            AssertEx.Equal(1, uncertainCalls.Count);
+            AssertEx.Equal(
+                "Q:InvalidDataException:Submission:89ABCDEF:957F101E",
+                uncertainCalls[0]);
+
+            using (var connection = new LMCConnection())
+            {
+                var ticket = Ticket(connection.Diagnostics, 0x44556677u);
+                var acceptedError = new InvalidOperationException(
+                    "session changed after acceptance");
+                LMCSdoSubmissionFailureContext.Attach(
+                    acceptedError,
+                    new LMCSdoSubmissionFailureContext(
+                        request,
+                        LMCSdoSubmissionPhase.PostSubmissionValidation,
+                        LMCSdoSubmissionOutcome.Accepted,
+                        DiagnosticsBootId,
+                        MapRevision,
+                        ticket));
+
+                LMCOperationTicket preserved = null;
+                var acceptedCalls = RouteSubmission(
+                    acceptedError,
+                    value => preserved = value);
+                AssertEx.Equal(2, acceptedCalls.Count);
+                AssertEx.Equal("P:" + ticket.TicketId, acceptedCalls[0]);
+                AssertEx.Contains(
+                    "D:KNOWN_TICKET_PRESERVED",
+                    acceptedCalls[1]);
+                AssertEx.True(ReferenceEquals(ticket, preserved));
             }
         }
 
@@ -266,6 +361,36 @@ namespace LasalMotionControlLib.Tests
             return calls;
         }
 
+        private static List<string> RouteSubmission(
+            Exception error,
+            Action<LMCOperationTicket> captureTicket)
+        {
+            var calls = new List<string>();
+            D5ExternalReadFailureOrchestrator.RouteSubmissionFailure(
+                error,
+                (state, detail) => calls.Add("D:" + state + ":" + detail),
+                ticket =>
+                {
+                    calls.Add("P:" + ticket.TicketId);
+                    if (captureTicket != null)
+                    {
+                        captureTicket(ticket);
+                    }
+                },
+                (unresolved, context) => calls.Add(
+                    "Q:"
+                        + unresolved.GetType().Name
+                        + ":"
+                        + (context == null
+                            ? "none"
+                            : context.Phase
+                                + ":"
+                                + context.DiagnosticsBootId.ToString("X8")
+                                + ":"
+                                + context.MapRevision.ToString("X8"))));
+            return calls;
+        }
+
         private static LMCDriveReadFailureContext Context(
             LMCDriveReadAttemptPhase phase,
             IList<LMCSdoReadAttemptSnapshot> attempts)
@@ -281,7 +406,7 @@ namespace LasalMotionControlLib.Tests
         private static LMCSdoReadAttemptSnapshot Snapshot(
             int attemptNumber,
             ushort objectIndex,
-            LMCSdoReadSubmissionOutcome outcome,
+            LMCSdoSubmissionOutcome outcome,
             LMCOperationTicket ticket,
             LMCOperationStatus status)
         {

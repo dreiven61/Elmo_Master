@@ -1838,6 +1838,45 @@ namespace LasalMotionControlApiExample
             Exception error,
             LMCDriveReadFailureContext failureContext)
         {
+            var currentAttempt = failureContext == null
+                ? null
+                : failureContext.CurrentSdoAttempt;
+            PreserveExternalD5SubmissionOutcomeUncertainCore(
+                evidence,
+                error,
+                currentAttempt != null
+                    && currentAttempt.GenericSubmissionOutcome
+                        == LMCSdoSubmissionOutcome.OutcomeUncertain,
+                currentAttempt == null
+                    ? 0u
+                    : currentAttempt.DiagnosticsBootId,
+                currentAttempt == null ? 0u : currentAttempt.MapRevision);
+        }
+
+        private void PreserveExternalD5RawSubmissionOutcomeUncertain(
+            D5SdoQualificationOrphanEvidence evidence,
+            Exception error,
+            LMCSdoSubmissionFailureContext failureContext)
+        {
+            PreserveExternalD5SubmissionOutcomeUncertainCore(
+                evidence,
+                error,
+                failureContext != null
+                    && failureContext.SubmissionOutcome
+                        == LMCSdoSubmissionOutcome.OutcomeUncertain,
+                failureContext == null
+                    ? 0u
+                    : failureContext.DiagnosticsBootId,
+                failureContext == null ? 0u : failureContext.MapRevision);
+        }
+
+        private void PreserveExternalD5SubmissionOutcomeUncertainCore(
+            D5SdoQualificationOrphanEvidence evidence,
+            Exception error,
+            bool reconcileIdentity,
+            uint diagnosticsBootId,
+            uint mapRevision)
+        {
             if (evidence == null
                 || !d5SdoQualificationOrphanedTickets.Contains(evidence))
             {
@@ -1846,18 +1885,13 @@ namespace LasalMotionControlApiExample
                     error);
             }
 
-            var currentAttempt = failureContext == null
-                ? null
-                : failureContext.CurrentSdoAttempt;
-            if (currentAttempt != null
-                && currentAttempt.SubmissionOutcome
-                    == LMCSdoReadSubmissionOutcome.OutcomeUncertain)
+            if (reconcileIdentity)
             {
                 var previousBootId = evidence.DiagnosticsBootId;
                 var previousMapRevision = evidence.MapRevision;
                 evidence.ReconcileSubmissionIdentity(
-                    currentAttempt.DiagnosticsBootId,
-                    currentAttempt.MapRevision);
+                    diagnosticsBootId,
+                    mapRevision);
                 if (previousBootId != evidence.DiagnosticsBootId
                     || previousMapRevision != evidence.MapRevision)
                 {
