@@ -1191,6 +1191,15 @@ namespace LasalMotionControlApiExample
                     catch (LMCDiagnosticsCommandException error)
                         when (error.Response != null
                             && error.Response.Detail
+                                == LMCDiagnosticsDetailCode
+                                    .HandleOrGenerationStale)
+                    {
+                        QuarantineStaleSessionD5SdoQualificationTicket(
+                            "plc_owner_session_epoch_stale");
+                    }
+                    catch (LMCDiagnosticsCommandException error)
+                        when (error.Response != null
+                            && error.Response.Detail
                                 == LMCDiagnosticsDetailCode.TicketNotFound)
                     {
                         ResolveSupersededD5SdoQualificationTicket(
@@ -1389,12 +1398,12 @@ namespace LasalMotionControlApiExample
                     && item.DiagnosticsBootId
                         != capabilities.DiagnosticsBootId);
             var proofScope = hasSameOwnerAndBootEvidence
-                ? "same_session_executor_reuse"
+                ? "same_owner_connection_recovery"
                 : hasSameOwnerBootChange
                     ? "new_diagnostics_boot_session"
                     : "new_connection_session";
             var proofScopeText = hasSameOwnerAndBootEvidence
-                ? "same-session executor-reuse"
+                ? "same-owner connection recovery"
                 : hasSameOwnerBootChange
                     ? "new diagnostics-Boot session"
                     : "new connection session";

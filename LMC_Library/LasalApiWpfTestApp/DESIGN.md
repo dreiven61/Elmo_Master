@@ -355,9 +355,10 @@ var raw = checked((int)Math.Round(
   다른 두 ticket을 사용하되 GeneralInline capability면 `0x6061:0 Int8/1`, legacy
   SDORead-only면 `0x1000:0 UInt32/4`를 선택한다. 두 결과의 exact type/length/bytes가 같고 proof
   동안 evidence 목록이 불변일 때만 quarantine 전체를 해제한다. scope는
-  `same_session_executor_reuse`,
-  `new_diagnostics_boot_session`, `new_connection_session` 세 가지다. 같은 owner+Boot unknown
-  outcome은 executor reuse만, 같은 owner의 Boot 변화는 diagnostics-Boot session만
+  `same_owner_connection_recovery`,
+  `new_diagnostics_boot_session`, `new_connection_session` 세 가지다. 같은 owner object+Boot의
+  unknown outcome 또는 `HandleOrGenerationStale(10)`은 current-owner recovery만,
+  같은 owner의 Boot 변화는 diagnostics-Boot session만
   증명하며 둘 다 orphan PASS가 아니다. 모든 evidence owner가 현재 `LMCConnection`과 달라
   new-connection scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상
   `orphanQualified=false`를 기록한다. 이 scope는 새 RPC connection에서 application recovery가

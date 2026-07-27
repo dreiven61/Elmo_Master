@@ -567,7 +567,8 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
   두 ticket에서 exact type/length/bytes를 확인한다. 같은 Boot/session의 exact
   `TicketNotFound`는 terminal-slot 교체 계약상 이전 ticket terminal만 증명하고 outcome
   `UNKNOWN`으로 해제한다. unresolved mutation gate와 원 deadline을 반영한 15~120초 cleanup을
-  구현했다. `same_session_executor_reuse`는
+  구현했다. 같은 owner object+Boot의 unknown outcome 또는 `HandleOrGenerationStale(10)`을
+  다루는 `same_owner_connection_recovery`는
   disconnect/orphan PASS가 아니다. same-owner Boot change와 new-connection scope를 분리하며
   모든 evidence owner가 바뀐 scope는 `newConnectionRecovery=true`만 뜻한다. WPF는 항상
   `orphanQualified=false`를 기록한다. 실제 orphan PASS에는 known Running old ticket, 실제

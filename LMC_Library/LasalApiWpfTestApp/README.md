@@ -149,8 +149,9 @@ Diagnostics는 `Refresh Capabilities`와 `Load PI Catalog`까지 완료한다.
   capability가 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
   서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 모두 확인해야 해제된다.
   proof scope는 정확히
-  `same_session_executor_reuse`, `new_diagnostics_boot_session`, `new_connection_session`
-  세 가지다. 같은 owner+Boot의 unknown outcome은 첫 scope이며 old terminal이나
+  `same_owner_connection_recovery`, `new_diagnostics_boot_session`, `new_connection_session`
+  세 가지다. 같은 owner object+Boot의 unknown outcome 또는 PLC
+  `HandleOrGenerationStale(10)`은 첫 scope이며 old terminal이나
   disconnect/orphan 증거가 아니다. 같은 owner의 Boot 변화는 둘째 scope이고 역시 orphan
   PASS가 아니다. 모든 격리 evidence의 owner `LMCConnection`이 현재 owner와 달라 셋째
   scope가 성립하면 `newConnectionRecovery=true`로 기록한다. WPF는 항상

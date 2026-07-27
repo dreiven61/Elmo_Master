@@ -78,7 +78,7 @@
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 검증한다. unresolved Group Disable
   포함 새 mutation gate와 15~120초 deadline-aware cleanup도 포함된다.
   기존 Bulk/Recorder/queued-ticket cleanup, Stop/PowerOff와 read-only는 계속 허용한다.
-  proof scope는 `same_session_executor_reuse`, `new_diagnostics_boot_session`,
+  proof scope는 `same_owner_connection_recovery`, `new_diagnostics_boot_session`,
   `new_connection_session`으로 나뉘며,
   모든 evidence owner가 바뀐 셋째 scope는 `newConnectionRecovery=true`만 뜻한다.
   WPF는 `orphanQualified=false`를 고정 기록하며 실제 orphan PASS에는 known Running old

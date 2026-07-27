@@ -707,7 +707,8 @@ general-inline Int8/1-byte 및 BitField16/2-byte, `12_SDO_GeneralInline_4Byte_Fa
   outcome `UNKNOWN`으로 해제한다. known/unknown evidence 전체는 stable BootId/MapRevision 아래
   GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두
   `0x1000:0 UInt32/4` ticket의 exact type/length/bytes가 같고 proof 중 목록이 불변일 때만 해제한다.
-  같은 owner+Boot unknown outcome은 `same_session_executor_reuse` proof이며 disconnect/orphan
+  같은 owner object+Boot의 unknown outcome 또는 `HandleOrGenerationStale(10)`은
+  `same_owner_connection_recovery` proof이며 disconnect/orphan
   PASS가 아니다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
   `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
   `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 이는 새 RPC

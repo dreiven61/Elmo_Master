@@ -83,7 +83,7 @@ Test UI 자동화, PLC 재캡처 순서를 정한다. 목표는 기능 수를 �
   `TicketNotFound`는 이전 ticket terminal만 증명해 outcome `UNKNOWN`으로 해제한다. 여러
   evidence는 GeneralInline의 `0x6061:0 Int8/1` 또는 legacy SDORead-only의
   `0x1000:0 UInt32/4` 중 capability에 맞는 서로 다른 두 ticket의 exact type/length/bytes로 proof한다.
-  scope는 `same_session_executor_reuse`, `new_diagnostics_boot_session`,
+  scope는 `same_owner_connection_recovery`, `new_diagnostics_boot_session`,
   `new_connection_session`으로 나눈다. 모든 evidence owner가 바뀐 셋째 scope는
   `newConnectionRecovery=true`지만 WPF는 항상 `orphanQualified=false`다. 실제 orphan
   PASS에는 known Running old ticket, 실제 owner loss와 별도 PLC hook/capture가 필요하다.
@@ -594,7 +594,8 @@ Boot/session의 exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이
 여러 개면 모두 같은 slave여야 하며, stable BootId/MapRevision 아래 GeneralInline이면 서로
 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket의
 exact type/length/bytes가 같고 proof 도중 evidence 목록이 불변일 때만 전체 quarantine을 해제한다.
-같은 owner+Boot의 unknown outcome은 `same_session_executor_reuse` proof이며 disconnect/orphan
+같은 owner object+Boot의 unknown outcome 또는 `HandleOrGenerationStale(10)`은
+`same_owner_connection_recovery` proof이며 disconnect/orphan
 PASS로 표시하지 않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner
 변화는 `new_connection_session`이다. 모든 evidence owner가 현재 owner와 다르면
 `newConnectionRecovery=true`로 기록하지만 WPF는 항상 `orphanQualified=false`를 기록한다.

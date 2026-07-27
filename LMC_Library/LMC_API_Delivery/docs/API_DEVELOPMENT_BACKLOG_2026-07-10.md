@@ -100,8 +100,8 @@ D5 runner는 submit-response 유실 전 outcome guard와 unknown-ticket quaranti
 ticket terminal만 증명하므로 `TERMINAL_INFERRED`, outcome `UNKNOWN`으로 해제한다. 여러
 evidence recovery는 GeneralInline이면 서로 다른 두 `0x6061:0 Int8/1`, legacy SDORead-only이면
 서로 다른 두 `0x1000:0 UInt32/4` ticket의 exact type/length/bytes를 stable BootId/MapRevision
-아래 확인한다. 같은 owner+Boot unknown
-outcome은 `same_session_executor_reuse` proof로만 판정하고 disconnect/orphan PASS로 세지
+아래 확인한다. 같은 owner object+Boot의 unknown outcome 또는
+`HandleOrGenerationStale(10)`은 `same_owner_connection_recovery` proof로만 판정하고 disconnect/orphan PASS로 세지
 않는다. 같은 owner의 Boot 변화는 `new_diagnostics_boot_session`, owner 변화는
 `new_connection_session`이다. 모든 evidence owner가 바뀐 경우는
 `newConnectionRecovery=true`일 뿐이며 WPF는 `orphanQualified=false`를 고정 기록한다.

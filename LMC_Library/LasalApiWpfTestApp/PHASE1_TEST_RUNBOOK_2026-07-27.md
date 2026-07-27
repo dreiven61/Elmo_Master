@@ -137,8 +137,9 @@ ticket cleanup means the PLC terminal slot was replaced: it proves the prior
 ticket had become terminal, but its outcome remains `UNKNOWN`. A stale local
 connection session is quarantined instead of being treated as terminal.
 
-`same_session_executor_reuse` proves only that two distinct known-valid reads
-can run after an uncertain submit outcome. It does not prove disconnect/orphan
+`same_owner_connection_recovery` proves only that two distinct known-valid
+reads can run after an uncertain submit outcome or an owner-session
+`HandleOrGenerationStale(10)` response. It does not prove disconnect/orphan
 cleanup or the old ticket's terminal state. `new_connection_session` with
 `newConnectionRecovery=true` proves the new
 connection can submit two valid reads, but it still does not by itself prove

@@ -96,8 +96,8 @@ exact `TicketNotFound`는 one-terminal-slot 교체 계약상 이전 ticket이 te
 여러 evidence의 recovery proof는 current capability가 GeneralInline이면 서로 다른 두
 `0x6061:0 Int8/1` ticket, legacy SDORead-only이면 서로 다른 두 `0x1000:0 UInt32/4` ticket을
 사용한다. stable BootId/MapRevision 아래 두 결과의 exact type/length/bytes가 같고 proof 중
-evidence 목록이 불변일 때만 quarantine을 해제한다. 같은 owner+Boot의 unknown outcome은
-`same_session_executor_reuse` proof일 뿐
+evidence 목록이 불변일 때만 quarantine을 해제한다. 같은 owner object+Boot의 unknown
+outcome 또는 `HandleOrGenerationStale(10)`은 `same_owner_connection_recovery` proof일 뿐
 old terminal/disconnect/orphan PASS가 아니다. 같은 owner의 Boot 변화는 별도
 `new_diagnostics_boot_session`, owner connection 변화는 `new_connection_session`이다.
 모든 evidence의 owner가 바뀐 셋째 scope는 `newConnectionRecovery=true`로 기록하지만,
