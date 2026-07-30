@@ -22,7 +22,7 @@
 
 | Milestone | 상태 | 현재 근거 | 다음 gate |
 |---|---|---|---|
-| M0. Working-tree baseline 고정 | **진행 중** | current SDK Debug/Release 975/975, WPF Release 208/208 PASS | 현재 미커밋 source를 목적별 commit으로 고정한 뒤 clean checkout 재현 |
+| M0. Working-tree baseline 고정 | **부분 완료** | 목적별 local commit, current SDK Debug/Release 975/975, WPF Release 208/208 PASS | clean checkout 재현 |
 | M1. LASAL current integration | **차단** | SourceOnly PASS | full static FAIL 해소 + IDE Rebuild/Link |
 | M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory | current cold download + safety/readback 승인 |
 | M3. Active motion/diagnostics qualification | **부분** | 대표 happy path PASS | 25-command/fault/soak/recovery matrix |

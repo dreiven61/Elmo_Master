@@ -29,7 +29,7 @@ IDE/PLC/실축 검증이 끝나지 않아 production 배포는 불가하다.** �
 | SDK 자동 시험 | **975/975 Debug, 975/975 Release PASS** | current C# source 전량 PASS |
 | WPF Release | **Rebuild warning/error 0/0, smoke 208/208 PASS** | current C#/WPF source 전량 PASS |
 | LASAL SourceOnly | **PASS** | `Phase5TransportClean / StaticTopologyOnly` |
-| LASAL full/network static | **FAIL** | stale `Classes.lcb`가 삭제된 `_TCPIPServer_RT` 등록을 유지; IDE 재생성 필요 |
+| LASAL full/network static | **FAIL** | `Comm_Network` generated table의 axis/robot 10개가 `TO_UDINT(1)`이고 verifier 계약은 `TO_UDINT(2)`를 요구; ordinal 계약 확인과 IDE 재생성 필요 |
 | PLC/실축 | **부분 검증** | 일부 happy path만 PASS, 전체 matrix 미완료 |
 | 배포 | **차단** | `0.9.1-preview`, production DoD 미충족 |
 
@@ -77,9 +77,9 @@ IDE/PLC/실축 검증이 끝나지 않아 production 배포는 불가하다.** �
 | SDK Debug forced Rebuild + tests | 975/975 PASS | current source 전량 PASS |
 | SDK Release forced Rebuild + tests | 975/975 PASS | current source 전량 PASS |
 | WPF Release Rebuild | warning 0, error 0 PASS | current source build PASS |
-| WPF Release smoke | 208/208 PASS | full run 126.5초; targeted safety/process 회귀도 별도 PASS |
+| WPF Release smoke | 208/208 PASS | commit 후 full run 127.2초; targeted safety/process 회귀도 별도 PASS |
 | LASAL SourceOnly static | PASS | external source 계약 PASS |
-| LASAL full/network static | FAIL | stale generated registration; IDE Save/Generate/Rebuild 필요 |
+| LASAL full/network static | FAIL | generated axis/robot source-object ordinal `1`, verifier expected ordinal `2`; 계약 확인 후 IDE Save/Generate/Rebuild 필요 |
 
 WPF targeted 결과는 Axis Reset `7/7`, Motion `30/30`, Axis Stop/Reset integration `18/18`,
 Axis command journal `9/9`, 실제 child-process recovery `4/4`, Axis Power `28/28` PASS다.
@@ -134,11 +134,12 @@ runtime 또는 물리 정지·오류 해제 증거가 아니다.
 
 ## 현재 blocker
 
-1. **working tree가 아직 대규모 미커밋 상태다.** current C# source 전량 PASS는 확보했지만,
-   목적별 commit과 clean checkout 재현 전에는 고정 release baseline이 아니다.
-2. **LASAL full static이 FAIL한다.** current `Classes.lcb`가 삭제된 `_TCPIPServer_RT`를 계속
-   가리키며 `Networks.lcb`, `.lba`, export와 root `.lcb`도 이전 생성본이다. 외부 시험 생성물을
-   복사하지 말고 마스터 LASAL에서 Save/Generate/Rebuild/Link해야 한다.
+1. **tracked source의 목적별 local commit은 완료됐지만 clean checkout 재현은 남았다.**
+   동일 commit 집합을 새 checkout에서 SDK/WPF/SourceOnly gate로 다시 확인해야 고정 baseline이다.
+2. **LASAL full static이 FAIL한다.** current `Comm_Network` generated table의 axis 1..9와 Robot
+   source-object ordinal은 10개 모두 `TO_UDINT(1)`이고 verifier의 `Phase5TransportClean` 계약은
+   `TO_UDINT(2)`를 요구한다. 실제 ordinal 계약을 확인한 뒤 마스터 LASAL에서
+   Save/Generate/Rebuild/Link해야 한다.
 3. **최신 LASAL IDE build/download가 없다.** current topology/same-peer/SDO source를 포함한
    Rebuild/Link, implementation smoke, log, cold download가 필요하다.
 4. **PLC qualification matrix가 미완료다.** motion/group 25개, D1/D2 fault·soak,
