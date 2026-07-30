@@ -83,10 +83,22 @@ namespace LasalMotionControlApiExample
                 && canReadGroupParameters;
             ButtonGetDriveOperationMode.IsEnabled = connected
                 && idle
-                && !HasUnresolvedD5SdoQualificationTicket;
+                && EvaluateDiagnosticsAdmission(
+                    DiagnosticsAdmissionOperation
+                        .TrackedD5ReadOnlyInspection)
+                    .IsAllowed;
             ButtonReadDriveStatus.IsEnabled = connected
                 && idle
-                && !HasUnresolvedD5SdoQualificationTicket;
+                && EvaluateDiagnosticsAdmission(
+                    DiagnosticsAdmissionOperation
+                        .TrackedD5ReadOnlyInspection)
+                    .IsAllowed;
+            ButtonGetDriveErrorCode.IsEnabled = connected
+                && idle
+                && EvaluateDiagnosticsAdmission(
+                    DiagnosticsAdmissionOperation
+                        .TrackedD5ReadOnlyInspection)
+                    .IsAllowed;
 
             ComboAdminAxisReference.IsEnabled = idle;
             ComboAdminAxisParameter.IsEnabled = idle;
@@ -185,7 +197,9 @@ namespace LasalMotionControlApiExample
                 "Get Drive Operation Mode",
                 async () =>
                 {
-                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                    EnsureDiagnosticsAdmission(
+                        DiagnosticsAdmissionOperation
+                            .TrackedD5ReadOnlyInspection,
                         "Get Drive Operation Mode");
                     var axisReference = RequirePhysicalAxisReference(
                         ComboDriveReadAxisReference,
@@ -213,7 +227,9 @@ namespace LasalMotionControlApiExample
                 "Read Drive Status",
                 async () =>
                 {
-                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                    EnsureDiagnosticsAdmission(
+                        DiagnosticsAdmissionOperation
+                            .TrackedD5ReadOnlyInspection,
                         "Read Drive Status");
                     var axisReference = RequirePhysicalAxisReference(
                         ComboDriveReadAxisReference,
@@ -229,6 +245,35 @@ namespace LasalMotionControlApiExample
                         () => currentAxis.ReadDriveStatusAsync(
                             CancellationToken.None));
                     TextDriveReadResult.Text = FormatDriveStatus(result);
+                });
+        }
+
+        private async void ButtonGetDriveErrorCode_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            await RunOperationAsync(
+                "Get Drive Error Code",
+                async () =>
+                {
+                    EnsureDiagnosticsAdmission(
+                        DiagnosticsAdmissionOperation
+                            .TrackedD5ReadOnlyInspection,
+                        "Get Drive Error Code");
+                    var axisReference = RequirePhysicalAxisReference(
+                        ComboDriveReadAxisReference,
+                        "Drive axis reference");
+                    var currentConnection = RequireConnection();
+                    var currentAxis = await GetPhysicalAxisAsync(axisReference);
+                    var result = await RunTrackedExternalD5ReadAsync(
+                        currentConnection,
+                        axisReference,
+                        LMCSingleAxis.DefaultDriveReadTimeoutCycles,
+                        "drive-error-code-0x603F",
+                        2,
+                        () => currentAxis.GetDriveErrorCodeAsync(
+                            CancellationToken.None));
+                    TextDriveReadResult.Text = FormatDriveErrorCode(result);
                 });
         }
 
@@ -392,6 +437,26 @@ namespace LasalMotionControlApiExample
                 + result.OperationStatus.CompletionCycle;
         }
 
+        private static string FormatDriveErrorCode(
+            LMCDriveErrorCodeResult result)
+        {
+            return "AxisRef="
+                + result.AxisReference
+                + ", DS402 0x603F:0=0x"
+                + result.ErrorCode.ToString("X4")
+                + ", HasError="
+                + result.HasError
+                + ", ReadSuccessful="
+                + result.IsSuccessful
+                + Environment.NewLine
+                + "TicketId="
+                + result.Ticket.TicketId
+                + ", State="
+                + result.OperationStatus.State
+                + ", CompletionCycle="
+                + result.OperationStatus.CompletionCycle;
+        }
+
         private static string FormatDriveStatus(LMCDriveStatus result)
         {
             return "AxisRef="
@@ -408,6 +473,8 @@ namespace LasalMotionControlApiExample
                 + Environment.NewLine
                 + "DS402 0x6041:0=0x"
                 + result.Ds402StatusWord.ToString("X4")
+                + ", DS402Fault="
+                + result.HasDs402Fault
                 + ", 0x6061:0="
                 + result.OperationMode
                 + " (raw "

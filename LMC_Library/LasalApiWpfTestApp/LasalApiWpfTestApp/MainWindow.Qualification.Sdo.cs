@@ -29,7 +29,7 @@ namespace LasalMotionControlApiExample
         private uint d5SdoQualificationActiveTimeoutCycles;
         private uint d5SdoQualificationActiveMapRevision;
         private LMCSdoRequest d5SdoQualificationActiveRequest;
-        private D5SdoWriteReadbackRequirement
+        private LMCSdoWriteVerificationContext
             d5SdoPendingWriteReadback;
         private readonly D5SdoQuarantineLedger d5SdoQualificationQuarantine =
             new D5SdoQuarantineLedger();
@@ -85,7 +85,7 @@ namespace LasalMotionControlApiExample
                 if (!d5SdoPendingWriteReadback
                     .MatchesOwnerCurrentSession(connection))
                 {
-                    return "The SDO Write readback belongs to a different or stale LMCConnection session. This session cannot submit or clear it; mutation and Close remain blocked. Stop, PowerOff, and existing-resource cleanup remain available.";
+                    return "The SDO Write readback belongs to a different or stale LMCConnection session, so this session cannot submit the exact readback. Mutation and Close remain blocked until the physical target and PLC state are independently verified and Persisted Mutation Recovery is explicitly acknowledged. No command will be replayed.";
                 }
 
                 return "SDO Write transport completed but exact manual readback is pending for "
@@ -134,6 +134,117 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private async void ButtonRunD5SdoContentionQualification_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            D5SdoContentionInput input;
+            try
+            {
+                input = ReadD5SdoContentionInput();
+            }
+            catch (Exception error)
+            {
+                TextD5SdoQualificationProgress.Text =
+                    "Not started: " + error.Message;
+                TextOperationState.Text =
+                    "D5 SDO contention qualification validation failed";
+                WriteLog(
+                    "D5 SDO contention qualification not started: "
+                    + error.Message);
+                return;
+            }
+
+            try
+            {
+                await RunQualificationAsync(
+                    "D5SdoContentionRecovery",
+                    cancellationToken =>
+                        RunD5SdoContentionRecoveryQualificationAsync(
+                            input,
+                            cancellationToken));
+            }
+            finally
+            {
+                UpdateUiState();
+                RefreshD5SdoQualificationOutput();
+            }
+        }
+
+        private async void ButtonRunD5SdoTimeoutQualification_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            D5SdoTimeoutInput input;
+            try
+            {
+                input = ReadD5SdoTimeoutInput();
+            }
+            catch (Exception error)
+            {
+                TextD5SdoQualificationProgress.Text =
+                    "Not started: " + error.Message;
+                TextOperationState.Text =
+                    "D5 SDO timeout qualification validation failed";
+                WriteLog(
+                    "D5 SDO timeout qualification not started: "
+                    + error.Message);
+                return;
+            }
+
+            try
+            {
+                await RunQualificationAsync(
+                    "D5SdoTimeoutRecovery",
+                    cancellationToken =>
+                        RunD5SdoTimeoutRecoveryQualificationAsync(
+                            input,
+                            cancellationToken));
+            }
+            finally
+            {
+                UpdateUiState();
+                RefreshD5SdoQualificationOutput();
+            }
+        }
+
+        private async void ButtonRunD5SdoQueuedCancelQualification_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            D5SdoContentionInput input;
+            try
+            {
+                input = ReadD5SdoContentionInput();
+            }
+            catch (Exception error)
+            {
+                TextD5SdoQualificationProgress.Text =
+                    "Not started: " + error.Message;
+                TextOperationState.Text =
+                    "D5 SDO queued-cancel qualification validation failed";
+                WriteLog(
+                    "D5 SDO queued-cancel qualification not started: "
+                    + error.Message);
+                return;
+            }
+
+            try
+            {
+                await RunQualificationAsync(
+                    "D5SdoQueuedCancelRecovery",
+                    cancellationToken =>
+                        RunD5SdoQueuedCancelRecoveryQualificationAsync(
+                            input,
+                            cancellationToken));
+            }
+            finally
+            {
+                UpdateUiState();
+                RefreshD5SdoQualificationOutput();
+            }
+        }
+
         private async void ButtonCancelD5SdoQualification_Click(
             object sender,
             RoutedEventArgs e)
@@ -170,10 +281,8 @@ namespace LasalMotionControlApiExample
             }
 
             if (!qualificationRunning
-                || !string.Equals(
-                    qualificationScenario,
-                    "D5SdoAbortRecovery",
-                    StringComparison.Ordinal))
+                || !IsD5SdoQualificationScenario(
+                    qualificationScenario))
             {
                 return;
             }
@@ -181,6 +290,34 @@ namespace LasalMotionControlApiExample
             CancelQualification(
                 "D5 SDO runner cancellation (no PLC Stop command)",
                 false);
+        }
+
+        private static bool IsD5SdoQualificationScenario(string scenario)
+        {
+            return string.Equals(
+                    scenario,
+                    "D5SdoAbortRecovery",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    scenario,
+                    "D5SdoContentionRecovery",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    scenario,
+                    "D5SdoTimeoutRecovery",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    scenario,
+                    "D5SdoQueuedCancelRecovery",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    scenario,
+                    "D5SdoAbruptDisconnectApplicationRecovery",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    scenario,
+                    D5SdoWriteSameValueScenario,
+                    StringComparison.Ordinal);
         }
 
         private async Task RunD5SdoAbortRecoveryQualificationAsync(
@@ -469,6 +606,1024 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        private async Task RunD5SdoContentionRecoveryQualificationAsync(
+            D5SdoContentionInput input,
+            CancellationToken cancellationToken)
+        {
+            if (d5SdoQualificationActiveTicket != null)
+            {
+                SetD5SdoQualificationProgress(
+                    1,
+                    "Resolving the previous D5 ticket before starting contention qualification");
+                await CleanupPendingD5SdoQualificationAsync();
+            }
+
+            if (d5SdoQualificationQuarantine.HasEntries)
+            {
+                throw new InvalidOperationException(
+                    "A D5 ticket or uncertain submission remains quarantined. "
+                    + GetD5SdoResolutionGuidance());
+            }
+
+            d5SdoQualificationActiveStatus = null;
+            d5SdoQualificationActiveDeadlineUtc = null;
+
+            Exception primaryError = null;
+            try
+            {
+                var currentConnection = RequireConnection();
+                var diagnostics = currentConnection.Diagnostics;
+
+                EnsureNoPendingManualD5Operation();
+                SetD5SdoQualificationProgress(
+                    4,
+                    "Verifying selected physical axis is powered off and stationary");
+                await VerifyD5SdoQualificationSafeAxisAsync(
+                    currentConnection,
+                    input.SlaveReference,
+                    input.AxisObjectName,
+                    cancellationToken);
+
+                SetD5SdoQualificationProgress(
+                    10,
+                    "Refreshing and comparing D5 contention capabilities");
+                var firstCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "contention capability sample 1");
+                await Task.Delay(
+                    D5SdoQualificationPollMilliseconds,
+                    cancellationToken);
+                var capabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "contention capability sample 2");
+                RequireStableD5SdoQualificationCapabilities(
+                    firstCapabilities,
+                    capabilities,
+                    "contention preflight");
+                diagnosticCapabilities = capabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(capabilities);
+
+                var terminalWaitMilliseconds =
+                    GetD5SdoQualificationTerminalWaitMilliseconds(
+                        input.TimeoutCycles,
+                        capabilities.BaseCycleTimeUs);
+                var request = LMCSdoRequest.CreateRead(
+                    input.SlaveReference,
+                    0x6061,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    input.TimeoutCycles);
+                WriteD5SdoQualificationLog(
+                    "event=D5_CONTENTION_PREFLIGHT",
+                    "wireMutation=false",
+                    "slave=" + input.SlaveReference.ToString(
+                        CultureInfo.InvariantCulture),
+                    "axis=" + QualificationValue(input.AxisObjectName),
+                    "object=0x6061",
+                    "subIndex=0",
+                    "valueType=Int8",
+                    "dataLength=1",
+                    "powerOn=false",
+                    "standstill=true",
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "terminalWaitMs=" + terminalWaitMilliseconds.ToString(
+                        CultureInfo.InvariantCulture),
+                    "verdict=PASS");
+
+                SetD5SdoQualificationProgress(
+                    18,
+                    "Reading the stable 0x6061:0 baseline before contention");
+                var baselineTicket = await SubmitD5SdoQualificationAsync(
+                    currentConnection,
+                    diagnostics,
+                    request,
+                    capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
+                    cancellationToken,
+                    "contention-baseline",
+                    "0x6061",
+                    0,
+                    terminalWaitMilliseconds);
+                var baselineStatus =
+                    await WaitForD5SdoQualificationTerminalAsync(
+                        diagnostics,
+                        baselineTicket,
+                        terminalWaitMilliseconds,
+                        cancellationToken,
+                        "contention-baseline");
+                var expectedResultData = baselineStatus.ResultData;
+                if (expectedResultData.Length != 1)
+                {
+                    throw new InvalidOperationException(
+                        "The D5 contention baseline did not return exactly one byte.");
+                }
+
+                D5SdoQualificationAnalysis.ValidateKnownValidInt8Recovery(
+                    baselineTicket,
+                    baselineStatus,
+                    capabilities.DiagnosticsBootId,
+                    unchecked((sbyte)expectedResultData[0]));
+                WriteD5SdoQualificationTerminalLog(
+                    "contention-baseline",
+                    baselineTicket,
+                    baselineStatus);
+
+                var beforeContentionCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "contention pre-submit capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    beforeContentionCapabilities,
+                    "baseline-to-contention");
+
+                var submitOrdinal = 0;
+                var terminalOrdinal = 0;
+                SetD5SdoQualificationProgress(
+                    32,
+                    "Starting first/second/third D5 contention contract");
+                var result = await D5SdoContentionQualificationOrchestrator
+                    .RunAsync(
+                        new D5SdoContentionQualificationRequest(
+                            currentConnection,
+                            beforeContentionCapabilities,
+                            request,
+                            expectedResultData),
+                        new D5SdoContentionQualificationOperations
+                        {
+                            SubmitAsync = async (submittedRequest, token) =>
+                            {
+                                submitOrdinal++;
+                                var stage = submitOrdinal == 1
+                                    ? "contention-first"
+                                    : submitOrdinal == 2
+                                        ? "contention-second-probe"
+                                        : "contention-third";
+                                SetD5SdoQualificationProgress(
+                                    submitOrdinal == 1
+                                        ? 38
+                                        : submitOrdinal == 2
+                                            ? 46
+                                            : 72,
+                                    "Submitting " + stage + " 0x6061:0 Read");
+                                if (submitOrdinal == 2)
+                                {
+                                    return await SubmitD5SdoContentionProbeAsync(
+                                        currentConnection,
+                                        diagnostics,
+                                        submittedRequest,
+                                        capabilities.DiagnosticsBootId,
+                                        capabilities.MapRevision,
+                                        token,
+                                        stage);
+                                }
+
+                                return await SubmitD5SdoQualificationAsync(
+                                    currentConnection,
+                                    diagnostics,
+                                    submittedRequest,
+                                    capabilities.DiagnosticsBootId,
+                                    capabilities.MapRevision,
+                                    token,
+                                    stage,
+                                    "0x6061",
+                                    0,
+                                    terminalWaitMilliseconds);
+                            },
+                            WaitForTerminalAsync = async (ticket, token) =>
+                            {
+                                terminalOrdinal++;
+                                var stage = terminalOrdinal == 1
+                                    ? "contention-first"
+                                    : "contention-third";
+                                SetD5SdoQualificationProgress(
+                                    terminalOrdinal == 1 ? 56 : 82,
+                                    "Waiting for " + stage
+                                        + " exact Completed/Success");
+                                return await WaitForD5SdoQualificationTerminalAsync(
+                                    diagnostics,
+                                    ticket,
+                                    terminalWaitMilliseconds,
+                                    token,
+                                    stage);
+                            },
+                            RecoveryRequired = (scope, error) =>
+                                WriteD5SdoContentionRecoveryScope(
+                                    scope,
+                                    error)
+                        },
+                        cancellationToken);
+
+                WriteD5SdoQualificationTerminalLog(
+                    "contention-first",
+                    result.RecoveryScope.FirstTicket,
+                    result.FirstTerminalStatus);
+                WriteD5SdoQualificationTerminalLog(
+                    "contention-third",
+                    result.RecoveryScope.ThirdTicket,
+                    result.ThirdTerminalStatus);
+
+                var finalCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "contention final capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    finalCapabilities,
+                    "contention full run");
+                diagnosticCapabilities = finalCapabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(finalCapabilities);
+
+                WriteD5SdoQualificationLog(
+                    "event=D5_CONTENTION_ASSERT",
+                    "firstTicket="
+                        + result.RecoveryScope.FirstTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "secondOutcome=Rejected",
+                    "secondDetail=ResourceBusy",
+                    "thirdTicket="
+                        + result.RecoveryScope.ThirdTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "value=" + unchecked(
+                        (sbyte)result.FirstTerminalStatus.ResultData[0]).ToString(
+                            CultureInfo.InvariantCulture),
+                    "wireMutation=false",
+                    "verdict=PASS");
+                SetD5SdoQualificationProgress(
+                    98,
+                    "D5 SDO contention -> ResourceBusy -> recovery contract PASS");
+            }
+            catch (Exception error)
+            {
+                primaryError = error;
+            }
+
+            Exception cleanupError = null;
+            try
+            {
+                if (!await CleanupPendingD5SdoQualificationAsync())
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO contention cleanup moved an accepted ticket to quarantine because its submission identity changed.");
+                }
+            }
+            catch (Exception error)
+            {
+                cleanupError = error;
+            }
+
+            if (primaryError != null)
+            {
+                if (cleanupError != null)
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO contention qualification failed and pending ticket cleanup also failed. Primary="
+                        + primaryError.GetType().Name
+                        + ": "
+                        + primaryError.Message
+                        + "; Cleanup="
+                        + cleanupError.GetType().Name
+                        + ": "
+                        + cleanupError.Message,
+                        new AggregateException(primaryError, cleanupError));
+                }
+
+                ExceptionDispatchInfo.Capture(primaryError).Throw();
+            }
+
+            if (cleanupError != null)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO contention qualification left a pending ticket that could not be resolved.",
+                    cleanupError);
+            }
+        }
+
+        private async Task RunD5SdoQueuedCancelRecoveryQualificationAsync(
+            D5SdoContentionInput input,
+            CancellationToken cancellationToken)
+        {
+            if (d5SdoQualificationActiveTicket != null)
+            {
+                SetD5SdoQualificationProgress(
+                    1,
+                    "Resolving the previous D5 ticket before starting queued-cancel qualification");
+                await CleanupPendingD5SdoQualificationAsync();
+            }
+
+            if (d5SdoQualificationQuarantine.HasEntries)
+            {
+                throw new InvalidOperationException(
+                    "A D5 ticket or uncertain submission remains quarantined. "
+                    + GetD5SdoResolutionGuidance());
+            }
+
+            d5SdoQualificationActiveStatus = null;
+            d5SdoQualificationActiveDeadlineUtc = null;
+
+            Exception primaryError = null;
+            try
+            {
+                var currentConnection = RequireConnection();
+                var diagnostics = currentConnection.Diagnostics;
+
+                EnsureNoPendingManualD5Operation();
+                SetD5SdoQualificationProgress(
+                    4,
+                    "Verifying selected physical axis is powered off and stationary");
+                await VerifyD5SdoQualificationSafeAxisAsync(
+                    currentConnection,
+                    input.SlaveReference,
+                    input.AxisObjectName,
+                    cancellationToken);
+
+                SetD5SdoQualificationProgress(
+                    10,
+                    "Refreshing and comparing D5 queued-cancel capabilities");
+                var firstCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "queued-cancel capability sample 1");
+                await Task.Delay(
+                    D5SdoQualificationPollMilliseconds,
+                    cancellationToken);
+                var capabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "queued-cancel capability sample 2");
+                RequireStableD5SdoQualificationCapabilities(
+                    firstCapabilities,
+                    capabilities,
+                    "queued-cancel preflight");
+                diagnosticCapabilities = capabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(capabilities);
+
+                var terminalWaitMilliseconds =
+                    GetD5SdoQualificationTerminalWaitMilliseconds(
+                        input.TimeoutCycles,
+                        capabilities.BaseCycleTimeUs);
+                var request = LMCSdoRequest.CreateRead(
+                    input.SlaveReference,
+                    0x6061,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    input.TimeoutCycles);
+                WriteD5SdoQualificationLog(
+                    "event=D5_QUEUED_CANCEL_PREFLIGHT",
+                    "wireMutation=false",
+                    "plcStopCommand=false",
+                    "slave=" + input.SlaveReference.ToString(
+                        CultureInfo.InvariantCulture),
+                    "axis=" + QualificationValue(input.AxisObjectName),
+                    "object=0x6061",
+                    "subIndex=0",
+                    "valueType=Int8",
+                    "dataLength=1",
+                    "powerOn=false",
+                    "standstill=true",
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "terminalWaitMs=" + terminalWaitMilliseconds.ToString(
+                        CultureInfo.InvariantCulture),
+                    "verdict=PASS");
+
+                SetD5SdoQualificationProgress(
+                    18,
+                    "Reading the stable 0x6061:0 baseline before queued cancel");
+                var baselineTicket = await SubmitD5SdoQualificationAsync(
+                    currentConnection,
+                    diagnostics,
+                    request,
+                    capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
+                    cancellationToken,
+                    "queued-cancel-baseline",
+                    "0x6061",
+                    0,
+                    terminalWaitMilliseconds);
+                var baselineStatus =
+                    await WaitForD5SdoQualificationTerminalAsync(
+                        diagnostics,
+                        baselineTicket,
+                        terminalWaitMilliseconds,
+                        cancellationToken,
+                        "queued-cancel-baseline");
+                var expectedResultData = baselineStatus.ResultData;
+                if (expectedResultData.Length != 1)
+                {
+                    throw new InvalidOperationException(
+                        "The D5 queued-cancel baseline did not return exactly one byte.");
+                }
+
+                D5SdoQualificationAnalysis.ValidateKnownValidInt8Recovery(
+                    baselineTicket,
+                    baselineStatus,
+                    capabilities.DiagnosticsBootId,
+                    unchecked((sbyte)expectedResultData[0]));
+                WriteD5SdoQualificationTerminalLog(
+                    "queued-cancel-baseline",
+                    baselineTicket,
+                    baselineStatus);
+
+                var beforeCancelCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "queued-cancel pre-submit capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    beforeCancelCapabilities,
+                    "baseline-to-queued-cancel");
+
+                var submitOrdinal = 0;
+                var terminalOrdinal = 0;
+                SetD5SdoQualificationProgress(
+                    32,
+                    "Submitting target then issuing one immediate queued CancelOperation");
+                var result = await D5SdoQueuedCancelQualificationOrchestrator
+                    .RunAsync(
+                        new D5SdoQueuedCancelQualificationRequest(
+                            currentConnection,
+                            beforeCancelCapabilities,
+                            request,
+                            expectedResultData),
+                        new D5SdoQueuedCancelQualificationOperations
+                        {
+                            SubmitAsync = async (submittedRequest, token) =>
+                            {
+                                submitOrdinal++;
+                                var stage = submitOrdinal == 1
+                                    ? "queued-cancel-target"
+                                    : "queued-cancel-recovery";
+                                SetD5SdoQualificationProgress(
+                                    submitOrdinal == 1 ? 40 : 76,
+                                    "Submitting " + stage + " 0x6061:0 Read");
+                                return await SubmitD5SdoQualificationAsync(
+                                    currentConnection,
+                                    diagnostics,
+                                    submittedRequest,
+                                    capabilities.DiagnosticsBootId,
+                                    capabilities.MapRevision,
+                                    token,
+                                    stage,
+                                    "0x6061",
+                                    0,
+                                    terminalWaitMilliseconds);
+                            },
+                            CancelAsync = async (ticket, token) =>
+                            {
+                                SetD5SdoQualificationProgress(
+                                    50,
+                                    "Sending one immediate CancelOperation without a status pre-poll");
+                                try
+                                {
+                                    await SendQualificationCommandAsync(
+                                        "D5 SDO queued-cancel one-shot cancel",
+                                        token,
+                                        () => diagnostics.CancelOperationAsync(
+                                            ticket,
+                                            CancellationToken.None));
+                                    WriteD5SdoQualificationLog(
+                                        "event=D5_QUEUED_CANCEL_RESPONSE",
+                                        "ticket=" + ticket.TicketId.ToString(
+                                            CultureInfo.InvariantCulture),
+                                        "bootId=0x"
+                                            + ticket.DiagnosticsBootId.ToString("X8"),
+                                        "state=Cancelled",
+                                        "outcome=Cancelled",
+                                        "cancelAttempt=1",
+                                        "plcStopCommand=false",
+                                        "verdict=ACCEPTED");
+                                }
+                                catch (Exception error)
+                                {
+                                    WriteD5SdoQualificationLog(
+                                        "event=D5_QUEUED_CANCEL_RESPONSE",
+                                        "ticket=" + ticket.TicketId.ToString(
+                                            CultureInfo.InvariantCulture),
+                                        "cancelAttempt=1",
+                                        "detail=" + GetD5SdoCommandDetail(error),
+                                        "errorType=" + error.GetType().Name,
+                                        "automaticRetry=false",
+                                        "plcStopCommand=false",
+                                        "verdict=REJECTED_OR_UNCERTAIN");
+                                    throw;
+                                }
+                            },
+                            WaitForTerminalAsync = async (ticket, token) =>
+                            {
+                                terminalOrdinal++;
+                                var stage = terminalOrdinal == 1
+                                    ? "queued-cancel-target"
+                                    : "queued-cancel-recovery";
+                                SetD5SdoQualificationProgress(
+                                    terminalOrdinal == 1 ? 62 : 86,
+                                    "Waiting for " + stage + " terminal status");
+                                return await WaitForD5SdoQualificationTerminalAsync(
+                                    diagnostics,
+                                    ticket,
+                                    terminalWaitMilliseconds,
+                                    token,
+                                    stage);
+                            },
+                            RecoveryRequired = (scope, error) =>
+                            {
+                                WriteD5SdoQueuedCancelRecoveryScope(
+                                    scope,
+                                    error);
+                                if (scope.CancelAttempted
+                                    && d5SdoQualificationActiveTicket != null)
+                                {
+                                    QuarantineActiveD5SdoQualificationTicket(
+                                        "D5_QUEUED_CANCEL_QUARANTINE",
+                                        scope.CancelOutcomeUncertain
+                                            ? "queued_cancel_response_unavailable"
+                                            : "queued_cancel_post_dispatch_failure",
+                                        scope.CancelOutcomeUncertain
+                                            ? "CANCEL_OUTCOME_UNCERTAIN"
+                                            : "CANCEL_REPLAY_BLOCKED");
+                                }
+                            }
+                        },
+                        cancellationToken);
+
+                WriteD5SdoQualificationTerminalLog(
+                    "queued-cancel-target",
+                    result.RecoveryScope.TargetTicket,
+                    result.TargetTerminalStatus);
+
+                var finalCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "queued-cancel final capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    finalCapabilities,
+                    "queued-cancel full run");
+                diagnosticCapabilities = finalCapabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(finalCapabilities);
+
+                if (result.Disposition
+                    == D5SdoQueuedCancelQualificationDisposition
+                        .NotQualifiedRace)
+                {
+                    WriteD5SdoQualificationLog(
+                        "event=D5_QUEUED_CANCEL_ASSERT",
+                        "targetTicket="
+                            + result.RecoveryScope.TargetTicket.TicketId.ToString(
+                                CultureInfo.InvariantCulture),
+                        "cancelAttempt=1",
+                        "cancelDetail=InvalidState",
+                        "targetState=" + result.TargetTerminalStatus.State,
+                        "targetOutcome=" + result.TargetTerminalStatus.Outcome,
+                        "recoverySubmit=false",
+                        "automaticRetry=false",
+                        "wireMutation=false",
+                        "plcStopCommand=false",
+                        "verdict=INCONCLUSIVE_RACE");
+                    throw new QualificationInconclusiveException(
+                        "CancelOperation lost the Queued-to-Running race. The target ticket reached terminal without a cancel retry; run the scenario again for queued-cancel evidence.");
+                }
+
+                WriteD5SdoQualificationTerminalLog(
+                    "queued-cancel-recovery",
+                    result.RecoveryScope.RecoveryTicket,
+                    result.RecoveryTerminalStatus);
+                WriteD5SdoQualificationLog(
+                    "event=D5_QUEUED_CANCEL_ASSERT",
+                    "targetTicket="
+                        + result.RecoveryScope.TargetTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "targetSubmitCycle="
+                        + result.TargetTerminalStatus.SubmitCycle.ToString(
+                            CultureInfo.InvariantCulture),
+                    "targetCompletionCycle="
+                        + result.TargetTerminalStatus.CompletionCycle.ToString(
+                            CultureInfo.InvariantCulture),
+                    "cancelAttempt=1",
+                    "targetState=Cancelled",
+                    "targetOutcome=Cancelled",
+                    "recoveryTicket="
+                        + result.RecoveryScope.RecoveryTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "recoveryValue=" + unchecked(
+                        (sbyte)result.RecoveryTerminalStatus.ResultData[0]).ToString(
+                            CultureInfo.InvariantCulture),
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "wireMutation=false",
+                    "plcStopCommand=false",
+                    "verdict=PASS");
+                SetD5SdoQualificationProgress(
+                    98,
+                    "D5 SDO queued Cancelled -> distinct recovery contract PASS");
+            }
+            catch (Exception error)
+            {
+                primaryError = error;
+            }
+
+            Exception cleanupError = null;
+            try
+            {
+                if (!await CleanupPendingD5SdoQualificationAsync())
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO queued-cancel cleanup moved an accepted ticket to quarantine because its submission identity changed.");
+                }
+            }
+            catch (Exception error)
+            {
+                cleanupError = error;
+            }
+
+            if (primaryError != null)
+            {
+                if (cleanupError != null)
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO queued-cancel qualification failed and pending ticket cleanup also failed. Primary="
+                        + primaryError.GetType().Name
+                        + ": "
+                        + primaryError.Message
+                        + "; Cleanup="
+                        + cleanupError.GetType().Name
+                        + ": "
+                        + cleanupError.Message,
+                        new AggregateException(primaryError, cleanupError));
+                }
+
+                ExceptionDispatchInfo.Capture(primaryError).Throw();
+            }
+
+            if (cleanupError != null)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO queued-cancel qualification left a pending ticket that could not be resolved.",
+                    cleanupError);
+            }
+        }
+
+        private async Task RunD5SdoTimeoutRecoveryQualificationAsync(
+            D5SdoTimeoutInput input,
+            CancellationToken cancellationToken)
+        {
+            if (d5SdoQualificationActiveTicket != null)
+            {
+                SetD5SdoQualificationProgress(
+                    1,
+                    "Resolving the previous D5 ticket before starting timeout qualification");
+                await CleanupPendingD5SdoQualificationAsync();
+            }
+
+            if (d5SdoQualificationQuarantine.HasEntries)
+            {
+                throw new InvalidOperationException(
+                    "A D5 ticket or uncertain submission remains quarantined. "
+                    + GetD5SdoResolutionGuidance());
+            }
+
+            d5SdoQualificationActiveStatus = null;
+            d5SdoQualificationActiveDeadlineUtc = null;
+
+            Exception primaryError = null;
+            try
+            {
+                var currentConnection = RequireConnection();
+                var diagnostics = currentConnection.Diagnostics;
+
+                EnsureNoPendingManualD5Operation();
+                SetD5SdoQualificationProgress(
+                    4,
+                    "Verifying selected physical axis is powered off and stationary");
+                await VerifyD5SdoQualificationSafeAxisAsync(
+                    currentConnection,
+                    input.SlaveReference,
+                    input.AxisObjectName,
+                    cancellationToken);
+
+                SetD5SdoQualificationProgress(
+                    10,
+                    "Refreshing and comparing D5 timeout capabilities");
+                var firstCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "timeout capability sample 1");
+                await Task.Delay(
+                    D5SdoQualificationPollMilliseconds,
+                    cancellationToken);
+                var capabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "timeout capability sample 2");
+                RequireStableD5SdoQualificationCapabilities(
+                    firstCapabilities,
+                    capabilities,
+                    "timeout preflight");
+                diagnosticCapabilities = capabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(capabilities);
+
+                var timeoutRequest = LMCSdoRequest.CreateRead(
+                    input.SlaveReference,
+                    0x6061,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    1);
+                var recoveryRequest = LMCSdoRequest.CreateRead(
+                    input.SlaveReference,
+                    0x6061,
+                    0,
+                    LMCSignalValueType.Int8,
+                    1,
+                    input.RecoveryTimeoutCycles);
+                var timeoutTerminalWaitMilliseconds =
+                    GetD5SdoQualificationTerminalWaitMilliseconds(
+                        timeoutRequest.TimeoutCycles,
+                        capabilities.BaseCycleTimeUs);
+                var recoveryTerminalWaitMilliseconds =
+                    GetD5SdoQualificationTerminalWaitMilliseconds(
+                        recoveryRequest.TimeoutCycles,
+                        capabilities.BaseCycleTimeUs);
+                WriteD5SdoQualificationLog(
+                    "event=D5_TIMEOUT_PREFLIGHT",
+                    "wireMutation=false",
+                    "slave=" + input.SlaveReference.ToString(
+                        CultureInfo.InvariantCulture),
+                    "axis=" + QualificationValue(input.AxisObjectName),
+                    "object=0x6061",
+                    "subIndex=0",
+                    "valueType=Int8",
+                    "dataLength=1",
+                    "timeoutProbeCycles=1",
+                    "recoveryTimeoutCycles="
+                        + input.RecoveryTimeoutCycles.ToString(
+                            CultureInfo.InvariantCulture),
+                    "powerOn=false",
+                    "standstill=true",
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "maxRecoverySubmitAttempts=600",
+                    "recoveryRetryDelayMs=25",
+                    "verdict=PASS");
+
+                SetD5SdoQualificationProgress(
+                    18,
+                    "Reading the stable 0x6061:0 baseline before timeout");
+                var baselineTicket = await SubmitD5SdoQualificationAsync(
+                    currentConnection,
+                    diagnostics,
+                    recoveryRequest,
+                    capabilities.DiagnosticsBootId,
+                    capabilities.MapRevision,
+                    cancellationToken,
+                    "timeout-baseline",
+                    "0x6061",
+                    0,
+                    recoveryTerminalWaitMilliseconds);
+                var baselineStatus =
+                    await WaitForD5SdoQualificationTerminalAsync(
+                        diagnostics,
+                        baselineTicket,
+                        recoveryTerminalWaitMilliseconds,
+                        cancellationToken,
+                        "timeout-baseline");
+                var expectedRecoveryData = baselineStatus.ResultData;
+                if (expectedRecoveryData.Length != 1)
+                {
+                    throw new InvalidOperationException(
+                        "The D5 timeout baseline did not return exactly one byte.");
+                }
+
+                D5SdoQualificationAnalysis.ValidateKnownValidInt8Recovery(
+                    baselineTicket,
+                    baselineStatus,
+                    capabilities.DiagnosticsBootId,
+                    unchecked((sbyte)expectedRecoveryData[0]));
+                WriteD5SdoQualificationTerminalLog(
+                    "timeout-baseline",
+                    baselineTicket,
+                    baselineStatus);
+
+                var beforeTimeoutCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "timeout pre-submit capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    beforeTimeoutCapabilities,
+                    "baseline-to-timeout");
+
+                var recoverySubmitAttempt = 0;
+                var terminalOrdinal = 0;
+                SetD5SdoQualificationProgress(
+                    34,
+                    "Submitting 0x6061:0 with exact TimeoutCycles=1");
+                var result = await D5SdoTimeoutQualificationOrchestrator
+                    .RunAsync(
+                        new D5SdoTimeoutQualificationRequest(
+                            currentConnection,
+                            beforeTimeoutCapabilities,
+                            timeoutRequest,
+                            recoveryRequest,
+                            expectedRecoveryData),
+                        new D5SdoTimeoutQualificationOperations
+                        {
+                            SubmitAsync = async (submittedRequest, token) =>
+                            {
+                                var isTimeoutProbe = ReferenceEquals(
+                                    submittedRequest,
+                                    timeoutRequest);
+                                if (!isTimeoutProbe)
+                                {
+                                    recoverySubmitAttempt++;
+                                }
+
+                                var stage = isTimeoutProbe
+                                    ? "timeout-probe"
+                                    : "timeout-recovery-attempt-"
+                                        + recoverySubmitAttempt.ToString(
+                                            CultureInfo.InvariantCulture);
+                                SetD5SdoQualificationProgress(
+                                    isTimeoutProbe
+                                        ? 38
+                                        : Math.Min(
+                                            78,
+                                            58
+                                                + recoverySubmitAttempt / 30),
+                                    "Submitting " + stage + " 0x6061:0 Read");
+                                return await SubmitD5SdoQualificationAsync(
+                                    currentConnection,
+                                    diagnostics,
+                                    submittedRequest,
+                                    capabilities.DiagnosticsBootId,
+                                    capabilities.MapRevision,
+                                    token,
+                                    stage,
+                                    "0x6061",
+                                    0,
+                                    isTimeoutProbe
+                                        ? timeoutTerminalWaitMilliseconds
+                                        : recoveryTerminalWaitMilliseconds);
+                            },
+                            WaitForTerminalAsync = async (ticket, token) =>
+                            {
+                                terminalOrdinal++;
+                                var isTimeoutTerminal = terminalOrdinal == 1;
+                                var stage = isTimeoutTerminal
+                                    ? "timeout-probe"
+                                    : "timeout-recovery";
+                                SetD5SdoQualificationProgress(
+                                    isTimeoutTerminal ? 48 : 82,
+                                    isTimeoutTerminal
+                                        ? "Waiting for exact Expired/TimedOut terminal"
+                                        : "Waiting for post-timeout Completed/Success recovery");
+                                return await WaitForD5SdoQualificationTerminalAsync(
+                                    diagnostics,
+                                    ticket,
+                                    isTimeoutTerminal
+                                        ? timeoutTerminalWaitMilliseconds
+                                        : recoveryTerminalWaitMilliseconds,
+                                    token,
+                                    stage);
+                            },
+                            DelayAsync = async (milliseconds, token) =>
+                            {
+                                SetD5SdoQualificationProgress(
+                                    Math.Min(
+                                        78,
+                                        58 + recoverySubmitAttempt / 30),
+                                    "Waiting for the timed-out executor late-callback drain after exact ResourceBusy rejection");
+                                await Task.Delay(milliseconds, token);
+                            },
+                            RecoveryRequired = (scope, error) =>
+                                WriteD5SdoTimeoutRecoveryScope(
+                                    scope,
+                                    error)
+                        },
+                        cancellationToken);
+
+                WriteD5SdoQualificationTerminalLog(
+                    "timeout-probe",
+                    result.RecoveryScope.TimeoutTicket,
+                    result.TimeoutTerminalStatus);
+                WriteD5SdoQualificationTerminalLog(
+                    "timeout-recovery",
+                    result.RecoveryScope.RecoveryTicket,
+                    result.RecoveryTerminalStatus);
+
+                var finalCapabilities =
+                    await ReadD5SdoQualificationCapabilitiesAsync(
+                        diagnostics,
+                        cancellationToken,
+                        "timeout final capability");
+                RequireStableD5SdoQualificationCapabilities(
+                    capabilities,
+                    finalCapabilities,
+                    "timeout full run");
+                diagnosticCapabilities = finalCapabilities;
+                TextDiagnosticsCapabilities.Text =
+                    FormatCapabilities(finalCapabilities);
+
+                WriteD5SdoQualificationLog(
+                    "event=D5_TIMEOUT_ASSERT",
+                    "timeoutTicket="
+                        + result.RecoveryScope.TimeoutTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "timeoutState=" + result.TimeoutTerminalStatus.State,
+                    "timeoutOutcome=" + result.TimeoutTerminalStatus.Outcome,
+                    "timeoutDetail=0x"
+                        + result.TimeoutTerminalStatus.OperationDetail.ToString(
+                            "X8"),
+                    "recoverySubmitAttempts="
+                        + result.RecoveryScope.RecoverySubmitAttemptCount.ToString(
+                            CultureInfo.InvariantCulture),
+                    "resourceBusyRejections="
+                        + result.RecoveryScope
+                            .RecoveryResourceBusyRejectionCount.ToString(
+                                CultureInfo.InvariantCulture),
+                    "recoveryTicket="
+                        + result.RecoveryScope.RecoveryTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                    "bootId=0x" + capabilities.DiagnosticsBootId.ToString("X8"),
+                    "mapRevision=0x" + capabilities.MapRevision.ToString("X8"),
+                    "value=" + unchecked(
+                        (sbyte)result.RecoveryTerminalStatus.ResultData[0]).ToString(
+                            CultureInfo.InvariantCulture),
+                    "wireMutation=false",
+                    "verdict=PASS");
+                SetD5SdoQualificationProgress(
+                    98,
+                    "D5 SDO timeout -> drain -> recovery contract PASS");
+            }
+            catch (Exception error)
+            {
+                primaryError = error;
+            }
+
+            Exception cleanupError = null;
+            try
+            {
+                if (!await CleanupPendingD5SdoQualificationAsync())
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO timeout cleanup moved an accepted ticket to quarantine because its submission identity changed.");
+                }
+            }
+            catch (Exception error)
+            {
+                cleanupError = error;
+            }
+
+            if (primaryError != null)
+            {
+                if (cleanupError != null)
+                {
+                    throw new InvalidOperationException(
+                        "D5 SDO timeout qualification failed and pending ticket cleanup also failed. Primary="
+                        + primaryError.GetType().Name
+                        + ": "
+                        + primaryError.Message
+                        + "; Cleanup="
+                        + cleanupError.GetType().Name
+                        + ": "
+                        + cleanupError.Message,
+                        new AggregateException(primaryError, cleanupError));
+                }
+
+                ExceptionDispatchInfo.Capture(primaryError).Throw();
+            }
+
+            if (cleanupError != null)
+            {
+                throw new InvalidOperationException(
+                    "D5 SDO timeout qualification left a pending ticket that could not be resolved.",
+                    cleanupError);
+            }
+        }
+
         private D5SdoQualificationInput ReadD5SdoQualificationInput()
         {
             var slaveReference = ParseUInt16Wire(
@@ -537,6 +1692,59 @@ namespace LasalMotionControlApiExample
                 dataLength,
                 timeoutCycles,
                 request);
+        }
+
+        private D5SdoContentionInput ReadD5SdoContentionInput()
+        {
+            var slaveReference = ParseUInt16Wire(
+                TextD5SdoAbortSlaveReference.Text,
+                "D5 contention slave reference",
+                false);
+            if (slaveReference < 1 || slaveReference > 4)
+            {
+                throw new InvalidOperationException(
+                    "D5 contention slave reference must be between 1 and 4.");
+            }
+
+            var timeoutCycles = ParseUInt32(
+                TextD5SdoAbortTimeoutCycles.Text,
+                "D5 contention timeout cycles");
+            if (timeoutCycles < 1 || timeoutCycles > 60000)
+            {
+                throw new InvalidOperationException(
+                    "D5 contention timeout must be between 1 and 60000 cycles.");
+            }
+
+            return new D5SdoContentionInput(
+                slaveReference,
+                timeoutCycles);
+        }
+
+        private D5SdoTimeoutInput ReadD5SdoTimeoutInput()
+        {
+            var slaveReference = ParseUInt16Wire(
+                TextD5SdoAbortSlaveReference.Text,
+                "D5 timeout slave reference",
+                false);
+            if (slaveReference < 1 || slaveReference > 4)
+            {
+                throw new InvalidOperationException(
+                    "D5 timeout slave reference must be between 1 and 4.");
+            }
+
+            var recoveryTimeoutCycles = ParseUInt32(
+                TextD5SdoAbortTimeoutCycles.Text,
+                "D5 recovery timeout cycles");
+            if (recoveryTimeoutCycles < 2
+                || recoveryTimeoutCycles > 60000)
+            {
+                throw new InvalidOperationException(
+                    "D5 timeout recovery requires the normal Timeout cycles field to be between 2 and 60000. The timeout probe itself always uses exactly 1 cycle.");
+            }
+
+            return new D5SdoTimeoutInput(
+                slaveReference,
+                recoveryTimeoutCycles);
         }
 
         private void EnsureNoPendingManualD5Operation()
@@ -864,6 +2072,8 @@ namespace LasalMotionControlApiExample
                     {
                         submissionGuard =
                             d5SdoQualificationQuarantine.ArmUnknown(
+                                LMCOperationKind.SDORead,
+                                request,
                                 ownerConnection,
                                 expectedDiagnosticsBootId,
                                 expectedMapRevision,
@@ -1018,6 +2228,338 @@ namespace LasalMotionControlApiExample
                     + ticket.SubmissionMapRevision.ToString("X8"),
                 "wireMutation=false");
             return ticket;
+        }
+
+        private async Task<LMCOperationTicket>
+            SubmitD5SdoContentionProbeAsync(
+                LMCConnection ownerConnection,
+                LMCDiagnostics diagnostics,
+                LMCSdoRequest request,
+                uint expectedDiagnosticsBootId,
+                uint expectedMapRevision,
+                CancellationToken cancellationToken,
+                string stage)
+        {
+            if (ownerConnection == null)
+            {
+                throw new ArgumentNullException("ownerConnection");
+            }
+
+            if (diagnostics == null)
+            {
+                throw new ArgumentNullException("diagnostics");
+            }
+
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            if (expectedDiagnosticsBootId == 0
+                || expectedMapRevision == 0)
+            {
+                throw new InvalidOperationException(
+                    "D5 contention probe requires nonzero BootId and MapRevision values.");
+            }
+
+            var evidenceId = Guid.NewGuid().ToString("N");
+            D5SdoQuarantineHandle submissionGuard = null;
+            var outcomeArmed = false;
+            LMCOperationTicket ticket;
+            try
+            {
+                ticket = await SendQualificationCommandAsync(
+                    "D5 SDO " + stage + " submit",
+                    cancellationToken,
+                    () =>
+                    {
+                        submissionGuard = d5SdoQualificationQuarantine
+                            .ArmUnknown(
+                                LMCOperationKind.SDORead,
+                                request,
+                                ownerConnection,
+                                expectedDiagnosticsBootId,
+                                expectedMapRevision,
+                                request.SlaveReference,
+                                request.TimeoutCycles,
+                                stage,
+                                "submit_response_unavailable",
+                                evidenceId);
+                        outcomeArmed = true;
+                        WriteD5SdoQualificationLog(
+                            "event=D5_CONTENTION_SUBMIT_GUARD",
+                            "stage=" + stage,
+                            "evidence=" + evidenceId,
+                            "state=ARMED_BEFORE_SUBMIT",
+                            "bootId=0x"
+                                + expectedDiagnosticsBootId.ToString("X8"),
+                            "mapRevision=0x"
+                                + expectedMapRevision.ToString("X8"));
+                        return diagnostics.SubmitSdoAsync(
+                            request,
+                            CancellationToken.None);
+                    });
+            }
+            catch (Exception error)
+            {
+                if (!outcomeArmed)
+                {
+                    throw;
+                }
+
+                LMCSdoSubmissionFailureContext context;
+                if (!LMCSdoSubmissionFailureContext.TryGet(
+                        error,
+                        out context))
+                {
+                    WriteD5SdoQualificationLog(
+                        "event=D5_CONTENTION_SUBMIT_GUARD",
+                        "stage=" + stage,
+                        "evidence=" + evidenceId,
+                        "state=OUTCOME_UNCERTAIN",
+                        "context=UNAVAILABLE",
+                        "quarantine=true",
+                        "errorType=" + error.GetType().Name);
+                    throw;
+                }
+
+                if (context.SubmissionOutcome
+                        == LMCSdoSubmissionOutcome.NotAttempted
+                    || context.SubmissionOutcome
+                        == LMCSdoSubmissionOutcome.Rejected)
+                {
+                    var released = d5SdoQualificationQuarantine.Disarm(
+                        submissionGuard);
+                    WriteD5SdoQualificationLog(
+                        "event=D5_CONTENTION_SUBMIT_GUARD",
+                        "stage=" + stage,
+                        "evidence=" + released.EvidenceId,
+                        "state=" + context.SubmissionOutcome,
+                        "phase=" + context.Phase,
+                        "detail=" + GetD5SdoCommandDetail(error),
+                        "quarantine=false");
+                    throw;
+                }
+
+                if (context.SubmissionOutcome
+                    == LMCSdoSubmissionOutcome.OutcomeUncertain)
+                {
+                    var evidence = d5SdoQualificationQuarantine
+                        .ReconcileUnknown(
+                            submissionGuard,
+                            context.DiagnosticsBootId,
+                            context.MapRevision);
+                    WriteD5SdoQualificationLog(
+                        "event=D5_CONTENTION_SUBMIT_GUARD",
+                        "stage=" + stage,
+                        "evidence=" + evidence.EvidenceId,
+                        "state=OUTCOME_UNCERTAIN",
+                        "bootId=0x"
+                            + evidence.DiagnosticsBootId.ToString("X8"),
+                        "mapRevision=0x"
+                            + evidence.MapRevision.ToString("X8"),
+                        "quarantine=true",
+                        "errorType=" + error.GetType().Name);
+                    throw;
+                }
+
+                if (context.SubmissionOutcome
+                        == LMCSdoSubmissionOutcome.Accepted
+                    && context.Ticket != null)
+                {
+                    var evidence = d5SdoQualificationQuarantine
+                        .TransitionToAccepted(
+                            submissionGuard,
+                            context.Ticket,
+                            context.DiagnosticsBootId,
+                            context.MapRevision);
+                    WriteD5SdoQualificationLog(
+                        "event=D5_CONTENTION_SUBMIT_GUARD",
+                        "stage=" + stage,
+                        "evidence=" + evidence.EvidenceId,
+                        "state=UNEXPECTED_ACCEPTED",
+                        "ticket=" + evidence.TicketId.ToString(
+                            CultureInfo.InvariantCulture),
+                        "quarantine=true",
+                        "thirdSubmitBlocked=true",
+                        "errorType=" + error.GetType().Name);
+                    return context.Ticket;
+                }
+
+                WriteD5SdoQualificationLog(
+                    "event=D5_CONTENTION_SUBMIT_GUARD",
+                    "stage=" + stage,
+                    "evidence=" + evidenceId,
+                    "state=OUTCOME_UNCERTAIN",
+                    "contextOutcome=" + context.SubmissionOutcome,
+                    "quarantine=true",
+                    "errorType=" + error.GetType().Name);
+                throw;
+            }
+
+            var acceptedEvidence = d5SdoQualificationQuarantine
+                .TransitionToAccepted(
+                    submissionGuard,
+                    ticket,
+                    ticket.DiagnosticsBootId,
+                    ticket.SubmissionMapRevision);
+            WriteD5SdoQualificationLog(
+                "event=D5_CONTENTION_SUBMIT_GUARD",
+                "stage=" + stage,
+                "evidence=" + acceptedEvidence.EvidenceId,
+                "state=UNEXPECTED_ACCEPTED",
+                "ticket=" + acceptedEvidence.TicketId.ToString(
+                    CultureInfo.InvariantCulture),
+                "bootId=0x" + acceptedEvidence.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x" + acceptedEvidence.MapRevision.ToString("X8"),
+                "quarantine=true",
+                "thirdSubmitBlocked=true");
+            return ticket;
+        }
+
+        private static string GetD5SdoCommandDetail(Exception error)
+        {
+            var commandError = error as LMCDiagnosticsCommandException;
+            return commandError == null || commandError.Response == null
+                ? "UNAVAILABLE"
+                : commandError.Response.Detail.ToString();
+        }
+
+        private void WriteD5SdoContentionRecoveryScope(
+            D5SdoContentionRecoveryScope scope,
+            Exception error)
+        {
+            if (scope == null)
+            {
+                throw new ArgumentNullException("scope");
+            }
+
+            if (error == null)
+            {
+                throw new ArgumentNullException("error");
+            }
+
+            WriteD5SdoQualificationLog(
+                "event=D5_CONTENTION_RECOVERY_SCOPE",
+                "stage=" + scope.Stage,
+                "firstSubmitAttempted=" + scope.FirstSubmitAttempted,
+                "secondSubmitAttempted=" + scope.SecondSubmitAttempted,
+                "thirdSubmitAttempted=" + scope.ThirdSubmitAttempted,
+                "secondResourceBusyConfirmed="
+                    + scope.SecondExactResourceBusyConfirmed,
+                "firstTicket=" + (scope.FirstTicket == null
+                    ? "NONE"
+                    : scope.FirstTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "unexpectedSecondTicket="
+                    + (scope.UnexpectedSecondTicket == null
+                        ? "NONE"
+                        : scope.UnexpectedSecondTicket.TicketId.ToString(
+                            CultureInfo.InvariantCulture)),
+                "thirdTicket=" + (scope.ThirdTicket == null
+                    ? "NONE"
+                    : scope.ThirdTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "uncertainOutcome=" + scope.HasUncertainSubmissionOutcome,
+                "quarantineCount="
+                    + d5SdoQualificationQuarantine.Count.ToString(
+                        CultureInfo.InvariantCulture),
+                "errorType=" + error.GetType().Name,
+                "error=" + QualificationValue(error.Message),
+                "thirdSubmitBlocked=" + (!scope.ThirdSubmitAttempted),
+                "verdict=RECOVERY_REQUIRED");
+        }
+
+        private void WriteD5SdoTimeoutRecoveryScope(
+            D5SdoTimeoutRecoveryScope scope,
+            Exception error)
+        {
+            if (scope == null)
+            {
+                throw new ArgumentNullException("scope");
+            }
+
+            if (error == null)
+            {
+                throw new ArgumentNullException("error");
+            }
+
+            WriteD5SdoQualificationLog(
+                "event=D5_TIMEOUT_RECOVERY_SCOPE",
+                "stage=" + scope.Stage,
+                "timeoutSubmitAttempted=" + scope.TimeoutSubmitAttempted,
+                "timeoutTicket=" + (scope.TimeoutTicket == null
+                    ? "NONE"
+                    : scope.TimeoutTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "recoverySubmitAttempts="
+                    + scope.RecoverySubmitAttemptCount.ToString(
+                        CultureInfo.InvariantCulture),
+                "resourceBusyRejections="
+                    + scope.RecoveryResourceBusyRejectionCount.ToString(
+                        CultureInfo.InvariantCulture),
+                "recoveryTicket=" + (scope.RecoveryTicket == null
+                    ? "NONE"
+                    : scope.RecoveryTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "lastResourceBusy="
+                    + (scope.LastResourceBusyException == null
+                        ? "NONE"
+                        : scope.LastResourceBusyException.GetType().Name),
+                "uncertainOutcome=" + scope.HasUncertainSubmissionOutcome,
+                "quarantineCount="
+                    + d5SdoQualificationQuarantine.Count.ToString(
+                        CultureInfo.InvariantCulture),
+                "errorType=" + error.GetType().Name,
+                "error=" + QualificationValue(error.Message),
+                "automaticRetryStopped=true",
+                "wireMutation=false",
+                "verdict=RECOVERY_REQUIRED");
+        }
+
+        private void WriteD5SdoQueuedCancelRecoveryScope(
+            D5SdoQueuedCancelRecoveryScope scope,
+            Exception error)
+        {
+            if (scope == null)
+            {
+                throw new ArgumentNullException("scope");
+            }
+
+            if (error == null)
+            {
+                throw new ArgumentNullException("error");
+            }
+
+            WriteD5SdoQualificationLog(
+                "event=D5_QUEUED_CANCEL_RECOVERY_SCOPE",
+                "stage=" + scope.Stage,
+                "targetSubmitAttempted=" + scope.TargetSubmitAttempted,
+                "targetTicket=" + (scope.TargetTicket == null
+                    ? "NONE"
+                    : scope.TargetTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "cancelAttempted=" + scope.CancelAttempted,
+                "cancelAccepted=" + scope.CancelAccepted,
+                "cancelOutcomeUncertain=" + scope.CancelOutcomeUncertain,
+                "cancelInvalidStateRace=" + scope.CancelInvalidStateRace,
+                "recoverySubmitAttempted=" + scope.RecoverySubmitAttempted,
+                "recoveryTicket=" + (scope.RecoveryTicket == null
+                    ? "NONE"
+                    : scope.RecoveryTicket.TicketId.ToString(
+                        CultureInfo.InvariantCulture)),
+                "submissionOutcomeUncertain="
+                    + scope.HasUncertainSubmissionOutcome,
+                "quarantineCount="
+                    + d5SdoQualificationQuarantine.Count.ToString(
+                        CultureInfo.InvariantCulture),
+                "errorType=" + error.GetType().Name,
+                "error=" + QualificationValue(error.Message),
+                "automaticCancelRetry=false",
+                "automaticSubmitRetry=false",
+                "wireMutation=false",
+                "plcStopCommand=false",
+                "verdict=RECOVERY_REQUIRED");
         }
 
         private void PreserveD5SdoQualificationAcceptedTicket(
@@ -1269,6 +2811,17 @@ namespace LasalMotionControlApiExample
                 readbackTerminalCapabilities);
             if (!readbackHandled)
             {
+                if (ticket.OperationKind == LMCOperationKind.SDOWrite)
+                {
+                    // A resolved non-success Write terminal (including an
+                    // accepted queued cancel) has a known final outcome and
+                    // requires no exact readback. Resolve durable evidence
+                    // before releasing the volatile ticket so the current
+                    // process cannot be left in a close-blocking deadlock.
+                    ResolveDiagnosticsMutationJournal(
+                        DiagnosticsMutationKind.SdoWrite);
+                }
+
                 ClearActiveD5SdoQualificationTicket();
             }
 
@@ -1369,12 +2922,42 @@ namespace LasalMotionControlApiExample
         private void QuarantineStaleSessionD5SdoQualificationTicket(
             string reason)
         {
+            QuarantineActiveD5SdoQualificationTicket(
+                "D5_ORPHAN_QUARANTINE",
+                reason,
+                "ORPHAN_UNVERIFIED");
+        }
+
+        private void QuarantineActiveD5SdoQualificationTicket(
+            string eventName,
+            string reason,
+            string verdict)
+        {
             if (d5SdoQualificationActiveTicket == null)
             {
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(eventName))
+            {
+                throw new ArgumentException(
+                    "D5 quarantine event name is required.",
+                    "eventName");
+            }
+
+            if (string.IsNullOrWhiteSpace(verdict))
+            {
+                throw new ArgumentException(
+                    "D5 quarantine verdict is required.",
+                    "verdict");
+            }
+
             var ticket = d5SdoQualificationActiveTicket;
+            if (ticket.OperationKind == LMCOperationKind.SDOWrite)
+            {
+                MarkSdoWriteMutationOutcomeUnverified();
+            }
+
             var handle = d5SdoQualificationQuarantine.QuarantineKnownTicket(
                 ticket,
                 d5SdoQualificationActiveRequest,
@@ -1390,7 +2973,7 @@ namespace LasalMotionControlApiExample
                 d5SdoQualificationActiveMapRevision);
             var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
             WriteD5SdoQualificationLog(
-                "event=D5_ORPHAN_QUARANTINE",
+                "event=" + eventName,
                 "ticket=" + evidence.TicketId.ToString(
                     CultureInfo.InvariantCulture),
                 "oldBootId=0x"
@@ -1425,7 +3008,7 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture),
                 "oldTerminalConfirmed=false",
                 "reason=" + QualificationValue(reason),
-                "verdict=ORPHAN_UNVERIFIED");
+                "verdict=" + verdict);
             InvalidateQuarantinedManualDiagnosticOperation(
                 ticket,
                 reason);
@@ -2024,8 +3607,19 @@ namespace LasalMotionControlApiExample
                 stage,
                 "external_submit_response_unavailable");
             var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
+            var durableMutationArmed = false;
             try
             {
+                if (operationKind == LMCOperationKind.SDOWrite)
+                {
+                    ArmSdoWriteMutationJournal(
+                        request,
+                        ownerConnection,
+                        expectedDiagnosticsBootId,
+                        expectedMapRevision);
+                    durableMutationArmed = true;
+                }
+
                 WriteExternalD5TrackingLog(
                     "event=D5_EXTERNAL_SUBMIT_GUARD",
                     "stage=" + stage,
@@ -2058,15 +3652,50 @@ namespace LasalMotionControlApiExample
                         : "N/A"),
                     "state=ARMED_BEFORE_SUBMIT");
             }
-            catch
+            catch (Exception setupError)
             {
+                Exception durableResolutionError = null;
+                if (durableMutationArmed)
+                {
+                    try
+                    {
+                        ResolveDiagnosticsMutationJournal(
+                            DiagnosticsMutationKind.SdoWrite);
+                    }
+                    catch (Exception error)
+                    {
+                        durableResolutionError = error;
+                    }
+                }
+
+                Exception volatileDisarmError = null;
                 try
                 {
                     d5SdoQualificationQuarantine.Disarm(handle);
                 }
+                catch (Exception error)
+                {
+                    volatileDisarmError = error;
+                }
                 finally
                 {
                     ResetExternalD5TrackingLogContext();
+                }
+
+                if (durableResolutionError != null
+                    || volatileDisarmError != null)
+                {
+                    var cleanupError = durableResolutionError != null
+                        && volatileDisarmError != null
+                        ? new AggregateException(
+                            durableResolutionError,
+                            volatileDisarmError)
+                        : durableResolutionError ?? volatileDisarmError;
+                    throw new InvalidOperationException(
+                        "SDO Write guard setup and one or more pre-submission cleanup steps failed.",
+                        new AggregateException(
+                            setupError,
+                            cleanupError));
                 }
 
                 throw;
@@ -2079,6 +3708,16 @@ namespace LasalMotionControlApiExample
             string state,
             string detail)
         {
+            var armedEvidence =
+                d5SdoQualificationQuarantine.GetEvidence(handle);
+            if (armedEvidence.OperationKind
+                    == LMCOperationKind.SDOWrite
+                && armedEvidence.TicketId == 0)
+            {
+                ResolveDiagnosticsMutationJournal(
+                    DiagnosticsMutationKind.SdoWrite);
+            }
+
             var evidence = d5SdoQualificationQuarantine.Disarm(handle);
 
             WriteExternalD5TrackingLog(
@@ -2180,6 +3819,11 @@ namespace LasalMotionControlApiExample
                 }
             }
 
+            if (evidence.OperationKind == LMCOperationKind.SDOWrite)
+            {
+                MarkSdoWriteMutationOutcomeUnverified();
+            }
+
             WriteExternalD5TrackingLog(
                 "event=D5_EXTERNAL_SUBMIT_GUARD",
                 "stage=" + evidence.Stage,
@@ -2222,6 +3866,12 @@ namespace LasalMotionControlApiExample
             uint actualDiagnosticsBootId,
             uint actualMapRevision)
         {
+            var evidence = d5SdoQualificationQuarantine.GetEvidence(handle);
+            if (evidence.OperationKind == LMCOperationKind.SDOWrite)
+            {
+                MarkSdoWriteMutationAccepted(ticket);
+            }
+
             d5SdoQualificationQuarantine.TransitionToAccepted(
                 handle,
                 ticket,
@@ -2352,10 +4002,12 @@ namespace LasalMotionControlApiExample
                         "A previous SDO Write exact-readback interlock is still active.");
                 }
 
-                var requirement = new D5SdoWriteReadbackRequirement(
-                    d5SdoQualificationActiveRequest,
-                    ticket,
-                    d5SdoQualificationActiveConnection);
+                MarkSdoWriteMutationTerminalSuccess(ticket);
+                var requirement = d5SdoQualificationActiveConnection
+                    .Diagnostics.CreateSdoWriteVerificationContext(
+                        d5SdoQualificationActiveRequest,
+                        ticket,
+                        status);
                 d5SdoPendingWriteReadback = requirement;
                 WriteExternalD5TrackingLog(
                     "event=D5_WRITE_READBACK_INTERLOCK",
@@ -2380,7 +4032,7 @@ namespace LasalMotionControlApiExample
                     "mutationBlocked=true",
                     "closeBlocked=true");
                 ClearActiveD5SdoQualificationTicket();
-                ApplyPendingD5SdoWriteReadbackToUi();
+                ShowPendingD5SdoWriteReadbackStatus();
                 return true;
             }
 
@@ -2442,23 +4094,48 @@ namespace LasalMotionControlApiExample
                     + BitConverter.ToString(pending.ExpectedWriteData),
                 "verdict=" + verdict,
                 "mutationBlocked="
-                    + (verdict == D5SdoWriteReadbackVerdict.Pending),
+                    + (verdict == LMCSdoWriteVerificationVerdict.Pending),
                 "closeBlocked="
-                    + (verdict == D5SdoWriteReadbackVerdict.Pending));
+                    + (verdict == LMCSdoWriteVerificationVerdict.Pending));
 
-            if (verdict == D5SdoWriteReadbackVerdict.Verified)
+            if (verdict == LMCSdoWriteVerificationVerdict.Verified)
             {
+                ResolveDiagnosticsMutationJournal(
+                    DiagnosticsMutationKind.SdoWrite);
+                var editorDraftRestored =
+                    TryRestoreSdoEditorDraftAfterVerifiedReadback(
+                        pending,
+                        currentConnection);
                 d5SdoPendingWriteReadback = null;
                 TextDiagnosticOperationSummary.Text =
                     FormatOperationStatus(status)
                     + Environment.NewLine
-                    + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared.";
+                    + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared. "
+                    + (editorDraftRestored
+                        ? "The editor draft captured before loading the exact readback was restored."
+                        : "The current editor values were left unchanged because no same-session draft was eligible or the operator edited the loaded request.");
+                WriteLog(
+                    editorDraftRestored
+                        ? "Exact SDO Write readback VERIFIED; restored the same-session editor draft captured before loading the required Read."
+                        : "Exact SDO Write readback VERIFIED; left the current editor unchanged because the captured draft was stale, absent, or superseded by an operator edit.");
                 CloseExternalD5TrackingLogIfResolved(
                     "WRITE_EXACT_READBACK_VERIFIED");
             }
             else
             {
-                ApplyPendingD5SdoWriteReadbackToUi();
+                var exactComparableValueMismatch = requestExact
+                    && currentIdentityExact
+                    && readTicketIdentityExact
+                    && status.TicketId == ticket.TicketId
+                    && status.OperationKind == LMCOperationKind.SDORead
+                    && status.DiagnosticsBootId
+                        == pending.DiagnosticsBootId
+                    && status.IsSuccessful
+                    && status.ResultValueType == pending.ValueType
+                    && status.ResultLength == pending.DataLength;
+                MarkSdoWriteMutationReadbackUnverified(
+                    exactComparableValueMismatch);
+                ShowPendingD5SdoWriteReadbackStatus();
             }
 
             return true;
@@ -2516,6 +4193,12 @@ namespace LasalMotionControlApiExample
                     freshCapabilities))
             {
                 return;
+            }
+
+            if (ticket.OperationKind == LMCOperationKind.SDOWrite)
+            {
+                ResolveDiagnosticsMutationJournal(
+                    DiagnosticsMutationKind.SdoWrite);
             }
 
             ClearActiveD5SdoQualificationTicket();
@@ -2777,6 +4460,40 @@ namespace LasalMotionControlApiExample
             internal ushort DataLength { get; private set; }
             internal uint TimeoutCycles { get; private set; }
             internal LMCSdoRequest AbortRequest { get; private set; }
+            internal string AxisObjectName { get; private set; }
+        }
+
+        private sealed class D5SdoContentionInput
+        {
+            internal D5SdoContentionInput(
+                ushort slaveReference,
+                uint timeoutCycles)
+            {
+                SlaveReference = slaveReference;
+                TimeoutCycles = timeoutCycles;
+                AxisObjectName = "_LMCAxis"
+                    + slaveReference.ToString(CultureInfo.InvariantCulture);
+            }
+
+            internal ushort SlaveReference { get; private set; }
+            internal uint TimeoutCycles { get; private set; }
+            internal string AxisObjectName { get; private set; }
+        }
+
+        private sealed class D5SdoTimeoutInput
+        {
+            internal D5SdoTimeoutInput(
+                ushort slaveReference,
+                uint recoveryTimeoutCycles)
+            {
+                SlaveReference = slaveReference;
+                RecoveryTimeoutCycles = recoveryTimeoutCycles;
+                AxisObjectName = "_LMCAxis"
+                    + slaveReference.ToString(CultureInfo.InvariantCulture);
+            }
+
+            internal ushort SlaveReference { get; private set; }
+            internal uint RecoveryTimeoutCycles { get; private set; }
             internal string AxisObjectName { get; private set; }
         }
     }

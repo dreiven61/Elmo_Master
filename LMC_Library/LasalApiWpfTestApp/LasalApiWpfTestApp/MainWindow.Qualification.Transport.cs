@@ -329,9 +329,15 @@ namespace LasalMotionControlApiExample
                     "Transport qualification Group status");
 
                 var latency = Stopwatch.StartNew();
-                var result = await currentGroup.GroupReadStatusResultAsync(
-                        CancellationToken.None)
-                    .ConfigureAwait(false);
+                LMCGroupReadStatusResult result;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    qualificationSafetyGeneration,
+                    "Transport qualification Group status"))
+                {
+                    result = await currentGroup.GroupReadStatusResultAsync(
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
                 latency.Stop();
                 return new TimedTransportGroupStatusCall
                 {

@@ -96,6 +96,18 @@ namespace LasalMotionControlApiExample
                 cancellationToken);
             BulkPartialQualificationAnalysis.ValidateCatalogTopology(
                 context.Entries);
+            if (!context.Capabilities.Supports(
+                    LMCDiagnosticCapability.EtherCATHealth)
+                || !context.Capabilities.Supports(
+                    LMCDiagnosticCapability.PIRead))
+            {
+                throw new NotSupportedException(
+                    "Bulk partial qualification also requires EtherCATHealth and PIRead capabilities.");
+            }
+
+            var representativePIEntries =
+                BulkPartialQualificationAnalysis
+                    .SelectRepresentativePIEntries(context.Entries);
 
             LMCPIBulkReader reader = null;
             Exception primaryError = null;
@@ -105,6 +117,10 @@ namespace LasalMotionControlApiExample
             LMCBulkSnapshot baseline = null;
             LMCBulkSnapshot fault = null;
             LMCBulkSnapshot recovery = null;
+            QualificationBulkD1Observation baselineD1 = null;
+            QualificationBulkD1Observation faultD1 = null;
+            QualificationBulkD1Observation recoveryD1 = null;
+            BulkPartialD1FaultResult faultD1Result = null;
 
             try
             {
@@ -132,6 +148,16 @@ namespace LasalMotionControlApiExample
                     context.Capabilities.SignalValueEntryStride,
                     baseline,
                     "baseline");
+                baselineD1 = await ReadQualificationBulkD1ObservationAsync(
+                    context,
+                    representativePIEntries,
+                    cancellationToken,
+                    "baseline");
+                BulkPartialQualificationAnalysis.ValidateD1Baseline(
+                    context.Catalog.MapRevision,
+                    representativePIEntries,
+                    baselineD1.Health,
+                    baselineD1.Values);
                 WriteQualificationLog(
                     "event=BULK_PARTIAL_BASELINE",
                     "partial=false",
@@ -141,6 +167,17 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture),
                     "sequence=" + baseline.SnapshotSequence.ToString(
                         CultureInfo.InvariantCulture),
+                    "verdict=PASS");
+                WriteQualificationLog(
+                    "event=BULK_PARTIAL_D1_BASELINE",
+                    "healthAxes=4",
+                    "healthOnlineOp=4",
+                    "representativePI=axis_status_word_0x6041",
+                    "piValid=4",
+                    "healthCycle=" + baselineD1.Health.CycleCounter.ToString(
+                        CultureInfo.InvariantCulture),
+                    "piCycles=" + QualificationValue(
+                        FormatQualificationD1Cycles(baselineD1.Values)),
                     "verdict=PASS");
 
                 await VerifyBulkPartialSafeCheckpointAsync(
@@ -172,6 +209,20 @@ namespace LasalMotionControlApiExample
                 EnsureQualificationBulkTimestampNonDecreasing(
                     baseline.TimestampUs,
                     fault.TimestampUs);
+                faultD1 = await ReadQualificationBulkD1ObservationAsync(
+                    context,
+                    representativePIEntries,
+                    cancellationToken,
+                    "one-slave-offline fault");
+                faultD1Result = BulkPartialQualificationAnalysis
+                    .ValidateD1Fault(
+                        context.Catalog.MapRevision,
+                        representativePIEntries,
+                        baselineD1.Health,
+                        baselineD1.Values,
+                        faultD1.Health,
+                        faultD1.Values,
+                        faultResult.OfflineSourceIndex);
                 WriteQualificationLog(
                     "event=BULK_PARTIAL_FAULT",
                     "partial=true",
@@ -182,6 +233,26 @@ namespace LasalMotionControlApiExample
                     "detail=18",
                     "cycle=" + fault.CycleCounter.ToString(
                         CultureInfo.InvariantCulture),
+                    "verdict=PASS");
+                WriteQualificationLog(
+                    "event=BULK_PARTIAL_D1_FAULT",
+                    "healthOfflineSourceIndex="
+                        + faultD1Result.OfflineSourceIndex.ToString(
+                            CultureInfo.InvariantCulture),
+                    "bulkOfflineSourceIndex="
+                        + faultResult.OfflineSourceIndex.ToString(
+                            CultureInfo.InvariantCulture),
+                    "signalId=0x" + faultD1Result.SignalId.ToString("X8"),
+                    "entryStatus=SlaveOffline",
+                    "detail=18",
+                    "staleRaw=0x"
+                        + faultD1Result.StaleRawValue.ToString("X8"),
+                    "displayAsCurrent="
+                        + faultD1Result.FaultValueIsCurrent,
+                    "healthCycle=" + faultD1.Health.CycleCounter.ToString(
+                        CultureInfo.InvariantCulture),
+                    "piCycles=" + QualificationValue(
+                        FormatQualificationD1Cycles(faultD1.Values)),
                     "verdict=PASS");
 
                 await WaitForBulkPartialOperatorCheckpointAsync(
@@ -208,6 +279,19 @@ namespace LasalMotionControlApiExample
                 EnsureQualificationBulkTimestampNonDecreasing(
                     fault.TimestampUs,
                     recovery.TimestampUs);
+                recoveryD1 = await ReadQualificationBulkD1ObservationAsync(
+                    context,
+                    representativePIEntries,
+                    cancellationToken,
+                    "recovery");
+                BulkPartialQualificationAnalysis.ValidateD1Recovery(
+                    context.Catalog.MapRevision,
+                    representativePIEntries,
+                    faultD1.Health,
+                    faultD1.Values,
+                    recoveryD1.Health,
+                    recoveryD1.Values,
+                    faultResult.OfflineSourceIndex);
                 WriteQualificationLog(
                     "event=BULK_PARTIAL_RECOVERY",
                     "partial=false",
@@ -217,6 +301,33 @@ namespace LasalMotionControlApiExample
                     "cycle=" + recovery.CycleCounter.ToString(
                         CultureInfo.InvariantCulture),
                     "verdict=PASS");
+                WriteQualificationLog(
+                    "event=BULK_PARTIAL_D1_RECOVERY",
+                    "healthAxes=4",
+                    "healthOnlineOp=4",
+                    "restoredSourceIndex="
+                        + faultResult.OfflineSourceIndex.ToString(
+                            CultureInfo.InvariantCulture),
+                    "piValid=4",
+                    "recoveredSignalId=0x"
+                        + faultD1Result.SignalId.ToString("X8"),
+                    "recoveredRaw=0x"
+                        + recoveryD1.Values[
+                            faultResult.OfflineSourceIndex - 1]
+                            .RawValue32.ToString("X8"),
+                    "displayAsCurrent=true",
+                    "healthCycle=" + recoveryD1.Health.CycleCounter.ToString(
+                        CultureInfo.InvariantCulture),
+                    "piCycles=" + QualificationValue(
+                        FormatQualificationD1Cycles(recoveryD1.Values)),
+                    "verdict=PASS");
+            }
+            catch (BulkPartialQualificationInconclusiveException error)
+            {
+                var inconclusive = new QualificationInconclusiveException(
+                    error.Message);
+                primaryError = inconclusive;
+                throw inconclusive;
             }
             catch (Exception error)
             {
@@ -265,6 +376,7 @@ namespace LasalMotionControlApiExample
                 "faultValid=18",
                 "offlineSourceIndex=" + faultResult.OfflineSourceIndex,
                 "recoveryValid=24",
+                "d1HealthPi=PASS",
                 "cleanup=PASS",
                 "externalFaultInjection=OPERATOR_ONLY",
                 "verdict=PASS");
@@ -272,7 +384,7 @@ namespace LasalMotionControlApiExample
                 "Qualification PASS: baseline 24 Valid, SourceIndex "
                 + faultResult.OfflineSourceIndex.ToString(
                     CultureInfo.InvariantCulture)
-                + " six SlaveOffline entries, recovery 24 Valid, Release PASS.";
+                + " six SlaveOffline entries, D1 Health/PI stale rejection and recovery PASS, recovery 24 Valid, Release PASS.";
             SetQualificationProgress(
                 100,
                 "Bulk one-slave-offline partial workflow PASS");
@@ -423,6 +535,50 @@ namespace LasalMotionControlApiExample
                 () => reader.UploadAsync(CancellationToken.None));
             cancellationToken.ThrowIfCancellationRequested();
             return snapshot;
+        }
+
+        private async Task<QualificationBulkD1Observation>
+            ReadQualificationBulkD1ObservationAsync(
+                QualificationBulkContext context,
+                IReadOnlyList<LMCSignalCatalogEntry> representativeEntries,
+                CancellationToken cancellationToken,
+                string label)
+        {
+            var health = await SendQualificationCommandAsync(
+                "Bulk partial D1 Health " + label,
+                cancellationToken,
+                () => context.Diagnostics.ReadEtherCATHealthAsync(
+                    CancellationToken.None));
+            var values = new List<LMCSignalValue>(
+                representativeEntries.Count);
+            foreach (var entry in representativeEntries)
+            {
+                var value = await SendQualificationCommandAsync(
+                    "Bulk partial D1 PI " + label + " 0x"
+                        + entry.SignalId.ToString("X8"),
+                    cancellationToken,
+                    () => context.Diagnostics.ReadPIAsync(
+                        entry.SignalId,
+                        context.Catalog.MapRevision,
+                        entry.DataType,
+                        CancellationToken.None));
+                values.Add(value);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return new QualificationBulkD1Observation(
+                health,
+                values.AsReadOnly());
+        }
+
+        private static string FormatQualificationD1Cycles(
+            IReadOnlyList<LMCSignalValue> values)
+        {
+            return string.Join(
+                ",",
+                values.Select(
+                    value => value.CycleCounter.ToString(
+                        CultureInfo.InvariantCulture)));
         }
 
         private async Task<QualificationBulkPartialObservation>
@@ -1670,6 +1826,20 @@ namespace LasalMotionControlApiExample
 
             public LMCBulkSnapshot Snapshot { get; private set; }
             public BulkPartialQualificationResult Result { get; private set; }
+        }
+
+        private sealed class QualificationBulkD1Observation
+        {
+            public QualificationBulkD1Observation(
+                LMCEtherCATHealth health,
+                IReadOnlyList<LMCSignalValue> values)
+            {
+                Health = health;
+                Values = values;
+            }
+
+            public LMCEtherCATHealth Health { get; private set; }
+            public IReadOnlyList<LMCSignalValue> Values { get; private set; }
         }
     }
 }

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{D2F455B9-C5B6-49F5-BA3A-9DDE331F38B7}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LasalApiWpfTestApp.SmokeTests</RootNamespace>
+    <AssemblyName>LasalApiWpfTestApp.SmokeTests</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>7.3</LangVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>bin\Debug\</OutputPath>
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <OutputPath>bin\Release\</OutputPath>
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="GroupProfileLockRecoveryJournalTests.cs" />
+    <Compile Include="AxisPowerOnRecoveryJournalTests.cs" />
+    <Compile Include="AxisCommandRecoveryJournalTests.cs" />
+    <Compile Include="GroupPowerRecoveryJournalTests.cs" />
+    <Compile Include="MotionUncertaintyJournalTests.cs" />
+    <Compile Include="WpfMotionRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfAxisPowerOnRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfAxisCommandRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfGroupEnableWaitIntegrationTests.cs" />
+    <Compile Include="WpfGroupStopCompoundIntegrationTests.cs" />
+    <Compile Include="WpfMainWindowIntegrationTests.cs" />
+    <Compile Include="WpfRecorderManualDoubleAdapterIntegrationTests.cs" />
+    <Compile Include="WpfConfiguredTopologyEvidenceTests.cs" />
+    <Compile Include="WpfTopologyIoLiveEvidenceTests.cs" />
+    <Compile Include="WpfMutationRecoveryProcessTests.cs" />
+    <Compile Include="..\..\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\AssertEx.cs">
+      <Link>Support\AssertEx.cs</Link>
+    </Compile>
+    <Compile Include="..\..\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\TestFrame.cs">
+      <Link>Support\TestFrame.cs</Link>
+    </Compile>
+    <Compile Include="..\..\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\FakeRpcServer.cs">
+      <Link>Support\FakeRpcServer.cs</Link>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LasalApiWpfTestApp\LasalApiWpfTestApp.csproj">
+      <Project>{337B4AB9-AFEC-4706-9DBB-4D78122DB2D2}</Project>
+      <Name>LasalMotionControlApiExample</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\LMC_API_Delivery\src\LasalMotionControlLib.csproj">
+      <Project>{29F66A76-CF36-4D44-B42D-651A532C6715}</Project>
+      <Name>LasalMotionControlLib</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Target Name="RunWpfSmokeTests" DependsOnTargets="Build">
+    <Exec Command="&quot;$(TargetPath)&quot;" />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

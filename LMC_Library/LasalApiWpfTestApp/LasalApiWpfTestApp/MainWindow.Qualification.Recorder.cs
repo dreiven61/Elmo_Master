@@ -36,6 +36,15 @@ namespace LasalMotionControlApiExample
                 RunRecorderRingQualificationAsync);
         }
 
+        private async void ButtonRunRecorderDoubleQualification_Click(
+            object sender,
+            System.Windows.RoutedEventArgs e)
+        {
+            await RunQualificationAsync(
+                "RecorderDoubleBank",
+                RunRecorderDoubleQualificationAsync);
+        }
+
         private async void ButtonRunRecorderSoakQualification_Click(
             object sender,
             System.Windows.RoutedEventArgs e)
@@ -94,7 +103,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => diagnostics.ConfigureRecorderAsync(
                         configuration,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => handle = value);
                 AssertRecorderConfigurationHandle(
                     handle,
                     context,
@@ -116,7 +126,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => diagnostics.StartRecorderAsync(
                         handle,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => identity = value);
                 AssertRecorderIdentity(identity, handle, context);
                 WriteQualificationLog(
                     "event=STARTED",
@@ -271,7 +282,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => diagnostics.ConfigureRecorderAsync(
                         configuration,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => handle = value);
                 AssertRecorderConfigurationHandle(
                     handle,
                     context,
@@ -284,7 +296,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => diagnostics.StartRecorderAsync(
                         handle,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => identity = value);
                 AssertRecorderIdentity(identity, handle, context);
                 WriteQualificationLog(
                     "event=STARTED",
@@ -459,7 +472,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => originalDiagnostics.ConfigureRecorderAsync(
                         configuration,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => handle = value);
                 AssertRecorderConfigurationHandle(
                     handle,
                     context,
@@ -472,7 +486,8 @@ namespace LasalMotionControlApiExample
                     cancellationToken,
                     () => originalDiagnostics.StartRecorderAsync(
                         handle,
-                        CancellationToken.None));
+                        CancellationToken.None),
+                    value => originalIdentity = value);
                 AssertRecorderIdentity(originalIdentity, handle, context);
                 expectation = CreateRecorderReconnectExpectation(
                     handle,
@@ -564,7 +579,8 @@ namespace LasalMotionControlApiExample
                     discoverActive,
                     cancellationToken,
                     false,
-                    "Recorder reconnect");
+                    "Recorder reconnect",
+                    value => adoptedIdentity = value);
                 WriteQualificationLog(
                     "event=RECORDER_ADOPT_RESPONSE",
                     "mode=" + (discoverActive ? "DISCOVERY_0_0" : "EXACT"),
@@ -804,7 +820,8 @@ namespace LasalMotionControlApiExample
                         cancellationToken,
                         () => diagnostics.ConfigureRecorderAsync(
                             configuration,
-                            CancellationToken.None));
+                            CancellationToken.None),
+                        value => handle = value);
                     AssertRecorderConfigurationHandle(
                         handle,
                         context,
@@ -817,7 +834,8 @@ namespace LasalMotionControlApiExample
                         cancellationToken,
                         () => diagnostics.StartRecorderAsync(
                             handle,
-                            CancellationToken.None));
+                            CancellationToken.None),
+                        value => identity = value);
                     AssertRecorderIdentity(identity, handle, context);
 
                     await WaitForRecorderStateAsync(
@@ -987,6 +1005,20 @@ namespace LasalMotionControlApiExample
                 bool requireTrigger,
                 CancellationToken cancellationToken)
         {
+            return await PrepareRecorderQualificationAsync(
+                sampleCapacity,
+                requireTrigger,
+                false,
+                cancellationToken);
+        }
+
+        private async Task<RecorderQualificationContext>
+            PrepareRecorderQualificationAsync(
+                uint sampleCapacity,
+                bool requireTrigger,
+                bool requireDouble,
+                CancellationToken cancellationToken)
+        {
             EnsureNoActiveRecorderQualificationConflict();
             var connection = RequireConnection();
             var capabilities = await SendQualificationCommandAsync(
@@ -1021,6 +1053,21 @@ namespace LasalMotionControlApiExample
                     capabilities,
                     LMCDiagnosticCapability.RecorderTrigger,
                     "RecorderTrigger");
+            }
+
+            if (requireDouble)
+            {
+                RequireRecorderQualificationCapability(
+                    capabilities,
+                    LMCDiagnosticCapability.RecorderDoubleBank,
+                    "RecorderDoubleBank");
+                if (capabilities.RecorderBufferCount != 2)
+                {
+                    ThrowRecorderQualificationSkip(
+                        "Double-bank qualification requires exactly two Recorder buffers; advertised count="
+                        + capabilities.RecorderBufferCount
+                        + ".");
+                }
             }
 
             if (capabilities.MaxRecorderChannels
@@ -1110,8 +1157,10 @@ namespace LasalMotionControlApiExample
                     string.Join(",", signals.Select(entry => entry.Alias))),
                 "doubleAdvertised=" + capabilities.Supports(
                     LMCDiagnosticCapability.RecorderDoubleBank),
-                "doubleMode=NOT_TESTED",
-                "doubleReason=Public qualification covers Single and Ring only");
+                "doubleMode=" + (requireDouble ? "REQUESTED" : "NOT_TESTED"),
+                "doubleReason=" + (requireDouble
+                    ? "Recoverable Manual Double-bank retained lifecycle"
+                    : "This scenario covers Single or Ring only"));
             return context;
         }
 
@@ -1225,7 +1274,7 @@ namespace LasalMotionControlApiExample
                     ClearLoadedObjects();
                 }
 
-                newConnection = new LMCConnection();
+                newConnection = CreateCoordinatedConnection();
                 AttachConnection(newConnection);
                 connection = newConnection;
                 ClearLoadedObjects();
@@ -1391,7 +1440,8 @@ namespace LasalMotionControlApiExample
             bool discoverActive,
             CancellationToken cancellationToken,
             bool cleanupGate,
-            string operation)
+            string operation,
+            Action<LMCRecorderIdentity> preserveBeforeResultApplication)
         {
             var stopwatch = Stopwatch.StartNew();
             var attempt = 0;
@@ -1413,14 +1463,16 @@ namespace LasalMotionControlApiExample
                     return cleanupGate
                         ? await SendQualificationCleanupCommandAsync(
                             operation + " exact Adopt",
-                            adopt)
+                            adopt,
+                            preserveBeforeResultApplication)
                         : await SendQualificationCommandAsync(
                             operation
                                 + (discoverActive
                                     ? " 0/0 discovery Adopt"
                                     : " exact Adopt"),
                             cancellationToken,
-                            adopt);
+                            adopt,
+                            preserveBeforeResultApplication);
                 }
                 catch (LMCDiagnosticsCommandException error)
                     when (error.Response != null
@@ -1781,7 +1833,16 @@ namespace LasalMotionControlApiExample
                     false,
                     CancellationToken.None,
                     true,
-                    "Recorder reconnect cleanup");
+                    "Recorder reconnect cleanup",
+                    value =>
+                    {
+                        identity = value;
+                        recorderConfiguration = null;
+                        recorderIdentity = value;
+                        recorderQualificationRecoveryReleaseOnly = true;
+                        recorderQualificationRecoveryStatusConfirmed = false;
+                        recorderStatus = null;
+                    });
                 AssertRecorderReconnectAdoption(identity, expectation);
                 WriteQualificationLog(
                     "event=CLEANUP_RECOVERY_ADOPT",

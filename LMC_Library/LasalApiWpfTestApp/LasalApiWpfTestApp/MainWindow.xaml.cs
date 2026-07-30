@@ -13,9 +13,10 @@ namespace LasalMotionControlApiExample
 {
     public partial class MainWindow : Window
     {
-        private const int GroupLockDisabledSamplesForRetry = 3;
         private const int MinimumGroupMotionMonitorMilliseconds = 15000;
         private const int MaximumGroupMotionMonitorMilliseconds = 600000;
+        private const string TopologyUiFeatureMarker =
+            "CREVIS_TOPOLOGY_AUTOLOAD_EDITABLE_SDO_DRAFT_V2";
         private static readonly PlcUnitOption[] PlcUnitOptions =
         {
             new PlcUnitOption("None / raw DINT (no conversion)", "raw", 1, true),
@@ -27,16 +28,35 @@ namespace LasalMotionControlApiExample
         // The API async methods schedule transport work. Keep live and safety
         // command ordering explicit at the example-application boundary.
         private readonly SemaphoreSlim commandSendGate = new SemaphoreSlim(1, 1);
+        private readonly LMCSendPriorityCoordinator sendPriorityCoordinator =
+            new LMCSendPriorityCoordinator();
         private LMCConnection connection;
+        private LMCConnection recoveryIdentityReadOnlyConnection;
+        private string recoveryIdentityReadOnlyReason;
         private LMCSingleAxis axis;
         private LMCGroupAxis group;
+        private LMCAxisStopWaitContinuation
+            pendingAxisStopWaitContinuation;
+        private LMCAxisResetWaitContinuation
+            pendingAxisResetWaitContinuation;
+        private bool axisResetWaitInterferenceConfirmed;
+        private bool axisPowerOffWaitInterferenceConfirmed;
+        internal Func<LMCSingleAxis, CancellationToken,
+            Task<LMCAxisPowerOffWaitContinuation>>
+            AxisPowerOffBeginAsyncOverride { get; set; }
+        private LMCGroupStopWaitContinuation
+            pendingGroupStopWaitContinuation;
         private bool operationRunning;
         private bool connectionTransitionRunning;
         private bool safetyCommandRunning;
         private int safetyMonitorCount;
-        // Stop/PowerOff increments this before waiting for commandSendGate.
-        // A live command must recheck the value after it owns the same gate.
-        private int safetyRequestGeneration;
+        // Stop/PowerOff reserves a new generation before waiting for
+        // commandSendGate. App checks and the SDK pre-write boundary share
+        // this single source of truth.
+        private long safetyRequestGeneration
+        {
+            get { return sendPriorityCoordinator.CurrentGeneration; }
+        }
         private bool motionMayBeActive;
         private string motionAxisName;
         private string motionOperation;
@@ -49,14 +69,112 @@ namespace LasalMotionControlApiExample
         private bool groupIdentityHomeCheckComplete;
         private bool groupIdentityHomeCheckPassed;
         private bool groupIdentityConfigured;
+        private LMCGroupEnableWaitContinuation
+            pendingGroupEnableWaitContinuation;
+        private LMCGroupDisableWaitContinuation
+            pendingGroupDisableWaitContinuation;
         private bool groupProfileLockVerificationPending;
-        private int groupProfileLockDisabledSamples;
+        private bool groupProfileUnlockVerificationPending;
+        private bool groupProfileLockRecoveryRequired;
+        private string groupProfileLockRecoveryGroupName;
         private bool groupProfileLocked;
         private bool shutdownInProgress;
         private bool allowWindowClose;
+        private bool uiInitializationComplete;
 
         public MainWindow()
+            : this(null, null, null, null)
         {
+        }
+
+        internal MainWindow(string diagnosticsMutationJournalDirectoryPath)
+            : this(
+                diagnosticsMutationJournalDirectoryPath,
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "RecorderDoubleRecovery"),
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "GroupProfileLockRecovery"),
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "MotionUncertaintyRecovery"))
+        {
+        }
+
+        internal MainWindow(
+            string diagnosticsMutationJournalDirectoryPath,
+            string recorderDoubleRecoveryJournalDirectoryPath)
+            : this(
+                diagnosticsMutationJournalDirectoryPath,
+                recorderDoubleRecoveryJournalDirectoryPath,
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "GroupProfileLockRecovery"),
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "MotionUncertaintyRecovery"))
+        {
+        }
+
+        internal MainWindow(
+            string diagnosticsMutationJournalDirectoryPath,
+            string recorderDoubleRecoveryJournalDirectoryPath,
+            string groupProfileLockRecoveryJournalDirectoryPath)
+            : this(
+                diagnosticsMutationJournalDirectoryPath,
+                recorderDoubleRecoveryJournalDirectoryPath,
+                groupProfileLockRecoveryJournalDirectoryPath,
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "MotionUncertaintyRecovery"))
+        {
+        }
+
+        internal MainWindow(
+            string diagnosticsMutationJournalDirectoryPath,
+            string recorderDoubleRecoveryJournalDirectoryPath,
+            string groupProfileLockRecoveryJournalDirectoryPath,
+            string motionUncertaintyJournalDirectoryPath)
+        {
+            this.diagnosticsMutationJournalDirectoryPath =
+                diagnosticsMutationJournalDirectoryPath;
+            this.recorderDoubleRecoveryJournalDirectoryPath =
+                recorderDoubleRecoveryJournalDirectoryPath;
+            this.groupProfileLockRecoveryJournalDirectoryPath =
+                groupProfileLockRecoveryJournalDirectoryPath;
+            this.motionUncertaintyJournalDirectoryPath =
+                motionUncertaintyJournalDirectoryPath;
+            this.axisPowerOnRecoveryJournalDirectoryPath =
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "AxisPowerOnRecovery");
+            this.axisCommandRecoveryJournalDirectoryPath =
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "AxisCommandRecovery");
+            this.groupPowerRecoveryJournalDirectoryPath =
+                diagnosticsMutationJournalDirectoryPath == null
+                    ? null
+                    : System.IO.Path.Combine(
+                        diagnosticsMutationJournalDirectoryPath,
+                        "GroupPowerRecovery");
             InitializeComponent();
 
             ComboAxisUnit.ItemsSource = PlcUnitOptions;
@@ -86,11 +204,47 @@ namespace LasalMotionControlApiExample
             InitializeDiagnosticsUi();
             InitializeReadOnlyApiUi();
             InitializeQualificationUi();
+            InitializeDiagnosticsMutationJournal();
+            InitializeRecorderDoubleRecoveryJournal();
+            InitializeGroupProfileLockRecoveryJournal();
+            InitializeMotionUncertaintyJournal();
+            InitializeAxisPowerOnRecoveryJournal();
+            InitializeAxisCommandRecoveryJournal();
+            InitializeGroupPowerRecoveryJournal();
+            uiInitializationComplete = true;
 
+            ConfigureExecutableIdentity();
             WriteLog(
                 "Example ready. Connect, load _LMCAxis1, and start with Read Status. "
-                + "No command is sent automatically.");
+                + "Connect automatically attempts only the read-only CREVIS topology load; no motion or mutation command is sent automatically.");
             UpdateUiState();
+        }
+
+        private void ConfigureExecutableIdentity()
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var executablePath = assembly.Location;
+            var version = assembly.GetName().Version == null
+                ? "unknown"
+                : assembly.GetName().Version.ToString();
+            var buildTimeUtc = System.IO.File.GetLastWriteTimeUtc(
+                executablePath);
+
+            Title = "LASAL Motion Control API Example v"
+                + version
+                + " [CREVIS topology / editable SDO draft]";
+            WriteLog(
+                "Executable identity: Path="
+                + executablePath
+                + ", Version="
+                + version
+                + ", BuildUtc="
+                + buildTimeUtc.ToString(
+                    "yyyy-MM-dd HH:mm:ss 'UTC'",
+                    CultureInfo.InvariantCulture)
+                + ", Feature="
+                + TopologyUiFeatureMarker
+                + ".");
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -169,22 +323,89 @@ namespace LasalMotionControlApiExample
                 "Connect",
                 async () =>
                 {
-                    if (HasUnresolvedD5SdoQualificationTicket
+                    if (HasActiveAxisCommandRecoveryRecord
                         && connection != null
                         && connection.IsConnected)
                     {
                         throw new InvalidOperationException(
-                            "Reconnect is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
-                            + GetD5SdoResolutionGuidance()
-                            + " Reconnect is allowed only after an external connection loss.");
+                            "Reconnect is blocked while Axis Stop/Reset recovery is active on the current session.");
                     }
 
-                    if (motionMayBeActive)
+                    if (HasActiveGroupPowerRecoveryRecord
+                        && connection != null
+                        && connection.IsConnected)
                     {
                         throw new InvalidOperationException(
-                            "Reconnect is blocked because motion may still be active on "
+                            "Reconnect is blocked while Group Power recovery is "
+                            + "active on the current connection. Continue exact-"
+                            + "identity recovery without replacing the TCP session.");
+                    }
+
+                    var pendingProfileLock =
+                        HasPendingGroupProfileLockContinuation();
+                    var activeProfileLockJournal =
+                        HasActiveGroupProfileLockRecoveryJournalRecord;
+                    if (pendingProfileLock || activeProfileLockJournal)
+                    {
+                        if (connection != null && connection.IsConnected)
+                        {
+                            throw new InvalidOperationException(
+                                "Reconnect is blocked while Group Enable is pending "
+                                + "or a durable profile-lock recovery record is active. "
+                                + "Resume status-only verification, run Disable, or "
+                                + "complete stable Power Off verification first.");
+                        }
+
+                        PromotePendingGroupProfileLockToRecovery(
+                            "Reconnect after connection loss");
+                    }
+
+                    if (groupProfileLockRecoveryRequired
+                        && connection != null
+                        && connection.IsConnected)
+                    {
+                        throw new InvalidOperationException(
+                            "Reconnect is blocked while the group profile-lock result "
+                            + "is uncertain. Run Disable or complete stable Power Off "
+                            + "verification first.");
+                    }
+
+                    var remoteIp = RequiredText(
+                        TextRemoteIp.Text,
+                        "PLC IP");
+                    var remotePort = ParsePort(
+                        TextRemotePort.Text,
+                        "TCP port",
+                        false);
+                    EnsureAxisPowerOnRecoveryEndpoint(
+                        remoteIp,
+                        remotePort);
+                    EnsureAxisCommandRecoveryEndpoint(remoteIp, remotePort);
+                    EnsureGroupProfileLockRecoveryEndpoint(
+                        remoteIp,
+                        remotePort);
+                    EnsureGroupPowerRecoveryEndpoint(
+                        remoteIp,
+                        remotePort);
+                    EnsureMotionRecoveryEndpoint(remoteIp, remotePort);
+
+                    var admission = EvaluateDiagnosticsAdmission(
+                        DiagnosticsAdmissionOperation.ConnectOrReconnect);
+                    if (!admission.IsAllowed)
+                    {
+                        throw CreateDiagnosticsAdmissionException(
+                            "Reconnect",
+                            admission);
+                    }
+
+                    if (motionMayBeActive
+                        && connection != null
+                        && connection.IsConnected)
+                    {
+                        throw new InvalidOperationException(
+                            "A second reconnect is blocked because motion may still be active on "
                             + motionAxisName
-                            + ". Send Stop or PowerOff and verify standstill first.");
+                            + ". Use the already connected exact recovery target to send Stop or PowerOff.");
                     }
 
                     if (connection != null)
@@ -192,7 +413,7 @@ namespace LasalMotionControlApiExample
                         await CloseCurrentConnectionAsync(false);
                     }
 
-                    var newConnection = new LMCConnection();
+                    var newConnection = CreateCoordinatedConnection();
                     AttachConnection(newConnection);
                     connection = newConnection;
                     ClearLoadedObjects();
@@ -201,8 +422,8 @@ namespace LasalMotionControlApiExample
                     try
                     {
                         await newConnection.RpcInitConnectionAsync(
-                            RequiredText(TextRemoteIp.Text, "PLC IP"),
-                            ParsePort(TextRemotePort.Text, "TCP port", false),
+                            remoteIp,
+                            remotePort,
                             RequiredText(TextLocalIp.Text, "PC local IPv4"),
                             ParsePort(
                                 TextCallbackPort.Text,
@@ -210,6 +431,9 @@ namespace LasalMotionControlApiExample
                                 true),
                             LMCConnection.DefaultEventMask,
                             CancellationToken.None);
+                        RememberConnectedRemoteEndpoint(
+                            remoteIp,
+                            remotePort);
                     }
                     catch
                     {
@@ -230,6 +454,45 @@ namespace LasalMotionControlApiExample
                         + newConnection.CallbackLocalEndPoint
                         + ", EventMask=0x"
                         + newConnection.EventMask.ToString("X8"));
+
+                    await TryAutoLoadEtherCATTopologyAfterConnectAsync(
+                        newConnection);
+                    try
+                    {
+                        await EnsureAxisPowerOnRecoveryConnectionIdentityAsync(
+                            "Reconnect Axis Power On recovery identity");
+                        await EnsureAxisCommandRecoveryConnectionIdentityAsync(
+                            "Reconnect Axis Stop/Reset recovery identity");
+                        await EnsureMotionRecoveryConnectionIdentityAsync(
+                            "Reconnect motion recovery identity");
+                        await EnsureGroupProfileLockRecoveryConnectionIdentityAsync(
+                            "Reconnect recovery identity");
+                        await EnsureGroupPowerRecoveryConnectionIdentityAsync(
+                            "Reconnect Group Power recovery identity");
+                        ClearRecoveryIdentityReadOnlyQuarantine();
+                    }
+                    catch (RecoveryConnectionIdentityMismatchException error)
+                    {
+                        EnterRecoveryIdentityReadOnlyQuarantine(
+                            newConnection,
+                            error);
+                    }
+                    catch
+                    {
+                        if (motionMayBeActive
+                            || HasActiveAxisPowerOnRecoveryRecord
+                            || HasActiveAxisCommandRecoveryRecord
+                            || HasActiveGroupPowerRecoveryRecord)
+                        {
+                            await CloseRejectedMotionRecoveryConnectionAsync(
+                                newConnection);
+                        }
+                        else
+                        {
+                            await CloseCurrentConnectionAsync(false);
+                        }
+                        throw;
+                    }
                 },
                 true);
         }
@@ -238,15 +501,56 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            var recoveryIdentityReadOnlyClose =
+                IsRecoveryIdentityReadOnlyConnection(connection);
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedAxisPowerState())
+            {
+                WriteLog(
+                    "Close Connection is blocked while Axis Power recovery is unresolved. "
+                    + GetAxisPowerOnRecoveryGuidance());
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedAxisCommandState())
+            {
+                WriteLog(
+                    "Close Connection is blocked while Axis Stop/Reset recovery is unresolved. Complete exact status-only proof or the explicit recovery action first.");
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedGroupProfileLockState())
+            {
+                WriteLog(
+                    "Close Connection is blocked while Group Enable is pending or "
+                    + "the profile-lock result is uncertain. Resume verification, "
+                    + "run Disable, or complete stable Power Off verification first.");
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedGroupPowerState())
+            {
+                WriteLog(
+                    "Close Connection is blocked while Group Power recovery "
+                    + "is unresolved. "
+                    + GetGroupPowerRecoveryGuidance());
+                return;
+            }
+
             await RunOperationAsync(
                 "Close Connection",
                 () =>
                 {
-                    if (HasUnresolvedD5SdoQualificationTicket)
+                    var admission = EvaluateDiagnosticsAdmission(
+                        DiagnosticsAdmissionOperation.CloseConnection);
+                    if (!admission.IsAllowed)
                     {
-                        throw new InvalidOperationException(
-                            "Close Connection is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
-                            + GetD5SdoResolutionGuidance());
+                        throw CreateDiagnosticsAdmissionException(
+                            "Close Connection",
+                            admission);
                     }
 
                     return CloseCurrentConnectionAsync(true);
@@ -256,18 +560,50 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonLookupAxis_Click(object sender, RoutedEventArgs e)
         {
+            if (HasPendingAxisHandleBoundContinuation())
+            {
+                WriteLog(
+                    "Load Axis is blocked while an accepted Axis Reset, Stop, "
+                    + "or Power Off continuation is pending. Resume status-only "
+                    + "verification or close the connection before replacing "
+                    + "the Axis handle.");
+                return;
+            }
+
             await RunOperationAsync(
                 "Load Axis",
                 async () =>
                 {
+                    if (GetActiveAxisPowerRecoveryRecord() != null
+                        && axis != null)
+                    {
+                        throw new InvalidOperationException(
+                            "Axis reload is blocked while Axis Power recovery is "
+                            + "active on the loaded recovery handle. Complete the "
+                            + "recovery before loading the axis again; no lookup RPC "
+                            + "was sent.");
+                    }
+
                     var currentConnection = RequireConnection();
                     var objectName = RequiredText(
                         TextAxisName.Text,
                         "Axis object name");
+                    EnsureAxisPowerOnRecoveryLookupAllowed(objectName);
+                    EnsureAxisCommandRecoveryLookupAllowed(objectName);
+                    EnsureMotionRecoveryLookupAllowed(
+                        MotionUncertaintyTargetKind.Axis,
+                        objectName);
                     var loadedAxis = await LMCSingleAxis.CreateAsync(
                         currentConnection,
                         objectName,
                         CancellationToken.None);
+                    EnsureLoadedAxisMatchesMotionRecovery(loadedAxis);
+                    EnsureLoadedAxisMatchesPowerOnRecovery(loadedAxis);
+                    EnsureLoadedAxisMatchesAxisCommandRecovery(loadedAxis);
+                    RememberMotionLookupIdentity(
+                        MotionUncertaintyTargetKind.Axis,
+                        loadedAxis.AxisName,
+                        loadedAxis.AxisReference);
 
                     axis = loadedAxis;
                     TextAxisReference.Text = loadedAxis.AxisReference.ToString(
@@ -294,14 +630,80 @@ namespace LasalMotionControlApiExample
                 "Load Group",
                 async () =>
                 {
-                    var currentConnection = RequireConnection();
                     var objectName = RequiredText(
                         TextGroupName.Text,
                         "Group object name");
+                    EnsureGroupPowerRecoveryLookupAllowed(objectName);
+                    EnsureMotionRecoveryLookupAllowed(
+                        MotionUncertaintyTargetKind.Group,
+                        objectName);
+                    if (HasPendingGroupProfileLockContinuation()
+                        && !HasAcceptedGroupProfileLockRecoveryRecord
+                        && !HasAcceptedGroupProfileUnlockRecoveryRecord)
+                    {
+                        throw new InvalidOperationException(
+                            "Group reload is blocked while an accepted Group Enable "
+                            + "is pending. Resume status-only verification, run Disable, "
+                            + "or complete stable Power Off verification first.");
+                    }
+
+                    if (!groupProfileLockRecoveryRequired
+                        && HasActiveGroupProfileLockRecoveryJournalRecord)
+                    {
+                        PromoteGroupProfileLockRecoveryJournal(
+                            "Group reload found an active durable recovery record");
+                    }
+
+                    if (HasActiveGroupProfileLockRecoveryJournalRecord
+                        && !string.Equals(
+                            groupProfileLockRecoveryGroupName,
+                            objectName,
+                            StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            "A different group cannot be loaded while a durable "
+                            + "Group Enable recovery record is active. Reload only "
+                            + groupProfileLockRecoveryGroupName
+                            + "; no lookup RPC was sent.");
+                    }
+
+                    if (groupProfileLockRecoveryRequired)
+                    {
+                        if (!string.Equals(
+                            groupProfileLockRecoveryGroupName,
+                            objectName,
+                            StringComparison.Ordinal))
+                        {
+                            throw new InvalidOperationException(
+                                "A different group cannot be loaded while the "
+                                + "profile-lock result is uncertain. Reload only "
+                                + groupProfileLockRecoveryGroupName
+                                + " after reconnect, then run Disable or complete "
+                                + "stable Power Off verification.");
+                        }
+
+                        if (group != null)
+                        {
+                            throw new InvalidOperationException(
+                                "The recovery group is already loaded. Run Disable "
+                                + "or complete stable Power Off verification before "
+                                + "loading it again.");
+                        }
+                    }
+
+                    var currentConnection = RequireConnection();
                     var loadedGroup = await LMCGroupAxis.CreateAsync(
                         currentConnection,
                         objectName,
                         CancellationToken.None);
+                    EnsureLoadedGroupMatchesProfileLockRecovery(
+                        loadedGroup);
+                    EnsureLoadedGroupMatchesPowerRecovery(loadedGroup);
+                    EnsureLoadedGroupMatchesMotionRecovery(loadedGroup);
+                    RememberMotionLookupIdentity(
+                        MotionUncertaintyTargetKind.Group,
+                        loadedGroup.GroupName,
+                        loadedGroup.GroupReference);
 
                     group = loadedGroup;
                     ResetGroupPreparationState();
@@ -313,6 +715,27 @@ namespace LasalMotionControlApiExample
                         + Environment.NewLine
                         + "Reference="
                         + loadedGroup.GroupReference;
+                    if (groupProfileLockRecoveryRequired)
+                    {
+                        TextGroupResult.Text += Environment.NewLine
+                            + "Uncertain profile-lock recovery state retained; "
+                            + "Disable or stable Power Off verification is required.";
+                    }
+                    else if (HasAcceptedGroupProfileLockRecoveryRecord)
+                    {
+                        TextGroupResult.Text += Environment.NewLine
+                            + "Accepted Group Enable recovery is ready for exact-"
+                            + "identity status-only verification; 0x2047 will not "
+                            + "be replayed. Set Identity/Home Check remains "
+                            + "process-local and must be re-established before motion.";
+                    }
+                    else if (HasAcceptedGroupProfileUnlockRecoveryRecord)
+                    {
+                        TextGroupResult.Text += Environment.NewLine
+                            + "Accepted Group Disable recovery is ready for exact-"
+                            + "identity status-only verification; 0x2048 will not "
+                            + "be replayed.";
+                    }
                     WriteLog(
                         "Group loaded. Name="
                         + loadedGroup.GroupName
@@ -344,14 +767,26 @@ namespace LasalMotionControlApiExample
                         return;
                     }
 
-                    if (!result.IsPowerOn || motionWasObserved)
+                    if (!result.IsPowerOn)
+                    {
+                        var verified =
+                            await WaitForStablePowerOffAndStandstillAsync(
+                                currentAxis,
+                                750);
+                        DisplayAxisStatus(verified);
+                        await ClearMotionWarningAfterVerifiedStateAsync(
+                            "Read Status verified three stable PowerOn=false and Standstill samples");
+                        return;
+                    }
+
+                    if (motionWasObserved)
                     {
                         var verified = await WaitForStandstillAsync(
                             currentAxis,
                             750,
                             0);
                         DisplayAxisStatus(verified);
-                        ClearMotionWarning(
+                        await ClearMotionWarningAfterVerifiedStateAsync(
                             "Read Status verified three stable safe samples");
                         return;
                     }
@@ -392,8 +827,28 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonPowerOn_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Power On"))
+            var loadedAxis = axis;
+            var recoveryRecord = GetActiveAxisPowerRecoveryRecord();
+            var resumeContinuation = loadedAxis == null
+                ? null
+                : loadedAxis.PendingPowerOnWaitContinuation;
+            var resumeAcceptedPowerOn = recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn
+                && !axisPowerOnRecoveryRequired
+                && ((resumeContinuation != null
+                        && resumeContinuation.IsPending)
+                    || axisPowerOnAcceptedRestartRecovery);
+            if (!resumeAcceptedPowerOn
+                && !CanStartLiveCommand("Power On"))
             {
+                return;
+            }
+
+            if (resumeAcceptedPowerOn && motionMayBeActive)
+            {
+                WriteLog(
+                    "Power On verification resume is blocked while motion may "
+                    + "still be active.");
                 return;
             }
 
@@ -403,64 +858,529 @@ namespace LasalMotionControlApiExample
                 async () =>
                 {
                     var currentAxis = RequireAxis();
-                    var response = await SendLiveCommandAsync(
-                        safetyGeneration,
-                        "Power On",
-                        () => currentAxis.PowerOnAsync(
-                            CancellationToken.None));
-                    EnsureResponseSuccess("Power On", response);
-                    var status = await WaitForPowerStateAsync(
-                        currentAxis,
-                        true,
-                        5000);
-                    EnsureNoNewSafetyRequest(
-                        safetyGeneration,
-                        "Power On verification");
-                    DisplayAxisStatus(status);
+                    var continuation = currentAxis
+                        .PendingPowerOnWaitContinuation;
+                    var resume = continuation != null
+                        && continuation.IsPending;
+                    var restartAccepted = !resume
+                        && axisPowerOnAcceptedRestartRecovery
+                        && recoveryRecord != null
+                        && recoveryRecord.ExpectedPowerOn;
+                    AxisPowerOnRecoveryRecord verificationRecord =
+                        resume || restartAccepted ? recoveryRecord : null;
+                    var powerCommandDispatchStarted = false;
+                    if (resume || restartAccepted)
+                    {
+                        if (axisPowerOnRecoveryRequired)
+                        {
+                            throw new InvalidOperationException(
+                                "Restart recovery cannot resume Power On proof. "
+                                + "Power On will not be replayed; send Power Off "
+                                + "explicitly and verify the safe state.");
+                        }
+
+                        await EnsureAxisPowerRecoveryIdentityAsync(
+                            currentAxis,
+                            verificationRecord,
+                            "Resume Axis Power On verification");
+                    }
+                    else
+                    {
+                        EnsureNoUnresolvedDiagnosticMutation("Power On");
+                        verificationRecord =
+                            await ArmAxisPowerOnRecoveryBeforeDispatchAsync(
+                                currentAxis);
+                    }
+
+                    try
+                    {
+                        EnsureNoNewSafetyRequest(
+                            safetyGeneration,
+                            "Power On");
+                        LMCAxisPowerStateWaitResult result;
+                        using (sendPriorityCoordinator.BeginPreemptibleScope(
+                            safetyGeneration,
+                            resume
+                                ? "Resume Axis Power On verification"
+                                : (restartAccepted
+                                    ? "Restart Axis Power On status-only verification"
+                                    : "Axis Power On accepted-once")))
+                        {
+                            if (!resume && !restartAccepted)
+                            {
+                                powerCommandDispatchStarted = true;
+                            }
+                            result = resume
+                                ? await currentAxis
+                                    .ResumePowerOnWaitForStableStateAsync(
+                                        continuation,
+                                        CancellationToken.None)
+                                : (restartAccepted
+                                    ? await currentAxis.WaitForPowerStateAsync(
+                                        true,
+                                        CancellationToken.None)
+                                    : await currentAxis
+                                        .PowerOnAndWaitForStableStateAsync(
+                                            new LMCAxisPowerStateWaitOptions(),
+                                            accepted =>
+                                                PersistAxisPowerOnAcceptedForRecord(
+                                                    accepted,
+                                                    verificationRecord,
+                                                    "Axis Power On ACK accepted"),
+                                            CancellationToken.None));
+                        }
+
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            "Power On verification");
+                        await CompleteAxisPowerRecoveryAfterStableProofAsync(
+                            currentAxis,
+                            true,
+                            result.FinalStatus,
+                            result.StableSampleCount,
+                            result.RequiredStableSampleCount,
+                            verificationRecord,
+                            resume
+                                ? "Resumed Axis Power On verification"
+                                : (restartAccepted
+                                    ? "Restart Axis Power On status-only proof"
+                                    : "Axis Power On stable proof"));
+                        DisplayAxisStatus(result.FinalStatus);
+                        TextAxisResult.Text += Environment.NewLine
+                            + "Power On ACK accepted exactly once; 0x2023 was not "
+                            + "replayed. Status polls="
+                            + result.PollCount
+                            + ", Stable="
+                            + result.StableSampleCount
+                            + "/"
+                            + result.RequiredStableSampleCount
+                            + ".";
+                    }
+                    catch (Exception error)
+                    {
+                        var powerOnEvidence =
+                            GetAxisPowerOnWaitEvidence(error);
+                        if (powerOnEvidence != null
+                            && powerOnEvidence.LastObservedStatus != null)
+                        {
+                            DisplayAxisStatus(
+                                powerOnEvidence.LastObservedStatus);
+                        }
+
+                        AppendAxisPowerOnWaitEvidence(
+                            powerOnEvidence,
+                            "Axis Power On stable-state completion was not proven.");
+                        PreserveAxisPowerOnWaitFailure(
+                            currentAxis,
+                            error,
+                            verificationRecord,
+                            powerCommandDispatchStarted,
+                            "Axis Power On");
+                        throw;
+                    }
                 });
         }
 
         private async void ButtonPowerOff_Click(object sender, RoutedEventArgs e)
         {
-            LMCSingleAxis currentAxis = null;
-            var sent = await RunSafetyCommandAsync(
-                "Power Off Send",
-                async () =>
+            var recoveryRecord = GetActiveAxisPowerRecoveryRecord();
+            var statusOnlyPowerOff = recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && !axisPowerOffReplacementAllowed;
+            if (statusOnlyPowerOff)
+            {
+                var statusOnlyAcceptedAcknowledgement =
+                    recoveryRecord.State
+                        == AxisPowerOnRecoveryState.AcceptedAwaitingProof;
+                var currentAxis = axis;
+                var currentConnection = connection;
+                if (currentAxis == null
+                    || currentConnection == null
+                    || !currentConnection.IsConnected)
                 {
-                    currentAxis = RequireAxis();
-                    var response = await currentAxis.PowerOffAsync(
-                        CancellationToken.None);
-                    EnsureResponseSuccess("Power Off", response);
-                    TextAxisResult.Text = FormatResponse(response);
+                    WriteLog(
+                        "Axis Power Off status-only verification is blocked until the exact recovery axis is loaded on a live connection. No 0x2023 or status RPC was sent.");
+                    return;
+                }
+
+                AxisCommandRecoveryRecord stopResolvedByPowerOff = null;
+
+                await RunSafetyMonitorAsync(
+                    "Power Off",
+                    currentAxis,
+                    async () =>
+                    {
+                        var continuation = pendingAxisPowerOffWaitContinuation;
+                        if (continuation != null
+                            && continuation.IsPending
+                            && ReferenceEquals(
+                                currentAxis.PendingPowerOffWaitContinuation,
+                                continuation))
+                        {
+                            EnsureCurrentAxisMatchesPowerRecovery(
+                                currentAxis,
+                                recoveryRecord,
+                                "Resume Axis Power Off verification");
+                            try
+                            {
+                                var resumed = await currentAxis
+                                    .ResumePowerOffWaitForStableStateAsync(
+                                        continuation,
+                                        CancellationToken.None);
+                                await CompleteAxisPowerRecoveryAfterStableProofAsync(
+                                    currentAxis,
+                                    false,
+                                    resumed.FinalStatus,
+                                    resumed.StablePowerOffStandstillSampleCount,
+                                    resumed.RequiredStableSampleCount,
+                                    recoveryRecord,
+                                    "Resumed Axis Power Off proof");
+                                stopResolvedByPowerOff = await
+                                    PrepareAxisCommandStopAfterStablePowerOffAsync(
+                                        currentAxis,
+                                        continuation,
+                                        resumed.FinalStatus,
+                                        resumed.StablePowerOffStandstillSampleCount,
+                                        resumed.RequiredStableSampleCount,
+                                        "Resumed Axis Power Off proof");
+                                return resumed.FinalStatus;
+                            }
+                            catch (Exception error)
+                            {
+                                PreserveAxisPowerOffWaitFailure(
+                                    currentAxis,
+                                    error,
+                                    recoveryRecord,
+                                    false,
+                                    false,
+                                    false,
+                                    continuation,
+                                    "Resume Axis Power Off verification");
+                                throw;
+                            }
+                        }
+
+                        try
+                        {
+                            await EnsureAxisPowerRecoveryIdentityAsync(
+                                currentAxis,
+                                recoveryRecord,
+                                "Restart Axis Power Off status-only verification");
+                            var observed = await currentAxis.WaitForPowerStateAsync(
+                                false,
+                                CancellationToken.None);
+                            ObserveAxisPowerRecoveryStatus(
+                                currentAxis,
+                                recoveryRecord,
+                                observed.FinalStatus,
+                                "Axis Power Off status-only recovery");
+                            await CompleteAxisPowerRecoveryAfterStableProofAsync(
+                                currentAxis,
+                                false,
+                                observed.FinalStatus,
+                                observed.StableSampleCount,
+                                observed.RequiredStableSampleCount,
+                                recoveryRecord,
+                                "Axis Power Off status-only proof");
+                            stopResolvedByPowerOff = await
+                                PrepareAxisCommandStopAfterStablePowerOffAsync(
+                                    currentAxis,
+                                    null,
+                                    observed.FinalStatus,
+                                    observed.StableSampleCount,
+                                    observed.RequiredStableSampleCount,
+                                    "Axis Power Off status-only proof");
+                            return observed.FinalStatus;
+                        }
+                        catch (Exception error)
+                        {
+                            var evidence = GetAxisPowerOnWaitEvidence(error);
+                            if (evidence != null
+                                && evidence.LastObservedStatus != null)
+                            {
+                                DisplayAxisStatus(
+                                    evidence.LastObservedStatus);
+                                ObserveAxisPowerRecoveryStatus(
+                                    currentAxis,
+                                    recoveryRecord,
+                                    evidence.LastObservedStatus,
+                                    "Axis Power Off status-only recovery");
+                            }
+                            ReapplyCurrentAxisPowerRecoveryState(currentAxis);
+                            throw;
+                        }
+                    },
+                    safetyRequestGeneration,
+                    false,
+                    () =>
+                    {
+                        if (stopResolvedByPowerOff != null)
+                        {
+                            ResolveAxisCommandAfterStableProof(
+                                stopResolvedByPowerOff,
+                                AxisCommandRecoveryOperation.Stop,
+                                "Axis Power Off retired Axis Stop");
+                        }
+                    });
+                if (!HasActiveAxisPowerRecoveryRecord
+                    && string.Equals(
+                        TextOperationState.Text,
+                        "Power Off verified",
+                        StringComparison.Ordinal))
+                {
+                    TextAxisResult.Text += Environment.NewLine
+                        + (statusOnlyAcceptedAcknowledgement
+                            ? "Accepted Axis Power Off completed by status-only resume without replaying 0x2023."
+                            : "Axis Power Off safe state was proved by status-only recovery without replaying 0x2023; no accepted ACK is claimed.");
+                }
+                return;
+            }
+
+            var powerOnToPowerOffTakeover = recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn;
+            var confirmedPowerOffReplacement = recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && axisPowerOffReplacementAllowed;
+            LMCSingleAxis sendingAxis = null;
+            LMCAxisPowerOffWaitContinuation currentPowerOff = null;
+            LMCAxisPowerOffWaitContinuation priorPowerOff = null;
+            LMCAxisPowerOffWaitResult powerOffResult = null;
+            AxisPowerOnRecoveryRecord verificationRecord = recoveryRecord;
+            var powerCommandDispatchStarted = false;
+            var acceptedBoundaryRecovery = false;
+            AxisCommandRecoveryRecord stopResolvedByFreshPowerOff = null;
+            var safetySend = await RunSafetyCommandAsync(
+                "Power Off Send",
+                async reservedGeneration =>
+                {
+                    sendingAxis = RequireAxis();
+                    priorPowerOff = sendingAxis
+                        .PendingPowerOffWaitContinuation;
+                    try
+                    {
+                        var motionIdentityAlreadyRefreshed = motionMayBeActive;
+                        await EnsureMotionRecoverySafetyDispatchIdentityAsync(
+                            reservedGeneration,
+                            MotionUncertaintyTargetKind.Axis,
+                            sendingAxis.AxisName,
+                            sendingAxis.AxisReference,
+                            "Axis Power Off recovery");
+                        verificationRecord = await
+                            PrepareAxisPowerOffBeforeDispatchAsync(
+                                sendingAxis,
+                                recoveryRecord,
+                                confirmedPowerOffReplacement,
+                                motionIdentityAlreadyRefreshed,
+                                "Axis Power Off");
+                        powerCommandDispatchStarted = true;
+                        var beginOverride = AxisPowerOffBeginAsyncOverride;
+                        if (beginOverride == null)
+                        {
+                            currentPowerOff = await sendingAxis
+                                .BeginPowerOffWaitForStableStateAsync(
+                                    new LMCAxisPowerStateWaitOptions(),
+                                    accepted =>
+                                        PersistAxisPowerOffAcceptedForRecord(
+                                            accepted,
+                                            verificationRecord,
+                                            "Axis Power Off accepted observer"),
+                                    CancellationToken.None);
+                        }
+                        else
+                        {
+                            currentPowerOff = await beginOverride(
+                                sendingAxis,
+                                CancellationToken.None);
+                        }
+
+                        MarkAxisPowerOffAcceptedForRecord(
+                            sendingAxis,
+                            currentPowerOff,
+                            verificationRecord,
+                            "Axis Power Off accepted");
+                        RecordMotionRecoverySafetyCommandAccepted(
+                            reservedGeneration,
+                            MotionUncertaintyTargetKind.Axis,
+                            sendingAxis.AxisName,
+                            sendingAxis.AxisReference,
+                            "Axis Power Off");
+                        TextAxisResult.Text = FormatResponse(
+                            currentPowerOff.Acknowledgement);
+                    }
+                    catch (Exception error)
+                    {
+                        var evidence = GetAxisPowerOffWaitEvidence(error);
+                        if (evidence != null
+                            && evidence.LastObservedStatus != null)
+                        {
+                            DisplayAxisStatus(evidence.LastObservedStatus);
+                        }
+                        AppendAxisPowerOffWaitEvidence(
+                            evidence,
+                            "Axis Power Off send or accepted-boundary completion was not proven.");
+                        PreserveAxisPowerOffWaitFailure(
+                            sendingAxis,
+                            error,
+                            verificationRecord,
+                            powerOnToPowerOffTakeover,
+                            confirmedPowerOffReplacement,
+                            powerCommandDispatchStarted,
+                            priorPowerOff,
+                            "Axis Power Off");
+                        var boundaryContinuation =
+                            GetAxisPowerOffWaitContinuation(error);
+                        var acceptedAfterBoundaryFailure =
+                            boundaryContinuation;
+                        if (acceptedAfterBoundaryFailure == null
+                            && sendingAxis != null)
+                        {
+                            acceptedAfterBoundaryFailure =
+                                sendingAxis.PendingPowerOffWaitContinuation;
+                        }
+                        if (acceptedAfterBoundaryFailure != null
+                            && acceptedAfterBoundaryFailure.IsPending
+                            && (boundaryContinuation != null
+                                || !ReferenceEquals(
+                                    acceptedAfterBoundaryFailure,
+                                    priorPowerOff))
+                            && IsCurrentAxisPowerOperationRecord(
+                                verificationRecord))
+                        {
+                            currentPowerOff = acceptedAfterBoundaryFailure;
+                            pendingAxisPowerOffWaitContinuation =
+                                acceptedAfterBoundaryFailure;
+                            acceptedBoundaryRecovery = true;
+                            RecordMotionRecoverySafetyCommandAccepted(
+                                reservedGeneration,
+                                MotionUncertaintyTargetKind.Axis,
+                                sendingAxis.AxisName,
+                                sendingAxis.AxisReference,
+                                "Axis Power Off");
+                            TextAxisResult.Text += Environment.NewLine
+                                + "Power Off was accepted at the Begin boundary; continuing with status-only verification without replaying 0x2023.";
+                            return;
+                        }
+                        throw;
+                    }
                 },
                 () => CancelQualificationForExternalSafety(
                     "Axis Power Off",
-                    false));
+                    false),
+                true);
 
-            if (!sent || currentAxis == null)
+            if (!safetySend.Sent
+                || sendingAxis == null
+                || currentPowerOff == null)
             {
+                ReleaseUnusedSafetyMonitorReservation(
+                    safetySend,
+                    "Power Off");
                 return;
             }
 
             await RunSafetyMonitorAsync(
                 "Power Off",
-                currentAxis,
+                sendingAxis,
                 async () =>
                 {
-                    await WaitForPowerStateAsync(
-                        currentAxis,
+                    try
+                    {
+                        powerOffResult = await sendingAxis
+                            .ResumePowerOffWaitForStableStateAsync(
+                                currentPowerOff,
+                                CancellationToken.None);
+                    }
+                    catch (Exception error)
+                    {
+                        var evidence = GetAxisPowerOffWaitEvidence(error);
+                        if (evidence != null
+                            && evidence.LastObservedStatus != null)
+                        {
+                            DisplayAxisStatus(evidence.LastObservedStatus);
+                        }
+                        AppendAxisPowerOffWaitEvidence(
+                            evidence,
+                            error is LMCAxisPowerOffInterferenceException
+                                ? "Axis Power Off interference was confirmed. One later explicit Power Off Again is required."
+                                : "Axis Power Off stable safe-state completion was not proven; 0x2023 is not replayed automatically.");
+                        PreserveAxisPowerOffWaitFailure(
+                            sendingAxis,
+                            error,
+                            verificationRecord,
+                            powerOnToPowerOffTakeover,
+                            confirmedPowerOffReplacement,
+                            true,
+                            priorPowerOff,
+                            "Axis Power Off verification");
+                        throw;
+                    }
+
+                    await CompleteAxisPowerRecoveryAfterStableProofAsync(
+                        sendingAxis,
                         false,
-                        5000);
-                    return await WaitForStandstillAsync(
-                        currentAxis,
-                        5000,
-                        0);
+                        powerOffResult.FinalStatus,
+                        powerOffResult.StablePowerOffStandstillSampleCount,
+                        powerOffResult.RequiredStableSampleCount,
+                        verificationRecord,
+                        "Axis Power Off stable proof");
+                    stopResolvedByFreshPowerOff = await
+                        PrepareAxisCommandStopAfterStablePowerOffAsync(
+                            sendingAxis,
+                            currentPowerOff,
+                            powerOffResult.FinalStatus,
+                            powerOffResult
+                                .StablePowerOffStandstillSampleCount,
+                            powerOffResult.RequiredStableSampleCount,
+                            "Axis Power Off stable proof");
+                    if (ReferenceEquals(
+                        pendingAxisPowerOffWaitContinuation,
+                        currentPowerOff))
+                    {
+                        pendingAxisPowerOffWaitContinuation = null;
+                    }
+                    return powerOffResult.FinalStatus;
+                },
+                safetySend.Generation,
+                safetySend.MonitorReserved,
+                () =>
+                {
+                    if (stopResolvedByFreshPowerOff != null)
+                    {
+                        ResolveAxisCommandAfterStableProof(
+                            stopResolvedByFreshPowerOff,
+                            AxisCommandRecoveryOperation.Stop,
+                            "Axis Power Off retired Axis Stop");
+                    }
                 });
+
+            if (powerOffResult != null
+                && safetySend.Generation == safetyRequestGeneration)
+            {
+                AppendAxisPowerOffWaitEvidence(
+                    powerOffResult.Evidence,
+                    "Axis Power Off stable safe-state evidence was accepted without replaying 0x2023.");
+                if (acceptedBoundaryRecovery)
+                {
+                    TextAxisResult.Text += Environment.NewLine
+                        + "Begin deadline/cancellation boundary retained the accepted continuation; verification completed without replaying 0x2023.";
+                }
+            }
         }
 
         private async void ButtonReset_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Reset"))
+            var activeRecord = GetActiveAxisCommandRecoveryRecord();
+            var acceptedRecovery = activeRecord != null
+                && activeRecord.Operation == AxisCommandRecoveryOperation.Reset
+                && activeRecord.State
+                    == AxisCommandRecoveryState.AcceptedAwaitingProof;
+            var explicitRetry = activeRecord != null
+                && activeRecord.Operation == AxisCommandRecoveryOperation.Reset
+                && activeRecord.State
+                    == AxisCommandRecoveryState.RecoveryRequired;
+            if (!acceptedRecovery
+                && !explicitRetry
+                && !CanStartLiveCommand("Reset"))
             {
                 return;
             }
@@ -471,52 +1391,566 @@ namespace LasalMotionControlApiExample
                 async () =>
                 {
                     var currentAxis = RequireAxis();
-                    var response = await SendLiveCommandAsync(
-                        safetyGeneration,
-                        "Reset",
-                        () => currentAxis.ResetAsync(CancellationToken.None));
-                    EnsureResponseSuccess("Reset", response);
-                    TextAxisResult.Text = FormatResponse(response);
+                    var options = new LMCAxisResetWaitOptions();
+                    var verificationRecord =
+                        GetActiveAxisCommandRecoveryRecord();
+                    var currentReset = pendingAxisResetWaitContinuation;
+                    var resumeSameSession = verificationRecord != null
+                        && verificationRecord.Operation
+                            == AxisCommandRecoveryOperation.Reset
+                        && (verificationRecord.State
+                                == AxisCommandRecoveryState.AcceptedAwaitingProof
+                            || verificationRecord.State
+                                == AxisCommandRecoveryState.RecoveryRequired)
+                        && currentReset != null
+                        && currentReset.IsPending
+                        && !axisResetWaitInterferenceConfirmed;
+                    var resumeAfterRestart = verificationRecord != null
+                        && verificationRecord.Operation
+                            == AxisCommandRecoveryOperation.Reset
+                        && verificationRecord.State
+                            == AxisCommandRecoveryState.AcceptedAwaitingProof
+                        && !resumeSameSession;
+
+                    try
+                    {
+                        if (!resumeSameSession && !resumeAfterRestart)
+                        {
+                            await SendLiveCommandAsync(
+                                safetyGeneration,
+                                "Reset Send",
+                                async () =>
+                                {
+                                    verificationRecord = await
+                                        PrepareAxisResetBeforeDispatchAsync(
+                                            currentAxis,
+                                            options);
+                                    try
+                                    {
+                                        currentReset = await currentAxis
+                                            .BeginResetWaitForStableErrorClearanceAsync(
+                                                options,
+                                                accepted =>
+                                                    PersistAxisResetAccepted(
+                                                        accepted,
+                                                        verificationRecord),
+                                                CancellationToken.None);
+                                    }
+                                    catch (Exception error)
+                                    {
+                                        var accepted =
+                                            GetAxisResetWaitContinuation(error);
+                                        if (accepted == null
+                                            && !axisResetWaitInterferenceConfirmed)
+                                        {
+                                            accepted =
+                                                GetExactPendingAxisResetContinuation(
+                                                    currentAxis,
+                                                    verificationRecord);
+                                        }
+                                        if (accepted != null
+                                            && accepted.IsPending)
+                                        {
+                                            currentReset = accepted;
+                                            pendingAxisResetWaitContinuation =
+                                                accepted;
+                                        }
+                                        await PreserveAxisCommandDispatchFailureAsync(
+                                            error,
+                                            null,
+                                            verificationRecord,
+                                            currentAxis);
+                                        throw;
+                                    }
+                                    return currentReset;
+                                });
+                            TextAxisResult.Text = FormatResponse(
+                                    currentReset.Acknowledgement)
+                                + Environment.NewLine
+                                + "Reset ACK accepted exactly once; status-only 0x2028 verification is pending.";
+                        }
+                        else
+                        {
+                            await EnsureCurrentAxisMatchesAxisCommandRecoveryAsync(
+                                currentAxis,
+                                verificationRecord,
+                                "Axis Reset status-only recovery",
+                                resumeAfterRestart);
+                            TextAxisResult.Text =
+                                "Resuming accepted Axis Reset with status-only 0x2028 reads; 0x2024 will not be replayed.";
+                        }
+
+                        LMCReadStatusResult finalStatus;
+                        int stableCount;
+                        int requiredStableCount;
+                        LMCAxisResetWaitEvidence evidence = null;
+                        if (resumeAfterRestart)
+                        {
+                            var restarted = await currentAxis
+                                .WaitForStableErrorClearanceAsync(
+                                    options,
+                                    CancellationToken.None);
+                            finalStatus = restarted.FinalStatus;
+                            stableCount = restarted.StableErrorClearSampleCount;
+                            requiredStableCount =
+                                restarted.RequiredStableSampleCount;
+                            WriteLog(
+                                "Axis Reset restart status-only polls="
+                                + restarted.StatusPollCount
+                                + ", Stable="
+                                + restarted.StableErrorClearSampleCount
+                                + "/"
+                                + restarted.RequiredStableSampleCount
+                                + ".");
+                        }
+                        else
+                        {
+                            var resetStopwatch =
+                                System.Diagnostics.Stopwatch.StartNew();
+                            var resumed = await currentAxis
+                                .ResumeResetWaitForStableErrorClearanceAsync(
+                                    currentReset,
+                                    new LMCAxisResetWaitOptions
+                                    {
+                                        StableSampleCount = currentReset
+                                            .RequiredStableSampleCount
+                                    },
+                                    CancellationToken.None,
+                                    () => resetStopwatch.ElapsedMilliseconds,
+                                    (delayMilliseconds, cancellationToken) =>
+                                        Task.Delay(
+                                            delayMilliseconds,
+                                            cancellationToken),
+                                    null,
+                                    () =>
+                                    {
+                                        var hook =
+                                            AxisResetAfterStatusPublicationTestHook;
+                                        if (hook != null)
+                                        {
+                                            hook(currentReset);
+                                        }
+                                    });
+                            finalStatus = resumed.FinalStatus;
+                            stableCount = resumed.StableErrorClearSampleCount;
+                            requiredStableCount =
+                                resumed.RequiredStableSampleCount;
+                            evidence = resumed.Evidence;
+                        }
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            "Reset status-only verification completion");
+                        await EnsureCurrentAxisMatchesAxisCommandRecoveryAsync(
+                            currentAxis,
+                            verificationRecord,
+                            "Axis Reset final proof");
+                        if (finalStatus == null
+                            || !finalStatus.IsSuccess
+                            || finalStatus.ErrorId != 0
+                            || finalStatus.AxisErrorId != 0
+                            || stableCount < requiredStableCount)
+                        {
+                            throw new InvalidOperationException(
+                                "Axis Reset stable error-clear proof is incomplete.");
+                        }
+                        ResolveAxisCommandAfterStableProof(
+                            verificationRecord,
+                            AxisCommandRecoveryOperation.Reset,
+                            "Axis Reset stable error-clear proof");
+                        DisplayAxisStatus(finalStatus);
+                        AppendAxisResetWaitEvidence(
+                            evidence,
+                            "Axis Reset stable error-clear proof completed without replay.");
+                    }
+                    catch (Exception error)
+                    {
+                        PromoteAxisCommandAfterProofInterference(
+                            verificationRecord,
+                            error);
+                        var evidence = GetAxisResetWaitEvidence(error);
+                        if (evidence != null
+                            && evidence.LastObservedStatus != null)
+                        {
+                            DisplayAxisStatus(evidence.LastObservedStatus);
+                        }
+                        AppendAxisResetWaitEvidence(
+                            evidence,
+                            error is LMCAxisResetInterferenceException
+                                || error is LMCAxisStableErrorClearanceInterferenceException
+                                ? "Axis Reset proof was invalidated by same-axis mutation. The durable record remains RecoveryRequired; no automatic 0x2024 replay is allowed."
+                                : "Axis Reset completion was not proven; the durable accepted/recovery record remains active.");
+                        throw;
+                    }
                 });
         }
 
         private async void ButtonStop_Click(object sender, RoutedEventArgs e)
         {
+            var activeRecord = GetActiveAxisCommandRecoveryRecord();
+            var exactPendingStop = GetExactPendingAxisStopContinuation(
+                axis,
+                activeRecord);
+            if (activeRecord != null
+                && activeRecord.Operation
+                    == AxisCommandRecoveryOperation.Stop
+                && (activeRecord.State
+                        == AxisCommandRecoveryState.AcceptedAwaitingProof
+                    || (activeRecord.State
+                            == AxisCommandRecoveryState.RecoveryRequired
+                        && exactPendingStop != null)))
+            {
+                var statusOnlyAxis = axis;
+                var statusOnlyConnection = connection;
+                if (statusOnlyAxis == null
+                    || statusOnlyConnection == null
+                    || !statusOnlyConnection.IsConnected)
+                {
+                    WriteLog(
+                        "Axis Stop status-only verification requires the exact loaded recovery axis. No 0x2022 or 0x2028 was sent.");
+                    return;
+                }
+
+                if (activeRecord.State
+                        == AxisCommandRecoveryState.RecoveryRequired
+                    && exactPendingStop != null)
+                {
+                    RecordMotionRecoverySafetyCommandAccepted(
+                        safetyRequestGeneration,
+                        MotionUncertaintyTargetKind.Axis,
+                        statusOnlyAxis.AxisName,
+                        statusOnlyAxis.AxisReference,
+                        "Axis Stop same-session accepted recovery");
+                }
+
+                LMCAxisStopWaitResult resumedResult = null;
+                LMCAxisStableStandstillWaitResult restartedResult = null;
+                await RunSafetyMonitorAsync(
+                    "Stop",
+                    statusOnlyAxis,
+                    async () =>
+                    {
+                        try
+                        {
+                            var continuation = exactPendingStop;
+                            await EnsureCurrentAxisMatchesAxisCommandRecoveryAsync(
+                                statusOnlyAxis,
+                                activeRecord,
+                                "Axis Stop status-only recovery",
+                                continuation == null
+                                    || !continuation.IsPending);
+                            LMCReadStatusResult finalStatus;
+                            int stableCount;
+                            int requiredStableCount;
+                            if (continuation != null
+                                && continuation.IsPending
+                                && ReferenceEquals(
+                                    statusOnlyAxis.PendingStopWaitContinuation,
+                                    continuation))
+                            {
+                                resumedResult = await statusOnlyAxis
+                                    .ResumeStopWaitForStableStandstillAsync(
+                                        continuation,
+                                        CancellationToken.None);
+                                finalStatus = resumedResult.FinalStatus;
+                                stableCount = resumedResult
+                                    .StableStandstillSampleCount;
+                                requiredStableCount = resumedResult
+                                    .RequiredStableSampleCount;
+                            }
+                            else
+                            {
+                                var options = new LMCAxisStopWaitOptions
+                                {
+                                    StableSampleCount = activeRecord
+                                        .RequiredStableSampleCount
+                                };
+                                restartedResult = await statusOnlyAxis
+                                    .WaitForStableStandstillAsync(
+                                        options,
+                                        CancellationToken.None);
+                                finalStatus = restartedResult.FinalStatus;
+                                stableCount = restartedResult
+                                    .StableStandstillSampleCount;
+                                requiredStableCount = restartedResult
+                                    .RequiredStableSampleCount;
+                            }
+                            await EnsureCurrentAxisMatchesAxisCommandRecoveryAsync(
+                                statusOnlyAxis,
+                                activeRecord,
+                                "Axis Stop final stable proof");
+                            if (finalStatus == null
+                                || !finalStatus.IsSuccess
+                                || !finalStatus.IsStandstill
+                                || stableCount < requiredStableCount)
+                            {
+                                throw new InvalidOperationException(
+                                    "Axis Stop stable standstill proof is incomplete.");
+                            }
+                            return finalStatus;
+                        }
+                        catch (Exception error)
+                        {
+                            PromoteAxisCommandAfterProofInterference(
+                                activeRecord,
+                                error);
+                            throw;
+                        }
+                    },
+                    safetyRequestGeneration,
+                    false,
+                    () => ResolveAxisCommandAfterStableProof(
+                        activeRecord,
+                        AxisCommandRecoveryOperation.Stop,
+                        "Axis Stop stable standstill proof"));
+                if (resumedResult != null)
+                {
+                    AppendAxisStopWaitEvidence(
+                        resumedResult.Evidence,
+                        "Axis Stop stable standstill proof completed without replaying 0x2022.");
+                }
+                else if (restartedResult != null)
+                {
+                    WriteLog(
+                        "Axis Stop restart status-only polls="
+                        + restartedResult.StatusPollCount
+                        + ", Stable="
+                        + restartedResult.StableStandstillSampleCount
+                        + "/"
+                        + restartedResult.RequiredStableSampleCount
+                        + "; 0x2022 replay count=0.");
+                }
+                return;
+            }
+
             LMCSingleAxis currentAxis = null;
-            var sent = await RunSafetyCommandAsync(
+            LMCAxisStopWaitContinuation currentStop = null;
+            LMCAxisStopWaitResult stopResult = null;
+            LMCAxisStopWaitEvidence acceptedBeginBoundaryEvidence = null;
+            AxisStopDispatchPreparation stopPreparation = null;
+            var safetySend = await RunSafetyCommandAsync(
                 "Stop Send",
-                async () =>
+                async reservedGeneration =>
                 {
                     currentAxis = RequireAxis();
-                    var input = ReadStopInput();
-                    var response = await currentAxis.StopAsync(
-                        input.DecelerationRaw,
-                        input.JerkRaw,
-                        CancellationToken.None);
-                    EnsureResponseSuccess("Stop", response);
-                    TextAxisResult.Text = FormatResponse(response);
+                    var currentConnection = RequireConnection();
+                    var activeBeforePrepare =
+                        GetActiveAxisCommandRecoveryRecord();
+                    int deceleration;
+                    int jerk;
+                    int stableSampleCount;
+                    if (activeBeforePrepare != null
+                        && activeBeforePrepare.Operation
+                            == AxisCommandRecoveryOperation.Stop
+                        && activeBeforePrepare.State
+                            == AxisCommandRecoveryState.RecoveryRequired)
+                    {
+                        deceleration = activeBeforePrepare.StopDeceleration;
+                        jerk = activeBeforePrepare.StopJerk;
+                        stableSampleCount = activeBeforePrepare
+                            .RequiredStableSampleCount;
+                    }
+                    else
+                    {
+                        var input = ReadStopInput();
+                        deceleration = input.DecelerationRaw;
+                        jerk = input.JerkRaw;
+                        stableSampleCount =
+                            LMCAxisStopWaitOptions.DefaultStableSampleCount;
+                    }
+                    var options = new LMCAxisStopWaitOptions
+                    {
+                        StableSampleCount = stableSampleCount
+                    };
+                    if (activeBeforePrepare != null
+                        && activeBeforePrepare.Operation
+                            == AxisCommandRecoveryOperation.Reset)
+                    {
+                        stopPreparation =
+                            PrepareAxisStopTakeoverBeforeSafetyAbort(
+                                currentAxis,
+                                deceleration,
+                                jerk,
+                                options);
+                        try
+                        {
+                            currentAxis = await
+                                AbortReconnectAndReloadAxisForStopTakeoverAsync(
+                                    currentConnection,
+                                    stopPreparation,
+                                    reservedGeneration);
+                        }
+                        catch
+                        {
+                            await HandleAxisStopDefinitelyNotAttemptedAsync(
+                                stopPreparation,
+                                null);
+                            EndAxisCommandSafetyReconnectOrchestration();
+                            throw;
+                        }
+                    }
+                    else
+                    {
+                        await EnsureMotionRecoverySafetyDispatchIdentityAsync(
+                            reservedGeneration,
+                            MotionUncertaintyTargetKind.Axis,
+                            currentAxis.AxisName,
+                            currentAxis.AxisReference,
+                            "Axis Stop recovery");
+                        stopPreparation = await
+                            PrepareAxisStopBeforeDispatchAsync(
+                                currentAxis,
+                                deceleration,
+                                jerk,
+                                options);
+                    }
+                    try
+                    {
+                        var beforeBegin =
+                            AxisStopBeforeBeginDispatchTestHook;
+                        if (beforeBegin != null)
+                        {
+                            beforeBegin(
+                                RequireConnection(),
+                                stopPreparation.Record);
+                        }
+                        currentStop = await currentAxis
+                            .BeginStopWaitForStableStandstillAsync(
+                                deceleration,
+                                jerk,
+                                options,
+                                accepted => PersistAxisStopAccepted(
+                                    accepted,
+                                    stopPreparation.Record),
+                                CancellationToken.None);
+                    }
+                    catch (Exception error)
+                    {
+                        acceptedBeginBoundaryEvidence =
+                            GetAxisStopWaitEvidence(error);
+                        currentStop = GetAxisStopWaitContinuation(error);
+                        if (currentStop == null)
+                        {
+                            currentStop = GetExactPendingAxisStopContinuation(
+                                currentAxis,
+                                stopPreparation.Record);
+                        }
+                        CompleteAxisStopSafetyReplacementConnectionSetup(
+                            stopPreparation);
+                        await PreserveAxisCommandDispatchFailureAsync(
+                            error,
+                            stopPreparation,
+                            null,
+                            currentAxis);
+                        EndAxisCommandSafetyReconnectOrchestration();
+                        if (currentStop == null || !currentStop.IsPending)
+                        {
+                            AppendAxisStopWaitEvidence(
+                                acceptedBeginBoundaryEvidence,
+                                "Axis Stop acknowledgement was not accepted.");
+                            throw;
+                        }
+                    }
+
+                    CompleteAxisStopSafetyReplacementConnectionSetup(
+                        stopPreparation);
+                    pendingAxisStopWaitContinuation = currentStop;
+                    RecordMotionRecoverySafetyCommandAccepted(
+                        reservedGeneration,
+                        MotionUncertaintyTargetKind.Axis,
+                        currentAxis.AxisName,
+                        currentAxis.AxisReference,
+                        "Axis Stop");
+                    TextAxisResult.Text = FormatResponse(
+                        currentStop.Acknowledgement)
+                        + Environment.NewLine
+                        + "Stop ACK accepted exactly once; status-only 0x2028 "
+                        + "verification is pending.";
+                    if (acceptedBeginBoundaryEvidence != null)
+                    {
+                        AppendAxisStopWaitEvidence(
+                            acceptedBeginBoundaryEvidence,
+                            "Axis Stop ACK was accepted at the Begin deadline/cancellation boundary; continuing with status-only verification without replaying 0x2022.");
+                    }
                 },
                 () => CancelQualificationForExternalSafety(
                     "Axis Stop",
-                    false));
+                    false),
+                true);
 
-            if (!sent || currentAxis == null)
+            if (!safetySend.Sent
+                || currentAxis == null
+                || currentStop == null)
             {
+                ReleaseUnusedSafetyMonitorReservation(
+                    safetySend,
+                    "Stop");
                 return;
             }
 
             await RunSafetyMonitorAsync(
                 "Stop",
                 currentAxis,
-                () => WaitForStandstillAsync(
-                    currentAxis,
-                    5000,
-                    50));
+                async () =>
+                {
+                    try
+                    {
+                        stopResult = await currentAxis
+                            .ResumeStopWaitForStableStandstillAsync(
+                                currentStop,
+                                CancellationToken.None);
+                        await EnsureCurrentAxisMatchesAxisCommandRecoveryAsync(
+                            currentAxis,
+                            stopPreparation.Record,
+                            "Axis Stop final stable proof");
+                    }
+                    catch (Exception error)
+                    {
+                        PromoteAxisCommandAfterProofInterference(
+                            stopPreparation.Record,
+                            error);
+                        var evidence = GetAxisStopWaitEvidence(error);
+                        if (evidence != null
+                            && evidence.LastObservedStatus != null)
+                        {
+                            DisplayAxisStatus(evidence.LastObservedStatus);
+                        }
+
+                        AppendAxisStopWaitEvidence(
+                            evidence,
+                            "Axis Stop stable-standstill completion was not proven.");
+                        throw;
+                    }
+
+                    WriteLog(
+                        "Stop ACK accepted exactly once; status-only "
+                        + "verification polls="
+                        + stopResult.StatusPollCount
+                        + ", Stable="
+                        + stopResult.StableStandstillSampleCount
+                        + "/"
+                        + stopResult.RequiredStableSampleCount
+                        + ".");
+                    return stopResult.FinalStatus;
+                },
+                safetySend.Generation,
+                safetySend.MonitorReserved,
+                () => ResolveAxisCommandAfterStableProof(
+                    stopPreparation.Record,
+                    AxisCommandRecoveryOperation.Stop,
+                    "Axis Stop stable standstill proof"));
+
+            if (stopResult != null
+                && safetySend.Generation == safetyRequestGeneration)
+            {
+                AppendAxisStopWaitEvidence(
+                    stopResult.Evidence,
+                    "Axis Stop stable-standstill evidence was accepted.");
+            }
         }
 
         private async void ButtonMoveAbsolute_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Move Absolute"))
+            if (!CanStartMotionCommand("Move Absolute"))
             {
                 return;
             }
@@ -538,7 +1972,7 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonMoveRelative_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Move Relative"))
+            if (!CanStartMotionCommand("Move Relative"))
             {
                 return;
             }
@@ -560,7 +1994,7 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonMoveVelocity_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Move Velocity"))
+            if (!CanStartMotionCommand("Move Velocity"))
             {
                 return;
             }
@@ -574,28 +2008,28 @@ namespace LasalMotionControlApiExample
                     var input = ReadVelocityMotionInput();
                     await EnsureAxisPoweredOnAsync(currentAxis);
 
-                    var response = await SendLiveCommandAsync(
+                    var response = await DispatchTrackedMotionAsync(
                         safetyGeneration,
+                        MotionUncertaintyTargetKind.Axis,
+                        currentAxis.AxisName,
+                        currentAxis.AxisReference,
                         "Move Velocity",
-                        async () =>
-                        {
-                            MarkMotionUncertain(
-                                currentAxis.AxisName,
-                                "Move Velocity");
-                            return await currentAxis.MoveVelocityExAsync(
+                        null,
+                        async () => await currentAxis.MoveVelocityExAsync(
                                 input.VelocityRaw,
                                 input.AccelerationRaw,
                                 0,
                                 input.JerkRaw,
                                 input.Direction,
-                                CancellationToken.None);
-                        });
+                                CancellationToken.None));
 
                     ClearMotionOnConfirmedRejection(
                         currentAxis.AxisName,
                         "Move Velocity",
                         response);
                     EnsureResponseSuccess("Move Velocity", response);
+                    RequireExplicitMotionRecoverySafety(
+                        "Move Velocity requires an explicit Stop or PowerOff");
 
                     TextAxisResult.Text =
                         FormatResponse(response)
@@ -610,7 +2044,7 @@ namespace LasalMotionControlApiExample
         private async Task RunFiniteMotionAsync(
             string operation,
             bool absolute,
-            int safetyGeneration,
+            long safetyGeneration,
             Func<LMCSingleAxis, MotionInput, Task<LMC_Response>> send)
         {
             LMCSingleAxis monitoredAxis = null;
@@ -635,16 +2069,14 @@ namespace LasalMotionControlApiExample
                         : input.PositionRaw == 0;
                     monitoredAxis = currentAxis;
 
-                    var response = await SendLiveCommandAsync(
+                    var response = await DispatchTrackedMotionAsync(
                         safetyGeneration,
+                        MotionUncertaintyTargetKind.Axis,
+                        currentAxis.AxisName,
+                        currentAxis.AxisReference,
                         operation,
-                        async () =>
-                        {
-                            trackingGeneration = MarkMotionUncertain(
-                                currentAxis.AxisName,
-                                operation);
-                            return await send(currentAxis, input);
-                        });
+                        generation => trackingGeneration = generation,
+                        async () => await send(currentAxis, input));
                     ClearMotionOnConfirmedRejection(
                         currentAxis.AxisName,
                         operation,
@@ -701,7 +2133,7 @@ namespace LasalMotionControlApiExample
                 }
 
                 DisplayAxisStatus(status);
-                ClearMotionWarning(
+                await ClearMotionWarningAfterVerifiedStateAsync(
                     operation + " completed at stable standstill",
                     trackingGeneration);
                 WriteLog(operation + " completion PASS.");
@@ -713,6 +2145,8 @@ namespace LasalMotionControlApiExample
                     monitoredAxis.AxisName,
                     trackingGeneration))
                 {
+                    RequireExplicitMotionRecoverySafety(
+                        operation + " automatic completion monitor failed");
                     WriteLog(
                         operation
                         + " monitor FAILED: "
@@ -771,7 +2205,7 @@ namespace LasalMotionControlApiExample
                 }
 
                 DisplayGroupStatus(status);
-                ClearMotionWarning(
+                await ClearMotionWarningAfterVerifiedStateAsync(
                     operation + " completed at stable Group InPosition",
                     trackingGeneration);
                 WriteLog(operation + " completion PASS.");
@@ -783,6 +2217,8 @@ namespace LasalMotionControlApiExample
                     monitoredGroup.GroupName,
                     trackingGeneration))
                 {
+                    RequireExplicitMotionRecoverySafety(
+                        operation + " automatic completion monitor failed");
                     WriteLog(
                         operation
                         + " monitor FAILED: "
@@ -841,8 +2277,12 @@ namespace LasalMotionControlApiExample
                 async () =>
                 {
                     var currentGroup = RequireGroup();
+                    var statusSafetyGeneration = safetyRequestGeneration;
                     var result = await currentGroup.GroupReadStatusResultAsync(
                         CancellationToken.None);
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        statusSafetyGeneration,
+                        "Read Group Status result application");
                     if (result == null || !result.IsSuccess)
                     {
                         InvalidateGroupPreparationAfterStatusFailure();
@@ -850,25 +2290,36 @@ namespace LasalMotionControlApiExample
                     EnsureGroupStatusSuccess("Read Group Status", result);
                     groupStatusRefreshRequired = false;
                     DisplayGroupStatus(result);
-                    var lockPendingStatusLogged = false;
+                    ObserveGroupPowerRecoveryStatus(
+                        currentGroup,
+                        result,
+                        "Read Group Status");
 
                     if (result.IsPowerOn)
                     {
-                        var firstActiveVerification = !groupActiveVerified;
-                        groupPowerVerificationPending = false;
-                        groupActiveVerified = true;
                         if (groupPowerOffVerificationPending)
                         {
                             WriteLog(
                                 "Group Power Off was accepted/start only, but Power "
-                                + "Ready is still reported. Read Status again after "
-                                + "the LASAL mode change completes.");
+                                + "Ready is still reported. Resume Power Off Verification "
+                                + "to require three consecutive PowerOn=False samples.");
                         }
-                        else if (firstActiveVerification)
+                        else if (groupPowerVerificationPending)
                         {
                             WriteLog(
-                                "Group Power Ready/ACTIVE state verified. Set Identity "
-                                + "is now available.");
+                                "One PowerOn=True sample was observed, but Power Ready is "
+                                + "not verified. Resume Power On Verification to require "
+                                + "three consecutive samples without replaying 0x204A.");
+                        }
+                        else
+                        {
+                            if (!groupActiveVerified)
+                            {
+                                WriteLog(
+                                    "One PowerOn=True sample was observed outside a pending "
+                                    + "Power On command. It is not promoted to ACTIVE; the "
+                                    + "three-sample power-state verification is required.");
+                            }
                         }
                     }
                     else
@@ -889,38 +2340,106 @@ namespace LasalMotionControlApiExample
                         groupActiveVerified = false;
                         groupIdentityConfigured = false;
                         ResetIdentityHomeCheckState();
-                        groupProfileLockVerificationPending = false;
-                        groupProfileLockDisabledSamples = 0;
                         groupProfileLocked = false;
-                        groupPowerOffVerificationPending = false;
                         if (powerOffWasPending)
                         {
                             WriteLog(
-                                "Group Power Off verified: Read Status reports "
-                                + "PowerOn=False.");
+                                "One PowerOn=False sample was observed, but Group Power Off "
+                                + "is still pending. Three consecutive samples are required; "
+                                + "resume verification without replaying 0x204B.");
                         }
                         if (groupPowerVerificationPending)
                         {
                             WriteLog(
                                 "Group Power On was accepted/start only, but Power "
-                                + "Ready is not verified yet. Read Status again after "
-                                + "the LASAL mode change completes.");
+                                + "Ready is not verified yet. Resume Power On Verification "
+                                + "without replaying 0x204A.");
                         }
                     }
 
                     if (result.IsPowerOn && result.IsStandby)
                     {
-                        var lockVerificationWasPending =
-                            groupProfileLockVerificationPending;
-                        groupProfileLockVerificationPending = false;
-                        groupProfileLockDisabledSamples = 0;
-                        groupProfileLocked = true;
-                        if (lockVerificationWasPending)
+                        var continuation =
+                            GetPendingGroupEnableWaitContinuation(currentGroup);
+                        if (continuation != null && continuation.IsPending)
                         {
-                            WriteLog(
-                                "Group Lock Ready verified: Read Status reports "
-                                + "Enabled/Locked Standby. Move Linear is now "
-                                + "available.");
+                            if (continuation.StableSampleCount
+                                >= continuation.RequiredStableSampleCount)
+                            {
+                                try
+                                {
+                                    var completed = await currentGroup
+                                        .ResumeGroupEnableWaitForLockedStandbyAsync(
+                                            continuation,
+                                            CancellationToken.None);
+                                    if (statusSafetyGeneration
+                                        != safetyRequestGeneration)
+                                    {
+                                        MarkGroupProfileLockResultDiscarded(
+                                            "Read Group Status lock completion");
+                                    }
+                                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                                        statusSafetyGeneration,
+                                        "Read Group Status lock completion");
+                                    await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                        currentGroup,
+                                        "Read Group Status lock completion",
+                                        true);
+                                    if (statusSafetyGeneration
+                                        != safetyRequestGeneration)
+                                    {
+                                        MarkGroupProfileLockResultDiscarded(
+                                            "Read Group Status post-identity completion");
+                                    }
+                                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                                        statusSafetyGeneration,
+                                        "Read Group Status post-identity completion");
+                                    CompleteGroupEnableWaitUi(completed);
+                                }
+                                catch
+                                {
+                                    if (HasActiveGroupProfileLockRecoveryJournalRecord
+                                        && currentGroup
+                                            .PendingGroupEnableWaitContinuation == null
+                                        && !groupProfileLockRecoveryRequired)
+                                    {
+                                        MarkGroupProfileLockCompletionOutcomeUncertain(
+                                            "Read Group Status lock completion");
+                                    }
+
+                                    throw;
+                                }
+                            }
+                            else
+                            {
+                                groupProfileLockVerificationPending = true;
+                                groupProfileLocked = false;
+                                WriteLog(
+                                    "Group Lock Ready sample observed ("
+                                    + continuation.StableSampleCount
+                                    + "/"
+                                    + continuation.RequiredStableSampleCount
+                                    + "). Three consecutive stable samples are required.");
+                            }
+                        }
+                        else
+                        {
+                            pendingGroupEnableWaitContinuation = null;
+                            groupProfileLockVerificationPending =
+                                groupProfileLockAcceptedRestartRecovery;
+                            if (!groupProfileLocked)
+                            {
+                                WriteLog(
+                                    "One Enabled/Locked Standby sample was observed "
+                                    + (groupProfileLockAcceptedRestartRecovery
+                                        ? "for a durable accepted Group Enable. It is "
+                                            + "not final proof; use Resume Lock "
+                                            + "Verification for three consecutive "
+                                            + "status-only samples."
+                                        : "without a pending Group Enable. It is not "
+                                            + "promoted to a verified profile lock; "
+                                            + "three consecutive samples are required."));
+                            }
                         }
                         if (!groupIdentityConfigured)
                         {
@@ -932,55 +2451,47 @@ namespace LasalMotionControlApiExample
                     }
                     else if (result.IsDisabled)
                     {
-                        var externalUnlockObserved = groupProfileLocked;
-                        var lockVerificationFailed =
-                            groupProfileLockVerificationPending;
-                        groupProfileLocked = false;
+                        var externalUnlockObserved = groupProfileLocked
+                            && !groupProfileUnlockVerificationPending;
+                        if (!groupProfileUnlockVerificationPending)
+                        {
+                            groupProfileLocked = false;
+                        }
                         if (externalUnlockObserved)
                         {
                             WriteLog(
                                 "Group status reports Disabled/Unlocked; the local "
                                 + "profile-lock state was cleared.");
                         }
-                        if (lockVerificationFailed)
+                        else if (groupProfileUnlockVerificationPending)
                         {
-                            groupProfileLockDisabledSamples++;
-                            if (groupProfileLockDisabledSamples
-                                >= GroupLockDisabledSamplesForRetry)
-                            {
-                                groupProfileLockVerificationPending = false;
-                                groupProfileLockDisabledSamples = 0;
-                                WriteLog(
-                                    "Group status reported Disabled/Unlocked "
-                                    + "three consecutive times. Lock Ready was "
-                                    + "not verified; Enable (Lock Profile) is "
-                                    + "available to retry.");
-                            }
-                            else
-                            {
-                                WriteLog(
-                                    "Group Lock Ready pending: Read Status still "
-                                    + "reports Disabled/Unlocked (sample "
-                                    + groupProfileLockDisabledSamples
-                                    + "/"
-                                    + GroupLockDisabledSamplesForRetry
-                                    + "). Read Status again.");
-                                lockPendingStatusLogged = true;
-                            }
+                            WriteLog(
+                                "One Disabled/Unlocked sample was observed for a "
+                                + "pending Group Disable. Durable resolve and the "
+                                + "volatile unlock state still require three "
+                                + "consecutive stable samples.");
                         }
+                        await ReconcilePendingGroupEnableSafeStateProofAsync(
+                            currentGroup,
+                            statusSafetyGeneration,
+                            "Disabled/Unlocked");
                     }
                     else
                     {
-                        groupProfileLockDisabledSamples = 0;
+                        await ReconcilePendingGroupEnableSafeStateProofAsync(
+                            currentGroup,
+                            statusSafetyGeneration,
+                            result.IsPowerOn
+                                ? "transitional powered state"
+                                : "PowerOn=False");
                     }
 
                     if (groupProfileLockVerificationPending
-                        && !(result.IsPowerOn && result.IsStandby)
-                        && !lockPendingStatusLogged)
+                        && !(result.IsPowerOn && result.IsStandby))
                     {
                         WriteLog(
                             "Group Enable was accepted, but Lock Ready is not "
-                            + "verified yet. Run Read Status again until "
+                            + "verified yet. Resume verification or run Read Status until "
                             + "Enabled/Locked Standby=True.");
                     }
 
@@ -995,7 +2506,12 @@ namespace LasalMotionControlApiExample
                     {
                         await RunGroupPowerOffSafetyMonitorAsync(
                             "Read Group Status Power Off recovery",
-                            currentGroup);
+                            currentGroup,
+                            safetyRequestGeneration,
+                            false,
+                            HasActiveGroupPowerRecoveryRecord
+                                ? groupPowerRecoveryJournal.CurrentRecord
+                                : null);
                         return;
                     }
 
@@ -1012,7 +2528,7 @@ namespace LasalMotionControlApiExample
                             750,
                             0);
                         DisplayGroupStatus(verified);
-                        ClearMotionWarning(
+                        await ClearMotionWarningAfterVerifiedStateAsync(
                             "Read Group Status verified three stable in-position samples");
                         return;
                     }
@@ -1050,33 +2566,147 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Group Power On"))
+            var recoveryRecord = HasActiveGroupPowerRecoveryRecord
+                ? groupPowerRecoveryJournal.CurrentRecord
+                : null;
+            var exactPendingPowerOn =
+                pendingGroupPowerStateWaitContinuation != null
+                && pendingGroupPowerStateWaitContinuation.IsPending
+                && pendingGroupPowerStateWaitContinuation.ExpectedPowerOn
+                && group != null
+                && ReferenceEquals(
+                    group.PendingGroupPowerStateWaitContinuation,
+                    pendingGroupPowerStateWaitContinuation);
+            var resumeAcceptedPowerOn = recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn
+                && (recoveryRecord.State
+                        == GroupPowerRecoveryState.AcceptedAwaitingProof
+                    || exactPendingPowerOn)
+                && !groupPowerRecoveryRequired;
+            var operation = resumeAcceptedPowerOn
+                ? "Resume Group Power On Verification"
+                : "Group Power On";
+            if (recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn
+                && recoveryRecord.State
+                    == GroupPowerRecoveryState.RecoveryRequired)
+            {
+                WriteLog(
+                    "Group Power On replay is blocked because its dispatch "
+                    + "outcome is uncertain. Send Group Power Off explicitly "
+                    + "and verify stable PowerOn=false instead.");
+                return;
+            }
+
+            if (recoveryRecord != null && !recoveryRecord.ExpectedPowerOn)
+            {
+                WriteLog(
+                    "Group Power On is blocked while Group Power Off recovery "
+                    + "is unresolved. Complete stable PowerOn=false proof first.");
+                return;
+            }
+
+            if (!resumeAcceptedPowerOn
+                && (groupProfileLockRecoveryRequired
+                    || HasPendingGroupProfileLockContinuation()
+                    || HasActiveGroupProfileLockRecoveryJournalRecord))
+            {
+                WriteLog(
+                    "Group Power On is blocked while Group Enable is pending or "
+                    + "the profile-lock result is uncertain. Resume lock verification, "
+                    + "run Disable, or complete stable Power Off verification before "
+                    + "a new 0x204A is allowed.");
+                return;
+            }
+
+            if (!resumeAcceptedPowerOn
+                && !CanStartLiveCommand(operation))
             {
                 return;
             }
 
             var safetyGeneration = safetyRequestGeneration;
             await RunOperationAsync(
-                "Group Power On",
+                operation,
                 async () =>
                 {
                     var currentGroup = RequireGroup();
-                    var response = await SendLiveCommandAsync(
-                        safetyGeneration,
-                        "Group Power On",
-                        () => currentGroup.GroupPowerOnAsync(
-                            CancellationToken.None));
-                    EnsureResponseSuccess("Group Power On", response);
-                    ResetGroupPreparationState();
-                    groupPowerVerificationPending = true;
-                    TextGroupResult.Text =
-                        FormatResponse(response)
-                        + Environment.NewLine
-                        + "Power On accepted; use Read Status until "
-                        + "PowerOn=True is reported.";
-                    WriteLog(
-                        "Group Power On accepted/start only. This is not an ACTIVE "
-                        + "confirmation; run Read Status before Set Identity.");
+                    GroupPowerRecoveryRecord verificationRecord =
+                        resumeAcceptedPowerOn ? recoveryRecord : null;
+                    var powerCommandDispatchStarted = false;
+                    try
+                    {
+                        if (!resumeAcceptedPowerOn)
+                        {
+                            ResetGroupPreparationState();
+                            var continuation = await SendLiveCommandAsync(
+                                safetyGeneration,
+                                "Group Power On",
+                                async () =>
+                                {
+                                    verificationRecord = await
+                                        ArmGroupPowerRecoveryBeforeDispatchAsync(
+                                            currentGroup,
+                                            true);
+                                    powerCommandDispatchStarted = true;
+                                    return await currentGroup
+                                        .BeginGroupPowerOnWaitForStableStateAsync(
+                                        new LMCGroupPowerStateWaitOptions(),
+                                        accepted => MarkGroupPowerAccepted(
+                                            currentGroup,
+                                            accepted,
+                                            "Group Power On accepted observer"),
+                                        CancellationToken.None);
+                                });
+                            pendingGroupPowerStateWaitContinuation =
+                                continuation;
+                            TextGroupResult.Text =
+                                FormatResponse(continuation.Acknowledgement)
+                                + Environment.NewLine
+                                + "Power On accepted once; automatic stable-state "
+                                + "verification is running.";
+                            WriteLog(
+                                "Group Power On accepted/start only. Verifying "
+                                + "three consecutive PowerOn=True samples before "
+                                + "ACTIVE is trusted.");
+                        }
+                        else
+                        {
+                            WriteLog(
+                                "Resuming Group Power On verification with 0x2045 "
+                                + "status reads only; no 0x204A replay is allowed.");
+                        }
+
+                        var result = await ResumeOrObserveGroupPowerStateAsync(
+                            currentGroup,
+                            true,
+                            operation);
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            operation + " completion");
+                        CompleteGroupPowerRecoveryAfterStableProof(
+                            currentGroup,
+                            true,
+                            result,
+                            verificationRecord,
+                            operation + " stable Power On proof");
+                        CompleteGroupPowerOnWaitUi(
+                            result,
+                            resumeAcceptedPowerOn);
+                    }
+                    catch (Exception error)
+                    {
+                        PreserveGroupPowerWaitFailure(
+                            currentGroup,
+                            error,
+                            verificationRecord,
+                            false,
+                            false,
+                            powerCommandDispatchStarted,
+                            null,
+                            operation);
+                        throw;
+                    }
                 });
         }
 
@@ -1084,80 +2714,349 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            var recoveryRecord = HasActiveGroupPowerRecoveryRecord
+                ? groupPowerRecoveryJournal.CurrentRecord
+                : null;
+            var statusOnlyPowerOff = recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && !groupPowerOffReplacementAllowed;
+            if (statusOnlyPowerOff)
+            {
+                var pendingGroup = group;
+                var currentConnection = connection;
+                if (pendingGroup == null
+                    || currentConnection == null
+                    || !currentConnection.IsConnected)
+                {
+                    WriteLog(
+                        "Group Power Off status-only verification is blocked "
+                        + "until the exact recovery group is loaded on a live "
+                        + "connection. No 0x204B or status RPC was sent.");
+                    TextOperationState.Text =
+                        "Resume Group Power Off Verification blocked";
+                    UpdateUiState();
+                    return;
+                }
+
+                WriteLog(
+                    "Resuming Group Power Off verification with 0x2045 status "
+                    + "reads only; no 0x204B replay is allowed.");
+                await RunGroupPowerOffSafetyMonitorAsync(
+                    "Resume Group Power Off Verification",
+                    pendingGroup,
+                    safetyRequestGeneration,
+                    false,
+                    recoveryRecord);
+                return;
+            }
+
+            var powerOnToPowerOffTakeover = recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn;
+            var confirmedPowerOffReplacement = recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && groupPowerOffReplacementAllowed;
+
             LMCGroupAxis currentGroup = null;
-            var sent = await RunSafetyCommandAsync(
+            GroupPowerRecoveryRecord verificationRecord = recoveryRecord;
+            var powerCommandDispatchStarted = false;
+            LMCGroupPowerStateWaitContinuation priorPowerContinuation = null;
+            var safetySend = await RunSafetyCommandAsync(
                 "Group Power Off Send",
-                async () =>
+                async reservedGeneration =>
                 {
                     currentGroup = RequireGroup();
-                    var response = await currentGroup.GroupPowerOffAsync(
-                        CancellationToken.None);
-                    EnsureResponseSuccess("Group Power Off", response);
-                    groupPowerVerificationPending = false;
-                    groupPowerOffVerificationPending = true;
-                    groupProfileLockVerificationPending = false;
-                    groupProfileLockDisabledSamples = 0;
-                    TextGroupResult.Text =
-                        FormatResponse(response)
-                        + Environment.NewLine
-                        + "Power Off accepted; use Read Status until "
-                        + "PowerOn=False is reported.";
-                    WriteLog(
-                        "Group Power Off accepted/start only. Read Status must "
-                        + "verify PowerOn=False.");
+                    priorPowerContinuation = currentGroup
+                        .PendingGroupPowerStateWaitContinuation;
+                    try
+                    {
+                        if (groupProfileLockRecoveryRequired
+                            || HasActiveGroupProfileLockRecoveryJournalRecord)
+                        {
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                "Group Power Off recovery",
+                                RequireActiveGroupProfileLockRecoveryRecord(
+                                    "Group Power Off recovery")
+                                    .ExpectedProfileLocked);
+                        }
+                        await EnsureMotionRecoverySafetyDispatchIdentityAsync(
+                            reservedGeneration,
+                            MotionUncertaintyTargetKind.Group,
+                            currentGroup.GroupName,
+                            currentGroup.GroupReference,
+                            "Group Power Off motion recovery");
+
+                        if (powerOnToPowerOffTakeover)
+                        {
+                            verificationRecord = await
+                                ReplaceUncertainGroupPowerOnWithPowerOffBeforeDispatchAsync(
+                                    currentGroup,
+                                    "Group Power Off safety takeover");
+                        }
+                        else if (confirmedPowerOffReplacement)
+                        {
+                            verificationRecord = await
+                                PrepareConfirmedGroupPowerOffReplacementAsync(
+                                    currentGroup,
+                                    "Group Power Off confirmed replacement");
+                        }
+                        else
+                        {
+                            verificationRecord = await
+                                ArmGroupPowerRecoveryBeforeDispatchAsync(
+                                    currentGroup,
+                                    false);
+                        }
+
+                        powerCommandDispatchStarted = true;
+                        var continuation = await currentGroup
+                            .BeginGroupPowerOffWaitForStableStateAsync(
+                                new LMCGroupPowerStateWaitOptions(),
+                                accepted => MarkGroupPowerAccepted(
+                                    currentGroup,
+                                    accepted,
+                                    "Group Power Off accepted observer"),
+                                CancellationToken.None);
+                        pendingGroupPowerStateWaitContinuation = continuation;
+                        RecordMotionRecoverySafetyCommandAccepted(
+                            reservedGeneration,
+                            MotionUncertaintyTargetKind.Group,
+                            currentGroup.GroupName,
+                            currentGroup.GroupReference,
+                            "Group Power Off");
+                        pendingGroupEnableWaitContinuation =
+                            currentGroup.PendingGroupEnableWaitContinuation;
+                        groupProfileLockVerificationPending =
+                            groupProfileLockAcceptedRestartRecovery
+                            || pendingGroupEnableWaitContinuation != null;
+                        TextGroupResult.Text =
+                            FormatResponse(continuation.Acknowledgement)
+                            + Environment.NewLine
+                            + "Power Off accepted once; automatic stable-state "
+                            + "verification is running.";
+                        WriteLog(
+                            "Group Power Off accepted/start only. Verifying "
+                            + "three consecutive PowerOn=False samples before "
+                            + "safe state is trusted.");
+                    }
+                    catch (Exception error)
+                    {
+                        PreserveGroupPowerWaitFailure(
+                            currentGroup,
+                            error,
+                            verificationRecord,
+                            powerOnToPowerOffTakeover,
+                            confirmedPowerOffReplacement,
+                            powerCommandDispatchStarted,
+                            priorPowerContinuation,
+                            "Group Power Off");
+                        throw;
+                    }
                 },
                 () => CancelQualificationForExternalSafety(
                     "Group Power Off",
-                    true));
+                    true),
+                true);
 
-            if (sent && currentGroup != null)
+            if (safetySend.Sent && currentGroup != null)
             {
                 await RunGroupPowerOffSafetyMonitorAsync(
                     "Group Power Off",
-                    currentGroup);
+                    currentGroup,
+                    safetySend.Generation,
+                    safetySend.MonitorReserved,
+                    verificationRecord);
+            }
+            else
+            {
+                ReleaseUnusedSafetyMonitorReservation(
+                    safetySend,
+                    "Group Power Off");
             }
         }
 
         private async void ButtonGroupEnable_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Group Enable (Lock Profile)"))
+            var acceptedRestartRecovery =
+                HasAcceptedGroupProfileLockRecoveryRecord;
+            if (groupProfileLockRecoveryRequired
+                || (HasActiveGroupProfileLockRecoveryJournalRecord
+                    && !HasPendingGroupProfileLockContinuation()
+                    && !acceptedRestartRecovery))
+            {
+                WriteLog(
+                    "Group Enable is blocked because a completed lock result was "
+                    + "discarded after a newer safety request. Run Disable or "
+                    + "complete stable Power Off verification before a new "
+                    + "0x2047 is allowed.");
+                return;
+            }
+
+            var resumeAcceptedEnable =
+                pendingGroupEnableWaitContinuation != null
+                    && pendingGroupEnableWaitContinuation.IsPending
+                || acceptedRestartRecovery;
+            var operation = resumeAcceptedEnable
+                ? "Resume Group Lock Verification"
+                : "Group Enable (Lock Profile)";
+            if (!CanStartLiveCommand(operation))
             {
                 return;
             }
 
             var safetyGeneration = safetyRequestGeneration;
             await RunOperationAsync(
-                "Group Enable (Lock Profile)",
+                operation,
                 async () =>
                 {
                     var currentGroup = RequireGroup();
-                    EnsureGroupActiveVerified();
-                    if (!groupIdentityConfigured)
+                    var continuation =
+                        GetPendingGroupEnableWaitContinuation(currentGroup);
+                    var statusOnlyRestartRecovery = continuation == null
+                        && HasAcceptedGroupProfileLockRecoveryRecord;
+                    if (!statusOnlyRestartRecovery)
                     {
-                        throw new InvalidOperationException(
-                            "Set Identity (Configure) before Enable "
-                            + "(Lock Profile).");
+                        EnsureGroupActiveVerified();
+                        if (!groupIdentityConfigured)
+                        {
+                            throw new InvalidOperationException(
+                                "Set Identity (Configure) before Enable "
+                                + "(Lock Profile).");
+                        }
                     }
 
-                    var response = await SendLiveCommandAsync(
-                        safetyGeneration,
-                        "Group Enable (Lock Profile)",
-                        () => currentGroup.GroupEnableAsync(
-                            CancellationToken.None));
-                    EnsureResponseSuccess(
-                        "Group Enable (Lock Profile)",
-                        response);
-                    groupProfileLockVerificationPending = true;
-                    groupProfileLockDisabledSamples = 0;
-                    groupProfileLocked = false;
-                    TextGroupResult.Text =
-                        FormatResponse(response)
-                        + Environment.NewLine
-                        + "Lock request accepted; run 5 Read Status until "
-                        + "Enabled/Locked Standby=True before Move Linear.";
-                    WriteLog(
-                        "Group Enable accepted. Run 5 Read Status "
-                        + "to verify Enabled/Locked Standby before Move Linear.");
+                    var freshEnableAttempt = continuation == null
+                        && !statusOnlyRestartRecovery;
+                    if (freshEnableAttempt)
+                    {
+                        await ArmGroupProfileLockRecoveryBeforeEnableAsync(
+                            currentGroup);
+                    }
+
+                    try
+                    {
+                        if (statusOnlyRestartRecovery)
+                        {
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                operation + " pre-status identity",
+                                true);
+                            EnsureNoNewSafetyRequestBeforeResultApplication(
+                                safetyGeneration,
+                                operation + " pre-status identity");
+                            var statusOnlyResult = await SendLiveCommandAsync(
+                                safetyGeneration,
+                                operation,
+                                () => currentGroup.WaitForLockedStandbyAsync(
+                                    new LMCGroupEnableWaitOptions(),
+                                    CancellationToken.None));
+                            if (safetyGeneration != safetyRequestGeneration)
+                            {
+                                MarkGroupProfileLockResultDiscarded(
+                                    operation + " completion");
+                            }
+                            EnsureNoNewSafetyRequestBeforeResultApplication(
+                                safetyGeneration,
+                                operation + " completion");
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                operation + " post-status identity",
+                                true);
+                            if (safetyGeneration != safetyRequestGeneration)
+                            {
+                                MarkGroupProfileLockResultDiscarded(
+                                    operation + " post-identity completion");
+                            }
+                            EnsureNoNewSafetyRequestBeforeResultApplication(
+                                safetyGeneration,
+                                operation + " post-identity completion");
+                            CompleteGroupEnableStatusOnlyRecoveryUi(
+                                statusOnlyResult);
+                            return;
+                        }
+
+                        var result = await SendLiveCommandAsync(
+                            safetyGeneration,
+                            operation,
+                            () => continuation == null
+                                ? currentGroup
+                                    .GroupEnableAndWaitForLockedStandbyAsync(
+                                        new LMCGroupEnableWaitOptions(),
+                                        accepted =>
+                                            MarkGroupProfileLockAccepted(
+                                                currentGroup,
+                                                accepted,
+                                                operation),
+                                        CancellationToken.None)
+                                : currentGroup
+                                    .ResumeGroupEnableWaitForLockedStandbyAsync(
+                                        continuation,
+                                        CancellationToken.None));
+                        if (safetyGeneration != safetyRequestGeneration)
+                        {
+                            MarkGroupProfileLockResultDiscarded(
+                                operation + " completion");
+                        }
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            operation + " completion");
+                        await EnsureGroupProfileLockRecoveryIdentityAsync(
+                            currentGroup,
+                            operation + " completion",
+                            true);
+                        if (safetyGeneration != safetyRequestGeneration)
+                        {
+                            MarkGroupProfileLockResultDiscarded(
+                                operation + " post-identity completion");
+                        }
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            operation + " post-identity completion");
+                        CompleteGroupEnableWaitUi(result);
+                    }
+                    catch (Exception error)
+                    {
+                        var acceptedContinuation = currentGroup
+                            .PendingGroupEnableWaitContinuation;
+                        if (acceptedContinuation == null
+                            && HasActiveGroupProfileLockRecoveryJournalRecord)
+                        {
+                            if (!(freshEnableAttempt
+                                && TryResolveGroupProfileLockRecoveryForKnownNoDispatch(
+                                    error,
+                                    operation)))
+                            {
+                                MarkGroupProfileLockCompletionOutcomeUncertain(
+                                    operation);
+                            }
+                        }
+
+                        if (groupProfileLockRecoveryRequired)
+                        {
+                            // MarkGroupProfileLockResultDiscarded already set the
+                            // only safe recovery path. Do not replace it with a
+                            // new 0x2047-capable state.
+                        }
+                        else
+                        {
+                            if (acceptedContinuation != null)
+                            {
+                                PreservePendingGroupEnableWaitUi(
+                                    currentGroup,
+                                    acceptedContinuation,
+                                    error.Message);
+                            }
+                            else
+                            {
+                                pendingGroupEnableWaitContinuation = null;
+                                groupProfileLockVerificationPending =
+                                    groupProfileLockAcceptedRestartRecovery;
+                                groupProfileLocked = false;
+                            }
+                        }
+
+                        throw;
+                    }
                 });
         }
 
@@ -1165,26 +3064,198 @@ namespace LasalMotionControlApiExample
             object sender,
             RoutedEventArgs e)
         {
+            var acceptedRestartRecovery =
+                HasAcceptedGroupProfileUnlockRecoveryRecord;
+            var operation = acceptedRestartRecovery
+                ? "Resume Group Unlock Verification"
+                : "Group Disable (Unlock Profile)";
+            var safetyGeneration = safetyRequestGeneration;
             await RunOperationAsync(
-                "Group Disable (Unlock Profile)",
+                operation,
                 async () =>
                 {
-                    EnsureNoUnresolvedD5SdoQualificationTicket(
+                    if (HasUnresolvedGroupPowerState())
+                    {
+                        throw new InvalidOperationException(
+                            "Group Disable is blocked while Group Power recovery "
+                            + "is unresolved. Use Group Stop or Group Power Off "
+                            + "for safety recovery; no 0x2048 was sent.");
+                    }
+
+                    EnsureNoUnresolvedDiagnosticMutation(
                         "Group Disable (Unlock Profile)");
                     var currentGroup = RequireGroup();
-                    var response = await SendSerializedCommandAsync(
-                        () => currentGroup.GroupDisableAsync(
-                            CancellationToken.None));
-                    EnsureResponseSuccess(
-                        "Group Disable (Unlock Profile)",
-                        response);
-                    groupProfileLockVerificationPending = false;
-                    groupProfileLockDisabledSamples = 0;
-                    groupProfileLocked = false;
-                    TextGroupResult.Text =
-                        FormatResponse(response)
-                        + Environment.NewLine
-                        + "Profile unlocked; Power Off is now available.";
+                    var continuation =
+                        GetPendingGroupDisableWaitContinuation(currentGroup);
+                    var statusOnlyRestartRecovery = continuation == null
+                        && HasAcceptedGroupProfileUnlockRecoveryRecord;
+                    var recordBeforeDisable =
+                        groupProfileLockRecoveryJournal == null
+                            ? null
+                            : groupProfileLockRecoveryJournal.CurrentRecord;
+                    var freshVerifiedLockedDisableAttempt =
+                        continuation == null
+                        && !statusOnlyRestartRecovery
+                        && (recordBeforeDisable == null
+                            || !recordBeforeDisable.IsActive)
+                        && groupProfileLocked;
+                    if (!statusOnlyRestartRecovery && continuation == null)
+                    {
+                        var record = recordBeforeDisable;
+                        if (record != null
+                            && record.IsActive
+                            && !record.ExpectedProfileLocked)
+                        {
+                            if (record.State
+                                != GroupProfileLockRecoveryState
+                                    .RecoveryRequired)
+                            {
+                                throw new InvalidOperationException(
+                                    "An armed or accepted Group Disable cannot be "
+                                    + "replayed. Resume accepted status-only proof, "
+                                    + "or explicitly retry only a RecoveryRequired "
+                                    + "unlock record.");
+                            }
+
+                            EnsureGroupProfileLockRecoveryJournalAvailableForMutation(
+                                "Explicit Group Disable recovery retry");
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                "Explicit Group Disable recovery retry",
+                                false);
+                        }
+                        else
+                        {
+                            await ArmGroupProfileLockRecoveryBeforeDisableAsync(
+                                currentGroup);
+                        }
+                    }
+
+                    var disableRecoveryRecord =
+                        RequireActiveGroupProfileLockRecoveryRecord(
+                            operation + " durable operation identity");
+                    if (disableRecoveryRecord.ExpectedProfileLocked)
+                    {
+                        throw new InvalidOperationException(
+                            operation
+                            + " did not publish a durable unlock identity before dispatch.");
+                    }
+                    var disableRecoveryIdentity =
+                        disableRecoveryRecord.Identity;
+
+                    try
+                    {
+                        if (statusOnlyRestartRecovery)
+                        {
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                operation + " pre-status identity",
+                                false);
+                            var statusOnlyResult =
+                                await SendLiveCommandAsync(
+                                    safetyGeneration,
+                                    operation,
+                                    () => currentGroup
+                                        .WaitForStableDisabledAsync(
+                                            new LMCGroupDisableWaitOptions(),
+                                            CancellationToken.None));
+                            EnsureNoNewSafetyRequestBeforeResultApplication(
+                                safetyGeneration,
+                                operation + " status-only completion");
+                            await EnsureGroupProfileLockRecoveryIdentityAsync(
+                                currentGroup,
+                                operation + " post-status identity",
+                                false);
+                            EnsureNoNewSafetyRequestBeforeResultApplication(
+                                safetyGeneration,
+                                operation + " post-status identity");
+                            CompleteGroupDisableStatusOnlyRecoveryUi(
+                                statusOnlyResult);
+                            return;
+                        }
+
+                        var result = await SendLiveCommandAsync(
+                            safetyGeneration,
+                            operation,
+                            () => continuation == null
+                                ? currentGroup
+                                    .GroupDisableAndWaitForStableDisabledAsync(
+                                        new LMCGroupDisableWaitOptions(),
+                                        accepted =>
+                                            MarkGroupProfileUnlockAccepted(
+                                                currentGroup,
+                                                accepted,
+                                                operation),
+                                        CancellationToken.None)
+                                : currentGroup
+                                    .ResumeGroupDisableWaitForStableDisabledAsync(
+                                        continuation,
+                                        CancellationToken.None));
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            operation + " completion");
+                        await EnsureGroupProfileLockRecoveryIdentityAsync(
+                            currentGroup,
+                            operation + " completion",
+                            false);
+                        EnsureNoNewSafetyRequestBeforeResultApplication(
+                            safetyGeneration,
+                            operation + " post-identity completion");
+                        CompleteGroupDisableWaitUi(result);
+                    }
+                    catch (Exception error)
+                    {
+                        if (freshVerifiedLockedDisableAttempt
+                            && TryRestoreFreshVerifiedLockAfterKnownNoEffectGroupDisable(
+                                error,
+                                disableRecoveryIdentity,
+                                safetyGeneration,
+                                operation))
+                        {
+                            throw;
+                        }
+
+                        if (TryDiscardGroupDisableOutcomeSupersededBySafety(
+                            disableRecoveryIdentity,
+                            safetyGeneration,
+                            operation))
+                        {
+                            throw;
+                        }
+
+                        var acceptedContinuation = currentGroup
+                            .PendingGroupDisableWaitContinuation;
+                        var record = groupProfileLockRecoveryJournal == null
+                            ? null
+                            : groupProfileLockRecoveryJournal.CurrentRecord;
+                        if (acceptedContinuation != null
+                            && record != null
+                            && record.IsActive
+                            && !record.ExpectedProfileLocked
+                            && record.State
+                                == GroupProfileLockRecoveryState
+                                    .AcceptedAwaitingProof)
+                        {
+                            PreservePendingGroupDisableWaitUi(
+                                currentGroup,
+                                acceptedContinuation,
+                                error.Message);
+                        }
+                        else if (HasAcceptedGroupProfileUnlockRecoveryRecord)
+                        {
+                            pendingGroupDisableWaitContinuation = null;
+                            groupProfileUnlockVerificationPending = true;
+                        }
+                        else
+                        {
+                            PromoteGroupProfileLockRecoveryJournal(
+                                operation + " completion outcome uncertainty");
+                            pendingGroupDisableWaitContinuation = null;
+                            groupProfileUnlockVerificationPending = false;
+                        }
+
+                        throw;
+                    }
                 });
         }
 
@@ -1202,6 +3273,8 @@ namespace LasalMotionControlApiExample
                 "Group Reset",
                 async () =>
                 {
+                    EnsureNoUnresolvedGroupProfileLockMutation(
+                        "Group Reset");
                     var currentGroup = RequireGroup();
                     var response = await SendLiveCommandAsync(
                         safetyGeneration,
@@ -1223,38 +3296,92 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             LMCGroupAxis currentGroup = null;
-            var sent = await RunSafetyCommandAsync(
+            LMCGroupStopWaitContinuation currentStop = null;
+            LMCGroupStopWaitEvidence acceptedBeginBoundaryEvidence = null;
+            var safetySend = await RunSafetyCommandAsync(
                 "Group Stop Send",
-                async () =>
+                async reservedGeneration =>
                 {
                     currentGroup = RequireGroup();
+                    await EnsureMotionRecoverySafetyDispatchIdentityAsync(
+                        reservedGeneration,
+                        MotionUncertaintyTargetKind.Group,
+                        currentGroup.GroupName,
+                        currentGroup.GroupReference,
+                        "Group Stop recovery");
                     var input = ReadGroupStopInput();
-                    var response = await currentGroup.GroupStopAsync(
-                        input.DecelerationRaw,
-                        input.JerkRaw,
-                        CancellationToken.None);
-                    EnsureResponseSuccess("Group Stop", response);
-                    TextGroupResult.Text = FormatResponse(response);
+                    try
+                    {
+                        currentStop = await currentGroup
+                            .BeginGroupStopWaitForStableStandbyAsync(
+                                input.DecelerationRaw,
+                                input.JerkRaw,
+                                CancellationToken.None);
+                    }
+                    catch (Exception error)
+                    {
+                        acceptedBeginBoundaryEvidence =
+                            GetGroupStopWaitEvidence(error);
+                        currentStop =
+                            GetGroupStopWaitContinuation(error);
+                        if (currentStop == null || !currentStop.IsPending)
+                        {
+                            AppendGroupStopWaitEvidence(
+                                "Group Stop acknowledgement was not accepted.",
+                                acceptedBeginBoundaryEvidence,
+                                currentStop);
+                            throw;
+                        }
+                    }
+
+                    pendingGroupStopWaitContinuation = currentStop;
+                    RecordMotionRecoverySafetyCommandAccepted(
+                        reservedGeneration,
+                        MotionUncertaintyTargetKind.Group,
+                        currentGroup.GroupName,
+                        currentGroup.GroupReference,
+                        "Group Stop");
+                    TextGroupResult.Text = FormatResponse(
+                        currentStop.Acknowledgement)
+                        + Environment.NewLine
+                        + "Group Stop ACK accepted exactly once; status-only "
+                        + "0x2045 verification is pending.";
+                    if (acceptedBeginBoundaryEvidence != null)
+                    {
+                        AppendGroupStopWaitEvidence(
+                            "Group Stop ACK was accepted at the Begin deadline/cancellation boundary; continuing with status-only verification without replaying 0x2085.",
+                            acceptedBeginBoundaryEvidence,
+                            currentStop);
+                    }
                 },
                 () => CancelQualificationForExternalSafety(
                     "Group Stop",
-                    true));
+                    true),
+                true);
 
-            if (!sent || currentGroup == null)
+            if (!safetySend.Sent
+                || currentGroup == null
+                || currentStop == null)
             {
+                ReleaseUnusedSafetyMonitorReservation(
+                    safetySend,
+                    "Group Stop");
                 return;
             }
 
             await RunGroupSafetyMonitorAsync(
                 "Group Stop",
-                currentGroup);
+                currentGroup,
+                currentStop,
+                safetySend.Generation,
+                safetySend.MonitorReserved);
         }
 
         private async void ButtonGroupMoveLinear_Click(
             object sender,
             RoutedEventArgs e)
         {
-            if (!CanStartLiveCommand("Move Linear Absolute"))
+            if (!CanStartMotionCommand("Move Linear Absolute"))
             {
                 return;
             }
@@ -1318,15 +3445,14 @@ namespace LasalMotionControlApiExample
                         + ".");
                     monitoredGroup = currentGroup;
 
-                    var response = await SendLiveCommandAsync(
+                    var response = await DispatchTrackedMotionAsync(
                         safetyGeneration,
+                        MotionUncertaintyTargetKind.Group,
+                        currentGroup.GroupName,
+                        currentGroup.GroupReference,
                         "Move Linear Absolute",
-                        async () =>
-                        {
-                            trackingGeneration = MarkMotionUncertain(
-                                currentGroup.GroupName,
-                                "Move Linear Absolute");
-                            return await currentGroup
+                        generation => trackingGeneration = generation,
+                        async () => await currentGroup
                                 .MoveLinearAbsoluteExAsync(
                                     input.PositionsRaw,
                                     input.VelocityRaw,
@@ -1334,8 +3460,7 @@ namespace LasalMotionControlApiExample
                                     input.DecelerationRaw,
                                     input.JerkRaw,
                                     input.Options,
-                                    CancellationToken.None);
-                        });
+                                    CancellationToken.None));
 
                     ClearMotionOnConfirmedRejection(
                         currentGroup.GroupName,
@@ -1393,7 +3518,7 @@ namespace LasalMotionControlApiExample
             RoutedEventArgs e)
         {
             const string operation = "Move Linear Relative";
-            if (!CanStartLiveCommand(operation))
+            if (!CanStartMotionCommand(operation))
             {
                 return;
             }
@@ -1409,6 +3534,8 @@ namespace LasalMotionControlApiExample
                 operation + " Send",
                 async () =>
                 {
+                    EnsureNoUnresolvedGroupProfileLockMutation(
+                        operation);
                     var currentConnection = RequireConnection();
                     var currentGroup = RequireGroup();
                     EnsureGroupReadyForMotion();
@@ -1471,15 +3598,14 @@ namespace LasalMotionControlApiExample
 
                     try
                     {
-                        var response = await SendLiveCommandAsync(
+                        var response = await DispatchTrackedMotionAsync(
                             safetyGeneration,
+                            MotionUncertaintyTargetKind.Group,
+                            currentGroup.GroupName,
+                            currentGroup.GroupReference,
                             operation,
-                            async () =>
-                            {
-                                trackingGeneration = MarkMotionUncertain(
-                                    currentGroup.GroupName,
-                                    operation);
-                                return await currentGroup
+                            generation => trackingGeneration = generation,
+                            async () => await currentGroup
                                     .MoveLinearRelativeExAsync(
                                         input.PositionsRaw,
                                         input.VelocityRaw,
@@ -1488,8 +3614,7 @@ namespace LasalMotionControlApiExample
                                         input.JerkRaw,
                                         input.Options,
                                         verifiedCapabilities,
-                                        CancellationToken.None);
-                            });
+                                        CancellationToken.None));
 
                         ClearMotionOnConfirmedRejection(
                             currentGroup.GroupName,
@@ -1571,6 +3696,8 @@ namespace LasalMotionControlApiExample
                 "Set Identity Kinematics",
                 async () =>
                 {
+                    EnsureNoUnresolvedGroupProfileLockMutation(
+                        "Set Identity Kinematics");
                     var currentConnection = RequireConnection();
                     var currentGroup = RequireGroup();
                     EnsureGroupActiveVerified();
@@ -1578,7 +3705,7 @@ namespace LasalMotionControlApiExample
                         || groupProfileLockVerificationPending)
                     {
                         throw new InvalidOperationException(
-                            "Finish 5 Read Status verification or Disable "
+                            "Finish or cancel pending Lock Verification, or Disable "
                             + "(Unlock Profile) before changing the identity "
                             + "configuration.");
                     }
@@ -1786,6 +3913,8 @@ namespace LasalMotionControlApiExample
                 StringComparison.Ordinal))
             {
                 axis = null;
+                ClearMotionLookupIdentity(
+                    MotionUncertaintyTargetKind.Axis);
                 if (TextAxisReference != null)
                 {
                     TextAxisReference.Text = "not loaded";
@@ -1797,6 +3926,48 @@ namespace LasalMotionControlApiExample
 
         private void TextGroupName_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (HasActiveGroupPowerRecoveryRecord
+                && TextGroupName != null)
+            {
+                var recoveryGroupName = groupPowerRecoveryJournal
+                    .CurrentRecord.GroupName;
+                if (!string.Equals(
+                    recoveryGroupName,
+                    TextGroupName.Text.Trim(),
+                    StringComparison.Ordinal))
+                {
+                    TextGroupName.Text = recoveryGroupName;
+                    TextGroupName.CaretIndex = TextGroupName.Text.Length;
+                    WriteLog(
+                        "Group name change was rejected while Group Power "
+                        + "recovery is active.");
+                }
+
+                return;
+            }
+
+            if (HasUnresolvedGroupProfileLockState()
+                && TextGroupName != null)
+            {
+                var unresolvedGroupName =
+                    GetUnresolvedGroupProfileLockName();
+                if (!string.IsNullOrWhiteSpace(
+                        unresolvedGroupName)
+                    && !string.Equals(
+                        unresolvedGroupName,
+                        TextGroupName.Text.Trim(),
+                        StringComparison.Ordinal))
+                {
+                    TextGroupName.Text = unresolvedGroupName;
+                    TextGroupName.CaretIndex = TextGroupName.Text.Length;
+                    WriteLog(
+                        "Group name change was rejected while Group Enable is pending "
+                        + "or the profile-lock result is uncertain.");
+                }
+
+                return;
+            }
+
             if (group == null || TextGroupName == null)
             {
                 return;
@@ -1808,6 +3979,8 @@ namespace LasalMotionControlApiExample
                 StringComparison.Ordinal))
             {
                 group = null;
+                ClearMotionLookupIdentity(
+                    MotionUncertaintyTargetKind.Group);
                 ResetGroupPreparationState();
                 if (TextGroupReference != null)
                 {
@@ -1852,6 +4025,7 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
+            var operationSafetyGeneration = safetyRequestGeneration;
             operationRunning = true;
             connectionTransitionRunning = blockSafetyCommands;
             TextOperationState.Text = operation + " running";
@@ -1860,7 +4034,12 @@ namespace LasalMotionControlApiExample
             try
             {
                 WriteLog(operation + " started.");
-                await action();
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    operationSafetyGeneration,
+                    operation))
+                {
+                    await action();
+                }
                 WriteLog(operation + " PASS.");
                 TextOperationState.Text = operation + " completed";
             }
@@ -1877,18 +4056,72 @@ namespace LasalMotionControlApiExample
             }
         }
 
-        private async Task<bool> RunSafetyCommandAsync(
-            string operation,
-            Func<Task> action,
-            Action safetyReserved = null)
+        private sealed class SafetyCommandResult
         {
-            safetyRequestGeneration++;
+            internal static readonly SafetyCommandResult NotSent =
+                new SafetyCommandResult(false, 0, false);
+
+            internal SafetyCommandResult(
+                bool sent,
+                long generation,
+                bool monitorReserved)
+            {
+                Sent = sent;
+                Generation = generation;
+                MonitorReserved = monitorReserved;
+            }
+
+            internal bool Sent { get; private set; }
+            internal long Generation { get; private set; }
+            internal bool MonitorReserved { get; private set; }
+        }
+
+        private void ReleaseUnusedSafetyMonitorReservation(
+            SafetyCommandResult result,
+            string operation)
+        {
+            if (result == null || !result.MonitorReserved)
+            {
+                return;
+            }
+
+            safetyMonitorCount--;
+            WriteLog(
+                operation
+                + " safety monitor reservation was released because no monitor owner was available.");
+            UpdateUiState();
+        }
+
+        private async Task<SafetyCommandResult> RunSafetyCommandAsync(
+            string operation,
+            Func<long, Task> action,
+            Action safetyReserved = null,
+            bool reserveSafetyMonitor = false)
+        {
+            if (IsRecoveryIdentityReadOnlyConnection(connection))
+            {
+                WriteLog(
+                    operation
+                    + " is blocked before wire send because the connection is in "
+                    + "recovery-identity read-only quarantine. "
+                    + GetRecoveryIdentityReadOnlyGuidance());
+                return SafetyCommandResult.NotSent;
+            }
+
             if (safetyCommandRunning)
             {
                 WriteLog("Another Stop or Power Off send is already running.");
-                return false;
+                return SafetyCommandResult.NotSent;
             }
 
+            var reservedGeneration =
+                sendPriorityCoordinator.ReservePrioritySend();
+            var currentGroup = group;
+            if (currentGroup != null)
+            {
+                currentGroup.InvalidatePendingGroupEnableWaitStatusProof();
+            }
+            var monitorReserved = false;
             safetyCommandRunning = true;
             TextOperationState.Text = operation + " running";
             UpdateUiState();
@@ -1905,7 +4138,21 @@ namespace LasalMotionControlApiExample
                 try
                 {
                     WriteLog(operation + " transmitting.");
-                    await action();
+                    using (sendPriorityCoordinator.BeginPriorityScope(
+                        reservedGeneration,
+                        operation))
+                    {
+                        await action(reservedGeneration);
+                    }
+
+                    if (reserveSafetyMonitor)
+                    {
+                        // Keep admission closed continuously from accepted
+                        // safety send through the caller's stable-state
+                        // verification. The monitor consumes this reservation.
+                        safetyMonitorCount++;
+                        monitorReserved = true;
+                    }
                 }
                 finally
                 {
@@ -1914,13 +4161,25 @@ namespace LasalMotionControlApiExample
 
                 WriteLog(operation + " PASS.");
                 TextOperationState.Text = operation + " accepted";
-                return true;
+                return new SafetyCommandResult(
+                    true,
+                    reservedGeneration,
+                    monitorReserved);
             }
             catch (Exception error)
             {
+                if (monitorReserved)
+                {
+                    safetyMonitorCount--;
+                    monitorReserved = false;
+                }
+
                 WriteLog(operation + " FAILED: " + error.Message);
                 TextOperationState.Text = operation + " failed";
-                return false;
+                return new SafetyCommandResult(
+                    false,
+                    reservedGeneration,
+                    false);
             }
             finally
             {
@@ -1930,18 +4189,27 @@ namespace LasalMotionControlApiExample
         }
 
         private async Task<T> SendLiveCommandAsync<T>(
-            int expectedSafetyGeneration,
+            long expectedSafetyGeneration,
             string operation,
             Func<Task<T>> send)
         {
             await commandSendGate.WaitAsync();
             try
             {
-                EnsureNoUnresolvedD5SdoQualificationTicket(operation);
+                EnsureNoUnresolvedDiagnosticMutation(operation);
                 EnsureNoNewSafetyRequest(
                     expectedSafetyGeneration,
                     operation);
-                return await send();
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    expectedSafetyGeneration,
+                    operation))
+                {
+                    var result = await send();
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        expectedSafetyGeneration,
+                        operation + " result application");
+                    return result;
+                }
             }
             finally
             {
@@ -1951,10 +4219,23 @@ namespace LasalMotionControlApiExample
 
         private async Task<T> SendSerializedCommandAsync<T>(Func<Task<T>> send)
         {
+            var expectedSafetyGeneration = safetyRequestGeneration;
             await commandSendGate.WaitAsync();
             try
             {
-                return await send();
+                EnsureNoNewSafetyRequest(
+                    expectedSafetyGeneration,
+                    "Serialized command");
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    expectedSafetyGeneration,
+                    "Serialized command"))
+                {
+                    var result = await send();
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        expectedSafetyGeneration,
+                        "Serialized command result application");
+                    return result;
+                }
             }
             finally
             {
@@ -1963,7 +4244,7 @@ namespace LasalMotionControlApiExample
         }
 
         private void EnsureNoNewSafetyRequest(
-            int expectedGeneration,
+            long expectedGeneration,
             string operation)
         {
             if (expectedGeneration == safetyRequestGeneration)
@@ -1977,25 +4258,58 @@ namespace LasalMotionControlApiExample
                 + "was requested.");
         }
 
+        private void EnsureNoNewSafetyRequestBeforeResultApplication(
+            long expectedGeneration,
+            string operation)
+        {
+            if (expectedGeneration == safetyRequestGeneration)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                operation
+                + " discarded a completed response because a newer Stop or "
+                + "Power Off request was reserved.");
+        }
+
         private async Task RunSafetyMonitorAsync(
             string operation,
             LMCSingleAxis currentAxis,
-            Func<Task<LMCReadStatusResult>> verifySafeState)
+            Func<Task<LMCReadStatusResult>> verifySafeState,
+            long monitorSafetyGeneration,
+            bool monitorReservationAlreadyHeld,
+            Action afterMotionJournalResolvedBeforeVolatileClear = null)
         {
-            safetyMonitorCount++;
+            if (!monitorReservationAlreadyHeld)
+            {
+                safetyMonitorCount++;
+            }
             TextOperationState.Text = operation + " verifying standstill";
             WriteLog(
                 operation
                 + " accepted. Verifying three stable Standstill samples; "
-                + "Stop and Power Off remain available.");
+                + "explicit newer safety commands allowed by the current "
+                + "recovery policy remain available.");
             UpdateUiState();
 
             try
             {
-                var status = await verifySafeState();
+                LMCReadStatusResult status;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    monitorSafetyGeneration,
+                    operation + " safety verification"))
+                {
+                    status = await verifySafeState();
+                }
+                EnsureNoNewSafetyRequestBeforeResultApplication(
+                    monitorSafetyGeneration,
+                    operation + " safety verification completion");
                 DisplayAxisStatus(status);
-                ClearMotionWarning(
-                    operation + " and stable standstill were verified");
+                await ClearMotionWarningAfterVerifiedStateAsync(
+                    operation + " and stable standstill were verified",
+                    null,
+                    afterMotionJournalResolvedBeforeVolatileClear);
                 WriteLog(operation + " safety verification PASS.");
                 TextOperationState.Text = operation + " verified";
             }
@@ -2005,6 +4319,9 @@ namespace LasalMotionControlApiExample
                     operation
                     + " safety verification FAILED: "
                     + error.Message
+                    + (error.InnerException == null
+                        ? string.Empty
+                        : " Inner: " + error.InnerException.Message)
                     + " Do not assume the axis is stopped.");
                 TextOperationState.Text = operation + " verification failed";
             }
@@ -2017,34 +4334,91 @@ namespace LasalMotionControlApiExample
 
         private async Task RunGroupSafetyMonitorAsync(
             string operation,
-            LMCGroupAxis currentGroup)
+            LMCGroupAxis currentGroup,
+            LMCGroupStopWaitContinuation currentStop,
+            long monitorSafetyGeneration,
+            bool monitorReservationAlreadyHeld)
         {
-            safetyMonitorCount++;
-            TextOperationState.Text = operation + " verifying InPosition";
+            if (!monitorReservationAlreadyHeld)
+            {
+                safetyMonitorCount++;
+            }
+            TextOperationState.Text = operation + " verifying stable standby";
             WriteLog(
                 operation
-                + " accepted. Verifying three stable Group InPosition samples; "
-                + "Group Stop remains available.");
+                + " ACK was accepted exactly once. Verifying three stable "
+                + "Group Standby samples with status-only 0x2045 reads; "
+                + "Group Stop and Power Off remain available.");
             UpdateUiState();
 
             try
             {
-                var status = await WaitForGroupInPositionAsync(
-                    currentGroup,
-                    5000,
-                    50);
-                DisplayGroupStatus(status);
-                ClearMotionWarning(
-                    operation + " and stable Group InPosition were verified");
+                LMCGroupStopWaitResult result;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    monitorSafetyGeneration,
+                    operation + " safety verification"))
+                {
+                    result = await currentGroup
+                        .ResumeGroupStopWaitForStableStandbyAsync(
+                            currentStop,
+                            CancellationToken.None);
+                }
+                EnsureNoNewSafetyRequestBeforeResultApplication(
+                    monitorSafetyGeneration,
+                    operation + " safety verification completion");
+                DisplayGroupStatus(result.FinalStatus);
+                if (ReferenceEquals(
+                    pendingGroupStopWaitContinuation,
+                    currentStop))
+                {
+                    pendingGroupStopWaitContinuation = null;
+                }
+
+                AppendGroupStopWaitEvidence(
+                    "Group Stop stable-standby evidence was accepted.",
+                    result.Evidence,
+                    result.Continuation);
+                await ClearMotionWarningAfterVerifiedStateAsync(
+                    operation + " and stable Group Standby were verified");
+                WriteLog(
+                    "Group Stop ACK accepted exactly once; status-only "
+                    + "verification polls="
+                    + result.StatusPollCount
+                    + ", Stable="
+                    + result.StableStandbySampleCount
+                    + "/"
+                    + result.RequiredStableSampleCount
+                    + ".");
                 WriteLog(operation + " safety verification PASS.");
                 TextOperationState.Text = operation + " verified";
             }
             catch (Exception error)
             {
+                var continuation =
+                    GetGroupStopWaitContinuation(error);
+                if (continuation != null && continuation.IsPending)
+                {
+                    pendingGroupStopWaitContinuation = continuation;
+                }
+
+                var evidence = GetGroupStopWaitEvidence(error);
+                if (evidence != null
+                    && evidence.LastObservedStatus != null)
+                {
+                    DisplayGroupStatus(evidence.LastObservedStatus);
+                }
+
+                AppendGroupStopWaitEvidence(
+                    "Group Stop stable-standby completion was not proven; the accepted continuation remains available without replaying 0x2085.",
+                    evidence,
+                    continuation ?? currentStop);
                 WriteLog(
                     operation
                     + " safety verification FAILED: "
                     + error.Message
+                    + (error.InnerException == null
+                        ? string.Empty
+                        : " Inner: " + error.InnerException.Message)
                     + " Do not assume the group is stopped.");
                 TextOperationState.Text = operation + " verification failed";
             }
@@ -2057,67 +4431,131 @@ namespace LasalMotionControlApiExample
 
         private async Task RunGroupPowerOffSafetyMonitorAsync(
             string operation,
-            LMCGroupAxis currentGroup)
+            LMCGroupAxis currentGroup,
+            long monitorSafetyGeneration,
+            bool monitorReservationAlreadyHeld,
+            GroupPowerRecoveryRecord verificationRecord)
         {
-            safetyMonitorCount++;
+            if (!monitorReservationAlreadyHeld)
+            {
+                safetyMonitorCount++;
+            }
             TextOperationState.Text = operation + " verifying PowerOn=False";
             WriteLog(
                 operation
-                + " accepted. Verifying three stable PowerOn=False samples; "
+                + " is verifying three stable PowerOn=False samples; "
                 + "Group Stop remains available.");
             UpdateUiState();
 
             try
             {
-                var deadline = DateTime.UtcNow.AddSeconds(5);
-                var stableSamples = 0;
-                LMCGroupReadStatusResult latest = null;
-                while (DateTime.UtcNow < deadline)
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    monitorSafetyGeneration,
+                    operation + " safety verification"))
                 {
-                    latest = await currentGroup.GroupReadStatusResultAsync(
-                        CancellationToken.None);
-                    EnsureGroupStatusSuccess(
-                        operation + " verification",
-                        latest);
-                    stableSamples = !latest.IsPowerOn
-                        ? stableSamples + 1
-                        : 0;
-                    if (stableSamples >= 3)
+                    var result = await ResumeOrObserveGroupPowerStateAsync(
+                        currentGroup,
+                        false,
+                        operation);
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        monitorSafetyGeneration,
+                        operation + " safety verification completion");
+                    CompleteGroupPowerRecoveryAfterStableProof(
+                        currentGroup,
+                        false,
+                        result,
+                        verificationRecord,
+                        operation + " stable Power Off proof");
+                    var pendingDisableBeforeRetire = currentGroup
+                        .PendingGroupDisableWaitContinuation;
+                    if (pendingDisableBeforeRetire != null
+                        && (groupProfileLockRecoveryRequired
+                            || HasActiveGroupProfileLockRecoveryJournalRecord))
                     {
-                        groupPowerVerificationPending = false;
-                        groupPowerOffVerificationPending = false;
-                        groupStatusRefreshRequired = false;
-                        groupActiveVerified = false;
-                        groupIdentityConfigured = false;
-                        ResetIdentityHomeCheckState();
-                        groupProfileLockVerificationPending = false;
-                        groupProfileLockDisabledSamples = 0;
-                        groupProfileLocked = false;
-                        DisplayGroupStatus(latest);
-                        ClearMotionWarning(
-                            operation
-                            + " and three stable PowerOn=False samples were verified");
-                        WriteLog(operation + " safety verification PASS.");
-                        TextOperationState.Text = operation + " verified";
-                        return;
+                        await EnsureGroupProfileLockRecoveryIdentityAsync(
+                            currentGroup,
+                            operation + " recovery completion",
+                            RequireActiveGroupProfileLockRecoveryRecord(
+                                operation + " recovery completion")
+                                .ExpectedProfileLocked);
                     }
-
-                    await Task.Delay(50);
+                    await RetirePendingGroupDisableAfterStablePowerOffAsync(
+                        currentGroup,
+                        result,
+                        operation);
+                    await ReconcilePendingGroupEnableSafeStateProofAsync(
+                        currentGroup,
+                        monitorSafetyGeneration,
+                        "three stable PowerOn=False samples");
+                    if (pendingDisableBeforeRetire == null
+                        && (groupProfileLockRecoveryRequired
+                            || HasActiveGroupProfileLockRecoveryJournalRecord))
+                    {
+                        await EnsureGroupProfileLockRecoveryIdentityAsync(
+                            currentGroup,
+                            operation + " recovery completion",
+                            RequireActiveGroupProfileLockRecoveryRecord(
+                                operation + " recovery completion")
+                                .ExpectedProfileLocked);
+                    }
+                    ResolveGroupProfileLockRecoveryJournal(
+                        operation + " stable Power Off proof");
+                    groupPowerVerificationPending = false;
+                    groupPowerOffVerificationPending = false;
+                    groupStatusRefreshRequired = false;
+                    groupActiveVerified = false;
+                    groupIdentityConfigured = false;
+                    ResetIdentityHomeCheckState();
+                    pendingGroupDisableWaitContinuation = null;
+                    groupProfileLockVerificationPending = false;
+                    groupProfileUnlockVerificationPending = false;
+                    ClearGroupProfileLockRecovery();
+                    groupProfileLocked = false;
+                    DisplayGroupStatus(result.FinalStatus);
+                    TextGroupResult.Text += Environment.NewLine
+                        + "Group Power Off verified; Status polls="
+                        + result.StatusPollCount
+                        + ", Stable="
+                        + result.StableSampleCount
+                        + "/"
+                        + result.RequiredStableSampleCount
+                        + ", 0x204B was not replayed by verification.";
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        monitorSafetyGeneration,
+                        operation + " motion recovery resolution");
+                    await ClearMotionWarningAfterVerifiedStateAsync(
+                        operation
+                        + " and three stable PowerOn=False samples were verified");
+                    WriteLog(
+                        operation
+                        + " safety verification PASS with "
+                        + result.StableSampleCount
+                        + " stable samples.");
+                    TextOperationState.Text = operation + " verified";
+                    return;
                 }
-
-                throw new TimeoutException(
-                    currentGroup.GroupName
-                    + " did not report three stable PowerOn=False samples within 5000 ms.");
             }
             catch (Exception error)
             {
+                PreserveGroupPowerWaitFailure(
+                    currentGroup,
+                    error,
+                    verificationRecord,
+                    false,
+                    false,
+                    false,
+                    null,
+                    operation);
+                ReapplyActiveGroupProfileLockRecoveryAfterPowerOffFailure(
+                    operation);
                 WriteLog(
                     operation
                     + " safety verification FAILED: "
                     + error.Message
-                    + " Do not assume the group is powered off or stopped.");
+                    + " Do not assume the group is powered off or stopped. "
+                    + "Resume verification; do not replay 0x204B.");
                 TextOperationState.Text = operation + " verification failed";
-                ButtonGroupReadStatus.Focus();
+                ButtonGroupPowerOff.Focus();
             }
             finally
             {
@@ -2128,7 +4566,42 @@ namespace LasalMotionControlApiExample
 
         private async Task CloseCurrentConnectionAsync(bool reportCloseError)
         {
-            if (motionMayBeActive)
+            var currentConnection = connection;
+            var recoveryIdentityReadOnlyClose =
+                IsRecoveryIdentityReadOnlyConnection(currentConnection);
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedAxisPowerState()
+                && currentConnection != null
+                && currentConnection.IsConnected)
+            {
+                throw new InvalidOperationException(
+                    "Close is blocked while Axis Power recovery is unresolved. "
+                    + GetAxisPowerOnRecoveryGuidance());
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedAxisCommandState()
+                && currentConnection != null
+                && currentConnection.IsConnected)
+            {
+                throw new InvalidOperationException(
+                    "Close is blocked while Axis Stop/Reset recovery is unresolved.");
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && HasUnresolvedGroupPowerState()
+                && currentConnection != null
+                && currentConnection.IsConnected)
+            {
+                throw new InvalidOperationException(
+                    "Close is blocked while Group Power recovery is unresolved. "
+                    + GetGroupPowerRecoveryGuidance());
+            }
+
+            if (!recoveryIdentityReadOnlyClose
+                && motionMayBeActive
+                && currentConnection != null
+                && currentConnection.IsConnected)
             {
                 throw new InvalidOperationException(
                     "Close is blocked because "
@@ -2138,7 +4611,6 @@ namespace LasalMotionControlApiExample
                     + ". Send Stop or PowerOff and verify standstill first.");
             }
 
-            var currentConnection = connection;
             if (currentConnection == null)
             {
                 return;
@@ -2180,6 +4652,114 @@ namespace LasalMotionControlApiExample
             WriteLog("Connection cleanup warning: " + closeError.Message);
         }
 
+        private RecoveryConnectionIdentityMismatchException
+            CreateRecoveryConnectionIdentityMismatch(
+                string operation,
+                string recoveryOwner,
+                uint storedDiagnosticsBootId,
+                uint storedMapRevision,
+                uint currentDiagnosticsBootId,
+                uint currentMapRevision)
+        {
+            return new RecoveryConnectionIdentityMismatchException(
+                operation
+                + " is blocked because DiagnosticsBootId or MapRevision does not "
+                + "match the durable "
+                + recoveryOwner
+                + " recovery record. Stored BootId=0x"
+                + storedDiagnosticsBootId.ToString("X8")
+                + ", current BootId=0x"
+                + currentDiagnosticsBootId.ToString("X8")
+                + ", stored MapRevision=0x"
+                + storedMapRevision.ToString("X8")
+                + ", current MapRevision=0x"
+                + currentMapRevision.ToString("X8")
+                + ".");
+        }
+
+        private void EnterRecoveryIdentityReadOnlyQuarantine(
+            LMCConnection quarantinedConnection,
+            RecoveryConnectionIdentityMismatchException error)
+        {
+            if (quarantinedConnection == null)
+            {
+                throw new ArgumentNullException(nameof(quarantinedConnection));
+            }
+
+            if (error == null)
+            {
+                throw new ArgumentNullException(nameof(error));
+            }
+
+            recoveryIdentityReadOnlyConnection = quarantinedConnection;
+            recoveryIdentityReadOnlyReason = error.Message;
+            WriteLog(
+                "RECOVERY IDENTITY READ-ONLY QUARANTINE: "
+                + error.Message
+                + " The TCP/RPC connection remains open for ordinary non-D5 "
+                + "read-only inspection. No recovery record was resolved or "
+                + "replayed; all control, mutation, D5, cleanup, and "
+                + "qualification operations are blocked. Close and Exit remain available.");
+            UpdateUiState();
+        }
+
+        private void ClearRecoveryIdentityReadOnlyQuarantine()
+        {
+            recoveryIdentityReadOnlyConnection = null;
+            recoveryIdentityReadOnlyReason = null;
+        }
+
+        private bool IsRecoveryIdentityReadOnlyConnection(
+            LMCConnection candidate)
+        {
+            return candidate != null
+                && ReferenceEquals(
+                    candidate,
+                    recoveryIdentityReadOnlyConnection);
+        }
+
+        private bool IsRecoveryIdentityReadOnlyExitPermitted()
+        {
+            var quarantinedConnection = recoveryIdentityReadOnlyConnection;
+            if (quarantinedConnection == null)
+            {
+                return false;
+            }
+
+            var currentConnection = connection;
+            return currentConnection == null
+                || ReferenceEquals(currentConnection, quarantinedConnection);
+        }
+
+        private string GetRecoveryIdentityReadOnlyGuidance()
+        {
+            return "The stored recovery identity does not match the current PLC. "
+                + "Only ordinary non-D5 read-only inspection and Close/Exit are "
+                + "allowed. Do not infer the old command result from the current "
+                + "PLC state; the durable recovery record remains unchanged. "
+                + (string.IsNullOrEmpty(recoveryIdentityReadOnlyReason)
+                    ? string.Empty
+                    : recoveryIdentityReadOnlyReason);
+        }
+
+        private sealed class RecoveryConnectionIdentityMismatchException
+            : InvalidOperationException
+        {
+            internal RecoveryConnectionIdentityMismatchException(string message)
+                : base(message)
+            {
+            }
+        }
+
+        private LMCConnection CreateCoordinatedConnection()
+        {
+            return new LMCConnection(
+                new LMCConnectionOptions
+                {
+                    SendPriorityCoordinator = sendPriorityCoordinator
+                });
+        }
+
         private void AttachConnection(LMCConnection newConnection)
         {
             newConnection.ConnectionStateChanged += Connection_StateChanged;
@@ -2208,6 +4788,18 @@ namespace LasalMotionControlApiExample
                         return;
                     }
 
+                    var eventConnection = sender as LMCConnection;
+                    if (e.CurrentState != LMCConnectionState.Connected
+                        && eventConnection != null
+                        && eventConnection.IsConnected)
+                    {
+                        WriteLog(
+                            "Ignored stale connection-state event "
+                            + e.CurrentState
+                            + " from an older transport session.");
+                        return;
+                    }
+
                     WriteLog(
                         "Connection state "
                         + e.PreviousState
@@ -2216,6 +4808,106 @@ namespace LasalMotionControlApiExample
                         + (e.Exception == null
                             ? string.Empty
                             : ": " + e.Exception.Message));
+                    if (e.CurrentState != LMCConnectionState.Connected)
+                    {
+                        var recoveryIdentityReadOnlyDisconnect =
+                            IsRecoveryIdentityReadOnlyConnection(eventConnection);
+                        if (!recoveryIdentityReadOnlyDisconnect)
+                        {
+                            try
+                            {
+                                PreserveAxisCommandRecoveryAfterConnectionLoss(
+                                    sender as LMCConnection,
+                                    e.Exception,
+                                    "Connection state changed to "
+                                        + e.CurrentState);
+                            }
+                            catch (Exception axisCommandJournalError)
+                            {
+                                SetAxisCommandRecoveryJournalRuntimeError(
+                                    "connection-loss transition",
+                                    axisCommandJournalError);
+                            }
+                            try
+                            {
+                                if (HasActiveAxisPowerRecoveryRecord)
+                                {
+                                    PreserveAxisPowerRecoveryAfterConnectionLoss(
+                                        "Connection state changed to "
+                                        + e.CurrentState);
+                                }
+                            }
+                            catch (Exception axisJournalError)
+                            {
+                                if (string.IsNullOrEmpty(
+                                    axisPowerOnRecoveryJournalRuntimeError))
+                                {
+                                    SetAxisPowerOnRecoveryJournalRuntimeError(
+                                        "connection-loss transition",
+                                        axisJournalError);
+                                }
+                                else
+                                {
+                                    WriteLog(
+                                        "Axis Power On connection-loss journal transition failed; the active record remains fail-closed: "
+                                        + axisJournalError.Message);
+                                }
+                            }
+                            if (motionMayBeActive)
+                            {
+                                PromoteMotionUncertaintyJournal(
+                                    "Connection state changed to " + e.CurrentState,
+                                    true);
+                            }
+                            PromotePendingGroupProfileLockToRecovery(
+                                "Connection state changed to " + e.CurrentState);
+                            try
+                            {
+                                PreserveGroupPowerRecoveryAfterConnectionLoss(
+                                    "Connection state changed to "
+                                        + e.CurrentState);
+                            }
+                            catch (Exception groupPowerJournalError)
+                            {
+                                if (string.IsNullOrEmpty(
+                                    groupPowerRecoveryJournalRuntimeError))
+                                {
+                                    SetGroupPowerRecoveryJournalRuntimeError(
+                                        "connection-loss transition",
+                                        groupPowerJournalError);
+                                }
+                                else
+                                {
+                                    WriteLog(
+                                        "Group Power connection-loss journal transition failed; the active record remains fail-closed: "
+                                        + groupPowerJournalError.Message);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            WriteLog(
+                                "Recovery-identity read-only connection closed; "
+                                + "all durable recovery records were preserved without "
+                                + "promotion, resolution, replacement, or replay.");
+                        }
+                        ClearTopologyIoState();
+                        if (!recoveryIdentityReadOnlyDisconnect)
+                        {
+                            try
+                            {
+                                MarkDigitalOutputWriteConnectionLost();
+                                MarkActiveDiagnosticsMutationConnectionLost();
+                            }
+                            catch (Exception journalError)
+                            {
+                                WriteLog(
+                                    "Durable mutation connection-loss update failed; the active record remains fail-closed: "
+                                    + journalError.Message);
+                                RefreshDiagnosticsMutationJournalUi();
+                            }
+                        }
+                    }
                     UpdateUiState();
                 });
         }
@@ -2374,6 +5066,46 @@ namespace LasalMotionControlApiExample
         }
 
         private async Task<LMCReadStatusResult>
+            WaitForStablePowerOffAndStandstillAsync(
+                LMCSingleAxis currentAxis,
+                int timeoutMilliseconds)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(
+                timeoutMilliseconds);
+            var stableSamples = 0;
+            LMCReadStatusResult latest = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                latest = await currentAxis.ReadStatusResultAsync(
+                    CancellationToken.None);
+                EnsureAxisStatusSuccess(
+                    "Power Off and standstill verification",
+                    latest);
+                if (!latest.IsPowerOn && latest.IsStandstill)
+                {
+                    stableSamples++;
+                    if (stableSamples >= 3)
+                    {
+                        return latest;
+                    }
+                }
+                else
+                {
+                    stableSamples = 0;
+                }
+
+                await Task.Delay(50);
+            }
+
+            throw new TimeoutException(
+                currentAxis.AxisName
+                + " did not report three consecutive PowerOn=false and "
+                + "Standstill samples within "
+                + timeoutMilliseconds
+                + " ms.");
+        }
+
+        private async Task<LMCReadStatusResult>
             WaitForFiniteMotionCompletionAsync(
                 LMCSingleAxis currentAxis,
                 int trackingGeneration,
@@ -2401,8 +5133,15 @@ namespace LasalMotionControlApiExample
                     continue;
                 }
 
-                var status = await currentAxis.ReadStatusResultAsync(
-                    CancellationToken.None);
+                var monitorSafetyGeneration = safetyRequestGeneration;
+                LMCReadStatusResult status;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    monitorSafetyGeneration,
+                    "Finite motion completion monitor"))
+                {
+                    status = await currentAxis.ReadStatusResultAsync(
+                        CancellationToken.None);
+                }
                 if (!IsTrackedMotion(
                     currentAxis.AxisName,
                     trackingGeneration))
@@ -2516,8 +5255,15 @@ namespace LasalMotionControlApiExample
                     continue;
                 }
 
-                var status = await currentGroup.GroupReadStatusResultAsync(
-                    CancellationToken.None);
+                var monitorSafetyGeneration = safetyRequestGeneration;
+                LMCGroupReadStatusResult status;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    monitorSafetyGeneration,
+                    "Group motion completion monitor"))
+                {
+                    status = await currentGroup.GroupReadStatusResultAsync(
+                        CancellationToken.None);
+                }
                 if (!IsTrackedMotion(
                     currentGroup.GroupName,
                     trackingGeneration))
@@ -2559,12 +5305,31 @@ namespace LasalMotionControlApiExample
 
         private bool CanStartLiveCommand(string operation)
         {
-            if (HasUnresolvedD5SdoQualificationTicket)
+            var admission = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.NewLiveOrMutation);
+            if (!admission.IsAllowed)
+            {
+                WriteLog(
+                    CreateDiagnosticsAdmissionException(
+                        operation,
+                        admission).Message);
+                return false;
+            }
+
+            if (HasUnresolvedAxisCommandState())
             {
                 WriteLog(
                     operation
-                    + " blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
-                    + GetD5SdoResolutionGuidance());
+                    + " blocked by unresolved Axis Stop/Reset recovery. Use the matching status-only verification or safety takeover action.");
+                return false;
+            }
+
+            if (HasUnresolvedAxisPowerState())
+            {
+                WriteLog(
+                    operation
+                    + " blocked by unresolved Axis Power state. "
+                    + GetAxisPowerOnRecoveryGuidance());
                 return false;
             }
 
@@ -2583,15 +5348,46 @@ namespace LasalMotionControlApiExample
             return true;
         }
 
+        private bool CanStartMotionCommand(string operation)
+        {
+            if (!CanStartLiveCommand(operation))
+            {
+                return false;
+            }
+
+            if (MotionUncertaintyJournalCanArm)
+            {
+                return true;
+            }
+
+            WriteLog(
+                operation
+                + " blocked because the durable motion journal cannot arm. "
+                + GetMotionUncertaintyJournalGuidance());
+            return false;
+        }
+
         private int MarkMotionUncertain(
+            MotionUncertaintyTargetKind targetKind,
             string currentAxisName,
+            ushort targetReference,
             string operation)
         {
+            ArmMotionUncertaintyBeforeDispatch(
+                targetKind,
+                currentAxisName,
+                targetReference,
+                operation);
             motionTrackingGeneration++;
             motionMayBeActive = true;
             motionAxisName = currentAxisName;
             motionOperation = operation;
             motionWasObserved = false;
+            motionTargetKind = targetKind;
+            motionTargetReference = targetReference;
+            motionRecoveryRequiresExplicitSafetyCommand = false;
+            motionRecoverySafetyTrackingGeneration = 0;
+            motionRecoverySafetyGeneration = 0;
             WriteLog(
                 "SAFETY: "
                 + operation
@@ -2612,7 +5408,8 @@ namespace LasalMotionControlApiExample
                 && !response.IsSuccess
                 && IsTrackedMotionAxis(currentAxisName))
             {
-                ClearMotionWarning(operation + " was rejected by a valid response");
+                ClearMotionWarningAfterConfirmedNoMotion(
+                    operation + " was rejected by a valid response");
             }
         }
 
@@ -2627,13 +5424,22 @@ namespace LasalMotionControlApiExample
                 && !response.IsSuccess
                 && IsTrackedMotionAxis(currentAxisName))
             {
-                ClearMotionWarning(operation + " was rejected by a valid response");
+                ClearMotionWarningAfterConfirmedNoMotion(
+                    operation + " was rejected by a valid response");
             }
         }
 
-        private void ClearMotionWarning(
+        private void ClearMotionWarningAfterConfirmedNoMotion(
             string reason,
             int? expectedTrackingGeneration = null)
+        {
+            ClearMotionWarningCore(reason, expectedTrackingGeneration);
+        }
+
+        private void ClearMotionWarningCore(
+            string reason,
+            int? expectedTrackingGeneration = null,
+            Action afterMotionJournalResolvedBeforeVolatileClear = null)
         {
             if (!motionMayBeActive
                 || (expectedTrackingGeneration.HasValue
@@ -2643,11 +5449,22 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
+            EnsureExplicitMotionRecoverySafetyWasAccepted(reason);
+            ResolveMotionUncertaintyJournal(reason);
+            if (afterMotionJournalResolvedBeforeVolatileClear != null)
+            {
+                afterMotionJournalResolvedBeforeVolatileClear();
+            }
             motionTrackingGeneration++;
             motionMayBeActive = false;
             motionAxisName = null;
             motionOperation = null;
             motionWasObserved = false;
+            motionTargetKind = default(MotionUncertaintyTargetKind);
+            motionTargetReference = 0;
+            motionRecoveryRequiresExplicitSafetyCommand = false;
+            motionRecoverySafetyTrackingGeneration = 0;
+            motionRecoverySafetyGeneration = 0;
             WriteLog("Motion warning cleared: " + reason + ".");
             UpdateUiState();
         }
@@ -3158,8 +5975,9 @@ namespace LasalMotionControlApiExample
             }
 
             throw new InvalidOperationException(
-                "Run Group Power On, then Read Status until PowerOn=True "
-                + "is verified.");
+                "Run Group Power On and complete its three-sample PowerOn=True "
+                + "verification. If verification is pending, resume it without "
+                + "replaying 0x204A.");
         }
 
         private void EnsureGroupReadyForMotion()
@@ -3171,15 +5989,370 @@ namespace LasalMotionControlApiExample
                     "Set Identity (Configure) before Move Linear.");
             }
 
+            if (HasUnresolvedGroupProfileLockState())
+            {
+                throw new InvalidOperationException(
+                    "Move Linear is blocked while Group Enable/Disable proof or "
+                    + "durable profile-lock recovery is unresolved.");
+            }
+
             if (!groupProfileLocked)
             {
                 throw new InvalidOperationException(
-                    groupProfileLockVerificationPending
-                        ? "Run 5 Read Status until Enabled/Locked Standby=True "
+                    groupProfileLockRecoveryRequired
+                        ? "A Group Enable completion was discarded after a newer "
+                            + "safety request. Run Disable or complete stable Power "
+                            + "Off verification before Move Linear."
+                        : groupProfileLockVerificationPending
+                        ? "Resume Lock Verification until three consecutive "
+                            + "powered Locked Standby samples are verified "
                             + "before Move Linear."
-                        : "Enable (Lock Profile), then run 5 Read Status before "
-                            + "Move Linear.");
+                        : "Enable (Lock Profile) and wait for three consecutive "
+                            + "powered Locked Standby samples before Move Linear.");
             }
+        }
+
+        private LMCGroupEnableWaitContinuation
+            GetPendingGroupEnableWaitContinuation(
+                LMCGroupAxis currentGroup)
+        {
+            if (currentGroup == null)
+            {
+                pendingGroupEnableWaitContinuation = null;
+                groupProfileLockVerificationPending =
+                    groupProfileLockAcceptedRestartRecovery;
+                return null;
+            }
+
+            pendingGroupEnableWaitContinuation =
+                currentGroup.PendingGroupEnableWaitContinuation;
+            groupProfileLockVerificationPending =
+                groupProfileLockAcceptedRestartRecovery
+                || pendingGroupEnableWaitContinuation != null;
+            return pendingGroupEnableWaitContinuation;
+        }
+
+        private void PreservePendingGroupEnableWaitUi(
+            LMCGroupAxis currentGroup,
+            LMCGroupEnableWaitContinuation continuation,
+            string reason)
+        {
+            var durableRecord = groupProfileLockRecoveryJournal == null
+                ? null
+                : groupProfileLockRecoveryJournal.CurrentRecord;
+            var durableAccepted = durableRecord != null
+                && durableRecord.IsActive
+                && durableRecord.State
+                    == GroupProfileLockRecoveryState.AcceptedAwaitingProof;
+            var continuationReusable = durableAccepted
+                && currentGroup != null
+                && connection != null
+                && connection.IsConnected
+                && ReferenceEquals(group, currentGroup)
+                && ReferenceEquals(
+                    currentGroup.PendingGroupEnableWaitContinuation,
+                    continuation)
+                && continuation != null
+                && continuation.IsPending;
+
+            if (durableAccepted)
+            {
+                pendingGroupEnableWaitContinuation = continuationReusable
+                    ? continuation
+                    : null;
+                groupProfileLockAcceptedRestartRecovery =
+                    !continuationReusable;
+                groupProfileLockVerificationPending = true;
+                groupProfileLockRecoveryRequired = false;
+                groupProfileLockRecoveryGroupName = durableRecord.GroupName;
+                groupProfileLockRecoveryGroupReference =
+                    durableRecord.GroupReference;
+                groupProfileLockRecoveryEndpointIp =
+                    durableRecord.EndpointIp;
+                groupProfileLockRecoveryEndpointPort =
+                    durableRecord.EndpointPort;
+                groupProfileLockRecoveryDiagnosticsBootId =
+                    durableRecord.DiagnosticsBootId;
+                groupProfileLockRecoveryMapRevision =
+                    durableRecord.MapRevision;
+            }
+            else
+            {
+                pendingGroupEnableWaitContinuation = continuation;
+                groupProfileLockVerificationPending = continuation != null
+                    && continuation.IsPending;
+                ClearGroupProfileLockRecovery();
+            }
+            groupProfileLocked = false;
+
+            if (continuation == null)
+            {
+                return;
+            }
+
+            if (continuation.LastObservedStatus != null)
+            {
+                DisplayGroupStatus(continuation.LastObservedStatus);
+            }
+            else
+            {
+                TextGroupResult.Text =
+                    FormatResponse(continuation.Acknowledgement);
+            }
+
+            TextGroupResult.Text += Environment.NewLine
+                + "GroupEnable ACK is preserved; no 0x2047 replay is allowed. "
+                + "Polls="
+                + continuation.PollCount
+                + ", Stable="
+                + continuation.StableSampleCount
+                + "/"
+                + continuation.RequiredStableSampleCount
+                + (continuationReusable
+                    ? ". Resume Lock Verification in this session to send status "
+                        + "reads only."
+                    : ". The session continuation was discarded; reconnect to "
+                        + "the exact durable identity and resume status-only "
+                        + "verification.")
+                + Environment.NewLine
+                + "Pending reason: "
+                + reason;
+            WriteLog(
+                "Group Enable ACK preserved. Resume sends 0x2045 only; 0x2047 replay is blocked. "
+                + "Polls="
+                + continuation.PollCount
+                + ", Stable="
+                + continuation.StableSampleCount
+                + "/"
+                + continuation.RequiredStableSampleCount
+                + ", SessionContinuationReusable="
+                + continuationReusable
+                + ".");
+        }
+
+        private void CompleteGroupEnableWaitUi(
+            LMCGroupEnableWaitResult result)
+        {
+            if (result == null || result.FinalStatus == null)
+            {
+                throw new InvalidOperationException(
+                    "Group Enable verification returned no final status.");
+            }
+
+            ResolveGroupProfileLockRecoveryJournal(
+                "Group Enable verified Locked Standby");
+            pendingGroupEnableWaitContinuation = null;
+            groupProfileLockVerificationPending = false;
+            ClearGroupProfileLockRecovery();
+            groupProfileLocked = true;
+            groupStatusRefreshRequired = false;
+            DisplayGroupStatus(result.FinalStatus);
+            TextGroupResult.Text += Environment.NewLine
+                + "GroupEnable ACK accepted once; 0x2047 requests=1, Status polls="
+                + result.PollCount
+                + ", Stable="
+                + result.StableSampleCount
+                + "/"
+                + result.Continuation.RequiredStableSampleCount
+                + ", ReusedACK="
+                + result.ReusedAcceptedAcknowledgement
+                + ".";
+            WriteLog(
+                "Group Lock Ready verified with three consecutive powered Locked Standby samples. "
+                + "GroupEnable was sent once; Move Linear is now available.");
+        }
+
+        private void CompleteGroupEnableStatusOnlyRecoveryUi(
+            LMCGroupLockedStandbyWaitResult result)
+        {
+            var record = RequireActiveGroupProfileLockRecoveryRecord(
+                "Accepted Group Enable status-only recovery");
+            if (result == null
+                || result.FinalStatus == null
+                || !result.FinalStatus.IsSuccess
+                || !result.FinalStatus.IsPowerOn
+                || !result.FinalStatus.IsStandby
+                || result.StableSampleCount
+                    < result.RequiredStableSampleCount)
+            {
+                throw new InvalidOperationException(
+                    "Accepted Group Enable recovery returned no stable powered "
+                    + "Locked Standby proof.");
+            }
+
+            if (record.State
+                != GroupProfileLockRecoveryState.AcceptedAwaitingProof)
+            {
+                throw new InvalidOperationException(
+                    "Accepted Group Enable status proof cannot resolve a journal "
+                    + "that is no longer AcceptedAwaitingProof.");
+            }
+
+            ResolveGroupProfileLockRecoveryJournal(
+                "Accepted Group Enable status-only recovery");
+            pendingGroupEnableWaitContinuation = null;
+            groupProfileLockVerificationPending = false;
+            ClearGroupProfileLockRecovery();
+            groupProfileLocked = true;
+            groupStatusRefreshRequired = false;
+            groupActiveVerified = true;
+            DisplayGroupStatus(result.FinalStatus);
+            TextGroupResult.Text += Environment.NewLine
+                + "Accepted GroupEnable recovered with status-only proof; "
+                + "0x2047 requests=0, Status polls="
+                + result.StatusPollCount
+                + ", Stable="
+                + result.StableSampleCount
+                + "/"
+                + result.RequiredStableSampleCount
+                + ". Set Identity/Home Check state was not restored; Disable, "
+                + "then re-establish preparation before motion.";
+            WriteLog(
+                "Accepted Group Enable recovery verified three consecutive "
+                + "powered Locked Standby samples without replaying 0x2047. "
+                + "Process-local Set Identity/Home Check remains fail-closed; "
+                + "Disable and re-establish preparation before motion.");
+        }
+
+        private void MarkGroupProfileLockResultDiscarded(string operation)
+        {
+            PromoteGroupProfileLockRecoveryJournal(operation, true);
+            pendingGroupEnableWaitContinuation = null;
+            groupProfileLockVerificationPending = false;
+            groupProfileLockRecoveryRequired = true;
+            groupProfileLockRecoveryGroupName = group == null
+                ? TextGroupName.Text.Trim()
+                : group.GroupName;
+            groupProfileLocked = false;
+            TextGroupResult.Text += Environment.NewLine
+                + "Lock completion was discarded after a newer safety request. "
+                + "Do not replay 0x2047; run Disable or complete stable Power Off "
+                + "verification first.";
+            WriteLog(
+                operation
+                + " returned after a newer safety request. The stale lock result "
+                + "was not applied. Disable or stable Power Off verification is "
+                    + "required before another Enable.");
+        }
+
+        private void MarkGroupProfileLockCompletionOutcomeUncertain(
+            string operation)
+        {
+            PromoteGroupProfileLockRecoveryJournal(
+                operation + " completion outcome uncertainty");
+            pendingGroupEnableWaitContinuation = null;
+            groupProfileLockVerificationPending =
+                groupProfileLockAcceptedRestartRecovery;
+            if (string.IsNullOrWhiteSpace(
+                    groupProfileLockRecoveryGroupName))
+            {
+                groupProfileLockRecoveryGroupName = group == null
+                    ? TextGroupName.Text.Trim()
+                    : group.GroupName;
+            }
+
+            groupProfileLocked = false;
+            TextGroupResult.Text += Environment.NewLine
+                + (groupProfileLockAcceptedRestartRecovery
+                    ? "Group Enable ACK remains durably accepted. Reconnect to "
+                        + "the exact endpoint/group identity and resume status-only "
+                        + "verification; do not replay 0x2047."
+                    : "Group Enable completion could not be applied safely. Do not "
+                        + "replay 0x2047; reconnect to the durable endpoint/group "
+                        + "identity and run Disable or complete stable Power Off "
+                        + "verification.");
+        }
+
+        private void CompleteGroupPowerOnWaitUi(
+            LMCGroupPowerStateWaitResult result,
+            bool resumedAcceptedCommand)
+        {
+            if (result == null || result.FinalStatus == null)
+            {
+                throw new InvalidOperationException(
+                    "Group Power On verification returned no final status.");
+            }
+
+            groupPowerVerificationPending = false;
+            groupStatusRefreshRequired = false;
+            groupActiveVerified = true;
+            DisplayGroupStatus(result.FinalStatus);
+            TextGroupResult.Text += Environment.NewLine
+                + "Group Power On verified; Status polls="
+                + result.StatusPollCount
+                + ", Stable="
+                + result.StableSampleCount
+                + "/"
+                + result.RequiredStableSampleCount
+                + ", ResumedWithout0x204AReplay="
+                + resumedAcceptedCommand
+                + ".";
+            WriteLog(
+                "Group Power Ready/ACTIVE verified with three consecutive "
+                + "PowerOn=True samples. Set Identity is now available; 0x204A "
+                + "was not replayed by verification.");
+        }
+
+        private async Task ReconcilePendingGroupEnableSafeStateProofAsync(
+            LMCGroupAxis currentGroup,
+            long proofSafetyGeneration,
+            string observedState)
+        {
+            var continuation =
+                GetPendingGroupEnableWaitContinuation(currentGroup);
+            if (continuation == null)
+            {
+                return;
+            }
+
+            if (currentGroup.TryReleasePendingGroupEnableForRetry(
+                    continuation))
+            {
+                try
+                {
+                    await EnsureGroupProfileLockRecoveryIdentityAsync(
+                        currentGroup,
+                        "Pending Group Enable safe-state proof",
+                        true);
+                    if (proofSafetyGeneration != safetyRequestGeneration)
+                    {
+                        MarkGroupProfileLockResultDiscarded(
+                            "Pending Group Enable safe-state proof post-identity completion");
+                    }
+                    EnsureNoNewSafetyRequestBeforeResultApplication(
+                        proofSafetyGeneration,
+                        "Pending Group Enable safe-state proof post-identity completion");
+                    ResolveGroupProfileLockRecoveryJournal(
+                        "Pending Group Enable safe-state proof");
+                }
+                catch
+                {
+                    PromoteGroupProfileLockRecoveryJournal(
+                        "Pending Group Enable safe-state proof identity failure",
+                        true);
+                    throw;
+                }
+
+                pendingGroupEnableWaitContinuation = null;
+                groupProfileLockVerificationPending = false;
+                ClearGroupProfileLockRecovery();
+                groupProfileLocked = false;
+                WriteLog(
+                    "Pending Group Enable was released after stable safe-state proof ("
+                    + observedState
+                    + "). A new Enable may now be sent explicitly.");
+                return;
+            }
+
+            groupProfileLockVerificationPending = true;
+            WriteLog(
+                "Group Enable remains pending after "
+                + observedState
+                + ". Disabled proof="
+                + continuation.DisabledUnlockedSampleCount
+                + "/3, PowerOff proof="
+                + continuation.PoweredOffSampleCount
+                + "/3.");
         }
 
         private void ResetIdentityHomeCheckState()
@@ -3194,22 +6367,126 @@ namespace LasalMotionControlApiExample
 
         private void ResetGroupPreparationState()
         {
-            groupPowerVerificationPending = false;
-            groupPowerOffVerificationPending = false;
+            ClearGroupPowerSessionContinuation();
             groupStatusRefreshRequired = false;
             groupActiveVerified = false;
             groupIdentityConfigured = false;
             ResetIdentityHomeCheckState();
-            groupProfileLockVerificationPending = false;
-            groupProfileLockDisabledSamples = 0;
+            pendingGroupEnableWaitContinuation = null;
+            pendingGroupDisableWaitContinuation = null;
+            groupProfileLockVerificationPending =
+                groupProfileLockAcceptedRestartRecovery;
+            groupProfileUnlockVerificationPending =
+                groupProfileUnlockAcceptedRestartRecovery;
             groupProfileLocked = false;
+        }
+
+        private void ClearGroupProfileLockRecovery()
+        {
+            groupProfileLockAcceptedRestartRecovery = false;
+            groupProfileUnlockAcceptedRestartRecovery = false;
+            groupProfileLockRecoveryRequired = false;
+            groupProfileLockRecoveryGroupName = null;
+            ClearGroupProfileLockRecoveryIdentity();
+        }
+
+        private bool HasPendingAxisHandleBoundContinuation()
+        {
+            return (pendingAxisResetWaitContinuation != null
+                    && pendingAxisResetWaitContinuation.IsPending)
+                || (pendingAxisStopWaitContinuation != null
+                    && pendingAxisStopWaitContinuation.IsPending)
+                || (pendingAxisPowerOffWaitContinuation != null
+                    && pendingAxisPowerOffWaitContinuation.IsPending);
+        }
+
+        private bool HasPendingGroupProfileLockContinuation()
+        {
+            if (groupProfileLockVerificationPending
+                || groupProfileUnlockVerificationPending
+                || pendingGroupEnableWaitContinuation != null
+                || pendingGroupDisableWaitContinuation != null)
+            {
+                return true;
+            }
+
+            var currentGroup = group;
+            return currentGroup != null
+                && (currentGroup.PendingGroupEnableWaitContinuation != null
+                    || currentGroup.PendingGroupDisableWaitContinuation != null);
+        }
+
+        private bool HasUnresolvedGroupProfileLockState()
+        {
+            return groupProfileLockRecoveryRequired
+                || HasPendingGroupProfileLockContinuation()
+                || HasActiveGroupProfileLockRecoveryJournalRecord;
+        }
+
+        private void EnsureNoUnresolvedGroupProfileLockMutation(
+            string operation)
+        {
+            if (!HasUnresolvedGroupProfileLockState())
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                operation
+                + " is blocked while Group Enable verification or durable "
+                + "profile-lock recovery is unresolved. Run Disable or complete "
+                + "stable Power Off verification first.");
+        }
+
+        private string GetUnresolvedGroupProfileLockName()
+        {
+            if (!string.IsNullOrWhiteSpace(groupProfileLockRecoveryGroupName))
+            {
+                return groupProfileLockRecoveryGroupName;
+            }
+
+            var currentGroup = group;
+            if (currentGroup != null
+                && !string.IsNullOrWhiteSpace(currentGroup.GroupName))
+            {
+                return currentGroup.GroupName;
+            }
+
+            return TextGroupName == null
+                ? string.Empty
+                : TextGroupName.Text.Trim();
+        }
+
+        private void PromotePendingGroupProfileLockToRecovery(string reason)
+        {
+            if (!HasPendingGroupProfileLockContinuation()
+                && !HasActiveGroupProfileLockRecoveryJournalRecord)
+            {
+                return;
+            }
+
+            groupProfileLockRecoveryGroupName =
+                GetUnresolvedGroupProfileLockName();
+            pendingGroupEnableWaitContinuation = null;
+            groupProfileLocked = false;
+            PromoteGroupProfileLockRecoveryJournal(reason);
+            groupProfileLockVerificationPending =
+                groupProfileLockAcceptedRestartRecovery;
+            WriteLog(
+                reason
+                + " invalidated the session-bound Group Enable continuation. "
+                + (groupProfileLockAcceptedRestartRecovery
+                    ? "The ACK remains durably accepted; reconnect to the same "
+                        + "group and resume status-only verification without "
+                        + "replaying 0x2047."
+                    : "Do not replay 0x2047; reconnect to the same group and run "
+                        + "Disable or complete stable Power Off verification."));
         }
 
         private void InvalidateGroupPreparationAfterStatusFailure()
         {
             groupStatusRefreshRequired = true;
             groupActiveVerified = false;
-            groupProfileLockDisabledSamples = 0;
             groupProfileLocked = false;
             UpdateUiState();
         }
@@ -3218,6 +6495,13 @@ namespace LasalMotionControlApiExample
         {
             axis = null;
             group = null;
+            pendingAxisStopWaitContinuation = null;
+            pendingAxisResetWaitContinuation = null;
+            axisResetWaitInterferenceConfirmed = false;
+            InvalidateAxisCommandSessionContinuations();
+            pendingGroupStopWaitContinuation = null;
+            ClearAxisPowerSessionContinuation();
+            ClearMotionLookupIdentities();
             ResetGroupPreparationState();
             ClearDiagnosticsState();
             ClearReadOnlyApiState();
@@ -3254,6 +6538,495 @@ namespace LasalMotionControlApiExample
                 + result.AxisErrorId
                 + ", StatusWord=0x"
                 + result.StatusWord.ToString("X4");
+        }
+
+        private void AppendAxisResetWaitEvidence(
+            LMCAxisResetWaitEvidence evidence,
+            string summary)
+        {
+            if (evidence == null)
+            {
+                return;
+            }
+
+            TextAxisResult.Text += Environment.NewLine
+                + summary
+                + Environment.NewLine
+                + "Reset submission="
+                + evidence.SubmissionOutcome
+                + ", CommandMayHaveBeenSent="
+                + evidence.CommandMayHaveBeenSent
+                + Environment.NewLine
+                + "Status polls="
+                + evidence.StatusPollCount
+                + ", Stable AxisErrorId=0="
+                + evidence.StableErrorClearSampleCount
+                + "/"
+                + evidence.RequiredStableSampleCount
+                + Environment.NewLine
+                + "ResetMutationGeneration="
+                + evidence.ResetMutationGeneration
+                + ", ObservedMutationGeneration="
+                + evidence.ObservedMutationGeneration
+                + ", InterveningMutationDetected="
+                + evidence.InterveningMutationDetected
+                + Environment.NewLine
+                + "Boundary: this proves the LASAL AxisErrorId observation only; "
+                + "DS402 Fault and drive error-register clearance are not proven.";
+        }
+
+        private static LMCAxisResetWaitEvidence GetAxisResetWaitEvidence(
+            Exception error)
+        {
+            var rejected = error as LMCAxisResetRejectedException;
+            if (rejected != null)
+            {
+                return rejected.Evidence;
+            }
+
+            var submission = error as LMCAxisResetSubmissionException;
+            if (submission != null)
+            {
+                return submission.Evidence;
+            }
+
+            var timeout = error as LMCAxisResetWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Evidence;
+            }
+
+            var canceled = error as LMCAxisResetWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Evidence;
+            }
+
+            var interference = error as LMCAxisResetInterferenceException;
+            if (interference != null)
+            {
+                return interference.Evidence;
+            }
+
+            var status = error as LMCAxisResetStatusException;
+            return status == null ? null : status.Evidence;
+        }
+
+        private static LMCAxisResetWaitContinuation
+            GetAxisResetWaitContinuation(Exception error)
+        {
+            var timeout = error as LMCAxisResetWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Continuation;
+            }
+
+            var canceled = error as LMCAxisResetWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Continuation;
+            }
+
+            var interference = error as LMCAxisResetInterferenceException;
+            if (interference != null)
+            {
+                return interference.Continuation;
+            }
+
+            var status = error as LMCAxisResetStatusException;
+            return status == null ? null : status.Continuation;
+        }
+
+        private void AppendAxisPowerOnWaitEvidence(
+            LMCAxisPowerOnWaitEvidence evidence,
+            string summary)
+        {
+            if (evidence == null)
+            {
+                return;
+            }
+
+            TextAxisResult.Text += Environment.NewLine
+                + summary
+                + Environment.NewLine
+                + "Power On submission="
+                + evidence.SubmissionOutcome
+                + ", CommandMayHaveBeenSent="
+                + evidence.CommandMayHaveBeenSent
+                + Environment.NewLine
+                + "PowerOnAccepted="
+                + evidence.PowerOnAccepted
+                + ", AckPresent="
+                + (evidence.PowerOnAcknowledgement != null)
+                + Environment.NewLine
+                + "Status polls="
+                + evidence.StatusPollCount
+                + ", Stable PowerOn="
+                + evidence.StablePowerOnSampleCount
+                + "/"
+                + evidence.RequiredStableSampleCount
+                + Environment.NewLine
+                + "TransportInvalidatedAtDeadline="
+                + evidence.TransportInvalidatedAtDeadline
+                + Environment.NewLine
+                + "Boundary: ACK proves Power On acceptance only; stable "
+                + "PowerOn status and physical drive readiness require separate proof.";
+        }
+
+        private static LMCAxisPowerOnWaitEvidence
+            GetAxisPowerOnWaitEvidence(Exception error)
+        {
+            var rejected = error as LMCAxisPowerOnRejectedException;
+            if (rejected != null)
+            {
+                return rejected.Evidence;
+            }
+
+            var submission = error as LMCAxisPowerOnSubmissionException;
+            if (submission != null)
+            {
+                return submission.Evidence;
+            }
+
+            var timeout = error as LMCAxisPowerStateWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Evidence;
+            }
+
+            var canceled = error as LMCAxisPowerStateWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Evidence;
+            }
+
+            var status = error as LMCAxisPowerStateStatusException;
+            return status == null ? null : status.Evidence;
+        }
+
+        private void AppendAxisStopWaitEvidence(
+            LMCAxisStopWaitEvidence evidence,
+            string summary)
+        {
+            if (evidence == null)
+            {
+                return;
+            }
+
+            TextAxisResult.Text += Environment.NewLine
+                + summary
+                + Environment.NewLine
+                + "Stop submission="
+                + evidence.SubmissionOutcome
+                + ", CommandMayHaveBeenSent="
+                + evidence.CommandMayHaveBeenSent
+                + Environment.NewLine
+                + "StopAccepted="
+                + evidence.StopAccepted
+                + ", AckPresent="
+                + (evidence.StopAcknowledgement != null)
+                + Environment.NewLine
+                + "Status polls="
+                + evidence.StatusPollCount
+                + ", Stable Standstill="
+                + evidence.StableStandstillSampleCount
+                + "/"
+                + evidence.RequiredStableSampleCount
+                + Environment.NewLine
+                + "StopMutationGeneration="
+                + evidence.StopMutationGeneration
+                + ", ObservedMutationGeneration="
+                + evidence.ObservedMutationGeneration
+                + ", InterveningMutationDetected="
+                + evidence.InterveningMutationDetected
+                + Environment.NewLine
+                + "TransportInvalidatedAtDeadline="
+                + evidence.TransportInvalidatedAtDeadline
+                + Environment.NewLine
+                + "Boundary: this proves successful LASAL 0x2028 Standstill "
+                + "samples only; independent DS402 or physical-stop proof is "
+                + "not claimed.";
+        }
+
+        private void AppendAxisPowerOffWaitEvidence(
+            LMCAxisPowerOffWaitEvidence evidence,
+            string summary)
+        {
+            if (evidence == null)
+            {
+                return;
+            }
+
+            TextAxisResult.Text += Environment.NewLine
+                + summary
+                + Environment.NewLine
+                + "PowerOff submission="
+                + evidence.SubmissionOutcome
+                + ", CommandMayHaveBeenSent="
+                + evidence.CommandMayHaveBeenSent
+                + Environment.NewLine
+                + "PowerOffAccepted="
+                + evidence.PowerOffAccepted
+                + ", AckPresent="
+                + (evidence.PowerOffAcknowledgement != null)
+                + Environment.NewLine
+                + "Status polls="
+                + evidence.StatusPollCount
+                + ", Stable PowerOff+Standstill="
+                + evidence.StablePowerOffStandstillSampleCount
+                + "/"
+                + evidence.RequiredStableSampleCount
+                + Environment.NewLine
+                + "PowerOffMutationGeneration="
+                + evidence.PowerOffMutationGeneration
+                + ", ObservedMutationGeneration="
+                + evidence.ObservedMutationGeneration
+                + ", InterveningMutationDetected="
+                + evidence.InterveningMutationDetected
+                + Environment.NewLine
+                + "TransportInvalidatedAtDeadline="
+                + evidence.TransportInvalidatedAtDeadline
+                + Environment.NewLine
+                + "Boundary: this proves successful LASAL 0x2028 PowerOff and "
+                + "Standstill samples only; independent DS402 or physical-stop "
+                + "proof is not claimed.";
+        }
+
+        private static LMCAxisPowerOffWaitEvidence
+            GetAxisPowerOffWaitEvidence(Exception error)
+        {
+            var rejected = error as LMCAxisPowerOffRejectedException;
+            if (rejected != null)
+            {
+                return rejected.Evidence;
+            }
+
+            var submission = error as LMCAxisPowerOffSubmissionException;
+            if (submission != null)
+            {
+                return submission.Evidence;
+            }
+
+            var timeout = error as LMCAxisPowerOffWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Evidence;
+            }
+
+            var canceled = error as LMCAxisPowerOffWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Evidence;
+            }
+
+            var interference = error as LMCAxisPowerOffInterferenceException;
+            if (interference != null)
+            {
+                return interference.Evidence;
+            }
+
+            var status = error as LMCAxisPowerOffStatusException;
+            return status == null ? null : status.Evidence;
+        }
+
+        private static LMCAxisPowerOffWaitContinuation
+            GetAxisPowerOffWaitContinuation(Exception error)
+        {
+            var timeout = error as LMCAxisPowerOffWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Continuation;
+            }
+
+            var canceled = error as LMCAxisPowerOffWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Continuation;
+            }
+
+            var interference = error as LMCAxisPowerOffInterferenceException;
+            if (interference != null)
+            {
+                return interference.Continuation;
+            }
+
+            var status = error as LMCAxisPowerOffStatusException;
+            return status == null ? null : status.Continuation;
+        }
+
+        private static LMCAxisStopWaitEvidence GetAxisStopWaitEvidence(
+            Exception error)
+        {
+            var rejected = error as LMCAxisStopRejectedException;
+            if (rejected != null)
+            {
+                return rejected.Evidence;
+            }
+
+            var submission = error as LMCAxisStopSubmissionException;
+            if (submission != null)
+            {
+                return submission.Evidence;
+            }
+
+            var timeout = error as LMCAxisStopWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Evidence;
+            }
+
+            var canceled = error as LMCAxisStopWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Evidence;
+            }
+
+            var interference = error as LMCAxisStopInterferenceException;
+            if (interference != null)
+            {
+                return interference.Evidence;
+            }
+
+            var status = error as LMCAxisStopStatusException;
+            return status == null ? null : status.Evidence;
+        }
+
+        private static LMCAxisStopWaitContinuation
+            GetAxisStopWaitContinuation(Exception error)
+        {
+            var timeout = error as LMCAxisStopWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Continuation;
+            }
+
+            var canceled = error as LMCAxisStopWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Continuation;
+            }
+
+            var interference = error as LMCAxisStopInterferenceException;
+            if (interference != null)
+            {
+                return interference.Continuation;
+            }
+
+            var status = error as LMCAxisStopStatusException;
+            return status == null ? null : status.Continuation;
+        }
+
+        private void AppendGroupStopWaitEvidence(
+            string summary,
+            LMCGroupStopWaitEvidence evidence,
+            LMCGroupStopWaitContinuation continuation)
+        {
+            if (evidence == null)
+            {
+                return;
+            }
+
+            TextGroupResult.Text += Environment.NewLine
+                + summary
+                + Environment.NewLine
+                + "Group Stop submission="
+                + evidence.SubmissionOutcome
+                + ", CommandMayHaveBeenSent="
+                + evidence.CommandMayHaveBeenSent
+                + Environment.NewLine
+                + "StopAccepted="
+                + evidence.StopAccepted
+                + ", AckPresent="
+                + (evidence.StopAcknowledgement != null)
+                + Environment.NewLine
+                + "Status polls="
+                + evidence.StatusPollCount
+                + ", Stable Standby="
+                + evidence.StableStandbySampleCount
+                + "/"
+                + evidence.RequiredStableSampleCount
+                + Environment.NewLine
+                + "StopMutationGeneration="
+                + evidence.StopMutationGeneration
+                + ", ObservedMutationGeneration="
+                + evidence.ObservedMutationGeneration
+                + ", InterveningMutation="
+                + evidence.InterveningMutationDetected
+                + Environment.NewLine
+                + "TransportInvalidatedAtDeadline="
+                + evidence.TransportInvalidatedAtDeadline
+                + ", ContinuationPending="
+                + (continuation != null && continuation.IsPending)
+                + ", ContinuationSuperseded="
+                + (continuation != null && continuation.IsSuperseded)
+                + Environment.NewLine
+                + "Boundary: this proves successful LASAL 0x2045 Standby "
+                + "samples only; independent DS402 or physical-stop proof is "
+                + "not claimed.";
+        }
+
+        private static LMCGroupStopWaitEvidence GetGroupStopWaitEvidence(
+            Exception error)
+        {
+            var rejected = error as LMCGroupStopRejectedException;
+            if (rejected != null)
+            {
+                return rejected.Evidence;
+            }
+
+            var submission = error as LMCGroupStopSubmissionException;
+            if (submission != null)
+            {
+                return submission.Evidence;
+            }
+
+            var timeout = error as LMCGroupStopWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Evidence;
+            }
+
+            var canceled = error as LMCGroupStopWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Evidence;
+            }
+
+            var status = error as LMCGroupStopStatusException;
+            if (status != null)
+            {
+                return status.Evidence;
+            }
+
+            var interference = error as LMCGroupStopInterferenceException;
+            return interference == null ? null : interference.Evidence;
+        }
+
+        private static LMCGroupStopWaitContinuation
+            GetGroupStopWaitContinuation(Exception error)
+        {
+            var timeout = error as LMCGroupStopWaitTimeoutException;
+            if (timeout != null)
+            {
+                return timeout.Continuation;
+            }
+
+            var canceled = error as LMCGroupStopWaitCanceledException;
+            if (canceled != null)
+            {
+                return canceled.Continuation;
+            }
+
+            var status = error as LMCGroupStopStatusException;
+            if (status != null)
+            {
+                return status.Continuation;
+            }
+
+            var interference = error as LMCGroupStopInterferenceException;
+            return interference == null
+                ? null
+                : interference.Continuation;
         }
 
         private void DisplayGroupStatus(LMCGroupReadStatusResult result)
@@ -3527,7 +7300,9 @@ namespace LasalMotionControlApiExample
 
         private void UpdateUiState()
         {
-            if (shutdownInProgress || ButtonConnect == null)
+            if (!uiInitializationComplete
+                || shutdownInProgress
+                || ButtonConnect == null)
             {
                 return;
             }
@@ -3535,133 +7310,472 @@ namespace LasalMotionControlApiExample
             var currentConnection = connection;
             var connected = currentConnection != null
                 && currentConnection.IsConnected;
+            var recoveryIdentityReadOnly =
+                IsRecoveryIdentityReadOnlyConnection(currentConnection);
             var axisReady = connected && axis != null;
             var groupReady = connected && group != null;
+            pendingAxisPowerOnWaitContinuation = axisReady
+                ? axis.PendingPowerOnWaitContinuation
+                : null;
+            pendingGroupEnableWaitContinuation = groupReady
+                ? group.PendingGroupEnableWaitContinuation
+                : null;
+            pendingGroupDisableWaitContinuation = groupReady
+                ? group.PendingGroupDisableWaitContinuation
+                : null;
+            groupProfileLockVerificationPending =
+                groupProfileLockAcceptedRestartRecovery
+                || pendingGroupEnableWaitContinuation != null;
+            groupProfileUnlockVerificationPending =
+                groupProfileUnlockAcceptedRestartRecovery
+                || pendingGroupDisableWaitContinuation != null;
             var idle = !operationRunning
                 && !safetyCommandRunning
                 && safetyMonitorCount == 0
                 && !qualificationRunning;
             var safetySendAvailable = !safetyCommandRunning
-                && !connectionTransitionRunning;
-            var d5TicketUnresolved =
-                HasUnresolvedD5SdoQualificationTicket;
+                && !connectionTransitionRunning
+                && !recoveryIdentityReadOnly;
+            var diagnosticMutationUnresolved =
+                HasUnresolvedDiagnosticMutation;
+            var diagnosticMutationCommandInterlocked =
+                HasDiagnosticsMutationCommandInterlock;
+            var connectAdmission = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.ConnectOrReconnect);
+            var closeConnectionAdmission = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.CloseConnection);
             var liveCommandAllowed = idle
+                && !recoveryIdentityReadOnly
                 && !motionMayBeActive
-                && !d5TicketUnresolved;
-            var groupPowerTransitionPending = groupPowerVerificationPending
-                || groupPowerOffVerificationPending;
+                && !diagnosticMutationCommandInterlocked
+                && !AxisPowerOnRecoveryJournalUnavailable
+                && !AxisCommandRecoveryJournalUnavailable
+                && !GroupPowerRecoveryJournalUnavailable
+                && !HasUnresolvedAxisPowerState()
+                && !HasUnresolvedAxisCommandState()
+                && !HasUnresolvedGroupPowerState();
+            var axisPowerRecoveryRecord =
+                GetActiveAxisPowerRecoveryRecord();
+            var axisCommandRecoveryRecord =
+                GetActiveAxisCommandRecoveryRecord();
+            var exactPendingAxisReset =
+                GetExactPendingAxisResetContinuation(
+                    axis,
+                    axisCommandRecoveryRecord);
+            var exactPendingAxisStop =
+                GetExactPendingAxisStopContinuation(
+                    axis,
+                    axisCommandRecoveryRecord);
+            var groupPowerRecoveryRecord = HasActiveGroupPowerRecoveryRecord
+                ? groupPowerRecoveryJournal.CurrentRecord
+                : null;
+            var groupProfileRecoveryRecord =
+                HasActiveGroupProfileLockRecoveryJournalRecord
+                    ? groupProfileLockRecoveryJournal.CurrentRecord
+                    : null;
+            var groupPowerTransitionPending = HasUnresolvedGroupPowerState();
             var groupMotionCoordinateReady =
                 ComboGroupCoordinate.SelectedItem is LMC_COORD_SYSTEM
                     groupCoordinate
                 && groupCoordinate == LMC_COORD_SYSTEM.None;
 
             ButtonConnect.IsEnabled = idle
-                && !motionMayBeActive
-                && (!d5TicketUnresolved || !connected);
+                && (!motionMayBeActive
+                    || (MotionRecoveryReconnectAvailable && !connected))
+                && connectAdmission.IsAllowed
+                && (!HasUnresolvedGroupProfileLockState() || !connected)
+                && (!HasUnresolvedGroupPowerState() || !connected);
             ButtonCloseConnection.IsEnabled =
                 idle
                 && currentConnection != null
+                && closeConnectionAdmission.IsAllowed
+                && (recoveryIdentityReadOnly
+                    || (!motionMayBeActive
+                        && !groupPowerTransitionPending
+                        && !HasUnresolvedAxisPowerState()
+                        && !HasUnresolvedGroupProfileLockState()
+                        && !HasUnresolvedGroupPowerState()
+                        && !HasUnresolvedAxisCommandState()));
+            TextRemoteIp.IsEnabled = idle
+                && currentConnection == null
                 && !motionMayBeActive
-                && !d5TicketUnresolved
-                && !groupPowerTransitionPending;
-            TextRemoteIp.IsEnabled = idle && currentConnection == null;
-            TextRemotePort.IsEnabled = idle && currentConnection == null;
+                && !HasUnresolvedGroupProfileLockState()
+                && !HasActiveGroupPowerRecoveryRecord
+                && axisCommandRecoveryRecord == null
+                && axisPowerRecoveryRecord == null;
+            TextRemotePort.IsEnabled = idle
+                && currentConnection == null
+                && !motionMayBeActive
+                && !HasUnresolvedGroupProfileLockState()
+                && !HasActiveGroupPowerRecoveryRecord
+                && axisCommandRecoveryRecord == null
+                && axisPowerRecoveryRecord == null;
             TextLocalIp.IsEnabled = idle && currentConnection == null;
             TextCallbackPort.IsEnabled = idle && currentConnection == null;
 
-            TextAxisName.IsEnabled = idle && !motionMayBeActive;
-            ButtonLookupAxis.IsEnabled = connected && idle && !motionMayBeActive;
+            TextAxisName.IsEnabled = idle
+                && !motionMayBeActive
+                && axisPowerRecoveryRecord == null
+                && axisCommandRecoveryRecord == null
+                && !HasPendingAxisHandleBoundContinuation();
+            ButtonLookupAxis.IsEnabled = connected
+                && idle
+                && !recoveryIdentityReadOnly
+                && (!motionMayBeActive
+                    || (IsMotionRecoveryTargetKind(
+                            MotionUncertaintyTargetKind.Axis)
+                        && axis == null))
+                && (axisPowerRecoveryRecord == null || axis == null)
+                && (axisCommandRecoveryRecord == null || axis == null)
+                && !HasPendingAxisHandleBoundContinuation();
             ButtonReadStatus.IsEnabled = axisReady && idle;
             ButtonReadPosition.IsEnabled = axisReady && idle;
-            ButtonPowerOn.IsEnabled = axisReady && liveCommandAllowed;
-            ButtonPowerOff.IsEnabled = axisReady
+            var axisPowerOnResumeAvailable = axisReady
+                && idle
+                && axisPowerRecoveryRecord != null
+                && axisPowerRecoveryRecord.ExpectedPowerOn
+                && ((pendingAxisPowerOnWaitContinuation != null
+                        && pendingAxisPowerOnWaitContinuation.IsPending)
+                    || axisPowerOnAcceptedRestartRecovery)
+                && !axisPowerOnRecoveryRequired;
+            var axisPowerOnSendAvailable = axisReady
+                && liveCommandAllowed
+                && AxisPowerOnRecoveryJournalCanArm;
+            ButtonPowerOn.IsEnabled = axisPowerOnResumeAvailable
+                || axisPowerOnSendAvailable;
+            ButtonPowerOn.Content = axisPowerRecoveryRecord != null
+                    && (!axisPowerRecoveryRecord.ExpectedPowerOn
+                        || axisPowerOnRecoveryRequired)
+                ? "Power On Replay Blocked - Send Power Off"
+                : (axisPowerOnResumeAvailable
+                    ? "Resume Power On Verification (No 0x2023 Replay)"
+                    : "Power On");
+            var axisPowerOffStatusOnlyAvailable = axisReady
+                && idle
+                && axisPowerRecoveryRecord != null
+                && !axisPowerRecoveryRecord.ExpectedPowerOn
+                && !axisPowerOffReplacementAllowed;
+            var axisPowerOffSendAvailable = axisReady
                 && safetySendAvailable
+                && (axisPowerRecoveryRecord == null
+                    || axisPowerRecoveryRecord.ExpectedPowerOn
+                    || axisPowerOffReplacementAllowed)
                 && (!motionMayBeActive
-                    || IsTrackedMotionAxis(axis.AxisName));
-            ButtonReset.IsEnabled = axisReady && liveCommandAllowed;
-            ButtonStop.IsEnabled = axisReady
+                    || IsTrackedMotionTarget(axis));
+            ButtonPowerOff.IsEnabled = axisPowerOffStatusOnlyAvailable
+                || axisPowerOffSendAvailable;
+            ButtonPowerOff.Content = axisPowerOffReplacementAllowed
+                ? "Power Off Again (Confirmed Interference)"
+                : (axisPowerRecoveryRecord != null
+                        && !axisPowerRecoveryRecord.ExpectedPowerOn
+                    ? "Resume Power Off Verification (No 0x2023 Replay)"
+                    : (axisPowerRecoveryRecord != null
+                            && axisPowerRecoveryRecord.ExpectedPowerOn
+                        ? "Power Off Safety Takeover"
+                        : (AxisPowerOnRecoveryJournalUnavailable
+                            ? "Power Off (Durability Degraded)"
+                            : "Power Off")));
+            var axisResetResumeAvailable = axisReady
+                && idle
+                && axisCommandRecoveryRecord != null
+                && axisCommandRecoveryRecord.Operation
+                    == AxisCommandRecoveryOperation.Reset
+                && ((axisCommandRecoveryRecord.State
+                            == AxisCommandRecoveryState.AcceptedAwaitingProof
+                        && (exactPendingAxisReset != null
+                            || axisResetAcceptedRestartRecovery))
+                    || (axisCommandRecoveryRecord.State
+                            == AxisCommandRecoveryState.RecoveryRequired
+                        && exactPendingAxisReset != null))
+                && !axisResetWaitInterferenceConfirmed;
+            var axisResetRetryAvailable = axisReady
+                && idle
+                && axisCommandRecoveryRecord != null
+                && axisCommandRecoveryRecord.Operation
+                    == AxisCommandRecoveryOperation.Reset
+                && axisCommandRecoveryRecord.State
+                    == AxisCommandRecoveryState.RecoveryRequired
+                && (exactPendingAxisReset == null
+                    || axisResetWaitInterferenceConfirmed)
+                && !AxisCommandRecoveryJournalUnavailable;
+            var axisResetFreshAvailable = axisReady
+                && liveCommandAllowed
+                && AxisCommandRecoveryJournalCanArm;
+            ButtonReset.IsEnabled = axisResetResumeAvailable
+                || axisResetRetryAvailable
+                || axisResetFreshAvailable;
+            ButtonReset.Content = axisResetResumeAvailable
+                ? "Resume Reset Verification (No 0x2024 Replay)"
+                : (axisResetRetryAvailable
+                    ? (axisResetWaitInterferenceConfirmed
+                        ? "Reset Again (Confirmed Interference)"
+                        : "Retry Reset (Outcome Uncertain)")
+                    : (axisCommandRecoveryRecord != null
+                            && axisCommandRecoveryRecord.Operation
+                                == AxisCommandRecoveryOperation.Stop
+                        ? "Reset Blocked by Stop Recovery"
+                        : "Reset"));
+            var axisStopStatusOnlyAvailable = axisReady
+                && idle
+                && axisCommandRecoveryRecord != null
+                && axisCommandRecoveryRecord.Operation
+                    == AxisCommandRecoveryOperation.Stop
+                && ((axisCommandRecoveryRecord.State
+                            == AxisCommandRecoveryState.AcceptedAwaitingProof
+                        && (exactPendingAxisStop != null
+                            || axisStopAcceptedRestartRecovery))
+                    || (axisCommandRecoveryRecord.State
+                            == AxisCommandRecoveryState.RecoveryRequired
+                        && exactPendingAxisStop != null));
+            var axisStopRetryAvailable = axisReady
                 && safetySendAvailable
-                && (!motionMayBeActive
-                    || IsTrackedMotionAxis(axis.AxisName));
-            ButtonMoveAbsolute.IsEnabled = axisReady && liveCommandAllowed;
-            ButtonMoveRelative.IsEnabled = axisReady && liveCommandAllowed;
-            ButtonMoveVelocity.IsEnabled = axisReady && liveCommandAllowed;
+                && axisCommandRecoveryRecord != null
+                && axisCommandRecoveryRecord.Operation
+                    == AxisCommandRecoveryOperation.Stop
+                && axisCommandRecoveryRecord.State
+                    == AxisCommandRecoveryState.RecoveryRequired
+                && exactPendingAxisStop == null
+                && !AxisCommandRecoveryJournalUnavailable;
+            var axisStopTakeoverAvailable = axisReady
+                && safetySendAvailable
+                && axisCommandRecoveryRecord != null
+                && axisCommandRecoveryRecord.Operation
+                    == AxisCommandRecoveryOperation.Reset
+                && !AxisCommandRecoveryJournalUnavailable;
+            var axisStopFreshAvailable = axisReady
+                && safetySendAvailable
+                && axisCommandRecoveryRecord == null
+                && AxisCommandRecoveryJournalCanArm;
+            ButtonStop.IsEnabled = (axisStopStatusOnlyAvailable
+                    || axisStopRetryAvailable
+                    || axisStopTakeoverAvailable
+                    || axisStopFreshAvailable)
+                && (!motionMayBeActive || IsTrackedMotionTarget(axis));
+            ButtonStop.Content = axisStopStatusOnlyAvailable
+                ? "Resume Stop Verification (No 0x2022 Replay)"
+                : (axisStopRetryAvailable
+                    ? "Retry Stop (Outcome Uncertain)"
+                    : (axisStopTakeoverAvailable
+                        ? "Stop Safety Takeover"
+                        : "Stop"));
+            ButtonMoveAbsolute.IsEnabled = axisReady
+                && liveCommandAllowed
+                && MotionUncertaintyJournalCanArm;
+            ButtonMoveRelative.IsEnabled = axisReady
+                && liveCommandAllowed
+                && MotionUncertaintyJournalCanArm;
+            ButtonMoveVelocity.IsEnabled = axisReady
+                && liveCommandAllowed
+                && MotionUncertaintyJournalCanArm;
 
             ComboAxisUnit.IsEnabled = idle && !motionMayBeActive;
             TextPosition.IsEnabled = idle && !motionMayBeActive;
             TextVelocity.IsEnabled = idle && !motionMayBeActive;
             TextAcceleration.IsEnabled = idle && !motionMayBeActive;
             TextDeceleration.IsEnabled = !operationRunning
-                && !safetyCommandRunning;
+                && !safetyCommandRunning
+                && (axisCommandRecoveryRecord == null
+                    || axisCommandRecoveryRecord.Operation
+                        != AxisCommandRecoveryOperation.Stop);
             TextJerk.IsEnabled = !operationRunning
                 && !safetyCommandRunning;
             ComboDirection.IsEnabled = idle && !motionMayBeActive;
 
             TextGroupName.IsEnabled = idle
                 && !motionMayBeActive
-                && !groupPowerTransitionPending;
+                && !groupPowerTransitionPending
+                && !HasUnresolvedGroupProfileLockState()
+                && !HasActiveGroupPowerRecoveryRecord;
             ButtonLookupGroup.IsEnabled = connected
                 && idle
-                && !motionMayBeActive
-                && !groupPowerTransitionPending;
+                && !recoveryIdentityReadOnly
+                && (!motionMayBeActive
+                    || (IsMotionRecoveryTargetKind(
+                            MotionUncertaintyTargetKind.Group)
+                        && group == null))
+                && (!groupPowerTransitionPending || group == null)
+                && (!HasPendingGroupProfileLockContinuation()
+                    || HasAcceptedGroupProfileLockRecoveryRecord
+                    || HasAcceptedGroupProfileUnlockRecoveryRecord)
+                && (!groupProfileLockRecoveryRequired || group == null)
+                && (!HasActiveGroupPowerRecoveryRecord || group == null);
             ButtonGetMembers.IsEnabled = groupReady
                 && idle
                 && !motionMayBeActive
                 && !groupPowerOffVerificationPending;
             ButtonGroupReadStatus.IsEnabled = groupReady && idle;
             ButtonGroupReadStatus.Content = groupPowerOffVerificationPending
-                ? "7 Verify Power Off (Read Status)"
-                : "2 / 5 Read Status (Power Ready / Lock Ready)";
+                ? "Observe Pending Power Off (Single Status)"
+                : (groupPowerVerificationPending
+                    ? "Observe Pending Power On (Single Status)"
+                    : (groupProfileLockRecoveryRequired
+                        ? "Observe Lock State (Safe Recovery Required)"
+                        : (groupProfileLockVerificationPending
+                            ? "Verify Pending Lock State (Read Status)"
+                            : "2 / 5 Read Status (Power Ready / Lock Ready)")));
             ButtonGroupReadPosition.IsEnabled = groupReady
                 && idle
                 && !groupPowerOffVerificationPending;
-            ButtonGroupPowerOn.IsEnabled = groupReady
+            var groupPowerOnResumeAvailable = groupReady
+                && idle
+                && groupPowerRecoveryRecord != null
+                && groupPowerRecoveryRecord.ExpectedPowerOn
+                && (groupPowerRecoveryRecord.State
+                        == GroupPowerRecoveryState.AcceptedAwaitingProof
+                    || (pendingGroupPowerStateWaitContinuation != null
+                        && pendingGroupPowerStateWaitContinuation.IsPending
+                        && pendingGroupPowerStateWaitContinuation.ExpectedPowerOn
+                        && ReferenceEquals(
+                            group.PendingGroupPowerStateWaitContinuation,
+                            pendingGroupPowerStateWaitContinuation)))
+                && !groupPowerRecoveryRequired;
+            var groupPowerOnSendAvailable = groupReady
                 && liveCommandAllowed
                 && !groupActiveVerified
-                && !groupPowerVerificationPending
-                && !groupPowerOffVerificationPending
+                && groupPowerRecoveryRecord == null
+                && GroupPowerRecoveryJournalCanArm
                 && !groupStatusRefreshRequired
                 && !groupProfileLockVerificationPending
+                && !groupProfileLockRecoveryRequired
+                && !HasActiveGroupProfileLockRecoveryJournalRecord
                 && !groupProfileLocked;
-            ButtonGroupPowerOff.IsEnabled = groupReady
+            ButtonGroupPowerOn.IsEnabled = groupPowerOnResumeAvailable
+                || groupPowerOnSendAvailable;
+            ButtonGroupPowerOn.Content = groupPowerRecoveryRecord != null
+                    && groupPowerRecoveryRecord.ExpectedPowerOn
+                    && groupPowerRecoveryRequired
+                ? "Power On Replay Blocked - Send Power Off"
+                : (groupPowerOnResumeAvailable
+                    ? "Resume Power On Verification (No 0x204A Replay)"
+                    : "1 Power On");
+            var groupPowerOffStatusOnlyAvailable = groupReady
+                && idle
+                && groupPowerRecoveryRecord != null
+                && !groupPowerRecoveryRecord.ExpectedPowerOn
+                && !groupPowerOffReplacementAllowed;
+            var groupPowerOffTakeoverAvailable = groupReady
                 && safetySendAvailable
-                && !groupPowerOffVerificationPending
+                && groupPowerRecoveryRecord != null
+                && groupPowerRecoveryRecord.ExpectedPowerOn;
+            var groupPowerOffReplacementAvailable = groupReady
+                && safetySendAvailable
+                && groupPowerRecoveryRecord != null
+                && !groupPowerRecoveryRecord.ExpectedPowerOn
+                && groupPowerOffReplacementAllowed;
+            var groupPowerOffSendAvailable = groupReady
+                && safetySendAvailable
+                && groupPowerRecoveryRecord == null
+                && GroupPowerRecoveryJournalCanArm
                 && (!motionMayBeActive
-                    || IsTrackedMotionAxis(group.GroupName));
-            ButtonGroupEnable.IsEnabled = groupReady
+                    || IsTrackedMotionTarget(group));
+            ButtonGroupPowerOff.IsEnabled = groupPowerOffStatusOnlyAvailable
+                || groupPowerOffTakeoverAvailable
+                || groupPowerOffReplacementAvailable
+                || groupPowerOffSendAvailable;
+            ButtonGroupPowerOff.Content = groupPowerOffReplacementAvailable
+                ? "Power Off Again (Confirmed Interference)"
+                : (groupPowerOffTakeoverAvailable
+                    ? "Send Power Off Safety Takeover"
+                    : (groupPowerOffStatusOnlyAvailable
+                        ? "Resume Power Off Verification (No 0x204B Replay)"
+                        : "7 Power Off"));
+            var groupProfileLockResumeAvailable = groupReady
+                && liveCommandAllowed
+                && !groupPowerOffVerificationPending
+                && !groupProfileLockRecoveryRequired
+                && !GroupProfileLockRecoveryJournalUnavailable
+                && (groupProfileRecoveryRecord == null
+                    || groupProfileRecoveryRecord.ExpectedProfileLocked)
+                && ((pendingGroupEnableWaitContinuation != null
+                        && pendingGroupEnableWaitContinuation.IsPending)
+                    || HasAcceptedGroupProfileLockRecoveryRecord);
+            var groupProfileLockSendAvailable = groupReady
                 && liveCommandAllowed
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified
                 && groupIdentityConfigured
-                && !groupProfileLockVerificationPending
-                && !groupProfileLocked;
-            ButtonGroupDisable.IsEnabled = groupReady
+                && !groupProfileLockRecoveryRequired
+                && !groupProfileLocked
+                && GroupProfileLockRecoveryJournalCanArm;
+            ButtonGroupEnable.IsEnabled = groupProfileLockResumeAvailable
+                || groupProfileLockSendAvailable;
+            ButtonGroupEnable.Content = groupProfileLockRecoveryRequired
+                || (HasActiveGroupProfileLockRecoveryJournalRecord
+                    && !groupProfileLockVerificationPending)
+                ? "Lock State Uncertain - Safe Recovery Required"
+                : (groupProfileLockVerificationPending
+                    ? "Resume Lock Verification (No 0x2047 Replay)"
+                    : "4 Enable (Lock Profile)");
+            var groupProfileUnlockStatusOnlyAvailable =
+                groupProfileRecoveryRecord != null
+                && !groupProfileRecoveryRecord.ExpectedProfileLocked
+                && groupProfileRecoveryRecord.State
+                    == GroupProfileLockRecoveryState.AcceptedAwaitingProof
+                && ((pendingGroupDisableWaitContinuation != null
+                        && pendingGroupDisableWaitContinuation.IsPending)
+                    || HasAcceptedGroupProfileUnlockRecoveryRecord);
+            var groupProfileUnlockExplicitRetryAvailable =
+                groupProfileRecoveryRecord != null
+                && !groupProfileRecoveryRecord.ExpectedProfileLocked
+                && groupProfileRecoveryRecord.State
+                    == GroupProfileLockRecoveryState.RecoveryRequired
+                && !GroupProfileLockRecoveryJournalUnavailable;
+            var groupProfileUnlockTakeoverAvailable =
+                groupProfileRecoveryRecord != null
+                && groupProfileRecoveryRecord.ExpectedProfileLocked
+                && !GroupProfileLockRecoveryJournalUnavailable;
+            var groupProfileUnlockFreshSendAvailable =
+                groupProfileRecoveryRecord == null
+                && GroupProfileLockRecoveryJournalCanArm
+                && groupProfileLocked;
+            var groupProfileUnlockCommandAvailable = groupReady
                 && idle
                 && !motionMayBeActive
-                && !d5TicketUnresolved
+                && !diagnosticMutationCommandInterlocked
+                && !groupPowerTransitionPending
                 && !groupPowerOffVerificationPending
-                && groupProfileLocked;
+                && (groupProfileUnlockStatusOnlyAvailable
+                    || groupProfileUnlockExplicitRetryAvailable
+                    || groupProfileUnlockTakeoverAvailable
+                    || groupProfileUnlockFreshSendAvailable);
+            ButtonGroupDisable.IsEnabled =
+                groupProfileUnlockCommandAvailable;
+            ButtonGroupDisable.Content =
+                groupProfileUnlockStatusOnlyAvailable
+                ? "Resume Unlock Verification (No 0x2048 Replay)"
+                : (groupProfileUnlockExplicitRetryAvailable
+                    ? "Retry Disable Explicitly (0x2048)"
+                    : (groupProfileUnlockTakeoverAvailable
+                        ? "Disable (Lock-to-Unlock Takeover)"
+                        : (groupProfileRecoveryRecord != null
+                                && !groupProfileRecoveryRecord
+                                    .ExpectedProfileLocked
+                            ? "Disable Replay Blocked"
+                            : "Disable (Unlock Profile)")));
             ButtonGroupReset.IsEnabled = groupReady
                 && liveCommandAllowed
-                && !groupPowerTransitionPending;
+                && !groupPowerTransitionPending
+                && !HasUnresolvedGroupProfileLockState();
             ButtonGroupStop.IsEnabled = groupReady
                 && safetySendAvailable
                 && (!motionMayBeActive
-                    || IsTrackedMotionAxis(group.GroupName));
+                    || IsTrackedMotionTarget(group));
             ButtonGroupMoveLinear.IsEnabled = groupReady
                 && liveCommandAllowed
+                && MotionUncertaintyJournalCanArm
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified
                 && groupIdentityConfigured
-                && !groupProfileLockVerificationPending
+                && !HasUnresolvedGroupProfileLockState()
                 && groupProfileLocked
                 && groupMotionCoordinateReady;
             ButtonGroupMoveLinearRelative.IsEnabled = groupReady
                 && liveCommandAllowed
+                && MotionUncertaintyJournalCanArm
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified
                 && groupIdentityConfigured
-                && !groupProfileLockVerificationPending
+                && !HasUnresolvedGroupProfileLockState()
                 && groupProfileLocked
                 && groupMotionCoordinateReady;
             ButtonCheckKinHome.IsEnabled = groupReady
@@ -3672,6 +7786,8 @@ namespace LasalMotionControlApiExample
                 && !groupPowerOffVerificationPending
                 && groupActiveVerified
                 && !groupProfileLockVerificationPending
+                && !groupProfileLockRecoveryRequired
+                && !HasActiveGroupProfileLockRecoveryJournalRecord
                 && !groupProfileLocked;
 
             ComboGroupUnit.IsEnabled = idle && !motionMayBeActive;
@@ -3715,14 +7831,16 @@ namespace LasalMotionControlApiExample
                     : "Stopped, rejected="
                         + currentConnection.RejectedCallbackCount);
 
-            UpdateDiagnosticsUiState(connected, idle);
+            UpdateDiagnosticsUiState(currentConnection, connected, idle);
             UpdateReadOnlyApiUiState(connected, idle);
             UpdateQualificationUiState(connected, idle);
 
             var trackedGroup = motionMayBeActive
-                && group != null
-                && IsTrackedMotionAxis(group.GroupName);
-            TextMotionWarning.Text = motionMayBeActive
+                && motionTargetKind == MotionUncertaintyTargetKind.Group;
+            TextMotionWarning.Text = recoveryIdentityReadOnly
+                ? "SAFETY: RECOVERY IDENTITY READ-ONLY QUARANTINE. "
+                    + GetRecoveryIdentityReadOnlyGuidance()
+                : motionMayBeActive
                 ? "SAFETY: "
                     + motionOperation
                     + " may still be active on "
@@ -3730,10 +7848,23 @@ namespace LasalMotionControlApiExample
                     + (trackedGroup
                         ? ". Use Group Stop and verify InPosition."
                         : ". Use Stop or PowerOff and verify standstill.")
-                : d5TicketUnresolved
-                    ? "SAFETY: a D5 ticket, submission outcome, or Write readback is unresolved. New motion/diagnostic mutation and Close are blocked. "
-                        + GetD5SdoResolutionGuidance()
-                    : "Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion.";
+                : HasUnresolvedAxisPowerState()
+                    ? "SAFETY: " + GetAxisPowerOnRecoveryGuidance()
+                : AxisPowerOnRecoveryJournalUnavailable
+                    ? "SAFETY: " + GetAxisPowerOnRecoveryGuidance()
+                : HasUnresolvedGroupPowerState()
+                    ? "SAFETY: " + GetGroupPowerRecoveryGuidance()
+                : GroupPowerRecoveryJournalUnavailable
+                    ? "SAFETY: " + GetGroupPowerRecoveryGuidance()
+                : MotionUncertaintyJournalUnavailable
+                    ? "SAFETY: " + GetMotionUncertaintyJournalGuidance()
+                    : diagnosticMutationUnresolved
+                    ? "SAFETY: diagnostics mutation or durable recovery evidence is unresolved. New motion/diagnostic mutation and Close are blocked. "
+                        + GetUnresolvedDiagnosticMutationGuidance()
+                    : AnyDiagnosticsMutationJournalUnavailable
+                        ? "SAFETY: "
+                            + GetAnyDiagnosticsMutationJournalUnavailableGuidance()
+                        : "Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion.";
         }
 
         private string GetGroupPreparationStateText(bool groupReady)
@@ -3743,15 +7874,52 @@ namespace LasalMotionControlApiExample
                 return "Preparation: load the group first.";
             }
 
-            var powerState = groupStatusRefreshRequired
-                ? "Read Status failed, Power/Lock state unknown"
-                : (groupPowerOffVerificationPending
-                    ? "Power Off accepted/start only, Power Off pending"
-                    : (groupActiveVerified
-                        ? "Power Ready/ACTIVE verified"
-                        : (groupPowerVerificationPending
-                            ? "Power On accepted/start only, Power Ready pending"
-                            : "Power On required")));
+            var recoveryRecord = HasActiveGroupPowerRecoveryRecord
+                ? groupPowerRecoveryJournal.CurrentRecord
+                : null;
+            string powerState;
+            if (recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn
+                && groupPowerRecoveryRequired)
+            {
+                powerState = "Power On outcome uncertain, replay blocked";
+            }
+            else if (recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && groupPowerOffReplacementAllowed)
+            {
+                powerState =
+                    "Power Off proof interfered, explicit replacement allowed";
+            }
+            else if (recoveryRecord != null
+                && !recoveryRecord.ExpectedPowerOn
+                && groupPowerRecoveryRequired)
+            {
+                powerState =
+                    "Power Off outcome uncertain, status-only proof required";
+            }
+            else if (groupStatusRefreshRequired)
+            {
+                powerState = "Read Status failed, Power/Lock state unknown";
+            }
+            else if (groupPowerOffVerificationPending)
+            {
+                powerState =
+                    "Power Off accepted/start only, Power Off pending";
+            }
+            else if (groupActiveVerified)
+            {
+                powerState = "Power Ready/ACTIVE verified";
+            }
+            else if (groupPowerVerificationPending)
+            {
+                powerState =
+                    "Power On accepted/start only, Power Ready pending";
+            }
+            else
+            {
+                powerState = "Power On required";
+            }
             var identityState = groupIdentityConfigured
                 ? "identity configured"
                 : "identity not configured";
@@ -3760,25 +7928,58 @@ namespace LasalMotionControlApiExample
                     ? "identity axes referenced"
                     : "identity axis Home required")
                 : "identity Home not checked";
-            var profileState = groupProfileLocked
-                ? "profile locked/standby verified"
-                : (groupProfileLockVerificationPending
-                    ? "profile lock accepted, Lock Ready pending"
-                    : "profile unlocked");
+            var profileRecoveryRecord =
+                HasActiveGroupProfileLockRecoveryJournalRecord
+                    ? groupProfileLockRecoveryJournal.CurrentRecord
+                    : null;
+            var unlockProofPending =
+                groupProfileUnlockVerificationPending
+                || (profileRecoveryRecord != null
+                    && !profileRecoveryRecord.ExpectedProfileLocked
+                    && profileRecoveryRecord.State
+                        == GroupProfileLockRecoveryState
+                            .AcceptedAwaitingProof);
+            var profileState = unlockProofPending
+                ? "profile unlock accepted, Disabled proof pending"
+                : (groupProfileLocked
+                    ? "profile locked/standby verified"
+                    : (groupProfileLockRecoveryRequired
+                    ? "profile lock result stale, Disable or stable Power Off required"
+                    : (groupProfileLockVerificationPending
+                        ? "profile lock accepted, Lock Ready pending"
+                        : "profile unlocked")));
 
             string nextStep;
-            if (groupPowerOffVerificationPending)
+            if (recoveryRecord != null
+                && recoveryRecord.ExpectedPowerOn
+                && groupPowerRecoveryRequired)
             {
-                nextStep = "Next: Read Status until PowerOn=False.";
+                nextStep =
+                    "Next: Send Power Off Safety Takeover; do not replay 0x204A.";
+            }
+            else if (groupPowerOffReplacementAllowed)
+            {
+                nextStep =
+                    "Next: Power Off Again is allowed after confirmed interference.";
+            }
+            else if (groupPowerOffVerificationPending)
+            {
+                nextStep =
+                    "Next: Resume Power Off Verification (status reads only; no 0x204B replay).";
             }
             else if (groupStatusRefreshRequired)
             {
                 nextStep = "Next: Read Status to refresh the group state.";
             }
+            else if (unlockProofPending)
+            {
+                nextStep =
+                    "Next: Resume Unlock Verification (status reads only; no 0x2048 replay).";
+            }
             else if (!groupActiveVerified)
             {
                 nextStep = groupPowerVerificationPending
-                    ? "Next: Read Status until PowerOn=True."
+                    ? "Next: Resume Power On Verification (status reads only; no 0x204A replay)."
                     : "Next: Power On.";
             }
             else if (!groupIdentityConfigured)
@@ -3788,10 +7989,16 @@ namespace LasalMotionControlApiExample
                     ? "Next: Home the failed axes, then Set Identity."
                     : "Next: Set Identity (automatic Home Check).";
             }
+            else if (groupProfileLockRecoveryRequired)
+            {
+                nextStep =
+                    "Next: Disable or complete stable Power Off verification; "
+                    + "do not replay Enable.";
+            }
             else if (groupProfileLockVerificationPending)
             {
                 nextStep =
-                    "Next: 5 Read Status until Enabled/Locked Standby=True.";
+                    "Next: Resume Lock Verification (status reads only; no Enable replay).";
             }
             else if (!groupProfileLocked)
             {
@@ -3846,6 +8053,45 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
+            var recoveryIdentityReadOnlyExit =
+                IsRecoveryIdentityReadOnlyExitPermitted();
+            if (!recoveryIdentityReadOnlyExit
+                && HasUnresolvedAxisPowerState())
+            {
+                WriteLog(
+                    "Window close is blocked while Axis Power recovery is unresolved. "
+                    + GetAxisPowerOnRecoveryGuidance());
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyExit
+                && HasUnresolvedAxisCommandState())
+            {
+                WriteLog(
+                    "Window close is blocked while Axis Stop/Reset recovery is unresolved. Complete exact status-only proof or the explicit recovery action first.");
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyExit
+                && HasUnresolvedGroupProfileLockState())
+            {
+                WriteLog(
+                    "Window close is blocked while Group Enable is pending or the "
+                    + "profile-lock result is uncertain. Resume verification, run "
+                    + "Disable, or complete stable Power Off verification first.");
+                return;
+            }
+
+            if (!recoveryIdentityReadOnlyExit
+                && HasUnresolvedGroupPowerState())
+            {
+                WriteLog(
+                    "Window close is blocked while Group Power recovery is "
+                    + "unresolved. "
+                    + GetGroupPowerRecoveryGuidance());
+                return;
+            }
+
             if (operationRunning
                 || safetyCommandRunning
                 || safetyMonitorCount > 0
@@ -3865,21 +8111,27 @@ namespace LasalMotionControlApiExample
                 return;
             }
 
-            if (motionMayBeActive)
+            if (!recoveryIdentityReadOnlyExit && motionMayBeActive)
             {
                 WriteLog(
-                    "Window is closing while "
+                    "Window close is blocked while "
                     + motionOperation
                     + " may still be active on "
                     + motionAxisName
-                    + ". No Stop command is sent automatically.");
+                    + ". No Stop command is sent automatically. Reconnect to the "
+                    + "exact durable recovery identity, then use Stop or PowerOff "
+                    + "and verify the stable safe state first.");
+                return;
             }
 
-            if (HasUnresolvedD5SdoQualificationTicket)
+            var closeAdmission = EvaluateDiagnosticsAdmission(
+                DiagnosticsAdmissionOperation.CloseWindow);
+            if (!closeAdmission.IsAllowed)
             {
                 WriteLog(
-                    "Window close is blocked while a D5 ticket, submission outcome, or Write readback is unresolved. "
-                    + GetD5SdoResolutionGuidance());
+                    CreateDiagnosticsAdmissionException(
+                        "Window close",
+                        closeAdmission).Message);
                 return;
             }
 
@@ -3912,7 +8164,9 @@ namespace LasalMotionControlApiExample
             }
 
             allowWindowClose = true;
-            Close();
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Normal,
+                new Action(Close));
         }
 
         private sealed class IdentityAxisHomeStatus
