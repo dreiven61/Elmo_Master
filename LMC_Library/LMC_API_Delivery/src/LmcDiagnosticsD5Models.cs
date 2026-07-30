@@ -24,10 +24,11 @@ namespace LasalMotionControlLib
     }
 
     /// <summary>
-    /// Immutable failure context for LMCDiagnostics.SubmitSdo and
-    /// SubmitSdoAsync. The original exception object and type are preserved;
-    /// call TryGet with the caught exception to distinguish local preflight,
-    /// explicit PLC rejection, uncertain wire outcome, and an accepted ticket.
+    /// Immutable failure context for LMCDiagnostics.SubmitSdo,
+    /// SubmitSdoAsync, ReadSdoInline, and ReadSdoInlineAsync. The original
+    /// exception object and type are preserved; call TryGet with the caught
+    /// exception to distinguish local preflight, explicit PLC rejection,
+    /// uncertain wire outcome, and an accepted ticket.
     /// </summary>
     public sealed class LMCSdoSubmissionFailureContext
     {
@@ -635,6 +636,74 @@ namespace LasalMotionControlLib
         }
     }
 
+    [Flags]
+    public enum LMCSdoWritePolicyBlockers : uint
+    {
+        None = 0,
+        NoApprovedTarget = 1u << 0,
+        ConnectionUnavailable = 1u << 1,
+        CapabilityObservationUnavailable = 1u << 2,
+        CapabilityResponseInvalid = 1u << 3,
+        CapabilityObservationNotCurrent = 1u << 4,
+        SdoReadCapabilityMissing = 1u << 5,
+        SdoWriteCapabilityMissing = 1u << 6,
+        GeneralInlineReadCapabilityMissing = 1u << 7,
+        CapabilityIdentityInvalid = 1u << 8,
+        PayloadCapacityInsufficient = 1u << 9
+    }
+
+    /// <summary>
+    /// Immutable, no-wire evaluation of the SDK SDO Write policy and one
+    /// cached PLC capability observation. A successful evaluation only means
+    /// submission policy prerequisites are present; it does not prove axis,
+    /// drive-program, operator, journal, or physical safety conditions.
+    /// </summary>
+    public sealed class LMCSdoWritePolicyEvaluation
+    {
+        private readonly ReadOnlyCollection<LMCSdoWriteTarget>
+            approvedTargets;
+
+        internal LMCSdoWritePolicyEvaluation(
+            LMCSdoWritePolicyBlockers blockers,
+            IReadOnlyList<LMCSdoWriteTarget> approvedTargets)
+        {
+            if (approvedTargets == null)
+            {
+                throw new ArgumentNullException("approvedTargets");
+            }
+
+            var copiedTargets = new List<LMCSdoWriteTarget>(
+                approvedTargets.Count);
+            for (var index = 0; index < approvedTargets.Count; index++)
+            {
+                var target = approvedTargets[index];
+                if (target == null)
+                {
+                    throw new ArgumentException(
+                        "Approved SDO Write targets cannot contain null.",
+                        "approvedTargets");
+                }
+
+                copiedTargets.Add(target);
+            }
+
+            Blockers = blockers;
+            this.approvedTargets = copiedTargets.AsReadOnly();
+        }
+
+        public LMCSdoWritePolicyBlockers Blockers { get; private set; }
+
+        public bool CanAttemptSubmission
+        {
+            get { return Blockers == LMCSdoWritePolicyBlockers.None; }
+        }
+
+        public IReadOnlyList<LMCSdoWriteTarget> ApprovedTargets
+        {
+            get { return approvedTargets; }
+        }
+    }
+
     internal static class LMCDiagnosticsWritePolicy
     {
         // Enable a target only after its PLC mapping, drive-program ownership,
@@ -660,6 +729,100 @@ namespace LasalMotionControlLib
         internal static IReadOnlyList<LMCSdoWriteTarget> GetApprovedSdoWriteTargets()
         {
             return ApprovedSdoWriteTargets;
+        }
+
+        internal static LMCSdoWritePolicyEvaluation EvaluateSdoWritePolicy(
+            LMCDiagnostics owner,
+            long sessionGeneration,
+            bool isConnected,
+            LMCDiagnosticCapabilities capabilities,
+            IReadOnlyList<LMCSdoWriteTarget> approvedTargets)
+        {
+            if (owner == null)
+            {
+                throw new ArgumentNullException("owner");
+            }
+
+            if (approvedTargets == null)
+            {
+                throw new ArgumentNullException("approvedTargets");
+            }
+
+            var blockers = LMCSdoWritePolicyBlockers.None;
+            if (approvedTargets.Count == 0)
+            {
+                blockers |= LMCSdoWritePolicyBlockers.NoApprovedTarget;
+            }
+
+            if (!isConnected)
+            {
+                blockers |= LMCSdoWritePolicyBlockers.ConnectionUnavailable;
+            }
+
+            if (capabilities == null)
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .CapabilityObservationUnavailable;
+                return new LMCSdoWritePolicyEvaluation(
+                    blockers,
+                    approvedTargets);
+            }
+
+            if (capabilities.Response == null
+                || !capabilities.Response.IsSuccess)
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .CapabilityResponseInvalid;
+            }
+
+            if (!capabilities.IsBoundTo(owner, sessionGeneration)
+                || capabilities.ObservationSequence
+                    != owner.CurrentCapabilityObservationSequence)
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .CapabilityObservationNotCurrent;
+            }
+
+            if (!capabilities.Supports(LMCDiagnosticCapability.SDORead))
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .SdoReadCapabilityMissing;
+            }
+
+            if (!capabilities.Supports(LMCDiagnosticCapability.SDOWrite))
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .SdoWriteCapabilityMissing;
+            }
+
+            if (!capabilities.Supports(
+                LMCDiagnosticCapability.SDOReadGeneralInline))
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .GeneralInlineReadCapabilityMissing;
+            }
+
+            if (capabilities.DiagnosticsBootId == 0
+                || capabilities.MapRevision == 0)
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .CapabilityIdentityInvalid;
+            }
+
+            if (capabilities.MaxSdoDataBytes < 4
+                || capabilities.MaxRequestPayloadBytes
+                    < LMC_DiagnosticsFrame
+                        .SubmitSdoRequestHeaderPayloadLength + 4
+                || capabilities.MaxResponsePayloadBytes
+                    < LMC_DiagnosticsParser.OperationStatusPayloadLength)
+            {
+                blockers |= LMCSdoWritePolicyBlockers
+                    .PayloadCapacityInsufficient;
+            }
+
+            return new LMCSdoWritePolicyEvaluation(
+                blockers,
+                approvedTargets);
         }
 
         internal static void RequirePIWriteAllowed(LMCPIWriteRequest request)
@@ -1273,6 +1436,148 @@ namespace LasalMotionControlLib
         }
     }
 
+    /// <summary>
+    /// Immutable result of a bounded general-inline SDO Read. Submission ACK
+    /// alone never creates this result: Ticket and Status identify the same
+    /// successful terminal operation in the originating diagnostics session.
+    /// </summary>
+    public sealed class LMCSdoReadResult
+    {
+        private readonly byte[] resultData;
+
+        internal LMCSdoReadResult(
+            LMCOperationTicket ticket,
+            LMCOperationStatus status)
+        {
+            Ticket = ticket ?? throw new ArgumentNullException("ticket");
+            Status = status ?? throw new ArgumentNullException("status");
+
+            var request = ticket.SubmittedSdoRequest;
+            if (ticket.OperationKind != LMCOperationKind.SDORead
+                || request == null
+                || request.IsWrite
+                || (request.DataLength != 1
+                    && request.DataLength != 2
+                    && request.DataLength != 4))
+            {
+                throw new ArgumentException(
+                    "An inline SDO Read result requires a ticket with exact submitted Read provenance.",
+                    "ticket");
+            }
+
+            if (status.Response == null
+                || !status.Response.IsSuccess
+                || status.Response.ErrorId != 0
+                || status.Response.DetailCode != 0
+                || !status.IsBoundTo(
+                    ticket.Owner,
+                    ticket.ConnectionSessionGeneration)
+                || status.TicketId != ticket.TicketId
+                || status.OperationKind != LMCOperationKind.SDORead
+                || status.SubmitCycle != ticket.QueuedCycle
+                || status.DiagnosticsBootId != ticket.DiagnosticsBootId
+                || !status.IsTerminal
+                || !status.IsSuccessful
+                || status.State != LMCOperationState.Completed
+                || status.Outcome != LMCOperationOutcome.Success
+                || status.OperationErrorId != 0
+                || status.OperationDetail != 0
+                || status.ResultValueType != request.ValueType
+                || status.ResultValueType != ticket.ResultValueType
+                || status.ResultLength != request.DataLength
+                || status.ResultLength != ticket.RequestedResultLength)
+            {
+                throw new ArgumentException(
+                    "An inline SDO Read result requires the exact owner/session-bound successful terminal status for its ticket.",
+                    "status");
+            }
+
+            resultData = status.ResultData;
+            if (resultData.Length != request.DataLength)
+            {
+                throw new ArgumentException(
+                    "The terminal SDO Read data length does not match its request.",
+                    "status");
+            }
+
+            Request = request;
+        }
+
+        public LMCSdoRequest Request { get; private set; }
+        public LMCOperationTicket Ticket { get; private set; }
+        public LMCOperationStatus Status { get; private set; }
+        public LMCSignalValueType ValueType
+        {
+            get { return Request.ValueType; }
+        }
+
+        public ushort DataLength
+        {
+            get { return Request.DataLength; }
+        }
+
+        public byte[] ResultData
+        {
+            get { return (byte[])resultData.Clone(); }
+        }
+
+        /// <summary>
+        /// Returns the canonical scalar represented by ResultData. BitField
+        /// values use the corresponding unsigned CLR type.
+        /// </summary>
+        public object Value
+        {
+            get
+            {
+                switch (ValueType)
+                {
+                    case LMCSignalValueType.Bool:
+                        return resultData[0] != 0;
+                    case LMCSignalValueType.Int8:
+                        return unchecked((sbyte)resultData[0]);
+                    case LMCSignalValueType.UInt8:
+                    case LMCSignalValueType.BitField8:
+                        return resultData[0];
+                    case LMCSignalValueType.Int16:
+                        return unchecked((short)ReadUInt16(resultData));
+                    case LMCSignalValueType.UInt16:
+                    case LMCSignalValueType.BitField16:
+                        return ReadUInt16(resultData);
+                    case LMCSignalValueType.Int32:
+                        return unchecked((int)ReadUInt32(resultData));
+                    case LMCSignalValueType.UInt32:
+                    case LMCSignalValueType.BitField32:
+                        return ReadUInt32(resultData);
+                    case LMCSignalValueType.Real32:
+                        return ReadReal32(resultData);
+                    default:
+                        throw new InvalidOperationException(
+                            "The inline SDO Read result has an unsupported ValueType.");
+                }
+            }
+        }
+
+        private static ushort ReadUInt16(byte[] data)
+        {
+            return (ushort)(data[0] | (data[1] << 8));
+        }
+
+        private static uint ReadUInt32(byte[] data)
+        {
+            return (uint)data[0]
+                | ((uint)data[1] << 8)
+                | ((uint)data[2] << 16)
+                | ((uint)data[3] << 24);
+        }
+
+        private static float ReadReal32(byte[] data)
+        {
+            return BitConverter.ToSingle(
+                BitConverter.GetBytes(ReadUInt32(data)),
+                0);
+        }
+    }
+
     public sealed class LMCOperationTicket
     {
         internal LMCOperationTicket(
@@ -1287,7 +1592,8 @@ namespace LasalMotionControlLib
             ushort expectedResultLength,
             LMCSignalValueType expectedResultValueType,
             bool usesExtendedResultChunks = false,
-            ushort maxResultChunkDataBytes = 0)
+            ushort maxResultChunkDataBytes = 0,
+            LMCSdoRequest submittedSdoRequest = null)
         {
             if (ticketId == 0)
             {
@@ -1342,6 +1648,19 @@ namespace LasalMotionControlLib
                     "Inline operation tickets must not contain an SDO result chunk limit.");
             }
 
+            if (submittedSdoRequest != null)
+            {
+                var expectedSdoKind = submittedSdoRequest.IsWrite
+                    ? LMCOperationKind.SDOWrite
+                    : LMCOperationKind.SDORead;
+                if (operationKind != expectedSdoKind)
+                {
+                    throw new ArgumentException(
+                        "The submitted SDO request does not match the operation ticket kind.",
+                        "submittedSdoRequest");
+                }
+            }
+
             Owner = owner ?? throw new ArgumentNullException("owner");
             TicketId = ticketId;
             OperationKind = operationKind;
@@ -1354,6 +1673,7 @@ namespace LasalMotionControlLib
             ExpectedResultValueType = expectedResultValueType;
             UsesExtendedResultChunks = usesExtendedResultChunks;
             MaxResultChunkDataBytes = maxResultChunkDataBytes;
+            SubmittedSdoRequest = submittedSdoRequest;
         }
 
         public uint TicketId { get; private set; }
@@ -1405,6 +1725,7 @@ namespace LasalMotionControlLib
         internal ushort ExpectedResultLength { get; private set; }
         internal LMCSignalValueType ExpectedResultValueType { get; private set; }
         internal ushort MaxResultChunkDataBytes { get; private set; }
+        internal LMCSdoRequest SubmittedSdoRequest { get; private set; }
     }
 
     public sealed class LMCOperationStatus
@@ -1456,6 +1777,42 @@ namespace LasalMotionControlLib
         public LMCSignalValueType ResultValueType { get; private set; }
         public byte[] ResultData { get { return (byte[])resultData.Clone(); } }
         public uint DiagnosticsBootId { get; private set; }
+
+        internal LMCDiagnostics Owner { get; private set; }
+        internal long ConnectionSessionGeneration { get; private set; }
+
+        internal LMCOperationStatus BindProvenance(
+            LMCDiagnostics owner,
+            long connectionSessionGeneration)
+        {
+            if (owner == null)
+            {
+                throw new ArgumentNullException("owner");
+            }
+
+            if (Owner != null
+                && (!ReferenceEquals(Owner, owner)
+                    || ConnectionSessionGeneration
+                        != connectionSessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "Operation status is already bound to a different owner or session.");
+            }
+
+            Owner = owner;
+            ConnectionSessionGeneration = connectionSessionGeneration;
+            return this;
+        }
+
+        internal bool IsBoundTo(
+            LMCDiagnostics owner,
+            long connectionSessionGeneration)
+        {
+            return owner != null
+                && ReferenceEquals(Owner, owner)
+                && ConnectionSessionGeneration
+                    == connectionSessionGeneration;
+        }
 
         public bool IsTerminal
         {

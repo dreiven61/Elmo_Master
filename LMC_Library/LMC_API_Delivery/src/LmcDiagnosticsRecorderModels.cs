@@ -1,10 +1,176 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace LasalMotionControlLib
 {
+    public enum LMCRecorderAcceptedOperation
+    {
+        ConfigureRecorder = 0,
+        ConfigureRecoverableDoubleRecorder = 1,
+        StartRecorder = 2,
+        AdoptRecorder = 3,
+        AdoptActiveRecorder = 4,
+        AdoptEmptyRecorderConfiguration = 5
+    }
+
+    public enum LMCRecorderAcceptedResultKind
+    {
+        ConfigurationHandle = 0,
+        Identity = 1,
+        RecoveredConfigurationLease = 2
+    }
+
+    /// <summary>
+    /// Preserves an exact Recorder resource returned by the PLC when a newer
+    /// priority send prevents that resource from being published normally.
+    /// The original exception object and type are preserved. The accepted
+    /// resource is recovery-only and must be cleaned up in the same session or
+    /// reconciled from exact Recorder inventory after reconnect.
+    /// </summary>
+    public sealed class LMCRecorderAcceptedResultFailureContext
+    {
+        private static readonly object FailureContextSync = new object();
+        private static readonly ConditionalWeakTable<
+            Exception,
+            LMCRecorderAcceptedResultFailureContext> FailureContexts =
+                new ConditionalWeakTable<
+                    Exception,
+                    LMCRecorderAcceptedResultFailureContext>();
+
+        internal LMCRecorderAcceptedResultFailureContext(
+            LMCRecorderAcceptedOperation operation,
+            ushort command,
+            LMCRecorderConfigurationHandle configurationHandle,
+            LMCRecorderIdentity identity,
+            LMCRecoveredRecorderConfigurationLease recoveredConfigurationLease,
+            LMCRecorderConfigurationHandle sourceConfigurationHandle)
+        {
+            Operation = operation;
+            Command = command;
+            ConfigurationHandle = configurationHandle;
+            Identity = identity;
+            RecoveredConfigurationLease = recoveredConfigurationLease;
+            SourceConfigurationHandle = sourceConfigurationHandle;
+
+            var resultCount = (configurationHandle == null ? 0 : 1)
+                + (identity == null ? 0 : 1)
+                + (recoveredConfigurationLease == null ? 0 : 1);
+            if (resultCount != 1)
+            {
+                throw new ArgumentException(
+                    "An accepted Recorder failure requires exactly one result resource.");
+            }
+
+            if (configurationHandle != null)
+            {
+                ResultKind = LMCRecorderAcceptedResultKind.ConfigurationHandle;
+                AcceptedResult = configurationHandle;
+                DiagnosticsBootId = configurationHandle.DiagnosticsBootId;
+                MapRevision = configurationHandle.MapRevision;
+                ConfigId = configurationHandle.ConfigId;
+                ConfigRevision = configurationHandle.ConfigRevision;
+                OwnerSessionEpoch = configurationHandle.OwnerSessionEpoch;
+                RecoveryToken = configurationHandle.RecoveryToken;
+            }
+            else if (identity != null)
+            {
+                ResultKind = LMCRecorderAcceptedResultKind.Identity;
+                AcceptedResult = identity;
+                DiagnosticsBootId = identity.DiagnosticsBootId;
+                MapRevision = identity.MapRevision;
+                ConfigId = identity.ConfigId;
+                ConfigRevision = identity.ConfigRevision;
+                RecordId = identity.RecordId;
+                BufferId = identity.BufferId;
+                OwnerSessionEpoch = identity.OwnerSessionEpoch;
+                RecoveryToken = sourceConfigurationHandle == null
+                    ? Guid.Empty
+                    : sourceConfigurationHandle.RecoveryToken;
+            }
+            else
+            {
+                ResultKind = LMCRecorderAcceptedResultKind
+                    .RecoveredConfigurationLease;
+                AcceptedResult = recoveredConfigurationLease;
+                DiagnosticsBootId =
+                    recoveredConfigurationLease.DiagnosticsBootId;
+                MapRevision = recoveredConfigurationLease.MapRevision;
+                ConfigId = recoveredConfigurationLease.ConfigId;
+                ConfigRevision = recoveredConfigurationLease.ConfigRevision;
+                OwnerSessionEpoch =
+                    recoveredConfigurationLease.OwnerSessionEpoch;
+                PreviousOwnerSessionEpoch =
+                    recoveredConfigurationLease.PreviousOwnerSessionEpoch;
+                RecoveryToken = Guid.Empty;
+            }
+        }
+
+        public LMCRecorderAcceptedOperation Operation { get; private set; }
+        public ushort Command { get; private set; }
+        public LMCRecorderAcceptedResultKind ResultKind { get; private set; }
+        public object AcceptedResult { get; private set; }
+        public LMCRecorderConfigurationHandle ConfigurationHandle
+        {
+            get;
+            private set;
+        }
+        public LMCRecorderIdentity Identity { get; private set; }
+        public LMCRecoveredRecorderConfigurationLease
+            RecoveredConfigurationLease { get; private set; }
+        public LMCRecorderConfigurationHandle SourceConfigurationHandle
+        {
+            get;
+            private set;
+        }
+        public uint DiagnosticsBootId { get; private set; }
+        public uint MapRevision { get; private set; }
+        public uint ConfigId { get; private set; }
+        public uint ConfigRevision { get; private set; }
+        public uint RecordId { get; private set; }
+        public uint BufferId { get; private set; }
+        public uint OwnerSessionEpoch { get; private set; }
+        public uint PreviousOwnerSessionEpoch { get; private set; }
+        public Guid RecoveryToken { get; private set; }
+        public bool IsAcceptedResultRecoveryOnly { get { return true; } }
+
+        public static bool TryGet(
+            Exception exception,
+            out LMCRecorderAcceptedResultFailureContext context)
+        {
+            if (exception == null)
+            {
+                context = null;
+                return false;
+            }
+
+            return FailureContexts.TryGetValue(exception, out context);
+        }
+
+        internal static void Attach(
+            Exception exception,
+            LMCRecorderAcceptedResultFailureContext context)
+        {
+            if (exception == null)
+            {
+                throw new ArgumentNullException("exception");
+            }
+
+            if (context == null)
+            {
+                throw new ArgumentNullException("context");
+            }
+
+            lock (FailureContextSync)
+            {
+                FailureContexts.Remove(exception);
+                FailureContexts.Add(exception, context);
+            }
+        }
+    }
+
     public enum LMCRecorderState : ushort
     {
         Empty = 0,
@@ -62,6 +228,268 @@ namespace LasalMotionControlLib
     {
         None = 0,
         Crc32IsoHdlc = 1
+    }
+
+    public sealed class LMCRecorderBankInventoryEntry
+    {
+        internal LMCRecorderBankInventoryEntry(
+            uint recordId,
+            uint bufferId,
+            uint ownerSessionEpoch,
+            uint closedSessionEpoch,
+            LMCRecorderState state)
+        {
+            RecordId = recordId;
+            BufferId = bufferId;
+            OwnerSessionEpoch = ownerSessionEpoch;
+            ClosedSessionEpoch = closedSessionEpoch;
+            State = state;
+        }
+
+        public uint RecordId { get; private set; }
+        public uint BufferId { get; private set; }
+        public uint OwnerSessionEpoch { get; private set; }
+        public uint ClosedSessionEpoch { get; private set; }
+        public LMCRecorderState State { get; private set; }
+        public bool IsOwnerSessionClosed
+        {
+            get { return ClosedSessionEpoch == OwnerSessionEpoch; }
+        }
+    }
+
+    public sealed class LMCRecorderBankInventory
+    {
+        private readonly ReadOnlyCollection<LMCRecorderBankInventoryEntry>
+            occupiedBanks;
+
+        internal LMCRecorderBankInventory(
+            LMCDiagnosticsResponse response,
+            uint diagnosticsBootId,
+            uint configId,
+            uint configRevision,
+            uint mapRevision,
+            uint configurationOwnerSessionEpoch,
+            uint configurationClosedSessionEpoch,
+            LMCRecorderState configurationState,
+            LMCRecorderBufferMode bufferMode,
+            byte recorderBufferCount,
+            IList<LMCRecorderBankInventoryEntry> occupiedBanks)
+            : this(
+                response,
+                diagnosticsBootId,
+                configId,
+                configRevision,
+                mapRevision,
+                configurationOwnerSessionEpoch,
+                configurationClosedSessionEpoch,
+                configurationState,
+                bufferMode,
+                recorderBufferCount,
+                occupiedBanks,
+                Guid.Empty)
+        {
+        }
+
+        internal LMCRecorderBankInventory(
+            LMCDiagnosticsResponse response,
+            uint diagnosticsBootId,
+            uint configId,
+            uint configRevision,
+            uint mapRevision,
+            uint configurationOwnerSessionEpoch,
+            uint configurationClosedSessionEpoch,
+            LMCRecorderState configurationState,
+            LMCRecorderBufferMode bufferMode,
+            byte recorderBufferCount,
+            IList<LMCRecorderBankInventoryEntry> occupiedBanks,
+            Guid recoveryToken)
+        {
+            Response = response;
+            DiagnosticsBootId = diagnosticsBootId;
+            ConfigId = configId;
+            ConfigRevision = configRevision;
+            MapRevision = mapRevision;
+            ConfigurationOwnerSessionEpoch = configurationOwnerSessionEpoch;
+            ConfigurationClosedSessionEpoch = configurationClosedSessionEpoch;
+            ConfigurationState = configurationState;
+            BufferMode = bufferMode;
+            RecorderBufferCount = recorderBufferCount;
+            RecoveryToken = recoveryToken;
+            this.occupiedBanks = new ReadOnlyCollection<
+                LMCRecorderBankInventoryEntry>(occupiedBanks);
+        }
+
+        public LMCDiagnosticsResponse Response { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public uint ConfigId { get; private set; }
+        public uint ConfigRevision { get; private set; }
+        public uint MapRevision { get; private set; }
+        public uint ConfigurationOwnerSessionEpoch { get; private set; }
+        public uint ConfigurationClosedSessionEpoch { get; private set; }
+        public LMCRecorderState ConfigurationState { get; private set; }
+        public LMCRecorderBufferMode BufferMode { get; private set; }
+        public byte RecorderBufferCount { get; private set; }
+        public Guid RecoveryToken { get; private set; }
+        public bool IsRecoverable
+        {
+            get { return RecoveryToken != Guid.Empty; }
+        }
+        public IReadOnlyList<LMCRecorderBankInventoryEntry> OccupiedBanks
+        {
+            get { return occupiedBanks; }
+        }
+
+        public bool IsConfigurationOwnerSessionClosed
+        {
+            get
+            {
+                return ConfigurationClosedSessionEpoch
+                    == ConfigurationOwnerSessionEpoch;
+            }
+        }
+    }
+
+    public sealed class LMCRecoveredRecorderConfigurationLease
+    {
+        private const int ReleaseStateUsable = 0;
+        private const int ReleaseStateInProgress = 1;
+        private const int ReleaseStateReleased = 2;
+        private const int ReleaseStateOutcomeUnverified = 3;
+
+        private int releaseState;
+        private int acceptedResultRecoveryOnly;
+
+        internal LMCRecoveredRecorderConfigurationLease(
+            LMCDiagnosticsResponse response,
+            uint diagnosticsBootId,
+            uint configId,
+            uint configRevision,
+            uint mapRevision,
+            uint previousOwnerSessionEpoch,
+            uint ownerSessionEpoch,
+            LMCRecorderState state,
+            LMCRecorderBufferMode bufferMode,
+            byte recorderBufferCount,
+            long connectionSessionGeneration,
+            LMCDiagnostics owner)
+        {
+            AdoptionResponse = response;
+            DiagnosticsBootId = diagnosticsBootId;
+            ConfigId = configId;
+            ConfigRevision = configRevision;
+            MapRevision = mapRevision;
+            PreviousOwnerSessionEpoch = previousOwnerSessionEpoch;
+            OwnerSessionEpoch = ownerSessionEpoch;
+            InitialState = state;
+            BufferMode = bufferMode;
+            RecorderBufferCount = recorderBufferCount;
+            ConnectionSessionGeneration = connectionSessionGeneration;
+            Owner = owner;
+        }
+
+        public LMCDiagnosticsResponse AdoptionResponse { get; private set; }
+        public uint DiagnosticsBootId { get; private set; }
+        public uint ConfigId { get; private set; }
+        public uint ConfigRevision { get; private set; }
+        public uint MapRevision { get; private set; }
+        public uint PreviousOwnerSessionEpoch { get; private set; }
+        public uint OwnerSessionEpoch { get; private set; }
+        public LMCRecorderState InitialState { get; private set; }
+        public LMCRecorderBufferMode BufferMode { get; private set; }
+        public byte RecorderBufferCount { get; private set; }
+        public bool IsReleased
+        {
+            get { return Volatile.Read(ref releaseState) == ReleaseStateReleased; }
+        }
+        public bool IsReleaseOutcomeUnverified
+        {
+            get
+            {
+                return Volatile.Read(ref releaseState)
+                    == ReleaseStateOutcomeUnverified;
+            }
+        }
+        public bool IsAcceptedResultRecoveryOnly
+        {
+            get { return Volatile.Read(ref acceptedResultRecoveryOnly) != 0; }
+        }
+
+        internal long ConnectionSessionGeneration { get; private set; }
+        internal LMCDiagnostics Owner { get; private set; }
+
+        internal void EnsureUsable()
+        {
+            EnsureUsableForRecovery();
+            if (IsAcceptedResultRecoveryOnly)
+            {
+                throw new InvalidOperationException(
+                    "The accepted recovered Recorder configuration is recovery-only and can only be released.");
+            }
+        }
+
+        internal void EnsureUsableForRecovery()
+        {
+            var state = Volatile.Read(ref releaseState);
+            if (state == ReleaseStateReleased)
+            {
+                throw new InvalidOperationException(
+                    "The recovered Recorder configuration has already been released.");
+            }
+
+            if (state == ReleaseStateInProgress)
+            {
+                throw new InvalidOperationException(
+                    "The recovered Recorder configuration is currently being released.");
+            }
+
+            if (state == ReleaseStateOutcomeUnverified)
+            {
+                throw new InvalidOperationException(
+                    "The recovered Recorder configuration release outcome is unverified. Reconnect and reconcile exact inventory before any retry.");
+            }
+        }
+
+        internal void MarkAcceptedResultRecoveryOnly()
+        {
+            Volatile.Write(ref acceptedResultRecoveryOnly, 1);
+        }
+
+        internal void BeginRelease()
+        {
+            var prior = Interlocked.CompareExchange(
+                ref releaseState,
+                ReleaseStateInProgress,
+                ReleaseStateUsable);
+            if (prior != ReleaseStateUsable)
+            {
+                throw new InvalidOperationException(
+                    prior == ReleaseStateReleased
+                        ? "The recovered Recorder configuration has already been released."
+                        : prior == ReleaseStateOutcomeUnverified
+                            ? "The recovered Recorder configuration release outcome is unverified."
+                            : "The recovered Recorder configuration is currently being released.");
+            }
+        }
+
+        internal void CompleteRelease()
+        {
+            Volatile.Write(ref releaseState, ReleaseStateReleased);
+        }
+
+        internal void CancelRelease()
+        {
+            Interlocked.CompareExchange(
+                ref releaseState,
+                ReleaseStateUsable,
+                ReleaseStateInProgress);
+        }
+
+        internal void MarkReleaseOutcomeUnverified()
+        {
+            Volatile.Write(
+                ref releaseState,
+                ReleaseStateOutcomeUnverified);
+        }
     }
 
     [Flags]
@@ -475,9 +903,13 @@ namespace LasalMotionControlLib
         private const int ReleaseStateUsable = 0;
         private const int ReleaseStateInProgress = 1;
         private const int ReleaseStateReleased = 2;
+        private const int ReleaseStateOutcomeUnverified = 3;
 
         private readonly ReadOnlyCollection<uint> signalIds;
+        private readonly object lifecycleSync = new object();
         private int releaseState;
+        private int acceptedResultRecoveryOnly;
+        private bool startInProgress;
 
         internal LMCRecorderConfigurationHandle(
             LMCDiagnosticsResponse response,
@@ -497,6 +929,47 @@ namespace LasalMotionControlLib
             ushort maxChunkDataBytes,
             long connectionSessionGeneration,
             LMCDiagnostics owner)
+            : this(
+                response,
+                configuration,
+                diagnosticsBootId,
+                configId,
+                configRevision,
+                mapRevision,
+                acceptedCapacity,
+                samplePeriodUs,
+                reservedDataBytes,
+                state,
+                sampleStrideBytes,
+                recorderBufferCount,
+                capturePhase,
+                ownerSessionEpoch,
+                maxChunkDataBytes,
+                connectionSessionGeneration,
+                owner,
+                Guid.Empty)
+        {
+        }
+
+        internal LMCRecorderConfigurationHandle(
+            LMCDiagnosticsResponse response,
+            LMCRecorderConfiguration configuration,
+            uint diagnosticsBootId,
+            uint configId,
+            uint configRevision,
+            uint mapRevision,
+            uint acceptedCapacity,
+            uint samplePeriodUs,
+            uint reservedDataBytes,
+            LMCRecorderState state,
+            ushort sampleStrideBytes,
+            ushort recorderBufferCount,
+            LMCCapturePhase capturePhase,
+            uint ownerSessionEpoch,
+            ushort maxChunkDataBytes,
+            long connectionSessionGeneration,
+            LMCDiagnostics owner,
+            Guid recoveryToken)
         {
             ConfigurationResponse = response;
             Configuration = configuration;
@@ -515,6 +988,7 @@ namespace LasalMotionControlLib
             MaxChunkDataBytes = maxChunkDataBytes;
             ConnectionSessionGeneration = connectionSessionGeneration;
             Owner = owner;
+            RecoveryToken = recoveryToken;
 
             var copy = new uint[configuration.SignalIds.Count];
             for (var index = 0; index < copy.Length; index++)
@@ -541,9 +1015,26 @@ namespace LasalMotionControlLib
         public LMCCapturePhase CapturePhase { get; private set; }
         public uint OwnerSessionEpoch { get; private set; }
         public IReadOnlyList<uint> SignalIds { get { return signalIds; } }
+        public Guid RecoveryToken { get; private set; }
+        public bool IsRecoverable
+        {
+            get { return RecoveryToken != Guid.Empty; }
+        }
         public bool IsReleased
         {
             get { return Volatile.Read(ref releaseState) == ReleaseStateReleased; }
+        }
+        public bool IsReleaseOutcomeUnverified
+        {
+            get
+            {
+                return Volatile.Read(ref releaseState)
+                    == ReleaseStateOutcomeUnverified;
+            }
+        }
+        public bool IsAcceptedResultRecoveryOnly
+        {
+            get { return Volatile.Read(ref acceptedResultRecoveryOnly) != 0; }
         }
 
         internal ushort MaxChunkDataBytes { get; private set; }
@@ -551,6 +1042,16 @@ namespace LasalMotionControlLib
         internal LMCDiagnostics Owner { get; private set; }
 
         internal void EnsureUsable()
+        {
+            EnsureUsableForRecovery();
+            if (IsAcceptedResultRecoveryOnly)
+            {
+                throw new InvalidOperationException(
+                    "The accepted Recorder configuration is recovery-only and can only be released.");
+            }
+        }
+
+        internal void EnsureUsableForRecovery()
         {
             var state = Volatile.Read(ref releaseState);
             if (state == ReleaseStateReleased)
@@ -564,20 +1065,74 @@ namespace LasalMotionControlLib
                 throw new InvalidOperationException(
                     "The Recorder configuration is currently being released.");
             }
+
+            if (state == ReleaseStateOutcomeUnverified)
+            {
+                throw new InvalidOperationException(
+                    "The Recorder configuration release outcome is unverified. Reconnect and reconcile exact inventory before any retry.");
+            }
+        }
+
+        internal void MarkAcceptedResultRecoveryOnly()
+        {
+            Volatile.Write(ref acceptedResultRecoveryOnly, 1);
         }
 
         internal void BeginRelease()
         {
-            var prior = Interlocked.CompareExchange(
-                ref releaseState,
-                ReleaseStateInProgress,
-                ReleaseStateUsable);
-            if (prior != ReleaseStateUsable)
+            int prior;
+            lock (lifecycleSync)
             {
-                throw new InvalidOperationException(
-                    prior == ReleaseStateReleased
-                        ? "The Recorder configuration has already been released."
-                        : "The Recorder configuration is currently being released.");
+                if (startInProgress)
+                {
+                    throw new InvalidOperationException(
+                        "The Recorder configuration is currently being started.");
+                }
+
+                prior = Interlocked.CompareExchange(
+                    ref releaseState,
+                    ReleaseStateInProgress,
+                    ReleaseStateUsable);
+                if (prior != ReleaseStateUsable)
+                {
+                    throw new InvalidOperationException(
+                        prior == ReleaseStateReleased
+                            ? "The Recorder configuration has already been released."
+                            : prior == ReleaseStateOutcomeUnverified
+                                ? "The Recorder configuration release outcome is unverified."
+                                : "The Recorder configuration is currently being released.");
+                }
+            }
+        }
+
+        internal void BeginStart()
+        {
+            lock (lifecycleSync)
+            {
+                EnsureUsable();
+                if (startInProgress)
+                {
+                    throw new InvalidOperationException(
+                        "The Recorder configuration is already being started.");
+                }
+
+                startInProgress = true;
+            }
+        }
+
+        internal void CompleteStart()
+        {
+            lock (lifecycleSync)
+            {
+                startInProgress = false;
+            }
+        }
+
+        internal void CancelStart()
+        {
+            lock (lifecycleSync)
+            {
+                startInProgress = false;
             }
         }
 
@@ -593,6 +1148,13 @@ namespace LasalMotionControlLib
                 ReleaseStateUsable,
                 ReleaseStateInProgress);
         }
+
+        internal void MarkReleaseOutcomeUnverified()
+        {
+            Volatile.Write(
+                ref releaseState,
+                ReleaseStateOutcomeUnverified);
+        }
     }
 
     public sealed class LMCRecorderIdentity
@@ -600,14 +1162,17 @@ namespace LasalMotionControlLib
         private const int BufferStateUsable = 0;
         private const int BufferStateReleasing = 1;
         private const int BufferStateReleased = 2;
+        private const int BufferStateOutcomeUnverified = 3;
         private const int RecorderStateUsable = 0;
         private const int RecorderStateReleasing = 1;
         private const int RecorderStateReleased = 2;
+        private const int RecorderStateOutcomeUnverified = 3;
 
         private readonly object metadataSync = new object();
         private ReadOnlyCollection<uint> signalIds;
         private int bufferState;
         private int recorderReleaseState;
+        private int acceptedResultRecoveryOnly;
         private bool hasFrozenHeaderMetadata;
         private bool hasAcceptedStartCycleMetadata;
         private LMCRecorderDataCrcPolicy dataCrcPolicy;
@@ -698,6 +1263,14 @@ namespace LasalMotionControlLib
         {
             get { return Volatile.Read(ref bufferState) == BufferStateReleased; }
         }
+        public bool IsBufferReleaseOutcomeUnverified
+        {
+            get
+            {
+                return Volatile.Read(ref bufferState)
+                    == BufferStateOutcomeUnverified;
+            }
+        }
         public bool IsRecorderReleased
         {
             get
@@ -705,6 +1278,18 @@ namespace LasalMotionControlLib
                 return Volatile.Read(ref recorderReleaseState)
                     == RecorderStateReleased;
             }
+        }
+        public bool IsRecorderReleaseOutcomeUnverified
+        {
+            get
+            {
+                return Volatile.Read(ref recorderReleaseState)
+                    == RecorderStateOutcomeUnverified;
+            }
+        }
+        public bool IsAcceptedResultRecoveryOnly
+        {
+            get { return Volatile.Read(ref acceptedResultRecoveryOnly) != 0; }
         }
         public bool HasConfigurationMetadata
         {
@@ -765,11 +1350,28 @@ namespace LasalMotionControlLib
         }
         internal long ConnectionSessionGeneration { get; private set; }
         internal LMCDiagnostics Owner { get; private set; }
-        internal bool IsAdopted { get; private set; }
+        public bool IsAdopted { get; private set; }
 
         internal void EnsureUsable()
         {
-            if (Volatile.Read(ref recorderReleaseState) != RecorderStateUsable)
+            EnsureUsableForRecovery();
+            if (IsAcceptedResultRecoveryOnly)
+            {
+                throw new InvalidOperationException(
+                    "The accepted Recorder identity is recovery-only. Only status, stop, buffer release, and adopted configuration release are allowed.");
+            }
+        }
+
+        internal void EnsureUsableForRecovery()
+        {
+            var recorderState = Volatile.Read(ref recorderReleaseState);
+            if (recorderState == RecorderStateOutcomeUnverified)
+            {
+                throw new InvalidOperationException(
+                    "The Recorder configuration release outcome is unverified. Reconnect and reconcile exact inventory before any retry.");
+            }
+
+            if (recorderState != RecorderStateUsable)
             {
                 throw new InvalidOperationException(
                     "The Recorder configuration has been released or is being released.");
@@ -787,6 +1389,17 @@ namespace LasalMotionControlLib
                 throw new InvalidOperationException(
                     "The Recorder buffer is currently being released.");
             }
+
+            if (state == BufferStateOutcomeUnverified)
+            {
+                throw new InvalidOperationException(
+                    "The Recorder buffer release outcome is unverified. Reconnect and reconcile exact inventory before any retry.");
+            }
+        }
+
+        internal void MarkAcceptedResultRecoveryOnly()
+        {
+            Volatile.Write(ref acceptedResultRecoveryOnly, 1);
         }
 
         internal void BeginBufferRelease()
@@ -800,7 +1413,9 @@ namespace LasalMotionControlLib
                 throw new InvalidOperationException(
                     prior == BufferStateReleased
                         ? "The Recorder buffer has already been released."
-                        : "The Recorder buffer is currently being released.");
+                        : prior == BufferStateOutcomeUnverified
+                            ? "The Recorder buffer release outcome is unverified."
+                            : "The Recorder buffer is currently being released.");
             }
         }
 
@@ -817,6 +1432,13 @@ namespace LasalMotionControlLib
                 BufferStateReleasing);
         }
 
+        internal void MarkBufferReleaseOutcomeUnverified()
+        {
+            Volatile.Write(
+                ref bufferState,
+                BufferStateOutcomeUnverified);
+        }
+
         internal void BeginRecorderRelease()
         {
             var prior = Interlocked.CompareExchange(
@@ -828,7 +1450,9 @@ namespace LasalMotionControlLib
                 throw new InvalidOperationException(
                     prior == RecorderStateReleased
                         ? "The Recorder configuration has already been released."
-                        : "The Recorder configuration is currently being released.");
+                        : prior == RecorderStateOutcomeUnverified
+                            ? "The Recorder configuration release outcome is unverified."
+                            : "The Recorder configuration is currently being released.");
             }
         }
 
@@ -843,6 +1467,13 @@ namespace LasalMotionControlLib
                 ref recorderReleaseState,
                 RecorderStateUsable,
                 RecorderStateReleasing);
+        }
+
+        internal void MarkRecorderReleaseOutcomeUnverified()
+        {
+            Volatile.Write(
+                ref recorderReleaseState,
+                RecorderStateOutcomeUnverified);
         }
 
         internal void ApplyStatusMetadata(LMCRecorderStatus status)

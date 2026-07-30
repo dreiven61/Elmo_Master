@@ -9,9 +9,11 @@ namespace LasalMotionControlLib
     {
         private readonly LMCConnection connection;
         private readonly long sessionGeneration;
+        private readonly LMCAxisPowerOnWaitCoordinator powerOnWaitCoordinator;
 
         public string AxisName { get; private set; }
         public ushort AxisReference { get; private set; }
+        public LMCLookupResult LookupResult { get; private set; }
         public LMC_Response AxisInfoResponse { get; private set; }
 
         internal LMCConnection Connection
@@ -31,7 +33,11 @@ namespace LasalMotionControlLib
             EnsureCurrentSessionForUse();
 
             AxisName = axisName;
-            AxisReference = ResolveAxisReference(axisName);
+            LookupResult = ResolveAxisLookup(axisName);
+            AxisReference = LookupResult.Reference;
+            powerOnWaitCoordinator = connection.GetAxisPowerOnWaitCoordinator(
+                sessionGeneration,
+                AxisReference);
 
             EnsureCurrentSessionForUse();
             AxisInfoResponse = LMCConnection.ParseCommandAcknowledgement(
@@ -48,14 +54,18 @@ namespace LasalMotionControlLib
             LMCConnection connection,
             string axisName,
             long sessionGeneration,
-            ushort axisReference,
+            LMCLookupResult lookupResult,
             LMC_Response axisInfoResponse)
         {
             this.connection = connection;
             this.sessionGeneration = sessionGeneration;
             AxisName = axisName;
-            AxisReference = axisReference;
+            LookupResult = lookupResult;
+            AxisReference = lookupResult.Reference;
             AxisInfoResponse = axisInfoResponse;
+            powerOnWaitCoordinator = connection.GetAxisPowerOnWaitCoordinator(
+                sessionGeneration,
+                AxisReference);
         }
 
         public static async Task<LMCSingleAxis> CreateAsync(
@@ -71,40 +81,33 @@ namespace LasalMotionControlLib
             var generation = connection.SessionGeneration;
             connection.EnsureSessionGeneration(generation);
 
-            LMC_Response lookupResponse;
-            ushort axisReference;
             var lookupRaw = await connection.ExchangeAsync(
                 LMC_Frame.LMCAxisGetByName(axisName),
                 generation,
                 cancellationToken).ConfigureAwait(false);
-
-            if (!LMCConnection.TryParseLookupReference(
-                lookupRaw,
-                out lookupResponse,
-                out axisReference))
-            {
-                throw LMCConnection.CreateLookupFailureException(
-                    "Axis",
-                    axisName,
-                    lookupRaw);
-            }
+            var lookupResult = LMCConnection.ParseLookupResult(
+                LMCLookupTargetKind.Axis,
+                axisName,
+                lookupRaw);
 
             var axisInfoResponse = LMCConnection.ParseCommandAcknowledgement(
                 await connection.ExchangeAsync(
-                    LMC_Frame.LMCAxisInfo(axisReference),
+                    LMC_Frame.LMCAxisInfo(lookupResult.Reference),
                     generation,
                     cancellationToken).ConfigureAwait(false),
                 "AxisInfo");
 
             EnsureSuccess("AxisInfo", axisInfoResponse);
-            ValidateAxisInfoResponse(axisInfoResponse, axisReference);
+            ValidateAxisInfoResponse(
+                axisInfoResponse,
+                lookupResult.Reference);
             connection.EnsureSessionGeneration(generation);
 
             return new LMCSingleAxis(
                 connection,
                 axisName,
                 generation,
-                axisReference,
+                lookupResult,
                 axisInfoResponse);
         }
 
@@ -133,27 +136,35 @@ namespace LasalMotionControlLib
             }
         }
 
+        /// <summary>
+        /// Sends the legacy raw Axis Power On request. If an accepted-once
+        /// Power On continuation is pending, this method throws
+        /// LMCAxisPowerOnPendingException instead of replaying 0x2023. Use
+        /// PendingPowerOnWaitContinuation and the status-only resume or safe
+        /// Power Off resolution APIs first.
+        /// </summary>
         public LMC_Response PowerOn()
         {
-            return SendPower(true);
+            return SendPowerOnWithPendingGuard();
         }
 
+        /// <summary>
+        /// Asynchronous legacy raw Axis Power On with the same pending-
+        /// continuation replay guard as PowerOn().
+        /// </summary>
         public Task<LMC_Response> PowerOnAsync(CancellationToken cancellationToken)
         {
-            return SendAsync(
-                LMC_Frame.LMCAxisPower(AxisReference, true),
-                cancellationToken);
+            return SendPowerOnWithPendingGuardAsync(cancellationToken);
         }
 
         public LMC_Response PowerOff()
         {
-            return SendPower(false);
+            return SendPowerOffWithAcceptanceObserverGuard();
         }
 
         public Task<LMC_Response> PowerOffAsync(CancellationToken cancellationToken)
         {
-            return SendAsync(
-                LMC_Frame.LMCAxisPower(AxisReference, false),
+            return SendPowerOffWithAcceptanceObserverGuardAsync(
                 cancellationToken);
         }
 
@@ -291,21 +302,29 @@ namespace LasalMotionControlLib
         public LMCReadStatusResult ReadStatusResult()
         {
             EnsureCurrentSessionForUse();
-            return LMCConnection.ParseReadStatusResult(
+            var observationTarget =
+                CapturePendingPowerOnStatusObservation();
+            var result = LMCConnection.ParseReadStatusResult(
                 connection.Exchange(
                     LMC_Frame.LMCAxisReadStatus(AxisReference),
                     sessionGeneration));
+            ObservePendingPowerOnStatus(observationTarget, result);
+            return result;
         }
 
         public async Task<LMCReadStatusResult> ReadStatusResultAsync(
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            var observationTarget =
+                CapturePendingPowerOnStatusObservation();
             var raw = await connection.ExchangeAsync(
                 LMC_Frame.LMCAxisReadStatus(AxisReference),
                 sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
-            return LMCConnection.ParseReadStatusResult(raw);
+            var result = LMCConnection.ParseReadStatusResult(raw);
+            ObservePendingPowerOnStatus(observationTarget, result);
+            return result;
         }
 
         public int GetActualPosition()
@@ -339,31 +358,22 @@ namespace LasalMotionControlLib
             return LMCConnection.ParseReadActualPositionResult(raw);
         }
 
-        private ushort ResolveAxisReference(string axisName)
+        private LMCLookupResult ResolveAxisLookup(string axisName)
         {
             EnsureCurrentSessionForUse();
-            ushort axisReference;
             var lookupRaw = connection.Exchange(
                 LMC_Frame.LMCAxisGetByName(axisName),
                 sessionGeneration);
-
-            if (!LMCConnection.TryParseLookupReference(
-                lookupRaw,
-                out _,
-                out axisReference))
-            {
-                throw LMCConnection.CreateLookupFailureException(
-                    "Axis",
-                    axisName,
-                    lookupRaw);
-            }
-
-            return axisReference;
+            return LMCConnection.ParseLookupResult(
+                LMCLookupTargetKind.Axis,
+                axisName,
+                lookupRaw);
         }
 
         private LMC_Response SendPower(bool enable)
         {
-            return Send(LMC_Frame.LMCAxisPower(AxisReference, enable));
+            return SendWhileAxisMutationGateHeld(
+                LMC_Frame.LMCAxisPower(AxisReference, enable));
         }
 
         private LMC_Response SendReset()
@@ -450,9 +460,47 @@ namespace LasalMotionControlLib
         private LMC_Response Send(byte[] request)
         {
             EnsureCurrentSessionForUse();
-            return LMCConnection.ParseCommandAcknowledgement(
-                connection.Exchange(request, sessionGeneration),
+            powerOnWaitCoordinator.MutationGate.Wait();
+            try
+            {
+                EnsureCurrentSessionForUse();
+                return SendWhileAxisMutationGateHeld(request);
+            }
+            finally
+            {
+                powerOnWaitCoordinator.MutationGate.Release();
+            }
+        }
+
+        private LMC_Response SendWhileAxisMutationGateHeld(byte[] request)
+        {
+            EnsureAxisMutationAdmission(request);
+            var reservedMutationGeneration = 0L;
+            // Exchange invokes this callback after connection/session/priority
+            // admission and immediately before Stream.Write may start.
+            var raw = connection.Exchange(
+                request,
+                sessionGeneration,
+                () =>
+                {
+                    EnsureAxisMutationAdmission(request);
+                    reservedMutationGeneration = powerOnWaitCoordinator
+                        .MarkMutationMayHaveBeenSent();
+                });
+            var response = LMCConnection.ParseCommandAcknowledgement(
+                raw,
                 "Axis command");
+            if (!response.IsSuccess)
+            {
+                powerOnWaitCoordinator.TryRollbackRejectedMutation(
+                    reservedMutationGeneration);
+            }
+            LMC_Response publishedResponse = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_Frame.GetRequestCommand(request),
+                () => publishedResponse = response);
+            return publishedResponse;
         }
 
         private async Task<LMC_Response> SendAsync(
@@ -460,11 +508,107 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            cancellationToken.ThrowIfCancellationRequested();
+            await powerOnWaitCoordinator.MutationGate.WaitAsync(
+                cancellationToken).ConfigureAwait(false);
+            try
+            {
+                EnsureCurrentSessionForUse();
+                return await SendAsyncWhileAxisMutationGateHeld(
+                    request,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                powerOnWaitCoordinator.MutationGate.Release();
+            }
+        }
+
+        private async Task<LMC_Response>
+            SendAsyncWhileAxisMutationGateHeld(
+            byte[] request,
+            CancellationToken cancellationToken)
+        {
+            EnsureAxisMutationAdmission(request);
+            var reservedMutationGeneration = 0L;
+            // The callback is the raw async path's final write boundary; frame
+            // validation and queued/pre-write cancellation happen before it.
             var raw = await connection.ExchangeAsync(
                 request,
                 sessionGeneration,
-                cancellationToken).ConfigureAwait(false);
-            return LMCConnection.ParseCommandAcknowledgement(raw, "Axis command");
+                cancellationToken,
+                () =>
+                {
+                    EnsureAxisMutationAdmission(request);
+                    reservedMutationGeneration = powerOnWaitCoordinator
+                        .MarkMutationMayHaveBeenSent();
+                }).ConfigureAwait(false);
+            var response = LMCConnection.ParseCommandAcknowledgement(
+                raw,
+                "Axis command");
+            if (!response.IsSuccess)
+            {
+                powerOnWaitCoordinator.TryRollbackRejectedMutation(
+                    reservedMutationGeneration);
+            }
+            LMC_Response publishedResponse = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_Frame.GetRequestCommand(request),
+                () => publishedResponse = response);
+            return publishedResponse;
+        }
+
+        private void EnsureNoAxisAcceptedMutationObserverInProgress()
+        {
+            lock (powerOnWaitCoordinator.Sync)
+            {
+                EnsureNoAxisAcceptedMutationObserverInProgressCore();
+            }
+        }
+
+        private void EnsureAxisMutationAdmission(byte[] request)
+        {
+            lock (powerOnWaitCoordinator.Sync)
+            {
+                EnsureNoAxisAcceptedMutationObserverInProgressCore();
+                var command = LMC_Frame.GetRequestCommand(request);
+                var pendingStop = powerOnWaitCoordinator
+                    .PendingStopContinuation;
+                if ((command == LMC_CommandId.Reset
+                        || command == LMC_CommandId.Stop)
+                    && pendingStop != null
+                    && pendingStop.IsPending)
+                {
+                    throw new LMCAxisStopWaitPendingException(pendingStop);
+                }
+
+                var pendingReset = powerOnWaitCoordinator
+                    .PendingResetContinuation;
+                if ((command == LMC_CommandId.Stop
+                        || command == LMC_CommandId.Reset)
+                    && pendingReset != null
+                    && pendingReset.IsPending)
+                {
+                    throw new LMCAxisResetWaitPendingException(pendingReset);
+                }
+            }
+        }
+
+        private void EnsureNoAxisAcceptedMutationObserverInProgressCore()
+        {
+            if (powerOnWaitCoordinator.StopAcceptanceObserverInProgress)
+            {
+                throw new LMCAxisAcceptedObserverInProgressException(
+                    powerOnWaitCoordinator.PendingStopContinuation,
+                    null);
+            }
+            if (powerOnWaitCoordinator.ResetAcceptanceObserverInProgress)
+            {
+                throw new LMCAxisAcceptedObserverInProgressException(
+                    null,
+                    powerOnWaitCoordinator.PendingResetContinuation);
+            }
         }
 
         internal void EnsureCurrentSessionForUse()

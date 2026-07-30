@@ -578,7 +578,16 @@ namespace LasalMotionControlLib
                 || LMC_Frame.ReadUInt16(payload, offset + 10) != 0
                 || ((entryStatus & LMCSignalEntryStatus.Valid) != 0
                     && entryStatus != LMCSignalEntryStatus.Valid)
-                || (entryStatus == LMCSignalEntryStatus.Valid && detailCode != 0))
+                || (entryStatus == LMCSignalEntryStatus.Valid && detailCode != 0)
+                || (entryStatus != LMCSignalEntryStatus.Valid
+                    && (entryStatus & LMCSignalEntryStatus.SlaveOffline)
+                        == LMCSignalEntryStatus.SlaveOffline
+                    && detailCode
+                        != (uint)LMCDiagnosticsDetailCode.SlaveOffline)
+                || (entryStatus != LMCSignalEntryStatus.Valid
+                    && (entryStatus & LMCSignalEntryStatus.SlaveOffline) == 0
+                    && detailCode
+                        != (uint)LMCDiagnosticsDetailCode.NotReady))
             {
                 throw new InvalidDataException(
                     "Signal value entry contains invalid type, status, or detail fields.");
@@ -648,7 +657,7 @@ namespace LasalMotionControlLib
                             acknowledgement);
                     }
 
-                    throw new InvalidOperationException(
+                    throw new LMCDiagnosticsDispatchRejectedException(
                         commandName
                         + " was rejected before diagnostics dispatch. HeaderStatus="
                         + acknowledgement.HeaderStatus
@@ -656,17 +665,19 @@ namespace LasalMotionControlLib
                         + acknowledgement.CommandStatus
                         + ", ErrorId="
                         + acknowledgement.ErrorId
-                        + ".");
+                        + ".",
+                        acknowledgement);
                 }
             }
 
             if (transportResponse.HeaderStatus != 0)
             {
-                throw new InvalidOperationException(
+                throw new LMCDiagnosticsDispatchRejectedException(
                     commandName
                     + " was rejected by the RPC dispatcher. HeaderStatus="
                     + transportResponse.HeaderStatus
-                    + ".");
+                    + ".",
+                    transportResponse);
             }
 
             var response = ParseCommonResponse(

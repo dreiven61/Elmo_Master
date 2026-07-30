@@ -131,6 +131,10 @@ namespace LasalMotionControlLib
                 case LMC_CommandId.ConfigureRecorder:
                     return LMC_DiagnosticsParser.ConfigureRecorderResponsePayloadLength;
 
+                case LMC_CommandId.ConfigureRecoverableDoubleRecorder:
+                    return LMC_DiagnosticsParser
+                        .ConfigureRecoverableDoubleRecorderResponsePayloadLength;
+
                 case LMC_CommandId.StartRecorder:
                     return LMC_DiagnosticsParser.StartRecorderResponsePayloadLength;
 
@@ -139,6 +143,18 @@ namespace LasalMotionControlLib
 
                 case LMC_CommandId.AdoptRecorder:
                     return LMC_DiagnosticsParser.AdoptRecorderResponsePayloadLength;
+
+                case LMC_CommandId.ReadRecorderBankInventory:
+                    return LMC_DiagnosticsParser
+                        .RecorderBankInventoryResponsePayloadLength;
+
+                case LMC_CommandId.AdoptEmptyRecorderConfiguration:
+                    return LMC_DiagnosticsParser
+                        .AdoptEmptyRecorderConfigurationResponsePayloadLength;
+
+                case LMC_CommandId.ReadRecoverableRecorderBankInventory:
+                    return LMC_DiagnosticsParser
+                        .RecoverableRecorderBankInventoryResponsePayloadLength;
 
                 case LMC_CommandId.ReadRecorderHeader:
                     return LMC_DiagnosticsParser.RecorderHeaderResponseHeaderPayloadLength

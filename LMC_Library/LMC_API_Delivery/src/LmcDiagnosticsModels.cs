@@ -67,7 +67,8 @@ namespace LasalMotionControlLib
         IOReferenceNotFound = 28,
         OutputRevisionMismatch = 29,
         OutputMaskInvalid = 30,
-        RTOwnerUnavailable = 31
+        RTOwnerUnavailable = 31,
+        RecorderConfigurationAbsent = 32
     }
 
     public sealed class LMCDiagnosticsResponse
@@ -180,6 +181,55 @@ namespace LasalMotionControlLib
         public uint DiagnosticsBootId { get; private set; }
 
         internal long ConnectionSessionGeneration { get; private set; }
+        internal LMCDiagnostics Owner { get; private set; }
+
+        internal LMCDiagnosticCapabilities BindProvenance(
+            LMCDiagnostics owner,
+            long connectionSessionGeneration,
+            long observationSequence)
+        {
+            if (owner == null)
+            {
+                throw new ArgumentNullException("owner");
+            }
+
+            if (ConnectionSessionGeneration != connectionSessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics capabilities session provenance does not match the parsed session.");
+            }
+
+            if (observationSequence <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "observationSequence");
+            }
+
+            if (Owner != null
+                && (!ReferenceEquals(Owner, owner)
+                    || ObservationSequence != observationSequence))
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics capabilities are already bound to a different owner or observation.");
+            }
+
+            Owner = owner;
+            ObservationSequence = observationSequence;
+            return this;
+        }
+
+        internal bool IsBoundTo(
+            LMCDiagnostics owner,
+            long connectionSessionGeneration)
+        {
+            return owner != null
+                && ReferenceEquals(Owner, owner)
+                && ConnectionSessionGeneration
+                    == connectionSessionGeneration
+                && ObservationSequence > 0;
+        }
+
+        internal long ObservationSequence { get; private set; }
 
         public LMCDiagnosticCapability Capabilities
         {
@@ -218,6 +268,56 @@ namespace LasalMotionControlLib
         public LMCDiagnosticsResponse Response { get; private set; }
     }
 
+    public sealed class LMCRecorderConfigurationAbsentException
+        : LMCDiagnosticsCommandException
+    {
+        internal LMCRecorderConfigurationAbsentException(
+            string message,
+            LMCDiagnosticsResponse response,
+            uint diagnosticsBootId,
+            uint configId,
+            uint configRevision,
+            uint mapRevision,
+            Exception innerException)
+            : base(message, response, innerException)
+        {
+            DiagnosticsBootId = diagnosticsBootId;
+            ConfigId = configId;
+            ConfigRevision = configRevision;
+            MapRevision = mapRevision;
+        }
+
+        public uint DiagnosticsBootId { get; private set; }
+        public uint ConfigId { get; private set; }
+        public uint ConfigRevision { get; private set; }
+        public uint MapRevision { get; private set; }
+    }
+
+    public sealed class LMCRecoverableRecorderConfigurationAbsentException
+        : LMCDiagnosticsCommandException
+    {
+        internal LMCRecoverableRecorderConfigurationAbsentException(
+            string message,
+            LMCDiagnosticsResponse response,
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision,
+            Guid recoveryToken,
+            Exception innerException)
+            : base(message, response, innerException)
+        {
+            DiagnosticsBootId = diagnosticsBootId;
+            ConfigId = configId;
+            MapRevision = mapRevision;
+            RecoveryToken = recoveryToken;
+        }
+
+        public uint DiagnosticsBootId { get; private set; }
+        public uint ConfigId { get; private set; }
+        public uint MapRevision { get; private set; }
+        public Guid RecoveryToken { get; private set; }
+    }
+
     public sealed class LMCDiagnosticsNotSupportedException : NotSupportedException
     {
         internal LMCDiagnosticsNotSupportedException(
@@ -229,5 +329,19 @@ namespace LasalMotionControlLib
         }
 
         public LMC_Response Response { get; private set; }
+    }
+
+    internal sealed class LMCDiagnosticsDispatchRejectedException
+        : InvalidOperationException
+    {
+        internal LMCDiagnosticsDispatchRejectedException(
+            string message,
+            LMC_Response response)
+            : base(message)
+        {
+            Response = response;
+        }
+
+        internal LMC_Response Response { get; private set; }
     }
 }

@@ -17,7 +17,7 @@ namespace LasalMotionControlLib
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -39,6 +39,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,
@@ -65,7 +66,7 @@ namespace LasalMotionControlLib
             ValidateCatalogChunkRequest(maxEntries);
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -101,6 +102,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,
@@ -132,7 +134,7 @@ namespace LasalMotionControlLib
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -152,7 +154,9 @@ namespace LasalMotionControlLib
                 GetCatalogChunkLimit(capabilities));
             ValidateCatalogMapRevision(sessionGeneration, info, entries);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return new LMCSignalCatalog(info, entries);
+            return new LMCSignalCatalog(info, entries).BindProvenance(
+                this,
+                sessionGeneration);
         }
 
         public async Task<LMCSignalCatalog> GetSignalCatalogAsync(
@@ -161,6 +165,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,
@@ -184,14 +189,16 @@ namespace LasalMotionControlLib
                 cancellationToken).ConfigureAwait(false);
             ValidateCatalogMapRevision(sessionGeneration, info, entries);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return new LMCSignalCatalog(info, entries);
+            return new LMCSignalCatalog(info, entries).BindProvenance(
+                this,
+                sessionGeneration);
         }
 
         public LMCEtherCATHealth ReadEtherCATHealth()
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -218,6 +225,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,
@@ -244,7 +252,7 @@ namespace LasalMotionControlLib
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -271,7 +279,7 @@ namespace LasalMotionControlLib
             RequireExactPublicMapRevision(expectedMapRevision);
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateD1Capabilities(
                 capabilities,
                 sessionGeneration,
@@ -347,6 +355,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,
@@ -376,6 +385,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateD1Capabilities(
                 capabilities,

@@ -9,3 +9,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyFileVersion("0.9.1.0")]
 [assembly: AssemblyInformationalVersion("0.9.1-preview")]
 [assembly: InternalsVisibleTo("LasalMotionControlLib.Tests")]
+[assembly: InternalsVisibleTo("LasalMotionControlApiExample")]

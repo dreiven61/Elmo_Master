@@ -38,7 +38,7 @@ namespace LasalMotionControlLib
 
         private const ushort KnownResponseFlagsMask = 0x0003;
         private const uint MaximumDefinedDetailCode =
-            (uint)LMCDiagnosticsDetailCode.RTOwnerUnavailable;
+            (uint)LMCDiagnosticsDetailCode.RecorderConfigurationAbsent;
         private const uint StatefulCapabilityMask =
             (uint)(LMCDiagnosticCapability.BulkSnapshot
                 | LMCDiagnosticCapability.RecorderSingleBank

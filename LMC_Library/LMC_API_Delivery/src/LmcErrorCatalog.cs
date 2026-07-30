@@ -327,6 +327,10 @@ namespace LasalMotionControlLib
             AddDiagnostic(entries, LMCDiagnosticsDetailCode.RTOwnerUnavailable,
                 "The real-time owner required for the diagnostics operation is unavailable.",
                 "Restore the owning cyclic task or service before retrying.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.RecorderConfigurationAbsent,
+                "The exact Recorder configuration is absent and the Recorder store is canonically empty.",
+                "For 0x7E4A, require a previously persisted exact configuration Release intent. For token-qualified 0x7E4D, resolve only the matching pre-dispatch recovery token without issuing Release.");
 
             return entries;
         }

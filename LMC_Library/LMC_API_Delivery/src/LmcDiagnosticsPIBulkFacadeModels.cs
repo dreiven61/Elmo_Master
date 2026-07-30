@@ -141,13 +141,14 @@ namespace LasalMotionControlLib
 
         public LMCPIBulkReader Configure()
         {
+            diagnostics.RequireCurrentSignalCatalog(catalog);
             var signalIds = BeginConfigure();
 
             try
             {
                 var configuration = diagnostics.ConfigureBulkExact(
                     signalIds,
-                    catalog.MapRevision);
+                    catalog);
                 CompleteConfigure();
                 return new LMCPIBulkReader(
                     diagnostics,
@@ -165,13 +166,14 @@ namespace LasalMotionControlLib
         public async Task<LMCPIBulkReader> ConfigureAsync(
             CancellationToken cancellationToken)
         {
+            diagnostics.RequireCurrentSignalCatalog(catalog);
             var signalIds = BeginConfigure();
 
             try
             {
                 var configuration = await diagnostics.ConfigureBulkExactAsync(
                     signalIds,
-                    catalog.MapRevision,
+                    catalog,
                     cancellationToken).ConfigureAwait(false);
                 CompleteConfigure();
                 return new LMCPIBulkReader(

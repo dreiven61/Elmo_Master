@@ -12,7 +12,7 @@ namespace LasalMotionControlLib
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -30,6 +30,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateTopologyIoCapabilities(
                 capabilities,
@@ -52,7 +53,7 @@ namespace LasalMotionControlLib
             ValidateTopologyChunkRequest(expectedTopologyRevision, maxEntries);
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -79,6 +80,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateTopologyIoCapabilities(
                 capabilities,
@@ -101,7 +103,7 @@ namespace LasalMotionControlLib
         {
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -119,7 +121,9 @@ namespace LasalMotionControlLib
                 GetTopologyChunkLimit(capabilities, info));
             ValidateCompleteTopology(info, entries);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return new LMCEtherCATTopology(info, entries);
+            return new LMCEtherCATTopology(info, entries).BindProvenance(
+                this,
+                sessionGeneration);
         }
 
         public async Task<LMCEtherCATTopology> GetEtherCATTopologyAsync(
@@ -128,6 +132,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateTopologyIoCapabilities(
                 capabilities,
@@ -149,9 +154,17 @@ namespace LasalMotionControlLib
                 cancellationToken).ConfigureAwait(false);
             ValidateCompleteTopology(info, entries);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return new LMCEtherCATTopology(info, entries);
+            return new LMCEtherCATTopology(info, entries).BindProvenance(
+                this,
+                sessionGeneration);
         }
 
+        /// <summary>
+        /// Reads one node by raw topology identity. This compatibility
+        /// overload validates the wire echo and coherent response shape only;
+        /// it cannot validate the node-kind-specific meaning without a
+        /// topology model. Prefer the topology-bound overload.
+        /// </summary>
         public LMCEtherCATNodeHealth ReadEtherCATNodeHealth(
             uint topologyRevision,
             uint nodeId)
@@ -159,7 +172,7 @@ namespace LasalMotionControlLib
             ValidateTopologyNodeIdentity(topologyRevision, nodeId);
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -170,22 +183,46 @@ namespace LasalMotionControlLib
                 "ReadEtherCATNodeHealth",
                 false);
 
-            var requestId = NextRequestId();
-            var raw = connection.Exchange(
-                LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
-                    requestId,
-                    topologyRevision,
-                    nodeId),
-                sessionGeneration);
-            var health = LMC_DiagnosticsParser.ParseEtherCATNodeHealth(
-                raw,
-                requestId,
+            return ReadEtherCATNodeHealthCore(
                 topologyRevision,
-                nodeId);
-            connection.EnsureSessionGeneration(sessionGeneration);
+                nodeId,
+                sessionGeneration);
+        }
+
+        /// <summary>
+        /// Reads one node and fail-closed validates the response against the
+        /// supplied topology entry, including DS402 payload presence.
+        /// </summary>
+        public LMCEtherCATNodeHealth ReadEtherCATNodeHealth(
+            uint nodeId,
+            LMCEtherCATTopology topology)
+        {
+            RequireCurrentTopologyNode(topology, nodeId);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
+            var capabilities = GetCapabilities(sessionGeneration);
+            ValidateTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.EtherCATNodeHealth,
+                LMC_DiagnosticsFrame.NodeHealthRequestPayloadLength,
+                LMC_DiagnosticsParser.NodeHealthPayloadLength,
+                "ReadEtherCATNodeHealth",
+                false);
+            var health = ReadEtherCATNodeHealthCore(
+                topology.TopologyRevision,
+                nodeId,
+                sessionGeneration);
+            topology.ValidateNodeHealth(health);
             return health;
         }
 
+        /// <summary>
+        /// Asynchronously reads one node by raw topology identity. This
+        /// compatibility overload validates the wire echo and coherent
+        /// response shape only; prefer the topology-bound overload when the
+        /// node-kind-specific meaning must be validated.
+        /// </summary>
         public async Task<LMCEtherCATNodeHealth> ReadEtherCATNodeHealthAsync(
             uint topologyRevision,
             uint nodeId,
@@ -195,6 +232,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateTopologyIoCapabilities(
                 capabilities,
@@ -205,24 +243,88 @@ namespace LasalMotionControlLib
                 LMC_DiagnosticsParser.NodeHealthPayloadLength,
                 "ReadEtherCATNodeHealth",
                 false);
-
-            var requestId = NextRequestId();
-            var raw = await connection.ExchangeAsync(
-                LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
-                    requestId,
-                    topologyRevision,
-                    nodeId),
+            return await ReadEtherCATNodeHealthCoreAsync(
+                topologyRevision,
+                nodeId,
                 sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
-            var health = LMC_DiagnosticsParser.ParseEtherCATNodeHealth(
-                raw,
-                requestId,
-                topologyRevision,
-                nodeId);
-            connection.EnsureSessionGeneration(sessionGeneration);
+        }
+
+        /// <summary>
+        /// Asynchronously reads one node and fail-closed validates the
+        /// response against the supplied topology entry, including DS402
+        /// payload presence.
+        /// </summary>
+        public async Task<LMCEtherCATNodeHealth>
+            ReadEtherCATNodeHealthAsync(
+                uint nodeId,
+                LMCEtherCATTopology topology,
+                CancellationToken cancellationToken)
+        {
+            RequireCurrentTopologyNode(topology, nodeId);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
+            var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            ValidateTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.EtherCATNodeHealth,
+                LMC_DiagnosticsFrame.NodeHealthRequestPayloadLength,
+                LMC_DiagnosticsParser.NodeHealthPayloadLength,
+                "ReadEtherCATNodeHealth",
+                false);
+            var health = await ReadEtherCATNodeHealthCoreAsync(
+                topology.TopologyRevision,
+                nodeId,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            topology.ValidateNodeHealth(health);
             return health;
         }
 
+        /// <summary>
+        /// Asynchronously reads one topology-bound node using a capability
+        /// snapshot already observed from this diagnostics facade in the
+        /// current connection session. The snapshot, capability bits, payload
+        /// limits, and topology entry are validated before the single node
+        /// health exchange; capabilities are not read again from the wire.
+        /// </summary>
+        public async Task<LMCEtherCATNodeHealth>
+            ReadEtherCATNodeHealthAsync(
+                uint nodeId,
+                LMCEtherCATTopology topology,
+                LMCDiagnosticCapabilities capabilities,
+                CancellationToken cancellationToken)
+        {
+            RequireCurrentTopologyNode(topology, nodeId);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            ValidatePinnedTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.EtherCATNodeHealth,
+                LMC_DiagnosticsFrame.NodeHealthRequestPayloadLength,
+                LMC_DiagnosticsParser.NodeHealthPayloadLength,
+                "ReadEtherCATNodeHealth");
+
+            var health = await ReadEtherCATNodeHealthCoreAsync(
+                topology.TopologyRevision,
+                nodeId,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            topology.ValidateNodeHealth(health);
+            return health;
+        }
+
+        /// <summary>
+        /// Reads digital I/O by a raw request identity. This compatibility
+        /// overload validates the response echo and coherent value shape only;
+        /// it cannot bind IOReference and response NodeId to a topology entry.
+        /// Prefer the topology-bound overload.
+        /// </summary>
         public LMCDigitalIOValue ReadDigitalIO(
             LMCDigitalIOReadRequest request)
         {
@@ -233,7 +335,7 @@ namespace LasalMotionControlLib
 
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -244,18 +346,52 @@ namespace LasalMotionControlLib
                 "ReadDigitalIO",
                 false);
 
-            var requestId = NextRequestId();
-            var raw = connection.Exchange(
-                LMC_DiagnosticsFrame.ReadDigitalIO(requestId, request),
+            return ReadDigitalIOCore(
+                request,
+                capabilities,
                 sessionGeneration);
-            var value = LMC_DiagnosticsParser.ParseDigitalIO(
-                raw,
-                requestId,
-                request);
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return value;
         }
 
+        /// <summary>
+        /// Validates the request against the supplied topology before wire
+        /// access, reads the value, then validates IOReference, NodeId,
+        /// direction, and width against the same topology.
+        /// </summary>
+        public LMCDigitalIOValue ReadDigitalIO(
+            LMCEtherCATTopology topology,
+            LMCDigitalIOReadRequest request)
+        {
+            if (topology == null)
+            {
+                throw new ArgumentNullException("topology");
+            }
+
+            topology.ValidateDigitalIOReadRequest(request);
+            RequireCurrentTopology(topology);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
+            var capabilities = GetCapabilities(sessionGeneration);
+            ValidateTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.DigitalIORead,
+                LMC_DiagnosticsFrame.DigitalIOReadRequestPayloadLength,
+                LMC_DiagnosticsParser.DigitalIOPayloadLength,
+                "ReadDigitalIO",
+                false);
+            var value = ReadDigitalIOCore(
+                request,
+                capabilities,
+                sessionGeneration);
+            return value.BindToTopology(topology);
+        }
+
+        /// <summary>
+        /// Asynchronously reads digital I/O by a raw request identity. This
+        /// compatibility overload validates the response echo and coherent
+        /// value shape only; prefer the topology-bound overload when topology
+        /// entry binding is required.
+        /// </summary>
         public async Task<LMCDigitalIOValue> ReadDigitalIOAsync(
             LMCDigitalIOReadRequest request,
             CancellationToken cancellationToken)
@@ -268,6 +404,7 @@ namespace LasalMotionControlLib
             var sessionGeneration = connection.SessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
             ValidateTopologyIoCapabilities(
                 capabilities,
@@ -278,18 +415,115 @@ namespace LasalMotionControlLib
                 LMC_DiagnosticsParser.DigitalIOPayloadLength,
                 "ReadDigitalIO",
                 false);
-
-            var requestId = NextRequestId();
-            var raw = await connection.ExchangeAsync(
-                LMC_DiagnosticsFrame.ReadDigitalIO(requestId, request),
+            return await ReadDigitalIOCoreAsync(
+                request,
+                capabilities,
                 sessionGeneration,
                 cancellationToken).ConfigureAwait(false);
-            var value = LMC_DiagnosticsParser.ParseDigitalIO(
-                raw,
-                requestId,
-                request);
+        }
+
+        /// <summary>
+        /// Asynchronously validates the request against the supplied topology
+        /// before wire access, reads the value, then validates IOReference,
+        /// NodeId, direction, and width against the same topology.
+        /// </summary>
+        public async Task<LMCDigitalIOValue> ReadDigitalIOAsync(
+            LMCEtherCATTopology topology,
+            LMCDigitalIOReadRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (topology == null)
+            {
+                throw new ArgumentNullException("topology");
+            }
+
+            topology.ValidateDigitalIOReadRequest(request);
+            RequireCurrentTopology(topology);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
+            var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            ValidateTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.DigitalIORead,
+                LMC_DiagnosticsFrame.DigitalIOReadRequestPayloadLength,
+                LMC_DiagnosticsParser.DigitalIOPayloadLength,
+                "ReadDigitalIO",
+                false);
+            var value = await ReadDigitalIOCoreAsync(
+                request,
+                capabilities,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return value.BindToTopology(topology);
+        }
+
+        /// <summary>
+        /// Asynchronously reads topology-bound digital I/O using a capability
+        /// snapshot already observed from this diagnostics facade in the
+        /// current connection session. The snapshot, capability bits, payload
+        /// limits, and topology request are validated before the single
+        /// digital-I/O exchange; capabilities are not read again from the wire.
+        /// </summary>
+        public async Task<LMCDigitalIOValue> ReadDigitalIOAsync(
+            LMCEtherCATTopology topology,
+            LMCDigitalIOReadRequest request,
+            LMCDiagnosticCapabilities capabilities,
+            CancellationToken cancellationToken)
+        {
+            if (topology == null)
+            {
+                throw new ArgumentNullException("topology");
+            }
+
+            topology.ValidateDigitalIOReadRequest(request);
+            RequireCurrentTopology(topology);
+            var sessionGeneration = topology.ConnectionSessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
-            return value;
+            ValidatePinnedTopologyIoCapabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.EtherCATTopology
+                    | LMCDiagnosticCapability.DigitalIORead,
+                LMC_DiagnosticsFrame.DigitalIOReadRequestPayloadLength,
+                LMC_DiagnosticsParser.DigitalIOPayloadLength,
+                "ReadDigitalIO");
+
+            var value = await ReadDigitalIOCoreAsync(
+                request,
+                capabilities,
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            return value.BindToTopology(topology);
+        }
+
+        /// <summary>
+        /// Creates an executable, fail-closed output request from a valid
+        /// topology-bound output snapshot read by this diagnostics facade in
+        /// the current connection session. Raw digital-I/O observations cannot
+        /// authorize a write request.
+        /// </summary>
+        public LMCDigitalOutputWriteRequest CreateDigitalOutputWriteRequest(
+            LMCDigitalIOValue outputSnapshot,
+            ulong value,
+            ulong mask)
+        {
+            if (outputSnapshot == null)
+            {
+                throw new ArgumentNullException("outputSnapshot");
+            }
+
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            ValidateDigitalOutputWriteSnapshot(
+                outputSnapshot,
+                sessionGeneration);
+            return LMCDigitalOutputWriteRequest.FromOutputSnapshot(
+                outputSnapshot,
+                value,
+                mask);
         }
 
         /// <summary>
@@ -304,37 +538,109 @@ namespace LasalMotionControlLib
         public LMCOperationTicket SubmitDigitalOutputWrite(
             LMCDigitalOutputWriteRequest request)
         {
-            if (request == null)
-            {
-                throw new ArgumentNullException("request");
-            }
+            return SubmitDigitalOutputWrite(
+                request,
+                LMCDiagnosticsDigitalOutputWritePolicy.IsApproved);
+        }
 
-            var sessionGeneration = connection.SessionGeneration;
-            return SubmitDigitalOutputWriteCore(request, sessionGeneration);
+        private LMCOperationTicket SubmitDigitalOutputWrite(
+            LMCDigitalOutputWriteRequest request,
+            Func<uint, bool> isApprovedIOReference)
+        {
+            var attemptTracker =
+                new LMCDigitalOutputWriteSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                attemptTracker.BeginSessionPreflight();
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                ValidateDigitalOutputWriteRequestSession(
+                    request,
+                    sessionGeneration);
+                return SubmitDigitalOutputWriteCore(
+                    request,
+                    sessionGeneration,
+                    attemptTracker,
+                    isApprovedIOReference);
+            }
+            catch (Exception exception)
+            {
+                LMCDigitalOutputWriteSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
         }
 
         public async Task<LMCOperationTicket> SubmitDigitalOutputWriteAsync(
             LMCDigitalOutputWriteRequest request,
             CancellationToken cancellationToken)
         {
-            if (request == null)
-            {
-                throw new ArgumentNullException("request");
-            }
+            return await SubmitDigitalOutputWriteAsync(
+                request,
+                cancellationToken,
+                LMCDiagnosticsDigitalOutputWritePolicy.IsApproved)
+                .ConfigureAwait(false);
+        }
 
-            var sessionGeneration = connection.SessionGeneration;
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return await RunStateMutatingAsync(
-                () => SubmitDigitalOutputWriteCore(request, sessionGeneration),
-                cancellationToken).ConfigureAwait(false);
+        private async Task<LMCOperationTicket> SubmitDigitalOutputWriteAsync(
+            LMCDigitalOutputWriteRequest request,
+            CancellationToken cancellationToken,
+            Func<uint, bool> isApprovedIOReference)
+        {
+            var attemptTracker =
+                new LMCDigitalOutputWriteSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                attemptTracker.BeginSessionPreflight();
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                ValidateDigitalOutputWriteRequestSession(
+                    request,
+                    sessionGeneration);
+                return await RunStateMutatingAsync(
+                    () => SubmitDigitalOutputWriteCore(
+                        request,
+                        sessionGeneration,
+                        attemptTracker,
+                        isApprovedIOReference),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCDigitalOutputWriteSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
         }
 
         private LMCOperationTicket SubmitDigitalOutputWriteCore(
             LMCDigitalOutputWriteRequest request,
-            long sessionGeneration)
+            long sessionGeneration,
+            LMCDigitalOutputWriteSubmissionAttemptTracker attemptTracker,
+            Func<uint, bool> isApprovedIOReference)
         {
+            if (isApprovedIOReference == null)
+            {
+                throw new ArgumentNullException("isApprovedIOReference");
+            }
+
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            attemptTracker.BeginCapabilityPreflight();
+            var capabilities = GetCapabilities(sessionGeneration);
+            attemptTracker.RecordCapabilityIdentity(
+                capabilities.DiagnosticsBootId);
             ValidateTopologyIoCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -346,9 +652,11 @@ namespace LasalMotionControlLib
                 LMC_DiagnosticsParser.SubmitOperationPayloadLength,
                 "SubmitDigitalOutputWrite",
                 true);
+            ValidateDigitalOutputWriteRequestCapabilities(
+                request,
+                capabilities);
 
-            if (!LMCDiagnosticsDigitalOutputWritePolicy.IsApproved(
-                    request.IOReference))
+            if (!isApprovedIOReference(request.IOReference))
             {
                 throw new UnauthorizedAccessException(
                     "Digital output IOReference "
@@ -359,13 +667,15 @@ namespace LasalMotionControlLib
             RememberOperationBootId(
                 sessionGeneration,
                 capabilities.DiagnosticsBootId);
+            attemptTracker.BeginSubmission();
             var requestId = NextRequestId();
             var raw = connection.Exchange(
                 LMC_DiagnosticsFrame.SubmitDigitalOutputWrite(
                     requestId,
                     request,
                     capabilities.DiagnosticsBootId),
-                sessionGeneration);
+                sessionGeneration,
+                attemptTracker.MarkSubmissionOutcomeUncertain);
             LMCOperationSubmission submission;
             try
             {
@@ -378,12 +688,19 @@ namespace LasalMotionControlLib
             }
             catch (LMCDiagnosticsCommandException exception)
             {
+                attemptTracker.MarkSubmissionRejected();
                 HandleD5DomainError(sessionGeneration, exception);
                 throw;
             }
+            catch (Exception exception)
+                when (exception is LMCDiagnosticsNotSupportedException
+                    || exception is LMCDiagnosticsDispatchRejectedException)
+            {
+                attemptTracker.MarkSubmissionRejected();
+                throw;
+            }
 
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return new LMCOperationTicket(
+            var ticket = new LMCOperationTicket(
                 submission.TicketId,
                 submission.OperationKind,
                 submission.QueuedCycle,
@@ -394,6 +711,86 @@ namespace LasalMotionControlLib
                 false,
                 0,
                 LMCSignalValueType.Invalid);
+            attemptTracker.MarkSubmissionAccepted(ticket);
+            LMCOperationTicket publishedTicket = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.SubmitDigitalOutputWrite,
+                () => publishedTicket = ticket);
+            return publishedTicket;
+        }
+
+        private void ValidateDigitalOutputWriteSnapshot(
+            LMCDigitalIOValue outputSnapshot,
+            long sessionGeneration)
+        {
+            var requiredCapabilities =
+                LMCDiagnosticCapability.EtherCATTopology
+                | LMCDiagnosticCapability.EtherCATNodeHealth
+                | LMCDiagnosticCapability.DigitalIORead
+                | LMCDiagnosticCapability.DigitalIOWrite;
+            if (!outputSnapshot.BelongsToCurrentSession(connection)
+                || outputSnapshot.ConnectionSessionGeneration
+                    != sessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The digital-output snapshot does not belong to this active RPC session; read a fresh output snapshot after connecting.");
+            }
+
+            if (outputSnapshot.Direction != LMCDigitalIODirection.Output
+                || !outputSnapshot.IsValid
+                || outputSnapshot.OutputRevision == 0
+                || !outputSnapshot.HasValidatedTopologyBinding)
+            {
+                throw new InvalidOperationException(
+                    "A digital-output write requires a topology-bound valid Output snapshot with a non-zero OutputRevision; use the topology-bound ReadDigitalIO overload.");
+            }
+
+            if (outputSnapshot.DiagnosticsBootId == 0
+                || (outputSnapshot.SourceCapabilities
+                        & requiredCapabilities)
+                    != requiredCapabilities)
+            {
+                throw new InvalidOperationException(
+                    "The digital-output snapshot was not read under the complete topology, health, read, write, and stable BootId capability contract.");
+            }
+        }
+
+        private void ValidateDigitalOutputWriteRequestSession(
+            LMCDigitalOutputWriteRequest request,
+            long sessionGeneration)
+        {
+            if (!request.IsSnapshotBound
+                || !request.BelongsToCurrentSession(connection))
+            {
+                throw new InvalidOperationException(
+                    "Detached or stale digital-output requests cannot be submitted; create the request from a fresh current-session Output snapshot.");
+            }
+
+            var source = request.SourceSnapshot;
+            ValidateDigitalOutputWriteSnapshot(source, sessionGeneration);
+            if (source.TopologyRevision != request.TopologyRevision
+                || source.IOReference != request.IOReference
+                || source.OutputRevision
+                    != request.ExpectedOutputRevision
+                || (request.Mask & ~source.ValidMask) != 0)
+            {
+                throw new InvalidOperationException(
+                    "The digital-output request no longer matches its immutable source snapshot.");
+            }
+        }
+
+        private static void ValidateDigitalOutputWriteRequestCapabilities(
+            LMCDigitalOutputWriteRequest request,
+            LMCDiagnosticCapabilities capabilities)
+        {
+            if (request.SourceDiagnosticsBootId == 0
+                || request.SourceDiagnosticsBootId
+                    != capabilities.DiagnosticsBootId)
+            {
+                throw new InvalidOperationException(
+                    "The PLC DiagnosticsBootId changed after the output snapshot was read; read a fresh output snapshot before writing.");
+            }
         }
 
         private LMCEtherCATTopologyInfo GetEtherCATTopologyInfo(
@@ -684,6 +1081,138 @@ namespace LasalMotionControlLib
             return limit;
         }
 
+        private async Task<LMCEtherCATNodeHealth>
+            ReadEtherCATNodeHealthCoreAsync(
+                uint topologyRevision,
+                uint nodeId,
+                long sessionGeneration,
+                CancellationToken cancellationToken)
+        {
+            var requestId = NextRequestId();
+            var raw = await connection.ExchangeAsync(
+                LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
+                    requestId,
+                    topologyRevision,
+                    nodeId),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            var health = LMC_DiagnosticsParser.ParseEtherCATNodeHealth(
+                raw,
+                requestId,
+                topologyRevision,
+                nodeId);
+            LMCEtherCATNodeHealth publishedHealth = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.ReadEtherCATNodeHealth,
+                () => publishedHealth = health);
+            return publishedHealth;
+        }
+
+        private LMCEtherCATNodeHealth ReadEtherCATNodeHealthCore(
+            uint topologyRevision,
+            uint nodeId,
+            long sessionGeneration)
+        {
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
+                    requestId,
+                    topologyRevision,
+                    nodeId),
+                sessionGeneration);
+            var health = LMC_DiagnosticsParser.ParseEtherCATNodeHealth(
+                raw,
+                requestId,
+                topologyRevision,
+                nodeId);
+            LMCEtherCATNodeHealth publishedHealth = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.ReadEtherCATNodeHealth,
+                () => publishedHealth = health);
+            return publishedHealth;
+        }
+
+        private LMCDigitalIOValue ReadDigitalIOCore(
+            LMCDigitalIOReadRequest request,
+            LMCDiagnosticCapabilities capabilities,
+            long sessionGeneration)
+        {
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.ReadDigitalIO(requestId, request),
+                sessionGeneration);
+            var value = LMC_DiagnosticsParser.ParseDigitalIO(
+                raw,
+                requestId,
+                request);
+            LMCDigitalIOValue publishedValue = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.ReadDigitalIO,
+                () => publishedValue = value.BindTo(
+                    this,
+                    sessionGeneration,
+                    capabilities));
+            return publishedValue;
+        }
+
+        private async Task<LMCDigitalIOValue> ReadDigitalIOCoreAsync(
+            LMCDigitalIOReadRequest request,
+            LMCDiagnosticCapabilities capabilities,
+            long sessionGeneration,
+            CancellationToken cancellationToken)
+        {
+            var requestId = NextRequestId();
+            var raw = await connection.ExchangeAsync(
+                LMC_DiagnosticsFrame.ReadDigitalIO(requestId, request),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            var value = LMC_DiagnosticsParser.ParseDigitalIO(
+                raw,
+                requestId,
+                request);
+            LMCDigitalIOValue publishedValue = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.ReadDigitalIO,
+                () => publishedValue = value.BindTo(
+                    this,
+                    sessionGeneration,
+                    capabilities));
+            return publishedValue;
+        }
+
+        private void ValidatePinnedTopologyIoCapabilities(
+            LMCDiagnosticCapabilities capabilities,
+            long expectedSessionGeneration,
+            LMCDiagnosticCapability requiredCapabilities,
+            int requiredRequestPayloadBytes,
+            int requiredResponsePayloadBytes,
+            string commandName)
+        {
+            if (capabilities == null)
+            {
+                throw new ArgumentNullException("capabilities");
+            }
+
+            if (!capabilities.IsBoundTo(this, expectedSessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics capabilities are not bound to this diagnostics owner and current connection session.");
+            }
+
+            ValidateTopologyIoCapabilities(
+                capabilities,
+                expectedSessionGeneration,
+                requiredCapabilities,
+                requiredRequestPayloadBytes,
+                requiredResponsePayloadBytes,
+                commandName,
+                false);
+        }
+
         private void ValidateTopologyIoCapabilities(
             LMCDiagnosticCapabilities capabilities,
             long expectedSessionGeneration,
@@ -762,6 +1291,45 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException("nodeId");
             }
+        }
+
+        private void RequireCurrentTopology(
+            LMCEtherCATTopology topology)
+        {
+            if (topology == null)
+            {
+                throw new ArgumentNullException("topology");
+            }
+
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            if (!topology.IsBoundTo(this, sessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "The EtherCAT topology belongs to a different or stale diagnostics session. Reload the topology after connecting.");
+            }
+        }
+
+        private LMCEtherCATTopologyEntry RequireCurrentTopologyNode(
+            LMCEtherCATTopology topology,
+            uint nodeId)
+        {
+            if (topology == null)
+            {
+                throw new ArgumentNullException("topology");
+            }
+
+            LMCEtherCATTopologyEntry entry;
+            if (nodeId == 0 || !topology.TryGetNode(nodeId, out entry))
+            {
+                throw new ArgumentOutOfRangeException(
+                    "nodeId",
+                    "The node does not belong to the supplied EtherCAT topology.");
+            }
+
+            RequireCurrentTopology(topology);
+
+            return entry;
         }
     }
 }

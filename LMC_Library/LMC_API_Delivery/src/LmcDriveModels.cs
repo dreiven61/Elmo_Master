@@ -9,7 +9,8 @@ namespace LasalMotionControlLib
     public enum LMCDriveReadOperationKind
     {
         DriveOperationMode = 0,
-        DriveStatus = 1
+        DriveStatus = 1,
+        DriveErrorCode = 2
     }
 
     public enum LMCDriveReadAttemptPhase
@@ -155,7 +156,8 @@ namespace LasalMotionControlLib
     }
 
     /// <summary>
-    /// Typed failure context for GetDriveOperationMode and ReadDriveStatus.
+    /// Typed failure context for GetDriveOperationMode, ReadDriveStatus, and
+    /// GetDriveErrorCode.
     /// The original exception type is preserved. Call TryGet with the caught
     /// exception to inspect whether an SDO was never attempted, explicitly
     /// rejected, outcome-uncertain, or accepted with a known ticket.
@@ -601,7 +603,7 @@ namespace LasalMotionControlLib
     {
         internal LMCDriveOperationModeResult(
             ushort axisReference,
-            LMCInlineSdoReadCompletion completion)
+            LMCSdoReadResult completion)
         {
             if (axisReference == 0)
             {
@@ -658,6 +660,60 @@ namespace LasalMotionControlLib
     }
 
     /// <summary>
+    /// Immutable CiA 402 error-code result read from object 0x603F:0.
+    /// A zero ErrorCode means that this object reported no drive error at the
+    /// sampled instant; it does not prove fault-reset completion by itself.
+    /// </summary>
+    public sealed class LMCDriveErrorCodeResult
+    {
+        internal LMCDriveErrorCodeResult(
+            ushort axisReference,
+            LMCSdoReadResult completion)
+        {
+            if (axisReference == 0)
+            {
+                throw new ArgumentOutOfRangeException("axisReference");
+            }
+
+            if (completion == null)
+            {
+                throw new ArgumentNullException("completion");
+            }
+
+            var data = completion.Status.ResultData;
+            if (!completion.Status.IsSuccessful
+                || completion.Status.ResultValueType
+                    != LMCSignalValueType.UInt16
+                || completion.Status.ResultLength != 2
+                || data.Length != 2)
+            {
+                throw new InvalidDataException(
+                    "Drive error code requires a successful UInt16 two-byte SDO result.");
+            }
+
+            AxisReference = axisReference;
+            Ticket = completion.Ticket;
+            OperationStatus = completion.Status;
+            ErrorCode = (ushort)(data[0] | (data[1] << 8));
+        }
+
+        public ushort AxisReference { get; private set; }
+        public ushort ErrorCode { get; private set; }
+        public LMCOperationTicket Ticket { get; private set; }
+        public LMCOperationStatus OperationStatus { get; private set; }
+
+        public bool HasError
+        {
+            get { return ErrorCode != 0; }
+        }
+
+        public bool IsSuccessful
+        {
+            get { return OperationStatus.IsSuccessful; }
+        }
+    }
+
+    /// <summary>
     /// Sequential composite of LASAL axis status, DS402 0x6041:0, and
     /// DS402 0x6061:0. It is deliberately not an atomic same-cycle snapshot.
     /// </summary>
@@ -668,12 +724,13 @@ namespace LasalMotionControlLib
         private const ushort LasalSoftwareMaximumErrorMask = 0x0004;
         private const ushort LasalHardwareMinimumErrorMask = 0x0008;
         private const ushort LasalHardwareMaximumErrorMask = 0x0010;
+        private const ushort Ds402FaultMask = 0x0008;
         private const ushort Ds402InternalLimitActiveMask = 0x0800;
 
         internal LMCDriveStatus(
             ushort axisReference,
             LMCReadStatusResult axisStatus,
-            LMCInlineSdoReadCompletion statusWordCompletion,
+            LMCSdoReadResult statusWordCompletion,
             LMCDriveOperationModeResult operationMode)
         {
             if (axisReference == 0)
@@ -778,6 +835,11 @@ namespace LasalMotionControlLib
         public bool HasAxisError
         {
             get { return AxisStatus.HasAxisError; }
+        }
+
+        public bool HasDs402Fault
+        {
+            get { return (Ds402StatusWord & Ds402FaultMask) != 0; }
         }
 
         public bool IsLasalPositionLimitActive
@@ -986,77 +1048,126 @@ namespace LasalMotionControlLib
 
     /// <summary>
     /// Reports that the PC-side bounded status polling limit was reached. The
-    /// PLC ticket is preserved because it was not cancelled and can still be
-    /// inspected through LMCDiagnostics.GetOperationStatus.
+    /// PLC ticket and last observed non-terminal status are preserved because
+    /// the ticket was not cancelled and can still be inspected through
+    /// LMCDiagnostics.GetOperationStatus.
     /// </summary>
     public sealed class LMCSdoReadPollingTimeoutException : TimeoutException
     {
         internal LMCSdoReadPollingTimeoutException(
             LMCOperationTicket ticket,
+            LMCOperationStatus lastObservedStatus,
             int pollCount)
-            : base(CreateMessage(ticket, pollCount))
+            : base(CreateMessage(ticket, lastObservedStatus, pollCount))
         {
             Ticket = ticket ?? throw new ArgumentNullException("ticket");
+            LastObservedStatus = lastObservedStatus
+                ?? throw new ArgumentNullException("lastObservedStatus");
+            ValidateNonTerminalStatus(
+                Ticket,
+                LastObservedStatus,
+                "lastObservedStatus");
             PollCount = pollCount;
         }
 
         public LMCOperationTicket Ticket { get; private set; }
+
+        /// <summary>
+        /// Gets the final non-terminal status returned by the bounded poll.
+        /// </summary>
+        public LMCOperationStatus LastObservedStatus { get; private set; }
+
         public int PollCount { get; private set; }
 
         private static string CreateMessage(
             LMCOperationTicket ticket,
+            LMCOperationStatus lastObservedStatus,
             int pollCount)
         {
             return "SDO Read did not reach a terminal state after "
                 + pollCount
                 + " status polls. TicketId="
                 + (ticket == null ? 0u : ticket.TicketId)
+                + ", LastState="
+                + (lastObservedStatus == null
+                    ? "Unavailable"
+                    : lastObservedStatus.State.ToString())
                 + ". The PLC ticket was not cancelled and may still be active.";
+        }
+
+        internal static void ValidateNonTerminalStatus(
+            LMCOperationTicket ticket,
+            LMCOperationStatus status,
+            string parameterName)
+        {
+            if (status == null)
+            {
+                return;
+            }
+
+            if (!status.IsBoundTo(
+                    ticket.Owner,
+                    ticket.ConnectionSessionGeneration)
+                || status.TicketId != ticket.TicketId
+                || status.OperationKind != ticket.OperationKind
+                || status.SubmitCycle != ticket.QueuedCycle
+                || status.DiagnosticsBootId != ticket.DiagnosticsBootId
+                || status.IsTerminal)
+            {
+                throw new ArgumentException(
+                    "The last observed SDO Read status must be the exact owner/session-bound non-terminal status for its ticket.",
+                    parameterName);
+            }
         }
     }
 
     /// <summary>
     /// Reports cancellation of the PC-side wait after an SDO ticket was
-    /// submitted. The ticket is not cancelled on the PLC and is preserved for
-    /// explicit status inspection or queued-only cancellation by the caller.
+    /// submitted. The ticket and any last observed non-terminal status are
+    /// preserved. The ticket is not cancelled on the PLC and remains available
+    /// for explicit status inspection or queued-only cancellation by the caller.
     /// </summary>
     public sealed class LMCSdoReadWaitCanceledException
         : OperationCanceledException
     {
         internal LMCSdoReadWaitCanceledException(
             LMCOperationTicket ticket,
+            LMCOperationStatus lastObservedStatus,
             OperationCanceledException innerException,
             System.Threading.CancellationToken cancellationToken)
             : base(
-                CreateMessage(ticket),
+                CreateMessage(ticket, lastObservedStatus),
                 innerException,
                 cancellationToken)
         {
             Ticket = ticket ?? throw new ArgumentNullException("ticket");
+            LMCSdoReadPollingTimeoutException.ValidateNonTerminalStatus(
+                Ticket,
+                lastObservedStatus,
+                "lastObservedStatus");
+            LastObservedStatus = lastObservedStatus;
         }
 
         public LMCOperationTicket Ticket { get; private set; }
 
-        private static string CreateMessage(LMCOperationTicket ticket)
+        /// <summary>
+        /// Gets the last non-terminal status observed before cancellation, or
+        /// null when cancellation was observed before the first status reply.
+        /// </summary>
+        public LMCOperationStatus LastObservedStatus { get; private set; }
+
+        private static string CreateMessage(
+            LMCOperationTicket ticket,
+            LMCOperationStatus lastObservedStatus)
         {
             return "The PC-side SDO Read wait was cancelled. TicketId="
                 + (ticket == null ? 0u : ticket.TicketId)
+                + ", LastState="
+                + (lastObservedStatus == null
+                    ? "Unavailable"
+                    : lastObservedStatus.State.ToString())
                 + ". The PLC ticket was not cancelled and may still be active.";
         }
-    }
-
-    internal sealed class LMCInlineSdoReadCompletion
-    {
-        internal LMCInlineSdoReadCompletion(
-            LMCOperationTicket ticket,
-            LMCOperationStatus status)
-        {
-            Ticket = ticket ?? throw new ArgumentNullException("ticket");
-            Status = status ?? throw new ArgumentNullException("status");
-        }
-
-        internal LMCOperationTicket Ticket { get; private set; }
-        internal LMCOperationStatus Status { get; private set; }
     }
 
     internal sealed class LMCInlineSdoReadSubmission

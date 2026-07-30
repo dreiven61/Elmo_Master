@@ -447,6 +447,10 @@ namespace LasalMotionControlLib
                 groupReference);
 
             var requestId = NextRequestId();
+            var mutationCoordinator =
+                connection.GetGroupEnableWaitCoordinator(
+                    sessionGeneration,
+                    groupReference);
             var raw = connection.Exchange(
                 LMC_AdminFrame.GroupMoveLinearRelative(
                     requestId,
@@ -457,12 +461,17 @@ namespace LasalMotionControlLib
                     deceleration,
                     jerk,
                     options),
-                sessionGeneration);
+                sessionGeneration,
+                () => mutationCoordinator.MarkMutationMayHaveBeenSent());
             var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
                 raw,
                 requestId);
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return result;
+            LMCAdminResponse publishedResult = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.GroupMoveLinearRelative,
+                () => publishedResult = result);
+            return publishedResult;
         }
 
         public Task<LMCAdminResponse> GroupMoveLinearRelativeAsync(
@@ -621,6 +630,11 @@ namespace LasalMotionControlLib
                 groupReference);
 
             var requestId = NextRequestId();
+            cancellationToken.ThrowIfCancellationRequested();
+            var mutationCoordinator =
+                connection.GetGroupEnableWaitCoordinator(
+                    sessionGeneration,
+                    groupReference);
             var raw = await connection.ExchangeAsync(
                 LMC_AdminFrame.GroupMoveLinearRelative(
                     requestId,
@@ -632,12 +646,18 @@ namespace LasalMotionControlLib
                     jerk,
                     options),
                 sessionGeneration,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                () => mutationCoordinator.MarkMutationMayHaveBeenSent())
+                .ConfigureAwait(false);
             var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
                 raw,
                 requestId);
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return result;
+            LMCAdminResponse publishedResult = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.GroupMoveLinearRelative,
+                () => publishedResult = result);
+            return publishedResult;
         }
 
         private long ValidateAxisOwner(LMCSingleAxis axis)

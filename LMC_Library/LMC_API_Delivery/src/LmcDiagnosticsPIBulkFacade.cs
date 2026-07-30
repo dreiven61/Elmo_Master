@@ -15,6 +15,7 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("catalog");
             }
 
+            RequireCurrentSignalCatalog(catalog);
             return new LMCPIBulkBuilder(this, catalog);
         }
 
@@ -23,10 +24,7 @@ namespace LasalMotionControlLib
             string alias)
         {
             var entry = GetReadablePIEntry(catalog, alias);
-            return ReadPI(
-                entry.SignalId,
-                catalog.MapRevision,
-                entry.DataType);
+            return ReadCatalogPI(catalog, entry);
         }
 
         public Task<LMCSignalValue> ReadPIAsync(
@@ -35,14 +33,30 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             var entry = GetReadablePIEntry(catalog, alias);
-            return ReadPIAsync(
-                entry.SignalId,
-                catalog.MapRevision,
-                entry.DataType,
+            return ReadCatalogPIAsync(
+                catalog,
+                entry,
                 cancellationToken);
         }
 
-        private static LMCSignalCatalogEntry GetReadablePIEntry(
+        internal void RequireCurrentSignalCatalog(
+            LMCSignalCatalog catalog)
+        {
+            if (catalog == null)
+            {
+                throw new ArgumentNullException("catalog");
+            }
+
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            if (!catalog.IsBoundTo(this, sessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "The Signal Catalog belongs to a different or stale diagnostics session. Reload the Catalog after connecting.");
+            }
+        }
+
+        private LMCSignalCatalogEntry GetReadablePIEntry(
             LMCSignalCatalog catalog,
             string alias)
         {
@@ -63,6 +77,7 @@ namespace LasalMotionControlLib
                     "alias");
             }
 
+            RequireCurrentSignalCatalog(catalog);
             var entry = catalog.GetByAlias(alias);
             if ((entry.AccessFlags & LMCSignalAccessFlags.Readable)
                 != LMCSignalAccessFlags.Readable)
@@ -102,6 +117,64 @@ namespace LasalMotionControlLib
             }
 
             return entry;
+        }
+
+        private LMCSignalValue ReadCatalogPI(
+            LMCSignalCatalog catalog,
+            LMCSignalCatalogEntry entry)
+        {
+            var sessionGeneration = catalog.ConnectionSessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = GetCapabilities(sessionGeneration);
+            ValidateD1Capabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.SignalCatalog
+                    | LMCDiagnosticCapability.PIRead,
+                LMC_DiagnosticsFrame.ReadPIRequestPayloadLength,
+                LMC_DiagnosticsParser.ReadPIPayloadLength,
+                "ReadPI");
+            ValidateExpectedMapRevisionAgainstCapabilities(
+                sessionGeneration,
+                capabilities,
+                catalog.MapRevision,
+                "ReadPI");
+            return ReadPI(
+                sessionGeneration,
+                entry.SignalId,
+                catalog.MapRevision,
+                entry.DataType);
+        }
+
+        private async Task<LMCSignalValue> ReadCatalogPIAsync(
+            LMCSignalCatalog catalog,
+            LMCSignalCatalogEntry entry,
+            CancellationToken cancellationToken)
+        {
+            var sessionGeneration = catalog.ConnectionSessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            ValidateD1Capabilities(
+                capabilities,
+                sessionGeneration,
+                LMCDiagnosticCapability.SignalCatalog
+                    | LMCDiagnosticCapability.PIRead,
+                LMC_DiagnosticsFrame.ReadPIRequestPayloadLength,
+                LMC_DiagnosticsParser.ReadPIPayloadLength,
+                "ReadPI");
+            ValidateExpectedMapRevisionAgainstCapabilities(
+                sessionGeneration,
+                capabilities,
+                catalog.MapRevision,
+                "ReadPI");
+            return await ReadPIAsync(
+                sessionGeneration,
+                entry.SignalId,
+                catalog.MapRevision,
+                entry.DataType,
+                cancellationToken).ConfigureAwait(false);
         }
     }
 }

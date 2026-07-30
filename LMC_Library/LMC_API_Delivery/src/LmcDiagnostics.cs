@@ -11,6 +11,7 @@ namespace LasalMotionControlLib
 
         private readonly LMCConnection connection;
         private int requestSequence;
+        private long capabilityObservationSequence;
 
         internal LMCDiagnostics(LMCConnection connection)
         {
@@ -21,6 +22,12 @@ namespace LasalMotionControlLib
         public LMCDiagnosticCapabilities GetCapabilities()
         {
             var sessionGeneration = connection.SessionGeneration;
+            return GetCapabilities(sessionGeneration);
+        }
+
+        private LMCDiagnosticCapabilities GetCapabilities(
+            long sessionGeneration)
+        {
             connection.EnsureSessionGeneration(sessionGeneration);
             var requestId = NextRequestId();
             var raw = connection.Exchange(
@@ -31,13 +38,25 @@ namespace LasalMotionControlLib
                 requestId,
                 sessionGeneration);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return capabilities;
+            return capabilities.BindProvenance(
+                this,
+                sessionGeneration,
+                NextCapabilityObservationSequence());
         }
 
         public async Task<LMCDiagnosticCapabilities> GetCapabilitiesAsync(
             CancellationToken cancellationToken)
         {
             var sessionGeneration = connection.SessionGeneration;
+            return await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<LMCDiagnosticCapabilities> GetCapabilitiesAsync(
+            long sessionGeneration,
+            CancellationToken cancellationToken)
+        {
             connection.EnsureSessionGeneration(sessionGeneration);
             var requestId = NextRequestId();
             var raw = await connection.ExchangeAsync(
@@ -49,7 +68,10 @@ namespace LasalMotionControlLib
                 requestId,
                 sessionGeneration);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return capabilities;
+            return capabilities.BindProvenance(
+                this,
+                sessionGeneration,
+                NextCapabilityObservationSequence());
         }
 
         private uint NextRequestId()
@@ -64,6 +86,28 @@ namespace LasalMotionControlLib
             while (requestId == 0);
 
             return requestId;
+        }
+
+        private long NextCapabilityObservationSequence()
+        {
+            var sequence = Interlocked.Increment(
+                ref capabilityObservationSequence);
+            if (sequence <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics capability observation sequence overflowed.");
+            }
+
+            return sequence;
+        }
+
+        internal long CurrentCapabilityObservationSequence
+        {
+            get
+            {
+                return Interlocked.Read(
+                    ref capabilityObservationSequence);
+            }
         }
 
         private static Task<T> RunStateMutatingAsync<T>(

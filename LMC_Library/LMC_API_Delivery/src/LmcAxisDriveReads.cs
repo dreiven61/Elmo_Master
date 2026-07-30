@@ -75,6 +75,71 @@ namespace LasalMotionControlLib
                 }).ConfigureAwait(false);
         }
 
+        public LMCDriveErrorCodeResult GetDriveErrorCode()
+        {
+            return GetDriveErrorCode(DefaultDriveReadTimeoutCycles);
+        }
+
+        /// <summary>
+        /// Reads CiA 402 object 0x603F:0 exactly once through the adapter's D5
+        /// general-inline SDO path and returns the immutable ticket evidence.
+        /// </summary>
+        public LMCDriveErrorCodeResult GetDriveErrorCode(
+            uint timeoutCycles)
+        {
+            return RunTrackedDriveRead(
+                LMCDriveReadOperationKind.DriveErrorCode,
+                attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
+                    var completion = connection.Diagnostics
+                        .ReadInlineSdoToTerminal(
+                            CreateDriveErrorCodeRequest(timeoutCycles),
+                            sessionGeneration,
+                            attemptTracker);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    return new LMCDriveErrorCodeResult(
+                        AxisReference,
+                        completion);
+                });
+        }
+
+        public Task<LMCDriveErrorCodeResult> GetDriveErrorCodeAsync(
+            CancellationToken cancellationToken)
+        {
+            return GetDriveErrorCodeAsync(
+                DefaultDriveReadTimeoutCycles,
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Reads CiA 402 object 0x603F:0 exactly once through the adapter's D5
+        /// general-inline SDO path. Cancellation stops only the PC-side wait.
+        /// </summary>
+        public async Task<LMCDriveErrorCodeResult> GetDriveErrorCodeAsync(
+            uint timeoutCycles,
+            CancellationToken cancellationToken)
+        {
+            return await RunTrackedDriveReadAsync(
+                LMCDriveReadOperationKind.DriveErrorCode,
+                async attemptTracker =>
+                {
+                    EnsureDriveReadAxis();
+                    var completion = await connection.Diagnostics
+                        .ReadInlineSdoToTerminalAsync(
+                            CreateDriveErrorCodeRequest(timeoutCycles),
+                            sessionGeneration,
+                            attemptTracker,
+                            cancellationToken).ConfigureAwait(false);
+                    attemptTracker.BeginResultMaterialization();
+                    EnsureCurrentSessionForUse();
+                    return new LMCDriveErrorCodeResult(
+                        AxisReference,
+                        completion);
+                }).ConfigureAwait(false);
+        }
+
         public LMCDriveStatus ReadDriveStatus()
         {
             return ReadDriveStatus(DefaultDriveReadTimeoutCycles);
@@ -251,6 +316,18 @@ namespace LasalMotionControlLib
                 0,
                 LMCSignalValueType.Int8,
                 1,
+                timeoutCycles);
+        }
+
+        private LMCSdoRequest CreateDriveErrorCodeRequest(
+            uint timeoutCycles)
+        {
+            return LMCSdoRequest.CreateRead(
+                AxisReference,
+                0x603F,
+                0,
+                LMCSignalValueType.UInt16,
+                2,
                 timeoutCycles);
         }
 

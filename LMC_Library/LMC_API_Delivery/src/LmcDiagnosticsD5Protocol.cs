@@ -294,6 +294,7 @@ namespace LasalMotionControlLib
                 payload,
                 20);
             var state = (LMCOperationState)LMC_Frame.ReadUInt16(payload, 22);
+            var submitCycle = LMC_Frame.ReadUInt32(payload, 24);
             var outcome = (LMCOperationOutcome)LMC_Frame.ReadUInt16(
                 payload,
                 32);
@@ -306,6 +307,7 @@ namespace LasalMotionControlLib
 
             if (ticketId != expectedTicket.TicketId
                 || operationKind != expectedTicket.OperationKind
+                || submitCycle != expectedTicket.QueuedCycle
                 || diagnosticsBootId == 0
                 || diagnosticsBootId != expectedTicket.DiagnosticsBootId)
             {
@@ -350,7 +352,7 @@ namespace LasalMotionControlLib
                 ticketId,
                 operationKind,
                 state,
-                LMC_Frame.ReadUInt32(payload, 24),
+                submitCycle,
                 LMC_Frame.ReadUInt32(payload, 28),
                 outcome,
                 operationErrorId,

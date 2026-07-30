@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -8,6 +9,16 @@ using System.Threading.Tasks;
 
 namespace LasalMotionControlLib
 {
+    internal sealed class LMCPostWriteDeadlineException : TimeoutException
+    {
+        internal LMCPostWriteDeadlineException(Exception innerException)
+            : base(
+                "The RPC response deadline expired after the write-commit boundary; the transport was invalidated to preserve stream alignment.",
+                innerException)
+        {
+        }
+    }
+
     public sealed class LMCConnection : IDisposable
     {
         public const int DefaultCallbackPort = 5003;
@@ -51,11 +62,26 @@ namespace LasalMotionControlLib
         private const int LookupPayloadLength =
             LookupReferencePayloadOffset + UInt16ByteLength;
         private const long AnySessionGeneration = -1;
+        private const long AnyConnectionLifetimeGeneration = -1;
+
+        private static readonly AsyncLocal<ConnectionStateEventScope>
+            activeConnectionStateEventScope =
+                new AsyncLocal<ConnectionStateEventScope>();
 
         private readonly object sync = new object();
         private readonly object lifecycleSync = new object();
+        private readonly object lifecycleStateSync = new object();
         private readonly object callbackSync = new object();
+        private readonly object groupEnableWaitRegistrySync = new object();
+        private readonly object axisPowerOnWaitRegistrySync = new object();
+        private readonly Dictionary<ushort, LMCGroupEnableWaitCoordinator>
+            groupEnableWaitCoordinators =
+                new Dictionary<ushort, LMCGroupEnableWaitCoordinator>();
+        private readonly Dictionary<ushort, LMCAxisPowerOnWaitCoordinator>
+            axisPowerOnWaitCoordinators =
+                new Dictionary<ushort, LMCAxisPowerOnWaitCoordinator>();
         private readonly LMCConnectionOptions options;
+        private readonly LMCSendPriorityCoordinator sendPriorityCoordinator;
         private TcpClient client;
         private UdpClient callbackListener;
         private Thread callbackThread;
@@ -64,6 +90,30 @@ namespace LasalMotionControlLib
         private int connectionState;
         private long rejectedCallbackCount;
         private long sessionGeneration;
+        private long connectionLifetimeGeneration;
+        private long clientLifetimeGeneration;
+        private long clientSessionGeneration;
+        private long callbackListenerLifetimeGeneration;
+        private long groupEnableWaitRegistryGeneration = long.MinValue;
+        private long axisPowerOnWaitRegistryGeneration = long.MinValue;
+
+        private sealed class ConnectionStateEventScope
+        {
+            // Task.Run captures this reference. IsActive becomes false only
+            // after the synchronous state-event invocation has returned.
+            internal ConnectionStateEventScope(
+                LMCConnection source,
+                ConnectionStateEventScope parent)
+            {
+                Source = source;
+                Parent = parent;
+                IsActive = true;
+            }
+
+            internal LMCConnection Source { get; private set; }
+            internal ConnectionStateEventScope Parent { get; private set; }
+            internal volatile bool IsActive;
+        }
 
         public LMCConnection()
             : this(new LMCConnectionOptions())
@@ -78,6 +128,7 @@ namespace LasalMotionControlLib
             }
 
             this.options = options.CloneAndValidate();
+            sendPriorityCoordinator = this.options.SendPriorityCoordinator;
             connectionState = (int)LMCConnectionState.Disconnected;
             Diagnostics = new LMCDiagnostics(this);
             Admin = new LMCAdmin(this);
@@ -164,6 +215,7 @@ namespace LasalMotionControlLib
             string localAddress,
             CancellationToken cancellationToken)
         {
+            EnsureLifecycleOperationNotReentrant();
             return Task.Run(
                 () => OpenRpcConnection(
                     remoteAddress,
@@ -182,6 +234,7 @@ namespace LasalMotionControlLib
             uint eventMask,
             CancellationToken cancellationToken)
         {
+            EnsureLifecycleOperationNotReentrant();
             return Task.Run(
                 () => OpenRpcConnection(
                     remoteAddress,
@@ -199,11 +252,165 @@ namespace LasalMotionControlLib
 
         public Task CloseConnectionAsync(CancellationToken cancellationToken)
         {
+            EnsureLifecycleOperationNotReentrant();
             return Task.Run(
                 () => CloseConnectionCore(
                     true,
                     true,
                     cancellationToken));
+        }
+
+        /// <summary>
+        /// Aborts the local TCP transport with zero-time linger and stops the
+        /// callback listener without sending the RPC Close command. This is
+        /// intentionally internal and exists only for the WPF qualification
+        /// path. A TCP reset still does not prove PLC orphan handling by
+        /// itself.
+        /// </summary>
+        internal void AbortTransportForQualification()
+        {
+            EnsureLifecycleOperationNotReentrant();
+            EnterGate(lifecycleSync, CancellationToken.None);
+            try
+            {
+                var currentClient = client;
+                if (currentClient == null || !currentClient.Connected)
+                {
+                    throw new InvalidOperationException(
+                        "The qualification transport is not connected.");
+                }
+
+                if (!TryApplyAbortiveLinger(currentClient))
+                {
+                    throw new InvalidOperationException(
+                        "The qualification transport did not retain zero-time linger.");
+                }
+
+                LastQualificationAbortUsedZeroLinger = true;
+                CloseConnectionCoreLocked(
+                    false,
+                    false,
+                    CancellationToken.None);
+            }
+            finally
+            {
+                Monitor.Exit(lifecycleSync);
+            }
+        }
+
+        /// <summary>
+        /// Immediately detaches and closes the currently published TCP client
+        /// without sending RPC Close. This is the explicit production escape
+        /// hatch for a safety operation that cannot wait behind an in-flight RPC
+        /// response. The caller must reconnect this LMCConnection, reacquire the
+        /// exact object identity, and issue the safety command exactly once using
+        /// a newly bound object. This method never sends that command.
+        /// </summary>
+        /// <remarks>
+        /// A response to an already-written RPC cannot be interleaved with a new
+        /// request on the same byte stream. Closing the old client first preserves
+        /// framing. Late failure from the detached exchange is isolated by client
+        /// identity and connection-lifetime checks and cannot fault a later client.
+        /// Zero-time linger is best effort: failure to configure linger is exposed
+        /// in the returned evidence but never prevents the local close.
+        /// </remarks>
+        public LMCSafetyPreemptionAbortEvidence
+            AbortTransportForSafetyPreemption()
+        {
+            return AbortTransportForSafetyPreemptionCore(null);
+        }
+
+        /// <summary>
+        /// Identity-pinned safety abort. If a reconnect has already replaced the
+        /// expected session, this overload throws before detaching any client.
+        /// Use the SessionGeneration from the accepted operation being preempted.
+        /// </summary>
+        public LMCSafetyPreemptionAbortEvidence
+            AbortTransportForSafetyPreemption(
+            long expectedSessionGeneration)
+        {
+            if (expectedSessionGeneration <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "expectedSessionGeneration",
+                    "The expected RPC session generation must be positive.");
+            }
+
+            return AbortTransportForSafetyPreemptionCore(
+                expectedSessionGeneration);
+        }
+
+        private LMCSafetyPreemptionAbortEvidence
+            AbortTransportForSafetyPreemptionCore(
+            long? expectedSessionGeneration)
+        {
+            TcpClient currentClient;
+            long detachedLifetimeGeneration;
+            long sessionGenerationAtAbort;
+            LMCConnectionState stateBefore;
+
+            // Intentionally do not acquire lifecycleSync. A normal Close can
+            // hold that lock while waiting behind an already-written RPC. The
+            // safety path must still be able to detach that exact old client.
+            lock (lifecycleStateSync)
+            {
+                sessionGenerationAtAbort = client == null
+                    ? SessionGeneration
+                    : clientSessionGeneration;
+                if (expectedSessionGeneration.HasValue
+                    && sessionGenerationAtAbort
+                        != expectedSessionGeneration.Value)
+                {
+                    throw new
+                        LMCSafetyPreemptionSessionMismatchException(
+                            expectedSessionGeneration.Value,
+                            sessionGenerationAtAbort);
+                }
+
+                stateBefore = State;
+                currentClient = client;
+                if (currentClient == null)
+                {
+                    return new LMCSafetyPreemptionAbortEvidence(
+                        sessionGenerationAtAbort,
+                        stateBefore,
+                        State,
+                        false,
+                        false,
+                        false);
+                }
+
+                detachedLifetimeGeneration = clientLifetimeGeneration;
+                client = null;
+                clientLifetimeGeneration = 0;
+                clientSessionGeneration = 0;
+            }
+
+            var abortiveLingerApplied =
+                TryApplyAbortiveLinger(currentClient);
+            var exception =
+                new LMCSafetyPreemptionTransportAbortedException(
+                    sessionGenerationAtAbort);
+
+            CloseClientQuietly(currentClient);
+            var faultStatePublished = InvalidateDetachedTransport(
+                exception,
+                detachedLifetimeGeneration,
+                true);
+
+            return new LMCSafetyPreemptionAbortEvidence(
+                sessionGenerationAtAbort,
+                stateBefore,
+                State,
+                true,
+                abortiveLingerApplied,
+                faultStatePublished);
+        }
+
+        internal bool LastQualificationAbortUsedZeroLinger
+        {
+            get;
+            private set;
         }
 
         private void OpenRpcConnection(
@@ -230,6 +437,7 @@ namespace LasalMotionControlLib
             uint eventMask,
             CancellationToken cancellationToken)
         {
+            EnsureLifecycleOperationNotReentrant();
             EnterGate(lifecycleSync, cancellationToken);
 
             try
@@ -274,8 +482,22 @@ namespace LasalMotionControlLib
             var parsedLocalAddress = ParseIPv4Address(localAddress, "localAddress");
 
             cancellationToken.ThrowIfCancellationRequested();
+            // Reserve the new session before the previous transport is closed.
+            // While that client remains published, pinned abort compares its
+            // bound session. Once it is detached, the reservation makes an old
+            // generation fail closed even before the new client is published.
+            var openingSessionGeneration = ReserveOpeningSession();
+            var reservedObserver = options
+                .SessionReservedBeforeClientPublishObserver;
+            if (reservedObserver != null)
+            {
+                reservedObserver();
+            }
+
             CloseConnectionCoreLocked(true, false, CancellationToken.None);
             cancellationToken.ThrowIfCancellationRequested();
+
+            var openingLifetimeGeneration = AdvanceConnectionLifetime();
 
             RpcCloseResponse = null;
             LastTransportException = null;
@@ -292,8 +514,10 @@ namespace LasalMotionControlLib
                 ReceiveTimeout = options.ReceiveTimeoutMilliseconds,
                 SendTimeout = options.SendTimeoutMilliseconds
             };
-            client = openingClient;
-            Interlocked.Increment(ref sessionGeneration);
+            PublishClientForReservedSession(
+                openingClient,
+                openingLifetimeGeneration,
+                openingSessionGeneration);
 
             try
             {
@@ -316,8 +540,12 @@ namespace LasalMotionControlLib
                         RpcSessionInitResponse,
                         RpcSessionInitPayloadLength,
                         "RPC session init");
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    StartCallbackListener(parsedLocalAddress, callbackPort);
+                    StartCallbackListener(
+                        parsedLocalAddress,
+                        callbackPort,
+                        openingLifetimeGeneration);
                     var registeredCallbackPort = CallbackLocalEndPoint.Port;
 
                     RpcCallbackRegistrationResponse = ParseShortAcknowledgement(
@@ -334,11 +562,13 @@ namespace LasalMotionControlLib
                     EnsureSuccess(
                         "RPC callback registration",
                         RpcCallbackRegistrationResponse);
+                    cancellationToken.ThrowIfCancellationRequested();
 
                     CallbackPort = registeredCallbackPort;
                     EventMask = eventMask;
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 IsRpcInitialized = true;
                 SetConnectionState(LMCConnectionState.Connected, null);
             }
@@ -435,6 +665,11 @@ namespace LasalMotionControlLib
                     var maximumPayloadLength =
                         LMC_ResponsePayloadLimits.GetMaximumPayloadLength(command);
                     var stream = operationClient.GetStream();
+                    if (sendPriorityCoordinator != null)
+                    {
+                        sendPriorityCoordinator.ValidateBeforeWrite(command);
+                    }
+
                     if (onWriteStarting != null)
                     {
                         onWriteStarting();
@@ -499,6 +734,19 @@ namespace LasalMotionControlLib
             long expectedGeneration,
             CancellationToken cancellationToken)
         {
+            return ExchangeAsync(
+                request,
+                expectedGeneration,
+                cancellationToken,
+                null);
+        }
+
+        internal Task<byte[]> ExchangeAsync(
+            byte[] request,
+            long expectedGeneration,
+            CancellationToken cancellationToken,
+            Action onWriteStarting)
+        {
             var operationClient = client;
 
             return Task.Run(
@@ -507,7 +755,247 @@ namespace LasalMotionControlLib
                     operationClient,
                     false,
                     cancellationToken,
-                    expectedGeneration));
+                    expectedGeneration,
+                    onWriteStarting));
+        }
+
+        /// <summary>
+        /// Applies cancellation while waiting for the connection gate and immediately
+        /// before the write-commit boundary. Once Stream.Write may have started, the
+        /// response is drained without cancellation so the RPC stream remains reusable.
+        /// </summary>
+        internal Task<byte[]> ExchangeAsyncDrainAfterWrite(
+            byte[] request,
+            long expectedGeneration,
+            CancellationToken preWriteCancellationToken,
+            Action onWriteStarting)
+        {
+            return ExchangeAsyncDrainAfterWrite(
+                request,
+                expectedGeneration,
+                preWriteCancellationToken,
+                CancellationToken.None,
+                onWriteStarting,
+                null);
+        }
+
+        /// <summary>
+        /// Preserves the legacy drain behavior for caller cancellation while
+        /// allowing a distinct post-write deadline to invalidate the transport.
+        /// onWriteCommitted runs only after the final authoritative pre-write
+        /// cancellation check and immediately before Stream.Write may start.
+        /// </summary>
+        internal Task<byte[]> ExchangeAsyncDrainAfterWrite(
+            byte[] request,
+            long expectedGeneration,
+            CancellationToken preWriteCancellationToken,
+            CancellationToken postWriteDeadlineToken,
+            Action onWriteStarting,
+            Action onWriteCommitted)
+        {
+            var operationClient = client;
+
+            return Task.Run(
+                () => ExchangeCoreDrainAfterWrite(
+                    request,
+                    operationClient,
+                    preWriteCancellationToken,
+                    expectedGeneration,
+                    postWriteDeadlineToken,
+                    onWriteStarting,
+                    onWriteCommitted));
+        }
+
+        private byte[] ExchangeCoreDrainAfterWrite(
+            byte[] request,
+            TcpClient operationClient,
+            CancellationToken preWriteCancellationToken,
+            long expectedGeneration,
+            CancellationToken postWriteDeadlineToken,
+            Action onWriteStarting,
+            Action onWriteCommitted)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
+            EnterGate(sync, preWriteCancellationToken);
+            var writeMayHaveStarted = false;
+            var preWriteCallbackFailed = false;
+            var postWriteDeadlineAborted = 0;
+
+            try
+            {
+                preWriteCancellationToken.ThrowIfCancellationRequested();
+                EnsureConnected(operationClient, false);
+                EnsureExpectedGeneration(expectedGeneration);
+
+                var command = LMC_Frame.GetRequestCommand(request);
+                var maximumPayloadLength =
+                    LMC_ResponsePayloadLimits.GetMaximumPayloadLength(command);
+                var stream = operationClient.GetStream();
+                if (sendPriorityCoordinator != null)
+                {
+                    sendPriorityCoordinator.ValidateBeforeWrite(command);
+                }
+
+                preWriteCancellationToken.ThrowIfCancellationRequested();
+                if (onWriteStarting != null)
+                {
+                    try
+                    {
+                        onWriteStarting();
+                    }
+                    catch
+                    {
+                        preWriteCallbackFailed = true;
+                        throw;
+                    }
+                }
+                preWriteCancellationToken.ThrowIfCancellationRequested();
+
+                if (onWriteCommitted != null)
+                {
+                    try
+                    {
+                        onWriteCommitted();
+                    }
+                    catch
+                    {
+                        preWriteCallbackFailed = true;
+                        throw;
+                    }
+                }
+
+                // Cancellation stops being authoritative at this commit boundary.
+                // Stream.Write can partially transmit before throwing, so the flag must
+                // be set immediately before invoking it rather than after it returns.
+                writeMayHaveStarted = true;
+                byte[] response;
+                using (postWriteDeadlineToken.Register(
+                    () =>
+                    {
+                        if (AbortForPostWriteDeadline(operationClient))
+                        {
+                            Interlocked.Exchange(
+                                ref postWriteDeadlineAborted,
+                                1);
+                        }
+                    }))
+                {
+                    stream.Write(request, 0, request.Length);
+
+                    var header = ReadExact(stream, LMC_Frame.HeaderSize);
+                    var payloadLength = LMC_Frame.GetResponsePayloadLength(header);
+
+                    if (payloadLength > maximumPayloadLength)
+                    {
+                        throw new InvalidDataException(
+                            "RPC response for command 0x"
+                            + command.ToString("X4")
+                            + " declares "
+                            + payloadLength
+                            + " payload bytes; the maximum allowed is "
+                            + maximumPayloadLength
+                            + ".");
+                    }
+
+                    var payload = payloadLength == 0
+                        ? new byte[0]
+                        : ReadExact(stream, payloadLength);
+
+                    response = CombineResponse(header, payload);
+                }
+
+                if (Volatile.Read(ref postWriteDeadlineAborted) != 0)
+                {
+                    throw new LMCPostWriteDeadlineException(null);
+                }
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                if (ex is LMCPostWriteDeadlineException)
+                {
+                    throw;
+                }
+
+                if (writeMayHaveStarted
+                    && Volatile.Read(ref postWriteDeadlineAborted) != 0)
+                {
+                    throw new LMCPostWriteDeadlineException(ex);
+                }
+
+                if (!writeMayHaveStarted
+                    && preWriteCancellationToken.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(
+                        preWriteCancellationToken);
+                }
+
+                if (!writeMayHaveStarted && preWriteCallbackFailed)
+                {
+                    throw;
+                }
+
+                if (IsTransportException(ex))
+                {
+                    MarkTransportFault(ex, operationClient);
+                }
+
+                throw;
+            }
+            finally
+            {
+                Monitor.Exit(sync);
+            }
+        }
+
+        internal void PublishSendPriorityResult(
+            ushort command,
+            Action publish)
+        {
+            if (sendPriorityCoordinator != null)
+            {
+                sendPriorityCoordinator.PublishResult(command, publish);
+                return;
+            }
+
+            publish();
+        }
+
+        internal void PublishSessionBoundSendPriorityResult(
+            long expectedGeneration,
+            ushort command,
+            Action publish)
+        {
+            if (publish == null)
+            {
+                throw new ArgumentNullException("publish");
+            }
+
+            // Linearize result publication against Close/Open. Close owns this
+            // gate before it moves the connection to Closing, so a response is
+            // either published in the same active session or rejected after
+            // the lifecycle transition completes.
+            EnterGate(lifecycleSync, CancellationToken.None);
+            try
+            {
+                EnsureSessionGeneration(expectedGeneration);
+                PublishSendPriorityResult(
+                    command,
+                    () =>
+                    {
+                        EnsureSessionGeneration(expectedGeneration);
+                        publish();
+                    });
+            }
+            finally
+            {
+                Monitor.Exit(lifecycleSync);
+            }
         }
 
         internal void EnsureSessionGeneration(long expectedGeneration)
@@ -517,6 +1005,79 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidOperationException(
                     "The axis or group handle belongs to an inactive RPC session; create it again after reconnecting.");
+            }
+        }
+
+        internal long CaptureSessionGeneration(out bool isConnected)
+        {
+            EnterGate(lifecycleSync, CancellationToken.None);
+            try
+            {
+                var generation = SessionGeneration;
+                isConnected = State == LMCConnectionState.Connected;
+                return generation;
+            }
+            finally
+            {
+                Monitor.Exit(lifecycleSync);
+            }
+        }
+
+        internal LMCGroupEnableWaitCoordinator GetGroupEnableWaitCoordinator(
+            long expectedGeneration,
+            ushort groupReference)
+        {
+            EnsureSessionGeneration(expectedGeneration);
+
+            lock (groupEnableWaitRegistrySync)
+            {
+                EnsureSessionGeneration(expectedGeneration);
+
+                if (groupEnableWaitRegistryGeneration != expectedGeneration)
+                {
+                    groupEnableWaitCoordinators.Clear();
+                    groupEnableWaitRegistryGeneration = expectedGeneration;
+                }
+
+                LMCGroupEnableWaitCoordinator coordinator;
+                if (!groupEnableWaitCoordinators.TryGetValue(
+                    groupReference,
+                    out coordinator))
+                {
+                    coordinator = new LMCGroupEnableWaitCoordinator();
+                    groupEnableWaitCoordinators.Add(groupReference, coordinator);
+                }
+
+                return coordinator;
+            }
+        }
+
+        internal LMCAxisPowerOnWaitCoordinator GetAxisPowerOnWaitCoordinator(
+            long expectedGeneration,
+            ushort axisReference)
+        {
+            EnsureSessionGeneration(expectedGeneration);
+
+            lock (axisPowerOnWaitRegistrySync)
+            {
+                EnsureSessionGeneration(expectedGeneration);
+
+                if (axisPowerOnWaitRegistryGeneration != expectedGeneration)
+                {
+                    axisPowerOnWaitCoordinators.Clear();
+                    axisPowerOnWaitRegistryGeneration = expectedGeneration;
+                }
+
+                LMCAxisPowerOnWaitCoordinator coordinator;
+                if (!axisPowerOnWaitCoordinators.TryGetValue(
+                        axisReference,
+                        out coordinator))
+                {
+                    coordinator = new LMCAxisPowerOnWaitCoordinator();
+                    axisPowerOnWaitCoordinators.Add(axisReference, coordinator);
+                }
+
+                return coordinator;
             }
         }
 
@@ -638,8 +1199,61 @@ namespace LasalMotionControlLib
             return reference != 0;
         }
 
-        internal static InvalidOperationException CreateLookupFailureException(
+        internal static LMCLookupResult ParseLookupResult(
+            LMCLookupTargetKind targetKind,
+            string objectName,
+            byte[] raw)
+        {
+            LMC_Response response;
+            ushort reference;
+            if (!TryParseLookupReference(raw, out response, out reference))
+            {
+                throw CreateLookupFailureException(
+                    targetKind,
+                    objectName,
+                    raw);
+            }
+
+            return new LMCLookupResult(
+                targetKind,
+                objectName,
+                reference,
+                response);
+        }
+
+        internal static LMCLookupException CreateLookupFailureException(
             string targetKind,
+            string objectName,
+            byte[] raw)
+        {
+            LMCLookupTargetKind parsedTargetKind;
+            if (string.Equals(
+                targetKind,
+                "Axis",
+                StringComparison.Ordinal))
+            {
+                parsedTargetKind = LMCLookupTargetKind.Axis;
+            }
+            else if (string.Equals(
+                targetKind,
+                "Group",
+                StringComparison.Ordinal))
+            {
+                parsedTargetKind = LMCLookupTargetKind.Group;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("targetKind");
+            }
+
+            return CreateLookupFailureException(
+                parsedTargetKind,
+                objectName,
+                raw);
+        }
+
+        private static LMCLookupException CreateLookupFailureException(
+            LMCLookupTargetKind targetKind,
             string objectName,
             byte[] raw)
         {
@@ -709,7 +1323,13 @@ namespace LasalMotionControlLib
                 .Append(ToHex(raw))
                 .Append(".");
 
-            return new InvalidOperationException(message.ToString());
+            return new LMCLookupException(
+                targetKind,
+                objectName,
+                response,
+                hasLookupPayload,
+                lookupReference,
+                message.ToString());
         }
 
         private static string ToHex(byte[] raw)
@@ -981,6 +1601,7 @@ namespace LasalMotionControlLib
             bool throwOnCloseError,
             CancellationToken cancellationToken)
         {
+            EnsureLifecycleOperationNotReentrant();
             EnterGate(lifecycleSync, cancellationToken);
 
             try
@@ -1001,6 +1622,7 @@ namespace LasalMotionControlLib
             bool throwOnCloseError,
             CancellationToken cancellationToken)
         {
+            AdvanceConnectionLifetime();
             var currentClient = client;
             Exception closeException = null;
 
@@ -1034,19 +1656,14 @@ namespace LasalMotionControlLib
             {
                 if (currentClient != null)
                 {
-                    Interlocked.CompareExchange(
-                        ref client,
-                        null,
-                        currentClient);
+                    ClearPublishedClient(currentClient);
                     currentClient.Close();
                 }
                 StopCallbackListener();
-                IsRpcInitialized = false;
-                CallbackPort = 0;
-                EventMask = 0;
-                expectedCallbackAddress = null;
-                RpcSessionInitResponse = null;
-                RpcCallbackRegistrationResponse = null;
+                lock (lifecycleStateSync)
+                {
+                    ClearConnectionMetadata();
+                }
                 SetConnectionState(LMCConnectionState.Disconnected, null);
             }
 
@@ -1101,14 +1718,20 @@ namespace LasalMotionControlLib
             return address;
         }
 
-        private void StartCallbackListener(IPAddress localAddress, int callbackPort)
+        private void StartCallbackListener(
+            IPAddress localAddress,
+            int callbackPort,
+            long lifetimeGeneration)
         {
             StopCallbackListener();
 
             var listener = new UdpClient(new IPEndPoint(localAddress, callbackPort));
             var callbackSourceAddress = expectedCallbackAddress;
             var thread = new Thread(
-                () => ReceiveCallbackLoop(listener, callbackSourceAddress))
+                () => ReceiveCallbackLoop(
+                    listener,
+                    callbackSourceAddress,
+                    lifetimeGeneration))
             {
                 IsBackground = true,
                 Name = "LMC RPC callback listener"
@@ -1120,6 +1743,7 @@ namespace LasalMotionControlLib
                 CallbackLocalEndPoint = (IPEndPoint)listener.Client.LocalEndPoint;
                 callbackListenerRunning = true;
                 callbackThread = thread;
+                callbackListenerLifetimeGeneration = lifetimeGeneration;
             }
 
             thread.Start();
@@ -1127,17 +1751,31 @@ namespace LasalMotionControlLib
 
         private void StopCallbackListener()
         {
+            StopCallbackListener(AnyConnectionLifetimeGeneration);
+        }
+
+        private void StopCallbackListener(long expectedLifetimeGeneration)
+        {
             UdpClient listener;
             Thread thread;
 
             lock (callbackSync)
             {
+                if (expectedLifetimeGeneration
+                        != AnyConnectionLifetimeGeneration
+                    && callbackListenerLifetimeGeneration
+                        != expectedLifetimeGeneration)
+                {
+                    return;
+                }
+
                 callbackListenerRunning = false;
                 listener = callbackListener;
                 thread = callbackThread;
                 callbackListener = null;
                 callbackThread = null;
                 CallbackLocalEndPoint = null;
+                callbackListenerLifetimeGeneration = 0;
             }
 
             if (listener != null)
@@ -1155,16 +1793,21 @@ namespace LasalMotionControlLib
 
         private void ReceiveCallbackLoop(
             UdpClient ownedListener,
-            IPAddress ownedSourceAddress)
+            IPAddress ownedSourceAddress,
+            long ownedLifetimeGeneration)
         {
-            while (IsCurrentCallbackListener(ownedListener))
+            while (IsCurrentCallbackListener(
+                ownedListener,
+                ownedLifetimeGeneration))
             {
                 try
                 {
                     var remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
                     var payload = ownedListener.Receive(ref remoteEndPoint);
 
-                    if (!IsCurrentCallbackListener(ownedListener))
+                    if (!IsCurrentCallbackListener(
+                        ownedListener,
+                        ownedLifetimeGeneration))
                     {
                         break;
                     }
@@ -1173,11 +1816,15 @@ namespace LasalMotionControlLib
                         && ownedSourceAddress != null
                         && !ownedSourceAddress.Equals(remoteEndPoint.Address))
                     {
-                        Interlocked.Increment(ref rejectedCallbackCount);
+                        TryIncrementRejectedCallbackCount(
+                            ownedListener,
+                            ownedLifetimeGeneration);
                         continue;
                     }
 
                     OnCallbackReceived(
+                        ownedListener,
+                        ownedLifetimeGeneration,
                         new LMCCallbackEventArgs(
                             payload,
                             remoteEndPoint,
@@ -1189,23 +1836,33 @@ namespace LasalMotionControlLib
                 }
                 catch (SocketException ex)
                 {
-                    if (IsCurrentCallbackListener(ownedListener))
-                    {
-                        OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
-                    }
+                    OnCallbackListenerError(
+                        ownedListener,
+                        ownedLifetimeGeneration,
+                        new LMCCallbackErrorEventArgs(ex));
                 }
                 catch (Exception ex)
                 {
-                    if (IsCurrentCallbackListener(ownedListener))
-                    {
-                        OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
-                    }
+                    OnCallbackListenerError(
+                        ownedListener,
+                        ownedLifetimeGeneration,
+                        new LMCCallbackErrorEventArgs(ex));
                 }
             }
         }
 
-        private void OnCallbackReceived(LMCCallbackEventArgs e)
+        private void OnCallbackReceived(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            LMCCallbackEventArgs e)
         {
+            if (!IsCurrentCallbackListener(
+                ownedListener,
+                ownedLifetimeGeneration))
+            {
+                return;
+            }
+
             var handler = CallbackReceived;
             if (handler != null)
             {
@@ -1215,13 +1872,26 @@ namespace LasalMotionControlLib
                 }
                 catch (Exception ex)
                 {
-                    OnCallbackListenerError(new LMCCallbackErrorEventArgs(ex));
+                    OnCallbackListenerError(
+                        ownedListener,
+                        ownedLifetimeGeneration,
+                        new LMCCallbackErrorEventArgs(ex));
                 }
             }
         }
 
-        private void OnCallbackListenerError(LMCCallbackErrorEventArgs e)
+        private void OnCallbackListenerError(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            LMCCallbackErrorEventArgs e)
         {
+            if (!IsCurrentCallbackListener(
+                ownedListener,
+                ownedLifetimeGeneration))
+            {
+                return;
+            }
+
             var handler = CallbackListenerError;
             if (handler != null)
             {
@@ -1344,10 +2014,35 @@ namespace LasalMotionControlLib
             }
         }
 
-        private bool IsCurrentCallbackListener(UdpClient ownedListener)
+        private bool IsCurrentCallbackListener(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration)
         {
-            return callbackListenerRunning
-                && ReferenceEquals(callbackListener, ownedListener);
+            lock (callbackSync)
+            {
+                return callbackListenerRunning
+                    && ReferenceEquals(callbackListener, ownedListener)
+                    && callbackListenerLifetimeGeneration
+                        == ownedLifetimeGeneration;
+            }
+        }
+
+        private void TryIncrementRejectedCallbackCount(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration)
+        {
+            lock (callbackSync)
+            {
+                if (!callbackListenerRunning
+                    || !ReferenceEquals(callbackListener, ownedListener)
+                    || callbackListenerLifetimeGeneration
+                        != ownedLifetimeGeneration)
+                {
+                    return;
+                }
+
+                Interlocked.Increment(ref rejectedCallbackCount);
+            }
         }
 
         internal static LMC_Response ParseShortAcknowledgement(
@@ -1433,19 +2128,27 @@ namespace LasalMotionControlLib
             Exception exception,
             TcpClient operationClient)
         {
-            if (!TryDetachClient(operationClient))
+            long detachedLifetimeGeneration;
+            if (!TryDetachClient(
+                operationClient,
+                out detachedLifetimeGeneration))
             {
                 return;
             }
 
-            LastTransportException = exception;
             CloseClientQuietly(operationClient);
-            InvalidateDetachedTransport(exception);
+            InvalidateDetachedTransport(
+                exception,
+                detachedLifetimeGeneration,
+                true);
         }
 
         private void AbortForCancellation(TcpClient operationClient)
         {
-            if (!TryDetachClient(operationClient))
+            long detachedLifetimeGeneration;
+            if (!TryDetachClient(
+                operationClient,
+                out detachedLifetimeGeneration))
             {
                 return;
             }
@@ -1454,25 +2157,149 @@ namespace LasalMotionControlLib
                 "The RPC operation was cancelled after it acquired the transport. Reconnect before issuing another command.");
 
             CloseClientQuietly(operationClient);
-            InvalidateDetachedTransport(exception);
+            InvalidateDetachedTransport(
+                exception,
+                detachedLifetimeGeneration,
+                false);
         }
 
-        private bool TryDetachClient(TcpClient operationClient)
+        private bool AbortForPostWriteDeadline(TcpClient operationClient)
         {
+            long detachedLifetimeGeneration;
+            if (!TryDetachClient(
+                operationClient,
+                out detachedLifetimeGeneration))
+            {
+                return false;
+            }
+
+            var exception = new TimeoutException(
+                "The RPC response deadline expired after the write-commit boundary; reconnect before issuing another command.");
+
+            CloseClientQuietly(operationClient);
+            InvalidateDetachedTransport(
+                exception,
+                detachedLifetimeGeneration,
+                true);
+            return true;
+        }
+
+        private bool TryDetachClient(
+            TcpClient operationClient,
+            out long detachedLifetimeGeneration)
+        {
+            detachedLifetimeGeneration = 0;
             if (operationClient == null)
             {
                 return false;
             }
 
-            return ReferenceEquals(
-                Interlocked.CompareExchange(
-                    ref client,
-                    null,
-                    operationClient),
-                operationClient);
+            lock (lifecycleStateSync)
+            {
+                if (!ReferenceEquals(client, operationClient))
+                {
+                    return false;
+                }
+
+                detachedLifetimeGeneration = clientLifetimeGeneration;
+                client = null;
+                clientLifetimeGeneration = 0;
+                clientSessionGeneration = 0;
+                return true;
+            }
         }
 
-        private void InvalidateDetachedTransport(Exception exception)
+        private bool InvalidateDetachedTransport(
+            Exception exception,
+            long detachedLifetimeGeneration,
+            bool recordTransportException)
+        {
+            lock (lifecycleStateSync)
+            {
+                if (connectionLifetimeGeneration
+                    != detachedLifetimeGeneration)
+                {
+                    return false;
+                }
+
+                if (recordTransportException)
+                {
+                    LastTransportException = exception;
+                }
+
+                ClearConnectionMetadata();
+            }
+
+            StopCallbackListener(detachedLifetimeGeneration);
+
+            lock (lifecycleStateSync)
+            {
+                if (connectionLifetimeGeneration
+                        == detachedLifetimeGeneration
+                    && State != LMCConnectionState.Closing)
+                {
+                    SetConnectionState(LMCConnectionState.Faulted, exception);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private long AdvanceConnectionLifetime()
+        {
+            lock (lifecycleStateSync)
+            {
+                return ++connectionLifetimeGeneration;
+            }
+        }
+
+        private long ReserveOpeningSession()
+        {
+            lock (lifecycleStateSync)
+            {
+                return ++sessionGeneration;
+            }
+        }
+
+        private void PublishClientForReservedSession(
+            TcpClient openingClient,
+            long lifetimeGeneration,
+            long openingSessionGeneration)
+        {
+            lock (lifecycleStateSync)
+            {
+                clientLifetimeGeneration = lifetimeGeneration;
+                client = openingClient;
+                var observer = options
+                    .ClientPublishedBeforeSessionBindObserver;
+                if (observer != null)
+                {
+                    observer();
+                }
+
+                // The client and its reserved session become observable to a
+                // pinned safety abort under this single state lock.
+                clientSessionGeneration = openingSessionGeneration;
+            }
+        }
+
+        private void ClearPublishedClient(TcpClient expectedClient)
+        {
+            lock (lifecycleStateSync)
+            {
+                if (!ReferenceEquals(client, expectedClient))
+                {
+                    return;
+                }
+
+                client = null;
+                clientLifetimeGeneration = 0;
+                clientSessionGeneration = 0;
+            }
+        }
+
+        private void ClearConnectionMetadata()
         {
             IsRpcInitialized = false;
             CallbackPort = 0;
@@ -1480,12 +2307,6 @@ namespace LasalMotionControlLib
             expectedCallbackAddress = null;
             RpcSessionInitResponse = null;
             RpcCallbackRegistrationResponse = null;
-            StopCallbackListener();
-
-            if (State != LMCConnectionState.Closing)
-            {
-                SetConnectionState(LMCConnectionState.Faulted, exception);
-            }
         }
 
         private static void CloseClientQuietly(TcpClient targetClient)
@@ -1501,6 +2322,27 @@ namespace LasalMotionControlLib
             }
             catch
             {
+            }
+        }
+
+        private static bool TryApplyAbortiveLinger(TcpClient targetClient)
+        {
+            if (targetClient == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                // Linger enabled with a zero timeout requests an abortive TCP
+                // close (RST) instead of an orderly FIN.
+                targetClient.Client.LingerState = new LingerOption(true, 0);
+                var appliedLinger = targetClient.Client.LingerState;
+                return appliedLinger.Enabled && appliedLinger.LingerTime == 0;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -1532,6 +2374,12 @@ namespace LasalMotionControlLib
                 return;
             }
 
+            var previousEventScope = activeConnectionStateEventScope.Value;
+            var currentEventScope = new ConnectionStateEventScope(
+                this,
+                previousEventScope);
+            activeConnectionStateEventScope.Value = currentEventScope;
+
             try
             {
                 handler(
@@ -1544,6 +2392,38 @@ namespace LasalMotionControlLib
             catch
             {
             }
+            finally
+            {
+                currentEventScope.IsActive = false;
+                activeConnectionStateEventScope.Value = previousEventScope;
+            }
+        }
+
+        private void EnsureLifecycleOperationNotReentrant()
+        {
+            for (var eventScope = activeConnectionStateEventScope.Value;
+                eventScope != null;
+                eventScope = eventScope.Parent)
+            {
+                if (eventScope.IsActive
+                    && ReferenceEquals(eventScope.Source, this))
+                {
+                    ThrowLifecycleOperationReentry();
+                }
+            }
+
+            if (Monitor.IsEntered(lifecycleSync))
+            {
+                ThrowLifecycleOperationReentry();
+            }
+        }
+
+        private static void ThrowLifecycleOperationReentry()
+        {
+            throw new InvalidOperationException(
+                "Connection lifecycle methods cannot be called "
+                + "reentrantly from a ConnectionStateChanged handler. "
+                + "Defer the operation until the handler returns.");
         }
 
         private static void EnterGate(

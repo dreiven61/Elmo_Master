@@ -30,6 +30,12 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("configuration");
             }
 
+            if (configuration.BufferMode == LMCRecorderBufferMode.Double)
+            {
+                throw new NotSupportedException(
+                    "Double-bank Recorder configurations require ConfigureRecoverableDoubleRecorder and an exact recovery token.");
+            }
+
             connection.EnsureSessionGeneration(sessionGeneration);
             var capabilities = GetCapabilities();
             ValidateRecorderCapabilities(
@@ -56,11 +62,15 @@ namespace LasalMotionControlLib
                     sessionGeneration,
                     this));
 
-            connection.EnsureSessionGeneration(sessionGeneration);
             RememberRecorderBootId(
                 sessionGeneration,
                 handle.DiagnosticsBootId);
-            return handle;
+            return PublishAcceptedRecorderResult(
+                sessionGeneration,
+                LMC_CommandId.ConfigureRecorder,
+                LMCRecorderAcceptedOperation.ConfigureRecorder,
+                handle,
+                null);
         }
 
         public async Task<LMCRecorderConfigurationHandle> ConfigureRecorderAsync(
@@ -86,24 +96,198 @@ namespace LasalMotionControlLib
                 CancellationToken.None).ConfigureAwait(false);
         }
 
+        public LMCRecorderConfigurationHandle
+            ConfigureRecoverableDoubleRecorder(
+                LMCRecorderConfiguration configuration,
+                Guid recoveryToken)
+        {
+            return ConfigureRecoverableDoubleRecorderCore(
+                configuration,
+                recoveryToken,
+                connection.SessionGeneration,
+                null);
+        }
+
+        private LMCRecorderConfigurationHandle
+            ConfigureRecoverableDoubleRecorderCore(
+                LMCRecorderConfiguration configuration,
+                Guid recoveryToken,
+                long sessionGeneration,
+                LMCDiagnosticCapabilities pinnedCapabilities)
+        {
+            ValidateRecoverableDoubleRecorderArguments(
+                configuration,
+                recoveryToken);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = pinnedCapabilities ?? GetCapabilities();
+            if (pinnedCapabilities == null)
+            {
+                ValidateRecorderCapabilities(
+                    capabilities,
+                    sessionGeneration,
+                    configuration);
+            }
+            else
+            {
+                ValidatePinnedRecoverableDoubleRecorderCapabilities(
+                    capabilities,
+                    sessionGeneration,
+                    configuration);
+            }
+
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.ConfigureRecoverableDoubleRecorder(
+                    requestId,
+                    capabilities.MapRevision,
+                    configuration,
+                    capabilities.DiagnosticsBootId,
+                    recoveryToken),
+                sessionGeneration);
+            var handle = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser
+                    .ParseConfigureRecoverableDoubleRecorder(
+                        raw,
+                        requestId,
+                        configuration,
+                        recoveryToken,
+                        capabilities,
+                        sessionGeneration,
+                        this));
+            RememberRecorderBootId(
+                sessionGeneration,
+                handle.DiagnosticsBootId);
+            return PublishAcceptedRecorderResult(
+                sessionGeneration,
+                LMC_CommandId.ConfigureRecoverableDoubleRecorder,
+                LMCRecorderAcceptedOperation
+                    .ConfigureRecoverableDoubleRecorder,
+                handle,
+                null);
+        }
+
+        public async Task<LMCRecorderConfigurationHandle>
+            ConfigureRecoverableDoubleRecorderAsync(
+                LMCRecorderConfiguration configuration,
+                Guid recoveryToken,
+                CancellationToken cancellationToken)
+        {
+            ValidateRecoverableDoubleRecorderArguments(
+                configuration,
+                recoveryToken);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return ConfigureRecoverableDoubleRecorderCore(
+                        configuration,
+                        recoveryToken,
+                        sessionGeneration,
+                        null);
+                },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Validates a recoverable Double Recorder configuration against one
+        /// exact capability snapshot without sending a Configure request.
+        /// The snapshot must belong to this diagnostics facade and current
+        /// connection session.
+        /// </summary>
+        public void ValidateRecoverableDoubleRecorderConfiguration(
+            LMCRecorderConfiguration configuration,
+            Guid recoveryToken,
+            LMCDiagnosticCapabilities capabilities)
+        {
+            ValidateRecoverableDoubleRecorderArguments(
+                configuration,
+                recoveryToken);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            ValidatePinnedRecoverableDoubleRecorderCapabilities(
+                capabilities,
+                sessionGeneration,
+                configuration);
+            connection.EnsureSessionGeneration(sessionGeneration);
+        }
+
+        /// <summary>
+        /// Configures a recoverable Double Recorder using one exact capability
+        /// snapshot. Capabilities are not read again from the wire. The PLC
+        /// receives the pinned BootId and MapRevision and must reject a stale
+        /// identity before applying the configuration.
+        /// </summary>
+        public async Task<LMCRecorderConfigurationHandle>
+            ConfigureRecoverableDoubleRecorderAsync(
+                LMCRecorderConfiguration configuration,
+                Guid recoveryToken,
+                LMCDiagnosticCapabilities capabilities,
+                CancellationToken cancellationToken)
+        {
+            ValidateRecoverableDoubleRecorderArguments(
+                configuration,
+                recoveryToken);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            ValidatePinnedRecoverableDoubleRecorderCapabilities(
+                capabilities,
+                sessionGeneration,
+                configuration);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return ConfigureRecoverableDoubleRecorderCore(
+                        configuration,
+                        recoveryToken,
+                        sessionGeneration,
+                        capabilities);
+                },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
         public LMCRecorderIdentity StartRecorder(
             LMCRecorderConfigurationHandle configuration)
         {
-            var sessionGeneration = ValidateRecorderConfiguration(configuration);
-            var requestId = NextRequestId();
-            var raw = connection.Exchange(
-                LMC_DiagnosticsFrame.StartRecorder(requestId, configuration),
-                sessionGeneration);
-            var identity = ParseRecorderResponse(
-                sessionGeneration,
-                () => LMC_DiagnosticsParser.ParseStartRecorder(
-                    raw,
-                    requestId,
-                    configuration,
+            var sessionGeneration = ValidateRecorderConfiguration(
+                configuration,
+                false);
+            configuration.BeginStart();
+            try
+            {
+                var requestId = NextRequestId();
+                var raw = connection.Exchange(
+                    LMC_DiagnosticsFrame.StartRecorder(
+                        requestId,
+                        configuration),
+                    sessionGeneration);
+                var identity = ParseRecorderResponse(
                     sessionGeneration,
-                    this));
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return identity;
+                    () => LMC_DiagnosticsParser.ParseStartRecorder(
+                        raw,
+                        requestId,
+                        configuration,
+                        sessionGeneration,
+                        this));
+                var publishedIdentity = PublishAcceptedRecorderResult(
+                    sessionGeneration,
+                    LMC_CommandId.StartRecorder,
+                    LMCRecorderAcceptedOperation.StartRecorder,
+                    identity,
+                    configuration);
+                configuration.CompleteStart();
+                return publishedIdentity;
+            }
+            catch
+            {
+                configuration.CancelStart();
+                throw;
+            }
         }
 
         public async Task<LMCRecorderIdentity> StartRecorderAsync(
@@ -129,7 +313,10 @@ namespace LasalMotionControlLib
                 {
                     LMC_DiagnosticsParser.ParseTriggerRecorder(raw, requestId);
                 });
-            connection.EnsureSessionGeneration(sessionGeneration);
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.TriggerRecorder,
+                () => { });
         }
 
         public async Task TriggerRecorderAsync(
@@ -143,7 +330,10 @@ namespace LasalMotionControlLib
 
         public void StopRecorder(LMCRecorderIdentity identity)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, true);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                true,
+                true);
             var requestId = NextRequestId();
             var raw = connection.Exchange(
                 LMC_DiagnosticsFrame.StopRecorder(requestId, identity),
@@ -154,7 +344,10 @@ namespace LasalMotionControlLib
                 {
                     LMC_DiagnosticsParser.ParseStopRecorder(raw, requestId);
                 });
-            connection.EnsureSessionGeneration(sessionGeneration);
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.StopRecorder,
+                () => { });
         }
 
         public async Task StopRecorderAsync(
@@ -170,7 +363,10 @@ namespace LasalMotionControlLib
         public LMCRecorderStatus GetRecorderStatus(
             LMCRecorderIdentity identity)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, false);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                false,
+                true);
             return ReadRecorderStatusCore(identity, sessionGeneration);
         }
 
@@ -178,7 +374,10 @@ namespace LasalMotionControlLib
             LMCRecorderIdentity identity,
             CancellationToken cancellationToken)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, false);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                false,
+                true);
             return await ReadRecorderStatusCoreAsync(
                 identity,
                 sessionGeneration,
@@ -188,7 +387,10 @@ namespace LasalMotionControlLib
         public LMCRecorderHeader GetRecorderHeader(
             LMCRecorderIdentity identity)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, false);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                false,
+                false);
             var requestId = NextRequestId();
             var raw = connection.Exchange(
                 LMC_DiagnosticsFrame.ReadRecorderHeader(requestId, identity),
@@ -208,7 +410,10 @@ namespace LasalMotionControlLib
             LMCRecorderIdentity identity,
             CancellationToken cancellationToken)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, false);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                false,
+                false);
             var requestId = NextRequestId();
             var raw = await connection.ExchangeAsync(
                 LMC_DiagnosticsFrame.ReadRecorderHeader(requestId, identity),
@@ -228,10 +433,16 @@ namespace LasalMotionControlLib
         public LMCRecorderChunk ReadRecorderChunk(
             LMCRecorderChunkRequest request)
         {
-            ValidateRecorderChunkRequest(request);
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
             var sessionGeneration = ValidateRecorderIdentity(
                 request.Identity,
+                false,
                 false);
+            ValidateRecorderChunkRequest(request);
             var requestId = NextRequestId();
             var raw = connection.Exchange(
                 LMC_DiagnosticsFrame.ReadRecorderChunk(requestId, request),
@@ -250,10 +461,16 @@ namespace LasalMotionControlLib
             LMCRecorderChunkRequest request,
             CancellationToken cancellationToken)
         {
-            ValidateRecorderChunkRequest(request);
+            if (request == null)
+            {
+                throw new ArgumentNullException("request");
+            }
+
             var sessionGeneration = ValidateRecorderIdentity(
                 request.Identity,
+                false,
                 false);
+            ValidateRecorderChunkRequest(request);
             var requestId = NextRequestId();
             var raw = await connection.ExchangeAsync(
                 LMC_DiagnosticsFrame.ReadRecorderChunk(requestId, request),
@@ -271,7 +488,10 @@ namespace LasalMotionControlLib
 
         public void ReleaseRecorderBuffer(LMCRecorderIdentity identity)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, true);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                true,
+                true);
             RequireRecorderConfigurationMetadataBeforeBufferRelease(identity);
             identity.BeginBufferRelease();
             try
@@ -290,12 +510,30 @@ namespace LasalMotionControlLib
                             raw,
                             requestId);
                     });
-                connection.EnsureSessionGeneration(sessionGeneration);
-                identity.CompleteBufferRelease();
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    LMC_CommandId.ReleaseRecorderBuffer,
+                    identity.CompleteBufferRelease);
+            }
+            catch (LMCDiagnosticsCommandException)
+            {
+                identity.CancelBufferRelease();
+                throw;
+            }
+            catch (LMCDiagnosticsDispatchRejectedException)
+            {
+                identity.CancelBufferRelease();
+                throw;
+            }
+            catch (LMCSendPreemptedException exception)
+                when (exception.Phase == LMCSendPreemptionPhase.BeforeWire)
+            {
+                identity.CancelBufferRelease();
+                throw;
             }
             catch
             {
-                identity.CancelBufferRelease();
+                identity.MarkBufferReleaseOutcomeUnverified();
                 throw;
             }
         }
@@ -313,7 +551,9 @@ namespace LasalMotionControlLib
         public void ReleaseRecorder(
             LMCRecorderConfigurationHandle configuration)
         {
-            var sessionGeneration = ValidateRecorderConfiguration(configuration);
+            var sessionGeneration = ValidateRecorderConfiguration(
+                configuration,
+                true);
             configuration.BeginRelease();
             try
             {
@@ -331,18 +571,96 @@ namespace LasalMotionControlLib
                             raw,
                             requestId);
                     });
-                connection.EnsureSessionGeneration(sessionGeneration);
-                configuration.CompleteRelease();
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    LMC_CommandId.ReleaseRecorder,
+                    configuration.CompleteRelease);
+            }
+            catch (LMCDiagnosticsCommandException)
+            {
+                configuration.CancelRelease();
+                throw;
+            }
+            catch (LMCDiagnosticsDispatchRejectedException)
+            {
+                configuration.CancelRelease();
+                throw;
+            }
+            catch (LMCSendPreemptedException exception)
+                when (exception.Phase == LMCSendPreemptionPhase.BeforeWire)
+            {
+                configuration.CancelRelease();
+                throw;
             }
             catch
             {
-                configuration.CancelRelease();
+                configuration.MarkReleaseOutcomeUnverified();
                 throw;
             }
         }
 
         public async Task ReleaseRecorderAsync(
             LMCRecorderConfigurationHandle configuration,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Run(
+                () => ReleaseRecorder(configuration),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        public void ReleaseRecorder(
+            LMCRecoveredRecorderConfigurationLease configuration)
+        {
+            var sessionGeneration =
+                ValidateRecoveredRecorderConfiguration(configuration);
+            configuration.BeginRelease();
+            try
+            {
+                var requestId = NextRequestId();
+                var raw = connection.Exchange(
+                    LMC_DiagnosticsFrame.ReleaseRecorder(
+                        requestId,
+                        configuration),
+                    sessionGeneration);
+                ParseRecorderResponse(
+                    sessionGeneration,
+                    () =>
+                    {
+                        LMC_DiagnosticsParser.ParseReleaseRecorder(
+                            raw,
+                            requestId);
+                    });
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    LMC_CommandId.ReleaseRecorder,
+                    configuration.CompleteRelease);
+            }
+            catch (LMCDiagnosticsCommandException)
+            {
+                configuration.CancelRelease();
+                throw;
+            }
+            catch (LMCDiagnosticsDispatchRejectedException)
+            {
+                configuration.CancelRelease();
+                throw;
+            }
+            catch (LMCSendPreemptedException exception)
+                when (exception.Phase == LMCSendPreemptionPhase.BeforeWire)
+            {
+                configuration.CancelRelease();
+                throw;
+            }
+            catch
+            {
+                configuration.MarkReleaseOutcomeUnverified();
+                throw;
+            }
+        }
+
+        public async Task ReleaseRecorderAsync(
+            LMCRecoveredRecorderConfigurationLease configuration,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -370,12 +688,30 @@ namespace LasalMotionControlLib
                             raw,
                             requestId);
                     });
-                connection.EnsureSessionGeneration(sessionGeneration);
-                identity.CompleteRecorderRelease();
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    LMC_CommandId.ReleaseRecorder,
+                    identity.CompleteRecorderRelease);
+            }
+            catch (LMCDiagnosticsCommandException)
+            {
+                identity.CancelRecorderRelease();
+                throw;
+            }
+            catch (LMCDiagnosticsDispatchRejectedException)
+            {
+                identity.CancelRecorderRelease();
+                throw;
+            }
+            catch (LMCSendPreemptedException exception)
+                when (exception.Phase == LMCSendPreemptionPhase.BeforeWire)
+            {
+                identity.CancelRecorderRelease();
+                throw;
             }
             catch
             {
-                identity.CancelRecorderRelease();
+                identity.MarkRecorderReleaseOutcomeUnverified();
                 throw;
             }
         }
@@ -387,6 +723,283 @@ namespace LasalMotionControlLib
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Run(
                 () => ReleaseRecorder(identity),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        public LMCRecorderBankInventory ReadRecorderBankInventory(
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision,
+            uint configRevision = 0)
+        {
+            ValidateRecorderBankInventoryArguments(
+                diagnosticsBootId,
+                configId,
+                mapRevision);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = GetCapabilities();
+            ValidateRecorderBankInventoryCapabilities(
+                capabilities,
+                sessionGeneration,
+                diagnosticsBootId,
+                mapRevision);
+
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    configRevision),
+                sessionGeneration);
+            var inventory = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                    raw,
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    configRevision));
+            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return inventory;
+        }
+
+        public Task<LMCRecorderBankInventory> ReadRecorderBankInventoryAsync(
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision,
+            CancellationToken cancellationToken)
+        {
+            return ReadRecorderBankInventoryAsync(
+                diagnosticsBootId,
+                configId,
+                mapRevision,
+                0,
+                cancellationToken);
+        }
+
+        public async Task<LMCRecorderBankInventory>
+            ReadRecorderBankInventoryAsync(
+                uint diagnosticsBootId,
+                uint configId,
+                uint mapRevision,
+                uint configRevision,
+                CancellationToken cancellationToken)
+        {
+            ValidateRecorderBankInventoryArguments(
+                diagnosticsBootId,
+                configId,
+                mapRevision);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            ValidateRecorderBankInventoryCapabilities(
+                capabilities,
+                sessionGeneration,
+                diagnosticsBootId,
+                mapRevision);
+
+            var requestId = NextRequestId();
+            var raw = await connection.ExchangeAsync(
+                LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    configRevision),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            var inventory = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                    raw,
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    configRevision));
+            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return inventory;
+        }
+
+        public LMCRecorderBankInventory
+            ReadRecoverableRecorderBankInventory(
+                uint diagnosticsBootId,
+                uint configId,
+                uint mapRevision,
+                Guid recoveryToken)
+        {
+            ValidateRecorderBankInventoryArguments(
+                diagnosticsBootId,
+                configId,
+                mapRevision);
+            ValidateRecorderRecoveryToken(recoveryToken);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = GetCapabilities();
+            ValidateRecoverableRecorderBankInventoryCapabilities(
+                capabilities,
+                sessionGeneration,
+                diagnosticsBootId,
+                mapRevision);
+
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.ReadRecoverableRecorderBankInventory(
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    recoveryToken),
+                sessionGeneration);
+            var inventory = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser
+                    .ParseRecoverableRecorderBankInventory(
+                        raw,
+                        requestId,
+                        diagnosticsBootId,
+                        configId,
+                        mapRevision,
+                        recoveryToken));
+            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return inventory;
+        }
+
+        public async Task<LMCRecorderBankInventory>
+            ReadRecoverableRecorderBankInventoryAsync(
+                uint diagnosticsBootId,
+                uint configId,
+                uint mapRevision,
+                Guid recoveryToken,
+                CancellationToken cancellationToken)
+        {
+            ValidateRecorderBankInventoryArguments(
+                diagnosticsBootId,
+                configId,
+                mapRevision);
+            ValidateRecorderRecoveryToken(recoveryToken);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = await GetCapabilitiesAsync(
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            ValidateRecoverableRecorderBankInventoryCapabilities(
+                capabilities,
+                sessionGeneration,
+                diagnosticsBootId,
+                mapRevision);
+
+            var requestId = NextRequestId();
+            var raw = await connection.ExchangeAsync(
+                LMC_DiagnosticsFrame.ReadRecoverableRecorderBankInventory(
+                    requestId,
+                    diagnosticsBootId,
+                    configId,
+                    mapRevision,
+                    recoveryToken),
+                sessionGeneration,
+                cancellationToken).ConfigureAwait(false);
+            var inventory = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser
+                    .ParseRecoverableRecorderBankInventory(
+                        raw,
+                        requestId,
+                        diagnosticsBootId,
+                        configId,
+                        mapRevision,
+                        recoveryToken));
+            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return inventory;
+        }
+
+        public LMCRecoveredRecorderConfigurationLease
+            AdoptEmptyRecorderConfiguration(
+                LMCRecorderBankInventory inventory)
+        {
+            return AdoptEmptyRecorderConfigurationCore(
+                inventory,
+                connection.SessionGeneration);
+        }
+
+        private LMCRecoveredRecorderConfigurationLease
+            AdoptEmptyRecorderConfigurationCore(
+                LMCRecorderBankInventory inventory,
+                long sessionGeneration)
+        {
+            ValidateEmptyRecorderConfigurationInventory(inventory);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            var capabilities = GetCapabilities();
+            ValidateRecorderBankInventoryCapabilities(
+                capabilities,
+                sessionGeneration,
+                inventory.DiagnosticsBootId,
+                inventory.MapRevision);
+            if (capabilities.MaxRequestPayloadBytes
+                    < LMC_DiagnosticsFrame
+                        .AdoptEmptyRecorderConfigurationRequestPayloadLength
+                || capabilities.MaxResponsePayloadBytes
+                    < LMC_DiagnosticsParser
+                        .AdoptEmptyRecorderConfigurationResponsePayloadLength)
+            {
+                throw new InvalidDataException(
+                    "Recorder capability payload limits cannot carry empty-configuration recovery metadata.");
+            }
+
+            var requestId = NextRequestId();
+            var raw = connection.Exchange(
+                LMC_DiagnosticsFrame.AdoptEmptyRecorderConfiguration(
+                    requestId,
+                    inventory),
+                sessionGeneration);
+            var lease = ParseRecorderResponse(
+                sessionGeneration,
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        raw,
+                        requestId,
+                        inventory,
+                        sessionGeneration,
+                        this));
+            RememberRecorderBootId(
+                sessionGeneration,
+                inventory.DiagnosticsBootId);
+            return PublishAcceptedRecorderResult(
+                sessionGeneration,
+                LMC_CommandId.AdoptEmptyRecorderConfiguration,
+                LMCRecorderAcceptedOperation
+                    .AdoptEmptyRecorderConfiguration,
+                lease,
+                null);
+        }
+
+        public async Task<LMCRecoveredRecorderConfigurationLease>
+            AdoptEmptyRecorderConfigurationAsync(
+                LMCRecorderBankInventory inventory,
+                CancellationToken cancellationToken)
+        {
+            ValidateEmptyRecorderConfigurationInventory(inventory);
+            var sessionGeneration = connection.SessionGeneration;
+            connection.EnsureSessionGeneration(sessionGeneration);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return AdoptEmptyRecorderConfigurationCore(
+                        inventory,
+                        sessionGeneration);
+                },
                 CancellationToken.None).ConfigureAwait(false);
         }
 
@@ -462,12 +1075,19 @@ namespace LasalMotionControlLib
                     diagnosticsBootId,
                     recordId,
                     bufferId));
-            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return CreateAdoptedIdentity(
+            var identity = CreateAdoptedIdentity(
                 adoption,
                 capabilities,
                 sessionGeneration);
+            RememberRecorderBootId(sessionGeneration, diagnosticsBootId);
+            return PublishAcceptedRecorderResult(
+                sessionGeneration,
+                LMC_CommandId.AdoptRecorder,
+                discoverActive
+                    ? LMCRecorderAcceptedOperation.AdoptActiveRecorder
+                    : LMCRecorderAcceptedOperation.AdoptRecorder,
+                identity,
+                null);
         }
 
         public async Task<LMCRecorderIdentity> AdoptRecorderAsync(
@@ -556,6 +1176,62 @@ namespace LasalMotionControlLib
             return status;
         }
 
+        private static void ValidateRecoverableDoubleRecorderArguments(
+            LMCRecorderConfiguration configuration,
+            Guid recoveryToken)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            if (configuration.BufferMode != LMCRecorderBufferMode.Double)
+            {
+                throw new ArgumentException(
+                    "Recoverable Recorder configuration requires Double buffer mode.",
+                    "configuration");
+            }
+
+            if (configuration.RequestedConfigId == 0)
+            {
+                throw new ArgumentException(
+                    "Recoverable Double-bank Recorder configuration requires a caller-selected non-zero RequestedConfigId.",
+                    "configuration");
+            }
+
+            if (recoveryToken == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Recorder recovery tokens must be nonempty.",
+                    "recoveryToken");
+            }
+        }
+
+        private void
+            ValidatePinnedRecoverableDoubleRecorderCapabilities(
+                LMCDiagnosticCapabilities capabilities,
+                long expectedSessionGeneration,
+                LMCRecorderConfiguration configuration)
+        {
+            if (capabilities == null)
+            {
+                throw new ArgumentNullException("capabilities");
+            }
+
+            if (!capabilities.IsBoundTo(
+                    this,
+                    expectedSessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "Diagnostics capabilities are not bound to this diagnostics owner and current connection session.");
+            }
+
+            ValidateRecorderCapabilities(
+                capabilities,
+                expectedSessionGeneration,
+                configuration);
+        }
+
         private void ValidateRecorderCapabilities(
             LMCDiagnosticCapabilities capabilities,
             long expectedSessionGeneration,
@@ -628,8 +1304,14 @@ namespace LasalMotionControlLib
                     "The Recorder configuration exceeds RecorderBytesPerBank.");
             }
 
+            var configureHeaderPayloadLength =
+                configuration.BufferMode == LMCRecorderBufferMode.Double
+                    ? LMC_DiagnosticsFrame
+                        .ConfigureRecoverableDoubleRecorderRequestHeaderPayloadLength
+                    : LMC_DiagnosticsFrame
+                        .ConfigureRecorderRequestHeaderPayloadLength;
             var configurePayloadBytes = checked(
-                LMC_DiagnosticsFrame.ConfigureRecorderRequestHeaderPayloadLength
+                configureHeaderPayloadLength
                 + configuration.ChannelCount * sizeof(uint));
             var headerPayloadBytes = checked(
                 LMC_DiagnosticsParser.RecorderHeaderResponseHeaderPayloadLength
@@ -775,6 +1457,140 @@ namespace LasalMotionControlLib
             }
         }
 
+        private void ValidateRecorderBankInventoryCapabilities(
+            LMCDiagnosticCapabilities capabilities,
+            long expectedSessionGeneration,
+            uint expectedDiagnosticsBootId,
+            uint expectedMapRevision)
+        {
+            ValidateRecorderCapabilityEnvelope(
+                capabilities,
+                expectedSessionGeneration);
+            if (!capabilities.Supports(
+                    LMCDiagnosticCapability.RecorderSingleBank)
+                || !capabilities.Supports(
+                    LMCDiagnosticCapability.RecorderDoubleBank)
+                || capabilities.RecorderBufferCount != 2)
+            {
+                throw new NotSupportedException(
+                    "The connected PLC does not advertise two-bank Recorder recovery diagnostics.");
+            }
+
+            if (capabilities.DiagnosticsBootId != expectedDiagnosticsBootId)
+            {
+                throw new InvalidOperationException(
+                    "The requested Recorder configuration belongs to a different DiagnosticsBootId.");
+            }
+
+            if (capabilities.MapRevision != expectedMapRevision)
+            {
+                throw new InvalidOperationException(
+                    "The requested Recorder configuration belongs to a different Catalog revision.");
+            }
+
+            if (capabilities.MaxRequestPayloadBytes
+                    < LMC_DiagnosticsFrame
+                        .RecorderBankInventoryRequestPayloadLength
+                || capabilities.MaxResponsePayloadBytes
+                    < LMC_DiagnosticsParser
+                        .RecorderBankInventoryResponsePayloadLength)
+            {
+                throw new InvalidDataException(
+                    "Recorder capability payload limits cannot carry bank inventory recovery metadata.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private void ValidateRecoverableRecorderBankInventoryCapabilities(
+            LMCDiagnosticCapabilities capabilities,
+            long expectedSessionGeneration,
+            uint expectedDiagnosticsBootId,
+            uint expectedMapRevision)
+        {
+            ValidateRecorderBankInventoryCapabilities(
+                capabilities,
+                expectedSessionGeneration,
+                expectedDiagnosticsBootId,
+                expectedMapRevision);
+            if (capabilities.MaxRequestPayloadBytes
+                    < LMC_DiagnosticsFrame
+                        .RecoverableRecorderBankInventoryRequestPayloadLength
+                || capabilities.MaxResponsePayloadBytes
+                    < LMC_DiagnosticsParser
+                        .RecoverableRecorderBankInventoryResponsePayloadLength)
+            {
+                throw new InvalidDataException(
+                    "Recorder capability payload limits cannot carry token-qualified bank inventory recovery metadata.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private static void ValidateRecorderBankInventoryArguments(
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision)
+        {
+            if (diagnosticsBootId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "diagnosticsBootId",
+                    "Recorder bank inventory requires a non-zero DiagnosticsBootId.");
+            }
+
+            if (configId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "configId",
+                    "Recorder bank inventory requires a non-zero ConfigId.");
+            }
+
+            if (mapRevision == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "mapRevision",
+                    "Recorder bank inventory requires a non-zero exact Catalog revision.");
+            }
+        }
+
+        private static void ValidateRecorderRecoveryToken(Guid recoveryToken)
+        {
+            if (recoveryToken == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Recorder recovery tokens must be nonempty.",
+                    "recoveryToken");
+            }
+        }
+
+        private static void ValidateEmptyRecorderConfigurationInventory(
+            LMCRecorderBankInventory inventory)
+        {
+            if (inventory == null)
+            {
+                throw new ArgumentNullException("inventory");
+            }
+
+            if (inventory.DiagnosticsBootId == 0
+                || inventory.ConfigId == 0
+                || inventory.ConfigRevision == 0
+                || inventory.MapRevision == 0
+                || inventory.IsRecoverable
+                || inventory.RecoveryToken != Guid.Empty
+                || inventory.ConfigurationOwnerSessionEpoch == 0
+                || !inventory.IsConfigurationOwnerSessionClosed
+                || inventory.ConfigurationState != LMCRecorderState.Configured
+                || inventory.BufferMode != LMCRecorderBufferMode.Double
+                || inventory.RecorderBufferCount != 2
+                || inventory.OccupiedBanks.Count != 0)
+            {
+                throw new ArgumentException(
+                    "AdoptEmptyRecorderConfiguration requires an exact standard 0x7E4A closed, empty, two-bank Recorder inventory without a recovery token.",
+                    "inventory");
+            }
+        }
+
         private static void ValidateRecorderActiveAdoptionArguments(
             uint diagnosticsBootId)
         {
@@ -787,7 +1603,8 @@ namespace LasalMotionControlLib
         }
 
         private long ValidateRecorderConfiguration(
-            LMCRecorderConfigurationHandle configuration)
+            LMCRecorderConfigurationHandle configuration,
+            bool allowRecoveryOnly)
         {
             if (configuration == null)
             {
@@ -800,7 +1617,14 @@ namespace LasalMotionControlLib
                     "The Recorder configuration belongs to a different LMCConnection.");
             }
 
-            configuration.EnsureUsable();
+            if (allowRecoveryOnly)
+            {
+                configuration.EnsureUsableForRecovery();
+            }
+            else
+            {
+                configuration.EnsureUsable();
+            }
             var sessionGeneration = connection.SessionGeneration;
             if (configuration.ConnectionSessionGeneration != sessionGeneration)
             {
@@ -815,9 +1639,39 @@ namespace LasalMotionControlLib
             return sessionGeneration;
         }
 
+        private long ValidateRecoveredRecorderConfiguration(
+            LMCRecoveredRecorderConfigurationLease configuration)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            if (!ReferenceEquals(configuration.Owner, this))
+            {
+                throw new InvalidOperationException(
+                    "The recovered Recorder configuration belongs to a different LMCConnection.");
+            }
+
+            configuration.EnsureUsableForRecovery();
+            var sessionGeneration = connection.SessionGeneration;
+            if (configuration.ConnectionSessionGeneration != sessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The recovered Recorder configuration belongs to a stale connection session.");
+            }
+
+            ValidateRememberedRecorderBootId(
+                sessionGeneration,
+                configuration.DiagnosticsBootId);
+            connection.EnsureSessionGeneration(sessionGeneration);
+            return sessionGeneration;
+        }
+
         private long ValidateRecorderIdentity(
             LMCRecorderIdentity identity,
-            bool requireOwner)
+            bool requireOwner,
+            bool allowRecoveryOnly)
         {
             if (identity == null)
             {
@@ -830,7 +1684,14 @@ namespace LasalMotionControlLib
                     "The Recorder identity belongs to a different LMCConnection.");
             }
 
-            identity.EnsureUsable();
+            if (allowRecoveryOnly)
+            {
+                identity.EnsureUsableForRecovery();
+            }
+            else
+            {
+                identity.EnsureUsable();
+            }
             if (requireOwner && identity.OwnerSessionEpoch == 0)
             {
                 throw new InvalidOperationException(
@@ -854,7 +1715,10 @@ namespace LasalMotionControlLib
         private long ValidateTriggeredRecorderIdentity(
             LMCRecorderIdentity identity)
         {
-            var sessionGeneration = ValidateRecorderIdentity(identity, true);
+            var sessionGeneration = ValidateRecorderIdentity(
+                identity,
+                true,
+                false);
             if (!identity.HasConfigurationShape
                 || identity.TriggerType == LMCRecorderTriggerType.Manual)
             {
@@ -889,7 +1753,7 @@ namespace LasalMotionControlLib
                 || identity.OwnerSessionEpoch == 0)
             {
                 throw new InvalidOperationException(
-                    "Read Recorder status or header after AdoptRecorder before releasing its configuration.");
+                    "Read Recorder status after AdoptRecorder before releasing its configuration.");
             }
 
             if (!identity.IsBufferReleased)
@@ -954,7 +1818,7 @@ namespace LasalMotionControlLib
             if (!identity.HasConfigurationMetadata)
             {
                 throw new InvalidOperationException(
-                    "Read Recorder status or header after AdoptRecorder before releasing its buffer.");
+                    "Read Recorder status after AdoptRecorder before releasing its buffer.");
             }
         }
 
@@ -987,6 +1851,71 @@ namespace LasalMotionControlLib
                 sessionGeneration,
                 this,
                 true);
+        }
+
+        private T PublishAcceptedRecorderResult<T>(
+            long sessionGeneration,
+            ushort command,
+            LMCRecorderAcceptedOperation operation,
+            T result,
+            LMCRecorderConfigurationHandle sourceConfigurationHandle)
+            where T : class
+        {
+            if (result == null)
+            {
+                throw new ArgumentNullException("result");
+            }
+
+            try
+            {
+                T publishedResult = null;
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    command,
+                    () => publishedResult = result);
+                return publishedResult;
+            }
+            catch (Exception exception)
+            {
+                var configurationHandle =
+                    result as LMCRecorderConfigurationHandle;
+                var identity = result as LMCRecorderIdentity;
+                var recoveredConfigurationLease =
+                    result as LMCRecoveredRecorderConfigurationLease;
+
+                if (configurationHandle != null)
+                {
+                    configurationHandle.MarkAcceptedResultRecoveryOnly();
+                }
+
+                if (identity != null)
+                {
+                    identity.MarkAcceptedResultRecoveryOnly();
+                }
+
+                if (recoveredConfigurationLease != null)
+                {
+                    recoveredConfigurationLease
+                        .MarkAcceptedResultRecoveryOnly();
+                }
+
+                if (sourceConfigurationHandle != null)
+                {
+                    sourceConfigurationHandle
+                        .MarkAcceptedResultRecoveryOnly();
+                }
+
+                LMCRecorderAcceptedResultFailureContext.Attach(
+                    exception,
+                    new LMCRecorderAcceptedResultFailureContext(
+                        operation,
+                        command,
+                        configurationHandle,
+                        identity,
+                        recoveredConfigurationLease,
+                        sourceConfigurationHandle));
+                throw;
+            }
         }
 
         private T ParseRecorderResponse<T>(

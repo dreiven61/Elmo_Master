@@ -27,22 +27,16 @@ namespace LasalMotionControlLib
 
         internal LMCBulkConfiguration ConfigureBulkExact(
             IReadOnlyList<uint> signalIds,
-            uint expectedMapRevision)
+            LMCSignalCatalog catalog)
         {
-            if (expectedMapRevision == 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    "expectedMapRevision",
-                    "Bulk compatibility configuration requires a non-zero exact Catalog revision.");
-            }
+            RequireCurrentSignalCatalog(catalog);
 
             var copiedSignalIds =
                 LMC_DiagnosticsFrame.CopyAndValidateBulkSignalIds(signalIds);
-            var sessionGeneration = connection.SessionGeneration;
             return ConfigureBulkCore(
                 copiedSignalIds,
-                sessionGeneration,
-                expectedMapRevision);
+                catalog.ConnectionSessionGeneration,
+                catalog.MapRevision);
         }
 
         private LMCBulkConfiguration ConfigureBulkCore(
@@ -52,7 +46,7 @@ namespace LasalMotionControlLib
         {
             connection.EnsureSessionGeneration(sessionGeneration);
 
-            var capabilities = GetCapabilities();
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidateBulkCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -126,25 +120,20 @@ namespace LasalMotionControlLib
 
         internal async Task<LMCBulkConfiguration> ConfigureBulkExactAsync(
             IReadOnlyList<uint> signalIds,
-            uint expectedMapRevision,
+            LMCSignalCatalog catalog,
             CancellationToken cancellationToken)
         {
-            if (expectedMapRevision == 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    "expectedMapRevision",
-                    "Bulk compatibility configuration requires a non-zero exact Catalog revision.");
-            }
+            RequireCurrentSignalCatalog(catalog);
 
             var copiedSignalIds =
                 LMC_DiagnosticsFrame.CopyAndValidateBulkSignalIds(signalIds);
-            var sessionGeneration = connection.SessionGeneration;
+            var sessionGeneration = catalog.ConnectionSessionGeneration;
             connection.EnsureSessionGeneration(sessionGeneration);
             return await RunStateMutatingAsync(
                 () => ConfigureBulkCore(
                     copiedSignalIds,
                     sessionGeneration,
-                    expectedMapRevision),
+                    catalog.MapRevision),
                 cancellationToken).ConfigureAwait(false);
         }
 

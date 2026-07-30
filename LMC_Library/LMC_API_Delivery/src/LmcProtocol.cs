@@ -175,6 +175,10 @@ namespace LasalMotionControlLib
         internal const ushort ReleaseRecorderBuffer = 0x7E47;
         internal const ushort ReleaseRecorder = 0x7E48;
         internal const ushort AdoptRecorder = 0x7E49;
+        internal const ushort ReadRecorderBankInventory = 0x7E4A;
+        internal const ushort AdoptEmptyRecorderConfiguration = 0x7E4B;
+        internal const ushort ConfigureRecoverableDoubleRecorder = 0x7E4C;
+        internal const ushort ReadRecoverableRecorderBankInventory = 0x7E4D;
         internal const ushort SubmitSdo = 0x7E50;
         internal const ushort ReadSdoResultChunk = 0x7E51;
     }
@@ -316,6 +320,7 @@ namespace LasalMotionControlLib
             int deceleration,
             int jerk)
         {
+            ValidateAxisStopMotionParameters(deceleration, jerk);
             return StopWithMotionParameters(LMC_CommandId.Stop, reference, deceleration, jerk);
         }
 
@@ -934,6 +939,25 @@ namespace LasalMotionControlLib
                 throw new ArgumentException(
                     "Group stop requires a positive deceleration when jerk is nonzero.",
                     "deceleration");
+            }
+        }
+
+        private static void ValidateAxisStopMotionParameters(
+            int deceleration,
+            int jerk)
+        {
+            if (deceleration <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "deceleration",
+                    "Axis stop deceleration must be positive.");
+            }
+
+            if (jerk < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "jerk",
+                    "Axis stop jerk must be zero or positive.");
             }
         }
 

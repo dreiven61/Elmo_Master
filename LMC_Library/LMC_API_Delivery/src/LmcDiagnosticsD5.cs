@@ -27,6 +27,99 @@ namespace LasalMotionControlLib
             return LMCDiagnosticsWritePolicy.GetApprovedSdoWriteTargets();
         }
 
+        /// <summary>
+        /// Evaluates the SDK SDO Write allowlist and one cached diagnostics
+        /// capability observation without refreshing capabilities or sending
+        /// any RPC request. This is a submission-policy check only; the caller
+        /// must separately prove axis, drive-program, operator, journal, and
+        /// physical safety conditions.
+        /// </summary>
+        public LMCSdoWritePolicyEvaluation EvaluateSdoWritePolicy(
+            LMCDiagnosticCapabilities cachedCapabilities)
+        {
+            bool isConnected;
+            var sessionGeneration = connection.CaptureSessionGeneration(
+                out isConnected);
+            return LMCDiagnosticsWritePolicy.EvaluateSdoWritePolicy(
+                this,
+                sessionGeneration,
+                isConnected,
+                cachedCapabilities,
+                LMCDiagnosticsWritePolicy.GetApprovedSdoWriteTargets());
+        }
+
+        /// <summary>
+        /// Submits one active-policy 1, 2, or 4-byte SDO Read and waits for
+        /// its ticket to reach a bounded successful terminal state. The
+        /// returned result preserves the accepted ticket and exact terminal
+        /// status. This helper never accepts Write or extended-result reads.
+        /// </summary>
+        public LMCSdoReadResult ReadSdoInline(LMCSdoRequest request)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                ValidateInlineSdoReadRequest(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                attemptTracker.BeginCapabilityPreflight();
+                return ReadInlineSdoToTerminalCore(
+                    request,
+                    sessionGeneration,
+                    attemptTracker,
+                    null,
+                    null);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously submits one active-policy 1, 2, or 4-byte SDO Read
+        /// and waits for its ticket. An observed terminal status wins a
+        /// concurrent cancellation request. Cancelling after ticket acceptance
+        /// while the last observed status is non-terminal stops only the PC
+        /// wait and throws LMCSdoReadWaitCanceledException with the accepted
+        /// ticket and last status; it does not cancel or replay the PLC ticket.
+        /// </summary>
+        public async Task<LMCSdoReadResult> ReadSdoInlineAsync(
+            LMCSdoRequest request,
+            CancellationToken cancellationToken)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                ValidateInlineSdoReadRequest(request);
+                attemptTracker.BeginSessionPreflight();
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var sessionGeneration = connection.SessionGeneration;
+                connection.EnsureSessionGeneration(sessionGeneration);
+                attemptTracker.BeginCapabilityPreflight();
+                return await ReadInlineSdoToTerminalCoreAsync(
+                    request,
+                    sessionGeneration,
+                    attemptTracker,
+                    null,
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
         public LMCOperationTicket SubmitPIWrite(
             LMCPIWriteRequest request)
         {
@@ -44,7 +137,15 @@ namespace LasalMotionControlLib
             long sessionGeneration)
         {
             connection.EnsureSessionGeneration(sessionGeneration);
-            var capabilities = GetCapabilities();
+            RequireCurrentSignalCatalog(request.Catalog);
+            if (request.Catalog.ConnectionSessionGeneration
+                != sessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The PI Write Catalog does not belong to the captured RPC session.");
+            }
+
+            var capabilities = GetCapabilities(sessionGeneration);
             ValidatePIWriteCapabilities(
                 capabilities,
                 sessionGeneration,
@@ -153,6 +254,7 @@ namespace LasalMotionControlLib
                 var sessionGeneration = connection.SessionGeneration;
                 ValidateRequiredSdoSubmissionIdentity(
                     requiredIdentityTicket,
+                    request,
                     sessionGeneration,
                     null);
                 return SubmitSdoTrackedCore(
@@ -181,6 +283,7 @@ namespace LasalMotionControlLib
             {
                 ValidateRequiredSdoSubmissionIdentity(
                     requiredIdentityTicket,
+                    request,
                     sessionGeneration,
                     null);
             }
@@ -194,6 +297,7 @@ namespace LasalMotionControlLib
             {
                 ValidateRequiredSdoSubmissionIdentity(
                     requiredIdentityTicket,
+                    request,
                     sessionGeneration,
                     capabilities);
             }
@@ -270,8 +374,12 @@ namespace LasalMotionControlLib
                 attemptTracker.MarkSubmissionAccepted(ticket);
             }
 
-            connection.EnsureSessionGeneration(sessionGeneration);
-            return ticket;
+            LMCOperationTicket publishedTicket = null;
+            connection.PublishSessionBoundSendPriorityResult(
+                sessionGeneration,
+                LMC_CommandId.SubmitSdo,
+                () => publishedTicket = ticket);
+            return publishedTicket;
         }
 
         public async Task<LMCOperationTicket> SubmitSdoAsync(
@@ -332,6 +440,7 @@ namespace LasalMotionControlLib
                 var sessionGeneration = connection.SessionGeneration;
                 ValidateRequiredSdoSubmissionIdentity(
                     requiredIdentityTicket,
+                    request,
                     sessionGeneration,
                     null);
                 return await RunStateMutatingAsync(
@@ -370,7 +479,9 @@ namespace LasalMotionControlLib
                     requestId,
                     ticket);
                 connection.EnsureSessionGeneration(sessionGeneration);
-                return status;
+                return status.BindProvenance(
+                    this,
+                    sessionGeneration);
             }
             catch (LMCDiagnosticsCommandException exception)
             {
@@ -400,7 +511,9 @@ namespace LasalMotionControlLib
                     requestId,
                     ticket);
                 connection.EnsureSessionGeneration(sessionGeneration);
-                return status;
+                return status.BindProvenance(
+                    this,
+                    sessionGeneration);
             }
             catch (LMCDiagnosticsCommandException exception)
             {
@@ -426,7 +539,10 @@ namespace LasalMotionControlLib
                     raw,
                     requestId,
                     ticket);
-                connection.EnsureSessionGeneration(sessionGeneration);
+                connection.PublishSessionBoundSendPriorityResult(
+                    sessionGeneration,
+                    LMC_CommandId.CancelOperation,
+                    () => { });
             }
             catch (LMCDiagnosticsCommandException exception)
             {
@@ -498,7 +614,7 @@ namespace LasalMotionControlLib
             }
         }
 
-        internal LMCInlineSdoReadCompletion ReadInlineSdoToTerminal(
+        internal LMCSdoReadResult ReadInlineSdoToTerminal(
             LMCSdoRequest request,
             long expectedSessionGeneration,
             LMCDriveReadAttemptTracker attemptTracker)
@@ -512,8 +628,29 @@ namespace LasalMotionControlLib
             ValidateInlineSdoReadRequest(request);
             connection.EnsureSessionGeneration(expectedSessionGeneration);
 
+            return ReadInlineSdoToTerminalCore(
+                request,
+                expectedSessionGeneration,
+                attemptTracker,
+                attemptTracker.BeginStatusPolling,
+                attemptTracker.RecordOperationStatus);
+        }
+
+        private LMCSdoReadResult ReadInlineSdoToTerminalCore(
+            LMCSdoRequest request,
+            long expectedSessionGeneration,
+            ILMCSdoSubmissionAttemptTracker attemptTracker,
+            Action beginStatusPolling,
+            Action<LMCOperationStatus> recordOperationStatus)
+        {
+            if (attemptTracker == null)
+            {
+                throw new ArgumentNullException("attemptTracker");
+            }
+
             inlineSdoReadGate.Wait();
             LMCOperationTicket ticket = null;
+            LMCOperationStatus lastObservedStatus = null;
             try
             {
                 connection.EnsureSessionGeneration(expectedSessionGeneration);
@@ -530,9 +667,18 @@ namespace LasalMotionControlLib
 
                 for (var poll = 0; poll < pollLimit; poll++)
                 {
-                    attemptTracker.BeginStatusPolling();
+                    if (beginStatusPolling != null)
+                    {
+                        beginStatusPolling();
+                    }
+
                     var status = GetOperationStatus(ticket);
-                    attemptTracker.RecordOperationStatus(status);
+                    lastObservedStatus = status;
+                    if (recordOperationStatus != null)
+                    {
+                        recordOperationStatus(status);
+                    }
+
                     if (status.IsTerminal)
                     {
                         return RequireSuccessfulInlineSdoRead(ticket, status);
@@ -544,7 +690,10 @@ namespace LasalMotionControlLib
                     }
                 }
 
-                throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
+                throw CreateInlineSdoPollingTimeout(
+                    ticket,
+                    lastObservedStatus,
+                    pollLimit);
             }
             catch (LMCSdoReadCommandException)
             {
@@ -565,7 +714,7 @@ namespace LasalMotionControlLib
             }
         }
 
-        internal async Task<LMCInlineSdoReadCompletion>
+        internal async Task<LMCSdoReadResult>
             ReadInlineSdoToTerminalAsync(
                 LMCSdoRequest request,
                 long expectedSessionGeneration,
@@ -581,9 +730,33 @@ namespace LasalMotionControlLib
             ValidateInlineSdoReadRequest(request);
             connection.EnsureSessionGeneration(expectedSessionGeneration);
 
+            return await ReadInlineSdoToTerminalCoreAsync(
+                request,
+                expectedSessionGeneration,
+                attemptTracker,
+                attemptTracker.BeginStatusPolling,
+                attemptTracker.RecordOperationStatus,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<LMCSdoReadResult>
+            ReadInlineSdoToTerminalCoreAsync(
+                LMCSdoRequest request,
+                long expectedSessionGeneration,
+                ILMCSdoSubmissionAttemptTracker attemptTracker,
+                Action beginStatusPolling,
+                Action<LMCOperationStatus> recordOperationStatus,
+                CancellationToken cancellationToken)
+        {
+            if (attemptTracker == null)
+            {
+                throw new ArgumentNullException("attemptTracker");
+            }
+
             await inlineSdoReadGate.WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
             LMCOperationTicket ticket = null;
+            LMCOperationStatus lastObservedStatus = null;
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -604,16 +777,26 @@ namespace LasalMotionControlLib
                 for (var poll = 0; poll < pollLimit; poll++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    attemptTracker.BeginStatusPolling();
+                    if (beginStatusPolling != null)
+                    {
+                        beginStatusPolling();
+                    }
+
                     var status = await GetOperationStatusAsync(
                         ticket,
                         CancellationToken.None).ConfigureAwait(false);
-                    attemptTracker.RecordOperationStatus(status);
-                    cancellationToken.ThrowIfCancellationRequested();
+                    lastObservedStatus = status;
+                    if (recordOperationStatus != null)
+                    {
+                        recordOperationStatus(status);
+                    }
+
                     if (status.IsTerminal)
                     {
                         return RequireSuccessfulInlineSdoRead(ticket, status);
                     }
+
+                    cancellationToken.ThrowIfCancellationRequested();
 
                     if (poll + 1 < pollLimit)
                     {
@@ -623,7 +806,10 @@ namespace LasalMotionControlLib
                     }
                 }
 
-                throw CreateInlineSdoPollingTimeout(ticket, pollLimit);
+                throw CreateInlineSdoPollingTimeout(
+                    ticket,
+                    lastObservedStatus,
+                    pollLimit);
             }
             catch (LMCSdoReadCommandException)
             {
@@ -645,8 +831,17 @@ namespace LasalMotionControlLib
                     throw;
                 }
 
+                if (lastObservedStatus != null
+                    && lastObservedStatus.IsTerminal)
+                {
+                    return RequireSuccessfulInlineSdoRead(
+                        ticket,
+                        lastObservedStatus);
+                }
+
                 throw new LMCSdoReadWaitCanceledException(
                     ticket,
+                    lastObservedStatus,
                     exception,
                     cancellationToken);
             }
@@ -687,7 +882,7 @@ namespace LasalMotionControlLib
         private LMCInlineSdoReadSubmission SubmitInlineSdoRead(
             LMCSdoRequest request,
             long expectedSessionGeneration,
-            LMCDriveReadAttemptTracker attemptTracker)
+            ILMCSdoSubmissionAttemptTracker attemptTracker)
         {
             connection.EnsureSessionGeneration(expectedSessionGeneration);
             LMCDiagnosticCapabilities capabilities;
@@ -752,17 +947,19 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("request");
             }
 
-            ValidateSdoSubmitPolicy(request);
             if (request.IsWrite
-                || request.DataLength
-                    > LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes)
+                || (request.DataLength != 1
+                    && request.DataLength != 2
+                    && request.DataLength != 4))
             {
                 throw new NotSupportedException(
-                    "The typed SDO helper supports inline SDO Read results only.");
+                    "The typed SDO helper supports 1, 2, or 4-byte inline SDO Read results only.");
             }
+
+            ValidateSdoSubmitPolicy(request);
         }
 
-        private static LMCInlineSdoReadCompletion
+        private static LMCSdoReadResult
             RequireSuccessfulInlineSdoRead(
                 LMCOperationTicket ticket,
                 LMCOperationStatus status)
@@ -772,16 +969,18 @@ namespace LasalMotionControlLib
                 throw new LMCSdoReadOperationException(ticket, status);
             }
 
-            return new LMCInlineSdoReadCompletion(ticket, status);
+            return new LMCSdoReadResult(ticket, status);
         }
 
         private static LMCSdoReadPollingTimeoutException
             CreateInlineSdoPollingTimeout(
                 LMCOperationTicket ticket,
+                LMCOperationStatus lastObservedStatus,
                 int pollLimit)
         {
             return new LMCSdoReadPollingTimeoutException(
                 ticket,
+                lastObservedStatus,
                 pollLimit);
         }
 
@@ -951,6 +1150,7 @@ namespace LasalMotionControlLib
 
         private void ValidateRequiredSdoSubmissionIdentity(
             LMCOperationTicket requiredIdentityTicket,
+            LMCSdoRequest readRequest,
             long expectedSessionGeneration,
             LMCDiagnosticCapabilities freshCapabilities)
         {
@@ -964,6 +1164,24 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidOperationException(
                     "The required SDO identity ticket belongs to a different LMCConnection.");
+            }
+
+            if (requiredIdentityTicket.OperationKind
+                    != LMCOperationKind.SDOWrite
+                || requiredIdentityTicket.SubmittedSdoRequest == null
+                || !requiredIdentityTicket.SubmittedSdoRequest.IsWrite)
+            {
+                throw new InvalidOperationException(
+                    "Guarded SDO readback requires an SDO Write ticket with immutable submitted Write provenance.");
+            }
+
+            if (!LMCSdoWriteVerificationContext
+                .ReadMatchesWriteTarget(
+                    readRequest,
+                    requiredIdentityTicket.SubmittedSdoRequest))
+            {
+                throw new InvalidOperationException(
+                    "The guarded SDO Read target, type, and length must exactly match the submitted Write provenance.");
             }
 
             if (requiredIdentityTicket.ConnectionSessionGeneration
@@ -983,6 +1201,9 @@ namespace LasalMotionControlLib
 
             if (freshCapabilities.ConnectionSessionGeneration
                     != expectedSessionGeneration
+                || !freshCapabilities.IsBoundTo(
+                    this,
+                    expectedSessionGeneration)
                 || freshCapabilities.DiagnosticsBootId
                     != requiredIdentityTicket.DiagnosticsBootId
                 || freshCapabilities.MapRevision
@@ -1022,7 +1243,8 @@ namespace LasalMotionControlLib
                     && request.DataLength
                         > LMC_DiagnosticsFrame.MaxD5InlineSdoDataBytes
                     ? maxChunkDataBytes
-                    : (ushort)0);
+                    : (ushort)0,
+                request);
         }
 
         private LMCOperationTicket CreatePIWriteTicket(

@@ -8,9 +8,14 @@ namespace LasalMotionControlLib
     {
         internal const ushort MaxRecorderChannelCount = 32;
         internal const int ConfigureRecorderRequestHeaderPayloadLength = 56;
+        internal const int ConfigureRecoverableDoubleRecorderRequestHeaderPayloadLength = 72;
         internal const int RecorderIdentityRequestPayloadLength = 28;
         internal const int RecorderChunkRequestPayloadLength = 32;
         internal const int AdoptRecorderRequestPayloadLength = 20;
+        internal const int RecorderBankInventoryRequestPayloadLength = 24;
+        internal const int AdoptEmptyRecorderConfigurationRequestPayloadLength = 28;
+        internal const int RecoverableRecorderBankInventoryRequestPayloadLength = 36;
+        internal const int RecorderRecoveryTokenLength = 16;
         internal const ushort AbsoluteMaxRecorderChunkDataBytes = 1920;
 
         internal static byte[] ConfigureRecorder(
@@ -24,14 +29,81 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("configuration");
             }
 
+            if (configuration.BufferMode == LMCRecorderBufferMode.Double)
+            {
+                throw new NotSupportedException(
+                    "Double-bank Recorder configurations require ConfigureRecoverableDoubleRecorder and an exact recovery token.");
+            }
+
             RequireRecorderMapRevision(expectedMapRevision);
             RequireRecorderBootId(diagnosticsBootId);
 
+            return CreateConfigureRecorderRequest(
+                LMC_CommandId.ConfigureRecorder,
+                requestId,
+                expectedMapRevision,
+                configuration,
+                diagnosticsBootId,
+                ConfigureRecorderRequestHeaderPayloadLength,
+                56,
+                Guid.Empty);
+        }
+
+        internal static byte[] ConfigureRecoverableDoubleRecorder(
+            uint requestId,
+            uint expectedMapRevision,
+            LMCRecorderConfiguration configuration,
+            uint diagnosticsBootId,
+            Guid recoveryToken)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            if (configuration.BufferMode != LMCRecorderBufferMode.Double)
+            {
+                throw new ArgumentException(
+                    "Recoverable Recorder configuration requires Double buffer mode.",
+                    "configuration");
+            }
+
+            if (configuration.RequestedConfigId == 0)
+            {
+                throw new ArgumentException(
+                    "Recoverable Double-bank Recorder configuration requires a caller-selected non-zero RequestedConfigId.",
+                    "configuration");
+            }
+
+            RequireRecorderRecoveryToken(recoveryToken);
+            RequireRecorderMapRevision(expectedMapRevision);
+            RequireRecorderBootId(diagnosticsBootId);
+            return CreateConfigureRecorderRequest(
+                LMC_CommandId.ConfigureRecoverableDoubleRecorder,
+                requestId,
+                expectedMapRevision,
+                configuration,
+                diagnosticsBootId,
+                ConfigureRecoverableDoubleRecorderRequestHeaderPayloadLength,
+                72,
+                recoveryToken);
+        }
+
+        private static byte[] CreateConfigureRecorderRequest(
+            ushort commandId,
+            uint requestId,
+            uint expectedMapRevision,
+            LMCRecorderConfiguration configuration,
+            uint diagnosticsBootId,
+            int headerPayloadLength,
+            int signalPayloadOffset,
+            Guid recoveryToken)
+        {
             var payloadLength = checked(
-                ConfigureRecorderRequestHeaderPayloadLength
+                headerPayloadLength
                 + configuration.SignalIds.Count * sizeof(uint));
             var buffer = CreateCommonRequest(
-                LMC_CommandId.ConfigureRecorder,
+                commandId,
                 requestId,
                 payloadLength);
             var payloadOffset = LMC_Frame.HeaderSize;
@@ -82,11 +154,21 @@ namespace LasalMotionControlLib
                 payloadOffset + 52,
                 diagnosticsBootId);
 
+            if (recoveryToken != Guid.Empty)
+            {
+                WriteRecorderRecoveryToken(
+                    buffer,
+                    payloadOffset + 56,
+                    recoveryToken);
+            }
+
             for (var index = 0; index < configuration.SignalIds.Count; index++)
             {
                 LMC_Frame.WriteUInt32(
                     buffer,
-                    payloadOffset + 56 + index * sizeof(uint),
+                    payloadOffset
+                        + signalPayloadOffset
+                        + index * sizeof(uint),
                     configuration.SignalIds[index]);
             }
 
@@ -259,6 +341,41 @@ namespace LasalMotionControlLib
 
         internal static byte[] ReleaseRecorder(
             uint requestId,
+            LMCRecoveredRecorderConfigurationLease configuration)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            RequireRecoveredRecorderConfigurationIdentity(configuration);
+            var buffer = CreateCommonRequest(
+                LMC_CommandId.ReleaseRecorder,
+                requestId,
+                RecorderIdentityRequestPayloadLength);
+            var payloadOffset = LMC_Frame.HeaderSize;
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 8, configuration.ConfigId);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 12,
+                configuration.ConfigRevision);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 16,
+                configuration.MapRevision);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 20,
+                configuration.OwnerSessionEpoch);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 24,
+                configuration.DiagnosticsBootId);
+            return buffer;
+        }
+
+        internal static byte[] ReleaseRecorder(
+            uint requestId,
             LMCRecorderIdentity identity)
         {
             if (identity == null)
@@ -335,6 +452,105 @@ namespace LasalMotionControlLib
                 0);
         }
 
+        internal static byte[] ReadRecorderBankInventory(
+            uint requestId,
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision,
+            uint configRevision)
+        {
+            RequireRecorderBootId(diagnosticsBootId);
+            if (configId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "configId",
+                    "Recorder bank inventory requires a non-zero ConfigId.");
+            }
+
+            RequireRecorderMapRevision(mapRevision);
+            var buffer = CreateCommonRequest(
+                LMC_CommandId.ReadRecorderBankInventory,
+                requestId,
+                RecorderBankInventoryRequestPayloadLength);
+            var payloadOffset = LMC_Frame.HeaderSize;
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 8,
+                diagnosticsBootId);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 12, configId);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 16, mapRevision);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 20, configRevision);
+            return buffer;
+        }
+
+        internal static byte[] ReadRecoverableRecorderBankInventory(
+            uint requestId,
+            uint diagnosticsBootId,
+            uint configId,
+            uint mapRevision,
+            Guid recoveryToken)
+        {
+            RequireRecorderBootId(diagnosticsBootId);
+            if (configId == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "configId",
+                    "Recoverable Recorder bank inventory requires a non-zero ConfigId.");
+            }
+
+            RequireRecorderMapRevision(mapRevision);
+            RequireRecorderRecoveryToken(recoveryToken);
+            var buffer = CreateCommonRequest(
+                LMC_CommandId.ReadRecoverableRecorderBankInventory,
+                requestId,
+                RecoverableRecorderBankInventoryRequestPayloadLength);
+            var payloadOffset = LMC_Frame.HeaderSize;
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 8,
+                diagnosticsBootId);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 12, configId);
+            LMC_Frame.WriteUInt32(buffer, payloadOffset + 16, mapRevision);
+            WriteRecorderRecoveryToken(
+                buffer,
+                payloadOffset + 20,
+                recoveryToken);
+            return buffer;
+        }
+
+        internal static byte[] AdoptEmptyRecorderConfiguration(
+            uint requestId,
+            LMCRecorderBankInventory inventory)
+        {
+            RequireEmptyRecorderConfigurationInventory(inventory);
+            var buffer = CreateCommonRequest(
+                LMC_CommandId.AdoptEmptyRecorderConfiguration,
+                requestId,
+                AdoptEmptyRecorderConfigurationRequestPayloadLength);
+            var payloadOffset = LMC_Frame.HeaderSize;
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 8,
+                inventory.DiagnosticsBootId);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 12,
+                inventory.ConfigId);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 16,
+                inventory.ConfigRevision);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 20,
+                inventory.MapRevision);
+            LMC_Frame.WriteUInt32(
+                buffer,
+                payloadOffset + 24,
+                inventory.ConfigurationOwnerSessionEpoch);
+            return buffer;
+        }
+
         private static byte[] CreateAdoptRecorderRequest(
             uint requestId,
             uint diagnosticsBootId,
@@ -394,6 +610,49 @@ namespace LasalMotionControlLib
             RequireRecorderBootId(configuration.DiagnosticsBootId);
         }
 
+        private static void RequireRecoveredRecorderConfigurationIdentity(
+            LMCRecoveredRecorderConfigurationLease configuration)
+        {
+            if (configuration.ConfigId == 0
+                || configuration.ConfigRevision == 0
+                || configuration.OwnerSessionEpoch == 0)
+            {
+                throw new ArgumentException(
+                    "Recovered Recorder configuration identity fields must be non-zero.",
+                    "configuration");
+            }
+
+            RequireRecorderMapRevision(configuration.MapRevision);
+            RequireRecorderBootId(configuration.DiagnosticsBootId);
+        }
+
+        private static void RequireEmptyRecorderConfigurationInventory(
+            LMCRecorderBankInventory inventory)
+        {
+            if (inventory == null)
+            {
+                throw new ArgumentNullException("inventory");
+            }
+
+            RequireRecorderBootId(inventory.DiagnosticsBootId);
+            RequireRecorderMapRevision(inventory.MapRevision);
+            if (inventory.ConfigId == 0
+                || inventory.ConfigRevision == 0
+                || inventory.IsRecoverable
+                || inventory.RecoveryToken != Guid.Empty
+                || inventory.ConfigurationOwnerSessionEpoch == 0
+                || !inventory.IsConfigurationOwnerSessionClosed
+                || inventory.ConfigurationState != LMCRecorderState.Configured
+                || inventory.BufferMode != LMCRecorderBufferMode.Double
+                || inventory.RecorderBufferCount != 2
+                || inventory.OccupiedBanks.Count != 0)
+            {
+                throw new ArgumentException(
+                    "AdoptEmptyRecorderConfiguration requires an exact standard 0x7E4A closed, empty, two-bank Recorder inventory without a recovery token.",
+                    "inventory");
+            }
+        }
+
         private static void RequireRecorderIdentity(
             LMCRecorderIdentity identity,
             bool requireOwner)
@@ -434,6 +693,30 @@ namespace LasalMotionControlLib
                     "Recorder operations require a non-zero DiagnosticsBootId.");
             }
         }
+
+        private static void RequireRecorderRecoveryToken(Guid recoveryToken)
+        {
+            if (recoveryToken == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Recorder recovery tokens must be nonempty.",
+                    "recoveryToken");
+            }
+        }
+
+        private static void WriteRecorderRecoveryToken(
+            byte[] buffer,
+            int offset,
+            Guid recoveryToken)
+        {
+            var bytes = recoveryToken.ToByteArray();
+            Buffer.BlockCopy(
+                bytes,
+                0,
+                buffer,
+                offset,
+                RecorderRecoveryTokenLength);
+        }
     }
 
     internal sealed class LMCRecorderAdoption
@@ -465,11 +748,16 @@ namespace LasalMotionControlLib
     internal static partial class LMC_DiagnosticsParser
     {
         internal const int ConfigureRecorderResponsePayloadLength = 56;
+        internal const int ConfigureRecoverableDoubleRecorderResponsePayloadLength = 72;
         internal const int StartRecorderResponsePayloadLength = 40;
         internal const int RecorderStatusResponsePayloadLength = 76;
         internal const int RecorderHeaderResponseHeaderPayloadLength = 112;
         internal const int RecorderChunkResponseHeaderPayloadLength = 52;
         internal const int AdoptRecorderResponsePayloadLength = 36;
+        internal const int RecorderBankInventoryResponsePayloadLength = 88;
+        internal const int RecoverableRecorderBankInventoryResponsePayloadLength = 104;
+        internal const int RecorderBankInventoryEntryStride = 20;
+        internal const int AdoptEmptyRecorderConfigurationResponsePayloadLength = 40;
 
         private const ushort KnownRecorderHeaderFlagsMask = 0x000F;
 
@@ -486,6 +774,72 @@ namespace LasalMotionControlLib
                 throw new ArgumentNullException("configuration");
             }
 
+            return ParseConfigureRecorderCore(
+                raw,
+                expectedRequestId,
+                configuration,
+                capabilities,
+                connectionSessionGeneration,
+                owner,
+                "ConfigureRecorder",
+                ConfigureRecorderResponsePayloadLength,
+                Guid.Empty);
+        }
+
+        internal static LMCRecorderConfigurationHandle
+            ParseConfigureRecoverableDoubleRecorder(
+                byte[] raw,
+                uint expectedRequestId,
+                LMCRecorderConfiguration configuration,
+                Guid recoveryToken,
+                LMCDiagnosticCapabilities capabilities,
+                long connectionSessionGeneration,
+                LMCDiagnostics owner)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            if (configuration.BufferMode != LMCRecorderBufferMode.Double
+                || configuration.RequestedConfigId == 0)
+            {
+                throw new ArgumentException(
+                    "Token-qualified Recorder parsing requires Double buffer mode and a caller-selected non-zero RequestedConfigId.",
+                    "configuration");
+            }
+
+            if (recoveryToken == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Recorder recovery tokens must be nonempty.",
+                    "recoveryToken");
+            }
+
+            return ParseConfigureRecorderCore(
+                raw,
+                expectedRequestId,
+                configuration,
+                capabilities,
+                connectionSessionGeneration,
+                owner,
+                "ConfigureRecoverableDoubleRecorder",
+                ConfigureRecoverableDoubleRecorderResponsePayloadLength,
+                recoveryToken);
+        }
+
+        private static LMCRecorderConfigurationHandle
+            ParseConfigureRecorderCore(
+                byte[] raw,
+                uint expectedRequestId,
+                LMCRecorderConfiguration configuration,
+                LMCDiagnosticCapabilities capabilities,
+                long connectionSessionGeneration,
+                LMCDiagnostics owner,
+                string operationName,
+                int responsePayloadLength,
+                Guid recoveryToken)
+        {
             if (capabilities == null)
             {
                 throw new ArgumentNullException("capabilities");
@@ -494,14 +848,22 @@ namespace LasalMotionControlLib
             var response = ParseSuccessfulCommand(
                 raw,
                 expectedRequestId,
-                "ConfigureRecorder");
+                operationName);
             RequireExactPayloadLength(
                 response,
-                ConfigureRecorderResponsePayloadLength,
-                "ConfigureRecorder");
-            RequireNoResponseFlags(response, "ConfigureRecorder");
+                responsePayloadLength,
+                operationName);
+            RequireNoResponseFlags(response, operationName);
 
             var payload = response.TransportResponse.Payload;
+            if (recoveryToken != Guid.Empty
+                && !RecorderRecoveryTokenEquals(payload, 56, recoveryToken))
+            {
+                throw new InvalidDataException(
+                    operationName
+                        + " returned a mismatched recovery token echo.");
+            }
+
             var configId = LMC_Frame.ReadUInt32(payload, 16);
             var configRevision = LMC_Frame.ReadUInt32(payload, 20);
             var mapRevision = LMC_Frame.ReadUInt32(payload, 24);
@@ -540,7 +902,8 @@ namespace LasalMotionControlLib
                 || diagnosticsBootId != capabilities.DiagnosticsBootId)
             {
                 throw new InvalidDataException(
-                    "ConfigureRecorder returned invalid or mismatched configuration metadata.");
+                    operationName
+                        + " returned invalid or mismatched configuration metadata.");
             }
 
 
@@ -550,7 +913,8 @@ namespace LasalMotionControlLib
                     + configuration.PostTriggerSamples > acceptedCapacity)
             {
                 throw new InvalidDataException(
-                    "ConfigureRecorder accepted too little capacity for its trigger windows.");
+                    operationName
+                        + " accepted too little capacity for its trigger windows.");
             }
 
             if (configuration.BufferMode == LMCRecorderBufferMode.Single
@@ -592,7 +956,8 @@ namespace LasalMotionControlLib
                 ownerSessionEpoch,
                 capabilities.MaxChunkDataBytes,
                 connectionSessionGeneration,
-                owner);
+                owner,
+                recoveryToken);
         }
 
         internal static LMCRecorderIdentity ParseStartRecorder(
@@ -1202,6 +1567,362 @@ namespace LasalMotionControlLib
                 state);
         }
 
+        internal static LMCRecorderBankInventory ParseRecorderBankInventory(
+            byte[] raw,
+            uint expectedRequestId,
+            uint expectedDiagnosticsBootId,
+            uint expectedConfigId,
+            uint expectedMapRevision,
+            uint expectedConfigRevision)
+        {
+            LMCDiagnosticsResponse response;
+            try
+            {
+                response = ParseSuccessfulCommand(
+                    raw,
+                    expectedRequestId,
+                    "ReadRecorderBankInventory");
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                if (exception.Response != null
+                    && exception.Response.Detail
+                        == LMCDiagnosticsDetailCode
+                            .RecorderConfigurationAbsent
+                    && expectedDiagnosticsBootId != 0
+                    && expectedConfigId != 0
+                    && expectedConfigRevision != 0
+                    && expectedMapRevision != 0)
+                {
+                    throw new LMCRecorderConfigurationAbsentException(
+                        "ReadRecorderBankInventory proved that the exact Recorder configuration is absent and the Recorder store is canonically empty.",
+                        exception.Response,
+                        expectedDiagnosticsBootId,
+                        expectedConfigId,
+                        expectedConfigRevision,
+                        expectedMapRevision,
+                        exception);
+                }
+
+                throw;
+            }
+            RequireExactPayloadLength(
+                response,
+                RecorderBankInventoryResponsePayloadLength,
+                "ReadRecorderBankInventory");
+            RequireNoResponseFlags(response, "ReadRecorderBankInventory");
+            return ParseRecorderBankInventoryPayload(
+                response,
+                expectedDiagnosticsBootId,
+                expectedConfigId,
+                expectedMapRevision,
+                expectedConfigRevision,
+                "ReadRecorderBankInventory",
+                Guid.Empty);
+        }
+
+        internal static LMCRecorderBankInventory
+            ParseRecoverableRecorderBankInventory(
+                byte[] raw,
+                uint expectedRequestId,
+                uint expectedDiagnosticsBootId,
+                uint expectedConfigId,
+                uint expectedMapRevision,
+                Guid expectedRecoveryToken)
+        {
+            if (expectedRecoveryToken == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Recorder recovery tokens must be nonempty.",
+                    "expectedRecoveryToken");
+            }
+
+            LMCDiagnosticsResponse response;
+            try
+            {
+                response = ParseSuccessfulCommand(
+                    raw,
+                    expectedRequestId,
+                    "ReadRecoverableRecorderBankInventory");
+            }
+            catch (LMCDiagnosticsCommandException exception)
+            {
+                if (exception.Response != null
+                    && exception.Response.Detail
+                        == LMCDiagnosticsDetailCode
+                            .RecorderConfigurationAbsent
+                    && expectedDiagnosticsBootId != 0
+                    && expectedConfigId != 0
+                    && expectedMapRevision != 0)
+                {
+                    throw new
+                        LMCRecoverableRecorderConfigurationAbsentException(
+                            "ReadRecoverableRecorderBankInventory proved that the exact recovery token is absent and the Recorder store is canonically empty.",
+                            exception.Response,
+                            expectedDiagnosticsBootId,
+                            expectedConfigId,
+                            expectedMapRevision,
+                            expectedRecoveryToken,
+                            exception);
+                }
+
+                throw;
+            }
+
+            RequireExactPayloadLength(
+                response,
+                RecoverableRecorderBankInventoryResponsePayloadLength,
+                "ReadRecoverableRecorderBankInventory");
+            RequireNoResponseFlags(
+                response,
+                "ReadRecoverableRecorderBankInventory");
+            if (!RecorderRecoveryTokenEquals(
+                    response.TransportResponse.Payload,
+                    88,
+                    expectedRecoveryToken))
+            {
+                throw new InvalidDataException(
+                    "ReadRecoverableRecorderBankInventory returned a mismatched recovery token echo.");
+            }
+
+            return ParseRecorderBankInventoryPayload(
+                response,
+                expectedDiagnosticsBootId,
+                expectedConfigId,
+                expectedMapRevision,
+                0,
+                "ReadRecoverableRecorderBankInventory",
+                expectedRecoveryToken);
+        }
+
+        private static LMCRecorderBankInventory
+            ParseRecorderBankInventoryPayload(
+                LMCDiagnosticsResponse response,
+                uint expectedDiagnosticsBootId,
+                uint expectedConfigId,
+                uint expectedMapRevision,
+                uint expectedConfigRevision,
+                string operationName,
+                Guid recoveryToken)
+        {
+            var payload = response.TransportResponse.Payload;
+            var diagnosticsBootId = LMC_Frame.ReadUInt32(payload, 16);
+            var configId = LMC_Frame.ReadUInt32(payload, 20);
+            var configRevision = LMC_Frame.ReadUInt32(payload, 24);
+            var mapRevision = LMC_Frame.ReadUInt32(payload, 28);
+            var configurationOwnerSessionEpoch =
+                LMC_Frame.ReadUInt32(payload, 32);
+            var configurationClosedSessionEpoch =
+                LMC_Frame.ReadUInt32(payload, 36);
+            var configurationState =
+                (LMCRecorderState)LMC_Frame.ReadUInt16(payload, 40);
+            var bufferMode = (LMCRecorderBufferMode)payload[42];
+            var recorderBufferCount = payload[43];
+            var occupiedBankCount = payload[44];
+
+            if (diagnosticsBootId != expectedDiagnosticsBootId
+                || configId == 0
+                || configId != expectedConfigId
+                || configRevision == 0
+                || (expectedConfigRevision != 0
+                    && configRevision != expectedConfigRevision)
+                || mapRevision != expectedMapRevision
+                || configurationOwnerSessionEpoch == 0
+                || (configurationClosedSessionEpoch != 0
+                    && configurationClosedSessionEpoch
+                        != configurationOwnerSessionEpoch)
+                || configurationState < LMCRecorderState.Configured
+                || configurationState > LMCRecorderState.Uploading
+                || bufferMode != LMCRecorderBufferMode.Double
+                || recorderBufferCount != 2
+                || occupiedBankCount > recorderBufferCount
+                || payload[45] != 0
+                || LMC_Frame.ReadUInt16(payload, 46) != 0)
+            {
+                throw new InvalidDataException(
+                    operationName
+                        + " returned invalid or mismatched configuration metadata.");
+            }
+
+            if (occupiedBankCount == 0
+                && configurationState != LMCRecorderState.Configured)
+            {
+                throw new InvalidDataException(
+                    "An empty Recorder bank inventory must report Configured state.");
+            }
+
+            var occupiedBanks = new List<LMCRecorderBankInventoryEntry>(
+                occupiedBankCount);
+            var recordIds = new HashSet<uint>();
+            uint previousBufferId = 0;
+            uint commonClosedSessionEpoch = 0;
+            for (var index = 0; index < recorderBufferCount; index++)
+            {
+                var offset = 48 + index * RecorderBankInventoryEntryStride;
+                var recordId = LMC_Frame.ReadUInt32(payload, offset);
+                var bufferId = LMC_Frame.ReadUInt32(payload, offset + 4);
+                var ownerSessionEpoch =
+                    LMC_Frame.ReadUInt32(payload, offset + 8);
+                var closedSessionEpoch =
+                    LMC_Frame.ReadUInt32(payload, offset + 12);
+                var state = (LMCRecorderState)LMC_Frame.ReadUInt16(
+                    payload,
+                    offset + 16);
+                var reserved = LMC_Frame.ReadUInt16(payload, offset + 18);
+
+                if (index >= occupiedBankCount)
+                {
+                    if (recordId != 0
+                        || bufferId != 0
+                        || ownerSessionEpoch != 0
+                        || closedSessionEpoch != 0
+                        || state != LMCRecorderState.Empty
+                        || reserved != 0)
+                    {
+                        throw new InvalidDataException(
+                            operationName
+                                + " contains data after OccupiedBankCount.");
+                    }
+
+                    continue;
+                }
+
+                if (recordId == 0
+                    || !recordIds.Add(recordId)
+                    || bufferId >= recorderBufferCount
+                    || (index != 0 && bufferId <= previousBufferId)
+                    || ownerSessionEpoch != configurationOwnerSessionEpoch
+                    || (closedSessionEpoch != 0
+                        && closedSessionEpoch != ownerSessionEpoch)
+                    || closedSessionEpoch
+                        != configurationClosedSessionEpoch
+                    || state < LMCRecorderState.Armed
+                    || state > LMCRecorderState.Uploading
+                    || reserved != 0)
+                {
+                    throw new InvalidDataException(
+                        operationName
+                            + " contains an invalid or ambiguous occupied-bank entry.");
+                }
+
+                previousBufferId = bufferId;
+                commonClosedSessionEpoch = closedSessionEpoch;
+                occupiedBanks.Add(new LMCRecorderBankInventoryEntry(
+                    recordId,
+                    bufferId,
+                    ownerSessionEpoch,
+                    closedSessionEpoch,
+                    state));
+            }
+
+            if (occupiedBankCount != 0
+                && commonClosedSessionEpoch
+                    != configurationClosedSessionEpoch)
+            {
+                throw new InvalidDataException(
+                    operationName + " ownership closure is inconsistent.");
+            }
+
+            return new LMCRecorderBankInventory(
+                response,
+                diagnosticsBootId,
+                configId,
+                configRevision,
+                mapRevision,
+                configurationOwnerSessionEpoch,
+                configurationClosedSessionEpoch,
+                configurationState,
+                bufferMode,
+                recorderBufferCount,
+                occupiedBanks,
+                recoveryToken);
+        }
+
+        internal static LMCRecoveredRecorderConfigurationLease
+            ParseAdoptEmptyRecorderConfiguration(
+                byte[] raw,
+                uint expectedRequestId,
+                LMCRecorderBankInventory inventory,
+                long connectionSessionGeneration,
+                LMCDiagnostics owner)
+        {
+            if (inventory == null)
+            {
+                throw new ArgumentNullException("inventory");
+            }
+
+            if (inventory.DiagnosticsBootId == 0
+                || inventory.ConfigId == 0
+                || inventory.ConfigRevision == 0
+                || inventory.MapRevision == 0
+                || inventory.IsRecoverable
+                || inventory.RecoveryToken != Guid.Empty
+                || inventory.ConfigurationOwnerSessionEpoch == 0
+                || !inventory.IsConfigurationOwnerSessionClosed
+                || inventory.ConfigurationState != LMCRecorderState.Configured
+                || inventory.BufferMode != LMCRecorderBufferMode.Double
+                || inventory.RecorderBufferCount != 2
+                || inventory.OccupiedBanks.Count != 0)
+            {
+                throw new ArgumentException(
+                    "AdoptEmptyRecorderConfiguration parser requires an exact standard 0x7E4A closed, empty, two-bank Recorder inventory without a recovery token.",
+                    "inventory");
+            }
+
+            var response = ParseSuccessfulCommand(
+                raw,
+                expectedRequestId,
+                "AdoptEmptyRecorderConfiguration");
+            RequireExactPayloadLength(
+                response,
+                AdoptEmptyRecorderConfigurationResponsePayloadLength,
+                "AdoptEmptyRecorderConfiguration");
+            RequireNoResponseFlags(
+                response,
+                "AdoptEmptyRecorderConfiguration");
+
+            var payload = response.TransportResponse.Payload;
+            var diagnosticsBootId = LMC_Frame.ReadUInt32(payload, 16);
+            var configId = LMC_Frame.ReadUInt32(payload, 20);
+            var configRevision = LMC_Frame.ReadUInt32(payload, 24);
+            var mapRevision = LMC_Frame.ReadUInt32(payload, 28);
+            var ownerSessionEpoch = LMC_Frame.ReadUInt32(payload, 32);
+            var state = (LMCRecorderState)LMC_Frame.ReadUInt16(payload, 36);
+            var bufferMode = (LMCRecorderBufferMode)payload[38];
+            var recorderBufferCount = payload[39];
+
+            if (diagnosticsBootId != inventory.DiagnosticsBootId
+                || configId == 0
+                || configId != inventory.ConfigId
+                || configRevision == 0
+                || configRevision != inventory.ConfigRevision
+                || mapRevision != inventory.MapRevision
+                || ownerSessionEpoch == 0
+                || ownerSessionEpoch
+                    == inventory.ConfigurationOwnerSessionEpoch
+                || state != LMCRecorderState.Configured
+                || bufferMode != LMCRecorderBufferMode.Double
+                || recorderBufferCount != 2)
+            {
+                throw new InvalidDataException(
+                    "AdoptEmptyRecorderConfiguration returned invalid or mismatched configuration ownership metadata.");
+            }
+
+            return new LMCRecoveredRecorderConfigurationLease(
+                response,
+                diagnosticsBootId,
+                configId,
+                configRevision,
+                mapRevision,
+                inventory.ConfigurationOwnerSessionEpoch,
+                ownerSessionEpoch,
+                state,
+                bufferMode,
+                recorderBufferCount,
+                connectionSessionGeneration,
+                owner);
+        }
+
         internal static uint ComputeRecorderDataCrc32(
             byte[] data,
             int offset,
@@ -1247,6 +1968,31 @@ namespace LasalMotionControlLib
                 commandName);
             RequireNoResponseFlags(response, commandName);
             return response;
+        }
+
+        private static bool RecorderRecoveryTokenEquals(
+            byte[] payload,
+            int offset,
+            Guid expectedRecoveryToken)
+        {
+            if (payload == null
+                || offset < 0
+                || offset > payload.Length
+                    - LMC_DiagnosticsFrame.RecorderRecoveryTokenLength)
+            {
+                return false;
+            }
+
+            var expected = expectedRecoveryToken.ToByteArray();
+            var difference = 0;
+            for (var index = 0;
+                index < LMC_DiagnosticsFrame.RecorderRecoveryTokenLength;
+                index++)
+            {
+                difference |= payload[offset + index] ^ expected[index];
+            }
+
+            return difference == 0;
         }
 
         private static bool IsRecorderCapturePhase(LMCCapturePhase phase)

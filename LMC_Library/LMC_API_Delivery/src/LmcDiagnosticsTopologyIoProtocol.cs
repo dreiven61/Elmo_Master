@@ -169,6 +169,7 @@ namespace LasalMotionControlLib
         private const ushort KnownTopologyNodeFlagsMask = 0x00FF;
         private const ushort KnownNodeHealthFlagsMask = 0x003F;
         private const ushort KnownDigitalIOStatusFlagsMask = 0x01FF;
+        private const ushort KnownDigitalIOFaultCauseFlagsMask = 0x00FE;
 
         internal static LMCEtherCATTopologyInfo ParseEtherCATTopologyInfo(
             byte[] raw,
@@ -438,6 +439,10 @@ namespace LasalMotionControlLib
             var outputRevision = LMC_Frame.ReadUInt32(payload, 52);
             var widthMask = GetBitWidthMask(bitWidth);
             var isValid = (statusFlags & LMCDigitalIOStatusFlags.Valid) != 0;
+            var isDataDefaulted = (statusFlags
+                & LMCDigitalIOStatusFlags.DataDefaulted) != 0;
+            var hasFaultCause = (statusFlagsValue
+                & KnownDigitalIOFaultCauseFlagsMask) != 0;
 
             if (topologyRevision != expectedRequest.TopologyRevision
                 || ioReference != expectedRequest.IOReference
@@ -452,8 +457,10 @@ namespace LasalMotionControlLib
                 || (isValid
                     ? statusFlags != LMCDigitalIOStatusFlags.Valid
                         || validMask != widthMask
-                    : validMask != 0
-                        || statusFlags == LMCDigitalIOStatusFlags.None)
+                    : value != 0
+                        || validMask != 0
+                        || !isDataDefaulted
+                        || !hasFaultCause)
                 || (direction == LMCDigitalIODirection.Input
                     ? outputRevision != 0
                     : outputRevision == 0))

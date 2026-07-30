@@ -248,6 +248,7 @@ namespace LasalMotionControlLib
     {
         private readonly ReadOnlyCollection<LMCSignalCatalogEntry> entries;
         private readonly Dictionary<string, LMCSignalCatalogEntry> entriesByAlias;
+        private LMCDiagnostics owner;
 
         internal LMCSignalCatalog(
             LMCSignalCatalogInfo info,
@@ -273,9 +274,62 @@ namespace LasalMotionControlLib
             }
         }
 
+        internal LMCSignalCatalog BindProvenance(
+            LMCDiagnostics diagnosticsOwner,
+            long connectionSessionGeneration)
+        {
+            if (diagnosticsOwner == null)
+            {
+                throw new ArgumentNullException("diagnosticsOwner");
+            }
+
+            if (connectionSessionGeneration <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "connectionSessionGeneration");
+            }
+
+            if (owner != null
+                && (!ReferenceEquals(owner, diagnosticsOwner)
+                    || ConnectionSessionGeneration
+                        != connectionSessionGeneration))
+            {
+                throw new InvalidOperationException(
+                    "The Signal Catalog is already bound to a different diagnostics owner or session.");
+            }
+
+            owner = diagnosticsOwner;
+            ConnectionSessionGeneration = connectionSessionGeneration;
+            return this;
+        }
+
+        internal bool IsBoundTo(
+            LMCDiagnostics diagnosticsOwner,
+            long connectionSessionGeneration)
+        {
+            return diagnosticsOwner != null
+                && ReferenceEquals(owner, diagnosticsOwner)
+                && ConnectionSessionGeneration == connectionSessionGeneration;
+        }
+
         public LMCSignalCatalogInfo Info { get; private set; }
         public uint MapRevision { get { return Info.MapRevision; } }
         public IReadOnlyList<LMCSignalCatalogEntry> Entries { get { return entries; } }
+
+        internal long ConnectionSessionGeneration { get; private set; }
+
+        public bool BelongsTo(LMCConnection connection)
+        {
+            return connection != null
+                && ReferenceEquals(owner, connection.Diagnostics);
+        }
+
+        public bool BelongsToCurrentSession(LMCConnection connection)
+        {
+            return BelongsTo(connection)
+                && connection.IsConnected
+                && ConnectionSessionGeneration == connection.SessionGeneration;
+        }
 
         public bool TryGetByAlias(
             string alias,
