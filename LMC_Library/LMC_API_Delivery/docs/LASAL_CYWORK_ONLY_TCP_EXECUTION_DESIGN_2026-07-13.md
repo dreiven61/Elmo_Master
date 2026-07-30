@@ -18,7 +18,8 @@ PASS했다. 다만 최종 LASAL IDE Rebuild/Link/implementation smoke와 PLC run
 class 책임, 추가 copy 금지와 단계별 이행의 최신 기준이다.
 
 `Motion_Network.lcn`과 `ONE_Motion_Network_Table.st`는 no-RT 설정으로 함께
-재생성됐다. `_TCPIPServer1.Config=0`, `MaxConnections=1`이며
+재생성됐다. `TCPIPServer1.Config=0`, `MaxConnections=2`,
+`ConnectionsPerRun=1`이며 두 번째 slot은 same-peer reconnect candidate 전용이다.
 `TCPMotionInterface1`은 cyclic table에만 있고 RT task entry가 없다. 이전
 no-RT baseline 이후 group handler, large buffer와 dormant control service network는
 2026-07-24 Rebuild/Link/PLC Download를 통과했다. 이것은 route/cleanup 전 역사적 증거다.
@@ -32,10 +33,11 @@ no-RT baseline 이후 group handler, large buffer와 dormant control service net
 
 - `TCPMotionInterface.RealtimeTask=false`
 - `TCPMotionInterface.CyclicTask=true`, `DefCyclictime=1 ms`
-- TCP transport는 일반 `_TCPIPServer1`을 사용한다.
-- `_TCPIPServer1.Config=0`으로 별도 AP task를 만들지 않고 CyWork 하나가
-  `CyclicCall()`을 소유한다.
-- `_TCPIPServer1.MaxConnections=1`로 현재 single-session 구현과 맞춘다.
+- TCP transport는 editable `TCPIPServer1 : TCPIPServer`를 사용한다.
+- `TCPIPServer1.Config=0`으로 별도 AP task를 만들지 않고 inherited
+  `_TCPIPServer::CyWork` 하나가 `CyclicCall()`을 소유한다.
+- `TCPIPServer1.MaxConnections=2`, `ConnectionsPerRun=1`로 candidate를 accept하되
+  `TCPMotionInterface`의 RPC owner는 하나만 유지한다.
 - RT request/result mailbox, `RtWork()` override, `sigclib_atomic_*` 호출은
   `TCPMotionInterface`에서 사용하지 않는다.
 
@@ -60,7 +62,7 @@ Different types: using '_TCPMI_QUEUE_STATE' instead of 'UDINT'
 
 ```mermaid
 flowchart LR
-    A["PC TCP request"] --> B["_TCPIPServer1 CyWork"]
+    A["PC TCP request"] --> B["TCPIPServer1 inherited CyWork"]
     B --> C["Response frame accumulator"]
     C --> D["Depth-8 request queue"]
     D --> E["TCPMotionInterface CyWork"]
@@ -89,7 +91,7 @@ queue 상태 전이는 다음과 같다.
   entry의 payload는 1,320 bytes다. 따라서 8-byte header와 1,320-byte
   `0x20E7` payload를 같은 accumulator/queue 경로에서 처리한다.
 
-이 plain enum 전이는 `_TCPIPServer1` callback과 `TCPMotionInterface1.CyWork`가
+이 plain enum 전이는 `TCPIPServer1` callback과 `TCPMotionInterface1.CyWork`가
 동일 cyclic task에서 순차 실행된다는 조건에서만 유효하다. 다른 task나 AP async
 task로 분리하면 data race가 생기므로 현재 구현을 그대로 사용하면 안 된다.
 
@@ -198,7 +200,7 @@ PLC 안전 시험 전에는 production 동작으로 승인하지 않는다.
 
 RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니다.
 
-1. `_TCPIPServer1`과 `TCPMotionInterface1`은 같은 cyclic task에서 실행한다.
+1. `TCPIPServer1`과 `TCPMotionInterface1`은 같은 cyclic task에서 실행한다.
 2. `Config=0`을 명시해 server callback owner를 CyWork 하나로 고정한다.
 3. `_LMCAxis` method 호출 thread는 axis realtime thread와 같은 CPU core에 두고,
    우선순위는 axis realtime task와 같거나 낮게 둔다.
@@ -218,8 +220,10 @@ RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니
 4. `TCPMotionInterface` class property에서 RealTime Task를 비활성화하고 Cyclic
    Task만 `1 ms`로 둔다.
 5. `TCPMotionInterface1` object의 `RealTime` assignment가 없는지 확인한다.
-6. `_TCPIPServer1.Config=0`, `MaxConnections=1`, `CyclicTime=1 ms`를 확인한다.
-7. `_TCPIPServer_RT1`은 `TCPMotionInterface1`에 연결하거나 task에 배치하지 않는다.
+6. `TCPIPServer1.Config=0`, `MaxConnections=2`, `ConnectionsPerRun=1`,
+   `CyclicTime=1 ms`를 확인한다.
+7. `TCPIPServer`는 custom `RtWork`/`CyWork`를 구현하지 않고 inherited server FSM만
+   사용하며, 삭제된 `_TCPIPServer_RT` class/object가 남지 않았는지 확인한다.
 8. Object Network에서 TCP direct axis/robot 연결 10개가 없고 control service axis/robot
    10개 및 TCP `ControlCommands`/`Diagnostics` 연결이 유지되는지 확인한다.
 9. Network와 CodeGenerator를 IDE에서 저장·재생성하고 external connection이 16개인지
@@ -254,7 +258,8 @@ RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니
   fragmented/combined large-frame bound
 - `0x20A4` static 4축/mode 제한, `0x2051` exact 68-byte response,
   `0x20E7` exact identity/4-byte ACK 계약
-- 일반 `_TCPIPServer1` 연결, `Config=0`, `MaxConnections=1`
+- editable `TCPIPServer1 : TCPIPServer` 연결, `Config=0`, `MaxConnections=2`,
+  `ConnectionsPerRun=1`, stable single RPC owner
 - `TCPMotionInterface1` RealTime assignment 부재
 - IDE-generated `4/3/0`, 구현 함수 8개, TCP direct axis/robot 연결 0개, service 관련
   연결 11개, Comm Network external connection 16개

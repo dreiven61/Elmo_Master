@@ -101,7 +101,11 @@ Each receive thread captures its own UDP listener and expected controller
 address. Stop atomically detaches the current listener/thread/endpoint before
 closing and joining that generation. If a callback handler outlives the join
 timeout, the old thread cannot consume the next session's UDP socket or clear
-the new session's listener fields when it eventually exits.
+the new session's listener fields when it eventually exits. Callback delivery,
+handler-error reporting, and rejected-source counting also require the exact
+listener object and connection-lifetime generation. A late exception from an
+old handler is therefore suppressed after a replacement session starts and
+cannot contaminate that session's error event or rejected count.
 
 ## Current Limitation
 

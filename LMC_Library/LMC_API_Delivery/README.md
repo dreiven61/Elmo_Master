@@ -8,29 +8,50 @@ LASAL 전용 DINT 패킷 API입니다. 기존 Elmo/Maestro용 legacy 패키지�
 
 ## 개발 상태
 
-2026-07-27 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
+2026-07-28 기준 C# request/typed response path와 재실행 가능한 자동 테스트가
 반영됐습니다. tracked `TCPMotionInterface`에는 RPC lifecycle, 실제 LASAL
 객체명 lookup, opaque descriptor, 9축 single-axis dispatcher, DINT single-axis path와
 현재 공개된 group API handler를 반영했습니다. Diagnostics 개발 source에는
 EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
-Ring/Trigger, D5 Read 및 fail-closed Write와 capability-off EtherCAT topology/digital I/O
-SDK contract가 포함됩니다.
+  Ring/Trigger, D5 Read 및 fail-closed Write, static EtherCAT topology와 capability-off
+  dynamic node health/digital I/O SDK contract가 포함됩니다.
 
 현재 완료도를 구분하면 다음과 같습니다.
 
 - 기존 Wireshark 캡처 기준 command: 23개
 - LASAL project-local extension command: 2개
   (`0x204A GroupPowerOn`, `0x204B GroupPowerOff`; 기존 캡처 명령이 아님)
-- LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 29개 ID 예약
+- LASAL diagnostics command namespace: `0x7E00..0x7E51` 중 31개 ID 예약
   - D0~D3: capability, Health/Catalog/PI Read, Bulk, Recorder v1 handler 활성
-  - D4: single-bank Ring/Trigger와 `0x7E42` 활성, Double bank는 미구현
+  - D4: PLC single-bank Ring/Trigger와 `0x7E42` 활성. 두 개의 1.28 MB 고정 bank,
+    bank별 identity/metadata, full `ResourceBusy`, exact all-bank rebind와 isolated release는
+    dormant LASAL source로 구현됐다. `0x7E4A` exact bank inventory, `0x7E4B`
+    empty-configuration adopt와 token-qualified `0x7E4C/0x7E4D` Configure/조회도 dormant
+    복구 계약으로 구현됐고, 0x7E4B는 Start를 허용하지 않는 release-only lease를 반환한다.
+    PC 측에는 Configure 전 journal, exact inventory/adopt,
+    bank/configuration Release intent-confirmed checkpoint와 재시작 presence/absence 복구도 있다.
+    WPF qualification/retained-cleanup/reconnect/config-only manual Configure adapter도 구현됐지만
+    `RecorderDoubleManualActionsReady`, `RecorderDoubleManualConfigureRouteReady`,
+    `RecorderDoubleQualificationExecutionReady`, `RecorderDoubleReconnectRecoveryReady` 네
+    proof/route gate는 모두 `false`다. 따라서 store gate,
+    capability bit 6과 `RecorderBufferCount=2`도 계속 비활성이고 LASAL
+    build/RAM/jitter/live/pcap 검증 전이다.
+    UI 독립 retained/release 11개와 PLC core reference model 1개도 PC 계약으로 검증한다
   - D5: test profile에서 축 1~4, nonzero ObjectIndex, 임의 U8 SubIndex와 exact typed
-    1/2/4-byte SDO Read ticket/status/queued cancel 활성. SDO Write의
+    1/2/4-byte SDO Read ticket/status/queued cancel 활성. public
+    `ReadSdoInline[Async]`는 capability preflight, accepted ticket와 bounded status poll을
+    결합하고 같은 owner/session의 exact `Completed/Success` 결과만 반환한다. 이미 수신한
+    terminal 성공/실패는 늦은 cancellation보다 우선하며, nonterminal PC-side wait
+    cancel/timeout 뒤에는 accepted ticket과 exact `LastObservedStatus`를 보존한다. PLC cancel 또는 replay는 하지 않는다. SDO Write의
     parser/executor/API/WPF 경로는 구현됐지만 승인 target과 capability는 비활성이고,
-    extended result도 비활성
-  - EtherCAT topology/I/O: `0x7E11/12/13/22/23` C# model/parser/public API와 golden test
-    구현. PLC/LASAL handler와 WPF는 미구현이며 capability bit 14~17과 SDK output
-    allowlist는 비활성
+    extended result도 비활성. public `LMCSdoWriteVerificationContext`는 accepted Write
+    ticket의 immutable submitted-request provenance를 exact readback에 묶는다. read-only
+    deliberate contention -> exact `ResourceBusy` -> recovery qualification runner/core는
+    구현됐고 timeout -> exact `Expired` -> bounded late-callback drain -> recovery runner/core도
+    구현됐다. 두 경로의 실제 PLC packet은 아직 없다
+  - EtherCAT topology/I/O: `0x7E11/12/13/22/23` C# model/parser/public API와 개발 WPF
+    구현. PLC/LASAL은 static `0x7E11/12`, revision `0x15867EEC`, ordered 7-entry와 bit 14만
+    구현했고 `0x7E13/22/23`, bit 15~17 및 SDK output allowlist는 비활성
   - Phase 1 PI/Bulk compatibility facade: catalog alias PI Read와
     `AddEntry/Configure/Upload/GetEntry` local builder/reader 구현; wire는 D1/D2 재사용
 - LASAL admin command: 4개
@@ -38,58 +59,125 @@ SDK contract가 포함됩니다.
   `0x7D20 ReadGroupParameters`, `0x7D22 GroupMoveLinearRelative`)
 - 성공 응답 capable PLC active command: 51개
   (기존 motion/group 25 + diagnostics D0~D3 18 + D4 Trigger 1 + D5 general-inline 3 + admin 4)
-- dispatcher/wire handled contract: 53개
-  (active 51 + D5 reserved `0x7E21/0x7E51` 2)
+- dispatcher/wire handled contract: 59개
+  (active 53 + D5 reserved `0x7E21/0x7E51` 2 + D4 dormant recovery
+  `0x7E4A..0x7E4D` 4)
 - C# diagnostics 공개 API: D0~D5와 capability-off EtherCAT topology/I/O sync/async contract 구현
 - LASAL diagnostics test build capability:
-  - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000213F`
+  - 정상 retained BootId 경로의 전체 값: `CapabilityBits=0x0000613F`
   - bit 0~2: Health, SignalCatalog, PIRead
   - nonzero retained BootId일 때 bit 3~4: BulkSnapshot, RecorderSingleBank
   - nonzero retained BootId일 때 bit 5: RecorderTrigger
   - nonzero retained BootId일 때 bit 8: SDORead, bit 13: SDOReadGeneralInline,
     `MaxSdoDataBytes=4`
-  - bit 6, 7, 9~12, 14~17: 0
+  - bit 14: static `EtherCATTopology`
+  - bit 6, 7, 9~12, 15~17: 0
 - CyWork axis/group control·read·motion command: 18개
   (lifecycle과 name/member metadata handler 제외)
   (`0x2023`, `0x2024`, `0x2022`, `0x2028`, `0x202E`, `0x209F`,
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner: Debug/Release 각 286/286 PASS
-  (직전 277개에 EtherCAT topology/I/O wire/parser/capability-off/empty-output-allowlist
-  회귀 9개를 추가했다. SDO Write target policy와 operation-kind별 quarantine 회귀 포함.
-  기존 269개는
-  직전 260개 + UI 독립 D5 pending cleanup orchestrator 9개이고, 직전 260개는
-  기존 225개 Phase 1/2
-  회귀, 53-command response hard limit, AxisInfo descriptor,
-  read-only qualification 분석/CSV, callback lifecycle loopback과 Recorder
-  two-session exact/discovery adoption, pre-close transport-fault exact recovery,
-  Fault mutation 차단, cancel/Stop-race/release retry/quarantine, Bulk cleanup/retry와
-  one-slave-partial 순수 판정, Group Stop-first fallback/UI-context orchestration,
-  internal negative-wire 계약 9개, D5 abort/recovery analyzer 12개와 drive-read
-  command stage/ticket 및 non-domain 계약 2개 포함 + D5 external-read WPF
-  routing orchestrator 7개 + drive-read all-failure facade context 4개 + raw
-  `SubmitSdo` submission context 7개 + manual failure router 1개 + owner-bound
-  immutable D5 quarantine ledger/atomic recovery commit 5개 + recovery scope policy 7개 +
-  quarantine ledger deterministic concurrency 4개로 구성)
-  concurrency 4개는 각 등록 test를 50회 반복해 candidate snapshot 뒤 clear 전 mutation 거부, atomic clear
-  뒤 competing Arm 보존, callback 예외 뒤 waiter 진행과 ledger 재사용, concurrent Disarm
-  exact-once를 bounded wait로 검증하며 `Thread.Sleep`을 사용하지 않는다. 성공한 Write 뒤에는
-  동일 Slave/Index/SubIndex/Type/Length의 Read 결과가 exact 4-byte Write 값과 일치할 때만
-  mutation/Close interlock을 해제하는 순수 계약 시험 1개도 포함한다. 이는 PC test 강화일 뿐
-  production/wire/LASAL 변경이나 PLC live 증거가 아니다.
-  pending cleanup 9개는 owner/current connection, ticket owner와 저장 MapRevision을 wire 전
-  fail-closed하고, capability BootId를 우선 판정한 뒤 MapRevision 불일치를 status/cancel 없이
-  quarantine한다. cached terminal status/cancel 무송신, cached pending refresh, Queued-only cancel과
-  `InvalidState` race, Running wait, cancel accepted 뒤 exact `Cancelled/Cancelled`, 마지막 status
-  보존, 최소 15초/남은 deadline+1초/최대 120초 및 `<=` poll 경계를 검증한다. production WPF는
-  같은 UI 독립 orchestrator를 호출한다. 이 검증은 PC test이며 PLC live/pcap 증거는 아니다.
-- LASAL SourceOnly static contract: PASS. 새 `TryStartWrite`, `ActiveIsWrite`, `WriteBuffer`,
-  `SdoWriteData`, `GetSdoWritePolicyDetail` declaration은 tracked `Classes.lcb`에 아직 없으므로
-  switch 없는 full static은 의도적으로 FAIL한다. `-AllowStaleLasalBinaryMetadata` PASS는
-  external source 중간 검사일 뿐 LASAL IDE 동기화/빌드 증거가 아니다.
-- 개발 WPF example Debug/Release build: PASS. startup smoke는 기존
-  Group/Bulk/Recorder panel까지 PASS이며 D5 panel visual은 별도
+- C# 자동 테스트 runner current 검증: Release 975/975 PASS. Axis/Group sync/async typed lookup의
+  exact 6-byte/nonzero descriptor, structured failure와 raw 방어 복사 회귀에 더해 topology/I/O read-only raw qualifier의
+  옵션/allowlist/mutation 차단/dormant capability/dry-run/fake 17-request sequence와
+  bounded info/chunk/node/BootId/durable checkpoint 부정 회귀 12개,
+  topology-bound health/I/O fail-closed facade, CREVIS exact status-cause matrix, topology/D5
+  fixed-seed parser property와 opt-in parser-stress CLI 계약, SDO in-flight editor와
+  stale-readback recovery policy, output
+  uncertainty acknowledgement, public SDO Write verification provenance 4개, pinned capability
+  single-wire health/DI와 pre-wire guard 3개, Catalog/Topology aggregate owner/session
+  provenance, auto live monitor policy 7개, send-priority ordering/zero-wire/SDO·DO
+  `NotAttempted`와 Axis Power On total-deadline/read-only result, Axis Stop Begin/Resume 및
+  process-local mutation 귀속 전용 32개, Axis Reset accepted-once Begin/Resume·mutation 귀속 전용
+  33개, Axis PowerOff accepted-once/mutation 귀속 전용 35개, Admin
+  `GroupMoveLinearRelative`·D5 `SubmitSdo`/`CancelOperation` 지연 ACK의
+  `ResultDiscarded` 회귀, RPC lifecycle deterministic race 회귀 19개, Group Power On/Off
+  accepted-once Begin/Resume·typed pending/interference·publication 회귀 35개와 Group Enable total-deadline,
+  accepted-ACK/stable-status/continuation/Disable 선형화 회귀 40개,
+  Double-bank retained lifecycle, `0x7E4A..0x7E4D` response-loss 재접속, Recorder
+  Trigger/Stop 지연 ACK의 `ResultDiscarded`와 네 Release surface의 `OutcomeUnverified`
+  quarantine, public Release outcome-unverified, final configuration Release의 typed
+  canonical-empty absence, durable v3
+  release intent/confirmed, exact pending bank/config intent 재사용과 retained ACK-success
+  zero-replay confirm/resolve 회귀, PLC core reference model 1개,
+  semantic Recorder header canonicalization 5개 및 process-termination
+  journal reopen 회귀, D1 one-slave Health/PI baseline-fault-recovery 회귀 6개,
+  D5 contention exact Busy/recovery 및 accepted/uncertain 보존 회귀 12개와 D5 timeout
+  exact Expired/drain/recovery 회귀 14개, D5 disconnect/orphan application-recovery와
+  evidence 보존 회귀 28개, public bounded inline SDO Read의 typed terminal/pre-wire
+  rejection/failure/timeout/cancel evidence 회귀 7개를 포함한다. 이는 PC
+  build/test 증거이며 PLC live/pcap 증거가 아니다.
+- `parser-stress --seed <u32> --iterations <8..1000000>`는 topology info/chunk,
+  node health, digital input/output, D5 variable-inline과 recoverable Recorder
+  Configure/Inventory의 여덟 parser family를 total round-robin으로 변이한다. raw frame은
+  최대 1,572 bytes로 제한하고 첫 unexpected
+  exception/timeout에 seed, iteration, family와 전체 hex를 출력한다. Release 고정 시드
+  `0x7E4C7E4D` 100,000회는 accepted 1,511, exact `InvalidDataException` reject 98,489로
+  PASS했다. 이 도구는 파일/네트워크/PLC I/O를 하지 않는다.
+- LASAL `StaticTopologyOnly` SourceOnly/full static contract: PASS. `LMCDiagnosticsService`
+  constructor의 전체 38-state 이름/타입, 37개 scalar exact-once,
+  `BulkSignalIds[0..23]`, control-flow 금지와 final `C_OK`
+  순서를 negative fixture로 고정한다. `LMCRecorderStore` constructor의
+  scalar/array/recovery-token/two-bank descriptor 초기화, metadata-before-Empty publish와 final `C_OK`
+  순서를 actual-source negative fixture로 검증한다. tracked `Classes.lcb`에는
+  `TryStartWrite`, `ActiveIsWrite`, `WriteBuffer`, `SdoWriteData`, `GetSdoWritePolicyDetail`
+  declaration이 동기화돼 있다. CREVIS용 `IdeStructureReady` checkpoint는 generated client/network,
+  declaration/method stub만 따로 검증하고 live route와 bit 15~17을 금지한다. 현재 tree는 latch
+  client가 6개뿐이라 이 checkpoint부터 의도한 미통과 상태이고 `0x7E13/0x7E22` route도 없다. 다음 구현은
+  [`LMC_ETHERCAT_T2_IDE_STRUCTURE_HANDOFF_2026-07-28.md`](../../docs/architecture/LMC_ETHERCAT_T2_IDE_STRUCTURE_HANDOFF_2026-07-28.md)의 구조를 사용자가 LASAL
+  IDE에서 생성해야 진행할 수 있고 generated registration/network를 외부에서 합성하지 않는다.
+- 개발 WPF example current Debug/Release build: PASS. actual-control startup smoke는
+  VS2019 MSBuild current Release 208/208 PASS다. Admin capability/axis/group와 Drive mode/non-atomic status를
+  exact fake-RPC 및 non-default axis lookup/AxisInfo payload로 검증한다. D5
+  abort/contention/timeout/queued-cancel/abrupt-disconnect 버튼의 capability/idle/interlock gate, typed v2 SDO
+  restart recovery의 current empty-allowlist zero-wire, 잠긴 D4 journal fail-closed와 active D4
+  journal의 child-process restart/Recorder zero-replay에 더해 Double recovery Guid의 결정적
+  RequestedConfigId, active journal의 독립 recovery capability contract/gate-off zero-wire와
+  semantic journal conflict/runtime I/O failure 분리와 invalid PI/Bulk raw의
+  `UNAVAILABLE` 표시를 확인한다. Axis Stop은 Begin 1회 뒤 status-only Resume을 수행하고 더 새
+  Power Off가 monitor를 선점해도 `0x2022`를 replay하지 않음을 확인한다. Group Power On/Off는
+  durable journal을 command보다 먼저 arm하고 accepted observer에서 exact continuation과 ACK를
+  보존한 뒤 status-only Resume으로 3개 stable status를 요구한다. 재시작 뒤 accepted record는
+  exact identity의 read-only 확인만 허용하고, 불명확한 Power On은 자동 replay 없이 명시적 Power Off
+  takeover로만 복구한다. On/Off 모두 ACK 직후 child process를 강제 종료한 회귀에서 새 process가
+  journal lock을 다시 획득하고 `0x204A`/`0x204B` 재전송 없이 `0x2045` 3회만으로 resolve함을 확인했다.
+  Axis Power On/Off는 방향을 포함한 공용 durable v2 journal을 사용한다. fresh Power Off는
+  `0x2023(false)` 전에 arm되고 accepted observer가 첫 `0x2028` 전에 ACK 상태를 기록한다.
+  accepted 또는 outcome-uncertain Off의 재시작은 exact endpoint/axis/reference/BootId/MapRevision을
+  확인한 뒤 `0x2028`만 사용한다. Axis Power Off ACK 직후 child process를 강제 종료한 회귀도
+  journal lock 재획득, 재시작 `0x2023` 0회, `0x2028` 3회와 동일 identity의 `Resolved`를 확인한다.
+  safety generation 검증을 통과한 수동 Group Status 성공 응답은 상태에 맞는 pending Enable
+  continuation proof에 누적되며, Locked Standby proof가 3/3이면 기존 ACK를 재사용한 zero-wire
+  Resume으로 완료할 수 있다. safety 예약은
+  pending Enable의 누적 proof를 즉시 0으로 되돌리고 ACK와 continuation은 유지한다. 예약 뒤 도착한
+  `GroupReadStatus` 결과는 drain 후 `ResultDiscarded`로 폐기한다. 예약 전에 SDK 완료가 확정됐지만 WPF
+  적용 전에 safety가 예약된 좁은 경우만 recovery-required로 승격한다. connected unresolved 상태에서는
+  group 이름 변경, group 재조회, clean connection/window close, connected reconnect와 새 Power On을
+  차단한다. 외부 connection loss 뒤 reconnect 진입에서 원 exact group 이름을 보존한 recovery로 승격한다.
+  명시적 `0x2048` Disable ACK는 Unlock 요청 접수만 뜻하며 pending/recovery를 해제하지 않는다.
+  accepted pending과 recovery-required는 exact group identity에서 PowerOn=True +
+  Disabled/Unlocked 3회 연속 또는 PowerOn=False 3회 연속 proof가 끝난 뒤에만 해제한다.
+  Power On 성공만으로는 해제되지 않으며 어느 경로도 `0x2047`을 replay하지 않는다. fresh
+  Enable은 endpoint IP/port, group name/reference, BootId와 MapRevision을 durable journal에
+  `0x2047` 송신 전에 기록한다. 재시작의 Armed record는 RecoveryRequired로 승격하며 exact
+  endpoint는 RPC 전에, BootId/MapRevision은 연결 뒤, group reference는 lookup 뒤 대조한다.
+  verified Enable/Disable/PowerOff의 identity 확인 뒤 safety generation을 다시 검사하고 durable
+  `Resolved`를 먼저 기록한다. mismatch와 post-identity safety race는 `0x2047` replay 없이
+  recovery를 유지한다. Group Profile Lock journal은 기존 state 1~3을 유지한 채
+  `AcceptedAwaitingProof=4`를 추가해 format-version 1과 호환된다. accepted ACK 뒤 첫 status에서
+  child process를 Kill한 회귀는 exact endpoint/group/reference/BootId/MapRevision을 다시 확인하고
+  journal lock을 재획득한 새 process가 `0x2047` 0회, `0x2045` 3회로 resolve함을 확인했다. 이
+  status-only 복구는 process-local Set Identity/Home Check를 복원하지 않으므로 Move가 fail-closed하고,
+  Armed는 기존처럼 safety-only recovery다. 이는 fake-RPC/PC 증거이며 PLC/hardware proof가 아니다. D5
+  full-handler smoke는 old/new TCP 두 세션을 실제로
+  수락해 old 세션의 `0x405D` 0회, distinct owner 채택, exact recovery ticket 두 개,
+  quarantine clear와 다른 revision의 CREVIS topology 재로딩을 함께 확인한다. bits 14~16 fake RPC에서는
+  `0x7E13/0x7E22` Health/selected-DI 표시, output-shadow background poll 0회, 늦은 수동 응답의
+  selection/session guard, mixed-I/O output proof와 Health/DI channel별 stale/error를 검증한다.
+  이는 아직 없는 LASAL live handler의 PLC 증거가 아니다. qualification/cleanup/reconnect
+  adapter는 연결됐지만 네 proof/route gate는 모두 `false`다.
+  실제 D5 PLC 동작과 visual 확인은 별도다
 - DiagnosticsBootCounter/D1~D4 single-bank와 gate-off D5 source LASAL IDE
   Rebuild/Link: 0 error, version mismatch warning. gate-on fixed-source runtime download는
   BootId 5 capture로 확인했지만 대응 IDE build/smoke log는 미보존
@@ -102,9 +190,11 @@ SDK contract가 포함됩니다.
 - diagnostics PLC: `11_PI_Bulk_Regression`의 D0/D1/D2 happy path와
   `10_DriveRead_Axis1to4`/`12_SDO_GeneralInline_4Byte_FailureRecovery`의
   general-inline 1/2/4-byte 및 same-BootId TypeMismatch recovery packet PASS.
-  D1/D2 partial 판정 코드는 완료됐지만 fault/soak live capture, D3/D4 전체와
-  D5 나머지 fault matrix는 별도. read-only D5 abort -> known-valid recovery WPF runner와
-  순수 판정 코드는 build/test 완료했지만 PLC live와 pcap은 미검증
+  D1/D2 partial 판정과 D1 Health/PI 축 일치·stale 표시·복구 판정 코드는 완료됐지만
+  fault/soak live capture, D3/D4 전체와
+  D5 나머지 fault matrix는 별도. read-only D5 abort -> known-valid recovery와 deliberate
+  contention -> exact `ResourceBusy` -> recovery WPF runner/순수 판정 코드는 build/test
+  완료했지만 PLC live와 pcap은 미검증
 
 기존 motion/control PC API 범위는 캡처 기반 23개 command와 LASAL local motion
 extension 2개 모두 request/public path까지 구현됐다. Diagnostics는
@@ -114,16 +204,94 @@ Catalog/Health/PI/Bulk/Recorder/ticket/chunk parser를 제공한다. 현재 PLC 
 D4 single-bank Ring/Edge/Window/Mask/forced Trigger와 D5 general-inline SDO Read다.
 D5의 legacy `0x1000:0` 4축 path와 general-inline 1/2/4-byte SDO Read는 live packet으로
 확인했다. 의도한 TypeMismatch terminal failure 뒤 같은 BootId의 다음 Int8/1 ticket
-success도 확인했다. offline/abort, timeout, queued cancel, disconnect/orphan과
-contention은 아직 production qualification으로 남아 있다. abort -> recovery는
+success도 확인했다. offline/abort, queued cancel, disconnect/orphan과 timeout/contention의
+실제 PLC qualification은 남아 있다. abort -> recovery는
 `0x6061:0 Int8/1` baseline과 같은 BootId/MapRevision의 복구를 판정하는 WPF runner까지
-구현했지만 실제 abort code와 recovery packet은 아직 확보하지 않았다.
+구현했지만 실제 abort code와 recovery packet은 아직 확보하지 않았다. contention은 첫
+Read ticket을 완료시키기 전에 같은 request를 한 번 더 제출해 두 번째 요청의 exact
+`ResourceBusy` rejection을 요구하고, 첫 ticket의 `Completed+Success` 뒤 세 번째의 서로 다른
+ticket과 같은 value/type/length를 요구하는 WPF runner까지 구현했다. 실제 23f packet은 아직
+확보하지 않았다.
+
+disconnect/orphan은 UI 독립 검증 코어와 PC 회귀 28개, production WPF adapter까지 구현했다.
+`Run D5 Abrupt Disconnect -> App Recovery`는 old owner의 read-only probe가 nonterminal일 때
+local TCP를 zero-linger로 닫고 RPC Close `0x405D`를 보내지 않는다. 이후 서로 다른 새
+`LMCConnection`을 열어 fresh owner/session-bound capability를 두 번 확인하고, exact
+`0x6061:0 Int8/1` recovery ticket 두 개와 마지막 capability sample의 BootId/MapRevision,
+DiagnosticsBuild/CapabilityBits, BaseCycleTimeUs, MaxSDO 및 request/response payload limit 불변성을
+검증한다. old executor drain 동안 recovery Submit이 실패하면 request timeout + 5초, 최대
+120초의 monotonic retry-admission budget에서 25 ms 간격으로 exact
+`Rejected/ResourceBusy`만 재시도한다. accepted 또는 outcome-uncertain 응답은 자동 재시도하지
+않는다. 이 budget은 이미 시작된 단일 RPC의 소요시간 상한을 뜻하지 않는다. PASS log는
+quarantine clear 전에 commit하며, clear 뒤 늦은 cancel은 기존 PASS를 `ABORTED`로 뒤집지 않는다.
+성공 뒤 새 connection을 GUI가 adopt하고
+CREVIS topology를 자동 reload한다. old ticket이 loss 전에 terminal이면 disconnect를 수행하지
+않고 `INCONCLUSIVE`다.
+
+이 경로의 최종 판정은 old status가 Running이었더라도 항상
+`ApplicationRecoveryOnly`, `orphanQualified=false`다. PC socket close와 Running 표본만으로는
+PLC의 exact `MarkOrphan`, executor token, late callback drain을 증명할 수 없다. 실제 orphan
+PASS에는 PLC에 남는 lifecycle witness와 live PLC/pcap이 추가로 필요하다. 취소, ambiguous
+submit, identity drift, ABA, owner-state race 또는 PASS log 실패 시 quarantine 증거는 지우지 않는다.
 
 신규 topology/I/O 공개 API는 `GetEtherCATTopology*`, `ReadEtherCATNodeHealth`,
-`ReadDigitalIO`, `SubmitDigitalOutputWrite`다. 현재 PLC는 이를 광고하거나 처리하지 않는다.
+`ReadDigitalIO`, `SubmitDigitalOutputWrite`다. 현재 PLC는 static topology bit 14와
+`0x7E11/0x7E12`만 처리한다. `0x7E13/0x7E22/0x7E23`과 bit 15~17은 아직 없다.
+`GetEtherCATTopology[Async]`가 반환한 immutable aggregate는 diagnostics owner와 connection
+session generation에 bind되며 `BelongsTo`/`BelongsToCurrentSession`으로 확인한다. topology-bound
+Health/Digital I/O는 unbound, foreign, reconnect-stale aggregate를 capability/read RPC 전에 거부하고
+검증한 topology session generation을 실제 exchange까지 유지한다. 로컬 topology validator와 raw
+observation-only overload는 호환을 위해 그대로 사용할 수 있다.
+raw `ReadDigitalIO(request)`는 observation-only 호환 경로다. output write request는
+`ReadDigitalIO(topology, request)`가 NodeId, IOReference, 방향과 폭을 topology에 대조해 반환한
+`HasValidatedTopologyBinding=true` snapshot에서만 만들 수 있다.
+개발 WPF의 auto live monitor는 bit 15 node health 또는 bit 16 selected DI가 있을 때만 tick당
+owner/session-bound cached capability snapshot을 pinned topology-bound overload에 넘긴다. 따라서
+eligible tick은 별도 `0x7E00` refresh 없이 `0x7E13` 또는 `0x7E22`를 정확히 1회만 보내고
+configured topology와 live columns를 분리한다. 일반 non-pinned SDK overload의 capability
+refresh+read 계약은 유지된다. 현재 두 bit가 off이므로
+wire request는 0회이며 background에서 output shadow나 write-authorizing snapshot을 갱신하지 않는다.
+개발 WPF의 수동 Health/DI도 클릭 시점의 owner/current-session capability snapshot을 pinned
+overload에 넘기므로 read 앞에 추가 `0x7E00`을 보내지 않는다. current-session commit gate를
+통과한 Auto/Manual Health/DI read attempt만 최대 4,096개 FIFO journal에 기록하며 oldest-drop
+count를 별도로 보존한다. failure record에는 이전 성공 sample을 복제하지 않고 TXT/CSV export는
+UTF-8 no-BOM이다. capability bit 15/16 off는 새 wire/record가 모두 0이고, stale/late response는
+원 request가 이미 송신됐을 수 있지만 record로 commit하지 않는다.
+이 journal은 PC가 파싱한 PLC response와 read failure evidence이며 physical cable order, 실제 DI
+접점, physical DO feedback 또는 PLC 구현 완전성 증거가 아니다. 현재 `0x7E13/0x7E22` PLC
+runtime/actual-hardware proof는 없다.
 `SubmitDigitalOutputWrite`는 nonzero topology/output revision, mask와 BootId를 요구하고
 `OperationKind=4` ticket을 사용하지만 SDK write allowlist가 empty이므로 신규 command를
 송신하지 않는다. 이 C# contract는 LASAL build나 CREVIS runtime 지원 증거가 아니다.
+
+SDO Write 성공 뒤 검증은 public `CreateSdoWriteVerificationContext`가 담당한다. 이 factory는
+승인된 Write request와 accepted ticket의 내부 immutable submitted request가 operation flags,
+target, type, length, timeout과 4-byte 값까지 exact match인지 확인한다. 여기에 같은 owner/session에
+bind된 exact ticket/SubmitCycle/BootId의 `Completed+Success` Write terminal status까지 요구한 뒤
+nonzero BootId와 MapRevision에 묶인 context만 만든다. context의 `SubmitReadback[Async]`는 같은
+target/type/length의 SDO Read를 기존 guarded submit 경로로 보내고, `Evaluate`는 read ticket,
+fresh capabilities와 Read status도 같은 owner/session provenance인지 확인한다. SubmitCycle,
+fresh capability observation sequence가 context 생성 baseline보다 크고 identity, terminal success와
+exact result bytes가 모두 일치할 때만
+`Verified`를 반환한다. WPF도 별도 local matcher 대신 이 SDK context를 사용한다. public
+`EvaluateSdoWritePolicy`는 immutable approved-target snapshot과 connection/capability/identity/payload
+blocker matrix를 cached observation만으로 평가해 wire를 보내지 않는다. WPF readiness도
+`EVALUATION_WIRE=NONE`과 PLC bit 9 및 SDK `NoApprovedTarget`을 각각 표시하므로 fake bit 9가
+켜져도 empty SDK allowlist를 우회하지 않는다. 현재 목록과 PLC bit 9가 모두 off이므로 SDO
+Write를 새로 허용하지 않는다.
+기반 public guarded `SubmitSdo[Async](readRequest, requiredIdentityTicket)`도 SDOWrite ticket의
+immutable submitted provenance와 read target/type/length exact match를 강제한다. readback 재시도의
+timeout은 달라도 되지만 target/type/length를 바꿀 수는 없다.
+
+WPF mutation journal format v2는 SDO Write의 Slave/Object/SubIndex/Type/Length/Timeout과
+expected 4-byte 값을 checksum 범위 안에 typed metadata로 저장한다. legacy v1 record는 읽되
+typed metadata가 없으므로 protocol recovery는 zero-wire/fail-closed다. 재시작한 v2 record가
+`TerminalSuccessPendingReadback`이고 current SDK allowlist의 exact target과 일치할 때만 운영자가
+명시적으로 recovery 버튼을 눌러 read-only SDO ticket을 한 번 실행할 수 있다. Read 전후의
+fresh capability가 원 BootId/MapRevision과 일치하고 exact result bytes 및 같은 record/state의
+atomic CAS까지 통과하면 durable `Resolved` tombstone을 먼저 기록한다. mismatch는
+`ReadbackMismatch`로 보존한다. Write command는
+재전송하지 않으며 current empty allowlist에서는 capability/SDO recovery wire가 모두 0회다.
 
 D5 qualification은 Submit 전에 outcome evidence를 arm해 응답 유실을 unknown-ticket로
 quarantine한다. accepted `LMCOperationTicket`은 owner `LMCConnection`, `DiagnosticsBootId`,
@@ -162,6 +330,22 @@ cleanup, Stop/PowerOff와 read-only는 허용한다. Resolve는 same-session/new
 `D5SdoPendingCleanup` Resolve는 기존 qualification log를 지우지 않고 이어 쓰며
 `D5_LOG_CONTINUATION`을 남겨 원래 `FAIL`/`OUTCOME_UNCERTAIN`과 해결 증거를 같은 QTEST
 log에 보존한다.
+Deliberate contention runner는 canonical `0x6061:0 Int8/1` request와 exact
+`SDORead+SDOReadGeneralInline`, `MaxSdoDataBytes=4`, nonzero BootId/MapRevision을 preflight한다.
+두 번째 Submit은 `LMCDiagnosticsCommandException.Detail=ResourceBusy`,
+`LMCSdoSubmissionFailureContext.Phase=Submission`, `Outcome=Rejected`, 동일 request/identity,
+accepted ticket 없음이 모두 맞아야 Busy 증거로 인정한다. 두 번째 요청이 accepted 또는
+outcome uncertain이면 해당 evidence를 quarantine에 보존하고 세 번째 Submit은 보내지 않는다.
+exact Busy인 경우에만 첫 ticket의 terminal success를 확인하고 세 번째 distinct ticket의
+terminal success와 baseline value/type/length 일치를 확인한다. 이 판정은 PC 자동 시험 계약이며
+PLC의 one-terminal-slot contention 동작을 아직 증명하지 않는다.
+Timeout runner는 같은 canonical target의 정상 baseline 뒤 `TimeoutCycles=1` ticket에 exact
+`Expired/TimedOut`, `OperationErrorId=0`, `OperationDetail=0x05040000`, zero result를 요구한다.
+늦은 callback drain 중 recovery Submit은 동일 request/BootId/MapRevision, no-ticket의 exact
+`Submission/Rejected + ResourceBusy`일 때만 25 ms 간격 최대 600회 재시도한다. 다른 오류,
+accepted-context 또는 outcome-uncertain evidence는 보존하고 즉시 중단한다. drain 뒤 distinct
+recovery ticket의 exact same-value `Completed/Success`가 필요하다. 이 역시 PC 자동 시험 계약이며
+실제 PLC timeout/drain packet을 아직 증명하지 않는다.
 Phase 1 read-only facade는 diagnostics domain command 실패를 기존
 `LMCDiagnosticsCommandException`의 subtype인 `LMCSdoReadCommandException`으로 문맥화한다.
 `CapabilityPreflight`/`Submission`에는 accepted ticket이 없고 `StatusPolling`에는 정확한
@@ -197,7 +381,43 @@ diagnostic state와 D5 tracker 둘 다에 보존한 뒤 disarm한다. 이때 tic
 `SubmitSdo[Async]` overload를 사용한다. 이 overload는 owner/current session을 capability
 RPC 전에 확인하고, fresh capability의 `DiagnosticsBootId`와 `MapRevision`을 원 ticket과
 대조한 뒤에만 `0x7E50`을 송신한다. 어느 identity라도 다르면 Read request를 보내지 않는다.
-D4 Double bank와 D5 PI Write 및 extended result는 capability-off다. SDO Write는
+D4 Double bank의 PLC capability와 D5 PI Write 및 extended result는 capability-off다.
+D4에는 exact owner/session/BootId/config/record/buffer identity, 두 frozen download의 SHA-256
+불변성, third-Start Busy와 보존형 실패/cancel을 검증하는 UI 독립 orchestrator가 있다. 이 core
+non-durable orchestrator는 exact unexpected-third handle이 반환된 경우 명시적 unexpected third ->
+B -> A -> configuration release primitive도 제공하지만 durable WPF cleanup 계약과는 구분한다.
+external-session-loss 뒤
+`0x7E4A/0x7E4B` exact recovery, durable release intent/confirmed와 response-loss 재접속,
+`0x7E4C/0x7E4D` token-qualified Configure-response-loss 복구도
+PC 계약으로 구현했다. final Configuration Release 응답 유실은 nonzero exact identity의
+`0x7E4A` canonical-empty detail 32를 typed absence로 받아 journal을 mutation 없이 resolve한다.
+새 v3 journal의 `ClientTokenV1` marker가 있는 ConfigRevision=0은 4D로 실제 revision을 durable
+확정한 뒤 4A를 다시 읽고 기존 release-only adoption으로 진행한다. wire binding 증거가 없는
+legacy v2 ConfigRevision=0은 계속 zero-wire fail-closed다.
+production WPF의 qualification adapter는 recovery Guid의 첫 4바이트 little-endian으로
+결정적 nonzero RequestedConfigId를 만들고 Configure 전에 journal을 arm한다. 성공한 A/B
+resource, operation scope, coordinator, connection과 diagnostics context는 같은 session cleanup을
+위해 보존하며 자동 Release하지 않는다. same-session cleanup은 third Start가 exact
+ResourceBusy였을 때만 허용한다. session/journal/identity/order preflight 뒤 사용자 checkbox를
+소비하고 Status를 읽어 필요하면 Stop한 뒤 Ready/Uploading 상태에서 B -> A -> configuration
+순서로 exact Release한다. 실패 뒤에는 checkbox를 다시 확인해야 한다. unexpected third success
+또는 ambiguous outcome이면 같은 session Release는 모두 zero-wire이고 disconnect/reconnect 뒤
+token-qualified exact inventory inspection만 허용한다. conflicting inventory는 external/manual
+recovery로 남기며 자동 Release하지 않는다. confirmed-not-applied pending bank/configuration
+intent는 동일 target의 exact intent만 재사용하고 새 intent/다른 target을 금지한다. retained
+handle이 ACK-success면 Release wire replay 없이 durable confirm/resolve한다.
+reconnect recovery는 일반 Catalog/global mutation
+interlock과 분리된 recovery capability contract를 사용하고, ConfigRevision=0이면
+`0x7E4D -> 0x7E4A`, 그 외에는 `0x7E4A`부터 시작한다. occupied bank는 exact `0x7E49`, empty
+configuration은 `0x7E4B`로 채택하며 일부 성공한 Adopt handle도 즉시 보존해 나머지만 재개한다.
+매 시도는 사용자 확인 시점의 journal/config/bank 집합을 immutable snapshot으로 고정한다.
+4D/4A가 새 ConfigRevision 또는 snapshot에 없던 exact bank를 발견하면 local journal까지만 갱신하고
+4B/49/Release는 0회로 중단한다. 갱신된 exact 계획을 표시한 뒤 checkbox를 다시 확인해야 한다.
+WPF 시작 시 journal은 열지만 inventory/adopt/release를 자동 replay하지 않는다.
+PLC build/RAM/jitter/live proof 전에는 Double capability와 네 WPF proof/route gate를 계속 끄고
+수동 mode/모호한 Adopt·Configure를 zero-wire로 막는다. 이 adapter 구현은 PLC runtime 또는
+pcap 증거가 아니다.
+SDO Write는
 `0x7E50`의 `OperationFlags=1`, exact 36-byte, Int32 4-byte request와
 `OperationKind=SDOWrite(3)` parser/executor 및 C# API/WPF까지 구현했지만,
 현재 PLC의 global gate와 UI[24] axis 1~4 per-axis gate가 모두 `FALSE`이고 SDK의
@@ -218,6 +438,10 @@ PI/Bulk compatibility facade는 `CreatePIBulkBuilder(catalog)`와 alias `ReadPI`
 builder는 catalog의 exact `MapRevision`, readable flag, 최대 32개와 중복을 검사하며,
 `Upload` 뒤 `GetEntry/TryGetEntry`로 최신 snapshot을 조회한다. 별도 D6 wire를 만들지 않고
 D1/D2 wire를 그대로 사용한다.
+`GetSignalCatalog[Async]` 결과도 owner/session-bound aggregate다. alias PI Read, builder 생성과
+기존 builder의 `Configure[Async]`, PI Write submit은 unbound, foreign, reconnect-stale Catalog를
+capability/read/write RPC 전에 거부한다. `GetByAlias` 같은 로컬 Catalog 조회는 historical/static
+snapshot에도 계속 사용할 수 있다.
 
 Phase 1 read-only 확장은 `LMCConnection.Admin`과 `LMCSingleAxis` facade로 제공한다.
 Admin capability `0x7D00`을 확인한 뒤 physical axis 1..4의 6개 semantic Int32 parameter를
@@ -232,6 +456,15 @@ PC의 ticket wait만 중단하며 제출된 PLC ticket을 자동 cancel하지 �
 `LMCSdoReadWaitCanceledException`으로 보고한다. 이미 진행 중인 status RPC는 caller
 token으로 transport를 끊지 않고 응답을 수신한 뒤 취소를 관찰하므로 connection과
 ticket 재조회 가능 상태를 보존한다.
+
+`LMCDriveStatus.HasDs402Fault`는 D5 SDO로 읽은 실제 `0x6041:0`의 bit 3을 표시한다.
+`0x2028` 응답의 `StatusWord`는 current LASAL에서 reserved 0이므로 DS402 Fault 판정에
+사용하지 않는다. 별도 `GetDriveErrorCode[Async]`는 `0x603F:0 UInt16/2`를 한 ticket으로
+읽고 error code, `HasError`, ticket과 terminal status를 보존한다. 이 API는 기존
+SDORead/GeneralInline capability와 BootId/MapRevision, physical slave 1..4 gate를 그대로
+사용하며 새 opcode나 LASAL Network를 추가하지 않는다. Reset의 `AxisErrorId==0`, DS402
+Fault bit 해제와 `0x603F==0`은 각각 확인해야 한다. 상세 경계는
+[`DRIVE_DS402_FAULT_ERROR_DIAGNOSTICS_2026-07-29.md`](../../docs/architecture/DRIVE_DS402_FAULT_ERROR_DIAGNOSTICS_2026-07-29.md)에 고정했다.
 
 Phase 2 첫 motion facade는 `LMCGroupAxis.MoveLinearRelativeEx[Async]`다. Admin
 `0x7D22`가 16-slot distance vector와 dynamics/options를 보내고 PLC는 현재 위치를 PC에서
@@ -292,6 +525,232 @@ LASAL project-local Power Ready 확장이다. `0x00020000`은 Maestro 표준
 현재 어댑터는 각각 locked standby(`IsStandby/IsEnabled`)와 unlocked
 disabled(`IsDisabled`) 조건에서 이 표준 mask를 설정한다.
 
+public `BeginGroupPowerOnWaitForStableStateAsync`와
+`BeginGroupPowerOffWaitForStableStateAsync`는 각각 `0x204A` 또는 `0x204B`를 정확히 한 번
+dispatch한다. success ACK와 `LMCGroupPowerStateWaitContinuation`은 같은
+connection/session/group-reference의 session-bound send-priority publication 안에서 원자적으로
+설치되며 Begin은 `0x2045`를 보내지 않는다. accepted observer overload는 이 publication 뒤 첫
+status보다 먼저 continuation을 durable recovery 계층에 넘긴다.
+
+`ResumeGroupPowerStateWaitForStableStateAsync`는 exact pending continuation으로 `0x2045`만
+poll하여 기대 `IsPowerOn`을 기본 3회 연속 확인하고 power command를 replay하지 않는다.
+`GroupPowerOnAndWaitForStableStateAsync`와 `GroupPowerOffAndWaitForStableStateAsync`는 Begin과
+Resume을 같은 elapsed total deadline으로 조합하는 convenience facade다. status gate 대기, wire
+exchange와 poll delay가 deadline에 포함되며 각 Resume epoch는 stable count를 다시 0에서 시작한다.
+accepted timeout/cancel/status failure는 continuation, ACK, 마지막 status, poll/stable count와
+mutation generation을 immutable evidence로 보존한다. stale/resolved/concurrent Resume과 이미
+pending인 방향의 fresh Begin은 typed zero-wire failure이고, later same-group mutation은
+`LMCGroupPowerInterferenceException`으로 원 power transition 귀속을 거부한다. result/typed
+exception의 submission outcome은 `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted`를
+분리한다. post-write deadline으로 transport가 불명확하면 connection은 `Faulted`로 격리된다.
+
+public `WaitForPowerStateAsync(expectedPowerOn, ...)`는 continuation을 소비하지 않는 read-only
+`0x2045` helper다. reconnect/restart의 exact-identity recovery에는 사용할 수 있지만, 성공 결과도
+원 ACK를 재사용했다는 뜻은 아니며 outcome-uncertain Power On을 status만으로 안전하게 해제하지
+않는다. 이 SDK 계약은 deterministic PC/fake-RPC 증거이고 PLC의 `RobotOn`/`RobotOff` 완료 시간이나
+실제 EtherCAT/drive 상태 증거가 아니다.
+
+public `BeginGroupStopWaitForStableStandbyAsync`는 `0x2085`를 정확히 한 번 dispatch하고 success
+ACK를 connection/session/group/latest-pending에 묶인 `LMCGroupStopWaitContinuation`으로 반환한다.
+Begin은 `0x2045`를 보내지 않는다. `ResumeGroupStopWaitForStableStandbyAsync`는 exact continuation으로
+`0x2045`만 poll하여 `IsStandby`를 기본 3회 연속 확인한다. timeout/cancel/status failure와
+send-priority preemption 뒤에도 accepted continuation과 immutable evidence를 보존하고 Stop을
+replay하지 않는다. `TransportInvalidatedAtDeadline=true`이면 owner session은 faulted라 Resume할 수
+없으며 reconnect 뒤에도 Stop을 자동 replay하지 않는다. stale, superseded, completed continuation과
+concurrent second Resume은 zero-wire로 거부된다. 새 accepted Begin은 이전 pending을 supersede하며, 기존
+`GroupStopAndWaitForStableStandbyAsync`는 Begin과 Resume을 같은 elapsed total deadline으로 조합한다.
+Stop ACK는 호출 수락일 뿐 완료 증거가 아니고, result/typed exception은 `NotAttempted`, `Rejected`,
+`OutcomeUncertain`, `Accepted` submission outcome, ACK, 마지막 status, poll/stable count를 분리한다.
+이는 PC-side orchestration 계약이며 실제 PLC 정지 시간이나 장비 안전 성능의 증거가 아니다.
+
+public `PowerOnAndWaitForStableStateAsync`는 Axis Power On `0x2023(enable=true)`를 정확히
+한 번만 dispatch하고 success ACK를 same connection/session/axis의
+`LMCAxisPowerOnWaitContinuation`으로 보존한 뒤 `0x2028`의 `PowerOn=true`를 기본 3회 연속
+확인한다. total deadline은 mutation/status gate 대기, ACK/status exchange와 poll delay를 모두
+포함한다. 최종 write 경계 전 취소는 `NotAttempted`/zero-wire이고 connection을 재사용할 수 있다.
+write 뒤 사용자 취소는 ACK를 drain하고 continuation을 설치한 다음 accepted observer를 먼저
+호출해 durable evidence를 남기며, 같은 continuation의
+`ResumePowerOnWaitForStableStateAsync`는 `0x2028`만 보내고 `0x2023`을 replay하지 않는다.
+ACK 또는 status 무응답이 deadline을 넘으면 connection을 `Faulted`로 전환하고
+`TransportInvalidatedAtDeadline`을 남긴다. public Axis `WaitForPowerStateAsync`는 Power 명령을
+보내지 않는 순수 status-only helper다. 따라서 read-only 성공 결과도
+`SubmissionOutcome=NotAttempted`, ACK/continuation 없음, `ReusedAcceptedAcknowledgement=false`다.
+
+public `BeginResetWaitForStableErrorClearanceAsync`는 Axis Reset `0x2024`를 정확히 한 번
+dispatch하고 status를 읽지 않는다. success ACK와 latest pending continuation은 exact
+connection session/send-priority publication 안에서 원자적으로 설치된다.
+`ResumeResetWaitForStableErrorClearanceAsync`는 `0x2028`만 poll해 successful status의
+`AxisErrorId == 0`을 기본 3회 연속 확인한다. Resume epoch는 stable count를 다시 0에서 시작하지만
+poll count와 마지막 status는 누적한다. `ResetAndWaitForStableErrorClearanceAsync`는 두 phase를 한
+total elapsed deadline으로 조합한다. rejected ACK와 invalid/stale/superseded/completed/concurrent
+Resume은 status zero-wire다. timeout/cancel/status/response-loss는 immutable
+submission/ACK/마지막 status/poll/mutation-generation evidence와 pending continuation을 보존하며
+Reset을 replay하지 않는다. ACK/status 무응답이 deadline을 넘으면 connection을 `Faulted`로
+전환하고 `TransportInvalidatedAtDeadline` evidence를 남긴다.
+
+Reset Resume은 status 전송 전, status publication과 final resolution에서 original Reset
+mutation generation을 확인한다. later same-axis `LMCSingleAxis` mutation은
+`LMCAxisResetInterferenceException`으로 귀속을 거부하며, intentional post-Reset Power On 뒤에도
+명시적 새 Reset 전에는 원 continuation으로 완료를 주장하지 않는다. final proof가 먼저 commit된
+뒤의 cancel/deadline은 성공을 뒤집지 않고, 먼저 관찰된 cancel/deadline은 pending을 유지한다. 이
+proof는 LASAL AxisErrorId-clear 관찰이며 DS402 Fault bit 또는 `0x603F` 해제 증거가 아니다. 상세
+경계는
+[`AXIS_RESET_STABLE_ERROR_CLEARANCE_2026-07-29.md`](../../docs/architecture/AXIS_RESET_STABLE_ERROR_CLEARANCE_2026-07-29.md)에 기록했다.
+
+public `BeginStopWaitForStableStandstillAsync`는 `deceleration > 0`, `jerk >= 0`인 Axis Stop
+`0x2022`를 정확히 한 번만 dispatch하고 success ACK를
+`LMCAxisStopWaitContinuation`으로 보존한다. Begin은 `0x2028`이나 status gate를 사용하지 않고,
+mutation gate를 ACK publication과 pending 설치까지 유지한다. 새 accepted Stop은 이전 pending
+continuation을 supersede한다. `ResumeStopWaitForStableStandstillAsync`는 exact
+connection/session/axis/latest-pending identity를 확인하고 `0x2028`만 poll해
+`IsSuccess && IsStandstill`을 기본 3회 연속 확인한다. 각 Resume은 Stop proof와 관찰 대상 pending
+Power On의 PowerOff/Standstill proof를 fresh reset하며 timeout/cancel/status-fail/preemption 뒤에도
+분리된 Resume epoch의 sample을 합치지 않는다. rejected ACK는 status zero-wire이고 typed evidence는
+`NotAttempted/Rejected/OutcomeUncertain/Accepted`, command-may-have-been-sent, ACK, 마지막 status,
+poll/stable count, expected/observed mutation generation, elapsed와
+`TransportInvalidatedAtDeadline`을 보존한다. 어느 실패 경로도
+`0x2022`를 자동 replay하지 않는다. 기존 `StopAndWaitForStableStandstillAsync`는 Begin+Resume을
+한 total deadline으로 조합한다. WPF Stop 버튼은 Begin을 priority safety-send phase에서 실행하고
+Resume을 preemptible monitor phase에서 실행하므로 확인 중에도 더 새 Stop/Power Off가 다음 safety
+generation을 예약할 수 있다. Resume은 status 전송 전, status publication과 final resolution에서
+original Stop mutation generation을 확인한다. later same-axis mutation이면
+`LMCAxisStopInterferenceException`을 반환하고 pending을 유지하며 Stop을 replay하지 않는다.
+zero-wire mutation과 다른 AxisReference는 간섭하지 않는다. pending Power On proof를 관찰해도
+자동 해제하지 않는다. 상세 경계는
+[`AXIS_STOP_STABLE_STANDSTILL_2026-07-29.md`](../../docs/architecture/AXIS_STOP_STABLE_STANDSTILL_2026-07-29.md)에 기록했다.
+
+Axis raw/accepted-wait mutation은 structurally valid NACK가 확인되면 exact latest mutation
+reservation만 rollback한다. accepted ACK 또는 post-write outcome uncertainty는 generation을
+유지한다. 따라서 active Reset 뒤 Stop이 NACK이면 기존 Reset continuation의 status-only proof를
+계속할 수 있지만, Stop 결과가 불명확하면 Reset proof로 되돌아가지 않는다.
+
+`LMCConnection.AbortTransportForSafetyPreemption(expectedSessionGeneration)`은 held RPC response 뒤에
+안전 명령이 막히는 경우를 위한 production transport escape hatch다. expected session과 현재
+published client session을 원자적으로 비교하고, 일치할 때만 zero-time linger를 best-effort로 적용해
+local socket을 detach/close한다. RPC Close와 안전 명령 자체는 보내지 않는다. normal Close가
+lifecycle lock을 보유한 경우에도 그 lock 뒤에서 기다리지 않는다. mismatch는
+`LMCSafetyPreemptionSessionMismatchException`이며 어떤 transport도 끊지 않는다. caller는 evidence의
+`TransportDetached`, `FaultStatePublished`와 session을 확인하고, fresh connection/object identity에서
+안전 명령을 정확히 한 번 별도로 보내야 한다. Open은 새 session을 old transport close 전에 reserve하고
+published client/lifetime/session을 한 임계구역에서 묶으므로 reconnect의 pre-publish 경계도 old-session
+abort와 혼동하지 않는다.
+
+위 PowerOn/Stop/Reset/PowerOff 귀속용 generation은 connection session + `AxisReference`에 묶인 process-local
+coordinator다. `LMCSingleAxis` raw sync/async Power On/Off, Reset, Stop, Move
+Absolute/Relative/Velocity와 accepted-wait write가 may-have-been-sent boundary에 도달할 때만
+증가한다. validation/cancel/preemption으로 zero-wire인 호출은 증가시키지 않고 다른
+AxisReference도 간섭하지 않는다. 외부 PLC logic, 다른 RPC client, direct SDO write와 group
+operation은 이 귀속 범위 밖이다.
+
+public `BeginPowerOffWaitForStableStateAsync`는 Axis Power `0x2023(enable=false)`를 정확히
+한 번만 dispatch하고 success ACK를 same connection/session/axis의
+`LMCAxisPowerOffWaitContinuation`으로 보존한다. 이 Begin phase는 status-observation gate를
+잡거나 `0x2028`을 보내지 않으며 mutation gate는 ACK, PowerOff mutation generation과 pending
+continuation의 session/send-priority atomic publication이 끝날 때까지 유지해 concurrent Begin의
+wire/게시 순서를 일치시킨다. accepted observer overload는 이 원자 publication 뒤 mutation gate를
+해제한 상태에서 첫 status보다 먼저 호출된다. observer가 예외를 내도 exact pending continuation은
+보존되며 observer 내부의 same-axis mutation/중첩 Begin/Resume은 zero-wire로 거부된다.
+`ResumePowerOffWaitForStableStateAsync`는 continuation을
+검증하고 `0x2028`만 보내 `IsSuccess &&`
+`PowerOn=false && Standstill=true`를 기본 3회 연속 확인한다. typed evidence는
+`NotAttempted/Rejected/OutcomeUncertain/Accepted`, ACK, 마지막 status와 poll/stable count를
+분리하고 실패 뒤 PowerOff를 자동 replay하지 않는다. 각 Resume은 exact pending Power On
+continuation의 PowerOff/Standstill proof를 fresh reset하며 timeout/cancel/status-fail/preemption
+경계에서도 다시 reset해 분리된 Resume epoch의 샘플을 합치지 않는다. evidence는
+`PowerOffMutationGeneration`, `ObservedMutationGeneration`과 `InterveningMutationDetected`도
+보존한다. Resume은 status wire 전, publication과 final resolution에서 원 generation을 확인한다.
+later same-axis mutation은 `LMCAxisPowerOffInterferenceException`으로 끝나고 pending을 유지하며
+PowerOff를 replay하지 않는다. final proof보다 먼저 관찰된 cancel/deadline/generation change는
+pending을 보존하고 proof commit 뒤 late cancel/deadline은 성공을 뒤집지 않는다. 외부
+PLC/client/direct SDO/group mutation은 process-local 귀속 범위 밖이다.
+기존 `PowerOffAndWaitForStableStateAsync`는 Begin+Resume을 한 total deadline으로 조합한다.
+Begin ACK 또는 Resume status가 write 뒤 deadline을 넘으면 connection을 `Faulted`로 전환하고
+`TransportInvalidatedAtDeadline`을 보존한다. accepted Resume continuation은 evidence로 남지만
+faulted session에 묶여 reconnect 뒤 재사용할 수 없으며 `0x2023`을 자동 replay하지 않는다.
+WPF는 Begin을 priority send/command-gate phase에, Resume을 preemptible monitor phase에 배치한다.
+일반 timeout/cancel/status failure 뒤 Power Off 재클릭은 exact continuation의 status-only Resume이고,
+확인 중 재클릭은 zero-wire다. typed interference가 확인된 경우에만 `Power Off Again (Confirmed
+Interference)`로 replacement `0x2023` 1회를 허용하며 reject면 기존 pending/flag를 보존한다. Stop은
+명시적 newer safety로 계속 사용할 수 있다. 상세 경계는
+[`AXIS_POWER_OFF_STABLE_STATE_2026-07-29.md`](../../docs/architecture/AXIS_POWER_OFF_STABLE_STATE_2026-07-29.md)에 기록했다.
+Axis PowerOff 전용 fake-RPC contract는 35개다.
+Stop request가 actual RPC write boundary에 도달하면 같은 group coordinator의 pending Enable
+proof를 reset하고 per-group mutation generation을 고정한다. 이후 다른 group mutation이 actual
+write boundary에 도달하면 `LMCGroupStopInterferenceException`으로 원 Stop의 stable proof 귀속을
+거부한다. 마지막 status publication은 generation, early cancel/deadline과 stable proof를 coordinator
+lock 안에서 한 번에 결정한다. proof 뒤 late cancel/deadline은 성공을 뒤집지 않으며 pre-canceled
+Resume도 accepted evidence/continuation을 가진 typed cancellation으로 끝난다. ACK와 각 status의
+최종 publication은 원 connection session에 bind되어 Close/reconnect와 경합한 stale success도
+반환하지 않는다. generic Group Reset, Axis Reset, Admin
+`GroupMoveLinearRelative`와 D5 `SubmitSdo`/`CancelOperation`은 parse 뒤
+exact session/generation publication을 거치므로 지연된 ACK가 새 safety 예약 뒤 도착하면 drain 후
+`ResultDiscarded`로 끝난다. accepted `SubmitSdo`는 exact ticket/BootId/MapRevision과 immutable
+request를 failure context로 보존하고, `CancelOperation`은 실행됐을 수 있는 ACK를 stale success로
+  관찰하지 않는다. topology/CREVIS `0x7E13`, `0x7E22`, `0x7E23`도 같은 publication 계약을
+  사용한다. Recorder Trigger/Stop뿐 아니라 Configure `0x7E40`, recoverable Configure `0x7E4C`,
+  Start `0x7E41`, exact/active Adopt `0x7E49`, empty-configuration Adopt `0x7E4B`의 typed 결과도
+  publication 전에 선점되면 원 `LMCSendPreemptedException`에
+  `LMCRecorderAcceptedResultFailureContext`를 붙인다. 정확한 handle/identity/lease와 BootId,
+  MapRevision, Config/Record/Buffer/owner identity를 보존하며 accepted 객체는 recovery-only라
+  Status/Stop/Release cleanup 외 정상 운전에 사용할 수 없다. Start의 source configuration도 함께
+  격리한다. buffer/configuration/recovered/adopted identity Release는 지연 ACK 선점 시 각 handle을
+  `OutcomeUnverified`로 격리해 재사용과 destructive retry를 차단한다. wire 전 선점은 release state를
+  되돌려 안전한 재시도를 허용한다. WPF 일반 Group Stop과 qualification은 safety generation을
+  gate 대기 전에 예약하고 Begin만 priority scope/command gate 안에서 수행한다. accepted continuation과
+  recovery evidence를 gate 반환 전에 보존한 뒤 Resume은 preemptible status-only monitor에서 수행한다.
+  accepted Resume 실패의 cleanup은 exact pending continuation만 재사용하며 새 `0x2085`를 자동
+  전송하지 않는다. fake-RPC는 외부 Power Off 선점에서 Stop 1회/Power Off 1회/status 4회, accepted
+  status failure 뒤 cleanup에서 Stop 1회/status 4회를 확인했다. 이는 PLC packet 또는 정지 성능
+  proof가 아니다. current SDK Debug/Release는 각각 975/975 PASS이며 PLC
+  runtime proof로 확대하지 않는다.
+
+public `GroupEnableAndWaitForLockedStandbyAsync`는 동일 connection session과 group
+reference별 coordinator에서 `0x2047` ACK를 한 번만 허용하고 `0x2045`의 PowerOn + Locked
+Standby를 기본 3회 연속 확인한다. mutation/status gate 대기, `0x2047`, 모든 `0x2045`와 poll
+delay는 하나의 total deadline을 공유한다. final write commit 전 취소/deadline은
+`NotAttempted`, zero wire, mutation/proof 불변이며 connection을 재사용한다. actual write commit의
+`onWriteCommitted`에서만 mutation generation을 갱신하고 pending proof를 0으로 reset한다. caller cancel이 write 뒤 발생하면 response를
+drain하고 accepted ACK/status를 먼저 게시한 뒤 typed cancellation을 반환하므로 connection을
+재사용한다. ACK 무응답 deadline은 `OutcomeUncertain`, continuation 없음, connection `Faulted`이고,
+accepted 뒤 status 무응답은 `Accepted`, exact pending continuation, connection `Faulted`다. `0x2047`
+ACK 수신 전과 accepted 뒤의 두 no-response 경우 모두 `TransportInvalidatedAtDeadline=true`다. rejected ACK는
+`Rejected`이며 continuation이 없고 accepted observer도 호출하지 않는다.
+`BeginGroupEnableWaitForLockedStandbyAsync`와 observer overload는 accepted ACK와 exact pending
+continuation을 먼저 게시한 뒤 observer를 정확히 한 번 호출하며 helper-owned 첫 `0x2045`보다 앞선다.
+observer가 예외를 던져도 원 예외를 그대로 전달하고 continuation은 pending으로 보존하므로
+`ResumeGroupEnableWaitForLockedStandbyAsync`에서 새 `0x2047` 없이 이어서 확인할 수 있다.
+timeout/cancel/status 실패의 accepted continuation은
+`ResumeGroupEnableWaitForLockedStandbyAsync`로 status-only 재개한다. 같은 group reference의
+다른 `LMCGroupAxis` handle도 pending/in-progress/status proof를 공유한다. 수동
+`GroupReadStatus` 한 번만으로 continuation을 완료하지는 않지만 safety generation 검증을 통과한
+성공 응답은 상태에 맞는 pending continuation proof에 누적된다. Locked Standby proof가 3/3이면
+기존 ACK를 재사용한 zero-wire Resume으로 완료할 수 있다. 새 safety 예약은 이 proof를 0으로 초기화하되 accepted ACK와
+continuation을 보존한다. 예약 뒤 도착한 응답은 drain 후 `ResultDiscarded`되어 observe되지 않는다.
+SDK completion publication이 먼저 끝난 뒤 WPF 적용 전에 safety가 예약된 좁은 경우만
+recovery-required로 승격한다. connected unresolved 상태에서는 group 이름 변경, group 재조회,
+clean connection/window close, connected reconnect와 새 Power On을 차단한다. 외부 connection loss
+뒤 reconnect 진입에서는 원 exact group 이름을 보존한 recovery로 승격하고 새 session에서 같은
+이름의 group만 다시 조회한다. 명시적 `0x2048 GroupDisable` ACK는 Unlock 요청 접수만 뜻하며
+pending/recovery를 해제하지 않는다. accepted pending과 recovery-required는 exact group identity에서
+PowerOn=True + Disabled/Unlocked 3회 연속 또는 PowerOn=False 3회 연속 proof가 끝난 뒤에만
+해제한다. Power On 성공만으로는 해제되지 않고
+어느 경로도 `0x2047`을 replay하지 않는다. legacy `GroupEnable[Async]`도
+pending/in-progress/recovery-required 중에는 wire 전에 거부한다.
+재시작 또는 새 SDK connection처럼 process-local continuation이 없는 경우 public
+`WaitForLockedStandbyAsync`는 `0x2045`만 전송해 PowerOn + Locked Standby를 기본 3회 연속
+확인한다. mismatch는 stable count를 0으로 되돌리고 timeout/cancel/status 실패는 last status,
+poll count, stable count, transport invalidation을 typed evidence로 보존한다. 이 API는
+`0x2047`을 전송하지 않는다. Group Enable 전용 40개 회귀는 위 deadline/evidence를
+fake-RPC로 고정하며 PLC runtime proof는 아니다. Group Disable은
+`BeginGroupDisableWaitForStableDisabledAsync`가 `0x2048`을 한 번만 보내 accepted observer에
+exact continuation을 전달하고, same-session Resume 또는 cross-session
+`WaitForStableDisabledAsync`가 `0x2045`만 보내 PowerOn + Disabled + !Standby를 기본 3회
+연속 확인한다. stable PowerOff는 더 새로운 safety mutation으로 pending Disable을
+`SupersededByStablePowerOff`로 retire할 수 있지만 Disable 완료로 보고하지 않는다. ACK 뒤 첫
+status 전에 child process를 Kill한 WPF 회귀는 새 session에서 `0x2048` 0회, `0x2045` 3회,
+journal lock 재획득과 동일 identity `Resolved`를 확인했다. 이는 PC/fake-RPC 증거이며 PLC
+profile unlock 또는 hardware proof가 아니다.
+
 live capture에서는 `LockProfile`이 수락됐는데도 `0x2047` handler가 같은 CyWork의 stale
 LockState를 읽어 `ErrorId=-6`을 반환했다. PC에서 성공으로 바꾸지 않는다. PLC ACK를
 accepted-then-poll로 수정하고 최종 lock은 `0x2045`로 확인해야 한다.
@@ -319,8 +778,10 @@ receive accumulator에서 조립하고 payload 최대 1,320 bytes를 depth-8 que
 복사한다. non-RT `CyWork()` 하나가 `MsgPaser()`와 위 18개 legacy
 control/read/motion command 및 `0x7D22` Admin motion을
 실행합니다. interface RT task, RtWork mailbox와 atomic state는 사용하지
-않습니다. 일반 `_TCPIPServer1`과 interface의 동일 cyclic task, axis RT thread와
-같은 core 배치, PLC jitter를 확인하기 전까지 production-safe로 판정하지 않습니다.
+않습니다. editable `TCPIPServer1 : TCPIPServer`와 interface의 동일 cyclic task,
+axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 production-safe로
+판정하지 않습니다. 서버의 두 번째 connection slot은 same-peer reconnect candidate
+비교 전용이며 RPC owner는 하나입니다.
 
 상세 command matrix, 우선순위와 완료 조건:
 
@@ -345,15 +806,40 @@ control/read/motion command 및 `0x7D22` Admin motion을
   source-address 검증과 취소 가능한 async API를 제공
 - timeout/전송 오류와 in-flight 취소는 오염된 transport를 폐기하고
   `Faulted`로 전환하며, queue 대기 중 취소는 active request를 건드리지 않음
+- 명시적 Close/reconnect는 connection lifetime generation을 갱신한다. 이전 transport의 늦은
+  fault/cancellation cleanup은 같은 generation의 client metadata와 callback listener만 정리하므로
+  명시적 `Disconnected` 또는 새 session을 뒤늦게 `Faulted`로 덮거나 지우지 않는다.
+- 같은 `LMCConnection`의 `ConnectionStateChanged` handler에서 Init/Close/Dispose를 직접
+  재호출하거나 handler가 아직 반환하지 않은 상태에서 `Task.Run`으로 넘기는 것은 sync/async
+  모두 즉시 `InvalidOperationException`으로 거부한다. handler가 반환한 뒤 별도 흐름에서
+  수행해야 한다. `CallbackReceived` handler의 Close/Dispose는 기존처럼 허용한다.
 - diagnostics의 configuration/resource/ticket 상태 변경 async API는 token을
   전송 시작 전까지만 적용한다. 전송 뒤에는 handle/ticket/최종 결과를 잃지 않도록
   같은 RPC 완료를 기다리며, 이 구간의 token 취소는 PLC Stop 명령이 아님
+- `LMCConnectionOptions.SendPriorityCoordinator`는 선택 항목이다. 경쟁하는 connection에
+  같은 `LMCSendPriorityCoordinator`를 명시적으로 주입하고 호출 흐름을 scope로 감싼 경우에만
+  Stop/Power Off 우선순위 계약이 적용되며, 기본 `null` 또는 unscoped SDK 호출은 기존 전송
+  동작을 유지한다. 이 WPF의 priority 요청은 application gate 대기 전에 generation을 선예약한다.
+  `BeginPriorityScope`는 호출 시점의 최신 완료 reservation만 받으며 scope는 생성한 logical
+  async flow에서 LIFO 순서로 해제해야 한다. scope 생성 뒤 더 최신 reservation이 생기면 기존
+  priority sender도 write 직전 stale로 거부된다.
+  `ExchangeCore`는 SDK compound helper의 후속 RPC를 포함해 각 command를 실제
+  `stream.Write`하기 직전에 captured generation을 다시 검사한다. 더 새 priority 예약이 있으면
+  아직 쓰지 않은 ordinary RPC는 `LMCSendPreemptedException`으로 거부되어 해당 command의 wire
+  byte가 0이며, 이미 이 최종 검사를 통과해 in-flight가 된 RPC는 transport를 취소하지 않고
+  결과/timeout까지 완료한다. SDO 또는 Digital Output submit이 이 경계에서 선점되면 각 SDK
+  failure context는 `Phase=Submission`, `SubmissionOutcome=NotAttempted`, ticket 없음으로 남는다. 이 계약은
+  deterministic fake-TCP PC 증거이며 PLC 실행 순서나 장비 안전 인증 증거가 아니다.
 - reconnect 후 이전 session에서 만든 axis/group object는 stale handle로 거부
 - `LMCConnection.Diagnostics`에서 `0x7E00` capability를 sync/async로 조회하며,
   stateful bit가 켜졌는데 `DiagnosticsBootId=0`이면 malformed contract로 거부
 - 취소 가능한 name lookup은 `LMCSingleAxis.CreateAsync`와
   `LMCGroupAxis.CreateAsync`를 사용하며 generation 검증과 request 전송을
   같은 exchange gate에서 확인
+- `LMCSingleAxis.LookupResult`/`LMCGroupAxis.LookupResult`는 target kind, object name,
+  nonzero reference와 exact successful response를 보존한다. 실패는 기존
+  `InvalidOperationException` catch와 호환되는 `LMCLookupException`으로 parsed response,
+  payload/reference 유무와 defensive-copy raw bytes를 제공한다.
 - `LMCSingleAxis`/`LMCGroupAxis` object는 name lookup으로 얻은 reference를 보관하고, 이후 motion/status API 호출 시 해당 reference를 패킷에 자동 삽입
 - DLL은 `_LMCAxis1` 같은 PLC object name을 하드코딩하지 않음
 - LASAL이 연결된 실제 object name을 읽어 opaque descriptor를 발급하고, 이후 descriptor로 axis client를 dispatch
@@ -390,13 +876,46 @@ control/read/motion command 및 `0x7D22` Admin motion을
 - `docs/AUTOMATED_TESTS_2026-07-10.md`: 자동 테스트 범위와 실행법
 - `docs/NEGATIVE_WIRE_TOOL_2026-07-27.md`: public SDK 보호를 유지한 internal-only
   diagnostics raw rejection 도구, 실행 확인 절차와 report/pcap 증거 경계
+- `docs/TOPOLOGY_IO_QUALIFICATION_TOOL_2026-07-28.md`: 현재 bit 14에서
+  `topology-inventory`의 `0x7E11` 1회 + `0x7E12` 7회, 총 8개 raw read와 향후
+  `0x7E13/0x7E22` dormant qualification 실행법 및 증거 경계
 - `docs/SESSION_MANAGEMENT_DESIGN_2026-07-09.md`: 다중 PC 세션 관리 설계
 - [`../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md`](../../docs/architecture/LMC_DIAGNOSTICS_INTERNAL_PLC_TEST_GUIDE_2026-07-21.md):
   D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline Read 내부 PLC 시험 순서와 판정 기준
 
 자동 테스트는 `RunPcTests`(C# Phase 1과 Phase 2 `0x7D22` case 포함), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
-분리돼 있다. 고객 배포 예제 build는 기본 `RunTests` 완료 조건에서 제외한다.
+분리돼 있다. 개발 WPF의 실제 컨트롤/fake RPC 회귀는 별도
+`LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests` target이며 current Release는
+VS2019 MSBuild Release 208/208 PASS다. Admin/Drive read-only 탭의 exact request/typed UI와 one-click bounded SDO Read의 typed/raw terminal 표시, accepted-timeout/cancel
+ticket과 last-status 보존/수동 Refresh 복구, pre-accept cancel 및 capability-off zero-wire,
+terminal failure guard 해제, SDO Write의 비모달 immutable arm/편집 시 re-arm/exact second-click consume,
+abrupt-disconnect 버튼의
+capability/idle gate와 실제 WPF child process의 SDO/DO unresolved record 및 D4 Double active journal 재시작,
+single-writer lock, Close interlock, `0x7E50/0x7E23/0x7E40..0x7E4F` zero-replay와 강제 종료 뒤 byte-identical journal 재복구를
+포함하고, typed v2 SDO record의 강제 recovery 호출도 empty allowlist에서는 추가 capability
+read와 SDO submit이 0회임을 확인한다. 또한 bit 6 + two-buffer + 실제 4-entry Recordable Catalog로
+`DoubleContractReady=True`를 만든 뒤에도 live 버튼 disabled, 수동 Double mode 미노출,
+mode-ambiguous Adopt와 강제 주입 Configure의 `0x7E40..0x7E4F` zero-wire를 확인한다. 잠긴
+D4 journal은 신규 mutation admission을 fail-closed한다. 추가 smoke는 같은 recovery Guid의
+결정적 nonzero RequestedConfigId와 active journal 상태에서도 ordinary diagnostics-ready 조건과
+분리된 reconnect recovery capability contract, semantic journal conflict 뒤 usable 상태와 runtime
+I/O failure 분류를 확인하고, 네 proof/route gate가 모두 `false`여서
+live wire가 0회임을 검증한다. durable motion 회귀는 Move 전/Stop 전/해제 전의 fresh
+  BootId/MapRevision identity gate, restart exact recovery, status-only 해제 금지, Axis Power Off의
+  방향성 durable journal과 연속 3회 `PowerOn=False && Standstill=True`, ACK 직후 실제 child-process
+  Kill/restart의 `0x2023` zero-replay와 journal lock 재획득, Axis Stop Begin 1회/status-only Resume과
+  Stop monitor를 더 새 Power Off가 선점해도 `0x2022`를 replay하지 않는 경로, 강제 종료 뒤 Move
+  zero-replay를 포함한다.
+qualification/retained-cleanup/reconnect adapter는 구현됐지만
+PLC/live/pcap proof는 대기다. 고객 배포 예제 build는 기본
+`RunTests` 완료 조건에서 제외한다.
+
+장시간 parser 변이는 기본 suite와 분리해 같은 test executable에서 명시적으로 실행한다.
+
+```powershell
+.\bin\Release\LasalMotionControlLib.Tests.exe parser-stress --seed 0x7E4C7E4D --iterations 100000
+```
 
 ## 주의
 

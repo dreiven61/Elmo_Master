@@ -31,7 +31,7 @@
 | D1 | Health/Catalog/PI Read 활성 | 24-entry Catalog와 축 1..4 actual-position PI happy path PASS; fault matrix 별도 |
 | D2 | 최대 24-entry Bulk 활성 | 4-entry Pending->Active, same-cycle snapshot, Release PASS; 24-entry/soak/fault 별도 |
 | D3 | single-bank finite/manual Recorder 활성 | 미실시 |
-| D4 | single-bank Ring, Edge/Window/Mask와 forced trigger 활성 | 미실시. Double bank는 미구현 |
+| D4 | single-bank Ring/Trigger 활성, Double source/API/WPF adapter dormant/gate-off | 미실시. Double PLC 실기 미완료 |
 | D5 | general-inline SDO Read, callback ordering/release 수정 source 활성 | legacy 4-byte와 수정본 general-inline 1/2/4-byte capture PASS; TypeMismatch 후 같은 BootId recovery PASS; 나머지 fault/timeout/cancel/orphan matrix 대기 |
 | D6 | 기존 static/handle facade 후속 설계 | 미구현; Phase 1 D1/D2 기반 PI/Bulk instance facade는 구현 |
 
@@ -320,19 +320,25 @@ contention은 여전히 별도로 시험한다.
 
 1. 첫 시험 축 하나를 정하고 SDK의 global gate와 해당 `UI24 Axis N` gate, PLC의 global gate와
    같은 축의 per-axis gate만 TRUE로 변경한다. 다른 세 축 gate는 FALSE로 유지한다.
-2. LASAL IDE에서 `LMCSdoExecutor.TryStartWrite` declaration을 동기화하고 저장·Rebuild/Link한다.
-   변경 class의 앞/중간/뒤 `Find in Implementation`과 smoke 시작 이후 `%TEMP%\Lasal2.log`의
-   신규 `CInvalidArgException=0`을 확인한다.
+2. LASAL IDE에서 `LMCSdoExecutor` constructor declaration과 generated `@STD` call,
+   `TryStartWrite` declaration을 동기화한다. constructor implementation은 Active state와
+   Read/Write buffer, PublishedResult, PublishSequence를 먼저 초기화하고 마지막에 atomic
+   `AdapterState=Idle`, `ret_code=C_OK` 순서로 공개한다. 저장·Rebuild/Link 뒤 변경 class의
+   앞/중간/뒤 `Find in Implementation`과 smoke 시작 이후 `%TEMP%\Lasal2.log`의 신규
+   `CInvalidArgException=0`을 확인한다.
 3. PC API/WPF Debug/Release와 source-only/full static 계약을 다시 실행한다. capability는 bit 8,
    bit 9, bit 13, MaxSDO=4와 nonzero BootId를 광고해야 하며 GUI target 목록에는 승인한 축
    하나의 `0x2F00:24 Int32/4`만 보여야 한다. 이때 verifier에는 선택 축 번호를
-   `-ExpectedSdoWriteAxis N`으로 전달한다. gate-off baseline은 기본값 `0`이다.
+   `-ExpectedSdoWriteAxis N`으로 전달한다. 이 옵션은 constructor source와 full-mode
+   `Classes.lcb` metadata가 하나라도 없으면 활성화를 거부한다. gate-off baseline은 기본값 `0`이다.
 4. drive program/EAS에서 원래 `UI[24]` 값을 기록한다. 축은 PowerOff, DS402 Switch On Disabled,
    WPF `PowerOn=False`, `Standstill=True`, position 3회 동일 상태여야 한다.
    PLC의 DS402 재검사는 async EtherCAT mailbox가 실제 실행되는 순간까지 상태를 고정하는
    hard interlock이 아니라 submit-time precondition이므로 시험 중 다른 조작을 하지 않는다.
-5. 먼저 원래 값과 동일한 값을 Write한다. 확인 대화상자의 Slave/Object/Type/value/wire bytes를
-   대조한 뒤 제출하고 `Queued/Running -> Completed/Success`, Error/Detail 0,
+5. 먼저 원래 값과 동일한 값을 Write한다. `Arm SDO Write`를 눌러 화면에 고정된
+   Slave/Object/Type/value/wire bytes를 대조한다. modal 대화상자는 없으며 이 시점에는 아직
+   전송되지 않는다. 요청을 바꾸지 않고 `Confirm & Submit SDO Write`를 다시 눌러 제출한 뒤
+   `Queued/Running -> Completed/Success`, Error/Detail 0,
    ResultLength/ResultData 0을 확인한다. GUI는 이 terminal을 전송 성공으로만 표시하고 exact
    readback이 끝날 때까지 mutation과 Close를 계속 차단해야 한다.
 6. GUI가 자동 설정한 같은 Slave/Object/SubIndex/Type/Length로 SDO Read한다. 이 Read는 원
@@ -340,9 +346,10 @@ contention은 여전히 별도로 시험한다.
    없이 interlock을 유지해야 한다. terminal type/length와 4-byte 값이 Write 값과 정확히
    일치할 때만 interlock이 해제되어야 한다.
    mismatch/failure 또는 불명확한 submit outcome이면 새 mutation을 중단한다. Write uncertainty는
-   Read recovery proof로 quarantine 해제할 수 없다. 현재 pending readback은 프로세스 메모리에만
-   있으므로 강제 종료/전원 손실 없이 시험하고, production 활성화 전 durable journal/restart
-   recovery를 별도 구현한다.
+   Read recovery proof로 quarantine 해제할 수 없다. GUI의 Persisted Mutation Recovery에는
+   dispatch 전 target/value와 accepted/terminal/readback 상태가 crash-safe journal로 남아야 한다.
+   강제 종료/전원 손실 시험에서는 재시작 후 자동 replay가 0회이고, target 물리 확인 체크와 명시적
+   acknowledgement 뒤에만 interlock이 해제되는지 별도로 확인한다.
 7. 별도 sentinel 시험이 필요하면 승인한 conservative range 안의 값 하나를 Write하고 즉시
    Readback한 뒤 원래 값을 복원하고 다시 Readback한다. PLC/TCP terminal packet, EtherCAT
    mailbox 관측 또는 executor callback trace를 함께 보존한다.

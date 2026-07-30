@@ -135,7 +135,8 @@ case default의 `-4`로 거부한다.
 3. `TCPMotionInterface1.LMCAxis1 -> _LMCAxis1.Control`과 나머지 8축 client
    연결을 확인한다.
 4. CyclicTime `1 ms`, RealTime assignment 부재, server `Config=0`,
-   `MaxConnections=1`을 적용한다. interface CyWork는 TCP server CyWork와 같은
+   `MaxConnections=2`, `ConnectionsPerRun=1`을 적용한다. 두 번째 slot은 reconnect
+   candidate 전용이고 RPC owner는 하나다. interface CyWork는 TCP server CyWork와 같은
    cyclic task에 두고 axis RT thread와 같은 CPU core에서 같거나 낮은 priority로
    실행한다.
 5. PLC에서 실제 name lookup, descriptor 1~9의 axis 8개 command와 group

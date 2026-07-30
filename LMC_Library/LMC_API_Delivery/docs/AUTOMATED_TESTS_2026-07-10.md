@@ -2,7 +2,7 @@
 
 작성일: 2026-07-10
 
-최종 결과 재확인: 2026-07-27
+최종 결과 재확인: 2026-07-29
 
 ## 구성
 
@@ -19,7 +19,8 @@
 - caller DINT가 DLL에서 재스케일되지 않는지 확인
 - common envelope와 malformed/truncated/trailing frame
 - exact 4-byte/8-byte ACK
-- name lookup reference offset
+- name lookup의 exact 6-byte/nonzero reference, `LMCLookupResult`와 structured
+  `LMCLookupException`, sync/async Axis/Group 실패 및 raw 방어 복사
 - typed Axis ReadStatus, DINT ReadActualPosition, GroupReadStatus
 - captured PMAS ReadStatus/GroupReadStatus raw golden for envelope/offset
   compatibility; canonical LASAL state-bit semantics are documented separately
@@ -31,7 +32,19 @@
   captured application-frame SHA-256 golden
 - group position 1..16 길이와 slot 5..16 nonzero 거부, group coordinate/transition/
   buffer/execute whitelist 및 velocity/acceleration/deceleration/jerk validation
-- GroupStop deceleration/jerk validation과 LASAL `StopCmdNo` 비오류 계약
+- GroupStop deceleration/jerk validation, LASAL `StopCmdNo` 비오류 계약과
+  `GroupStopAndWaitForStableStandbyAsync`의 one-dispatch/status-only stable proof,
+  reject/timeout/cancel/status failure/ACK 유실 evidence 및 zero automatic replay
+- Axis Reset, Admin `GroupMoveLinearRelative`, D5 `SubmitSdo`/`CancelOperation` 및 Recorder
+  Trigger/Stop의 delayed-ACK
+  `ResultDiscarded`, priority GroupStop wire order와 connection reuse. accepted Submit은 exact
+  ticket/BootId/MapRevision을 보존하고 Recorder buffer/configuration/recovered/adopted Release는
+  `OutcomeUnverified`로 격리해 재사용과 destructive retry를 차단한다.
+- Group Enable wait 35개: mutation/status gate, `0x2047`, 모든 `0x2045`와 delay의 단일 total
+  deadline, pre-write `NotAttempted` zero-wire/reusable/no-mutation, post-write caller cancel drain과
+  accepted publication, ACK 무응답 `OutcomeUncertain`/no-continuation/`Faulted`, status 무응답
+  `Accepted`/exact-continuation/`Faulted`, 두 no-response의 `TransportInvalidatedAtDeadline`,
+  rejected/no-continuation 및 commit-bound mutation/proof reset.
 - RPC init, fragmented response, 실제 ephemeral UDP callback, close
 - callback payload defensive copy와 controller IP가 아닌 UDP source 거부
 - init status/shape, callback ACK status/shape와 truncated-response 실패 후
@@ -55,13 +68,18 @@
 - D4 single-bank Ring/Edge/Window/Mask/forced Trigger와 D5 general-inline SDO Read
   request/status/queued-cancel active LASAL source contract; D4 Double, D5 Write와
   extended result fail-closed contract
+- immutable `EvaluateSdoWritePolicy`의 cached zero-wire evaluation, read-only approved-target
+  snapshot과 connection/capability/identity/payload blocker matrix, PLC bit 9와 empty SDK target의
+  독립 표시 및 empty-allowlist sync/async Submit zero-wire
 - Phase 1 Admin `0x7D00/0x7D10/0x7D20` golden/parser/fake-RPC, semantic key/mask,
   RequestId/session/capability와 LASAL source offset/method mapping
 - Phase 2 Admin `0x7D22 GroupMoveLinearRelative` exact 104-byte golden,
   4-axis/parameter whitelist, strict ACK/native reject parser, sync/async fake-RPC,
   capability no-dispatch, stale generation과 LASAL `MoveRelativeCoord` state gate
-- `GetDriveOperationMode`/`ReadDriveStatus`의 physical axis 1..4, terminal
-  success/failure, `TimeoutCycles+32` bounded poll과 ticket-preserving cancellation
+- `GetDriveOperationMode`/`ReadDriveStatus`/`GetDriveErrorCode`의 physical axis 1..4,
+  exact `0x6061`/`0x6041`/`0x603F` type과 width, DS402 Fault bit projection, terminal
+  success/failure, one-attempt error-code evidence, `TimeoutCycles+32` bounded poll과
+  ticket-preserving cancellation
 - PI alias와 Bulk builder/reader의 exact MapRevision, entry validation, latest
   snapshot lookup, stale session/release 및 PC-local error domain catalog
 - internal `negative-wire` 모드의 live 확인 gate, 고정 5개 diagnostics raw scenario,
@@ -93,6 +111,16 @@
   Resolve는 기존 qualification log에 `D5_LOG_CONTINUATION`을 이어 써 원래
   `FAIL`/`OUTCOME_UNCERTAIN`을 보존한다. 이 항목은
   analyzer 12개의 순수 상태 판정 범위를 넘어서는 UI/runtime contract이며 PLC live 증거가 아니다.
+- D5 same-value SDO Write qualification 9개는 initial baseline Read -> fresh capability -> 첫 safe
+  check -> operator confirmation -> unchanged exact pre-Write guard Read -> 최종 두 번째 safe check ->
+  durable journal -> byte-identical Write 1회 -> guarded exact Readback 순서를 검사한다. baseline,
+  guard, Write, Readback은 서로 다른 네 ticket이다. empty allowlist, capability off와 다른 target은
+  preflight zero-wire이며 baseline/safety/confirmation/journal 실패와 changed guard value도 mutation
+  0건이다. 반환된 Write ticket은 semantic validation 전에 durable journal/quarantine에 먼저
+  adopt해야 한다. uncertain Write는 재시도하지 않고 readback mismatch 또는 journal arm 이후
+  cancellation은 unresolved evidence를 남긴다. sentinel, 자동 restore와 Write replay는 없다.
+  두 번째 Read는 race window를 좁히지만 compare-and-write를 원자화하지 않으므로 네 번째 operator
+  confirmation인 명시적 single-writer 작업창이 필수다.
 - Phase 1 facade의 diagnostics domain command 실패는
   `LMCSdoReadCommandException`이 `CapabilityPreflight`/`Submission`/`StatusPolling`과 accepted
   ticket을 구분한다. sync/async와 composite 두 번째 SDO status failure까지 PC 계약으로
@@ -147,6 +175,18 @@
   command exception 원본 보존도 검사한다. wait 계산은 최소 15초, 남은 deadline+1초, 최대
   120초이며 elapsed가 timeout과 같은 `<=` 경계 poll도 고정한다. production WPF cleanup
   adapter가 이 UI 독립 source를 호출하지만 wire/LASAL 변경은 없고 PLC live/pcap 증거도 아니다.
+- D5 disconnect/orphan UI 독립 코어 28개는 terminal-before-loss, Running/Queued nonterminal,
+  distinct new owner/session, fresh capability 2회와 final sample, exact `0x6061:0 Int8/1`
+  two-ticket recovery, capability cycle/payload drift, monotonic retry deadline, quarantine
+  ABA/identity/cancellation/PASS-log failure 보존을 검사한다. old executor drain 중에는 request
+  timeout + 5초, 최대 120초의 monotonic retry-admission budget에서 25 ms 간격 exact
+  `Rejected/ResourceBusy`만 retry하고 accepted/outcome-uncertain은 재시도하지 않는다. 이미 시작된
+  단일 RPC의 소요시간은 이 budget의 wall-clock 상한이라고 주장하지 않는다.
+  production WPF adapter는 local TCP zero-linger close를 사용하며 RPC Close `0x405D`를 보내지
+  않고, PASS log-before-clear 뒤 distinct new connection을 adopt해 CREVIS topology를 auto-load한다.
+  결과는 Running witness가 있어도 항상 `ApplicationRecoveryOnly`/
+  `orphanQualified=false`다. PLC `MarkOrphan`/executor token/late callback durable witness와 live
+  PLC/pcap은 자동 시험 범위가 아니다.
 
 PMAS legacy `0x202E` LREAL 16-byte와 `0x2051` LREAL 136-byte response는
 LASAL-DINT typed parser가 명시적으로 거부한다. DINT actual-position
@@ -170,33 +210,152 @@ LASAL source static contract만 실행:
   /t:RunLasalContract /p:Configuration=Release /nologo
 ```
 
+Topology/I/O 검사는 기본적으로 `StaticTopologyOnly`다. 사용자가 LASAL IDE에서
+`LMCEcatInputLatch`의 CREVIS client/변수/method와 Motion Network 연결을 생성·저장한
+직후에는 다음 checkpoint를 명시한다.
+
+```powershell
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
+  'LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj' `
+  /t:RunLasalContract /p:Configuration=Release `
+  /p:LasalTopologyIoCheckpoint=IdeStructureReady /nologo
+```
+
+full `RunLasalNetworkContract`에도 같은 property를 넘긴다. 이 checkpoint는 빈 IDE
+method stub, 정확한 3개 client/network owner, capability bit 15~17 off뿐 아니라 최신
+`Classes.lcb`/`Networks.lcb` 저장 증거까지 요구한다. 따라서
+`AllowStaleLasalBinaryMetadata` 우회는 허용하지 않는다. 외부 implementation을 넣은 뒤에는
+구조-only checkpoint가 의도적으로 실패하며 다음 integration checkpoint를 선택해야 한다.
+
 PC C# test, LASAL source static contract와 현재 WPF example build를 순서대로
 실행하려면 target을 `/t:RunTests`로 바꾼다. 제거된 legacy
 `LasalMotionControlLibTestApp`은 이 target에 포함하지 않는다.
 
 현재 결과:
 
-- `RunPcTests`: Debug/Release 각 `269/269 PASS`
-  직전 260개에 UI 독립 D5 pending cleanup orchestrator 9개를 추가했다.
-  (기존 225개: response hard limit/AxisInfo, read-only qualification 분석·CSV 6개와
-  callback exception/reentrant shutdown loopback 4개, Group Stop-first 정상/fallback/
-  aggregate/UI context 4개와 Recorder two-session exact/discovery, pre-close transport-fault
-  recovery, Fault no-mutation, cancel/Stop-race/release retry/quarantine 및 cleanup
-  state/route/manual-recovery policy, Bulk cancel/release retry와 one-slave-partial 순수 판정,
-  internal negative-wire 9개, D5 abort/recovery analyzer 12개와 drive-read command
-  stage/ticket 및 non-domain 계약 2개 포함; 추가 24개: external-read WPF routing
-  orchestrator 7개 + all-failure facade context 4개 + raw `SubmitSdo` context 7개 +
-  manual failure router 1개 + D5 quarantine ledger 5개; 추가 7개: D5 recovery scope policy;
-  추가 4개: D5 quarantine ledger deterministic concurrency; 추가 9개: D5 pending cleanup
-  orchestrator)
+- `RunPcTests`: current Debug/Release `876/876 PASS`. Recorder accepted-result 6경로의
+  sync/async 지연 ACK 12개는 exact typed resource/context, recovery-only normal-use 차단,
+  configuration/lease의 Release-only cleanup, identity의 Status -> 필요 시 Stop ->
+  Buffer/Configuration Release와 wire 1회/no-replay를 고정한다. Axis/Group typed lookup의 성공/실패,
+  overlength 진단 의미와 public bounded inline SDO Read의
+  typed terminal, pre-wire rejection, terminal-before-cancel, failure/timeout/cancel accepted-ticket와
+  exact last-status 보존 및 immutable
+  result 회귀 9개와 Axis/Admin/D5/Recorder delayed-ACK의 drain/
+  `ResultDiscarded`, accepted Submit evidence 보존, Recorder Release `OutcomeUnverified`
+  quarantine, 동일 handle의 concurrent Start/Release zero-extra-wire guard와 네 Release surface의
+  `BeforeWire` usable rollback/retry, immutable zero-wire SDO Write policy/readiness matrix, proof reset, accepted Enable
+  continuation 보존 및 `0x2047` zero-replay 회귀를 포함한다. config-only Double Configure 3개는
+  Start 없는 exact retain, ambiguous-result recovery publication, checkpoint-failure exact lease 보존을
+  고정한다.
+  Axis Reset accepted-once 전용 33개 계약은 Begin의 `0x2024` exact once/zero status, accepted
+  continuation의 session/send-priority-bound atomic publication, Resume의 `0x2028`-only stable
+  AxisError-clear proof, Resume epoch stable-count reset와 누적 poll, invalid/concurrent/stale
+  continuation zero-wire, hard mutation/status/compound deadline, timeout/cancel/status-failure
+  no-replay, response-loss/priority discard, same-axis mutation interference, status publication race,
+  prior pending을 보존하되 response-loss mutation generation으로 무효화하는 Begin과 final proof의
+  early/late cancel·deadline 선형화를 포함한다.
+  Axis Power On accepted-once 계약은 mutation/status gate, ACK/status exchange와 poll delay를
+  포함하는 total deadline, final pre-write cancel의 zero-wire `NotAttempted`/connection reuse,
+  post-write cancel의 ACK drain/continuation/accepted-observer 선행 publication, ACK/status 무응답의
+  `Faulted` + `TransportInvalidatedAtDeadline`을 고정한다. send-priority ACK discard는
+  `OutcomeUncertain`, status discard는 accepted continuation pending을 보존한다. read-only
+  `WaitForPowerStateAsync`의 no-status deadline도 transport를 invalidate하며, 성공 결과는 power
+  command를 재사용하지 않았으므로 ACK/continuation 없음과
+  `ReusedAcceptedAcknowledgement=false`를 확인한다.
+  Power On write generation과 continuation의 게시, ACK parse 뒤 publication 전 same-axis mutation,
+  Resume 전/status publication same-axis interference, expected/observed generation, final proof의
+  early/late cancel·deadline 선형화와 zero-wire/different-axis 비간섭도 포함한다.
+  Group Enable wait 전용 35개는 mutation/status gate, fresh `0x2047`, 모든 `0x2045`와 delay에
+  하나의 total deadline을 적용한다. pre-write cancel/deadline은 `NotAttempted`, zero wire,
+  reusable connection, mutation/proof 불변이다. post-write caller cancel은 response와 accepted
+  ACK/status publication을 끝낸 뒤 typed cancel이며 connection을 재사용한다. ACK no-response는
+  `OutcomeUncertain`, continuation 없음, `Faulted`; status no-response는 `Accepted`, exact pending
+  continuation, `Faulted`이고 둘 다 `TransportInvalidatedAtDeadline=true`다. rejected ACK는
+  `Rejected`, continuation 없음으로 고정한다.
+  Axis Stop 전용 32개 split 계약은 Begin의 `0x2022` exact once/zero status, Resume의 `0x2028`-only stable
+  Standstill proof, accepted-publication deadline continuation 보존, timeout resume no-replay,
+  no-status transport invalidation, 새 accepted Stop supersede, priority preemption 뒤 새 Stop 완료,
+  concurrent Begin publication order, concurrent Resume second zero-wire, stale-session zero-wire와
+  interrupted Resume의 pending Power On proof reset, same-axis other-handle/accepted-wait mutation의
+  typed interference, status publication race와 pending 보존, zero-wire/different-axis 비간섭을
+  포함한다. 기존 compound facade는 같은 Begin+Resume을 한 total deadline으로 조합한다.
+  Group Stop 전용 34개 계약은 마지막 `0x2045` publication에서 mutation generation,
+  early cancel/deadline과 stable Standby proof를 한 번에 결정하고 late cancel/deadline이 완료 결과를
+  뒤집지 않음을 고정한다. pre-canceled Resume과 compound ACK 직후 cancel은 accepted evidence와
+  continuation을 가진 typed cancellation이며, post-write deadline flag도 continuation lock으로
+  게시한다. same-group final-decision race는 typed interference/pending, zero-wire/different-group은
+  비간섭이다.
+  Axis PowerOff 전용 35개 계약은 `0x2023(enable=false)` exact once, ACK+mutation
+  generation+continuation atomic publication, success ACK 뒤 successful PowerOff/Standstill 3회 연속,
+  mismatch reset, reject/pre-wire/invalid Resume zero-poll, timeout/cancel/status failure,
+  response-loss/priority discard no-replay, same-axis interference/status race,
+  expected/observed/intervening evidence, final cancel/deadline/generation 선형화와 pending PowerOn proof의
+  명시적 resolve 경계를 포함한다.
+  Drive read 계약은 실제 `0x6041` bit 3의 DS402 Fault projection과 별도 exact one-attempt
+  `0x603F:0 UInt16/2` read, little-endian result, capability/identity/physical-axis zero-wire
+  gate 및 failure context를 포함한다.
+  2026-07-27의 269-test checkpoint는 이전 revision의 역사적 결과이며
+  current total로 사용하지 않는다.
 - `RunLasalContract`:
   `PASS LASAL.StaticContract.SourceOnly` (Admin read와 `0x7D22`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,
   D4 Double/D5 Write·extended fail-closed wire)
-- `RunLasalNetworkContract`: `PASS LASAL.StaticContract`; `Classes.lcb` general
-  `TryStartRead` declaration, 4축 executor network와 generated metadata 포함
-- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp`
-  Debug/Release build PASS. 각 3초 startup smoke는 기존 Group/Bulk/Recorder panel까지 PASS
+- `RunLasalNetworkContract`: `PASS LASAL.StaticContract`; `LMCDiagnosticsService` constructor의
+  38-state 이름/타입, 37개 scalar, 24-entry Bulk array,
+  no-control-flow/final-`C_OK` exact gate와
+  `LMCRecorderStore` constructor exact 초기화/publish-last negative fixture,
+  `Classes.lcb` general `TryStartRead` declaration,
+  4축 executor network와 generated metadata 포함
+- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp` current Debug/Release
+  VS2019 MSBuild Release build PASS, actual-control smoke Release 125/125 PASS. 신규 smoke는 Axis Reset
+  Begin `0x2024` 1회/Resume `0x2028`-only, failure 뒤 no-replay 재개, confirmed interference 뒤에만
+  explicit new Reset을 허용하는 completion UI에 더해 status-only Resume의 PowerOff 선점 pending
+  보존, accepted ACK 뒤 outer-safety preemption에서도 pending publication, safety preemption 뒤
+  session cleanup clear 3개를 확인한다. Axis PowerOff는 accepted Begin timeout/cancel handoff,
+  transient status failure의 두 번째 클릭 `0x2028`-only Resume, monitor 중 zero-wire 재클릭,
+  confirmed interference 뒤 explicit replacement 1회, replacement reject의 exact old pending/flag 보존,
+  Axis PowerOn durable recovery에서 Power Off Again 완료 뒤 journal/Close 해제를 고정한다. 그 밖에
+  Admin capability/axis/group,
+  Drive mode/non-atomic status의 exact fake-RPC와 typed UI 및 one-click Inline Read의
+  typed/raw terminal, accepted-timeout/cancel ticket과 last-status 보존/수동 Refresh,
+  pre-accept cancel/capability-off zero-wire 및 terminal failure guard 해제와 empty SDK allowlist에서
+  same-value handler를 강제 호출해도 PLC request가 0건인 gate-off zero-wire, bit 9와
+  `NoApprovedTarget`의 독립 readiness 표시, SDO Write 첫 클릭 arm/편집 시 re-arm/동일 요청 두 번째
+  클릭만 consume하는 비모달 confirmation state, cached matrix refresh의 wire 0회와 마지막
+  `PASS`/`RECOVERY REQUIRED` 결과 보존을 확인한다. Recorder smoke는 manual Double을 ordinary
+  Configure/ordinary field와 분리하고 durable route가 닫힌 동안 두 delegate 모두 zero-call임을
+  확인한다. 별도 config-only adapter smoke 5개는 exact configuration-only retain/cleanup,
+  accepted-result preemption 뒤 exact retain/cleanup, Configure response-loss의 unknown scope 보존,
+  cleanup response-loss의 outcome-unverified/no-replay와 invalid pre-arm의 zero-Configure/no-journal을
+  검증한다. delayed ordinary Configure ACK가
+  safety reservation 뒤 `ResultDiscarded`되면 exact
+  recovery-only handle을 MainWindow에 보존하고 명시 Release로 정리하는 전체 UI 경로도 포함한다.
+  Axis motion-recovery smoke는 Stop Begin `0x2022` 1회 뒤 status-only Resume을 시작하고, monitor
+  중 더 새 Power Off가 priority generation을 선점해도 Stop을 replay하지 않은 채 Power Off 3-sample
+  proof를 완료하며 선점된 Stop continuation을 cleanup 전까지 보존하는 경로를 포함한다.
+- Group Power 회귀는 `0x204A`/`0x204B` 명령을 각각 한 번만 전송한 뒤 `0x2045`의
+  기대 `IsPowerOn` 값을 성공 응답 3회 연속 확인하는 완료 계약을 고정한다. pending 검증
+  재개는 `0x2045`만 송신하고 원 power command를 replay하지 않는다. 수동 `Read Status` 한 번만으로
+  pending Power On/Off 또는 Enable continuation을 완료하거나 ACTIVE/profile lock을 승격하지
+  않는다. 다만 safety generation 검증을 통과한 성공 응답은 상태에 맞는 pending Enable
+  continuation proof에 누적되고 Locked Standby proof가 3/3이면 기존 ACK를 재사용한 zero-wire
+  Resume으로 완료할 수 있다.
+  Stop/PowerOff safety 예약은 accepted Group Enable의 누적 status proof를 즉시 초기화하되 ACK와
+  pending continuation을 보존한다. 예약 뒤 도착한 status response는 drain 후
+  `ResultDiscarded`되어 observe되지 않는다. 예약 전에 SDK completion publication이 끝났지만 WPF
+  적용 전에 safety가 예약된 좁은 경우만 recovery-required로 승격한다. connected unresolved
+  상태에서는 group 이름 변경, group 재조회, clean connection/window close, connected reconnect와
+  새 Power On을 차단한다. 외부 connection loss 뒤 reconnect 진입에서는 원 exact group 이름을
+  보존한 recovery로 승격하고 새 session에서 그 이름의 group만 다시 조회한다. accepted pending은
+  같은 group/session에서 성공한 명시적 `0x2048 GroupDisable` ACK, PowerOn=True +
+  Disabled/Unlocked 3회 연속 또는 PowerOn=False 3회 연속 proof로 해제한다. recovery-required는
+  성공한 `0x2048 GroupDisable` ACK 또는 보존한 exact recovery group의 PowerOn=False 3회 연속
+  proof로만 해제한다. Power On 성공만으로는 해제되지 않으며 어느 경로도 `0x2047`을 replay하지
+  않는다. 별도 Group profile-lock journal 회귀는 `0x2047` 전 durable arm, restart의
+  Armed-to-RecoveryRequired 승격, endpoint mismatch의 TCP/RPC 0회, group-reference mismatch의
+  lookup-only/mutation 0회, exact Disable resolve와 identity 응답 중 safety reservation의
+  durable recovery 보존을 검사한다. 이 항목은 deterministic
+  PC/fake-TCP와 WPF smoke 증거이지 PLC runtime 검증이 아니다.
 - `BuildDistributionExampleApp`: binary-reference distribution example build PASS
 - full distribution preview pipeline: temporary standalone example Debug/Release build,
   forbidden internal-reference scan, cleanup과 DLL hash identity PASS
@@ -210,10 +369,10 @@ EtherCAT/motion 동작 검증을 대체하지 않는다.
 
 | 단계 | 자동/정적 계약 상태 | 실제 PLC 상태 |
 |---|---|---|
-| D0 | 구현 및 test profile `CapabilityBits=0x0000213F` 계약 테스트 포함 | `11_PI_Bulk_Regression`에서 BootId 8의 동일 capability 응답 7회 PASS |
+| D0 | 구현 및 current test profile `CapabilityBits=0x0000613F` 계약 테스트 포함; bit 14 static topology on, bit 15~17 off | `11_PI_Bulk_Regression`의 BootId 8 `0x0000213F` 응답 7회는 당시 checkpoint로 보존하고, `Test2`에서 current `0x0000613F`와 exact 7-entry static topology 응답 PASS |
 | D1~D2 | active source, cleanup orchestration과 one-slave-partial 순수 판정 테스트 포함 | `11_PI_Bulk_Regression`의 Catalog/PI/Bulk happy path PASS; 100회 soak와 operator partial live/capture 대기 |
 | D3 | active source와 PC contract 테스트 포함 | 기존 Recorder happy path 캡처 존재; trigger/fault/soak는 별도 gate |
-| D4 | single-bank Ring/Trigger active contract 포함 | runtime 미실시, Double 미구현 |
-| D5 | general-inline Read submit/status/cancel, executor release/race와 abort/recovery analyzer 12개 포함 | `10`/`12` happy path와 TypeMismatch recovery live PASS. WPF outcome quarantine/capability별 two-ticket recovery proof/state-change gate/deadline-aware cleanup은 code/build만 완료; abort/orphan/pcap과 offline/timeout/cancel/contention live 대기 |
+| D4 | single-bank Ring/Trigger active, Double source/API/config-only WPF adapter dormant/gate-off 계약 포함 | Double PLC runtime 미실시 |
+| D5 | general-inline Read submit/status/cancel, executor release/race와 abort/recovery analyzer 12개, disconnect/orphan application-recovery 코어 28개, four-ticket same-value Write qualification 9개와 WPF adapter 포함 | `10`/`12` happy path와 TypeMismatch recovery live PASS. fake-RPC 2-session WPF handler E2E와 same-value gate-off zero-wire는 PC 계약이며 실제 Write를 보내지 않았다. same-value의 PLC/SDK gate는 all-false/empty이고 second safety, changed pre-Write zero-mutation, returned-ticket adoption-before-validation을 검사한다. sentinel/자동 restore/replay가 없고 single-writer 작업창이 필수다. PLC durable orphan witness/pcap, Write target/axis 승인, gate-on Rebuild/download와 mailbox/pcap/물리 증거 및 offline/timeout/cancel/contention live 대기 |
 | Phase 1 facade | typed drive read, PI/Bulk builder/reader와 error catalog PC contract 포함 | `10_DriveRead_Axis1to4`, `11_PI_Bulk_Regression` happy path PASS |
 | Admin/group | `0x7D00/10/20/22` C# golden/parser/fake-RPC와 LASAL SourceOnly mapping 포함 | `01`~`08c`, `04b`, `09b`에서 happy path/dynamic monitor/PowerOff/None-ACS static alias 검증; `0x2047` accepted-then-poll 수정본, queue/race/fault gate 잔존 |

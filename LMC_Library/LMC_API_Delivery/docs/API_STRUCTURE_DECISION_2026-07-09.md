@@ -52,6 +52,13 @@ the current group descriptor is `0x0100`. These values are deployment-local and
 may change after a project rebuild; callers must perform lookup again after each
 new RPC connection.
 
+Current public handles expose the successful lookup as immutable
+`LMCLookupResult` (`TargetKind`, `ObjectName`, nonzero `Reference`, exact
+`Response`). Lookup failure throws `LMCLookupException`, which remains compatible
+with existing `InvalidOperationException` catches while preserving parsed and
+defensive-copy raw evidence. Axis `0x202B AxisInfoResponse` remains a separate
+post-lookup acknowledgement.
+
 This design is implemented in the tracked canonical project. LASAL IDE class
 model regeneration, target build and PLC verification are still required.
 Detailed rules and failure behavior are in
@@ -151,20 +158,23 @@ moves accept `Positive` or `Negative`, normalize the velocity sign, and require
 deceleration `0` because LASAL `MoveEndless` has no deceleration input. Unsupported
 combinations are rejected instead of being transmitted and ignored.
 
-## Deferred Static/Handle Compatibility Facade
+## Static/Handle Compatibility Facade - Current Release Not Planned
 
 The instance-owned `LMCConnection` model remains the implementation core for
 the EtherCAT diagnostics, PI/Bulk, and Recorder work. Do not convert the core
 transport, timeout, callback listener, session generation, or diagnostics
 objects to static state while those features are being implemented.
 
-An Elmo-style static/connection-handle API may be added later as a separate
-compatibility facade. That facade must delegate to existing `LMCConnection`
+No named repository consumer currently requires an Elmo-style
+static/connection-handle API, so milestone D6 is closed as `Not Planned` for
+the current release. It may be reopened later as a separate compatibility
+facade only when a concrete consumer contract exists. That facade must
+delegate to existing `LMCConnection`
 instances through a thread-safe handle registry whose handle contains both a
 slot and a generation. It must reject stale handles after reconnect or close,
 must not introduce a second wire implementation, and must not be described as
 binary or source compatible with Elmo `MMCConnection` unless that compatibility
 is separately proved.
 
-The static facade is milestone D6 in the
+The deferred compatibility scope was originally milestone D6 in the
 [EtherCAT PI/Bulk/Recorder implementation design](../../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md).

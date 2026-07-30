@@ -162,10 +162,10 @@
 | 26 | 중 | MoveLinearAbsoluteEx full | P | C# options는 넓지만 PLC는 고정 X/Y/Z/U, 제한된 coord/transition/buffer만 처리한다. transition parameter array와 superimposed는 없다. |
 | 27 | 중 | MoveLinearAbsoluteEx simple | D | 단순 overload가 있다. `double[]`이 아니라 raw DINT `int[]`를 사용한다. |
 | 28 | 중 | MoveLinearRelative non-Ex | X | workbook도 OPERA 미사용으로 표시한다. 실제 요구는 No.41 relative Ex 하나로 통합한다. |
-| 29 | 상 | Axis Reset | D | `Reset[Async]`, PLC `0x2024`. |
+| 29 | 상 | Axis Reset | D | `Reset[Async]`, PLC `0x2024`. SDK/WPF accepted-once Begin/Resume과 durable Accepted restart는 `0x2024`를 replay하지 않고 `0x2028`의 `AxisErrorId==0`을 3회 확인한다. |
 | 30 | 상 | Group Reset | D | `GroupReset[Async]`, PLC `0x2049`. |
 | 31 | 상 | Axis PowerOff | D | `PowerOff[Async]`, PLC `0x2023 enable=0`. |
-| 32 | 상 | Group Disable | E | `GroupDisable[Async]`, PLC `0x2048`; 실제 의미는 LASAL `UnlockProfile`이다. |
+| 32 | 상 | Group Disable | E | `GroupDisable[Async]`, PLC `0x2048`; 실제 의미는 LASAL `UnlockProfile`이다. same-cycle `LockState` read를 제거해 ACK를 native acceptance로 한정했고, Begin/Resume/cross-session status-only API와 방향성 durable journal이 후속 `0x2045` 3회로 완료를 증명한다. 새 IDE/download/live 재캡처는 대기다. |
 | 33 | 상 | SetOpMode | G | dedicated API가 없다. 0x6060 PDO는 Elmo 객체에서 disabled이고 unrestricted SDO Write도 OFF다. LMC mode ownership 결정이 먼저다. |
 | 34 | 하 | GetOpMode | E | `GetDriveOperationMode[Async]`가 D5 SDO `0x6061:0 Int8/1` ticket을 bounded poll하고 raw signed value와 typed mode를 반환한다. 축 1..4 live 결과는 모두 8(CSP)로 PASS했다. |
 | 35 | 상 | Axis PowerOn | D | `PowerOn[Async]`, PLC `0x2023 enable=1`. |
@@ -175,14 +175,14 @@
 | 39 | 상 | Axis actual position | E | `GetActualPosition[Result][Async]`, PLC `0x202E`; engineering double이 아니라 caller-scaled raw DINT다. |
 | 40 | 상 | MoveRelativeEx | D | `MoveRelativeEx[Async]`, PLC `0x20A0`; raw DINT와 제한된 buffer 의미를 사용한다. |
 | 41 | 중 | Group MoveLinearRelativeEx | D | `LMCGroupAxis.MoveLinearRelativeEx[Async]`, Admin `0x7D22`, LASAL `MoveRelativeCoord` 경로가 있다. 기존 Aborting/Buffered 수락과 축별 왕복은 live PASS했고 true Buffered A/B runner는 code/build 완료, live queue/endpoint는 대기다. |
-| 42 | 상 | Axis Stop | D | `Stop[Async]`, PLC `0x2022`; decel/jerk를 지원하나 buffer mode는 미노출이다. |
-| 43 | 상 | Group Stop | D | `GroupStop[Async]`, PLC `0x2085`. ACK는 검증된 `StopMove(Mode:=3)` dispatch를 뜻하고 완료/error는 `GroupReadStatus`로 확인한다. |
+| 42 | 상 | Axis Stop | D | `Stop[Async]`, PLC `0x2022`; decel/jerk를 지원하나 buffer mode는 미노출이다. SDK/WPF accepted-once 완료는 `0x2028` Standstill 3회이며, durable Reset takeover는 pinned old transport abort와 fresh identity 확인 뒤 Stop을 정확히 1회 보낸다. |
+| 43 | 상 | Group Stop | D | `GroupStop[Async]`, PLC `0x2085`. ACK는 검증된 `StopMove(Mode:=3)` dispatch를 뜻한다. `GroupStopAndWaitForStableStandbyAsync`는 Stop 1회 뒤 `GroupReadStatus(0x2045)`만 poll해 stable standby를 확인하고 failure evidence를 보존한다. PC 계약은 구현됐고 PLC 실기 완료 poll은 별도다. |
 | 44 | 상 | MoveVelocityEx | D | `MoveVelocityEx[Async]`, PLC `0x20A2`; 실제 LASAL 호출은 `MoveEndless`, deceleration=0 제약이 있다. |
 | 45 | 하 | Axis override | G | 공개 API/handler가 없다. LASAL에는 1000=100%인 Override server가 있으나 Maestro의 vel/acc/jerk 3-factor와 같지 않다. |
-| 46 | 중 | SDO Read Int32, explicit length | E | D5 async ticket로 typed 1/2/4-byte read 가능. OPERA식 convenience overload는 없다. 사용자 실기 확인 PASS. |
+| 46 | 중 | SDO Read Int32, explicit length | E | `ReadSdoInline[Async]`가 D5 capability preflight, submit, bounded terminal poll을 결합하고 `LMCSdoReadResult`에 request/ticket/status/exact bytes/typed value를 보존한다. 1/2/4-byte만 허용하며 사용자 backend 실기 확인 PASS, 새 facade 자체 live 재확인은 대기다. |
 | 47 | 중 | SDO Read Double/8-byte | G | `Real64` type과 8-byte active result path가 없다. MaxSDO=4, extended result capability OFF다. |
-| 48 | 중 | SDO Read Float/4-byte | E | `Real32/4` backend가 있다. convenience `out float` overload는 없다. |
-| 49 | 중 | SDO Read Int32/4-byte | E | `Int32/4` backend가 있다. No.46과 기능상 중복이다. |
+| 48 | 중 | SDO Read Float/4-byte | E | `ReadSdoInline[Async]`의 `Real32/4` 결과가 canonical little-endian bytes와 `Single` typed value를 반환한다. |
+| 49 | 중 | SDO Read Int32/4-byte | E | `ReadSdoInline[Async]`의 `Int32/4` 결과를 사용한다. No.46과 기능상 중복이다. |
 | 50 | 중 | SDO Write Int64 | P | request model만 있고 PLC SDO Write capability/allowlist가 OFF다. 8-byte type도 없다. |
 | 51 | 중 | SDO Write Double | P | request model만 있고 PLC SDO Write capability/allowlist가 OFF다. `Real64`도 없다. |
 | 52 | 중 | SDO Write Int32 | P | `CreateWrite` scaffold는 있으나 SDK/PLC 이중 정책으로 항상 차단된다. |

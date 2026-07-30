@@ -1,24 +1,65 @@
 LMC DINT packet map
-Status 2026-07-27: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-07-29: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 adds three read-only
-commands plus 0x7D22 GroupMoveLinearRelative. LASAL-DINT Diagnostics v1 reserves 24
+commands plus 0x7D22 GroupMoveLinearRelative. LASAL-DINT Diagnostics v1 reserves 30
 project-local command IDs in 0x7E00..0x7E51. D0-D3, D4 single-bank Ring/Trigger,
 the D5 general-inline SDO Read ticket flow, and fail-closed SDO Write
 parser/executor/policy infrastructure are implemented. D4 Double bank, PI Write,
 SDO Write activation, and extended SDO results remain off.
-Therefore 51 command IDs are success-capable in the PLC source: 25 motion/group,
-4 admin and 22 diagnostics. The dispatcher/wire contract handles 53 IDs
-including the two reserved D5 requests. These extensions are not captured Elmo
+Therefore 53 command IDs are success-capable in the PLC source: 25 motion/group,
+4 admin and 24 diagnostics. The dispatcher/wire contract handles 59 IDs,
+including two reserved D5 requests and the four dormant Double-bank recovery
+commands 0x7E4A..0x7E4D. These extensions are not captured Elmo
 commands.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. Current C# tests pass 274/274 in Debug and Release, and the development
-WPF builds pass in Debug and Release. The previous LASAL class/network snapshot
+source. Current C# tests pass 649/649 in both Debug and Release. The expansion
+covers actual fake-TCP output submission paths, twenty mutation-journal
+persistence/reopen/corruption/lock/process-termination/parent-EOF tests, a five-case CREVIS
+status-cause matrix, three deterministic topology/D5/recoverable-Recorder parser
+property tests, and the strict opt-in eight-family parser-stress CLI contract,
+and a listener-lifetime
+generation fence that prevents a late old callback-handler failure from leaking
+into a replacement RPC session. A fixed Release seed
+completed 100,000 bounded in-memory mutations without file, network, or PLC I/O.
+The current development WPF build passes, and the actual-control smoke suite passes
+57/57 in both Debug and Release. They include configured CREVIS auto-load, editable SDO fields while
+an ordinary submission is in flight, and suppression of invalid PI/Bulk stale
+raw values. The process-level smoke observes SDO, digital-output, and active
+Double-bank journal recovery without 0x7E50/0x7E23/0x7E40..0x7E4F replay and
+preserves byte-identical journals across forced exit and restart. A locked
+Double-bank journal also fails new mutation admission closed. The live Double
+qualification/recovery gate remains closed. The previous LASAL class/network snapshot
 rebuilt and linked in the IDE with 0 errors and 3 C78-project/C81-library-and-
 compiler version mismatch warnings. That snapshot predates the SDO Write source
-changes. The current TryStartWrite declaration/implementation has not yet been
-synchronized and built in LASAL or exercised against a PLC/drive.
+changes. The current TryStartWrite declaration/implementation is synchronized in
+tracked generated metadata and passes SourceOnly/full static contracts. The user reported
+a successful LASAL build, and the Test2 capture proves the static topology wire path with
+capability 0x0000613F, topology revision 0x15867EEC, one 0x7E11 response, and seven
+0x7E12 responses for the exact configured inventory. A standalone IDE build/download/smoke
+log was not preserved, and this does not prove the unimplemented dynamic 0x7E13/0x7E22/0x7E23
+node-health or digital-I/O paths.
+The PC-only same-value SDO Write qualification uses four distinct tickets for
+baseline Read, unchanged-value pre-Write guard Read followed by the final second safety check,
+one byte-identical Write, and guarded exact Readback. With the current PLC/SDK
+gates off and SDK allowlist empty, even a forced handler call is zero-wire; no
+PLC/live SDO Write has been proven.
+The UI-independent D5 disconnect/orphan qualification core has twenty-eight
+deterministic PC regressions and a production WPF application-recovery adapter.
+The adapter performs a local TCP zero-linger close without RPC Close 0x405D,
+opens a distinct connection, binds fresh capability samples to that owner and
+session, and requires two exact 0x6061:0 Int8 recovery tickets plus a final stable
+capability sample. Stability includes BootId, MapRevision, DiagnosticsBuild,
+CapabilityBits, BaseCycleTimeUs, MaxSdoDataBytes, and request/response payload limits.
+An old executor ResourceBusy is retried every 25 ms only when the Submit is an exact
+Rejected/ResourceBusy result, within a monotonic retry-admission budget of the request
+timeout plus 5 seconds capped at 120 seconds. That budget does not claim to bound an
+already-started RPC. The PASS log commits before quarantine clear;
+then the GUI adopts the new connection and auto-loads CREVIS topology. Running and
+Queued observations both remain ApplicationRecoveryOnly with orphanQualified=false.
+A durable PLC MarkOrphan/executor-token/late-callback witness and live PLC/pcap are
+still required for orphan qualification.
 On 2026-07-23 the live PLC captures passed Admin 0x7D00/0x7D10/0x7D20, 0x7D22
 Aborting/Buffered acceptance and per-axis XYZU mapping, dynamic group monitoring,
 PowerOff final status, axis 1..4 drive reads, the four-entry PI/Bulk happy path, and
@@ -145,14 +186,16 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [20] DetailCode UDINT = 0
 [24] DiagnosticsBuild UDINT = 1
 [28] CapabilityBits UDINT
-     0x00000007 when D1 is available
-     0x0000213F when D1-D3, D4 RecorderTrigger, D5 SDORead and
+     0x00004007 while DiagnosticsBootId is unavailable: D1 plus static
+     EtherCATTopology only
+     0x0000613F when D1-D3, D4 RecorderTrigger, D5 SDORead,
      SDOReadGeneralInline with a retained BootId are available in the internal
      test profile. Bit 13 requires bit 8 and MaxSdoDataBytes=4. Bit 9 SDOWrite
-     remains zero while the PLC target gates are disabled. Bits 14
-     EtherCATTopology, 15 EtherCATNodeHealth, 16 DigitalIORead, and 17
-     DigitalIOWrite are defined by the C# SDK contract but remain zero until
-     matching PLC handlers and runtime sources are implemented and qualified.
+     remains zero while the PLC target gates are disabled. Bit 14
+     EtherCATTopology is active for the fixed seven-node 0x7E11/0x7E12 source.
+     Bits 15 EtherCATNodeHealth, 16 DigitalIORead, and 17 DigitalIOWrite remain
+     zero until matching PLC handlers and runtime sources are implemented and
+     qualified.
      Bit 15 and bit 16 require bit 14. Bit 17 requires bits 14..16 and a
      nonzero DiagnosticsBootId.
 [32] MapRevision UDINT = 0x957F101E when D1 is available
@@ -160,7 +203,7 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
 [40] MaxRecorderChannels UINT16 = 24 when D3 is available, otherwise 0
 [42] RecorderBufferCount UINT16 = 1 when D3/D4 is available, otherwise 0
-     D4 currently reuses this one physical bank; Double-bank bit 6 remains zero.
+     D4 currently advertises only bank 0; Double-bank bit 6 remains zero.
 [44] MaxRecorderSamples UDINT = 320000 when D3 is available, otherwise 0
      This is the absolute one-channel limit. ConfigureRecorder returns
      AcceptedCapacity=min(requested,floor(1280000/(channelCount*4)));
@@ -211,8 +254,14 @@ D1 active read-only commands:
 - 0x7E20 ReadPI: request 20, response 52 bytes
   P8 ExpectedMapRevision U32, P12 SignalId U32, P16 ExpectedType U8,
   P17..19 reserved zero
+  Response P36 is one 16-byte SignalValueEntry. Valid is exclusive and uses
+  DetailCode=0. An invalid entry with SlaveOffline uses DetailCode=18;
+  every other invalid status uses DetailCode=11. SlaveOffline has priority
+  when several invalid status bits are set. RawValue32 can retain the last
+  sampled value while invalid and must not be displayed or judged as current.
 
-EtherCAT topology and digital IO SDK contract, PLC capability off:
+EtherCAT topology and digital IO contract. Static topology is source-active;
+dynamic health and IO capabilities remain off:
 
 - 0x7E11 GetEtherCATTopologyInfo: request 8, response exactly 44 bytes
   P16 TopologyRevision U32, nonzero canonical entry CRC32
@@ -290,7 +339,11 @@ EtherCAT topology and digital IO SDK contract, PLC capability off:
   requires a nonzero revision. Status bits are Valid, StaleFrame,
   MasterNotOperational, NodeOffline, NodeNotOperational, AlError,
   SourceUnavailable, IdentityMismatch, and DataDefaulted. A Valid response has
-  no fault flags.
+  no fault flags. An invalid response requires DataDefaulted plus at least one
+  cause flag from StaleFrame through IdentityMismatch, Value=0, and ValidMask=0.
+  The SDK binds a facade-read value to its diagnostics owner, connection
+  session, capability bits, and DiagnosticsBootId. Parser-only values remain
+  detached protocol artifacts.
 
 - 0x7E23 SubmitDigitalOutputWrite: request 40, response ticket 32 bytes
   Request P8 TopologyRevision U32, P12 IOReference U32,
@@ -300,19 +353,42 @@ EtherCAT topology and digital IO SDK contract, PLC capability off:
   must atomically reject a stale output revision or apply
   NewOutput=(OldOutput & ~Mask) | (Value & Mask). Whole-word write uses the
   complete advertised output valid mask. PC-side read-modify-write is forbidden.
+  Executable SDK requests must be created with
+  CreateDigitalOutputWriteRequest from a valid current-session Output snapshot.
+  Detached raw requests, foreign/stale sessions, incomplete source capability
+  provenance, or a changed BootId are rejected before command 0x7E23 is sent.
   Success returns OperationKind=DigitalOutputWrite(4) and reuses 0x7E03/0x7E04
   for status/cancel. The ticket exposes SubmissionTopologyRevision while its
   SubmissionMapRevision is zero.
+  Terminal Success is acceptance of the RT-owner operation, not physical-output
+  proof. The client must reread 0x7E22 for the same node/topology/IOReference and
+  verify a nonzero changed OutputRevision, unchanged BitWidth/ValidMask, and the
+  complete NewOutput value including preservation of every unmasked bit.
+  Submission ambiguity, disconnect, or failed/mismatched readback must retain a
+  mutation/Close interlock and must never trigger automatic replay. Explicit
+  operator acknowledgement may clear only the client interlock after separate
+  physical verification; it is not a VERIFIED write result.
+  Submission exceptions retain their original type and expose a separate
+  failure context: NotAttempted, explicit RPC/PLC Rejected, wire
+  OutcomeUncertain, or Accepted with a ticket before post-submit session
+  validation failed. Fake TCP tests cover sync/async Accepted, explicit RPC
+  rejection, response-loss OutcomeUncertain, and the accepted-session race.
 
 The SDK validates capability dependencies before sending these commands. The
-digital-output SDK allowlist is currently empty, so 0x7E23 is blocked even if a
-target accidentally advertises bit 17. No matching PLC dispatcher or LASAL RT
-IO owner exists in the current source, so bits 14..17 remain zero and these
-entries are not a claim of PLC or hardware support.
+current LASAL source routes and handles 0x7E11/0x7E12 with a fixed seven-node
+topology, TopologyRevision=0x15867EEC, and MaxEntriesPerChunk=1; this activates
+bit 14 only. The digital-output SDK allowlist is currently empty, so 0x7E23 is
+blocked even if a target accidentally advertises bit 17. No matching 0x7E13,
+0x7E22, or 0x7E23 PLC handler or LASAL RT IO owner exists yet, so bits 15..17
+remain zero. Source-active topology is not a claim of LASAL build, PLC download,
+live response, or hardware support.
 
 Topology/IO diagnostics detail codes reserved by the SDK contract are:
 26 TopologyRevisionMismatch, 27 NodeNotFound, 28 IOReferenceNotFound,
 29 OutputRevisionMismatch, 30 OutputMaskInvalid, 31 RTOwnerUnavailable.
+The common diagnostics domain additionally defines 32
+RecorderConfigurationAbsent. Only ReadRecorderBankInventory promotes this
+detail to the typed SDK absence result described below.
 Malformed shape remains BoundsInvalid(12), write policy denial uses
 WriteDenied(7) or UnsafeWriteBlocked(8), BootId mismatch is 25, and slave
 offline is 18.
@@ -336,14 +412,93 @@ D3/D4 active Recorder commands:
 - 0x7E47 ReleaseRecorderBuffer: request 28, response common 16 bytes
 - 0x7E48 ReleaseRecorder: request 28, response common 16 bytes
 - 0x7E49 AdoptRecorder/AdoptActiveRecorder: request 20, response 36 bytes
+- 0x7E4A ReadRecorderBankInventory: request 24, response 88 bytes
+- 0x7E4B AdoptEmptyRecorderConfiguration: request 28, response 40 bytes
+- 0x7E4C ConfigureRecoverableDoubleRecorder: request 72 + 4*N, response 72 bytes
+- 0x7E4D ReadRecoverableRecorderBankInventory: request 36, response 104 bytes
 Recorder commands 0x7E42..0x7E47 use P8 RecordId, P12 BufferId,
 P16 MapRevision, P20 OwnerSessionEpoch, P24 DiagnosticsBootId. Command 0x7E49
 instead uses P8 RecordId, P12 BufferId, P16 DiagnosticsBootId; zero/zero selects
 single-bank discovery. D3 Single mode accepts only
 manual/no-trigger finite capture. D4 Ring mode requires edge/window/mask trigger
-and supports RT condition or explicit TriggerRecorder. This test build has one
-physical bank, BufferId 0, and a maximum of 24 channels. RecorderDoubleBank
+and supports RT condition or explicit TriggerRecorder. This test build advertises
+one bank, BufferId 0, and a maximum of 24 channels. RecorderDoubleBank
 capability bit 6 is zero and Configure BufferMode=Double returns UnsupportedFeature.
+ReadRecorderBankInventory is a dormant, read-only Double-bank recovery contract
+behind the same disabled gate. Its request is P8 DiagnosticsBootId U32,
+P12 ConfigId U32, P16 MapRevision U32, P20 ConfigRevision U32, where zero
+ConfigRevision discovers the exact current revision and a nonzero value requires
+an exact match. Success keeps configuration identity visible even with zero
+occupied banks: P16 DiagnosticsBootId, P20 ConfigId, P24 ConfigRevision,
+P28 MapRevision, P32 configuration OwnerSessionEpoch, P36 configuration
+ClosedSessionEpoch, P40 configuration State U16, P42 BufferMode U8,
+P43 RecorderBufferCount U8, P44 OccupiedBankCount U8, P45..47 reserved zero.
+Up to two compact occupied-bank entries begin at P48 with 20-byte stride:
+RecordId U32, BufferId U32, OwnerSessionEpoch U32, ClosedSessionEpoch U32,
+State U16, reserved U16. Entries are ordered by BufferId; unused entries are
+all zero. The command never adopts, releases, or rewrites ownership. It rejects
+mixed configuration/bank identity, mixed owner closure, active foreign owners,
+non-Double configurations, and ambiguous bank states before returning metadata.
+When the request carries a nonzero ConfigRevision, its BootId matches the
+current diagnostics generation, its MapRevision matches the Recorder map, and
+the complete Recorder store is canonically Empty (class identity/shape fields
+zero, BufferReleased=true, and both bank descriptors and states empty), the PLC
+returns the common error envelope with detail 32 RecorderConfigurationAbsent.
+This is a read-only terminal absence proof for a persisted exact configuration
+Release intent; it does not adopt, release, clear, or rewrite anything. The SDK
+maps it to LMCRecorderConfigurationAbsentException bound to the requested
+BootId/ConfigId/ConfigRevision/MapRevision. ConfigRevision=0 is never promoted
+to this typed proof and remains fail-closed when no configuration exists.
+Fault is deliberately outside the inventory/adoption recovery contract:
+ReadRecorderBankInventory and AdoptRecorder reject a Fault bank, while
+AdoptEmptyRecorderConfiguration accepts only exact Configured state. A Fault
+record remains fail-closed for explicit manual recovery/reset and must not be
+treated as empty, released, or safe to rebind.
+AdoptEmptyRecorderConfiguration is a second dormant Double-bank recovery command
+for the exact Configure-success/response-loss case where inventory reports zero
+occupied banks. Its request is P8 DiagnosticsBootId U32, P12 ConfigId U32,
+P16 ConfigRevision U32, P20 MapRevision U32, and P24 previous
+OwnerSessionEpoch U32. All five identity values are required and exact. Success
+requires Configured/Double/count-2 state, both physical banks Configured with
+zero bank identity fields, the exact previous owner marked closed, and a distinct
+nonzero caller session. It rebinds only the configuration OwnerSessionEpoch and
+clears its ClosedSessionEpoch. It does not reset bank/data metadata or infer any
+identity. The fixed response is P16 DiagnosticsBootId, P20 ConfigId,
+P24 ConfigRevision, P28 MapRevision, P32 new OwnerSessionEpoch, P36 Configured
+State U16, P38 Double BufferMode U8, and P39 RecorderBufferCount=2 U8. The SDK
+returns a release-only recovered configuration lease; only exact 0x7E48 release
+is defined for that type, and StartRecorder does not accept it. A lost 0x7E4B
+success response is outcome-uncertain and is not retried in the same session:
+the store does not retain a separate FromOwner proof after rebind. The client
+faults/reconnects, reads 0x7E4A again after the attempted owner is closed, and
+uses that newly returned exact previous owner for the next 0x7E4B request.
+ConfigureRecoverableDoubleRecorder is the only Double Configure wire that may
+be enabled with capability bit 6. Ordinary 0x7E40 keeps rejecting Double mode.
+0x7E4C preserves the existing Configure fields at P8..P55, then carries an
+opaque nonzero 128-bit recovery token at P56..P71 and SignalId[N] from P72.
+RequestedConfigId must be nonzero. Success preserves the existing Configure
+response at P0..P55 and echoes the exact token at P56..P71. The token, complete
+configuration, and two Configured banks are committed before StateValue is
+published. A token-qualified configuration cannot be overwritten by 0x7E40 or
+a repeated 0x7E4C. Exact 0x7E48 Release clears the active token in the same
+configuration-release generation and retains a per-boot last-token replay
+fence; a late 0x7E4C using that token is rejected without changing ConfigId,
+ConfigRevision, or NextConfigId.
+ReadRecoverableRecorderBankInventory is the read-only recovery resolver for a
+Configure response lost before ConfigRevision became durable on the client.
+Its request is P8 DiagnosticsBootId U32, P12 requested ConfigId U32,
+P16 MapRevision U32, and P20..P35 the exact token. Success uses the complete
+0x7E4A inventory layout at P0..P87 and echoes the token at P88..P103. The client
+persists the discovered nonzero ConfigRevision, then issues ordinary 0x7E4A
+again before existing 0x7E4B/0x7E49 adoption and Release logic. If the current
+BootId/map match and the complete Recorder store is canonically Empty with no
+active token, detail 32 is promoted only on this command to
+LMCRecoverableRecorderConfigurationAbsentException bound to the requested
+BootId/ConfigId/map/token. That proof resolves only a v3 journal record marked
+as ClientTokenV1. A legacy v2 ConfigRevision=0 record was never bound on wire and
+remains zero-wire fail-closed. 0x7E4D never adopts, releases, changes ownership,
+or repairs partial state; token mismatch, a live foreign owner, Fault, reboot,
+or inconsistent bank/configuration metadata remains unresolved.
 For a Mask trigger, TriggerValue is unused and must be zero; only the nonzero
 TriggerMask participates in all-set/any-set/all-clear evaluation.
 Automatic edge/window/mask evaluation requires MasterState=OP(8), zero consecutive
@@ -383,7 +538,8 @@ D5 GetOperationStatus 0x7E03 and CancelOperation 0x7E04:
 Request payload is exactly 16 bytes:
 P8 TicketId U32, P12 DiagnosticsBootId U32.
 The general-inline test profile validates ticket, BootId and owner session. Status
-returns the fixed 64-byte operation envelope. Cancel succeeds only for the
+returns the fixed 64-byte operation envelope and its P24 SubmitCycle must exactly
+match the QueuedCycle captured in the accepted ticket. Cancel succeeds only for the
 owning Queued ticket; Running and terminal tickets return InvalidState.
 Malformed sizes return BoundsInvalid. A gate-off build returns UnsupportedFeature.
 
@@ -570,6 +726,14 @@ error`). The public method rejects the generic 8-byte acknowledgement shape.
 [12] Jerk
 [16] BufferMode
 [20] Execute
+Current LASAL-local Axis Stop requires Deceleration>0, Jerk>=0,
+BufferMode=Aborting (1), and Execute=1. The C# builder rejects an invalid
+Deceleration or Jerk before a frame is created. A well-formed legacy wire
+request with an unsupported value combination is rejected by the PLC with
+ErrorId=-7 and does not call LMCAxis.StopMove. Shape/reference errors remain
+ErrorId=-3, and an unavailable axis client remains ErrorId=-2.
+A success ACK means StopMove returned an all-zero _LMCAXIS_CMDERROR at dispatch;
+it does not prove standstill. Poll 0x2028 and require stable IsStandstill status.
 
 0x2085 GroupStop, payload 16 bytes
 Same layout as Stop.
@@ -603,6 +767,40 @@ The handler starts asynchronous LMCRobot.RobotOff processing. A success ACK mean
 the request was accepted, not that every member axis is powered off. Poll
 GroupReadStatus until local state bit 0x00040000 (IsPowerOn) is cleared.
 
+The current client completion contract sends each 0x204A or 0x204B request exactly
+once, then WaitForPowerStateAsync polls only 0x2045 until three consecutive
+successful samples match the expected IsPowerOn value. Resuming pending
+verification sends status reads only and never replays the original power command.
+One manual GroupReadStatus cannot by itself complete pending power or Enable
+verification or promote unverified ACTIVE/profile-lock readiness. A successful
+response published against the current safety generation does, however, accumulate
+in the matching pending GroupEnable continuation proof. At 3/3 Locked Standby proof,
+Resume can complete by reusing the accepted ACK without replaying 0x2047. A
+Stop/PowerOff safety reservation
+resets that proof to zero while preserving the accepted ACK and continuation. A
+response arriving after the reservation is drained and discarded as ResultDiscarded
+without being observed. Recovery-required is entered only in the narrow race where
+SDK completion publication finished before the reservation but WPF had not applied
+that completion yet. While connected and unresolved, group-name mutation, group
+reload, clean connection/window close, connected reconnect, and a new PowerOn are
+blocked. After an external connection loss, reconnect entry promotes the state to
+recovery for the retained exact group name, and only that group may be reloaded in
+the new session. A successful explicit 0x2048 GroupDisable ACK means only that
+UnlockProfile was accepted; it does not release pending or recovery-required state.
+Both states are released only after three consecutive powered Disabled/Unlocked
+samples or three consecutive PowerOn=False samples for the retained exact group. A successful
+PowerOn alone does not release either state, and no path replays 0x2047. This is
+deterministic PC/fake-TCP evidence, not PLC runtime proof.
+
+Before a fresh 0x2047 dispatch, the WPF writes a separate durable recovery record
+containing endpoint IPv4/port, group name/reference, DiagnosticsBootId, and
+MapRevision. An ArmedBeforeDispatch record found at startup is promoted to
+RecoveryRequired. Endpoint mismatch is rejected before TCP/RPC; BootId/MapRevision
+and group-reference mismatches allow only the required read-only identity checks and
+send no group mutation. Verified Enable, explicit Disable, or verified PowerOff
+resolves the durable record before volatile state is cleared, after a final identity
+and safety-generation check. No recovery path automatically replays 0x2047.
+
 0x2047 GroupEnable / ProfileLock, payload 1 byte
 [8] Execute BYTE = 1
 The handler calls LMCRobot.LockProfile for the validated static mapping. A success
@@ -620,6 +818,13 @@ are still required. Clients must never convert a native nonzero error to success
 [8] Execute BYTE = 1
 The handler requires ProfileInPosition(_LMCPROF_ProfileFinished), then calls
 LMCRobot.UnlockProfile. A moving or unverified profile is rejected with -6.
+A success ACK means the unlock request was accepted; it is not completion. The
+handler does not read LockState again in the same CyWork call. Clients prove final
+completion only through 0x2045 polling. BeginGroupDisableWaitForStableDisabledAsync
+sends 0x2048 once, while same-session Resume and cross-session
+WaitForStableDisabledAsync send only 0x2045 until three consecutive successful
+samples show PowerOn + Disabled + !Standby. A newer stable PowerOff may retire the
+pending Disable as superseded, but it must not be reported as Disable completion.
 The standard Maestro
 NC_GROUP_DISABLED_MASK (0x00010000) identifies disabled; this adapter sets it for
 the unlocked disabled condition exposed as IsDisabled.

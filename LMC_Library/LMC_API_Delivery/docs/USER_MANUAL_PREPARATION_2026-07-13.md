@@ -254,7 +254,7 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 - [ ] SetKin exact identity 1320B request/4B ACK와 static mapping 등록 확인
 - [ ] GroupEnable/Disable의 `LockProfile`/`UnlockProfile` 결과 확인
 - [ ] 배포 DLL을 확정 commit에서 Release rebuild
-- [ ] DLL version, file size, SHA-256과 source commit 기록
+- [ ] package 내부 `RELEASE_MANIFEST.md`의 source commit, clean 상태, DLL version/3복제 identity와 모든 파일 SHA-256 확인
 - [ ] 실제 PLC UNIT, transmission ratio, software limit, ready/complete mask 확정
 - [ ] 현재 1 mm/rev Git 설정 다운로드 후 physical 4축의 IntUnits/MaxModulo/BinOffset/absolute offset readback 및 재참조 확인
 - [ ] 매뉴얼 표지의 제품명, 회사명, 버전, 지원 연락처 확정

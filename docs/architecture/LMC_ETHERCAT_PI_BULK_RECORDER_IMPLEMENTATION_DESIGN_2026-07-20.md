@@ -45,9 +45,9 @@ flowchart TB
 3. Signal Catalog는 정적 테이블이며 wire에는 `SignalId`와 raw 32-bit 값을 사용한다.
 4. Bulk는 TCP 요청 시 각 변수를 읽지 않는다. RT가 동일 cycle에 만든 immutable
    snapshot을 Non-RT가 읽는다.
-5. Recorder v1은 단일 고정 bank, manual start, finite length, no-trigger로 시작한다.
-   현재 D4 internal test source는 같은 단일 bank에 Ring pre-trigger와
-   edge/window/mask 및 명시적 trigger를 추가했다. Double bank는 아직 꺼져 있다.
+5. Recorder v1은 단일 고정 bank, manual start, finite length, no-trigger로 시작했다.
+   현재 D4 internal test source는 Ring pre-trigger, edge/window/mask/명시적 trigger와
+   두 개의 1.28 MB 고정 bank까지 포함한다. Double source는 dormant이고 capability는 꺼져 있다.
    설계 상한은 32채널이지만 현재 source 구현 상한은 고정 Catalog와 같은 24채널이다.
 6. Recorder 데이터는 `recordId + bufferId + offset + count + sequence` 기반으로
    기본 1,280-byte data chunk를 전송한다. 실기 검증 뒤 capability 값으로만 상향한다.
@@ -1008,7 +1008,22 @@ signalIds[32]
 현재 internal test build에는 pre-trigger ring, rising/falling edge, Int32 window in/out,
 bit mask set/clear, forced trigger, trigger sample/cycle과 post-trigger sample count가
 구현돼 있다. Mask 조건은 `TriggerValue=0`으로 고정하고 `TriggerMask`만 사용한다.
-두 번째 immutable bank는 아직 구현하지 않았다.
+두 번째 immutable bank와 bank별 identity/metadata, full Busy, exact all-bank rebind,
+isolated release 및 RT/non-RT active-generation handshake는 dormant source로 구현했다.
+동일한 disabled Double gate 뒤의 `0x7E4A`는 exact configuration/bank inventory를 읽고,
+`0x7E4B`는 zero occupied bank, Configured/Double/count-2, exact closed previous owner인
+configuration만 새 owner로 rebind한다. 0x7E4B는 bank/data를 변경하지 않으며 SDK는
+그 결과를 Start 불가, exact Release 전용 lease로 제한한다. 0x7E4A는 nonzero exact
+ConfigRevision 요청과 current BootId/map가 일치한 상태에서 class와 두 bank가 모두 canonical
+Empty이면 detail 32 `RecorderConfigurationAbsent`를 read-only로 반환한다. SDK는 이를 exact
+identity의 typed exception으로 승격하고 pending final Release intent가 있는 durable journal만
+zero-mutation resolve한다. ConfigRevision=0에는 이 0x7E4A absence 의미를 부여하지 않는다.
+대신 dormant 0x7E4C는 nonzero RequestedConfigId와 opaque 128-bit client token을 기존 Double
+Configure 계약에 추가하고, 0x7E4D는 BootId/ConfigId/map/token exact match로 actual nonzero
+ConfigRevision과 inventory를 read-only 조회한다. 4C는 one-shot이고 반복 Configure는 금지하며,
+4D 결과를 durable 저장한 뒤 기존 4A를 다시 읽어 4B release-only adoption으로 진행한다.
+v3 `ClientTokenV1` journal만 이 경로를 사용할 수 있고 legacy v2는 unbound fail-closed다.
+LASAL build/link, 2.56 MB RAM, RT jitter와 live A/B capture/upload는 아직 검증하지 않았다.
 
 자동 edge/window/mask 조건은 snapshot의 master state가 OP(8), consecutive invalid
 cycle이 0이고 trigger 축이 Online, ESM OP(8), AL code 0일 때만 평가한다. 한 cycle이라도
@@ -1150,8 +1165,8 @@ D1 capability 의존 규칙은 다음과 같다.
   `DiagnosticsBootId`가 반드시 필요하다.
 - bit 5는 Ring buffer와 edge/window/mask/forced trigger를 뜻한다. Double bank를
   뜻하지 않는다.
-- `RecorderDoubleBank` bit 6은 0이고 `RecorderBufferCount=1`이다. 따라서 BufferId는
-  현재 0만 유효하며 capture/upload를 동시에 진행할 수 없다.
+- `RecorderDoubleBank` bit 6은 0이고 `RecorderBufferCount=1`이다. dormant two-bank source가
+  있더라도 현재 광고된 runtime 계약에서는 BufferId 0만 유효하고 Double request는 거부된다.
 
 ### 9.3 Response 크기
 
@@ -1247,6 +1262,10 @@ status/detail을 사용한다.
 | 10 | HandleOrGenerationStale | 23 | TicketNotFound |
 | 11 | NotReady | 24 | InternalError |
 | 12 | BoundsInvalid | 25 | BootIdMismatch |
+| 26 | TopologyRevisionMismatch | 30 | OutputMaskInvalid |
+| 27 | NodeNotFound | 31 | RTOwnerUnavailable |
+| 28 | IOReferenceNotFound | 32 | RecorderConfigurationAbsent |
+| 29 | OutputRevisionMismatch |  |  |
 
 고정 enum:
 
@@ -1736,8 +1755,9 @@ pre-trigger sample이 되도록 `FrozenFirstSampleIndex`에서 chronological ord
 
 ### 9.11 Session과 resource ownership
 
-현재 TCP server는 `MaxConnections=1`이며 C#도 connection당 exchange 하나를
-직렬화한다. D1~D4에서 별도 upload socket을 가정하지 않는다.
+현재 TCP server는 `MaxConnections=2`지만 두 번째 slot은 same-peer reconnect
+candidate 비교 전용이다. stable RPC owner는 하나이고 C#도 connection당 exchange
+하나를 직렬화한다. D1~D4에서 별도 upload socket을 가정하지 않는다.
 
 | Resource | v1 policy |
 |---|---|
@@ -2271,7 +2291,7 @@ fail-closed한다.
 
 - 구현: pre-trigger ring, edge/window/mask/forced trigger, trigger cycle/header,
   chronological chunk upload
-- 미구현: double bank, long upload 중 다음 capture
+- gate-off/실기 미완료: double-bank activation, long upload 중 다음 capture
 
 현재 단계 완료 기준: edge/window/mask와 forced trigger에서 정확히
 `pre + trigger + post` sample이 고정되고 `TriggerIndex=PreTriggerSamples`인지 PLC에서

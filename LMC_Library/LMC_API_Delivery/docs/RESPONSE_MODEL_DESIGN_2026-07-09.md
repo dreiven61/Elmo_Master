@@ -153,8 +153,8 @@ Use command-specific parsing internally:
 | `0x8080` RPC init | `LMC_Response` envelope, raw payload retained |
 | `0x405C` callback registration | acknowledgement result |
 | `0x405D` close | acknowledgement result |
-| `0x103C` axis lookup | `ushort AxisReference` plus envelope |
-| `0x1042` group lookup | `ushort GroupReference` plus envelope |
+| `0x103C` axis lookup | `LMCLookupResult` plus `ushort AxisReference`; `LMCLookupException` on failure |
+| `0x1042` group lookup | `LMCLookupResult` plus `ushort GroupReference`; `LMCLookupException` on failure |
 | `0x2023`, `0x2024`, `0x2022`, motion commands | acknowledgement result |
 | `0x2028` read status | `uint StatusRegister` plus envelope |
 | `0x202E` read position | `int ActualPosition` plus envelope |
@@ -256,6 +256,9 @@ Status: implemented on 2026-07-10.
   - `GetGroupMembersInfoResult()`
 - `AxisInfoResponse` preserves and validates the constructor-time 8-byte ACK.
 - axis/group lookup accepts exactly 6 payload bytes and rejects descriptor `0`.
+  Successful handles expose immutable `LMCLookupResult`; failures preserve
+  target/name/reference presence, parsed response and defensive-copy raw bytes in
+  `LMCLookupException : InvalidOperationException`.
 - malformed typed payloads throw `InvalidDataException`; they do not return a
   numeric zero.
 - a valid 4-byte command-error envelope is returned as an unsuccessful typed

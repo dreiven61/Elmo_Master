@@ -653,8 +653,9 @@ PLC dispatch 구간, task jitter와 overrun은 PLC 내부 측정으로 분리한
 
 ## 13. 남은 작업과 병행 테스트 계획
 
-병행은 작업 흐름 기준이다. `_TCPIPServer1.MaxConnections=1`이고 같은 PLC motion owner를
-공유하므로 실제 PLC 송신 시험 두 개를 동시에 실행하지 않는다. PC/static 검증과 문서·capture
+병행은 작업 흐름 기준이다. `TCPIPServer1.MaxConnections=2`는 same-peer reconnect
+candidate를 임시 accept하기 위한 값이고 stable PLC motion owner는 하나다. 따라서 실제
+PLC 송신 시험 두 개를 동시에 실행하지 않는다. PC/static 검증과 문서·capture
 분석은 병행할 수 있지만 PLC write/motion 시험은 한 세션씩 직렬화한다.
 
 2026-07-24 이후 LASAL 변경·시험 순서는 다음으로 고정한다. 개발 source는 main 저장소의

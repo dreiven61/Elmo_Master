@@ -116,9 +116,11 @@
 - source와 정적 계약 검사는 완료됐지만 이번 변경 뒤 LASAL IDE Rebuild,
   동일 core/priority 확인과 PLC 동작 시험은 남아 있다. 이 검증 전에는
   production 완료로 승인하지 않는다.
-- 일반 `_TCPIPServer1`과 interface는 같은 cyclic task에 두고, client method를
-  호출하는 CyWork는 axis RT thread와 같은 core에서 같거나 낮은 priority로
-  배치한다.
+- 편집 가능한 `TCPIPServer1 : TCPIPServer`와 interface는 같은 cyclic task에 두고,
+  `TCPIPServer`는 inherited `_TCPIPServer::CyWork`만 사용한다. custom `RtWork`/`CyWork`
+  override를 다시 만들지 않는다. `MaxConnections=2`는 same-peer reconnect candidate를
+  잠시 accept하기 위한 값이며 RPC owner는 항상 하나다. client method를 호출하는
+  interface CyWork는 axis RT thread와 같은 core에서 같거나 낮은 priority로 배치한다.
 - canonical C# wire 계약은 `LMC_Library/LMC_API_Delivery/src`와 해당 golden/parser
   test를 기준으로 PLC parser와 바이트 단위로 맞춘다.
 - `Codex_LASAL_WPF/PmasApiWpfTestApp/Services/SigmatekTcpIpDummyMMCLib.cs`도 변경마다

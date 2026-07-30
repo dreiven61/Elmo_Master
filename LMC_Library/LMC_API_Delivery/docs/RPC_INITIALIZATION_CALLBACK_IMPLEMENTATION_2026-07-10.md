@@ -98,6 +98,9 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
   `Faulted`로 전환. queue 대기 중 취소는 active request를 닫지 않음
 - reconnect 성공 뒤 이전 session에서 생성한 axis/group object를 stale
   generation으로 거부
+- UDP callback receive/error/rejected-count 경로를 listener 객체와 connection
+  lifetime generation에 귀속해 bounded join 뒤 늦게 끝난 이전 handler가 replacement
+  session의 error event나 rejected count를 오염시키지 않음
 
 ### Tracked LASAL
 
