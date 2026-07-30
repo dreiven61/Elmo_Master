@@ -40,6 +40,8 @@ $distributionManualDocx = Join-Path $distribution `
 
 $developmentExampleRoot = Join-Path $RepositoryRoot `
     'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp'
+$developmentExampleProject = Join-Path $developmentExampleRoot `
+    'LasalApiWpfTestApp.csproj'
 $distributionExampleRoot = Split-Path -Parent $exampleProject
 $manualDirectory = Split-Path -Parent $distributionManual
 
@@ -49,6 +51,7 @@ foreach ($requiredPath in @(
     $distribution,
     $exampleProject,
     $developmentExampleRoot,
+    $developmentExampleProject,
     $distributionManual,
     $distributionManualDocx)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
@@ -56,16 +59,55 @@ foreach ($requiredPath in @(
     }
 }
 
-# The distributed example must remain source-identical to the development
-# example, except for its binary Reference path and distribution README.
-foreach ($relativeSource in @(
-    'App.xaml',
-    'App.xaml.cs',
-    'MainWindow.xaml',
-    'MainWindow.xaml.cs',
-    'Properties\AssemblyInfo.cs')) {
+# The distributed example must contain the same WPF source items as the
+# development example and every included source file must be byte-identical.
+# The project files intentionally differ only in their API reference model.
+function Get-WpfProjectSourceEntries {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath
+    )
+
+    [xml]$projectXml = Get-Content -LiteralPath $ProjectPath -Raw
+    foreach ($itemType in @('ApplicationDefinition', 'Page', 'Compile')) {
+        foreach ($itemGroup in @($projectXml.Project.ItemGroup)) {
+            foreach ($item in @($itemGroup.$itemType) |
+                Where-Object { $null -ne $_ }) {
+                [pscustomobject]@{
+                    ItemType = $itemType
+                    Include = [string]$item.Include
+                }
+            }
+        }
+    }
+}
+
+$developmentSourceEntries = @(
+    Get-WpfProjectSourceEntries -ProjectPath $developmentExampleProject)
+$distributionSourceEntries = @(
+    Get-WpfProjectSourceEntries -ProjectPath $exampleProject)
+$developmentSourceKeys = @(
+    $developmentSourceEntries |
+        ForEach-Object { "$($_.ItemType)|$($_.Include)" })
+$distributionSourceKeys = @(
+    $distributionSourceEntries |
+        ForEach-Object { "$($_.ItemType)|$($_.Include)" })
+$sourceItemDifference = Compare-Object `
+    -ReferenceObject $developmentSourceKeys `
+    -DifferenceObject $distributionSourceKeys
+if ($sourceItemDifference) {
+    $differenceText = ($sourceItemDifference | Out-String).Trim()
+    throw "Distribution example project source items are stale:`n$differenceText"
+}
+
+foreach ($entry in $developmentSourceEntries) {
+    $relativeSource = $entry.Include
     $developmentSource = Join-Path $developmentExampleRoot $relativeSource
     $distributionSource = Join-Path $distributionExampleRoot $relativeSource
+    if (-not (Test-Path -LiteralPath $developmentSource -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $distributionSource -PathType Leaf)) {
+        throw "Distribution example source is missing: $relativeSource"
+    }
     if ((Get-FileHash -LiteralPath $developmentSource -Algorithm SHA256).Hash -ne
         (Get-FileHash -LiteralPath $distributionSource -Algorithm SHA256).Hash) {
         throw "Distribution example source is stale: $relativeSource"

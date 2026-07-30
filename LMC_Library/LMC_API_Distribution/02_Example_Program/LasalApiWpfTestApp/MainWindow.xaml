@@ -2,12 +2,13 @@
     x:Class="LasalMotionControlApiExample.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="LASAL Motion Control API Example"
+    Title="LASAL Motion Control API Example [CREVIS topology / editable SDO draft]"
     Width="1180"
     Height="860"
     MinWidth="980"
     MinHeight="720"
     FontFamily="Segoe UI"
+    Closed="Window_TopologyIoClosed"
     Loaded="Window_Loaded"
     WindowStartupLocation="CenterScreen">
     <Window.Resources>
@@ -60,7 +61,7 @@
                 <TextBlock
                     Margin="0,3,0,0"
                     Foreground="#55657A"
-                    Text="Only PLC-active APIs are exposed. Values use the selected application UNIT or pass through as raw DINT." />
+                    Text="Motion controls remain PLC-active. Diagnostics controls are enabled only after the PLC advertises the required capability. Values use the selected application UNIT or pass through as raw DINT." />
             </StackPanel>
         </DockPanel>
 
@@ -384,7 +385,8 @@
                                         <Button
                                             x:Name="ButtonGroupPowerOn"
                                             Click="ButtonGroupPowerOn_Click"
-                                            Content="1 Power On" />
+                                            Content="1 Power On"
+                                            ToolTip="Sends Group Power On once, then requires three consecutive PowerOn=True status samples. A pending verification resumes with status reads only." />
                                         <Button
                                             x:Name="ButtonGroupReadStatus"
                                             Click="ButtonGroupReadStatus_Click"
@@ -392,15 +394,18 @@
                                         <Button
                                             x:Name="ButtonGroupEnable"
                                             Click="ButtonGroupEnable_Click"
-                                            Content="4 Enable (Lock Profile)" />
+                                            Content="4 Enable (Lock Profile)"
+                                            ToolTip="Sends Group Enable once, then requires three consecutive powered Locked Standby status samples. A pending verification resumes with status reads only." />
                                         <Button
                                             x:Name="ButtonGroupDisable"
                                             Click="ButtonGroupDisable_Click"
-                                            Content="Disable (Unlock Profile)" />
+                                            Content="Disable (Unlock Profile)"
+                                            ToolTip="Unlocks the profile. A successful Disable also resolves a pending accepted Group Enable." />
                                         <Button
                                             x:Name="ButtonGroupPowerOff"
                                             Click="ButtonGroupPowerOff_Click"
-                                            Content="Power Off" />
+                                            Content="7 Power Off"
+                                            ToolTip="Sends Group Power Off once, then requires three consecutive PowerOn=False status samples. A pending verification resumes with status reads only." />
                                         <Button
                                             x:Name="ButtonGroupReadPosition"
                                             Click="ButtonGroupReadPosition_Click"
@@ -417,7 +422,7 @@
                                     <TextBlock
                                         Margin="4,2,4,0"
                                         Foreground="#8A4A00"
-                                        Text="Required order: 1 Power On -> 2 Read Status until PowerOn=True -> 3 Set Identity (automatic Home Check) -> 4 Enable (Lock Profile) -> 5 Read Status until Enabled/Locked Standby=True -> 6 Move -> Disable (Unlock Profile) -> Power Off -> Read Status until PowerOn=False."
+                                        Text="Required order: 1 Power On (automatic three-sample PowerOn=True verification) -> 3 Set Identity (automatic Home Check) -> 4 Enable (automatic three-sample Locked Standby verification) -> 6 Move -> Disable (Unlock Profile) -> 7 Power Off (automatic three-sample PowerOn=False verification). If a verification is interrupted, press the same Power or Enable button to resume status reads without command replay. Read Status observes one sample and does not complete a pending Power On/Off transition."
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                             </GroupBox>
@@ -454,19 +459,19 @@
                                         <ComboBox x:Name="ComboGroupUnit" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="1">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="X target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="X target / delta" />
                                         <TextBox x:Name="TextGroupPositionX" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Y target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Y target / delta" />
                                         <TextBox x:Name="TextGroupPositionY" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Z target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Z target / delta" />
                                         <TextBox x:Name="TextGroupPositionZ" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="1">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="U target" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="U target / delta" />
                                         <TextBox x:Name="TextGroupPositionU" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="2">
@@ -486,8 +491,10 @@
                                         <TextBox x:Name="TextGroupJerk" Text="0" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="3" Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Coordinate system" />
-                                        <ComboBox x:Name="ComboGroupCoordinate" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Coordinate (Read: None/ACS; Motion: None)" />
+                                        <ComboBox
+                                            x:Name="ComboGroupCoordinate"
+                                            SelectionChanged="ComboGroupCoordinate_SelectionChanged" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="3" Grid.Column="1">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Transition" />
@@ -504,10 +511,14 @@
                                                 x:Name="ButtonGroupMoveLinear"
                                                 Click="ButtonGroupMoveLinear_Click"
                                                 Content="6 Move Linear Absolute" />
+                                            <Button
+                                                x:Name="ButtonGroupMoveLinearRelative"
+                                                Click="ButtonGroupMoveLinearRelative_Click"
+                                                Content="6 Move Linear Relative" />
                                         </WrapPanel>
                                         <TextBlock
                                             Foreground="#8A4A00"
-                                            Text="Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Select None / raw DINT for values already converted by the caller. This PLC adapter currently accepts Coordinate=None."
+                                            Text="Absolute interprets X/Y/Z/U as targets; Relative interprets them as deltas. Positions and dynamics use the selected group application UNIT. The current PLC group uses mm (x10000). Read Position accepts None/ACS, but motion remains Coordinate=None only and Move buttons are disabled while ACS is selected. For axis-mapping captures, keep three deltas at 0 and move one X/Y/Z/U axis at a time. Completion timeout is calculated from distance, velocity, acceleration, and deceleration (15 to 600 seconds)."
                                             TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
@@ -588,8 +599,1492 @@
                                     </StackPanel>
                                 </Grid>
                             </GroupBox>
+
+                            <GroupBox Header="Qualification automation (live PLC motion)">
+                                <StackPanel>
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="These tests send real group commands. Group Enable qualification starts powered with identity configured but unlocked/disabled. Buffered and Stop-first qualifications start powered, identity configured, and locked. Keep people and tooling clear. Group Stop and Power Off remain available. Buffered A/B returns to the captured start position only after a verified PASS; any uncertain motion is stopped and verified instead."
+                                        TextWrapping="Wrap" />
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Axis" />
+                                            <ComboBox x:Name="ComboQualificationGroupAxis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Delta A (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeltaA" Text="10000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Delta B (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeltaB" Text="20000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="3">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Tolerance (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationTolerance" Text="100" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="1" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Velocity (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationVelocity" Text="10000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Acceleration (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationAcceleration" Text="100000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Deceleration / Stop (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationDeceleration" Text="100000" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="3">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Jerk (raw DINT)" />
+                                            <TextBox x:Name="TextQualificationJerk" Text="0" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Border
+                                        Margin="0,8,8,4"
+                                        Padding="8"
+                                        BorderBrush="#CBD3DC"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="Phase 5 read-only transport qualification" />
+                                            <TextBlock
+                                                Foreground="#5F6B7A"
+                                                Text="Sequentially reads Group Status (0x2045) and requires stable InPosition throughout. Run only with an exclusive PLC session. Reported latency is the PC API RPC elapsed time (UI dispatch and command-gate wait excluded); it is not PLC dispatch time, task jitter, or an overrun measurement. Cancel takes effect before the next RPC; the current RPC is allowed to finish."
+                                                TextWrapping="Wrap" />
+                                            <WrapPanel Margin="0,4,0,0">
+                                                <StackPanel Width="150">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Warm-up requests" />
+                                                    <TextBox x:Name="TextQualificationTransportWarmup" Text="100" />
+                                                </StackPanel>
+                                                <StackPanel Width="170">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Measured requests (min 10000)" />
+                                                    <TextBox x:Name="TextQualificationTransportIterations" Text="10000" />
+                                                </StackPanel>
+                                                <Button
+                                                    x:Name="ButtonRunTransportQualification"
+                                                    Click="ButtonRunTransportQualification_Click"
+                                                    Content="Run Read-only 0x2045 RPC" />
+                                                <Button
+                                                    x:Name="ButtonSaveTransportQualificationCsv"
+                                                    Click="ButtonSaveTransportQualificationCsv_Click"
+                                                    Content="Save RPC CSV" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <WrapPanel>
+                                        <Button
+                                            x:Name="ButtonRunGroupEnableQualification"
+                                            Click="ButtonRunGroupEnableQualification_Click"
+                                            Content="Run Enable ACK -&gt; Locked" />
+                                        <Button
+                                            x:Name="ButtonRunBufferedQualification"
+                                            Click="ButtonRunBufferedQualification_Click"
+                                            Content="Run Buffered A -&gt; B" />
+                                        <Button
+                                            x:Name="ButtonRunStopFirstQualification"
+                                            Click="ButtonRunStopFirstQualification_Click"
+                                            Content="Run Deterministic Stop-First" />
+                                        <Button
+                                            x:Name="ButtonCancelQualification"
+                                            Click="ButtonCancelQualification_Click"
+                                            Content="Cancel Test" />
+                                        <Button
+                                            x:Name="ButtonSaveQualificationLog"
+                                            Click="ButtonSaveQualificationLog_Click"
+                                            Content="Save QTEST Log" />
+                                    </WrapPanel>
+                                    <ProgressBar
+                                        x:Name="ProgressQualification"
+                                        Height="18"
+                                        Margin="0,2,8,4"
+                                        Maximum="100"
+                                        Minimum="0" />
+                                    <TextBlock
+                                        x:Name="TextQualificationProgress"
+                                        Margin="0,0,0,4"
+                                        FontFamily="Consolas"
+                                        Text="No qualification has run yet."
+                                        TextWrapping="Wrap" />
+                                    <TextBox
+                                        x:Name="TextQualificationSummary"
+                                        Height="180"
+                                        FontFamily="Consolas"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        IsReadOnly="True"
+                                        Text="Structured QTEST results will appear here."
+                                        TextWrapping="NoWrap"
+                                        VerticalScrollBarVisibility="Auto" />
+                                </StackPanel>
+                            </GroupBox>
                         </StackPanel>
                     </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="EtherCAT / CREVIS / PI">
+                <ScrollViewer
+                    x:Name="ScrollDiagnostics"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Diagnostics capabilities">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonDiagnosticsCapabilities"
+                                        Click="ButtonDiagnosticsCapabilities_Click"
+                                        Content="Refresh Capabilities" />
+                                    <Button
+                                        x:Name="ButtonReadEtherCatHealth"
+                                        Click="ButtonReadEtherCatHealth_Click"
+                                        Content="Read Legacy Elmo Health" />
+                                    <Button
+                                        x:Name="ButtonLoadEtherCATTopology"
+                                        Click="ButtonLoadEtherCATTopology_Click"
+                                        Content="Load CREVIS / Topology" />
+                                    <Button
+                                        x:Name="ButtonLoadSignalCatalog"
+                                        Click="ButtonLoadSignalCatalog_Click"
+                                        Content="Load PI Catalog" />
+                                    <Button
+                                        x:Name="ButtonReadSelectedPi"
+                                        Click="ButtonReadSelectedPi_Click"
+                                        Content="Read Selected PI" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextDiagnosticsCapabilities"
+                                    FontFamily="Consolas"
+                                    Text="Connect, then refresh diagnostics capabilities."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    Foreground="#315A86"
+                                    Text="PI/Bulk capture order: Refresh Capabilities -> Load PI Catalog -> check Use signals -> Read Selected PI -> switch to Bulk Snapshot -> Configure Selected -> Refresh Status -> Read Snapshot -> Release."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,6,0,0"
+                                    FontWeight="SemiBold"
+                                    Foreground="#8A4A00"
+                                    Text="CONFIGURED SCHEMA ONLY: bit 14 (0x7E11/0x7E12) reports the PLC serializer/configuration; it is not runtime EtherCAT discovery. LIVE health, DI/output shadow, and DO write require bits 15/16/17 and separate requests; output shadow is not physical feedback."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="TextCrevisQuickStatus"
+                                    Margin="0,3,0,0"
+                                    FontFamily="Consolas"
+                                    Text="{Binding ElementName=TextEtherCATTopologySummary, Path=Text}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Legacy Elmo 4-axis health (fixed drive slots; CREVIS excluded)">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="0,0,0,4"
+                                    Foreground="#8A4A00"
+                                    Text="Legacy command 0x7E10 reports the four Elmo drives only. CREVIS configured topology and I/O are shown in the separate section below."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="TextEtherCatHealthSummary"
+                                    Margin="0,0,0,8"
+                                    FontFamily="Consolas"
+                                    Text="Health has not been read."
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    x:Name="GridEtherCatHealth"
+                                    Height="170"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    IsReadOnly="True"
+                                    SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="75" Binding="{Binding SlaveIndex}" Header="Legacy slot" />
+                                        <DataGridTextColumn Width="75" Binding="{Binding ConfiguredSlaveIndex}" Header="CFG slave" />
+                                        <DataGridTextColumn Width="55" Binding="{Binding PhysicalAxis}" Header="Axis" />
+                                        <DataGridCheckBoxColumn Width="55" Binding="{Binding Online, Mode=OneWay}" Header="Online" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding EtherCATState}" Header="EC State" />
+                                        <DataGridTextColumn Width="85" Binding="{Binding ALStatusCode}" Header="AL Code" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding DS402StatusWord}" Header="DS402" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding AxisError}" Header="Axis Error" />
+                                        <DataGridTextColumn Width="95" Binding="{Binding LastValidCycle}" Header="Valid Cycle" />
+                                        <DataGridTextColumn Width="110" Binding="{Binding LastStateChangeCycle}" Header="Change Cycle" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Configured EtherCAT schema / CREVIS live I/O">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonReadSelectedNodeHealth"
+                                        Click="ButtonReadSelectedNodeHealth_Click"
+                                        Content="Read Selected Health" />
+                                    <Button
+                                        x:Name="ButtonReadSelectedDigitalInput"
+                                        Click="ButtonReadSelectedDigitalInput_Click"
+                                        Content="Read Digital Input" />
+                                    <Button
+                                        x:Name="ButtonReadSelectedDigitalOutput"
+                                        Click="ButtonReadSelectedDigitalOutput_Click"
+                                        Content="Read Output Shadow" />
+                                    <Button
+                                        x:Name="ButtonSaveConfiguredTopologyEvidence"
+                                        Click="ButtonSaveConfiguredTopologyEvidence_Click"
+                                        Content="Save Configured Evidence"
+                                        IsEnabled="False" />
+                                    <Button
+                                        x:Name="ButtonSaveTopologyIoLiveEvidence"
+                                        Click="ButtonSaveTopologyIoLiveEvidence_Click"
+                                        Content="Save Live Evidence"
+                                        IsEnabled="False" />
+                                    <CheckBox
+                                        x:Name="CheckAutoRefreshTopologyIoLive"
+                                        Margin="4,7,8,8"
+                                        Checked="CheckAutoRefreshTopologyIoLive_Changed"
+                                        Content="Auto refresh live state"
+                                        IsChecked="True"
+                                        Unchecked="CheckAutoRefreshTopologyIoLive_Changed" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextEtherCATTopologySummary"
+                                    Margin="0,0,0,8"
+                                    FontFamily="Consolas"
+                                    Text="Connect to auto-load CREVIS / Topology. Reload refreshes capabilities and retries; configured CREVIS rows require PLC bit 14."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextConfiguredTopologyComparison"
+                                    Height="125"
+                                    Margin="0,0,0,8"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="No successful configured-topology snapshot has been loaded. This is not runtime discovery or live I/O proof."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                                <TextBlock
+                                    x:Name="TextTopologyIoLiveMonitorStatus"
+                                    Margin="0,0,0,8"
+                                    Foreground="#315A86"
+                                    Text="Auto live monitor: waiting. Configured columns remain static."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="TextTopologyIoLiveEvidenceSummary"
+                                    Margin="0,0,0,8"
+                                    Foreground="#5B3A00"
+                                    Text="Live evidence: retained=0, dropped=0. Parsed current-session PLC responses only; not physical wiring or I/O proof."
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    x:Name="GridEtherCATTopology"
+                                    Height="260"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    IsReadOnly="True"
+                                    SelectionChanged="GridEtherCATTopology_SelectionChanged"
+                                    SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="45" Binding="{Binding TopologyIndex}" Header="CFG #" />
+                                        <DataGridTextColumn Width="170" Binding="{Binding Name}" Header="CFG Name" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding NodeKind}" Header="CFG Kind" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding NodeId}" Header="CFG Node ID" />
+                                        <DataGridTextColumn Width="90" Binding="{Binding ParentNodeId}" Header="CFG Parent" />
+                                        <DataGridTextColumn Width="65" Binding="{Binding MasterSlaveIndex}" Header="CFG Slave" />
+                                        <DataGridTextColumn Width="55" Binding="{Binding SlotIndex}" Header="CFG Slot" />
+                                        <DataGridTextColumn Width="55" Binding="{Binding AxisReference}" Header="CFG Axis" />
+                                        <DataGridTextColumn Width="65" Binding="{Binding SdoReference}" Header="CFG SDO" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding InputBits}" Header="CFG In bits" />
+                                        <DataGridTextColumn Width="70" Binding="{Binding OutputBits}" Header="CFG Out bits" />
+                                        <DataGridTextColumn Width="95" Binding="{Binding IOReference}" Header="CFG IO Ref" />
+                                        <DataGridTextColumn Width="185" Binding="{Binding Identity}" Header="CFG Vendor / Product" />
+                                        <DataGridTextColumn Width="75" Binding="{Binding LiveOnline}" Header="LIVE Online" />
+                                        <DataGridTextColumn Width="85" Binding="{Binding LiveEtherCATState}" Header="LIVE EC" />
+                                        <DataGridTextColumn Width="85" Binding="{Binding LiveALStatus}" Header="LIVE AL" />
+                                        <DataGridTextColumn Width="210" Binding="{Binding LiveQuality}" Header="LIVE Quality" />
+                                        <DataGridTextColumn Width="150" Binding="{Binding LiveCycle}" Header="LIVE Cycles (H / DI)" />
+                                        <DataGridTextColumn Width="150" Binding="{Binding LiveDigitalInput}" Header="LIVE Selected DI" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock
+                                    x:Name="TextSelectedTopologyNode"
+                                    Margin="0,8,0,4"
+                                    Foreground="#315A86"
+                                    Text="Select a topology row to inspect health or digital I/O."
+                                    TextWrapping="Wrap" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="1*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox
+                                        x:Name="TextSelectedNodeHealth"
+                                        Grid.Column="0"
+                                        Height="145"
+                                        FontFamily="Consolas"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        IsReadOnly="True"
+                                        Text="Selected node health has not been read."
+                                        TextWrapping="NoWrap"
+                                        VerticalScrollBarVisibility="Auto" />
+                                    <TextBox
+                                        x:Name="TextSelectedDigitalIO"
+                                        Grid.Column="1"
+                                        Height="145"
+                                        FontFamily="Consolas"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        IsReadOnly="True"
+                                        Text="Selected digital I/O has not been read."
+                                        TextWrapping="NoWrap"
+                                        VerticalScrollBarVisibility="Auto" />
+                                </Grid>
+                                <GroupBox
+                                    Margin="0,8,0,0"
+                                    Header="Digital output masked write">
+                                    <StackPanel>
+                                        <WrapPanel>
+                                            <TextBlock
+                                                Margin="0,5,4,0"
+                                                Text="Value" />
+                                            <TextBox
+                                                x:Name="TextDigitalOutputWriteValue"
+                                                Width="145"
+                                                Text="0x00000000"
+                                                TextChanged="DigitalOutputWriteTuple_Changed" />
+                                            <TextBlock
+                                                Margin="12,5,4,0"
+                                                Text="Mask" />
+                                            <TextBox
+                                                x:Name="TextDigitalOutputWriteMask"
+                                                Width="145"
+                                                Text="0xFFFFFFFF"
+                                                TextChanged="DigitalOutputWriteTuple_Changed" />
+                                            <TextBlock
+                                                Margin="12,5,4,0"
+                                                Text="Expected revision" />
+                                            <TextBox
+                                                x:Name="TextDigitalOutputExpectedRevision"
+                                                Width="105"
+                                                IsReadOnly="True"
+                                                Text="-" />
+                                        </WrapPanel>
+                                        <WrapPanel Margin="0,4,0,0">
+                                            <CheckBox
+                                                x:Name="CheckConfirmDigitalOutputWrite"
+                                                Margin="0,5,8,0"
+                                                Checked="CheckConfirmDigitalOutputWrite_Changed"
+                                                Content="I verified the selected output, mask, value, and current shadow revision."
+                                                Unchecked="CheckConfirmDigitalOutputWrite_Changed" />
+                                            <Button
+                                                x:Name="ButtonSubmitDigitalOutputWrite"
+                                                Click="ButtonSubmitDigitalOutputWrite_Click"
+                                                Content="Submit Output Write" />
+                                        </WrapPanel>
+                                        <WrapPanel Margin="0,4,0,0">
+                                            <CheckBox
+                                                x:Name="CheckDigitalOutputWritePhysicallyVerified"
+                                                Margin="0,5,8,0"
+                                                Checked="DigitalOutputWritePhysicalVerification_Changed"
+                                                Content="I independently verified the physical output and PLC output shadow; do not replay the previous command."
+                                                Unchecked="DigitalOutputWritePhysicalVerification_Changed" />
+                                            <Button
+                                                x:Name="ButtonAcknowledgeDigitalOutputWriteUncertain"
+                                                Click="ButtonAcknowledgeDigitalOutputWriteUncertain_Click"
+                                                Content="Acknowledge Unverified Outcome" />
+                                        </WrapPanel>
+                                        <TextBlock
+                                            x:Name="TextDigitalOutputWriteStatus"
+                                            Margin="0,4,0,0"
+                                            FontFamily="Consolas"
+                                            Text="Read a valid selected output shadow before writing."
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </GroupBox>
+                                <Border
+                                    Margin="0,4,8,0"
+                                    Padding="8"
+                                    Background="#FFF6DF"
+                                    BorderBrush="#E0B34B"
+                                    BorderThickness="1">
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="GUARDED WRITE: Output values are PLC RT-owner shadows, not physical feedback. Submit remains disabled unless capability bit 17, the SDK allowlist, a valid output-shadow revision, and explicit confirmation all match. A failed readback remains blocked for exact reread; connection loss before terminal proof requires the separate physical/PLC-shadow verification checkbox and explicit operator acknowledgement."
+                                        TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Signal Catalog / PI image">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="0,0,0,8"
+                                    Foreground="#5F6B7A"
+                                    Text="Check signals to use for PI reads, Bulk snapshots, and Recorder capture. Only catalog flags permitted by the PLC are used."
+                                    TextWrapping="Wrap" />
+                                <DataGrid
+                                    x:Name="GridSignalCatalog"
+                                    Height="290"
+                                    AutoGenerateColumns="False"
+                                    CanUserAddRows="False"
+                                    SelectionMode="Extended">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Width="45" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Header="Use" />
+                                        <DataGridTextColumn Width="55" IsReadOnly="True" Binding="{Binding Axis}" Header="Axis" />
+                                        <DataGridTextColumn Width="230" IsReadOnly="True" Binding="{Binding Alias}" Header="Alias" />
+                                        <DataGridTextColumn Width="95" IsReadOnly="True" Binding="{Binding SignalIdHex}" Header="Signal ID" />
+                                        <DataGridTextColumn Width="85" IsReadOnly="True" Binding="{Binding DataType}" Header="Type" />
+                                        <DataGridTextColumn Width="85" IsReadOnly="True" Binding="{Binding PdoAddress}" Header="PDO" />
+                                        <DataGridTextColumn Width="100" IsReadOnly="True" Binding="{Binding Direction}" Header="Direction" />
+                                        <DataGridTextColumn Width="115" IsReadOnly="True" Binding="{Binding RawValue}" Header="Raw Value" />
+                                        <DataGridTextColumn Width="145" IsReadOnly="True" Binding="{Binding EntryStatus}" Header="Status" />
+                                        <DataGridTextColumn Width="90" IsReadOnly="True" Binding="{Binding CycleCounter}" Header="Cycle" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Bulk Snapshot">
+                <ScrollViewer
+                    x:Name="ScrollBulkSnapshot"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Same-cycle Bulk configuration">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonConfigureBulk"
+                                        Click="ButtonConfigureBulk_Click"
+                                        Content="1 Configure Selected" />
+                                    <Button
+                                        x:Name="ButtonReadBulkStatus"
+                                        Click="ButtonReadBulkStatus_Click"
+                                        Content="2 Refresh Status" />
+                                    <Button
+                                        x:Name="ButtonReadBulkSnapshot"
+                                        Click="ButtonReadBulkSnapshot_Click"
+                                        Content="3 Read Snapshot" />
+                                    <Button
+                                        x:Name="ButtonReleaseBulk"
+                                        Click="ButtonReleaseBulk_Click"
+                                        Content="4 Release" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextBulkSummary"
+                                    FontFamily="Consolas"
+                                    Text="Load the PI Catalog and check Bulk-readable signals first."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Latest same-cycle snapshot">
+                            <DataGrid
+                                x:Name="GridBulkSnapshot"
+                                Height="360"
+                                AutoGenerateColumns="False"
+                                CanUserAddRows="False"
+                                IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="230" Binding="{Binding Alias}" Header="Alias" />
+                                    <DataGridTextColumn Width="95" Binding="{Binding SignalIdHex}" Header="Signal ID" />
+                                    <DataGridTextColumn Width="100" Binding="{Binding DataType}" Header="Type" />
+                                    <DataGridTextColumn Width="130" Binding="{Binding RawValue}" Header="Raw Value" />
+                                    <DataGridTextColumn Width="170" Binding="{Binding EntryStatus}" Header="Status" />
+                                    <DataGridTextColumn Width="100" Binding="{Binding Detail}" Header="Detail" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </GroupBox>
+
+                        <GroupBox Header="Bulk qualification automation">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="The runner reloads Capabilities and the PI Catalog, selects exactly all 24 BulkReadable entries in Catalog order, uses the revision-bound builder facade, and always releases the reader. The Partial workflow never injects a fault: with Group PowerOff and Disabled, the operator makes exactly one slave Online=False (not merely non-OP), resumes, restores that same slave to OP, and resumes again."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Iterations" />
+                                        <TextBox x:Name="TextQualificationBulkIterations" Width="110" Text="100" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Interval (ms)" />
+                                        <TextBox x:Name="TextQualificationBulkIntervalMs" Width="110" Text="10" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonRunBulkSnapshotSoakQualification"
+                                        Click="ButtonRunBulkSnapshotSoakQualification_Click"
+                                        Content="Run 24-entry Snapshot Soak" />
+                                    <Button
+                                        x:Name="ButtonRunBulkLifecycleQualification"
+                                        Click="ButtonRunBulkLifecycleQualification_Click"
+                                        Content="Run Configure/Read/Release Soak" />
+                                    <Button
+                                        x:Name="ButtonRunBulkPartialQualification"
+                                        Click="ButtonRunBulkPartialQualification_Click"
+                                        Content="Run One-Slave-Offline Partial" />
+                                    <Button
+                                        x:Name="ButtonResumeBulkPartialQualification"
+                                        Click="ButtonResumeBulkPartialQualification_Click"
+                                        Content="Resume External Step"
+                                        IsEnabled="False" />
+                                    <Button
+                                        x:Name="ButtonCancelBulkQualification"
+                                        Click="ButtonCancelQualification_Click"
+                                        Content="Cancel Test" />
+                                    <Button
+                                        x:Name="ButtonSaveBulkQualificationLog"
+                                        Click="ButtonSaveQualificationLog_Click"
+                                        Content="Save QTEST Log" />
+                                </WrapPanel>
+                                <ProgressBar
+                                    x:Name="ProgressBulkQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextBulkQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextBulkQualificationSummary"
+                                    Height="180"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Recorder">
+                <ScrollViewer
+                    x:Name="ScrollRecorder"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Recorder configuration">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sample period (cycles)" />
+                                    <TextBox
+                                        x:Name="TextRecorderSamplePeriod"
+                                        Width="135"
+                                        Text="1"
+                                        TextChanged="RecorderConfiguration_TextChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sample capacity" />
+                                    <TextBox
+                                        x:Name="TextRecorderSampleCapacity"
+                                        Width="135"
+                                        Text="1000"
+                                        TextChanged="RecorderConfiguration_TextChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Buffer mode" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderBufferMode"
+                                        Width="170"
+                                        SelectionChanged="RecorderConfiguration_SelectionChanged" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger type" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderTriggerType"
+                                        Width="135"
+                                        SelectionChanged="RecorderConfiguration_SelectionChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger operator" />
+                                    <ComboBox x:Name="ComboRecorderTriggerOperator" Width="170" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Trigger signal" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderTriggerSignal"
+                                        Width="330"
+                                        DisplayMemberPath="DisplayName" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Pre-trigger samples" />
+                                    <TextBox x:Name="TextRecorderPreTrigger" Width="135" Text="100" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Post-trigger samples" />
+                                    <TextBox x:Name="TextRecorderPostTrigger" Width="135" Text="899" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="2">
+                                    <TextBlock
+                                        x:Name="TextRecorderTriggerValueLabel"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Trigger value (ignored in Manual mode)" />
+                                    <TextBox x:Name="TextRecorderTriggerValue" Width="170" Text="0" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="3" Grid.Column="0">
+                                    <TextBlock
+                                        x:Name="TextRecorderTriggerMaskLabel"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Trigger mask (ignored in Manual mode)" />
+                                    <TextBox x:Name="TextRecorderTriggerMask" Width="135" Text="1" />
+                                </StackPanel>
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="2"
+                                    Margin="8,4,0,8"
+                                    VerticalAlignment="Center"
+                                    Foreground="#5F6B7A"
+                                    Text="Manual ignores all trigger fields. Edge uses TriggerValue as its threshold and forces TriggerMask to zero. Window maps lower bound to TriggerValue and upper bound to TriggerMask; signed Int16/Int32 bounds accept signed decimal input. Mask requires a BitField16/32 signal and a non-zero TriggerMask."
+                                    TextWrapping="Wrap" />
+
+                                <StackPanel
+                                    Grid.Row="4"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,2,0,8">
+                                    <TextBlock
+                                        Foreground="#5F6B7A"
+                                        Text="Uses checked Recordable signals from the PI Catalog. Trigger modes require PLC capability. Double mode stays hidden until the ManualActions proof gate and durable recoverable manual route are both open. Adopt is separately blocked on a Double-capable target while the ReconnectRecovery proof gate is closed because the target mode is unknown before wire."
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        x:Name="TextRecorderEstimate"
+                                        Margin="0,3,0,0"
+                                        FontFamily="Consolas"
+                                        Text="Estimate unavailable until the PI Catalog is loaded."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="5" Grid.ColumnSpan="3">
+                                    <Button x:Name="ButtonConfigureRecorder" Click="ButtonConfigureRecorder_Click" Content="Configure" />
+                                    <Button x:Name="ButtonStartRecorder" Click="ButtonStartRecorder_Click" Content="Start" />
+                                    <Button x:Name="ButtonTriggerRecorder" Click="ButtonTriggerRecorder_Click" Content="Trigger Now" />
+                                    <Button x:Name="ButtonStopRecorder" Click="ButtonStopRecorder_Click" Content="Stop" />
+                                    <Button x:Name="ButtonRecorderStatus" Click="ButtonRecorderStatus_Click" Content="Refresh Status" />
+                                    <Button x:Name="ButtonReadRecorderHeader" Click="ButtonReadRecorderHeader_Click" Content="Read Header" />
+                                    <Button x:Name="ButtonDownloadRecorder" Click="ButtonDownloadRecorder_Click" Content="Download" />
+                                    <Button x:Name="ButtonCancelRecorderDownload" Click="ButtonCancelRecorderDownload_Click" Content="Cancel Download" />
+                                    <Button x:Name="ButtonExportRecorderCsv" Click="ButtonExportRecorderCsv_Click" Content="Export CSV" />
+                                    <Button x:Name="ButtonReleaseRecorder" Click="ButtonReleaseRecorder_Click" Content="Release" />
+                                </WrapPanel>
+
+                                <StackPanel Grid.Row="6" Grid.ColumnSpan="3">
+                                    <TextBlock
+                                        Margin="0,0,8,5"
+                                        Foreground="#5F6B7A"
+                                        Text="Download copies a frozen PLC recording into this app's PC memory; it does not create a file. Export CSV opens a Save dialog and writes the downloaded PC data to the file you choose."
+                                        TextWrapping="Wrap" />
+                                    <ProgressBar
+                                        x:Name="ProgressRecorderDownload"
+                                        Height="18"
+                                        Margin="0,2,8,5"
+                                        Maximum="1"
+                                        Minimum="0" />
+                                    <TextBlock
+                                        x:Name="TextRecorderSummary"
+                                        FontFamily="Consolas"
+                                        Text="Load the PI Catalog and check Recordable signals first."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Reconnect / adopt existing Recorder">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Diagnostics Boot ID" />
+                                    <TextBox x:Name="TextRecorderAdoptBootId" Width="150" Text="0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Record ID" />
+                                    <TextBox x:Name="TextRecorderAdoptRecordId" Width="125" Text="0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Buffer ID" />
+                                    <TextBox x:Name="TextRecorderAdoptBufferId" Width="105" Text="0" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonAdoptRecorder"
+                                    Grid.Row="0"
+                                    Grid.Column="3"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonAdoptRecorder_Click"
+                                    Content="Adopt" />
+
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="4"
+                                    Margin="0,2,0,8"
+                                    Foreground="#5F6B7A"
+                                    Text="Start fills these IDs automatically and they remain visible after disconnect. Reconnect to the same PLC boot, refresh Capabilities, then Adopt. Record ID=0 and Buffer ID=0 discovers and adopts the current single-bank Recorder; nonzero Record ID keeps exact adoption. Read Status for authoritative terminal metadata or Header before Download. Trigger Now explicitly fires a locally configured non-Manual D4 recorder and is enabled only when RecorderTrigger is advertised."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Downloaded raw sample plot">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <TextBlock
+                                        Margin="0,7,8,0"
+                                        Style="{StaticResource FieldLabel}"
+                                        Text="Signal" />
+                                    <ComboBox
+                                        x:Name="ComboRecorderPlotSignal"
+                                        Width="280"
+                                        DisplayMemberPath="DisplayName"
+                                        SelectionChanged="ComboRecorderPlotSignal_SelectionChanged" />
+                                    <TextBlock
+                                        x:Name="TextRecorderPlotRange"
+                                        Margin="8,7,0,0"
+                                        FontFamily="Consolas"
+                                        Text="No downloaded data." />
+                                </WrapPanel>
+                                <Border
+                                    Height="300"
+                                    Padding="4"
+                                    Background="#FAFBFD"
+                                    BorderBrush="#B8C2D0"
+                                    BorderThickness="1">
+                                    <Canvas
+                                        x:Name="CanvasRecorderPlot"
+                                        ClipToBounds="True"
+                                        SizeChanged="CanvasRecorderPlot_SizeChanged" />
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Recorder qualification automation">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="Single validates two identical downloads. Ring uses the advertised local forced-trigger path. Double-bank qualification has separate QualificationExecution and ReconnectRecovery proof gates; both remain closed. Trigger Soak repeats a compact 32-sample lifecycle. Reconnect Exact and Discovery intentionally close and reopen this app's RPC connection, adopt the preserved Ring Recorder, download it, and release it. External RT evidence remains a separate operator workflow."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="TextRecorderDoubleRecoveryStatus"
+                                    Margin="0,4,0,0"
+                                    FontFamily="Consolas"
+                                    Foreground="#8A3B12"
+                                    Text="Double recovery journal is initializing."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Soak iterations" />
+                                        <TextBox x:Name="TextQualificationRecorderIterations" Width="120" Text="100" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        x:Name="TextQualificationRecorderCapability"
+                                        Margin="8,24,0,0"
+                                        Foreground="#5F6B7A"
+                                        Text="Refresh Capabilities and load the PI Catalog."
+                                        TextWrapping="Wrap" />
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonRunRecorderSingleQualification"
+                                        Click="ButtonRunRecorderSingleQualification_Click"
+                                        Content="Run Single Manual" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderRingQualification"
+                                        Click="ButtonRunRecorderRingQualification_Click"
+                                        Content="Run Ring Forced Trigger" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderDoubleQualification"
+                                        Click="ButtonRunRecorderDoubleQualification_Click"
+                                        Content="Double Bank (proof gates closed)"
+                                        IsEnabled="False"
+                                        ToolTip="Double-bank QualificationExecution and ReconnectRecovery proof gates are closed." />
+                                    <CheckBox
+                                        x:Name="CheckConfirmRecorderDoubleRelease"
+                                        Margin="4,7,8,8"
+                                        Checked="RecorderDoubleReleaseConfirmation_Changed"
+                                        Content="I verified the exact Double journal identity and full displayed Release plan."
+                                        IsEnabled="False"
+                                        Unchecked="RecorderDoubleReleaseConfirmation_Changed" />
+                                    <Button
+                                        x:Name="ButtonReleaseRecorderDoubleRetained"
+                                        Click="ButtonReleaseRecorderDoubleRetained_Click"
+                                        Content="Cleanup Retained Double (gates closed)"
+                                        IsEnabled="False"
+                                        ToolTip="No exact same-session Double-bank qualification handles are retained." />
+                                    <Button
+                                        x:Name="ButtonRecoverRecorderDoubleJournal"
+                                        Click="ButtonRecoverRecorderDoubleJournal_Click"
+                                        Content="Recover Double Journal (gate closed)"
+                                        IsEnabled="False"
+                                        ToolTip="Double-bank ReconnectRecovery proof gate is closed. No inventory, adoption, or Release command will be sent." />
+                                    <Button
+                                        x:Name="ButtonRunRecorderSoakQualification"
+                                        Click="ButtonRunRecorderSoakQualification_Click"
+                                        Content="Run Trigger Lifecycle Soak" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderReconnectExactQualification"
+                                        Click="ButtonRunRecorderReconnectExactQualification_Click"
+                                        Content="Run Reconnect Exact Adopt" />
+                                    <Button
+                                        x:Name="ButtonRunRecorderReconnectDiscoveryQualification"
+                                        Click="ButtonRunRecorderReconnectDiscoveryQualification_Click"
+                                        Content="Run Reconnect 0/0 Discovery" />
+                                    <Button
+                                        x:Name="ButtonCancelRecorderQualification"
+                                        Click="ButtonCancelQualification_Click"
+                                        Content="Cancel Test" />
+                                    <Button
+                                        x:Name="ButtonSaveRecorderQualificationLog"
+                                        Click="ButtonSaveQualificationLog_Click"
+                                        Content="Save QTEST Log" />
+                                </WrapPanel>
+                                <ProgressBar
+                                    x:Name="ProgressRecorderQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextRecorderQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextRecorderQualificationSummary"
+                                    Height="180"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="SDO / Write Policy">
+                <ScrollViewer
+                    x:Name="ScrollDiagnosticsOperations"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <GroupBox Header="Persisted Mutation Recovery">
+                            <StackPanel>
+                                <TextBlock
+                                    x:Name="TextPersistedMutationStatus"
+                                    FontFamily="Consolas"
+                                    Foreground="#8A4A00"
+                                    Text="Opening the durable mutation journal..."
+                                    TextWrapping="Wrap" />
+                                <CheckBox
+                                    x:Name="CheckPersistedMutationPhysicallyVerified"
+                                    Margin="0,6,0,0"
+                                    Checked="PersistedMutationPhysicalVerification_Changed"
+                                    Content="I independently verified the physical target and PLC state; do not replay the previous command."
+                                    IsEnabled="False"
+                                    Unchecked="PersistedMutationPhysicalVerification_Changed" />
+                                <Button
+                                    x:Name="ButtonAcknowledgePersistedMutation"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonAcknowledgePersistedMutation_Click"
+                                    Content="Acknowledge Mutation Recovery"
+                                    IsEnabled="False" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Asynchronous SDO Read / Write ticket">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operation" />
+                                    <ComboBox
+                                        x:Name="ComboSdoOperation"
+                                        Width="150"
+                                        SelectionChanged="SdoOperation_SelectionChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Slave reference (1..4)" />
+                                    <TextBox
+                                        x:Name="TextSdoSlaveReference"
+                                        Width="105"
+                                        Text="1"
+                                        TextChanged="SdoWriteRequestText_Changed" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Object index (0x0001..0xFFFF)" />
+                                    <TextBox
+                                        x:Name="TextSdoIndex"
+                                        Width="150"
+                                        Text="0x1000"
+                                        TextChanged="SdoWriteRequestText_Changed" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="3">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sub-index (0..255)" />
+                                    <TextBox
+                                        x:Name="TextSdoSubIndex"
+                                        Width="105"
+                                        Text="0"
+                                        TextChanged="SdoWriteRequestText_Changed" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="4">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Value type" />
+                                    <ComboBox
+                                        x:Name="ComboSdoValueType"
+                                        Width="150"
+                                        SelectionChanged="SdoValueType_SelectionChanged" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Data length (1, 2, or 4)" />
+                                    <ComboBox
+                                        x:Name="ComboSdoDataLength"
+                                        Width="105"
+                                        SelectionChanged="SdoWriteDataLength_SelectionChanged" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (1..60000 cycles)" />
+                                    <TextBox
+                                        x:Name="TextSdoTimeoutCycles"
+                                        Width="105"
+                                        Text="1000"
+                                        TextChanged="SdoWriteRequestText_Changed" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Write value (decimal or raw 0x hex)" />
+                                    <TextBox
+                                        x:Name="TextSdoWriteData"
+                                        Width="390"
+                                        IsEnabled="False"
+                                        Text="0"
+                                        TextChanged="SdoWriteRequestText_Changed" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.ColumnSpan="5">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="SDK-approved SDO Write target" />
+                                    <ComboBox
+                                        x:Name="ComboSdoWriteTarget"
+                                        Width="760"
+                                        HorizontalAlignment="Left"
+                                        SelectionChanged="SdoWriteTarget_SelectionChanged" />
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="3" Grid.ColumnSpan="5">
+                                    <Button
+                                        x:Name="ButtonSubmitSdo"
+                                        Click="ButtonSubmitSdo_Click"
+                                        Content="Submit SDO Read"
+                                        ToolTip="Write mode changes this button to Arm SDO Write. If it remains disabled, PLC capability bit 9 or the exact SDK-approved target is unavailable."
+                                        ToolTipService.ShowOnDisabled="True" />
+                                    <Button
+                                        x:Name="ButtonReadSdoInline"
+                                        Click="ButtonReadSdoInline_Click"
+                                        Content="Read SDO Inline (wait terminal)"
+                                        IsEnabled="False"
+                                        ToolTip="Submit one ordinary 1/2/4-byte SDO Read and wait for its terminal result. This does not run SDO Write, required Write readback, or CREVIS I/O." />
+                                    <Button
+                                        x:Name="ButtonCancelSdoInlineWait"
+                                        Click="ButtonCancelSdoInlineWait_Click"
+                                        Content="Cancel Inline Wait (PC only)"
+                                        IsEnabled="False"
+                                        ToolTip="Cancel only the PC-side Inline Read wait. This never sends CancelOperation, never cancels the PLC ticket, and never retries the SDO request." />
+                                    <Button
+                                        x:Name="ButtonLoadRequiredSdoReadback"
+                                        Click="ButtonLoadRequiredSdoReadback_Click"
+                                        Content="Load Required Exact Readback"
+                                        IsEnabled="False"
+                                        ToolTip="Restore the exact read request required to verify the last successful SDO Write. This does not send a command." />
+                                    <Button x:Name="ButtonRefreshDiagnosticOperation" Click="ButtonRefreshDiagnosticOperation_Click" Content="Refresh Ticket" />
+                                    <Button x:Name="ButtonDownloadSdoResult" Click="ButtonDownloadSdoResult_Click" Content="Download Result" />
+                                    <Button x:Name="ButtonExportSdoResult" Click="ButtonExportSdoResult_Click" Content="Save Result" />
+                                    <Button x:Name="ButtonCancelDiagnosticOperation" Click="ButtonCancelDiagnosticOperation_Click" Content="Cancel Ticket" />
+                                </WrapPanel>
+
+                                <TextBlock
+                                    x:Name="TextDiagnosticOperationSummary"
+                                    Grid.Row="4"
+                                    Grid.ColumnSpan="5"
+                                    FontFamily="Consolas"
+                                    Text="SDO Read supports exact 1/2/4-byte typed values. SDO Write requires PLC bit 9 and an exact SDK-approved target; arbitrary object writes remain blocked."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="D5 SDO fault/recovery qualification (read-only)">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#8A4A00"
+                                    Text="These runners never write an SDO and never inject an EtherCAT fault. Abort qualification uses a manufacturer-approved nonexistent read-only object/sub-index. Contention, timeout, and queued-cancel qualification use only 0x6061:0 Int8/1. Abrupt Disconnect intentionally drops only the API TCP transport without sending RPC Close (0x405D), reconnects, and performs two exact 0x6061:0 reads. The selected Slave 1..4 is mapped to _LMCAxis1..4; every runner requires three stable PowerOn=False, Standstill=True position samples before submitting any D5 ticket."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    Foreground="#5F6B7A"
+                                    Text="Abort PASS: stable BootId/MapRevision -&gt; baseline -&gt; exact SDO abort -&gt; same-value recovery. Contention PASS: first 0x6061 ticket accepted -&gt; second Submit exact Rejected/ResourceBusy before first terminal -&gt; first Completed/Success -&gt; third distinct ticket Completed/Success with the exact first value. Timeout PASS: 0x6061 TimeoutCycles=1 -&gt; exact Expired/TimedOut -&gt; bounded exact ResourceBusy drain wait -&gt; distinct same-value recovery. Queued Cancel PASS: submit 0x6061 -&gt; immediate one-shot CancelOperation -&gt; exact Cancelled/Cancelled -&gt; distinct same-value recovery. Abrupt Disconnect can PASS only application-visible new-connection recovery; orphanQualified remains false until a PLC MarkOrphan/late-callback witness exists. A terminal-before-loss or Running race is INCONCLUSIVE for PLC orphan proof. Unexpected acceptance or uncertain outcome is preserved and blocks automatic retry. Cancel Runner does not send PLC Stop."
+                                    TextWrapping="Wrap" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Target slave (1..4)" />
+                                        <TextBox x:Name="TextD5SdoAbortSlaveReference" Width="105" Text="1" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort object index" />
+                                        <TextBox x:Name="TextD5SdoAbortIndex" Width="130" Text="0xFFFF" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort sub-index" />
+                                        <TextBox x:Name="TextD5SdoAbortSubIndex" Width="105" Text="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="3">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Abort value type" />
+                                        <ComboBox
+                                            x:Name="ComboD5SdoAbortValueType"
+                                            Width="125"
+                                            SelectedIndex="4">
+                                            <ComboBoxItem Content="Bool" />
+                                            <ComboBoxItem Content="Int8" />
+                                            <ComboBoxItem Content="UInt8" />
+                                            <ComboBoxItem Content="BitField8" />
+                                            <ComboBoxItem Content="UInt32" />
+                                            <ComboBoxItem Content="Int32" />
+                                            <ComboBoxItem Content="Real32" />
+                                            <ComboBoxItem Content="BitField32" />
+                                            <ComboBoxItem Content="Int16" />
+                                            <ComboBoxItem Content="UInt16" />
+                                            <ComboBoxItem Content="BitField16" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="4">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Data length" />
+                                        <TextBox x:Name="TextD5SdoAbortDataLength" Width="105" Text="4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="5">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Normal/recovery timeout cycles" />
+                                        <TextBox x:Name="TextD5SdoAbortTimeoutCycles" Width="120" Text="1000" />
+                                    </StackPanel>
+
+                                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="6">
+                                        <Button
+                                            x:Name="ButtonRunD5SdoAbortQualification"
+                                            Click="ButtonRunD5SdoAbortQualification_Click"
+                                            Content="Run D5 Abort -&gt; Recovery" />
+                                        <Button
+                                            x:Name="ButtonRunD5SdoContentionQualification"
+                                            Click="ButtonRunD5SdoContentionQualification_Click"
+                                            Content="Run D5 Contention -&gt; Recovery" />
+                                        <Button
+                                            x:Name="ButtonRunD5SdoTimeoutQualification"
+                                            Click="ButtonRunD5SdoTimeoutQualification_Click"
+                                            Content="Run D5 Timeout -&gt; Recovery" />
+                                        <Button
+                                            x:Name="ButtonRunD5SdoQueuedCancelQualification"
+                                            Click="ButtonRunD5SdoQueuedCancelQualification_Click"
+                                            Content="Run D5 Queued Cancel -&gt; Recovery" />
+                                        <Button
+                                            x:Name="ButtonRunD5SdoDisconnectRecoveryQualification"
+                                            Click="ButtonRunD5SdoDisconnectRecoveryQualification_Click"
+                                            Content="Run D5 Abrupt Disconnect -&gt; App Recovery" />
+                                        <Button
+                                            x:Name="ButtonCancelD5SdoQualification"
+                                            Click="ButtonCancelD5SdoQualification_Click"
+                                            Content="Cancel Runner (not PLC Stop)"
+                                            IsEnabled="False" />
+                                        <Button
+                                            x:Name="ButtonSaveD5SdoQualificationLog"
+                                            Click="ButtonSaveQualificationLog_Click"
+                                            Content="Save QTEST Log" />
+                                    </WrapPanel>
+                                </Grid>
+                                <ProgressBar
+                                    x:Name="ProgressD5SdoQualification"
+                                    Height="18"
+                                    Margin="0,2,8,4"
+                                    Maximum="100"
+                                    Minimum="0" />
+                                <TextBlock
+                                    x:Name="TextD5SdoQualificationProgress"
+                                    Margin="0,0,0,4"
+                                    FontFamily="Consolas"
+                                    Text="No D5 SDO qualification has run yet."
+                                    TextWrapping="Wrap" />
+                                <TextBox
+                                    x:Name="TextD5SdoQualificationSummary"
+                                    Height="200"
+                                    FontFamily="Consolas"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    IsReadOnly="True"
+                                    Text="Structured D5 QTEST results will appear here."
+                                    TextWrapping="NoWrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="D5 SDO Write activation qualification (same-value only)">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#B42318"
+                                    FontWeight="SemiBold"
+                                    Text="LIVE WRITE: this runner reads the approved target, writes the exact same four bytes, and requires an exact readback. It never writes a sentinel and never performs an automatic restore or replay."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    Foreground="#5F6B7A"
+                                    Text="The button stays fail-closed unless the PLC advertises bits 8/9/13, this SDK build exposes exactly one approved target, the durable mutation journal is available, and all four operator checks are selected. After confirmation, the selected axis is checked again for PowerOn=False, Standstill=True, and stable position; the target is also read again and must still match the baseline before Write submission."
+                                    TextWrapping="Wrap" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Single SDK-approved target" />
+                                        <ComboBox
+                                            x:Name="ComboD5SdoWriteQualificationTarget"
+                                            Width="760"
+                                            HorizontalAlignment="Left"
+                                            SelectionChanged="D5SdoWriteQualificationInput_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (1..60000 cycles)" />
+                                        <TextBox
+                                            x:Name="TextD5SdoWriteQualificationTimeoutCycles"
+                                            Width="120"
+                                            Text="1000"
+                                            TextChanged="D5SdoWriteQualificationInput_Changed" />
+                                    </StackPanel>
+                                </Grid>
+                                <CheckBox
+                                    x:Name="CheckConfirmD5SdoWriteUi24Unused"
+                                    Margin="0,5,0,0"
+                                    Checked="D5SdoWriteQualificationInput_Changed"
+                                    Content="I confirmed the selected drive program does not use UI[24] for another purpose."
+                                    Unchecked="D5SdoWriteQualificationInput_Changed" />
+                                <CheckBox
+                                    x:Name="CheckConfirmD5SdoWriteOriginalRecorded"
+                                    Checked="D5SdoWriteQualificationInput_Changed"
+                                    Content="I will record the baseline/original value and independently verify the physical target if the run is interrupted."
+                                    Unchecked="D5SdoWriteQualificationInput_Changed" />
+                                <CheckBox
+                                    x:Name="CheckConfirmD5SdoWriteCaptureRunning"
+                                    Checked="D5SdoWriteQualificationInput_Changed"
+                                    Content="PLC mailbox evidence and packet capture are running for this activation test."
+                                    Unchecked="D5SdoWriteQualificationInput_Changed" />
+                                <CheckBox
+                                    x:Name="CheckConfirmD5SdoWriteSingleWriter"
+                                    Checked="D5SdoWriteQualificationInput_Changed"
+                                    Content="I established a single-writer window: no drive logic, PLC task, GUI, or other client will change this target until the exact readback completes."
+                                    Unchecked="D5SdoWriteQualificationInput_Changed" />
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonRunD5SdoWriteSameValueQualification"
+                                        Click="ButtonRunD5SdoWriteSameValueQualification_Click"
+                                        Content="Run Same-Value SDO Write Qualification"
+                                        IsEnabled="False" />
+                                </WrapPanel>
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontWeight="SemiBold"
+                                    Text="Readiness matrix / next attempt (cached, no wire)" />
+                                <TextBlock
+                                    x:Name="TextD5SdoWriteQualificationGateStatus"
+                                    FontFamily="Consolas"
+                                    Foreground="#8A4A00"
+                                    Text="OVERALL CLOSED | EVALUATION_WIRE=NONE"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontWeight="SemiBold"
+                                    Text="Last attempt / current run" />
+                                <TextBlock
+                                    x:Name="TextD5SdoWriteQualificationSummary"
+                                    FontFamily="Consolas"
+                                    Text="No same-value SDO Write qualification has run yet."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="PI Write policy gate">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#5F6B7A"
+                                    Text="Select exactly one WritableByPolicy Catalog entry on the EtherCAT / PI tab. The call remains fail-closed until schema v1 defines the payload and a compile-time allowlist is approved. DS402 ControlWord and target objects are permanently blocked."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Raw value (decimal or 0x...)" />
+                                        <TextBox x:Name="TextPiWriteRawValue" Width="180" Text="0" />
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="ButtonSubmitPiWrite"
+                                        Margin="8,20,8,8"
+                                        Click="ButtonSubmitPiWrite_Click"
+                                        Content="Submit PI Write" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Read-only API">
+                <ScrollViewer
+                    x:Name="ScrollReadOnlyApi"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <Border
+                            Margin="0,0,10,10"
+                            Padding="10"
+                            Background="#FFF6DF"
+                            BorderBrush="#E0B34B"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#8A4A00"
+                                    FontWeight="SemiBold"
+                                    Text="PLC verification boundary"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    Foreground="#8A4A00"
+                                    Text="Admin commands 0x7D00/0x7D10/0x7D20 require the matching LASAL source on the PLC. The 2026-07-23 axis 1..4/group happy-path capture passed; invalid-input, stale-session, and fault cases remain separate tests. Every command on this tab is read-only."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <GroupBox Header="Admin capabilities">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button
+                                        x:Name="ButtonAdminCapabilities"
+                                        Click="ButtonAdminCapabilities_Click"
+                                        Content="Refresh Admin Capabilities" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextAdminCapabilities"
+                                    FontFamily="Consolas"
+                                    Text="Admin capabilities have not been read."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    Foreground="#315A86"
+                                    Text="Drive capture: scroll to Physical drive reads at the bottom of this tab, select axes 1..4, then run Get Drive Operation Mode and Read Drive Status."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Semantic axis parameter">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Physical axis reference (1..4)" />
+                                    <ComboBox x:Name="ComboAdminAxisReference" Width="150" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Semantic parameter key" />
+                                    <ComboBox x:Name="ComboAdminAxisParameter" Width="270" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonReadAdminAxisParameter"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadAdminAxisParameter_Click"
+                                    Content="Read Axis Parameter" />
+                                <TextBlock
+                                    x:Name="TextAdminAxisParameterResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="3"
+                                    FontFamily="Consolas"
+                                    Text="No axis parameter result."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,4,0,0"
+                                    Foreground="#5F6B7A"
+                                    Text="The key is semantic; native LASAL MotionLib enum values are not exposed on the PC wire."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Semantic group parameters (group reference fixed at 0x0100)">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Selection" />
+                                    <ComboBox x:Name="ComboAdminGroupSelection" Width="240" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonReadAdminGroupParameters"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="8,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadAdminGroupParameters_Click"
+                                    Content="Read Group Parameters" />
+                                <TextBlock
+                                    x:Name="TextAdminGroupParameterResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="2"
+                                    FontFamily="Consolas"
+                                    Text="No group parameter result."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Physical drive reads">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Physical axis reference (1..4)" />
+                                    <ComboBox x:Name="ComboDriveReadAxisReference" Width="150" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ButtonGetDriveOperationMode"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="8,20,8,8"
+                                    Click="ButtonGetDriveOperationMode_Click"
+                                    Content="1 Get Drive Operation Mode" />
+                                <Button
+                                    x:Name="ButtonReadDriveStatus"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="0,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonReadDriveStatus_Click"
+                                    Content="2 Read Drive Status" />
+                                <Button
+                                    x:Name="ButtonGetDriveErrorCode"
+                                    Grid.Row="0"
+                                    Grid.Column="3"
+                                    Margin="0,20,8,8"
+                                    HorizontalAlignment="Left"
+                                    Click="ButtonGetDriveErrorCode_Click"
+                                    Content="3 Get Drive Error Code" />
+                                <TextBlock
+                                    x:Name="TextDriveReadResult"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="4"
+                                    FontFamily="Consolas"
+                                    Text="No drive read result."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="4"
+                                    Margin="0,4,0,0"
+                                    Foreground="#8A4A00"
+                                    Text="Read Drive Status is explicitly non-atomic: LASAL axis status, DS402 0x6041:0, and DS402 0x6061:0 are read sequentially and may come from different PLC/EtherCAT cycles. Get Drive Error Code is a separate one-ticket 0x603F:0 read. LASAL 0x2028 StatusWord is reserved zero and is not DS402 0x6041 evidence."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>

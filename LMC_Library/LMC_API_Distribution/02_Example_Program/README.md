@@ -31,6 +31,23 @@ Release로 빌드한다. 프로젝트의 DLL 참조는 다음 상대경로로 �
 7. Stop/Disable/Power Off는 각각 다른 명령이다. 상태가 바뀔 때까지 읽어서
    확인한다.
 
+## 복구 식별자 불일치 시 조회
+
+저장된 복구 기록의 `BootId` 또는 `MapRevision`이 현재 PLC와 다르면 연결은
+읽기 전용 격리 상태로 유지된다. 이 상태에서도 `Load Axis`는 axis reference와
+AxisInfo를 표시하고, `Load Group`은 group reference와 member 목록을 함께 표시한다.
+조회 결과는 앱의 제어 handle에 유지되지 않으며 Power/Reset/Stop/Motion과 복구 기록
+확정은 계속 차단된다.
+
+## SDO Read/Write 화면
+
+Diagnostics 탭의 SDO 영역에서 `Operation=Write`를 선택하면 공용 실행 버튼이
+`Arm SDO Write`로 바뀐다. 실제 Write는 PLC capability bit 9와 SDK의 exact
+allowlist가 모두 열리고, 선택한 `(slave,index,subindex,type,length)`가 일치할
+때만 활성화된다. 현재 기본 배포 설정은 승인 target이 없으므로 fail-closed가
+정상이다. 후보 `UI[24] (0x2F00:24)`의 미사용 여부와 시험할 축을 확인하기 전에
+gate를 켜지 않는다.
+
 주의: 예제의 Close 버튼은 motion Stop을 보내지 않는다. 실제 장비의 E-stop,
 software/hardware limit와 작업영역 검증을 별도로 준비한다.
 
