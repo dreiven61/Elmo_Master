@@ -796,7 +796,7 @@ function Assert-LMCSdoExecutorConstructorReady {
     }
     if ($stdBlock -notmatch
         ('(?is)' + $constructorStdCallPattern +
-         '\s*END_FUNCTION[ \t]*(?:\r?\n)?$')) {
+         '\s*END_FUNCTION[ \t]*(?:\r\n|\n|\r)?$')) {
         throw "$Owner @STD constructor call must be its final statement."
     }
 
@@ -9735,6 +9735,8 @@ FUNCTION LMCSdoExecutor::LMCSdoExecutor
     ret_code := C_OK;
 END_FUNCTION
 '@
+$sdoExecutorConstructorFixture =
+    $sdoExecutorConstructorFixture -replace '\r\n?', "`n"
 Assert-LMCSdoExecutorConstructorReady `
     -SdoExecutorText $sdoExecutorConstructorFixture `
     -ClassDatabaseText '' `
