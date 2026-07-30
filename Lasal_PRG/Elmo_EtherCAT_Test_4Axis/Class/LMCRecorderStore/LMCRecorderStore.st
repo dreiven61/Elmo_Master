@@ -184,8 +184,11 @@ END_FUNCTION
 #define LMC_RECORDER_MAP_REVISION 0x957F101E
 #define LMC_RECORDER_ERROR_ID -32000
 #define LMC_RECORDER_STORAGE_BYTES 1280000
+#define LMC_RECORDER_TOTAL_STORAGE_BYTES 2560000
+#define LMC_RECORDER_BANK_COUNT 2
 #define LMC_RECORDER_MAX_CHANNELS 24
 #define LMC_RECORDER_MAX_CHUNK_BYTES 1280
+#define LMC_RECORDER_DOUBLE_BANK_ENABLED FALSE
 
 #define LMC_RECORDER_EMPTY 0
 #define LMC_RECORDER_CONFIGURED 1
@@ -200,11 +203,39 @@ END_FUNCTION
 #define LMC_RECORDER_STOP_USER 2
 #define LMC_RECORDER_STOP_TRIGGER_COMPLETE 3
 
-// The data bank is global so the generated class object stays below the
+// The fixed data banks are global so the generated class object stays below the
 // 16-bit object-size field used by the LASAL class table. Exactly one
 // LMCRecorderStore object is allowed in the project.
 VAR_GLOBAL
-	g_LMCRecorderData : ARRAY [0..1279999] OF USINT;
+	g_LMCRecorderData : ARRAY [0..2559999] OF USINT;
+	g_LMCRecorderBankState : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankRecordId : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankConfigId : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankConfigRevision : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankMapRevision : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankOwnerSessionEpoch : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankClosedSessionEpoch : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankDiagnosticsBootId : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankSampleCapacity : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankSampleCount : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankCapturePhase : ARRAY [0..1] OF UINT;
+	g_LMCRecorderBankStopReason : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankTriggerIndex : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankTriggerCycle : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankTriggerTimestampLow : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankTriggerTimestampHigh : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankStartCycle : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankEndCycle : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankStartTimestampLow : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankStartTimestampHigh : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankEndTimestampLow : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankEndTimestampHigh : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankDroppedCycles : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankOverflowCount : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderBankFrozenFirstSampleIndex : ARRAY [0..1] OF UDINT;
+	g_LMCRecorderRecoveryToken : ARRAY [0..3] OF UDINT;
+	g_LMCRecorderLastReleasedRecoveryToken : ARRAY [0..3] OF UDINT;
+	g_LMCRecorderActiveGeneration : UDINT;
 END_VAR
 
 
@@ -212,9 +243,20 @@ FUNCTION GLOBAL LMCRecorderStore::NotifySessionClosed
 	VAR_INPUT
 		SessionEpoch 	: UDINT;
 	END_VAR
+	VAR
+		bankIndex : UINT;
+	END_VAR
 
 	if (SessionEpoch <> 0) & (SessionEpoch = OwnerSessionEpoch) then
 		ClosedSessionEpoch := SessionEpoch;
+	end_if;
+	if SessionEpoch <> 0 then
+		for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+			if (g_LMCRecorderBankRecordId[bankIndex] <> 0) &
+				(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] = SessionEpoch) then
+				g_LMCRecorderBankClosedSessionEpoch[bankIndex] := SessionEpoch;
+			end_if;
+		end_for;
 	end_if;
 
 END_FUNCTION
@@ -252,6 +294,14 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 		upperSigned : DINT;
 		timestampStep : UDINT;
 		timestampLowBefore : UDINT;
+		bankIndex : UINT;
+		bankBaseOffset : UDINT;
+		publishedBankState : UDINT;
+		generationBefore : UDINT;
+		generationAfter : UDINT;
+		enteredRecordId : UDINT;
+		enteredBufferId : UDINT;
+		enteredActiveState : BOOL;
 	END_VAR
 
 	Result := -1;
@@ -259,10 +309,42 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 		RETURN;
 	end_if;
 
+	generationBefore := sigclib_atomic_getU32(
+		pValue:=#g_LMCRecorderActiveGeneration);
+	if (generationBefore and 1) <> 0 then
+		Result := 0;
+		RETURN;
+	end_if;
 	state := sigclib_atomic_getU32(pValue:=#StateValue);
+	enteredRecordId := RecordId;
+	enteredBufferId := BufferId;
 	startRequest := sigclib_atomic_getU32(pValue:=#StartRequestSequence);
 	triggerRequest := sigclib_atomic_getU32(pValue:=#TriggerRequestSequence);
 	stopRequest := sigclib_atomic_getU32(pValue:=#StopRequestSequence);
+	generationAfter := sigclib_atomic_getU32(
+		pValue:=#g_LMCRecorderActiveGeneration);
+	if (generationBefore <> generationAfter) |
+		((generationAfter and 1) <> 0) then
+		Result := 0;
+		RETURN;
+	end_if;
+	enteredActiveState := (state = LMC_RECORDER_ARMED) |
+		(state = LMC_RECORDER_RECORDING);
+	if enteredActiveState = FALSE then
+		Result := 0;
+		RETURN;
+	end_if;
+	bankIndex := 0;
+	bankBaseOffset := 0;
+	if enteredRecordId <> 0 then
+		if enteredBufferId >= LMC_RECORDER_BANK_COUNT then
+			RETURN;
+		end_if;
+		bankIndex := TO_UINT(enteredBufferId);
+		bankBaseOffset := enteredBufferId * LMC_RECORDER_STORAGE_BYTES;
+	else
+		RETURN;
+	end_if;
 
 	sequence := sigclib_atomic_getU32(pValue:=#StatusSequence) + 1;
 	if (sequence and 1) = 0 then
@@ -330,7 +412,7 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 						StartTimestampHigh := (pSnapshot + 8)^$UDINT;
 					end_if;
 					for channelIndex := 0 to ChannelCount - 1 do
-						dataOffset := WriteSampleIndex *
+						dataOffset := bankBaseOffset + WriteSampleIndex *
 							TO_UDINT(SampleStrideBytes) +
 							TO_UDINT(channelIndex) * 4;
 						snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
@@ -435,7 +517,7 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 							(WriteSampleIndex + SampleCapacity - SampleCount) MOD
 							SampleCapacity;
 						for channelIndex := 0 to ChannelCount - 1 do
-							dataOffset := WriteSampleIndex *
+							dataOffset := bankBaseOffset + WriteSampleIndex *
 								TO_UDINT(SampleStrideBytes) +
 								TO_UDINT(channelIndex) * 4;
 							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
@@ -473,7 +555,7 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 							end_if;
 						end_if;
 						for channelIndex := 0 to ChannelCount - 1 do
-							dataOffset := WriteSampleIndex *
+							dataOffset := bankBaseOffset + WriteSampleIndex *
 								TO_UDINT(SampleStrideBytes) +
 								TO_UDINT(channelIndex) * 4;
 							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
@@ -491,7 +573,7 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 				else
 					if SampleCount < SampleCapacity then
 						for channelIndex := 0 to ChannelCount - 1 do
-							dataOffset := WriteSampleIndex *
+							dataOffset := bankBaseOffset + WriteSampleIndex *
 								TO_UDINT(SampleStrideBytes) +
 								TO_UDINT(channelIndex) * 4;
 							snapshotOffset := TO_UDINT(SignalOffsets[channelIndex]);
@@ -529,6 +611,41 @@ FUNCTION GLOBAL LMCRecorderStore::AppendSnapshot
 			end_if;
 		else
 			DividerCounter -= 1;
+		end_if;
+	end_if;
+
+	generationAfter := sigclib_atomic_getU32(
+		pValue:=#g_LMCRecorderActiveGeneration);
+	if (generationBefore = generationAfter) &
+		((generationAfter and 1) = 0) &
+		(RecordId = enteredRecordId) & (BufferId = enteredBufferId) then
+		publishedBankState := sigclib_atomic_getU32(
+			pValue:=#g_LMCRecorderBankState[bankIndex]);
+		if (publishedBankState = LMC_RECORDER_ARMED) |
+			(publishedBankState = LMC_RECORDER_RECORDING) then
+			g_LMCRecorderBankSampleCount[bankIndex] := SampleCount;
+			g_LMCRecorderBankCapturePhase[bankIndex] := CapturePhase;
+			g_LMCRecorderBankStopReason[bankIndex] := StopReason;
+			g_LMCRecorderBankTriggerIndex[bankIndex] := TriggerIndex;
+			g_LMCRecorderBankTriggerCycle[bankIndex] := TriggerCycle;
+			g_LMCRecorderBankTriggerTimestampLow[bankIndex] :=
+				TriggerTimestampLow;
+			g_LMCRecorderBankTriggerTimestampHigh[bankIndex] :=
+				TriggerTimestampHigh;
+			g_LMCRecorderBankStartCycle[bankIndex] := StartCycle;
+			g_LMCRecorderBankEndCycle[bankIndex] := EndCycle;
+			g_LMCRecorderBankStartTimestampLow[bankIndex] := StartTimestampLow;
+			g_LMCRecorderBankStartTimestampHigh[bankIndex] := StartTimestampHigh;
+			g_LMCRecorderBankEndTimestampLow[bankIndex] := EndTimestampLow;
+			g_LMCRecorderBankEndTimestampHigh[bankIndex] := EndTimestampHigh;
+			g_LMCRecorderBankDroppedCycles[bankIndex] := DroppedCycles;
+			g_LMCRecorderBankOverflowCount[bankIndex] := OverflowCount;
+			g_LMCRecorderBankFrozenFirstSampleIndex[bankIndex] :=
+				FrozenFirstSampleIndex;
+			// Publish state last. Atomic readers may consume a terminal bank only
+			// after all of its immutable descriptor fields and sample bytes exist.
+			sigclib_atomic_setU32(
+				pValue:=#g_LMCRecorderBankState[bankIndex], value:=state);
 		end_if;
 	end_if;
 
@@ -628,6 +745,33 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 		validatedSignalIds : ARRAY [0..23] OF UDINT;
 		validatedSignalOffsets : ARRAY [0..23] OF UINT;
 		nextRequestSequence : UDINT;
+		recorderBufferCount : UINT;
+		bankIndex : UINT;
+		selectedBankIndex : UINT;
+		targetBankIndex : UINT;
+		bankState : UDINT;
+		bankDataBaseOffset : UDINT;
+		oldOwnerEpoch : UDINT;
+		activeGeneration : UDINT;
+		activeCaptureFound : BOOL;
+		freeBankFound : BOOL;
+		foreignBankOwnerFound : BOOL;
+		adoptionEligible : BOOL;
+		currentBankSelected : BOOL;
+		inventoryValid : BOOL;
+		inventoryCount : UINT;
+		inventoryEntryOffset : UDINT;
+		configureHeaderSize : DINT;
+		signalListOffset : DINT;
+		requestRecoveryToken0 : UDINT;
+		requestRecoveryToken1 : UDINT;
+		requestRecoveryToken2 : UDINT;
+		requestRecoveryToken3 : UDINT;
+		requestRecoveryTokenNonzero : BOOL;
+		storedRecoveryTokenNonzero : BOOL;
+		requestMatchesActiveRecoveryToken : BOOL;
+		requestMatchesLastReleasedRecoveryToken : BOOL;
+		recoverableConfigure : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -667,8 +811,20 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 
 	if detailCode = 0 then
 		case CommandId of
-			0x7E40:
-				if (RequestSize < 56) | (CallerSessionEpoch = 0) then
+			0x7E40, 0x7E4C:
+				recoverableConfigure := (CommandId = 0x7E4C);
+				configureHeaderSize := 56;
+				signalListOffset := 56;
+				requestRecoveryToken0 := 0;
+				requestRecoveryToken1 := 0;
+				requestRecoveryToken2 := 0;
+				requestRecoveryToken3 := 0;
+				if recoverableConfigure then
+					configureHeaderSize := 72;
+					signalListOffset := 72;
+				end_if;
+				if (RequestSize < TO_UDINT(configureHeaderSize)) |
+					(CallerSessionEpoch = 0) then
 					detailCode := 12;
 				else
 					expectedMapRevision := (pRequest + 8)^$UDINT;
@@ -686,8 +842,73 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					triggerValue := (pRequest + 44)^$UDINT;
 					triggerMask := (pRequest + 48)^$UDINT;
 					requestBootId := (pRequest + 52)^$UDINT;
+					if recoverableConfigure then
+						requestRecoveryToken0 := (pRequest + 56)^$UDINT;
+						requestRecoveryToken1 := (pRequest + 60)^$UDINT;
+						requestRecoveryToken2 := (pRequest + 64)^$UDINT;
+						requestRecoveryToken3 := (pRequest + 68)^$UDINT;
+					end_if;
+					requestRecoveryTokenNonzero :=
+						(requestRecoveryToken0 <> 0) |
+						(requestRecoveryToken1 <> 0) |
+						(requestRecoveryToken2 <> 0) |
+						(requestRecoveryToken3 <> 0);
+					storedRecoveryTokenNonzero :=
+						(g_LMCRecorderRecoveryToken[0] <> 0) |
+						(g_LMCRecorderRecoveryToken[1] <> 0) |
+						(g_LMCRecorderRecoveryToken[2] <> 0) |
+						(g_LMCRecorderRecoveryToken[3] <> 0);
+					requestMatchesActiveRecoveryToken :=
+						requestRecoveryTokenNonzero & storedRecoveryTokenNonzero &
+						(requestRecoveryToken0 = g_LMCRecorderRecoveryToken[0]) &
+						(requestRecoveryToken1 = g_LMCRecorderRecoveryToken[1]) &
+						(requestRecoveryToken2 = g_LMCRecorderRecoveryToken[2]) &
+						(requestRecoveryToken3 = g_LMCRecorderRecoveryToken[3]);
+					requestMatchesLastReleasedRecoveryToken :=
+						requestRecoveryTokenNonzero &
+						(requestRecoveryToken0 =
+						 g_LMCRecorderLastReleasedRecoveryToken[0]) &
+						(requestRecoveryToken1 =
+						 g_LMCRecorderLastReleasedRecoveryToken[1]) &
+						(requestRecoveryToken2 =
+						 g_LMCRecorderLastReleasedRecoveryToken[2]) &
+						(requestRecoveryToken3 =
+						 g_LMCRecorderLastReleasedRecoveryToken[3]);
+					activeCaptureFound := FALSE;
+					inventoryValid := TRUE;
+					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					if recoverableConfigure &
+						((ConfigId <> 0) | (state <> LMC_RECORDER_EMPTY) |
+						 (MapRevision <> 0) | (OwnerSessionEpoch <> 0) |
+						 (ClosedSessionEpoch <> 0) | (DiagnosticsBootId <> 0) |
+						 (RecordId <> 0) | (BufferId <> 0) |
+						 (BufferReleased = FALSE) | (BufferMode <> 0) |
+						 (ChannelCount <> 0) | (SampleCapacity <> 0) |
+						 (SampleStrideBytes <> 0) | storedRecoveryTokenNonzero) then
+						inventoryValid := FALSE;
+					end_if;
+					for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+						bankState := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[bankIndex]);
+						if (g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+							(bankState > LMC_RECORDER_CONFIGURED) then
+							activeCaptureFound := TRUE;
+						end_if;
+						if recoverableConfigure &
+							((bankState <> LMC_RECORDER_EMPTY) |
+							 (g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+							 (g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+							 (g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+							 (g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+							 (g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+							 (g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+							 (g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0)) then
+							inventoryValid := FALSE;
+						end_if;
+					end_for;
 
-					if RequestSize <> (56 + TO_UDINT(requestedChannelCount) * 4) then
+					if RequestSize <> TO_UDINT(configureHeaderSize +
+						TO_DINT(requestedChannelCount) * 4) then
 						detailCode := 12;
 					elsif (expectedMapRevision <> LMC_RECORDER_MAP_REVISION) then
 						detailCode := 3;
@@ -701,20 +922,46 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						((pRequest + 41)^$USINT <> 0) |
 						((pRequest + 42)^$UINT <> 0) then
 						detailCode := 12;
-					elsif bufferMode = 2 then
+					elsif (CommandId = 0x7E40) & (bufferMode = 2) then
 						detailCode := 2;
+					elsif recoverableConfigure &
+						(LMC_RECORDER_DOUBLE_BANK_ENABLED = FALSE) then
+						detailCode := 2;
+					elsif recoverableConfigure & (bufferMode <> 2) then
+						detailCode := 12;
+					elsif recoverableConfigure &
+						((requestedConfigId = 0) |
+						 (requestRecoveryTokenNonzero = FALSE)) then
+						detailCode := 12;
+					elsif recoverableConfigure &
+						(requestMatchesActiveRecoveryToken |
+						 requestMatchesLastReleasedRecoveryToken) then
+						detailCode := 10;
+					elsif recoverableConfigure & (inventoryValid = FALSE) then
+						detailCode := 10;
+					elsif (recoverableConfigure = FALSE) &
+						storedRecoveryTokenNonzero then
+						detailCode := 10;
 					elsif (bufferMode > 2) | (triggerType > 3) then
 						detailCode := 12;
 					elsif (triggerType = 0) &
-						((bufferMode <> 0) | (triggerValueType <> 0) |
+						(((bufferMode <> 0) & (bufferMode <> 2)) |
+						 (triggerValueType <> 0) |
 						 (preTriggerSamples <> 0) | (postTriggerSamples <> 0) |
 						 (triggerSignalId <> 0) | (triggerOperator <> 0) |
 						 (triggerValue <> 0) | (triggerMask <> 0)) then
 						detailCode := 12;
-					elsif (triggerType <> 0) & (bufferMode <> 1) then
+					elsif (triggerType <> 0) &
+						(bufferMode <> 1) & (bufferMode <> 2) then
 						detailCode := 12;
-					elsif sigclib_atomic_getU32(pValue:=#StateValue) >
-						LMC_RECORDER_CONFIGURED then
+					elsif (ConfigId <> 0) &
+						(ClosedSessionEpoch = 0) &
+						(OwnerSessionEpoch <> CallerSessionEpoch) then
+						detailCode := 10;
+					elsif (ConfigId <> 0) &
+						(ClosedSessionEpoch <> 0) & activeCaptureFound then
+						detailCode := 10;
+					elsif activeCaptureFound then
 						detailCode := 9;
 					else
 						triggerSignalOffset := 0;
@@ -781,7 +1028,8 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						_memset(dest:=#validatedSignalOffsets[0], usByte:=0,
 							cntr:=sizeof(validatedSignalOffsets));
 						for channelIndex := 0 to requestedChannelCount - 1 do
-							signalId := (pRequest + 56 + TO_UDINT(channelIndex) * 4)^$UDINT;
+							signalId := (pRequest + signalListOffset +
+								TO_DINT(channelIndex) * 4)^$UDINT;
 							physicalAxis := TO_UINT((signalId shr 8) and 0xFF);
 							signalCode := TO_UINT(signalId and 0xFF);
 							if ((signalId and 0xFFFF0000) <> 0x00100000) |
@@ -804,6 +1052,10 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 
 						if detailCode = 0 then
 							stride := TO_UDINT(requestedChannelCount) * 4;
+							recorderBufferCount := 1;
+							if bufferMode = 2 then
+								recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+							end_if;
 							acceptedCapacity := LMC_RECORDER_STORAGE_BYTES / stride;
 							if acceptedCapacity > requestedCapacity then
 								acceptedCapacity := requestedCapacity;
@@ -821,7 +1073,7 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 								detailCode := 9;
 							elsif ConfigRevision = 0xFFFFFFFF then
 								detailCode := 9;
-							elsif ResponseCapacity < 56 then
+							elsif ResponseCapacity < TO_UDINT(configureHeaderSize) then
 								detailCode := 20;
 							else
 								_memset(dest:=#SignalIds[0], usByte:=0,
@@ -881,11 +1133,53 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 								PreviousTriggerValue := 0;
 								PreviousTriggerValid := FALSE;
 								BufferReleased := TRUE;
+								if recoverableConfigure then
+									g_LMCRecorderRecoveryToken[0] :=
+										requestRecoveryToken0;
+									g_LMCRecorderRecoveryToken[1] :=
+										requestRecoveryToken1;
+									g_LMCRecorderRecoveryToken[2] :=
+										requestRecoveryToken2;
+									g_LMCRecorderRecoveryToken[3] :=
+										requestRecoveryToken3;
+								end_if;
+								for bankIndex := 0 to
+									LMC_RECORDER_BANK_COUNT - 1 do
+									g_LMCRecorderBankRecordId[bankIndex] := 0;
+									g_LMCRecorderBankConfigId[bankIndex] := 0;
+									g_LMCRecorderBankConfigRevision[bankIndex] := 0;
+									g_LMCRecorderBankMapRevision[bankIndex] := 0;
+									g_LMCRecorderBankOwnerSessionEpoch[bankIndex] := 0;
+									g_LMCRecorderBankClosedSessionEpoch[bankIndex] := 0;
+									g_LMCRecorderBankDiagnosticsBootId[bankIndex] := 0;
+									g_LMCRecorderBankSampleCapacity[bankIndex] := 0;
+									g_LMCRecorderBankSampleCount[bankIndex] := 0;
+									g_LMCRecorderBankCapturePhase[bankIndex] := 0;
+									g_LMCRecorderBankStopReason[bankIndex] := 0;
+									g_LMCRecorderBankTriggerIndex[bankIndex] :=
+										0xFFFFFFFF;
+									g_LMCRecorderBankTriggerCycle[bankIndex] := 0;
+									g_LMCRecorderBankTriggerTimestampLow[bankIndex] := 0;
+									g_LMCRecorderBankTriggerTimestampHigh[bankIndex] := 0;
+									g_LMCRecorderBankStartCycle[bankIndex] := 0;
+									g_LMCRecorderBankEndCycle[bankIndex] := 0;
+									g_LMCRecorderBankStartTimestampLow[bankIndex] := 0;
+									g_LMCRecorderBankStartTimestampHigh[bankIndex] := 0;
+									g_LMCRecorderBankEndTimestampLow[bankIndex] := 0;
+									g_LMCRecorderBankEndTimestampHigh[bankIndex] := 0;
+									g_LMCRecorderBankDroppedCycles[bankIndex] := 0;
+									g_LMCRecorderBankOverflowCount[bankIndex] := 0;
+									g_LMCRecorderBankFrozenFirstSampleIndex[bankIndex] := 0;
+									sigclib_atomic_setU32(
+										pValue:=#g_LMCRecorderBankState[bankIndex],
+										value:=LMC_RECORDER_CONFIGURED);
+								end_for;
 								sigclib_atomic_setU32(
 									pValue:=#StateValue,
 									value:=LMC_RECORDER_CONFIGURED);
 
-								reservedDataBytes := acceptedCapacity * stride;
+								reservedDataBytes := acceptedCapacity * stride *
+									TO_UDINT(recorderBufferCount);
 								(pResponse + 16)^$UDINT := ConfigId;
 								(pResponse + 20)^$UDINT := ConfigRevision;
 								(pResponse + 24)^$UDINT := MapRevision;
@@ -894,12 +1188,24 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 								(pResponse + 36)^$UINT := LMC_RECORDER_CONFIGURED;
 								(pResponse + 38)^$UINT := ChannelCount;
 								(pResponse + 40)^$UINT := SampleStrideBytes;
-								(pResponse + 42)^$UINT := 1;
+								(pResponse + 42)^$UINT := recorderBufferCount;
 								(pResponse + 44)^$UINT := CapturePhase;
 								(pResponse + 46)^$UINT := 0;
 								(pResponse + 48)^$UDINT := OwnerSessionEpoch;
 								(pResponse + 52)^$UDINT := DiagnosticsBootId;
-								ResponseSize := 56;
+								if recoverableConfigure then
+									(pResponse + 56)^$UDINT :=
+										g_LMCRecorderRecoveryToken[0];
+									(pResponse + 60)^$UDINT :=
+										g_LMCRecorderRecoveryToken[1];
+									(pResponse + 64)^$UDINT :=
+										g_LMCRecorderRecoveryToken[2];
+									(pResponse + 68)^$UDINT :=
+										g_LMCRecorderRecoveryToken[3];
+									ResponseSize := 72;
+								else
+									ResponseSize := 56;
+								end_if;
 							end_if;
 						end_if;
 					end_if;
@@ -914,7 +1220,34 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					selectedBankIndex := 0xFFFF;
+					activeCaptureFound := FALSE;
+					freeBankFound := FALSE;
+					foreignBankOwnerFound := FALSE;
+					for bankIndex := 0 to recorderBufferCount - 1 do
+						bankState := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[bankIndex]);
+						if (bankState = LMC_RECORDER_ARMED) |
+							(bankState = LMC_RECORDER_RECORDING) then
+							activeCaptureFound := TRUE;
+						end_if;
+						if (g_LMCRecorderBankRecordId[bankIndex] <> 0) &
+							((g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <>
+							  OwnerSessionEpoch) |
+							 (g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0)) then
+							foreignBankOwnerFound := TRUE;
+						end_if;
+						if (freeBankFound = FALSE) &
+							(bankState = LMC_RECORDER_CONFIGURED) &
+							(g_LMCRecorderBankRecordId[bankIndex] = 0) then
+							selectedBankIndex := bankIndex;
+							freeBankFound := TRUE;
+						end_if;
+					end_for;
 					if (requestConfigId <> ConfigId) |
 						(requestConfigRevision <> ConfigRevision) then
 						detailCode := 10;
@@ -926,22 +1259,32 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
 						(CallerSessionEpoch <> OwnerSessionEpoch) then
 						detailCode := 10;
-					elsif state <> LMC_RECORDER_CONFIGURED then
-						detailCode := 19;
-					elsif BufferReleased = FALSE then
+					elsif ClosedSessionEpoch <> 0 then
+						detailCode := 10;
+					elsif foreignBankOwnerFound then
+						detailCode := 10;
+					elsif activeCaptureFound | (freeBankFound = FALSE) then
 						detailCode := 9;
 					elsif NextRecordId = 0 then
 						detailCode := 9;
 					elsif ResponseCapacity < 40 then
 						detailCode := 20;
 					else
+						activeGeneration := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderActiveGeneration) + 1;
+						if (activeGeneration and 1) = 0 then
+							activeGeneration += 1;
+						end_if;
+						sigclib_atomic_setU32(
+							pValue:=#g_LMCRecorderActiveGeneration,
+							value:=activeGeneration);
 						RecordId := NextRecordId;
 						if NextRecordId = 0xFFFFFFFF then
 							NextRecordId := 0;
 						else
 							NextRecordId += 1;
 						end_if;
-						BufferId := 0;
+						BufferId := TO_UDINT(selectedBankIndex);
 						BufferReleased := FALSE;
 						SampleCount := 0;
 						StopReason := LMC_RECORDER_STOP_NONE;
@@ -968,6 +1311,38 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 							pValue:=#StopRequestSequence);
 						TriggerAppliedSequence := sigclib_atomic_getU32(
 							pValue:=#TriggerRequestSequence);
+						g_LMCRecorderBankRecordId[selectedBankIndex] := RecordId;
+						g_LMCRecorderBankConfigId[selectedBankIndex] := ConfigId;
+						g_LMCRecorderBankConfigRevision[selectedBankIndex] :=
+							ConfigRevision;
+						g_LMCRecorderBankMapRevision[selectedBankIndex] := MapRevision;
+						g_LMCRecorderBankOwnerSessionEpoch[selectedBankIndex] :=
+							OwnerSessionEpoch;
+						g_LMCRecorderBankClosedSessionEpoch[selectedBankIndex] := 0;
+						g_LMCRecorderBankDiagnosticsBootId[selectedBankIndex] :=
+							DiagnosticsBootId;
+						g_LMCRecorderBankSampleCapacity[selectedBankIndex] :=
+							SampleCapacity;
+						g_LMCRecorderBankSampleCount[selectedBankIndex] := 0;
+						g_LMCRecorderBankCapturePhase[selectedBankIndex] := CapturePhase;
+						g_LMCRecorderBankStopReason[selectedBankIndex] := 0;
+						g_LMCRecorderBankTriggerIndex[selectedBankIndex] := 0xFFFFFFFF;
+						g_LMCRecorderBankTriggerCycle[selectedBankIndex] := 0;
+						g_LMCRecorderBankTriggerTimestampLow[selectedBankIndex] := 0;
+						g_LMCRecorderBankTriggerTimestampHigh[selectedBankIndex] := 0;
+						g_LMCRecorderBankStartCycle[selectedBankIndex] := 0;
+						g_LMCRecorderBankEndCycle[selectedBankIndex] := 0;
+						g_LMCRecorderBankStartTimestampLow[selectedBankIndex] := 0;
+						g_LMCRecorderBankStartTimestampHigh[selectedBankIndex] := 0;
+						g_LMCRecorderBankEndTimestampLow[selectedBankIndex] := 0;
+						g_LMCRecorderBankEndTimestampHigh[selectedBankIndex] := 0;
+						g_LMCRecorderBankDroppedCycles[selectedBankIndex] := 0;
+						g_LMCRecorderBankOverflowCount[selectedBankIndex] := 0;
+						g_LMCRecorderBankFrozenFirstSampleIndex[selectedBankIndex] := 0;
+						// Publish Armed only after the selected descriptor is complete.
+						sigclib_atomic_setU32(
+							pValue:=#g_LMCRecorderBankState[selectedBankIndex],
+							value:=LMC_RECORDER_ARMED);
 						nextRequestSequence := sigclib_atomic_getU32(
 							pValue:=#StartRequestSequence) + 1;
 						if nextRequestSequence = 0 then
@@ -977,6 +1352,13 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 							value:=nextRequestSequence);
 						sigclib_atomic_setU32(
 							pValue:=#StateValue, value:=LMC_RECORDER_ARMED);
+						activeGeneration += 1;
+						if (activeGeneration and 1) <> 0 then
+							activeGeneration += 1;
+						end_if;
+						sigclib_atomic_setU32(
+							pValue:=#g_LMCRecorderActiveGeneration,
+							value:=activeGeneration);
 						(pResponse + 16)^$UDINT := RecordId;
 						(pResponse + 20)^$UDINT := BufferId;
 						(pResponse + 24)^$UINT := LMC_RECORDER_ARMED;
@@ -997,25 +1379,45 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
-					if (requestRecordId <> RecordId) |
-						(requestBufferId <> BufferId) then
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					if requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif expectedMapRevision <> MapRevision then
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+						bankState := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif expectedMapRevision <>
+						g_LMCRecorderBankMapRevision[targetBankIndex] then
 						detailCode := 3;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
-					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
-						(CallerSessionEpoch <> OwnerSessionEpoch) then
+					elsif (requestOwnerEpoch <>
+						g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) |
+						(CallerSessionEpoch <>
+						 g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) then
 						detailCode := 10;
 					elsif TriggerType = 0 then
 						detailCode := 19;
-					elsif TriggerIndex <> 0xFFFFFFFF then
+					elsif g_LMCRecorderBankTriggerIndex[targetBankIndex] <>
+						0xFFFFFFFF then
 						detailCode := 19;
-					elsif (state <> LMC_RECORDER_ARMED) &
-						(state <> LMC_RECORDER_RECORDING) then
+					elsif (bankState <> LMC_RECORDER_ARMED) &
+						(bankState <> LMC_RECORDER_RECORDING) then
 						detailCode := 19;
+					elsif (requestRecordId <> RecordId) |
+						(requestBufferId <> BufferId) then
+						detailCode := 22;
 					else
 						nextRequestSequence := sigclib_atomic_getU32(
 							pValue:=#TriggerRequestSequence) + 1;
@@ -1038,25 +1440,45 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
-					if (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					if requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif expectedMapRevision <> MapRevision then
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+						bankState := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif expectedMapRevision <>
+						g_LMCRecorderBankMapRevision[targetBankIndex] then
 						detailCode := 3;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
-					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
-						(CallerSessionEpoch <> OwnerSessionEpoch) then
+					elsif (requestOwnerEpoch <>
+						g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) |
+						(CallerSessionEpoch <>
+						 g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) then
 						detailCode := 10;
-					elsif (state = LMC_RECORDER_READY) |
-						(state = LMC_RECORDER_UPLOADING) then
+					elsif (bankState = LMC_RECORDER_READY) |
+						(bankState = LMC_RECORDER_UPLOADING) then
 						// Stop is idempotent after the record has already reached a
 						// terminal/readback state. Preserve identity and ownership checks.
 						ResponseSize := 16;
-					elsif (state <> LMC_RECORDER_ARMED) &
-						(state <> LMC_RECORDER_RECORDING) then
+					elsif (bankState <> LMC_RECORDER_ARMED) &
+						(bankState <> LMC_RECORDER_RECORDING) then
 						detailCode := 19;
+					elsif (requestRecordId <> RecordId) |
+						(requestBufferId <> BufferId) then
+						detailCode := 22;
 					else
 						nextRequestSequence := sigclib_atomic_getU32(
 							pValue:=#StopRequestSequence) + 1;
@@ -1078,15 +1500,30 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					if (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					if requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif expectedMapRevision <> MapRevision then
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif expectedMapRevision <>
+						g_LMCRecorderBankMapRevision[targetBankIndex] then
 						detailCode := 3;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
 					elsif (requestOwnerEpoch <> 0) &
-						(requestOwnerEpoch <> OwnerSessionEpoch) then
+						(requestOwnerEpoch <>
+						 g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) then
 						detailCode := 10;
 					elsif ResponseCapacity < 76 then
 						detailCode := 20;
@@ -1100,23 +1537,38 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 							end_if;
 							if (statusStable = FALSE) &
 								((sequenceBefore and 1) = 0) then
-								state := sigclib_atomic_getU32(pValue:=#StateValue);
-								localRecordId := RecordId;
-								localBufferId := BufferId;
-								localConfigId := ConfigId;
-								localConfigRevision := ConfigRevision;
-								localMapRevision := MapRevision;
-								localStopReason := StopReason;
-								localCapturePhase := CapturePhase;
-								localSampleCount := SampleCount;
-								localCapacity := SampleCapacity;
-								localTriggerIndex := TriggerIndex;
-								localStartCycle := StartCycle;
-								localEndCycle := EndCycle;
-								localDroppedCycles := DroppedCycles;
-								localOverflowCount := OverflowCount;
-								localOwnerEpoch := OwnerSessionEpoch;
-								localBootId := DiagnosticsBootId;
+								state := g_LMCRecorderBankState[targetBankIndex];
+								localRecordId :=
+									g_LMCRecorderBankRecordId[targetBankIndex];
+								localBufferId := requestBufferId;
+								localConfigId :=
+									g_LMCRecorderBankConfigId[targetBankIndex];
+								localConfigRevision :=
+									g_LMCRecorderBankConfigRevision[targetBankIndex];
+								localMapRevision :=
+									g_LMCRecorderBankMapRevision[targetBankIndex];
+								localStopReason :=
+									g_LMCRecorderBankStopReason[targetBankIndex];
+								localCapturePhase :=
+									g_LMCRecorderBankCapturePhase[targetBankIndex];
+								localSampleCount :=
+									g_LMCRecorderBankSampleCount[targetBankIndex];
+								localCapacity :=
+									g_LMCRecorderBankSampleCapacity[targetBankIndex];
+								localTriggerIndex :=
+									g_LMCRecorderBankTriggerIndex[targetBankIndex];
+								localStartCycle :=
+									g_LMCRecorderBankStartCycle[targetBankIndex];
+								localEndCycle :=
+									g_LMCRecorderBankEndCycle[targetBankIndex];
+								localDroppedCycles :=
+									g_LMCRecorderBankDroppedCycles[targetBankIndex];
+								localOverflowCount :=
+									g_LMCRecorderBankOverflowCount[targetBankIndex];
+								localOwnerEpoch :=
+									g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex];
+								localBootId :=
+									g_LMCRecorderBankDiagnosticsBootId[targetBankIndex];
 								sequenceAfter := sigclib_atomic_getU32(
 									pValue:=#StatusSequence);
 								if (sequenceBefore = sequenceAfter) &
@@ -1159,17 +1611,33 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
 					responseSizeRequired := 112 + TO_UDINT(ChannelCount) * 4;
-					if (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
+					if requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif expectedMapRevision <> MapRevision then
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+						state := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif expectedMapRevision <>
+						g_LMCRecorderBankMapRevision[targetBankIndex] then
 						detailCode := 3;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
 					elsif (requestOwnerEpoch <> 0) &
-						(requestOwnerEpoch <> OwnerSessionEpoch) then
+						(requestOwnerEpoch <>
+						 g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) then
 						detailCode := 10;
 					elsif (state <> LMC_RECORDER_READY) &
 						(state <> LMC_RECORDER_UPLOADING) then
@@ -1177,42 +1645,65 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					elsif ResponseCapacity < responseSizeRequired then
 						detailCode := 20;
 					else
-						(pResponse + 16)^$UDINT := DiagnosticsBootId;
-						(pResponse + 20)^$UDINT := RecordId;
-						(pResponse + 24)^$UDINT := BufferId;
-						(pResponse + 28)^$UDINT := ConfigId;
-						(pResponse + 32)^$UDINT := ConfigRevision;
-						(pResponse + 36)^$UDINT := MapRevision;
-						(pResponse + 40)^$USINT := TO_USINT(CapturePhase);
-						(pResponse + 41)^$USINT := TO_USINT(StopReason);
+						(pResponse + 16)^$UDINT :=
+							g_LMCRecorderBankDiagnosticsBootId[targetBankIndex];
+						(pResponse + 20)^$UDINT :=
+							g_LMCRecorderBankRecordId[targetBankIndex];
+						(pResponse + 24)^$UDINT := requestBufferId;
+						(pResponse + 28)^$UDINT :=
+							g_LMCRecorderBankConfigId[targetBankIndex];
+						(pResponse + 32)^$UDINT :=
+							g_LMCRecorderBankConfigRevision[targetBankIndex];
+						(pResponse + 36)^$UDINT :=
+							g_LMCRecorderBankMapRevision[targetBankIndex];
+						(pResponse + 40)^$USINT := TO_USINT(
+							g_LMCRecorderBankCapturePhase[targetBankIndex]);
+						(pResponse + 41)^$USINT := TO_USINT(
+							g_LMCRecorderBankStopReason[targetBankIndex]);
 						headerFlags := 1;
-						if TriggerIndex <> 0xFFFFFFFF then
+						if g_LMCRecorderBankTriggerIndex[targetBankIndex] <>
+							0xFFFFFFFF then
 							headerFlags := headerFlags or 2;
 						end_if;
-						if StopReason = LMC_RECORDER_STOP_USER then
+						if g_LMCRecorderBankStopReason[targetBankIndex] =
+							LMC_RECORDER_STOP_USER then
 							headerFlags := headerFlags or 4;
 						end_if;
 						(pResponse + 42)^$UINT := headerFlags;
-						(pResponse + 44)^$UDINT := SampleCount;
-						(pResponse + 48)^$UDINT := SampleCapacity;
+						(pResponse + 44)^$UDINT :=
+							g_LMCRecorderBankSampleCount[targetBankIndex];
+						(pResponse + 48)^$UDINT :=
+							g_LMCRecorderBankSampleCapacity[targetBankIndex];
 						(pResponse + 52)^$UINT := ChannelCount;
 						(pResponse + 54)^$UINT := SampleStrideBytes;
 						(pResponse + 56)^$UDINT := TO_UDINT(SamplePeriodCycles) * 1000;
 						(pResponse + 60)^$USINT := 1;
 						(pResponse + 61)^$USINT := 0;
 						(pResponse + 62)^$UINT := 0;
-						(pResponse + 64)^$UDINT := TriggerIndex;
-						(pResponse + 68)^$UDINT := StartCycle;
-						(pResponse + 72)^$UDINT := TriggerCycle;
-						(pResponse + 76)^$UDINT := EndCycle;
-						(pResponse + 80)^$UDINT := StartTimestampLow;
-						(pResponse + 84)^$UDINT := StartTimestampHigh;
-						(pResponse + 88)^$UDINT := TriggerTimestampLow;
-						(pResponse + 92)^$UDINT := TriggerTimestampHigh;
-						(pResponse + 96)^$UDINT := EndTimestampLow;
-						(pResponse + 100)^$UDINT := EndTimestampHigh;
-						(pResponse + 104)^$UDINT := DroppedCycles;
-						(pResponse + 108)^$UDINT := OverflowCount;
+						(pResponse + 64)^$UDINT :=
+							g_LMCRecorderBankTriggerIndex[targetBankIndex];
+						(pResponse + 68)^$UDINT :=
+							g_LMCRecorderBankStartCycle[targetBankIndex];
+						(pResponse + 72)^$UDINT :=
+							g_LMCRecorderBankTriggerCycle[targetBankIndex];
+						(pResponse + 76)^$UDINT :=
+							g_LMCRecorderBankEndCycle[targetBankIndex];
+						(pResponse + 80)^$UDINT :=
+							g_LMCRecorderBankStartTimestampLow[targetBankIndex];
+						(pResponse + 84)^$UDINT :=
+							g_LMCRecorderBankStartTimestampHigh[targetBankIndex];
+						(pResponse + 88)^$UDINT :=
+							g_LMCRecorderBankTriggerTimestampLow[targetBankIndex];
+						(pResponse + 92)^$UDINT :=
+							g_LMCRecorderBankTriggerTimestampHigh[targetBankIndex];
+						(pResponse + 96)^$UDINT :=
+							g_LMCRecorderBankEndTimestampLow[targetBankIndex];
+						(pResponse + 100)^$UDINT :=
+							g_LMCRecorderBankEndTimestampHigh[targetBankIndex];
+						(pResponse + 104)^$UDINT :=
+							g_LMCRecorderBankDroppedCycles[targetBankIndex];
+						(pResponse + 108)^$UDINT :=
+							g_LMCRecorderBankOverflowCount[targetBankIndex];
 						for channelIndex := 0 to ChannelCount - 1 do
 							(pResponse + 112 + TO_UDINT(channelIndex) * 4)^$UDINT :=
 								SignalIds[channelIndex];
@@ -1231,21 +1722,39 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					requestedSamples := (pRequest + 20)^$UINT;
 					chunkSequence := (pRequest + 24)^$UDINT;
 					requestBootId := (pRequest + 28)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
 					if ((pRequest + 22)^$UINT <> 0) | (requestedSamples = 0) then
 						detailCode := 12;
-					elsif (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
+					elsif requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+						state := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
 					elsif (state <> LMC_RECORDER_READY) &
 						(state <> LMC_RECORDER_UPLOADING) then
 						detailCode := 19;
-					elsif (offsetSample >= SampleCount) | (ResponseCapacity <= 52) then
+					elsif (offsetSample >=
+						g_LMCRecorderBankSampleCount[targetBankIndex]) |
+						(ResponseCapacity <= 52) then
 						detailCode := 12;
 					else
-						remainingSamples := SampleCount - offsetSample;
+						remainingSamples :=
+							g_LMCRecorderBankSampleCount[targetBankIndex] -
+							offsetSample;
 						maxSamples := LMC_RECORDER_MAX_CHUNK_BYTES /
 							TO_UDINT(SampleStrideBytes);
 						if maxSamples > ((ResponseCapacity - 52) /
@@ -1265,26 +1774,36 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 							returnedSamples := TO_UINT(maxSamples);
 							dataByteCount := maxSamples * TO_UDINT(SampleStrideBytes);
 							sigclib_atomic_setU32(
-								pValue:=#StateValue, value:=LMC_RECORDER_UPLOADING);
-							if (offsetSample + maxSamples) = SampleCount then
+								pValue:=#g_LMCRecorderBankState[targetBankIndex],
+								value:=LMC_RECORDER_UPLOADING);
+							if (offsetSample + maxSamples) =
+								g_LMCRecorderBankSampleCount[targetBankIndex] then
 								(pResponse + 2)^$UINT := 2;
 							end_if;
-							(pResponse + 16)^$UDINT := RecordId;
-							(pResponse + 20)^$UDINT := BufferId;
+							(pResponse + 16)^$UDINT :=
+								g_LMCRecorderBankRecordId[targetBankIndex];
+							(pResponse + 20)^$UDINT := requestBufferId;
 							(pResponse + 24)^$UDINT := offsetSample;
 							(pResponse + 28)^$UINT := returnedSamples;
 							(pResponse + 30)^$UINT := ChannelCount;
 							(pResponse + 32)^$UDINT := chunkSequence;
-							(pResponse + 36)^$UDINT := SampleCount;
+							(pResponse + 36)^$UDINT :=
+								g_LMCRecorderBankSampleCount[targetBankIndex];
 							(pResponse + 40)^$UINT := SampleStrideBytes;
 							(pResponse + 42)^$UINT := TO_UINT(dataByteCount);
 							(pResponse + 44)^$UDINT := 0;
-							(pResponse + 48)^$UDINT := DiagnosticsBootId;
+							(pResponse + 48)^$UDINT :=
+								g_LMCRecorderBankDiagnosticsBootId[targetBankIndex];
+							bankDataBaseOffset := requestBufferId *
+								LMC_RECORDER_STORAGE_BYTES;
 							for copySampleIndex := 0 to maxSamples - 1 do
 								physicalSampleIndex :=
-									(FrozenFirstSampleIndex + offsetSample +
-									 copySampleIndex) MOD SampleCapacity;
-								dataOffset := physicalSampleIndex *
+									(g_LMCRecorderBankFrozenFirstSampleIndex[
+									 targetBankIndex] + offsetSample +
+									 copySampleIndex) MOD
+									g_LMCRecorderBankSampleCapacity[targetBankIndex];
+								dataOffset := bankDataBaseOffset +
+									physicalSampleIndex *
 									TO_UDINT(SampleStrideBytes);
 								_memcpy(
 									ptr1:=pResponse + 52 + copySampleIndex *
@@ -1306,35 +1825,110 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
-					if (requestRecordId <> RecordId) | (requestBufferId <> BufferId) then
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					if requestBufferId >= TO_UDINT(recorderBufferCount) then
 						detailCode := 22;
-					elsif expectedMapRevision <> MapRevision then
+					else
+						targetBankIndex := TO_UINT(requestBufferId);
+						state := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+					end_if;
+					if detailCode <> 0 then
+						detailCode := detailCode;
+					elsif requestRecordId <>
+						g_LMCRecorderBankRecordId[targetBankIndex] then
+						detailCode := 22;
+					elsif expectedMapRevision <>
+						g_LMCRecorderBankMapRevision[targetBankIndex] then
 						detailCode := 3;
-					elsif (requestBootId <> DiagnosticsBootId) |
+					elsif (requestBootId <>
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex]) |
 						(requestBootId <> CurrentDiagnosticsBootId) then
 						detailCode := 25;
-					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
-						(CallerSessionEpoch <> OwnerSessionEpoch) then
+					elsif (requestOwnerEpoch <>
+						g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) |
+						(CallerSessionEpoch <>
+						 g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex]) then
 						detailCode := 10;
 					elsif (state <> LMC_RECORDER_READY) &
 						(state <> LMC_RECORDER_UPLOADING) then
 						detailCode := 19;
 					else
-						BufferReleased := TRUE;
-						RecordId := 0;
-						SampleCount := 0;
-						StopReason := 0;
-						TriggerIndex := 0xFFFFFFFF;
-						TriggerCycle := 0;
-						TriggerTimestampLow := 0;
-						TriggerTimestampHigh := 0;
-						WriteSampleIndex := 0;
-						FrozenFirstSampleIndex := 0;
-						PostSamplesRemaining := 0;
-						PreviousTriggerValid := FALSE;
+						currentBankSelected := (requestRecordId = RecordId) &
+							(requestBufferId = BufferId);
+						if currentBankSelected then
+							activeGeneration := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderActiveGeneration) + 1;
+							if (activeGeneration and 1) = 0 then
+								activeGeneration += 1;
+							end_if;
+							sigclib_atomic_setU32(
+								pValue:=#g_LMCRecorderActiveGeneration,
+								value:=activeGeneration);
+						end_if;
+						g_LMCRecorderBankRecordId[targetBankIndex] := 0;
+						g_LMCRecorderBankConfigId[targetBankIndex] := 0;
+						g_LMCRecorderBankConfigRevision[targetBankIndex] := 0;
+						g_LMCRecorderBankMapRevision[targetBankIndex] := 0;
+						g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex] := 0;
+						g_LMCRecorderBankClosedSessionEpoch[targetBankIndex] := 0;
+						g_LMCRecorderBankDiagnosticsBootId[targetBankIndex] := 0;
+						g_LMCRecorderBankSampleCapacity[targetBankIndex] := 0;
+						g_LMCRecorderBankSampleCount[targetBankIndex] := 0;
+						g_LMCRecorderBankCapturePhase[targetBankIndex] := 0;
+						g_LMCRecorderBankStopReason[targetBankIndex] := 0;
+						g_LMCRecorderBankTriggerIndex[targetBankIndex] := 0xFFFFFFFF;
+						g_LMCRecorderBankTriggerCycle[targetBankIndex] := 0;
+						g_LMCRecorderBankTriggerTimestampLow[targetBankIndex] := 0;
+						g_LMCRecorderBankTriggerTimestampHigh[targetBankIndex] := 0;
+						g_LMCRecorderBankStartCycle[targetBankIndex] := 0;
+						g_LMCRecorderBankEndCycle[targetBankIndex] := 0;
+						g_LMCRecorderBankStartTimestampLow[targetBankIndex] := 0;
+						g_LMCRecorderBankStartTimestampHigh[targetBankIndex] := 0;
+						g_LMCRecorderBankEndTimestampLow[targetBankIndex] := 0;
+						g_LMCRecorderBankEndTimestampHigh[targetBankIndex] := 0;
+						g_LMCRecorderBankDroppedCycles[targetBankIndex] := 0;
+						g_LMCRecorderBankOverflowCount[targetBankIndex] := 0;
+						g_LMCRecorderBankFrozenFirstSampleIndex[targetBankIndex] := 0;
 						sigclib_atomic_setU32(
-							pValue:=#StateValue, value:=LMC_RECORDER_CONFIGURED);
+							pValue:=#g_LMCRecorderBankState[targetBankIndex],
+							value:=LMC_RECORDER_CONFIGURED);
+						if currentBankSelected then
+							RecordId := 0;
+							SampleCount := 0;
+							StopReason := 0;
+							TriggerIndex := 0xFFFFFFFF;
+							TriggerCycle := 0;
+							TriggerTimestampLow := 0;
+							TriggerTimestampHigh := 0;
+							WriteSampleIndex := 0;
+							FrozenFirstSampleIndex := 0;
+							PostSamplesRemaining := 0;
+							PreviousTriggerValid := FALSE;
+								sigclib_atomic_setU32(
+								pValue:=#StateValue,
+								value:=LMC_RECORDER_CONFIGURED);
+							activeGeneration += 1;
+							if (activeGeneration and 1) <> 0 then
+								activeGeneration += 1;
+							end_if;
+							sigclib_atomic_setU32(
+								pValue:=#g_LMCRecorderActiveGeneration,
+								value:=activeGeneration);
+						end_if;
+						BufferReleased := TRUE;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							if g_LMCRecorderBankRecordId[bankIndex] <> 0 then
+								BufferReleased := FALSE;
+							end_if;
+						end_for;
+						if BufferReleased then
+							// No bank owns an identity, so the class selection is neutral.
+							BufferId := 0;
+						end_if;
 						ResponseSize := 16;
 					end_if;
 				end_if;
@@ -1348,7 +1942,15 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					expectedMapRevision := (pRequest + 16)^$UDINT;
 					requestOwnerEpoch := (pRequest + 20)^$UDINT;
 					requestBootId := (pRequest + 24)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					activeCaptureFound := FALSE;
+					for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+						bankState := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[bankIndex]);
+						if (g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+							(bankState > LMC_RECORDER_CONFIGURED) then
+							activeCaptureFound := TRUE;
+						end_if;
+					end_for;
 					if (requestConfigId <> ConfigId) |
 						(requestConfigRevision <> ConfigRevision) then
 						detailCode := 10;
@@ -1360,11 +1962,17 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					elsif (requestOwnerEpoch <> OwnerSessionEpoch) |
 						(CallerSessionEpoch <> OwnerSessionEpoch) then
 						detailCode := 10;
-					elsif state <> LMC_RECORDER_CONFIGURED then
-						detailCode := 19;
-					elsif BufferReleased = FALSE then
+					elsif activeCaptureFound then
 						detailCode := 9;
 					else
+						activeGeneration := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderActiveGeneration) + 1;
+						if (activeGeneration and 1) = 0 then
+							activeGeneration += 1;
+						end_if;
+						sigclib_atomic_setU32(
+							pValue:=#g_LMCRecorderActiveGeneration,
+							value:=activeGeneration);
 						ConfigId := 0;
 						MapRevision := 0;
 						OwnerSessionEpoch := 0;
@@ -1383,8 +1991,64 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 						TriggerSignalOffset := 0;
 						TriggerValue := 0;
 						TriggerMask := 0;
+						RecordId := 0;
+						BufferId := 0;
+						BufferReleased := TRUE;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							g_LMCRecorderBankRecordId[bankIndex] := 0;
+							g_LMCRecorderBankConfigId[bankIndex] := 0;
+							g_LMCRecorderBankConfigRevision[bankIndex] := 0;
+							g_LMCRecorderBankMapRevision[bankIndex] := 0;
+							g_LMCRecorderBankOwnerSessionEpoch[bankIndex] := 0;
+							g_LMCRecorderBankClosedSessionEpoch[bankIndex] := 0;
+							g_LMCRecorderBankDiagnosticsBootId[bankIndex] := 0;
+							g_LMCRecorderBankSampleCapacity[bankIndex] := 0;
+							g_LMCRecorderBankSampleCount[bankIndex] := 0;
+							g_LMCRecorderBankCapturePhase[bankIndex] := 0;
+							g_LMCRecorderBankStopReason[bankIndex] := 0;
+							g_LMCRecorderBankTriggerIndex[bankIndex] := 0xFFFFFFFF;
+							g_LMCRecorderBankTriggerCycle[bankIndex] := 0;
+							g_LMCRecorderBankTriggerTimestampLow[bankIndex] := 0;
+							g_LMCRecorderBankTriggerTimestampHigh[bankIndex] := 0;
+							g_LMCRecorderBankStartCycle[bankIndex] := 0;
+							g_LMCRecorderBankEndCycle[bankIndex] := 0;
+							g_LMCRecorderBankStartTimestampLow[bankIndex] := 0;
+							g_LMCRecorderBankStartTimestampHigh[bankIndex] := 0;
+							g_LMCRecorderBankEndTimestampLow[bankIndex] := 0;
+							g_LMCRecorderBankEndTimestampHigh[bankIndex] := 0;
+							g_LMCRecorderBankDroppedCycles[bankIndex] := 0;
+							g_LMCRecorderBankOverflowCount[bankIndex] := 0;
+							g_LMCRecorderBankFrozenFirstSampleIndex[bankIndex] := 0;
+								sigclib_atomic_setU32(
+									pValue:=#g_LMCRecorderBankState[bankIndex],
+									value:=LMC_RECORDER_EMPTY);
+							end_for;
+							if (g_LMCRecorderRecoveryToken[0] <> 0) |
+								(g_LMCRecorderRecoveryToken[1] <> 0) |
+								(g_LMCRecorderRecoveryToken[2] <> 0) |
+								(g_LMCRecorderRecoveryToken[3] <> 0) then
+								g_LMCRecorderLastReleasedRecoveryToken[0] :=
+									g_LMCRecorderRecoveryToken[0];
+								g_LMCRecorderLastReleasedRecoveryToken[1] :=
+									g_LMCRecorderRecoveryToken[1];
+								g_LMCRecorderLastReleasedRecoveryToken[2] :=
+									g_LMCRecorderRecoveryToken[2];
+								g_LMCRecorderLastReleasedRecoveryToken[3] :=
+									g_LMCRecorderRecoveryToken[3];
+							end_if;
+							g_LMCRecorderRecoveryToken[0] := 0;
+							g_LMCRecorderRecoveryToken[1] := 0;
+							g_LMCRecorderRecoveryToken[2] := 0;
+							g_LMCRecorderRecoveryToken[3] := 0;
+							sigclib_atomic_setU32(
+								pValue:=#StateValue, value:=LMC_RECORDER_EMPTY);
+						activeGeneration += 1;
+						if (activeGeneration and 1) <> 0 then
+							activeGeneration += 1;
+						end_if;
 						sigclib_atomic_setU32(
-							pValue:=#StateValue, value:=LMC_RECORDER_EMPTY);
+							pValue:=#g_LMCRecorderActiveGeneration,
+							value:=activeGeneration);
 						ResponseSize := 16;
 					end_if;
 				end_if;
@@ -1396,53 +2060,549 @@ FUNCTION GLOBAL LMCRecorderStore::HandleRequest
 					requestRecordId := (pRequest + 8)^$UDINT;
 					requestBufferId := (pRequest + 12)^$UDINT;
 					requestBootId := (pRequest + 16)^$UDINT;
-					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					recorderBufferCount := 1;
+					if BufferMode = 2 then
+						recorderBufferCount := LMC_RECORDER_BANK_COUNT;
+					end_if;
+					targetBankIndex := 0;
+					adoptionEligible := FALSE;
 					if requestRecordId = 0 then
-						// RecordId=0 and BufferId=0 discovers the one active bank.
-						// Mixed zero/nonzero identities are never discovery requests.
+						// Zero identity discovery is unambiguous only in Single/Ring mode.
 						if requestBufferId <> 0 then
 							detailCode := 22;
-						elsif (requestBootId <> DiagnosticsBootId) |
-							(requestBootId <> CurrentDiagnosticsBootId) then
-							detailCode := 25;
-						elsif (RecordId = 0) | (BufferId <> 0) then
+						elsif BufferMode = 2 then
 							detailCode := 22;
-						elsif (state < LMC_RECORDER_ARMED) |
-							(state > LMC_RECORDER_UPLOADING) then
-							detailCode := 19;
-						elsif (ClosedSessionEpoch = 0) |
-							(ClosedSessionEpoch <> OwnerSessionEpoch) then
-							detailCode := 10;
-						elsif ResponseCapacity < 36 then
-							detailCode := 20;
 						end_if;
 					else
-						if (requestRecordId <> RecordId) |
-							(requestBufferId <> BufferId) then
+						if requestBufferId >= TO_UDINT(recorderBufferCount) then
 							detailCode := 22;
-						elsif (requestBootId <> DiagnosticsBootId) |
-							(requestBootId <> CurrentDiagnosticsBootId) then
-							detailCode := 25;
-						elsif (state < LMC_RECORDER_ARMED) |
-							(state > LMC_RECORDER_UPLOADING) then
-							detailCode := 19;
-						elsif (ClosedSessionEpoch = 0) |
-							(ClosedSessionEpoch <> OwnerSessionEpoch) then
-							detailCode := 10;
-						elsif ResponseCapacity < 36 then
-							detailCode := 20;
+						else
+							targetBankIndex := TO_UINT(requestBufferId);
 						end_if;
 					end_if;
 					if detailCode = 0 then
-						OwnerSessionEpoch := CallerSessionEpoch;
-						ClosedSessionEpoch := 0;
-						(pResponse + 16)^$UDINT := DiagnosticsBootId;
-						(pResponse + 20)^$UDINT := RecordId;
-						(pResponse + 24)^$UDINT := BufferId;
-						(pResponse + 28)^$UDINT := OwnerSessionEpoch;
+						state := sigclib_atomic_getU32(
+							pValue:=#g_LMCRecorderBankState[targetBankIndex]);
+						localConfigId :=
+							g_LMCRecorderBankConfigId[targetBankIndex];
+						localConfigRevision :=
+							g_LMCRecorderBankConfigRevision[targetBankIndex];
+						localMapRevision :=
+							g_LMCRecorderBankMapRevision[targetBankIndex];
+						localBootId :=
+							g_LMCRecorderBankDiagnosticsBootId[targetBankIndex];
+						if (requestRecordId <> 0) &
+							(requestRecordId <>
+							 g_LMCRecorderBankRecordId[targetBankIndex]) then
+							detailCode := 22;
+						elsif (requestRecordId = 0) &
+							(g_LMCRecorderBankRecordId[targetBankIndex] = 0) then
+							detailCode := 22;
+						elsif (requestBootId <> localBootId) |
+							(requestBootId <> CurrentDiagnosticsBootId) then
+							detailCode := 25;
+						elsif (state < LMC_RECORDER_ARMED) |
+							(state > LMC_RECORDER_UPLOADING) then
+							detailCode := 19;
+						elsif ResponseCapacity < 36 then
+							detailCode := 20;
+						elsif (localConfigId <> ConfigId) |
+							(localConfigRevision <> ConfigRevision) |
+							(localMapRevision <> MapRevision) then
+							detailCode := 10;
+						elsif localBootId <> DiagnosticsBootId then
+							detailCode := 25;
+						elsif (g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex] =
+							CallerSessionEpoch) &
+							(g_LMCRecorderBankClosedSessionEpoch[targetBankIndex] = 0) then
+							if requestRecordId = 0 then
+								detailCode := 10;
+							else
+								adoptionEligible := TRUE;
+							end_if;
+						else
+							oldOwnerEpoch :=
+								g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex];
+							if (oldOwnerEpoch = 0) |
+								(g_LMCRecorderBankClosedSessionEpoch[targetBankIndex] <>
+								 oldOwnerEpoch) |
+								(OwnerSessionEpoch <> oldOwnerEpoch) |
+								(ClosedSessionEpoch <> oldOwnerEpoch) then
+								detailCode := 10;
+							else
+								adoptionEligible := TRUE;
+								for bankIndex := 0 to recorderBufferCount - 1 do
+									bankState := sigclib_atomic_getU32(
+										pValue:=#g_LMCRecorderBankState[bankIndex]);
+									if (g_LMCRecorderBankRecordId[bankIndex] <> 0) &
+										((g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <>
+										  oldOwnerEpoch) |
+										 (g_LMCRecorderBankClosedSessionEpoch[bankIndex] <>
+										  oldOwnerEpoch) |
+										 (g_LMCRecorderBankDiagnosticsBootId[bankIndex] <>
+										  localBootId) |
+										 (g_LMCRecorderBankConfigId[bankIndex] <>
+										  localConfigId) |
+										 (g_LMCRecorderBankConfigRevision[bankIndex] <>
+										  localConfigRevision) |
+										 (g_LMCRecorderBankMapRevision[bankIndex] <>
+										  localMapRevision) |
+										 (bankState < LMC_RECORDER_ARMED) |
+										 (bankState > LMC_RECORDER_UPLOADING)) then
+										adoptionEligible := FALSE;
+									end_if;
+								end_for;
+								if adoptionEligible = FALSE then
+									detailCode := 10;
+								end_if;
+							end_if;
+						end_if;
+					end_if;
+					if detailCode = 0 then
+						if (g_LMCRecorderBankOwnerSessionEpoch[targetBankIndex] <>
+							CallerSessionEpoch) |
+							(g_LMCRecorderBankClosedSessionEpoch[targetBankIndex] <> 0) then
+							// Rebind every occupied bank from the same closed lease. This
+							// keeps the second exact Adopt idempotent under the new owner.
+							OwnerSessionEpoch := CallerSessionEpoch;
+							for bankIndex := 0 to recorderBufferCount - 1 do
+								if g_LMCRecorderBankRecordId[bankIndex] <> 0 then
+									g_LMCRecorderBankOwnerSessionEpoch[bankIndex] :=
+										CallerSessionEpoch;
+									g_LMCRecorderBankClosedSessionEpoch[bankIndex] := 0;
+								end_if;
+							end_for;
+							ClosedSessionEpoch := 0;
+						end_if;
+						(pResponse + 16)^$UDINT :=
+							g_LMCRecorderBankDiagnosticsBootId[targetBankIndex];
+						(pResponse + 20)^$UDINT :=
+							g_LMCRecorderBankRecordId[targetBankIndex];
+						(pResponse + 24)^$UDINT := requestBufferId;
+						(pResponse + 28)^$UDINT := CallerSessionEpoch;
 						(pResponse + 32)^$UINT := TO_UINT(state);
 						(pResponse + 34)^$UINT := 0;
 						ResponseSize := 36;
+					end_if;
+				end_if;
+
+			0x7E4A:
+				if (RequestSize <> 24) | (CallerSessionEpoch = 0) then
+					detailCode := 12;
+				elsif LMC_RECORDER_DOUBLE_BANK_ENABLED = FALSE then
+					// The wire contract is dormant until two-bank PLC qualification.
+					detailCode := 2;
+				else
+					requestBootId := (pRequest + 8)^$UDINT;
+					requestConfigId := (pRequest + 12)^$UDINT;
+					expectedMapRevision := (pRequest + 16)^$UDINT;
+					requestConfigRevision := (pRequest + 20)^$UDINT;
+					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					if (requestBootId = 0) | (requestConfigId = 0) |
+						(expectedMapRevision = 0) then
+						detailCode := 12;
+					elsif requestBootId <> CurrentDiagnosticsBootId then
+						detailCode := 25;
+					elsif expectedMapRevision <> LMC_RECORDER_MAP_REVISION then
+						detailCode := 3;
+					elsif ConfigId = 0 then
+						// A known exact configuration may be reported absent only when
+						// the entire Recorder store is canonically empty in this boot.
+						// ConfigRevision is intentionally monotonic and is not cleared
+						// by Release, so it is not part of the empty-state predicate.
+						inventoryValid := TRUE;
+						if (requestConfigRevision = 0) |
+							(state <> LMC_RECORDER_EMPTY) |
+							(MapRevision <> 0) | (OwnerSessionEpoch <> 0) |
+							(ClosedSessionEpoch <> 0) | (DiagnosticsBootId <> 0) |
+							(RecordId <> 0) | (BufferId <> 0) |
+							(BufferReleased = FALSE) | (BufferMode <> 0) |
+							(ChannelCount <> 0) | (SampleCapacity <> 0) |
+							(SampleStrideBytes <> 0) then
+							inventoryValid := FALSE;
+						end_if;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							bankState := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderBankState[bankIndex]);
+							if (bankState <> LMC_RECORDER_EMPTY) |
+								(g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0) then
+								inventoryValid := FALSE;
+							end_if;
+						end_for;
+						if inventoryValid then
+							// Typed, read-only terminal proof for a persisted exact
+							// configuration Release intent. No identity is adopted here.
+							detailCode := 32;
+						else
+							detailCode := 10;
+						end_if;
+					elsif requestBootId <> DiagnosticsBootId then
+						detailCode := 25;
+					elsif expectedMapRevision <> MapRevision then
+						detailCode := 3;
+					elsif requestConfigId <> ConfigId then
+						detailCode := 10;
+					elsif (requestConfigRevision <> 0) &
+						(requestConfigRevision <> ConfigRevision) then
+						detailCode := 10;
+					elsif (ConfigId = 0) | (ConfigRevision = 0) |
+						(BufferMode <> 2) |
+						(state < LMC_RECORDER_CONFIGURED) |
+						(state > LMC_RECORDER_UPLOADING) then
+						detailCode := 19;
+					elsif (OwnerSessionEpoch = 0) |
+						((ClosedSessionEpoch <> 0) &
+						 (ClosedSessionEpoch <> OwnerSessionEpoch)) |
+						((OwnerSessionEpoch <> CallerSessionEpoch) &
+						 (ClosedSessionEpoch = 0)) then
+						detailCode := 10;
+					elsif ResponseCapacity < 88 then
+						detailCode := 20;
+					else
+						inventoryValid := TRUE;
+						inventoryCount := 0;
+						localRecordId := 0;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							bankState := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderBankState[bankIndex]);
+							if g_LMCRecorderBankRecordId[bankIndex] = 0 then
+								if (bankState <> LMC_RECORDER_CONFIGURED) |
+									(g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+									(g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+									(g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+									(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+									(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+									(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0) then
+									inventoryValid := FALSE;
+								end_if;
+							else
+								inventoryCount += 1;
+								if localRecordId = 0 then
+									localRecordId :=
+										g_LMCRecorderBankRecordId[bankIndex];
+								elsif localRecordId =
+									g_LMCRecorderBankRecordId[bankIndex] then
+									inventoryValid := FALSE;
+								end_if;
+								if (g_LMCRecorderBankConfigId[bankIndex] <> ConfigId) |
+									(g_LMCRecorderBankConfigRevision[bankIndex] <>
+									 ConfigRevision) |
+									(g_LMCRecorderBankMapRevision[bankIndex] <> MapRevision) |
+									(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <>
+									 OwnerSessionEpoch) |
+									(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <>
+									 ClosedSessionEpoch) |
+									(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <>
+									 DiagnosticsBootId) |
+									(bankState < LMC_RECORDER_ARMED) |
+									(bankState > LMC_RECORDER_UPLOADING) then
+									inventoryValid := FALSE;
+								end_if;
+							end_if;
+						end_for;
+						if inventoryValid = FALSE then
+							detailCode := 10;
+						elsif (inventoryCount = 0) &
+							(state <> LMC_RECORDER_CONFIGURED) then
+							detailCode := 19;
+						else
+							(pResponse + 16)^$UDINT := DiagnosticsBootId;
+							(pResponse + 20)^$UDINT := ConfigId;
+							(pResponse + 24)^$UDINT := ConfigRevision;
+							(pResponse + 28)^$UDINT := MapRevision;
+							(pResponse + 32)^$UDINT := OwnerSessionEpoch;
+							(pResponse + 36)^$UDINT := ClosedSessionEpoch;
+							(pResponse + 40)^$UINT := TO_UINT(state);
+							(pResponse + 42)^$USINT := BufferMode;
+							(pResponse + 43)^$USINT :=
+								TO_USINT(LMC_RECORDER_BANK_COUNT);
+							(pResponse + 44)^$USINT := TO_USINT(inventoryCount);
+							(pResponse + 45)^$USINT := 0;
+							(pResponse + 46)^$UINT := 0;
+							inventoryEntryOffset := 48;
+							for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+								if g_LMCRecorderBankRecordId[bankIndex] <> 0 then
+									(pResponse + inventoryEntryOffset)^$UDINT :=
+										g_LMCRecorderBankRecordId[bankIndex];
+									(pResponse + inventoryEntryOffset + 4)^$UDINT :=
+										TO_UDINT(bankIndex);
+									(pResponse + inventoryEntryOffset + 8)^$UDINT :=
+										g_LMCRecorderBankOwnerSessionEpoch[bankIndex];
+									(pResponse + inventoryEntryOffset + 12)^$UDINT :=
+										g_LMCRecorderBankClosedSessionEpoch[bankIndex];
+									(pResponse + inventoryEntryOffset + 16)^$UINT :=
+										TO_UINT(sigclib_atomic_getU32(
+										 pValue:=#g_LMCRecorderBankState[bankIndex]));
+									(pResponse + inventoryEntryOffset + 18)^$UINT := 0;
+									inventoryEntryOffset += 20;
+								end_if;
+							end_for;
+							ResponseSize := 88;
+						end_if;
+					end_if;
+				end_if;
+
+			0x7E4B:
+				if (RequestSize <> 28) | (CallerSessionEpoch = 0) then
+					detailCode := 12;
+				elsif LMC_RECORDER_DOUBLE_BANK_ENABLED = FALSE then
+					// Empty-configuration adoption stays dormant with Double bank.
+					detailCode := 2;
+				else
+					requestBootId := (pRequest + 8)^$UDINT;
+					requestConfigId := (pRequest + 12)^$UDINT;
+					requestConfigRevision := (pRequest + 16)^$UDINT;
+					expectedMapRevision := (pRequest + 20)^$UDINT;
+					requestOwnerEpoch := (pRequest + 24)^$UDINT;
+					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					if (requestBootId = 0) | (requestConfigId = 0) |
+						(requestConfigRevision = 0) |
+						(expectedMapRevision = 0) |
+						(requestOwnerEpoch = 0) then
+						detailCode := 12;
+					elsif CallerSessionEpoch = requestOwnerEpoch then
+						detailCode := 10;
+					elsif (requestBootId <> CurrentDiagnosticsBootId) |
+						(requestBootId <> DiagnosticsBootId) then
+						detailCode := 25;
+					elsif (expectedMapRevision <> LMC_RECORDER_MAP_REVISION) |
+						(expectedMapRevision <> MapRevision) then
+						detailCode := 3;
+					elsif (requestConfigId <> ConfigId) |
+						(requestConfigRevision <> ConfigRevision) then
+						detailCode := 10;
+					elsif (BufferMode <> 2) |
+						(state <> LMC_RECORDER_CONFIGURED) |
+						(RecordId <> 0) | (BufferId <> 0) |
+						(BufferReleased = FALSE) then
+						detailCode := 19;
+					elsif (OwnerSessionEpoch <> requestOwnerEpoch) |
+						(ClosedSessionEpoch <> requestOwnerEpoch) then
+						detailCode := 10;
+					elsif ResponseCapacity < 40 then
+						detailCode := 20;
+					else
+						inventoryValid := TRUE;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							bankState := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderBankState[bankIndex]);
+							if (bankState <> LMC_RECORDER_CONFIGURED) |
+								(g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0) then
+								inventoryValid := FALSE;
+							end_if;
+						end_for;
+						if inventoryValid = FALSE then
+							detailCode := 10;
+						else
+							// Rebind only the empty configuration lease. Bank/data
+							// metadata remains byte-for-byte unchanged.
+							OwnerSessionEpoch := CallerSessionEpoch;
+							ClosedSessionEpoch := 0;
+							(pResponse + 16)^$UDINT := DiagnosticsBootId;
+							(pResponse + 20)^$UDINT := ConfigId;
+							(pResponse + 24)^$UDINT := ConfigRevision;
+							(pResponse + 28)^$UDINT := MapRevision;
+							(pResponse + 32)^$UDINT := CallerSessionEpoch;
+							(pResponse + 36)^$UINT :=
+								LMC_RECORDER_CONFIGURED;
+							(pResponse + 38)^$USINT := 2;
+							(pResponse + 39)^$USINT :=
+								TO_USINT(LMC_RECORDER_BANK_COUNT);
+							ResponseSize := 40;
+						end_if;
+					end_if;
+				end_if;
+
+			0x7E4D:
+				if (RequestSize <> 36) | (CallerSessionEpoch = 0) then
+					detailCode := 12;
+				elsif LMC_RECORDER_DOUBLE_BANK_ENABLED = FALSE then
+					// Token-qualified inventory stays dormant until PLC qualification.
+					detailCode := 2;
+				else
+					requestBootId := (pRequest + 8)^$UDINT;
+					requestConfigId := (pRequest + 12)^$UDINT;
+					expectedMapRevision := (pRequest + 16)^$UDINT;
+					requestRecoveryToken0 := (pRequest + 20)^$UDINT;
+					requestRecoveryToken1 := (pRequest + 24)^$UDINT;
+					requestRecoveryToken2 := (pRequest + 28)^$UDINT;
+					requestRecoveryToken3 := (pRequest + 32)^$UDINT;
+					requestRecoveryTokenNonzero :=
+						(requestRecoveryToken0 <> 0) |
+						(requestRecoveryToken1 <> 0) |
+						(requestRecoveryToken2 <> 0) |
+						(requestRecoveryToken3 <> 0);
+					storedRecoveryTokenNonzero :=
+						(g_LMCRecorderRecoveryToken[0] <> 0) |
+						(g_LMCRecorderRecoveryToken[1] <> 0) |
+						(g_LMCRecorderRecoveryToken[2] <> 0) |
+						(g_LMCRecorderRecoveryToken[3] <> 0);
+					state := sigclib_atomic_getU32(pValue:=#StateValue);
+					if (requestBootId = 0) | (requestConfigId = 0) |
+						(expectedMapRevision = 0) |
+						(requestRecoveryTokenNonzero = FALSE) then
+						detailCode := 12;
+					elsif requestBootId <> CurrentDiagnosticsBootId then
+						detailCode := 25;
+					elsif expectedMapRevision <> LMC_RECORDER_MAP_REVISION then
+						detailCode := 3;
+					elsif ConfigId = 0 then
+						// Typed absence is valid only for the complete active store.
+						// The last-released tombstone is intentionally ignored here.
+						inventoryValid := TRUE;
+						if (state <> LMC_RECORDER_EMPTY) |
+							(MapRevision <> 0) | (OwnerSessionEpoch <> 0) |
+							(ClosedSessionEpoch <> 0) | (DiagnosticsBootId <> 0) |
+							(RecordId <> 0) | (BufferId <> 0) |
+							(BufferReleased = FALSE) | (BufferMode <> 0) |
+							(ChannelCount <> 0) | (SampleCapacity <> 0) |
+							(SampleStrideBytes <> 0) | storedRecoveryTokenNonzero then
+							inventoryValid := FALSE;
+						end_if;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							bankState := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderBankState[bankIndex]);
+							if (bankState <> LMC_RECORDER_EMPTY) |
+								(g_LMCRecorderBankRecordId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+								(g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+								(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+								(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0) then
+								inventoryValid := FALSE;
+							end_if;
+						end_for;
+						if inventoryValid then
+							detailCode := 32;
+						else
+							detailCode := 10;
+						end_if;
+					elsif requestBootId <> DiagnosticsBootId then
+						detailCode := 25;
+					elsif expectedMapRevision <> MapRevision then
+						detailCode := 3;
+					elsif requestConfigId <> ConfigId then
+						detailCode := 10;
+					elsif (ConfigRevision = 0) | (BufferMode <> 2) |
+						(state < LMC_RECORDER_CONFIGURED) |
+						(state > LMC_RECORDER_UPLOADING) then
+						detailCode := 19;
+					elsif (storedRecoveryTokenNonzero = FALSE) |
+						(requestRecoveryToken0 <> g_LMCRecorderRecoveryToken[0]) |
+						(requestRecoveryToken1 <> g_LMCRecorderRecoveryToken[1]) |
+						(requestRecoveryToken2 <> g_LMCRecorderRecoveryToken[2]) |
+						(requestRecoveryToken3 <> g_LMCRecorderRecoveryToken[3]) then
+						detailCode := 10;
+					elsif (OwnerSessionEpoch = 0) |
+						((ClosedSessionEpoch <> 0) &
+						 (ClosedSessionEpoch <> OwnerSessionEpoch)) |
+						((OwnerSessionEpoch <> CallerSessionEpoch) &
+						 (ClosedSessionEpoch = 0)) then
+						detailCode := 10;
+					elsif ResponseCapacity < 104 then
+						detailCode := 20;
+					else
+						inventoryValid := TRUE;
+						inventoryCount := 0;
+						localRecordId := 0;
+						for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+							bankState := sigclib_atomic_getU32(
+								pValue:=#g_LMCRecorderBankState[bankIndex]);
+							if g_LMCRecorderBankRecordId[bankIndex] = 0 then
+								if (bankState <> LMC_RECORDER_CONFIGURED) |
+									(g_LMCRecorderBankConfigId[bankIndex] <> 0) |
+									(g_LMCRecorderBankConfigRevision[bankIndex] <> 0) |
+									(g_LMCRecorderBankMapRevision[bankIndex] <> 0) |
+									(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <> 0) |
+									(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <> 0) |
+									(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <> 0) then
+									inventoryValid := FALSE;
+								end_if;
+							else
+								inventoryCount += 1;
+								if localRecordId = 0 then
+									localRecordId :=
+										g_LMCRecorderBankRecordId[bankIndex];
+								elsif localRecordId =
+									g_LMCRecorderBankRecordId[bankIndex] then
+									inventoryValid := FALSE;
+								end_if;
+								if (g_LMCRecorderBankConfigId[bankIndex] <> ConfigId) |
+									(g_LMCRecorderBankConfigRevision[bankIndex] <>
+									 ConfigRevision) |
+									(g_LMCRecorderBankMapRevision[bankIndex] <> MapRevision) |
+									(g_LMCRecorderBankOwnerSessionEpoch[bankIndex] <>
+									 OwnerSessionEpoch) |
+									(g_LMCRecorderBankClosedSessionEpoch[bankIndex] <>
+									 ClosedSessionEpoch) |
+									(g_LMCRecorderBankDiagnosticsBootId[bankIndex] <>
+									 DiagnosticsBootId) |
+									(bankState < LMC_RECORDER_ARMED) |
+									(bankState > LMC_RECORDER_UPLOADING) then
+									inventoryValid := FALSE;
+								end_if;
+							end_if;
+						end_for;
+						if inventoryValid = FALSE then
+							detailCode := 10;
+						elsif (inventoryCount = 0) &
+							(state <> LMC_RECORDER_CONFIGURED) then
+							detailCode := 19;
+						else
+							(pResponse + 16)^$UDINT := DiagnosticsBootId;
+							(pResponse + 20)^$UDINT := ConfigId;
+							(pResponse + 24)^$UDINT := ConfigRevision;
+							(pResponse + 28)^$UDINT := MapRevision;
+							(pResponse + 32)^$UDINT := OwnerSessionEpoch;
+							(pResponse + 36)^$UDINT := ClosedSessionEpoch;
+							(pResponse + 40)^$UINT := TO_UINT(state);
+							(pResponse + 42)^$USINT := BufferMode;
+							(pResponse + 43)^$USINT :=
+								TO_USINT(LMC_RECORDER_BANK_COUNT);
+							(pResponse + 44)^$USINT := TO_USINT(inventoryCount);
+							(pResponse + 45)^$USINT := 0;
+							(pResponse + 46)^$UINT := 0;
+							inventoryEntryOffset := 48;
+							for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+								if g_LMCRecorderBankRecordId[bankIndex] <> 0 then
+									(pResponse + inventoryEntryOffset)^$UDINT :=
+										g_LMCRecorderBankRecordId[bankIndex];
+									(pResponse + inventoryEntryOffset + 4)^$UDINT :=
+										TO_UDINT(bankIndex);
+									(pResponse + inventoryEntryOffset + 8)^$UDINT :=
+										g_LMCRecorderBankOwnerSessionEpoch[bankIndex];
+									(pResponse + inventoryEntryOffset + 12)^$UDINT :=
+										g_LMCRecorderBankClosedSessionEpoch[bankIndex];
+									(pResponse + inventoryEntryOffset + 16)^$UINT :=
+										TO_UINT(sigclib_atomic_getU32(
+										 pValue:=#g_LMCRecorderBankState[bankIndex]));
+									(pResponse + inventoryEntryOffset + 18)^$UINT := 0;
+									inventoryEntryOffset += 20;
+								end_if;
+							end_for;
+							(pResponse + 88)^$UDINT :=
+								g_LMCRecorderRecoveryToken[0];
+							(pResponse + 92)^$UDINT :=
+								g_LMCRecorderRecoveryToken[1];
+							(pResponse + 96)^$UDINT :=
+								g_LMCRecorderRecoveryToken[2];
+							(pResponse + 100)^$UDINT :=
+								g_LMCRecorderRecoveryToken[3];
+							ResponseSize := 104;
+						end_if;
 					end_if;
 				end_if;
 
@@ -1465,6 +2625,9 @@ END_FUNCTION
 FUNCTION LMCRecorderStore::LMCRecorderStore
 	VAR_OUTPUT
 		ret_code 	: ConfStates;
+	END_VAR
+	VAR
+		bankIndex : UINT;
 	END_VAR
 
 	StateValue := LMC_RECORDER_EMPTY;
@@ -1523,6 +2686,45 @@ FUNCTION LMCRecorderStore::LMCRecorderStore
 	BufferReleased := TRUE;
 	_memset(dest:=#SignalIds[0], usByte:=0, cntr:=sizeof(SignalIds));
 	_memset(dest:=#SignalOffsets[0], usByte:=0, cntr:=sizeof(SignalOffsets));
+	g_LMCRecorderRecoveryToken[0] := 0;
+	g_LMCRecorderRecoveryToken[1] := 0;
+	g_LMCRecorderRecoveryToken[2] := 0;
+	g_LMCRecorderRecoveryToken[3] := 0;
+	g_LMCRecorderLastReleasedRecoveryToken[0] := 0;
+	g_LMCRecorderLastReleasedRecoveryToken[1] := 0;
+	g_LMCRecorderLastReleasedRecoveryToken[2] := 0;
+	g_LMCRecorderLastReleasedRecoveryToken[3] := 0;
+	sigclib_atomic_setU32(
+		pValue:=#g_LMCRecorderActiveGeneration, value:=0);
+	for bankIndex := 0 to LMC_RECORDER_BANK_COUNT - 1 do
+		g_LMCRecorderBankRecordId[bankIndex] := 0;
+		g_LMCRecorderBankConfigId[bankIndex] := 0;
+		g_LMCRecorderBankConfigRevision[bankIndex] := 0;
+		g_LMCRecorderBankMapRevision[bankIndex] := 0;
+		g_LMCRecorderBankOwnerSessionEpoch[bankIndex] := 0;
+		g_LMCRecorderBankClosedSessionEpoch[bankIndex] := 0;
+		g_LMCRecorderBankDiagnosticsBootId[bankIndex] := 0;
+		g_LMCRecorderBankSampleCapacity[bankIndex] := 0;
+		g_LMCRecorderBankSampleCount[bankIndex] := 0;
+		g_LMCRecorderBankCapturePhase[bankIndex] := 0;
+		g_LMCRecorderBankStopReason[bankIndex] := 0;
+		g_LMCRecorderBankTriggerIndex[bankIndex] := 0xFFFFFFFF;
+		g_LMCRecorderBankTriggerCycle[bankIndex] := 0;
+		g_LMCRecorderBankTriggerTimestampLow[bankIndex] := 0;
+		g_LMCRecorderBankTriggerTimestampHigh[bankIndex] := 0;
+		g_LMCRecorderBankStartCycle[bankIndex] := 0;
+		g_LMCRecorderBankEndCycle[bankIndex] := 0;
+		g_LMCRecorderBankStartTimestampLow[bankIndex] := 0;
+		g_LMCRecorderBankStartTimestampHigh[bankIndex] := 0;
+		g_LMCRecorderBankEndTimestampLow[bankIndex] := 0;
+		g_LMCRecorderBankEndTimestampHigh[bankIndex] := 0;
+		g_LMCRecorderBankDroppedCycles[bankIndex] := 0;
+		g_LMCRecorderBankOverflowCount[bankIndex] := 0;
+		g_LMCRecorderBankFrozenFirstSampleIndex[bankIndex] := 0;
+		sigclib_atomic_setU32(
+			pValue:=#g_LMCRecorderBankState[bankIndex],
+			value:=LMC_RECORDER_EMPTY);
+	end_for;
 	ret_code := C_OK;
 
 END_FUNCTION

@@ -106,6 +106,7 @@ LMCSdoExecutor : CLASS
 		ActiveLength 	: UINT;
 		ActiveIsWrite 	: BOOL;
 		ReadBuffer : ARRAY [0..3] OF USINT;
+
 		WriteBuffer : ARRAY [0..3] OF USINT;
 
 		PublishSequence 	: UDINT;

@@ -226,6 +226,7 @@ END_FUNCTION
 
 #define LMC_DIAG_SCHEMA_VERSION       1
 #define LMC_DIAG_MAP_REVISION         0x957F101E
+#define LMC_DIAG_TOPOLOGY_REVISION    0x15867EEC
 #define LMC_DIAG_ERROR_ID             -32000
 #define LMC_DIAG_D1_ENABLED           TRUE
 #define LMC_DIAG_D2_ENABLED           TRUE
@@ -236,6 +237,11 @@ END_FUNCTION
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED FALSE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED FALSE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED FALSE
+#define LMC_DIAG_ECAT_IO_WRITE_GLOBAL_ENABLED FALSE
+#define LMC_DIAG_ECAT_IO_WRITE_GT22BA_ENABLED FALSE
+#define LMC_DIAG_ECAT_IO_OUTPUT_REFERENCE 0x00010002
+#define LMC_DIAG_ECAT_IO_OUTPUT_VALID_MASK 0xFFFFFFFF
+#define LMC_DIAG_ECAT_IO_TIMEOUT_CYCLES 1000
 #define LMC_DIAG_MAX_BULK_SIGNALS     24
 #define LMC_DIAG_SDO_LOCAL_ERROR_ID    -32001
 #define LMC_DIAG_SDO_ABORT_TIMEOUT     0x05040000
@@ -317,11 +323,109 @@ FUNCTION LMCDiagnosticsService::BuildCatalogEntry
 		pdoDirection : USINT;
 		minimumRaw : UDINT;
 		maximumRaw : UDINT;
+		topologyCount : UINT;
+		pTopologyEntry : ^USINT;
 		aliasText : ARRAY [0..39] OF CHAR;
 	END_VAR
 
 	Result := -1;
-	if (pEntry = NIL) | (CatalogIndex >= 24) then
+	if pEntry = NIL then
+		RETURN;
+	end_if;
+	if CatalogIndex = 0x0200 then
+		_memset(dest:=pEntry, usByte:=0, cntr:=28);
+		pEntry^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
+		(pEntry + 4)^$UINT := 7;
+		(pEntry + 6)^$UINT := 96;
+		(pEntry + 8)^$UINT := 1;
+		(pEntry + 10)^$UINT := 5;
+		(pEntry + 12)^$UINT := 2;
+		(pEntry + 14)^$UINT := 4;
+		(pEntry + 16)^$UDINT := 0x0000000F;
+		(pEntry + 20)^$UDINT := 1;
+		Result := 0;
+		RETURN;
+	end_if;
+	// Reuse this private serializer for the seven fixed topology records. The
+	// 0x0100 discriminator keeps the existing D1 catalog index ABI unchanged.
+	if ((CatalogIndex >= 0x0100) & (CatalogIndex <= 0x0106)) |
+		(CatalogIndex >= 0x8000) then
+		if CatalogIndex >= 0x8000 then
+			physicalAxis := (CatalogIndex shr 8) and 0x007F;
+			topologyCount := CatalogIndex and 0x00FF;
+			if (topologyCount = 0) | (physicalAxis >= 7) |
+				((physicalAxis + topologyCount) > 7) then
+				RETURN;
+			end_if;
+			(pEntry + 16)^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
+			(pEntry + 20)^$UINT := physicalAxis;
+			(pEntry + 22)^$UINT := topologyCount;
+			(pEntry + 24)^$UINT := 7;
+			(pEntry + 26)^$UINT := 96;
+			if (physicalAxis + topologyCount) = 7 then
+				(pEntry + 2)^$UINT := 2;
+			end_if;
+			pTopologyEntry := pEntry + 28;
+		else
+			physicalAxis := CatalogIndex - 0x0100;
+			topologyCount := 1;
+			pTopologyEntry := pEntry;
+		end_if;
+
+		for signalCode := 0 to topologyCount - 1 do
+			pdoIndex := physicalAxis + signalCode;
+			_memset(dest:=pTopologyEntry, usByte:=0, cntr:=96);
+			(pTopologyEntry + 8)^$UINT := pdoIndex;
+			if pdoIndex = 0 then
+				pTopologyEntry^$UDINT := 0xEC000001;
+				(pTopologyEntry + 10)^$UINT := 0;
+				(pTopologyEntry + 12)^$USINT := 1;
+				(pTopologyEntry + 14)^$UINT := 0x0041;
+				(pTopologyEntry + 20)^$UINT := 0xFFFF;
+				(pTopologyEntry + 24)^$UDINT := 669;
+				(pTopologyEntry + 28)^$UDINT := 1196200070;
+				(pTopologyEntry + 32)^$UDINT := 65536;
+				_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_11");
+			elsif pdoIndex <= 4 then
+				pTopologyEntry^$UDINT := 0xEC000100 + TO_UDINT(pdoIndex);
+				(pTopologyEntry + 10)^$UINT := pdoIndex;
+				(pTopologyEntry + 12)^$USINT := 1;
+				(pTopologyEntry + 14)^$UINT := 0x0027;
+				(pTopologyEntry + 16)^$UINT := pdoIndex;
+				(pTopologyEntry + 18)^$UINT := pdoIndex;
+				(pTopologyEntry + 20)^$UINT := 0xFFFF;
+				(pTopologyEntry + 24)^$UDINT := 154;
+				(pTopologyEntry + 28)^$UDINT := 198948;
+				(pTopologyEntry + 32)^$UDINT := 66592;
+				_strcpy(dest:=pTopologyEntry + 44, src:="Elmo_11");
+				(pTopologyEntry + 49)^$USINT := TO_USINT(48 + pdoIndex);
+			else
+				pTopologyEntry^$UDINT := 0xEC00FFFC + TO_UDINT(pdoIndex);
+				(pTopologyEntry + 4)^$UDINT := 0xEC000001;
+				(pTopologyEntry + 10)^$UINT := 0xFFFF;
+				(pTopologyEntry + 12)^$USINT := 2;
+				(pTopologyEntry + 20)^$UINT := pdoIndex - 5;
+				(pTopologyEntry + 24)^$UDINT := 669;
+				(pTopologyEntry + 92)^$UDINT := 0x0000FFFC + TO_UDINT(pdoIndex);
+				if pdoIndex = 5 then
+					(pTopologyEntry + 14)^$UINT := 0x0088;
+					(pTopologyEntry + 28)^$UDINT := 1196692218;
+					(pTopologyEntry + 40)^$UINT := 4;
+					_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_1_Slot001");
+				else
+					(pTopologyEntry + 14)^$UINT := 0x0090;
+					(pTopologyEntry + 28)^$UDINT := 1196696250;
+					(pTopologyEntry + 42)^$UINT := 4;
+					_strcpy(dest:=pTopologyEntry + 44, src:="GL_9086_1_Slot011");
+				end_if;
+			end_if;
+			pTopologyEntry += 96;
+		end_for;
+		Result := 0;
+		RETURN;
+	end_if;
+
+	if CatalogIndex >= 24 then
 		RETURN;
 	end_if;
 
@@ -1116,51 +1220,22 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		ResponseSize 	: DINT;
 	END_VAR
 	VAR
-		schemaVersion : UINT;
-		requestFlags : UINT;
-		requestId : UDINT;
-		detailCode : UDINT;
-		expectedMapRevision : UDINT;
-		signalId : UDINT;
-		expectedType : USINT;
-		physicalAxis : UINT;
-		signalCode : UINT;
-		catalogIndex : UINT;
-		startIndex : UINT;
-		maxEntries : UINT;
-		returnedCount : UINT;
-		entryIndex : UINT;
-		entryOffset : UDINT;
-		valueType : USINT;
-		entryStatus : USINT;
-		healthOffset : UDINT;
-		valueOffset : UDINT;
+		schemaVersion, requestFlags, physicalAxis, signalCode : UINT;
+		catalogIndex, startIndex, maxEntries, returnedCount : UINT;
+		entryIndex, signalCount, duplicateIndex, sdoOperationFlags : UINT;
+		sdoDataLength, sdoReserved, requestSdoSlaveReference : UINT;
+		requestSdoObjectIndex : UINT;
+		requestId, detailCode, expectedMapRevision, signalId : UDINT;
+		entryOffset, healthOffset, valueOffset, requestedBulkId : UDINT;
+		requestBulkId, requestConfigRevision, expectedRequestSize : UDINT;
+		entryDetailCode, currentBootId, requestSdoTimeoutCycles : UDINT;
+		requestSdoWriteData, writePolicyDetail, sdoBootId : UDINT;
+		sdoTicketId, currentCycle : UDINT;
+		expectedType, valueType, entryStatus, requestSdoSubIndex : USINT;
+		requestSdoValueType : USINT;
 		copyResult : DINT;
 		snapshot : ARRAY [0..303] OF USINT;
-		requestedBulkId : UDINT;
-		requestBulkId : UDINT;
-		requestConfigRevision : UDINT;
-		expectedRequestSize : UDINT;
-		entryDetailCode : UDINT;
-		signalCount : UINT;
-		duplicateIndex : UINT;
-		hasInvalidEntry : BOOL;
-		currentBootId : UDINT;
-		sdoOperationFlags : UINT;
-		sdoDataLength : UINT;
-		sdoReserved : UINT;
-		requestSdoSlaveReference : UINT;
-		requestSdoObjectIndex : UINT;
-		requestSdoSubIndex : USINT;
-		requestSdoValueType : USINT;
-		requestSdoTimeoutCycles : UDINT;
-		requestSdoWriteData : UDINT;
-		writePolicyDetail : UDINT;
-		sdoBootId : UDINT;
-		sdoTicketId : UDINT;
-		currentCycle : UDINT;
-		executorConnected : BOOL;
-		executorReusable : BOOL;
+		hasInvalidEntry, executorConnected, executorReusable : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -1182,8 +1257,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		requestId := (pRequest + 4)^$UDINT;
 	end_if;
 
-	// Common response defaults to success and is converted to a domain error
-	// below when any validation step fails.
 	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
 	(pResponse + 2)^$UINT := 0;
 	(pResponse + 4)^$UINT := 0;
@@ -1201,7 +1274,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	elsif requestId = 0 then
 		detailCode := 12;
 	elsif ((((CommandId >= 0x7E30) & (CommandId <= 0x7E33)) |
-		 ((CommandId >= 0x7E40) & (CommandId <= 0x7E49)) |
+		 ((CommandId >= 0x7E40) & (CommandId <= 0x7E4D)) |
 		 (((CommandId = 0x7E03) | (CommandId = 0x7E04) |
 		   (CommandId = 0x7E50)) &
 		  ((LMC_DIAG_D5_SDO_READ_ENABLED = TRUE) |
@@ -1213,7 +1286,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		(LMC_DIAG_D1_ENABLED = FALSE)) |
 		(((CommandId >= 0x7E30) & (CommandId <= 0x7E33)) &
 		(LMC_DIAG_D2_ENABLED = FALSE)) |
-		(((CommandId >= 0x7E40) & (CommandId <= 0x7E49)) &
+		(((CommandId >= 0x7E40) & (CommandId <= 0x7E4D)) &
 		(LMC_DIAG_D3_ENABLED = FALSE)) then
 		detailCode := 2;
 	end_if;
@@ -1228,7 +1301,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			(pResponse + 12)^$UDINT := detailCode;
 		end_if;
 		(pResponse + 16)^$UDINT := 1;
-		(pResponse + 20)^$UDINT := 0x00000007;
+		(pResponse + 20)^$UDINT := 0x00004007;
 		(pResponse + 24)^$UDINT := LMC_DIAG_MAP_REVISION;
 		(pResponse + 28)^$UINT := 24;
 		(pResponse + 30)^$UINT := 0;
@@ -1247,7 +1320,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		(pResponse + 62)^$UINT := 0;
 		(pResponse + 64)^$UDINT := currentBootId;
 		if currentBootId <> 0 then
-			(pResponse + 20)^$UDINT := 0x0000213F;
+			(pResponse + 20)^$UDINT := 0x0000613F;
 			(pResponse + 30)^$UINT := 24;
 			(pResponse + 32)^$UINT := 24;
 			(pResponse + 34)^$UINT := 1;
@@ -1275,7 +1348,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		RETURN;
 	end_if;
 
-	if (CommandId >= 0x7E40) & (CommandId <= 0x7E49) then
+	if (CommandId >= 0x7E40) & (CommandId <= 0x7E4D) then
 		if IsClientConnected(#RecorderStore) = FALSE then
 			(pResponse + 4)^$UINT := 1;
 			(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
@@ -1407,6 +1480,28 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				end_if;
 			end_if;
 
+		0x7E11:
+			if RequestSize <> 8 then detailCode:=12;
+			elsif ResponseCapacity < 44 then detailCode:=20;
+			elsif BuildCatalogEntry(pEntry:=pResponse + 16,
+				CatalogIndex:=0x0200) <> 0 then detailCode:=24;
+			else ResponseSize:=44;
+			end_if;
+
+		0x7E12:
+			if RequestSize = 16 then
+				expectedMapRevision:=(pRequest + 8)^$UDINT; startIndex:=(pRequest + 12)^$UINT;
+				maxEntries:=(pRequest + 14)^$UINT;
+				if expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;
+				elsif (maxEntries <> 1) | (startIndex >= 7) then detailCode:=12;
+				elsif ResponseCapacity < 124 then detailCode:=20;
+				elsif BuildCatalogEntry(pEntry:=pResponse, CatalogIndex:=0x8000 or
+					(startIndex shl 8) or 1) <> 0 then detailCode:=24;
+				else ResponseSize:=124;
+				end_if;
+			else detailCode:=12;
+			end_if;
+
 		0x7E20:
 			if RequestSize <> 20 then
 				detailCode := 12;
@@ -1470,8 +1565,13 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 								if snapshot[TO_DINT(healthOffset + 16)]$UDINT = 0xFFFFFFFF then
 									entryStatus := entryStatus or 128;
 								end_if;
+								entryDetailCode := 0;
 								if entryStatus = 0 then
 									entryStatus := 1;
+								elsif (entryStatus and 8) <> 0 then
+									entryDetailCode := 18;
+								else
+									entryDetailCode := 11;
 								end_if;
 								(pResponse + 16)^$UDINT := LMC_DIAG_MAP_REVISION;
 								(pResponse + 20)^$UINT := 1;
@@ -1482,6 +1582,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 								(pResponse + 40)^$UDINT := snapshot[TO_DINT(valueOffset)]$UDINT;
 								(pResponse + 44)^$USINT := valueType;
 								(pResponse + 45)^$USINT := entryStatus;
+								(pResponse + 48)^$UDINT := entryDetailCode;
 								ResponseSize := 52;
 							end_if;
 						end_if;
@@ -1581,8 +1682,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			end_if;
 
 		0x7E21:
-			// D5 PI Write wire is reserved. Validate the fixed envelope before
-			// returning UnsupportedFeature while the write policy is disabled.
 			if RequestSize <> 28 then
 				detailCode := 12;
 			else
@@ -1590,8 +1689,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			end_if;
 
 		0x7E30:
-			// D2 uses the RT latch as a fixed 24-signal superset shadow. The
-			// configured list is consumed only by this non-RT service.
 			if RequestSize < 20 then
 				detailCode := 12;
 			else
@@ -1631,8 +1728,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 					end_for;
 				end_if;
 
-				// A different epoch means the single previous TCP owner is gone.
-				// Configure may reclaim that session-scoped orphan.
 				if (detailCode = 0) & (BulkState <> 0) &
 					(BulkOwnerSessionEpoch <> CallerSessionEpoch) then
 					BulkId := 0;
@@ -2002,7 +2097,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 						if executorConnected = FALSE then
 							detailCode := 11;
 						elsif executorReusable = FALSE then
-							// Unowned non-Idle executor is an invariant fault.
 							detailCode := 24;
 						elsif (NextTicketId = 0xFFFFFFFF) |
 							(NextOperationToken = 0xFFFFFFFF) then
@@ -2052,7 +2146,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 			end_if;
 
 		0x7E51:
-			// Extended SDO result chunks are post-D5 reserved wire.
 			if RequestSize <> 28 then
 				detailCode := 12;
 			else

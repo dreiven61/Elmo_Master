@@ -133,6 +133,20 @@ TCPMotionInterface : CLASS
 		RpcCallbackPort 	: DINT;
 		RpcCallbackIPv4 : ARRAY [0..3] OF BYTE;
 
+		lsl_tcp_user 	: ^LSL_TCP_USER;
+		CurrentPeerIPv4 	: UDINT;
+		CurrentPeerValid 	: BOOL;
+		RetiringSock 	: DINT;
+		TakeoverCount 	: UDINT;
+		TakeoverRejectCount 	: UDINT;
+		LastTakeoverResult 	: DINT;
+		LastCandidateSock 	: DINT;
+		LastCandidatePeerIPv4 	: UDINT;
+		LastCilTcpUserRet 	: SYS_ERROR;
+		LastCandidatePeerLookupRet 	: DINT;
+		LastActivePeerLookupRet 	: DINT;
+		LastOwnerDisconnectRequestRet 	: DINT;
+		LastCandidateDisconnectRequestRet 	: DINT;
   //Functions:
 	
 	FUNCTION VIRTUAL GLOBAL CyWork
@@ -391,21 +405,168 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		InfoPara1 	: DINT;
 		InfoPara2 	: DINT;
 	END_VAR
+	VAR
+		takeCandidate 	: BOOL;
+		takeover 	: BOOL;
+		candidatePeerValid 	: BOOL;
+		candidatePeerIPv4 	: UDINT;
+		activePeerIPv4 	: UDINT;
+	END_VAR
 
   case InfoPara1 of
     TCP_SVR_SOCK_INFO_CONNECT :
+      // A duplicate callback for the current descriptor is not a new client.
+      if CurrentSock = dSock then
+        LastTakeoverResult := -7;
+        RETURN;
+      end_if;
+
       ConnectedClients +=1;
+      takeCandidate := FALSE;
+      takeover := FALSE;
+      candidatePeerValid := FALSE;
+      candidatePeerIPv4 := 0;
+      activePeerIPv4 := 0;
+      LastCandidateSock := dSock;
+      LastCandidatePeerIPv4 := 0;
+      LastOwnerDisconnectRequestRet := 0;
+      LastCandidateDisconnectRequestRet := 0;
+
+      // TCP_USER is used only to read peer addresses. Socket close ownership
+      // remains in TCPIPServer and its inherited _TCPIPServer FSM.
+      if lsl_tcp_user = NIL then
+        LastCilTcpUserRet := OS_CILGET("TCP_USER", #lsl_tcp_user);
+        if LastCilTcpUserRet <> SYS_ERR_NONE then
+          lsl_tcp_user := NIL;
+        end_if;
+      else
+        LastCilTcpUserRet := SYS_ERR_NONE;
+      end_if;
+
+      if lsl_tcp_user <> NIL then
+        LastCandidatePeerLookupRet := OS_TCP_USER_GETPEERIP(
+          dSock,
+          #candidatePeerIPv4
+        );
+        if LastCandidatePeerLookupRet >= 0 then
+          candidatePeerValid := TRUE;
+          LastCandidatePeerIPv4 := candidatePeerIPv4;
+        end_if;
+      else
+        LastCandidatePeerLookupRet := -90;
+      end_if;
+
       if CurrentSock = 0 then
-        CurrentSock := dSock;
+        // The first socket is allowed even if peer lookup is unavailable. A
+        // later candidate will retry the active socket lookup before takeover.
+        takeCandidate := TRUE;
+        LastTakeoverResult := 1;
+      else
+        if CurrentPeerValid = FALSE then
+          if lsl_tcp_user <> NIL then
+            LastActivePeerLookupRet := OS_TCP_USER_GETPEERIP(
+              CurrentSock,
+              #activePeerIPv4
+            );
+            if LastActivePeerLookupRet >= 0 then
+              CurrentPeerIPv4 := activePeerIPv4;
+              CurrentPeerValid := TRUE;
+            end_if;
+          else
+            LastActivePeerLookupRet := -90;
+          end_if;
+        else
+          LastActivePeerLookupRet := SYS_ERR_NONE;
+        end_if;
+
+        if candidatePeerValid = FALSE then
+          LastTakeoverResult := -2;
+        elsif CurrentPeerValid = FALSE then
+          LastTakeoverResult := -3;
+        elsif candidatePeerIPv4 <> CurrentPeerIPv4 then
+          LastTakeoverResult := -4;
+        else
+          // Custom command 100 is implemented only by editable TCPIPServer.
+          // It marks the old slot for inherited base-FSM shutdown.
+          LastOwnerDisconnectRequestRet :=
+            _TCPIPServerInterface::SetSocketParameter(
+              dSock:=CurrentSock,
+              Cmd:=100,
+              SubCmd:=0,
+              ParaValue:=0
+            );
+          if LastOwnerDisconnectRequestRet = TCP_SVR_NO_ERROR then
+            RetiringSock := CurrentSock;
+            takeCandidate := TRUE;
+            takeover := TRUE;
+            TakeoverCount += 1;
+            LastTakeoverResult := 2;
+          else
+            LastTakeoverResult := -5;
+          end_if;
+        end_if;
+      end_if;
+
+      if takeCandidate = FALSE then
+        // Reject unknown or different peers and keep the current owner.
+        TakeoverRejectCount += 1;
+        LastCandidateDisconnectRequestRet :=
+          _TCPIPServerInterface::SetSocketParameter(
+            dSock:=dSock,
+            Cmd:=100,
+            SubCmd:=0,
+            ParaValue:=0
+          );
+      else
+        if takeover = TRUE then
+          if (SessionEpoch <> 0) &
+             (PendingClosedSessionEpoch = 0) then
+            PendingClosedSessionEpoch := SessionEpoch;
+          end_if;
+        end_if;
+
+        // A fresh owner must not inherit transport state from a closed epoch.
+        ActiveRequestValid := FALSE;
+        _memset(dest:=#RequestQueue[0], usByte:=0, cntr:=sizeof(RequestQueue));
+        QueueWriteIndex := 0;
+        QueueReadIndex := 0;
+        _memset(dest:=#ActiveRequest, usByte:=0, cntr:=sizeof(ActiveRequest));
+        _memset(dest:=#RequestBuf, usByte:=0, cntr:=sizeof(RequestBuf));
+        CommandID := 0;
+        AxisRef := 0;
+        Payload := 0;
+
+        ReceiveFill := 0;
+        ReceiveSocket := 0;
+        _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
+
+        RpcSocket := 0;
+        RpcInitialized := FALSE;
+        RpcCallbackRegistered := FALSE;
+        RpcCallbackEventMask := 0;
+        RpcCallbackPort := 0;
+        RpcCallbackIPv4[0] := 0;
+        RpcCallbackIPv4[1] := 0;
+        RpcCallbackIPv4[2] := 0;
+        RpcCallbackIPv4[3] := 0;
+
+        IngressFaultPending := FALSE;
+        IngressBlocked := FALSE;
+        IngressFaultCloseRequired := FALSE;
+        IngressFaultSocket := 0;
+        IngressFaultEpoch := 0;
+        IngressFaultError := 0;
+        IngressDiscardRemaining := 0;
+        IngressDiscardSocket := 0;
+
+        // Preserve PendingClosedSessionEpoch until CyWork notifies Diagnostics.
         SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;
         end_if;
-        IngressBlocked := FALSE;
-        IngressFaultPending := FALSE;
-        IngressFaultCloseRequired := FALSE;
-        IngressDiscardRemaining := 0;
-        IngressDiscardSocket := 0;
+        CurrentSock := dSock;
+        CurrentPeerIPv4 := candidatePeerIPv4;
+        CurrentPeerValid := candidatePeerValid;
       end_if;
 
     TCP_SVR_SOCK_INFO_DISCONNECT :
@@ -413,8 +574,13 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
       if ConnectedClients < 0 then
         ConnectedClients :=0;
       end_if;
+      if RetiringSock = dSock then
+        RetiringSock := 0;
+      end_if;
       if CurrentSock = dSock then
         CurrentSock := 0;
+        CurrentPeerIPv4 := 0;
+        CurrentPeerValid := FALSE;
         if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
           PendingClosedSessionEpoch := SessionEpoch;
         end_if;
@@ -470,7 +636,16 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::DataHandling
 	END_VAR
 
   udReadAvailableDataBytes := 0;
-  if (IngressDiscardRemaining > 0) &
+  // A retiring or rejected connection is drained without entering the owner
+  // receive accumulator. First CONNECT publishes CurrentSock before recv.
+  if dSocket <> CurrentSock then
+    if udAvailableData < sizeof(ReceiveBuf) then
+      udReadAvailableDataBytes := udAvailableData;
+    else
+      udReadAvailableDataBytes := sizeof(ReceiveBuf);
+    end_if;
+    RETURN;
+  elsif (IngressDiscardRemaining > 0) &
      (IngressDiscardSocket = dSocket) then
     freeSize := IngressDiscardRemaining;
     if freeSize > sizeof(ReceiveBuf) then
@@ -556,6 +731,12 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
     RETURN;
   end_if;
 
+  // Delayed bytes from a retiring socket and data from a rejected candidate
+  // must never fault or mutate the active session.
+  if dSock <> CurrentSock then
+    RETURN;
+  end_if;
+
   // Drain a rejected frame without copying its remaining payload. DataHandling
   // limits each callback to the exact number of bytes still to discard.
   if IngressDiscardRemaining > 0 then
@@ -575,8 +756,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
   end_if;
 
   // Response is an ingress callback only. It never sends or calls motion APIs.
-  if ((CurrentSock <> 0) & (CurrentSock <> dSock)) |
-     ((RpcInitialized = TRUE) & (RpcSocket <> dSock)) then
+  if (RpcInitialized = TRUE) & (RpcSocket <> dSock) then
     if IngressFaultPending = FALSE then
       IngressFaultSocket := dSock;
       IngressFaultEpoch := SessionEpoch;
@@ -763,10 +943,11 @@ FUNCTION TCPMotionInterface::MsgPaser
   case CommandID of
 
     0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x7E04,
-    0x7E10, 0x7E20, 0x7E21,
+    0x7E10, 0x7E11, 0x7E12, 0x7E20, 0x7E21,
     0x7E30, 0x7E31, 0x7E32, 0x7E33,
     0x7E40, 0x7E41, 0x7E42, 0x7E43, 0x7E44,
-    0x7E45, 0x7E46, 0x7E47, 0x7E48, 0x7E49,
+    0x7E45, 0x7E46, 0x7E47, 0x7E48, 0x7E49, 0x7E4A, 0x7E4B,
+    0x7E4C, 0x7E4D,
     0x7E50, 0x7E51:
       _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
       diagnosticsResponseSize := -1;

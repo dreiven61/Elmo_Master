@@ -815,7 +815,8 @@ FUNCTION LMCControlCommandService::HandleAxisCommands
 			jerk := (pRequestFrame + 12)^$DINT;
 			bufferMode := (pRequestFrame + 16)^$DINT;
 			execute := (pRequestFrame + 20)^$DINT;
-			axisCommandInputValid := (bufferMode = 1) & (execute = 1);
+			axisCommandInputValid := (bufferMode = 1) & (execute = 1) &
+				(deceleration > 0) & (jerk >= 0);
 			axisCommandState := 1;
 			axisClientConnected := FALSE;
 			if axisCommandInputValid = TRUE then
@@ -1415,7 +1416,6 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 		kinIndex : DINT;
 		kinValid : BOOL;
 		powerIsOn : DINT;
-		profileLockState : DINT;
 		groupReadErrorId : DINT;
 		groupReadRetCode : _LMCPROFERRORTYPES;
 		groupReadInPosition : DINT;
@@ -1683,11 +1683,7 @@ FUNCTION LMCControlCommandService::HandleGroupCommands
 					if groupReadInPosition <> 0 then
 						groupReadRetCode := LMCRobot.UnlockProfile();
 						if groupReadRetCode = _LMCPROF_NoError then
-							profileLockState := LMCRobot.ReadProfileParameter(
-								ParNo:=_LMCPROF_LockState);
-							if profileLockState = 0 then
-								groupReadErrorId := 0;
-							end_if;
+							groupReadErrorId := 0;
 						elsif groupReadRetCode$UDINT <= 32767 then
 							groupReadErrorId := groupReadRetCode$DINT;
 						end_if;

@@ -6,7 +6,9 @@
 	<HwVisualConfig Key="Elmo_21" Top="128.8" Left="20"/>
 	<HwVisualConfig Key="Elmo_31" Top="235.8" Left="20"/>
 	<HwVisualConfig Key="Elmo_41" Top="342.8" Left="20"/>
-	<HwVisualConnection Source="Elmo_11.toMaster" Destination="EtherCAT_PLC1.EtherCATOut_1" Vertices="(138.73,123),(41.91,123),"/>
+	<HwVisualConfig Key="GL_9086_11" Top="449.8" Left="20"/>
+	<HwVisualConfig Key="GL_9086_1_Slot001" Top="556.8" Left="20"/>
+	<HwVisualConfig Key="GL_9086_1_Slot011" Top="556.8" Left="20"/>
 	<HwVisualConnection Source="Elmo_21.toMaster" Destination="Elmo_11.EtherCATOut_1" Vertices="(34.8,125),(122,125),(122,114),(157.7,114),"/>
 	<HwVisualConnection Source="Elmo_31.toMaster" Destination="Elmo_21.EtherCATOut_1" Vertices="(34.8,229),(73,229),(73,144.88),"/>
 	<HwVisualConnection Source="Elmo_41.toMaster" Destination="Elmo_31.EtherCATOut_1" Vertices="(34.8,336),(73,336),(73,251.88),"/>

@@ -386,6 +386,11 @@ TYPE
     dData : DINT;
     pCmd : ^EtherCAT_Hub_Base;
   END_STRUCT;
+  CltChCmd_EtherCATSlot_Hub_Base : STRUCT
+    pCh : ^SvrChCmd_DINT;
+    dData : DINT;
+    pCmd : ^EtherCATSlot_Hub_Base;
+  END_STRUCT;
   CltChCmd_GetCILInterface : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

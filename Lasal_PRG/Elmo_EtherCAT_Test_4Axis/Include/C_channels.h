@@ -539,6 +539,13 @@ typedef struct CltChCmd_EtherCAT_Hub_Base
     EtherCAT_Hub_Base *pCmd;
   } CltChCmd_EtherCAT_Hub_Base;
 
+typedef struct CltChCmd_EtherCATSlot_Hub_Base 
+  {
+    struct SvrChCmd_DINT *pCh;
+    DINT dData;
+    EtherCATSlot_Hub_Base *pCmd;
+  } CltChCmd_EtherCATSlot_Hub_Base;
+
 typedef struct CltChCmd_GetCILInterface 
   {
     struct SvrChCmd_DINT *pCh;

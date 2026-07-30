@@ -115,6 +115,7 @@
 		<File Path=".\Class\_LMCProfileBase\C_MathProfile.h"/>
 		<File Path=".\Class\_LMCProfileBase\LMCProfileDefines.h" Global="true"/>
 		<File Path=".\Class\Ram\Ram.h" Global="true"/>
+		<File Path=".\Class\ECAT_SlotMng\ECAT_SlotMng.h"/>
 	</HeaderFiles>
 	<ClassFiles>
 		<File Path=".\Class\_SyncMeasureECAT\_64BitTimestamp.c"/>
@@ -222,7 +223,7 @@
 		<File Path=".\Class\_TCPIPServerInterface\_TCPIPServerInterface.st"/>
 		<File Path=".\Class\TCPMotionInterface\TCPMotionInterface.st"/>
 		<File Path=".\Class\CP733_IOs\CP733_IOs.st"/>
-		<File Path=".\Class\_TCPIPServer_RT\_TCPIPServer_RT.st"/>
+		<File Path=".\Class\TCPIPServer\TCPIPServer.st"/>
 		<File Path=".\Class\VaranManager_2\VaranManager_2.st"/>
 		<File Path=".\Class\Elmo_2\Elmo_2.st"/>
 		<File Path=".\Class\Elmo_3\Elmo_3.st"/>
@@ -255,6 +256,12 @@
 		<File Path=".\Class\EtherCAT_SDOBase\EtherCAT_SDOBase.st"/>
 		<File Path=".\Class\LMCSdoExecutor\LMCSdoExecutor.st"/>
 		<File Path=".\Class\LMCControlCommandService\LMCControlCommandService.st"/>
+		<File Path=".\Class\ECAT_SlotBase\ECAT_SlotBase.st"/>
+		<File Path=".\Class\ECAT_SlotMng\ECAT_SlotMng.st"/>
+		<File Path=".\Class\EtherCATSlot_Hub_Base\EtherCATSlot_Hub_Base.st"/>
+		<File Path=".\Class\GL_9086_1\GL_9086_1.st"/>
+		<File Path=".\Class\GL_9086_1_Slot00\GL_9086_1_Slot00.st"/>
+		<File Path=".\Class\GL_9086_1_Slot01\GL_9086_1_Slot01.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
@@ -320,7 +327,10 @@
 						<Class Name="ECAT_DS402Base"/>
 						<Class Name="ECAT_Master_Base"/>
 						<Class Name="ECAT_Slave_Base"/>
+						<Class Name="ECAT_SlotBase"/>
+						<Class Name="ECAT_SlotMng"/>
 						<Class Name="EtherCAT_Hub_Base"/>
+						<Class Name="EtherCATSlot_Hub_Base"/>
 					</Folder>
 				</Folder>
 			</Folder>

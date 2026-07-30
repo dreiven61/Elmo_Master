@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<File CRC="E0038FFC" Version="1.1" SubVersion="2">
+<File CRC="25A9EBD6" Version="1.1" SubVersion="2">
 	<Types>
 		<Type Name="_LMCAXIS_CMDERROR" Datatype="BDINT" TypeId="BIT">
 			<Elements>
@@ -983,16 +983,6 @@
 			Datatype = "_TCPIPServer::_FSM_TCPIP_SERVER"
 			Size     = "9548"
 			Guid     = "B7A4687D-6D72-4436-A2FE-B0CD60690DED">
-			<Servers>
-				<Server Name="TaskName" Datatype="UDINT" Guid="5EB28875-F879-47BA-ACF8-71CCF5F07236" WriteProtected="true"/>
-				<Server Name="SemaName01" Datatype="UDINT" Guid="1B197424-5725-42AD-AE85-11C19399AC62" WriteProtected="true"/>
-				<Server Name="SemaName02" Datatype="UDINT" Guid="373DFDFC-0E2C-4CF0-955D-86E61C7F6941" WriteProtected="true"/>
-			</Servers>
-			<Objects>
-				<Object Name="StrSemaName01" Datatype="String" Guid="299AFE23-53C0-4268-B520-661EA498CF23"/>
-				<Object Name="StrSemaName02" Datatype="String" Guid="75EFD2B9-8A72-4ADD-B553-20298AB8A232"/>
-				<Object Name="StrTaskName" Datatype="String" Guid="510AA27F-2062-4B46-A6C5-CE04D658B1CE"/>
-			</Objects>
 		</Class>
 		<Class
 			Name     = "BusInterfaceSDIASInternal"
@@ -1034,6 +1024,19 @@
 			Datatype = "t_e_VaranErrors"
 			Size     = "760"
 			Guid     = "5B3CD4AF-32B0-40DD-B791-1AD498083509">
+		</Class>
+		<Class
+			Name     = "ECAT_SlotBase"
+			Datatype = "t_e_VaranErrors"
+			Size     = "200"
+			Guid     = "57E56861-F533-4CCD-BE8D-A1D153559E0B">
+		</Class>
+		<Class
+			Name     = "ECAT_SlotMng"
+			Datatype = "t_e_VaranErrors"
+			Base     = "ECAT_Slave_Base"
+			Size     = "812"
+			Guid     = "45ECB4DF-3A51-417B-86ED-9C1417CF0ADE">
 		</Class>
 		<Class
 			Name     = "Elmo_1"
@@ -1221,6 +1224,58 @@
 			</Servers>
 		</Class>
 		<Class
+			Name     = "GL_9086_1"
+			Datatype = "t_e_VaranErrors"
+			Base     = "ECAT_SlotMng"
+			Size     = "836"
+			Guid     = "8F8FD198-0907-4888-A387-C3E546288254">
+			<Servers>
+				<Server Name="ClassState" Datatype="t_e_VaranErrors" Guid="55939D13-31EB-4F92-87E9-37432CD73662" WriteProtected="true"/>
+				<Server Name="EtherCATState" Datatype="t_e_ECAT_STATE" Guid="F6712724-204E-45FE-896A-455A32D34092" WriteProtected="true"/>
+				<Server Name="SlaveState" Datatype="UDINT" Guid="59B4BBD8-B774-43D6-83F9-D4F09EB8EB41" WriteProtected="true"/>
+				<Server Name="DeviceAdress" Datatype="HDINT" Guid="996EE089-26F8-4CA8-9945-15DACE0A9B1F" WriteProtected="true"/>
+				<Server Name="VendorID" Datatype="UDINT" Guid="1ACF7BA1-5295-4305-932D-8A1D27553333" WriteProtected="true"/>
+				<Server Name="ProductCode" Datatype="HDINT" Guid="D0C27402-1EE6-433D-BA51-B4F341EE193F" WriteProtected="true"/>
+				<Server Name="RevisionNo" Datatype="HDINT" Guid="985B1B71-5C16-4722-B138-E3919AA7F7E4" WriteProtected="true"/>
+				<Server Name="SerialNo" Datatype="UDINT" Guid="8E150447-2599-48D7-A290-E5173A6DAD4F" WriteProtected="true"/>
+				<Server Name="DeviceName" Datatype="STRING" Guid="8D4A3D7E-EDD9-4976-A32B-004F2ED17A2C" WriteProtected="false"/>
+				<Server Name="ProductRevision" Datatype="STRING" Guid="81C42FD2-EAA8-473F-8D1A-F37CB89BF3E6" WriteProtected="false"/>
+				<Server Name="AL_StatusCode" Datatype="DINT" Guid="A63437F0-D29F-4575-8ED7-7B91DEBEAB1E" WriteProtected="true"/>
+				<Server Name="Online" Datatype="DINT" Guid="90B23B7F-17A5-4B15-B193-E8E590AC4FB1" WriteProtected="true"/>
+			</Servers>
+			<Objects>
+				<Object Name="DeviceNameStr" Datatype="String" Guid="90F50F62-25DC-456C-B345-491F993164C4"/>
+				<Object Name="GetCILInterface_ECAT" Datatype="GetCILInterface" Guid="011CA525-35F4-4C54-9FFF-B30CB50751D6"/>
+				<Object Name="ProductRevStr" Datatype="String" Guid="E7CD79D3-8E47-4407-8EB1-B3910316B819"/>
+			</Objects>
+		</Class>
+		<Class
+			Name     = "GL_9086_1_Slot00"
+			Datatype = "t_e_VaranErrors"
+			Base     = "ECAT_SlotBase"
+			Size     = "248"
+			Guid     = "5C6B1604-F8DC-4401-9232-2F032715EE30">
+			<Servers>
+				<Server Name="ClassState" Datatype="t_e_VaranErrors" Guid="7D34A442-5517-443B-A2BE-09D576AE16F9" WriteProtected="true"/>
+			</Servers>
+			<Objects>
+				<Object Name="GetCILInterfaceECAT_SlotBase" Datatype="GetCILInterface" Guid="30C12E7A-6470-4A9A-A293-99C14BDF9A12"/>
+			</Objects>
+		</Class>
+		<Class
+			Name     = "GL_9086_1_Slot01"
+			Datatype = "t_e_VaranErrors"
+			Base     = "ECAT_SlotBase"
+			Size     = "248"
+			Guid     = "8890081F-BEBF-4283-B8A4-3D2AFA374F53">
+			<Servers>
+				<Server Name="ClassState" Datatype="t_e_VaranErrors" Guid="7D34A442-5517-443B-A2BE-09D576AE16F9" WriteProtected="true"/>
+			</Servers>
+			<Objects>
+				<Object Name="GetCILInterfaceECAT_SlotBase" Datatype="GetCILInterface" Guid="30C12E7A-6470-4A9A-A293-99C14BDF9A12"/>
+			</Objects>
+		</Class>
+		<Class
 			Name     = "HwControl"
 			Datatype = "DINT"
 			Base     = "HwControlBase"
@@ -1356,6 +1411,23 @@
 			Guid     = "2C12408A-7CCA-458A-912B-98C634EE4BD9">
 		</Class>
 		<Class
+			Name     = "TCPIPServer"
+			Datatype = "_TCPIPServer::_FSM_TCPIP_SERVER"
+			Base     = "_TCPIPServer"
+			Size     = "9548"
+			Guid     = "4E4DEDB9-BF85-4C21-B09B-364D67EA6769">
+			<Servers>
+				<Server Name="TaskName" Datatype="UDINT" Guid="5EB28875-F879-47BA-ACF8-71CCF5F07236" WriteProtected="true"/>
+				<Server Name="SemaName01" Datatype="UDINT" Guid="1B197424-5725-42AD-AE85-11C19399AC62" WriteProtected="true"/>
+				<Server Name="SemaName02" Datatype="UDINT" Guid="373DFDFC-0E2C-4CF0-955D-86E61C7F6941" WriteProtected="true"/>
+			</Servers>
+			<Objects>
+				<Object Name="StrSemaName01" Datatype="String" Guid="299AFE23-53C0-4268-B520-661EA498CF23"/>
+				<Object Name="StrSemaName02" Datatype="String" Guid="75EFD2B9-8A72-4ADD-B553-20298AB8A232"/>
+				<Object Name="StrTaskName" Datatype="String" Guid="510AA27F-2062-4B46-A6C5-CE04D658B1CE"/>
+			</Objects>
+		</Class>
+		<Class
 			Name     = "VirtualBaseInit"
 			Datatype = "UDINT"
 			Size     = "12"
@@ -1379,13 +1451,15 @@
 		<Object Name="_LMCAxis8" Datatype="_LMCAxis" Guid="0753FBBB-B5D3-4AB0-A7FB-2E67BD61CC7F"/>
 		<Object Name="_LMCAxis9" Datatype="_LMCAxis" Guid="3787C705-87DA-4625-994F-8D424E7D15AE"/>
 		<Object Name="_LMCRobotBase1" Datatype="_LMCRobotBase" Guid="A01C18CD-FE1E-432E-B14F-EF0871CE3576"/>
-		<Object Name="_TCPIPServer1" Datatype="_TCPIPServer" Guid="42E82217-EDCD-47A0-BF97-FCBD9C009436"/>
 		<Object Name="CP313_IOs1" Datatype="CP313_IOs" Guid="497B385D-9838-4142-ABB3-D6A101CCAFB9"/>
 		<Object Name="Elmo_11" Datatype="Elmo_1" Guid="47F87ED0-D0EE-486E-BC7A-A70547F6C0D9"/>
 		<Object Name="Elmo_21" Datatype="Elmo_2" Guid="5F64D794-EC42-413A-AE7D-FE8E9353E49B"/>
 		<Object Name="Elmo_31" Datatype="Elmo_3" Guid="C34DFC99-CE46-4D0E-A5C3-DC9ACEB167D5"/>
 		<Object Name="Elmo_41" Datatype="Elmo_4" Guid="8DDACCE9-3A73-4313-9905-815D01DD571E"/>
 		<Object Name="EtherCAT_PLC1" Datatype="EtherCAT_PLC" Guid="52EAFA73-AB9C-4D0B-8B19-F533C65655D5"/>
+		<Object Name="GL_9086_11" Datatype="GL_9086_1" Guid="CE3A5380-AC2F-4548-84FE-B7898D71DAB8"/>
+		<Object Name="GL_9086_1_Slot001" Datatype="GL_9086_1_Slot00" Guid="8ED78C6C-3CD3-4F28-8D77-8B808D9D0F31"/>
+		<Object Name="GL_9086_1_Slot011" Datatype="GL_9086_1_Slot01" Guid="7557A81C-A45C-4ACC-9E85-0C14F77A00EC"/>
 		<Object Name="HwControl1" Datatype="HwControl" Guid="406A4ED8-33F6-4556-ADF2-F23B00CC917F"/>
 		<Object Name="PosController1" Datatype="PosController" Guid="637805E5-FCE3-4345-B84C-0FE8CBED0CA7"/>
 		<Object Name="PosController2" Datatype="PosController" Guid="5FAFF91E-5CF1-4877-9F73-3603EA6BC8A2"/>
@@ -1397,6 +1471,7 @@
 		<Object Name="PosController8" Datatype="PosController" Guid="E6D9BAF9-D469-4698-B3EC-C997E2332D56"/>
 		<Object Name="PosController9" Datatype="PosController" Guid="DD1683F0-18A2-4ADB-BE79-2848AB050801"/>
 		<Object Name="SdiasPLC1" Datatype="SdiasPLC" Guid="43AA458B-5C1E-470D-AC43-542AFEF91F6F"/>
+		<Object Name="TCPIPServer1" Datatype="TCPIPServer" Guid="42E82217-EDCD-47A0-BF97-FCBD9C009436"/>
 	</Objects>
 	<UnitDefinitions>
 		<UnitGrp Name="Acceleration">

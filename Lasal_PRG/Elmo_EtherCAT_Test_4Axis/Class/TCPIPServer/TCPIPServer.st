@@ -4,11 +4,10 @@
 
 (*!
 <Class
-	Name               = "_TCPIPServer_RT"
+	Name               = "TCPIPServer"
 	Revision           = "0.0"
 	GUID               = "{4E4DEDB9-BF85-4C21-B09B-364D67EA6769}"
-	RealtimeTask       = "true"
-	DefRealtime        = "1 ms"
+	RealtimeTask       = "false"
 	CyclicTask         = "true"
 	BackgroundTask     = "false"
 	Sigmatek           = "false"
@@ -20,7 +19,7 @@
 	Objectsize         = "(606,120)">
 	<Channels>
 	</Channels>
-	<Network Name="_TCPIPServer_RT">
+	<Network Name="TCPIPServer">
 		<!-- List of Components in this network -->
 		<Components>
 			<Object
@@ -77,27 +76,22 @@
 *)
 #pragma using _TCPIPServer
 
-_TCPIPServer_RT : CLASS
+TCPIPServer : CLASS
 : _TCPIPServer
   //Servers:
   //Clients:
   //Variables:
   //Functions:
-				//! <Function Comment="cyclic tast methode which is called if client &#13;&#10;cConfig = 0" Name="CyWork"/>
-	FUNCTION VIRTUAL GLOBAL CyWork
+				//! <Function Comment="Adds a user-class request that moves one connection into the inherited shutdown state." Name="SetSocketParameter"/>
+	FUNCTION VIRTUAL GLOBAL SetSocketParameter
 		VAR_INPUT
-			EAX 	: UDINT;
+			dSock 	: DINT;
+			Cmd 	: DINT;
+			SubCmd 	: DINT;
+			ParaValue 	: DINT;
 		END_VAR
 		VAR_OUTPUT
-			state (EAX) 	: UDINT;
-		END_VAR;
-	
-	FUNCTION VIRTUAL GLOBAL RtWork
-		VAR_INPUT
-			EAX 	: UDINT;
-		END_VAR
-		VAR_OUTPUT
-			state (EAX) 	: UDINT;
+			Retcode 	: DINT;
 		END_VAR;
   //Tables:
 	FUNCTION @STD
@@ -110,28 +104,28 @@ END_CLASS;
 //}}LSL_DECLARATION
 
 
-FUNCTION GLOBAL TAB _TCPIPServer_RT::@CT_
+FUNCTION GLOBAL TAB TCPIPServer::@CT_
 0$UINT,
-2#0100000000000010$UINT, //TY__TCPIPSERVER_RT
-0$UINT, 0$UINT, (SIZEOF(::_TCPIPServer_RT))$UINT, 
+2#0100000000000010$UINT, //TY_TCPIPSERVER
+0$UINT, 0$UINT, (SIZEOF(::TCPIPServer))$UINT, 
 0$UINT, 0$UINT, 0$UINT, 
-TO_UDINT(755701613), "_TCPIPServer_RT", //Class
+TO_UDINT(2859426109), "TCPIPServer", //Class
 TO_UDINT(4107457475), "_TCPIPServer", 1$UINT, 2$UINT, //Baseclass
 //Servers:
 //Clients:
 END_FUNCTION
 
 
-#define USER_CNT__TCPIPServer_RT 6
+#define USER_CNT_TCPIPServer 6
 
 TYPE
 	_LSL_STD_VMETH	: STRUCT
 			CmdTable	: CMDMETH;
-			UserFcts	: ARRAY[0..USER_CNT__TCPIPServer_RT] OF ^Void;
+			UserFcts	: ARRAY[0..USER_CNT_TCPIPServer] OF ^Void;
 	END_STRUCT;
 END_TYPE
 
-FUNCTION _TCPIPServer_RT::@STD
+FUNCTION TCPIPServer::@STD
 	VAR_OUTPUT
 		ret_code	: CONFSTATES;
 	END_VAR
@@ -147,9 +141,11 @@ FUNCTION _TCPIPServer_RT::@STD
 	nCmdSize		:= _TCPIPServer::Control.pMeth^.nCmds$UINT*SIZEOF(pVoid) + CMDMETH.Init;
 
 	_memcpy((#vmt.CmdTable)$^USINT, _TCPIPServer::Control.pMeth, nCmdSize);
-	vmt.CmdTable.nCmds		:= nSTDCMD + USER_CNT__TCPIPServer_RT;
-	vmt.CmdTable.CyWork		:= #CyWork();
-	vmt.CmdTable.RtWork		:= #RtWork();
+	vmt.CmdTable.nCmds		:= nSTDCMD + USER_CNT_TCPIPServer;
+#pragma warning (disable : 74)
+	vmt.UserFcts[4]		:= #SetSocketParameter();
+
+#pragma warning (default : 74)
 	_TCPIPServer::Control.pMeth		:= StoreCmd (pCmd := #vmt.CmdTable, SHARED);
 
 	IF _TCPIPServer::Control.pMeth THEN
@@ -164,33 +160,45 @@ END_FUNCTION
 //{{LSL_IMPLEMENTATION
 
 
-FUNCTION VIRTUAL GLOBAL _TCPIPServer_RT::RtWork
+FUNCTION VIRTUAL GLOBAL TCPIPServer::SetSocketParameter
 	VAR_INPUT
-		EAX 	: UDINT;
+		dSock 	: DINT;
+		Cmd 	: DINT;
+		SubCmd 	: DINT;
+		ParaValue 	: DINT;
 	END_VAR
 	VAR_OUTPUT
-		state (EAX) 	: UDINT;
+		Retcode 	: DINT;
+	END_VAR
+	VAR
+		i 	: DINT;
 	END_VAR
 
-  // TCP transport is owned by CyWork. RtWork must not execute socket handling.
+  // User command 100 requests a controlled disconnect.  Only the inherited
+  // FSM state is changed here; _TCPIPServer remains the sole owner of
+  // CLOSESOCKET, list removal and the DISCONNECT callback.
+  if Cmd = 100 then
+    if SubCmd <> 0 then
+      Retcode := TCP_SVR_ERR_SET_PARA_INVALID_SUB_CMD;
+      RETURN;
+    end_if;
 
-	state := READY;
-
-END_FUNCTION
-
-
-FUNCTION VIRTUAL GLOBAL _TCPIPServer_RT::CyWork
-	VAR_INPUT
-		EAX 	: UDINT;
-	END_VAR
-	VAR_OUTPUT
-		state (EAX) 	: UDINT;
-	END_VAR
-
-  if (bdStatus.CyclicTask = true) then
-    CyclicCall();
+    Retcode := TCP_SVR_ERR_INVALID_SOCKET;
+    for i := 0 to (MaxConn - 1) do
+      if SocketArray[i].dSocket = dSock then
+        SocketArray[i].FSM_TCP := _STATE_SHUTDOWN;
+        Retcode := TCP_SVR_NO_ERROR;
+        exit;
+      end_if;
+    end_for;
+  else
+    Retcode := _TCPIPServer::SetSocketParameter(
+      dSock:=dSock,
+      Cmd:=Cmd,
+      SubCmd:=SubCmd,
+      ParaValue:=ParaValue
+    );
   end_if;
-  
-	state := READY;
 
 END_FUNCTION
+

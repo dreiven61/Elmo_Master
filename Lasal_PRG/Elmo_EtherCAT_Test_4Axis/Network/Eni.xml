@@ -8,6 +8,10 @@
             <Source>000000000000</Source>
             <EtherType>A488</EtherType>
          </Info>
+         <MailboxStates>
+            <StartAddr>150994944</StartAddr>
+            <Count>1</Count>
+         </MailboxStates>
          <EoE>
             <MaxPorts>9</MaxPorts>
             <MaxFrames>11</MaxFrames>
@@ -23,7 +27,7 @@
                <Adp>0</Adp>
                <Ado>304</Ado>
                <DataLength>2</DataLength>
-               <Cnt>4</Cnt>
+               <Cnt>5</Cnt>
                <Retries>0</Retries>
             </InitCmd>
             <InitCmd>
@@ -35,7 +39,7 @@
                <Adp>0</Adp>
                <Ado>304</Ado>
                <DataLength>2</DataLength>
-               <Cnt>4</Cnt>
+               <Cnt>5</Cnt>
                <Retries>0</Retries>
             </InitCmd>
             <InitCmd>
@@ -156,1190 +160,128 @@
       </Master>
       <Slave>
          <Info>
-            <Name>Slave 01 (Elmo Drive )</Name>
+            <Name>Slave 01 (GL-9086,Crevis)</Name>
             <PhysAddr>1001</PhysAddr>
             <AutoIncAddr>0</AutoIncAddr>
             <Physics>YY  </Physics>
-            <VendorId>154</VendorId>
-            <ProductCode>198948</ProductCode>
-            <RevisionNo>66592</RevisionNo>
+            <VendorId>669</VendorId>
+            <ProductCode>1196200070</ProductCode>
+            <RevisionNo>65536</RevisionNo>
             <SerialNo>0</SerialNo>
          </Info>
          <ProcessData>
             <Send>
-               <BitStart>592</BitStart>
-               <BitLength>80</BitLength>
+               <BitStart>696</BitStart>
+               <BitLength>32</BitLength>
             </Send>
             <Recv>
-               <BitStart>592</BitStart>
-               <BitLength>80</BitLength>
+               <BitStart>696</BitStart>
+               <BitLength>32</BitLength>
             </Recv>
             <Sm2>
                <Type>Outputs</Type>
-               <MaxSize>32</MaxSize>
-               <DefaultSize>32</DefaultSize>
-               <StartAddress>4352</StartAddress>
-               <ControlByte>100</ControlByte>
+               <StartAddress>5120</StartAddress>
+               <ControlByte>36</ControlByte>
                <Enable>1</Enable>
-               <Pdo>5632</Pdo>
+               <Pdo>5633</Pdo>
             </Sm2>
             <Sm3>
                <Type>Inputs</Type>
-               <MaxSize>32</MaxSize>
-               <DefaultSize>32</DefaultSize>
-               <StartAddress>4480</StartAddress>
+               <StartAddress>6656</StartAddress>
                <ControlByte>32</ControlByte>
                <Enable>1</Enable>
                <Pdo>6656</Pdo>
             </Sm3>
-            <TxPdo Fixed="1" Sm="3">
+            <TxPdo Fixed="1" Mandatory="1" Sm="3">
                <Index>#x1A00</Index>
-               <Name>Inputs</Name>
-               <Exclude>6657</Exclude>
-               <Exclude>6658</Exclude>
-               <Exclude>6659</Exclude>
-               <Exclude>6660</Exclude>
+               <Name>Input(s)</Name>
                <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FD</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Inputs</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A01</Index>
-               <Name>Inputs</Name>
-               <Exclude>6656</Exclude>
-               <Exclude>6658</Exclude>
-               <Exclude>6659</Exclude>
-               <Exclude>6660</Exclude>
-               <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x606B</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity demand value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6074</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque demand value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A02</Index>
-               <Name>Inputs</Name>
-               <Exclude>6656</Exclude>
-               <Exclude>6657</Exclude>
-               <Exclude>6659</Exclude>
-               <Exclude>6660</Exclude>
-               <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6077</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque actual value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6061</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-                  <Name>Mode of operation display</Name>
-                  <DataType>SINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A03</Index>
-               <Name>Inputs</Name>
-               <Exclude>6656</Exclude>
-               <Exclude>6657</Exclude>
-               <Exclude>6658</Exclude>
-               <Exclude>6660</Exclude>
-               <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FD</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Inputs</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x606C</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A04</Index>
-               <Name>Inputs</Name>
-               <Exclude>6656</Exclude>
-               <Exclude>6657</Exclude>
-               <Exclude>6658</Exclude>
-               <Exclude>6659</Exclude>
-               <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60F4</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position Following error actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6077</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque actual value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6061</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-                  <Name>Mode of operation display</Name>
-                  <DataType>SINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-               </Entry>
-            </TxPdo>
-            <TxPdo>
-               <Index>#x1A07</Index>
-               <Name>Inputs</Name>
-            </TxPdo>
-            <TxPdo>
-               <Index>#x1A08</Index>
-               <Name>Inputs</Name>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0A</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6041</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Status word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0B</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6061</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-                  <Name>Mode of operation display</Name>
-                  <DataType>SINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0C</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6062</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position Demand [UU]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0D</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6063</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Actual position [counts]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0E</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6064</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A0F</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6069</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity sensor actual value [counts/sec]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A10</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x606B</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity demand [cnt/sec]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A11</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x606C</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A12</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6074</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque demand value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A13</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6077</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque actual value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A14</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60B9</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Touch Probe status</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A15</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60BA</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Touch Probe Pos1 Positive</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A16</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60BB</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Touch Probe Pos1 Negative</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A17</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60BC</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Touch probe pos2 pos value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A18</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6079</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>DC link circuit voltage</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A19</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60F4</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position Following error</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1A</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60FA</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Control Effort [cnt/sec]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1B</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60FC</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position Demand Value [cnt]</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1C</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60FD</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Inputs</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1D</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x2205</Index>
+                  <Index>#x6000</Index>
                   <SubIndex>#x1</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Analog Input 1</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1E</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x20A0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Auxiliary position actual value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A1F</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x6078</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Current actual value</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A20</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x60BD</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Touch probe pos2 neg value</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A21</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x2085</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Extra Status Reg</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A22</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x1002</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Elmo Status Reg</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A23</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x2202</Index>
-                  <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Extended Inputs Value</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A24</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x2203</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>App Object</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </TxPdo>
-            <TxPdo Fixed="1">
-               <Index>#x1A26</Index>
-               <Name>Inputs</Name>
-               <Entry>
-                  <Index>#x603F</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Error Code</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </TxPdo>
-            <RxPdo Fixed="1" Sm="2">
-               <Index>#x1600</Index>
-               <Name>Outputs</Name>
-               <Exclude>5633</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5637</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FE</Index>
-                  <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Outputs</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1601</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5637</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x60FF</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Velocity</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1602</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5633</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5637</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x6071</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Target Torque</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1603</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5633</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5637</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FE</Index>
-                  <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Outputs</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60B1</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity Offset</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1604</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5633</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5637</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FF</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Velocity</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6072</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Max. Torque</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1605</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5633</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5638</Exclude>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FF</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Velocity</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6071</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Target Torque</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6072</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Max. Torque</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6060</Index>
-                  <SubIndex>#x0</SubIndex>
                   <BitLen>8</BitLen>
-                  <Name>Mode of operation</Name>
-                  <DataType>SINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1606</Index>
-               <Name>Outputs</Name>
-               <Exclude>5632</Exclude>
-               <Exclude>5633</Exclude>
-               <Exclude>5634</Exclude>
-               <Exclude>5635</Exclude>
-               <Exclude>5636</Exclude>
-               <Exclude>5637</Exclude>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FE</Index>
-                  <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Outputs</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60FF</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Velocity</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60B1</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity Offset</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x60B2</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque Offset</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo>
-               <Index>#x1607</Index>
-               <Name>Outputs</Name>
-            </RxPdo>
-            <RxPdo>
-               <Index>#x1608</Index>
-               <Name>Outputs</Name>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160A</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6040</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Control word</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160B</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6060</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-                  <Name>Mode of operation</Name>
-                  <DataType>SINT</DataType>
-               </Entry>
-               <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160C</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6071</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Target Torque</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160D</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6072</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Max. Torque</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160E</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6073</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Max. Current</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x160F</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x607A</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Position</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1611</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6081</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Profile Velocity</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1612</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6082</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>End velocity</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1613</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6083</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Profile Acceleration</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1614</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6084</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Profile Deceleration</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1615</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x6087</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Torque Slope</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1616</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60B0</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Position Offset</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1617</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60B1</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Velocity Offset</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1618</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60B2</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Torque Offset</Name>
-                  <DataType>INT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1619</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60B8</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Touch Probe Function</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x161A</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x2E00</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>16</BitLen>
-                  <Name>Gain scheduling manual index</Name>
-                  <DataType>UINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x161C</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60FF</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Target Velocity</Name>
-                  <DataType>DINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x161D</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x60FE</Index>
-                  <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Digital Outputs</Name>
-                  <DataType>UDINT</DataType>
-               </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x161E</Index>
-               <Name>Outputs</Name>
-               <Entry>
-                  <Index>#x607E</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>8</BitLen>
-                  <Name>Polarity</Name>
+                  <Name>Byte0</Name>
                   <DataType>USINT</DataType>
                </Entry>
                <Entry>
-                  <Index>#x0</Index>
-                  <SubIndex>#x0</SubIndex>
+                  <Index>#x6000</Index>
+                  <SubIndex>#x2</SubIndex>
                   <BitLen>8</BitLen>
+                  <Name>Byte1</Name>
+                  <DataType>USINT</DataType>
                </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x161F</Index>
-               <Name>Outputs</Name>
                <Entry>
-                  <Index>#x6085</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Quick stop deceleration</Name>
-                  <DataType>UDINT</DataType>
+                  <Index>#x6000</Index>
+                  <SubIndex>#x3</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Byte2</Name>
+                  <DataType>USINT</DataType>
                </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1620</Index>
-               <Name>Outputs</Name>
                <Entry>
-                  <Index>#x22A1</Index>
+                  <Index>#x6000</Index>
+                  <SubIndex>#x4</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Byte3</Name>
+                  <DataType>USINT</DataType>
+               </Entry>
+            </TxPdo>
+            <RxPdo Fixed="1" Mandatory="1" Sm="2">
+               <Index>#x1601</Index>
+               <Name>Output(s)</Name>
+               <Entry>
+                  <Index>#x7010</Index>
                   <SubIndex>#x1</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Extended Outputs </Name>
-                  <DataType>UDINT</DataType>
+                  <BitLen>8</BitLen>
+                  <Name>Byte0</Name>
+                  <DataType>USINT</DataType>
                </Entry>
-            </RxPdo>
-            <RxPdo Fixed="1">
-               <Index>#x1621</Index>
-               <Name>Outputs</Name>
                <Entry>
-                  <Index>#x2005</Index>
-                  <SubIndex>#x0</SubIndex>
-                  <BitLen>32</BitLen>
-                  <Name>Fast Reference</Name>
-                  <DataType>DINT</DataType>
+                  <Index>#x7010</Index>
+                  <SubIndex>#x2</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Byte1</Name>
+                  <DataType>USINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x7010</Index>
+                  <SubIndex>#x3</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Byte2</Name>
+                  <DataType>USINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x7010</Index>
+                  <SubIndex>#x4</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Byte3</Name>
+                  <DataType>USINT</DataType>
                </Entry>
             </RxPdo>
          </ProcessData>
-         <Mailbox>
+         <Mailbox DataLinkLayer="1">
             <Send>
-               <Start>6144</Start>
-               <Length>140</Length>
+               <Start>4096</Start>
+               <Length>256</Length>
             </Send>
             <Recv>
-               <Start>6400</Start>
-               <Length>140</Length>
-               <PollTime>50</PollTime>
+               <Start>4608</Start>
+               <Length>256</Length>
+               <StatusBitAddr>0</StatusBitAddr>
             </Recv>
             <BootStrap>
                <Send>
-                  <Start>6144</Start>
-                  <Length>140</Length>
+                  <Start>5632</Start>
+                  <Length>268</Length>
                </Send>
                <Recv>
-                  <Start>6400</Start>
-                  <Length>140</Length>
+                  <Start>5120</Start>
+                  <Length>268</Length>
                </Recv>
             </BootStrap>
-            <Protocol>EoE</Protocol>
             <Protocol>CoE</Protocol>
             <Protocol>FoE</Protocol>
             <CoE>
                <InitCmds>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>clear sm pdos (0x1C12)</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7186</Index>
-                     <SubIndex>0</SubIndex>
-                     <Data>00</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>clear sm pdos (0x1C13)</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7187</Index>
-                     <SubIndex>0</SubIndex>
-                     <Data>00</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>download pdo 0x1C12:01 index</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7186</Index>
-                     <SubIndex>1</SubIndex>
-                     <Data>0016</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>download pdo 0x1C13:01 index</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7187</Index>
-                     <SubIndex>1</SubIndex>
-                     <Data>001A</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>download pdo 0x1C12 count</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7186</Index>
-                     <SubIndex>0</SubIndex>
-                     <Data>01</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd Fixed="1">
-                     <Transition>PS</Transition>
-                     <Comment>download pdo 0x1C13 count</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>7187</Index>
-                     <SubIndex>0</SubIndex>
-                     <Data>01</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd>
-                     <Transition>PS</Transition>
-                     <Comment>Op mode</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>24672</Index>
-                     <SubIndex>0</SubIndex>
-                     <Data>08</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
-                  <InitCmd>
-                     <Transition>PS</Transition>
-                     <Comment>Cycle time</Comment>
-                     <Timeout>0</Timeout>
-                     <Ccs>1</Ccs>
-                     <Index>24770</Index>
-                     <SubIndex>1</SubIndex>
-                     <Data>02</Data>
-                     <Disabled>0</Disabled>
-                  </InitCmd>
                </InitCmds>
-               <Profile>
-                  <ChannelInfo>
-                     <ProfileNo>402</ProfileNo>
-                     <AddInfo>2</AddInfo>
-                  </ChannelInfo>
-               </Profile>
             </CoE>
          </Mailbox>
          <InitCmds>
@@ -1354,17 +296,6 @@
                <Adp>0</Adp>
                <Ado>288</Ado>
                <Data>1100</Data>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>SI</Transition>
-               <Transition>OI</Transition>
-               <Comment>clear DC activation</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>2</Cmd>
-               <Adp>0</Adp>
-               <Ado>2432</Ado>
-               <DataLength>2</DataLength>
                <Retries>3</Retries>
             </InitCmd>
             <InitCmd>
@@ -1460,7 +391,7 @@
                <Cnt>1</Cnt>
                <Retries>3</Retries>
                <Validate>
-                  <Data>9A000000</Data>
+                  <Data>9D020000</Data>
                   <Timeout>100</Timeout>
                </Validate>
             </InitCmd>
@@ -1485,7 +416,32 @@
                <Cnt>1</Cnt>
                <Retries>3</Retries>
                <Validate>
-                  <Data>24090300</Data>
+                  <Data>86904C47</Data>
+                  <Timeout>100</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check revision number</Comment>
+               <Cmd>2</Cmd>
+               <Adp>0</Adp>
+               <Ado>1282</Ado>
+               <Data>00010C000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check revision number</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>0</Adp>
+               <Ado>1288</Ado>
+               <DataLength>4</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>00000100</Data>
                   <Timeout>100</Timeout>
                </Validate>
             </InitCmd>
@@ -1498,46 +454,6 @@
                <Adp>0</Adp>
                <Ado>16</Ado>
                <Data>E903</Data>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>IP</Transition>
-               <Comment>set physical read/write offset</Comment>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>264</Ado>
-               <DataLength>2</DataLength>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>IP</Transition>
-               <Comment>set watchdog divider</Comment>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>1024</Ado>
-               <Data>C209</Data>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>IP</Transition>
-               <Comment>set PDI watchdog</Comment>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>1040</Ado>
-               <Data>E803</Data>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>IP</Transition>
-               <Comment>set SM watchdog</Comment>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>1056</Ado>
-               <Data>1027</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1569,7 +485,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2048</Ado>
-               <Data>00188C0026000100</Data>
+               <Data>0010000126000100</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1579,7 +495,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2056</Ado>
-               <Data>00198C0022000100</Data>
+               <Data>0012000122000100</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1589,7 +505,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2048</Ado>
-               <Data>00188C0026000100</Data>
+               <Data>00160C0126000100</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1599,62 +515,8 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2056</Ado>
-               <Data>00198C0022000100</Data>
+               <Data>00140C0122000100</Data>
                <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>PS</Transition>
-               <Comment>set DC cycle time</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>2464</Ado>
-               <Data>40420F0000000000</Data>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>PS</Transition>
-               <Comment>set DC start time</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>2448</Ado>
-               <DataLength>8</DataLength>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>PS</Transition>
-               <Comment>set DC activation</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>2432</Ado>
-               <Data>0003</Data>
-               <Cnt>1</Cnt>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>PS</Transition>
-               <Comment>set DC latch cfg</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>2472</Ado>
-               <DataLength>2</DataLength>
-               <Retries>3</Retries>
-            </InitCmd>
-            <InitCmd>
-               <Transition>IP</Transition>
-               <Transition>PP</Transition>
-               <Comment>clear DC activation</Comment>
-               <Requires>cycle</Requires>
-               <Cmd>5</Cmd>
-               <Adp>1001</Adp>
-               <Ado>2432</Ado>
-               <DataLength>2</DataLength>
                <Retries>3</Retries>
             </InitCmd>
             <InitCmd>
@@ -1687,7 +549,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2064</Ado>
-               <Data>00110A0064000100</Data>
+               <Data>0014040024000100</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1697,7 +559,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>2072</Ado>
-               <Data>80110A0020000100</Data>
+               <Data>001A040020000100</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1707,7 +569,7 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>1536</Ado>
-               <Data>000000010A0000070011000201000000</Data>
+               <Data>00000001040000070014000201000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1717,7 +579,18 @@
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
                <Ado>1552</Ado>
-               <Data>000000010A0000078011000101000000</Data>
+               <Data>0000000104000007001A000101000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>IB</Transition>
+               <Comment>set fmmu 2 (mailbox state)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1001</Adp>
+               <Ado>1568</Ado>
+               <Data>00000009010000000D08000101000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -1756,14 +629,15 @@
                <Retries>3</Retries>
             </InitCmd>
             <InitCmd>
-               <Transition>SP</Transition>
-               <Transition>OP</Transition>
-               <Comment>clear DC activation</Comment>
-               <Requires>cycle</Requires>
+               <Transition>PI</Transition>
+               <Transition>SI</Transition>
+               <Transition>OI</Transition>
+               <Transition>BI</Transition>
+               <Comment>clear fmmu 2</Comment>
                <Cmd>5</Cmd>
                <Adp>1001</Adp>
-               <Ado>2432</Ado>
-               <DataLength>2</DataLength>
+               <Ado>1568</Ado>
+               <DataLength>16</DataLength>
                <Retries>3</Retries>
             </InitCmd>
             <InitCmd>
@@ -1939,10 +813,6 @@
                </Validate>
             </InitCmd>
          </InitCmds>
-         <DC>
-            <ReferenceClock>1</ReferenceClock>
-            <CycleTime0>1000000</CycleTime0>
-         </DC>
       </Slave>
       <Slave>
          <Info>
@@ -1957,11 +827,11 @@
          </Info>
          <ProcessData>
             <Send>
-               <BitStart>672</BitStart>
+               <BitStart>728</BitStart>
                <BitLength>80</BitLength>
             </Send>
             <Recv>
-               <BitStart>672</BitStart>
+               <BitStart>728</BitStart>
                <BitLength>80</BitLength>
             </Recv>
             <Sm2>
@@ -3497,7 +2367,7 @@
                <Cmd>5</Cmd>
                <Adp>1002</Adp>
                <Ado>1536</Ado>
-               <Data>0A0000010A0000070011000201000000</Data>
+               <Data>040000010A0000070011000201000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -3507,7 +2377,7 @@
                <Cmd>5</Cmd>
                <Adp>1002</Adp>
                <Ado>1552</Ado>
-               <Data>0A0000010A0000078011000101000000</Data>
+               <Data>040000010A0000078011000101000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -3734,6 +2604,7 @@
             <PhysAddr>1001</PhysAddr>
          </PreviousPort>
          <DC>
+            <ReferenceClock>1</ReferenceClock>
             <CycleTime0>1000000</CycleTime0>
          </DC>
       </Slave>
@@ -3750,11 +2621,11 @@
          </Info>
          <ProcessData>
             <Send>
-               <BitStart>752</BitStart>
+               <BitStart>808</BitStart>
                <BitLength>80</BitLength>
             </Send>
             <Recv>
-               <BitStart>752</BitStart>
+               <BitStart>808</BitStart>
                <BitLength>80</BitLength>
             </Recv>
             <Sm2>
@@ -5290,7 +4161,7 @@
                <Cmd>5</Cmd>
                <Adp>1003</Adp>
                <Ado>1536</Ado>
-               <Data>140000010A0000070011000201000000</Data>
+               <Data>0E0000010A0000070011000201000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -5300,7 +4171,7 @@
                <Cmd>5</Cmd>
                <Adp>1003</Adp>
                <Ado>1552</Ado>
-               <Data>140000010A0000078011000101000000</Data>
+               <Data>0E0000010A0000078011000101000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -5543,11 +4414,11 @@
          </Info>
          <ProcessData>
             <Send>
-               <BitStart>832</BitStart>
+               <BitStart>888</BitStart>
                <BitLength>80</BitLength>
             </Send>
             <Recv>
-               <BitStart>832</BitStart>
+               <BitStart>888</BitStart>
                <BitLength>80</BitLength>
             </Recv>
             <Sm2>
@@ -7083,7 +5954,7 @@
                <Cmd>5</Cmd>
                <Adp>1004</Adp>
                <Ado>1536</Ado>
-               <Data>1E0000010A0000070011000201000000</Data>
+               <Data>180000010A0000070011000201000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -7093,7 +5964,7 @@
                <Cmd>5</Cmd>
                <Adp>1004</Adp>
                <Ado>1552</Ado>
-               <Data>1E0000010A0000078011000101000000</Data>
+               <Data>180000010A0000078011000101000000</Data>
                <Cnt>1</Cnt>
                <Retries>3</Retries>
             </InitCmd>
@@ -7323,6 +6194,1799 @@
             <CycleTime0>1000000</CycleTime0>
          </DC>
       </Slave>
+      <Slave>
+         <Info>
+            <Name>Slave 05 (Elmo Drive )</Name>
+            <PhysAddr>1005</PhysAddr>
+            <AutoIncAddr>-4</AutoIncAddr>
+            <Physics>YY  </Physics>
+            <VendorId>154</VendorId>
+            <ProductCode>198948</ProductCode>
+            <RevisionNo>66592</RevisionNo>
+            <SerialNo>0</SerialNo>
+         </Info>
+         <ProcessData>
+            <Send>
+               <BitStart>968</BitStart>
+               <BitLength>80</BitLength>
+            </Send>
+            <Recv>
+               <BitStart>968</BitStart>
+               <BitLength>80</BitLength>
+            </Recv>
+            <Sm2>
+               <Type>Outputs</Type>
+               <MaxSize>32</MaxSize>
+               <DefaultSize>32</DefaultSize>
+               <StartAddress>4352</StartAddress>
+               <ControlByte>100</ControlByte>
+               <Enable>1</Enable>
+               <Pdo>5632</Pdo>
+            </Sm2>
+            <Sm3>
+               <Type>Inputs</Type>
+               <MaxSize>32</MaxSize>
+               <DefaultSize>32</DefaultSize>
+               <StartAddress>4480</StartAddress>
+               <ControlByte>32</ControlByte>
+               <Enable>1</Enable>
+               <Pdo>6656</Pdo>
+            </Sm3>
+            <TxPdo Fixed="1" Sm="3">
+               <Index>#x1A00</Index>
+               <Name>Inputs</Name>
+               <Exclude>6657</Exclude>
+               <Exclude>6658</Exclude>
+               <Exclude>6659</Exclude>
+               <Exclude>6660</Exclude>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FD</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Inputs</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A01</Index>
+               <Name>Inputs</Name>
+               <Exclude>6656</Exclude>
+               <Exclude>6658</Exclude>
+               <Exclude>6659</Exclude>
+               <Exclude>6660</Exclude>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x606B</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity demand value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6074</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque demand value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A02</Index>
+               <Name>Inputs</Name>
+               <Exclude>6656</Exclude>
+               <Exclude>6657</Exclude>
+               <Exclude>6659</Exclude>
+               <Exclude>6660</Exclude>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6077</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque actual value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6061</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Mode of operation display</Name>
+                  <DataType>SINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A03</Index>
+               <Name>Inputs</Name>
+               <Exclude>6656</Exclude>
+               <Exclude>6657</Exclude>
+               <Exclude>6658</Exclude>
+               <Exclude>6660</Exclude>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FD</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Inputs</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x606C</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A04</Index>
+               <Name>Inputs</Name>
+               <Exclude>6656</Exclude>
+               <Exclude>6657</Exclude>
+               <Exclude>6658</Exclude>
+               <Exclude>6659</Exclude>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60F4</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position Following error actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6077</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque actual value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6061</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Mode of operation display</Name>
+                  <DataType>SINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </TxPdo>
+            <TxPdo>
+               <Index>#x1A07</Index>
+               <Name>Inputs</Name>
+            </TxPdo>
+            <TxPdo>
+               <Index>#x1A08</Index>
+               <Name>Inputs</Name>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0A</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6041</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Status word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0B</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6061</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Mode of operation display</Name>
+                  <DataType>SINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0C</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6062</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position Demand [UU]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0D</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6063</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Actual position [counts]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0E</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6064</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A0F</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6069</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity sensor actual value [counts/sec]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A10</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x606B</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity demand [cnt/sec]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A11</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x606C</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A12</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6074</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque demand value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A13</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6077</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque actual value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A14</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60B9</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Touch Probe status</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A15</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60BA</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Touch Probe Pos1 Positive</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A16</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60BB</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Touch Probe Pos1 Negative</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A17</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60BC</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Touch probe pos2 pos value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A18</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6079</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>DC link circuit voltage</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A19</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60F4</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position Following error</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1A</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60FA</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Control Effort [cnt/sec]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1B</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60FC</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position Demand Value [cnt]</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1C</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60FD</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Inputs</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1D</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x2205</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Analog Input 1</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1E</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x20A0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Auxiliary position actual value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A1F</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x6078</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Current actual value</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A20</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x60BD</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Touch probe pos2 neg value</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A21</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x2085</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Extra Status Reg</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A22</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x1002</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Elmo Status Reg</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A23</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x2202</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Extended Inputs Value</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A24</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x2203</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>App Object</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </TxPdo>
+            <TxPdo Fixed="1">
+               <Index>#x1A26</Index>
+               <Name>Inputs</Name>
+               <Entry>
+                  <Index>#x603F</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Error Code</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </TxPdo>
+            <RxPdo Fixed="1" Sm="2">
+               <Index>#x1600</Index>
+               <Name>Outputs</Name>
+               <Exclude>5633</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5637</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FE</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Outputs</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1601</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5637</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x60FF</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Velocity</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1602</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5633</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5637</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x6071</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Target Torque</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1603</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5633</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5637</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FE</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Outputs</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60B1</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity Offset</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1604</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5633</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5637</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FF</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Velocity</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6072</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Max. Torque</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1605</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5633</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5638</Exclude>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FF</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Velocity</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6071</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Target Torque</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6072</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Max. Torque</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6060</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Mode of operation</Name>
+                  <DataType>SINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1606</Index>
+               <Name>Outputs</Name>
+               <Exclude>5632</Exclude>
+               <Exclude>5633</Exclude>
+               <Exclude>5634</Exclude>
+               <Exclude>5635</Exclude>
+               <Exclude>5636</Exclude>
+               <Exclude>5637</Exclude>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FE</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Outputs</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60FF</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Velocity</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60B1</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity Offset</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x60B2</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque Offset</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo>
+               <Index>#x1607</Index>
+               <Name>Outputs</Name>
+            </RxPdo>
+            <RxPdo>
+               <Index>#x1608</Index>
+               <Name>Outputs</Name>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160A</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6040</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Control word</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160B</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6060</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Mode of operation</Name>
+                  <DataType>SINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160C</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6071</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Target Torque</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160D</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6072</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Max. Torque</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160E</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6073</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Max. Current</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x160F</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x607A</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Position</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1611</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6081</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Profile Velocity</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1612</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6082</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>End velocity</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1613</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6083</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Profile Acceleration</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1614</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6084</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Profile Deceleration</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1615</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6087</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Torque Slope</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1616</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60B0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Position Offset</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1617</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60B1</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Velocity Offset</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1618</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60B2</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Torque Offset</Name>
+                  <DataType>INT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1619</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60B8</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Touch Probe Function</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x161A</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x2E00</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>16</BitLen>
+                  <Name>Gain scheduling manual index</Name>
+                  <DataType>UINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x161C</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60FF</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Target Velocity</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x161D</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x60FE</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Digital Outputs</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x161E</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x607E</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+                  <Name>Polarity</Name>
+                  <DataType>USINT</DataType>
+               </Entry>
+               <Entry>
+                  <Index>#x0</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>8</BitLen>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x161F</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x6085</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Quick stop deceleration</Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1620</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x22A1</Index>
+                  <SubIndex>#x1</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Extended Outputs </Name>
+                  <DataType>UDINT</DataType>
+               </Entry>
+            </RxPdo>
+            <RxPdo Fixed="1">
+               <Index>#x1621</Index>
+               <Name>Outputs</Name>
+               <Entry>
+                  <Index>#x2005</Index>
+                  <SubIndex>#x0</SubIndex>
+                  <BitLen>32</BitLen>
+                  <Name>Fast Reference</Name>
+                  <DataType>DINT</DataType>
+               </Entry>
+            </RxPdo>
+         </ProcessData>
+         <Mailbox>
+            <Send>
+               <Start>6144</Start>
+               <Length>140</Length>
+            </Send>
+            <Recv>
+               <Start>6400</Start>
+               <Length>140</Length>
+               <PollTime>50</PollTime>
+            </Recv>
+            <BootStrap>
+               <Send>
+                  <Start>6144</Start>
+                  <Length>140</Length>
+               </Send>
+               <Recv>
+                  <Start>6400</Start>
+                  <Length>140</Length>
+               </Recv>
+            </BootStrap>
+            <Protocol>EoE</Protocol>
+            <Protocol>CoE</Protocol>
+            <Protocol>FoE</Protocol>
+            <CoE>
+               <InitCmds>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>clear sm pdos (0x1C12)</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7186</Index>
+                     <SubIndex>0</SubIndex>
+                     <Data>00</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>clear sm pdos (0x1C13)</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7187</Index>
+                     <SubIndex>0</SubIndex>
+                     <Data>00</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>download pdo 0x1C12:01 index</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7186</Index>
+                     <SubIndex>1</SubIndex>
+                     <Data>0016</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>download pdo 0x1C13:01 index</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7187</Index>
+                     <SubIndex>1</SubIndex>
+                     <Data>001A</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>download pdo 0x1C12 count</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7186</Index>
+                     <SubIndex>0</SubIndex>
+                     <Data>01</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd Fixed="1">
+                     <Transition>PS</Transition>
+                     <Comment>download pdo 0x1C13 count</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>7187</Index>
+                     <SubIndex>0</SubIndex>
+                     <Data>01</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd>
+                     <Transition>PS</Transition>
+                     <Comment>Op mode</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>24672</Index>
+                     <SubIndex>0</SubIndex>
+                     <Data>08</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+                  <InitCmd>
+                     <Transition>PS</Transition>
+                     <Comment>Cycle time</Comment>
+                     <Timeout>0</Timeout>
+                     <Ccs>1</Ccs>
+                     <Index>24770</Index>
+                     <SubIndex>1</SubIndex>
+                     <Data>02</Data>
+                     <Disabled>0</Disabled>
+                  </InitCmd>
+               </InitCmds>
+               <Profile>
+                  <ChannelInfo>
+                     <ProfileNo>402</ProfileNo>
+                     <AddInfo>2</AddInfo>
+                  </ChannelInfo>
+               </Profile>
+            </CoE>
+         </Mailbox>
+         <InitCmds>
+            <InitCmd>
+               <Transition>PI</Transition>
+               <Transition>SI</Transition>
+               <Transition>OI</Transition>
+               <Transition>BI</Transition>
+               <Comment>set device state to INIT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>288</Ado>
+               <Data>1100</Data>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SI</Transition>
+               <Transition>OI</Transition>
+               <Comment>clear DC activation</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>2432</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PI</Transition>
+               <Transition>SI</Transition>
+               <Transition>OI</Transition>
+               <Comment>check device state for INIT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>65532</Adp>
+               <Ado>304</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>0100</Data>
+                  <DataMask>0F00</DataMask>
+                  <Timeout>5000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>BI</Transition>
+               <Comment>check device state for INIT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>65532</Adp>
+               <Ado>304</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>0100</Data>
+                  <DataMask>0F00</DataMask>
+                  <Timeout>10000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>IB</Transition>
+               <Comment>set device state to INIT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>288</Ado>
+               <Data>1100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>IB</Transition>
+               <Comment>check device state for INIT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>65532</Adp>
+               <Ado>304</Ado>
+               <DataLength>2</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>0100</Data>
+                  <DataMask>0F00</DataMask>
+                  <Timeout>3000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>assign EEPROM to ECAT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1280</Ado>
+               <DataLength>1</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check vendor id</Comment>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1282</Ado>
+               <Data>000108000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check vendor id</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1288</Ado>
+               <DataLength>4</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>9A000000</Data>
+                  <Timeout>100</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check product code</Comment>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1282</Ado>
+               <Data>00010A000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check product code</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>1</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1288</Ado>
+               <DataLength>4</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>24090300</Data>
+                  <Timeout>100</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>IB</Transition>
+               <Comment>set physical address</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>16</Ado>
+               <Data>ED03</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set physical read/write offset</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>264</Ado>
+               <DataLength>2</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set watchdog divider</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1024</Ado>
+               <Data>C209</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set PDI watchdog</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1040</Ado>
+               <Data>E803</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set SM watchdog</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1056</Ado>
+               <Data>1027</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>PI</Transition>
+               <Transition>SI</Transition>
+               <Transition>OI</Transition>
+               <Transition>IB</Transition>
+               <Comment>clear sm 0/1 (mailbox out/in)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2048</Ado>
+               <DataLength>16</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>BI</Transition>
+               <Comment>clear sm 0/1 (mailbox out/in)</Comment>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>2048</Ado>
+               <DataLength>16</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set sm 0 (mailbox out)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2048</Ado>
+               <Data>00188C0026000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set sm 1 (mailbox in)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2056</Ado>
+               <Data>00198C0022000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IB</Transition>
+               <Comment>set sm 0 (bootstrap out)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2048</Ado>
+               <Data>00188C0026000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IB</Transition>
+               <Comment>set sm 1 (bootstrap in)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2056</Ado>
+               <Data>00198C0022000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set DC cycle time</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2464</Ado>
+               <Data>40420F0000000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set DC start time</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2448</Ado>
+               <DataLength>8</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set DC activation</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2432</Ado>
+               <Data>0003</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set DC latch cfg</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2472</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>PP</Transition>
+               <Comment>clear DC activation</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2432</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SP</Transition>
+               <Transition>OP</Transition>
+               <Comment>set device state to PREOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>1200</Data>
+               <Retries>300</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>SP</Transition>
+               <Transition>SI</Transition>
+               <Transition>OP</Transition>
+               <Transition>OI</Transition>
+               <Comment>clear sms</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2064</Ado>
+               <DataLength>16</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set sm 2 (outputs)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2064</Ado>
+               <Data>00110A0064000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set sm 3 (inputs)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2072</Ado>
+               <Data>80110A0020000100</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set fmmu 0 (outputs)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1536</Ado>
+               <Data>220000010A0000070011000201000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set fmmu 1 (inputs)</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1552</Ado>
+               <Data>220000010A0000078011000101000000</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>OS</Transition>
+               <Comment>set device state to SAFEOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>0400</Data>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SP</Transition>
+               <Transition>SI</Transition>
+               <Transition>OP</Transition>
+               <Transition>OI</Transition>
+               <Comment>clear fmmu 0</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1536</Ado>
+               <DataLength>16</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SP</Transition>
+               <Transition>SI</Transition>
+               <Transition>OP</Transition>
+               <Transition>OI</Transition>
+               <Comment>clear fmmu 1</Comment>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1552</Ado>
+               <DataLength>16</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SP</Transition>
+               <Transition>OP</Transition>
+               <Comment>clear DC activation</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>2432</Ado>
+               <DataLength>2</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SP</Transition>
+               <Transition>OP</Transition>
+               <Comment>check device state for PREOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>020000000000</Data>
+                  <DataMask>0F0000000000</DataMask>
+                  <Timeout>5000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>IB</Transition>
+               <Comment>assign EEPROM to PDI</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>1280</Ado>
+               <Data>01</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>II</Transition>
+               <Comment>assign EEPROM back to ECAT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1280</Ado>
+               <DataLength>1</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>set device state to PREOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>1200</Data>
+               <Cnt>1</Cnt>
+               <Retries>300</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Comment>check device state for PREOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>020000000000</Data>
+                  <DataMask>1F0000000000</DataMask>
+                  <Timeout>3000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IP</Transition>
+               <Transition>BI</Transition>
+               <Comment>assign EEPROM back to ECAT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>2</Cmd>
+               <Adp>65532</Adp>
+               <Ado>1280</Ado>
+               <DataLength>1</DataLength>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IB</Transition>
+               <Comment>set device state to BOOT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>1300</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>IB</Transition>
+               <Comment>check device state for BOOT</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>030000000000</Data>
+                  <DataMask>1F0000000000</DataMask>
+                  <Timeout>3000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>set device state to SAFEOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>0400</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>PS</Transition>
+               <Comment>check device state for SAFEOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>040000000000</Data>
+                  <DataMask>1F0000000000</DataMask>
+                  <Timeout>10000</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>OS</Transition>
+               <Comment>check device state for SAFEOP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>040000000000</Data>
+                  <DataMask>0F0000000000</DataMask>
+                  <Timeout>200</Timeout>
+               </Validate>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SO</Transition>
+               <Comment>set device state to OP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>5</Cmd>
+               <Adp>1005</Adp>
+               <Ado>288</Ado>
+               <Data>0800</Data>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+            </InitCmd>
+            <InitCmd>
+               <Transition>SO</Transition>
+               <Comment>check device state for OP</Comment>
+               <Requires>cycle</Requires>
+               <Cmd>4</Cmd>
+               <Adp>1005</Adp>
+               <Ado>304</Ado>
+               <DataLength>6</DataLength>
+               <Cnt>1</Cnt>
+               <Retries>3</Retries>
+               <Validate>
+                  <Data>080000000000</Data>
+                  <DataMask>1F0000000000</DataMask>
+                  <Timeout>10000</Timeout>
+               </Validate>
+            </InitCmd>
+         </InitCmds>
+         <PreviousPort Selected="1">
+            <Port>B</Port>
+            <PhysAddr>1004</PhysAddr>
+         </PreviousPort>
+         <DC>
+            <CycleTime0>1000000</CycleTime0>
+         </DC>
+      </Slave>
       <Cyclic>
          <CycleTime>1000</CycleTime>
          <Priority>1</Priority>
@@ -7348,7 +8012,7 @@
                <State>OP</State>
                <Comment>DC ARMW</Comment>
                <Cmd>13</Cmd>
-               <Adp>0</Adp>
+               <Adp>65535</Adp>
                <Ado>2320</Ado>
                <DataLength>4</DataLength>
                <InputOffs>32</InputOffs>
@@ -7362,11 +8026,24 @@
                <State>OP</State>
                <Comment>DC slavemode</Comment>
                <Cmd>2</Cmd>
-               <Adp>0</Adp>
+               <Adp>65535</Adp>
                <Ado>2320</Ado>
                <DataLength>4</DataLength>
                <InputOffs>48</InputOffs>
                <OutputOffs>48</OutputOffs>
+               <CopyInfos>
+               </CopyInfos>
+            </Cmd>
+            <Cmd>
+               <State>PREOP</State>
+               <State>SAFEOP</State>
+               <State>OP</State>
+               <Comment>MBX IRQ</Comment>
+               <Cmd>10</Cmd>
+               <Addr>150994944</Addr>
+               <DataLength>1</DataLength>
+               <InputOffs>64</InputOffs>
+               <OutputOffs>64</OutputOffs>
                <CopyInfos>
                </CopyInfos>
             </Cmd>
@@ -7376,10 +8053,10 @@
                <Comment>LRW</Comment>
                <Cmd>12</Cmd>
                <Addr>16777216</Addr>
-               <DataLength>40</DataLength>
-               <Cnt>12</Cnt>
-               <InputOffs>64</InputOffs>
-               <OutputOffs>64</OutputOffs>
+               <DataLength>44</DataLength>
+               <Cnt>15</Cnt>
+               <InputOffs>77</InputOffs>
+               <OutputOffs>77</OutputOffs>
                <CopyInfos>
                </CopyInfos>
             </Cmd>
@@ -7392,9 +8069,9 @@
                <Adp>0</Adp>
                <Ado>304</Ado>
                <DataLength>2</DataLength>
-               <Cnt>4</Cnt>
-               <InputOffs>116</InputOffs>
-               <OutputOffs>116</OutputOffs>
+               <Cnt>5</Cnt>
+               <InputOffs>133</InputOffs>
+               <OutputOffs>133</OutputOffs>
                <CopyInfos>
                </CopyInfos>
             </Cmd>
@@ -7404,154 +8081,202 @@
          <Inputs>
             <ByteSize>1536</ByteSize>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Inputs.Position actual value</Name>
-               <DataType>DINT</DataType>
-               <BitSize>32</BitSize>
-               <BitOffs>592</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 00.Input(s).Byte0</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>696</BitOffs>
             </Variable>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Inputs.Digital Inputs</Name>
-               <DataType>DINT</DataType>
-               <BitSize>32</BitSize>
-               <BitOffs>624</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 00.Input(s).Byte1</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>704</BitOffs>
             </Variable>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Inputs.Status word</Name>
-               <DataType>UINT</DataType>
-               <BitSize>16</BitSize>
-               <BitOffs>656</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 00.Input(s).Byte2</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>712</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 01 (GL-9086,Crevis).Module 00.Input(s).Byte3</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>720</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Inputs.Position actual value</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>672</BitOffs>
+               <BitOffs>728</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Inputs.Digital Inputs</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>704</BitOffs>
+               <BitOffs>760</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Inputs.Status word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>736</BitOffs>
+               <BitOffs>792</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Inputs.Position actual value</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>752</BitOffs>
+               <BitOffs>808</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Inputs.Digital Inputs</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>784</BitOffs>
+               <BitOffs>840</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Inputs.Status word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>816</BitOffs>
+               <BitOffs>872</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Inputs.Position actual value</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>832</BitOffs>
+               <BitOffs>888</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Inputs.Digital Inputs</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>864</BitOffs>
+               <BitOffs>920</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Inputs.Status word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>896</BitOffs>
+               <BitOffs>952</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Inputs.Position actual value</Name>
+               <DataType>DINT</DataType>
+               <BitSize>32</BitSize>
+               <BitOffs>968</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Inputs.Digital Inputs</Name>
+               <DataType>DINT</DataType>
+               <BitSize>32</BitSize>
+               <BitOffs>1000</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Inputs.Status word</Name>
+               <DataType>UINT</DataType>
+               <BitSize>16</BitSize>
+               <BitOffs>1032</BitOffs>
             </Variable>
          </Inputs>
          <Outputs>
             <ByteSize>1536</ByteSize>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Outputs.Target Position</Name>
-               <DataType>DINT</DataType>
-               <BitSize>32</BitSize>
-               <BitOffs>592</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 01.Output(s).Byte0</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>696</BitOffs>
             </Variable>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Outputs.Digital Outputs</Name>
-               <DataType>UDINT</DataType>
-               <BitSize>32</BitSize>
-               <BitOffs>624</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 01.Output(s).Byte1</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>704</BitOffs>
             </Variable>
             <Variable>
-               <Name>Slave 01 (Elmo Drive ).Outputs.Control word</Name>
-               <DataType>UINT</DataType>
-               <BitSize>16</BitSize>
-               <BitOffs>656</BitOffs>
+               <Name>Slave 01 (GL-9086,Crevis).Module 01.Output(s).Byte2</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>712</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 01 (GL-9086,Crevis).Module 01.Output(s).Byte3</Name>
+               <DataType>USINT</DataType>
+               <BitSize>8</BitSize>
+               <BitOffs>720</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Outputs.Target Position</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>672</BitOffs>
+               <BitOffs>728</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Outputs.Digital Outputs</Name>
                <DataType>UDINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>704</BitOffs>
+               <BitOffs>760</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 02 (Elmo Drive ).Outputs.Control word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>736</BitOffs>
+               <BitOffs>792</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Outputs.Target Position</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>752</BitOffs>
+               <BitOffs>808</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Outputs.Digital Outputs</Name>
                <DataType>UDINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>784</BitOffs>
+               <BitOffs>840</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 03 (Elmo Drive ).Outputs.Control word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>816</BitOffs>
+               <BitOffs>872</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Outputs.Target Position</Name>
                <DataType>DINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>832</BitOffs>
+               <BitOffs>888</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Outputs.Digital Outputs</Name>
                <DataType>UDINT</DataType>
                <BitSize>32</BitSize>
-               <BitOffs>864</BitOffs>
+               <BitOffs>920</BitOffs>
             </Variable>
             <Variable>
                <Name>Slave 04 (Elmo Drive ).Outputs.Control word</Name>
                <DataType>UINT</DataType>
                <BitSize>16</BitSize>
-               <BitOffs>896</BitOffs>
+               <BitOffs>952</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Outputs.Target Position</Name>
+               <DataType>DINT</DataType>
+               <BitSize>32</BitSize>
+               <BitOffs>968</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Outputs.Digital Outputs</Name>
+               <DataType>UDINT</DataType>
+               <BitSize>32</BitSize>
+               <BitOffs>1000</BitOffs>
+            </Variable>
+            <Variable>
+               <Name>Slave 05 (Elmo Drive ).Outputs.Control word</Name>
+               <DataType>UINT</DataType>
+               <BitSize>16</BitSize>
+               <BitOffs>1032</BitOffs>
             </Variable>
          </Outputs>
       </ProcessImage>
    </Config>
 </EtherCATConfig>
-<!--CRC:AE600DB9-->
+<!--CRC:1601B26D-->
