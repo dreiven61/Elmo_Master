@@ -54,3 +54,7 @@ docs/history/Elmo_Master_history_260724.md binary
 
 # Chunk hashes and readable rejoin hashes are computed from the preserved CRLF bytes.
 docs/history/260724/Elmo_Master_history_260724_part_*.md -text whitespace=cr-at-eol
+
+# Preserve the 260730 imported histories and byte-exact physical chunks.
+docs/history/Elmo_Master_history_260730_*.md binary
+docs/history/260730/Elmo_Master_history_260730_*_part_*.md binary
