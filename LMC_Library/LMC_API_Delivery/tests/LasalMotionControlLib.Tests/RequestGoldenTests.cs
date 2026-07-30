@@ -15,6 +15,7 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Request.RpcLifecycle.GoldenBytes", RpcLifecycleGoldenBytes);
             tests.Add("Request.NameLookup.GoldenBytes", NameLookupGoldenBytes);
             tests.Add("Request.AxisControlAndRead.GoldenBytes", AxisControlAndReadGoldenBytes);
+            tests.Add("Request.AxisStop.Validation", AxisStopValidation);
             tests.Add("Request.AxisMotion.GoldenBytes", AxisMotionGoldenBytes);
             tests.Add("Request.GroupControlAndRead.GoldenBytes", GroupControlAndReadGoldenBytes);
             tests.Add("Request.GroupLinear.GoldenBytes", GroupLinearGoldenBytes);
@@ -97,8 +98,20 @@ namespace LasalMotionControlLib.Tests
                 TestFrame.Request(
                     0x2022,
                     Reference,
-                    IntPayload(0x01020304, -2, 1, 1)),
-                LMC_Frame.LMCAxisStop(Reference, 0x01020304, -2));
+                    IntPayload(0x01020304, 2, 1, 1)),
+                LMC_Frame.LMCAxisStop(Reference, 0x01020304, 2));
+        }
+
+        private static void AxisStopValidation()
+        {
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCAxisStop(Reference, 0, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCAxisStop(Reference, -1, 0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_Frame.LMCAxisStop(Reference, 1, -1));
+
+            LMC_Frame.LMCAxisStop(Reference, 1, 0);
         }
 
         private static void AxisMotionGoldenBytes()

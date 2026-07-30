@@ -46,9 +46,9 @@ namespace LasalMotionControlLib.Tests
                     "_LMCRobotBase1");
                 var result = StopAndVerify(group);
 
-                AssertEx.Equal(3, result.StatusReadCount);
-                AssertEx.True(result.Status.IsStandby);
-                AssertEx.True(result.StopResponse.IsSuccess);
+                AssertEx.Equal(3, result.StatusPollCount);
+                AssertEx.True(result.FinalStatus.IsStandby);
+                AssertEx.True(result.Acknowledgement.IsSuccess);
 
                 connection.CloseConnection();
                 server.Verify();
@@ -87,13 +87,13 @@ namespace LasalMotionControlLib.Tests
                             async () =>
                             {
                                 var result = await StopAndVerifyAsync(group);
-                                safeStateVerified = result.Status.IsStandby;
+                                safeStateVerified = result.FinalStatus.IsStandby;
                             },
                             CreateAggregate)
                         .GetAwaiter()
                         .GetResult());
 
-                AssertEx.Contains("Group Stop failed", error.Message);
+                AssertEx.Contains("GroupStop was rejected", error.Message);
                 AssertEx.True(gateReleased);
                 AssertEx.True(safeStateVerified);
 
@@ -131,7 +131,7 @@ namespace LasalMotionControlLib.Tests
                             async () =>
                             {
                                 var result = await StopAndVerifyAsync(group);
-                                safeStateVerified = result.Status.IsStandby;
+                                safeStateVerified = result.FinalStatus.IsStandby;
                             },
                             CreateAggregate)
                         .GetAwaiter()
@@ -207,25 +207,25 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static GroupStopStableStandbyResult StopAndVerify(
+        private static LMCGroupStopWaitResult StopAndVerify(
             LMCGroupAxis group)
         {
             return StopAndVerifyAsync(group).GetAwaiter().GetResult();
         }
 
-        private static Task<GroupStopStableStandbyResult> StopAndVerifyAsync(
+        private static Task<LMCGroupStopWaitResult> StopAndVerifyAsync(
             LMCGroupAxis group)
         {
-            return GroupStopQualificationOrchestrator
-                .StopAndVerifyStableStandbyAsync(
-                    group,
-                    1000,
-                    0,
-                    send => send(),
-                    read => read(),
-                    1000,
-                    0,
-                    milliseconds => Task.FromResult(0));
+            return group.GroupStopAndWaitForStableStandbyAsync(
+                1000,
+                0,
+                new LMCGroupStopWaitOptions
+                {
+                    TimeoutMilliseconds = 1000,
+                    PollIntervalMilliseconds = 1,
+                    StableSampleCount = 3
+                },
+                CancellationToken.None);
         }
 
         private static Exception CreateAggregate(

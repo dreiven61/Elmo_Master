@@ -29,9 +29,15 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.Validation.ConcreteLocalIpv4Required", ConcreteLocalIpv4Required);
             tests.Add("Rpc.Validation.OptionsAreClonedAndValidated", OptionsAreClonedAndValidated);
             tests.Add("Rpc.Validation.UnknownCommandRejectedBeforeWire", UnknownCommandRejectedBeforeWire);
+            tests.Add(
+                "Rpc.Validation.AxisStopInvalidParametersRejectedBeforeWire",
+                AxisStopInvalidParametersRejectedBeforeWire);
             tests.Add("Rpc.Callback.RejectsUnexpectedSource", RejectsUnexpectedCallbackSource);
             tests.Add("Rpc.Validation.InvalidReconnectKeepsCurrentSession", InvalidReconnectKeepsCurrentSession);
             tests.Add("Rpc.Lifecycle.CloseErrorThrowsAndCleansUp", CloseErrorThrowsAndCleansUp);
+            tests.Add(
+                "Rpc.Lifecycle.QualificationZeroLingerCloseOmitsRpcClose",
+                QualificationAbortOmitsRpcClose);
             tests.Add("Rpc.Lifecycle.TimeoutInvalidatesTransport", TimeoutInvalidatesTransport);
             tests.Add("Rpc.Lifecycle.QueuedCancellationKeepsActiveRequest", QueuedCancellationKeepsActiveRequest);
             tests.Add("Rpc.Lifecycle.InFlightCancellationInvalidatesTransport", InFlightCancellationInvalidatesTransport);
@@ -45,9 +51,45 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.AxisConstructor.ShortAxisInfoErrorPreserved", AxisConstructorShortAxisInfoErrorPreserved);
             tests.Add("Rpc.AxisCreateAsync.ShortAxisInfoErrorPreserved", AxisCreateAsyncShortAxisInfoErrorPreserved);
             tests.Add("Rpc.AxisConstructor.ShortAxisInfoSuccessRejected", AxisConstructorShortAxisInfoSuccessRejected);
+            tests.Add("Rpc.AxisCreateAsync.LookupErrorPreserved", AxisCreateAsyncLookupErrorPreserved);
             tests.Add("Rpc.AxisConstructor.LookupErrorPreserved", AxisConstructorLookupErrorPreserved);
+            tests.Add("Rpc.GroupCreateAsync.LookupErrorPreserved", GroupCreateAsyncLookupErrorPreserved);
             tests.Add("Rpc.AxisReadStatus.ShortErrorPreserved", AxisReadStatusShortErrorPreserved);
             tests.Add("Rpc.Group.PositionAndKinematics", GroupPositionAndKinematics);
+        }
+
+        private static void QualificationAbortOmitsRpcClose()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(0, new byte[0])
+                {
+                    RequireClientDisconnectBeforeRequest = true
+                }))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                connection.AbortTransportForQualification();
+
+                AssertEx.True(
+                    connection.LastQualificationAbortUsedZeroLinger);
+                AssertEx.False(connection.IsConnected);
+                AssertEx.False(connection.IsRpcInitialized);
+                AssertEx.False(connection.IsCallbackListenerRunning);
+                AssertEx.Equal(
+                    LMCConnectionState.Disconnected,
+                    connection.State);
+                AssertEx.Equal(null, connection.RpcCloseResponse);
+                AssertEx.Equal(null, connection.LastCloseException);
+                server.Verify();
+            }
         }
 
         private static void SuccessEphemeralCallbackUdpAndClose()
@@ -713,6 +755,38 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void AxisStopInvalidParametersRejectedBeforeWire()
+        {
+            RunAxisConstructorScenario(
+                AxisInfoResponse(0x1234),
+                connection =>
+                {
+                    var axis = new LMCAxis(connection, "_LMCAxis1");
+
+                    var syncException =
+                        AssertEx.Throws<ArgumentOutOfRangeException>(
+                            () => axis.Stop(0, 0));
+                    AssertEx.Equal(
+                        "deceleration",
+                        syncException.ParamName);
+
+                    var asyncException =
+                        AssertEx.Throws<ArgumentOutOfRangeException>(
+                            () => axis.StopAsync(
+                                    1,
+                                    -1,
+                                    CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult());
+                    AssertEx.Equal("jerk", asyncException.ParamName);
+
+                    AssertEx.True(connection.IsConnected);
+                    AssertEx.Equal<Exception>(
+                        null,
+                        connection.LastTransportException);
+                });
+        }
+
         private static void RejectsUnexpectedCallbackSource()
         {
             var callbackCount = 0;
@@ -981,6 +1055,13 @@ namespace LasalMotionControlLib.Tests
                     LMCConnection.DefaultEventMask);
                 var firstGeneration = connection.SessionGeneration;
                 var staleGroup = new LMCGroup(connection, "_LMCRobotBase1");
+                AssertEx.NotNull(staleGroup.LookupResult);
+                AssertEx.Equal(
+                    LMCLookupTargetKind.Group,
+                    staleGroup.LookupResult.TargetKind);
+                AssertEx.Equal(
+                    staleGroup.GroupReference,
+                    staleGroup.LookupResult.Reference);
 
                 connection.RpcInitConnection(
                     "127.0.0.1",
@@ -1055,7 +1136,25 @@ namespace LasalMotionControlLib.Tests
 
                 AssertEx.Equal("_LMCAxis9", axis.AxisName);
                 AssertEx.Equal((ushort)0x1234, axis.AxisReference);
+                AssertEx.NotNull(axis.LookupResult);
+                AssertEx.Equal(
+                    LMCLookupTargetKind.Axis,
+                    axis.LookupResult.TargetKind);
+                AssertEx.Equal("_LMCAxis9", axis.LookupResult.ObjectName);
+                AssertEx.Equal(
+                    axis.AxisReference,
+                    axis.LookupResult.Reference);
                 AssertEx.Equal((ushort)0x0100, group.GroupReference);
+                AssertEx.NotNull(group.LookupResult);
+                AssertEx.Equal(
+                    LMCLookupTargetKind.Group,
+                    group.LookupResult.TargetKind);
+                AssertEx.Equal(
+                    "_LMCRobotBase1",
+                    group.LookupResult.ObjectName);
+                AssertEx.Equal(
+                    group.GroupReference,
+                    group.LookupResult.Reference);
                 connection.CloseConnectionAsync(
                     CancellationToken.None).GetAwaiter().GetResult();
                 AssertEx.Equal(LMCConnectionState.Disconnected, connection.State);
@@ -1073,6 +1172,14 @@ namespace LasalMotionControlLib.Tests
 
                     AssertEx.Equal("_LMCAxis1", axis.AxisName);
                     AssertEx.Equal((ushort)0x1234, axis.AxisReference);
+                    AssertEx.NotNull(axis.LookupResult);
+                    AssertEx.Equal(
+                        LMCLookupTargetKind.Axis,
+                        axis.LookupResult.TargetKind);
+                    AssertEx.Equal(
+                        axis.AxisReference,
+                        axis.LookupResult.Reference);
+                    AssertEx.True(axis.LookupResult.Response.IsFrameValid);
                     AssertEx.NotNull(axis.AxisInfoResponse);
                     AssertEx.True(axis.AxisInfoResponse.IsFrameValid);
                     AssertEx.True(axis.AxisInfoResponse.HasCommandResult);
@@ -1178,7 +1285,64 @@ namespace LasalMotionControlLib.Tests
                     () => new LMCAxis(connection, "_LMCAxis1")));
         }
 
+        private static void AxisCreateAsyncLookupErrorPreserved()
+        {
+            var exception = RunLookupFailureScenario(
+                0x103C,
+                "_LMCAxis1",
+                connection =>
+                {
+                    LMCSingleAxis.CreateAsync(
+                        connection,
+                        "_LMCAxis1",
+                        CancellationToken.None).GetAwaiter().GetResult();
+                });
+
+            AssertLookupFailure(
+                exception,
+                LMCLookupTargetKind.Axis,
+                "_LMCAxis1");
+        }
+
         private static void AxisConstructorLookupErrorPreserved()
+        {
+            var exception = RunLookupFailureScenario(
+                0x103C,
+                "_LMCAxis1",
+                connection =>
+                {
+                    new LMCAxis(connection, "_LMCAxis1");
+                });
+
+            AssertLookupFailure(
+                exception,
+                LMCLookupTargetKind.Axis,
+                "_LMCAxis1");
+        }
+
+        private static void GroupCreateAsyncLookupErrorPreserved()
+        {
+            var exception = RunLookupFailureScenario(
+                0x1042,
+                "_LMCRobotBase1",
+                connection =>
+                {
+                    LMCGroupAxis.CreateAsync(
+                        connection,
+                        "_LMCRobotBase1",
+                        CancellationToken.None).GetAwaiter().GetResult();
+                });
+
+            AssertLookupFailure(
+                exception,
+                LMCLookupTargetKind.Group,
+                "_LMCRobotBase1");
+        }
+
+        private static LMCLookupException RunLookupFailureScenario(
+            ushort command,
+            string objectName,
+            Action<LMCConnection> create)
         {
             var lookupError = TestFrame.Response(
                 1,
@@ -1187,7 +1351,15 @@ namespace LasalMotionControlLib.Tests
             using (var server = new FakeRpcServer(
                 InitStep(),
                 CallbackStep(),
-                new FakeRpcStep(0x103C, lookupError),
+                new FakeRpcStep(command, lookupError)
+                {
+                    InspectRequest = request => AssertEx.SequenceEqual(
+                        TestFrame.Request(
+                            command,
+                            0,
+                            NamePayload(objectName)),
+                        request)
+                },
                 CloseStep()))
             using (var connection = new LMCConnection())
             {
@@ -1198,23 +1370,41 @@ namespace LasalMotionControlLib.Tests
                     0,
                     LMCConnection.DefaultEventMask);
 
-                var exception = AssertEx.Throws<InvalidOperationException>(
-                    () => LMCSingleAxis.CreateAsync(
-                        connection,
-                        "_LMCAxis1",
-                        CancellationToken.None).GetAwaiter().GetResult());
-
-                AssertEx.Contains("Axis lookup failed for '_LMCAxis1'", exception.Message);
-                AssertEx.Contains("HeaderStatus=1", exception.Message);
-                AssertEx.Contains("CommandStatus=1", exception.Message);
-                AssertEx.Contains("ErrorId=-2", exception.Message);
-                AssertEx.Contains(
-                    "Raw=01 00 04 00 00 00 00 00 01 00 FE FF",
-                    exception.Message);
+                var exception = AssertEx.Throws<LMCLookupException>(
+                    () => create(connection));
 
                 connection.CloseConnection();
                 server.Verify();
+                return exception;
             }
+        }
+
+        private static void AssertLookupFailure(
+            LMCLookupException exception,
+            LMCLookupTargetKind targetKind,
+            string objectName)
+        {
+            AssertEx.Contains(
+                targetKind + " lookup failed for '" + objectName + "'",
+                exception.Message);
+            AssertEx.Contains("HeaderStatus=1", exception.Message);
+            AssertEx.Contains("CommandStatus=1", exception.Message);
+            AssertEx.Contains("ErrorId=-2", exception.Message);
+            AssertEx.Equal(targetKind, exception.TargetKind);
+            AssertEx.Equal(objectName, exception.ObjectName);
+            AssertEx.False(exception.HasLookupPayload);
+            AssertEx.Equal((ushort)0, exception.LookupReference);
+            AssertEx.Equal((ushort)1, exception.Response.HeaderStatus);
+            AssertEx.True(exception.Response.HasCommandResult);
+            AssertEx.Equal((ushort)1, exception.Response.CommandStatus);
+            AssertEx.Equal((short)-2, exception.Response.ErrorId);
+            AssertEx.Contains(
+                "Raw=01 00 04 00 00 00 00 00 01 00 FE FF",
+                exception.Message);
+
+            var rawCopy = exception.RawResponse;
+            rawCopy[0] = 0xFF;
+            AssertEx.Equal((byte)0x01, exception.RawResponse[0]);
         }
 
         private static void AxisReadStatusShortErrorPreserved()

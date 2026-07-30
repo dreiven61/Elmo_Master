@@ -22,6 +22,10 @@ namespace LasalMotionControlLib.Tests
         private const uint Signal2 = 0x00100105u;
 
         private static readonly uint[] Signals = { Signal1, Signal2 };
+        private static readonly Guid RecoveryToken = new Guid(
+            "00112233-4455-6677-8899-aabbccddeeff");
+        private static readonly Guid OtherRecoveryToken = new Guid(
+            "10213243-5465-7687-98a9-bacbdcedfe0f");
 
         internal static void Register(ICollection<TestCase> tests)
         {
@@ -35,6 +39,51 @@ namespace LasalMotionControlLib.Tests
                 "Recorder.Request.GoldenAndBounds",
                 RecorderRequestGoldenAndBounds);
             tests.Add(
+                "Recorder.Recoverable.RequestParserAndLegacyDoubleReject",
+                RecorderRecoverableRequestParserAndLegacyDoubleReject);
+            tests.Add(
+                "Recorder.Recoverable.ParserFailClosed",
+                RecorderRecoverableParserFailClosed);
+            tests.Add(
+                "Rpc.Recorder.Recoverable.SyncAndAsync",
+                RecorderRecoverableSyncAndAsync);
+            tests.Add(
+                "Rpc.Recorder.Recoverable.PinnedCapabilities",
+                RecorderRecoverablePinnedCapabilities);
+            tests.Add(
+                "Rpc.Recorder.Recoverable.TypedAbsenceSyncAndAsync",
+                RecorderRecoverableTypedAbsenceSyncAndAsync);
+            tests.Add(
+                "Rpc.Recorder.Recoverable.CapabilityZeroWire",
+                RecorderRecoverableCapabilityZeroWire);
+            tests.Add(
+                "Recorder.Inventory.RequestAndParser",
+                RecorderBankInventoryRequestAndParser);
+            tests.Add(
+                "Recorder.Inventory.ParserFailClosed",
+                RecorderBankInventoryParserFailClosed);
+            tests.Add(
+                "Recorder.Inventory.TypedConfigurationAbsence",
+                RecorderBankInventoryTypedConfigurationAbsence);
+            tests.Add(
+                "Rpc.Recorder.Inventory.SyncAndAsync",
+                RecorderBankInventorySyncAndAsync);
+            tests.Add(
+                "Rpc.Recorder.Inventory.TypedAbsenceSyncAndAsync",
+                RecorderBankInventoryTypedAbsenceSyncAndAsync);
+            tests.Add(
+                "Recorder.EmptyConfigurationAdoption.RequestAndParser",
+                RecorderEmptyConfigurationAdoptionRequestAndParser);
+            tests.Add(
+                "Rpc.Recorder.EmptyConfigurationAdoption.RecoverableInventoryZeroWire",
+                RecorderRecoverableInventoryAdoptionZeroWire);
+            tests.Add(
+                "Rpc.Recorder.EmptyConfigurationAdoption.SyncAsyncRelease",
+                RecorderEmptyConfigurationAdoptionSyncAsyncRelease);
+            tests.Add(
+                "Rpc.Recorder.EmptyConfigurationAdoption.ResponseLossReconnectReadopt",
+                RecorderEmptyConfigurationAdoptionResponseLossReconnectReadopt);
+            tests.Add(
                 "Recorder.Response.ConfigureStartStatus",
                 RecorderConfigureStartStatus);
             tests.Add(
@@ -46,6 +95,21 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Recorder.Response.ReleaseAndAdopt",
                 RecorderReleaseAndAdopt);
+            tests.Add(
+                "Rpc.Recorder.BufferRelease.ResponseLossFailClosed",
+                RecorderBufferReleaseResponseLossFailClosed);
+            tests.Add(
+                "Rpc.Recorder.ConfigurationRelease.ResponseLossFailClosed",
+                RecorderConfigurationReleaseResponseLossFailClosed);
+            tests.Add(
+                "Rpc.Recorder.AdoptedRelease.ResponseLossFailClosed",
+                RecorderAdoptedReleaseResponseLossFailClosed);
+            tests.Add(
+                "Rpc.Recorder.RecoveredRelease.ResponseLossFailClosed",
+                RecorderRecoveredReleaseResponseLossFailClosed);
+            tests.Add(
+                "Rpc.Recorder.BufferRelease.CommandRejectionRetry",
+                RecorderBufferReleaseCommandRejectionRetry);
             tests.Add(
                 "Rpc.Recorder.SyncAndAsync",
                 RecorderSyncAndAsync);
@@ -386,6 +450,1560 @@ namespace LasalMotionControlLib.Tests
                 () => LMC_DiagnosticsFrame.AdoptActiveRecorder(
                     GoldenRequestId,
                     0));
+        }
+
+        private static void
+            RecorderRecoverableRequestParserAndLegacyDoubleReject()
+        {
+            var configuration = RecoverableDoubleConfiguration();
+            AssertEx.Equal(
+                (ushort)0x7E4C,
+                LMC_CommandId.ConfigureRecoverableDoubleRecorder);
+            AssertEx.Equal(
+                (ushort)0x7E4D,
+                LMC_CommandId.ReadRecoverableRecorderBankInventory);
+
+            AssertEx.Throws<NotSupportedException>(
+                () => LMC_DiagnosticsFrame.ConfigureRecorder(
+                    GoldenRequestId,
+                    MapRevision,
+                    configuration,
+                    DiagnosticsBootId));
+
+            var configure = LMC_DiagnosticsFrame
+                .ConfigureRecoverableDoubleRecorder(
+                    GoldenRequestId,
+                    MapRevision,
+                    configuration,
+                    DiagnosticsBootId,
+                    RecoveryToken);
+            AssertRequestHeader(configure, 0x7E4C, 80, GoldenRequestId);
+            AssertEx.Equal(MapRevision, TestFrame.ReadUInt32(configure, 16));
+            AssertEx.Equal(ConfigId, TestFrame.ReadUInt32(configure, 20));
+            AssertEx.Equal((ushort)1, TestFrame.ReadUInt16(configure, 24));
+            AssertEx.Equal((ushort)2, TestFrame.ReadUInt16(configure, 26));
+            AssertEx.Equal((byte)LMCRecorderBufferMode.Double, configure[32]);
+            AssertEx.Equal(DiagnosticsBootId, TestFrame.ReadUInt32(configure, 60));
+            AssertRecoveryTokenBytes(configure, 64, RecoveryToken);
+            AssertEx.Equal(Signal1, TestFrame.ReadUInt32(configure, 80));
+            AssertEx.Equal(Signal2, TestFrame.ReadUInt32(configure, 84));
+
+            var inventoryRequest = LMC_DiagnosticsFrame
+                .ReadRecoverableRecorderBankInventory(
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    RecoveryToken);
+            AssertRequestHeader(
+                inventoryRequest,
+                0x7E4D,
+                36,
+                GoldenRequestId);
+            AssertEx.Equal(
+                DiagnosticsBootId,
+                TestFrame.ReadUInt32(inventoryRequest, 16));
+            AssertEx.Equal(
+                ConfigId,
+                TestFrame.ReadUInt32(inventoryRequest, 20));
+            AssertEx.Equal(
+                MapRevision,
+                TestFrame.ReadUInt32(inventoryRequest, 24));
+            AssertRecoveryTokenBytes(
+                inventoryRequest,
+                28,
+                RecoveryToken);
+
+            var handle = LMC_DiagnosticsParser
+                .ParseConfigureRecoverableDoubleRecorder(
+                    TestFrame.Response(
+                        0,
+                        RecoverableConfigurePayload(
+                            GoldenRequestId,
+                            RecoveryToken)),
+                    GoldenRequestId,
+                    configuration,
+                    RecoveryToken,
+                    Capabilities(7),
+                    7,
+                    null);
+            AssertEx.True(handle.IsRecoverable);
+            AssertEx.Equal(RecoveryToken, handle.RecoveryToken);
+            AssertEx.Equal((ushort)2, handle.RecorderBufferCount);
+            AssertEx.Equal(ConfigRevision, handle.ConfigRevision);
+
+            var inventory = LMC_DiagnosticsParser
+                .ParseRecoverableRecorderBankInventory(
+                    TestFrame.Response(
+                        0,
+                        RecoverableRecorderBankInventoryPayload(
+                            GoldenRequestId,
+                            RecoveryToken)),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    RecoveryToken);
+            AssertEx.True(inventory.IsRecoverable);
+            AssertEx.Equal(RecoveryToken, inventory.RecoveryToken);
+            AssertEx.Equal(ConfigRevision, inventory.ConfigRevision);
+            AssertEx.Equal(0, inventory.OccupiedBanks.Count);
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .AdoptEmptyRecorderConfiguration(
+                        GoldenRequestId,
+                        inventory));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        TestFrame.Response(
+                            0,
+                            AdoptEmptyRecorderConfigurationPayload(
+                                GoldenRequestId)),
+                        GoldenRequestId,
+                        inventory,
+                        7,
+                        null));
+
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .ConfigureRecoverableDoubleRecorder(
+                        GoldenRequestId,
+                        MapRevision,
+                        ManualConfiguration(),
+                        DiagnosticsBootId,
+                        RecoveryToken));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .ConfigureRecoverableDoubleRecorder(
+                        GoldenRequestId,
+                        MapRevision,
+                        TriggerConfiguration(
+                            LMCRecorderBufferMode.Double,
+                            LMCRecorderTriggerType.Edge,
+                            LMCRecorderTriggerOperator.RisingEdge,
+                            0),
+                        DiagnosticsBootId,
+                        RecoveryToken));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .ConfigureRecoverableDoubleRecorder(
+                        GoldenRequestId,
+                        MapRevision,
+                        configuration,
+                        DiagnosticsBootId,
+                        Guid.Empty));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .ReadRecoverableRecorderBankInventory(
+                        GoldenRequestId,
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        Guid.Empty));
+        }
+
+        private static void RecorderRecoverableParserFailClosed()
+        {
+            var configuration = RecoverableDoubleConfiguration();
+            var wrongConfigureToken = RecoverableConfigurePayload(
+                GoldenRequestId,
+                OtherRecoveryToken);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseConfigureRecoverableDoubleRecorder(
+                        TestFrame.Response(0, wrongConfigureToken),
+                        GoldenRequestId,
+                        configuration,
+                        RecoveryToken,
+                        Capabilities(7),
+                        7,
+                        null));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseConfigureRecoverableDoubleRecorder(
+                        TestFrame.Response(
+                            0,
+                            CommonPayload(71, GoldenRequestId)),
+                        GoldenRequestId,
+                        configuration,
+                        RecoveryToken,
+                        Capabilities(7),
+                        7,
+                        null));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsParser
+                    .ParseConfigureRecoverableDoubleRecorder(
+                        TestFrame.Response(
+                            0,
+                            RecoverableConfigurePayload(
+                                GoldenRequestId,
+                                RecoveryToken)),
+                        GoldenRequestId,
+                        configuration,
+                        Guid.Empty,
+                        Capabilities(7),
+                        7,
+                        null));
+            var wrongInventoryToken =
+                RecoverableRecorderBankInventoryPayload(
+                    GoldenRequestId,
+                    OtherRecoveryToken);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseRecoverableRecorderBankInventory(
+                        TestFrame.Response(0, wrongInventoryToken),
+                        GoldenRequestId,
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        RecoveryToken));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseRecoverableRecorderBankInventory(
+                        TestFrame.Response(
+                            0,
+                            RecorderBankInventoryPayload(
+                                GoldenRequestId,
+                                0,
+                                LMCRecorderState.Configured,
+                                OwnerSessionEpoch)),
+                        GoldenRequestId,
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        RecoveryToken));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsParser
+                    .ParseRecoverableRecorderBankInventory(
+                        TestFrame.Response(
+                            0,
+                            RecoverableRecorderBankInventoryPayload(
+                                GoldenRequestId,
+                                RecoveryToken)),
+                        GoldenRequestId,
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        Guid.Empty));
+
+            var absence = AssertEx.Throws<
+                LMCRecoverableRecorderConfigurationAbsentException>(
+                    () => LMC_DiagnosticsParser
+                        .ParseRecoverableRecorderBankInventory(
+                            TestFrame.Response(
+                                0,
+                                DomainErrorPayload(
+                                    GoldenRequestId,
+                                    LMCDiagnosticsDetailCode
+                                        .RecorderConfigurationAbsent)),
+                            GoldenRequestId,
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            RecoveryToken));
+            AssertEx.Equal(DiagnosticsBootId, absence.DiagnosticsBootId);
+            AssertEx.Equal(ConfigId, absence.ConfigId);
+            AssertEx.Equal(MapRevision, absence.MapRevision);
+            AssertEx.Equal(RecoveryToken, absence.RecoveryToken);
+            AssertEx.Equal(
+                LMCDiagnosticsDetailCode.RecorderConfigurationAbsent,
+                absence.Response.Detail);
+        }
+
+        private static void RecorderRecoverableSyncAndAsync()
+        {
+            RunRecoverableConfigure(false);
+            RunRecoverableConfigure(true);
+            RunRecoverableInventory(false);
+            RunRecoverableInventory(true);
+        }
+
+        private static void RunRecoverableConfigure(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4C,
+                    TestFrame.Response(
+                        0,
+                        RecoverableConfigurePayload(2, RecoveryToken))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 3))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                LMCRecorderConfigurationHandle handle;
+                if (useAsync)
+                {
+                    handle = connection.Diagnostics
+                        .ConfigureRecoverableDoubleRecorderAsync(
+                            RecoverableDoubleConfiguration(),
+                            RecoveryToken,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                {
+                    handle = connection.Diagnostics
+                        .ConfigureRecoverableDoubleRecorder(
+                            RecoverableDoubleConfiguration(),
+                            RecoveryToken);
+                }
+
+                AssertEx.True(handle.IsRecoverable);
+                AssertEx.Equal(RecoveryToken, handle.RecoveryToken);
+                AssertEx.Equal((ushort)2, handle.RecorderBufferCount);
+                if (useAsync)
+                {
+                    connection.Diagnostics.ReleaseRecorderAsync(
+                            handle,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                {
+                    connection.Diagnostics.ReleaseRecorder(handle);
+                }
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderRecoverablePinnedCapabilities()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4C,
+                    TestFrame.Response(
+                        0,
+                        RecoverableConfigurePayload(2, RecoveryToken))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 3))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                var configuration = RecoverableDoubleConfiguration();
+                var capabilities = connection.Diagnostics.GetCapabilities();
+                connection.Diagnostics
+                    .ValidateRecoverableDoubleRecorderConfiguration(
+                        configuration,
+                        RecoveryToken,
+                        capabilities);
+                var handle = connection.Diagnostics
+                    .ConfigureRecoverableDoubleRecorderAsync(
+                        configuration,
+                        RecoveryToken,
+                        capabilities,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+
+                AssertEx.True(handle.IsRecoverable);
+                AssertEx.Equal(RecoveryToken, handle.RecoveryToken);
+                AssertEx.Equal(
+                    1,
+                    CountReceivedCommand(server, 0x7E00));
+                AssertEx.Equal(
+                    1,
+                    CountReceivedCommand(server, 0x7E4C));
+
+                connection.Diagnostics.ReleaseRecorder(handle);
+                connection.CloseConnection();
+                server.Verify();
+            }
+
+            AssertRecoverablePinnedForeignCapabilitiesAreZeroWire();
+        }
+
+        private static void
+            AssertRecoverablePinnedForeignCapabilitiesAreZeroWire()
+        {
+            using (var ownerServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                CloseStep()))
+            using (var foreignServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var owner = ConnectRecorder(ownerServer))
+            using (var foreign = ConnectRecorder(foreignServer))
+            {
+                var configuration = RecoverableDoubleConfiguration();
+                var capabilities = owner.Diagnostics.GetCapabilities();
+                AssertEx.Throws<InvalidOperationException>(
+                    () => foreign.Diagnostics
+                        .ValidateRecoverableDoubleRecorderConfiguration(
+                            configuration,
+                            RecoveryToken,
+                            capabilities));
+                AssertEx.Throws<InvalidOperationException>(
+                    () => foreign.Diagnostics
+                        .ConfigureRecoverableDoubleRecorderAsync(
+                            configuration,
+                            RecoveryToken,
+                            capabilities,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+                AssertEx.Equal(
+                    0,
+                    CountReceivedCommand(foreignServer, 0x7E00));
+                AssertEx.Equal(
+                    0,
+                    CountReceivedCommand(foreignServer, 0x7E4C));
+
+                foreign.CloseConnection();
+                owner.CloseConnection();
+                foreignServer.Verify();
+                ownerServer.Verify();
+            }
+        }
+
+        private static void RunRecoverableInventory(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4D,
+                    TestFrame.Response(
+                        0,
+                        RecoverableRecorderBankInventoryPayload(
+                            2,
+                            RecoveryToken))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                LMCRecorderBankInventory inventory;
+                if (useAsync)
+                {
+                    inventory = connection.Diagnostics
+                        .ReadRecoverableRecorderBankInventoryAsync(
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            RecoveryToken,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                {
+                    inventory = connection.Diagnostics
+                        .ReadRecoverableRecorderBankInventory(
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            RecoveryToken);
+                }
+
+                AssertEx.True(inventory.IsRecoverable);
+                AssertEx.Equal(RecoveryToken, inventory.RecoveryToken);
+                AssertEx.Equal(ConfigRevision, inventory.ConfigRevision);
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderRecoverableTypedAbsenceSyncAndAsync()
+        {
+            RunRecoverableTypedAbsence(false);
+            RunRecoverableTypedAbsence(true);
+        }
+
+        private static void RunRecoverableTypedAbsence(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4D,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            2,
+                            LMCDiagnosticsDetailCode
+                                .RecorderConfigurationAbsent))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                Action read = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics
+                            .ReadRecoverableRecorderBankInventoryAsync(
+                                DiagnosticsBootId,
+                                ConfigId,
+                                MapRevision,
+                                RecoveryToken,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics
+                            .ReadRecoverableRecorderBankInventory(
+                                DiagnosticsBootId,
+                                ConfigId,
+                                MapRevision,
+                                RecoveryToken);
+                    }
+                };
+
+                var absence = AssertEx.Throws<
+                    LMCRecoverableRecorderConfigurationAbsentException>(read);
+                AssertEx.Equal(RecoveryToken, absence.RecoveryToken);
+                AssertEx.Equal(DiagnosticsBootId, absence.DiagnosticsBootId);
+                AssertEx.Equal(ConfigId, absence.ConfigId);
+                AssertEx.Equal(MapRevision, absence.MapRevision);
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderRecoverableCapabilityZeroWire()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        SingleBankCapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        SingleBankCapabilitiesPayload(2))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                var configuration = RecoverableDoubleConfiguration();
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics.ConfigureRecorder(
+                        configuration));
+                AssertEx.Throws<ArgumentException>(
+                    () => connection.Diagnostics
+                        .ConfigureRecoverableDoubleRecorder(
+                            configuration,
+                            Guid.Empty));
+                AssertEx.Throws<ArgumentException>(
+                    () => connection.Diagnostics
+                        .ConfigureRecoverableDoubleRecorder(
+                            ManualConfiguration(),
+                            RecoveryToken));
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics
+                        .ConfigureRecoverableDoubleRecorder(
+                            configuration,
+                            RecoveryToken));
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics
+                        .ReadRecoverableRecorderBankInventory(
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            RecoveryToken));
+
+                AssertEx.Equal(0, CountReceivedCommand(server, 0x7E40));
+                AssertEx.Equal(0, CountReceivedCommand(server, 0x7E4C));
+                AssertEx.Equal(0, CountReceivedCommand(server, 0x7E4D));
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderBankInventoryRequestAndParser()
+        {
+            var request = LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                GoldenRequestId,
+                DiagnosticsBootId,
+                ConfigId,
+                MapRevision,
+                0);
+            AssertRequestHeader(request, 0x7E4A, 24, GoldenRequestId);
+            AssertEx.Equal(
+                DiagnosticsBootId,
+                TestFrame.ReadUInt32(request, 16));
+            AssertEx.Equal(ConfigId, TestFrame.ReadUInt32(request, 20));
+            AssertEx.Equal(MapRevision, TestFrame.ReadUInt32(request, 24));
+            AssertEx.Equal(0u, TestFrame.ReadUInt32(request, 28));
+
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                    GoldenRequestId,
+                    0,
+                    ConfigId,
+                    MapRevision,
+                    0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    0,
+                    MapRevision,
+                    0));
+            AssertEx.Throws<ArgumentOutOfRangeException>(
+                () => LMC_DiagnosticsFrame.ReadRecorderBankInventory(
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    0,
+                    0));
+
+            var inventory = LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                TestFrame.Response(
+                    0,
+                    RecorderBankInventoryPayload(
+                        GoldenRequestId,
+                        2,
+                        LMCRecorderState.Ready,
+                        0)),
+                GoldenRequestId,
+                DiagnosticsBootId,
+                ConfigId,
+                MapRevision,
+                0);
+            AssertEx.Equal(DiagnosticsBootId, inventory.DiagnosticsBootId);
+            AssertEx.Equal(ConfigId, inventory.ConfigId);
+            AssertEx.Equal(ConfigRevision, inventory.ConfigRevision);
+            AssertEx.Equal(MapRevision, inventory.MapRevision);
+            AssertEx.Equal(
+                OwnerSessionEpoch,
+                inventory.ConfigurationOwnerSessionEpoch);
+            AssertEx.Equal(
+                0u,
+                inventory.ConfigurationClosedSessionEpoch);
+            AssertEx.Equal(LMCRecorderState.Ready, inventory.ConfigurationState);
+            AssertEx.Equal(LMCRecorderBufferMode.Double, inventory.BufferMode);
+            AssertEx.Equal((byte)2, inventory.RecorderBufferCount);
+            AssertEx.Equal(2, inventory.OccupiedBanks.Count);
+            AssertEx.Equal(RecordId, inventory.OccupiedBanks[0].RecordId);
+            AssertEx.Equal(0u, inventory.OccupiedBanks[0].BufferId);
+            AssertEx.Equal(RecordId + 1, inventory.OccupiedBanks[1].RecordId);
+            AssertEx.Equal(1u, inventory.OccupiedBanks[1].BufferId);
+            AssertEx.False(inventory.IsConfigurationOwnerSessionClosed);
+
+            var empty = LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                TestFrame.Response(
+                    0,
+                    RecorderBankInventoryPayload(
+                        GoldenRequestId,
+                        0,
+                        LMCRecorderState.Configured,
+                        OwnerSessionEpoch)),
+                GoldenRequestId,
+                DiagnosticsBootId,
+                ConfigId,
+                MapRevision,
+                ConfigRevision);
+            AssertEx.Equal(0, empty.OccupiedBanks.Count);
+            AssertEx.Equal(
+                LMCRecorderState.Configured,
+                empty.ConfigurationState);
+            AssertEx.Equal(ConfigRevision, empty.ConfigRevision);
+            AssertEx.True(empty.IsConfigurationOwnerSessionClosed);
+        }
+
+        private static void RecorderBankInventoryParserFailClosed()
+        {
+            var payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            payload[44] = 1;
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 72, 0);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 68, RecordId);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 76, ReconnectedOwnerSessionEpoch);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 16, DiagnosticsBootId + 1);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 20, ConfigId + 1);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 24, ConfigRevision + 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                    TestFrame.Response(0, payload),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    ConfigRevision));
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt32(payload, 28, MapRevision + 1);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            TestFrame.WriteUInt16(
+                payload,
+                40,
+                (ushort)LMCRecorderState.Fault);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            payload[43] = 1;
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                2,
+                LMCRecorderState.Ready,
+                0);
+            payload[45] = 1;
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                0,
+                LMCRecorderState.Ready,
+                OwnerSessionEpoch);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                0,
+                LMCRecorderState.Configured,
+                OwnerSessionEpoch);
+            payload[42] = (byte)LMCRecorderBufferMode.Single;
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                1,
+                LMCRecorderState.Ready,
+                0);
+            Array.Resize(ref payload, payload.Length - 1);
+            AssertInvalidRecorderBankInventory(payload);
+
+            payload = RecorderBankInventoryPayload(
+                GoldenRequestId,
+                1,
+                LMCRecorderState.Ready,
+                0);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                    TestFrame.Response(0, payload),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    ConfigRevision + 1));
+        }
+
+        private static void RecorderBankInventorySyncAndAsync()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4A,
+                    TestFrame.Response(
+                        0,
+                        RecorderBankInventoryPayload(
+                            2,
+                            0,
+                            LMCRecorderState.Configured,
+                            OwnerSessionEpoch))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(3))),
+                new FakeRpcStep(
+                    0x7E4A,
+                    TestFrame.Response(
+                        0,
+                        RecorderBankInventoryPayload(
+                            4,
+                            1,
+                            LMCRecorderState.Ready,
+                            0))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var empty = connection.Diagnostics.ReadRecorderBankInventory(
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision);
+                AssertEx.Equal(0, empty.OccupiedBanks.Count);
+                AssertEx.Equal(ConfigRevision, empty.ConfigRevision);
+
+                var occupied = connection.Diagnostics
+                    .ReadRecorderBankInventoryAsync(
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        ConfigRevision,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                AssertEx.Equal(1, occupied.OccupiedBanks.Count);
+                AssertEx.Equal(RecordId, occupied.OccupiedBanks[0].RecordId);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        SingleBankCapabilitiesPayload(1))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics.ReadRecorderBankInventory(
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision));
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderBankInventoryTypedConfigurationAbsence()
+        {
+            var raw = TestFrame.Response(
+                0,
+                DomainErrorPayload(
+                    GoldenRequestId,
+                    LMCDiagnosticsDetailCode
+                        .RecorderConfigurationAbsent));
+            var absence = AssertEx.Throws<
+                LMCRecorderConfigurationAbsentException>(
+                    () => LMC_DiagnosticsParser
+                        .ParseRecorderBankInventory(
+                            raw,
+                            GoldenRequestId,
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            ConfigRevision));
+            AssertEx.Equal(DiagnosticsBootId, absence.DiagnosticsBootId);
+            AssertEx.Equal(ConfigId, absence.ConfigId);
+            AssertEx.Equal(ConfigRevision, absence.ConfigRevision);
+            AssertEx.Equal(MapRevision, absence.MapRevision);
+            AssertEx.Equal(
+                LMCDiagnosticsDetailCode.RecorderConfigurationAbsent,
+                absence.Response.Detail);
+
+            var unknownRevision = AssertEx.Throws<
+                LMCDiagnosticsCommandException>(
+                    () => LMC_DiagnosticsParser
+                        .ParseRecorderBankInventory(
+                            raw,
+                            GoldenRequestId,
+                            DiagnosticsBootId,
+                            ConfigId,
+                            MapRevision,
+                            0));
+            AssertEx.False(
+                unknownRevision
+                    is LMCRecorderConfigurationAbsentException,
+                "ConfigRevision=0 must remain ineligible for typed absence recovery.");
+        }
+
+        private static void RecorderBankInventoryTypedAbsenceSyncAndAsync()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4A,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            2,
+                            LMCDiagnosticsDetailCode
+                                .RecorderConfigurationAbsent)))
+                {
+                    InspectRequest = request =>
+                    {
+                        AssertEx.Equal(
+                            DiagnosticsBootId,
+                            TestFrame.ReadUInt32(request, 16));
+                        AssertEx.Equal(
+                            ConfigId,
+                            TestFrame.ReadUInt32(request, 20));
+                        AssertEx.Equal(
+                            MapRevision,
+                            TestFrame.ReadUInt32(request, 24));
+                        AssertEx.Equal(
+                            ConfigRevision,
+                            TestFrame.ReadUInt32(request, 28));
+                    }
+                },
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(3))),
+                new FakeRpcStep(
+                    0x7E4A,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            4,
+                            LMCDiagnosticsDetailCode
+                                .RecorderConfigurationAbsent))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var sync = AssertEx.Throws<
+                    LMCRecorderConfigurationAbsentException>(
+                        () => connection.Diagnostics
+                            .ReadRecorderBankInventory(
+                                DiagnosticsBootId,
+                                ConfigId,
+                                MapRevision,
+                                ConfigRevision));
+                AssertEx.Equal(ConfigRevision, sync.ConfigRevision);
+
+                var async = AssertEx.Throws<
+                    LMCRecorderConfigurationAbsentException>(
+                        () => connection.Diagnostics
+                            .ReadRecorderBankInventoryAsync(
+                                DiagnosticsBootId,
+                                ConfigId,
+                                MapRevision,
+                                ConfigRevision,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+                AssertEx.Equal(ConfigId, async.ConfigId);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderEmptyConfigurationAdoptionRequestAndParser()
+        {
+            var inventory = EmptyClosedRecorderBankInventory(GoldenRequestId);
+            var request = LMC_DiagnosticsFrame
+                .AdoptEmptyRecorderConfiguration(
+                    GoldenRequestId,
+                    inventory);
+            AssertRequestHeader(request, 0x7E4B, 28, GoldenRequestId);
+            AssertEx.Equal(
+                DiagnosticsBootId,
+                TestFrame.ReadUInt32(request, 16));
+            AssertEx.Equal(ConfigId, TestFrame.ReadUInt32(request, 20));
+            AssertEx.Equal(ConfigRevision, TestFrame.ReadUInt32(request, 24));
+            AssertEx.Equal(MapRevision, TestFrame.ReadUInt32(request, 28));
+            AssertEx.Equal(
+                OwnerSessionEpoch,
+                TestFrame.ReadUInt32(request, 32));
+
+            var lease = LMC_DiagnosticsParser
+                .ParseAdoptEmptyRecorderConfiguration(
+                    TestFrame.Response(
+                        0,
+                        AdoptEmptyRecorderConfigurationPayload(
+                            GoldenRequestId)),
+                    GoldenRequestId,
+                    inventory,
+                    7,
+                    null);
+            AssertEx.Equal(DiagnosticsBootId, lease.DiagnosticsBootId);
+            AssertEx.Equal(ConfigId, lease.ConfigId);
+            AssertEx.Equal(ConfigRevision, lease.ConfigRevision);
+            AssertEx.Equal(MapRevision, lease.MapRevision);
+            AssertEx.Equal(
+                OwnerSessionEpoch,
+                lease.PreviousOwnerSessionEpoch);
+            AssertEx.Equal(
+                ReconnectedOwnerSessionEpoch,
+                lease.OwnerSessionEpoch);
+            AssertEx.Equal(LMCRecorderState.Configured, lease.InitialState);
+            AssertEx.Equal(LMCRecorderBufferMode.Double, lease.BufferMode);
+            AssertEx.Equal((byte)2, lease.RecorderBufferCount);
+            AssertEx.False(lease.IsReleased);
+
+            var release = LMC_DiagnosticsFrame.ReleaseRecorder(
+                GoldenRequestId,
+                lease);
+            AssertRequestHeader(release, 0x7E48, 28, GoldenRequestId);
+            AssertEx.Equal(ConfigId, TestFrame.ReadUInt32(release, 16));
+            AssertEx.Equal(ConfigRevision, TestFrame.ReadUInt32(release, 20));
+            AssertEx.Equal(MapRevision, TestFrame.ReadUInt32(release, 24));
+            AssertEx.Equal(
+                ReconnectedOwnerSessionEpoch,
+                TestFrame.ReadUInt32(release, 28));
+            AssertEx.Equal(
+                DiagnosticsBootId,
+                TestFrame.ReadUInt32(release, 32));
+
+            var invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt32(invalid, 32, OwnerSessionEpoch);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        TestFrame.Response(0, invalid),
+                        GoldenRequestId,
+                        inventory,
+                        7,
+                        null));
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            invalid[38] = (byte)LMCRecorderBufferMode.Single;
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        TestFrame.Response(0, invalid),
+                        GoldenRequestId,
+                        inventory,
+                        7,
+                        null));
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt16(
+                invalid,
+                2,
+                (ushort)LMCDiagnosticsResponseFlags.Partial);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt32(invalid, 16, DiagnosticsBootId + 1);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt32(invalid, 20, ConfigId + 1);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt32(invalid, 24, ConfigRevision + 1);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt32(invalid, 28, MapRevision + 1);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            TestFrame.WriteUInt16(
+                invalid,
+                36,
+                (ushort)LMCRecorderState.Ready);
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            invalid = AdoptEmptyRecorderConfigurationPayload(
+                GoldenRequestId);
+            invalid[39] = 1;
+            AssertInvalidAdoptEmptyRecorderConfiguration(invalid, inventory);
+
+            var occupiedInventory = LMC_DiagnosticsParser
+                .ParseRecorderBankInventory(
+                    TestFrame.Response(
+                        0,
+                        RecorderBankInventoryPayload(
+                            GoldenRequestId,
+                            1,
+                            LMCRecorderState.Ready,
+                            OwnerSessionEpoch)),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    ConfigRevision);
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsFrame
+                    .AdoptEmptyRecorderConfiguration(
+                        GoldenRequestId,
+                        occupiedInventory));
+            AssertEx.Throws<ArgumentException>(
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        TestFrame.Response(
+                            0,
+                            AdoptEmptyRecorderConfigurationPayload(
+                                GoldenRequestId)),
+                        GoldenRequestId,
+                        occupiedInventory,
+                        7,
+                        null));
+
+            foreach (var method in typeof(LMCDiagnostics).GetMethods())
+            {
+                if (method.Name != "StartRecorder"
+                    && method.Name != "StartRecorderAsync")
+                {
+                    continue;
+                }
+
+                foreach (var parameter in method.GetParameters())
+                {
+                    AssertEx.False(
+                        parameter.ParameterType
+                            == typeof(
+                                LMCRecoveredRecorderConfigurationLease),
+                        "Recovered empty Recorder configurations must remain release-only.");
+                }
+            }
+        }
+
+        private static void RecorderRecoverableInventoryAdoptionZeroWire()
+        {
+            var inventory = LMC_DiagnosticsParser
+                .ParseRecoverableRecorderBankInventory(
+                    TestFrame.Response(
+                        0,
+                        RecoverableRecorderBankInventoryPayload(
+                            GoldenRequestId,
+                            RecoveryToken)),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    RecoveryToken);
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                AssertEx.Throws<ArgumentException>(
+                    () => connection.Diagnostics
+                        .AdoptEmptyRecorderConfiguration(inventory));
+                AssertEx.Throws<ArgumentException>(
+                    () => connection.Diagnostics
+                        .AdoptEmptyRecorderConfigurationAsync(
+                            inventory,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RecorderEmptyConfigurationAdoptionSyncAsyncRelease()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4B,
+                    TestFrame.Response(
+                        0,
+                        AdoptEmptyRecorderConfigurationPayload(2))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            3,
+                            LMCDiagnosticsDetailCode.InvalidState))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 4))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var inventory = EmptyClosedRecorderBankInventory(99);
+                var lease = connection.Diagnostics
+                    .AdoptEmptyRecorderConfiguration(inventory);
+                AssertEx.Equal(
+                    ReconnectedOwnerSessionEpoch,
+                    lease.OwnerSessionEpoch);
+                AssertEx.False(lease.IsReleased);
+
+                AssertEx.Throws<LMCDiagnosticsCommandException>(
+                    () => connection.Diagnostics.ReleaseRecorder(lease));
+                AssertEx.False(lease.IsReleased);
+                AssertEx.False(lease.IsReleaseOutcomeUnverified);
+                connection.Diagnostics.ReleaseRecorder(lease);
+                AssertEx.True(lease.IsReleased);
+                AssertEx.False(lease.IsReleaseOutcomeUnverified);
+                AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics.ReleaseRecorder(lease));
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4B,
+                    TestFrame.Response(
+                        0,
+                        AdoptEmptyRecorderConfigurationPayload(2))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 3))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var lease = connection.Diagnostics
+                    .AdoptEmptyRecorderConfigurationAsync(
+                        EmptyClosedRecorderBankInventory(100),
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                connection.Diagnostics.ReleaseRecorderAsync(
+                        lease,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                AssertEx.True(lease.IsReleased);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        SingleBankCapabilitiesPayload(1))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+                AssertEx.Throws<NotSupportedException>(
+                    () => connection.Diagnostics
+                        .AdoptEmptyRecorderConfiguration(
+                            EmptyClosedRecorderBankInventory(101)));
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void
+            RecorderEmptyConfigurationAdoptionResponseLossReconnectReadopt()
+        {
+            const uint secondAdoptedOwnerSessionEpoch = 0x778899AAu;
+            var emulatedOwnerSessionEpoch = OwnerSessionEpoch;
+            var firstAdoptionApplied = new ManualResetEventSlim(false);
+            var firstInventory = EmptyClosedRecorderBankInventoryForOwner(
+                99,
+                OwnerSessionEpoch);
+            var firstAdopt = new FakeRpcStep(0x7E4B, null)
+            {
+                InspectRequest = request =>
+                {
+                    AssertEx.Equal(
+                        OwnerSessionEpoch,
+                        TestFrame.ReadUInt32(request, 32));
+                },
+                AfterResponse = request =>
+                {
+                    emulatedOwnerSessionEpoch =
+                        ReconnectedOwnerSessionEpoch;
+                    firstAdoptionApplied.Set();
+                },
+                CloseAfterResponse = true
+            };
+
+            using (firstAdoptionApplied)
+            using (var firstServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                firstAdopt))
+            using (var secondServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(3))),
+                new FakeRpcStep(
+                    0x7E4A,
+                    TestFrame.Response(
+                        0,
+                        RecorderBankInventoryPayloadForOwner(
+                            4,
+                            ReconnectedOwnerSessionEpoch,
+                            ReconnectedOwnerSessionEpoch)))
+                {
+                    InspectRequest = request =>
+                    {
+                        AssertEx.Equal(
+                            ReconnectedOwnerSessionEpoch,
+                            emulatedOwnerSessionEpoch);
+                        AssertEx.True(firstAdoptionApplied.IsSet);
+                        AssertEx.Equal(
+                            DiagnosticsBootId,
+                            TestFrame.ReadUInt32(request, 16));
+                        AssertEx.Equal(
+                            ConfigId,
+                            TestFrame.ReadUInt32(request, 20));
+                        AssertEx.Equal(
+                            MapRevision,
+                            TestFrame.ReadUInt32(request, 24));
+                        AssertEx.Equal(
+                            ConfigRevision,
+                            TestFrame.ReadUInt32(request, 28));
+                    }
+                },
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(5))),
+                new FakeRpcStep(
+                    0x7E4B,
+                    TestFrame.Response(
+                        0,
+                        AdoptEmptyRecorderConfigurationPayloadForOwner(
+                            6,
+                            secondAdoptedOwnerSessionEpoch)))
+                {
+                    InspectRequest = request =>
+                    {
+                        var previousOwner =
+                            TestFrame.ReadUInt32(request, 32);
+                        AssertEx.Equal(
+                            ReconnectedOwnerSessionEpoch,
+                            previousOwner);
+                        AssertEx.False(
+                            previousOwner == OwnerSessionEpoch,
+                            "Reconnect adoption must use only the exact previous owner returned by the new inventory.");
+                    }
+                },
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 7))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    firstServer.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                AssertEx.Throws<EndOfStreamException>(
+                    () => connection.Diagnostics
+                        .AdoptEmptyRecorderConfiguration(firstInventory));
+                AssertEx.True(firstAdoptionApplied.Wait(1000));
+                AssertEx.Equal(
+                    ReconnectedOwnerSessionEpoch,
+                    emulatedOwnerSessionEpoch);
+                AssertEx.Equal(
+                    LMCConnectionState.Faulted,
+                    connection.State);
+
+                var requestsBeforeSameSessionRetry =
+                    firstServer.ReceivedRequests.Count;
+                AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics
+                        .AdoptEmptyRecorderConfiguration(firstInventory));
+                AssertEx.Equal(
+                    requestsBeforeSameSessionRetry,
+                    firstServer.ReceivedRequests.Count,
+                    "A destructive 0x7E4B retry in the faulted session must send zero wire requests.");
+                firstServer.Verify();
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    secondServer.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                var newInventory = connection.Diagnostics
+                    .ReadRecorderBankInventory(
+                        DiagnosticsBootId,
+                        ConfigId,
+                        MapRevision,
+                        ConfigRevision);
+                AssertEx.Equal(
+                    ReconnectedOwnerSessionEpoch,
+                    newInventory.ConfigurationOwnerSessionEpoch);
+                AssertEx.True(
+                    newInventory.IsConfigurationOwnerSessionClosed);
+                AssertEx.Equal(0, newInventory.OccupiedBanks.Count);
+
+                var recovered = connection.Diagnostics
+                    .AdoptEmptyRecorderConfiguration(newInventory);
+                AssertEx.Equal(
+                    ReconnectedOwnerSessionEpoch,
+                    recovered.PreviousOwnerSessionEpoch);
+                AssertEx.Equal(
+                    secondAdoptedOwnerSessionEpoch,
+                    recovered.OwnerSessionEpoch);
+
+                connection.Diagnostics.ReleaseRecorder(recovered);
+                AssertEx.True(recovered.IsReleased);
+                connection.CloseConnection();
+                secondServer.Verify();
+            }
+        }
+
+        private static void AssertInvalidRecorderBankInventory(byte[] payload)
+        {
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                    TestFrame.Response(0, payload),
+                    GoldenRequestId,
+                    DiagnosticsBootId,
+                    ConfigId,
+                    MapRevision,
+                    0));
+        }
+
+        private static void AssertInvalidAdoptEmptyRecorderConfiguration(
+            byte[] payload,
+            LMCRecorderBankInventory inventory)
+        {
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser
+                    .ParseAdoptEmptyRecorderConfiguration(
+                        TestFrame.Response(0, payload),
+                        GoldenRequestId,
+                        inventory,
+                        7,
+                        null));
         }
 
         private static void RecorderConfigureStartStatus()
@@ -941,6 +2559,310 @@ namespace LasalMotionControlLib.Tests
                 () => LMC_DiagnosticsParser.ParseReleaseRecorder(
                     TestFrame.Response(0, flagged),
                     GoldenRequestId));
+        }
+
+        private static void RecorderBufferReleaseResponseLossFailClosed()
+        {
+            RunRecorderBufferReleaseResponseLoss(false);
+            RunRecorderBufferReleaseResponseLoss(true);
+        }
+
+        private static void RecorderConfigurationReleaseResponseLossFailClosed()
+        {
+            RunRecorderConfigurationReleaseResponseLoss(false);
+            RunRecorderConfigurationReleaseResponseLoss(true);
+        }
+
+        private static void RecorderAdoptedReleaseResponseLossFailClosed()
+        {
+            RunRecorderAdoptedReleaseResponseLoss(false);
+            RunRecorderAdoptedReleaseResponseLoss(true);
+        }
+
+        private static void RecorderRecoveredReleaseResponseLossFailClosed()
+        {
+            RunRecorderRecoveredReleaseResponseLoss(false);
+            RunRecorderRecoveredReleaseResponseLoss(true);
+        }
+
+        private static void RecorderBufferReleaseCommandRejectionRetry()
+        {
+            RunRecorderBufferReleaseCommandRejectionRetry(false);
+            RunRecorderBufferReleaseCommandRejectionRetry(true);
+        }
+
+        private static void RunRecorderBufferReleaseResponseLoss(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E40,
+                    TestFrame.Response(0, ConfigurePayload(2))),
+                new FakeRpcStep(
+                    0x7E41,
+                    TestFrame.Response(0, StartPayload(3))),
+                ResponseLossStep(0x7E47)))
+            using (var connection = ConnectRecorder(server))
+            {
+                LMCRecorderConfigurationHandle handle;
+                LMCRecorderIdentity identity;
+                StartRecorder(connection, out handle, out identity);
+                Action release = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics.ReleaseRecorderBufferAsync(
+                                identity,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics.ReleaseRecorderBuffer(identity);
+                    }
+                };
+
+                AssertEx.Throws<EndOfStreamException>(release);
+                AssertEx.False(identity.IsBufferReleased);
+                AssertEx.True(identity.IsBufferReleaseOutcomeUnverified);
+
+                var retry = AssertEx.Throws<InvalidOperationException>(release);
+                AssertEx.Contains("outcome is unverified", retry.Message);
+                var reuse = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics.GetRecorderStatus(identity));
+                AssertEx.Contains("outcome is unverified", reuse.Message);
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderConfigurationReleaseResponseLoss(
+            bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E40,
+                    TestFrame.Response(0, ConfigurePayload(2))),
+                ResponseLossStep(0x7E48)))
+            using (var connection = ConnectRecorder(server))
+            {
+                var handle = connection.Diagnostics.ConfigureRecorder(
+                    ManualConfiguration());
+                Action release = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics.ReleaseRecorderAsync(
+                                handle,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics.ReleaseRecorder(handle);
+                    }
+                };
+
+                AssertEx.Throws<EndOfStreamException>(release);
+                AssertEx.False(handle.IsReleased);
+                AssertEx.True(handle.IsReleaseOutcomeUnverified);
+
+                var retry = AssertEx.Throws<InvalidOperationException>(release);
+                AssertEx.Contains("outcome is unverified", retry.Message);
+                var reuse = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics.StartRecorder(handle));
+                AssertEx.Contains("outcome is unverified", reuse.Message);
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderAdoptedReleaseResponseLoss(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E49,
+                    TestFrame.Response(0, AdoptPayload(2))),
+                new FakeRpcStep(
+                    0x7E44,
+                    TestFrame.Response(0, StatusPayload(3))),
+                new FakeRpcStep(
+                    0x7E47,
+                    TestFrame.Response(0, CommonPayload(16, 4))),
+                ResponseLossStep(0x7E48)))
+            using (var connection = ConnectRecorder(server))
+            {
+                var identity = connection.Diagnostics.AdoptRecorder(
+                    DiagnosticsBootId,
+                    RecordId,
+                    0);
+                connection.Diagnostics.GetRecorderStatus(identity);
+                connection.Diagnostics.ReleaseRecorderBuffer(identity);
+                Action release = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics.ReleaseRecorderAsync(
+                                identity,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics.ReleaseRecorder(identity);
+                    }
+                };
+
+                AssertEx.Throws<EndOfStreamException>(release);
+                AssertEx.True(identity.IsBufferReleased);
+                AssertEx.False(identity.IsRecorderReleased);
+                AssertEx.True(identity.IsRecorderReleaseOutcomeUnverified);
+
+                AssertEx.Throws<InvalidOperationException>(release);
+                var reuse = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics.GetRecorderStatus(identity));
+                AssertEx.Contains("outcome is unverified", reuse.Message);
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderRecoveredReleaseResponseLoss(bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E4B,
+                    TestFrame.Response(
+                        0,
+                        AdoptEmptyRecorderConfigurationPayload(2))),
+                ResponseLossStep(0x7E48)))
+            using (var connection = ConnectRecorder(server))
+            {
+                var lease = connection.Diagnostics
+                    .AdoptEmptyRecorderConfiguration(
+                        EmptyClosedRecorderBankInventory(99));
+                Action release = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics.ReleaseRecorderAsync(
+                                lease,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics.ReleaseRecorder(lease);
+                    }
+                };
+
+                AssertEx.Throws<EndOfStreamException>(release);
+                AssertEx.False(lease.IsReleased);
+                AssertEx.True(lease.IsReleaseOutcomeUnverified);
+
+                var retry = AssertEx.Throws<InvalidOperationException>(release);
+                AssertEx.Contains("outcome is unverified", retry.Message);
+                server.Verify();
+            }
+        }
+
+        private static void RunRecorderBufferReleaseCommandRejectionRetry(
+            bool useAsync)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(0, CapabilitiesPayload(1))),
+                new FakeRpcStep(
+                    0x7E40,
+                    TestFrame.Response(0, ConfigurePayload(2))),
+                new FakeRpcStep(
+                    0x7E41,
+                    TestFrame.Response(0, StartPayload(3))),
+                new FakeRpcStep(
+                    0x7E47,
+                    TestFrame.Response(
+                        0,
+                        DomainErrorPayload(
+                            4,
+                            LMCDiagnosticsDetailCode.ResourceBusy))),
+                new FakeRpcStep(
+                    0x7E47,
+                    TestFrame.Response(0, CommonPayload(16, 5))),
+                new FakeRpcStep(
+                    0x7E48,
+                    TestFrame.Response(0, CommonPayload(16, 6))),
+                CloseStep()))
+            using (var connection = ConnectRecorder(server))
+            {
+                LMCRecorderConfigurationHandle handle;
+                LMCRecorderIdentity identity;
+                StartRecorder(connection, out handle, out identity);
+                Action releaseBuffer = () =>
+                {
+                    if (useAsync)
+                    {
+                        connection.Diagnostics.ReleaseRecorderBufferAsync(
+                                identity,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        connection.Diagnostics.ReleaseRecorderBuffer(identity);
+                    }
+                };
+
+                var rejection = AssertEx.Throws<LMCDiagnosticsCommandException>(
+                    releaseBuffer);
+                AssertEx.Equal(
+                    LMCDiagnosticsDetailCode.ResourceBusy,
+                    rejection.Response.Detail);
+                AssertEx.False(identity.IsBufferReleased);
+                AssertEx.False(identity.IsBufferReleaseOutcomeUnverified);
+
+                releaseBuffer();
+                AssertEx.True(identity.IsBufferReleased);
+                if (useAsync)
+                {
+                    connection.Diagnostics.ReleaseRecorderAsync(
+                            handle,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                {
+                    connection.Diagnostics.ReleaseRecorder(handle);
+                }
+
+                AssertEx.True(handle.IsReleased);
+                connection.CloseConnection();
+                server.Verify();
+            }
         }
 
         private static void RecorderSyncAndAsync()
@@ -1740,12 +3662,14 @@ namespace LasalMotionControlLib.Tests
                     aggregate.InnerExceptions[0]));
                 AssertEx.True(identity.IsBufferReleased);
                 AssertEx.False(handle.IsReleased);
+                AssertEx.False(handle.IsReleaseOutcomeUnverified);
 
                 CleanupOwnedResourcesAsync(operations)
                     .GetAwaiter()
                     .GetResult();
                 AssertEx.True(identity.IsBufferReleased);
                 AssertEx.True(handle.IsReleased);
+                AssertEx.False(handle.IsReleaseOutcomeUnverified);
                 AssertRecorderCleanupCommandCounts(server, 1, 0, 1, 2);
                 connection.CloseConnection();
                 server.Verify();
@@ -1962,12 +3886,16 @@ namespace LasalMotionControlLib.Tests
                     observed.Response.Detail);
                 AssertEx.True(identity.IsBufferReleased);
                 AssertEx.False(identity.IsRecorderReleased);
+                AssertEx.False(
+                    identity.IsRecorderReleaseOutcomeUnverified);
 
                 CleanupOwnedResourcesAsync(operations)
                     .GetAwaiter()
                     .GetResult();
                 AssertEx.True(identity.IsBufferReleased);
                 AssertEx.True(identity.IsRecorderReleased);
+                AssertEx.False(
+                    identity.IsRecorderReleaseOutcomeUnverified);
                 AssertRecorderCleanupCommandCounts(server, 1, 0, 1, 2);
                 connection.CloseConnection();
                 server.Verify();
@@ -2404,6 +4332,25 @@ namespace LasalMotionControlLib.Tests
             return new LMCRecorderConfiguration(Signals, 1, 3);
         }
 
+        private static LMCRecorderConfiguration
+            RecoverableDoubleConfiguration()
+        {
+            return new LMCRecorderConfiguration(
+                Signals,
+                1,
+                10,
+                LMCRecorderBufferMode.Double,
+                LMCRecorderTriggerType.Edge,
+                LMCSignalValueType.Int32,
+                4,
+                5,
+                Signal1,
+                LMCRecorderTriggerOperator.RisingEdge,
+                100,
+                0,
+                ConfigId);
+        }
+
         private static LMCRecorderConfiguration TriggerConfiguration(
             LMCRecorderBufferMode bufferMode,
             LMCRecorderTriggerType triggerType,
@@ -2754,6 +4701,22 @@ namespace LasalMotionControlLib.Tests
                 new AggregateException(primary, cleanup));
         }
 
+        private static int CountReceivedCommand(
+            FakeRpcServer server,
+            ushort commandId)
+        {
+            var count = 0;
+            foreach (var request in server.ReceivedRequests)
+            {
+                if (TestFrame.ReadUInt16(request, 0) == commandId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         private static void AssertRecorderCleanupCommandCounts(
             FakeRpcServer server,
             int expectedStatus,
@@ -2808,6 +4771,69 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt32(payload, 48, OwnerSessionEpoch);
             TestFrame.WriteUInt32(payload, 52, DiagnosticsBootId);
             return payload;
+        }
+
+        private static byte[] RecoverableConfigurePayload(
+            uint requestId,
+            Guid recoveryToken)
+        {
+            var payload = CommonPayload(72, requestId);
+            TestFrame.WriteUInt32(payload, 16, ConfigId);
+            TestFrame.WriteUInt32(payload, 20, ConfigRevision);
+            TestFrame.WriteUInt32(payload, 24, MapRevision);
+            TestFrame.WriteUInt32(payload, 28, 10);
+            TestFrame.WriteUInt32(payload, 32, 160);
+            TestFrame.WriteUInt16(
+                payload,
+                36,
+                (ushort)LMCRecorderState.Configured);
+            TestFrame.WriteUInt16(payload, 38, 2);
+            TestFrame.WriteUInt16(payload, 40, 8);
+            TestFrame.WriteUInt16(payload, 42, 2);
+            TestFrame.WriteUInt16(
+                payload,
+                44,
+                (ushort)LMCCapturePhase.InputMapped);
+            TestFrame.WriteUInt32(payload, 48, OwnerSessionEpoch);
+            TestFrame.WriteUInt32(payload, 52, DiagnosticsBootId);
+            WriteRecoveryTokenBytes(payload, 56, recoveryToken);
+            return payload;
+        }
+
+        private static byte[] RecoverableRecorderBankInventoryPayload(
+            uint requestId,
+            Guid recoveryToken)
+        {
+            var source = RecorderBankInventoryPayload(
+                requestId,
+                0,
+                LMCRecorderState.Configured,
+                OwnerSessionEpoch);
+            var payload = new byte[104];
+            Buffer.BlockCopy(source, 0, payload, 0, source.Length);
+            WriteRecoveryTokenBytes(payload, 88, recoveryToken);
+            return payload;
+        }
+
+        private static void AssertRecoveryTokenBytes(
+            byte[] buffer,
+            int offset,
+            Guid expectedRecoveryToken)
+        {
+            var expected = expectedRecoveryToken.ToByteArray();
+            for (var index = 0; index < expected.Length; index++)
+            {
+                AssertEx.Equal(expected[index], buffer[offset + index]);
+            }
+        }
+
+        private static void WriteRecoveryTokenBytes(
+            byte[] buffer,
+            int offset,
+            Guid recoveryToken)
+        {
+            var bytes = recoveryToken.ToByteArray();
+            Buffer.BlockCopy(bytes, 0, buffer, offset, bytes.Length);
         }
 
         private static byte[] StartPayload(uint requestId)
@@ -2940,6 +4966,144 @@ namespace LasalMotionControlLib.Tests
             return payload;
         }
 
+        private static byte[] RecorderBankInventoryPayload(
+            uint requestId,
+            byte occupiedBankCount,
+            LMCRecorderState configurationState,
+            uint closedSessionEpoch)
+        {
+            var payload = CommonPayload(88, requestId);
+            TestFrame.WriteUInt32(payload, 16, DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 20, ConfigId);
+            TestFrame.WriteUInt32(payload, 24, ConfigRevision);
+            TestFrame.WriteUInt32(payload, 28, MapRevision);
+            TestFrame.WriteUInt32(payload, 32, OwnerSessionEpoch);
+            TestFrame.WriteUInt32(payload, 36, closedSessionEpoch);
+            TestFrame.WriteUInt16(
+                payload,
+                40,
+                (ushort)configurationState);
+            payload[42] = (byte)LMCRecorderBufferMode.Double;
+            payload[43] = 2;
+            payload[44] = occupiedBankCount;
+
+            for (var index = 0; index < occupiedBankCount; index++)
+            {
+                var offset = 48
+                    + index
+                    * LMC_DiagnosticsParser.RecorderBankInventoryEntryStride;
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset,
+                    RecordId + checked((uint)index));
+                TestFrame.WriteUInt32(payload, offset + 4, (uint)index);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 8,
+                    OwnerSessionEpoch);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 12,
+                    closedSessionEpoch);
+                TestFrame.WriteUInt16(
+                    payload,
+                    offset + 16,
+                    (ushort)LMCRecorderState.Ready);
+            }
+
+            return payload;
+        }
+
+        private static LMCRecorderBankInventory
+            EmptyClosedRecorderBankInventory(uint requestId)
+        {
+            return LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                TestFrame.Response(
+                    0,
+                    RecorderBankInventoryPayload(
+                        requestId,
+                        0,
+                        LMCRecorderState.Configured,
+                        OwnerSessionEpoch)),
+                requestId,
+                DiagnosticsBootId,
+                ConfigId,
+                MapRevision,
+                ConfigRevision);
+        }
+
+        private static LMCRecorderBankInventory
+            EmptyClosedRecorderBankInventoryForOwner(
+                uint requestId,
+                uint ownerSessionEpoch)
+        {
+            return LMC_DiagnosticsParser.ParseRecorderBankInventory(
+                TestFrame.Response(
+                    0,
+                    RecorderBankInventoryPayloadForOwner(
+                        requestId,
+                        ownerSessionEpoch,
+                        ownerSessionEpoch)),
+                requestId,
+                DiagnosticsBootId,
+                ConfigId,
+                MapRevision,
+                ConfigRevision);
+        }
+
+        private static byte[] RecorderBankInventoryPayloadForOwner(
+            uint requestId,
+            uint ownerSessionEpoch,
+            uint closedSessionEpoch)
+        {
+            var payload = CommonPayload(88, requestId);
+            TestFrame.WriteUInt32(payload, 16, DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 20, ConfigId);
+            TestFrame.WriteUInt32(payload, 24, ConfigRevision);
+            TestFrame.WriteUInt32(payload, 28, MapRevision);
+            TestFrame.WriteUInt32(payload, 32, ownerSessionEpoch);
+            TestFrame.WriteUInt32(payload, 36, closedSessionEpoch);
+            TestFrame.WriteUInt16(
+                payload,
+                40,
+                (ushort)LMCRecorderState.Configured);
+            payload[42] = (byte)LMCRecorderBufferMode.Double;
+            payload[43] = 2;
+            payload[44] = 0;
+            return payload;
+        }
+
+        private static byte[] AdoptEmptyRecorderConfigurationPayload(
+            uint requestId)
+        {
+            var payload = CommonPayload(40, requestId);
+            TestFrame.WriteUInt32(payload, 16, DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 20, ConfigId);
+            TestFrame.WriteUInt32(payload, 24, ConfigRevision);
+            TestFrame.WriteUInt32(payload, 28, MapRevision);
+            TestFrame.WriteUInt32(
+                payload,
+                32,
+                ReconnectedOwnerSessionEpoch);
+            TestFrame.WriteUInt16(
+                payload,
+                36,
+                (ushort)LMCRecorderState.Configured);
+            payload[38] = (byte)LMCRecorderBufferMode.Double;
+            payload[39] = 2;
+            return payload;
+        }
+
+        private static byte[]
+            AdoptEmptyRecorderConfigurationPayloadForOwner(
+                uint requestId,
+                uint ownerSessionEpoch)
+        {
+            var payload = AdoptEmptyRecorderConfigurationPayload(requestId);
+            TestFrame.WriteUInt32(payload, 32, ownerSessionEpoch);
+            return payload;
+        }
+
         private static byte[] CapabilitiesPayload(uint requestId)
         {
             var payload = CommonPayload(68, requestId);
@@ -3020,6 +5184,14 @@ namespace LasalMotionControlLib.Tests
             return new FakeRpcStep(
                 0x405D,
                 TestFrame.Response(0, TestFrame.Hex("00 00 00 00")));
+        }
+
+        private static FakeRpcStep ResponseLossStep(ushort commandId)
+        {
+            return new FakeRpcStep(commandId, null)
+            {
+                CloseAfterResponse = true
+            };
         }
 
         private sealed class InlineProgress<T> : IProgress<T>

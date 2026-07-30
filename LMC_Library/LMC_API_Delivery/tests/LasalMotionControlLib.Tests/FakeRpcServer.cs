@@ -20,9 +20,26 @@ namespace LasalMotionControlLib.Tests
         internal int[] ResponseChunks { get; set; }
         internal int ResponseDelayMilliseconds { get; set; }
         internal bool AllowClientDisconnectAfterRequest { get; set; }
+        internal bool ContinueWithNextClientAfterResponseWriteDisconnect
+        {
+            get;
+            set;
+        }
+        internal Action BeforeResponse { get; set; }
+        internal bool RequireClientDisconnectBeforeRequest { get; set; }
+        internal bool ContinueWithNextClientAfterDisconnect { get; set; }
         internal Action<byte[]> InspectRequest { get; set; }
         internal Action<byte[]> AfterResponse { get; set; }
+        internal bool CloseClientBeforeResponse { get; set; }
+        internal bool CloseClientBeforeResponseAndContinue { get; set; }
+        internal bool WaitForClientDisconnectBeforeResponseAndContinue
+        {
+            get;
+            set;
+        }
+        internal Action AfterClientDisconnect { get; set; }
         internal bool CloseAfterResponse { get; set; }
+        internal bool CloseClientAfterResponseAndContinue { get; set; }
     }
 
     internal sealed class FakeRpcServer : IDisposable
@@ -44,6 +61,7 @@ namespace LasalMotionControlLib.Tests
 
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             ReceivedRequests = new List<byte[]>();
+            ReceivedRequestSessionOrdinals = new List<int>();
 
             worker = new Thread(Run)
             {
@@ -54,7 +72,9 @@ namespace LasalMotionControlLib.Tests
         }
 
         internal int Port { get; private set; }
+        internal int AcceptedClientCount { get; private set; }
         internal IList<byte[]> ReceivedRequests { get; private set; }
+        internal IList<int> ReceivedRequestSessionOrdinals { get; private set; }
 
         internal void Verify()
         {
@@ -71,9 +91,30 @@ namespace LasalMotionControlLib.Tests
             }
 
             AssertEx.Equal(
-                steps.Length,
+                CountExpectedRequests(),
                 ReceivedRequests.Count,
                 "Fake RPC request count mismatch.");
+        }
+
+        private int CountExpectedRequests()
+        {
+            var count = 0;
+            foreach (var step in steps)
+            {
+                if (step.RequireClientDisconnectBeforeRequest)
+                {
+                    if (step.ContinueWithNextClientAfterDisconnect)
+                    {
+                        continue;
+                    }
+
+                    break;
+                }
+
+                count++;
+            }
+
+            return count;
         }
 
         public void Dispose()
@@ -96,53 +137,137 @@ namespace LasalMotionControlLib.Tests
         {
             try
             {
-                using (var client = listener.AcceptTcpClient())
+                var stepIndex = 0;
+                while (true)
                 {
-                    client.NoDelay = true;
-                    client.ReceiveTimeout = IoTimeoutMilliseconds;
-                    client.SendTimeout = IoTimeoutMilliseconds;
-
-                    using (var stream = client.GetStream())
+                    var acceptNextClient = false;
+                    using (var client = listener.AcceptTcpClient())
                     {
-                        foreach (var step in steps)
+                        AcceptedClientCount++;
+                        var sessionOrdinal = AcceptedClientCount;
+
+                        client.NoDelay = true;
+                        client.ReceiveTimeout = IoTimeoutMilliseconds;
+                        client.SendTimeout = IoTimeoutMilliseconds;
+
+                        using (var stream = client.GetStream())
                         {
-                            var request = ReadRequest(stream);
-                            ReceivedRequests.Add(request);
-
-                            AssertEx.Equal(
-                                step.Command,
-                                TestFrame.ReadUInt16(request, 0),
-                                "Unexpected RPC command.");
-
-                            if (step.InspectRequest != null)
+                            while (stepIndex < steps.Length)
                             {
-                                step.InspectRequest(request);
-                            }
+                                var step = steps[stepIndex];
+                                byte[] request;
+                                try
+                                {
+                                    request = ReadRequest(stream);
+                                }
+                                catch (Exception ex) when (
+                                    step.RequireClientDisconnectBeforeRequest &&
+                                    IsExpectedClientDisconnect(ex))
+                                {
+                                    stepIndex++;
+                                    if (step.ContinueWithNextClientAfterDisconnect)
+                                    {
+                                        acceptNextClient = true;
+                                        break;
+                                    }
 
-                            if (step.ResponseDelayMilliseconds > 0)
-                            {
-                                Thread.Sleep(step.ResponseDelayMilliseconds);
-                            }
+                                    return;
+                                }
+                                if (step.RequireClientDisconnectBeforeRequest)
+                                {
+                                    throw new InvalidOperationException(
+                                        "The client sent an RPC request instead of disconnecting its transport.");
+                                }
 
-                            try
-                            {
-                                WriteResponse(stream, step.Response, step.ResponseChunks);
-                            }
-                            catch (Exception) when (step.AllowClientDisconnectAfterRequest)
-                            {
-                                return;
-                            }
+                                ReceivedRequests.Add(request);
+                                ReceivedRequestSessionOrdinals.Add(sessionOrdinal);
 
-                            if (step.AfterResponse != null)
-                            {
-                                step.AfterResponse(request);
-                            }
+                                AssertEx.Equal(
+                                    step.Command,
+                                    TestFrame.ReadUInt16(request, 0),
+                                    "Unexpected RPC command.");
 
-                            if (step.CloseAfterResponse)
-                            {
-                                break;
+                                if (step.InspectRequest != null)
+                                {
+                                    step.InspectRequest(request);
+                                }
+
+                                if (step.ResponseDelayMilliseconds > 0)
+                                {
+                                    Thread.Sleep(step.ResponseDelayMilliseconds);
+                                }
+
+                                if (step.BeforeResponse != null)
+                                {
+                                    step.BeforeResponse();
+                                }
+
+                                if (step
+                                    .WaitForClientDisconnectBeforeResponseAndContinue)
+                                {
+                                    WaitForClientDisconnect(client);
+                                    if (step.AfterClientDisconnect != null)
+                                    {
+                                        step.AfterClientDisconnect();
+                                    }
+                                    stepIndex++;
+                                    acceptNextClient = true;
+                                    break;
+                                }
+
+                                if (step.CloseClientBeforeResponse)
+                                {
+                                    return;
+                                }
+                                if (step.CloseClientBeforeResponseAndContinue)
+                                {
+                                    stepIndex++;
+                                    acceptNextClient = true;
+                                    break;
+                                }
+
+                                try
+                                {
+                                    WriteResponse(stream, step.Response, step.ResponseChunks);
+                                }
+                                catch (Exception ex) when (
+                                    step.AllowClientDisconnectAfterRequest &&
+                                    IsExpectedClientDisconnect(ex))
+                                {
+                                    if (step
+                                        .ContinueWithNextClientAfterResponseWriteDisconnect)
+                                    {
+                                        stepIndex++;
+                                        acceptNextClient = true;
+                                        break;
+                                    }
+
+                                    return;
+                                }
+
+                                if (step.AfterResponse != null)
+                                {
+                                    step.AfterResponse(request);
+                                }
+
+                                stepIndex++;
+                                if (step.CloseClientAfterResponseAndContinue)
+                                {
+                                    acceptNextClient = true;
+                                    break;
+                                }
+
+                                if (step.CloseAfterResponse)
+                                {
+                                    return;
+                                }
                             }
                         }
+                    }
+
+                    if (!acceptNextClient)
+                    {
+                        return;
                     }
                 }
             }
@@ -163,6 +288,61 @@ namespace LasalMotionControlLib.Tests
                 {
                 }
             }
+        }
+
+        private static bool IsExpectedClientDisconnect(Exception exception)
+        {
+            if (exception is EndOfStreamException)
+            {
+                return true;
+            }
+
+            var socketException = exception as SocketException;
+            if (socketException != null)
+            {
+                return IsExpectedClientDisconnect(socketException.SocketErrorCode);
+            }
+
+            var ioException = exception as IOException;
+            return ioException != null &&
+                   ioException.InnerException != null &&
+                   IsExpectedClientDisconnect(ioException.InnerException);
+        }
+
+        private static void WaitForClientDisconnect(TcpClient client)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(
+                IoTimeoutMilliseconds);
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    if (client.Client.Poll(100000, SelectMode.SelectRead)
+                        && client.Client.Available == 0)
+                    {
+                        return;
+                    }
+                }
+                catch (SocketException ex) when (
+                    IsExpectedClientDisconnect(ex.SocketErrorCode))
+                {
+                    return;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+            }
+
+            throw new TimeoutException(
+                "The client did not disconnect before the held response deadline.");
+        }
+
+        private static bool IsExpectedClientDisconnect(SocketError socketError)
+        {
+            return socketError == SocketError.ConnectionReset ||
+                   socketError == SocketError.ConnectionAborted ||
+                   socketError == SocketError.Shutdown;
         }
 
         private static byte[] ReadRequest(NetworkStream stream)

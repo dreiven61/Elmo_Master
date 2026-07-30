@@ -10,6 +10,7 @@
     <AssemblyName>LasalMotionControlLib.Tests</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <LangVersion>7.3</LangVersion>
+    <LasalTopologyIoCheckpoint Condition="'$(LasalTopologyIoCheckpoint)' == ''">StaticTopologyOnly</LasalTopologyIoCheckpoint>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>bin\Debug\</OutputPath>
@@ -27,6 +28,8 @@
     <Compile Include="Program.cs" />
     <Compile Include="NegativeWireTool.cs" />
     <Compile Include="NegativeWireToolTests.cs" />
+    <Compile Include="TopologyIoQualificationTool.cs" />
+    <Compile Include="TopologyIoQualificationToolTests.cs" />
     <Compile Include="AssertEx.cs" />
     <Compile Include="TestFrame.cs" />
     <Compile Include="FakeRpcServer.cs" />
@@ -39,6 +42,13 @@
     <Compile Include="TransportQualificationAnalysisTests.cs" />
     <Compile Include="RecorderReconnectQualificationPolicyTests.cs" />
     <Compile Include="GroupStopQualificationOrchestratorTests.cs" />
+    <Compile Include="GroupStopWaitContractTests.cs" />
+    <Compile Include="GroupDisableWaitContractTests.cs" />
+    <Compile Include="GroupEnableWaitContractTests.cs" />
+    <Compile Include="GroupPowerStateWaitContractTests.cs" />
+    <Compile Include="AxisPowerStateWaitContractTests.cs" />
+    <Compile Include="AxisResetWaitContractTests.cs" />
+    <Compile Include="AxisStopWaitContractTests.cs" />
     <Compile Include="BulkQualificationCleanupOrchestratorTests.cs" />
     <Compile Include="BulkPartialQualificationAnalysisTests.cs" />
     <Compile Include="D5SdoQualificationAnalysisTests.cs" />
@@ -47,6 +57,17 @@
     <Compile Include="D5SdoQuarantineLedgerConcurrencyTests.cs" />
     <Compile Include="D5SdoRecoveryScopePolicyTests.cs" />
     <Compile Include="D5SdoPendingCleanupOrchestratorTests.cs" />
+    <Compile Include="D5SdoContentionQualificationOrchestratorTests.cs" />
+    <Compile Include="D5SdoTimeoutQualificationOrchestratorTests.cs" />
+    <Compile Include="D5SdoQueuedCancelQualificationOrchestratorTests.cs" />
+    <Compile Include="D5SdoDisconnectOrphanQualificationOrchestratorTests.cs" />
+    <Compile Include="D5SdoWriteSameValueQualificationOrchestratorTests.cs" />
+    <Compile Include="DiagnosticsMutationJournalTests.cs" />
+    <Compile Include="DiagnosticsOperationAdmissionPolicyTests.cs" />
+    <Compile Include="DigitalOutputUncertainAcknowledgementPolicyTests.cs" />
+    <Compile Include="SdoEditorAvailabilityPolicyTests.cs" />
+    <Compile Include="StaleSdoWriteReadbackRecoveryPolicyTests.cs" />
+    <Compile Include="TopologyIoLiveMonitorPolicyTests.cs" />
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TransportQualificationAnalysis.cs">
       <Link>TransportQualificationAnalysis.cs</Link>
     </Compile>
@@ -74,19 +95,90 @@
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoPendingCleanupOrchestrator.cs">
       <Link>D5SdoPendingCleanupOrchestrator.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoContentionQualificationOrchestrator.cs">
+      <Link>D5SdoContentionQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoTimeoutQualificationOrchestrator.cs">
+      <Link>D5SdoTimeoutQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoQueuedCancelQualificationOrchestrator.cs">
+      <Link>D5SdoQueuedCancelQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoDisconnectOrphanQualificationOrchestrator.cs">
+      <Link>D5SdoDisconnectOrphanQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\D5SdoWriteSameValueQualificationOrchestrator.cs">
+      <Link>D5SdoWriteSameValueQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\DiagnosticsMutationJournal.cs">
+      <Link>DiagnosticsMutationJournal.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\DiagnosticsOperationAdmissionPolicy.cs">
+      <Link>DiagnosticsOperationAdmissionPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\DigitalOutputUncertainAcknowledgementPolicy.cs">
+      <Link>DigitalOutputUncertainAcknowledgementPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\SdoEditorAvailabilityPolicy.cs">
+      <Link>SdoEditorAvailabilityPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\StaleSdoWriteReadbackRecoveryPolicy.cs">
+      <Link>StaleSdoWriteReadbackRecoveryPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\TopologyIoLiveMonitorPolicy.cs">
+      <Link>TopologyIoLiveMonitorPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderQualificationCleanupOrchestrator.cs">
       <Link>RecorderQualificationCleanupOrchestrator.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleBankQualificationOrchestrator.cs">
+      <Link>RecorderDoubleBankQualificationOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderHeaderSemanticCanonicalizer.cs">
+      <Link>RecorderHeaderSemanticCanonicalizer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleRecoveryJournal.cs">
+      <Link>RecorderDoubleRecoveryJournal.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleRecoveryPlanner.cs">
+      <Link>RecorderDoubleRecoveryPlanner.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleRecoveryOrchestrator.cs">
+      <Link>RecorderDoubleRecoveryOrchestrator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleQualificationJournalBridge.cs">
+      <Link>RecorderDoubleQualificationJournalBridge.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\LasalApiWpfTestApp\LasalApiWpfTestApp\RecorderDoubleDurableReleaseCoordinator.cs">
+      <Link>RecorderDoubleDurableReleaseCoordinator.cs</Link>
+    </Compile>
+    <Compile Include="RpcSendPriorityCoordinatorTests.cs" />
+    <Compile Include="RpcLifecycleConcurrencyTests.cs" />
     <Compile Include="RpcIntegrationTests.cs" />
     <Compile Include="DriveReadFacadeTests.cs" />
+    <Compile Include="DriveErrorCodeContractTests.cs" />
     <Compile Include="DiagnosticsContractTests.cs" />
     <Compile Include="DiagnosticsD1ContractTests.cs" />
     <Compile Include="DiagnosticsD2ContractTests.cs" />
     <Compile Include="DiagnosticsPIBulkFacadeContractTests.cs" />
     <Compile Include="DiagnosticsD5ContractTests.cs" />
+    <Compile Include="DiagnosticsSdoWritePolicyEvaluationTests.cs" />
+    <Compile Include="DiagnosticsSdoReadFacadeTests.cs" />
+    <Compile Include="DiagnosticsSdoWriteVerificationTests.cs" />
     <Compile Include="DiagnosticsTopologyIoContractTests.cs" />
+    <Compile Include="DiagnosticsParserDeterministicFuzzTests.cs" />
+    <Compile Include="DiagnosticsParserStressTool.cs" />
+    <Compile Include="DiagnosticsParserStressToolTests.cs" />
+    <Compile Include="TopologyBindingContractTests.cs" />
+    <Compile Include="EtherCATIoRtReferenceModelTests.cs" />
     <Compile Include="DiagnosticsD45CompletionContractTests.cs" />
     <Compile Include="DiagnosticsRecorderContractTests.cs" />
+    <Compile Include="RecorderDoubleBankQualificationOrchestratorTests.cs" />
+    <Compile Include="RecorderHeaderSemanticCanonicalizerTests.cs" />
+    <Compile Include="RecorderDoubleRecoveryJournalTests.cs" />
+    <Compile Include="RecorderDoubleRecoveryPlannerTests.cs" />
+    <Compile Include="RecorderDoubleRecoveryOrchestratorTests.cs" />
+    <Compile Include="RecorderDoubleQualificationJournalBridgeTests.cs" />
     <None Include="Verify-LasalContract.ps1" />
   </ItemGroup>
   <ItemGroup>
@@ -99,10 +191,10 @@
     <Exec Command="&quot;$(TargetPath)&quot;" />
   </Target>
   <Target Name="RunLasalContract">
-    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -SourceOnly -ControlServiceCheckpoint Phase5TransportClean" />
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -SourceOnly -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot;" />
   </Target>
   <Target Name="RunLasalNetworkContract">
-    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -ControlServiceCheckpoint Phase5TransportClean" />
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot;" />
   </Target>
   <Target Name="BuildSimpleExampleApp">
     <MSBuild

@@ -209,13 +209,14 @@ namespace LasalMotionControlLib.Tests
             LMCConnection connection)
         {
             var builder = connection.Diagnostics.CreatePIBulkBuilder(
-                CreateCatalog());
+                CreateCatalog(connection));
             builder.AddEntry(Signal1);
             builder.AddEntry(Signal2);
             return builder.Configure();
         }
 
-        private static LMCSignalCatalog CreateCatalog()
+        private static LMCSignalCatalog CreateCatalog(
+            LMCConnection connection)
         {
             var entries = new List<LMCSignalCatalogEntry>
             {
@@ -239,7 +240,9 @@ namespace LasalMotionControlLib.Tests
                 4,
                 0x0000000Fu,
                 1);
-            return new LMCSignalCatalog(info, entries);
+            return new LMCSignalCatalog(info, entries).BindProvenance(
+                connection.Diagnostics,
+                connection.SessionGeneration);
         }
 
         private static LMCSignalCatalogEntry CreateEntry(

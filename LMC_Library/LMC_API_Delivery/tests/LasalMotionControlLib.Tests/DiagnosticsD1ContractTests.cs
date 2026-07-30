@@ -504,6 +504,87 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal(LMCSignalEntryStatus.Valid, value.EntryStatus);
             AssertEx.True(value.IsValid);
 
+            var offlineComposite = PIPayload(GoldenRequestId);
+            offlineComposite[45] = (byte)(
+                LMCSignalEntryStatus.SlaveOffline
+                | LMCSignalEntryStatus.SlaveNotOperational
+                | LMCSignalEntryStatus.AlError);
+            TestFrame.WriteUInt32(
+                offlineComposite,
+                48,
+                (uint)LMCDiagnosticsDetailCode.SlaveOffline);
+            var offlineValue = LMC_DiagnosticsParser.ParsePI(
+                TestFrame.Response(0, offlineComposite),
+                GoldenRequestId,
+                MapRevision,
+                PositionSignalId,
+                LMCSignalValueType.Int32);
+            AssertEx.False(offlineValue.IsValid);
+            AssertEx.Equal(
+                LMCDiagnosticsDetailCode.SlaveOffline,
+                offlineValue.Entry.Detail);
+            AssertEx.Equal(value.RawValue32, offlineValue.RawValue32);
+
+            var offlineMissingDetail = PIPayload(GoldenRequestId);
+            offlineMissingDetail[45] =
+                (byte)LMCSignalEntryStatus.SlaveOffline;
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParsePI(
+                    TestFrame.Response(0, offlineMissingDetail),
+                    GoldenRequestId,
+                    MapRevision,
+                    PositionSignalId,
+                    LMCSignalValueType.Int32));
+
+            var offlineWrongPriorityDetail = PIPayload(GoldenRequestId);
+            offlineWrongPriorityDetail[45] = (byte)(
+                LMCSignalEntryStatus.SlaveOffline
+                | LMCSignalEntryStatus.SlaveNotOperational);
+            TestFrame.WriteUInt32(
+                offlineWrongPriorityDetail,
+                48,
+                (uint)LMCDiagnosticsDetailCode.NotReady);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParsePI(
+                    TestFrame.Response(0, offlineWrongPriorityDetail),
+                    GoldenRequestId,
+                    MapRevision,
+                    PositionSignalId,
+                    LMCSignalValueType.Int32));
+
+            var nonOfflineWrongDetail = PIPayload(GoldenRequestId);
+            nonOfflineWrongDetail[45] =
+                (byte)LMCSignalEntryStatus.SlaveNotOperational;
+            TestFrame.WriteUInt32(
+                nonOfflineWrongDetail,
+                48,
+                (uint)LMCDiagnosticsDetailCode.SlaveOffline);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_DiagnosticsParser.ParsePI(
+                    TestFrame.Response(0, nonOfflineWrongDetail),
+                    GoldenRequestId,
+                    MapRevision,
+                    PositionSignalId,
+                    LMCSignalValueType.Int32));
+
+            var nonOfflineNotReady = PIPayload(GoldenRequestId);
+            nonOfflineNotReady[45] =
+                (byte)LMCSignalEntryStatus.SlaveNotOperational;
+            TestFrame.WriteUInt32(
+                nonOfflineNotReady,
+                48,
+                (uint)LMCDiagnosticsDetailCode.NotReady);
+            var notReadyValue = LMC_DiagnosticsParser.ParsePI(
+                TestFrame.Response(0, nonOfflineNotReady),
+                GoldenRequestId,
+                MapRevision,
+                PositionSignalId,
+                LMCSignalValueType.Int32);
+            AssertEx.False(notReadyValue.IsValid);
+            AssertEx.Equal(
+                LMCDiagnosticsDetailCode.NotReady,
+                notReadyValue.Entry.Detail);
+
             var wrongSignal = PIPayload(GoldenRequestId);
             TestFrame.WriteUInt32(wrongSignal, 36, StatusSignalId);
             AssertEx.Throws<InvalidDataException>(
@@ -778,12 +859,16 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(
                     PositionSignalId,
                     catalog.GetByAlias("axis1.actual_position").SignalId);
+                AssertEx.True(catalog.BelongsTo(connection));
+                AssertEx.True(catalog.BelongsToCurrentSession(connection));
                 LMCSignalCatalogEntry missing;
                 AssertEx.False(catalog.TryGetByAlias("Axis1.Actual_Position", out missing));
                 AssertEx.Equal(4, health.Slaves.Count);
                 AssertEx.Equal(-12345, value.RawInt32);
 
                 connection.CloseConnection();
+                AssertEx.True(catalog.BelongsTo(connection));
+                AssertEx.False(catalog.BelongsToCurrentSession(connection));
                 server.Verify();
             }
         }

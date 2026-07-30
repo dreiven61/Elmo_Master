@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using LasalMotionControlApiExample;
 using LasalMotionControlLib;
@@ -43,6 +44,24 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Qualification.BulkPartial.CatalogContractMismatchRejected",
                 CatalogContractMismatchRejected);
+            tests.Add(
+                "Qualification.BulkPartial.D1BaselineFaultRecovery",
+                D1BaselineFaultRecovery);
+            tests.Add(
+                "Qualification.BulkPartial.D1FaultValidRejected",
+                D1FaultValidRejected);
+            tests.Add(
+                "Qualification.BulkPartial.D1BulkHealthAxisMismatchRejected",
+                D1BulkHealthAxisMismatchRejected);
+            tests.Add(
+                "Qualification.BulkPartial.D1MultipleOfflineInconclusive",
+                D1MultipleOfflineInconclusive);
+            tests.Add(
+                "Qualification.BulkPartial.D1RecoveryFreshnessRequired",
+                D1RecoveryFreshnessRequired);
+            tests.Add(
+                "Qualification.BulkPartial.D1HealthyAxisErrorRejected",
+                D1HealthyAxisErrorRejected);
         }
 
         private static void BaselineAndRecovery()
@@ -97,7 +116,8 @@ namespace LasalMotionControlLib.Tests
                 true,
                 false);
 
-            AssertEx.Throws<InvalidOperationException>(
+            AssertEx.Throws<
+                BulkPartialQualificationInconclusiveException>(
                 () => BulkPartialQualificationAnalysis
                     .ValidateOneSlaveOffline(
                         entries,
@@ -140,21 +160,12 @@ namespace LasalMotionControlLib.Tests
         private static void WrongDetailRejected()
         {
             var entries = CreateCatalogEntries();
-            var snapshot = ParseSnapshot(
-                entries,
-                Enumerable.Range(6, 6).ToArray(),
-                true,
-                true);
-
-            AssertEx.Throws<InvalidOperationException>(
-                () => BulkPartialQualificationAnalysis
-                    .ValidateOneSlaveOffline(
-                        entries,
-                        BulkId,
-                        ConfigRevision,
-                        MapRevision,
-                        EntryStride,
-                        snapshot));
+            AssertEx.Throws<InvalidDataException>(
+                () => ParseSnapshot(
+                    entries,
+                    Enumerable.Range(6, 6).ToArray(),
+                    true,
+                    true));
         }
 
         private static void FiveOfflineRejected()
@@ -216,6 +227,204 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Throws<InvalidOperationException>(
                 () => BulkPartialQualificationAnalysis
                     .ValidateCatalogTopology(entries));
+        }
+
+        private static void D1BaselineFaultRecovery()
+        {
+            var entries = CreateCatalogEntries();
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(entries);
+            AssertEx.Equal(4, representatives.Count);
+            AssertEx.Equal(0x00100106u, representatives[0].SignalId);
+            AssertEx.Equal(0x00100406u, representatives[3].SignalId);
+
+            var baseline = CreateD1Stage(
+                representatives,
+                100,
+                1000,
+                new byte[0],
+                new byte[0]);
+            var fault = CreateD1Stage(
+                representatives,
+                200,
+                2000,
+                new byte[] { 2 },
+                new byte[] { 2 });
+            var recovery = CreateD1Stage(
+                representatives,
+                300,
+                3000,
+                new byte[0],
+                new byte[0]);
+
+            BulkPartialQualificationAnalysis.ValidateD1Baseline(
+                MapRevision,
+                representatives,
+                baseline.Health,
+                baseline.Values);
+            var faultResult = BulkPartialQualificationAnalysis
+                .ValidateD1Fault(
+                    MapRevision,
+                    representatives,
+                    baseline.Health,
+                    baseline.Values,
+                    fault.Health,
+                    fault.Values,
+                    2);
+            AssertEx.Equal((byte)2, faultResult.OfflineSourceIndex);
+            AssertEx.Equal(representatives[1].SignalId, faultResult.SignalId);
+            AssertEx.Equal(
+                baseline.Values[1].RawValue32,
+                faultResult.StaleRawValue);
+            AssertEx.False(faultResult.FaultValueIsCurrent);
+
+            BulkPartialQualificationAnalysis.ValidateD1Recovery(
+                MapRevision,
+                representatives,
+                fault.Health,
+                fault.Values,
+                recovery.Health,
+                recovery.Values,
+                2);
+        }
+
+        private static void D1FaultValidRejected()
+        {
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(CreateCatalogEntries());
+            var baseline = CreateD1Stage(
+                representatives,
+                100,
+                1000,
+                new byte[0],
+                new byte[0]);
+            var faultWithCurrentPi = CreateD1Stage(
+                representatives,
+                200,
+                2000,
+                new byte[] { 2 },
+                new byte[0]);
+
+            AssertEx.Throws<InvalidOperationException>(
+                () => BulkPartialQualificationAnalysis.ValidateD1Fault(
+                    MapRevision,
+                    representatives,
+                    baseline.Health,
+                    baseline.Values,
+                    faultWithCurrentPi.Health,
+                    faultWithCurrentPi.Values,
+                    2));
+        }
+
+        private static void D1BulkHealthAxisMismatchRejected()
+        {
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(CreateCatalogEntries());
+            var baseline = CreateD1Stage(
+                representatives,
+                100,
+                1000,
+                new byte[0],
+                new byte[0]);
+            var fault = CreateD1Stage(
+                representatives,
+                200,
+                2000,
+                new byte[] { 3 },
+                new byte[] { 3 });
+
+            AssertEx.Throws<InvalidOperationException>(
+                () => BulkPartialQualificationAnalysis.ValidateD1Fault(
+                    MapRevision,
+                    representatives,
+                    baseline.Health,
+                    baseline.Values,
+                    fault.Health,
+                    fault.Values,
+                    2));
+        }
+
+        private static void D1MultipleOfflineInconclusive()
+        {
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(CreateCatalogEntries());
+            var baseline = CreateD1Stage(
+                representatives,
+                100,
+                1000,
+                new byte[0],
+                new byte[0]);
+            var fault = CreateD1Stage(
+                representatives,
+                200,
+                2000,
+                new byte[] { 2, 3 },
+                new byte[] { 2, 3 });
+
+            AssertEx.Throws<
+                BulkPartialQualificationInconclusiveException>(
+                () => BulkPartialQualificationAnalysis.ValidateD1Fault(
+                    MapRevision,
+                    representatives,
+                    baseline.Health,
+                    baseline.Values,
+                    fault.Health,
+                    fault.Values,
+                    2));
+        }
+
+        private static void D1RecoveryFreshnessRequired()
+        {
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(CreateCatalogEntries());
+            var fault = CreateD1Stage(
+                representatives,
+                200,
+                2000,
+                new byte[] { 2 },
+                new byte[] { 2 });
+            var recovery = CreateD1Stage(
+                representatives,
+                300,
+                3000,
+                new byte[0],
+                new byte[0]);
+            recovery.Values[1] = ParsePI(
+                representatives[1],
+                fault.Values[1].CycleCounter,
+                3002,
+                LMCSignalEntryStatus.Valid,
+                LMCDiagnosticsDetailCode.None);
+
+            AssertEx.Throws<InvalidOperationException>(
+                () => BulkPartialQualificationAnalysis.ValidateD1Recovery(
+                    MapRevision,
+                    representatives,
+                    fault.Health,
+                    fault.Values,
+                    recovery.Health,
+                    recovery.Values,
+                    2));
+        }
+
+        private static void D1HealthyAxisErrorRejected()
+        {
+            var representatives = BulkPartialQualificationAnalysis
+                .SelectRepresentativePIEntries(CreateCatalogEntries());
+            var baseline = CreateD1Stage(
+                representatives,
+                100,
+                1000,
+                new byte[0],
+                new byte[0],
+                new byte[] { 3 });
+
+            AssertEx.Throws<InvalidOperationException>(
+                () => BulkPartialQualificationAnalysis.ValidateD1Baseline(
+                    MapRevision,
+                    representatives,
+                    baseline.Health,
+                    baseline.Values));
         }
 
         private static List<LMCSignalCatalogEntry> CreateCatalogEntries()
@@ -296,6 +505,148 @@ namespace LasalMotionControlLib.Tests
                 "axis" + axis + ".signal" + signalCode);
         }
 
+        private static D1Stage CreateD1Stage(
+            IReadOnlyList<LMCSignalCatalogEntry> representatives,
+            uint cycleCounter,
+            ulong timestampUs,
+            ICollection<byte> healthOfflineAxes,
+            ICollection<byte> piOfflineAxes,
+            ICollection<byte> axisErrorAxes = null)
+        {
+            var values = new List<LMCSignalValue>(representatives.Count);
+            for (var index = 0; index < representatives.Count; index++)
+            {
+                var sourceIndex = checked((byte)(index + 1));
+                var offline = piOfflineAxes.Contains(sourceIndex);
+                values.Add(
+                    ParsePI(
+                        representatives[index],
+                        cycleCounter + sourceIndex,
+                        timestampUs + sourceIndex,
+                        offline
+                            ? LMCSignalEntryStatus.SlaveOffline
+                                | LMCSignalEntryStatus
+                                    .SlaveNotOperational
+                            : LMCSignalEntryStatus.Valid,
+                        offline
+                            ? LMCDiagnosticsDetailCode.SlaveOffline
+                            : LMCDiagnosticsDetailCode.None));
+            }
+
+            return new D1Stage(
+                ParseHealth(
+                    cycleCounter,
+                    timestampUs,
+                    healthOfflineAxes,
+                    axisErrorAxes ?? new byte[0]),
+                values);
+        }
+
+        private static LMCEtherCATHealth ParseHealth(
+            uint cycleCounter,
+            ulong timestampUs,
+            ICollection<byte> offlineAxes,
+            ICollection<byte> axisErrorAxes)
+        {
+            const ushort healthHeaderLength = 72;
+            const ushort healthEntryStride = 32;
+            var payload = new byte[
+                healthHeaderLength + 4 * healthEntryStride];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteUInt32(payload, 8, RequestId);
+            TestFrame.WriteUInt32(payload, 16, MapRevision);
+            TestFrame.WriteUInt16(
+                payload,
+                20,
+                (ushort)LMCCapturePhase.InputMapped);
+            TestFrame.WriteUInt16(payload, 22, 4);
+            TestFrame.WriteUInt32(payload, 24, cycleCounter);
+            TestFrame.WriteUInt32(payload, 28, (uint)timestampUs);
+            TestFrame.WriteUInt32(payload, 32, (uint)(timestampUs >> 32));
+            TestFrame.WriteUInt16(payload, 36, 8);
+            TestFrame.WriteUInt16(
+                payload,
+                38,
+                (ushort)LMCEtherCATMasterFlags.MasterOperational);
+            TestFrame.WriteUInt32(payload, 44, 7);
+            TestFrame.WriteUInt32(payload, 48, 150);
+            TestFrame.WriteUInt32(payload, 52, 250);
+            TestFrame.WriteUInt32(payload, 56, 300);
+            TestFrame.WriteUInt32(payload, 60, 450);
+            TestFrame.WriteUInt32(payload, 64, cycleCounter * 2);
+            TestFrame.WriteUInt16(payload, 68, healthEntryStride);
+
+            for (ushort index = 0; index < 4; index++)
+            {
+                var sourceIndex = checked((byte)(index + 1));
+                var offline = offlineAxes.Contains(sourceIndex);
+                var offset = healthHeaderLength + index * healthEntryStride;
+                TestFrame.WriteUInt16(payload, offset, index);
+                TestFrame.WriteUInt16(payload, offset + 2, sourceIndex);
+                payload[offset + 4] = offline ? (byte)0 : (byte)1;
+                payload[offset + 5] = offline ? (byte)0 : (byte)8;
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 8,
+                    offline ? 0u : 8u);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 12,
+                    offline ? uint.MaxValue : 1u);
+                TestFrame.WriteUInt32(payload, offset + 16, 0x1237);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 20,
+                    axisErrorAxes.Contains(sourceIndex) ? 0x1234u : 0u);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 24,
+                    offline ? cycleCounter - 20 : cycleCounter);
+                TestFrame.WriteUInt32(
+                    payload,
+                    offset + 28,
+                    offline ? cycleCounter - 10 : cycleCounter - 50);
+            }
+
+            return LMC_DiagnosticsParser.ParseEtherCATHealth(
+                TestFrame.Response(0, payload),
+                RequestId);
+        }
+
+        private static LMCSignalValue ParsePI(
+            LMCSignalCatalogEntry representative,
+            uint cycleCounter,
+            ulong timestampUs,
+            LMCSignalEntryStatus status,
+            LMCDiagnosticsDetailCode detail)
+        {
+            var payload = new byte[52];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteUInt32(payload, 8, RequestId);
+            TestFrame.WriteUInt32(payload, 16, MapRevision);
+            TestFrame.WriteUInt16(
+                payload,
+                20,
+                (ushort)LMCCapturePhase.InputMapped);
+            TestFrame.WriteUInt32(payload, 24, cycleCounter);
+            TestFrame.WriteUInt32(payload, 28, (uint)timestampUs);
+            TestFrame.WriteUInt32(payload, 32, (uint)(timestampUs >> 32));
+            TestFrame.WriteUInt32(payload, 36, representative.SignalId);
+            TestFrame.WriteUInt32(
+                payload,
+                40,
+                0x1200u + representative.SourceIndex);
+            payload[44] = (byte)representative.DataType;
+            payload[45] = (byte)status;
+            TestFrame.WriteUInt32(payload, 48, (uint)detail);
+            return LMC_DiagnosticsParser.ParsePI(
+                TestFrame.Response(0, payload),
+                RequestId,
+                MapRevision,
+                representative.SignalId,
+                representative.DataType);
+        }
+
         private static LMCBulkSnapshot ParseSnapshot(
             IReadOnlyList<LMCSignalCatalogEntry> entries,
             ICollection<int> offlineIndexes,
@@ -365,6 +716,20 @@ namespace LasalMotionControlLib.Tests
                 ConfigRevision,
                 MapRevision,
                 entries.Select(entry => entry.SignalId).ToArray());
+        }
+
+        private sealed class D1Stage
+        {
+            internal D1Stage(
+                LMCEtherCATHealth health,
+                List<LMCSignalValue> values)
+            {
+                Health = health;
+                Values = values;
+            }
+
+            internal LMCEtherCATHealth Health { get; private set; }
+            internal List<LMCSignalValue> Values { get; private set; }
         }
     }
 }

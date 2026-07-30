@@ -73,6 +73,10 @@ namespace LasalMotionControlLib.Tests
                 { LMC_CommandId.ReleaseRecorderBuffer, 16 },
                 { LMC_CommandId.ReleaseRecorder, 16 },
                 { LMC_CommandId.AdoptRecorder, 36 },
+                { LMC_CommandId.ReadRecorderBankInventory, 88 },
+                { LMC_CommandId.AdoptEmptyRecorderConfiguration, 40 },
+                { LMC_CommandId.ConfigureRecoverableDoubleRecorder, 72 },
+                { LMC_CommandId.ReadRecoverableRecorderBankInventory, 104 },
                 { LMC_CommandId.SubmitSdo, 32 },
                 { LMC_CommandId.ReadSdoResultChunk, 1968 }
             };

@@ -497,6 +497,9 @@ namespace LasalMotionControlLib.Tests
             using (var connection = new LMCConnection())
             {
                 Connect(connection, server.Port);
+                piWrite.Catalog.BindProvenance(
+                    connection.Diagnostics,
+                    connection.SessionGeneration);
                 if (useAsync)
                 {
                     AssertEx.Throws<NotSupportedException>(

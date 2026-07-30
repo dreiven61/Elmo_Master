@@ -145,6 +145,129 @@ namespace LasalMotionControlLib.Tests
                     targetPosition,
                     LMCSignalValueType.Int32,
                     10));
+
+            AssertPIWriteCatalogProvenancePreWire();
+        }
+
+        private static void AssertPIWriteCatalogProvenancePreWire()
+        {
+            AssertUnboundPIWriteCatalogRejected();
+            AssertForeignPIWriteCatalogRejected();
+            AssertStalePIWriteCatalogRejected();
+        }
+
+        private static void AssertUnboundPIWriteCatalogRejected()
+        {
+            var request = ProvenancePIWriteRequest();
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    connection.Diagnostics.SubmitPIWrite(request));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    connection.Diagnostics.SubmitPIWriteAsync(
+                            request,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void AssertForeignPIWriteCatalogRejected()
+        {
+            using (var ownerServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var foreignServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var ownerConnection = new LMCConnection())
+            using (var foreignConnection = new LMCConnection())
+            {
+                Connect(ownerConnection, ownerServer.Port);
+                var request = ProvenancePIWriteRequest(ownerConnection);
+                Connect(foreignConnection, foreignServer.Port);
+
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    foreignConnection.Diagnostics.SubmitPIWrite(request));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    foreignConnection.Diagnostics.SubmitPIWriteAsync(
+                            request,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+
+                foreignConnection.CloseConnection();
+                ownerConnection.CloseConnection();
+                foreignServer.Verify();
+                ownerServer.Verify();
+            }
+        }
+
+        private static void AssertStalePIWriteCatalogRejected()
+        {
+            using (var firstServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, firstServer.Port);
+                var request = ProvenancePIWriteRequest(connection);
+                connection.CloseConnection();
+                firstServer.Verify();
+
+                using (var secondServer = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CloseStep()))
+                {
+                    Connect(connection, secondServer.Port);
+                    AssertEx.Throws<InvalidOperationException>(() =>
+                        connection.Diagnostics.SubmitPIWrite(request));
+                    AssertEx.Throws<InvalidOperationException>(() =>
+                        connection.Diagnostics.SubmitPIWriteAsync(
+                                request,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+                    connection.CloseConnection();
+                    secondServer.Verify();
+                }
+            }
+        }
+
+        private static LMCPIWriteRequest ProvenancePIWriteRequest(
+            LMCConnection ownerConnection = null)
+        {
+            var writable = CatalogEntry(
+                0x00200011u,
+                LMCSignalValueType.UInt16,
+                LMCSignalAccessFlags.WritableByPolicy,
+                0x2002,
+                0,
+                100);
+            var catalog = Catalog(writable);
+            if (ownerConnection != null)
+            {
+                catalog.BindProvenance(
+                    ownerConnection.Diagnostics,
+                    ownerConnection.SessionGeneration);
+            }
+
+            return new LMCPIWriteRequest(
+                catalog,
+                writable,
+                LMCSignalValueType.UInt16,
+                1);
         }
 
         private static void SdoWriteTargetPolicy()
@@ -1139,6 +1262,14 @@ namespace LasalMotionControlLib.Tests
             RunGuardedSdoForeignOwner(true);
             RunGuardedSdoStaleSession(false);
             RunGuardedSdoStaleSession(true);
+            RunGuardedSdoInvalidProvenance(false, 0);
+            RunGuardedSdoInvalidProvenance(true, 0);
+            RunGuardedSdoInvalidProvenance(false, 1);
+            RunGuardedSdoInvalidProvenance(true, 1);
+            RunGuardedSdoInvalidProvenance(false, 2);
+            RunGuardedSdoInvalidProvenance(true, 2);
+            RunGuardedSdoInvalidProvenance(false, 3);
+            RunGuardedSdoInvalidProvenance(true, 3);
         }
 
         private static void RunGuardedSdoIdentitySuccess(bool useAsync)
@@ -1312,6 +1443,83 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
+        private static void RunGuardedSdoInvalidProvenance(
+            bool useAsync,
+            int invalidKind)
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                LMCOperationTicket invalidTicket;
+                if (invalidKind == 0)
+                {
+                    var submittedRead = GuardedReadRequest();
+                    invalidTicket = new LMCOperationTicket(
+                        0x50505050u,
+                        LMCOperationKind.SDORead,
+                        100,
+                        DiagnosticsBootId,
+                        MapRevision,
+                        connection.SessionGeneration,
+                        connection.Diagnostics,
+                        true,
+                        submittedRead.DataLength,
+                        submittedRead.ValueType,
+                        submittedSdoRequest: submittedRead);
+                }
+                else if (invalidKind == 1)
+                {
+                    invalidTicket = new LMCOperationTicket(
+                        0x50505050u,
+                        LMCOperationKind.PIWrite,
+                        100,
+                        DiagnosticsBootId,
+                        MapRevision,
+                        connection.SessionGeneration,
+                        connection.Diagnostics,
+                        false,
+                        0,
+                        LMCSignalValueType.Invalid);
+                }
+                else if (invalidKind == 2)
+                {
+                    invalidTicket = new LMCOperationTicket(
+                        0x50505050u,
+                        LMCOperationKind.SDOWrite,
+                        100,
+                        DiagnosticsBootId,
+                        MapRevision,
+                        connection.SessionGeneration,
+                        connection.Diagnostics,
+                        false,
+                        0,
+                        LMCSignalValueType.Invalid);
+                }
+                else
+                {
+                    invalidTicket = RequiredWriteIdentityTicket(
+                        connection,
+                        GuardedWriteRequest(1));
+                }
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => SubmitGuardedSdo(
+                        connection,
+                        GuardedReadRequest(),
+                        invalidTicket,
+                        useAsync));
+                AssertSessionPreflightFailure(error);
+                AssertEx.Equal(2, server.ReceivedRequests.Count);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
         private static LMCSdoRequest GuardedReadRequest()
         {
             return LMCSdoRequest.CreateRead(
@@ -1323,8 +1531,21 @@ namespace LasalMotionControlLib.Tests
                 100);
         }
 
+        private static LMCSdoRequest GuardedWriteRequest(
+            ushort slaveReference = 2)
+        {
+            return LMCSdoRequest.CreateWrite(
+                slaveReference,
+                0x2000,
+                3,
+                LMCSignalValueType.UInt32,
+                new byte[] { 0x78, 0x56, 0x34, 0x12 },
+                100);
+        }
+
         private static LMCOperationTicket RequiredWriteIdentityTicket(
-            LMCConnection connection)
+            LMCConnection connection,
+            LMCSdoRequest submittedWriteRequest = null)
         {
             return new LMCOperationTicket(
                 0x50505050u,
@@ -1336,7 +1557,9 @@ namespace LasalMotionControlLib.Tests
                 connection.Diagnostics,
                 false,
                 0,
-                LMCSignalValueType.Invalid);
+                LMCSignalValueType.Invalid,
+                submittedSdoRequest: submittedWriteRequest
+                    ?? GuardedWriteRequest());
         }
 
         private static LMCOperationTicket SubmitGuardedSdo(

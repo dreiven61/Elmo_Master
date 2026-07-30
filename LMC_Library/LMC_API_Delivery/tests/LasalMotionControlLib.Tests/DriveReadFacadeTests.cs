@@ -138,11 +138,13 @@ namespace LasalMotionControlLib.Tests
 
         private static void DriveStatusCompositeSyncAndAsync()
         {
-            RunDriveStatusComposite(false);
-            RunDriveStatusComposite(true);
+            RunDriveStatusComposite(false, true);
+            RunDriveStatusComposite(true, false);
         }
 
-        private static void RunDriveStatusComposite(bool useAsync)
+        private static void RunDriveStatusComposite(
+            bool useAsync,
+            bool hasDs402Fault)
         {
             const uint statusWordTicketId = 0x22222222u;
             const uint operationModeTicketId = 0x33333333u;
@@ -187,7 +189,7 @@ namespace LasalMotionControlLib.Tests
                     LMCOperationState.Completed,
                     LMCOperationOutcome.Success,
                     LMCSignalValueType.BitField16,
-                    TestFrame.Hex("00 08")),
+                    TestFrame.Hex(hasDs402Fault ? "08 08" : "00 08")),
                 CapabilitiesStep(6),
                 SdoSubmitStep(
                     7,
@@ -223,9 +225,12 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(status.AxisStatus.HasAxisError);
                 AssertEx.False(status.AxisStatus.IsSuccess);
                 AssertEx.Equal((ushort)0, status.AxisStatus.StatusWord);
-                AssertEx.Equal((ushort)0x0800, status.Ds402StatusWord);
+                AssertEx.Equal(
+                    (ushort)(hasDs402Fault ? 0x0808 : 0x0800),
+                    status.Ds402StatusWord);
                 AssertEx.Equal((ushort)0x0012, status.AxisErrorFlags);
                 AssertEx.True(status.HasAxisError);
+                AssertEx.Equal(hasDs402Fault, status.HasDs402Fault);
                 AssertEx.True(status.IsLasalPositionLimitActive);
                 AssertEx.True(status.HasSoftwareMinimumLimitError);
                 AssertEx.False(status.HasSoftwareMaximumLimitError);

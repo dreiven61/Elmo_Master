@@ -197,7 +197,10 @@ namespace LasalMotionControlLib.Tests
             AssertMalformed(errorWithoutDetail, GoldenRequestId);
 
             var errorWithUnknownDetail = (byte[])errorWithoutDetail.Clone();
-            TestFrame.WriteUInt32(errorWithUnknownDetail, 12, 32);
+            TestFrame.WriteUInt32(
+                errorWithUnknownDetail,
+                12,
+                (uint)LMCDiagnosticsDetailCode.RecorderConfigurationAbsent + 1u);
             AssertMalformed(errorWithUnknownDetail, GoldenRequestId);
 
             AssertMalformed(
@@ -390,6 +393,12 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Equal((ushort)0x7E22, LMC_CommandId.ReadDigitalIO);
             AssertEx.Equal((ushort)0x7E23, LMC_CommandId.SubmitDigitalOutputWrite);
             AssertEx.Equal((ushort)0x7E42, LMC_CommandId.TriggerRecorder);
+            AssertEx.Equal(
+                (ushort)0x7E4A,
+                LMC_CommandId.ReadRecorderBankInventory);
+            AssertEx.Equal(
+                (ushort)0x7E4B,
+                LMC_CommandId.AdoptEmptyRecorderConfiguration);
             AssertEx.Equal((ushort)0x7E51, LMC_CommandId.ReadSdoResultChunk);
 
             var ids = new HashSet<ushort>();

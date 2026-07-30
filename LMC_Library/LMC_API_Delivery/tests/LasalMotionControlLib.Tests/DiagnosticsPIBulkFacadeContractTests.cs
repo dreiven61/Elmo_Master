@@ -42,16 +42,23 @@ namespace LasalMotionControlLib.Tests
                 "Facade.PIBulk.ReconnectRejectsReaderBeforeWire",
                 ReconnectRejectsReaderBeforeWire);
             tests.Add(
+                "Facade.PIBulk.CatalogProvenancePreWire",
+                CatalogProvenancePreWire);
+            tests.Add(
                 "Facade.PI.AliasReadUsesD1Wire",
                 AliasReadUsesD1Wire);
         }
 
         private static void BuilderValidation()
         {
-            var catalog = CreateCatalog(MapRevision);
-
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
             using (var connection = new LMCConnection())
             {
+                Connect(connection, server.Port);
+                var catalog = CreateCatalog(MapRevision, connection);
                 var builder = connection.Diagnostics.CreatePIBulkBuilder(catalog);
                 AssertEx.Equal(0, builder.Count);
                 AssertEx.False(builder.IsFrozen);
@@ -81,6 +88,8 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(0, builder.Count);
                 AssertEx.Throws<InvalidOperationException>(
                     () => builder.Configure());
+                connection.CloseConnection();
+                server.Verify();
             }
         }
 
@@ -148,7 +157,7 @@ namespace LasalMotionControlLib.Tests
                 Connect(connection, server.Port);
 
                 var builder = connection.Diagnostics.CreatePIBulkBuilder(
-                    CreateCatalog(MapRevision));
+                    CreateCatalog(MapRevision, connection));
                 builder.AddEntry(Signal1);
                 builder.AddEntry(Signal2);
                 var reader = builder.Configure();
@@ -222,7 +231,7 @@ namespace LasalMotionControlLib.Tests
                 Connect(connection, server.Port);
 
                 var builder = connection.Diagnostics.CreatePIBulkBuilder(
-                    CreateCatalog(MapRevision));
+                    CreateCatalog(MapRevision, connection));
                 builder.AddEntry(Signal1);
                 builder.AddEntry(Signal2);
 
@@ -265,7 +274,7 @@ namespace LasalMotionControlLib.Tests
                 Connect(connection, server.Port);
 
                 var builder = connection.Diagnostics.CreatePIBulkBuilder(
-                    CreateCatalog(MapRevision + 1));
+                    CreateCatalog(MapRevision + 1, connection));
                 builder.AddEntry(Signal1);
                 AssertEx.Throws<InvalidOperationException>(
                     () => builder.Configure());
@@ -293,7 +302,7 @@ namespace LasalMotionControlLib.Tests
             {
                 Connect(connection, firstServer.Port);
                 var builder = connection.Diagnostics.CreatePIBulkBuilder(
-                    CreateCatalog(MapRevision));
+                    CreateCatalog(MapRevision, connection));
                 builder.AddEntry(Signal1);
                 builder.AddEntry(Signal2);
                 var reader = builder.Configure();
@@ -308,6 +317,119 @@ namespace LasalMotionControlLib.Tests
                     Connect(connection, secondServer.Port);
                     AssertEx.Throws<InvalidOperationException>(
                         () => reader.Upload());
+                    connection.CloseConnection();
+                    secondServer.Verify();
+                }
+            }
+        }
+
+        private static void CatalogProvenancePreWire()
+        {
+            AssertUnboundCatalogRejected();
+            AssertForeignCatalogRejected();
+            AssertStaleCatalogRejected();
+        }
+
+        private static void AssertUnboundCatalogRejected()
+        {
+            var catalog = CreateCatalog(MapRevision);
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                AssertEx.False(catalog.BelongsTo(connection));
+                AssertEx.False(catalog.BelongsToCurrentSession(connection));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    connection.Diagnostics.CreatePIBulkBuilder(catalog));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    connection.Diagnostics.ReadPI(
+                        catalog,
+                        "axis1.actual_position"));
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void AssertForeignCatalogRejected()
+        {
+            using (var ownerServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var foreignServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var ownerConnection = new LMCConnection())
+            using (var foreignConnection = new LMCConnection())
+            {
+                Connect(ownerConnection, ownerServer.Port);
+                var catalog = CreateCatalog(
+                    MapRevision,
+                    ownerConnection);
+                Connect(foreignConnection, foreignServer.Port);
+
+                AssertEx.True(catalog.BelongsTo(ownerConnection));
+                AssertEx.True(
+                    catalog.BelongsToCurrentSession(ownerConnection));
+                AssertEx.False(catalog.BelongsTo(foreignConnection));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    foreignConnection.Diagnostics.CreatePIBulkBuilder(
+                        catalog));
+                AssertEx.Throws<InvalidOperationException>(() =>
+                    foreignConnection.Diagnostics.ReadPIAsync(
+                            catalog,
+                            "axis1.actual_position",
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+
+                foreignConnection.CloseConnection();
+                ownerConnection.CloseConnection();
+                foreignServer.Verify();
+                ownerServer.Verify();
+            }
+        }
+
+        private static void AssertStaleCatalogRejected()
+        {
+            using (var firstServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, firstServer.Port);
+                var catalog = CreateCatalog(MapRevision, connection);
+                var builder = connection.Diagnostics.CreatePIBulkBuilder(
+                    catalog);
+                builder.AddEntry(Signal1);
+                AssertEx.True(catalog.BelongsToCurrentSession(connection));
+                connection.CloseConnection();
+                AssertEx.False(
+                    catalog.BelongsToCurrentSession(connection));
+                firstServer.Verify();
+
+                using (var secondServer = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CloseStep()))
+                {
+                    Connect(connection, secondServer.Port);
+                    AssertEx.True(catalog.BelongsTo(connection));
+                    AssertEx.False(
+                        catalog.BelongsToCurrentSession(connection));
+                    AssertEx.Throws<InvalidOperationException>(() =>
+                        builder.Configure());
+                    AssertEx.False(builder.IsConfiguring);
+                    AssertEx.False(builder.IsFrozen);
+                    AssertEx.Throws<InvalidOperationException>(() =>
+                        connection.Diagnostics.ReadPI(
+                            catalog,
+                            "axis1.actual_position"));
                     connection.CloseConnection();
                     secondServer.Verify();
                 }
@@ -353,7 +475,7 @@ namespace LasalMotionControlLib.Tests
             using (var connection = new LMCConnection())
             {
                 Connect(connection, server.Port);
-                var catalog = CreateCatalog(MapRevision);
+                var catalog = CreateCatalog(MapRevision, connection);
 
                 AssertEx.Throws<InvalidOperationException>(
                     () => connection.Diagnostics.ReadPI(
@@ -386,7 +508,9 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static LMCSignalCatalog CreateCatalog(uint mapRevision)
+        private static LMCSignalCatalog CreateCatalog(
+            uint mapRevision,
+            LMCConnection connection = null)
         {
             var entries = new List<LMCSignalCatalogEntry>
             {
@@ -454,7 +578,12 @@ namespace LasalMotionControlLib.Tests
                 4,
                 0x0000000Fu,
                 1);
-            return new LMCSignalCatalog(info, entries);
+            var catalog = new LMCSignalCatalog(info, entries);
+            return connection == null
+                ? catalog
+                : catalog.BindProvenance(
+                    connection.Diagnostics,
+                    connection.SessionGeneration);
         }
 
         private static LMCSignalCatalogEntry CreateEntry(

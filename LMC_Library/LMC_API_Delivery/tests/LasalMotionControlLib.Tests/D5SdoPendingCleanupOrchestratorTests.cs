@@ -808,9 +808,26 @@ namespace LasalMotionControlLib.Tests
                 LMCSignalValueType.UInt32,
                 source,
                 100);
+            var initPayload = new byte[24];
+            TestFrame.WriteUInt32(initPayload, 0, 64);
+            var successAck = TestFrame.Response(
+                0,
+                TestFrame.Hex("00 00 00 00"));
+            using (var ownerServer = new FakeRpcServer(
+                new FakeRpcStep(
+                    0x8080,
+                    TestFrame.Response(0, initPayload)),
+                new FakeRpcStep(0x405C, successAck),
+                new FakeRpcStep(0x405D, successAck)))
             using (var ownerConnection = new LMCConnection())
             using (var foreignConnection = new LMCConnection())
             {
+                ownerConnection.RpcInitConnection(
+                    "127.0.0.1",
+                    ownerServer.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
                 var writeTicket = new LMCOperationTicket(
                     590,
                     LMCOperationKind.SDOWrite,
@@ -821,19 +838,35 @@ namespace LasalMotionControlLib.Tests
                     ownerConnection.Diagnostics,
                     false,
                     0,
-                    LMCSignalValueType.Invalid);
-                var requirement = new D5SdoWriteReadbackRequirement(
+                    LMCSignalValueType.Invalid,
+                    submittedSdoRequest: writeRequest);
+                var writeTerminalStatus = new LMCOperationStatus(
+                    Response(LMCDiagnosticsDetailCode.None),
+                    writeTicket.TicketId,
+                    LMCOperationKind.SDOWrite,
+                    LMCOperationState.Completed,
+                    writeTicket.QueuedCycle,
+                    writeTicket.QueuedCycle + 1,
+                    LMCOperationOutcome.Success,
+                    0,
+                    0,
+                    0,
+                    LMCSignalValueType.Invalid,
+                    new byte[0],
+                    DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
+                var requirement = ownerConnection.Diagnostics
+                    .CreateSdoWriteVerificationContext(
                     writeRequest,
                     writeTicket,
-                    ownerConnection);
+                    writeTerminalStatus,
+                    request => true);
                 source[0] = 0;
 
                 AssertEx.True(ReferenceEquals(
                     writeTicket,
                     requirement.WriteTicket));
-                AssertEx.True(ReferenceEquals(
-                    ownerConnection,
-                    requirement.OwnerConnection));
                 AssertEx.True(
                     writeTicket.BelongsToCurrentSession(ownerConnection));
                 AssertEx.False(
@@ -906,6 +939,7 @@ namespace LasalMotionControlLib.Tests
                     requirement.MatchesReadRequest(writeRequest));
 
                 var exactCapabilities = ReadbackCapabilities(
+                    ownerConnection.Diagnostics,
                     ownerConnection.SessionGeneration,
                     DiagnosticsBootId,
                     MapRevision);
@@ -918,12 +952,14 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.False(requirement.MatchesCurrentIdentity(
                     ownerConnection,
                     ReadbackCapabilities(
+                        ownerConnection.Diagnostics,
                         ownerConnection.SessionGeneration,
                         DiagnosticsBootId + 1,
                         MapRevision)));
                 AssertEx.False(requirement.MatchesCurrentIdentity(
                     ownerConnection,
                     ReadbackCapabilities(
+                        ownerConnection.Diagnostics,
                         ownerConnection.SessionGeneration,
                         DiagnosticsBootId,
                         MapRevision + 1)));
@@ -941,7 +977,8 @@ namespace LasalMotionControlLib.Tests
                     ownerConnection.Diagnostics,
                     true,
                     4,
-                    LMCSignalValueType.UInt32);
+                    LMCSignalValueType.UInt32,
+                    submittedSdoRequest: exactRead);
                 var exactStatus = new LMCOperationStatus(
                     Response(LMCDiagnosticsDetailCode.None),
                     readTicket.TicketId,
@@ -955,9 +992,11 @@ namespace LasalMotionControlLib.Tests
                     4,
                     LMCSignalValueType.UInt32,
                     new byte[] { 0x78, 0x56, 0x34, 0x12 },
-                    readTicket.DiagnosticsBootId);
+                    readTicket.DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Verified,
+                    LMCSdoWriteVerificationVerdict.Verified,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -978,9 +1017,11 @@ namespace LasalMotionControlLib.Tests
                     4,
                     LMCSignalValueType.UInt32,
                     new byte[] { 0x78, 0x56, 0x34, 0x12 },
-                    readTicket.DiagnosticsBootId);
+                    readTicket.DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1000,9 +1041,11 @@ namespace LasalMotionControlLib.Tests
                     4,
                     LMCSignalValueType.UInt32,
                     new byte[] { 0x78, 0x56, 0x34, 0x12 },
-                    readTicket.DiagnosticsBootId + 1);
+                    readTicket.DiagnosticsBootId + 1).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1023,9 +1066,11 @@ namespace LasalMotionControlLib.Tests
                     4,
                     LMCSignalValueType.UInt32,
                     new byte[] { 0x79, 0x56, 0x34, 0x12 },
-                    readTicket.DiagnosticsBootId);
+                    readTicket.DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1045,9 +1090,11 @@ namespace LasalMotionControlLib.Tests
                     4,
                     LMCSignalValueType.Int32,
                     new byte[] { 0x78, 0x56, 0x34, 0x12 },
-                    readTicket.DiagnosticsBootId);
+                    readTicket.DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1067,9 +1114,11 @@ namespace LasalMotionControlLib.Tests
                     3,
                     LMCSignalValueType.UInt32,
                     new byte[] { 0x78, 0x56, 0x34 },
-                    readTicket.DiagnosticsBootId);
+                    readTicket.DiagnosticsBootId).BindProvenance(
+                        ownerConnection.Diagnostics,
+                        ownerConnection.SessionGeneration);
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1077,7 +1126,7 @@ namespace LasalMotionControlLib.Tests
                         exactCapabilities,
                         wrongLengthStatus));
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         readTicket,
@@ -1088,7 +1137,7 @@ namespace LasalMotionControlLib.Tests
                             LMCOperationState.Failed,
                             LMCOperationOutcome.Failed)));
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         LMCSdoRequest.CreateRead(
                             2,
@@ -1112,13 +1161,14 @@ namespace LasalMotionControlLib.Tests
                     ownerConnection.Diagnostics,
                     true,
                     4,
-                    LMCSignalValueType.UInt32);
+                    LMCSignalValueType.UInt32,
+                    submittedSdoRequest: exactRead);
                 AssertEx.False(requirement.MatchesReadTicketIdentity(
                     wrongBootTicket,
                     ownerConnection,
                     exactCapabilities));
                 AssertEx.Equal(
-                    D5SdoWriteReadbackVerdict.Pending,
+                    LMCSdoWriteVerificationVerdict.Pending,
                     requirement.Evaluate(
                         exactRead,
                         wrongBootTicket,
@@ -1136,7 +1186,8 @@ namespace LasalMotionControlLib.Tests
                     ownerConnection.Diagnostics,
                     true,
                     4,
-                    LMCSignalValueType.UInt32);
+                    LMCSignalValueType.UInt32,
+                    submittedSdoRequest: exactRead);
                 AssertEx.False(requirement.MatchesReadTicketIdentity(
                     wrongMapTicket,
                     ownerConnection,
@@ -1149,6 +1200,7 @@ namespace LasalMotionControlLib.Tests
                     readTicket,
                     ownerConnection,
                     ReadbackCapabilities(
+                        ownerConnection.Diagnostics,
                         ownerConnection.SessionGeneration,
                         DiagnosticsBootId + 1,
                         MapRevision)));
@@ -1170,7 +1222,7 @@ namespace LasalMotionControlLib.Tests
                         requirement.MatchesOwnerCurrentSession(
                             ownerConnection));
                     AssertEx.Equal(
-                        D5SdoWriteReadbackVerdict.Pending,
+                        LMCSdoWriteVerificationVerdict.Pending,
                         requirement.Evaluate(
                             exactRead,
                             readTicket,
@@ -1180,26 +1232,43 @@ namespace LasalMotionControlLib.Tests
                     failedReconnectServer.Verify();
                 }
 
+                ownerServer.Verify();
+
                 AssertEx.Throws<ArgumentNullException>(
-                    () => new D5SdoWriteReadbackRequirement(
+                    () => ownerConnection.Diagnostics
+                        .CreateSdoWriteVerificationContext(
                         null,
                         writeTicket,
-                        ownerConnection));
+                        writeTerminalStatus,
+                        request => true));
                 AssertEx.Throws<ArgumentNullException>(
-                    () => new D5SdoWriteReadbackRequirement(
+                    () => ownerConnection.Diagnostics
+                        .CreateSdoWriteVerificationContext(
                         writeRequest,
                         null,
-                        ownerConnection));
+                        writeTerminalStatus,
+                        request => true));
                 AssertEx.Throws<ArgumentNullException>(
-                    () => new D5SdoWriteReadbackRequirement(
+                    () => ownerConnection.Diagnostics
+                        .CreateSdoWriteVerificationContext(
                         writeRequest,
                         writeTicket,
+                        null,
+                        request => true));
+                AssertEx.Throws<ArgumentNullException>(
+                    () => ownerConnection.Diagnostics
+                        .CreateSdoWriteVerificationContext(
+                        writeRequest,
+                        writeTicket,
+                        writeTerminalStatus,
                         null));
                 AssertEx.Throws<ArgumentException>(
-                    () => new D5SdoWriteReadbackRequirement(
+                    () => ownerConnection.Diagnostics
+                        .CreateSdoWriteVerificationContext(
                         exactRead,
                         writeTicket,
-                        ownerConnection));
+                        writeTerminalStatus,
+                        request => true));
             }
         }
 
@@ -1467,10 +1536,13 @@ namespace LasalMotionControlLib.Tests
                     ? LMCSignalValueType.Int8
                     : LMCSignalValueType.Invalid,
                 hasReadResult ? new byte[] { 8 } : new byte[0],
-                ticket.DiagnosticsBootId);
+                ticket.DiagnosticsBootId).BindProvenance(
+                    ticket.Owner,
+                    ticket.ConnectionSessionGeneration);
         }
 
         private static LMCDiagnosticCapabilities ReadbackCapabilities(
+            LMCDiagnostics owner,
             long connectionSessionGeneration,
             uint diagnosticsBootId,
             uint mapRevision)
@@ -1495,7 +1567,10 @@ namespace LasalMotionControlLib.Tests
                 16,
                 0,
                 4,
-                diagnosticsBootId);
+                diagnosticsBootId).BindProvenance(
+                    owner,
+                    connectionSessionGeneration,
+                    1);
         }
 
         private static LMCDiagnosticsCommandException DiagnosticsError(

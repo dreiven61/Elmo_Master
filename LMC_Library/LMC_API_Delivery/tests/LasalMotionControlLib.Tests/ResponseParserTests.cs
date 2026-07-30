@@ -141,17 +141,28 @@ namespace LasalMotionControlLib.Tests
         {
             var payload = new byte[6];
             TestFrame.WriteUInt16(payload, 4, 0xBEEF);
+            var successfulRaw = TestFrame.Response(0, payload);
 
             LMC_Response response;
             ushort reference;
             var parsed = LMCConnection.TryParseLookupReference(
-                TestFrame.Response(0, payload),
+                successfulRaw,
                 out response,
                 out reference);
 
             AssertEx.True(parsed);
             AssertEx.True(response.IsSuccess);
             AssertEx.Equal((ushort)0xBEEF, reference);
+
+            var result = LMCConnection.ParseLookupResult(
+                LMCLookupTargetKind.Axis,
+                "_LMCAxis1",
+                successfulRaw);
+            AssertEx.Equal(LMCLookupTargetKind.Axis, result.TargetKind);
+            AssertEx.Equal("_LMCAxis1", result.ObjectName);
+            AssertEx.Equal((ushort)0xBEEF, result.Reference);
+            AssertEx.True(result.Response.IsFrameValid);
+            AssertEx.Equal((ushort)6, result.Response.PayloadLength);
 
             parsed = LMCConnection.TryParseLookupReference(
                 TestFrame.Response(2, payload),
@@ -186,6 +197,12 @@ namespace LasalMotionControlLib.Tests
                 "_LMCAxis1",
                 TestFrame.Response(1, errorPayload));
 
+            AssertEx.Equal(LMCLookupTargetKind.Axis, lookupError.TargetKind);
+            AssertEx.Equal("_LMCAxis1", lookupError.ObjectName);
+            AssertEx.False(lookupError.HasLookupPayload);
+            AssertEx.Equal((ushort)0, lookupError.LookupReference);
+            AssertEx.Equal((ushort)1, lookupError.Response.HeaderStatus);
+            AssertEx.Equal((short)-2, lookupError.Response.ErrorId);
             AssertEx.Contains("Axis lookup failed for '_LMCAxis1'", lookupError.Message);
             AssertEx.Contains("FrameValid=True", lookupError.Message);
             AssertEx.Contains("HeaderStatus=1", lookupError.Message);
@@ -197,12 +214,38 @@ namespace LasalMotionControlLib.Tests
                 "Raw=01 00 04 00 00 00 00 00 01 00 FE FF",
                 lookupError.Message);
 
+            var rawCopy = lookupError.RawResponse;
+            rawCopy[0] = 0xFF;
+            AssertEx.Equal((byte)0x01, lookupError.RawResponse[0]);
+            AssertEx.Equal((byte)0x01, lookupError.Response.Raw[0]);
+
+            var typedLookupError = AssertEx.Throws<LMCLookupException>(
+                () => LMCConnection.ParseLookupResult(
+                    LMCLookupTargetKind.Group,
+                    "_LMCRobotBase1",
+                    TestFrame.Response(1, errorPayload)));
+            AssertEx.Equal(
+                LMCLookupTargetKind.Group,
+                typedLookupError.TargetKind);
+            AssertEx.Equal(
+                "_LMCRobotBase1",
+                typedLookupError.ObjectName);
+
             var zeroReferenceError = LMCConnection.CreateLookupFailureException(
                 "Axis",
                 "_LMCAxis1",
                 TestFrame.Response(0, new byte[6]));
+            AssertEx.True(zeroReferenceError.HasLookupPayload);
+            AssertEx.Equal(
+                (ushort)0,
+                zeroReferenceError.LookupReference);
             AssertEx.Contains("Reference=0", zeroReferenceError.Message);
             AssertEx.Contains("zero descriptor", zeroReferenceError.Message);
+            AssertEx.Throws<LMCLookupException>(
+                () => LMCConnection.ParseLookupResult(
+                    LMCLookupTargetKind.Axis,
+                    "_LMCAxis1",
+                    TestFrame.Response(0, new byte[6])));
 
             var truncatedLookup = new byte[8];
             TestFrame.WriteUInt16(truncatedLookup, 2, 6);
@@ -214,6 +257,44 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Contains("PayloadLength=6", truncatedError.Message);
             AssertEx.Contains("ParsedPayloadLength=0", truncatedError.Message);
             AssertEx.Contains("RawLength=8", truncatedError.Message);
+            AssertEx.False(truncatedError.HasLookupPayload);
+            AssertEx.Throws<LMCLookupException>(
+                () => LMCConnection.ParseLookupResult(
+                    LMCLookupTargetKind.Axis,
+                    "_LMCAxis1",
+                    truncatedLookup));
+
+            var oversizedLookup = new byte[successfulRaw.Length + 1];
+            Buffer.BlockCopy(
+                successfulRaw,
+                0,
+                oversizedLookup,
+                0,
+                successfulRaw.Length);
+            oversizedLookup[oversizedLookup.Length - 1] = 0xAA;
+
+            parsed = LMCConnection.TryParseLookupReference(
+                oversizedLookup,
+                out response,
+                out reference);
+            AssertEx.False(parsed);
+            AssertEx.Equal((ushort)0, reference);
+
+            var oversizedError = LMCConnection.CreateLookupFailureException(
+                "Axis",
+                "_LMCAxis1",
+                oversizedLookup);
+            AssertEx.False(oversizedError.Response.IsFrameValid);
+            AssertEx.True(oversizedError.HasLookupPayload);
+            AssertEx.Equal((ushort)0xBEEF, oversizedError.LookupReference);
+            AssertEx.Contains("FrameValid=False", oversizedError.Message);
+            AssertEx.Contains("ParsedPayloadLength=6", oversizedError.Message);
+            AssertEx.Contains("RawLength=15", oversizedError.Message);
+            AssertEx.Throws<LMCLookupException>(
+                () => LMCConnection.ParseLookupResult(
+                    LMCLookupTargetKind.Axis,
+                    "_LMCAxis1",
+                    oversizedLookup));
 
             var malformedAckPayload = new byte[8];
             TestFrame.WriteUInt16(malformedAckPayload, 4, 1);
