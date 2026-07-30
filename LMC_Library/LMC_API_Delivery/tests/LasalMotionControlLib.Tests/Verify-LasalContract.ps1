@@ -4765,9 +4765,19 @@ if (-not $SourceOnly) {
             'TO_UDINT\(10\),\s*"(?:LMCAxis[1-9]|LMCRobot)"') {
             throw 'Phase5TransportClean generated table still contains a TCPMotionInterface direct axis/robot connection.'
         }
+        $controlServiceOwnerMatch = [regex]::Match(
+            $commNetworkTable,
+            '(?m)^\s*TO_UDINT\(\d+\),\s*"ControlCommands",\s*' +
+            'TO_UDINT\((?<Owner>\d+)\),\s*"ClassSvr",\s*$')
+        if (-not $controlServiceOwnerMatch.Success) {
+            throw 'Phase5TransportClean generated table does not identify the control-service connection owner.'
+        }
+        $controlServiceOwner = [regex]::Escape(
+            $controlServiceOwnerMatch.Groups['Owner'].Value)
         if ([regex]::Matches(
                 $phase5ExternalConnectionBlock,
-                'TO_UDINT\(2\),\s*"(?:LMCAxis[1-9]|LMCRobot)"').Count -ne 10) {
+                'TO_UDINT\(' + $controlServiceOwner +
+                '\),\s*"(?:LMCAxis[1-9]|LMCRobot)"').Count -ne 10) {
             throw 'Phase5TransportClean generated table does not retain exactly ten control-service axis/robot connections.'
         }
     }
