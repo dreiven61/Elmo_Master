@@ -2,8 +2,8 @@
 
 > **LEGACY SNAPSHOT / 배포 금지:** 이 파일은 2026-07-13의
 > `0.9.0-pc-api` 보관 기록이다. 현재 `0.9.1-preview` 배포는
-> `../../LMC_API_Distribution`을 사용하며, current package에는 이 형식의
-> manifest가 없다.
+> `../../LMC_API_Distribution`을 사용하며, build script가 별도 schema의
+> `RELEASE_MANIFEST.md`를 자동 생성·검증한다. 이 legacy 파일을 복사하지 않는다.
 
 - Build time: 2026-07-13 15:30 KST
 - Product version: `0.9.0-pc-api`

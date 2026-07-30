@@ -7,10 +7,11 @@
 - Product version: `0.9.1-preview`
 - 용도: 내부 감사와 release provenance
 
-이 문서는 외부 Distribution에 넣는 manifest가 아니다. 현재
-`Build-LmcApiDistribution.ps1` 정책은 distribution 내부의
-`RELEASE_MANIFEST`/`BUILD_METADATA`를 금지하고 hash를 console에 출력한다.
-외부 release 승인 시 이 기록을 current source commit과 함께 다시 생성한다.
+이 문서는 2026-07-16 내부 snapshot이며 Distribution manifest가 아니다.
+2026-07-29부터 `Build-LmcApiDistribution.ps1`는 package 내부
+`RELEASE_MANIFEST.md`를 원자 생성한 뒤 source commit, clean/dirty-preview,
+DLL version/3복제 identity와 모든 배포 파일의 상대경로·크기·SHA-256을 즉시
+재검증한다. 아래 당시 hash와 검증 결과는 소급 변경하지 않는다.
 
 > **2026-07-23 갱신:** 아래 `0/25` 표기는 이 빌드가 생성된 2026-07-16의
 > provenance snapshot이다. 이후 실제 PLC 검증 결과는

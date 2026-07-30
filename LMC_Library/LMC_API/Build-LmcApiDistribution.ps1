@@ -6,6 +6,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$releaseManifestImplementation = Join-Path $PSScriptRoot 'ReleaseManifest.ps1'
+if (-not (Test-Path -LiteralPath $releaseManifestImplementation -PathType Leaf)) {
+    throw "Release-manifest implementation not found: $releaseManifestImplementation"
+}
+. $releaseManifestImplementation
+
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
     $RepositoryRoot = [System.IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..'))
@@ -84,10 +90,12 @@ if ($directoryDifference) {
 
 $unexpectedTopFiles = @(
     Get-ChildItem -LiteralPath $distribution -File |
-        Where-Object { $_.Name -ne 'README.md' }
+        Where-Object {
+            $_.Name -notin @('README.md', 'RELEASE_MANIFEST.md')
+        }
 )
 if ($unexpectedTopFiles) {
-    throw 'Only README.md is allowed next to the three deliverable directories.'
+    throw 'Only README.md and RELEASE_MANIFEST.md are allowed next to the three deliverable directories.'
 }
 
 $expectedManualFiles = @(
@@ -105,13 +113,24 @@ if ($manualFileDifference) {
     throw 'The manual directory must contain only the canonical DOCX and PDF.'
 }
 
-$gitStatus = & git -C $RepositoryRoot status --porcelain
+$manifestRepositoryRelativePath = `
+    'LMC_Library/LMC_API_Distribution/RELEASE_MANIFEST.md'
+$gitStatus = & git -C $RepositoryRoot status `
+    --porcelain=v1 --untracked-files=all
 if ($LASTEXITCODE -ne 0) {
     throw 'Unable to read Git status.'
 }
-if ($gitStatus -and -not $AllowDirty) {
-    throw 'The worktree is dirty. Commit release inputs or use -AllowDirty for a preview build.'
+$releaseInputGitStatus = @(Get-LmcReleaseManifestInputGitStatus `
+    -GitStatus $gitStatus `
+    -ManifestRepositoryRelativePath $manifestRepositoryRelativePath)
+$worktreeState = Get-LmcReleaseManifestWorktreeState `
+    -GitStatus $releaseInputGitStatus `
+    -AllowDirty:$AllowDirty
+$sourceCommitOutput = @(& git -C $RepositoryRoot rev-parse --verify HEAD)
+if ($LASTEXITCODE -ne 0 -or $sourceCommitOutput.Count -ne 1) {
+    throw 'Unable to resolve the source commit for the release manifest.'
 }
+$sourceCommit = ([string]$sourceCommitOutput[0]).Trim()
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} `
     'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -229,7 +248,6 @@ $forbiddenPatterns = @(
     'Codex_',
     'Elmo_API_Packet2',
     'Lasal_PRG',
-    'RELEASE_MANIFEST',
     'BUILD_METADATA'
 )
 foreach ($textFile in Get-ChildItem -LiteralPath $distribution -Recurse -File |
@@ -302,8 +320,39 @@ $exampleRunHash = (
         (Join-Path $runDirectory 'LasalMotionControlApiExample.exe') `
         -Algorithm SHA256).Hash
 
+$assemblyName = [System.Reflection.AssemblyName]::GetAssemblyName($sourceDll)
+$versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($sourceDll)
+$assemblyVersion = $assemblyName.Version.ToString()
+$fileVersion = $versionInfo.FileVersion
+$productVersion = $versionInfo.ProductVersion
+if ([string]::IsNullOrWhiteSpace($assemblyVersion) -or
+    [string]::IsNullOrWhiteSpace($fileVersion) -or
+    [string]::IsNullOrWhiteSpace($productVersion)) {
+    throw 'Release DLL version metadata is incomplete.'
+}
+
+$releaseManifestParameters = @{
+    DistributionRoot = $distribution
+    CanonicalDllPath = $sourceDll
+    DllReplicaRelativePaths = @(
+        '01_API/LasalMotionControlLib.dll',
+        '02_Example_Program/Run/LasalMotionControlLib.dll'
+    )
+    SourceCommit = $sourceCommit
+    WorktreeState = $worktreeState
+    AssemblyVersion = $assemblyVersion
+    FileVersion = $fileVersion
+    ProductVersion = $productVersion
+}
+$releaseManifestPath = Write-LmcReleaseManifestAtomic `
+    @releaseManifestParameters
+$releaseManifestHash = (
+    Get-FileHash -LiteralPath $releaseManifestPath -Algorithm SHA256).Hash
+
 Write-Host "Distribution build completed: $distribution"
 Write-Host "Deliverables: 01_API, 02_Example_Program, 03_API_User_Manual"
+Write-Host "Release manifest verification: PASS ($worktreeState)"
+Write-Host "Release manifest SHA256: $releaseManifestHash"
 Write-Host "DLL SHA256: $distributionHash"
 Write-Host "Example EXE SHA256: $exampleRunHash"
 Write-Host "Manual pages: $manualPageCount"
