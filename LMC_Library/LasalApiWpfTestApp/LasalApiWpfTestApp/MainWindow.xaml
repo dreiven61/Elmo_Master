@@ -1635,7 +1635,12 @@
                                 </StackPanel>
 
                                 <WrapPanel Grid.Row="3" Grid.ColumnSpan="5">
-                                    <Button x:Name="ButtonSubmitSdo" Click="ButtonSubmitSdo_Click" Content="Submit SDO Read" />
+                                    <Button
+                                        x:Name="ButtonSubmitSdo"
+                                        Click="ButtonSubmitSdo_Click"
+                                        Content="Submit SDO Read"
+                                        ToolTip="Write mode changes this button to Arm SDO Write. If it remains disabled, PLC capability bit 9 or the exact SDK-approved target is unavailable."
+                                        ToolTipService.ShowOnDisabled="True" />
                                     <Button
                                         x:Name="ButtonReadSdoInline"
                                         Click="ButtonReadSdoInline_Click"

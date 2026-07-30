@@ -253,7 +253,8 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                     AssertEx.True(window.ButtonDiagnosticsCapabilities.IsEnabled);
                     AssertEx.True(window.ButtonCloseConnection.IsEnabled);
-                    AssertEx.False(window.ButtonLookupAxis.IsEnabled);
+                    AssertEx.True(window.ButtonLookupAxis.IsEnabled);
+                    AssertEx.True(window.ButtonLookupGroup.IsEnabled);
                     AssertEx.False(window.ButtonStop.IsEnabled);
                     AssertEx.False(window.ButtonPowerOff.IsEnabled);
                     Click(window.ButtonDiagnosticsCapabilities);

@@ -2461,6 +2461,10 @@ namespace LasalApiWpfTestApp.SmokeTests
                 capabilities,
                 observedBootId,
                 observedMapRevision));
+            steps.Add(D5AxisLookupStep(1));
+            steps.Add(D5AxisInfoStep(1));
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(ReadOnlyInspectionGroupMembersStep());
             steps.Add(CloseStep());
 
             var root = CreateAxisPowerOnTemporaryDirectory();
@@ -2525,7 +2529,10 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                     AssertEx.True(window.ButtonDiagnosticsCapabilities.IsEnabled);
                     AssertEx.True(window.ButtonCloseConnection.IsEnabled);
-                    AssertEx.False(window.ButtonLookupAxis.IsEnabled);
+                    AssertEx.True(window.TextAxisName.IsEnabled);
+                    AssertEx.True(window.ButtonLookupAxis.IsEnabled);
+                    AssertEx.True(window.TextGroupName.IsEnabled);
+                    AssertEx.True(window.ButtonLookupGroup.IsEnabled);
                     AssertEx.False(window.ButtonPowerOn.IsEnabled);
                     AssertEx.False(window.ButtonPowerOff.IsEnabled);
                     AssertEx.False(
@@ -2539,6 +2546,54 @@ namespace LasalApiWpfTestApp.SmokeTests
                             "Refresh Diagnostics Capabilities completed",
                             StringComparison.Ordinal),
                         "Read-only 0x7E00 inspection was not available in quarantine.");
+
+                    Click(window.ButtonLookupAxis);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Load Axis completed",
+                            StringComparison.Ordinal),
+                        "Axis information was not available in read-only quarantine.");
+                    AssertEx.Contains(
+                        "READ-ONLY INSPECTION",
+                        window.TextAxisResult.Text);
+                    AssertEx.Contains(
+                        "Reference=1",
+                        window.TextAxisResult.Text);
+                    AssertEx.True(GetPrivateField(window, "axis") == null);
+                    AssertEx.False(window.ButtonReadStatus.IsEnabled);
+                    AssertEx.False(window.ButtonPowerOff.IsEnabled);
+
+                    Click(window.ButtonLookupGroup);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Load Group completed",
+                            StringComparison.Ordinal),
+                        "Group information was not available in read-only quarantine.");
+                    AssertEx.Contains(
+                        "READ-ONLY INSPECTION",
+                        window.TextGroupResult.Text);
+                    AssertEx.Contains("AxisCount=1", window.TextGroupResult.Text);
+                    AssertEx.Contains(
+                        "Name=_LMCAXIS1, Ref=1, DeviceId=101",
+                        window.TextGroupResult.Text);
+                    AssertEx.True(GetPrivateField(window, "group") == null);
+                    AssertEx.False(window.ButtonGetMembers.IsEnabled);
+                    AssertEx.False(window.ButtonGroupPowerOff.IsEnabled);
+
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x103C));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x202B));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x1042));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x20D2));
 
                     AssertNoMotionMutationRequests(
                         server.ReceivedRequests,
@@ -2614,6 +2669,19 @@ namespace LasalApiWpfTestApp.SmokeTests
                 CloseWindowBestEffort(window);
                 DeleteAxisPowerOnTemporaryDirectory(root);
             }
+        }
+
+        private static FakeRpcStep ReadOnlyInspectionGroupMembersStep()
+        {
+            var payload = new byte[1350];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteUInt16(payload, 32, 101);
+            var nameBytes = System.Text.Encoding.ASCII.GetBytes("_LMCAXIS1");
+            Buffer.BlockCopy(nameBytes, 0, payload, 68, nameBytes.Length);
+            payload[1348] = 1;
+            return new FakeRpcStep(
+                0x20D2,
+                TestFrame.Response(0, payload));
         }
 
         private static void CreateAxisPowerOnJournalRecord(

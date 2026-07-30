@@ -560,7 +560,8 @@ namespace LasalMotionControlApiExample
 
         private async void ButtonLookupAxis_Click(object sender, RoutedEventArgs e)
         {
-            if (HasPendingAxisHandleBoundContinuation())
+            if (!IsRecoveryIdentityReadOnlyConnection(connection)
+                && HasPendingAxisHandleBoundContinuation())
             {
                 WriteLog(
                     "Load Axis is blocked while an accepted Axis Reset, Stop, "
@@ -574,6 +575,43 @@ namespace LasalMotionControlApiExample
                 "Load Axis",
                 async () =>
                 {
+                    var currentConnection = RequireConnection();
+                    var objectName = RequiredText(
+                        TextAxisName.Text,
+                        "Axis object name");
+                    var inspectionOnly =
+                        IsRecoveryIdentityReadOnlyConnection(currentConnection);
+                    if (inspectionOnly)
+                    {
+                        var inspectedAxis = await LMCSingleAxis.CreateAsync(
+                            currentConnection,
+                            objectName,
+                            CancellationToken.None);
+                        TextAxisReference.Text = inspectedAxis.AxisReference.ToString(
+                            CultureInfo.InvariantCulture);
+                        TextAxisResult.Text =
+                            "READ-ONLY INSPECTION"
+                            + Environment.NewLine
+                            + "Loaded "
+                            + inspectedAxis.AxisName
+                            + Environment.NewLine
+                            + "Reference="
+                            + inspectedAxis.AxisReference
+                            + Environment.NewLine
+                            + FormatResponse(inspectedAxis.AxisInfoResponse)
+                            + Environment.NewLine
+                            + "The recovery identity mismatch remains unresolved; "
+                            + "no application control handle was retained and no "
+                            + "durable recovery record was changed.";
+                        WriteLog(
+                            "READ-ONLY INSPECTION: Axis information loaded without "
+                            + "retaining an application control handle. Name="
+                            + inspectedAxis.AxisName
+                            + ", Ref="
+                            + inspectedAxis.AxisReference);
+                        return;
+                    }
+
                     if (GetActiveAxisPowerRecoveryRecord() != null
                         && axis != null)
                     {
@@ -584,10 +622,6 @@ namespace LasalMotionControlApiExample
                             + "was sent.");
                     }
 
-                    var currentConnection = RequireConnection();
-                    var objectName = RequiredText(
-                        TextAxisName.Text,
-                        "Axis object name");
                     EnsureAxisPowerOnRecoveryLookupAllowed(objectName);
                     EnsureAxisCommandRecoveryLookupAllowed(objectName);
                     EnsureMotionRecoveryLookupAllowed(
@@ -633,6 +667,48 @@ namespace LasalMotionControlApiExample
                     var objectName = RequiredText(
                         TextGroupName.Text,
                         "Group object name");
+                    var currentConnection = RequireConnection();
+                    var inspectionOnly =
+                        IsRecoveryIdentityReadOnlyConnection(currentConnection);
+                    if (inspectionOnly)
+                    {
+                        var inspectedGroup = await LMCGroupAxis.CreateAsync(
+                            currentConnection,
+                            objectName,
+                            CancellationToken.None);
+                        var members = await inspectedGroup
+                            .GetGroupMembersInfoResultAsync(CancellationToken.None);
+                        EnsureGroupMembersSuccess(
+                            "Inspect Group Members",
+                            members);
+
+                        TextGroupReference.Text = inspectedGroup.GroupReference.ToString(
+                            CultureInfo.InvariantCulture);
+                        TextGroupResult.Text =
+                            "READ-ONLY INSPECTION"
+                            + Environment.NewLine
+                            + "Loaded "
+                            + inspectedGroup.GroupName
+                            + Environment.NewLine
+                            + "Reference="
+                            + inspectedGroup.GroupReference
+                            + Environment.NewLine
+                            + FormatGroupMembers(members)
+                            + Environment.NewLine
+                            + "The recovery identity mismatch remains unresolved; "
+                            + "no application control handle was retained and no "
+                            + "durable recovery record was changed.";
+                        WriteLog(
+                            "READ-ONLY INSPECTION: Group information and members loaded "
+                            + "without retaining an application control handle. Name="
+                            + inspectedGroup.GroupName
+                            + ", Ref="
+                            + inspectedGroup.GroupReference
+                            + ", AxisCount="
+                            + members.AxisCount);
+                        return;
+                    }
+
                     EnsureGroupPowerRecoveryLookupAllowed(objectName);
                     EnsureMotionRecoveryLookupAllowed(
                         MotionUncertaintyTargetKind.Group,
@@ -691,7 +767,6 @@ namespace LasalMotionControlApiExample
                         }
                     }
 
-                    var currentConnection = RequireConnection();
                     var loadedGroup = await LMCGroupAxis.CreateAsync(
                         currentConnection,
                         objectName,
@@ -2249,23 +2324,27 @@ namespace LasalMotionControlApiExample
                     var result = await RequireGroup()
                         .GetGroupMembersInfoResultAsync(CancellationToken.None);
                     EnsureGroupMembersSuccess("Get Group Members", result);
-
-                    var memberLines = result.Members.Select(
-                        member =>
-                            "["
-                            + member.Index
-                            + "] Name="
-                            + member.AxisName
-                            + ", Ref="
-                            + member.AxisReference
-                            + ", DeviceId="
-                            + member.DeviceId);
-                    TextGroupResult.Text =
-                        "AxisCount="
-                        + result.AxisCount
-                        + Environment.NewLine
-                        + string.Join(Environment.NewLine, memberLines);
+                    TextGroupResult.Text = FormatGroupMembers(result);
                 });
+        }
+
+        private static string FormatGroupMembers(
+            LMCGroupMembersInfoResult result)
+        {
+            var memberLines = result.Members.Select(
+                member =>
+                    "["
+                    + member.Index
+                    + "] Name="
+                    + member.AxisName
+                    + ", Ref="
+                    + member.AxisReference
+                    + ", DeviceId="
+                    + member.DeviceId);
+            return "AxisCount="
+                + result.AxisCount
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, memberLines);
         }
 
         private async void ButtonGroupReadStatus_Click(
@@ -7414,20 +7493,21 @@ namespace LasalMotionControlApiExample
             TextCallbackPort.IsEnabled = idle && currentConnection == null;
 
             TextAxisName.IsEnabled = idle
-                && !motionMayBeActive
-                && axisPowerRecoveryRecord == null
-                && axisCommandRecoveryRecord == null
-                && !HasPendingAxisHandleBoundContinuation();
+                && (recoveryIdentityReadOnly
+                    || (!motionMayBeActive
+                        && axisPowerRecoveryRecord == null
+                        && axisCommandRecoveryRecord == null
+                        && !HasPendingAxisHandleBoundContinuation()));
             ButtonLookupAxis.IsEnabled = connected
                 && idle
-                && !recoveryIdentityReadOnly
-                && (!motionMayBeActive
-                    || (IsMotionRecoveryTargetKind(
-                            MotionUncertaintyTargetKind.Axis)
-                        && axis == null))
-                && (axisPowerRecoveryRecord == null || axis == null)
-                && (axisCommandRecoveryRecord == null || axis == null)
-                && !HasPendingAxisHandleBoundContinuation();
+                && (recoveryIdentityReadOnly
+                    || ((!motionMayBeActive
+                            || (IsMotionRecoveryTargetKind(
+                                    MotionUncertaintyTargetKind.Axis)
+                                && axis == null))
+                        && (axisPowerRecoveryRecord == null || axis == null)
+                        && (axisCommandRecoveryRecord == null || axis == null)
+                        && !HasPendingAxisHandleBoundContinuation()));
             ButtonReadStatus.IsEnabled = axisReady && idle;
             ButtonReadPosition.IsEnabled = axisReady && idle;
             var axisPowerOnResumeAvailable = axisReady
@@ -7582,23 +7662,24 @@ namespace LasalMotionControlApiExample
             ComboDirection.IsEnabled = idle && !motionMayBeActive;
 
             TextGroupName.IsEnabled = idle
-                && !motionMayBeActive
-                && !groupPowerTransitionPending
-                && !HasUnresolvedGroupProfileLockState()
-                && !HasActiveGroupPowerRecoveryRecord;
+                && (recoveryIdentityReadOnly
+                    || (!motionMayBeActive
+                        && !groupPowerTransitionPending
+                        && !HasUnresolvedGroupProfileLockState()
+                        && !HasActiveGroupPowerRecoveryRecord));
             ButtonLookupGroup.IsEnabled = connected
                 && idle
-                && !recoveryIdentityReadOnly
-                && (!motionMayBeActive
-                    || (IsMotionRecoveryTargetKind(
-                            MotionUncertaintyTargetKind.Group)
-                        && group == null))
-                && (!groupPowerTransitionPending || group == null)
-                && (!HasPendingGroupProfileLockContinuation()
-                    || HasAcceptedGroupProfileLockRecoveryRecord
-                    || HasAcceptedGroupProfileUnlockRecoveryRecord)
-                && (!groupProfileLockRecoveryRequired || group == null)
-                && (!HasActiveGroupPowerRecoveryRecord || group == null);
+                && (recoveryIdentityReadOnly
+                    || ((!motionMayBeActive
+                            || (IsMotionRecoveryTargetKind(
+                                    MotionUncertaintyTargetKind.Group)
+                                && group == null))
+                        && (!groupPowerTransitionPending || group == null)
+                        && (!HasPendingGroupProfileLockContinuation()
+                            || HasAcceptedGroupProfileLockRecoveryRecord
+                            || HasAcceptedGroupProfileUnlockRecoveryRecord)
+                        && (!groupProfileLockRecoveryRequired || group == null)
+                        && (!HasActiveGroupPowerRecoveryRecord || group == null)));
             ButtonGetMembers.IsEnabled = groupReady
                 && idle
                 && !motionMayBeActive
