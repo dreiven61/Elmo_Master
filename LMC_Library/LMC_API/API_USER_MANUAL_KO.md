@@ -1,9 +1,9 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 1.6
+문서 버전: 1.9
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-발행일: 2026-07-23
+발행일: 2026-07-30
 
 \pagebreak
 
@@ -18,13 +18,18 @@
 | 1.4 | 2026-07-16 | group position read 계약 불일치와 static identity 제한 명시 |
 | 1.5 | 2026-07-22 | read-only Admin, typed drive status, PI/Bulk facade와 local error catalog 추가 |
 | 1.6 | 2026-07-23 | `0x7D22` GroupMoveLinearRelative API, wire/state 제한과 runtime 검증 경계 추가 |
+| 1.7 | 2026-07-29 | Axis Power/Reset/Stop과 Group Stop accepted-once stable wait, deadline evidence 추가 |
+| 1.8 | 2026-07-29 | Axis Stop/Reset process-local mutation 귀속, Reset Begin/Resume와 WPF no-replay 정책 추가 |
+| 1.9 | 2026-07-30 | 신규 wait/resume, drive error read와 D0~D5/Recorder/Topology API를 반영하고 current 지원 상태와 완료 판정 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
 reference는 아니다.
 
 > **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. PC 시험과
-> LASAL 정적 계약은 통과했지만 기존 motion PLC command E2E/재캡처는 `0/25`다.
+> LASAL source 구현 범위가 넓어졌지만 2026-07-30 snapshot은 동일 source hash의 전체
+> release baseline, full/network 정적 계약, current IDE build/download와 전체 PLC matrix가
+> 아직 닫히지 않았다.
 > `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
 > `Dispose`, timeout과 cancellation은 Stop을 보내지 않는다. 실제 장비에서는 E-stop,
@@ -32,9 +37,8 @@ reference는 아니다.
 > Admin `0x7D00/10/20/22`는 source와 정적 시험까지 완료했지만 LASAL IDE build,
 > PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 
-> **출판 상태:** 이 Markdown 원본은 문서 버전 `1.6`지만 현재 Distribution의
-> DOCX/PDF는 아직 문서 버전 `1.0`이다. 아래 안전·group-read 보완은 외부 manual
-> 재생성 전까지 package README와 함께 전달해야 한다.
+> **출판 상태:** 이 Markdown, Distribution DOCX와 PDF는 문서 버전 `1.9`를 같은
+> 내용 원본으로 사용한다. 표지의 문서 버전과 발행일이 다르면 오래된 artifact다.
 
 \toc
 
@@ -106,6 +110,61 @@ Jerk 송신 DINT = (물리 jerk / 1000) x PLC application UNIT
 | `LMC_BUFFER_MODE` | `Aborting`, `Buffered` | 현재 배포 PLC에서 사용하는 buffer mode |
 | `LMC_GROUP_TRANSITION_MODE` | `ExactStop`, `ContinuousDirect` | 현재 배포 PLC에서 사용하는 transition mode |
 
+## 1.5 현재 지원 상태와 완료 판정
+
+아래의 `source-active`는 C# API와 LASAL route가 current source에 있다는 뜻이다.
+production 승인이나 전체 실제 장비 검증을 뜻하지 않는다.
+
+| 영역 | Current 상태 | 사용 범위와 남은 확인 |
+|---|---|---|
+| Connection / Axis / Group core | `source-active`, PLC 검증 부분 | 대표 lookup, power, move, stop/read 경로가 있으나 전체 command/fault/race matrix는 미완료 |
+| Axis/Group accepted-once wait/resume | PC public API, 기존 opcode 재사용 | ACK 뒤 status-only polling과 no-replay recovery를 제공하며 current same-hash/실장비 전체 회귀가 필요 |
+| Admin `0x7D00/10/20/22` | `source-active`, static 검증 | semantic read와 Group relative move의 current IDE/download/실물 UNIT 검증 필요 |
+| D1/D2/Recorder/D5 Read | C# facade와 PLC route가 단계별 구현 | capability를 먼저 읽고 fault, reconnect, soak와 physical readback evidence를 추가해야 함 |
+| Static EtherCAT topology `0x7E11/12` | configured 7-entry inventory | topology qualifier durable report와 current PLC identity 확인 필요 |
+| Node Health / Digital I/O `0x7E13/22/23` | PLC route 미완료, capability OFF | public scaffold가 있어도 current PLC 대상으로 호출하지 않음 |
+| PI Write / SDO Write / Recorder Double | gate 또는 allowlist OFF | 별도 승인과 실제 장비 mutation evidence 전까지 사용하지 않음 |
+
+완료 판정은 `ACK -> typed status polling -> stable sample -> final readback` 순서로 한다.
+timeout/cancellation/connection close는 장비 정지나 command 취소를 자동 보장하지 않는다.
+
+## 1.6 accepted-once wait/resume 공통 모델
+
+Power, Stop, Reset과 일부 Group command는 ACK와 완료 상태를 분리하고, 한 번 수락된
+command를 다시 보내지 않은 채 status-only polling을 재개하는 API를 제공한다.
+
+| 구성 | 기본값 / 의미 |
+|---|---|
+| `...WaitOptions.TotalTimeoutMilliseconds` | 5000 ms, 허용 1~600000 ms |
+| `...WaitOptions.PollIntervalMilliseconds` | 50 ms |
+| `...WaitOptions.StableSampleCount` | 3회, 허용 1~100회 |
+| `...SubmissionOutcome` | `NotAttempted`, `Rejected`, `OutcomeUncertain`, `Accepted` |
+| `...WaitContinuation` | 같은 connection/session/object에 묶인 pending ACK와 polling evidence |
+| `...WaitResult` | final status, continuation과 submission/polling evidence |
+| `Pending...WaitContinuation` | 현재 handle에서 아직 완료되지 않은 latest accepted continuation; 없으면 `null` |
+
+```csharp
+LMCAxisStopWaitContinuation pending =
+    await axis.BeginStopWaitForStableStandstillAsync(
+        deceleration,
+        jerk,
+        cancellationToken);
+
+LMCAxisStopWaitResult stopped =
+    await axis.ResumeStopWaitForStableStandstillAsync(
+        pending,
+        cancellationToken);
+```
+
+Continuation은 server-side idempotency key나 영구 token이 아니라 현재 process의
+connection/session-bound 객체다. exact pending continuation으로 `Resume...`을 호출해야 하며,
+새 `Begin...` 호출을 blind retry로 사용하지 않는다. pre-write cancellation은 보통 zero-wire지만,
+`CommandMayHaveBeenSent=true` 또는 `OutcomeUncertain`이면 자동 replay하지 않는다.
+`TransportInvalidatedAtDeadline=true`이면 reconnect와 object lookup을 다시 수행한다.
+pending property는 durable storage가 아니므로 process restart 뒤 복원되지 않는다. restart 뒤에는
+motion command를 재전송하지 말고 read-only `WaitFor...` helper 또는 explicit Stop/Power Off를
+사용해 현재 상태를 다시 확정한다.
+
 # 2. Connection API
 
 ## 2.1 LMCConnection
@@ -136,6 +195,7 @@ Connection timeout과 callback 검증 값을 설정한다.
 | `SendTimeoutMilliseconds` | `int` | ms | 3000 |
 | `CallbackThreadJoinTimeoutMilliseconds` | `int` | ms | 500 |
 | `ValidateCallbackSourceAddress` | `bool` | - | `true` |
+| `SendPriorityCoordinator` | `LMCSendPriorityCoordinator` | - | 선택적 PC-side safety send coordination |
 
 ## 2.3 RpcInitConnection
 
@@ -202,6 +262,32 @@ public void Dispose()
 | `void` | 동기 종료 완료 |
 | `Task` | 비동기 종료 작업 |
 
+`CloseConnection`, `CloseConnectionAsync`와 `Dispose`는 Axis/Group Stop 또는 Power Off를
+보내지 않는다. 정상 RPC close `0x405D`와 local socket/resource 정리만 수행한다.
+
+## 2.5 Safety transport preemption
+
+일반 command가 transport를 점유하거나 결과 publication 대기 중일 때, 상위 safety owner가
+local TCP transport를 폐기하고 새 session에서 safety command를 다시 소유하기 위한 PC-side API다.
+
+```csharp
+public LMCSafetyPreemptionAbortEvidence
+    AbortTransportForSafetyPreemption()
+
+public LMCSafetyPreemptionAbortEvidence
+    AbortTransportForSafetyPreemption(
+        long expectedSessionGeneration)
+```
+
+이 호출은 RPC Close, Axis Stop, Group Stop 또는 Power Off frame을 보내지 않는다. local TCP
+client를 detach하고 evidence를 반환한다. 이후 reconnect, axis/group 재조회와 승인된 safety
+command 1회 전송이 필요하다. `expectedSessionGeneration` overload는 다른 session을 잘못
+폐기하지 않기 위한 guard다.
+
+`LMCSendPriorityCoordinator`는 ordinary/preemptible send와 priority send의 순서를 PC process
+안에서 조정한다. 이미 wire에 들어간 RPC를 물리적으로 취소하지 않으며 PLC E-stop/STO를
+대체하지 않는다.
+
 # 3. Single Axis API
 
 ## 3.1 LMCSingleAxis 생성
@@ -240,6 +326,23 @@ Axis Power On을 요청한다.
 public LMC_Response PowerOn()
 public Task<LMC_Response> PowerOnAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerStateWaitResult>
+    PowerOnAndWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerStateWaitResult>
+    ResumePowerOnWaitForStableStateAsync(
+        LMCAxisPowerOnWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerStateWaitResult> WaitForPowerStateAsync(
+    bool expectedPowerOn,
+    CancellationToken cancellationToken)
+
+public LMCAxisPowerOnWaitContinuation PendingPowerOnWaitContinuation { get; }
+public void ResolvePowerOnWaitAfterStablePowerOff(
+    LMCAxisPowerOnWaitContinuation continuation)
 ```
 
 | Parameter | Type | UNIT | 설명 |
@@ -250,6 +353,18 @@ public Task<LMC_Response> PowerOnAsync(
 |---|---|
 | `LMC_Response` | Power On command 결과 |
 | `Task<LMC_Response>` | 비동기 Power On command 결과 |
+| `Task<LMCAxisPowerStateWaitResult>` | Power On ACK와 안정 상태 확인 evidence |
+
+`PowerOnAndWaitForStableStateAsync`는 `0x2023`을 한 번만 보내고 성공 ACK 뒤
+`0x2028`의 `PowerOn=true`를 기본 3회 연속 확인한다. timeout/cancel 뒤에는 예외나 accepted
+observer가 보존한 `LMCAxisPowerOnWaitContinuation`을
+`ResumePowerOnWaitForStableStateAsync`에 전달한다. Resume과 restart용
+`WaitForPowerStateAsync`는 `0x2028`만 보내며 Power On을 다시 보내지 않는다. options overload로
+total deadline, poll interval과 stable sample count를 설정할 수 있다. post-write deadline은
+connection을 `Faulted`로 만들 수 있으므로 `Evidence.SubmissionOutcome`,
+`CommandMayHaveBeenSent`, `PowerOnAccepted`, `TransportInvalidatedAtDeadline`을 함께 확인한다.
+Power On 완료 조건은 read 성공과 `PowerOn=true`이며 axis error가 0일 필요는 없다. 따라서
+성공 결과에서도 `FinalStatus.HasAxisError`, DS402 상태와 drive error를 별도로 확인한다.
 
 ## 3.3 PowerOff
 
@@ -259,12 +374,38 @@ Axis Power Off를 요청한다.
 public LMC_Response PowerOff()
 public Task<LMC_Response> PowerOffAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerOffWaitContinuation>
+    BeginPowerOffWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerOffWaitResult>
+    ResumePowerOffWaitForStableStateAsync(
+        LMCAxisPowerOffWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisPowerOffWaitResult>
+    PowerOffAndWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public LMCAxisPowerOffWaitContinuation PendingPowerOffWaitContinuation { get; }
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Power Off command 결과 |
 | `Task<LMC_Response>` | 비동기 Power Off command 결과 |
+| `Task<LMCAxisPowerOffWaitContinuation>` | 한 번 accept된 Power Off의 status-only 재개 정보 |
+| `Task<LMCAxisPowerOffWaitResult>` | `PowerOn=false && Standstill=true` 안정 evidence |
+
+Begin은 Power Off `0x2023`을 한 번 보내고 ACK, process-local mutation generation과 accepted
+continuation을 session/send-priority publication 안에서 함께 저장한다. Resume은 `0x2028`만
+polling하고 pre-wire/status publication/final resolution에서 원 generation을 확인한다. later
+same-axis mutation은 `LMCAxisPowerOffInterferenceException`과 expected/observed/intervening
+evidence를 반환하고 pending을 유지하며 PowerOff를 replay하지 않는다. final proof 전에 관찰된
+cancel/deadline/generation change는 pending을 보존하고 proof commit 뒤 late cancel/deadline은
+성공을 뒤집지 않는다. compound API는 두 단계를 같은 total deadline으로 조합한다. 외부
+PLC/client/direct SDO/group은 이 귀속 범위 밖이며 성공 ACK만으로 전원 차단 완료를 판정하지 않는다.
 
 ## 3.4 Reset
 
@@ -274,12 +415,48 @@ Axis error reset을 요청한다.
 public LMC_Response Reset()
 public Task<LMC_Response> ResetAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCAxisResetWaitResult>
+    ResetAndWaitForStableErrorClearanceAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisResetWaitContinuation>
+    BeginResetWaitForStableErrorClearanceAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisResetWaitResult>
+    ResumeResetWaitForStableErrorClearanceAsync(
+        LMCAxisResetWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisStableErrorClearanceWaitResult>
+    WaitForStableErrorClearanceAsync(
+        CancellationToken cancellationToken)
+
+public LMCAxisResetWaitContinuation PendingResetWaitContinuation { get; }
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Reset command 결과 |
 | `Task<LMC_Response>` | 비동기 Reset command 결과 |
+| `Task<LMCAxisResetWaitContinuation>` | 한 번 accept된 Reset의 status-only 재개 정보 |
+| `Task<LMCAxisResetWaitResult>` | Reset ACK와 native axis error 0 안정 evidence |
+
+Begin은 `0x2024`를 한 번만 보내고 accepted continuation을 반환하며 status를 읽지 않는다.
+Resume은 `0x2028`만 보내 `AxisErrorId == 0`을 기본 3회 연속 확인한다. compound API는 두 단계를
+한 total elapsed deadline으로 조합한다. timeout/cancel/status 실패 뒤에도 continuation을
+status-only로 재개하고 Reset을 replay하지 않는다. invalid/stale/superseded/completed continuation과
+concurrent second Resume은 zero-wire다.
+`WaitForStableErrorClearanceAsync`는 Reset을 보내지 않는 read-only helper라서 restart 뒤 상태
+재확인에 사용할 수 있다.
+
+같은 connection session과 `AxisReference`의 later `LMCSingleAxis` mutation이
+may-have-been-sent boundary에 도달하면 `LMCAxisResetInterferenceException`으로 원 Reset 귀속을
+거부한다. continuation은 pending으로 남지만 의도적인 post-Reset Power On을 포함해 간섭이 확인된
+뒤에는 명시적인 새 Reset이 필요하다. 외부 PLC, 다른 RPC client, direct SDO와 group operation은
+이 process-local 귀속 범위 밖이다. 현재 reserved `StatusWord`를 DS402 Fault 해제 증거로 해석하지
+말고, 실제 장비에서는 DS402 Fault, `AxError`와 drive error register를 별도로 확인한다.
 
 ## 3.5 Stop
 
@@ -294,18 +471,77 @@ public Task<LMC_Response> StopAsync(
     int deceleration,
     int jerk,
     CancellationToken cancellationToken)
+
+public Task<LMCAxisStopWaitContinuation>
+    BeginStopWaitForStableStandstillAsync(
+        int deceleration,
+        int jerk,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisStopWaitResult>
+    ResumeStopWaitForStableStandstillAsync(
+        LMCAxisStopWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisStopWaitResult>
+    StopAndWaitForStableStandstillAsync(
+        int deceleration,
+        int jerk,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisStableStandstillWaitResult>
+    WaitForStableStandstillAsync(
+        CancellationToken cancellationToken)
+
+public LMCAxisStopWaitContinuation PendingStopWaitContinuation { get; }
+
+public Task<LMCAxisStopWaitContinuation>
+    BeginStopWaitForStableStandstillWithResetTakeoverAsync(
+        LMCAxisResetWaitContinuation resetContinuation,
+        int deceleration,
+        int jerk,
+        LMCAxisStopWaitOptions options,
+        CancellationToken cancellationToken)
+
+public Task<LMCAxisStopWaitResult>
+    StopAndWaitForStableStandstillWithResetTakeoverAsync(
+        LMCAxisResetWaitContinuation resetContinuation,
+        int deceleration,
+        int jerk,
+        LMCAxisStopWaitOptions options,
+        Action<LMCAxisStopWaitContinuation> acceptedContinuationObserver,
+        CancellationToken cancellationToken)
 ```
 
 | Parameter | Type | UNIT | 설명 |
 |---|---|---|---|
-| `deceleration` | `int` | PLC application UNIT/s² DINT | 정지 감속도 |
-| `jerk` | `int` | PLC application UNIT/s³/1000 DINT | 정지 jerk |
+| `deceleration` | `int` | PLC application UNIT/s² DINT | 양수인 정지 감속도. 0/음수는 송신 전에 거부 |
+| `jerk` | `int` | PLC application UNIT/s³/1000 DINT | 0 이상인 정지 jerk. 음수는 송신 전에 거부 |
 | `cancellationToken` | `CancellationToken` | - | 비동기 호출 취소 token |
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Stop command 결과 |
 | `Task<LMC_Response>` | 비동기 Stop command 결과 |
+| `Task<LMCAxisStopWaitContinuation>` | 한 번 accept된 Stop의 status-only 재개 정보 |
+| `Task<LMCAxisStopWaitResult>` | 안정 Standstill 확인 evidence |
+
+성공 응답은 LASAL `_LMCAxis.StopMove`가 오류 flag 없이 접수됐다는 뜻이다. 실제 정지 완료는
+`ReadStatusResult[Async]`의 `IsStandstill`을 후속 확인해야 한다. 이 로컬 DINT 계약을
+PMAS/MMCLib `MMC_Stop`의 function-block 완료 의미와 동일하게 해석하지 않는다.
+Begin은 `0x2022`를 정확히 한 번 보내고 continuation을 반환한다. Resume은 `0x2028`만
+polling하며 기본 3회 연속 `IsSuccess && IsStandstill`을 확인한다. compound API는 두 단계를
+같은 total deadline으로 조합한다. timeout/cancel/status 실패 뒤 accepted continuation을
+재개할 때 Stop을 다시 보내지 않는다. 같은 session/AxisReference의 later `LMCSingleAxis`
+mutation이 확인되면 `LMCAxisStopInterferenceException`을 반환하고 pending continuation을
+보존한다. zero-wire mutation과 다른 AxisReference는 간섭하지 않으며 외부 PLC/client/SDO/group
+operation은 process-local 귀속 범위 밖이다.
+`WaitForStableStandstillAsync`는 Stop을 보내지 않고 `0x2028`만 읽는다. 이미 안정 Power Off가
+증명된 뒤에는 `TryRetirePendingStopAfterStablePowerOff`로 정확한 pending Stop을 wire traffic 없이
+superseded 처리할 수 있다.
+`...WithResetTakeoverAsync` overload는 정확한 same-session pending Reset의 소유권을 새 Stop에
+원자적으로 넘기는 고급 recovery API다. 임의의 stale/foreign Reset continuation에는 사용할 수
+없으며 Stop ACK가 불명확하면 Reset이나 Stop을 blind retry하지 않는다.
 
 ## 3.6 ReadStatus
 
@@ -469,6 +705,14 @@ public Task<LMCDriveOperationModeResult> GetDriveOperationModeAsync(
     uint timeoutCycles,
     CancellationToken cancellationToken)
 
+public LMCDriveErrorCodeResult GetDriveErrorCode()
+public LMCDriveErrorCodeResult GetDriveErrorCode(uint timeoutCycles)
+public Task<LMCDriveErrorCodeResult> GetDriveErrorCodeAsync(
+    CancellationToken cancellationToken)
+public Task<LMCDriveErrorCodeResult> GetDriveErrorCodeAsync(
+    uint timeoutCycles,
+    CancellationToken cancellationToken)
+
 public LMCDriveStatus ReadDriveStatus()
 public LMCDriveStatus ReadDriveStatus(uint timeoutCycles)
 public Task<LMCDriveStatus> ReadDriveStatusAsync(
@@ -480,6 +724,9 @@ public Task<LMCDriveStatus> ReadDriveStatusAsync(
 
 `GetDriveOperationMode`는 `0x6061:0 Int8/1`을 읽어 typed `Mode`와 signed `RawValue`를
 반환한다. unknown/manufacturer-specific 값은 `IsKnownMode=false`여도 `RawValue`에 보존된다.
+`GetDriveErrorCode`는 `0x603F:0 UInt16/2`를 읽고 raw drive error code와 D5 ticket evidence를
+반환한다. 값 0은 해당 read 시점의 drive error register가 0이라는 뜻이며 이전 fault 이력이나
+DS402 Warning 부재를 증명하지 않는다.
 
 `ReadDriveStatus`는 LASAL `ReadStatus`, DS402 `0x6041:0 BitField16/2`,
 `0x6061:0 Int8/1`을 순차 실행한다. 같은 EtherCAT cycle의 atomic snapshot이 아니므로
@@ -494,6 +741,22 @@ ticket/status를 보존한다. 제출 뒤 async cancellation은 ticket을 포함
 `LMCSdoReadWaitCanceledException`을 발생시키고 PC wait만 중단하며, 이미 제출한 PLC
 ticket을 자동 cancel하지 않는다. 이미 진행 중인 status RPC는 응답을 끝까지 수신한 뒤
 취소를 보고하므로 connection은 유지되고 보존된 ticket을 다시 조회할 수 있다.
+
+## 3.12 Move 완료와 restart recovery 경계
+
+`MoveAbsoluteEx`, `MoveRelativeEx`, `MoveVelocityEx`의 sync/async 메서드는 command ACK만
+반환한다. 현재 SDK에는 public `Move...AndWait`, `BeginMove...`, `ResumeMove...` continuation
+API가 없다. `MoveVelocityEx`는 명시적 Stop 전까지 목표 완료점 자체가 없다.
+
+위치 이동 완료가 필요하면 application이 `ReadStatusResult[Async]`와
+`GetActualPositionResult[Async]`를 반복 조회해 Standstill, axis error와 목표 위치 tolerance를
+함께 확인해야 한다. 예제 WPF의 stable-sample 감시와 journal은 application-local 정책이지
+SDK의 durable Move completion token이 아니다.
+
+timeout, disconnect 또는 process restart로 Move 결과가 불명확하면 같은 Move를 자동
+재전송하지 않는다. 새 connection/object lookup 뒤 현재 status/position을 읽고, 필요한 경우
+승인된 `StopAndWaitForStableStandstillAsync` 또는 Power Off를 정확히 한 번 수행한 후 다음
+동작을 결정한다.
 
 # 4. Group API
 
@@ -556,12 +819,36 @@ Group member axis의 Power On을 요청한다.
 public LMC_Response GroupPowerOn()
 public Task<LMC_Response> GroupPowerOnAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitContinuation>
+    BeginGroupPowerOnWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitResult>
+    ResumeGroupPowerStateWaitForStableStateAsync(
+        LMCGroupPowerStateWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitResult>
+    GroupPowerOnAndWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitResult> WaitForPowerStateAsync(
+    bool expectedPowerOn,
+    CancellationToken cancellationToken)
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Group Power On command 결과 |
 | `Task<LMC_Response>` | 비동기 Group Power On command 결과 |
+| `Task<LMCGroupPowerStateWaitContinuation>` | 한 번 accept된 Group Power On의 status-only 재개 정보 |
+| `Task<LMCGroupPowerStateWaitResult>` | 안정된 `PowerOn=true` 확인 evidence |
+
+Begin/compound API는 `0x204A`를 한 번 보내고 Resume은 `0x2045`만 polling한다. 기본 완료
+조건은 read 성공과 `PowerOn=true` 3회 연속이다. `WaitForPowerStateAsync`는 Power command를
+보내지 않는 read-only helper다. `PendingGroupPowerStateWaitContinuation`은 같은
+connection/session/group의 latest unresolved Power command를 제공한다.
 
 ## 4.4 GroupPowerOff
 
@@ -571,12 +858,27 @@ Group member axis의 Power Off를 요청한다.
 public LMC_Response GroupPowerOff()
 public Task<LMC_Response> GroupPowerOffAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitContinuation>
+    BeginGroupPowerOffWaitForStableStateAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupPowerStateWaitResult>
+    GroupPowerOffAndWaitForStableStateAsync(
+        CancellationToken cancellationToken)
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Group Power Off command 결과 |
 | `Task<LMC_Response>` | 비동기 Group Power Off command 결과 |
+| `Task<LMCGroupPowerStateWaitContinuation>` | 한 번 accept된 Group Power Off의 status-only 재개 정보 |
+| `Task<LMCGroupPowerStateWaitResult>` | 안정된 `PowerOn=false` 확인 evidence |
+
+Begin/compound API는 `0x204B`를 한 번 보내고, 공통
+`ResumeGroupPowerStateWaitForStableStateAsync`는 `0x2045`만 polling한다. 완료 조건은 read
+성공과 `PowerOn=false` 3회 연속이다. Group Power wait는 member별 drive-ready나 DS402
+fault 부재를 증명하지 않으므로 필요한 경우 개별 axis drive status를 추가 확인한다.
 
 ## 4.5 GroupEnable
 
@@ -586,12 +888,52 @@ Group motion profile을 lock한다.
 public LMC_Response GroupEnable()
 public Task<LMC_Response> GroupEnableAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCGroupEnableWaitResult>
+    GroupEnableAndWaitForLockedStandbyAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupEnableWaitContinuation>
+    BeginGroupEnableWaitForLockedStandbyAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupEnableWaitResult>
+    ResumeGroupEnableWaitForLockedStandbyAsync(
+        LMCGroupEnableWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupLockedStandbyWaitResult>
+    WaitForLockedStandbyAsync(
+        CancellationToken cancellationToken)
+
+public LMCGroupEnableWaitContinuation PendingGroupEnableWaitContinuation { get; }
+
+public bool TryReleasePendingGroupEnableForRetry(
+    LMCGroupEnableWaitContinuation continuation)
+public bool InvalidatePendingGroupEnableWaitStatusProof()
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Profile lock command 결과 |
 | `Task<LMC_Response>` | 비동기 profile lock 결과 |
+| `Task<LMCGroupEnableWaitContinuation>` | 한 번 accept된 Group Enable의 status-only 재개 정보 |
+| `Task<LMCGroupEnableWaitResult>` | accepted ACK와 안정된 PowerOn + Locked Standby evidence |
+| `Task<LMCGroupLockedStandbyWaitResult>` | command 없이 안정된 PowerOn + Locked Standby를 읽은 결과 |
+
+stable wait는 mutation/status gate, fresh `0x2047`, 모든 `0x2045`와 poll delay에 하나의 total
+deadline을 적용한다. write commit 전 취소/deadline은 `NotAttempted`, zero wire이며 connection을
+재사용하고 mutation proof는 변경하지 않는다. actual write commit의 `onWriteCommitted`에서만 mutation
+generation을 갱신하고 pending proof를 0으로 reset한다. caller cancel이 write 뒤 발생하면 ACK/status를 drain하고
+accepted evidence를 게시한 뒤 typed cancellation을 반환한다. ACK 무응답 deadline은
+`OutcomeUncertain`, continuation 없음, connection `Faulted`이고, ACK 수락 뒤 status 무응답은
+`Accepted`, exact pending continuation, connection `Faulted`다. 두 경우 모두
+`TransportInvalidatedAtDeadline=true`다. rejected ACK는 `Rejected`이고 continuation이 없다. 사용 가능한 동일 session의 accepted continuation은 Resume으로 `0x2045`만
+poll하며 `0x2047`을 replay하지 않는다. options overload로 deadline, poll interval과 stable sample
+수를 지정할 수 있다. 이 완료 판정은 PC fake-RPC 계약이며 실제 PLC profile lock 증거가 아니다.
+`TryReleasePendingGroupEnableForRetry`는 같은 group/session에서 Disabled/Unlocked 또는 PowerOff를
+3회 안정 확인한 exact continuation만 wire 없이 해제한다. `InvalidatePendingGroupEnableWaitStatusProof`
+는 Stop/Power Off reservation 경계에서 누적 proof만 지우며 pending command를 완료시키지 않는다.
 
 ## 4.6 GroupDisable
 
@@ -601,12 +943,40 @@ Group motion profile을 unlock한다.
 public LMC_Response GroupDisable()
 public Task<LMC_Response> GroupDisableAsync(
     CancellationToken cancellationToken)
+
+public Task<LMCGroupDisableWaitContinuation>
+    BeginGroupDisableWaitForStableDisabledAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupDisableWaitResult>
+    ResumeGroupDisableWaitForStableDisabledAsync(
+        LMCGroupDisableWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupDisableWaitResult>
+    GroupDisableAndWaitForStableDisabledAsync(
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupStableDisabledWaitResult>
+    WaitForStableDisabledAsync(
+        CancellationToken cancellationToken)
+
+public LMCGroupDisableWaitContinuation PendingGroupDisableWaitContinuation { get; }
 ```
 
 | Return | 설명 |
 |---|---|
 | `LMC_Response` | Profile unlock command 결과 |
 | `Task<LMC_Response>` | 비동기 profile unlock 결과 |
+| `Task<LMCGroupDisableWaitContinuation>` | 한 번 accept된 Group Disable의 status-only 재개 정보 |
+| `Task<LMCGroupDisableWaitResult>` | 안정된 powered-on Disabled 확인 evidence |
+| `Task<LMCGroupStableDisabledWaitResult>` | command 없이 stable Disabled를 읽은 결과 |
+
+Begin/compound API는 `0x2048`을 한 번 보내고 Resume은 `0x2045`만 polling한다. 기본 완료
+조건은 read 성공, `PowerOn=true`, `Disabled=true`, `Standby=false` 3회 연속이다. 따라서
+Power Off 상태를 Group Disable 완료로 오인하지 않는다. newer stable Group Power Off가 완료된
+경우 `TryRetirePendingGroupDisableAfterStablePowerOff`는 정확한 pending Disable을 wire 없이
+superseded 처리하지만, powered-on Disabled 완료를 주장하지 않는다.
 
 ## 4.7 GroupReset
 
@@ -623,6 +993,9 @@ public Task<LMC_Response> GroupResetAsync(
 | `LMC_Response` | Group Reset command 결과 |
 | `Task<LMC_Response>` | 비동기 Group Reset command 결과 |
 
+현재 Group Reset은 ACK-only API다. Group Reset용 accepted-once wait/continuation은 없으며,
+완료 여부는 `GroupReadStatusResult[Async]`와 member axis/drive error를 별도로 확인한다.
+
 ## 4.8 GroupStop
 
 현재 group motion의 정지를 요청한다.
@@ -636,6 +1009,25 @@ public Task<LMC_Response> GroupStopAsync(
     int deceleration,
     int jerk,
     CancellationToken cancellationToken)
+
+public Task<LMCGroupStopWaitContinuation>
+    BeginGroupStopWaitForStableStandbyAsync(
+        int deceleration,
+        int jerk,
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupStopWaitResult>
+    ResumeGroupStopWaitForStableStandbyAsync(
+        LMCGroupStopWaitContinuation continuation,
+        CancellationToken cancellationToken)
+
+public Task<LMCGroupStopWaitResult>
+    GroupStopAndWaitForStableStandbyAsync(
+        int deceleration,
+        int jerk,
+        CancellationToken cancellationToken)
+
+public LMCGroupStopWaitContinuation PendingGroupStopWaitContinuation { get; }
 ```
 
 | Parameter | Type | UNIT | 설명 |
@@ -648,11 +1040,24 @@ public Task<LMC_Response> GroupStopAsync(
 |---|---|
 | `LMC_Response` | Group Stop command 결과 |
 | `Task<LMC_Response>` | 비동기 Group Stop command 결과 |
+| `Task<LMCGroupStopWaitContinuation>` | 한 번 accept된 Group Stop의 status-only 재개 정보 |
+| `Task<LMCGroupStopWaitResult>` | 안정 Standby 확인 evidence |
 
 `deceleration`/`jerk` 조합은 PLC 계약에 맞게 RPC 전에 검사한다. success ACK는
 입력 검증, robot client 연결과 `StopMove(Mode:=3)` dispatch를 뜻하며 정지 완료가
 아니다. `StopMove()` 반환 `StopCmdNo`는 오류 코드가 아니라 정지가 끝날 buffer
 command index다. 실제 완료와 profile error는 `GroupReadStatusResult`로 확인한다.
+
+Begin은 `0x2085`를 정확히 한 번 보내고 success ACK를
+connection/session/group/latest-pending에 묶인 continuation으로 반환하며 status를 읽지 않는다.
+Resume은 그 exact continuation으로 `0x2045`만 poll하여 `IsStandby`를 기본 3회 연속 확인한다.
+timeout/cancel/status failure 또는 send-priority preemption 뒤에도 accepted continuation과 evidence를
+보존하며 owner session이 사용 가능하면 원 Stop 없이 Resume할 수 있다.
+`TransportInvalidatedAtDeadline=true`이면 그 session의 continuation은 재사용할 수 없고 reconnect
+뒤에도 Stop을 자동 replay하지 않는다. `PendingGroupStopWaitContinuation`은 현재 handle과 같은
+connection/session/group의 latest pending Stop만 노출한다. stale, superseded, completed continuation과
+concurrent second Resume은 zero-wire로 거부된다. options overload로 deadline, poll interval과 stable
+sample 수를 지정할 수 있으며 compound API는 Begin과 Resume에 같은 elapsed total deadline을 적용한다.
 
 ## 4.9 GroupReadStatus
 
@@ -1071,3 +1476,203 @@ domain마다 의미가 다르므로 domain을 추측하지 않는다. 반환 객
 `Resolution`, `CatalogVersion`, `SourceVersion`을 제공한다. unknown domain/value는 false를
 반환한다. 이 catalog는 현재 project-local 계약이며 Elmo Maestro Personality 전체 error
 database가 아니다.
+
+## 6.4 Diagnostics D0 capability와 공통 수명
+
+Diagnostics는 `connection.Diagnostics`에서 시작한다. reconnect 뒤에는 capability를 다시
+읽어야 하며, 이전 session에서 얻은 catalog, bulk configuration, recorder identity,
+operation ticket와 topology 객체를 재사용하지 않는다.
+
+```csharp
+LMCDiagnosticCapabilities capabilities =
+    connection.Diagnostics.GetCapabilities();
+
+Task<LMCDiagnosticCapabilities> pending =
+    connection.Diagnostics.GetCapabilitiesAsync(cancellationToken);
+```
+
+주요 반환값은 `BootId`, `MapRevision`, `Capabilities`, `BaseCycleTimeUs`, Catalog/Bulk/Recorder
+최대 크기와 request/response payload 한도다. `BootId=0`은 초기 제한 상태이므로 Recorder나
+SDO 같은 장기 작업을 시작하지 않는다. 2026-07-30 정상 retained profile에서 확인된 bit mask는
+`0x0000613F`지만, 고정값으로 가정하지 말고 매 connection에서 실제 반환값을 사용한다.
+
+| 기능 영역 | 현재 판정 | 증거 경계 |
+|---|---|---|
+| Admin `0x7D00/10/20/22` | happy-path 확인 | current IDE rebuild/download와 전체 실물 값/UNIT matrix 미완료 |
+| Catalog, PI Read | happy-path 확인 | 4축 x 6신호, 총 24개 read catalog |
+| Bulk Read | 4-entry happy-path 확인 | 24-entry, Partial/recovery와 soak 미완료 |
+| D5 SDO Read | 1/2/4-byte happy-path 확인 | timeout/cancel/abort/orphan 전체 matrix 미완료 |
+| Static Topology | 7-entry happy-path 확인 | configured schema이며 runtime health 증거 아님 |
+| EtherCAT Health | source-active | fault/stale/soak 실기 적격성 미완료 |
+| Recorder Single/Ring/Trigger | source-active | PLC runtime/capture 적격성 미완료 |
+| PI/SDO/DO Write, Recorder Double, Node Health/DI | 현재 차단 | capability, route 또는 allowlist OFF |
+
+ACK 또는 operation ticket은 작업 완료가 아니다. operation status의 terminal state와 result를
+확인한다. `CancellationToken`은 PC 대기를 중단할 뿐 이미 PLC가 accept한 작업을 자동 취소하지
+않는다. 결과가 불명인 mutation 또는 Release를 blind retry하지 않는다.
+
+## 6.5 Diagnostics D1 Catalog, Health와 PI Read
+
+```csharp
+LMCSignalCatalogInfo info = diagnostics.GetSignalCatalogInfo();
+LMCSignalCatalogChunk chunk = diagnostics.GetSignalCatalogChunk(
+    expectedMapRevision, startIndex, maxEntries);
+LMCSignalCatalog catalog = diagnostics.GetSignalCatalog();
+
+LMCEtherCATHealth health = diagnostics.ReadEtherCATHealth();
+LMCSignalValue value = diagnostics.ReadPI(signalId);
+LMCSignalValue typed = diagnostics.ReadPI(
+    signalId, expectedMapRevision, expectedType);
+```
+
+각 메서드에는 `CancellationToken`을 받는 Async overload가 있다. `GetSignalCatalog()`는 Info와
+chunk를 조합하고 count/CRC/map을 검사한다. 현재 catalog alias는 각 axis에 다음 6개다.
+
+- `target_position_last_tx`
+- `digital_outputs_last_tx`
+- `control_word_last_tx`
+- `actual_position`
+- `digital_inputs`
+- `status_word`
+
+`ReadPI(catalog, alias)` facade는 catalog/session/map/type provenance를 wire 전 검사한다.
+재접속 뒤 이전 catalog나 alias lookup 결과를 사용하면 거부된다. 값은 raw DINT/application
+UNIT이며 library가 PMAS UNIT 변환을 수행하지 않는다.
+
+`ReadEtherCATHealth`는 Master/Slave 상태, DS402 StatusWord와 Axis Error를 읽지만 drive-ready,
+DS402 Warning 부재, 물리 배선 또는 실제 I/O 정상 동작을 증명하지 않는다.
+
+## 6.6 Diagnostics D2 Bulk Read
+
+raw facade는 다음 순서로 사용한다.
+
+```csharp
+LMCBulkConfiguration configuration = diagnostics.ConfigureBulk(signalIds);
+LMCBulkStatus status = diagnostics.ReadBulkStatus(configuration);
+LMCBulkSnapshot snapshot = diagnostics.ReadBulk(configuration);
+diagnostics.ReleaseBulk(configuration);
+```
+
+각 메서드에는 Async overload가 있다. `ConfigureBulk` 뒤 `Active`를 확인하고, `ReadBulk`의
+한 snapshot에서 같은 PLC cycle의 entry를 읽는다. `SnapshotFlags.Partial`이면 RPC 성공만으로
+완료 처리하지 말고 각 entry의 `EntryStatus`와 detail을 검사한다. `ReleaseBulk` 결과가 불명확하면
+새 session에서 자동 재전송하지 않는다.
+
+일반 사용에는 6.2의 `LMCPIBulkBuilder`/`LMCPIBulkReader`를 권장한다. current 4-entry
+Pending -> Active -> Snapshot -> Release happy-path는 실기 확인됐지만, 최대 24-entry와
+offline Partial/recovery/soak는 미완료다.
+
+## 6.7 Diagnostics D3/D4 Recorder
+
+대표 lifecycle API는 다음과 같다. 모두 session/BootId에 귀속되며 sync 메서드에는 해당 Async
+overload가 있다.
+
+```csharp
+LMCRecorderConfigurationHandle handle =
+    diagnostics.ConfigureRecorder(configuration);
+LMCRecorderIdentity identity = diagnostics.StartRecorder(handle);
+
+diagnostics.TriggerRecorder(identity);
+diagnostics.StopRecorder(identity);
+LMCRecorderStatus status = diagnostics.GetRecorderStatus(identity);
+LMCRecorderHeader header = diagnostics.GetRecorderHeader(identity);
+LMCRecorderChunk chunk = diagnostics.ReadRecorderChunk(chunkRequest);
+
+LMCRecorderData data = await diagnostics.DownloadRecorderAsync(
+    identity, progress, cancellationToken);
+diagnostics.ReleaseRecorderBuffer(identity);
+diagnostics.ReleaseRecorder(identity);
+```
+
+기본 순서는 `Configure -> Start -> Status polling -> Ready -> Header/Chunk 또는 Download ->
+ReleaseBuffer -> Release`다. `LMCRecorderData.GetRawUInt32/GetRawInt32`로 sample/channel raw
+값을 읽을 수 있다. Single, Ring, Trigger mode는 source-active지만 current PLC runtime packet
+capture와 reconnect/fault 적격성은 완료되지 않았다.
+
+`ReadRecorderBankInventory`, `ReadRecoverableRecorderBankInventory`, `AdoptRecorder`,
+`AdoptActiveRecorder` 등 recovery API도 공개되어 있다. 이들은 exact BootId/configuration/
+identity와 journal proof를 요구하며 live reconnect/adopt matrix는 미완료다.
+
+> **현재 사용 금지:** `ConfigureRecoverableDoubleRecorder`, Double-bank inventory/adoption
+> 계약은 공개되어 있지만 Recorder Double capability와 PLC route gate가 OFF이고 실제 bank
+> count가 1이다. 현재 target에서는 `UnsupportedFeature` 대상이다.
+
+## 6.8 Diagnostics D5 SDO Read와 operation ticket
+
+```csharp
+LMCSdoReadResult inline = diagnostics.ReadSdoInline(request);
+LMCOperationTicket ticket = diagnostics.SubmitSdo(request);
+LMCOperationStatus status = diagnostics.GetOperationStatus(ticket);
+diagnostics.CancelOperation(ticket);
+LMCSdoResultChunk chunk = diagnostics.ReadSdoResultChunk(chunkRequest);
+```
+
+각 메서드에는 Async overload가 있다. current SDO Read 범위는 Slave 1..4, data width 1/2/4
+byte, timeout 1..60000 PLC cycle과 general inline read다. `LMCSdoRequest.CreateRead`로 request를
+만든다. 1/2/4-byte Read와 TypeMismatch 뒤 동일 BootId recovery happy-path는 실기 확인됐다.
+
+`SubmitSdo`의 ticket을 받은 뒤 `GetOperationStatus`로 terminal `Completed`와 `Success`를
+확인한다. `CancelOperation`도 operation 결과를 임의로 성공/실패로 확정하지 않으므로 status를
+다시 읽는다. PC polling timeout/cancellation은 PLC operation을 자동 중단하지 않는다.
+
+8/12-byte request/result chunk 계약은 공개되어 있으나 current maximum SDO data size가 4이고
+Extended SDO capability/`0x7E51` route가 OFF라 실행할 수 없다.
+
+## 6.9 Static Topology와 Dynamic Node/I/O
+
+```csharp
+LMCEtherCATTopologyInfo info = diagnostics.GetEtherCATTopologyInfo();
+LMCEtherCATTopologyChunk chunk = diagnostics.GetEtherCATTopologyChunk(...);
+LMCEtherCATTopology topology = diagnostics.GetEtherCATTopology();
+```
+
+Async overload도 제공한다. `GetEtherCATTopology()`는 Info 뒤 7개 chunk를 조합하고 CRC를
+검증한다. current static inventory는 TopologyRevision `0x15867EEC`, 7 entry(Slave 5 + Slot
+Module 2)다. 이것은 프로젝트에 설정된 schema이며 실제 runtime node health, 물리 배선 순서,
+dynamic I/O 값 또는 drive-ready 상태를 증명하지 않는다.
+
+다음 public contract는 존재하지만 current target에서는 capability preflight 단계에서 차단되며
+wire에 전송되지 않는다.
+
+| API | Command | 현재 상태 |
+|---|---:|---|
+| `ReadEtherCATNodeHealth[Async]` | `0x7E13` | capability OFF, LASAL handler/data source 없음 |
+| `ReadDigitalIO[Async]` | `0x7E22` | capability OFF, LASAL handler/data source 없음 |
+| `SubmitDigitalOutputWrite[Async]` | `0x7E23` | capability OFF, RT owner/handler/allowlist 없음 |
+
+`GetApprovedDigitalOutputWriteReferences()`는 현재 빈 목록이다. request DTO를 생성할 수 있다는
+사실은 PLC 실행 지원을 뜻하지 않는다.
+
+## 6.10 현재 차단된 mutation API
+
+| Public API 계약 | 현재 차단 근거 | 판정 |
+|---|---|---|
+| `SubmitPIWrite[Async]` | PI Write capability OFF, SDK/PLC allowlist 비어 있음, `0x7E21` unsupported | 실행 금지 |
+| SDO `CreateWrite` + `SubmitSdo[Async]` | SDO Write capability와 global/axis gate OFF, approved target 0개 | 실행 금지 |
+| `SubmitDigitalOutputWrite[Async]` | DO capability/route/owner/allowlist 없음 | 실행 금지 |
+| Recoverable Double Recorder | Double capability/route gate OFF, single bank | 실행 금지 |
+
+`GetApprovedSdoWriteTargets()`와 `EvaluateSdoWritePolicy()`는 현재 차단 상태를 확인하는
+PC-side API다. DS402 핵심 객체 `0x6040`, `0x607A`, `0x60FF`, `0x6071`은 정책상 차단된다.
+후보 request나 verification helper가 존재해도 Write 활성 증거가 아니다.
+
+향후 Write가 별도 승인되더라도 PowerOff/Standstill, 안정 상태, 작업자 승인과 mutation journal,
+terminal Completed+Success, exact readback을 모두 확인해야 한다. 결과가 불명확한 Write는 자동
+재전송하지 않는다.
+
+## 6.11 Request/result와 provenance 확인
+
+새 Diagnostics API는 request, options, continuation, ticket, identity와 result DTO를 분리한다.
+다음 원칙을 공통 적용한다.
+
+| 확인 항목 | 사용 규칙 |
+|---|---|
+| `IsSuccess`, typed state/outcome | outer frame 성공과 domain operation 완료를 모두 확인 |
+| `BootId`, `MapRevision`, session generation | 현재 connection에서 얻은 객체만 사용 |
+| `BelongsTo` / `BelongsToCurrentSession` | catalog, ticket, topology, I/O/result provenance 검증 |
+| `RequestId`, operation/configuration/recorder ID | ACK, status, chunk와 release 대상의 identity 일치 확인 |
+| `Detail`, `ErrorId`, failure context `TryGet` | 예외에서 typed evidence를 보존하고 숫자만 추측하지 않음 |
+| Async `CancellationToken` | PC wait 취소이며 PLC mutation 취소 보장 아님 |
+
+이 설명서는 principal facade와 안전 경계를 설명한다. 모든 DTO property, overload와 exception의
+완전한 선언 목록은 배포 DLL의 IntelliSense/XML documentation과 current source를 함께 확인한다.

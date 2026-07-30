@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate the external LASAL Motion Control API reference PDF.
 
-The Markdown source remains internal development material.  The generated PDF
-is the only manual shipped in the external distribution package.
+The Markdown file is the shared content source for the PDF and DOCX manuals
+shipped in the external distribution package.
 """
 
 from __future__ import annotations
@@ -53,6 +53,8 @@ MID_GRAY = colors.HexColor("#66717C")
 DARK = colors.HexColor("#20262C")
 BORDER = colors.HexColor("#CBD4DC")
 CODE_BG = colors.HexColor("#F6F8FA")
+WARNING_BG = colors.HexColor("#FFF7E6")
+WARNING_BORDER = colors.HexColor("#D58A00")
 
 
 def register_fonts() -> None:
@@ -199,6 +201,14 @@ def create_styles() -> dict[str, ParagraphStyle]:
             spaceBefore=2,
             spaceAfter=2,
         ),
+        "callout": ParagraphStyle(
+            "Callout",
+            fontName="Malgun",
+            fontSize=8.5,
+            leading=13.2,
+            textColor=DARK,
+            wordWrap="CJK",
+        ),
         "toc_title": ParagraphStyle(
             "TocTitle",
             fontName="Malgun-Bold",
@@ -303,6 +313,28 @@ def code_blocks(code: str, styles: dict[str, ParagraphStyle]) -> list[Table]:
     return blocks
 
 
+def make_callout(text: str, styles: dict[str, ParagraphStyle]) -> Table:
+    block = Table(
+        [[Paragraph(inline_markup(text), styles["callout"])]],
+        colWidths=[CONTENT_WIDTH],
+        hAlign="LEFT",
+    )
+    block.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), WARNING_BG),
+                ("BOX", (0, 0), (-1, -1), 0.6, WARNING_BORDER),
+                ("LINEBEFORE", (0, 0), (0, -1), 3.0, WARNING_BORDER),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return block
+
+
 def parse_table(lines: list[str], index: int) -> tuple[list[list[str]], int]:
     rows: list[list[str]] = []
     while index < len(lines) and lines[index].strip().startswith("|"):
@@ -333,15 +365,26 @@ def parse_list(lines: list[str], index: int, ordered: bool, styles: dict[str, Pa
     return flowable, index
 
 
+def parse_cover_metadata(lines: list[str]) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for line in lines:
+        match = re.match(r"^([^:]+):\s*(.+?)(?:\s{2})?$", line.rstrip())
+        if match:
+            metadata[match.group(1).strip()] = match.group(2).strip()
+    return metadata
+
+
 def parse_markdown(source: Path, styles: dict[str, ParagraphStyle]):
     lines = source.read_text(encoding="utf-8").splitlines()
-    story = build_cover(styles)
 
     # The Markdown header before the first explicit pagebreak is cover metadata.
     try:
-        index = lines.index(r"\pagebreak") + 1
+        first_break = lines.index(r"\pagebreak")
     except ValueError as exc:
         raise ValueError("Manual source must contain an initial \\pagebreak") from exc
+    metadata = parse_cover_metadata(lines[:first_break])
+    story = build_cover(styles, metadata)
+    index = first_break + 1
 
     paragraph_buffer: list[str] = []
 
@@ -417,6 +460,18 @@ def parse_markdown(source: Path, styles: dict[str, ParagraphStyle]):
             index += 1
             continue
 
+        if stripped.startswith(">"):
+            flush_paragraph()
+            callout_lines: list[str] = []
+            while index < len(lines) and lines[index].strip().startswith(">"):
+                callout_lines.append(
+                    re.sub(r"^>\s?", "", lines[index].strip()).strip()
+                )
+                index += 1
+            story.append(make_callout(" ".join(callout_lines), styles))
+            story.append(Spacer(1, 7))
+            continue
+
         heading = re.match(r"^(#{1,3})\s+(.+)$", stripped)
         if heading:
             flush_paragraph()
@@ -461,12 +516,16 @@ def parse_markdown(source: Path, styles: dict[str, ParagraphStyle]):
     return story
 
 
-def build_cover(styles: dict[str, ParagraphStyle]):
+def build_cover(
+    styles: dict[str, ParagraphStyle],
+    metadata: dict[str, str],
+):
     meta_data = [
         [paragraph("문서", styles["small"]), paragraph("API 기능 설명서", styles["cover_meta"])],
-        [paragraph("적용 API", styles["small"]), paragraph("LasalMotionControlLib 0.9.1-preview", styles["cover_meta"])],
-        [paragraph("환경", styles["small"]), paragraph("Windows / .NET Framework 4.8", styles["cover_meta"])],
-        [paragraph("발행", styles["small"]), paragraph("2026-07-16", styles["cover_meta"])],
+        [paragraph("적용 API", styles["small"]), paragraph(metadata.get("적용 API", "LasalMotionControlLib 0.9.1-preview"), styles["cover_meta"])],
+        [paragraph("환경", styles["small"]), paragraph(metadata.get("대상 환경", "Windows, .NET Framework 4.8"), styles["cover_meta"])],
+        [paragraph("발행", styles["small"]), paragraph(metadata.get("발행일", "2026-07-16"), styles["cover_meta"])],
+        [paragraph("문서 버전", styles["small"]), paragraph(metadata.get("문서 버전", "1.0"), styles["cover_meta"])],
     ]
     meta = Table(meta_data, colWidths=[31 * mm, 92 * mm], hAlign="LEFT")
     meta.setStyle(

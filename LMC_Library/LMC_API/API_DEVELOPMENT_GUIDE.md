@@ -636,9 +636,13 @@ Group/Axis handle 생성
 | Public sync/async pair | Command | Request/Success payload | LASAL method/값 | 완료 확인 |
 |---|---:|---:|---|---|
 | `PowerOn[Async]` | `0x2023` | 8 / 8 | `LMCAxisN.PowerOn` | `ReadStatusResult.IsPowerOn` |
+| `PowerOnAndWaitForStableStateAsync` + `ResumePowerOnWaitForStableStateAsync` | fresh `0x2023` 1회, accepted/resume `0x2028` 반복 | 8 / 8, 8 / 12 | `LMCAxisN.PowerOn`, `ReadAxisStatus`, `ReadAxisError` | accepted continuation + `IsReadSuccessful && PowerOn=true` 기본 3회 연속 |
 | `PowerOff[Async]` | `0x2023` | 8 / 8 | `LMCAxisN.PowerOff` | `IsPowerOn == false` |
+| `BeginPowerOffWaitForStableStateAsync` + `ResumePowerOffWaitForStableStateAsync` (`PowerOffAndWaitForStableStateAsync` 조합 제공) | Begin `0x2023` 1회, Resume `0x2028` 반복 | 8 / 8, 8 / 12 | `LMCAxisN.PowerOff`, `ReadAxisStatus`, `ReadAxisError` | accepted continuation + `IsSuccess && PowerOn=false && Standstill=true` 기본 3회 연속 |
 | `Reset[Async]` | `0x2024` | 1 / 8 | `QuitError()` | status/error 재조회 |
-| `Stop[Async]` | `0x2022` | 16 / 8 | `StopMove` | `IsStandstill`과 position |
+| `BeginResetWaitForStableErrorClearanceAsync` + `ResumeResetWaitForStableErrorClearanceAsync` (`ResetAndWaitForStableErrorClearanceAsync` 조합 제공) | Begin `0x2024` 1회, Resume `0x2028` 반복 | 1 / 8, 8 / 12 | `QuitError()`, `ReadAxisStatus`, `ReadAxisError` | accepted continuation + `IsReadSuccessful && AxisErrorId == 0` 기본 3회 연속 |
+| `Stop[Async]` | `0x2022` | 16 / 8 | `StopMove`; deceleration > 0, jerk >= 0 | `IsStandstill`과 position |
+| `BeginStopWaitForStableStandstillAsync` + `ResumeStopWaitForStableStandstillAsync` (`StopAndWaitForStableStandstillAsync` 조합 제공) | Begin `0x2022` 1회, Resume `0x2028` 반복 | 16 / 8, 8 / 12 | `StopMove`, `ReadAxisStatus`, `ReadAxisError` | accepted continuation + `IsSuccess && IsStandstill` 기본 3회 연속 |
 | `ReadStatusResult[Async]` | `0x2028` | 8 / 12 | `ReadAxisStatus`, `ReadAxisError` | response 자체 |
 | `GetActualPositionResult[Async]` | `0x202E` | 1 / 8 | `ReadPosition(ACTPOS_APPUNIT)` | response 자체 |
 | `MoveAbsoluteEx[Async]` | `0x209F` | 32 / 8 | `MoveShortestWay` | status/position polling |
@@ -647,6 +651,82 @@ Group/Axis handle 생성
 
 Axis Reset의 `QuitError()`는 반환값이 없다. client가 연결되어 호출됐다는 이유로 ACK가 성공할
 수 있으므로 실제 error 해제는 status polling으로 확인한다.
+`BeginResetWaitForStableErrorClearanceAsync`는 `0x2024`를 정확히 한 번만 보내고 status를 읽지
+않는다. valid success ACK와 latest pending continuation은 connection session/send-priority
+publication 안에서 원자적으로 설치된다. `ResumeResetWaitForStableErrorClearanceAsync`는
+`0x2028`의 LASAL `AxisErrorId == 0`을 기본 3회 연속 확인하며 `0x2024`를 replay하지 않는다.
+Resume epoch마다 stable count는 0에서 다시 시작하고 poll count와 마지막 status는 누적한다.
+compound facade는 Begin/Resume을 같은 elapsed total deadline으로 조합한다. invalid, foreign,
+stale-session, superseded, completed continuation과 concurrent second Resume은 zero-wire로 거부된다.
+
+timeout/cancel/response loss에도 ACK, 마지막 status, poll count, submission outcome과
+expected/observed mutation generation을 typed evidence로 보존한다. write 뒤 ACK/status 무응답이
+total deadline을 넘으면 connection을 `Faulted`로 전환하고
+`TransportInvalidatedAtDeadline`을 표시한다. final proof publication은 session, send-priority,
+mutation generation과 deadline을 함께 선형화한다. proof commit 뒤의 늦은 cancel/deadline은 성공을
+뒤집지 않고, 먼저 관찰된 cancel/deadline은 continuation을 pending으로 남긴다. current
+`StatusWord` slot은 reserved 0이므로 이 결과를 DS402 Fault 또는 drive error register 해제
+증거로 해석하지 않는다.
+
+`PowerOnAndWaitForStableStateAsync`는 fresh Power On `0x2023`을 한 번만 보내고 success ACK를
+session/axis-bound pending continuation으로 설치한 뒤 accepted observer를 호출한다. WPF observer는
+이 경계에서 durable `AcceptedAwaitingProof`를 저장한다. timeout/cancel 뒤
+`ResumePowerOnWaitForStableStateAsync`는 `0x2028`만 보내며 `0x2023`을 replay하지 않는다.
+submission은 `NotAttempted/Rejected/OutcomeUncertain/Accepted`로 분리하고 ACK, 마지막 status,
+poll/stable count와 `TransportInvalidatedAtDeadline`을 evidence로 보존한다. gate/ACK/status/delay는
+한 total deadline을 사용한다. post-write ACK 무응답은 `OutcomeUncertain`과 `Faulted` transport,
+accepted status 무응답은 exact pending continuation과 `Faulted` transport를 남긴다. 최종
+pre-write 취소는 zero-wire `NotAttempted`이고 connection을 재사용한다. restart용
+`WaitForPowerStateAsync`도 deadline-aware `0x2028`만 사용하며 ACK를 재사용했다고 표시하지 않는다.
+
+`BeginPowerOffWaitForStableStateAsync`는 `enabled=false`인 `0x2023`을 정확히 한 번만
+보내고 success ACK를 session/axis-bound continuation으로 반환한다. Begin은 status gate를
+잡지 않으며 mutation gate를 ACK, PowerOff mutation generation과 continuation의 session/send-priority
+atomic publication까지 유지해 concurrent Begin을 wire 순서로 직렬화한다.
+`ResumePowerOffWaitForStableStateAsync`는 원 generation을 확인하고 `0x2028`의
+`IsSuccess && PowerOn=false && Standstill=true`를 기본 3회 연속 확인하며 PowerOff를
+replay하지 않는다. Resume 시작과 timeout/cancel/status-fail/preemption 경계에서는 exact pending
+Power On continuation의 PowerOff proof도 reset하므로 끊어진 Resume epoch를 합산하지 않는다.
+compound API는 이 두 phase를 조합한다.
+Begin ACK 또는 Resume status가 write 뒤 total deadline을 넘으면 connection을 `Faulted`로
+전환하고 transport invalidation evidence를 남긴다. accepted continuation은 evidence로 보존되지만
+faulted session에 묶여 reconnect 뒤 재사용할 수 없고 `0x2023`을 자동 재전송하지 않는다.
+Resume은 status wire 전, publication과 final resolution에서 원 generation을 다시 확인한다. later
+same-axis `LMCSingleAxis` mutation은 `LMCAxisPowerOffInterferenceException`과
+expected/observed/intervening evidence를 반환하고 pending을 유지하며 PowerOff를 replay하지 않는다.
+final proof보다 먼저 관찰된 cancel/deadline/generation change는 pending을 보존하고 proof commit 뒤
+late cancel/deadline은 성공을 뒤집지 않는다. 외부 PLC/client/direct SDO/group mutation은
+process-local generation 범위 밖이다. WPF Power Off 버튼은 Begin을 안전 송신 phase, Resume을 preemptible monitor phase에
+배치하여 검증 중 새 Stop/PowerOff를 계속 허용한다.
+
+Axis Stop의 local DINT 계약은 `deceleration > 0`, `jerk >= 0`,
+`BufferMode=Aborting(1)`, `Execute=1`이다. SDK는 감속도 0/음수 또는 음수 jerk를 frame 생성 전에
+거부하고, LASAL handler도 같은 semantic 오류를 `ErrorId=-7`로 거부하여 `StopMove`를 호출하지
+않는다. PMAS/MMCLib의 `MMC_Stop`과 달리 이 명령은 SIGMATEK `_LMCAxis.StopMove` adapter이며,
+success ACK는 정지 완료가 아니다. 완료는 `0x2028`의 안정된 `IsStandstill`로 별도 확인한다.
+
+`BeginStopWaitForStableStandstillAsync`는 mutation gate 안에서 `0x2022`를 정확히 한 번 보내고
+valid success ACK를 latest session/axis-bound continuation으로 게시한다.
+`ResumeStopWaitForStableStandstillAsync`는 status-observation gate에서 `0x2028`만 poll하여
+`IsSuccess && IsStandstill`을 기본 3회 연속 확인한다. timeout/cancel/status
+실패와 ACK response loss에도 Stop을 자동 replay하지 않으며 submission outcome,
+`CommandMayHaveBeenSent`, ACK, 마지막 status, poll/stable count와 경과 시간을 immutable evidence로
+보존한다.
+compound facade는 같은 elapsed deadline으로 Begin과 Resume을 조합한다. WPF는 Begin을 priority
+safety-send, Resume을 preemptible monitor로 분리해 status 확인 중에도 새 Stop/Power Off를
+허용한다. stale/superseded/completed continuation과 concurrent second Resume은 zero-wire로 거부한다.
+
+SDK는 connection session + `AxisReference` 범위의 process-local axis mutation generation을
+공유한다. `LMCSingleAxis` raw sync/async Power On/Off, Reset, Stop, Move
+Absolute/Relative/Velocity와 accepted-wait write는 may-have-been-sent boundary에서 generation을
+증가시킨다. Stop과 Reset Resume은 status 송신 전, status publication과 final resolution에서
+원 command generation을 재검사한다. later same-axis mutation이면 각각
+`LMCAxisStopInterferenceException` 또는 `LMCAxisResetInterferenceException`을 반환하고 pending
+continuation을 유지하며 command를 replay하지 않는다. zero-wire validation/cancel은 generation을
+바꾸지 않고 다른 AxisReference는 간섭하지 않는다. 외부 PLC logic, 다른 RPC client, direct
+SDO write와 group operation은 이 process-local 귀속 범위 밖이다. intentional post-Reset Power On도
+Reset 귀속을 무효화하므로 이후에는 명시적 새 Reset이 필요하다. pending Power On proof는 status를
+관찰할 수 있지만 Stop helper가 자동 해제하지 않는다.
 
 ### 12.3 Group
 
@@ -656,18 +736,43 @@ Axis Reset의 `QuitError()`는 반환값이 없다. client가 연결되어 호�
 | `GroupPowerOn[Async]` | `0x204A` | 1 / 8 | `RobotOn(_ACTIVE)` | `IsPowerOn` poll |
 | `GroupPowerOff[Async]` | `0x204B` | 1 / 8 | `RobotOff()` | `IsPowerOn == false` |
 | `GroupEnable[Async]` | `0x2047` | 1 / 8 | Axis1..4 `LockProfile` | `IsStandby/IsEnabled` |
+| `GroupEnableAndWaitForLockedStandbyAsync` + `ResumeGroupEnableWaitForLockedStandbyAsync` | fresh `0x2047` 1회, accepted/resume `0x2045` 반복 | 1 / 8, 8 / 12 | `LockProfile`, group status read | accepted continuation + `PowerOn && IsStandby` 기본 3회 연속 |
 | `GroupDisable[Async]` | `0x2048` | 1 / 8 | in-position 확인 후 `UnlockProfile` | `IsDisabled` |
 | `GroupReset[Async]` | `0x2049` | 1 / 8 | `AxQuitError(AxisNo:=0)` | Group/Axis error 재조회 |
 | `GroupStop[Async]` | `0x2085` | 16 / 8 | `StopMove(Mode:=3)` | status/in-position |
+| `BeginGroupStopWaitForStableStandbyAsync` + `ResumeGroupStopWaitForStableStandbyAsync` (`GroupStopAndWaitForStableStandbyAsync` 조합 제공) | Begin `0x2085` 1회, Resume `0x2045` 반복 | 16 / 8, 8 / 12 | `StopMove(Mode:=3)`, group status read | accepted continuation + `IsStandby` 기본 3회 연속 |
 | `GroupReadStatusResult[Async]` | `0x2045` | 8 / 12 | power/lock/in-position/error 조합 | response 자체 |
 | `GroupReadActualPosition[Async]` | `0x2051` | 8 / 68 | `GetRobotPosition` | response 자체 |
 | `MoveLinearAbsoluteEx[Async]` | `0x20A4` | 96 / 8 | `MoveLinearCoord` | status/position polling |
 | `MoveLinearRelativeEx[Async]` | `0x7D22` | 104 / 16 | `MoveRelativeCoord` | Admin ACK 뒤 status/position polling |
 | `SetKinTransformCartesian4Axis[Async]` | `0x20E7` | 1320 / 4 | identity payload 검증, ready flag | 이후 Lock/status |
 
+`GroupEnableAndWaitForLockedStandbyAsync`는 mutation/status gate 대기, fresh `0x2047`, 모든
+`0x2045`와 poll delay를 하나의 total deadline으로 제한한다. final write commit 전 취소/deadline은
+`NotAttempted`, zero wire, mutation generation/proof 불변이며 connection을 재사용한다. actual write
+commit의 `onWriteCommitted`에서만 mutation generation을 갱신하고 pending proof를 0으로 reset한다. caller cancel이 write 뒤 발생하면
+response를 drain하고 accepted ACK/status를 먼저 게시한 뒤 typed cancellation을 반환하므로 transport를
+재사용할 수 있다. ACK 무응답 deadline은 `OutcomeUncertain`, continuation 없음, connection
+`Faulted`이고, accepted 뒤 status 무응답은 `Accepted`, exact pending continuation, connection
+`Faulted`다. 두 경우 모두 `TransportInvalidatedAtDeadline=true`다. rejected ACK는 `Rejected`이며
+continuation을 만들지 않는다. accepted continuation의
+`ResumeGroupEnableWaitForLockedStandbyAsync`는 `0x2045`만 보내고 `0x2047`을 replay하지 않는다.
+이 경계는 Group Enable 전용 fake-RPC 회귀 35개로 확인했으며 PLC runtime proof는 아니다.
+
 current `GroupStop` handler의 `StopMove()` 반환은 오류가 아니라 정지가 끝날
 profile-buffer `StopCmdNo`다. ACK는 입력 검증, Robot client 연결과 method dispatch를
 뜻하며 실제 정지 완료와 profile error는 Group status/in-position을 다시 읽어 확인한다.
+
+`BeginGroupStopWaitForStableStandbyAsync`는 `0x2085`를 정확히 한 번 보내고 success ACK를
+connection/session/group/latest-pending에 묶인 `LMCGroupStopWaitContinuation`으로 반환한다.
+이 phase에서는 `0x2045`를 보내지 않는다. `ResumeGroupStopWaitForStableStandbyAsync`는 exact
+continuation으로 `0x2045`만 poll하여 `IsStandby`를 기본 3회 연속 확인하며 원 Stop을 replay하지
+않는다. timeout/cancel/status failure와 priority preemption 뒤에도 accepted continuation과 typed
+evidence를 보존한다. `TransportInvalidatedAtDeadline=true`이면 owner session은 faulted라 그
+continuation을 Resume할 수 없으며, reconnect 뒤에도 Stop을 자동 replay하지 않는다. stale,
+superseded, completed continuation과 concurrent second Resume은 wire 송신 전에 거부한다. 새 accepted
+Begin은 이전 pending continuation을 supersede한다. 기존 compound facade는 Begin과 Resume을 하나의
+elapsed total deadline으로 조합한다.
 
 `0x204A`와 `0x204B`는 PMAS packet capture에 없는 project-local LASAL extension이다.
 
@@ -727,7 +832,14 @@ capability negotiation에서 차단된다.
 - `ReadDriveStatus[Async]`는 `ReadStatus` -> DS402 `0x6041:0 BitField16/2` ->
   `0x6061:0 Int8/1` 순서로 읽는다. `IsAtomicSnapshot`은 항상 false이며 LASAL axis error,
   software/hardware limit와 DS402 internal-limit indication을 source별로 보존한다.
-- 두 API는 adapter의 physical axis/slave mapping 1..4만 허용한다.
+  `HasDs402Fault`는 이 실제 `0x6041` 값의 bit 3에서만 계산하며 `0x2028`의 reserved
+  `StatusWord=0`을 사용하지 않는다.
+- `GetDriveErrorCode[Async]`는 별도 D5 ticket으로 `0x603F:0 UInt16/2`를 정확히 한 번
+  읽는다. 기존 Drive Status composite에 세 번째 SDO를 추가하지 않으므로 그 API의
+  non-atomic 2-SDO/failure-context 계약은 바뀌지 않는다.
+- 세 API는 adapter의 physical axis/slave mapping 1..4만 허용한다.
+- `AxisErrorId`, `0x6041` Fault bit와 `0x603F` error code는 서로 다른 관측이다.
+  하나가 0이라는 이유로 나머지 둘의 해제를 추정하지 않는다.
 - `Diagnostics.ReadPI(catalog, alias)`는 catalog entry의 SignalId/type/MapRevision을 사용한다.
 - `CreatePIBulkBuilder(catalog)`는 readable entry, exact MapRevision, 최대 32개와 중복을
   검사한다. Configure 후 builder는 frozen되고, reader는 `Upload[Async]` 후

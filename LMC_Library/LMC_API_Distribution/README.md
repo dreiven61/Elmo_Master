@@ -3,7 +3,7 @@
 적용 버전: `LasalMotionControlLib 0.9.1-preview`
 대상 환경: Windows, .NET Framework 4.8
 
-이 배포 패키지는 다음 세 항목으로만 구성된다.
+이 배포 패키지는 다음 세 번호 폴더와 최상위 검증 manifest로 구성된다.
 
 > **Preview 경고:** 이 패키지는 개발·통합 시험용이며 production 승인본이
 > 아니다. current source의 PC 시험과 LASAL 정적 계약은 통과했지만 실제 PLC
@@ -20,6 +20,7 @@
 | 1 | `01_API` | PC 응용프로그램에서 참조할 `LasalMotionControlLib.dll` |
 | 2 | `02_Example_Program` | DLL 상대경로 참조 WPF 예제 source, solution과 실행 파일 |
 | 3 | `03_API_User_Manual` | API 사용법을 정리한 한국어 PDF와 편집 가능한 Word 원본 |
+| 검증 | `RELEASE_MANIFEST.md` | source commit, clean/dirty-preview, DLL version/3복제 identity와 모든 배포 파일의 상대경로·크기·SHA-256 |
 
 처음 사용하는 경우 [API 사용설명서 PDF](03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf)를
 먼저 읽고, [예제프로그램 안내](02_Example_Program/README.md)의 순서로 실행한다.
@@ -34,6 +35,10 @@ DLL은 단위를 자동 변환하지 않는다. 호출자가 물리값을 PLC ap
 
 Visual Studio build 뒤 예제 source 아래에 ignored `bin/`, `obj/`, `.vs/`가 생길 수
 있다. working tree 폴더를 그대로 압축하지 않는다. 내부
-`Build-LmcApiDistribution.ps1`가 cleanup을 완료한 뒤 `git ls-files`로 확인되는
-세 번호 폴더와 이 README만 전달한다. build script가 출력한 DLL/manual SHA-256과
-source commit은 distribution 외부의 승인 기록에 보존한다.
+`Build-LmcApiDistribution.ps1`가 cleanup을 완료한 뒤 같은 폴더에서 원자적으로
+`RELEASE_MANIFEST.md`를 생성하고 즉시 현재 파일과 다시 대조한다. 세 번호 폴더,
+이 README와 manifest만 전달한다. `dirty-preview` manifest는 미커밋 통합 시험본을
+식별할 뿐 production 승인을 뜻하지 않는다. 다음 build의 입력 청결성 판정에서는
+정확한 manifest와 script가 사용하는 GUID 형식 `.tmp`/`.bak`만 제외한다. 같은 입력의
+두 번째 clean build는 byte-identical manifest를 만들며, 그 밖의 Distribution 변경은
+계속 dirty 입력으로 처리한다.

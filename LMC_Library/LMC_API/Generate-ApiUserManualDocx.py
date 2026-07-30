@@ -30,6 +30,8 @@ MID_GRAY = "66717C"
 DARK = "20262C"
 BORDER = "CBD4DC"
 CODE_BG = "F6F8FA"
+WARNING_BG = "FFF7E6"
+WARNING_BORDER = "D58A00"
 WHITE = "FFFFFF"
 
 BODY_FONT = "Malgun Gothic"
@@ -154,6 +156,7 @@ def configure_styles(document: Document) -> None:
     toc_heading = styles.add_style("Manual TOC Heading", 1)
     set_style_font(toc_heading, BODY_FONT, 19, BLUE, True)
     toc_heading.paragraph_format.space_after = Pt(12)
+    toc_heading.paragraph_format.page_break_before = True
 
     note = styles.add_style("Manual Note", 1)
     set_style_font(note, BODY_FONT, 8, MID_GRAY)
@@ -168,6 +171,11 @@ def configure_styles(document: Document) -> None:
     set_style_font(code, CODE_FONT, 7.2, "17202A")
     code.paragraph_format.space_after = Pt(0)
     code.paragraph_format.line_spacing = 1.0
+
+    callout = styles.add_style("Manual Callout", 1)
+    set_style_font(callout, BODY_FONT, 8.5, DARK)
+    callout.paragraph_format.space_after = Pt(0)
+    callout.paragraph_format.line_spacing = 1.15
 
 
 def configure_document(document: Document) -> None:
@@ -404,6 +412,22 @@ def add_code_block(document: Document, code: str) -> None:
     after.paragraph_format.space_after = Pt(1)
 
 
+def add_callout(document: Document, text: str) -> None:
+    table = document.add_table(rows=1, cols=1)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    table.columns[0].width = Cm(17.6)
+    cell = table.cell(0, 0)
+    set_cell_shading(cell, WARNING_BG)
+    set_cell_margins(cell, top=130, start=180, bottom=130, end=180)
+    set_table_borders(table, WARNING_BORDER, 7)
+    p = cell.paragraphs[0]
+    p.style = document.styles["Manual Callout"]
+    add_inline(p, text, base_size=8.5, base_color=DARK)
+    after = document.add_paragraph()
+    after.paragraph_format.space_after = Pt(2)
+
+
 def parse_table(lines: list[str], index: int) -> tuple[list[list[str]], int]:
     rows: list[list[str]] = []
     while index < len(lines) and lines[index].strip().startswith("|"):
@@ -415,14 +439,9 @@ def parse_table(lines: list[str], index: int) -> tuple[list[list[str]], int]:
 
 
 def add_toc(document: Document) -> None:
-    document.add_page_break()
     document.add_paragraph("목차", style="Manual TOC Heading")
     p = document.add_paragraph()
     add_field(p, ' TOC \\o "1-2" \\h \\z \\u ', "목차 업데이트 필요")
-    note = document.add_paragraph(style="Manual Note")
-    note.add_run(
-        "Word에서 목차를 선택한 뒤 '필드 업데이트'를 실행하면 제목과 페이지 번호가 갱신됩니다."
-    )
     document.add_page_break()
 
 
@@ -476,6 +495,17 @@ def add_body(document: Document, source: Path) -> None:
             index += 1
             continue
 
+        if stripped.startswith(">"):
+            flush_paragraph()
+            callout_lines: list[str] = []
+            while index < len(lines) and lines[index].strip().startswith(">"):
+                callout_lines.append(
+                    re.sub(r"^>\s?", "", lines[index].strip()).strip()
+                )
+                index += 1
+            add_callout(document, " ".join(callout_lines))
+            continue
+
         heading = re.match(r"^(#{1,2})\s+(.+)$", stripped)
         if heading:
             flush_paragraph()
@@ -496,8 +526,13 @@ def add_body(document: Document, source: Path) -> None:
             flush_paragraph()
             while index < len(lines) and re.match(r"^\s*-\s+", lines[index]):
                 value = re.sub(r"^\s*-\s+", "", lines[index]).strip()
-                p = document.add_paragraph(style="List Bullet")
-                set_style_font(p.style, BODY_FONT, 9.3, DARK)
+                p = document.add_paragraph()
+                p.paragraph_format.left_indent = Mm(5)
+                p.paragraph_format.first_line_indent = Mm(-4)
+                marker = p.add_run("•\t")
+                set_east_asia(marker, BODY_FONT)
+                marker.font.size = Pt(9.3)
+                marker.font.color.rgb = RGBColor.from_string(DARK)
                 add_inline(p, value)
                 index += 1
             continue

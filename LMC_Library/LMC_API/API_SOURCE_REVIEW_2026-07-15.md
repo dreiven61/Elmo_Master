@@ -1,6 +1,6 @@
 # LMC_Library 배포 준비 소스 리뷰
 
-검토일: 2026-07-15, 현재 tree 재확인 2026-07-16
+검토일: 2026-07-15, 현재 tree 재확인 2026-07-29, 배포 manifest 정책 갱신 2026-07-29
 
 검토 대상: `LMC_API_Delivery`, `LasalApiWpfTestApp`, `LMC_API`, LASAL adapter
 
@@ -28,7 +28,7 @@ cancellation 이후 command 결과 불명 같은 P1 hardening 항목은 남아 �
 | P2 | unit 문서 일부가 IntUnits=10 mm라고 표기 | 현재 Git network의 1 mm 설정과 불일치 | Git 기준 1 mm/10000으로 정정, live PLC 확인 요구 |
 | P2 | 자동 test가 개발 예제만 build | binary-reference package 회귀를 놓침 | 배포 예제 build target을 `RunTests`에 추가 |
 | P2 | `LMC_Response.Raw/Payload`가 내부 배열을 그대로 노출 | 소비자 변경이 response 진단값을 훼손 | defensive clone getter/setter와 회귀 검증 추가 |
-| P2 | 수동 manifest가 rebuild 후 stale될 수 있음 | hash/version/commit 오표기 | current distribution 내부 manifest를 제거하고 build script가 세 DLL hash 동일성을 검사해 console에 출력; 내부 경로를 scan |
+| P2 | 수동 manifest가 rebuild 후 stale될 수 있음 | hash/version/commit 오표기 | build script가 세 DLL identity를 검사하고 package 내부 manifest를 원자 생성·즉시 재검증; 내부/절대 경로를 차단하고 모든 배포 파일의 상대경로·크기·SHA-256 기록 |
 
 ## 확인한 설계 강점
 
@@ -37,6 +37,10 @@ cancellation 이후 command 결과 불명 같은 P1 hardening 항목은 남아 �
 - malformed response를 정상값 0으로 바꾸지 않는다.
 - connection exchange가 직렬화되어 TCP response 순서를 보존한다.
 - reconnect generation으로 stale axis/group handle을 거부한다.
+- Axis Stop/Reset/PowerOff accepted-once Resume은 connection session+AxisReference의 process-local mutation
+  generation을 pre-wire/status publication/final resolution에서 확인하며 command를 replay하지 않는다.
+- Axis Reset accepted continuation은 session/send-priority publication 안에서 원자적으로 설치되고
+  WPF가 command gate 반환 전에 보존한다.
 - async lookup은 generation 확인과 request 전송을 같은 gate에서 처리한다.
 - caller-side UNIT 책임과 encoder `ExUnits`를 분리한다.
 - group Power, profile Lock/Unlock과 motion 명령을 별도 API로 노출한다.
@@ -55,8 +59,12 @@ cancellation 이후 command 결과 불명 같은 P1 hardening 항목은 남아 �
 7. response reader는 command별 payload 상한을 확인하기 전에 header의 `UInt16`
    길이만큼 읽으므로 비정상 peer가 최대 65,535-byte 대기/할당을 유발할 수 있다.
 8. async API는 blocking socket을 `Task.Run`으로 감싸고 connection별 exchange를
-   직렬화한다. pipelining이 없고 송신 뒤 취소되면 PLC 적용 여부를 확정할 수 없다.
+   직렬화한다. pipelining은 없다. Axis Power/Reset/Stop stable facade는 pre-write와
+   post-write를 구분하고 후자는 typed uncertain/accepted evidence와 transport invalidation을
+   보존하지만, raw command를 포함한 나머지 경로의 송신 뒤 취소는 PLC 적용 여부를 확정할 수 없다.
 9. callback은 controller IP만 검증하며 source port, 인증, 무결성, typed schema가 없다.
+10. Axis mutation 귀속은 현재 process의 `LMCSingleAxis` write만 포괄한다. 외부 PLC/client,
+    direct SDO와 group operation은 귀속할 수 없으며 PC fake-RPC 결과는 실제 DS402/축 proof가 아니다.
 
 ## 배포 포함/제외 기준
 
@@ -67,11 +75,12 @@ cancellation 이후 command 결과 불명 같은 P1 hardening 항목은 남아 �
   prebuilt `Run` EXE/DLL
 - `03_API_User_Manual`의 canonical DOCX/PDF
 - package README
+- build가 생성하고 즉시 검증한 `RELEASE_MANIFEST.md`
 
-현재 package 안에는 manifest/checksum 파일을 두지 않는다. build script는 DLL과
-manual hash를 console에 출력하며 `RELEASE_MANIFEST`/`BUILD_METADATA` 문자열을
-distribution text에서 금지한다. release provenance를 보존하려면 distribution
-외부의 승인 기록에 build console, source commit과 hash를 저장한다. 현재 snapshot은
+2026-07-29부터 build script는 package 안에 `RELEASE_MANIFEST.md`를 원자 생성한다.
+source commit, clean/dirty-preview, DLL version/3복제 identity와 manifest를 제외한
+모든 파일의 상대경로·크기·SHA-256을 기록하고 생성 직후 현재 package와 다시 대조한다.
+production 승인은 별도 승인 기록에 보존한다. 2026-07-16 당시 snapshot은
 [`BUILD_METADATA_2026-07-16.md`](../LMC_API_Delivery/docs/BUILD_METADATA_2026-07-16.md)에
 기록했다.
 
@@ -87,7 +96,9 @@ distribution text에서 금지한다. release provenance를 보존하려면 dist
 
 - [ ] Git commit과 dirty 여부 기록
 - [ ] VS2019 Release rebuild
-- [ ] PC 46 tests PASS
+- [ ] PC Debug/Release 876/876 tests PASS
+- [ ] Axis Stop 32개, Axis Reset 33개, Axis PowerOff 35개, Group Enable 35개 전용 contract PASS
+- [ ] WPF Release actual-control smoke 125/125 PASS
 - [ ] LASAL source-only/full-network static contract PASS
 - [ ] 배포 예제 Debug/Release 독립 build PASS
 - [ ] `01_API` DLL과 Run DLL SHA-256 동일
