@@ -1,0 +1,3 @@
+[17:13:58.960] Group Power On started.
+[17:13:58.964] Group Power On accepted/start only. This is not an ACTIVE confirmation; run Read Status before Set Identity.
+[17:13:58.965] Group Power On PASS.

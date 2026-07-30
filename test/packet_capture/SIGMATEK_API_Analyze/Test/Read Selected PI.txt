@@ -1,0 +1,3 @@
+[17:05:26.587] Read Selected PI started.
+[17:05:26.616] PI read completed for 4 signal(s) at Catalog revision 0x957F101E.
+[17:05:26.618] Read Selected PI PASS.

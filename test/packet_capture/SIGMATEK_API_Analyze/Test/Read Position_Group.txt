@@ -1,0 +1,2 @@
+[17:02:40.058] Read Group Position started.
+[17:02:40.063] Read Group Position PASS.

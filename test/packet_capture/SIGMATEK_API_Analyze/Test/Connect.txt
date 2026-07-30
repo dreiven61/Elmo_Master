@@ -1,0 +1,6 @@
+[16:51:51.623] Connect started.
+[16:51:51.652] Connection state Connected -> Closing
+[16:51:51.667] Connection state Disconnected -> Connecting
+[16:51:51.675] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0xFFFFFFFF
+[16:51:51.675] Connect PASS.
+[16:51:51.677] Connection state Connecting -> Connected

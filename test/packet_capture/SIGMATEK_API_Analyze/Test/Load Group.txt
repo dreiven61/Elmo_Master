@@ -1,0 +1,3 @@
+[16:56:13.197] Load Group started.
+[16:56:13.210] Group loaded. Name=_LMCRobotBase1, Ref=256
+[16:56:13.210] Load Group PASS.

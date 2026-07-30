@@ -1,0 +1,8 @@
+[17:33:30.232] Move Linear Absolute Send started.
+[17:33:30.247] Move Linear Absolute input: StartRaw=X=100003, Y=-999998, Z=-999996, U=-999997, TargetRaw=X=100000, Y=100000, Z=100000, U=100000, VelocityRaw=100000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting, MonitorTimeoutMs=48750.
+[17:33:30.250] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[17:33:30.255] Move Linear Absolute Send PASS.
+[17:33:30.258] Move Linear Absolute group monitor started with timeout 48750 ms. Group Stop remains available.
+[17:33:30.514] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[17:33:50.449] Motion warning cleared: Move Linear Absolute completed at stable Group InPosition.
+[17:33:50.453] Move Linear Absolute completion PASS.

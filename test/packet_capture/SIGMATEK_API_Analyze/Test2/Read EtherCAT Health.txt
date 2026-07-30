@@ -1,0 +1,2 @@
+[14:34:20.019] Read EtherCAT Health started.
+[14:34:20.030] Read EtherCAT Health PASS.

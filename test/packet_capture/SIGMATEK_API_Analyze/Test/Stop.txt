@@ -1,0 +1,5 @@
+[17:11:53.591] Stop Send queued with safety priority.
+[17:11:53.592] Stop Send transmitting.
+[17:11:53.598] Stop Send PASS.
+[17:11:53.600] Stop accepted. Verifying three stable Standstill samples; Stop and Power Off remain available.
+[17:11:53.785] Stop safety verification PASS.

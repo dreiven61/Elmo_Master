@@ -1,0 +1,6 @@
+[17:36:21.574] Group Power Off Send queued with safety priority.
+[17:36:21.578] Group Power Off Send transmitting.
+[17:36:21.581] Group Power Off accepted/start only. Read Status must verify PowerOn=False.
+[17:36:21.582] Group Power Off Send PASS.
+[17:36:21.584] Group Power Off accepted. Verifying three stable PowerOn=False samples; Group Stop remains available.
+[17:36:21.728] Group Power Off safety verification PASS.

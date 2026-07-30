@@ -1,0 +1,19 @@
+[15:23:25.922] Move Absolute Send started.
+[15:23:25.937] SAFETY: Move Absolute send may start for _LMCAxis1. Motion state is uncertain until rejection or verified standstill.
+[15:23:25.941] Move Absolute Send PASS.
+[15:23:25.944] Move Absolute monitor started. Stop and PowerOff remain available.
+[15:23:26.201] SAFETY: Non-standstill motion was observed for _LMCAxis1.
+[15:23:30.213] Motion warning cleared: Move Absolute completed at stable standstill.
+[15:23:30.217] Move Absolute completion PASS.
+[15:23:43.797] Read Axis Status started.
+[15:23:43.802] Read Axis Status PASS.
+[15:23:47.003] Read Axis Status started.
+[15:23:47.009] Read Axis Status PASS.
+[15:23:49.106] Read Axis Status started.
+[15:23:49.113] Read Axis Status PASS.
+[15:23:52.338] Read Actual Position started.
+[15:23:52.345] Read Actual Position PASS.
+[15:23:56.255] Read Actual Position started.
+[15:23:56.261] Read Actual Position PASS.
+[15:23:57.731] Read Actual Position started.
+[15:23:57.736] Read Actual Position PASS.

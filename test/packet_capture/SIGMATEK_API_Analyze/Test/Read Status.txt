@@ -1,0 +1,2 @@
+[16:53:37.167] Read Axis Status started.
+[16:53:37.172] Read Axis Status PASS.

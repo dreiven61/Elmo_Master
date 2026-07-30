@@ -1,0 +1,2 @@
+[17:07:28.365] Power On started.
+[17:07:28.373] Power On PASS.

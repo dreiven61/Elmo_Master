@@ -1,0 +1,3 @@
+[17:32:33.001] Read Group Status started.
+[17:32:33.009] Group Lock Ready verified: Read Status reports Enabled/Locked Standby. Move Linear is now available.
+[17:32:33.010] Read Group Status PASS.

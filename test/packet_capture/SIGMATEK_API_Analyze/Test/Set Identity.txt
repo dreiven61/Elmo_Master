@@ -1,0 +1,3 @@
+[17:30:51.833] Set Identity Kinematics started.
+[17:30:51.867] Identity Home Check PASS: 4/4 axes referenced.
+[17:30:51.882] Set Identity Kinematics PASS.

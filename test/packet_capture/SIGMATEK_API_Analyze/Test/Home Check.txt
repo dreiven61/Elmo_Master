@@ -1,0 +1,3 @@
+[17:30:04.396] Identity Home Check started.
+[17:30:04.427] Identity Home Check PASS: 4/4 axes referenced.
+[17:30:04.428] Identity Home Check PASS.
