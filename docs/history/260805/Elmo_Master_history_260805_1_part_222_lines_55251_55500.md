@@ -1,0 +1,250 @@
+>   {
+>     "app": "process:C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\Lasal2.exe",
+>     "id": 25496404,
+>     "title": "Lasal Class 2 (02.03.001)"
+>   },
+>   {
+>     "app": "process:C:\\Windows\\explorer.exe",
+>     "id": 721818,
+>     "title": "Elmo_EtherCAT_Test_4Axis - 파일 탐색기 [ main ↓0 ↑17 ]"
+>   }
+> ]
+> ```
+>
+> <details><summary>Called a tool</summary>
+>
+> MCP tool call
+>
+> node_repl.js
+>
+> ```json
+> {
+>   "code": "globalThis.lasalCandidates=cuwins.filter(w=>w.app==='process:C:\\\\Program Files (x86)\\\\Sigmatek\\\\Lasal\\\\Class2\\\\Bin\\\\Lasal2.exe'); nodeRepl.write(JSON.stringify(lasalCandidates,null,2))",
+>   "title": "LASAL 창 선택"
+> }
+> ```
+>
+> ```text
+> [
+>   {
+>     "app": "process:C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\Lasal2.exe",
+>     "id": 25496404,
+>     "title": "Lasal Class 2 (02.03.001)"
+>   }
+> ]
+> ```
+>
+> </details>
+>
+> MCP tool call
+>
+> node_repl.js
+>
+> ```json
+> {
+>   "code": "globalThis.targetWindow=await sky.get_window({id:lasalCandidates[0].id,app:lasalCandidates[0].app}); await sky.activate_window({window:targetWindow}); globalThis.state=await sky.get_window_state({window:targetWindow,include_screenshot:true,include_text:true}); globalThis.targetWindow=state.window; nodeRepl.write(String(state.accessibility?.tree||state.accessibility?.document_text||''))",
+>   "title": "LASAL 프로젝트 상태 확인"
+> }
+> ```
+>
+> ```text
+> Window: "Lasal Class 2 (02.03.001)", App: Lasal2.exe.
+> 	0 창 Lasal Class 2 (02.03.001) Secondary Actions: Raise
+> 		1 창 작업 영역 ID: 59648
+> 		2 상태 표시줄 ID: 59393
+> 			3 텍스트
+> 			4 텍스트
+> 			5 텍스트
+> 			6 텍스트
+> 			7 텍스트
+> 			8 텍스트 Offline
+> 			9 텍스트
+> 			10 텍스트 NUM
+> 			11 텍스트
+> 		12 창 xtpBarTop ID: 59419
+> 			13 도구 모음 Script
+> 			14 도구 모음 Edit
+> 				1061 단추 (disabled) Toggle bookmark
+> 				1062 단추 (disabled) Previous bookmark
+> 				1063 단추 (disabled) Next bookmark
+> 				1064 단추 (disabled) Delete all bookmarks
+> 				1065 단추 (disabled) Previous bookmark in this file
+> 				1066 단추 (disabled) Next bookmark in this file
+> 				1067 단추 (disabled) Comment selected text (Ctrl+Shift+C)
+> 				1068 단추 (disabled) Remove comment (Ctrl+Shift+X)
+> 				1069 단추 (disabled) Unindent (Shift+Tab)
+> 				1070 단추 (disabled) Indent (Tab)
+> 			25 도구 모음 Macros Manager
+> 				1071 메뉴 항목 Macros
+> 			27 도구 모음 Layout Manager
+> 				1072 메뉴 항목 Layouts
+> 			29 도구 모음 Toolbox
+> 				1073 단추 DataAnalyzer
+> 				1074 메뉴 항목 Toolbar Options
+> 			32 도구 모음 Net Edit
+> 				1075 단추 (disabled) Select
+> 				1076 메뉴 항목 Toolbar Options
+> 			35 도구 모음 Debug
+> 				1077 단추 (disabled) Go online (Alt+F6)
+> 				1078 단추 (disabled) Change Online Settings
+> 				1079 메뉴 항목 (disabled) Online Connection
+> 				1080 단추 (disabled) Set Online Connection For Current Project
+> 				1081 단추 (disabled) Download (F6)
+> 				1082 단추 (disabled) Build Changes, Online, Download and Run (CTRL+ALT+F6)
+> 				1083 단추 (disabled) Download Module on the Fly
+> 				1084 단추 (disabled) Save Project on PLC
+> 				1085 단추 (disabled) Start (F7)
+> 				1086 단추 (disabled) Reset (F8)
+> 				1087 단추 (disabled) Toggle breakpoint (F4)
+> 				1088 단추 (disabled) Create condition breakpoint
+> 				1089 메뉴 항목 Toolbar Options
+> 			49 도구 모음 Build
+> 				1090 메뉴 항목 (disabled) Target Architecture
+> 				1091 단추 (disabled) Build changes (F9)
+> 				1092 단추 (disabled) Rebuild project (Strg+F9)
+> 				1093 단추 Cancel building (Ctrl+Break)
+> 				1094 단추 (disabled) Link project
+> 			55 도구 모음 Standard
+> 				1095 단추 New project (Strg+N)
+> 				1096 단추 Open a file (Strg+Shift+O)
+> 				1097 단추 (disabled) Close active document (Strg+F4)
+> 				1098 단추 (disabled) Save file (Strg+S)
+> 				1099 단추 (disabled) Open project (Strg+O)
+> 				1100 단추 (disabled) Save project changes (Strg+Shift+S)
+> 				1101 단추 (disabled) Close project
+> 				1102 단추 (disabled) Print
+> 				1103 단추 Cut (Strg+X)
+> 				1104 단추 Copy (Strg+C)
+> 				1105 단추 Paste (Strg+V)
+> 				1106 메뉴 항목 (disabled) Undo (Strg+Z)
+> 				1107 메뉴 항목 (disabled) Redo (Strg+Y)
+> 				1108 단추 (disabled) Navigate Backward (Alt+Left)
+> 				1109 단추 (disabled) Navigate Forward (Alt +Right)
+> 			71 메뉴 모음 Menu Bar
+> 				1110 메뉴 항목 FILE
+> 				1111 메뉴 항목 EDIT
+> 				1112 메뉴 항목 VIEW
+> 				1113 메뉴 항목 PROJECT
+> 				1114 메뉴 항목 BUILD
+> 				1115 메뉴 항목 DEBUG
+> 				1116 메뉴 항목 ANALYZE
+> 				1117 메뉴 항목 TOOLS
+> 				1118 메뉴 항목 EXTRAS
+> 				1119 메뉴 항목 WINDOW
+> 				1120 메뉴 항목 HELP
+> 		83 창 Splitter ID: 384042808
+> 		84 창 Splitter ID: 384041968
+> 		85 Tab Output ID: 274291232
+> 			86 창 ID: 1200
+> 				87 창 ID: 1200
+> 					88 LIST ID: 1201
+> 						670 스크롤 막대 세로 ID: NonClientVerticalScrollBar
+> 							671 단추 위쪽 스크롤 화살표 ID: UpButton
+> 							672 단추 페이지 위로 ID: UpPageButton
+> 							673 위치 조정 위치 ID: ScrollbarThumb
+> 							674 단추 아래쪽 스크롤 화살표 ID: DownButton
+> 						1039 목록 항목 (selectable)
+> 						1040 목록 항목 (selectable)
+> 						1041 목록 항목 (selectable)
+> 						1042 목록 항목 (selectable)
+> 						1043 목록 항목 (selectable)
+> 						1044 목록 항목 (selectable)
+> 						1045 목록 항목 (selectable)
+> 						1046 목록 항목 (selectable)
+> 						1047 목록 항목 (selectable)
+> 						1048 목록 항목 (selectable)
+> 						1049 목록 항목 (selectable)
+> 						1050 목록 항목 (selectable)
+> 						1051 목록 항목 (selectable)
+> 						1121 목록 항목 (selectable)
+> 						1122 목록 항목 (selectable)
+> 					90 스크롤 막대 ID: 59904
+> 						91 단추 왼쪽 스크롤 화살표 ID: UpButton
+> 						92 위치 조정 위치 ID: ScrollbarThumb
+> 						93 단추 오른쪽 스크롤 화살표 ID: DownButton
+> 			1123 탭 항목 (selectable) Python Script
+> 			1124 탭 항목 (selectable) Debugger
+> 			1125 탭 항목 (selectable) Output
+> 			97 단추 Close
+> 		98 창 Splitter ID: 384043816
+> 		99 Tab Class View ID: 274289864
+> 			100 트리 ID: 103
+> 			1126 탭 항목 (selectable) Lib
+> 			1127 탭 항목 (selectable) File
+> 			1128 탭 항목 (selectable) Global
+> 			1129 탭 항목 (selectable) Net
+> 			1130 탭 항목 (selectable) Class
+> 			106 단추 Close
+> 		107 Tab Properties ID: 385795760
+> 			108 창 ID: 262717224
+> 				109 TABLE Properties Window ID: 272020368
+> 				110 도구 모음 ID: 59392
+> 					111 단추
+> 					112 단추
+> 			1131 탭 항목 (selectable) Properties
+> 			114 단추 Close
+>
+> The focused UI element is 1 창 작업 영역 ID: 59648.
+> ```
+>
+> Image output: image/jpeg
+>
+> Image output: image/jpeg
+>
+> <details><summary>Created a file</summary>
+>
+> - Wrote `./docs/architecture/LMC_AXIS_OWNERSHIP_OVERLAY_IDENTITY_RESTORE_IDE_HANDOFF_2026-08-04.md` (+199 -0)
+>
+> </details>
+>
+> MCP tool call
+>
+> node_repl.js
+>
+> ```json
+> {
+>   "code": "globalThis.state=await sky.get_window_state({window:targetWindow,include_screenshot:true,include_text:true});globalThis.targetWindow=state.window;nodeRepl.write(String(state.accessibility?.tree||state.accessibility?.document_text||''))",
+>   "title": "LASAL 클래스 트리 확인"
+> }
+> ```
+>
+> ```text
+> Window: "Lasal Class 2 (02.03.001) - {Elmo_EtherCAT_Test_4Axis} - LMCControlCommandService", App: Lasal2.exe.
+> 	0 창 Lasal Class 2 (02.03.001) - {Elmo_EtherCAT_Test_4Axis} - LMCControlCommandService Secondary Actions: Raise
+> 		1 창 작업 영역 ID: 59648
+> 			1224 창 LMCControlCommandService Secondary Actions: Raise ID: 65284
+> 				1225 창 ID: 59648
+> 					1226 창 #define LMC_ADMIN_AXIS_HOME_ENABLED FALSE #define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE #define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9 #define LMC_AXIS_STATUS_STANDSTILL 0x02000000 #define LMC_HOME_RECORD_EMPTY 0 #define LMC_HOME_RECORD_RUNNING 1 #define LMC_HOME_RECORD_SUCCEEDED 2 #define LMC_HOME_RECORD_FAILED 3 #define LMC_HOME_RECORD_ABORTED 4 #define LMC_HOME_RECORD_QUARANTINED 5 #define LMC_HOME_ENGINE_IDLE 0 #define LMC_HOME_ENGINE_WAIT_RT 1 #define LMC_HOME_ENGINE_TERMINAL 2 #define LMC_HOME_RECORD_MAGIC 0x4C4D4348 #define LMC_HOME_EVIDENCE_COMPLETE 0x0000003F #define LMC_OWNER_GLOBAL_SLOTS 28 #define LMC_OWNER_AXIS_STRIDE 36 #define LMC_OWNER_AXIS_COUNT 9 #define LMC_OWNER_TABLE_MAGIC 0x4C4D434F #define LMC_OWNER_AXIS_RECORD_MAGIC 0x4F574E00 #define LMC_OWNER_STATE_IDLE 0 #define LMC_OWNER_STATE_RESERVED 1 #define LMC_OWNER_STATE_DIRECT_ACTIVE 2 #define LMC_OWNER_STATE_GROUP_LEASE 3 #define LMC_OWNER_STATE_GROUP_ACTIVE 4 #define LMC_OWNER_STATE_LMC_HOME_ACTIVE 5 #define LMC_OWNER_STATE_DS402_HOME_ACTIVE 6 #define LMC_OWNER_STATE_TW20_QUEUED 7 #define LMC_OWNER_STATE_TW20_RUNNING 8 #define LMC_OWNER_STATE_TW20_DRAINING 9 #define LMC_OWNER_STATE_SAFETY_PREEMPTING 10 #define LMC_OWNER_STATE_QUARANTINED 11 #define LMC_OWNER_KIND_DIRECT 1 #define LMC_OWNER_KIND_GROUP 2 #define LMC_OWNER_KIND_LMC_HOME 3 #define LMC_OWNER_KIND_DS402_HOME 4 #define LMC_OWNER_KIND_ENCODER 5 #define LMC_OWNER_RESOURCE_AXIS 1 #define LMC_OWNER_RESOURCE_LMC_HOME_ENGINE 2 #define LMC_OWNER_RESOURCE_DS402_HOME_ENGINE 3 #define LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE 4 #define LMC_OWNER_ADMISSION_ORDINARY 1 #define LMC_OWNER_ADMISSION_SAFETY 2 #define LMC_OWNER_ADMISSION_READ 3 #define LMC_OWNER_ADMISSION_LIFECYCLE 4 #define LMC_OWNER_PHASE_RESERVED 1 #define LMC_OWNER_PHASE_ACTIVE 2 #define LMC_OWNER_REPORT_DISPATCH 1 #define LMC_OWNER_REPORT_TERMINAL_SUCCESS 2 #define LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE 3 #define LMC_OWNER_REPORT_QUARANTINE 4 #define LMC_OWNER_REPORT_SAFETY_PREEMPT 5 #define LMC_OWNER_STARTUP_PROOF_REQUIRED 0x0000000F #define LMC_OWNER_STARTUP_STATE_MAGIC 0x4F575350 #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353 #define LMC_OWNER_STARTUP_LATCH_REQUIRED 0x0000001F #define LMC_OWNER_STARTUP_DIAG_REQUIRED 0x0000001F #define LMC_OWNER_STARTUP_STABLE_SAMPLES 3 #define LMC_OWNER_STARTUP_STABLE_MS 100 #define LMC_OWNER_STARTUP_AXIS_CLEAR_MASK 0x05028890 #define LMC_OWNER_STARTUP_AXIS_LOCK_MASK 0x01000800 #define LMC_OWNER_PROFILE_AXIS_MASK 0x0000000F #define LMC_OWNER_ROBOT_AXIS_MASK 0x000001FF #define LMC_OWNER_OBSERVER_STRIDE 12 #define LMC_OWNER_OBSERVER_MAGIC 0x4F425300 #define LMC_OWNER_OBSERVER_ACTIVITY_SEEN 0x00000001 #define LMC_OWNER_OBSERVER_BASELINE_VALID 0x00000002 #define LMC_OWNER_OBSERVER_RESTORE_GROUP_LEASE 0x00000004 #define LMC_OWNER_OBSERVER_PREEMPTED 0x00000008 #define LMC_OWNER_OBSERVER_PREEMPTED_SPECIAL 0x00000010 #define LMC_OWNER_OBSERVER_FORCE_QUARANTINE 0x00000020 #define LMC_OWNER_OBSERVER_RETURN_GROUP_LEASE 0x00000040 #define LMC_OWNER_OBSERVER_GROUP_ACTIVE_PREEMPTED 0x00000080 #define LMC_OWNER_OBSERVER_EVIDENCE_CLEAR_MASK 0xFFFFFFFC #define LMC_OWNER_ORDINARY_STABLE_SAMPLES 3 #define LMC_OWNER_ORDINARY_STABLE_MS 100 #define LMC_OWNER_ORDINARY_TIMEOUT_MS 120000 #define LMC_OWNER_AXIS_POWER_ON_MASK 0x00000001 #define LMC_OWNER_AXIS_IN_POSITION_MASK 0x00000004 #define LMC_OWNER_AXIS_EMERGENCY_MASK 0x00000200 #define LMC_OWNER_UNSUPPORTED_AXIS_MASK 0x000001F0 #define LMC_OWNER_LATCH_PHYSICAL_FLAG 0x00000001 #define LMC_OWNER_DS402_OPERATION_ENABLED_MASK 0x00000004 #define LMC_OWNER_DS402_FAULT_MASK 0x00000008 #define LMC_OWNER_DS402_STATE_MASK 0x0000006F #define LMC_OWNER_DS402_OPERATION_ENABLED_STATE 0x00000027 #define LMC_OWNER_DS402_TARGET_REACHED_MASK 0x00000400 FUNCTION GLOBAL LMCControlCommandService::HandleRequest VAR_INPUT CommandId : UINT; Reference : UINT; pRequestFrame : ^USINT; RequestFrameSize : UDINT; pResponseFrame : ^USINT; ResponseCapacity : UDINT; CallerSessionEpoch : UDINT; RequestSequence : UDINT; AdmissionToken : UDINT; OwnerGeneration : U ID: 10000
+> 						1227 스크롤 막대 세로 ID: NonClientVerticalScrollBar
+> 							1228 단추 위쪽 스크롤 화살표 ID: UpButton
+> 							1229 단추 페이지 위로 ID: UpPageButton
+> 							1230 위치 조정 위치 ID: ScrollbarThumb
+> 							1231 단추 페이지 아래로 ID: DownPageButton
+> 							1232 단추 아래쪽 스크롤 화살표 ID: DownButton
+> 						1233 스크롤 막대 가로 ID: NonClientHorizontalScrollBar
+> 							1234 단추 왼쪽 스크롤 화살표 ID: UpButton
+> 							1235 위치 조정 위치 ID: ScrollbarThumb
+> 							1236 단추 페이지 오른쪽으로 ID: DownPageButton
+> 							1237 단추 오른쪽 스크롤 화살표 ID: DownButton
+> 						1238 위치 조정 (disabled)
+> 			1239 창 LMCDiagnosticsService Secondary Actions: Raise ID: 65283
+> 				1240 창 ID: 59648
+> 					1241 창 #pragma usingLtd _StdLib #define LMC_DIAG_SCHEMA_VERSION 1 #define LMC_DIAG_MAP_REVISION 0x957F101E #define LMC_DIAG_TOPOLOGY_REVISION 0x15867EEC #define LMC_DIAG_ERROR_ID -32000 #define LMC_DIAG_D1_ENABLED TRUE #define LMC_DIAG_D2_ENABLED TRUE #define LMC_DIAG_D3_ENABLED TRUE #define LMC_DIAG_D5_SDO_READ_ENABLED TRUE #define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED FALSE #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED FALSE #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED FALSE // Implementation remains dormant until RT mailbox, setpoint alignment and // no-jump CSP return have been proven on every enabled physical axis. #define LMC_DIAG_DS402_HOME_ENABLED FALSE #define LMC_DIAG_ENCODER_TW20_ENABLED FALSE #define LMC_DIAG_ENCODER_TW19_ENABLED FALSE // Axis-specific compatibility manifests remain unprovisioned until current // live drive, encoder family, feedback socket and evidence have been captured. // Enabling a global feature gate without provisioning the exact matching // manifest still fails closed before any SDO executor call. #define LMC_DIAG_ENCODER_TW20_AXIS1_PROFILE 0 #define LMC_DIAG_ENCODER_TW20_AXIS1_SOCKET 0 #define LMC_DIAG_ENCODER_TW20_AXIS1_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW20_AXIS1_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW20_AXIS1_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW20_AXIS1_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_PROFILE 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_SOCKET 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW20_AXIS2_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_PROFILE 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_SOCKET 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW20_AXIS3_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_PROFILE 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_SOCKET 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW20_AXIS4_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_PROFILE 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_SOCKET 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW19_AXIS1_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_PROFILE 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_SOCKET 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW19_AXIS2_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_PROFILE 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_SOCKET 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW19_AXIS3_EVIDENCE3 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_PROFILE 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_SOCKET 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_EVIDENCE0 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_EVIDENCE1 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_EVIDENCE2 0 #define LMC_DIAG_ENCODER_TW19_AXIS4_EVIDENCE3 0 #define LMC_DIAG_ENCODER_RECORD_STRIDE 38 #define LMC_DIAG_ENCODER_RUNTIME_BASE 152 #define LMC_DIAG_ENCODER_STAGE_IDLE 0 #define LMC_DIAG_ENCODER_STAGE_PRE_STABLE 1 #define LMC_DIAG_ENCODER_STAGE_DISPATCH 2 #define LMC_DIAG_ENCODER_STAGE_WAIT_SDO 3 #define LMC_DIAG_ENCODER_STAGE_POST_STABLE 4 #define LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER 5 #define LMC_DIAG_ENCODER_STAGE_DRAIN 90 #define LMC_DIAG_ENCODER_STAGE_QUARANTINED 101 #define LMC_DIAG_ENCODER_RECORD_RUNNING 1 #define LMC_DIAG_ENCODER_RECORD_SUCCEEDED 2 #define LMC_DIAG_ENCODER_RECORD_FAILED 3 #define LMC_DIAG_ENCODER_RECORD_ABORTED 4 #define LMC_D ID: 10000
+> 						1242 스크롤 막대 세로 ID: NonClientVerticalScrollBar
+> 							1243 단추 위쪽 스크롤 화살표 ID: UpButton
+> 							1244 단추 페이지 위로 ID: UpPageButton
+> 							1245 위치 조정 위치 ID: ScrollbarThumb
+> 							1246 단추 페이지 아래로 ID: DownPageButton
+> 							1247 단추 아래쪽 스크롤 화살표 ID: DownButton
+> 						1248 스크롤 막대 가로 ID: NonClientHorizontalScrollBar
+> 							1249 단추 왼쪽 스크롤 화살표 ID: UpButton
+> 							1250 위치 조정 위치 ID: ScrollbarThumb
+> 							1251 단추 페이지 오른쪽으로 ID: DownPageButton
+> 							1252 단추 오른쪽 스크롤 화살표 ID: DownButton
+> 						1253 위치 조정 (disabled)
+> 			1254 창 LMCEcatInputLatch Secondary Actions: Raise ID: 65282
+> 				1255 창 ID: 59648
+> 					1256 창 #pragma usingLtd SigCLib #pragma usingLtd _StdLib #define LMC_ZERO_HOME_STATE_RUNNING 1 #define LMC_ZERO_HOME_STATE_SUCCEEDED 2 #define LMC_ZERO_HOME_STATE_FAILED 3 #define LMC_ZERO_HOME_PHASE_VERIFY 1 #define LMC_ZERO_HOME_REQUIRED_STABLE 3 #define LMC_ZERO_HOME_FAILURE_INVALID -1 #define LMC_ZERO_HOME_FAILURE_BUSY -2 #define LMC_ZERO_HOME_FAILURE_CLIENT -3 #define LMC_ZERO_HOME_FAILURE_STATE -4 #define LMC_ZERO_HOME_FAILURE_STALE -5 #define LMC_ZERO_HOME_FAILURE_NATIVE -6 #define LMC_ZERO_HOME_FAILURE_VERIFY -7 #define LMC_ZERO_HOME_FAILURE_CORRUPT -8 #define LMC_ZERO_HOME_FAILURE_DS402 -9 #define LMC_ZERO_HOME_STANDSTILL 0x02000000 #define LMC_ZERO_HOME_EVIDENCE_EXPECTED 0x00000001 #define LMC_ZERO_HOME_EVIDENCE_STATE 0x00000002 #define LMC_ZERO_HOME_EVIDENCE_RAW 0x00000004 #define LMC_ZERO_HOME_EVIDENCE_APP 0x00000008 #define LMC_ZERO_HOME_EVIDENCE_INTERNAL 0x00000010 #define LMC_ZERO_HOME_EVIDENCE_STABLE 0x00000020 #define LMC_ZERO_HOME_EVIDENCE_DISPATCH 0x00000003 #define LMC_ZERO_HOME_EVIDENCE_VERIFIED 0x0000001F #define LMC_ZERO_HOME_EVIDENCE_COMPLETE 0x0000003F #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353 #define LMC_OWNER_STARTUP_LATCH_PHYSICAL 0x00000001 #define LMC_OWNER_STARTUP_LATCH_ZERO_HOME 0x00000002 #define LMC_OWNER_STARTUP_LATCH_DS402 0x00000004 #define LMC_OWNER_STARTUP_LATCH_OWNER 0x00000008 #define LMC_OWNER_STARTUP_LATCH_START_LOW 0x00000010 FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork VAR_INPUT EAX : UDINT; END_VAR VAR_OUTPUT state (EAX) : UDINT; END_VAR VAR cycleCounter : UDINT; timestampLow : UDINT; timestampHigh : UDINT; previousTimestampLow : UDINT; masterState : UDINT; masterClassState : UDINT; consecutiveInvalidCycles : UDINT; invalidCycleTotal : UDINT; masterFlags : UDINT; writeSequence : UDINT; finalSequence : UDINT; onlineValue : DINT; etherCATStateValue : UDINT; slaveStateValue : UDINT; alStatusValue : UDINT; classStateValue : UDINT; statusWordValue : UDINT; axisErrorValue : DINT; stateChanged : BOOL; recorderResult : DINT; couplerConnected : BOOL; inputSlotConnected : BOOL; outputSlotConnected : BOOL; couplerDetected : BOOL; couplerIdentityMatched : BOOL; couplerDataValid : BOOL; inputDetected : BOOL; inputIdentityMatched : BOOL; inputDataValid : BOOL; outputDetected : BOOL; outputIdentityMatched : BOOL; outputDataValid : BOOL; inputValid : BOOL; outputValid : BOOL; couplerStateChanged : BOOL; inputStateChanged : BOOL; outputStateChanged : BOOL; couplerNativeOnline : DINT; inputStatus : UINT; outputStatus : UINT; couplerEtherCATState : UDINT; couplerSlaveState : UDINT; couplerALStatus : UDINT; couplerClassState : UDINT; inputSlotClassState : UDINT; outputSlotClassState : UDINT; inputByte0Value : UDINT; inputByte1Value : UDINT; inputByte2Value : UDINT; inputByte3Value : UDINT; outputByte0Value : UDINT; outputByte1Value : UDINT; outputByte2Value : UDINT; outputByte3Value : UDINT; inputValue : UDINT; outputValue : UDINT; inputValidMask : UDINT; outputValidMask : UDINT; couplerLastValidCycle : UDINT; couplerLastStateChangeCycle : UDINT; inputLastValidCycle : UDINT; inputLastStateChangeCycle : UDINT; outputLastValidCycle : UDINT; outputLastStateChangeCycle : UDINT; zeroHomeRequestSequence : UDINT; zeroHomeAppliedSequence : UDINT; zeroHomeRequestToken : UDINT; zeroHomeRequestAxis : DINT; zeroHomeExpectedActualPosition : DINT; zeroHomePhase : DINT; zeroHomeStableSampleCount : DINT; zeroHomeFailure : DINT; zeroHomeCycle : UDINT; zeroHomeEvidence : UDINT; zeroHomeHasRequest : BOOL; zeroHomeTerminal : BOOL; zeroHomeSucceeded : BOOL; zeroHomeDriveConnected : BOOL; zeroHomeAxisConnected : BOOL; zeroHomeAxisStatus : _LMCAXIS_STATUS; zeroHomeAxisError : _LMCAXIS_ERROR; zeroHomeRawDrivePosition : DINT; zeroHomeActualAppPosition : DINT; zeroHomeSetAppPosition : DINT; zeroHomeActualIntPositio ID: 10000
+> 						1257 스크롤 막대 세로 ID: NonClientVerticalScrollBar
+> 							1258 단추 위쪽 스크롤 화살표 ID: UpButton
+> 							1259 단추 페이지 위로 ID: UpPageButton
