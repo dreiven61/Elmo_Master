@@ -16,6 +16,10 @@
 # Generated document staging output
 /output/doc/
 
+# Local build and transactional distribution candidates
+/artifacts/
+/LMC_Library/LMC_API_Distribution_candidate_*/
+
 # Test outputs and packet captures
 **/Reports/
 **/downloads/
