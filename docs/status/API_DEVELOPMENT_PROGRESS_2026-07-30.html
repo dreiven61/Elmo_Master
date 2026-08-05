@@ -277,7 +277,7 @@
 </head>
 <body>
   <header class="hero">
-    <div class="eyebrow">Working-tree dashboard · 2026-07-30 12:02 KST</div>
+    <div class="eyebrow">Working-tree dashboard · 2026-07-31 01:59 KST</div>
     <h1>Elmo Master API<br>개발 진행 현황</h1>
     <p>API 구현, PC 자동 검증, LASAL 통합, PLC/실기 증거를 분리해 본 현재 상태입니다.</p>
     <nav class="nav-links" aria-label="문서 이동">
@@ -290,16 +290,31 @@
 
   <main>
     <aside class="snapshot">
+      <strong>2026-08-03 후속 설계 우선:</strong> 이 페이지는 2026-07-30/31 snapshot입니다.
+      아래의 ReferenceAxis, switch-search Home, MoveReference 설명과 당시 test 수치 및
+      SourceOnly PASS 판정은 현재 상태가 아닙니다. 현재 계약은
+      <a href="../architecture/LMC_HOME_CURRENT_POSITION_ZERO_AND_ENCODER_MAINTENANCE_IDE_HANDOFF_2026-08-03.md">LMC Home current-position zero IDE handoff</a>와
+      <a href="../history/260803/99_analysis_summary.md">260803 continuation summary 9절</a>을 따릅니다.
+    </aside>
+    <aside class="snapshot">
       <strong>Snapshot 주의:</strong>
-      <code>main@6ce2cb2</code> 위의 대규모 미커밋 working tree입니다. 11시대 current C# source에서 SDK와 WPF
-      전량을 다시 실행했지만, 목적별 commit과 clean checkout 재현 전에는 final release baseline이 아닙니다.
+      <code>main@6537bcf</code> 위의 대규모 미커밋 working tree입니다. current SDK/WPF와 LASAL
+      <code>IntegratedReadOwnerDormant</code>, dormant Admin <code>0x7D12 SetAxisPosition</code>과
+      <code>0x7D13 StartAxisReference</code> current SourceOnly/full static 및 Reference PC 계약 시험은
+      PASS했습니다. fresh IDE Rebuild/Link는
+      callback/<code>0x7D12</code>/<code>0x7D13</code> 변경 전 checkpoint이므로 세 변경을 포함한
+      current source에서 다시 실행해야 합니다.
+      Distribution transaction은 검토한 <code>2.0-candidate</code> DOCX/PDF exact bytes,
+      semantic 15-check와 schema 2 manifest를 포함한 sibling candidate까지 당시 입력으로 PASS했습니다.
+      이후 Group Reset source가 바뀌어 이 candidate는 stale input입니다. 이 결과는
+      <code>dirty-preview</code>이며 새 candidate, 목적별 commit과 clean checkout 재현 전에는 final release baseline이 아닙니다.
     </aside>
 
     <div class="headline">
       <article class="verdict">
-        <h2>코드는 많이 진행됐고, 제품 승인은 아직 멀었습니다.</h2>
-        <p>C# API와 WPF current 자동 회귀는 전량 PASS했습니다. 현재 병목은 source baseline 고정,
-          LASAL generated state 정합, IDE Rebuild/Link, PLC 전체 qualification입니다.</p>
+        <h2>PC/static/build는 PASS했고, 제품 승인은 PLC에서 막혀 있습니다.</h2>
+        <p>Group Reset과 dormant Admin SetPosition을 포함한 마지막 SDK/WPF 회귀와 LASAL source/static은 PASS했습니다. dormant Axis Reference current source가 추가됐지만 신규 시험과 fresh IDE build/smoke는 대기 중입니다.
+          이전 dirty-preview Distribution candidate는 current input에 대해 stale입니다. 현재 병목은 source baseline/새 clean candidate 고정, current PLC download/provenance와 Motion/Power/Axis1 SDO Write live qualification입니다.</p>
       </article>
       <article class="release-card">
         <div class="label">Production decision</div>
@@ -316,38 +331,38 @@
       </article>
       <article class="card teal">
         <div class="label">부분 포함</div>
-        <div class="value">50 / 65</div>
-        <p>76.9%, 비활성 scaffold 포함</p>
+        <div class="value">52 / 65</div>
+        <p>80.0%, dormant/capability-off 포함</p>
       </article>
       <article class="card green">
         <div class="label">SDK 마지막 관측</div>
-        <div class="value">974 / 974</div>
-        <p>Debug·Release current source PASS</p>
+        <div class="value">1042 / 1042</div>
+        <p>current Debug·Release PASS · SetPosition 18개와 Reference 16개 포함</p>
       </article>
       <article class="card amber">
         <div class="label">WPF 마지막 관측</div>
-        <div class="value">206 / 206</div>
-        <p>Release smoke PASS, warning/error 0/0</p>
+        <div class="value">297 / 297</div>
+        <p>Debug·Release smoke PASS</p>
       </article>
       <article class="card">
         <div class="label">Protocol / dispatcher</div>
-        <div class="value">62 / 59</div>
-        <p>C# ID 62, LASAL contract 59</p>
+        <div class="value">64 / 63</div>
+        <p>C# unique ID 64, LASAL handled 63; no-route는 0x7E23만</p>
       </article>
       <article class="card teal">
         <div class="label">Active PLC command</div>
         <div class="value">53</div>
-        <p>성공 응답 가능 source-active</p>
+        <p>success-capable; dormant read-owner 2 + reserved/dormant 8</p>
       </article>
-      <article class="card red">
+      <article class="card green">
         <div class="label">LASAL full static</div>
-        <div class="value">FAIL</div>
-        <p>generated ordinal 1 / verifier ordinal 2</p>
+        <div class="value">PASS</div>
+        <p>IntegratedReadOwnerDormant</p>
       </article>
       <article class="card amber">
         <div class="label">PLC / hardware</div>
-        <div class="value">PARTIAL</div>
-        <p>대표 happy path만 PASS</p>
+        <div class="value">CURRENT 미검증</div>
+        <p>fresh build download 없음</p>
       </article>
     </div>
 
@@ -361,14 +376,14 @@
           <div class="metric-note">직접 16 + LASAL 적응 24 / 65</div>
         </div>
         <div>
-          <div class="metric-head"><span>부분 구현 포함</span><span>76.9%</span></div>
-          <div class="bar teal" aria-label="부분 구현 포함 76.9퍼센트"><span style="width:76.9%"></span></div>
-          <div class="metric-note">capability/policy OFF 항목도 포함</div>
+          <div class="metric-head"><span>부분 구현 포함</span><span>80.0%</span></div>
+          <div class="bar teal" aria-label="부분 구현 포함 80퍼센트"><span style="width:80%"></span></div>
+          <div class="metric-note">D16 + E24 + P12 = 52/65, G9, X4</div>
         </div>
         <div>
           <div class="metric-head"><span>상위 요구 기능 경로</span><span>81.0%</span></div>
           <div class="bar green" aria-label="상위 요구 기능 경로 81퍼센트"><span style="width:81%"></span></div>
-          <div class="metric-note">17/21, 고위험 공백 4개</div>
+          <div class="metric-note">active 17, dormant/partial 2(HomeDS402 via LASAL ReferenceAxis, SetPosition), missing 2(HomeDS402Ex, SetOpMode)</div>
         </div>
         <div>
           <div class="metric-head"><span>PLC qualification</span><span>부분</span></div>
@@ -394,18 +409,18 @@
             <tr><th>영역</th><th>상태</th><th>구현된 핵심</th><th>남은 gate</th></tr>
           </thead>
           <tbody>
-            <tr><td>RPC / connection / lookup</td><td><span class="badge partial">핵심 구현</span></td><td>lifecycle, session generation, lookup, same-peer source</td><td>typed event sender, master fault/soak/current build</td></tr>
-            <tr><td>Single Axis 1..9</td><td><span class="badge partial">부분 검증</span></td><td>Power/Reset/Stop, read, abs/rel/velocity, Stop/Reset wait·resume recovery</td><td>전체 physical/simulated matrix, Homing, SetPosition, SetOpMode</td></tr>
-            <tr><td>Group X/Y/Z/U</td><td><span class="badge partial">부분 검증</span></td><td>power/lock/reset/stop/position/linear abs·rel/fixed identity</td><td>true Buffered, stop-first, 0x2047, full matrix</td></tr>
-            <tr><td>Admin</td><td><span class="badge partial">제한 완료</span></td><td>capability, semantic read, group relative move</td><td>general write/raw parameter, invalid/stale/fault</td></tr>
-            <tr><td>D1 Catalog / Health / PI</td><td><span class="badge partial">부분 검증</span></td><td>Catalog, Health, PI Read</td><td>fault/stale/최신 full qualification</td></tr>
+            <tr><td>RPC / connection / lookup</td><td><span class="badge partial">핵심 구현</span></td><td>lifecycle, session generation, lookup, same-peer source, 0x405C exact-peer validate-then-commit, raw callback owner/current-session provenance</td><td>typed event sender, current PLC duplicate/mismatch capture, master fault/soak</td></tr>
+            <tr><td>Single Axis 1..9</td><td><span class="badge partial">부분 검증</span></td><td>Power/Reset/Stop, read, abs/rel/velocity, Stop/Reset wait·resume recovery, SetPosition과 LASAL-native ReferenceAxis SDK/wire+dormant fail-closed</td><td>전체 physical/simulated matrix, HomeDS402Ex, SetOpMode; Reference bit 4 OFF/native call 0/physical ref input 없음, DS402 homing 아님; SetPosition bit 3 OFF/native call 0</td></tr>
+            <tr><td>Group X/Y/Z/U</td><td><span class="badge partial">부분 검증</span></td><td>power/lock, raw ACK Reset과 stable member-error Reset, prepared/accepted durable journal, exact reconnect/process-restart status-only attach, stop/position/linear abs·rel/fixed identity</td><td>true Buffered, stop-first, 0x2047/0x2049 PLC live, full matrix</td></tr>
+            <tr><td>Admin</td><td><span class="badge partial">active 4 + dormant 2</span></td><td>capability, semantic read, group relative move; 0x7D12 SetPosition 28/36-byte 계약과 0x7D13 Reference 56/32-byte 계약. reserved/dormant 8은 diagnostics 6 + 이 Admin 2</td><td>SetPosition bit 3과 Reference bit 4 OFF, native call 각각 0, WPF 미노출; SetPosition same-identity uncertain의 authoritative recovery 미결정; physical HWMin/HWMax/RefSwitch/ZImpulse/LatchPos source 없음, mandatory PLC MaxTravel/Timeout watchdog 미구현; general raw write와 PLC invalid/stale/fault</td></tr>
+            <tr><td>D1 Catalog / Health / PI</td><td><span class="badge partial">부분 검증</span></td><td>Catalog, Health, PI Read</td><td>PLC fault/stale/live qualification</td></tr>
             <tr><td>D2 Bulk</td><td><span class="badge partial">부분 검증</span></td><td>Configure/Status/Snapshot/Release</td><td>24-entry, 100회, offline partial/recovery, soak</td></tr>
             <tr><td>D3 Recorder</td><td><span class="badge partial">PC 완료</span></td><td>Single/Ring/trigger/download/reconnect tooling</td><td>PLC runtime, hash/soak/reconnect-adopt</td></tr>
             <tr><td>D4 Double</td><td><span class="badge off">Gate OFF</span></td><td>two-bank source contract와 durable recovery</td><td>RAM/jitter/A-B concurrent/reconnect/release live</td></tr>
-            <tr><td>D5 SDO</td><td><span class="badge partial">Read 부분</span></td><td>1/2/4-byte Read, ticket/status/cancel tooling</td><td>fault matrix; Write/8-byte/extended는 OFF·미구현</td></tr>
-            <tr><td>EtherCAT topology / I/O</td><td><span class="badge partial">Static만</span></td><td>0x7E11/12, 7-entry configured inventory</td><td>0x7E13/22/23, bits 15~17, physical correlation</td></tr>
-            <tr><td>WPF qualification</td><td><span class="badge partial">PC PASS</span></td><td>runner, durable recovery, Release 208/208</td><td>clean-checkout 재현과 PLC execution</td></tr>
-            <tr><td>Distribution</td><td><span class="badge off">Preview</span></td><td>0.9.1-preview 과거 구조</td><td>current rebuild, manual, manifest, hash/provenance</td></tr>
+            <tr><td>D5 SDO</td><td><span class="badge partial">Read 부분 · Axis1 Write source-active</span></td><td>1/2/4-byte Read, Axis1 0x2F00:24 Int32/4, four-ticket proof, identity-pinned submit와 guarded readback/recovery</td><td>current PLC Write, axis 2~4, 8-byte/extended</td></tr>
+            <tr><td>EtherCAT topology / I/O</td><td><span class="badge partial">Read-owner dormant</span></td><td>0x7E11/12, 464-byte snapshot, 0x7E13/22 route/handler, qualifier V2 exact 17-frame dry-run</td><td>bits 15~17 OFF, PLC/raw/physical proof 없음, 0x7E23 미구현</td></tr>
+            <tr><td>WPF qualification</td><td><span class="badge partial">PC PASS</span></td><td>Single Axis live accepted-once/no-duplicate runner, 10단계 whole-sequence crash journal/process-restart recovery, English/한국어 UI selector, SDO proof drift/disconnect 영구 폐기, Debug·Release 297/297</td><td>clean-checkout 재현과 PLC execution</td></tr>
+            <tr><td>Distribution</td><td><span class="badge partial">historical dirty-preview PASS / stale input</span></td><td>당시 exact-byte manual snapshot, Git provenance, success-only rename, schema 2 manifest; manifest 56/56, policy 28/28, transaction 86/86, actual semantic 15/15 PASS</td><td>Group Reset 변경 반영 새 candidate, clean checkout 재현, 독립 검토와 canonical 승격 미완료</td></tr>
           </tbody>
         </table>
       </div>
@@ -415,12 +430,13 @@
       <h2 id="blocker-title">지금 막고 있는 것</h2>
       <p class="section-lead">순서대로 닫아야 다음 결과가 release evidence가 됩니다.</p>
       <div class="blockers">
-        <article class="blocker"><h3>Clean checkout 재현 대기</h3><p>tracked source의 목적별 local commit과 current SDK 975/975, WPF 208/208은 완료됐지만 새 checkout 재현이 남았습니다.</p></article>
-        <article class="blocker"><h3>LASAL full static FAIL</h3><p><code>Comm_Network</code> axis/robot 10개의 generated source-object ordinal은 <code>1</code>이고 verifier 계약은 <code>2</code>를 요구합니다. 계약 확인과 IDE 재생성이 필요합니다.</p></article>
-        <article class="blocker"><h3>최신 IDE build/download 없음</h3><p>current topology, same-peer, SDO source의 Rebuild/Link/smoke/cold download가 남았습니다.</p></article>
+        <article class="blocker"><h3>IDE build / commit / clean checkout 대기</h3><p>current SDK 1042/1042, WPF 297/297와 dormant 0x7D12/0x7D13 포함 LASAL static PASS는 미커밋 working-tree 관측값입니다. fake-RPC request/session 기록은 atomic append와 stable snapshot 관측으로 동시 열거 flake를 제거했고 Debug 반복 count도 동일했습니다. IDE build/smoke PASS는 callback ownership, 0x7D12, 0x7D13 편집 전 checkpoint이므로 callback+0x7D12+0x7D13 current source에서 fresh 반복해야 합니다.</p></article>
+        <article class="blocker"><h3>LASAL 설치 정합 debt</h3><p><code>DriveComL2.h</code> open/load-time 오류와 C78/C81 혼용이 남았지만 current Rebuild/Link 차단 근거는 아닙니다.</p></article>
+        <article class="blocker"><h3>Current PLC 적용 증거 없음</h3><p>fresh build의 cold download, BootId/MapRevision, source/network/unit/task provenance가 없습니다.</p></article>
         <article class="blocker"><h3>PLC matrix 미완료</h3><p>25-command, D1/D2 fault·soak, Recorder, D5 fault/recovery 증거가 부족합니다.</p></article>
-        <article class="blocker"><h3>Dynamic CREVIS 미구현</h3><p><code>0x7E13/22/23</code>과 capability bits 15~17이 OFF입니다.</p></article>
-        <article class="blocker"><h3>고위험 기능 Gate OFF</h3><p>D4 Double, SDO Write, PI Write는 승인과 물리 증거 전까지 활성화 금지입니다.</p></article>
+        <article class="blocker"><h3>Dynamic CREVIS live 대기</h3><p><code>0x7E13/22</code> read-owner는 dormant source/static까지 완료됐습니다. Bits 15~17은 OFF이고 PLC/raw/physical proof와 <code>0x7E23</code> 구현이 없습니다.</p></article>
+        <article class="blocker"><h3>고위험 기능 승인 대기</h3><p>D4 Double과 PI Write는 OFF입니다. Axis1 SDO Write는 source-active지만 PLC/live 완료 전 production NO-GO입니다.</p></article>
+        <article class="blocker"><h3>Stale dirty candidate 재생성 대기</h3><p><code>LMC_API_Distribution_candidate_20260731_manual_2_0_provenance</code>는 당시 입력으로 PASS했지만 이후 Group Reset source 변경을 포함하지 않습니다. 새 candidate, 목적별 commit, clean checkout 재현과 별도 승격 승인이 필요합니다.</p></article>
         <article class="blocker"><h3>안전 범위 미승인</h3><p>E-stop, HW/SW limit, UNIT, reference/home, single motion owner 확인이 필요합니다.</p></article>
       </div>
     </section>
@@ -431,25 +447,29 @@
         <div class="list-panel">
           <h3>확보됨</h3>
           <ul>
-            <li>Admin <code>0x7D00/10/20/22</code> happy path</li>
+            <li>Admin <code>0x7D00/10/20/22</code> happy path, <code>0x7D12</code> SetPosition과 <code>0x7D13</code> LASAL-native Reference dormant/fail-closed 계약. Reference는 56-byte request/32-byte response, bit 4 OFF/native call 0/WPF 미노출이며 DS402 homing이 아님</li>
             <li>대표 axis/group motion, Stop/PowerOff</li>
             <li>D1 Catalog/axis 1..4 PI Read</li>
             <li>D2 4-entry Bulk happy path</li>
             <li>D5 1/2/4-byte Read와 TypeMismatch 복구</li>
+            <li>Axis1 <code>0x2F00:24 Int32/4</code> SDO Write source/PC 계약</li>
+            <li>dormant <code>0x7D12/0x7D13</code> 포함 <code>IntegratedReadOwnerDormant</code> SourceOnly/full static, callback/0x7D12/0x7D13 전 fresh Rebuild/Link와 3-class implementation smoke checkpoint</li>
             <li>Topology <code>0x7E11</code> 1회 + <code>0x7E12</code> 7회</li>
+            <li>Distribution manifest 56/56, semantic 28/28·15 checks, transaction 86/86와 actual candidate PASS; canonical hash 불변, staging/lock residue 0</li>
             <li>외부 시험 프로젝트 same-peer takeover</li>
           </ul>
         </div>
         <div class="list-panel">
           <h3>남음</h3>
           <ul>
-            <li>동일 source hash의 전체 PC gate</li>
-            <li>최신 LASAL full/IDE/cold download</li>
+            <li>목적별 commit과 clean checkout의 동일 PC/static gate</li>
+            <li>callback+<code>0x7D12</code>+<code>0x7D13</code> current source의 fresh LASAL IDE build/smoke와 current PLC cold download/provenance</li>
             <li>motion/group 25-command final-state matrix</li>
             <li>D1/D2 fault·stale·soak</li>
             <li>D3/D4 live/reconnect/RAM/jitter</li>
-            <li>D5 cancel/orphan/contention/timeout fault matrix</li>
-            <li>dynamic CREVIS Health/DI/DO physical proof</li>
+            <li>D5 cancel/orphan/contention/timeout과 Axis1 Write live matrix</li>
+            <li>dormant <code>0x7E13/22</code> raw/physical proof와 <code>0x7E23</code> 구현</li>
+            <li>Group Reset 변경을 반영한 새 candidate와 목적별 commit 뒤 clean-tree 독립 재현, canonical 승격 승인</li>
           </ul>
         </div>
       </div>
@@ -465,7 +485,7 @@
         <li>실제 안전 chain/limit/UNIT/reference 승인</li>
         <li>active command별 E2E, stable final state, packet evidence</li>
         <li>callback/ownership 구현 또는 명시적 범위 제외</li>
-        <li>external manual과 Distribution manifest/hash 갱신</li>
+        <li>current source의 새 candidate 생성, clean checkout 재현, 독립 검토와 승인된 canonical 승격</li>
       </ul>
     </section>
 
@@ -477,6 +497,9 @@
         <li><a href="../architecture/LMC_DIAGNOSTICS_REMAINING_IMPLEMENTATION_PLAN_2026-07-21.md">Diagnostics 잔여 계획</a></li>
         <li><a href="../architecture/LMC_ETHERCAT_TOPOLOGY_AND_IO_API_DESIGN_2026-07-27.md">Topology/I/O 설계</a></li>
         <li><a href="../architecture/LMC_ETHERCAT_TEST2_CAPTURE_AUDIT_2026-07-28.md">Test2 capture audit</a></li>
+        <li><a href="../architecture/LMC_API_TRANSACTIONAL_DISTRIBUTION_CANDIDATE_2026-07-31.md">Transactional Distribution candidate 설계</a></li>
+        <li><a href="../architecture/AXIS_SET_POSITION_BOUNDED_COORDINATE_CORRECTION_2026-07-31.md">Axis SetPosition bounded coordinate-correction 계약</a></li>
+        <li><a href="../architecture/AXIS_REFERENCE_LASAL_NATIVE_DORMANT_CONTRACT_2026-07-31.md">Axis Reference LASAL-native dormant 계약</a></li>
         <li><a href="../../LMC_Library/LMC_API_Delivery/README.md">API Delivery README</a></li>
         <li><a href="../../LMC_Library/LMC_API_Delivery/docs/AUTOMATED_TESTS_2026-07-10.md">자동 시험</a></li>
         <li><a href="../../LMC_Library/LMC_API_Delivery/docs/API_DEVELOPMENT_BACKLOG_2026-07-10.md">개발 backlog</a></li>
@@ -485,7 +508,7 @@
   </main>
 
   <footer>
-    이 대시보드는 2026-07-30 working-tree 관측값입니다. 상세 판정과 갱신 규칙은 Markdown 원본을 따릅니다.
+    이 대시보드는 2026-07-31 01:59 KST working-tree 관측값입니다. 상세 판정과 갱신 규칙은 Markdown 원본을 따릅니다.
   </footer>
 </body>
 </html>

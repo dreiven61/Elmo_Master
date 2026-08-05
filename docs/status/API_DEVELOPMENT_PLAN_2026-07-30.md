@@ -1,9 +1,22 @@
 # Elmo Master API 개발 계획
 
-- 작성 기준: 2026-07-30 current working tree
-- 기준 branch/HEAD: `main@6ce2cb2b9e49647b22c8c99e6c43f9a38a48d00c`
+> **2026-08-03 후속 설계 우선:** 이 문서는 2026-07-30/31 snapshot이다. 아래의
+> `ReferenceAxis`, physical switch, `MoveReference()` 계획과 당시 test 수치 및
+> SourceOnly PASS 판정은 현재 작업에 사용하지 않는다. 현재 Home/encoder 구현과 IDE 순서는
+> [LMC Home current-position zero and encoder maintenance IDE handoff](../architecture/LMC_HOME_CURRENT_POSITION_ZERO_AND_ENCODER_MAINTENANCE_IDE_HANDOFF_2026-08-03.md),
+> 최신 소스 대조는 [260803 continuation summary](../history/260803/99_analysis_summary.md)의
+> 9절을 따른다.
+
+- 작성 기준: 2026-07-30 계획, 2026-07-31 working-tree 검증 반영
+- 기준 branch/HEAD: `main@6537bcf1bf0fdb338a934b63891fc9ee110aecad`
 - 현재 릴리스 상태: `0.9.1-preview`, production **NO-GO**
 - 진행 현황: [API_DEVELOPMENT_PROGRESS_2026-07-30.md](API_DEVELOPMENT_PROGRESS_2026-07-30.md)
+- Group Reset stable 계약:
+  [GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md](../architecture/GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md)
+- Axis SetPosition dormant 계약:
+  [AXIS_SET_POSITION_BOUNDED_COORDINATE_CORRECTION_2026-07-31.md](../architecture/AXIS_SET_POSITION_BOUNDED_COORDINATE_CORRECTION_2026-07-31.md)
+- Axis Reference LASAL-native dormant 계약:
+  [AXIS_REFERENCE_LASAL_NATIVE_DORMANT_CONTRACT_2026-07-31.md](../architecture/AXIS_REFERENCE_LASAL_NATIVE_DORMANT_CONTRACT_2026-07-31.md)
 - HTML 계획표: [API_DEVELOPMENT_PLAN_2026-07-30.html](API_DEVELOPMENT_PLAN_2026-07-30.html)
 
 > 이 계획은 새 기능 수를 늘리는 것보다 현재 구현을 재현 가능한 source baseline으로 고정하고,
@@ -22,12 +35,12 @@
 
 | Milestone | 상태 | 현재 근거 | 다음 gate |
 |---|---|---|---|
-| M0. Working-tree baseline 고정 | **부분 완료** | 목적별 local commit, current SDK Debug/Release 975/975, WPF Release 208/208 PASS | clean checkout 재현 |
-| M1. LASAL current integration | **차단** | SourceOnly PASS | full static FAIL 해소 + IDE Rebuild/Link |
-| M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory | current cold download + safety/readback 승인 |
-| M3. Active motion/diagnostics qualification | **부분** | 대표 happy path PASS | 25-command/fault/soak/recovery matrix |
-| M4. Gated advanced diagnostics/I/O | **선택/후속** | C#/WPF scaffold와 dormant source | 이번 release에서 명시 제외 가능; 승인된 기능만 M3 뒤 단계별 live proof |
-| M5. Product release | **대기** | `0.9.1-preview` | M3 active scope DoD + M4/상위 공백 명시적 제외 승인 + manual/manifest/provenance |
+| M0. Working-tree baseline 고정 | **부분 완료** | current SDK Debug/Release 1042/1042, WPF Debug/Release 297/297, LASAL SourceOnly/full PASS | 목적별 commit + clean checkout 재현 |
+| M1. LASAL current integration | **source/static 완료 / fresh IDE 대기** | `IntegratedReadOwnerDormant`와 dormant Admin `0x7D12/0x7D13` current SourceOnly/full PASS; Rebuild/Link `0 error(s), 20 warning(s)`와 3-class smoke/log는 callback/`0x7D12`/`0x7D13` 이전 checkpoint | callback+`0x7D12`+`0x7D13` current source Save/Rebuild/Link/smoke 후 current PLC cold download + provenance |
+| M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory와 dormant read-owner source/static | fresh build cold download + raw/physical read qualification |
+| M3. Active motion/diagnostics qualification | **부분** | Single Axis runner 9/9과 whole-sequence durable journal/process-restart recovery, Group Enable durable accepted-once, Axis1 exact-session four-ticket/manual-Write gate PC PASS | current PLC Motion/Power/SDO live matrix |
+| M4. Gated advanced diagnostics/I/O | **선택/후속** | D4/PI off, topology read-owner dormant, Axis1 SDO Write source-active | 기능별 live 승인 |
+| M5. Product release | **dirty-preview candidate PASS / 대기** | `2.0-candidate` manual과 schema 2 manifest를 포함한 sibling candidate 실제 생성, canonical 무변경 | clean baseline 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
 
 ## 우선순위 요약
 
@@ -36,7 +49,7 @@
 | **P0-A** | source freeze와 PC 회귀 안정화 | 동일 hash에서 SDK Debug/Release, WPF build/smoke 전량 PASS |
 | **P0-B** | LASAL full 정합과 IDE 적용 | SourceOnly/full PASS, Rebuild/Link, implementation smoke, log clean |
 | **P0-C** | current PLC download와 active 범위 qualification | safety readback, 25-command, D1~D5 승인 matrix와 증거 완결 |
-| **P0-D** | preview 범위/배포 정리 | advanced/상위 공백의 OFF 범위 승인, external manual, manifest/hash/provenance |
+| **P0-D** | preview 범위/배포 정리 | advanced/상위 공백의 OFF 범위 승인, 원본 무변경 transactional candidate, semantic preflight, external manual, manifest/hash/provenance |
 | **P1** | dynamic CREVIS read/write와 선택적 advanced diagnostics | capability별 raw live + physical correlation 뒤 gate 활성 |
 | **P2** | 미구현 상위 API와 제품화 | 승인된 요구별 API/wire/LASAL/live/package DoD 통과 |
 
@@ -53,12 +66,49 @@
 6. 모든 실행의 시작/종료 source hash가 같은지 확인한다.
 7. Group Enable/PowerOff timing 회귀를 최소 두 번 반복해 비결정성을 닫는다.
 8. 시험 수치와 결과를 이 진행 문서와 기존 System of Record에 동기화한다.
+9. Group Reset stable member error-clearance를 same-session split contract로 구현·시험했다.
+   valid `0x20D2` observed snapshot 뒤 `0x2049`를 정확히 한 번 보내고, Resume round마다
+   `0x2045` 한 번과 pinned member 전원의 `0x2028`을 보내 all-clear 3회 연속을 확인한다.
+   timeout/cancel/status failure는 status-only Resume을 보존하고 accepted/outcome-uncertain
+   Stop/PowerOff/safe Disable만 terminal supersede한다. valid safety NACK는 Reset continuation을
+   복원한다. prepared/accepted command-before durable journal은 endpoint, PLC identity, group과
+   ordered member snapshot을 고정한다. reconnect/restart는 fresh `0x20D2` exact-match 뒤 새
+   status-only continuation만 attach하고 `0x2049`를 재전송하지 않는다.
 
 ### 현재 blocker
 
-- 2026-07-30 current C# source에서 SDK Debug/Release `975/975`, WPF Release
-  `208/208`을 전량 재실행해 PASS했다. 이전 174/175-test WPF timing 이력은 최신 208-test
-  full run과 관련 targeted run으로 닫았다.
+- 최신 Group Enable qualifier의 durable accepted-once 경로와 Axis1 manual SDO Write의
+  exact-session four-ticket 활성 gate, identity-pinned fresh capability pre-wire와 proof 영구 폐기는
+  PC 시험에서 PASS했다.
+- current SDK Debug/Release build/test는 Axis Reference 신규 16개와 fake-RPC request snapshot
+  회귀를 포함해 각각 1042/1042, WPF Debug/Release는 각각 297/297 PASS했다. SDK/WPF Debug
+  추가 반복도 같은 1042/297 count로 PASS했다. fake-RPC worker 기록은 한 lock에서 request와
+  session ordinal을 함께 추가하고 관측자에는 stable snapshot만 반환하므로, WPF recovery poll의
+  concurrent `List` 열거에서 관측된 `Collection was modified` flake를 제거했다. Single Axis live
+  runner focused 9/9은 pre-wire
+  cancel, Build drift zero mutation, external Axis Stop/PowerOff no-duplicate 계약까지 포함한다.
+- Admin `0x7D12 SetAxisPosition` request를 56-byte frame으로 고정했다. fresh
+  DiagnosticsBuild/BootId/MapRevision, process/session을 넘어 유일한 4 x U32 client intent,
+  expected actual-position CAS와 prepare-time one-shot을 함께 pin한다. `0x7D14`는 이 exact
+  key의 terminal result만 읽는 56-byte read-only query와 92-byte success response 계약이다.
+  PLC capability bit 3/5는 OFF이고 raw valid `0x7D12`도 `InvalidState/detail 10`, native
+  SetPosition 0회로 닫힌다. retained two-bank store, query route, terminal retirement CAS는
+  LASAL IDE 구조 작업 전이라 source-active가 아니다. 독립 journal core를 UI에 arm하지 않고,
+  authoritative query·unified ownership과 함께 연결하기 전에는 WPF 실행 경로를 열지 않는다.
+  `ActualPosition == Target`은 과거 성공 증거가 아니다.
+- Admin `0x7D13 StartAxisReference` dormant slice는 56-byte request/32-byte response 계약이다.
+  capability bit 4는 OFF, native `_LMCAxis.MoveReference()` 호출은 0회이고 WPF에는 노출하지
+  않는다. 이는 DS402 homing이 아닌 LASAL-native reference다. 현재 Motion Network에는 physical
+  `HWMin/HWMax/RefSwitch/ZImpulse/LatchPos` source가 없으며, 활성화 시 PLC가 독립 감시할
+  `MaxTravel>0`과 `TimeoutMs>0`은 mandatory다. 신규 Reference PC 16개와 LASAL
+  SourceOnly/full static은 PASS했고 fresh IDE gate는 아직 관측 전이다.
+- Single Axis whole-sequence 상위 journal의 단조 checkpoint/exact CAS, 보수적 crash promotion,
+  process 종료 뒤 자동 mutation 0회와 명시적 Power Off 안전 복구는 focused PC 회귀로 닫았다.
+  이는 current PLC download, 실제 축 이동/정지 또는 packet 증거가 아니다.
+- Group Reset stable member error-clearance의 same-session continuation/API/WPF/test를 구현했다.
+  raw `GroupReset[Async]`만 ACK-only로 남고 WPF 버튼은 durable exact reconnect/restart
+  status-only 경로를 포함한 stable API를 사용한다. current PLC download와 physical/runtime
+  capture는 아직 남아 있다.
 - 다만 working tree는 아직 대규모 미커밋 상태다. 목적별 commit과 clean checkout 재현 전에는
   M0 source baseline 고정이 완료된 것이 아니다.
 
@@ -95,10 +145,10 @@ $taskBefore = Get-TaskWorkingTreeFingerprint
 & $taskMsBuild $taskPcTests '/t:Rebuild;RunPcTests' /p:Configuration=Debug /nologo
 & $taskMsBuild $taskPcTests '/t:Rebuild;RunPcTests' /p:Configuration=Release /nologo
 & $taskMsBuild $taskWpfSln /t:Rebuild /p:Configuration=Release /nologo
+& $taskMsBuild $taskWpfSmoke /t:RunWpfSmokeTests /p:Configuration=Debug /nologo
 & $taskMsBuild $taskWpfSmoke /t:RunWpfSmokeTests /p:Configuration=Release /nologo
-& $taskMsBuild $taskWpfSmoke /t:RunWpfSmokeTests /p:Configuration=Release /nologo
-& $taskMsBuild $taskPcTests /t:RunLasalContract /p:Configuration=Release /p:LasalTopologyIoCheckpoint=StaticTopologyOnly /nologo
-& $taskMsBuild $taskPcTests /t:RunLasalNetworkContract /p:Configuration=Release /p:LasalTopologyIoCheckpoint=StaticTopologyOnly /nologo
+& $taskMsBuild $taskPcTests /t:RunLasalContract /p:Configuration=Release /p:LasalTopologyIoCheckpoint=IntegratedReadOwnerDormant /nologo
+& $taskMsBuild $taskPcTests /t:RunLasalNetworkContract /p:Configuration=Release /p:LasalTopologyIoCheckpoint=IntegratedReadOwnerDormant /nologo
 $taskAfter = Get-TaskWorkingTreeFingerprint
 if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualification: $taskBefore -> $taskAfter" }
 ```
@@ -107,24 +157,24 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
 
 ### 작업 순서
 
-1. full static 실패 원인을 먼저 확정한다.
-   - verifier hard-coded source-object ordinal/reference: axis 1..9 + Robot 10개가 `TO_UDINT(2)`
-   - current generated table의 같은 필드: 10개 모두 `TO_UDINT(1)`
-   - connection 방향 필드는 별도 `C_DIR`
-   - `.lcn`에는 연결 10개가 존재
-   - verifier ordinal 기대와 IDE 생성 ordinal 중 어느 쪽이 실제 LASAL 계약인지 확인한다.
-2. generated `.st/.lcb/.lba`를 임의 수동 교정하지 않는다. LASAL IDE의 class/network source를
-   확인하고 `Reload Class -> Save/Generate`로 재생성한다.
-3. same-peer `TCPIPServer`, `TCPMotionInterface`, `LMCControlCommandService`,
-   `LMCDiagnosticsService`, `LMCRecorderStore`, `LMCSdoExecutor`, topology/network를 포함해
-   Rebuild/Link한다.
-4. `LMCSdoExecutor`는 D5 Write 활성 여부와 무관한 current integration gate로 취급한다.
+1. [완료] current external/generated source와 verifier의 network/metadata 계약을 대조하고
+   `IntegratedReadOwnerDormant` SourceOnly/full static을 모두 PASS했다.
+2. [완료, callback/`0x7D12`/`0x7D13` 전 checkpoint] generated `.st/.lcb/.lba`를 임의 수동 교정하지 않고 fresh LASAL reload로 current
+   `LMCSdoExecutor.st` constructor까지 다시 읽었다.
+3. [완료, callback/`0x7D12`/`0x7D13` 전 checkpoint] same-peer `TCPIPServer`, `TCPMotionInterface`, `LMCControlCommandService`,
+   `LMCDiagnosticsService`, `LMCEcatInputLatch`, `LMCRecorderStore`, `LMCSdoExecutor`,
+   topology/network를 포함해 Rebuild/Link했다: `0 error(s), 20 warning(s)`, Linker `Done`.
+4. [완료, callback/`0x7D12`/`0x7D13` 전 checkpoint] `LMCSdoExecutor`는 Axis1 D5 Write 활성 경로의 current integration gate로 확인했다.
    constructor declaration, generated `@STD` binding, state/buffer 초기화, 최초 `Idle` publish를
-   IDE/source에서 확인한다.
-5. 변경 class의 앞/중간/뒤에서 `Find in Implementation` smoke를 수행한다.
-6. smoke 시작 시각 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 0개인지 확인한다.
-7. SourceOnly와 full/network static을 같은 source에서 다시 실행한다.
-8. PLC cold download 후 project/source/network/unit/task와 BootId/MapRevision을 기록한다.
+   IDE/source/static에서 확인했고, build 전후 source SHA-256이 동일했다.
+5. [완료, callback/`0x7D12`/`0x7D13` 전 checkpoint] `LMCEcatInputLatch`, `LMCDiagnosticsService`, `TCPMotionInterface` 세 변경 class의
+   implementation을 IDE에서 직접 열어 smoke를 수행했다.
+6. [완료, callback/`0x7D12`/`0x7D13` 전 checkpoint] current LASAL PID와 smoke 기준 이후 `%TEMP%\Lasal2.log`의 새
+   `CInvalidArgException`은 0건이다.
+7. [완료, `0x7D13` 전 checkpoint] SourceOnly와 full/network static을 callback+`0x7D12` source에서 다시 PASS했다.
+8. [완료] callback+`0x7D12`+`0x7D13` current source의 SourceOnly와 full/network static을 다시 PASS했다.
+9. [대기] callback+`0x7D12`+`0x7D13` current source를 IDE Save/Rebuild/Link하고 `TCPMotionInterface`/`LMCControlCommandService` implementation smoke/log를 다시 확인한다.
+10. [대기] PLC cold download 후 project/source/network/unit/task와 BootId/MapRevision을 기록한다.
 
 ### 정적 계약 개별 진단 명령
 
@@ -137,22 +187,22 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
 
 & $taskMsBuild $taskPcTests /t:RunLasalContract `
   /p:Configuration=Release `
-  /p:LasalTopologyIoCheckpoint=StaticTopologyOnly /nologo
+  /p:LasalTopologyIoCheckpoint=IntegratedReadOwnerDormant /nologo
 
 & $taskMsBuild $taskPcTests /t:RunLasalNetworkContract `
   /p:Configuration=Release `
-  /p:LasalTopologyIoCheckpoint=StaticTopologyOnly /nologo
+  /p:LasalTopologyIoCheckpoint=IntegratedReadOwnerDormant /nologo
 ```
 
 ### 완료 조건
 
-- `Phase5TransportClean / StaticTopologyOnly` SourceOnly와 full 모두 PASS
-- LASAL Compiler/Linker ERROR/FATAL 0
-- `LMCSdoExecutor` constructor/binding/init/`Idle` publish 계약 확인
-- 변경 class implementation smoke PASS
-- smoke 이후 신규 `CInvalidArgException` 0
-- current PLC download 및 source/network/unit/task provenance 보존
-- same-peer takeover가 master project에서 정상이고 다른-IP/fault/soak 경계가 기록됨
+- [x] `Phase5TransportClean / IntegratedReadOwnerDormant` SourceOnly와 full 모두 PASS
+- [ ] callback+`0x7D12`+`0x7D13` current source LASAL Compiler/Linker ERROR/FATAL 0 — 세 변경 전 checkpoint WARNING 20 기록
+- [x] `LMCSdoExecutor` constructor/binding/init/`Idle` publish 계약 확인
+- [ ] callback+`0x7D12`+`0x7D13` current source 변경 class implementation smoke PASS
+- [ ] current source smoke 이후 신규 `CInvalidArgException` 0
+- [ ] current PLC download 및 source/network/unit/task provenance 보존
+- [ ] same-peer takeover가 master project에서 정상이고 다른-IP/fault/soak 경계가 기록됨
 
 ## P0-C. PLC qualification
 
@@ -175,14 +225,37 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
 3. configured topology `0x7E11/0x7E12`와 7-entry order/CRC
 4. current source용 `topology-inventory` raw qualifier를 실행하고 bit 14, nonzero BootId,
    `0x15867EEC`, exact 7-entry order/identity/CRC가 담긴 durable report를 보존
-5. axis별 PowerOn -> stable status -> 작은 Move -> final position -> Stop -> stable standstill -> PowerOff
-6. group PowerOn -> power poll -> SetKin -> Lock -> Move -> final state -> Unlock -> PowerOff
-7. motion/group 25-command success/expected-failure matrix
-8. D1 Catalog/Health/PI fault·stale matrix
-9. D2 exact 24-entry lifecycle, 100회, one-slave-offline partial/recovery
-10. D3/D4 Single/Ring/trigger/reconnect-adopt/hash/soak
-11. D5 Read offline/abort/contention/timeout/drain/queued-cancel/disconnect/orphan/late callback
-12. negative/malformed wire와 reconnect/fault recovery
+5. axis별 PowerOn -> stable status -> 작은 Move -> final position -> Stop -> stable standstill -> PowerOff.
+   개발 WPF의 Single Axis live runner는 이 순서를 실제 `0x2023/0x20A0/0x2022/0x2023` accepted-once
+   경로와 10단계 whole-sequence 상위 journal 및 command별 durable journal로 구현했다. 세 물리
+   안전 확인 전에는 RPC 0건이며, Move 이후 취소/실패는 Move replay 없이 exact-identity
+   Stop/PowerOff cleanup을 수행한다. crash 승격과 process 종료 뒤 zero-replay/명시적 Power Off
+   recovery까지 PC/fake-RPC 회귀는 완료했지만 current PLC 실행/packet/물리 안전 proof는 별도다.
+6. group PowerOn -> power poll -> SetKin -> durable journal arm -> Group Enable `0x2047` exactly
+   once -> accepted durable publish -> `0x2045` status-only stable Lock proof -> Move -> final state
+   -> Unlock -> PowerOff. qualification runner도 같은 accepted-once 경로만 사용한다.
+7. Group Reset은 valid `0x20D2` observed member snapshot을 먼저 보존하고 `0x2049`를 정확히
+   한 번 보낸다. 이후 round마다 `0x2045` 한 번과 pinned member 전원의 `0x2028`을 exact
+   snapshot 순서대로 보내 group/member error 모두 0인 full-clear를 3회 연속 확인한다.
+   generic SDK snapshot은 `1..16`개 nonzero/unique reference를 허용하며 expected topology/current
+   PLC build attestation이 아니다. timeout, disconnect 또는 Stop/PowerOff/safe Disable takeover
+   capture에서 automatic Reset replay가 0회인지 확인한다. PC에서는 command-before journal의
+   Armed/Accepted/status-round process-kill 뒤 exact endpoint/DiagnosticsBuild/BootId/MapRevision와
+   group/member snapshot을 다시 확인하고 fresh `0x20D2` 1회, Reset 0회로 status-only recovery하는
+   계약을 검증한다. 이 PC 증거와 PLC/runtime capture는 구분한다.
+8. motion/group 25-command success/expected-failure matrix
+9. D1 Catalog/Health/PI fault·stale matrix
+10. D2 exact 24-entry lifecycle, 100회, one-slave-offline partial/recovery
+11. D3/D4 Single/Ring/trigger/reconnect-adopt/hash/soak
+12. D5 Read offline/abort/contention/timeout/drain/queued-cancel/disconnect/orphan/late callback
+13. Axis1 `0x2F00:24 Int32/4` SDO Write를 exact current connection session,
+    `DiagnosticsBuild`, `BootId`, `MapRevision`, approved target identity에 고정한다. baseline Read
+    -> 값 불변 `preWriteGuard` Read -> final safety -> Write 정확히 1회 -> guarded readback의
+    서로 다른 four-ticket same-value proof가 모두 끝난 뒤에만 manual SDO Write를 연다.
+    qualification evidence에는 `preWriteGuard`, 각 terminal `resultBytes`, 네 ticket identity를
+    보존한다. identity drift와 response-loss/reconnect에서는 manual Write를 다시 닫고 자동 replay
+    없이 recovery readmission을 확인한다.
+14. negative/malformed wire와 reconnect/fault recovery
 
 ### 캡처 기준
 
@@ -209,7 +282,8 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
 ### 완료 조건
 
 - active command별 request/response/error/final-state evidence 존재
-- Power/Enable/Stop/Move ACK와 최종 상태가 구분됨
+- Power/Enable/Stop/Move ACK와 최종 상태가 구분되고, Group Reset ACK와 group/member
+  all-clear 3회 proof도 구분됨
 - expected failure에서 mutation 0 또는 승인된 recovery가 입증됨
 - fault/reconnect 뒤 stale descriptor/session을 재사용하지 않음
 - 시험 binary/source hash와 PLC BootId/MapRevision이 report에 기록됨
@@ -222,35 +296,57 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
 | 기능 | 현재 상태 | 이번 release 권장안 | 활성 조건 |
 |---|---|---|---|
 | D4 Double bank | source/PC contract, gate OFF | preview에서 제외 유지 | 2.56 MB RAM, RT jitter, A/B 동시, reconnect/release live PASS |
-| D5 SDO Write | exact Int32 scaffold, gate/allowlist OFF | 제외 유지 | 대상/축 승인, constructor, single-writer, four-ticket/readback/physical proof |
+| D5 SDO Write | Axis1 exact target source-active; exact session/build/BootId/MapRevision four-ticket proof 뒤 manual Write를 여는 focused PC gate PASS | PLC/live 완료 전 production NO-GO | fresh download/bit 9/UI24 ownership, `preWriteGuard`/`resultBytes`, four-ticket/readback, pcap/physical proof |
 | D5 Read orphan recovery | `ApplicationRecoveryOnly` 가능, durable orphan witness 없음 | `orphanQualified=false`, fail-closed와 수동 recovery로 제한 | disconnect/orphan/late-callback 무해성 + 수동 recovery 증거; durable witness는 P1 |
 | PI Write | C# scaffold, PLC Unsupported | 제외 유지 | semantic allowlist, handler, fault/physical proof |
-| Dynamic Health/DI | C#/WPF 구현, PLC route 없음 | P1 read-only | `0x7E13/22`, bits 15/16, coherent snapshot, physical correlation |
+| Dynamic Health/DI | C#/WPF와 PLC `0x7E13/22` read-owner 구현, dormant static/IDE PASS | raw/physical proof 전 production 제외 | current PLC download, dormant raw qualifier, disconnect/recovery, 32-pattern physical correlation 뒤 bits 15/16 활성 |
 | Digital Output | C#/WPF guard, PLC route 없음 | P1 read-only 이후 | `0x7E23`, bit 17, RT single owner/CAS/readback/fault proof |
-| typed callback | raw UDP listener만 존재 | 구현 또는 명시적 제외 결정 | 실제 payload/schema와 PLC event sender |
-| 상위 요구 공백 | 요구사항 명칭 `HomeDS402/HomeDS402Ex`, `SetPosition`, `SetOpMode` 미구현 | production 전 명시적 제외 승인 필수 | 별도 승인 시 `ReferenceAxis/HomeUsingLasalReference` 등 command DoD로 구현 |
+| callback ownership / typed callback | `0x405C` wire 유지, exact TCP-peer/port validate-then-commit와 raw SDK session provenance/WPF stale-queue drop source 계약 구현; typed sender/parser 없음 | endpoint ownership은 유지하고 typed callback은 이번 release에서 명시적 제외 | current PLC duplicate/mismatch capture; typed 기능은 실제 payload/schema와 PLC event sender 승인 뒤 별도 |
+| SetPosition | 128-bit intent+diagnostics identity `0x7D12` SDK/wire와 LASAL dormant parser, read-only `0x7D14` SDK 계약, 독립 journal core; bit 3/5 OFF, query PLC route/store 없음, native call 0, WPF 미연결 | production에서 제외 유지 | IDE-created two-bank retained store/query/terminal retirement CAS, journal+unified axis/group mutation ownership 동시 연결, task/core priority, application-approved `SetPositionMaxJump>0`, `IsReferenced` 정책과 PLC proof |
+| ReferenceAxis | `0x7D13` SDK/wire/LASAL dormant fail-closed; 56-byte request/32-byte response, bit 4 OFF, native call 0, WPF 미노출; `HomeDS402` 적응 항목이지만 DS402 homing은 아님 | production에서 제외 유지 | physical reference input 배선/active level/debounce, recipe별 native mode, unified mutation ownership, mandatory PLC `MaxTravel`/`TimeoutMs` watchdog과 축별 bench proof |
+| 상위 실제 미구현 | `HomeDS402Ex`, `SetOpMode` 2개 | production 전 명시적 제외 승인 필수 | 별도 승인 시 dedicated command DoD로 구현 |
 
 ### 배포 작업
 
 1. release scope와 제외 기능을 capability/SDK/WPF/manual에서 일치시킨다.
 2. external DOCX/PDF에 preview, 안전, UNIT, polling, Close/Cancel != Stop을 반영한다.
-3. current source에서 Distribution을 재조립한다.
-4. `RELEASE_MANIFEST.md`에 source commit/hash, dirty 여부, DLL version과 모든 파일 SHA-256을 기록한다.
-5. 임시 `bin/obj`, Reports, captures를 배포 폴더에서 제외한다.
-6. final package를 clean checkout에서 재검증한다.
+3. **[구현/실패경로 검증 완료]** 기존 `LMC_API_Distribution`을 in-place
+   Rebuild/overwrite/cleanup하지 않는다.
+   같은 volume의 새 staging directory에 current source candidate를 조립하고 모든 검증이 끝난
+   뒤 존재하지 않는 candidate target으로 한 번만 rename한다. 실패 시 검증된 staging만
+   제거하고 기존 package의 file-set/hash가 그대로인지 확인한다.
+4. **[구현/정책 회귀 완료]** preview/production, Axis1-only SDO Write, dormant bits 15~17,
+   `0x7E23` 부재, PI/D4 Double OFF와 manual 경고를 SDK/LASAL/WPF/DOCX/PDF에서 교차 검증하는
+   semantic policy preflight를 candidate finalize 전 실행한다.
+5. **[dirty-preview 실제 PASS]** current Markdown의 Axis1 exact target,
+   identity-pinned four-ticket gate와 Axis2~4 차단을 반영한 `2.0-candidate` DOCX/PDF를 전 페이지
+   검토했다. 검수본 exact bytes를 명시적 입력으로 사용한 sibling candidate가 semantic
+   15-check를 통과했다.
+6. **[구현/실제 manifest PASS]** `RELEASE_MANIFEST.md` schema 2에 source
+   commit/input hash, dirty 여부, DLL version, semantic policy hash/result와 모든 파일
+   SHA-256을 기록하고 즉시 재검증했다. noncanonical manual은 `-AllowDirty`와
+   `dirty-preview`를 강제하고 transaction-locked byte snapshot/metadata를 manifest baseline에 묶는다.
+7. **[구현/fixture 86/86 및 실제 PASS]** 임시 `bin/obj/.vs`, Reports와 captures를 candidate에서 제외한다.
+8. **[대기]** final package를 목적별 commit 뒤 clean checkout에서 재검증한다.
 
 ## P1. Dynamic CREVIS와 advanced diagnostics
 
 ### P1-1. read-only topology/health/DI
 
-1. LASAL IDE에 Coupler/InputSlot/OutputSlot declaration과 network를 생성한다.
-2. `LasalTopologyIoCheckpoint=IdeStructureReady` static checkpoint를 통과한다.
-3. 464-byte coherent snapshot owner와 `0x7E13` Node Health, `0x7E22` Digital I/O Read를 구현한다.
-4. bits 15/16을 OFF로 유지한 채 `IntegratedReadOwnerDormant` checkpoint를 통과한다.
-5. `topology-io-qualify --scope integrated-read-owner-dormant --execute-live
-   --confirm PLC-RAW-TOPOLOGY-IO-READ ...` raw qualifier의 durable report를 보존한다.
-6. GL/Elmo disconnect/recovery와 32-pattern DI physical correlation을 통과한다.
-7. 위 증거가 끝난 뒤에만 bits 15/16을 활성화한다.
+1. [완료] LASAL IDE에 Coupler/InputSlot/OutputSlot declaration과 network를 생성했다.
+2. [완료] `LasalTopologyIoCheckpoint=IdeStructureReady` static checkpoint를 통과했다.
+3. [완료] 464-byte coherent snapshot owner와 `0x7E13` Node Health, `0x7E22` Digital I/O Read를 구현했다.
+4. [완료] capability bits 15~17을 OFF로 유지한 채 `IntegratedReadOwnerDormant`
+   SourceOnly/full static, Rebuild/Link와 3-class implementation smoke를 통과했다.
+5. [완료] qualifier V2를 fail-closed로 보강했다. explicit scope/mode, exact 8/17-frame
+   dry-run, `0x7E23` 금지, create-new durable report, binary/source fingerprint,
+   BootId/build/exact `MapRevision=0x957F101E`, cleanup 뒤 result와 2초 evidence retention,
+   외부 pcap/PLC-log hash 연계를 PC test와 dry-run으로 확인했다.
+6. [대기] `topology-io-qualify --scope integrated-read-owner-dormant --execute-live
+   --confirm PLC-RAW-TOPOLOGY-IO-READ ...` raw qualifier의 durable live report를 보존한다.
+7. [대기] GL/Elmo disconnect/recovery와 32-pattern DI physical correlation을 통과한다.
+8. [대기] 위 증거가 끝난 뒤에만 bits 15/16을 활성화한다. `0x7E23`과 bit 17은
+   P1-2가 완료될 때까지 구현/활성화하지 않는다.
 
 ### P1-2. Digital Output
 
@@ -266,23 +362,37 @@ read-only P1-1을 먼저 완료한다.
 ### P1-3. 선택적 D4/D5 활성화
 
 - D4 Double: RAM/jitter/A-upload-B-capture/reconnect/release 증거 후 gate 활성
-- D5 Write: 사용자 승인 target/axis, 안전 state, baseline/pre-write guard/final safety/Write/readback
-  네 ticket과 pcap/physical evidence 후 활성
+- D5 Write: Axis1-only source-active 상태를 live qualification한다. 성공 시 승인 범위를 유지하고
+  실패 시 gate를 다시 OFF한다.
 - PI Write: semantic allowlist, PLC handler, fault/physical proof를 갖춘 별도 승인 기능으로만 활성
 - D5 Read orphan: durable orphan witness를 추가하지 않으면 `ApplicationRecoveryOnly`,
   `orphanQualified=false`, disconnect fail-closed 범위를 유지한다.
 
 ## P2. 신규 API와 제품화
 
-요구사항 상위 21개 중 실제 공백 4개를 먼저 검토한다. 아래 항목을 이번 release에서 미룬다면
-production 승인 기록에 각각 제외 사유와 영향 범위를 남긴다.
+요구사항 상위 21개는 active 17개, dormant/partial 2개(`HomeDS402`의 LASAL-native
+`ReferenceAxis` 적응, `SetPosition`), 실제 미구현 2개(`HomeDS402Ex`, `SetOpMode`)다. 아래
+항목을 이번 release에서 미룬다면 production 승인 기록에 각각 제외 사유와 영향 범위를 남긴다.
 
 1. `ReferenceAxis` / `HomeUsingLasalReference`
-   - 요구사항 표의 `HomeDS402`/`HomeDS402Ex`에 대응하는 LASAL-native reference adapter다.
-     full DS402 homing-method 지원을 입증하기 전에는 `HomeDS402Ex`라는 구현 명칭을 쓰지 않는다.
-   - RefSwitch/HWMin/HWMax/LatchPos 배선과 ownership부터 확정한다.
+   - `0x7D13 StartAxisReference`의 56-byte request/32-byte response dormant 계약까지 구현했다.
+     capability bit 4 OFF, native `_LMCAxis.MoveReference()` 0회, WPF 미노출이다.
+   - 요구사항 감사에서는 `HomeDS402`의 LASAL-native 적응으로 분류하지만 DS402 homing은 아니다.
+     `HomeDS402Ex`는 계속 실제 미구현이다.
+   - 현재 physical `HWMin/HWMax/RefSwitch/ZImpulse/LatchPos` source가 없다. 활성화 전에 배선,
+     active level/debounce, ownership과 recipe별 native mode를 확정하고 PLC-side mandatory
+     `MaxTravel`/`TimeoutMs` watchdog을 축별 bench에서 입증한다.
 2. `SetPosition`
-   - zero velocity, safe axis state, jump/limit, explicit execute 계약 필요
+   - `0x7D12`는 4 x U32 client intent와 fresh diagnostics identity를 포함하는 56-byte
+     request로 갱신했고 LASAL dormant parser는 valid request도 `InvalidState/detail 10`,
+     native `_LMCAxis.SetPosition` 0회로 닫는다.
+   - `0x7D14 ReadAxisSetPositionOutcome` SDK query와 독립 durable journal core는 구현하되,
+     PLC에는 아직 retained store/route/retirement가 없고 capability bit 3/5는 OFF다. journal을
+     MainWindow dispatch/interlock에 연결하거나 WPF 버튼을 노출하지 않는다.
+   - 활성화 전 IDE-created two-bank store, exact read-only query와 terminal retirement CAS,
+     journal/no-auto-replay와 axis/group unified mutation ownership의 동시 연결, motion RT와
+     task/core priority 정합, zero velocity/safe axis state, software limit, application-approved
+     `SetPositionMaxJump>0`, `IsReferenced` 정책과 실제 PLC proof가 필요하다.
 3. `SetOpMode`
    - LMC가 DS402 mode를 소유할지 결정하고 dedicated state machine으로 구현
 4. 이후 semantic Axis/Group parameter write, Axis Override, 8-byte SDO Read, typed callback
@@ -307,16 +417,18 @@ production 승인 기록에 각각 제외 사유와 영향 범위를 남긴다.
 | 실제 장비 접근 | PLC/runtime DoD 진행 불가 | read-only와 mutation 일정을 분리하고 캡처 창 확보 |
 | 안전 승인 | motion/write 시험 금지 | E-stop/limit/UNIT/reference checklist 서명 |
 | D4 RAM/jitter | PLC cycle/메모리 위험 | gate OFF 유지, 수치 측정 후 별도 승인 |
-| SDO/DO mutation | 재전송 시 장비 상태 불명확 | single writer, no replay, durable journal, physical verification |
-| callback/multi-PC | ownership/보안 불명확 | 이번 release 제외 또는 명시 protocol/owner 정책 결정 |
+| SDO/DO/SetPosition/Reference mutation | 재전송 시 장비 상태 불명확 | single writer, no replay, command별 durable journal, physical verification; SetPosition/Reference는 unified axis/group ownership, Reference는 PLC travel/time watchdog 필요 |
+| callback/multi-PC | single-owner callback endpoint는 exact TCP peer에 고정했지만 인증·암호화와 multi-PC motion owner는 미정 | typed callback과 multi-PC control은 제외, current single-owner tuple 불변 계약 유지 |
+| in-place Distribution build | 후반 검증 실패 전에 기존 DLL/EXE가 덮어써질 수 있음 | 기존 package read-only, staging candidate, semantic preflight, success-only final rename |
 
 ## production Definition of Done
 
 아래를 모두 만족하기 전에는 `0.9.1-preview`를 production으로 바꾸지 않는다.
 
 - [ ] current source commit/hash와 배포 DLL provenance 기록
-- [ ] SDK Debug/Release, WPF build/smoke, SourceOnly/full static 전량 PASS
-- [ ] LASAL IDE Rebuild/Link와 implementation smoke PASS
+- [x] current SDK Debug/Release 1042/1042, WPF Debug/Release 297/297 PASS; Debug 추가 반복 count 동일
+- [x] dormant `0x7D12/0x7D13`을 포함한 `IntegratedReadOwnerDormant` SourceOnly/full static PASS
+- [ ] callback+`0x7D12`+`0x7D13` current source LASAL IDE Rebuild/Link와 implementation smoke/log PASS — 세 변경 전 checkpoint는 WARNING 20으로 PASS
 - [ ] 다운로드된 PLC source/network/unit/task가 Git snapshot과 일치
 - [ ] 실제 장비 안전 chain, limit, UNIT, reference 승인
 - [ ] single-axis 1..9와 Cartesian X/Y/Z/U 적용 범위 승인
@@ -324,9 +436,13 @@ production 승인 기록에 각각 제외 사유와 영향 범위를 남긴다.
 - [ ] `topology-inventory` durable report와 동일 조건 10,000회 성능 회귀 gate PASS
 - [ ] same-peer takeover의 same-IP/other-IP/fault/soak 경계 완료
 - [ ] D5 Read는 durable witness 또는 `ApplicationRecoveryOnly` + `orphanQualified=false` 범위 승인
-- [ ] M4 advanced 기능, 상위 요구 공백, callback/ownership을 구현하거나 항목별 명시적 범위 제외
-- [ ] external user manual의 preview/안전/UNIT/polling 경고 갱신
-- [ ] Distribution cleanup, version/hash/manifest 재확인
+- [ ] callback endpoint ownership source/PC 계약의 current PLC duplicate/mismatch capture 완료;
+  typed sender/parser와 multi-PC control은 승인 schema/owner 정책 전까지 명시적 범위 제외
+- [ ] M4 advanced 기능과 상위 요구 공백을 구현하거나 항목별 명시적 범위 제외
+- [x] external `2.0-candidate` DOCX/PDF의 preview/안전/UNIT/polling 및 Axis1 SDO scope 갱신·전 페이지 검토
+- [x] 원본 무변경 transaction, success-only rename, failure cleanup과 semantic policy 회귀 PASS
+- [x] external DOCX/PDF exact bytes를 사용한 실제 sibling Distribution candidate와 semantic policy `15/15` PASS
+- [x] candidate cleanup, version/input hash/schema 2 manifest, canonical hash와 transaction residue 재확인
 - [ ] `git diff --check`와 `git diff --cached --check` PASS
 
 ## 문서 갱신 규칙
