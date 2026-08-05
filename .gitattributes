@@ -58,3 +58,9 @@ docs/history/260724/Elmo_Master_history_260724_part_*.md -text whitespace=cr-at-
 # Preserve the 260730 imported histories and byte-exact physical chunks.
 docs/history/Elmo_Master_history_260730_*.md binary
 docs/history/260730/Elmo_Master_history_260730_*_part_*.md binary
+
+# Preserve the 260803/260805 imported histories and physical chunk bytes.
+docs/history/Elmo_Master_history_260803_*.md binary
+docs/history/260803/Elmo_Master_history_260803_*_part_*.md binary
+docs/history/Elmo_Master_history_260805_*.md binary
+docs/history/260805/Elmo_Master_history_260805_*_part_*.md binary
