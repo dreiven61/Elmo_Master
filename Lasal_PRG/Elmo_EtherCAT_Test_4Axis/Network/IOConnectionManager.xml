@@ -42,6 +42,9 @@
 			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive3" IOI="IOState" SortIndex="35" KeyName="000035" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Drive4" IOI="IOState" SortIndex="36" KeyName="000036" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_11" Server="ClassState" ObjClt="LMCSdoExecutor1" Client="toSlave" IOI="IOState" SortIndex="41" KeyName="000037" Advanced="0"/>
+			<IOConnection ObjSrv="GL_9086_11" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="Coupler" IOI="IOState" SortIndex="45" KeyName="000038" Advanced="0"/>
+			<IOConnection ObjSrv="GL_9086_1_Slot001" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="InputSlot" IOI="IOState" SortIndex="46" KeyName="000039" Advanced="0"/>
+			<IOConnection ObjSrv="GL_9086_1_Slot011" Server="ClassState" ObjClt="LMCEcatInputLatch1" Client="OutputSlot" IOI="IOState" SortIndex="47" KeyName="000040" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_21" Server="ClassState" ObjClt="LMCSdoExecutor2" Client="toSlave" IOI="IOState" SortIndex="42" KeyName="000042" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_31" Server="ClassState" ObjClt="LMCSdoExecutor3" Client="toSlave" IOI="IOState" SortIndex="43" KeyName="000043" Advanced="0"/>
 			<IOConnection ObjSrv="Elmo_41" Server="ClassState" ObjClt="LMCSdoExecutor4" Client="toSlave" IOI="IOState" SortIndex="44" KeyName="000044" Advanced="0"/>

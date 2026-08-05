@@ -396,6 +396,21 @@ TYPE
     dData : DINT;
     pCmd : ^GetCILInterface;
   END_STRUCT;
+  CltChCmd_GL_9086_1 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^GL_9086_1;
+  END_STRUCT;
+  CltChCmd_GL_9086_1_Slot00 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^GL_9086_1_Slot00;
+  END_STRUCT;
+  CltChCmd_GL_9086_1_Slot01 : STRUCT
+    pCh : ^SvrChCmd_t_e_VaranErrors;
+    dData : t_e_VaranErrors;
+    pCmd : ^GL_9086_1_Slot01;
+  END_STRUCT;
   CltChCmd_Hub_Base : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;

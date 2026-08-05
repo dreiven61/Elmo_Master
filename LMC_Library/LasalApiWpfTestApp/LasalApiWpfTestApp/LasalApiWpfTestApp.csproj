@@ -58,7 +58,17 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ApplicationInstanceLease.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="UiLocalization.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.RecoveryRecordRetirement.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
@@ -90,7 +100,23 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="MainWindow.AxisQualificationRecovery.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MainWindow.GroupPowerRecovery.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.GroupResetRecovery.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.GroupResetDurableRecovery.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.MaintenanceActions.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
@@ -103,6 +129,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="MainWindow.Qualification.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Qualification.Axis.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
@@ -172,10 +202,25 @@
     <Compile Include="AxisPowerOnRecoveryJournal.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="AxisSetPositionRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="MaintenanceActionRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="AxisCommandRecoveryJournal.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="AxisQualificationRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="GroupPowerRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GroupResetRecoveryJournal.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="RecoveryRecordRetirementLedger.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="DigitalOutputUncertainAcknowledgementPolicy.cs">
@@ -188,6 +233,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="SdoWriteConfirmationState.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SdoWriteActivationQualificationProof.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="TopologyIoLiveMonitorPolicy.cs">

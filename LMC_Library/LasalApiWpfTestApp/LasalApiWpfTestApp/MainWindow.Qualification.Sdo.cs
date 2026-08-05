@@ -2697,7 +2697,9 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture),
                 "resultType=" + status.ResultValueType,
                 "resultLength=" + status.ResultLength.ToString(
-                    CultureInfo.InvariantCulture));
+                    CultureInfo.InvariantCulture),
+                "resultBytes=" + BitConverter.ToString(
+                    status.ResultData ?? new byte[0]));
         }
 
         private async Task<bool> CleanupPendingD5SdoQualificationAsync()

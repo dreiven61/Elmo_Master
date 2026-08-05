@@ -62,6 +62,34 @@ namespace LasalMotionControlLib
                 case LMC_CommandId.ReadAxisParameter:
                     return LMC_AdminParser.AxisParameterPayloadLength;
 
+                case LMC_CommandId.SetAxisPosition:
+                    return LMC_AdminParser.SetAxisPositionResponsePayloadLength;
+
+                case LMC_CommandId.ReadAxisSetPositionOutcome:
+                    return LMC_AdminParser
+                        .AxisSetPositionOutcomeResponsePayloadLength;
+
+                case LMC_CommandId.StartAxisHome:
+                    return LMC_AdminParser
+                        .StartLmcHomeResponsePayloadLength;
+
+                case LMC_CommandId.StartAxisDs402Home:
+                    return LMC_AdminParser
+                        .StartAxisDs402HomeResponsePayloadLength;
+
+                case LMC_CommandId.ReadAxisDs402HomeOutcome:
+                    return LMC_AdminParser
+                        .AxisDs402HomeOutcomeResponsePayloadLength;
+
+                case LMC_CommandId.RetireAxisDs402HomeOutcome:
+                    return LMC_AdminParser
+                        .AxisDs402HomeOutcomeRetirementResponsePayloadLength;
+
+                case LMC_CommandId.ReadAxisHomeOutcome:
+                case LMC_CommandId.RetireAxisHomeOutcome:
+                    return LMC_AdminParser
+                        .LmcHomeOutcomeResponsePayloadLength;
+
                 case LMC_CommandId.ReadGroupParameters:
                     return LMC_AdminParser.GroupParametersPayloadLength;
 
@@ -168,6 +196,15 @@ namespace LasalMotionControlLib
                 case LMC_CommandId.ReadSdoResultChunk:
                     return LMC_DiagnosticsParser.SdoResultChunkResponseHeaderPayloadLength
                         + LMC_DiagnosticsFrame.AbsoluteMaxRecorderChunkDataBytes;
+
+                case LMC_CommandId.StartEncoderMaintenance:
+                    return LMC_DiagnosticsParser
+                        .StartEncoderMaintenanceResponsePayloadLength;
+
+                case LMC_CommandId.ReadEncoderMaintenanceOutcome:
+                case LMC_CommandId.RetireEncoderMaintenanceOutcome:
+                    return LMC_DiagnosticsParser
+                        .EncoderMaintenanceOutcomeResponsePayloadLength;
 
                 default:
                     throw new NotSupportedException(

@@ -25,6 +25,9 @@ namespace LasalMotionControlLib.Tests
                 "Response.DiagnosticsCapabilities.MalformedRejected",
                 DiagnosticsCapabilitiesMalformedRejected);
             tests.Add(
+                "Response.DiagnosticsCapabilities.EncoderMaintenanceIsDedicated",
+                DiagnosticsCapabilitiesEncoderMaintenanceIsDedicated);
+            tests.Add(
                 "Response.DiagnosticsCapabilities.DomainErrorPreserved",
                 DiagnosticsCapabilitiesDomainErrorPreserved);
             tests.Add(
@@ -200,7 +203,8 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt32(
                 errorWithUnknownDetail,
                 12,
-                (uint)LMCDiagnosticsDetailCode.RecorderConfigurationAbsent + 1u);
+                (uint)LMCDiagnosticsDetailCode
+                    .EncoderMaintenanceSemanticVerificationFailed + 1u);
             AssertMalformed(errorWithUnknownDetail, GoldenRequestId);
 
             AssertMalformed(
@@ -380,6 +384,38 @@ namespace LasalMotionControlLib.Tests
                 1);
             AssertEx.True(
                 generalCapabilities.Supports(
+                    LMCDiagnosticCapability.SDOReadGeneralInline));
+        }
+
+        private static void DiagnosticsCapabilitiesEncoderMaintenanceIsDedicated()
+        {
+            var capabilityBits =
+                (uint)(LMCDiagnosticCapability.EncoderTw20ErrorWarningReset
+                    | LMCDiagnosticCapability
+                        .EncoderTw19MultiturnPositionReset);
+            var capabilities = LMC_DiagnosticsParser.ParseCapabilities(
+                TestFrame.Response(
+                    0,
+                    CapabilitiesPayload(
+                        GoldenRequestId,
+                        capabilityBits,
+                        1)),
+                GoldenRequestId,
+                1);
+
+            AssertEx.True(
+                capabilities.Supports(
+                    LMCDiagnosticCapability.EncoderTw20ErrorWarningReset));
+            AssertEx.True(
+                capabilities.Supports(
+                    LMCDiagnosticCapability
+                        .EncoderTw19MultiturnPositionReset));
+            AssertEx.False(
+                capabilities.Supports(LMCDiagnosticCapability.SDORead));
+            AssertEx.False(
+                capabilities.Supports(LMCDiagnosticCapability.SDOWrite));
+            AssertEx.False(
+                capabilities.Supports(
                     LMCDiagnosticCapability.SDOReadGeneralInline));
         }
 

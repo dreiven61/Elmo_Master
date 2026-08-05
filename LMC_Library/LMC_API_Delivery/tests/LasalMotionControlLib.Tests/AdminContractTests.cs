@@ -527,7 +527,10 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 30, 1);
             TestFrame.WriteUInt16(payload, 32, 0x0100);
             TestFrame.WriteUInt16(payload, 34, 3);
-            TestFrame.WriteUInt16(payload, 36, 1);
+            TestFrame.WriteUInt16(
+                payload,
+                36,
+                checked((ushort)LMCErrorCatalog.CurrentCatalogVersion));
             return payload;
         }
 

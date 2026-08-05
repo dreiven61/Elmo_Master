@@ -60,6 +60,8 @@ namespace LasalMotionControlApiExample
         private SdoEditorDraftSnapshot pendingSdoEditorDraftSnapshot;
         private readonly SdoWriteConfirmationState sdoWriteConfirmationState =
             new SdoWriteConfirmationState();
+        private SdoWriteActivationQualificationProof
+            sdoWriteActivationQualificationProof;
 
         private sealed class SdoEditorDraftSnapshot
         {
@@ -963,14 +965,15 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".csv",
-                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Filter = TranslateUiText(
+                    "CSV files (*.csv)|*.csv|All files (*.*)|*.*"),
                 FileName = "lasal-recorder-"
                     + DateTime.Now.ToString(
                         "yyyyMMdd-HHmmss",
                         CultureInfo.InvariantCulture)
                     + ".csv",
                 OverwritePrompt = true,
-                Title = "Export LASAL Recorder CSV"
+                Title = TranslateUiText("Export LASAL Recorder CSV")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -1237,7 +1240,21 @@ namespace LasalMotionControlApiExample
                 && mode == SdoOperationMode.Write
                 && !HasPendingD5SdoWriteReadback)
             {
-                ButtonSubmitSdo.Content = "Arm SDO Write";
+                var selectedTarget = ComboSdoWriteTarget == null
+                    ? null
+                    : ComboSdoWriteTarget.SelectedItem
+                        as LMCSdoWriteTarget;
+                var englishCaption =
+                    HasCurrentSdoWriteActivationQualificationProof(
+                        connection,
+                        diagnosticCapabilities,
+                        selectedTarget)
+                        ? "Arm SDO Write"
+                        : "Run Same-Value Qualification First";
+                ButtonSubmitSdo.Content = englishCaption;
+                UiLocalizationService.Apply(
+                    ButtonSubmitSdo,
+                    currentUiLanguage);
             }
         }
 
@@ -1625,6 +1642,7 @@ namespace LasalMotionControlApiExample
                             isRequiredWriteReadback
                                 || RequiresGeneralInlineSdoRead(request));
                     D5SdoQuarantineHandle submissionGuard;
+                    LMCSdoWriteTarget pinnedWriteTarget = null;
                     try
                     {
                         if (isRequiredWriteReadback
@@ -1642,6 +1660,22 @@ namespace LasalMotionControlApiExample
                             request);
                         if (request.IsWrite)
                         {
+                            var currentApprovedTarget =
+                                FindApprovedSdoWriteTargetForRequest(
+                                    currentConnection.Diagnostics
+                                        .GetApprovedSdoWriteTargets(),
+                                    request);
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities,
+                                    currentApprovedTarget))
+                            {
+                                throw new InvalidOperationException(
+                                    "Manual SDO Write is blocked until the exact current connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification. No Write was submitted.");
+                            }
+
+                            pinnedWriteTarget = currentApprovedTarget;
+
                             await VerifyD5SdoQualificationSafeAxisAsync(
                                 currentConnection,
                                 request.SlaveReference,
@@ -1678,6 +1712,14 @@ namespace LasalMotionControlApiExample
                                     + request.SlaveReference.ToString(
                                         CultureInfo.InvariantCulture),
                                 CancellationToken.None);
+                            if (!HasCurrentSdoWriteActivationQualificationProof(
+                                    currentConnection,
+                                    capabilities,
+                                    pinnedWriteTarget))
+                            {
+                                throw new InvalidOperationException(
+                                    "The manual SDO Write activation proof changed or was retired during final axis verification. No Write was submitted.");
+                            }
                         }
 
                         submissionGuard =
@@ -1715,15 +1757,27 @@ namespace LasalMotionControlApiExample
                         submittedTicket = isRequiredWriteReadback
                             ? await requiredWriteReadback
                                 .SubmitReadbackAsync(
-                                    request,
-                                    CancellationToken.None)
-                            : await currentConnection.Diagnostics
-                                .SubmitSdoAsync(
-                                    request,
-                                    CancellationToken.None);
+                                     request,
+                                     CancellationToken.None)
+                            : request.IsWrite
+                                ? await currentConnection.Diagnostics
+                                    .SubmitSdoWriteIdentityPinnedAsync(
+                                        request,
+                                        capabilities,
+                                        pinnedWriteTarget,
+                                        CancellationToken.None)
+                                : await currentConnection.Diagnostics
+                                    .SubmitSdoAsync(
+                                        request,
+                                        CancellationToken.None);
                     }
                     catch (Exception error)
                     {
+                        if (request.IsWrite)
+                        {
+                            RetireSdoWriteActivationQualificationProof();
+                        }
+
                         try
                         {
                             D5ExternalReadFailureOrchestrator
@@ -2027,14 +2081,15 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".bin",
-                Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
+                Filter = TranslateUiText(
+                    "Binary files (*.bin)|*.bin|All files (*.*)|*.*"),
                 FileName = "lasal-sdo-result-"
                     + DateTime.Now.ToString(
                         "yyyyMMdd-HHmmss",
                         CultureInfo.InvariantCulture)
                     + ".bin",
                 OverwritePrompt = true,
-                Title = "Save LASAL SDO Result"
+                Title = TranslateUiText("Save LASAL SDO Result")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -2422,6 +2477,13 @@ namespace LasalMotionControlApiExample
                 || requiredReadbackSubmissionAvailable;
             var hasApprovedSdoWriteTarget =
                 ComboSdoWriteTarget.SelectedItem is LMCSdoWriteTarget;
+            var selectedSdoWriteTarget = ComboSdoWriteTarget.SelectedItem
+                as LMCSdoWriteTarget;
+            var manualSdoWriteActivationQualified = !isSdoWrite
+                || HasCurrentSdoWriteActivationQualificationProof(
+                    currentConnection,
+                    diagnosticCapabilities,
+                    selectedSdoWriteTarget);
             if (!isSdoWrite
                 && supportsSdoRead
                 && !supportsGeneralSdoRead
@@ -2433,14 +2495,13 @@ namespace LasalMotionControlApiExample
                 ComboSdoDataLength.SelectedItem = (ushort)4;
             }
 
-            var hasSdoEditorContract = supportsSdoRead
-                || supportsSdoWrite
-                || HasPendingD5SdoWriteReadback;
-            ComboSdoOperation.IsEnabled = sdoInputsEnabled
-                && hasSdoEditorContract;
+            // Operation and target selection only edit a local draft. Keep
+            // them independent from the current PLC capability observation;
+            // the Submit/Inline gates below remain capability- and
+            // admission-controlled.
+            ComboSdoOperation.IsEnabled = sdoInputsEnabled;
             ComboSdoWriteTarget.IsEnabled = sdoInputsEnabled
                 && isSdoWrite
-                && supportsSdoWrite
                 && approvedSdoWriteTargets.Count != 0;
             TextSdoSlaveReference.IsEnabled = sdoInputsEnabled;
             TextSdoIndex.IsEnabled = sdoInputsEnabled
@@ -2469,10 +2530,17 @@ namespace LasalMotionControlApiExample
                     ? "Submit Required Exact Readback"
                     : "Readback Session Mismatch"
                 : isSdoWrite
-                    ? sdoWriteConfirmationState.IsArmed
-                        ? "Confirm & Submit SDO Write"
-                        : "Arm SDO Write"
+                    ? !manualSdoWriteActivationQualified
+                        ? "Run Same-Value Qualification First"
+                        : sdoWriteConfirmationState.IsArmed
+                            ? "Confirm & Submit SDO Write"
+                            : "Arm SDO Write"
                     : "Submit SDO Read";
+            ButtonSubmitSdo.ToolTip = isSdoWrite
+                && !HasPendingD5SdoWriteReadback
+                && !manualSdoWriteActivationQualified
+                    ? "Manual SDO Write is fail-closed until this exact connection session, DiagnosticsBuild, BootId, MapRevision, and approved target pass the four-ticket Same-Value SDO Write qualification below."
+                    : "Write mode uses two-click confirmation after the current-session same-value activation proof. Read mode submits one tracked SDO Read.";
             ButtonSubmitSdo.IsEnabled = connected
                 && idle
                 && canSubmitSdoOperation
@@ -2483,6 +2551,7 @@ namespace LasalMotionControlApiExample
                     : isSdoWrite
                     ? supportsSdoWrite
                         && hasApprovedSdoWriteTarget
+                        && manualSdoWriteActivationQualified
                         && DiagnosticsMutationJournalCanArm
                     : supportsSdoRead);
             var inlineReadLength = ComboSdoDataLength.SelectedItem
@@ -2536,7 +2605,7 @@ namespace LasalMotionControlApiExample
         private void ClearDiagnosticsState()
         {
             ResetD5SdoWriteSameValueOperatorConfirmations();
-            sdoWriteConfirmationState.Clear();
+            RetireSdoWriteActivationQualificationProof();
             ClearRecorderDoubleVolatileSessionState();
             var cancellation = recorderDownloadCancellation;
             recorderDownloadCancellation = null;
@@ -2595,7 +2664,7 @@ namespace LasalMotionControlApiExample
                     "Load the PI Catalog and check Recordable signals first.";
                 TextRecorderPlotRange.Text = "No downloaded data.";
                 TextDiagnosticOperationSummary.Text =
-                    "SDO Read supports exact 1/2/4-byte typed values. SDO Write requires PLC bit 9 and an exact SDK-approved target; arbitrary object writes remain blocked.";
+                    "SDO Read supports exact 1/2/4-byte typed values. Manual SDO Write additionally requires a four-ticket Same-Value qualification PASS bound to the exact current session and PLC identity; arbitrary object writes remain blocked.";
                 if (HasPendingD5SdoWriteReadback)
                 {
                     ShowPendingD5SdoWriteReadbackStatus();
@@ -2735,6 +2804,66 @@ namespace LasalMotionControlApiExample
                             == previousTarget.MinimumIntegerValue
                         && target.MaximumIntegerValue
                             == previousTarget.MaximumIntegerValue))
+                {
+                    return target;
+                }
+            }
+
+            return null;
+        }
+
+        private bool HasCurrentSdoWriteActivationQualificationProof(
+            LMCConnection currentConnection,
+            LMCDiagnosticCapabilities capabilities,
+            LMCSdoWriteTarget target)
+        {
+            var proof = sdoWriteActivationQualificationProof;
+            if (proof == null)
+            {
+                return false;
+            }
+
+            if (proof.MatchesCurrent(
+                currentConnection,
+                capabilities,
+                target))
+            {
+                return true;
+            }
+
+            RetireSdoWriteActivationQualificationProof();
+            return false;
+        }
+
+        private void RetireSdoWriteActivationQualificationProof()
+        {
+            var proof = sdoWriteActivationQualificationProof;
+            sdoWriteActivationQualificationProof = null;
+            if (proof != null)
+            {
+                proof.Revoke();
+            }
+
+            sdoWriteConfirmationState.Clear();
+        }
+
+        private static LMCSdoWriteTarget FindApprovedSdoWriteTargetForRequest(
+            IReadOnlyList<LMCSdoWriteTarget> targets,
+            LMCSdoRequest request)
+        {
+            if (targets == null || request == null || !request.IsWrite)
+            {
+                return null;
+            }
+
+            foreach (var target in targets)
+            {
+                if (target != null
+                    && target.SlaveReference == request.SlaveReference
+                    && target.ObjectIndex == request.ObjectIndex
+                    && target.SubIndex == request.SubIndex
+                    && target.ValueType == request.ValueType
+                    && target.DataLength == request.DataLength)
                 {
                     return target;
                 }
@@ -3375,9 +3504,20 @@ namespace LasalMotionControlApiExample
             if (mode == SdoOperationMode.Write)
             {
                 ApplySelectedSdoWriteTarget();
-                ButtonSubmitSdo.Content = sdoWriteConfirmationState.IsArmed
-                    ? "Confirm & Submit SDO Write"
-                    : "Arm SDO Write";
+                var selectedTarget = ComboSdoWriteTarget == null
+                    ? null
+                    : ComboSdoWriteTarget.SelectedItem
+                        as LMCSdoWriteTarget;
+                var activationProofCurrent =
+                    HasCurrentSdoWriteActivationQualificationProof(
+                        connection,
+                        diagnosticCapabilities,
+                        selectedTarget);
+                ButtonSubmitSdo.Content = !activationProofCurrent
+                    ? "Run Same-Value Qualification First"
+                    : sdoWriteConfirmationState.IsArmed
+                        ? "Confirm & Submit SDO Write"
+                        : "Arm SDO Write";
                 TextDiagnosticOperationSummary.Text =
                     approvedSdoWriteTargets.Count == 0
                         ? "SDO Write fields may be prepared, but Submit is fail-closed: this SDK build has no approved target. Confirm a reserved drive object before enabling the SDK and PLC allowlists."

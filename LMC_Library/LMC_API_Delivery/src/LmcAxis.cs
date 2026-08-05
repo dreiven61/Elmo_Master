@@ -460,6 +460,10 @@ namespace LasalMotionControlLib
         private LMC_Response Send(byte[] request)
         {
             EnsureCurrentSessionForUse();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             powerOnWaitCoordinator.MutationGate.Wait();
             try
             {
@@ -509,6 +513,10 @@ namespace LasalMotionControlLib
         {
             EnsureCurrentSessionForUse();
             cancellationToken.ThrowIfCancellationRequested();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             await powerOnWaitCoordinator.MutationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try

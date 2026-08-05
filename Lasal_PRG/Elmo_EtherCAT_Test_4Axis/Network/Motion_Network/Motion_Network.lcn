@@ -4385,11 +4385,18 @@
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
+				<Client Name="Coupler"/>
 				<Client Name="Drive1" DrawChnConn="Text"/>
 				<Client Name="Drive2" DrawChnConn="Text"/>
 				<Client Name="Drive3" DrawChnConn="Text"/>
 				<Client Name="Drive4" DrawChnConn="Text"/>
 				<Client Name="EcatMaster"/>
+				<Client Name="InputSlot"/>
+				<Client Name="LMCAxis1"/>
+				<Client Name="LMCAxis2"/>
+				<Client Name="LMCAxis3"/>
+				<Client Name="LMCAxis4"/>
+				<Client Name="OutputSlot"/>
 				<Client Name="RecorderStore"/>
 			</Channels>
 		</Object>
@@ -4783,7 +4790,11 @@
 		<Connection Source="_LMCAxis4.ActPosition" Destination="Elmo_41.ActPos"/>
 		<Connection Source="_LMCAxis4.HWError" Destination="Elmo_41.AxError"/>
 		<Connection Source="_LMCAxis4.HWReady" Destination="Elmo_41.Online"/>
+		<Connection Source="LMCEcatInputLatch1.Coupler" Destination="GL_9086_11.ClassState"/>
+		<Connection Source="LMCEcatInputLatch1.InputSlot" Destination="GL_9086_1_Slot001.ClassState"/>
 		<Connection Source="_LMCAxis4.LMCController" Destination="PosController4.Signal_Input" Vertices="(3090,5880),(2440,5880),"/>
+		<Connection Source="LMCEcatInputLatch1.OutputSlot" Destination="GL_9086_1_Slot011.ClassState"/>
+		<Connection Source="LMCEcatInputLatch1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5850,4110),(3756,4080),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis1" Destination="_LMCAxis1.Control" Vertices="(5430,390),(3756,390),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5430,450),(5243,450),(5243,2310),(3756,2310),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis3" Destination="_LMCAxis3.Control" Vertices="(5430,510),(5303,510),(5303,4080),(3756,4080),"/>
@@ -4793,6 +4804,9 @@
 		<Connection Source="_LMCRobotBase1.LMCAxis7" Destination="_LMCAxis7.Control" Vertices="(5430,750),(3756,11340),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis8" Destination="_LMCAxis8.Control" Vertices="(5430,810),(3756,13080),"/>
 		<Connection Source="_LMCRobotBase1.LMCAxis9" Destination="_LMCAxis9.Control" Vertices="(5430,870),(3756,14790),"/>
+		<Connection Source="LMCEcatInputLatch1.LMCAxis1" Destination="_LMCAxis1.Control" Vertices="(5850,3990),(3756,390),"/>
+		<Connection Source="LMCEcatInputLatch1.LMCAxis2" Destination="_LMCAxis2.Control" Vertices="(5850,4050),(3756,2310),"/>
+		<Connection Source="LMCEcatInputLatch1.LMCAxis4" Destination="_LMCAxis4.Control" Vertices="(5850,4170),(3756,5820),"/>
 		<Connection Source="_LMCAxis9.LMCController" Destination="PosController9.Signal_Input" Vertices="(3090,14850),(2410,14850),"/>
 		<Connection Source="_LMCAxis8.LMCController" Destination="PosController8.Signal_Input" Vertices="(3090,13140),(2410,13140),"/>
 		<Connection Source="_LMCAxis7.LMCController" Destination="PosController7.Signal_Input" Vertices="(3090,11400),(2410,11400),"/>

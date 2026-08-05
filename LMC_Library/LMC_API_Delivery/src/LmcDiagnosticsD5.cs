@@ -328,6 +328,15 @@ namespace LasalMotionControlLib
             }
 
             var requestId = NextRequestId();
+            Action beforeWrite = null;
+            if (attemptTracker != null)
+            {
+                beforeWrite = () =>
+                {
+                    attemptTracker.MarkSubmissionOutcomeUncertain();
+                };
+            }
+
             var raw = connection.Exchange(
                 LMC_DiagnosticsFrame.SubmitSdo(
                     requestId,
@@ -335,10 +344,7 @@ namespace LasalMotionControlLib
                     request,
                     capabilities.DiagnosticsBootId),
                 sessionGeneration,
-                attemptTracker == null
-                    ? null
-                    : new Action(
-                        attemptTracker.MarkSubmissionOutcomeUncertain));
+                beforeWrite);
 
             LMCOperationSubmission submission;
             try
@@ -413,6 +419,92 @@ namespace LasalMotionControlLib
                     attemptTracker.CreateFailureContext());
                 throw;
             }
+        }
+
+        internal async Task<LMCOperationTicket>
+            SubmitSdoWriteIdentityPinnedAsync(
+                LMCSdoRequest request,
+                LMCDiagnosticCapabilities requiredCapabilities,
+                LMCSdoWriteTarget requiredTarget,
+                CancellationToken cancellationToken)
+        {
+            var attemptTracker = new LMCSdoSubmissionAttemptTracker(request);
+            try
+            {
+                if (request == null)
+                {
+                    throw new ArgumentNullException("request");
+                }
+
+                if (requiredCapabilities == null)
+                {
+                    throw new ArgumentNullException(
+                        "requiredCapabilities");
+                }
+
+                if (requiredTarget == null)
+                {
+                    throw new ArgumentNullException("requiredTarget");
+                }
+
+                if (!request.IsWrite)
+                {
+                    throw new InvalidOperationException(
+                        "Identity-pinned SDO submission accepts Write requests only.");
+                }
+
+                ValidateSdoSubmitPolicy(request);
+                attemptTracker.BeginSessionPreflight();
+
+                var sessionGeneration = connection.SessionGeneration;
+                ValidateRequiredSdoWriteSubmissionIdentity(
+                    request,
+                    requiredCapabilities,
+                    requiredTarget,
+                    sessionGeneration,
+                    null);
+                return await RunStateMutatingAsync(
+                    () => SubmitSdoWriteIdentityPinnedCore(
+                        request,
+                        requiredCapabilities,
+                        requiredTarget,
+                        sessionGeneration,
+                        attemptTracker),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                LMCSdoSubmissionFailureContext.Attach(
+                    exception,
+                    attemptTracker.CreateFailureContext());
+                throw;
+            }
+        }
+
+        private LMCOperationTicket SubmitSdoWriteIdentityPinnedCore(
+            LMCSdoRequest request,
+            LMCDiagnosticCapabilities requiredCapabilities,
+            LMCSdoWriteTarget requiredTarget,
+            long sessionGeneration,
+            LMCSdoSubmissionAttemptTracker attemptTracker)
+        {
+            connection.EnsureSessionGeneration(sessionGeneration);
+            attemptTracker.BeginCapabilityPreflight();
+            var freshCapabilities = GetCapabilities();
+            attemptTracker.RecordCapabilityIdentity(
+                freshCapabilities.DiagnosticsBootId,
+                freshCapabilities.MapRevision);
+            ValidateRequiredSdoWriteSubmissionIdentity(
+                request,
+                requiredCapabilities,
+                requiredTarget,
+                sessionGeneration,
+                freshCapabilities);
+            return SubmitSdoCore(
+                request,
+                sessionGeneration,
+                freshCapabilities,
+                attemptTracker);
         }
 
         public async Task<LMCOperationTicket> SubmitSdoAsync(
@@ -1214,6 +1306,90 @@ namespace LasalMotionControlLib
             }
 
             connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private void ValidateRequiredSdoWriteSubmissionIdentity(
+            LMCSdoRequest writeRequest,
+            LMCDiagnosticCapabilities requiredCapabilities,
+            LMCSdoWriteTarget requiredTarget,
+            long expectedSessionGeneration,
+            LMCDiagnosticCapabilities freshCapabilities)
+        {
+            if (!connection.IsConnected
+                || expectedSessionGeneration <= 0
+                || expectedSessionGeneration != connection.SessionGeneration)
+            {
+                throw new InvalidOperationException(
+                    "The identity-pinned SDO Write belongs to a disconnected or stale connection session.");
+            }
+
+            if (requiredCapabilities == null
+                || !requiredCapabilities.IsBoundTo(
+                    this,
+                    expectedSessionGeneration)
+                || requiredCapabilities.DiagnosticsBuild == 0
+                || requiredCapabilities.DiagnosticsBootId == 0
+                || requiredCapabilities.MapRevision == 0)
+            {
+                throw new InvalidOperationException(
+                    "The identity-pinned SDO Write requires nonzero Build, BootId, and MapRevision capabilities from this diagnostics owner and session.");
+            }
+
+            if (requiredTarget == null
+                || !requiredTarget.Matches(writeRequest)
+                || !IsApprovedSdoWriteTarget(requiredTarget))
+            {
+                throw new InvalidOperationException(
+                    "The identity-pinned SDO Write request does not exactly match its SDK-approved target tuple and range.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+            if (freshCapabilities == null)
+            {
+                return;
+            }
+
+            if (!freshCapabilities.IsBoundTo(
+                    this,
+                    expectedSessionGeneration)
+                || freshCapabilities.DiagnosticsBuild
+                    != requiredCapabilities.DiagnosticsBuild
+                || freshCapabilities.DiagnosticsBootId
+                    != requiredCapabilities.DiagnosticsBootId
+                || freshCapabilities.MapRevision
+                    != requiredCapabilities.MapRevision)
+            {
+                throw new InvalidOperationException(
+                    "Fresh diagnostics capabilities do not match the identity-pinned SDO Write Build, BootId, or MapRevision. No Write was submitted.");
+            }
+
+            connection.EnsureSessionGeneration(expectedSessionGeneration);
+        }
+
+        private static bool IsApprovedSdoWriteTarget(
+            LMCSdoWriteTarget candidate)
+        {
+            var approvedTargets =
+                LMCDiagnosticsWritePolicy.GetApprovedSdoWriteTargets();
+            for (var index = 0; index < approvedTargets.Count; index++)
+            {
+                var approved = approvedTargets[index];
+                if (approved != null
+                    && candidate.SlaveReference == approved.SlaveReference
+                    && candidate.ObjectIndex == approved.ObjectIndex
+                    && candidate.SubIndex == approved.SubIndex
+                    && candidate.ValueType == approved.ValueType
+                    && candidate.DataLength == approved.DataLength
+                    && candidate.MinimumIntegerValue
+                        == approved.MinimumIntegerValue
+                    && candidate.MaximumIntegerValue
+                        == approved.MaximumIntegerValue)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private LMCOperationTicket CreateSdoTicket(

@@ -10,7 +10,7 @@
     <AssemblyName>LasalMotionControlLib.Tests</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <LangVersion>7.3</LangVersion>
-    <LasalTopologyIoCheckpoint Condition="'$(LasalTopologyIoCheckpoint)' == ''">StaticTopologyOnly</LasalTopologyIoCheckpoint>
+    <LasalTopologyIoCheckpoint Condition="'$(LasalTopologyIoCheckpoint)' == ''">IntegratedReadOwnerDormant</LasalTopologyIoCheckpoint>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>bin\Debug\</OutputPath>
@@ -35,6 +35,12 @@
     <Compile Include="FakeRpcServer.cs" />
     <Compile Include="AdminContractTests.cs" />
     <Compile Include="AdminMotionContractTests.cs" />
+    <Compile Include="AdminSetAxisPositionContractTests.cs" />
+    <Compile Include="AdminSetAxisPositionOutcomeContractTests.cs" />
+    <Compile Include="AdminLmcHomeContractTests.cs" />
+    <Compile Include="AdminDs402HomeCurrentPositionZeroContractTests.cs" />
+    <Compile Include="EncoderMaintenanceProtocolContractTests.cs" />
+    <Compile Include="AdminDs402HomeOutcomeRetirementContractTests.cs" />
     <Compile Include="ErrorCatalogTests.cs" />
     <Compile Include="RequestGoldenTests.cs" />
     <Compile Include="ResponseParserTests.cs" />
@@ -46,6 +52,7 @@
     <Compile Include="GroupDisableWaitContractTests.cs" />
     <Compile Include="GroupEnableWaitContractTests.cs" />
     <Compile Include="GroupPowerStateWaitContractTests.cs" />
+    <Compile Include="GroupResetWaitContractTests.cs" />
     <Compile Include="AxisPowerStateWaitContractTests.cs" />
     <Compile Include="AxisResetWaitContractTests.cs" />
     <Compile Include="AxisStopWaitContractTests.cs" />
@@ -180,6 +187,7 @@
     <Compile Include="RecorderDoubleRecoveryOrchestratorTests.cs" />
     <Compile Include="RecorderDoubleQualificationJournalBridgeTests.cs" />
     <None Include="Verify-LasalContract.ps1" />
+    <None Include="Verify-LasalAxisOwnershipActivationGuard.Fixture.ps1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\LasalMotionControlLib.csproj">
@@ -191,10 +199,10 @@
     <Exec Command="&quot;$(TargetPath)&quot;" />
   </Target>
   <Target Name="RunLasalContract">
-    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -SourceOnly -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot;" />
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -SourceOnly -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot; -ExpectedSdoWriteAxis 1" />
   </Target>
   <Target Name="RunLasalNetworkContract">
-    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot;" />
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;&quot;$(MSBuildProjectDirectory)\Verify-LasalContract.ps1&quot;&quot; -RepositoryRoot &quot;&quot;$(MSBuildProjectDirectory)\..\..\..\..&quot;&quot; -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint &quot;&quot;$(LasalTopologyIoCheckpoint)&quot;&quot; -ExpectedSdoWriteAxis 1" />
   </Target>
   <Target Name="BuildSimpleExampleApp">
     <MSBuild

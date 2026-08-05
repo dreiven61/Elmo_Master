@@ -553,6 +553,27 @@ typedef struct CltChCmd_GetCILInterface
     GetCILInterface *pCmd;
   } CltChCmd_GetCILInterface;
 
+typedef struct CltChCmd_GL_9086_1 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    GL_9086_1 *pCmd;
+  } CltChCmd_GL_9086_1;
+
+typedef struct CltChCmd_GL_9086_1_Slot00 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    GL_9086_1_Slot00 *pCmd;
+  } CltChCmd_GL_9086_1_Slot00;
+
+typedef struct CltChCmd_GL_9086_1_Slot01 
+  {
+    struct SvrChCmd_t_e_VaranErrors *pCh;
+    t_e_VaranErrors dData;
+    GL_9086_1_Slot01 *pCmd;
+  } CltChCmd_GL_9086_1_Slot01;
+
 typedef struct CltChCmd_Hub_Base 
   {
     struct SvrChCmd_DINT *pCh;

@@ -6,10 +6,11 @@
 			Name       = "LMCControlCommandService1"
 			GUID       = "{5E164D6C-7E45-4BA4-B0F7-F9DBCCE8C71B}"
 			Class      = "LMCControlCommandService"
-			Position   = "(930,1380)"
+			Position   = "(930,1440)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
+				<Client Name="InputLatch"/>
 				<Client Name="LMCAxis1"/>
 				<Client Name="LMCAxis2"/>
 				<Client Name="LMCAxis3"/>
@@ -31,6 +32,7 @@
 			<Channels>
 				<Server Name="ClassSvr"/>
 				<Server Name="DiagnosticsBootCounter" Value="0"/>
+				<Client Name="AxisOwnership"/>
 				<Client Name="InputLatch"/>
 				<Client Name="RecorderStore"/>
 				<Client Name="SdoAxis1"/>
@@ -302,7 +304,7 @@
 		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
-		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,450),(1488,1470),"/>
+		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,450),(1488,1530),"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis1" Destination="_LMCAxis1.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis2" Destination="_LMCAxis2.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis3" Destination="_LMCAxis3.Control"/>
@@ -313,6 +315,8 @@
 		<Connection Source="LMCControlCommandService1.LMCAxis8" Destination="_LMCAxis8.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis9" Destination="_LMCAxis9.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
+		<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr" Vertices="(870,1050),(1488,1530),"/>
+		<Connection Source="LMCControlCommandService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

@@ -763,6 +763,10 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken,
             Func<long> elapsedMilliseconds)
         {
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             var remaining = GetAxisPowerOffWaitRemaining(
                 options,
                 cancellationToken,
@@ -1411,6 +1415,10 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken,
             Func<long> elapsedMilliseconds)
         {
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             var remaining = GetAxisPowerOnWaitRemaining(
                 options,
                 cancellationToken,
@@ -2285,6 +2293,10 @@ namespace LasalMotionControlLib
         private LMC_Response SendPowerOnWithPendingGuard()
         {
             EnsureCurrentSessionForUse();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             powerOnWaitCoordinator.MutationGate.Wait();
             try
             {
@@ -2301,6 +2313,10 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             await powerOnWaitCoordinator.MutationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try
@@ -2319,6 +2335,10 @@ namespace LasalMotionControlLib
             SendPowerOffWithAcceptanceObserverGuard()
         {
             EnsureCurrentSessionForUse();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             powerOnWaitCoordinator.MutationGate.Wait();
             try
             {
@@ -2336,6 +2356,10 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             await powerOnWaitCoordinator.MutationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try

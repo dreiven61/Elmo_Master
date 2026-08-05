@@ -25,6 +25,7 @@ namespace LasalApiWpfTestApp.SmokeTests
         private const string ObservationRequest = "OBSERVE";
         private const string ObservationPrefix =
             "OBSERVED mutation recovery ";
+        private const string PowerOffRequest = "POWER_OFF";
         private const string CleanupExitRequest = "EXIT";
         private const string RecorderDoubleScenario = "RecorderDouble";
         private const string MotionDispatchScenario = "MotionDispatchKill";
@@ -75,6 +76,18 @@ namespace LasalApiWpfTestApp.SmokeTests
             "GroupDisableAcceptedDispatchKill";
         private const string GroupDisableAcceptedRecoveryScenario =
             "GroupDisableAcceptedStatusRecovery";
+        private const string GroupResetArmedDispatchScenario =
+            "GroupResetArmedBeforeDispatchKill";
+        private const string GroupResetAckDispatchScenario =
+            "GroupResetAckBeforeFirstStatusKill";
+        private const string GroupResetFirstRoundDispatchScenario =
+            "GroupResetAfterFirstStatusRoundKill";
+        private const string GroupResetRecoveryScenario =
+            "GroupResetRestartStatusOnlyRecovery";
+        private const string AxisQualificationPowerOnStableDispatchScenario =
+            "AxisQualificationPowerOnStableKill";
+        private const string AxisQualificationPowerOffRecoveryScenario =
+            "AxisQualificationExplicitPowerOffRecovery";
         private const string TestDirectoryPrefix = "ElmoWpfRecovery-";
         private const int WaitTimeoutMilliseconds = 15000;
         private const uint BootId = 0x12345678u;
@@ -131,6 +144,18 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.GroupDisableRecovery.ProcessTerminationAcceptedRestartIsStatusOnlyAndReacquiresJournal",
                 GroupDisableAcceptedProcessTerminationRestartIsStatusOnly);
+            tests.Add(
+                "Wpf.GroupResetRecovery.ProcessTerminationArmedBeforeDispatchRestartIsStatusOnly",
+                GroupResetArmedBeforeDispatchProcessTermination);
+            tests.Add(
+                "Wpf.GroupResetRecovery.ProcessTerminationAckBeforeStatusRestartIsStatusOnly",
+                GroupResetAckBeforeStatusProcessTermination);
+            tests.Add(
+                "Wpf.GroupResetRecovery.ProcessTerminationAfterFirstStatusRoundRestartIsStatusOnly",
+                GroupResetAfterFirstStatusRoundProcessTermination);
+            tests.Add(
+                "Wpf.AxisQualificationRecovery.ProcessTerminationPowerOnStableRequiresExplicitPowerOff",
+                AxisQualificationPowerOnStableProcessTerminationRequiresExplicitPowerOff);
         }
 
         internal static bool IsChildInvocation(string[] args)
@@ -462,6 +487,75 @@ namespace LasalApiWpfTestApp.SmokeTests
                     return 0;
                 }
 
+                if (string.Equals(
+                    args[3],
+                    GroupResetArmedDispatchScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunGroupResetDispatchChildCore(
+                        directoryPath,
+                        rpcPort,
+                        0);
+                    return 0;
+                }
+
+                if (string.Equals(
+                    args[3],
+                    GroupResetAckDispatchScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunGroupResetDispatchChildCore(
+                        directoryPath,
+                        rpcPort,
+                        1);
+                    return 0;
+                }
+
+                if (string.Equals(
+                    args[3],
+                    GroupResetFirstRoundDispatchScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunGroupResetDispatchChildCore(
+                        directoryPath,
+                        rpcPort,
+                        2);
+                    return 0;
+                }
+
+                if (string.Equals(
+                    args[3],
+                    GroupResetRecoveryScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunGroupResetRecoveryChildCore(
+                        directoryPath,
+                        rpcPort);
+                    return 0;
+                }
+
+                if (string.Equals(
+                    args[3],
+                    AxisQualificationPowerOnStableDispatchScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunAxisQualificationPowerOnStableDispatchChildCore(
+                        directoryPath,
+                        rpcPort);
+                    return 0;
+                }
+
+                if (string.Equals(
+                    args[3],
+                    AxisQualificationPowerOffRecoveryScenario,
+                    StringComparison.Ordinal))
+                {
+                    RunAxisQualificationPowerOffRecoveryChildCore(
+                        directoryPath,
+                        rpcPort);
+                    return 0;
+                }
+
                 DiagnosticsMutationKind kind;
                 if (!Enum.TryParse(args[3], false, out kind)
                     || (kind != DiagnosticsMutationKind.SdoWrite
@@ -737,6 +831,190 @@ namespace LasalApiWpfTestApp.SmokeTests
         {
             RunAxisCommandAcceptedProcessTerminationRestartIsStatusOnly(
                 false);
+        }
+
+        private static void
+            AxisQualificationPowerOnStableProcessTerminationRequiresExplicitPowerOff()
+        {
+            var directoryPath = CreateTestDirectoryPath();
+            var qualificationJournalDirectory = Path.Combine(
+                directoryPath,
+                "AxisQualificationRecovery");
+            var axisPowerJournalDirectory = Path.Combine(
+                directoryPath,
+                "AxisPowerOnRecovery");
+            RecoveryChildProcess dispatchChild = null;
+            RecoveryChildProcess recoveryChild = null;
+            using (var heldStatusRelease = new ManualResetEventSlim(false))
+            using (var heldStatusEntered = new ManualResetEventSlim(false))
+            try
+            {
+                using (var server = new FakeRpcServer(
+                    CreateAxisQualificationPowerOnStableRestartRpcSteps(
+                        heldStatusRelease,
+                        heldStatusEntered)))
+                {
+                    dispatchChild = RecoveryChildProcess.Start(
+                        directoryPath,
+                        server.Port,
+                        AxisQualificationPowerOnStableDispatchScenario);
+                    dispatchChild.WaitUntilReady();
+                    AssertEx.True(
+                        heldStatusEntered.Wait(WaitTimeoutMilliseconds),
+                        "The qualification pre-move status was not held after durable PowerOnStable proof.");
+                    dispatchChild.RequestObservationBarrier();
+                    AssertEx.False(dispatchChild.Process.HasExited);
+                    AssertEx.Throws<IOException>(
+                        () => AxisQualificationRecoveryJournal.Open(
+                            qualificationJournalDirectory),
+                        "The live qualification child must retain the parent journal lock.");
+                    AssertEx.Throws<IOException>(
+                        () => AxisPowerOnRecoveryJournal.Open(
+                            axisPowerJournalDirectory),
+                        "The live qualification child must retain the Axis Power journal lock even after child resolution.");
+
+                    dispatchChild.TerminateAndVerifyForced();
+                    dispatchChild.Dispose();
+                    dispatchChild = null;
+                    heldStatusRelease.Set();
+
+                    Guid qualificationIdentity;
+                    using (var journal =
+                        AxisQualificationRecoveryJournal.Open(
+                            qualificationJournalDirectory))
+                    {
+                        AssertEx.True(journal.HasActiveRecord);
+                        AssertEx.Equal(
+                            AxisQualificationRecoveryStage.PowerOnStable,
+                            journal.CurrentRecord.Stage);
+                        AssertEx.False(
+                            journal.CurrentRecord.WasCrashPromoted);
+                        AssertEx.False(journal.CurrentRecord.HasTarget);
+                        AssertAxisQualificationRecoveryIdentity(
+                            journal.CurrentRecord,
+                            server.Port);
+                        qualificationIdentity =
+                            journal.CurrentRecord.Identity;
+                    }
+                    using (var journal = AxisPowerOnRecoveryJournal.Open(
+                        axisPowerJournalDirectory))
+                    {
+                        AssertEx.False(journal.HasActiveRecord);
+                        AssertEx.Equal(
+                            AxisPowerOnRecoveryState.Resolved,
+                            journal.CurrentRecord.State);
+                        AssertAxisPowerRecoveryIdentity(
+                            journal.CurrentRecord,
+                            server.Port,
+                            true);
+                    }
+
+                    recoveryChild = RecoveryChildProcess.Start(
+                        directoryPath,
+                        server.Port,
+                        AxisQualificationPowerOffRecoveryScenario);
+                    recoveryChild.WaitUntilReady();
+                    recoveryChild.RequestObservationBarrier();
+
+                    var beforePowerOff = server.ReceivedRequests
+                        .Select((request, index) => new
+                        {
+                            Request = request,
+                            Session = server
+                                .ReceivedRequestSessionOrdinals[index]
+                        })
+                        .Where(item => item.Session == 2)
+                        .ToArray();
+                    AssertEx.Equal(
+                        0,
+                        beforePowerOff.Count(item =>
+                            IsAxisQualificationMutationRequest(
+                                item.Request)),
+                        "Reconnect and the dispatcher barrier sent an automatic qualification mutation.");
+
+                    recoveryChild.RequestPowerOff();
+                    recoveryChild.WaitForSuccessfulExit();
+                    recoveryChild.Dispose();
+                    recoveryChild = null;
+                    server.Verify();
+
+                    var received = server.ReceivedRequests
+                        .Select((request, index) => new
+                        {
+                            Request = request,
+                            Session = server
+                                .ReceivedRequestSessionOrdinals[index]
+                        })
+                        .ToArray();
+                    var sessionTwoPowerOff = received.Where(item =>
+                            item.Session == 2
+                            && TestFrame.ReadUInt16(item.Request, 0)
+                                == 0x2023
+                            && item.Request.Length > 12
+                            && item.Request[12] == 0)
+                        .ToArray();
+                    AssertEx.Equal(1, sessionTwoPowerOff.Length);
+                    AssertEx.Equal(
+                        0,
+                        received.Count(item =>
+                            item.Session == 2
+                            && TestFrame.ReadUInt16(item.Request, 0)
+                                == 0x2023
+                            && item.Request.Length > 12
+                            && item.Request[12] == 1));
+                    AssertEx.Equal(
+                        0,
+                        received.Count(item =>
+                            item.Session == 2
+                            && TestFrame.ReadUInt16(item.Request, 0)
+                                == 0x2024),
+                        "Axis Reset opcode 0x2024 must not be mistaken for Power Off.");
+                    AssertEx.Equal(
+                        3,
+                        received.Count(item =>
+                            item.Session == 2
+                            && TestFrame.ReadUInt16(item.Request, 0)
+                                == 0x2028));
+
+                    using (var journal =
+                        AxisQualificationRecoveryJournal.Open(
+                            qualificationJournalDirectory))
+                    {
+                        AssertEx.False(journal.HasActiveRecord);
+                        AssertEx.Equal(
+                            qualificationIdentity,
+                            journal.CurrentRecord.Identity);
+                        AssertEx.Equal(
+                            AxisQualificationRecoveryStage.SafeResolved,
+                            journal.CurrentRecord.Stage);
+                    }
+                    using (var journal = AxisPowerOnRecoveryJournal.Open(
+                        axisPowerJournalDirectory))
+                    {
+                        AssertEx.False(journal.HasActiveRecord);
+                        AssertEx.Equal(
+                            AxisPowerOnRecoveryState.Resolved,
+                            journal.CurrentRecord.State);
+                        AssertAxisPowerRecoveryIdentity(
+                            journal.CurrentRecord,
+                            server.Port,
+                            false);
+                    }
+                }
+            }
+            finally
+            {
+                heldStatusRelease.Set();
+                if (dispatchChild != null)
+                {
+                    dispatchChild.Dispose();
+                }
+                if (recoveryChild != null)
+                {
+                    recoveryChild.Dispose();
+                }
+                DeleteTestDirectory(directoryPath);
+            }
         }
 
         private static void
@@ -1455,6 +1733,160 @@ namespace LasalApiWpfTestApp.SmokeTests
                     recoveryChild.Dispose();
                 }
 
+                DeleteTestDirectory(directoryPath);
+            }
+        }
+
+        private static void GroupResetArmedBeforeDispatchProcessTermination()
+        {
+            RunGroupResetProcessTerminationRestartIsStatusOnly(0);
+        }
+
+        private static void GroupResetAckBeforeStatusProcessTermination()
+        {
+            RunGroupResetProcessTerminationRestartIsStatusOnly(1);
+        }
+
+        private static void GroupResetAfterFirstStatusRoundProcessTermination()
+        {
+            RunGroupResetProcessTerminationRestartIsStatusOnly(2);
+        }
+
+        private static void
+            RunGroupResetProcessTerminationRestartIsStatusOnly(
+                int killBoundary)
+        {
+            var directoryPath = CreateTestDirectoryPath();
+            var journalDirectory = Path.Combine(
+                directoryPath,
+                "GroupResetRecovery");
+            var dispatchScenario = killBoundary == 0
+                ? GroupResetArmedDispatchScenario
+                : killBoundary == 1
+                    ? GroupResetAckDispatchScenario
+                    : GroupResetFirstRoundDispatchScenario;
+            RecoveryChildProcess dispatchChild = null;
+            RecoveryChildProcess recoveryChild = null;
+            using (var heldStatusRelease = new ManualResetEventSlim(false))
+            using (var heldStatusEntered = new ManualResetEventSlim(false))
+            try
+            {
+                using (var server = new FakeRpcServer(
+                    WpfMainWindowIntegrationTests
+                        .CreateGroupResetProcessRpcSteps(
+                            killBoundary,
+                            heldStatusRelease,
+                            heldStatusEntered)))
+                {
+                    dispatchChild = RecoveryChildProcess.Start(
+                        directoryPath,
+                        server.Port,
+                        dispatchScenario);
+                    dispatchChild.WaitUntilReady();
+                    if (killBoundary == 2)
+                    {
+                        AssertEx.True(
+                            heldStatusEntered.Wait(WaitTimeoutMilliseconds),
+                            "The second-round Group Reset status request was not held after the first complete round.");
+                        dispatchChild.RequestObservationBarrier();
+                    }
+                    AssertEx.False(dispatchChild.Process.HasExited);
+                    AssertEx.Throws<IOException>(
+                        () => GroupResetRecoveryJournal.Open(
+                            journalDirectory),
+                        "The live Group Reset child must retain the journal single-writer lock.");
+
+                    dispatchChild.TerminateAndVerifyForced();
+                    dispatchChild.Dispose();
+                    dispatchChild = null;
+                    heldStatusRelease.Set();
+
+                    Guid identity;
+                    int callbackPort;
+                    using (var journal = GroupResetRecoveryJournal.Open(
+                        journalDirectory))
+                    {
+                        AssertEx.True(journal.HasActiveRecord);
+                        AssertEx.Equal(
+                            killBoundary == 0
+                                ? GroupResetRecoveryState.ArmedBeforeDispatch
+                                : GroupResetRecoveryState.AcceptedAwaitingProof,
+                            journal.CurrentRecord.State);
+                        identity = journal.CurrentRecord.Identity;
+                        callbackPort = journal.CurrentRecord.CallbackUdpPort;
+                        AssertEx.True(callbackPort > 0);
+                        AssertEx.Equal(
+                            GroupPowerName,
+                            journal.CurrentRecord.GroupName);
+                        AssertEx.Equal(
+                            GroupPowerReference,
+                            journal.CurrentRecord.GroupReference);
+                        AssertEx.Equal(2, journal.CurrentRecord.Members.Length);
+                    }
+
+                    recoveryChild = RecoveryChildProcess.Start(
+                        directoryPath,
+                        server.Port,
+                        GroupResetRecoveryScenario);
+                    recoveryChild.WaitUntilReady();
+                    recoveryChild.WaitForSuccessfulExit();
+                    recoveryChild.Dispose();
+                    recoveryChild = null;
+                    server.Verify();
+
+                    var requests = server.ReceivedRequests
+                        .Select((request, index) => new
+                        {
+                            Command = TestFrame.ReadUInt16(request, 0),
+                            Session = server
+                                .ReceivedRequestSessionOrdinals[index]
+                        })
+                        .ToList();
+                    AssertEx.Equal(
+                        killBoundary == 0 ? 0 : 1,
+                        requests.Count(item => item.Command == 0x2049));
+                    AssertEx.Equal(
+                        0,
+                        requests.Count(item => item.Session == 2
+                            && item.Command == 0x2049));
+                    AssertEx.Equal(
+                        1,
+                        requests.Count(item => item.Session == 2
+                            && item.Command == 0x20D2));
+                    AssertEx.Equal(
+                        3,
+                        requests.Count(item => item.Session == 2
+                            && item.Command == 0x2045));
+                    AssertEx.Equal(
+                        6,
+                        requests.Count(item => item.Session == 2
+                            && item.Command == 0x2028));
+
+                    using (var journal = GroupResetRecoveryJournal.Open(
+                        journalDirectory))
+                    {
+                        AssertEx.False(journal.HasActiveRecord);
+                        AssertEx.Equal(identity, journal.CurrentRecord.Identity);
+                        AssertEx.Equal(
+                            GroupResetRecoveryState.Resolved,
+                            journal.CurrentRecord.State);
+                        AssertEx.Equal(
+                            callbackPort,
+                            journal.CurrentRecord.CallbackUdpPort);
+                    }
+                }
+            }
+            finally
+            {
+                heldStatusRelease.Set();
+                if (dispatchChild != null)
+                {
+                    dispatchChild.Dispose();
+                }
+                if (recoveryChild != null)
+                {
+                    recoveryChild.Dispose();
+                }
                 DeleteTestDirectory(directoryPath);
             }
         }
@@ -2595,6 +3027,127 @@ namespace LasalApiWpfTestApp.SmokeTests
             Console.Out.Flush();
         }
 
+        private static void
+            RunAxisQualificationPowerOnStableDispatchChildCore(
+                string directoryPath,
+                int rpcPort)
+        {
+            var window = CreateHiddenWindow(directoryPath, rpcPort);
+            window.Show();
+            WaitUntil(
+                () => window.IsLoaded,
+                "The qualification PowerOnStable dispatch child did not load.");
+            Click(window.ButtonConnect);
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Connect completed",
+                        StringComparison.Ordinal)
+                    && window.ButtonLookupAxis.IsEnabled,
+                "The qualification PowerOnStable dispatch child did not connect.");
+            Click(window.ButtonLookupAxis);
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Load Axis completed",
+                        StringComparison.Ordinal),
+                "The qualification PowerOnStable dispatch child did not load the Axis.");
+
+            window.TextAxisQualificationDelta.Text = "120";
+            window.TextAxisQualificationVelocity.Text = "230";
+            window.TextAxisQualificationAcceleration.Text = "340";
+            window.TextAxisQualificationDeceleration.Text = "450";
+            window.TextAxisQualificationJerk.Text = "0";
+            window.TextAxisQualificationTolerance.Text = "5";
+            PumpDispatcherOnce();
+            window.CheckAxisQualificationTravelSafe.IsChecked = true;
+            window.CheckAxisQualificationIdentitySafe.IsChecked = true;
+            window.CheckAxisQualificationExclusiveOwner.IsChecked = true;
+            PumpDispatcherOnce();
+            AssertEx.True(
+                window.ButtonRunAxisQualification.IsEnabled,
+                "The fully confirmed qualification did not open the Run gate.");
+
+            Click(window.ButtonRunAxisQualification);
+            var parentJournal =
+                GetAxisQualificationRecoveryJournal(window);
+            var axisPowerJournal =
+                GetAxisPowerOnRecoveryJournal(window);
+            WaitUntil(
+                () => parentJournal.HasActiveRecord
+                    && parentJournal.CurrentRecord.Stage
+                        == AxisQualificationRecoveryStage.PowerOnStable
+                    && !axisPowerJournal.HasActiveRecord
+                    && axisPowerJournal.CurrentRecord != null
+                    && axisPowerJournal.CurrentRecord.State
+                        == AxisPowerOnRecoveryState.Resolved
+                    && axisPowerJournal.CurrentRecord.ExpectedPowerOn
+                    && (bool)GetPrivateField(
+                        window,
+                        "qualificationRunning"),
+                "The child did not reach parent PowerOnStable after resolving the Axis Power child journal.");
+            AssertAxisQualificationRecoveryIdentity(
+                parentJournal.CurrentRecord,
+                rpcPort);
+
+            RunChildObservationLoop(
+                AxisQualificationPowerOnStableDispatchScenario);
+        }
+
+        private static void
+            RunAxisQualificationPowerOffRecoveryChildCore(
+                string directoryPath,
+                int rpcPort)
+        {
+            var window = CreateHiddenWindow(directoryPath, rpcPort);
+            var parentJournal =
+                GetAxisQualificationRecoveryJournal(window);
+            var axisPowerJournal =
+                GetAxisPowerOnRecoveryJournal(window);
+            AssertEx.True(parentJournal.HasActiveRecord);
+            AssertEx.Equal(
+                AxisQualificationRecoveryStage.PowerOnStable,
+                parentJournal.CurrentRecord.Stage);
+            AssertAxisQualificationRecoveryIdentity(
+                parentJournal.CurrentRecord,
+                rpcPort);
+            AssertEx.False(axisPowerJournal.HasActiveRecord);
+            AssertEx.Equal(
+                AxisPowerOnRecoveryState.Resolved,
+                axisPowerJournal.CurrentRecord.State);
+            AssertEx.True(axisPowerJournal.CurrentRecord.ExpectedPowerOn);
+
+            window.Show();
+            WaitUntil(
+                () => window.IsLoaded,
+                "The qualification recovery child window did not load.");
+            Click(window.ButtonConnect);
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Connect completed",
+                        StringComparison.Ordinal)
+                    && window.ButtonLookupAxis.IsEnabled,
+                "The qualification recovery child did not reconnect to the exact endpoint and PLC identity.");
+            Click(window.ButtonLookupAxis);
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Load Axis completed",
+                        StringComparison.Ordinal)
+                    && window.ButtonPowerOff.IsEnabled,
+                "The qualification recovery child did not load the exact Axis with explicit Power Off enabled.");
+            AssertEx.Equal(
+                AxisQualificationRecoveryStage.PowerOnStable,
+                parentJournal.CurrentRecord.Stage);
+            AssertEx.False(axisPowerJournal.HasActiveRecord);
+
+            RunAxisQualificationPowerOffCommandLoop(
+                window,
+                parentJournal,
+                axisPowerJournal);
+        }
+
         private static void RunAxisPowerOffAcceptedDispatchChildCore(
             string directoryPath,
             int rpcPort)
@@ -2843,6 +3396,132 @@ namespace LasalApiWpfTestApp.SmokeTests
                     ? GroupPowerOnAcceptedRecoveryScenario
                     : GroupPowerOffAcceptedRecoveryScenario));
             Console.Out.Flush();
+        }
+
+        private static void RunGroupResetDispatchChildCore(
+            string directoryPath,
+            int rpcPort,
+            int killBoundary)
+        {
+            var scenario = killBoundary == 0
+                ? GroupResetArmedDispatchScenario
+                : killBoundary == 1
+                    ? GroupResetAckDispatchScenario
+                    : GroupResetFirstRoundDispatchScenario;
+            var window = CreateHiddenWindow(directoryPath, rpcPort);
+            window.Show();
+            WaitUntil(
+                () => window.IsLoaded,
+                "The Group Reset dispatch child window did not load.");
+            Click(window.ButtonConnect);
+            WaitUntil(
+                () => window.ButtonLookupGroup.IsEnabled,
+                "The Group Reset dispatch child did not connect.");
+            window.TextGroupName.Text = GroupPowerName;
+            Click(window.ButtonLookupGroup);
+            WaitUntil(
+                () => string.Equals(
+                    window.TextGroupReference.Text,
+                    GroupPowerReference.ToString(CultureInfo.InvariantCulture),
+                    StringComparison.Ordinal),
+                "The Group Reset dispatch child did not load the group.");
+            SetPrivateField(window, "groupActiveVerified", true);
+            SetPrivateField(window, "groupIdentityConfigured", true);
+            SetPrivateField(window, "groupIdentityHomeCheckComplete", true);
+            SetPrivateField(window, "groupIdentityHomeCheckPassed", true);
+            SetPrivateField(window, "groupProfileLocked", true);
+            InvokePrivate(window, "UpdateUiState");
+            AssertEx.True(window.ButtonGroupReset.IsEnabled);
+
+            if (killBoundary == 0)
+            {
+                window.GroupResetArmedBeforeDispatchTestHook =
+                    () => SignalGroupResetBoundaryAndBlock(scenario);
+            }
+            else if (killBoundary == 1)
+            {
+                window.GroupResetAfterAcceptedDurableMarkTestHook =
+                    () => SignalGroupResetBoundaryAndBlock(scenario);
+            }
+
+            Click(window.ButtonGroupReset);
+            if (killBoundary == 2)
+            {
+                var journal = GetGroupResetRecoveryJournal(window);
+                WaitUntil(
+                    () => journal.HasActiveRecord
+                        && journal.CurrentRecord.State
+                            == GroupResetRecoveryState.AcceptedAwaitingProof,
+                    "The first-round Group Reset child did not durably record acceptance.");
+                RunChildObservationLoop(scenario);
+            }
+            else
+            {
+                Dispatcher.Run();
+            }
+        }
+
+        private static void RunGroupResetRecoveryChildCore(
+            string directoryPath,
+            int rpcPort)
+        {
+            var window = CreateHiddenWindow(directoryPath, rpcPort);
+            var journal = GetGroupResetRecoveryJournal(window);
+            AssertEx.True(journal.HasActiveRecord);
+            AssertEx.Equal(
+                GroupResetRecoveryState.RecoveryRequired,
+                journal.CurrentRecord.State);
+            window.TextCallbackPort.Text =
+                journal.CurrentRecord.CallbackUdpPort.ToString(
+                    CultureInfo.InvariantCulture);
+
+            window.Show();
+            WaitUntil(
+                () => window.IsLoaded,
+                "The Group Reset restart child window did not load.");
+            Click(window.ButtonConnect);
+            WaitUntil(
+                () => window.ButtonLookupGroup.IsEnabled,
+                "The Group Reset restart child did not reconnect.");
+            window.TextGroupName.Text = GroupPowerName;
+            Click(window.ButtonLookupGroup);
+            WaitUntil(
+                () => string.Equals(
+                        window.TextGroupReference.Text,
+                        GroupPowerReference.ToString(
+                            CultureInfo.InvariantCulture),
+                        StringComparison.Ordinal)
+                    && window.ButtonGroupReset.IsEnabled,
+                "The Group Reset restart child did not attach status-only recovery.");
+            Click(window.ButtonGroupReset);
+            WaitUntil(
+                () => !journal.HasActiveRecord
+                    && journal.CurrentRecord.State
+                        == GroupResetRecoveryState.Resolved
+                    && window.ButtonCloseConnection.IsEnabled,
+                "The Group Reset restart child did not resolve stable status-only proof.");
+            Click(window.ButtonCloseConnection);
+            WaitUntil(
+                () => string.Equals(
+                    window.TextConnectionState.Text,
+                    "Disconnected",
+                    StringComparison.Ordinal),
+                "The resolved Group Reset restart connection did not close.");
+            window.Close();
+            WaitUntil(
+                () => !window.IsLoaded,
+                "The resolved Group Reset restart window did not close.");
+
+            Console.WriteLine(ReadyPrefix + GroupResetRecoveryScenario);
+            Console.Out.Flush();
+        }
+
+        private static void SignalGroupResetBoundaryAndBlock(
+            string scenario)
+        {
+            Console.WriteLine(ReadyPrefix + scenario);
+            Console.Out.Flush();
+            Thread.Sleep(Timeout.Infinite);
         }
 
         private static void RunGroupEnableAcceptedDispatchChildCore(
@@ -3194,6 +3873,165 @@ namespace LasalApiWpfTestApp.SmokeTests
             Console.Out.Flush();
         }
 
+        private static FakeRpcStep[]
+            CreateAxisQualificationPowerOnStableRestartRpcSteps(
+                ManualResetEventSlim heldStatusRelease,
+                ManualResetEventSlim heldStatusEntered)
+        {
+            if (heldStatusRelease == null)
+            {
+                throw new ArgumentNullException("heldStatusRelease");
+            }
+            if (heldStatusEntered == null)
+            {
+                throw new ArgumentNullException("heldStatusEntered");
+            }
+
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var steps = InvokeWpfIntegrationFactory<List<FakeRpcStep>>(
+                "CreateConnectAndTopologySteps",
+                new[]
+                {
+                    typeof(LMCDiagnosticCapability),
+                    typeof(ushort)
+                },
+                capabilities,
+                (ushort)0);
+            steps.Add(InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "D5AxisLookupStep",
+                new[] { typeof(ushort) },
+                MotionAxisReference));
+            steps.Add(InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "D5AxisInfoStep",
+                new[] { typeof(ushort) },
+                MotionAxisReference));
+            steps.Add(AxisQualificationCapabilitiesStep(
+                11,
+                capabilities));
+            steps.Add(AxisQualificationCapabilitiesStep(
+                12,
+                capabilities));
+            steps.Add(AxisQualificationPowerStep(true));
+            for (var sample = 0; sample < 3; sample++)
+            {
+                steps.Add(AxisQualificationStatusStep(0x02000003u));
+            }
+            steps.Add(AxisQualificationCapabilitiesStep(
+                13,
+                capabilities));
+            steps.Add(AxisQualificationCapabilitiesStep(
+                14,
+                capabilities));
+
+            var heldPreMoveStatus =
+                AxisQualificationStatusStep(0x02000003u);
+            heldPreMoveStatus.BeforeResponse = () =>
+            {
+                heldStatusEntered.Set();
+                if (!heldStatusRelease.Wait(WaitTimeoutMilliseconds))
+                {
+                    throw new TimeoutException(
+                        "The held qualification pre-move status was not released.");
+                }
+            };
+            heldPreMoveStatus.AllowClientDisconnectAfterRequest = true;
+            heldPreMoveStatus
+                .ContinueWithNextClientAfterResponseWriteDisconnect = true;
+            heldPreMoveStatus.CloseClientAfterResponseAndContinue = true;
+            steps.Add(heldPreMoveStatus);
+
+            steps.AddRange(
+                InvokeWpfIntegrationFactory<List<FakeRpcStep>>(
+                    "CreateConnectAndTopologySteps",
+                    new[]
+                    {
+                        typeof(LMCDiagnosticCapability),
+                        typeof(ushort)
+                    },
+                    capabilities,
+                    (ushort)0));
+            steps.Add(AxisQualificationCapabilitiesStep(
+                11,
+                capabilities));
+            steps.Add(InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "D5AxisLookupStep",
+                new[] { typeof(ushort) },
+                MotionAxisReference));
+            steps.Add(InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "D5AxisInfoStep",
+                new[] { typeof(ushort) },
+                MotionAxisReference));
+            steps.Add(AxisQualificationCapabilitiesStep(
+                12,
+                capabilities));
+            steps.Add(AxisQualificationPowerStep(false));
+            for (var sample = 0; sample < 3; sample++)
+            {
+                steps.Add(AxisQualificationStatusStep(0x02000002u));
+            }
+            steps.Add(AxisQualificationCapabilitiesStep(
+                13,
+                capabilities));
+            steps.Add(InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "CloseStep",
+                Type.EmptyTypes));
+            return steps.ToArray();
+        }
+
+        private static FakeRpcStep AxisQualificationCapabilitiesStep(
+            uint requestId,
+            LMCDiagnosticCapability capabilities)
+        {
+            return InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "CapabilitiesStep",
+                new[]
+                {
+                    typeof(uint),
+                    typeof(LMCDiagnosticCapability),
+                    typeof(ushort)
+                },
+                requestId,
+                capabilities,
+                (ushort)0);
+        }
+
+        private static FakeRpcStep AxisQualificationPowerStep(
+            bool powerOn)
+        {
+            return InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "AxisQualificationPowerStep",
+                new[] { typeof(bool) },
+                powerOn);
+        }
+
+        private static FakeRpcStep AxisQualificationStatusStep(uint state)
+        {
+            return InvokeWpfIntegrationFactory<FakeRpcStep>(
+                "AxisQualificationStatusStep",
+                new[] { typeof(uint) },
+                state);
+        }
+
+        private static T InvokeWpfIntegrationFactory<T>(
+            string methodName,
+            Type[] parameterTypes,
+            params object[] arguments)
+        {
+            var method = typeof(WpfMainWindowIntegrationTests).GetMethod(
+                methodName,
+                BindingFlags.Static | BindingFlags.NonPublic,
+                null,
+                parameterTypes,
+                null);
+            if (method == null)
+            {
+                throw new MissingMethodException(
+                    typeof(WpfMainWindowIntegrationTests).FullName,
+                    methodName);
+            }
+            return (T)method.Invoke(null, arguments);
+        }
+
         private static MainWindow CreateHiddenWindow(
             string directoryPath,
             int rpcPort)
@@ -3230,6 +4068,14 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "axisPowerOnRecoveryJournal");
         }
 
+        private static AxisQualificationRecoveryJournal
+            GetAxisQualificationRecoveryJournal(MainWindow window)
+        {
+            return (AxisQualificationRecoveryJournal)GetPrivateField(
+                window,
+                "axisQualificationRecoveryJournal");
+        }
+
         private static AxisCommandRecoveryJournal
             GetAxisCommandRecoveryJournal(MainWindow window)
         {
@@ -3244,6 +4090,14 @@ namespace LasalApiWpfTestApp.SmokeTests
             return (GroupPowerRecoveryJournal)GetPrivateField(
                 window,
                 "groupPowerRecoveryJournal");
+        }
+
+        private static GroupResetRecoveryJournal
+            GetGroupResetRecoveryJournal(MainWindow window)
+        {
+            return (GroupResetRecoveryJournal)GetPrivateField(
+                window,
+                "groupResetRecoveryJournal");
         }
 
         private static GroupProfileLockRecoveryJournal
@@ -3305,6 +4159,114 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
 
             return method.Invoke(instance, arguments);
+        }
+
+        private static void RunAxisQualificationPowerOffCommandLoop(
+            MainWindow window,
+            AxisQualificationRecoveryJournal parentJournal,
+            AxisPowerOnRecoveryJournal axisPowerJournal)
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            var powerOffRequested = 0;
+            var observationThread = new Thread(
+                () =>
+                {
+                    string request;
+                    while ((request = Console.ReadLine()) != null)
+                    {
+                        if (string.Equals(
+                                request,
+                                ObservationRequest,
+                                StringComparison.Ordinal))
+                        {
+                            dispatcher.BeginInvoke(
+                                DispatcherPriority.ApplicationIdle,
+                                new Action(
+                                    () =>
+                                    {
+                                        Console.WriteLine(
+                                            ObservationPrefix
+                                            + AxisQualificationPowerOffRecoveryScenario);
+                                        Console.Out.Flush();
+                                    }));
+                        }
+                        else if (string.Equals(
+                            request,
+                            PowerOffRequest,
+                            StringComparison.Ordinal))
+                        {
+                            if (Interlocked.Exchange(
+                                    ref powerOffRequested,
+                                    1) != 0)
+                            {
+                                throw new InvalidOperationException(
+                                    "The qualification recovery child received duplicate POWER_OFF commands.");
+                            }
+                            dispatcher.BeginInvoke(
+                                DispatcherPriority.Send,
+                                new Action(
+                                    () =>
+                                    {
+                                        AssertEx.True(
+                                            window.ButtonPowerOff.IsEnabled,
+                                            "Explicit qualification recovery Power Off was not enabled.");
+                                        Click(window.ButtonPowerOff);
+                                        WaitUntil(
+                                            () => !parentJournal.HasActiveRecord
+                                                && parentJournal.CurrentRecord
+                                                        .Stage
+                                                    == AxisQualificationRecoveryStage
+                                                        .SafeResolved
+                                                && !axisPowerJournal.HasActiveRecord
+                                                && axisPowerJournal.CurrentRecord
+                                                    != null
+                                                && axisPowerJournal.CurrentRecord
+                                                        .State
+                                                    == AxisPowerOnRecoveryState
+                                                        .Resolved
+                                                && !axisPowerJournal
+                                                    .CurrentRecord
+                                                    .ExpectedPowerOn
+                                                && window
+                                                    .ButtonCloseConnection
+                                                    .IsEnabled,
+                                            "Explicit qualification Power Off did not prove stable PowerOn=false and resolve parent last.");
+                                        Click(window.ButtonCloseConnection);
+                                        WaitUntil(
+                                            () => string.Equals(
+                                                window.TextConnectionState.Text,
+                                                "Disconnected",
+                                                StringComparison.Ordinal),
+                                            "The resolved qualification recovery connection did not close.");
+                                        window.Close();
+                                        WaitUntil(
+                                            () => !window.IsLoaded,
+                                            "The resolved qualification recovery window did not close.");
+                                        dispatcher.BeginInvokeShutdown(
+                                            DispatcherPriority.Send);
+                                    }));
+                        }
+                        else if (string.Equals(
+                            request,
+                            CleanupExitRequest,
+                            StringComparison.Ordinal))
+                        {
+                            dispatcher.BeginInvokeShutdown(
+                                DispatcherPriority.Send);
+                            return;
+                        }
+                    }
+                })
+            {
+                IsBackground = true,
+                Name = "WPF Axis qualification recovery control"
+            };
+            observationThread.Start();
+
+            Console.WriteLine(
+                ReadyPrefix + AxisQualificationPowerOffRecoveryScenario);
+            Console.Out.Flush();
+            Dispatcher.Run();
         }
 
         private static void RunChildObservationLoop(string scenarioName)
@@ -3430,6 +4392,41 @@ namespace LasalApiWpfTestApp.SmokeTests
                 AxisPowerDiagnosticsBootId,
                 record.DiagnosticsBootId);
             AssertEx.Equal(AxisPowerMapRevision, record.MapRevision);
+        }
+
+        private static void AssertAxisQualificationRecoveryIdentity(
+            AxisQualificationRecoveryRecord record,
+            int rpcPort)
+        {
+            AssertEx.Equal("127.0.0.1", record.EndpointIp);
+            AssertEx.Equal(rpcPort, record.EndpointPort);
+            AssertEx.Equal(1L, record.OwnerSessionGeneration);
+            AssertEx.Equal(MotionAxisName, record.AxisName);
+            AssertEx.Equal(MotionAxisReference, record.AxisReference);
+            AssertEx.Equal(1u, record.DiagnosticsBuild);
+            AssertEx.Equal(
+                AxisPowerDiagnosticsBootId,
+                record.DiagnosticsBootId);
+            AssertEx.Equal(AxisPowerMapRevision, record.MapRevision);
+            AssertEx.True(record.MatchesInput(
+                120,
+                230,
+                340,
+                450,
+                0,
+                5));
+            AssertEx.Equal(0L, record.SafetyGeneration);
+        }
+
+        private static bool IsAxisQualificationMutationRequest(
+            byte[] request)
+        {
+            var command = TestFrame.ReadUInt16(request, 0);
+            return command == 0x2022
+                || command == 0x2023
+                || command == 0x2024
+                || command == 0x209F
+                || command == 0x20A0;
         }
 
         private static void AssertGroupProfileLockRecoveryIdentity(
@@ -3843,6 +4840,21 @@ namespace LasalApiWpfTestApp.SmokeTests
                     "The WPF mutation-recovery child did not complete the dispatcher observation barrier."
                     + Environment.NewLine
                     + GetOutput());
+            }
+
+            internal void RequestPowerOff()
+            {
+                if (Process.HasExited)
+                {
+                    Process.WaitForExit();
+                    throw new InvalidOperationException(
+                        "The qualification recovery child exited before explicit POWER_OFF."
+                        + Environment.NewLine
+                        + GetOutput());
+                }
+
+                Process.StandardInput.WriteLine(PowerOffRequest);
+                Process.StandardInput.Flush();
             }
 
             internal void TerminateAndVerifyForced()

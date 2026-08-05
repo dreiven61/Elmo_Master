@@ -56,6 +56,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.AxisPowerRecovery.MapRevisionMismatchRetainsReadOnlyConnectionAndJournal",
                 AxisPowerRecoveryMapRevisionMismatchRetainsReadOnlyConnection);
             tests.Add(
+                "Policy.RecoveryIdentityRetirementRequiresQuarantineConnectedIdle",
+                RecoveryIdentityRetirementRequiresQuarantineConnectedIdle);
+            tests.Add(
                 "Wpf.AxisPowerOnRecovery.SameProcessDisconnectReconnectIsStatusOnly",
                 SameProcessDisconnectReconnectIsStatusOnly);
             tests.Add(
@@ -539,7 +542,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                     3,
                     3,
                     oldAccepted,
-                    "Late Axis Power Off completion");
+                    "Late Axis Power Off completion",
+                    null);
                 completion.GetAwaiter().GetResult();
 
                 AssertEx.True(journal.HasActiveRecord);
@@ -2444,6 +2448,103 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
+            RecoveryIdentityRetirementRequiresQuarantineConnectedIdle()
+        {
+            var allowed = DiagnosticsOperationAdmissionPolicy.Evaluate(
+                DiagnosticsAdmissionOperation.RetireStaleRecoveryEvidence,
+                CreateRecoveryIdentityRetirementAdmissionState(
+                    isConnected: true,
+                    operationSlotAvailable: true,
+                    recoveryIdentityReadOnly: true));
+            AssertEx.True(allowed.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason.None,
+                allowed.DenialReason);
+
+            var disconnected = DiagnosticsOperationAdmissionPolicy.Evaluate(
+                DiagnosticsAdmissionOperation.RetireStaleRecoveryEvidence,
+                CreateRecoveryIdentityRetirementAdmissionState(
+                    isConnected: false,
+                    operationSlotAvailable: true,
+                    recoveryIdentityReadOnly: true));
+            AssertEx.False(disconnected.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason
+                    .StaleRecoveryRetirementUnavailable,
+                disconnected.DenialReason);
+
+            var occupied = DiagnosticsOperationAdmissionPolicy.Evaluate(
+                DiagnosticsAdmissionOperation.RetireStaleRecoveryEvidence,
+                CreateRecoveryIdentityRetirementAdmissionState(
+                    isConnected: true,
+                    operationSlotAvailable: false,
+                    recoveryIdentityReadOnly: true));
+            AssertEx.False(occupied.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason.OperationSlotOccupied,
+                occupied.DenialReason);
+
+            var ordinaryConnection =
+                DiagnosticsOperationAdmissionPolicy.Evaluate(
+                    DiagnosticsAdmissionOperation
+                        .RetireStaleRecoveryEvidence,
+                    CreateRecoveryIdentityRetirementAdmissionState(
+                        isConnected: true,
+                        operationSlotAvailable: true,
+                        recoveryIdentityReadOnly: false));
+            AssertEx.False(ordinaryConnection.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason
+                    .StaleRecoveryRetirementUnavailable,
+                ordinaryConnection.DenialReason);
+
+            var cleanupRemainsBlocked =
+                DiagnosticsOperationAdmissionPolicy.Evaluate(
+                    DiagnosticsAdmissionOperation.ExistingResourceCleanup,
+                    CreateRecoveryIdentityRetirementAdmissionState(
+                        isConnected: true,
+                        operationSlotAvailable: true,
+                        recoveryIdentityReadOnly: true));
+            AssertEx.False(cleanupRemainsBlocked.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason.RecoveryIdentityReadOnly,
+                cleanupRemainsBlocked.DenialReason);
+
+            var liveMutationRemainsBlocked =
+                DiagnosticsOperationAdmissionPolicy.Evaluate(
+                    DiagnosticsAdmissionOperation.NewLiveOrMutation,
+                    CreateRecoveryIdentityRetirementAdmissionState(
+                        isConnected: true,
+                        operationSlotAvailable: true,
+                        recoveryIdentityReadOnly: true));
+            AssertEx.False(liveMutationRemainsBlocked.IsAllowed);
+            AssertEx.Equal(
+                DiagnosticsAdmissionDenialReason.RecoveryIdentityReadOnly,
+                liveMutationRemainsBlocked.DenialReason);
+        }
+
+        private static DiagnosticsAdmissionState
+            CreateRecoveryIdentityRetirementAdmissionState(
+                bool isConnected,
+                bool operationSlotAvailable,
+                bool recoveryIdentityReadOnly)
+        {
+            return new DiagnosticsAdmissionState(
+                hasUnresolvedMutation: false,
+                mutationJournalUnavailable: false,
+                isConnected: isConnected,
+                operationSlotAvailable: operationSlotAvailable,
+                exactReadbackPending: false,
+                exactReadbackSessionCurrent: false,
+                hasD5TicketOrQuarantine: false,
+                hasUnresolvedDigitalOutputWrite: false,
+                hasUnresolvedAxisPowerOn: true,
+                hasUnresolvedGroupPower: false,
+                powerRecoveryJournalUnavailable: false,
+                recoveryIdentityReadOnly: recoveryIdentityReadOnly);
+        }
+
+        private static void
             AssertAxisPowerRecoveryIdentityMismatchRetainsReadOnlyConnection(
                 uint observedBootId,
                 uint observedMapRevision,
@@ -2463,8 +2564,22 @@ namespace LasalApiWpfTestApp.SmokeTests
                 observedMapRevision));
             steps.Add(D5AxisLookupStep(1));
             steps.Add(D5AxisInfoStep(1));
+            steps.Add(D5AxisLookupStep(1));
+            steps.Add(D5AxisInfoStep(1));
+            steps.Add(AxisResetStatusStep(
+                state: 0x02000000u,
+                axisErrorId: 1));
+            steps.Add(D5AxisLookupStep(1));
+            steps.Add(D5AxisInfoStep(1));
+            steps.Add(D5StableAxisPositionStep(1234));
             steps.Add(GroupEnableWaitLookupStep());
             steps.Add(ReadOnlyInspectionGroupMembersStep());
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(ReadOnlyInspectionGroupMembersStep());
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(ReadOnlyInspectionGroupStatusStep(groupErrorId: 2));
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(ReadOnlyInspectionGroupPositionStep());
             steps.Add(CloseStep());
 
             var root = CreateAxisPowerOnTemporaryDirectory();
@@ -2481,6 +2596,12 @@ namespace LasalApiWpfTestApp.SmokeTests
                         server.Port,
                         false,
                         AxisPowerOnRecoveryState.AcceptedAwaitingProof);
+                    CreateGroupPowerRecoveryRecord(
+                        root,
+                        "127.0.0.1",
+                        server.Port,
+                        false,
+                        GroupPowerRecoveryState.AcceptedAwaitingProof);
                     using (var diagnosticsJournal =
                         DiagnosticsMutationJournal.Open(root))
                     {
@@ -2531,14 +2652,31 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.True(window.ButtonCloseConnection.IsEnabled);
                     AssertEx.True(window.TextAxisName.IsEnabled);
                     AssertEx.True(window.ButtonLookupAxis.IsEnabled);
+                    AssertEx.True(window.ComboAxisUnit.IsEnabled);
+                    AssertEx.True(window.TextPosition.IsEnabled);
+                    AssertEx.True(window.TextVelocity.IsEnabled);
+                    AssertEx.True(window.TextAcceleration.IsEnabled);
+                    AssertEx.True(window.ComboDirection.IsEnabled);
                     AssertEx.True(window.TextGroupName.IsEnabled);
                     AssertEx.True(window.ButtonLookupGroup.IsEnabled);
+                    AssertEx.True(window.ComboGroupUnit.IsEnabled);
+                    AssertEx.True(window.TextGroupPositionX.IsEnabled);
+                    AssertEx.True(window.TextGroupVelocity.IsEnabled);
+                    AssertEx.True(window.TextGroupAcceleration.IsEnabled);
+                    AssertEx.True(window.ComboGroupCoordinate.IsEnabled);
+                    AssertEx.True(window.TextKinAxisX.IsEnabled);
                     AssertEx.False(window.ButtonPowerOn.IsEnabled);
                     AssertEx.False(window.ButtonPowerOff.IsEnabled);
                     AssertEx.False(
                         window.CheckPersistedMutationPhysicallyVerified.IsEnabled);
                     AssertEx.False(
                         window.ButtonAcknowledgePersistedMutation.IsEnabled);
+
+                    window.TextGroupName.Text = "_LMCReadOnlyInspection2";
+                    PumpDispatcherOnce();
+                    AssertEx.Equal(
+                        "_LMCReadOnlyInspection2",
+                        window.TextGroupName.Text);
                     Click(window.ButtonDiagnosticsCapabilities);
                     WaitUntil(
                         () => string.Equals(
@@ -2561,7 +2699,31 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "Reference=1",
                         window.TextAxisResult.Text);
                     AssertEx.True(GetPrivateField(window, "axis") == null);
-                    AssertEx.False(window.ButtonReadStatus.IsEnabled);
+                    AssertEx.True(window.ButtonReadStatus.IsEnabled);
+                    AssertEx.True(window.ButtonReadPosition.IsEnabled);
+                    AssertEx.False(window.ButtonPowerOff.IsEnabled);
+
+                    Click(window.ButtonReadStatus);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Read Axis Status completed",
+                            StringComparison.Ordinal),
+                        "Axis status was not available through a transient read-only lookup.");
+                    AssertEx.Contains("PowerOn=False", window.TextAxisResult.Text);
+                    AssertEx.Contains("AxisErrorId=1", window.TextAxisResult.Text);
+                    AssertEx.True(GetPrivateField(window, "axis") == null);
+                    AssertEx.False(window.ButtonPowerOff.IsEnabled);
+
+                    Click(window.ButtonReadPosition);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Read Actual Position completed",
+                            StringComparison.Ordinal),
+                        "Axis position was not available through a transient read-only lookup.");
+                    AssertEx.Contains("Raw DINT=1234", window.TextAxisResult.Text);
+                    AssertEx.True(GetPrivateField(window, "axis") == null);
                     AssertEx.False(window.ButtonPowerOff.IsEnabled);
 
                     Click(window.ButtonLookupGroup);
@@ -2579,21 +2741,68 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "Name=_LMCAXIS1, Ref=1, DeviceId=101",
                         window.TextGroupResult.Text);
                     AssertEx.True(GetPrivateField(window, "group") == null);
-                    AssertEx.False(window.ButtonGetMembers.IsEnabled);
+                    AssertEx.True(window.ButtonGetMembers.IsEnabled);
+                    AssertEx.True(window.ButtonGroupReadStatus.IsEnabled);
+                    AssertEx.True(window.ButtonGroupReadPosition.IsEnabled);
+                    AssertEx.False(window.ButtonGroupPowerOff.IsEnabled);
+
+                    Click(window.ButtonGetMembers);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Get Group Members completed",
+                            StringComparison.Ordinal),
+                        "Group members were not available through a transient read-only lookup.");
+                    AssertEx.Contains("AxisCount=1", window.TextGroupResult.Text);
+                    AssertEx.True(GetPrivateField(window, "group") == null);
+
+                    Click(window.ButtonGroupReadStatus);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Read Group Status completed",
+                            StringComparison.Ordinal),
+                        "Group status was not available through a transient read-only lookup.");
+                    AssertEx.Contains("PowerOn=False", window.TextGroupResult.Text);
+                    AssertEx.Contains("GroupErrorId=2", window.TextGroupResult.Text);
+                    AssertEx.True(GetPrivateField(window, "group") == null);
+                    AssertEx.False(window.ButtonGroupPowerOff.IsEnabled);
+
+                    Click(window.ButtonGroupReadPosition);
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Read Group Position completed",
+                            StringComparison.Ordinal),
+                        "Group position was not available through a transient read-only lookup.");
+                    AssertEx.Contains("[0]=11", window.TextGroupResult.Text);
+                    AssertEx.True(GetPrivateField(window, "group") == null);
                     AssertEx.False(window.ButtonGroupPowerOff.IsEnabled);
 
                     AssertEx.Equal(
-                        1,
+                        3,
                         CountRequestCommand(server.ReceivedRequests, 0x103C));
                     AssertEx.Equal(
-                        1,
+                        3,
                         CountRequestCommand(server.ReceivedRequests, 0x202B));
                     AssertEx.Equal(
-                        1,
+                        4,
                         CountRequestCommand(server.ReceivedRequests, 0x1042));
                     AssertEx.Equal(
-                        1,
+                        2,
                         CountRequestCommand(server.ReceivedRequests, 0x20D2));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x2028));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x2045));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x202E));
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x2051));
 
                     AssertNoMotionMutationRequests(
                         server.ReceivedRequests,
@@ -2681,6 +2890,28 @@ namespace LasalApiWpfTestApp.SmokeTests
             payload[1348] = 1;
             return new FakeRpcStep(
                 0x20D2,
+                TestFrame.Response(0, payload));
+        }
+
+        private static FakeRpcStep ReadOnlyInspectionGroupPositionStep()
+        {
+            var payload = new byte[68];
+            TestFrame.WriteInt32(payload, 0, 11);
+            TestFrame.WriteInt32(payload, 4, 22);
+            TestFrame.WriteInt32(payload, 8, 33);
+            TestFrame.WriteInt32(payload, 12, 44);
+            return new FakeRpcStep(
+                0x2051,
+                TestFrame.Response(0, payload));
+        }
+
+        private static FakeRpcStep ReadOnlyInspectionGroupStatusStep(
+            ushort groupErrorId)
+        {
+            var payload = new byte[12];
+            TestFrame.WriteUInt16(payload, 8, groupErrorId);
+            return new FakeRpcStep(
+                0x2045,
                 TestFrame.Response(0, payload));
         }
 

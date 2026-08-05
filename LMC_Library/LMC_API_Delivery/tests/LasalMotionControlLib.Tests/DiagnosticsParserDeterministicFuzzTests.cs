@@ -792,7 +792,8 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt32(
                 domainErrorWithUnknownDetail,
                 12,
-                (uint)LMCDiagnosticsDetailCode.RecorderConfigurationAbsent + 1u);
+                (uint)LMCDiagnosticsDetailCode
+                    .EncoderMaintenanceSemanticVerificationFailed + 1u);
             AssertInvalidData(
                 parserName + ".Common.DomainErrorUnknownDetail",
                 domainErrorWithUnknownDetail,

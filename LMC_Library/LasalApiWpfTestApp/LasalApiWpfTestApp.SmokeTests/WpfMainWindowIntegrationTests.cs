@@ -57,6 +57,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Sdo.OrdinaryInFlightKeepsWriteEditorEditable",
                 OrdinaryInFlightKeepsWriteEditorEditable);
             tests.Add(
+                "Wpf.Sdo.LocalDraftEditorDoesNotRequireConnectionOrCapabilities",
+                LocalDraftEditorDoesNotRequireConnectionOrCapabilities);
+            tests.Add(
                 "Wpf.Sdo.WriteConfirmationRequiresExactSecondClickWithoutModal",
                 WriteConfirmationRequiresExactSecondClickWithoutModal);
             tests.Add(
@@ -78,8 +81,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Sdo.InlineReadGeneralCapabilityOffForcedAttemptIsZeroWire",
                 InlineReadGeneralCapabilityOffForcedAttemptIsZeroWire);
             tests.Add(
-                "Wpf.Sdo.WriteSameValueEmptyAllowlistForcedAttemptIsZeroWire",
-                WriteSameValueEmptyAllowlistForcedAttemptIsZeroWire);
+                "Wpf.Sdo.WriteSameValueAxis1OnlyRequiresConfirmations",
+                WriteSameValueAxis1OnlyRequiresConfirmations);
             tests.Add(
                 "Wpf.Sdo.WriteSameValueTerminalEvidenceSurvivesUiRefresh",
                 WriteSameValueTerminalEvidenceSurvivesUiRefresh);
@@ -102,8 +105,8 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Diagnostics.InvalidPiAndBulkRowsHideStaleRaw",
                 InvalidPiAndBulkRowsHideStaleRaw);
             tests.Add(
-                "Wpf.Sdo.RecoveredTypedWriteEmptyAllowlistForcedAttemptIsZeroWire",
-                RecoveredTypedWriteEmptyAllowlistForcedAttemptIsZeroWire);
+                "Wpf.Sdo.RecoveredTypedWriteNonAllowlistedAxisForcedAttemptIsZeroWire",
+                RecoveredTypedWriteNonAllowlistedAxisForcedAttemptIsZeroWire);
             tests.Add(
                 "Wpf.Recorder.DoubleContractAdvertisedRemainsDormantAndZeroWire",
                 DoubleContractAdvertisedRemainsDormantAndZeroWire);
@@ -1007,9 +1010,14 @@ namespace LasalApiWpfTestApp.SmokeTests
         private static void
             D5DisconnectTransportCloseYieldsToReservedSafetySend()
         {
-            var window = new MainWindow();
+            var journalDirectory = CreateJournalDirectory();
+            var window = new MainWindow(journalDirectory);
             try
             {
+                window.Show();
+                WaitUntil(
+                    () => window.IsLoaded,
+                    "The priority-send test window did not load.");
                 var coordinator = (LMCSendPriorityCoordinator)GetPrivateField(
                     window,
                     "sendPriorityCoordinator");
@@ -1043,16 +1051,22 @@ namespace LasalApiWpfTestApp.SmokeTests
             finally
             {
                 CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
             }
         }
 
         private static void
             D5DisconnectIrreversibleCommitIgnoresLateCancellation()
         {
-            var window = new MainWindow();
+            var journalDirectory = CreateJournalDirectory();
+            var window = new MainWindow(journalDirectory);
             var cancellation = new CancellationTokenSource();
             try
             {
+                window.Show();
+                WaitUntil(
+                    () => window.IsLoaded,
+                    "The irreversible-commit test window did not load.");
                 SetPrivateField(window, "qualificationRunning", true);
                 SetPrivateField(
                     window,
@@ -1094,6 +1108,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 SetPrivateField(window, "qualificationCancellation", null);
                 cancellation.Dispose();
                 CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
             }
         }
 
@@ -1352,7 +1367,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "CREVIS topology auto-load did not reach the rendered state.");
 
                     AssertEx.Contains(
-                        "[CREVIS topology / editable SDO draft]",
+                            "[LIVE Axis qualification / qualified Axis1 UI24 SDO Write]",
                         window.Title);
                     AssertEx.Equal(
                         "Load CREVIS / Topology",
@@ -3419,6 +3434,77 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
+            LocalDraftEditorDoesNotRequireConnectionOrCapabilities()
+        {
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = new MainWindow(journalDirectory)
+                {
+                    ShowActivated = false,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -10000,
+                    Top = -10000
+                };
+                window.Show();
+                WaitUntil(
+                    () => window.IsLoaded,
+                    "The disconnected SDO local-draft smoke window did not load.");
+
+                AssertEx.True(
+                    window.ComboSdoOperation.IsEnabled,
+                    "SDO operation selection is local draft editing and must not require a PLC capability observation.");
+                window.ComboSdoOperation.SelectedIndex = 1;
+
+                var refreshedTargets = new[]
+                {
+                    CreateSdoWriteTarget(
+                        "Test target axis 1",
+                        1,
+                        0x2F00,
+                        24),
+                    CreateSdoWriteTarget(
+                        "Test target axis 2",
+                        2,
+                        0x2F00,
+                        24)
+                };
+                InvokePrivate(
+                    window,
+                    "RefreshSdoWriteTargetItems",
+                    (object)refreshedTargets);
+                InvokePrivate(window, "UpdateUiState");
+                PumpDispatcherOnce();
+
+                AssertWriteEditorEnabled(window);
+                AssertEx.True(
+                    window.ComboSdoWriteTarget.IsEnabled,
+                    "Approved SDO target selection is local draft editing and must not require connection or PLC write capability.");
+                AssertEx.False(
+                    window.ButtonSubmitSdo.IsEnabled,
+                    "Local SDO draft editing must not relax the disconnected submit gate.");
+                AssertEx.False(
+                    window.ButtonReadSdoInline.IsEnabled,
+                    "Local SDO draft editing must not relax the disconnected inline-read gate.");
+
+                window.ComboSdoWriteTarget.SelectedItem = refreshedTargets[1];
+                PumpDispatcherOnce();
+                AssertEx.Equal("2", window.TextSdoSlaveReference.Text);
+                AssertEx.Equal("0x2F00", window.TextSdoIndex.Text);
+                AssertEx.Equal("24", window.TextSdoSubIndex.Text);
+                AssertEx.False(window.ButtonSubmitSdo.IsEnabled);
+                AssertEx.False(window.ButtonReadSdoInline.IsEnabled);
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
             WriteConfirmationRequiresExactSecondClickWithoutModal()
         {
             var state = new SdoWriteConfirmationState();
@@ -3534,7 +3620,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                             first));
                     InvokePrivate(window, "UpdateUiState");
                     AssertEx.Equal(
-                        "Confirm & Submit SDO Write",
+                        "Run Same-Value Qualification First",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -3548,7 +3634,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         uiState.IsArmed,
                         "Editing any SDO Write request field must invalidate the armed snapshot immediately.");
                     AssertEx.Equal(
-                        "Arm SDO Write",
+                        "Run Same-Value Qualification First",
                         Convert.ToString(
                             window.ButtonSubmitSdo.Content,
                             CultureInfo.InvariantCulture));
@@ -3629,12 +3715,25 @@ namespace LasalApiWpfTestApp.SmokeTests
                         window.ButtonRunD5SdoDisconnectRecoveryQualification.IsEnabled,
                         "D5 abrupt-disconnect application recovery must be enabled only after the exact read capability preflight is available.");
                     AssertWriteEditorEnabled(window);
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ComboSdoWriteTarget.IsEnabled,
-                        "The empty SDK write allowlist must remain fail-closed.");
+                        "The Axis1-only SDK target must remain available for local draft editing.");
+                    AssertEx.Equal(1, window.ComboSdoWriteTarget.Items.Count);
+                    var productionTarget = window.ComboSdoWriteTarget.Items[0]
+                        as LMCSdoWriteTarget;
+                    AssertEx.NotNull(productionTarget);
+                    AssertEx.Equal((ushort)1, productionTarget.SlaveReference);
+                    AssertEx.Equal(
+                        (ushort)0x2F00,
+                        productionTarget.ObjectIndex);
+                    AssertEx.Equal((byte)24, productionTarget.SubIndex);
+                    AssertEx.Equal(
+                        LMCSignalValueType.Int32,
+                        productionTarget.ValueType);
+                    AssertEx.Equal((ushort)4, productionTarget.DataLength);
                     AssertEx.False(
                         window.ButtonSubmitSdo.IsEnabled,
-                        "SDO Write submit must remain disabled without an approved target.");
+                        "SDO Write submit must remain disabled while the cached capability observation is stale.");
                     AssertEx.False(
                         window.ButtonReadSdoInline.IsEnabled,
                         "Inline SDO Read must remain disabled while the editor is in Write mode.");
@@ -3740,13 +3839,15 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
-            WriteSameValueEmptyAllowlistForcedAttemptIsZeroWire()
+            WriteSameValueAxis1OnlyRequiresConfirmations()
         {
             var capabilities = LMCDiagnosticCapability.SDORead
                 | LMCDiagnosticCapability.SDOWrite
                 | LMCDiagnosticCapability.SDOReadGeneralInline
                 | LMCDiagnosticCapability.EtherCATTopology;
             var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(CapabilitiesStep(11, capabilities));
+            steps.Add(CapabilitiesStep(12, capabilities));
             steps.Add(CloseStep());
 
             var journalDirectory = CreateJournalDirectory();
@@ -3761,16 +3862,82 @@ namespace LasalApiWpfTestApp.SmokeTests
                         () => window.GridEtherCATTopology.Items.Count
                             == TopologyNodeCount,
                         "Same-value Write gate test did not complete connection/topology setup.");
+                    var requestsBeforeCapabilityRefresh =
+                        server.ReceivedRequests.Count;
+                    Click(window.ButtonDiagnosticsCapabilities);
+                    WaitUntil(
+                        () => server.ReceivedRequests.Count
+                            == requestsBeforeCapabilityRefresh + 1,
+                        "Same-value Write gate test did not refresh capabilities.");
+                    PumpDispatcherOnce();
 
                     AssertEx.Equal(
-                        0,
+                        1,
                         window.ComboD5SdoWriteQualificationTarget.Items.Count);
+                    var approvedTarget =
+                        window.ComboD5SdoWriteQualificationTarget.Items[0]
+                            as LMCSdoWriteTarget;
+                    AssertEx.NotNull(approvedTarget);
+                    AssertEx.Equal((ushort)1, approvedTarget.SlaveReference);
+                    AssertEx.Equal((ushort)0x2F00, approvedTarget.ObjectIndex);
+                    AssertEx.Equal((byte)24, approvedTarget.SubIndex);
+                    AssertEx.Equal(
+                        LMCSignalValueType.Int32,
+                        approvedTarget.ValueType);
+                    AssertEx.Equal((ushort)4, approvedTarget.DataLength);
+
+                    window.ComboSdoOperation.SelectedIndex = 1;
+                    PumpDispatcherOnce();
+                    AssertEx.False(
+                        window.ButtonSubmitSdo.IsEnabled,
+                        "Manual SDO Write opened before the current-session same-value activation proof.");
+                    AssertEx.Equal(
+                        "Run Same-Value Qualification First",
+                        Convert.ToString(
+                            window.ButtonSubmitSdo.Content,
+                            CultureInfo.InvariantCulture));
+
+                    var currentConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    var currentCapabilities = GetPrivateField(
+                        window,
+                        "diagnosticCapabilities")
+                        as LMCDiagnosticCapabilities;
+                    SdoWriteActivationQualificationProof activationProof;
+                    AssertEx.True(
+                        SdoWriteActivationQualificationProof.TryCapture(
+                            currentConnection,
+                            currentCapabilities,
+                            approvedTarget,
+                            out activationProof));
+                    SetPrivateField(
+                        window,
+                        "sdoWriteActivationQualificationProof",
+                        activationProof);
+                    InvokePrivate(window, "UpdateUiState");
+                    PumpDispatcherOnce();
+                    AssertEx.True(
+                        window.ButtonSubmitSdo.IsEnabled,
+                        "The exact current-session same-value activation proof did not open manual SDO Write.");
+                    AssertEx.Equal(
+                        "Arm SDO Write",
+                        Convert.ToString(
+                            window.ButtonSubmitSdo.Content,
+                            CultureInfo.InvariantCulture));
+                    SetPrivateField(
+                        window,
+                        "sdoWriteActivationQualificationProof",
+                        null);
+                    InvokePrivate(window, "UpdateUiState");
+                    AssertEx.False(window.ButtonSubmitSdo.IsEnabled);
+
                     AssertEx.False(
                         window.ButtonRunD5SdoWriteSameValueQualification
                             .IsEnabled,
-                        "The same-value Write runner must remain disabled when the SDK allowlist is empty even if PLC bit 9 is advertised.");
+                        "The Axis1-only same-value Write runner must require all operator confirmations before preflight.");
                     AssertEx.Contains(
-                        "no approved SDO Write target",
+                        "select all four activation confirmations",
                         window.TextD5SdoWriteQualificationGateStatus.Text);
                     AssertEx.Contains(
                         "No same-value SDO Write qualification has run yet",
@@ -3788,12 +3955,47 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.Equal(
                         requestCountBeforeForcedAttempt,
                         server.ReceivedRequests.Count,
-                        "A forced same-value Write handler invocation with an empty SDK allowlist sent a PLC request.");
+                        "A forced Axis1-only same-value Write handler invocation bypassed the operator confirmations.");
                     AssertEx.Contains(
                         "NOT STARTED",
                         window.TextD5SdoWriteQualificationSummary.Text);
 
+                    var manualWriteRequestsBeforeForcedHandler =
+                        CountRequestCommand(
+                            server.ReceivedRequests,
+                            0x7E50);
+                    InvokePrivate(
+                        window,
+                        "ButtonSubmitSdo_Click",
+                        window.ButtonSubmitSdo,
+                        new RoutedEventArgs());
+                    WaitUntil(
+                        () => string.Equals(
+                            window.TextOperationState.Text,
+                            "Arm / Submit SDO Write failed",
+                            StringComparison.Ordinal),
+                        "The forced manual SDO Write handler did not fail closed without a current-session activation proof.");
+                    AssertEx.Equal(
+                        manualWriteRequestsBeforeForcedHandler,
+                        CountRequestCommand(
+                            server.ReceivedRequests,
+                            0x7E50),
+                        "The forced manual handler submitted SDO traffic without the same-value activation proof.");
+                    AssertEx.Contains(
+                        "Manual SDO Write is blocked until the exact current connection session",
+                        window.TextExecutionLog.Text);
+
+                    SetPrivateField(
+                        window,
+                        "sdoWriteActivationQualificationProof",
+                        activationProof);
                     CloseConnectedWindow(window);
+                    AssertEx.Equal<object>(
+                        null,
+                        GetPrivateField(
+                            window,
+                            "sdoWriteActivationQualificationProof"),
+                        "A non-Connected state event did not permanently retire the manual SDO Write activation proof.");
                     window = null;
                     server.Verify();
                 }
@@ -3813,6 +4015,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 | LMCDiagnosticCapability.SDOReadGeneralInline
                 | LMCDiagnosticCapability.EtherCATTopology;
             var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(CapabilitiesStep(11, capabilities));
             steps.Add(CloseStep());
 
             var journalDirectory = CreateJournalDirectory();
@@ -3827,16 +4030,17 @@ namespace LasalApiWpfTestApp.SmokeTests
                         () => window.GridEtherCATTopology.Items.Count
                             == TopologyNodeCount,
                         "Same-value terminal-evidence smoke setup did not complete connection/topology loading.");
-
-                    var target = CreateSdoWriteTarget(
-                        "Test target axis 1",
+                    var requestsBeforeCapabilityRefresh =
+                        server.ReceivedRequests.Count;
+                    Click(window.ButtonDiagnosticsCapabilities);
+                    WaitUntil(
+                        () => server.ReceivedRequests.Count
+                            == requestsBeforeCapabilityRefresh + 1,
+                        "Same-value terminal-evidence smoke did not refresh capabilities.");
+                    PumpDispatcherOnce();
+                    AssertEx.Equal(
                         1,
-                        0x2F00,
-                        24);
-                    InvokePrivate(
-                        window,
-                        "RefreshSdoWriteTargetItems",
-                        (object)new[] { target });
+                        window.ComboD5SdoWriteQualificationTarget.Items.Count);
                     window.CheckConfirmD5SdoWriteUi24Unused.IsChecked = true;
                     window.CheckConfirmD5SdoWriteOriginalRecorded.IsChecked =
                         true;
@@ -3849,18 +4053,15 @@ namespace LasalApiWpfTestApp.SmokeTests
                     InvokePrivate(window, "UpdateUiState");
                     PumpDispatcherOnce();
 
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ButtonRunD5SdoWriteSameValueQualification
                             .IsEnabled,
-                        "A GUI-only injected target bypassed the central empty SDK SDO Write policy.");
+                        "The production Axis1 target did not become ready after current capabilities and all confirmations were supplied.");
                     AssertEx.Contains(
                         "EVALUATION_WIRE=NONE",
                         window.TextD5SdoWriteQualificationGateStatus.Text);
                     AssertEx.Contains(
-                        "NoApprovedTarget",
-                        window.TextD5SdoWriteQualificationGateStatus.Text);
-                    AssertEx.Contains(
-                        "SDK POLICY    FAIL",
+                        "SDK POLICY    PASS",
                         window.TextD5SdoWriteQualificationGateStatus.Text);
                     AssertEx.Contains(
                         "bit8/read=1 bit9/write=1 bit13/general=1",
@@ -4011,9 +4212,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                     InvokePrivate(window, "UpdateUiState");
 
                     AssertWriteEditorEnabled(window);
-                    AssertEx.False(
+                    AssertEx.True(
                         window.ComboSdoWriteTarget.IsEnabled,
-                        "The empty SDK write allowlist must remain fail-closed while readback is pending.");
+                        "The Axis1-only target selector must remain editable while exact readback is pending.");
                     AssertEx.True(
                         window.ButtonLoadRequiredSdoReadback.IsEnabled,
                         "Pending exact readback must expose the local restore action.");
@@ -4254,7 +4455,7 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
-            RecoveredTypedWriteEmptyAllowlistForcedAttemptIsZeroWire()
+            RecoveredTypedWriteNonAllowlistedAxisForcedAttemptIsZeroWire()
         {
             var capabilities = LMCDiagnosticCapability.SDORead
                 | LMCDiagnosticCapability.SDOReadGeneralInline
@@ -4275,10 +4476,10 @@ namespace LasalApiWpfTestApp.SmokeTests
                     0x10203040u,
                     DiagnosticMapRevision,
                     7,
-                    "Slave=1,Object=0x2F00,SubIndex=24,Type=Int32,Length=4",
+                    "Slave=2,Object=0x2F00,SubIndex=24,Type=Int32,Length=4",
                     "WriteData=2A-00-00-00",
                     new DiagnosticsSdoWriteMutationMetadata(
-                        1,
+                        2,
                         0x2F00,
                         24,
                         LMCSignalValueType.Int32,
@@ -4314,13 +4515,23 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "Acknowledge Recovered Mutation",
                         window.ButtonAcknowledgePersistedMutation.Content
                             as string,
-                        "An empty SDK allowlist must not expose protocol recovery.");
+                        "A non-allowlisted Axis2 target must not expose protocol recovery.");
                     AssertEx.True(
                         window.CheckPersistedMutationPhysicallyVerified
                             .IsEnabled);
                     AssertEx.False(
                         window.ButtonAcknowledgePersistedMutation.IsEnabled);
-                    AssertEx.Equal(0, window.ComboSdoWriteTarget.Items.Count);
+                    AssertEx.Equal(1, window.ComboSdoWriteTarget.Items.Count);
+                    var approvedTarget = window.ComboSdoWriteTarget.Items[0]
+                        as LMCSdoWriteTarget;
+                    AssertEx.NotNull(approvedTarget);
+                    AssertEx.Equal((ushort)1, approvedTarget.SlaveReference);
+                    AssertEx.Equal((ushort)0x2F00, approvedTarget.ObjectIndex);
+                    AssertEx.Equal((byte)24, approvedTarget.SubIndex);
+                    AssertEx.Equal(
+                        LMCSignalValueType.Int32,
+                        approvedTarget.ValueType);
+                    AssertEx.Equal((ushort)4, approvedTarget.DataLength);
 
                     var recoveryMethod = typeof(MainWindow).GetMethod(
                         "RecoverPersistedSdoWriteByExactReadbackAsync",

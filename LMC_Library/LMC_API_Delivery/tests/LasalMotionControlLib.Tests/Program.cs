@@ -48,6 +48,12 @@ namespace LasalMotionControlLib.Tests
 
             AdminContractTests.Register(tests);
             AdminMotionContractTests.Register(tests);
+            AdminSetAxisPositionContractTests.Register(tests);
+            AdminSetAxisPositionOutcomeContractTests.Register(tests);
+            AdminLmcHomeContractTests.Register(tests);
+            AdminDs402HomeCurrentPositionZeroContractTests.Register(tests);
+            EncoderMaintenanceProtocolContractTests.Register(tests);
+            AdminDs402HomeOutcomeRetirementContractTests.Register(tests);
             ErrorCatalogTests.Register(tests);
             RequestGoldenTests.Register(tests);
             ResponseParserTests.Register(tests);
@@ -61,6 +67,7 @@ namespace LasalMotionControlLib.Tests
             GroupDisableWaitContractTests.Register(tests);
             GroupEnableWaitContractTests.Register(tests);
             GroupPowerStateWaitContractTests.Register(tests);
+            GroupResetWaitContractTests.Register(tests);
             AxisPowerStateWaitContractTests.Register(tests);
             AxisResetWaitContractTests.Register(tests);
             AxisStopWaitContractTests.Register(tests);

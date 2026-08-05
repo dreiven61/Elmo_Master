@@ -113,6 +113,11 @@ LMCSdoExecutor : CLASS
 		PublishedResult 	: LMCSdoExecutorResult;
   //Functions:
 	
+	FUNCTION LMCSdoExecutor
+		VAR_OUTPUT
+			ret_code 	: ConfStates;
+		END_VAR;
+	
 	FUNCTION GLOBAL TryStartRead
 		VAR_INPUT
 			OperationToken 	: UDINT;
@@ -287,6 +292,7 @@ FUNCTION LMCSdoExecutor::@STD
 		ret_code	:= C_OUTOF_NEAR;
 		RETURN;
 	END_IF;
+	ret_code	:= LMCSdoExecutor();
 
 END_FUNCTION
 
@@ -508,7 +514,8 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 
 	ret_code := ERROR;
 	if (sizeof(LMCSdoExecutorResult) <> 32) | (OperationToken = 0) |
-		(pWriteData = NIL) | (WriteLength <> 4) |
+		(pWriteData = NIL) |
+		((WriteLength <> 1) & (WriteLength <> 2) & (WriteLength <> 4)) |
 		(TimeoutMs = 0) | (TimeoutMs > 60000) then
 		RETURN;
 	end_if;
@@ -528,8 +535,9 @@ FUNCTION GLOBAL LMCSdoExecutor::TryStartWrite
 	ActiveLength := WriteLength;
 	ActiveIsWrite := TRUE;
 	_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
+	_memset(dest:=#WriteBuffer[0], usByte:=0, cntr:=sizeof(WriteBuffer));
 	_memcpy(ptr1:=#WriteBuffer[0], ptr2:=pWriteData,
-		cntr:=sizeof(WriteBuffer));
+		cntr:=WriteLength);
 	_memset(dest:=#PublishedResult, usByte:=0, cntr:=sizeof(PublishedResult));
 
 	if IsClientConnected(#toSlave) = FALSE then
@@ -931,5 +939,27 @@ FUNCTION VIRTUAL GLOBAL LMCSdoExecutor::ClassState::NewInst
 		sigclib_atomic_setU32(
 			pValue:=#AdapterState, value:=LMC_SDO_EXEC_QUARANTINED);
 	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCSdoExecutor::LMCSdoExecutor
+	VAR_OUTPUT
+		ret_code 	: ConfStates;
+	END_VAR
+
+	ActiveToken := 0;
+	ActiveIndex := 0;
+	ActiveSubIndex := 0;
+	ActiveLength := 0;
+	ActiveIsWrite := FALSE;
+	_memset(dest:=#ReadBuffer[0], usByte:=0, cntr:=sizeof(ReadBuffer));
+	_memset(dest:=#WriteBuffer[0], usByte:=0, cntr:=sizeof(WriteBuffer));
+	_memset(dest:=#PublishedResult, usByte:=0,
+		cntr:=sizeof(PublishedResult));
+	sigclib_atomic_setU32(pValue:=#PublishSequence, value:=0);
+	sigclib_atomic_setU32(
+		pValue:=#AdapterState, value:=LMC_SDO_EXEC_IDLE);
+	ret_code := C_OK;
 
 END_FUNCTION

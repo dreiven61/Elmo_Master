@@ -19,11 +19,18 @@
 	Objectsize         = "(446,120)">
 	<Channels>
 		<Server Name="ClassSvr" GUID="{1D35750E-B9AA-42DD-99A9-D5952CF0D80E}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
+		<Client Name="Coupler" Required="true" Internal="false"/>
 		<Client Name="Drive1" Required="true" Internal="false"/>
 		<Client Name="Drive2" Required="true" Internal="false"/>
 		<Client Name="Drive3" Required="true" Internal="false"/>
 		<Client Name="Drive4" Required="true" Internal="false"/>
 		<Client Name="EcatMaster" Required="true" Internal="false"/>
+		<Client Name="InputSlot" Required="true" Internal="false"/>
+		<Client Name="LMCAxis1" Required="true" Internal="false"/>
+		<Client Name="LMCAxis2" Required="true" Internal="false"/>
+		<Client Name="LMCAxis3" Required="true" Internal="false"/>
+		<Client Name="LMCAxis4" Required="true" Internal="false"/>
+		<Client Name="OutputSlot" Required="true" Internal="false"/>
 		<Client Name="RecorderStore" Required="true" Internal="false"/>
 	</Channels>
 </Class>
@@ -38,9 +45,38 @@ LMCEcatInputLatch : CLASS
 	Drive3 	: CltChCmd_Elmo_3;
 	Drive4 	: CltChCmd_Elmo_4;
 	RecorderStore 	: CltChCmd_LMCRecorderStore;
+	Coupler 	: CltChCmd_GL_9086_1;
+	InputSlot 	: CltChCmd_GL_9086_1_Slot00;
+	OutputSlot 	: CltChCmd_GL_9086_1_Slot01;
+	LMCAxis1 	: CltChCmd__LMCAxis;
+	LMCAxis2 	: CltChCmd__LMCAxis;
+	LMCAxis3 	: CltChCmd__LMCAxis;
+	LMCAxis4 	: CltChCmd__LMCAxis;
   //Variables:
 		PublishSequence 	: UDINT;
 		SnapshotBytes : ARRAY [0..511] OF USINT;
+
+		OutputRevision 	: UDINT;
+		OutputObserved 	: BOOL;
+		OutputPreviousValid 	: BOOL;
+		OutputPreviousValue 	: UDINT;
+		Ds402HomeRequestSequence 	: UDINT;
+		Ds402HomeAppliedSequence 	: UDINT;
+		Ds402HomeMailbox : ARRAY [0..11] OF DINT;
+
+		Ds402HomeAlignmentState : ARRAY [0..7] OF DINT;
+
+		AxisZeroHomeRequestSequence 	: UDINT;
+		AxisZeroHomeAppliedSequence 	: UDINT;
+		AxisZeroHomeMailbox : ARRAY [0..7] OF DINT;
+
+		AxisZeroHomeResult : ARRAY [0..31] OF DINT;
+
+		AxisZeroHomeCancelSequence 	: UDINT;
+		Ds402HomeDrainRequestSequence 	: UDINT;
+		Ds402HomeDrainAppliedSequence 	: UDINT;
+		Ds402HomeDispatchSequence 	: UDINT;
+		Ds402HomeDrainMailbox : ARRAY [0..7] OF DINT;
 
   //Functions:
 	
@@ -60,6 +96,94 @@ LMCEcatInputLatch : CLASS
 		VAR_OUTPUT
 			Result 	: DINT;
 		END_VAR;
+	
+	FUNCTION GLOBAL CopyTopologyIoSnapshot
+		VAR_INPUT
+			pDest 	: ^void;
+			DestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL AdvanceOutputRevision
+		VAR_OUTPUT
+			Revision 	: UDINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL SubmitDs402HomeControl
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			AxisReference 	: DINT;
+			Command 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL GetDs402HomeControlState
+		VAR_INPUT
+			OperationToken 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL SubmitDs402HomeSetpointAlignment
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			AxisReference 	: DINT;
+			ActualPosition 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL SubmitAxisZeroHome
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			AxisReference 	: DINT;
+			ExpectedActualPosition 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL CancelAxisZeroHome
+		VAR_INPUT
+			OperationToken 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL CopyAxisZeroHomeResult
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			pDest 	: ^void;
+			DestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL CopyAxisOwnershipStartupSnapshot
+		VAR_INPUT
+			pDest 	: ^void;
+			DestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION GLOBAL RequestDs402HomeSafetyDrain
+		VAR_INPUT
+			OperationToken 	: UDINT;
+			AxisReference 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -68,11 +192,15 @@ LMCEcatInputLatch : CLASS
 	FUNCTION GLOBAL TAB @CT_;
 END_CLASS;
 
+#pragma usingLtd _LMCAxis
 #pragma usingLtd ECAT_Master_Base
 #pragma usingLtd Elmo_1
 #pragma usingLtd Elmo_2
 #pragma usingLtd Elmo_3
 #pragma usingLtd Elmo_4
+#pragma usingLtd GL_9086_1
+#pragma usingLtd GL_9086_1_Slot00
+#pragma usingLtd GL_9086_1_Slot01
 #pragma usingLtd LMCRecorderStore
 
 
@@ -83,7 +211,7 @@ FUNCTION GLOBAL TAB LMCEcatInputLatch::@CT_
 0$UINT,
 2#0100000000000010$UINT, //TY_LMCECATINPUTLATCH
 0$UINT, 0$UINT, (SIZEOF(::LMCEcatInputLatch))$UINT, 
-1$UINT, 6$UINT, 0$UINT, 
+1$UINT, 13$UINT, 0$UINT, 
 TO_UDINT(3935910575), "LMCEcatInputLatch", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
@@ -95,6 +223,13 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::LMCEcatInputLatch.Drive3.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3677088401), "Drive3", TO_UDINT(3810518436), "Elmo_3", 0$UINT, 0$UINT, 
 (::LMCEcatInputLatch.Drive4.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1162837810), "Drive4", TO_UDINT(2105241607), "Elmo_4", 0$UINT, 0$UINT, 
 (::LMCEcatInputLatch.RecorderStore.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2254314628), "RecorderStore", TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 
+(::LMCEcatInputLatch.Coupler.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1553250310), "Coupler", TO_UDINT(210096818), "GL_9086_1", 0$UINT, 0$UINT, 
+(::LMCEcatInputLatch.InputSlot.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2717219354), "InputSlot", TO_UDINT(3581485726), "GL_9086_1_Slot00", 0$UINT, 0$UINT, 
+(::LMCEcatInputLatch.OutputSlot.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1816708713), "OutputSlot", TO_UDINT(2726171144), "GL_9086_1_Slot01", 0$UINT, 0$UINT, 
+(::LMCEcatInputLatch.LMCAxis1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1663666918), "LMCAxis1", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
+(::LMCEcatInputLatch.LMCAxis2.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(4196457308), "LMCAxis2", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
+(::LMCEcatInputLatch.LMCAxis3.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2368203722), "LMCAxis3", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
+(::LMCEcatInputLatch.LMCAxis4.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(323190377), "LMCAxis4", TO_UDINT(1422175863), "_LMCAxis", 1$UINT, 120$UINT, 
 END_FUNCTION
 
 
@@ -134,6 +269,43 @@ END_FUNCTION
 #pragma usingLtd SigCLib
 #pragma usingLtd _StdLib
 
+#define LMC_ZERO_HOME_STATE_RUNNING       1
+#define LMC_ZERO_HOME_STATE_SUCCEEDED     2
+#define LMC_ZERO_HOME_STATE_FAILED        3
+#define LMC_ZERO_HOME_PHASE_VERIFY        1
+#define LMC_ZERO_HOME_REQUIRED_STABLE     3
+#define LMC_ZERO_HOME_RAW_WINDOW          2
+#define LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFE
+#define LMC_ZERO_HOME_FAILURE_INVALID    -1
+#define LMC_ZERO_HOME_FAILURE_BUSY       -2
+#define LMC_ZERO_HOME_FAILURE_CLIENT     -3
+#define LMC_ZERO_HOME_FAILURE_STATE      -4
+#define LMC_ZERO_HOME_FAILURE_STALE      -5
+#define LMC_ZERO_HOME_FAILURE_NATIVE     -6
+#define LMC_ZERO_HOME_FAILURE_VERIFY     -7
+#define LMC_ZERO_HOME_FAILURE_CORRUPT    -8
+#define LMC_ZERO_HOME_FAILURE_DS402      -9
+#define LMC_ZERO_HOME_FAILURE_CANCELLED  -10
+#define LMC_ZERO_HOME_STANDSTILL          0x02000000
+#define LMC_ZERO_HOME_EVIDENCE_EXPECTED   0x00000001
+#define LMC_ZERO_HOME_EVIDENCE_STATE      0x00000002
+#define LMC_ZERO_HOME_EVIDENCE_RAW        0x00000004
+#define LMC_ZERO_HOME_EVIDENCE_APP        0x00000008
+#define LMC_ZERO_HOME_EVIDENCE_INTERNAL   0x00000010
+#define LMC_ZERO_HOME_EVIDENCE_STABLE     0x00000020
+#define LMC_ZERO_HOME_EVIDENCE_DISPATCH   0x00000003
+#define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001F
+#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003F
+#define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC  0x4C4D4353
+#define LMC_OWNER_STARTUP_LATCH_PHYSICAL  0x00000001
+#define LMC_OWNER_STARTUP_LATCH_ZERO_HOME 0x00000002
+#define LMC_OWNER_STARTUP_LATCH_DS402     0x00000004
+#define LMC_OWNER_STARTUP_LATCH_OWNER     0x00000008
+#define LMC_OWNER_STARTUP_LATCH_START_LOW 0x00000010
+#define LMC_DS402_HOME_DRAIN_DISCARDED    -6
+#define LMC_DS402_HOME_DISPATCH_EXHAUSTED -7
+#define LMC_DS402_HOME_STARTUP_SWEEP_ENABLED FALSE
+
 
 FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 	VAR_INPUT
@@ -163,10 +335,1190 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		axisErrorValue : DINT;
 		stateChanged : BOOL;
 		recorderResult : DINT;
+		couplerConnected : BOOL;
+		inputSlotConnected : BOOL;
+		outputSlotConnected : BOOL;
+		couplerDetected : BOOL;
+		couplerIdentityMatched : BOOL;
+		couplerDataValid : BOOL;
+		inputDetected : BOOL;
+		inputIdentityMatched : BOOL;
+		inputDataValid : BOOL;
+		outputDetected : BOOL;
+		outputIdentityMatched : BOOL;
+		outputDataValid : BOOL;
+		inputValid : BOOL;
+		outputValid : BOOL;
+		couplerStateChanged : BOOL;
+		inputStateChanged : BOOL;
+		outputStateChanged : BOOL;
+		couplerNativeOnline : DINT;
+		inputStatus : UINT;
+		outputStatus : UINT;
+		couplerEtherCATState : UDINT;
+		couplerSlaveState : UDINT;
+		couplerALStatus : UDINT;
+		couplerClassState : UDINT;
+		inputSlotClassState : UDINT;
+		outputSlotClassState : UDINT;
+		inputByte0Value : UDINT;
+		inputByte1Value : UDINT;
+		inputByte2Value : UDINT;
+		inputByte3Value : UDINT;
+		outputByte0Value : UDINT;
+		outputByte1Value : UDINT;
+		outputByte2Value : UDINT;
+		outputByte3Value : UDINT;
+		inputValue : UDINT;
+		outputValue : UDINT;
+		inputValidMask : UDINT;
+		outputValidMask : UDINT;
+		couplerLastValidCycle : UDINT;
+		couplerLastStateChangeCycle : UDINT;
+		inputLastValidCycle : UDINT;
+		inputLastStateChangeCycle : UDINT;
+		outputLastValidCycle : UDINT;
+		outputLastStateChangeCycle : UDINT;
+		zeroHomeRequestSequence : UDINT;
+		zeroHomeAppliedSequence : UDINT;
+		zeroHomeCancelSequence : UDINT;
+		zeroHomeCancelEcho : UDINT;
+		zeroHomeRequestToken : UDINT;
+		zeroHomeRequestAxis : DINT;
+		zeroHomeExpectedActualPosition : DINT;
+		zeroHomePhase : DINT;
+		zeroHomeStableSampleCount : DINT;
+		zeroHomeFailure : DINT;
+		zeroHomeCycle : UDINT;
+		zeroHomeEvidence : UDINT;
+		zeroHomeHasRequest : BOOL;
+		zeroHomeTerminal : BOOL;
+		zeroHomeSucceeded : BOOL;
+		zeroHomeCancelPublishing : BOOL;
+		zeroHomeDriveConnected : BOOL;
+		zeroHomeAxisConnected : BOOL;
+		zeroHomeAxisStatus : _LMCAXIS_STATUS;
+		zeroHomeAxisError : _LMCAXIS_ERROR;
+		zeroHomeRawDrivePosition : DINT;
+		zeroHomeRawDelta : UDINT;
+		zeroHomeActualAppPosition : DINT;
+		zeroHomeSetAppPosition : DINT;
+		zeroHomeActualIntPosition : DINT;
+		zeroHomeSetIntPosition : DINT;
+		zeroHomeDestinationPosition : DINT;
+		zeroHomeMasterPosition : DINT;
+		zeroHomeNativeState : _LMCAXIS_CMDERROR;
+		homeRequestSequence : UDINT;
+		homeAppliedSequence : UDINT;
+		homeDrainRequestSequence : UDINT;
+		homeDrainAppliedSequence : UDINT;
+		homeDispatchSequence : UDINT;
+		homeNextDispatchSequence : UDINT;
+		homeDrainRequestDispatch : UDINT;
+		homeDrainRequestToken : UDINT;
+		homeRequestToken : UDINT;
+		homeDrainRequestAxis : DINT;
+		homeDrainResult : DINT;
+		homeRequestAxis : DINT;
+		homeRequestCommand : DINT;
+		homeRequestAlignPosition : DINT;
+		homePreviousAppliedCommand : DINT;
+		homeOwnerAxis : DINT;
+		homeResult : DINT;
+		homeControlApplyResult : DINT;
+		homeHasRequest : BOOL;
+		homeDrainHasRequest : BOOL;
+		homeDrainActive : BOOL;
+		homeDrainTupleValid : BOOL;
+		homeDrainPublishResult : BOOL;
+		homeDrainBlocksNormal : BOOL;
+		homeOwnerLedgerIdle : BOOL;
+		homeOwnerLedgerExact : BOOL;
+		homeAlignmentLedgerExact : BOOL;
+		homeSafetyTombstoneMatch : BOOL;
+		homeAlignmentRequest : BOOL;
+		homePublishResult : BOOL;
+		homeDriveConnected : BOOL;
+		homeAxisConnected : BOOL;
+		homeDesiredStartBit : BOOL;
+		homeMailboxCoherent : BOOL;
+		homeDrainMailboxCoherent : BOOL;
+		homeControlWord : DS402_Control;
+		homeControlWordReadback : DS402_Control;
+		homeStartupSweepAxis : DINT;
+		homeStartupSweepActive : BOOL;
+		homeStartupProofComplete : BOOL;
+		homeStartupOwnerLedgerIdle : BOOL;
+		homeStartupAlignmentIdle : BOOL;
+		homeDriveActualPosition : DINT;
+		homeAxisActualAppPosition : DINT;
+		homeAxisActualIntPosition : DINT;
+		homeAxisSetAppPosition : DINT;
+		homeAxisSetIntPosition : DINT;
+		homeAxisDestinationPosition : DINT;
+		homeAxisMasterPosition : DINT;
+		homeCommandState : _LMCAXIS_CMDERROR;
+		ownershipAxis1Status : _LMCAXIS_STATUS;
+		ownershipAxis2Status : _LMCAXIS_STATUS;
+		ownershipAxis3Status : _LMCAXIS_STATUS;
+		ownershipAxis4Status : _LMCAXIS_STATUS;
+		ownershipLatchDrainFlags : UDINT;
 	END_VAR
 
-	// Snapshot layout is fixed and contains only scalar values. The published
-	// byte count is 304; the larger static array leaves room for later fields.
+	// Mailbox slots 0..3 are immutable after the request sequence is published.
+	// Slot 4 is the RT-owned irrevocable native-dispatch sequence claim.
+	// Slot 5 is the cancel producer's request-sequence echo; slots 6..7 stay zero.
+	// AxisZeroHomeResult is the 32-DINT RT result defined in the handoff document.
+	zeroHomeRequestSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeRequestSequence);
+	zeroHomeAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+	zeroHomeHasRequest := zeroHomeRequestSequence <> zeroHomeAppliedSequence;
+	zeroHomeTerminal := FALSE;
+	zeroHomeSucceeded := FALSE;
+	zeroHomeCancelPublishing := FALSE;
+	zeroHomeFailure := 0;
+
+	if zeroHomeHasRequest then
+		zeroHomeRequestToken := AxisZeroHomeMailbox[0]$UDINT;
+		zeroHomeRequestAxis := AxisZeroHomeMailbox[1];
+		zeroHomeExpectedActualPosition := AxisZeroHomeMailbox[2];
+		zeroHomeCycle := SnapshotBytes[0]$UDINT + 1;
+		if zeroHomeCycle = 0 then
+			zeroHomeCycle := 1;
+		end_if;
+
+		zeroHomeDriveConnected := FALSE;
+		zeroHomeAxisConnected := FALSE;
+		zeroHomeAxisStatus$UDINT := 0;
+		zeroHomeAxisError$UDINT := 0;
+		zeroHomeRawDrivePosition := 0;
+		zeroHomeActualAppPosition := 0;
+		zeroHomeSetAppPosition := 0;
+		zeroHomeActualIntPosition := 0;
+		zeroHomeSetIntPosition := 0;
+		zeroHomeDestinationPosition := 0;
+		zeroHomeMasterPosition := 0;
+		zeroHomeNativeState$UDINT := 0;
+
+		case zeroHomeRequestAxis of
+			1:
+				zeroHomeDriveConnected := IsClientConnected(#Drive1) <> 0;
+				zeroHomeAxisConnected := IsClientConnected(#LMCAxis1) <> 0;
+				if zeroHomeDriveConnected then
+					zeroHomeRawDrivePosition := Drive1.ActPos.Read();
+				end_if;
+				if zeroHomeAxisConnected then
+					zeroHomeAxisStatus := LMCAxis1.ReadAxisStatus();
+					zeroHomeAxisError := LMCAxis1.ReadAxisError();
+					zeroHomeActualAppPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					zeroHomeSetAppPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					zeroHomeActualIntPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_INTUNIT);
+					zeroHomeSetIntPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_INTUNIT);
+					zeroHomeDestinationPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_DESTPOS_INTUNIT);
+					zeroHomeMasterPosition := LMCAxis1.ReadPosition(
+						Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+				end_if;
+			2:
+				zeroHomeDriveConnected := IsClientConnected(#Drive2) <> 0;
+				zeroHomeAxisConnected := IsClientConnected(#LMCAxis2) <> 0;
+				if zeroHomeDriveConnected then
+					zeroHomeRawDrivePosition := Drive2.ActPos.Read();
+				end_if;
+				if zeroHomeAxisConnected then
+					zeroHomeAxisStatus := LMCAxis2.ReadAxisStatus();
+					zeroHomeAxisError := LMCAxis2.ReadAxisError();
+					zeroHomeActualAppPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					zeroHomeSetAppPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					zeroHomeActualIntPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_INTUNIT);
+					zeroHomeSetIntPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_INTUNIT);
+					zeroHomeDestinationPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_DESTPOS_INTUNIT);
+					zeroHomeMasterPosition := LMCAxis2.ReadPosition(
+						Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+				end_if;
+			3:
+				zeroHomeDriveConnected := IsClientConnected(#Drive3) <> 0;
+				zeroHomeAxisConnected := IsClientConnected(#LMCAxis3) <> 0;
+				if zeroHomeDriveConnected then
+					zeroHomeRawDrivePosition := Drive3.ActPos.Read();
+				end_if;
+				if zeroHomeAxisConnected then
+					zeroHomeAxisStatus := LMCAxis3.ReadAxisStatus();
+					zeroHomeAxisError := LMCAxis3.ReadAxisError();
+					zeroHomeActualAppPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					zeroHomeSetAppPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					zeroHomeActualIntPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_INTUNIT);
+					zeroHomeSetIntPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_INTUNIT);
+					zeroHomeDestinationPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_DESTPOS_INTUNIT);
+					zeroHomeMasterPosition := LMCAxis3.ReadPosition(
+						Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+				end_if;
+			4:
+				zeroHomeDriveConnected := IsClientConnected(#Drive4) <> 0;
+				zeroHomeAxisConnected := IsClientConnected(#LMCAxis4) <> 0;
+				if zeroHomeDriveConnected then
+					zeroHomeRawDrivePosition := Drive4.ActPos.Read();
+				end_if;
+				if zeroHomeAxisConnected then
+					zeroHomeAxisStatus := LMCAxis4.ReadAxisStatus();
+					zeroHomeAxisError := LMCAxis4.ReadAxisError();
+					zeroHomeActualAppPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_APPUNIT);
+					zeroHomeSetAppPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_APPUNIT);
+					zeroHomeActualIntPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_ACTPOS_INTUNIT);
+					zeroHomeSetIntPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_SETPOS_INTUNIT);
+					zeroHomeDestinationPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_DESTPOS_INTUNIT);
+					zeroHomeMasterPosition := LMCAxis4.ReadPosition(
+						Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+				end_if;
+		else
+		end_case;
+
+		if AxisZeroHomeResult[22]$UDINT <> zeroHomeRequestSequence then
+			if ((AxisZeroHomeResult[22]$UDINT = zeroHomeAppliedSequence) &
+				((AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+				 (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED))) |
+				((zeroHomeAppliedSequence = 0) &
+				 (AxisZeroHomeResult[22]$UDINT = 0) &
+				 (AxisZeroHomeResult[1] = 0) &
+				 (AxisZeroHomeResult[8] = 0)) then
+				_memset(dest:=#AxisZeroHomeResult[0], usByte:=0, cntr:=128);
+				AxisZeroHomeResult[0]$UDINT := zeroHomeRequestToken;
+				AxisZeroHomeResult[1] := LMC_ZERO_HOME_STATE_RUNNING;
+				AxisZeroHomeResult[3] := zeroHomeRequestAxis;
+				AxisZeroHomeResult[4] := zeroHomeExpectedActualPosition;
+				AxisZeroHomeResult[9]$UDINT := zeroHomeCycle;
+				AxisZeroHomeResult[22]$UDINT := zeroHomeRequestSequence;
+			else
+				// Never redispatch when an in-flight result identity is corrupt.
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+				zeroHomeTerminal := TRUE;
+				AxisZeroHomeResult[0]$UDINT := zeroHomeRequestToken;
+				AxisZeroHomeResult[1] := LMC_ZERO_HOME_STATE_RUNNING;
+				AxisZeroHomeResult[3] := zeroHomeRequestAxis;
+				AxisZeroHomeResult[4] := zeroHomeExpectedActualPosition;
+				if AxisZeroHomeResult[9]$UDINT = 0 then
+					AxisZeroHomeResult[9]$UDINT := zeroHomeCycle;
+				end_if;
+				AxisZeroHomeResult[22]$UDINT := zeroHomeRequestSequence;
+			end_if;
+		end_if;
+
+		zeroHomePhase := AxisZeroHomeResult[5];
+		zeroHomeStableSampleCount := AxisZeroHomeResult[6];
+		zeroHomeEvidence := AxisZeroHomeResult[7]$UDINT;
+		zeroHomeNativeState$UDINT := AxisZeroHomeResult[21]$UDINT;
+
+		if zeroHomeTerminal then
+			// The corrupt in-flight record is published without another native call.
+			zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+		elsif (zeroHomeRequestSequence = 0) |
+			(AxisZeroHomeMailbox[3]$UDINT <> zeroHomeRequestSequence) |
+			(AxisZeroHomeMailbox[6]$UDINT <> 0) |
+			(AxisZeroHomeMailbox[7]$UDINT <> 0) |
+			(zeroHomeRequestToken = 0) |
+			(zeroHomeRequestAxis < 1) | (zeroHomeRequestAxis > 4) |
+			(AxisZeroHomeResult[0]$UDINT <> zeroHomeRequestToken) |
+			(AxisZeroHomeResult[22]$UDINT <> zeroHomeRequestSequence) |
+			(AxisZeroHomeResult[3] <> zeroHomeRequestAxis) |
+			(AxisZeroHomeResult[4] <> zeroHomeExpectedActualPosition) then
+			zeroHomeFailure := LMC_ZERO_HOME_FAILURE_INVALID;
+			zeroHomeTerminal := TRUE;
+		elsif zeroHomePhase = 0 then
+			if (AxisZeroHomeResult[8] <> 0) |
+				(AxisZeroHomeMailbox[4]$UDINT <> 0) then
+				// A dispatch marker is irrevocable for this request sequence.
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+				zeroHomeTerminal := TRUE;
+			else
+				zeroHomeCancelSequence := sigclib_atomic_getU32(
+					pValue:=#AxisZeroHomeCancelSequence);
+				zeroHomeCancelEcho := AxisZeroHomeMailbox[5]$UDINT;
+				if (zeroHomeCancelSequence = zeroHomeRequestSequence) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CANCELLED;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeCancelSequence = 0) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					// Echo-before-atomic means cancellation is still publishing.
+					zeroHomeCancelPublishing := TRUE;
+				elsif (zeroHomeCancelSequence <> 0) |
+					((zeroHomeCancelEcho <> 0) &
+					 (zeroHomeCancelEcho <> zeroHomeRequestSequence)) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+					zeroHomeTerminal := TRUE;
+			elsif Ds402HomeMailbox[11] <> 0 then
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_DS402;
+				zeroHomeTerminal := TRUE;
+			elsif (zeroHomeDriveConnected = FALSE) |
+				(zeroHomeAxisConnected = FALSE) then
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CLIENT;
+				zeroHomeTerminal := TRUE;
+			elsif (zeroHomeAxisError$UDINT <> 0) |
+				((zeroHomeAxisStatus$UDINT and LMC_ZERO_HOME_STANDSTILL) = 0) then
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_STATE;
+				zeroHomeTerminal := TRUE;
+			elsif zeroHomeActualAppPosition <>
+				zeroHomeExpectedActualPosition then
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_STALE;
+				zeroHomeTerminal := TRUE;
+			else
+				zeroHomeEvidence := LMC_ZERO_HOME_EVIDENCE_EXPECTED or
+					LMC_ZERO_HOME_EVIDENCE_STATE;
+				AxisZeroHomeResult[7]$UDINT := zeroHomeEvidence;
+
+				// Re-read cancellation immediately before the irrevocable claim.
+				zeroHomeCancelSequence := sigclib_atomic_getU32(
+					pValue:=#AxisZeroHomeCancelSequence);
+				zeroHomeCancelEcho := AxisZeroHomeMailbox[5]$UDINT;
+				if (zeroHomeCancelSequence = zeroHomeRequestSequence) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CANCELLED;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeCancelSequence = 0) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					// Never dispatch through an echo-before-atomic publish gap.
+					zeroHomeCancelPublishing := TRUE;
+				elsif (zeroHomeCancelSequence <> 0) |
+					((zeroHomeCancelEcho <> 0) &
+					 (zeroHomeCancelEcho <> zeroHomeRequestSequence)) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+					zeroHomeTerminal := TRUE;
+				else
+					AxisZeroHomeMailbox[4]$UDINT := zeroHomeRequestSequence;
+					AxisZeroHomeResult[8] := 1;
+					AxisZeroHomeResult[13] := zeroHomeRawDrivePosition;
+
+				case zeroHomeRequestAxis of
+					1:
+						zeroHomeNativeState := LMCAxis1.SetPosition(
+							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
+							Position:=0);
+						zeroHomeRawDrivePosition := Drive1.ActPos.Read();
+						zeroHomeAxisStatus := LMCAxis1.ReadAxisStatus();
+						zeroHomeAxisError := LMCAxis1.ReadAxisError();
+						zeroHomeActualAppPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						zeroHomeSetAppPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_APPUNIT);
+						zeroHomeActualIntPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_INTUNIT);
+						zeroHomeSetIntPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_INTUNIT);
+						zeroHomeDestinationPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_DESTPOS_INTUNIT);
+						zeroHomeMasterPosition := LMCAxis1.ReadPosition(
+							Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+					2:
+						zeroHomeNativeState := LMCAxis2.SetPosition(
+							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
+							Position:=0);
+						zeroHomeRawDrivePosition := Drive2.ActPos.Read();
+						zeroHomeAxisStatus := LMCAxis2.ReadAxisStatus();
+						zeroHomeAxisError := LMCAxis2.ReadAxisError();
+						zeroHomeActualAppPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						zeroHomeSetAppPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_APPUNIT);
+						zeroHomeActualIntPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_INTUNIT);
+						zeroHomeSetIntPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_INTUNIT);
+						zeroHomeDestinationPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_DESTPOS_INTUNIT);
+						zeroHomeMasterPosition := LMCAxis2.ReadPosition(
+							Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+					3:
+						zeroHomeNativeState := LMCAxis3.SetPosition(
+							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
+							Position:=0);
+						zeroHomeRawDrivePosition := Drive3.ActPos.Read();
+						zeroHomeAxisStatus := LMCAxis3.ReadAxisStatus();
+						zeroHomeAxisError := LMCAxis3.ReadAxisError();
+						zeroHomeActualAppPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						zeroHomeSetAppPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_APPUNIT);
+						zeroHomeActualIntPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_INTUNIT);
+						zeroHomeSetIntPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_INTUNIT);
+						zeroHomeDestinationPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_DESTPOS_INTUNIT);
+						zeroHomeMasterPosition := LMCAxis3.ReadPosition(
+							Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+					4:
+						zeroHomeNativeState := LMCAxis4.SetPosition(
+							Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
+							Position:=0);
+						zeroHomeRawDrivePosition := Drive4.ActPos.Read();
+						zeroHomeAxisStatus := LMCAxis4.ReadAxisStatus();
+						zeroHomeAxisError := LMCAxis4.ReadAxisError();
+						zeroHomeActualAppPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_APPUNIT);
+						zeroHomeSetAppPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_APPUNIT);
+						zeroHomeActualIntPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_ACTPOS_INTUNIT);
+						zeroHomeSetIntPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_SETPOS_INTUNIT);
+						zeroHomeDestinationPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_DESTPOS_INTUNIT);
+						zeroHomeMasterPosition := LMCAxis4.ReadPosition(
+							Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+				else
+				end_case;
+
+				AxisZeroHomeResult[21]$UDINT := zeroHomeNativeState$UDINT;
+				if zeroHomeNativeState$UDINT <> 0 then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_NATIVE;
+					zeroHomeTerminal := TRUE;
+				else
+					zeroHomePhase := LMC_ZERO_HOME_PHASE_VERIFY;
+					AxisZeroHomeResult[5] := zeroHomePhase;
+				end_if;
+				end_if;
+			end_if;
+			end_if;
+		elsif zeroHomePhase = LMC_ZERO_HOME_PHASE_VERIFY then
+			// Standstill raw feedback may dither by two encoder counts.
+			zeroHomeRawDelta := zeroHomeRawDrivePosition$UDINT -
+				AxisZeroHomeResult[13]$UDINT;
+			if (AxisZeroHomeResult[1] <> LMC_ZERO_HOME_STATE_RUNNING) |
+				(AxisZeroHomeResult[8] <> 1) |
+				(AxisZeroHomeMailbox[4]$UDINT <> zeroHomeRequestSequence) |
+				(AxisZeroHomeResult[9]$UDINT = 0) |
+				(zeroHomeStableSampleCount < 0) |
+				(zeroHomeStableSampleCount >= LMC_ZERO_HOME_REQUIRED_STABLE) |
+				((zeroHomeStableSampleCount = 0) &
+				 (zeroHomeEvidence <> LMC_ZERO_HOME_EVIDENCE_DISPATCH)) |
+				((zeroHomeStableSampleCount > 0) &
+				 (zeroHomeEvidence <> LMC_ZERO_HOME_EVIDENCE_VERIFIED)) then
+				zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+				zeroHomeTerminal := TRUE;
+			else
+				zeroHomeCancelSequence := sigclib_atomic_getU32(
+					pValue:=#AxisZeroHomeCancelSequence);
+				zeroHomeCancelEcho := AxisZeroHomeMailbox[5]$UDINT;
+				if (zeroHomeCancelSequence = zeroHomeRequestSequence) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CANCELLED;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeCancelSequence = 0) &
+					(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+					// Wait through the echo-before-atomic publication gap.
+					zeroHomeCancelPublishing := TRUE;
+				elsif (zeroHomeCancelSequence <> 0) |
+					((zeroHomeCancelEcho <> 0) &
+					 (zeroHomeCancelEcho <> zeroHomeRequestSequence)) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeDriveConnected = FALSE) |
+					(zeroHomeAxisConnected = FALSE) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CLIENT;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeAxisError$UDINT <> 0) |
+					((zeroHomeAxisStatus$UDINT and LMC_ZERO_HOME_STANDSTILL) = 0) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_STATE;
+					zeroHomeTerminal := TRUE;
+				elsif zeroHomeNativeState$UDINT <> 0 then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_NATIVE;
+					zeroHomeTerminal := TRUE;
+				elsif (zeroHomeRawDelta > LMC_ZERO_HOME_RAW_WINDOW) &
+					(zeroHomeRawDelta < LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW) then
+					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
+					zeroHomeTerminal := TRUE;
+				else
+					zeroHomeEvidence := zeroHomeEvidence or
+						LMC_ZERO_HOME_EVIDENCE_RAW;
+					if (zeroHomeActualAppPosition <> 0) |
+						(zeroHomeSetAppPosition <> 0) then
+						zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
+						zeroHomeTerminal := TRUE;
+					else
+						zeroHomeEvidence := zeroHomeEvidence or
+							LMC_ZERO_HOME_EVIDENCE_APP;
+						if (zeroHomeActualIntPosition <> 0) |
+							(zeroHomeSetIntPosition <> 0) |
+							(zeroHomeDestinationPosition <> 0) |
+							(zeroHomeMasterPosition <> 0) then
+							zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
+							zeroHomeTerminal := TRUE;
+						else
+							zeroHomeEvidence := zeroHomeEvidence or
+								LMC_ZERO_HOME_EVIDENCE_INTERNAL;
+							// This final read is the success/cancel linearization point.
+							zeroHomeCancelSequence := sigclib_atomic_getU32(
+								pValue:=#AxisZeroHomeCancelSequence);
+							zeroHomeCancelEcho := AxisZeroHomeMailbox[5]$UDINT;
+							if (zeroHomeCancelSequence = zeroHomeRequestSequence) &
+								(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+								zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CANCELLED;
+								zeroHomeTerminal := TRUE;
+							elsif (zeroHomeCancelSequence = 0) &
+								(zeroHomeCancelEcho = zeroHomeRequestSequence) then
+								// Do not commit evidence or a stable sample during publication.
+								if zeroHomeStableSampleCount = 0 then
+									zeroHomeEvidence := LMC_ZERO_HOME_EVIDENCE_DISPATCH;
+								else
+									zeroHomeEvidence := LMC_ZERO_HOME_EVIDENCE_VERIFIED;
+								end_if;
+								zeroHomeCancelPublishing := TRUE;
+							elsif (zeroHomeCancelSequence <> 0) |
+								((zeroHomeCancelEcho <> 0) &
+								 (zeroHomeCancelEcho <> zeroHomeRequestSequence)) then
+								zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+								zeroHomeTerminal := TRUE;
+							else
+								zeroHomeStableSampleCount += 1;
+								if zeroHomeStableSampleCount >=
+									LMC_ZERO_HOME_REQUIRED_STABLE then
+									zeroHomeEvidence := zeroHomeEvidence or
+										LMC_ZERO_HOME_EVIDENCE_STABLE;
+									if zeroHomeEvidence <>
+										LMC_ZERO_HOME_EVIDENCE_COMPLETE then
+										zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+									else
+										zeroHomeSucceeded := TRUE;
+									end_if;
+									zeroHomeTerminal := TRUE;
+								end_if;
+							end_if;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+		else
+			zeroHomeFailure := LMC_ZERO_HOME_FAILURE_CORRUPT;
+			zeroHomeTerminal := TRUE;
+		end_if;
+
+		AxisZeroHomeResult[2] := zeroHomeFailure;
+		AxisZeroHomeResult[5] := zeroHomePhase;
+		AxisZeroHomeResult[6] := zeroHomeStableSampleCount;
+		AxisZeroHomeResult[7]$UDINT := zeroHomeEvidence;
+		AxisZeroHomeResult[11]$UDINT := zeroHomeAxisStatus$UDINT;
+		AxisZeroHomeResult[12]$UDINT := zeroHomeAxisError$UDINT;
+		AxisZeroHomeResult[14] := zeroHomeRawDrivePosition;
+		AxisZeroHomeResult[15] := zeroHomeActualAppPosition;
+		AxisZeroHomeResult[16] := zeroHomeSetAppPosition;
+		AxisZeroHomeResult[17] := zeroHomeActualIntPosition;
+		AxisZeroHomeResult[18] := zeroHomeSetIntPosition;
+		AxisZeroHomeResult[19] := zeroHomeDestinationPosition;
+		AxisZeroHomeResult[20] := zeroHomeMasterPosition;
+		AxisZeroHomeResult[21]$UDINT := zeroHomeNativeState$UDINT;
+		AxisZeroHomeResult[23]$UDINT := zeroHomeCycle;
+
+		if zeroHomeTerminal then
+			if zeroHomeSucceeded then
+				AxisZeroHomeResult[1] := LMC_ZERO_HOME_STATE_SUCCEEDED;
+				AxisZeroHomeResult[2] := 0;
+			else
+				AxisZeroHomeResult[1] := LMC_ZERO_HOME_STATE_FAILED;
+			end_if;
+			AxisZeroHomeResult[10]$UDINT := zeroHomeCycle;
+			// Publish every terminal field before the applied sequence.
+			sigclib_atomic_setU32(
+				pValue:=#AxisZeroHomeAppliedSequence,
+				value:=zeroHomeRequestSequence);
+		end_if;
+	end_if;
+
+	zeroHomeAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+	zeroHomeHasRequest := zeroHomeRequestSequence <> zeroHomeAppliedSequence;
+
+	// The safety drain is consumed before the ordinary Home mailbox. Its applied
+	// tuple remains an exact-token tombstone for every late Home command.
+	homeDrainRequestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainRequestSequence);
+	homeDrainAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainAppliedSequence);
+	homeDispatchSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDispatchSequence);
+	homeDrainHasRequest :=
+		homeDrainRequestSequence <> homeDrainAppliedSequence;
+	homeDrainRequestToken := 0;
+	homeDrainRequestAxis := 0;
+	homeDrainResult := -1;
+	homeDrainActive := FALSE;
+	homeDrainTupleValid := FALSE;
+	homeDrainPublishResult := FALSE;
+	homeDrainBlocksNormal := homeDrainHasRequest;
+	homeOwnerLedgerIdle := FALSE;
+	homeOwnerLedgerExact := FALSE;
+	homeAlignmentLedgerExact := FALSE;
+	homeSafetyTombstoneMatch := FALSE;
+
+	// The cyclic producer publishes payload first and request sequence last.
+	// This realtime consumer owns DS402 control-word bit 4 while homing is active.
+	homeRequestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	homeAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	homeHasRequest := homeRequestSequence <> homeAppliedSequence;
+	homeAlignmentRequest := FALSE;
+	homePublishResult := TRUE;
+	homePreviousAppliedCommand := Ds402HomeMailbox[7];
+	homeResult := Ds402HomeMailbox[9];
+	homeRequestToken := 0;
+	homeRequestAxis := 0;
+	homeRequestCommand := 0;
+	homeRequestAlignPosition := 0;
+
+	if homeDrainHasRequest then
+		homeDrainRequestToken := Ds402HomeDrainMailbox[0]$UDINT;
+		homeDrainRequestAxis := Ds402HomeDrainMailbox[1];
+		homeDrainRequestDispatch := Ds402HomeDrainMailbox[3]$UDINT;
+		homeOwnerLedgerIdle :=
+			(Ds402HomeMailbox[0] = 0) &
+			(Ds402HomeMailbox[1] = 0) &
+			(Ds402HomeMailbox[10] = 0) &
+			(Ds402HomeMailbox[11] = 0);
+		homeOwnerLedgerExact :=
+			(Ds402HomeMailbox[0]$UDINT = homeDrainRequestToken) &
+			(Ds402HomeMailbox[1] = homeDrainRequestAxis) &
+			((Ds402HomeMailbox[10] = 0) | (Ds402HomeMailbox[10] = 1)) &
+			(Ds402HomeMailbox[11] = 1);
+		homeAlignmentLedgerExact :=
+			(Ds402HomeAlignmentState[0] = 0) |
+			((Ds402HomeAlignmentState[0] = 1) &
+			 (Ds402HomeAlignmentState[1]$UDINT = homeDrainRequestToken) &
+			 (Ds402HomeAlignmentState[2] = homeDrainRequestAxis));
+		homeDrainTupleValid :=
+			(homeDrainRequestToken <> 0) &
+			(homeDrainRequestAxis >= 1) & (homeDrainRequestAxis <= 4) &
+			(Ds402HomeDrainMailbox[2]$UDINT = homeDrainRequestSequence) &
+			(homeDrainRequestDispatch = Ds402HomeDrainMailbox[3]$UDINT) &
+			(homeDrainRequestDispatch <= homeDispatchSequence) &
+			(homeOwnerLedgerIdle | homeOwnerLedgerExact) &
+			homeAlignmentLedgerExact;
+		if homeHasRequest then
+			homeRequestToken := Ds402HomeMailbox[2]$UDINT;
+			homeRequestAxis := Ds402HomeMailbox[3];
+			homeRequestCommand := Ds402HomeMailbox[4];
+			homeRequestAlignPosition := Ds402HomeMailbox[5];
+			homeDrainTupleValid := homeDrainTupleValid &
+				(homeRequestToken = homeDrainRequestToken) &
+				(homeRequestAxis = homeDrainRequestAxis);
+		end_if;
+		if homeDrainTupleValid then
+			homeDrainActive := TRUE;
+			homeDrainResult := 1;
+			homeOwnerAxis := homeDrainRequestAxis;
+			homeDesiredStartBit := FALSE;
+		else
+			if (homeDrainRequestToken <> 0) &
+				(homeDrainRequestAxis >= 1) &
+				(homeDrainRequestAxis <= 4) then
+				homeDrainResult := -2;
+			else
+				homeDrainResult := -1;
+			end_if;
+			homeDrainPublishResult := TRUE;
+		end_if;
+	elsif homeHasRequest then
+		homeRequestToken := Ds402HomeMailbox[2]$UDINT;
+		homeRequestAxis := Ds402HomeMailbox[3];
+		homeRequestCommand := Ds402HomeMailbox[4];
+		homeRequestAlignPosition := Ds402HomeMailbox[5];
+		homeResult := -1;
+		homeSafetyTombstoneMatch :=
+			(homeDrainAppliedSequence <> 0) &
+			(homeDrainRequestSequence = homeDrainAppliedSequence) &
+			(Ds402HomeDrainMailbox[2]$UDINT = homeDrainAppliedSequence) &
+			(Ds402HomeDrainMailbox[0]$UDINT = homeRequestToken) &
+			(Ds402HomeDrainMailbox[1] = homeRequestAxis) &
+			(Ds402HomeDrainMailbox[4]$UDINT = homeRequestToken) &
+			(Ds402HomeDrainMailbox[5] = homeRequestAxis) &
+			(Ds402HomeDrainMailbox[7] = 0);
+
+		if homeSafetyTombstoneMatch then
+			homeResult := LMC_DS402_HOME_DRAIN_DISCARDED;
+		elsif (homeRequestToken <> 0) &
+			(homeRequestAxis >= 1) & (homeRequestAxis <= 4) then
+			case homeRequestCommand of
+				1: // AcquireAndHoldLow.
+					if zeroHomeHasRequest then
+						homeResult := LMC_ZERO_HOME_FAILURE_BUSY;
+					elsif (Ds402HomeMailbox[11] <> 0) &
+						((Ds402HomeMailbox[0]$UDINT <> homeRequestToken) |
+						 (Ds402HomeMailbox[1] <> homeRequestAxis)) then
+						homeResult := -2;
+					else
+						Ds402HomeMailbox[0]$UDINT := homeRequestToken;
+						Ds402HomeMailbox[1] := homeRequestAxis;
+						Ds402HomeMailbox[10] := 0;
+						Ds402HomeMailbox[11] := 1;
+						homeResult := 1;
+					end_if;
+
+				2: // SetHigh.
+					if (Ds402HomeMailbox[11] = 0) |
+						(Ds402HomeMailbox[0]$UDINT <> homeRequestToken) |
+						(Ds402HomeMailbox[1] <> homeRequestAxis) then
+						homeResult := -4;
+					else
+						Ds402HomeMailbox[10] := 1;
+						homeResult := 1;
+					end_if;
+
+				3: // SetLow.
+					if (Ds402HomeMailbox[11] = 0) |
+						(Ds402HomeMailbox[0]$UDINT <> homeRequestToken) |
+						(Ds402HomeMailbox[1] <> homeRequestAxis) then
+						homeResult := -4;
+					else
+						Ds402HomeMailbox[10] := 0;
+						homeResult := 1;
+					end_if;
+
+				4: // ReleaseAfterLow.
+					if (Ds402HomeMailbox[11] = 0) |
+						(Ds402HomeMailbox[0]$UDINT <> homeRequestToken) |
+						(Ds402HomeMailbox[1] <> homeRequestAxis) then
+						homeResult := -4;
+					else
+						Ds402HomeMailbox[10] := 0;
+						homeResult := 1;
+					end_if;
+
+				5: // AlignSetpoint. This command is internal to this class.
+					if (Ds402HomeMailbox[11] = 0) |
+						(Ds402HomeMailbox[0]$UDINT <> homeRequestToken) |
+						(Ds402HomeMailbox[1] <> homeRequestAxis) then
+						homeResult := -4;
+					elsif Ds402HomeMailbox[10] <> 0 then
+						homeResult := -1;
+					else
+						homeAlignmentRequest := TRUE;
+						homeResult := 1;
+					end_if;
+			else
+			end_case;
+		end_if;
+	end_if;
+
+	// Before startup proof completes, a dormant sweep can lower one orphaned
+	// bit-4 image per scan through the same selected-drive write path. Explicit
+	// drains and normal owned Home requests always have priority.
+	homeStartupSweepAxis := 0;
+	homeStartupSweepActive := FALSE;
+	homeStartupProofComplete :=
+		(SnapshotBytes[464]$UDINT = LMC_OWNER_STARTUP_SNAPSHOT_MAGIC) &
+		((SnapshotBytes[504]$UDINT and 0x0000001F) = 0x0000001F);
+	homeStartupOwnerLedgerIdle :=
+		(Ds402HomeMailbox[0] = 0) &
+		(Ds402HomeMailbox[1] = 0) &
+		(Ds402HomeMailbox[10] = 0) &
+		(Ds402HomeMailbox[11] = 0);
+	homeStartupAlignmentIdle :=
+		(Ds402HomeAlignmentState[0] = 0) &
+		(Ds402HomeAlignmentState[1] = 0) &
+		(Ds402HomeAlignmentState[2] = 0) &
+		(Ds402HomeAlignmentState[3] = 0) &
+		(Ds402HomeAlignmentState[4] = 0) &
+		(Ds402HomeAlignmentState[5] = 0) &
+		(Ds402HomeAlignmentState[6] = 0) &
+		(Ds402HomeAlignmentState[7] = 0);
+	if LMC_DS402_HOME_STARTUP_SWEEP_ENABLED &
+		(SnapshotBytes[464]$UDINT = LMC_OWNER_STARTUP_SNAPSHOT_MAGIC) &
+		(homeStartupProofComplete = FALSE) &
+		(homeDrainHasRequest = FALSE) &
+		(homeHasRequest = FALSE) &
+		homeStartupOwnerLedgerIdle &
+		homeStartupAlignmentIdle then
+		if (SnapshotBytes[216]$UDINT and 0x00000010) <> 0 then
+			homeStartupSweepAxis := 1;
+		elsif (SnapshotBytes[240]$UDINT and 0x00000010) <> 0 then
+			homeStartupSweepAxis := 2;
+		elsif (SnapshotBytes[264]$UDINT and 0x00000010) <> 0 then
+			homeStartupSweepAxis := 3;
+		elsif (SnapshotBytes[288]$UDINT and 0x00000010) <> 0 then
+			homeStartupSweepAxis := 4;
+		end_if;
+		if homeStartupSweepAxis <> 0 then
+			homeStartupSweepActive := TRUE;
+		end_if;
+	end_if;
+
+	// While ownership is held, or while a safety drain is pending, change and
+	// verify only bit 4 through this single drive-write path.
+	homeControlApplyResult := 0;
+	if homeDrainActive |
+		homeStartupSweepActive |
+		((homeDrainBlocksNormal = FALSE) & (Ds402HomeMailbox[11] <> 0)) then
+		if homeDrainActive = FALSE then
+			if homeStartupSweepActive then
+				homeOwnerAxis := homeStartupSweepAxis;
+				homeDesiredStartBit := FALSE;
+			else
+				homeOwnerAxis := Ds402HomeMailbox[1];
+				homeDesiredStartBit := Ds402HomeMailbox[10] <> 0;
+			end_if;
+		end_if;
+		homeDriveConnected := FALSE;
+		if homeDesiredStartBit &
+			(homeDispatchSequence = 0xFFFFFFFF) then
+			// Never wrap the dispatch barrier: exhaustion is sticky fail-closed.
+			homeControlApplyResult := LMC_DS402_HOME_DISPATCH_EXHAUSTED;
+		else
+		case homeOwnerAxis of
+			1:
+				homeDriveConnected := IsClientConnected(#Drive1) <> 0;
+				if homeDriveConnected then
+					if homeDesiredStartBit then
+						homeNextDispatchSequence := homeDispatchSequence + 1;
+						sigclib_atomic_setU32(
+							pValue:=#Ds402HomeDispatchSequence,
+							value:=homeNextDispatchSequence);
+						homeDispatchSequence := homeNextDispatchSequence;
+					end_if;
+					homeControlWord := Drive1.ControlWord.Read();
+					homeControlWord.OperationModeSpec1 := homeDesiredStartBit;
+					Drive1.ControlWord.Write(input:=homeControlWord);
+					homeControlWordReadback := Drive1.ControlWord.Read();
+				end_if;
+			2:
+				homeDriveConnected := IsClientConnected(#Drive2) <> 0;
+				if homeDriveConnected then
+					if homeDesiredStartBit then
+						homeNextDispatchSequence := homeDispatchSequence + 1;
+						sigclib_atomic_setU32(
+							pValue:=#Ds402HomeDispatchSequence,
+							value:=homeNextDispatchSequence);
+						homeDispatchSequence := homeNextDispatchSequence;
+					end_if;
+					homeControlWord := Drive2.ControlWord.Read();
+					homeControlWord.OperationModeSpec1 := homeDesiredStartBit;
+					Drive2.ControlWord.Write(input:=homeControlWord);
+					homeControlWordReadback := Drive2.ControlWord.Read();
+				end_if;
+			3:
+				homeDriveConnected := IsClientConnected(#Drive3) <> 0;
+				if homeDriveConnected then
+					if homeDesiredStartBit then
+						homeNextDispatchSequence := homeDispatchSequence + 1;
+						sigclib_atomic_setU32(
+							pValue:=#Ds402HomeDispatchSequence,
+							value:=homeNextDispatchSequence);
+						homeDispatchSequence := homeNextDispatchSequence;
+					end_if;
+					homeControlWord := Drive3.ControlWord.Read();
+					homeControlWord.OperationModeSpec1 := homeDesiredStartBit;
+					Drive3.ControlWord.Write(input:=homeControlWord);
+					homeControlWordReadback := Drive3.ControlWord.Read();
+				end_if;
+			4:
+				homeDriveConnected := IsClientConnected(#Drive4) <> 0;
+				if homeDriveConnected then
+					if homeDesiredStartBit then
+						homeNextDispatchSequence := homeDispatchSequence + 1;
+						sigclib_atomic_setU32(
+							pValue:=#Ds402HomeDispatchSequence,
+							value:=homeNextDispatchSequence);
+						homeDispatchSequence := homeNextDispatchSequence;
+					end_if;
+					homeControlWord := Drive4.ControlWord.Read();
+					homeControlWord.OperationModeSpec1 := homeDesiredStartBit;
+					Drive4.ControlWord.Write(input:=homeControlWord);
+					homeControlWordReadback := Drive4.ControlWord.Read();
+				end_if;
+		else
+		end_case;
+		end_if;
+
+		if homeControlApplyResult = 0 then
+			if homeDriveConnected = FALSE then
+				homeControlApplyResult := -3;
+			elsif homeControlWordReadback.OperationModeSpec1 <>
+				homeDesiredStartBit then
+				homeControlApplyResult := -5;
+			end_if;
+		end_if;
+
+		if homeDrainActive then
+			if homeControlApplyResult = 0 then
+				homeDrainResult := 0;
+				// Retire the exact pending Home command before publishing the drain.
+				if homeHasRequest then
+					Ds402HomeMailbox[6]$UDINT := homeRequestToken;
+					Ds402HomeMailbox[7] := homeRequestCommand;
+					if homeRequestCommand = 5 then
+						Ds402HomeMailbox[8] := homeRequestAlignPosition;
+					else
+						Ds402HomeMailbox[8] := 0;
+					end_if;
+					Ds402HomeMailbox[9] := LMC_DS402_HOME_DRAIN_DISCARDED;
+					sigclib_atomic_setU32(
+						pValue:=#Ds402HomeAppliedSequence,
+						value:=homeRequestSequence);
+					homeAppliedSequence := homeRequestSequence;
+					homeHasRequest := FALSE;
+				end_if;
+				Ds402HomeMailbox[0] := 0;
+				Ds402HomeMailbox[1] := 0;
+				Ds402HomeMailbox[10] := 0;
+				Ds402HomeMailbox[11] := 0;
+				_memset(dest:=#Ds402HomeAlignmentState[0], usByte:=0,
+					cntr:=sizeof(Ds402HomeAlignmentState));
+				homeDispatchSequence := sigclib_atomic_getU32(
+					pValue:=#Ds402HomeDispatchSequence);
+				homeDrainPublishResult := TRUE;
+			else
+				// A disconnected drive or failed low readback is retried next scan.
+				homeDrainResult := homeControlApplyResult;
+			end_if;
+		elsif homeHasRequest & (homeResult = 1) then
+			if (homeRequestCommand >= 1) & (homeRequestCommand <= 4) then
+				homeResult := homeControlApplyResult;
+			elsif homeAlignmentRequest then
+				if homeControlApplyResult <> 0 then
+					homeResult := homeControlApplyResult;
+					Ds402HomeAlignmentState[0] := 0;
+				else
+					if (Ds402HomeAlignmentState[0] <> 0) &
+						((Ds402HomeAlignmentState[1]$UDINT <> homeRequestToken) |
+						 (Ds402HomeAlignmentState[2] <> homeRequestAxis) |
+						 (Ds402HomeAlignmentState[3] <> homeRequestAlignPosition)) then
+						homeResult := -5;
+						Ds402HomeAlignmentState[0] := 0;
+					else
+						homeAxisConnected := FALSE;
+						homeDriveActualPosition := 0;
+						homeAxisActualAppPosition := 0;
+						homeAxisActualIntPosition := 0;
+						homeAxisSetAppPosition := 0;
+						homeAxisSetIntPosition := 0;
+						homeAxisDestinationPosition := 0;
+						homeAxisMasterPosition := 0;
+						homeCommandState := 0;
+
+						case homeRequestAxis of
+							1:
+								homeAxisConnected := IsClientConnected(#LMCAxis1) <> 0;
+								if homeAxisConnected then
+									homeDriveActualPosition := Drive1.ActPos.Read();
+									if homeDriveActualPosition = homeRequestAlignPosition then
+										homeAxisActualAppPosition := LMCAxis1.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_APPUNIT);
+										homeAxisActualIntPosition := LMCAxis1.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_INTUNIT);
+										if Ds402HomeAlignmentState[0] = 0 then
+											homeCommandState := LMCAxis1.SetPosition(
+												Mode:=LMCAXIS_SET_SETPOS_APPUNIT_DEST,
+												Position:=homeAxisActualAppPosition);
+										else
+											homeAxisSetAppPosition := LMCAxis1.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_APPUNIT);
+											homeAxisSetIntPosition := LMCAxis1.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_INTUNIT);
+											homeAxisDestinationPosition := LMCAxis1.ReadPosition(
+												Mode:=LMCAXIS_DESTPOS_INTUNIT);
+											homeAxisMasterPosition := LMCAxis1.ReadPosition(
+												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+										end_if;
+										homeDriveActualPosition := Drive1.ActPos.Read();
+									end_if;
+								end_if;
+							2:
+								homeAxisConnected := IsClientConnected(#LMCAxis2) <> 0;
+								if homeAxisConnected then
+									homeDriveActualPosition := Drive2.ActPos.Read();
+									if homeDriveActualPosition = homeRequestAlignPosition then
+										homeAxisActualAppPosition := LMCAxis2.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_APPUNIT);
+										homeAxisActualIntPosition := LMCAxis2.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_INTUNIT);
+										if Ds402HomeAlignmentState[0] = 0 then
+											homeCommandState := LMCAxis2.SetPosition(
+												Mode:=LMCAXIS_SET_SETPOS_APPUNIT_DEST,
+												Position:=homeAxisActualAppPosition);
+										else
+											homeAxisSetAppPosition := LMCAxis2.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_APPUNIT);
+											homeAxisSetIntPosition := LMCAxis2.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_INTUNIT);
+											homeAxisDestinationPosition := LMCAxis2.ReadPosition(
+												Mode:=LMCAXIS_DESTPOS_INTUNIT);
+											homeAxisMasterPosition := LMCAxis2.ReadPosition(
+												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+										end_if;
+										homeDriveActualPosition := Drive2.ActPos.Read();
+									end_if;
+								end_if;
+							3:
+								homeAxisConnected := IsClientConnected(#LMCAxis3) <> 0;
+								if homeAxisConnected then
+									homeDriveActualPosition := Drive3.ActPos.Read();
+									if homeDriveActualPosition = homeRequestAlignPosition then
+										homeAxisActualAppPosition := LMCAxis3.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_APPUNIT);
+										homeAxisActualIntPosition := LMCAxis3.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_INTUNIT);
+										if Ds402HomeAlignmentState[0] = 0 then
+											homeCommandState := LMCAxis3.SetPosition(
+												Mode:=LMCAXIS_SET_SETPOS_APPUNIT_DEST,
+												Position:=homeAxisActualAppPosition);
+										else
+											homeAxisSetAppPosition := LMCAxis3.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_APPUNIT);
+											homeAxisSetIntPosition := LMCAxis3.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_INTUNIT);
+											homeAxisDestinationPosition := LMCAxis3.ReadPosition(
+												Mode:=LMCAXIS_DESTPOS_INTUNIT);
+											homeAxisMasterPosition := LMCAxis3.ReadPosition(
+												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+										end_if;
+										homeDriveActualPosition := Drive3.ActPos.Read();
+									end_if;
+								end_if;
+							4:
+								homeAxisConnected := IsClientConnected(#LMCAxis4) <> 0;
+								if homeAxisConnected then
+									homeDriveActualPosition := Drive4.ActPos.Read();
+									if homeDriveActualPosition = homeRequestAlignPosition then
+										homeAxisActualAppPosition := LMCAxis4.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_APPUNIT);
+										homeAxisActualIntPosition := LMCAxis4.ReadPosition(
+											Mode:=LMCAXIS_ACTPOS_INTUNIT);
+										if Ds402HomeAlignmentState[0] = 0 then
+											homeCommandState := LMCAxis4.SetPosition(
+												Mode:=LMCAXIS_SET_SETPOS_APPUNIT_DEST,
+												Position:=homeAxisActualAppPosition);
+										else
+											homeAxisSetAppPosition := LMCAxis4.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_APPUNIT);
+											homeAxisSetIntPosition := LMCAxis4.ReadPosition(
+												Mode:=LMCAXIS_SETPOS_INTUNIT);
+											homeAxisDestinationPosition := LMCAxis4.ReadPosition(
+												Mode:=LMCAXIS_DESTPOS_INTUNIT);
+											homeAxisMasterPosition := LMCAxis4.ReadPosition(
+												Mode:=LMCAXIS_MASTERPOS_INTUNIT);
+										end_if;
+										homeDriveActualPosition := Drive4.ActPos.Read();
+									end_if;
+								end_if;
+						else
+						end_case;
+
+						if homeAxisConnected = FALSE then
+							homeResult := -3;
+							Ds402HomeAlignmentState[0] := 0;
+						elsif homeDriveActualPosition <> homeRequestAlignPosition then
+							homeResult := -5;
+							Ds402HomeAlignmentState[0] := 0;
+						elsif Ds402HomeAlignmentState[0] = 0 then
+							if (homeCommandState$UDINT and 0xFFFFFFFC) <> 0 then
+								homeResult := -5;
+							else
+								Ds402HomeAlignmentState[1]$UDINT := homeRequestToken;
+								Ds402HomeAlignmentState[2] := homeRequestAxis;
+								Ds402HomeAlignmentState[3] := homeRequestAlignPosition;
+								Ds402HomeAlignmentState[4] := homeAxisActualAppPosition;
+								Ds402HomeAlignmentState[5] := homeAxisActualIntPosition;
+								Ds402HomeAlignmentState[6]$UDINT := homeCommandState$UDINT;
+								Ds402HomeAlignmentState[7] := 0;
+								Ds402HomeAlignmentState[0] := 1;
+								homePublishResult := FALSE;
+							end_if;
+						else
+							if ((Ds402HomeAlignmentState[6]$UDINT and 0xFFFFFFFC) <> 0) |
+								(homeAxisSetAppPosition <> Ds402HomeAlignmentState[4]) |
+								(homeAxisActualAppPosition <> Ds402HomeAlignmentState[4]) |
+								(homeAxisSetIntPosition <> Ds402HomeAlignmentState[5]) |
+								(homeAxisActualIntPosition <> Ds402HomeAlignmentState[5]) |
+								(homeAxisDestinationPosition <> Ds402HomeAlignmentState[5]) |
+								(homeAxisMasterPosition <> Ds402HomeAlignmentState[5]) then
+								homeResult := -5;
+							else
+								homeResult := 0;
+							end_if;
+							Ds402HomeAlignmentState[0] := 0;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+		else
+			// Preserve an alignment result, but expose control ownership failures.
+			if homeControlApplyResult <> 0 then
+				Ds402HomeMailbox[9] := homeControlApplyResult;
+			elsif (homePreviousAppliedCommand >= 1) &
+				(homePreviousAppliedCommand <= 4) then
+				Ds402HomeMailbox[9] := 0;
+			end_if;
+		end_if;
+
+		// A failed release keeps ownership and retries the low write next scan.
+		if homeControlApplyResult = 0 then
+			if (homeHasRequest & (homeResult = 0) &
+				(homeRequestCommand = 4)) |
+				((homeHasRequest = FALSE) &
+				 (homePreviousAppliedCommand = 4)) then
+				Ds402HomeMailbox[0] := 0;
+				Ds402HomeMailbox[1] := 0;
+				Ds402HomeMailbox[10] := 0;
+				Ds402HomeMailbox[11] := 0;
+			end_if;
+		end_if;
+	end_if;
+
+	if homeDrainHasRequest & homeDrainPublishResult then
+		// Publish the exact low/readback barrier before the applied sequence.
+		Ds402HomeDrainMailbox[4]$UDINT := homeDrainRequestToken;
+		Ds402HomeDrainMailbox[5] := homeDrainRequestAxis;
+		Ds402HomeDrainMailbox[6]$UDINT := homeDispatchSequence;
+		Ds402HomeDrainMailbox[7] := homeDrainResult;
+		sigclib_atomic_setU32(
+			pValue:=#Ds402HomeDrainAppliedSequence,
+			value:=homeDrainRequestSequence);
+		homeDrainAppliedSequence := homeDrainRequestSequence;
+		homeDrainHasRequest := FALSE;
+	end_if;
+
+	if homeHasRequest & homePublishResult &
+		(homeDrainBlocksNormal = FALSE) then
+		if homeRequestCommand = 5 then
+			Ds402HomeAlignmentState[0] := 0;
+		end_if;
+		// Publish result fields before the applied sequence.
+		Ds402HomeMailbox[6]$UDINT := homeRequestToken;
+		Ds402HomeMailbox[7] := homeRequestCommand;
+		if homeRequestCommand = 5 then
+			Ds402HomeMailbox[8] := homeRequestAlignPosition;
+		else
+			Ds402HomeMailbox[8] := 0;
+		end_if;
+		Ds402HomeMailbox[9] := homeResult;
+		sigclib_atomic_setU32(
+			pValue:=#Ds402HomeAppliedSequence,
+			value:=homeRequestSequence);
+	end_if;
+	homeAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	homeHasRequest := homeRequestSequence <> homeAppliedSequence;
+
+	// The legacy recorder prefix remains 304 bytes. The coherent topology and
+	// I/O reader uses the extended 464-byte scalar snapshot.
 	writeSequence := sigclib_atomic_getU32(pValue:=#PublishSequence) + 1;
 	if (writeSequence and 1) = 0 then
 		writeSequence += 1;
@@ -409,6 +1761,399 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		SnapshotBytes[204]$UDINT := cycleCounter;
 	end_if;
 
+	couplerConnected := IsClientConnected(#Coupler) <> 0;
+	inputSlotConnected := IsClientConnected(#InputSlot) <> 0;
+	outputSlotConnected := IsClientConnected(#OutputSlot) <> 0;
+
+	if couplerConnected then
+		couplerNativeOnline := Coupler.Online.Read();
+		couplerEtherCATState := TO_UDINT(Coupler.EtherCATState.Read());
+		couplerSlaveState := Coupler.SlaveState.Read();
+		couplerALStatus := TO_UDINT(Coupler.AL_StatusCode.Read());
+		couplerClassState := TO_UDINT(Coupler.ClassState.Read());
+	else
+		couplerNativeOnline := 0;
+		couplerEtherCATState := 0;
+		couplerSlaveState := 0;
+		couplerALStatus := 0;
+		couplerClassState := 0xFFFFFFFF;
+	end_if;
+
+	if inputSlotConnected then
+		inputSlotClassState := TO_UDINT(InputSlot.ClassState.Read());
+		inputByte0Value := TO_UDINT(InputSlot.InputS_Byte0.Read()) and 0x000000FF;
+		inputByte1Value := TO_UDINT(InputSlot.InputS_Byte1.Read()) and 0x000000FF;
+		inputByte2Value := TO_UDINT(InputSlot.InputS_Byte2.Read()) and 0x000000FF;
+		inputByte3Value := TO_UDINT(InputSlot.InputS_Byte3.Read()) and 0x000000FF;
+	else
+		inputSlotClassState := 0xFFFFFFFF;
+		inputByte0Value := 0;
+		inputByte1Value := 0;
+		inputByte2Value := 0;
+		inputByte3Value := 0;
+	end_if;
+
+	if outputSlotConnected then
+		outputSlotClassState := TO_UDINT(OutputSlot.ClassState.Read());
+		outputByte0Value := TO_UDINT(OutputSlot.OutputS_Byte0.Read()) and 0x000000FF;
+		outputByte1Value := TO_UDINT(OutputSlot.OutputS_Byte1.Read()) and 0x000000FF;
+		outputByte2Value := TO_UDINT(OutputSlot.OutputS_Byte2.Read()) and 0x000000FF;
+		outputByte3Value := TO_UDINT(OutputSlot.OutputS_Byte3.Read()) and 0x000000FF;
+	else
+		outputSlotClassState := 0xFFFFFFFF;
+		outputByte0Value := 0;
+		outputByte1Value := 0;
+		outputByte2Value := 0;
+		outputByte3Value := 0;
+	end_if;
+
+	inputValue := inputByte0Value or (inputByte1Value shl 8) or
+		(inputByte2Value shl 16) or (inputByte3Value shl 24);
+	outputValue := outputByte0Value or (outputByte1Value shl 8) or
+		(outputByte2Value shl 16) or (outputByte3Value shl 24);
+
+	couplerDetected := couplerConnected &
+		(couplerClassState <> _NoHardware$UDINT) &
+		(couplerClassState <> 0xFFFFFFFF) &
+		(couplerEtherCATState <> 0);
+	if couplerDetected = FALSE then
+		couplerNativeOnline := 0;
+		couplerEtherCATState := 0;
+		couplerSlaveState := 0;
+		couplerALStatus := 0;
+	end_if;
+	couplerIdentityMatched := couplerDetected &
+		(couplerClassState = _ClassOk$UDINT) &
+		((couplerSlaveState and 0x00000020) = 0);
+	couplerDataValid := couplerIdentityMatched &
+		(masterState = 8) & (consecutiveInvalidCycles = 0) &
+		(couplerNativeOnline <> 0) &
+		(couplerEtherCATState = 8) & (couplerALStatus = 0);
+	inputDetected := couplerDetected & inputSlotConnected &
+		(inputSlotClassState <> _NoHardware$UDINT) &
+		(inputSlotClassState <> 0xFFFFFFFF);
+	inputIdentityMatched := inputDetected & couplerIdentityMatched &
+		(inputSlotClassState = _ClassOk$UDINT);
+	outputDetected := couplerDetected & outputSlotConnected &
+		(outputSlotClassState <> _NoHardware$UDINT) &
+		(outputSlotClassState <> 0xFFFFFFFF);
+	outputIdentityMatched := outputDetected & couplerIdentityMatched &
+		(outputSlotClassState = _ClassOk$UDINT);
+
+	inputStatus := 0;
+	if consecutiveInvalidCycles <> 0 then
+		inputStatus := inputStatus or 0x0002;
+	end_if;
+	if masterState <> 8 then
+		inputStatus := inputStatus or 0x0004;
+	end_if;
+	if inputDetected = FALSE then
+		inputStatus := inputStatus or 0x0008;
+	elsif (couplerEtherCATState <> 8) |
+		(couplerNativeOnline = 0) then
+		inputStatus := inputStatus or 0x0010;
+	end_if;
+	if couplerALStatus <> 0 then
+		inputStatus := inputStatus or 0x0020;
+	end_if;
+	if (couplerConnected = FALSE) |
+		(inputSlotConnected = FALSE) then
+		inputStatus := inputStatus or 0x0040;
+	end_if;
+	if inputIdentityMatched = FALSE then
+		inputStatus := inputStatus or 0x0080;
+	end_if;
+	inputDataValid := inputStatus = 0;
+	inputValid := inputDataValid;
+	if inputValid = FALSE then
+		inputStatus := inputStatus or 0x0100;
+		inputValue := 0;
+		inputValidMask := 0;
+	else
+		inputStatus := 1;
+		inputValidMask := 0xFFFFFFFF;
+	end_if;
+
+	outputStatus := 0;
+	if consecutiveInvalidCycles <> 0 then
+		outputStatus := outputStatus or 0x0002;
+	end_if;
+	if masterState <> 8 then
+		outputStatus := outputStatus or 0x0004;
+	end_if;
+	if outputDetected = FALSE then
+		outputStatus := outputStatus or 0x0008;
+	elsif (couplerEtherCATState <> 8) |
+		(couplerNativeOnline = 0) then
+		outputStatus := outputStatus or 0x0010;
+	end_if;
+	if couplerALStatus <> 0 then
+		outputStatus := outputStatus or 0x0020;
+	end_if;
+	if (couplerConnected = FALSE) |
+		(outputSlotConnected = FALSE) then
+		outputStatus := outputStatus or 0x0040;
+	end_if;
+	if outputIdentityMatched = FALSE then
+		outputStatus := outputStatus or 0x0080;
+	end_if;
+	outputDataValid := outputStatus = 0;
+	outputValid := outputDataValid;
+	if outputValid = FALSE then
+		outputStatus := outputStatus or 0x0100;
+		outputValue := 0;
+		outputValidMask := 0;
+	else
+		outputStatus := 1;
+		outputValidMask := 0xFFFFFFFF;
+	end_if;
+
+	couplerStateChanged :=
+		(SnapshotBytes[304]$DINT <> couplerNativeOnline) |
+		(SnapshotBytes[308]$UDINT <> couplerEtherCATState) |
+		(SnapshotBytes[312]$UDINT <> couplerSlaveState) |
+		(SnapshotBytes[316]$UDINT <> couplerALStatus) |
+		(SnapshotBytes[320]$UDINT <> couplerClassState);
+	inputStateChanged :=
+		(SnapshotBytes[340]$DINT <> couplerNativeOnline) |
+		(SnapshotBytes[344]$UDINT <> couplerEtherCATState) |
+		(SnapshotBytes[348]$UDINT <> couplerSlaveState) |
+		(SnapshotBytes[352]$UDINT <> couplerALStatus) |
+		(SnapshotBytes[356]$UDINT <> inputSlotClassState);
+	outputStateChanged :=
+		(SnapshotBytes[376]$DINT <> couplerNativeOnline) |
+		(SnapshotBytes[380]$UDINT <> couplerEtherCATState) |
+		(SnapshotBytes[384]$UDINT <> couplerSlaveState) |
+		(SnapshotBytes[388]$UDINT <> couplerALStatus) |
+		(SnapshotBytes[392]$UDINT <> outputSlotClassState);
+	couplerLastValidCycle := SnapshotBytes[332]$UDINT;
+	couplerLastStateChangeCycle := SnapshotBytes[336]$UDINT;
+	inputLastValidCycle := SnapshotBytes[368]$UDINT;
+	inputLastStateChangeCycle := SnapshotBytes[372]$UDINT;
+	outputLastValidCycle := SnapshotBytes[404]$UDINT;
+	outputLastStateChangeCycle := SnapshotBytes[408]$UDINT;
+	if couplerDataValid then
+		couplerLastValidCycle := cycleCounter;
+	end_if;
+	if inputDataValid then
+		inputLastValidCycle := cycleCounter;
+	end_if;
+	if outputDataValid then
+		outputLastValidCycle := cycleCounter;
+	end_if;
+	if couplerStateChanged then
+		couplerLastStateChangeCycle := cycleCounter;
+	end_if;
+	if inputStateChanged then
+		inputLastStateChangeCycle := cycleCounter;
+	end_if;
+	if outputStateChanged then
+		outputLastStateChangeCycle := cycleCounter;
+	end_if;
+
+	if OutputRevision = 0 then
+		OutputRevision := 1;
+	end_if;
+	if OutputObserved = FALSE then
+		OutputObserved := TRUE;
+		OutputPreviousValid := outputValid;
+		OutputPreviousValue := outputValue;
+	elsif (OutputPreviousValid <> outputValid) |
+		(OutputPreviousValue <> outputValue) then
+		OutputPreviousValid := outputValid;
+		OutputPreviousValue := outputValue;
+		AdvanceOutputRevision();
+	end_if;
+
+	SnapshotBytes[304]$DINT := couplerNativeOnline;
+	SnapshotBytes[308]$UDINT := couplerEtherCATState;
+	SnapshotBytes[312]$UDINT := couplerSlaveState;
+	SnapshotBytes[316]$UDINT := couplerALStatus;
+	SnapshotBytes[320]$UDINT := couplerClassState;
+	SnapshotBytes[324]$UDINT := 0;
+	SnapshotBytes[328]$DINT := 0;
+	SnapshotBytes[332]$UDINT := couplerLastValidCycle;
+	SnapshotBytes[336]$UDINT := couplerLastStateChangeCycle;
+	SnapshotBytes[340]$DINT := couplerNativeOnline;
+	SnapshotBytes[344]$UDINT := couplerEtherCATState;
+	SnapshotBytes[348]$UDINT := couplerSlaveState;
+	SnapshotBytes[352]$UDINT := couplerALStatus;
+	SnapshotBytes[356]$UDINT := inputSlotClassState;
+	SnapshotBytes[360]$UDINT := 0;
+	SnapshotBytes[364]$DINT := 0;
+	SnapshotBytes[368]$UDINT := inputLastValidCycle;
+	SnapshotBytes[372]$UDINT := inputLastStateChangeCycle;
+	SnapshotBytes[376]$DINT := couplerNativeOnline;
+	SnapshotBytes[380]$UDINT := couplerEtherCATState;
+	SnapshotBytes[384]$UDINT := couplerSlaveState;
+	SnapshotBytes[388]$UDINT := couplerALStatus;
+	SnapshotBytes[392]$UDINT := outputSlotClassState;
+	SnapshotBytes[396]$UDINT := 0;
+	SnapshotBytes[400]$DINT := 0;
+	SnapshotBytes[404]$UDINT := outputLastValidCycle;
+	SnapshotBytes[408]$UDINT := outputLastStateChangeCycle;
+	SnapshotBytes[412]$UDINT := inputValue;
+	SnapshotBytes[416]$UDINT := 0;
+	SnapshotBytes[420]$UDINT := inputValidMask;
+	SnapshotBytes[424]$UDINT := 0;
+	SnapshotBytes[428]$UINT := inputStatus;
+	SnapshotBytes[430]$UINT := 0;
+	SnapshotBytes[432]$UDINT := cycleCounter;
+	SnapshotBytes[436]$UDINT := outputValue;
+	SnapshotBytes[440]$UDINT := 0;
+	SnapshotBytes[444]$UDINT := outputValidMask;
+	SnapshotBytes[448]$UDINT := 0;
+	SnapshotBytes[452]$UINT := outputStatus;
+	SnapshotBytes[454]$UINT := 0;
+	SnapshotBytes[456]$UDINT := cycleCounter;
+	SnapshotBytes[460]$UDINT := OutputRevision;
+
+	ownershipAxis1Status$UDINT := 0;
+	ownershipAxis2Status$UDINT := 0;
+	ownershipAxis3Status$UDINT := 0;
+	ownershipAxis4Status$UDINT := 0;
+	if IsClientConnected(#LMCAxis1) then
+		ownershipAxis1Status := LMCAxis1.ReadAxisStatus();
+	end_if;
+	if IsClientConnected(#LMCAxis2) then
+		ownershipAxis2Status := LMCAxis2.ReadAxisStatus();
+	end_if;
+	if IsClientConnected(#LMCAxis3) then
+		ownershipAxis3Status := LMCAxis3.ReadAxisStatus();
+	end_if;
+	if IsClientConnected(#LMCAxis4) then
+		ownershipAxis4Status := LMCAxis4.ReadAxisStatus();
+	end_if;
+
+	ownershipLatchDrainFlags := 0;
+	if IsClientConnected(#EcatMaster) &
+		IsClientConnected(#Drive1) & IsClientConnected(#Drive2) &
+		IsClientConnected(#Drive3) & IsClientConnected(#Drive4) &
+		IsClientConnected(#LMCAxis1) & IsClientConnected(#LMCAxis2) &
+		IsClientConnected(#LMCAxis3) & IsClientConnected(#LMCAxis4) &
+		(masterState = 8) & (consecutiveInvalidCycles = 0) &
+		(SnapshotBytes[64]$DINT <> 0) &
+		(SnapshotBytes[68]$UDINT = 8) &
+		(SnapshotBytes[76]$UDINT = 0) &
+		(SnapshotBytes[92]$UDINT = cycleCounter) &
+		(SnapshotBytes[100]$DINT <> 0) &
+		(SnapshotBytes[104]$UDINT = 8) &
+		(SnapshotBytes[112]$UDINT = 0) &
+		(SnapshotBytes[128]$UDINT = cycleCounter) &
+		(SnapshotBytes[136]$DINT <> 0) &
+		(SnapshotBytes[140]$UDINT = 8) &
+		(SnapshotBytes[148]$UDINT = 0) &
+		(SnapshotBytes[164]$UDINT = cycleCounter) &
+		(SnapshotBytes[172]$DINT <> 0) &
+		(SnapshotBytes[176]$UDINT = 8) &
+		(SnapshotBytes[184]$UDINT = 0) &
+		(SnapshotBytes[200]$UDINT = cycleCounter) then
+		ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+			LMC_OWNER_STARTUP_LATCH_PHYSICAL;
+	end_if;
+	if zeroHomeRequestSequence = zeroHomeAppliedSequence then
+		if (zeroHomeRequestSequence = 0) &
+			(AxisZeroHomeResult[0] = 0) &
+			(AxisZeroHomeResult[1] = 0) &
+			(AxisZeroHomeResult[22] = 0) then
+			ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+				LMC_OWNER_STARTUP_LATCH_ZERO_HOME;
+		elsif (AxisZeroHomeMailbox[3]$UDINT = zeroHomeRequestSequence) &
+			(AxisZeroHomeResult[0]$UDINT = AxisZeroHomeMailbox[0]$UDINT) &
+			(AxisZeroHomeResult[3] = AxisZeroHomeMailbox[1]) &
+			(AxisZeroHomeResult[4] = AxisZeroHomeMailbox[2]) &
+			(AxisZeroHomeResult[22]$UDINT = zeroHomeAppliedSequence) &
+			((AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+			 (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED)) then
+			ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+				LMC_OWNER_STARTUP_LATCH_ZERO_HOME;
+		end_if;
+	end_if;
+	homeMailboxCoherent := FALSE;
+	if homeRequestSequence = homeAppliedSequence then
+		if homeRequestSequence = 0 then
+			homeMailboxCoherent :=
+				(Ds402HomeMailbox[2] = 0) &
+				(Ds402HomeMailbox[3] = 0) &
+				(Ds402HomeMailbox[4] = 0) &
+				(Ds402HomeMailbox[5] = 0) &
+				(Ds402HomeMailbox[6] = 0) &
+				(Ds402HomeMailbox[7] = 0) &
+				(Ds402HomeMailbox[8] = 0) &
+				(Ds402HomeMailbox[9] = 0);
+		else
+			homeMailboxCoherent :=
+				(Ds402HomeMailbox[2]$UDINT <> 0) &
+				(Ds402HomeMailbox[2] = Ds402HomeMailbox[6]) &
+				(Ds402HomeMailbox[3] >= 1) &
+				(Ds402HomeMailbox[3] <= 4) &
+				(Ds402HomeMailbox[4] >= 1) &
+				(Ds402HomeMailbox[4] <= 5) &
+				(Ds402HomeMailbox[4] = Ds402HomeMailbox[7]) &
+				(Ds402HomeMailbox[5] = Ds402HomeMailbox[8]) &
+				(Ds402HomeMailbox[9] <> 1);
+		end_if;
+	end_if;
+	homeDrainMailboxCoherent := FALSE;
+	if homeDrainRequestSequence = homeDrainAppliedSequence then
+		if homeDrainRequestSequence = 0 then
+			homeDrainMailboxCoherent :=
+				(Ds402HomeDrainMailbox[0] = 0) &
+				(Ds402HomeDrainMailbox[1] = 0) &
+				(Ds402HomeDrainMailbox[2] = 0) &
+				(Ds402HomeDrainMailbox[3] = 0) &
+				(Ds402HomeDrainMailbox[4] = 0) &
+				(Ds402HomeDrainMailbox[5] = 0) &
+				(Ds402HomeDrainMailbox[6] = 0) &
+				(Ds402HomeDrainMailbox[7] = 0);
+		else
+			homeDrainMailboxCoherent :=
+				(Ds402HomeDrainMailbox[2]$UDINT =
+				 homeDrainAppliedSequence) &
+				(Ds402HomeDrainMailbox[0]$UDINT <>
+				 0) &
+				(Ds402HomeDrainMailbox[0] = Ds402HomeDrainMailbox[4]) &
+				(Ds402HomeDrainMailbox[1] = Ds402HomeDrainMailbox[5]) &
+				(Ds402HomeDrainMailbox[1] >= 1) &
+				(Ds402HomeDrainMailbox[1] <= 4) &
+				(Ds402HomeDrainMailbox[3]$UDINT <=
+				 Ds402HomeDrainMailbox[6]$UDINT) &
+				(Ds402HomeDrainMailbox[6]$UDINT =
+				 homeDispatchSequence) &
+				(Ds402HomeDrainMailbox[7] = 0);
+		end_if;
+	end_if;
+	if homeMailboxCoherent & homeDrainMailboxCoherent then
+		ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+			LMC_OWNER_STARTUP_LATCH_DS402;
+	end_if;
+	if (Ds402HomeMailbox[0] = 0) & (Ds402HomeMailbox[1] = 0) &
+		(Ds402HomeMailbox[10] = 0) & (Ds402HomeMailbox[11] = 0) &
+		(Ds402HomeAlignmentState[0] = 0) then
+		ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+			LMC_OWNER_STARTUP_LATCH_OWNER;
+	end_if;
+	if ((SnapshotBytes[216]$UDINT and 0x00000010) = 0) &
+		((SnapshotBytes[240]$UDINT and 0x00000010) = 0) &
+		((SnapshotBytes[264]$UDINT and 0x00000010) = 0) &
+		((SnapshotBytes[288]$UDINT and 0x00000010) = 0) then
+		ownershipLatchDrainFlags := ownershipLatchDrainFlags or
+			LMC_OWNER_STARTUP_LATCH_START_LOW;
+	end_if;
+
+	SnapshotBytes[464]$UDINT := LMC_OWNER_STARTUP_SNAPSHOT_MAGIC;
+	SnapshotBytes[468]$UDINT := cycleCounter;
+	SnapshotBytes[472]$UDINT := ownershipAxis1Status$UDINT;
+	SnapshotBytes[476]$UDINT := ownershipAxis2Status$UDINT;
+	SnapshotBytes[480]$UDINT := ownershipAxis3Status$UDINT;
+	SnapshotBytes[484]$UDINT := ownershipAxis4Status$UDINT;
+	SnapshotBytes[488]$UDINT := SnapshotBytes[84]$UDINT;
+	SnapshotBytes[492]$UDINT := SnapshotBytes[120]$UDINT;
+	SnapshotBytes[496]$UDINT := SnapshotBytes[156]$UDINT;
+	SnapshotBytes[500]$UDINT := SnapshotBytes[192]$UDINT;
+	SnapshotBytes[504]$UDINT := ownershipLatchDrainFlags;
+	SnapshotBytes[508]$UDINT := 0;
+
 	finalSequence := writeSequence + 1;
 	if finalSequence = 0 then
 		finalSequence := 2;
@@ -458,5 +2203,861 @@ FUNCTION GLOBAL LMCEcatInputLatch::CopySnapshot
 		end_if;
 		retryCount += 1;
 	end_while;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::CopyTopologyIoSnapshot
+	VAR_INPUT
+		pDest 	: ^void;
+		DestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		retryCount : UINT;
+		sequenceBefore : UDINT;
+		sequenceAfter : UDINT;
+	END_VAR
+
+	Result := -1;
+	if (pDest = NIL) | (DestSize < 464) then
+		Result := -2;
+		RETURN;
+	end_if;
+
+	retryCount := 0;
+	while retryCount < 3 do
+		sequenceBefore := sigclib_atomic_getU32(pValue:=#PublishSequence);
+		if (sequenceBefore and 1) = 0 then
+			_memcpy(ptr1:=pDest, ptr2:=#SnapshotBytes[0], cntr:=464);
+			sequenceAfter := sigclib_atomic_getU32(pValue:=#PublishSequence);
+			if (sequenceBefore = sequenceAfter) &
+				((sequenceAfter and 1) = 0) & (sequenceAfter <> 0) then
+				Result := 0;
+				RETURN;
+			end_if;
+		end_if;
+		retryCount += 1;
+	end_while;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::AdvanceOutputRevision
+	VAR_OUTPUT
+		Revision 	: UDINT;
+	END_VAR
+
+	OutputRevision += 1;
+	if OutputRevision = 0 then
+		OutputRevision := 1;
+	end_if;
+	Revision := OutputRevision;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::SubmitDs402HomeControl
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		AxisReference 	: DINT;
+		Command 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequence : UDINT;
+		drainRequestSequence : UDINT;
+		drainAppliedSequence : UDINT;
+		nextRequestSequence : UDINT;
+	END_VAR
+
+	Result := -1;
+	if (OperationToken = 0) |
+		(AxisReference < 1) | (AxisReference > 4) |
+		(Command < 1) | (Command > 4) then
+		RETURN;
+	end_if;
+	drainRequestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainRequestSequence);
+	drainAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainAppliedSequence);
+	if drainRequestSequence <> drainAppliedSequence then
+		if (Ds402HomeDrainMailbox[0]$UDINT = OperationToken) &
+			(Ds402HomeDrainMailbox[1] = AxisReference) &
+			(Ds402HomeDrainMailbox[2]$UDINT = drainRequestSequence) then
+			Result := LMC_DS402_HOME_DRAIN_DISCARDED;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	elsif (drainAppliedSequence <> 0) &
+		(Ds402HomeDrainMailbox[2]$UDINT = drainAppliedSequence) &
+		(Ds402HomeDrainMailbox[0]$UDINT = OperationToken) &
+		(Ds402HomeDrainMailbox[1] = AxisReference) &
+		(Ds402HomeDrainMailbox[4]$UDINT = OperationToken) &
+		(Ds402HomeDrainMailbox[5] = AxisReference) then
+		if Ds402HomeDrainMailbox[7] = 0 then
+			Result := LMC_DS402_HOME_DRAIN_DISCARDED;
+		else
+			Result := Ds402HomeDrainMailbox[7];
+		end_if;
+		RETURN;
+	end_if;
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	appliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	if requestSequence <> appliedSequence then
+		if (Ds402HomeMailbox[2]$UDINT = OperationToken) &
+			(Ds402HomeMailbox[3] = AxisReference) &
+			(Ds402HomeMailbox[4] = Command) then
+			Result := 1;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	end_if;
+
+	// Exact retransmission of the last applied command is idempotent.
+	if (appliedSequence <> 0) &
+		(Ds402HomeMailbox[6]$UDINT = OperationToken) &
+		(Ds402HomeMailbox[3] = AxisReference) &
+		(Ds402HomeMailbox[7] = Command) then
+		Result := Ds402HomeMailbox[9];
+		RETURN;
+	end_if;
+
+	if Command = 1 then
+		if (Ds402HomeMailbox[11] <> 0) &
+			((Ds402HomeMailbox[0]$UDINT <> OperationToken) |
+			 (Ds402HomeMailbox[1] <> AxisReference)) then
+			Result := -2;
+			RETURN;
+		end_if;
+	else
+		if (Ds402HomeMailbox[11] = 0) |
+			(Ds402HomeMailbox[0]$UDINT <> OperationToken) |
+			(Ds402HomeMailbox[1] <> AxisReference) then
+			Result := -4;
+			RETURN;
+		end_if;
+	end_if;
+
+	Ds402HomeMailbox[2]$UDINT := OperationToken;
+	Ds402HomeMailbox[3] := AxisReference;
+	Ds402HomeMailbox[4] := Command;
+	Ds402HomeMailbox[5] := 0;
+	nextRequestSequence := requestSequence + 1;
+	if nextRequestSequence = 0 then
+		nextRequestSequence := 1;
+	end_if;
+	sigclib_atomic_setU32(
+		pValue:=#Ds402HomeRequestSequence,
+		value:=nextRequestSequence);
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::GetDs402HomeControlState
+	VAR_INPUT
+		OperationToken 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequenceBefore : UDINT;
+		appliedSequenceAfter : UDINT;
+		appliedToken : UDINT;
+		appliedResult : DINT;
+	END_VAR
+
+	Result := -1;
+	if OperationToken = 0 then
+		RETURN;
+	end_if;
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	appliedSequenceBefore := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	if requestSequence <> appliedSequenceBefore then
+		if Ds402HomeMailbox[2]$UDINT = OperationToken then
+			Result := 1;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	end_if;
+	if appliedSequenceBefore = 0 then
+		Result := -4;
+		RETURN;
+	end_if;
+
+	appliedToken := Ds402HomeMailbox[6]$UDINT;
+	appliedResult := Ds402HomeMailbox[9];
+	appliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	if appliedSequenceBefore <> appliedSequenceAfter then
+		Result := 1;
+	elsif appliedToken <> OperationToken then
+		Result := -4;
+	else
+		Result := appliedResult;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::SubmitDs402HomeSetpointAlignment
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		AxisReference 	: DINT;
+		ActualPosition 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequence : UDINT;
+		drainRequestSequence : UDINT;
+		drainAppliedSequence : UDINT;
+		nextRequestSequence : UDINT;
+	END_VAR
+
+	Result := -1;
+	if (OperationToken = 0) |
+		(AxisReference < 1) | (AxisReference > 4) then
+		RETURN;
+	end_if;
+	drainRequestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainRequestSequence);
+	drainAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainAppliedSequence);
+	if drainRequestSequence <> drainAppliedSequence then
+		if (Ds402HomeDrainMailbox[0]$UDINT = OperationToken) &
+			(Ds402HomeDrainMailbox[1] = AxisReference) &
+			(Ds402HomeDrainMailbox[2]$UDINT = drainRequestSequence) then
+			Result := LMC_DS402_HOME_DRAIN_DISCARDED;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	elsif (drainAppliedSequence <> 0) &
+		(Ds402HomeDrainMailbox[2]$UDINT = drainAppliedSequence) &
+		(Ds402HomeDrainMailbox[0]$UDINT = OperationToken) &
+		(Ds402HomeDrainMailbox[1] = AxisReference) &
+		(Ds402HomeDrainMailbox[4]$UDINT = OperationToken) &
+		(Ds402HomeDrainMailbox[5] = AxisReference) then
+		if Ds402HomeDrainMailbox[7] = 0 then
+			Result := LMC_DS402_HOME_DRAIN_DISCARDED;
+		else
+			Result := Ds402HomeDrainMailbox[7];
+		end_if;
+		RETURN;
+	end_if;
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	appliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	if requestSequence <> appliedSequence then
+		if (Ds402HomeMailbox[2]$UDINT = OperationToken) &
+			(Ds402HomeMailbox[3] = AxisReference) &
+			(Ds402HomeMailbox[4] = 5) &
+			(Ds402HomeMailbox[5] = ActualPosition) then
+			Result := 1;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	end_if;
+
+	// Exact retransmission of the last applied alignment is idempotent.
+	if (appliedSequence <> 0) &
+		(Ds402HomeMailbox[6]$UDINT = OperationToken) &
+		(Ds402HomeMailbox[3] = AxisReference) &
+		(Ds402HomeMailbox[7] = 5) &
+		(Ds402HomeMailbox[8] = ActualPosition) then
+		Result := Ds402HomeMailbox[9];
+		RETURN;
+	end_if;
+
+	if (Ds402HomeMailbox[11] = 0) |
+		(Ds402HomeMailbox[0]$UDINT <> OperationToken) |
+		(Ds402HomeMailbox[1] <> AxisReference) then
+		Result := -4;
+		RETURN;
+	end_if;
+	if Ds402HomeMailbox[10] <> 0 then
+		RETURN;
+	end_if;
+
+	Ds402HomeMailbox[2]$UDINT := OperationToken;
+	Ds402HomeMailbox[3] := AxisReference;
+	Ds402HomeMailbox[4] := 5;
+	Ds402HomeMailbox[5] := ActualPosition;
+	nextRequestSequence := requestSequence + 1;
+	if nextRequestSequence = 0 then
+		nextRequestSequence := 1;
+	end_if;
+	sigclib_atomic_setU32(
+		pValue:=#Ds402HomeRequestSequence,
+		value:=nextRequestSequence);
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::SubmitAxisZeroHome
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		AxisReference 	: DINT;
+		ExpectedActualPosition 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequence : UDINT;
+		nextRequestSequence : UDINT;
+	END_VAR
+
+	Result := LMC_ZERO_HOME_FAILURE_INVALID;
+	if (OperationToken = 0) |
+		(AxisReference < 1) | (AxisReference > 4) then
+		RETURN;
+	end_if;
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeRequestSequence);
+	appliedSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+
+	if requestSequence <> appliedSequence then
+		if (AxisZeroHomeMailbox[0]$UDINT = OperationToken) &
+			(AxisZeroHomeMailbox[1] = AxisReference) &
+			(AxisZeroHomeMailbox[2] = ExpectedActualPosition) &
+			(AxisZeroHomeMailbox[3]$UDINT = requestSequence) then
+			Result := 1;
+		else
+			Result := LMC_ZERO_HOME_FAILURE_BUSY;
+		end_if;
+		RETURN;
+	end_if;
+
+	if (appliedSequence <> 0) &
+		(AxisZeroHomeResult[0]$UDINT = OperationToken) then
+		// One token identifies exactly one immutable axis/expected-position key.
+		if (AxisZeroHomeResult[22]$UDINT <> appliedSequence) |
+			(AxisZeroHomeResult[3] <> AxisReference) |
+			(AxisZeroHomeResult[4] <> ExpectedActualPosition) then
+			RETURN;
+		end_if;
+		// An exact terminal retry never calls SetPosition again.
+		if (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+			(AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED) then
+			Result := 0;
+		end_if;
+		RETURN;
+	end_if;
+
+	nextRequestSequence := requestSequence + 1;
+	if nextRequestSequence = 0 then
+		nextRequestSequence := 1;
+	end_if;
+
+	AxisZeroHomeMailbox[0]$UDINT := OperationToken;
+	AxisZeroHomeMailbox[1] := AxisReference;
+	AxisZeroHomeMailbox[2] := ExpectedActualPosition;
+	AxisZeroHomeMailbox[3]$UDINT := nextRequestSequence;
+	AxisZeroHomeMailbox[4] := 0;
+	AxisZeroHomeMailbox[5] := 0;
+	AxisZeroHomeMailbox[6] := 0;
+	AxisZeroHomeMailbox[7] := 0;
+	// Clear the prior cancel publication before publishing the new request.
+	sigclib_atomic_setU32(
+		pValue:=#AxisZeroHomeCancelSequence,
+		value:=0);
+	// Publish the immutable request payload and cancel reset before its sequence.
+	sigclib_atomic_setU32(
+		pValue:=#AxisZeroHomeRequestSequence,
+		value:=nextRequestSequence);
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::CancelAxisZeroHome
+	VAR_INPUT
+		OperationToken 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequenceBefore : UDINT;
+		requestSequenceAfter : UDINT;
+		appliedSequenceBefore : UDINT;
+		appliedSequenceAfter : UDINT;
+		cancelSequence : UDINT;
+		cancelEcho : UDINT;
+	END_VAR
+
+	Result := LMC_ZERO_HOME_FAILURE_INVALID;
+	if OperationToken = 0 then
+		RETURN;
+	end_if;
+	Result := LMC_ZERO_HOME_FAILURE_STATE;
+
+	requestSequenceBefore := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeRequestSequence);
+	appliedSequenceBefore := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+	if requestSequenceBefore = appliedSequenceBefore then
+		if (appliedSequenceBefore <> 0) &
+			(AxisZeroHomeResult[0]$UDINT = OperationToken) &
+			(AxisZeroHomeResult[22]$UDINT = appliedSequenceBefore) &
+			((AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+			 (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED)) then
+			Result := 0;
+		end_if;
+		RETURN;
+	end_if;
+
+	if (requestSequenceBefore = 0) |
+		(AxisZeroHomeMailbox[0]$UDINT <> OperationToken) |
+		(AxisZeroHomeMailbox[1] < 1) |
+		(AxisZeroHomeMailbox[1] > 4) |
+		(AxisZeroHomeMailbox[3]$UDINT <> requestSequenceBefore) |
+		((AxisZeroHomeMailbox[4]$UDINT <> 0) &
+		 (AxisZeroHomeMailbox[4]$UDINT <> requestSequenceBefore)) |
+		(AxisZeroHomeMailbox[6]$UDINT <> 0) |
+		(AxisZeroHomeMailbox[7]$UDINT <> 0) then
+		RETURN;
+	end_if;
+
+	cancelSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeCancelSequence);
+	cancelEcho := AxisZeroHomeMailbox[5]$UDINT;
+	if cancelSequence = requestSequenceBefore then
+		if cancelEcho = requestSequenceBefore then
+			Result := 1;
+		end_if;
+		RETURN;
+	end_if;
+	if (cancelSequence <> 0) |
+		((cancelEcho <> 0) & (cancelEcho <> requestSequenceBefore)) then
+		RETURN;
+	end_if;
+
+	if cancelEcho = 0 then
+		AxisZeroHomeMailbox[5]$UDINT := requestSequenceBefore;
+	end_if;
+	// Recheck terminal and request publication before the atomic cancel publish.
+	requestSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeRequestSequence);
+	appliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+	if requestSequenceAfter <> requestSequenceBefore then
+		RETURN;
+	end_if;
+	if appliedSequenceAfter = requestSequenceBefore then
+		if (AxisZeroHomeResult[0]$UDINT = OperationToken) &
+			(AxisZeroHomeResult[22]$UDINT = appliedSequenceAfter) &
+			((AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+			 (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED)) then
+			Result := 0;
+		end_if;
+		RETURN;
+	end_if;
+	if appliedSequenceAfter <> appliedSequenceBefore then
+		RETURN;
+	end_if;
+
+	// Slot 5 is visible first; the atomic sequence is the cancel publication.
+	sigclib_atomic_setU32(
+		pValue:=#AxisZeroHomeCancelSequence,
+		value:=requestSequenceBefore);
+	requestSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeRequestSequence);
+	appliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeAppliedSequence);
+	if requestSequenceAfter <> requestSequenceBefore then
+		RETURN;
+	end_if;
+	if appliedSequenceAfter = requestSequenceBefore then
+		if (AxisZeroHomeResult[0]$UDINT = OperationToken) &
+			(AxisZeroHomeResult[22]$UDINT = appliedSequenceAfter) &
+			((AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_SUCCEEDED) |
+			 (AxisZeroHomeResult[1] = LMC_ZERO_HOME_STATE_FAILED)) then
+			Result := 0;
+		end_if;
+		RETURN;
+	end_if;
+	cancelSequence := sigclib_atomic_getU32(
+		pValue:=#AxisZeroHomeCancelSequence);
+	if (appliedSequenceAfter = appliedSequenceBefore) &
+		(AxisZeroHomeMailbox[0]$UDINT = OperationToken) &
+		(AxisZeroHomeMailbox[3]$UDINT = requestSequenceBefore) &
+		(AxisZeroHomeMailbox[5]$UDINT = requestSequenceBefore) &
+		(cancelSequence = requestSequenceBefore) then
+		Result := 1;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::CopyAxisZeroHomeResult
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		pDest 	: ^void;
+		DestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		retryCount : UINT;
+		requestSequenceBefore : UDINT;
+		requestSequenceAfter : UDINT;
+		appliedSequenceBefore : UDINT;
+		appliedSequenceAfter : UDINT;
+	END_VAR
+
+	Result := LMC_ZERO_HOME_FAILURE_INVALID;
+	if OperationToken = 0 then
+		RETURN;
+	end_if;
+	if (pDest = NIL) | (DestSize < 128) then
+		Result := LMC_ZERO_HOME_FAILURE_BUSY;
+		RETURN;
+	end_if;
+
+	retryCount := 0;
+	while retryCount < 3 do
+		requestSequenceBefore := sigclib_atomic_getU32(
+			pValue:=#AxisZeroHomeRequestSequence);
+		appliedSequenceBefore := sigclib_atomic_getU32(
+			pValue:=#AxisZeroHomeAppliedSequence);
+
+		if requestSequenceBefore <> appliedSequenceBefore then
+			if AxisZeroHomeMailbox[0]$UDINT = OperationToken then
+				Result := 1;
+			else
+				Result := LMC_ZERO_HOME_FAILURE_STATE;
+			end_if;
+			RETURN;
+		end_if;
+		if appliedSequenceBefore = 0 then
+			Result := LMC_ZERO_HOME_FAILURE_STATE;
+			RETURN;
+		end_if;
+		if (AxisZeroHomeResult[0]$UDINT <> OperationToken) |
+			(AxisZeroHomeResult[22]$UDINT <> appliedSequenceBefore) |
+			((AxisZeroHomeResult[1] <> LMC_ZERO_HOME_STATE_SUCCEEDED) &
+			 (AxisZeroHomeResult[1] <> LMC_ZERO_HOME_STATE_FAILED)) then
+			Result := LMC_ZERO_HOME_FAILURE_STATE;
+			RETURN;
+		end_if;
+
+		_memcpy(ptr1:=pDest, ptr2:=#AxisZeroHomeResult[0], cntr:=128);
+		requestSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#AxisZeroHomeRequestSequence);
+		appliedSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#AxisZeroHomeAppliedSequence);
+		if (requestSequenceBefore = requestSequenceAfter) &
+			(appliedSequenceBefore = appliedSequenceAfter) &
+			(requestSequenceAfter = appliedSequenceAfter) then
+			Result := 0;
+			RETURN;
+		end_if;
+		retryCount += 1;
+	end_while;
+
+	Result := 1;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::CopyAxisOwnershipStartupSnapshot
+	VAR_INPUT
+		pDest 	: ^void;
+		DestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		retryCount : UINT;
+		sequenceBefore : UDINT;
+		sequenceAfter : UDINT;
+	END_VAR
+
+	Result := -1;
+	if (pDest = NIL) | (DestSize < 48) then
+		Result := -2;
+		RETURN;
+	end_if;
+
+	retryCount := 0;
+	while retryCount < 3 do
+		sequenceBefore := sigclib_atomic_getU32(pValue:=#PublishSequence);
+		if (sequenceBefore and 1) = 0 then
+			_memcpy(ptr1:=pDest, ptr2:=#SnapshotBytes[464], cntr:=48);
+			sequenceAfter := sigclib_atomic_getU32(pValue:=#PublishSequence);
+			if (sequenceBefore = sequenceAfter) &
+				((sequenceAfter and 1) = 0) & (sequenceAfter <> 0) then
+				Result := 0;
+				RETURN;
+			end_if;
+		end_if;
+		retryCount += 1;
+	end_while;
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCEcatInputLatch::RequestDs402HomeSafetyDrain
+	VAR_INPUT
+		OperationToken 	: UDINT;
+		AxisReference 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		requestSequence : UDINT;
+		appliedSequence : UDINT;
+		requestSequenceAfter : UDINT;
+		appliedSequenceAfter : UDINT;
+		nextRequestSequence : UDINT;
+		dispatchSequence : UDINT;
+		dispatchSequenceAfter : UDINT;
+		homeRequestSequence : UDINT;
+		homeAppliedSequence : UDINT;
+		homeRequestSequenceAfter : UDINT;
+		homeAppliedSequenceAfter : UDINT;
+		receiptRequestToken : UDINT;
+		receiptRequestDispatch : UDINT;
+		receiptAppliedToken : UDINT;
+		receiptAppliedDispatch : UDINT;
+		receiptRequestAxis : DINT;
+		receiptAppliedAxis : DINT;
+		receiptResult : DINT;
+		ownerToken : UDINT;
+		ownerAxis : DINT;
+		ownerDesired : DINT;
+		ownerHeld : DINT;
+		alignmentState : DINT;
+		drainStable : BOOL;
+		ledgerZero : BOOL;
+		completedTupleExact : BOOL;
+		ownerTupleExact : BOOL;
+		ownerTupleIdle : BOOL;
+		pendingTupleExact : BOOL;
+		alignmentTupleExact : BOOL;
+	END_VAR
+
+	Result := -1;
+	completedTupleExact := FALSE;
+	if (OperationToken = 0) |
+		(AxisReference < 1) | (AxisReference > 4) then
+		RETURN;
+	end_if;
+
+	requestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainRequestSequence);
+	appliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainAppliedSequence);
+	if requestSequence <> appliedSequence then
+		if (Ds402HomeDrainMailbox[0]$UDINT = OperationToken) &
+			(Ds402HomeDrainMailbox[1] = AxisReference) &
+			(Ds402HomeDrainMailbox[2]$UDINT = requestSequence) then
+			Result := 1;
+		else
+			Result := -2;
+		end_if;
+		RETURN;
+	end_if;
+
+	if appliedSequence <> 0 then
+		receiptRequestToken := Ds402HomeDrainMailbox[0]$UDINT;
+		receiptRequestAxis := Ds402HomeDrainMailbox[1];
+		receiptRequestDispatch := Ds402HomeDrainMailbox[3]$UDINT;
+		receiptAppliedToken := Ds402HomeDrainMailbox[4]$UDINT;
+		receiptAppliedAxis := Ds402HomeDrainMailbox[5];
+		receiptAppliedDispatch := Ds402HomeDrainMailbox[6]$UDINT;
+		receiptResult := Ds402HomeDrainMailbox[7];
+		if (Ds402HomeDrainMailbox[2]$UDINT <> appliedSequence) |
+			(receiptRequestToken = 0) |
+			(receiptRequestAxis < 1) | (receiptRequestAxis > 4) |
+			((receiptResult <> 0) & (receiptResult <> -1) &
+			 (receiptResult <> -2)) |
+			(receiptRequestDispatch > receiptAppliedDispatch) then
+			RETURN;
+		end_if;
+		if (receiptRequestToken <> receiptAppliedToken) |
+			(receiptRequestAxis <> receiptAppliedAxis) then
+			RETURN;
+		end_if;
+		completedTupleExact :=
+			(receiptAppliedToken = OperationToken) &
+			(receiptAppliedAxis = AxisReference);
+		if completedTupleExact then
+		if receiptResult <> 0 then
+			requestSequenceAfter := sigclib_atomic_getU32(
+				pValue:=#Ds402HomeDrainRequestSequence);
+			appliedSequenceAfter := sigclib_atomic_getU32(
+				pValue:=#Ds402HomeDrainAppliedSequence);
+			if (requestSequenceAfter = requestSequence) &
+				(appliedSequenceAfter = appliedSequence) then
+				Result := receiptResult;
+			else
+				Result := 1;
+			end_if;
+			RETURN;
+		end_if;
+		dispatchSequence := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeDispatchSequence);
+		homeRequestSequence := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeRequestSequence);
+		homeAppliedSequence := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeAppliedSequence);
+		ownerToken := Ds402HomeMailbox[0]$UDINT;
+		ownerAxis := Ds402HomeMailbox[1];
+		ownerDesired := Ds402HomeMailbox[10];
+		ownerHeld := Ds402HomeMailbox[11];
+		alignmentState := Ds402HomeAlignmentState[0];
+		// All final atomic reads follow the receipt and owner evidence snapshot.
+		requestSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeDrainRequestSequence);
+		appliedSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeDrainAppliedSequence);
+		dispatchSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeDispatchSequence);
+		homeRequestSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeRequestSequence);
+		homeAppliedSequenceAfter := sigclib_atomic_getU32(
+			pValue:=#Ds402HomeAppliedSequence);
+		drainStable :=
+			(requestSequenceAfter = requestSequence) &
+			(appliedSequenceAfter = appliedSequence) &
+			(dispatchSequence = receiptAppliedDispatch) &
+			(dispatchSequenceAfter = dispatchSequence) &
+			(receiptRequestDispatch <= receiptAppliedDispatch) &
+			(homeRequestSequence = homeAppliedSequence) &
+			(homeRequestSequenceAfter = homeRequestSequence) &
+			(homeAppliedSequenceAfter = homeAppliedSequence) &
+			(receiptRequestToken = OperationToken) &
+			(receiptRequestAxis = AxisReference) &
+			(Ds402HomeDrainMailbox[2]$UDINT = appliedSequence) &
+			(receiptAppliedToken = OperationToken) &
+			(receiptAppliedAxis = AxisReference) &
+			(receiptResult = 0) &
+			(ownerToken = 0) & (ownerAxis = 0) &
+			(ownerDesired = 0) & (ownerHeld = 0) &
+			(alignmentState = 0);
+		if drainStable then
+			Result := 0;
+			RETURN;
+		end_if;
+		end_if;
+	end_if;
+
+	ledgerZero :=
+		(requestSequence = 0) & (appliedSequence = 0) &
+		(Ds402HomeDrainMailbox[0] = 0) &
+		(Ds402HomeDrainMailbox[1] = 0) &
+		(Ds402HomeDrainMailbox[2] = 0) &
+		(Ds402HomeDrainMailbox[3] = 0) &
+		(Ds402HomeDrainMailbox[4] = 0) &
+		(Ds402HomeDrainMailbox[5] = 0) &
+		(Ds402HomeDrainMailbox[6] = 0) &
+		(Ds402HomeDrainMailbox[7] = 0);
+	if (appliedSequence = 0) & (ledgerZero = FALSE) then
+		RETURN;
+	end_if;
+
+	homeRequestSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	homeAppliedSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	ownerTupleIdle :=
+		(Ds402HomeMailbox[0] = 0) & (Ds402HomeMailbox[1] = 0) &
+		(Ds402HomeMailbox[10] = 0) & (Ds402HomeMailbox[11] = 0);
+	ownerTupleExact :=
+		(Ds402HomeMailbox[0]$UDINT = OperationToken) &
+		(Ds402HomeMailbox[1] = AxisReference) &
+		((Ds402HomeMailbox[10] = 0) | (Ds402HomeMailbox[10] = 1)) &
+		(Ds402HomeMailbox[11] = 1);
+	pendingTupleExact :=
+		(homeRequestSequence <> homeAppliedSequence) &
+		(Ds402HomeMailbox[2]$UDINT = OperationToken) &
+		(Ds402HomeMailbox[3] = AxisReference) &
+		(Ds402HomeMailbox[4] >= 1) & (Ds402HomeMailbox[4] <= 5);
+	alignmentTupleExact :=
+		(Ds402HomeAlignmentState[0] = 0) |
+		((Ds402HomeAlignmentState[0] = 1) &
+		 (Ds402HomeAlignmentState[1]$UDINT = OperationToken) &
+		 (Ds402HomeAlignmentState[2] = AxisReference));
+	if (ownerTupleIdle = FALSE) & (ownerTupleExact = FALSE) then
+		Result := -2;
+		RETURN;
+	end_if;
+	if (homeRequestSequence <> homeAppliedSequence) &
+		(pendingTupleExact = FALSE) then
+		Result := -2;
+		RETURN;
+	end_if;
+	if alignmentTupleExact = FALSE then
+		Result := -2;
+		RETURN;
+	end_if;
+	// This GLOBAL method has trusted internal producers. An authenticated
+	// common-owner caller may seed a no-work LOW tombstone while the RT owner is
+	// still idle, including after restart or before the first normal command.
+
+	// Re-publish an exact drain if a late dispatch or owner appeared after the
+	// previous low/readback barrier. Payload is committed before the sequence.
+	dispatchSequence := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDispatchSequence);
+	nextRequestSequence := requestSequence + 1;
+	if nextRequestSequence = 0 then
+		nextRequestSequence := 1;
+	end_if;
+	requestSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainRequestSequence);
+	appliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeDrainAppliedSequence);
+	homeRequestSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeRequestSequence);
+	homeAppliedSequenceAfter := sigclib_atomic_getU32(
+		pValue:=#Ds402HomeAppliedSequence);
+	if (requestSequenceAfter <> requestSequence) |
+		(appliedSequenceAfter <> appliedSequence) |
+		(homeRequestSequenceAfter <> homeRequestSequence) |
+		(homeAppliedSequenceAfter <> homeAppliedSequence) then
+		Result := 1;
+		RETURN;
+	end_if;
+	Ds402HomeDrainMailbox[0]$UDINT := OperationToken;
+	Ds402HomeDrainMailbox[1] := AxisReference;
+	Ds402HomeDrainMailbox[2]$UDINT := nextRequestSequence;
+	Ds402HomeDrainMailbox[3]$UDINT := dispatchSequence;
+	sigclib_atomic_setU32(
+		pValue:=#Ds402HomeDrainRequestSequence,
+		value:=nextRequestSequence);
+	Result := 1;
 
 END_FUNCTION

@@ -17,8 +17,8 @@ namespace LasalMotionControlLib.Tests
         internal static void Register(ICollection<TestCase> tests)
         {
             tests.Add(
-                "Policy.DiagnosticsD5.SdoWritePublicPolicyClosedAndImmutable",
-                PublicPolicyClosedAndImmutable);
+                "Policy.DiagnosticsD5.SdoWritePublicPolicyAxis1OnlyAndImmutable",
+                PublicPolicyAxis1OnlyAndImmutable);
             tests.Add(
                 "Rpc.DiagnosticsD5.SdoWritePolicyEvaluationIsZeroWire",
                 PublicEvaluationIsZeroWire);
@@ -32,11 +32,14 @@ namespace LasalMotionControlLib.Tests
                 "Policy.DiagnosticsD5.SdoWriteInjectedReadyAndBlockers",
                 InjectedReadyAndBlockerMatrix);
             tests.Add(
-                "Rpc.DiagnosticsD5.SdoWriteEmptyAllowlistSubmitIsZeroWire",
-                EmptyAllowlistSubmitSyncAndAsyncIsZeroWire);
+                "Rpc.DiagnosticsD5.SdoWriteNonAllowlistedAxisSubmitIsZeroWire",
+                NonAllowlistedAxisSubmitSyncAndAsyncIsZeroWire);
+            tests.Add(
+                "Rpc.DiagnosticsD5.EncoderMaintenanceObjectsAreZeroWire",
+                EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire);
         }
 
-        private static void PublicPolicyClosedAndImmutable()
+        private static void PublicPolicyAxis1OnlyAndImmutable()
         {
             using (var connection = new LMCConnection())
             {
@@ -46,15 +49,13 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.False(evaluation.CanAttemptSubmission);
                 AssertHasBlocker(
                     evaluation,
-                    LMCSdoWritePolicyBlockers.NoApprovedTarget);
-                AssertHasBlocker(
-                    evaluation,
                     LMCSdoWritePolicyBlockers.ConnectionUnavailable);
                 AssertHasBlocker(
                     evaluation,
                     LMCSdoWritePolicyBlockers
                         .CapabilityObservationUnavailable);
-                AssertEx.Equal(0, evaluation.ApprovedTargets.Count);
+                AssertEx.Equal(1, evaluation.ApprovedTargets.Count);
+                AssertAxis1Ui24Target(evaluation.ApprovedTargets[0]);
 
                 var mutableView = evaluation.ApprovedTargets
                     as IList<LMCSdoWriteTarget>;
@@ -88,10 +89,11 @@ namespace LasalMotionControlLib.Tests
                     server.ReceivedRequests.Count,
                     "Evaluating cached SDO Write policy sent an RPC request.");
                 AssertEx.Equal(
-                    LMCSdoWritePolicyBlockers.NoApprovedTarget,
+                    LMCSdoWritePolicyBlockers.None,
                     evaluation.Blockers);
-                AssertEx.False(evaluation.CanAttemptSubmission);
-                AssertEx.Equal(0, evaluation.ApprovedTargets.Count);
+                AssertEx.True(evaluation.CanAttemptSubmission);
+                AssertEx.Equal(1, evaluation.ApprovedTargets.Count);
+                AssertAxis1Ui24Target(evaluation.ApprovedTargets[0]);
 
                 connection.CloseConnection();
                 server.Verify();
@@ -117,15 +119,16 @@ namespace LasalMotionControlLib.Tests
                     server.ReceivedRequests.Count;
 
                 AssertExactBlocker(
-                    LMCSdoWritePolicyBlockers.NoApprovedTarget
-                        | LMCSdoWritePolicyBlockers
-                            .CapabilityObservationNotCurrent,
+                    LMCSdoWritePolicyBlockers
+                        .CapabilityObservationNotCurrent,
                     connection.Diagnostics.EvaluateSdoWritePolicy(
                         olderCapabilities));
-                AssertExactBlocker(
-                    LMCSdoWritePolicyBlockers.NoApprovedTarget,
-                    connection.Diagnostics.EvaluateSdoWritePolicy(
-                        currentCapabilities));
+                var currentEvaluation = connection.Diagnostics
+                    .EvaluateSdoWritePolicy(currentCapabilities);
+                AssertEx.Equal(
+                    LMCSdoWritePolicyBlockers.None,
+                    currentEvaluation.Blockers);
+                AssertEx.True(currentEvaluation.CanAttemptSubmission);
                 AssertEx.Equal(
                     requestCountBeforeEvaluation,
                     server.ReceivedRequests.Count,
@@ -167,15 +170,16 @@ namespace LasalMotionControlLib.Tests
                         secondServer.ReceivedRequests.Count;
 
                     AssertExactBlocker(
-                        LMCSdoWritePolicyBlockers.NoApprovedTarget
-                            | LMCSdoWritePolicyBlockers
-                                .CapabilityObservationNotCurrent,
+                        LMCSdoWritePolicyBlockers
+                            .CapabilityObservationNotCurrent,
                         connection.Diagnostics.EvaluateSdoWritePolicy(
                             oldSessionCapabilities));
-                    AssertExactBlocker(
-                        LMCSdoWritePolicyBlockers.NoApprovedTarget,
-                        connection.Diagnostics.EvaluateSdoWritePolicy(
-                            currentSessionCapabilities));
+                    var currentEvaluation = connection.Diagnostics
+                        .EvaluateSdoWritePolicy(currentSessionCapabilities);
+                    AssertEx.Equal(
+                        LMCSdoWritePolicyBlockers.None,
+                        currentEvaluation.Blockers);
+                    AssertEx.True(currentEvaluation.CanAttemptSubmission);
                     AssertEx.Equal(
                         requestCountBeforeEvaluation,
                         secondServer.ReceivedRequests.Count,
@@ -343,7 +347,7 @@ namespace LasalMotionControlLib.Tests
             }
         }
 
-        private static void EmptyAllowlistSubmitSyncAndAsyncIsZeroWire()
+        private static void NonAllowlistedAxisSubmitSyncAndAsyncIsZeroWire()
         {
             using (var server = new FakeRpcServer(
                 InitStep(),
@@ -352,7 +356,7 @@ namespace LasalMotionControlLib.Tests
             using (var connection = new LMCConnection())
             {
                 Connect(connection, server.Port);
-                var request = CreateUi24Target(1).CreateRequest(0, 1000);
+                var request = CreateUi24Target(2).CreateRequest(0, 1000);
                 var requestCountBeforeSubmissions =
                     server.ReceivedRequests.Count;
 
@@ -362,7 +366,7 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(
                     requestCountBeforeSubmissions,
                     server.ReceivedRequests.Count,
-                    "Synchronous empty-allowlist SDO Write sent an RPC request.");
+                    "Synchronous non-allowlisted axis SDO Write sent an RPC request.");
 
                 var asyncError = AssertEx.Throws<NotSupportedException>(
                     () => connection.Diagnostics.SubmitSdoAsync(
@@ -374,11 +378,69 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(
                     requestCountBeforeSubmissions,
                     server.ReceivedRequests.Count,
-                    "Asynchronous empty-allowlist SDO Write sent an RPC request.");
+                    "Asynchronous non-allowlisted axis SDO Write sent an RPC request.");
 
                 connection.CloseConnection();
                 server.Verify();
             }
+        }
+
+        private static void EncoderMaintenanceObjectsSyncAndAsyncAreZeroWire()
+        {
+            var requests = new[]
+            {
+                CreateEncoderMaintenanceWrite(0x3204, 0x13),
+                CreateEncoderMaintenanceWrite(0x3204, 0x14),
+                CreateEncoderMaintenanceWrite(0x20FC, 0x01),
+                CreateEncoderMaintenanceWrite(0x20FC, 0x02)
+            };
+
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requestCountBeforeSubmissions =
+                    server.ReceivedRequests.Count;
+
+                foreach (var request in requests)
+                {
+                    var syncError = AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdo(request));
+                    AssertRequestValidationNotAttempted(syncError);
+
+                    var asyncError = AssertEx.Throws<NotSupportedException>(
+                        () => connection.Diagnostics.SubmitSdoAsync(
+                                request,
+                                CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult());
+                    AssertRequestValidationNotAttempted(asyncError);
+                }
+
+                AssertEx.Equal(
+                    requestCountBeforeSubmissions,
+                    server.ReceivedRequests.Count,
+                    "Generic 0x7E50 submitted an encoder maintenance or fallback SDO write.");
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static LMCSdoRequest CreateEncoderMaintenanceWrite(
+            ushort objectIndex,
+            byte subIndex)
+        {
+            return LMCSdoRequest.CreateWrite(
+                1,
+                objectIndex,
+                subIndex,
+                LMCSignalValueType.UInt32,
+                new byte[] { 1, 0, 0, 0 },
+                1000);
         }
 
         private static void AssertRequestValidationNotAttempted(
@@ -456,6 +518,19 @@ namespace LasalMotionControlLib.Tests
                 (evaluation.Blockers & blocker) == blocker,
                 "Expected SDO Write policy blocker " + blocker
                     + ", actual " + evaluation.Blockers + ".");
+        }
+
+        private static void AssertAxis1Ui24Target(
+            LMCSdoWriteTarget target)
+        {
+            AssertEx.NotNull(target);
+            AssertEx.Equal((ushort)1, target.SlaveReference);
+            AssertEx.Equal((ushort)0x2F00, target.ObjectIndex);
+            AssertEx.Equal((byte)24, target.SubIndex);
+            AssertEx.Equal(LMCSignalValueType.Int32, target.ValueType);
+            AssertEx.Equal((ushort)4, target.DataLength);
+            AssertEx.Equal(-1073741823L, target.MinimumIntegerValue);
+            AssertEx.Equal(1073741823L, target.MaximumIntegerValue);
         }
 
         private static LMCSdoWritePolicyEvaluation EvaluateInjected(

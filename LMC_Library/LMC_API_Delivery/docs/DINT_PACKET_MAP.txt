@@ -1,20 +1,40 @@
 LMC DINT packet map
-Status 2026-07-29: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-08-03: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
-motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 adds three read-only
-commands plus 0x7D22 GroupMoveLinearRelative. LASAL-DINT Diagnostics v1 reserves 30
-project-local command IDs in 0x7E00..0x7E51. D0-D3, D4 single-bank Ring/Trigger,
-the D5 general-inline SDO Read ticket flow, and fail-closed SDO Write
-parser/executor/policy infrastructure are implemented. D4 Double bank, PI Write,
-SDO Write activation, and extended SDO results remain off.
-Therefore 53 command IDs are success-capable in the PLC source: 25 motion/group,
-4 admin and 24 diagnostics. The dispatcher/wire contract handles 59 IDs,
-including two reserved D5 requests and the four dormant Double-bank recovery
-commands 0x7E4A..0x7E4D. These extensions are not captured Elmo
-commands.
+motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 also defines
+0x7D22 GroupMoveLinearRelative. The 0x7D12 SetAxisPosition wire remains dormant.
+The project-specific Home name is LMC_Home. Its dedicated durable triad is
+0x7D13 StartLmcHome, 0x7D18 ReadLmcHomeOutcome and 0x7D19
+RetireLmcHomeOutcome. 0x7D13 is a 56-byte current-position-zero request. It
+contains no direction, search velocity, backoff, travel, Home-switch or
+limit-switch field and must not call MoveReference.
+The C# contract also reserves read-only 0x7D14 ReadAxisSetPositionOutcome; the
+current PLC has no retained store or route and does not advertise feature bit 5.
+The 0x7D15 StartAxisDs402Home, read-only 0x7D16
+ReadAxisDs402HomeOutcome, and idempotent 0x7D17
+RetireAxisDs402HomeOutcome contract accepts only DS402 method 37, Home offset 0,
+zero velocity/acceleration/distance/torque and Aborting mode. It performs no
+switch search and no intentional physical motion. Admin feature bits 4 and 6
+must track their dedicated source gates and complete triads atomically. Advertising
+them proves protocol availability, not PLC download or physical-axis validation.
+The 10:02:20 LASAL save regression that emptied three public RT InputLatch
+DS402 Home methods was recovered exactly from the 09:33 pre-save blob. Current
+SourceOnly passes the InputLatch owner-token mailbox assertion. A fresh LASAL
+F9 build, implementation-index smoke and PLC runtime proof are still required.
+LASAL-DINT Diagnostics v1 additionally reserves the dedicated encoder-maintenance
+triad 0x7E53 Start, 0x7E54 Outcome and 0x7E55 Retire. D0-D3, D4 single-bank Ring/Trigger,
+the D5 general-inline SDO Read ticket flow, fail-closed SDO Write infrastructure,
+and the dormant EtherCAT node-health/digital-I/O read owner are implemented.
+D4 Double bank, PI Write, digital-output Write, and extended SDO results remain
+off. Axis 1 exact 0x2F00:24 Int32/4 SDO Write is source/policy active, but Axis
+2..4 remain blocked and no current PLC Write has been proven.
+The dedicated Home and encoder-maintenance extensions are project-local and are
+not captured Elmo commands. Do not infer their availability from an older command
+inventory count; use the paired capability bits and exact command routes.
 The five previously
 blocked group commands 0x2049, 0x2085, 0x20A4, 0x2051 and 0x20E7 are active in
-source. Current C# tests pass 649/649 in both Debug and Release. The expansion
+source. Current C# Debug/Release forced Rebuild counts are recorded in
+AUTOMATED_TESTS_2026-07-10.md. The expansion
 covers actual fake-TCP output submission paths, twenty mutation-journal
 persistence/reopen/corruption/lock/process-termination/parent-EOF tests, a five-case CREVIS
 status-cause matrix, three deterministic topology/D5/recoverable-Recorder parser
@@ -23,28 +43,39 @@ and a listener-lifetime
 generation fence that prevents a late old callback-handler failure from leaking
 into a replacement RPC session. A fixed Release seed
 completed 100,000 bounded in-memory mutations without file, network, or PLC I/O.
-The current development WPF build passes, and the actual-control smoke suite passes
-57/57 in both Debug and Release. They include configured CREVIS auto-load, editable SDO fields while
-an ordinary submission is in flight, and suppression of invalid PI/Bulk stale
+The current development WPF build and actual-control smoke suite pass their latest
+Debug/Release forced Rebuild baseline recorded in AUTOMATED_TESTS_2026-07-10.md.
+They include configured CREVIS auto-load, local
+SDO draft editing while an ordinary submission is in flight, a current-session/
+build/boot/map exact-target proof gate before manual SDO Write, and suppression of invalid PI/Bulk stale
 raw values. The process-level smoke observes SDO, digital-output, and active
-Double-bank journal recovery without 0x7E50/0x7E23/0x7E40..0x7E4F replay and
+Double-bank journal recovery without 0x7E50/0x7E53/0x7E23/0x7E40..0x7E4F replay and
 preserves byte-identical journals across forced exit and restart. A locked
 Double-bank journal also fails new mutation admission closed. The live Double
-qualification/recovery gate remains closed. The previous LASAL class/network snapshot
-rebuilt and linked in the IDE with 0 errors and 3 C78-project/C81-library-and-
-compiler version mismatch warnings. That snapshot predates the SDO Write source
-changes. The current TryStartWrite declaration/implementation is synchronized in
-tracked generated metadata and passes SourceOnly/full static contracts. The user reported
-a successful LASAL build, and the Test2 capture proves the static topology wire path with
+qualification/recovery gate remains closed. The current-position-zero Home,
+method-37 DS402 Home and dedicated encoder-maintenance changes require a fresh
+LASAL F9 build, implementation-index smoke, PLC download and runtime proof. Any
+earlier switch-search Home, DS402 method 35 or generic-0x7E50 TW20 result does not
+prove this contract. The Test2 capture proves
+the static topology wire path with
 capability 0x0000613F, topology revision 0x15867EEC, one 0x7E11 response, and seven
-0x7E12 responses for the exact configured inventory. A standalone IDE build/download/smoke
-log was not preserved, and this does not prove the unimplemented dynamic 0x7E13/0x7E22/0x7E23
-node-health or digital-I/O paths.
+0x7E12 responses for the exact configured inventory. That historical capture did
+not send 0x7E13/0x7E22/0x7E23 and does not prove dynamic node-health or digital-I/O.
+The current source now implements and routes 0x7E13/0x7E22 over a coherent
+464-byte snapshot with wired CREVIS coupler/input/output clients, but capability
+bits 15 and 16 remain zero. 0x7E23 remains absent and bit 17 remains zero.
 The PC-only same-value SDO Write qualification uses four distinct tickets for
 baseline Read, unchanged-value pre-Write guard Read followed by the final second safety check,
-one byte-identical Write, and guarded exact Readback. With the current PLC/SDK
-gates off and SDK allowlist empty, even a forced handler call is zero-wire; no
-PLC/live SDO Write has been proven.
+one byte-identical Write, and guarded exact Readback. The current PLC/SDK source
+gate and SDK allowlist admit only Axis 1 exact 0x2F00:24 Int32/4; Axis 2..4 and
+every non-exact target remain zero-wire. Manual Write uses an identity-pinned SDK
+mutation gate. It reads fresh
+capabilities inside the serialized mutation path and requires the proof-bound session,
+DiagnosticsBuild, BootId, MapRevision, and exact target; a mismatch is NotAttempted and
+sends no 0x7E50 frame. Any observed identity mismatch or disconnect permanently revokes
+that process-local proof, including an A-to-B-to-A observation sequence.
+No current PLC/live SDO Write has been
+proven.
 The UI-independent D5 disconnect/orphan qualification core has twenty-eight
 deterministic PC regressions and a production WPF application-recovery adapter.
 The adapter performs a local TCP zero-linger close without RPC Close 0x405D,
@@ -113,21 +144,56 @@ P6  ErrorId INT16, domain error is -31000
 P8  Echoed RequestId UDINT
 P12 DetailCode UDINT: 1 schema, 2 flags, 3 request ID, 4 reference,
     5 payload shape, 6 parameter key, 7 client, 8 selection mask,
-    9 motion parameters, 10 invalid motion state, 11 native command rejected.
-For detail 1..10 ErrorId is -31000. Detail 11 preserves a positive representable
+    9 motion parameters, 10 invalid motion state, 11 native command rejected,
+    12 nonzero velocity, 13 active axis error,
+    14 invalid SetPosition safety configuration,
+    15 failed coordinate precondition,
+    16 diagnostics build mismatch, 17 diagnostics BootId mismatch,
+    18 diagnostics map revision mismatch, 19 SetPosition outcome not found,
+    20 SetPosition outcome indeterminate, 21 outcome store corrupt,
+    22 outcome exact-key mismatch, 23 outcome slot occupied,
+    24 outcome storage unavailable, 25 DS402 Home outcome not found,
+    26 DS402 Home outcome indeterminate, 27 DS402 Home store corrupt,
+    28 DS402 Home exact-key mismatch, 29 DS402 Home storage unavailable,
+    30 DS402 Home runtime execution failed, 31 DS402 Home aborted,
+    32 DS402 Home outcome slot occupied,
+    33 LMC_Home outcome not found, 34 LMC_Home outcome indeterminate,
+    35 LMC_Home store corrupt, 36 LMC_Home exact-key mismatch,
+    37 LMC_Home storage unavailable, 38 LMC_Home execution failed,
+    39 LMC_Home aborted, 40 LMC_Home outcome slot occupied,
+    41 axis ownership conflict, 42 axis ownership quarantined.
+For detail 1..10, 12..15, and 16..24 ErrorId is -31000. Detail 11 preserves a positive representable
 LASAL GroupProfile error in ErrorId or uses adapter fallback -6; interpret positive
-values in the GroupProfile domain.
+values only in the GroupProfile domain. SetAxisPosition requires ErrorId=-6 for
+detail 11 and preserves the full native command-state bitfield in its
+command-specific response extension. LMC_Home start admits only command-specific
+details 10, 13, 15, 16, 17, 18, 40, 41, and 42 in addition to the common
+envelope details. Detail 11 is not valid for LMC_Home start: execution failures
+are published in its retained outcome instead of claiming a native rejection in
+the start ACK.
+Details 25..29 are 0x7D16 query or 0x7D17 retire-domain failures with
+ErrorId=-31000. Details 30..31 occur only inside a successfully queried retained
+DS402 Home record. Detail 32 is a 0x7D15 start-admission failure with
+ErrorId=-31000; it means the same axis has an unretired terminal outcome.
+Details 33..37 are 0x7D18/0x7D19 outcome-domain failures. The exact LMC_Home
+query/retire failure allow-list is 16, 17, 18, and 33..37. Details 38..39 occur
+inside a successfully queried retained LMC_Home record. Detail 40 is a 0x7D13
+start-admission failure. Details 41..42 are common axis-owner admission failures.
 
 0x7D00 GetAdminCapabilities, request payload 8 bytes, Reference=0.
 Success response payload is exactly 40 bytes:
-P16 FeatureBits U32 = 0x00000007 (axis/group parameter read and group relative move)
+P16 FeatureBits U32 base = 0x00000007 (axis/group parameter read and group relative move)
+    Bit 4 AxisHome follows LMC_ADMIN_AXIS_HOME_ENABLED and is added only with the
+    complete 0x7D13/18/19 implementation.
+    Bit 6 AxisDs402Home follows LMC_DIAG_DS402_HOME_ENABLED and is added only with
+    the complete 0x7D15/16/17 implementation.
 P20 AxisParameterMask U32 = 0x0000003F
 P24 GroupParameterMask U32 = 0x00000007
 P28 PhysicalAxisCount U16 = 4
 P30 MaxAxisParameterCount U16 = 1
 P32 MainGroupReference U16 = 0x0100
 P34 MaxGroupParameterCount U16 = 3
-P36 ErrorCatalogVersion U16 = 1
+P36 ErrorCatalogVersion U16: base 1; at least 4 with bit 6 and at least 5 with bit 4
 P38 Reserved U16 = 0
 FeatureBits 0x00000007 requires the matching Phase 2 PC DLL. Older strict clients
 that know only bits 0..1 reject bit 2, so deploy the PLC and PC API as a pair.
@@ -145,6 +211,293 @@ P22 Reserved U16 = 0, P24 Value DINT.
 Software limits use ReadSWEndPos application-unit modes. Key 3 uses
 LMCAXIS_PAR_RD_SWLIMWINDOW; it is the axis end-position tolerance window and is
 not the robot ProfileInPosition window.
+
+0x7D12 SetAxisPosition, request payload 48 bytes, Reference=axis 1..4:
+P8  ExpectedDiagnosticsBuild U32, nonzero, pinned fresh 0x7E00 identity
+P12 ExpectedDiagnosticsBootId U32, nonzero
+P16 ExpectedMapRevision U32, nonzero
+P20 ClientIntentId0 U32
+P24 ClientIntentId1 U32
+P28 ClientIntentId2 U32
+P32 ClientIntentId3 U32; the complete 128-bit intent must not be all zero
+P36 TargetPosition DINT [application units]
+P40 ExpectedActualPosition DINT [application units], exact stale-read CAS
+P44 ExecuteToken U32 = 0x50544553, little-endian bytes 53 45 54 50 (`SETP`)
+The PC API exposes only semantic mode 1, ActualAndDestinationApplicationUnits.
+It never sends the native MotionLib enum value. The prepared command pins owner,
+session, diagnostics identity, four raw U32 intent words, axis, target, expected
+actual position and capability evidence, and may
+cross the TCP write boundary at most once. Post-boundary loss is outcome-uncertain
+and must not be replayed after reconnect.
+OriginalRequestId at common P4 restarts per LMCAdmin instance and is not an
+authoritative duplicate-suppression key by itself. The four raw intent words are
+CSPRNG-generated before preparation. Do not expose Guid.ToByteArray mixed-endian
+layout as a wire semantic.
+Success response payload is exactly 28 bytes:
+P16 AppliedPosition DINT, P20 SemanticMode U16 = 1,
+P22 Reserved U16 = 0, P24 NativeCommandState U32.
+Success requires AppliedPosition=TargetPosition and NativeCommandState=0. A
+pre-native validation failure requires both extension values to be 0. Detail 11
+NativeCommandRejected requires ErrorId=-6, AppliedPosition=0 and nonzero
+NativeCommandState; the SDK preserves that full bitfield in its typed rejection
+context. A positive/other ErrorId or any other contradictory
+correlated response is malformed/outcome-uncertain and faults the exact session.
+Current PLC FeatureBits stays 0x00000007, so bit 3 is not advertised. The current
+0x7D12 handler is intentionally fail-closed and calls no native SetPosition method.
+Activation requires an IDE-created two-bank retained outcome store, read-only
+0x7D14 exact query, separate terminal-retirement CAS, a separate
+application-approved SetPositionMaxJump, verified same-core/equal-or-lower-priority
+task placement, runtime state/ownership guards, IDE build/download, and PLC/pcap
+proof. LMCAXIS_PAR_RD_SWLIMWINDOW is the software end-position standstill tolerance
+and must not be reused as the jump cap.
+
+0x7D14 ReadAxisSetPositionOutcome, request payload 48 bytes,
+Reference=original physical axis 1..4:
+P8  ExpectedDiagnosticsBuild U32, nonzero
+P12 ExpectedDiagnosticsBootId U32, nonzero
+P16 ExpectedMapRevision U32, nonzero
+P20 OriginalRequestId U32
+P24 ClientIntentId0 U32
+P28 ClientIntentId1 U32
+P32 ClientIntentId2 U32
+P36 ClientIntentId3 U32
+P40 TargetPosition DINT
+P44 ExpectedActualPosition DINT
+Common P4 is a new nonzero QueryRequestId. Semantic mode is fixed to 1 for v1.
+An exact terminal record returns exactly 84 payload bytes:
+P16 RecordState U16, 2 Succeeded / 3 Rejected
+P18 SemanticMode U16 = 1
+P20 DiagnosticsBuild U32
+P24 DiagnosticsBootId U32
+P28 MapRevision U32
+P32 OriginalRequestId U32
+P36/P40/P44/P48 ClientIntentId0..3 U32
+P52 AxisReference U16, P54 Reserved U16 = 0
+P56 TargetPosition DINT, P60 ExpectedActualPosition DINT
+P64 AppliedPosition DINT
+P68 OriginalCommandStatus U16
+P70 OriginalErrorId I16
+P72 OriginalDetailCode U32
+P76 NativeCommandState U32
+P80 RecordGeneration U32, nonzero and no wrap
+Succeeded requires original status/error/detail/native state 0 and
+AppliedPosition=TargetPosition. Rejected requires original status 1 and the same
+pre-native/native-reject value combinations as 0x7D12. NotFound, identity mismatch,
+Armed/Indeterminate, corrupt, or unavailable storage returns only the 16-byte common
+failure and never proves that the mutation was not dispatched. The query is
+read-only and never replays SetPosition.
+Feature bit 5 is AxisSetPositionOutcomeRead. It may be advertised before bit 3,
+but strict clients require bit 3 AxisSetPosition to imply bit 5. Details 16..24
+require ErrorCatalogVersion 2 in the paired activation. The current PLC remains
+FeatureBits 0x00000007, ErrorCatalogVersion 1, has no 0x7D14 route/store, and does
+not advertise either bit 3 or bit 5.
+
+0x7D13 StartLmcHome, request payload 56 bytes, Reference=axis 1..4:
+P8  ExpectedDiagnosticsBuild U32, nonzero
+P12 OriginalDiagnosticsBootId U32, nonzero
+P16 ExpectedMapRevision U32, nonzero
+P20/P24/P28/P32 ClientIntentId0..3 U32, not all zero
+P36 SemanticMode U16 = 1 CurrentPositionZero
+P38 Reserved U16 = 0
+P40 ExpectedActualPosition DINT [application units], exact stale-read CAS
+P44 TargetPosition DINT = 0
+P48 TimeoutMilliseconds U32, 100..5000
+P52 ExecuteToken U32 = 0x454D4F48, little-endian `HOME`
+The wire contains no recipe, direction, search/backoff velocity, acceleration,
+jerk, travel, Home-switch or limit-switch field. The implementation must use the
+RT InputLatch mailbox and `_LMCAxis.SetPosition` with current-position-zero
+semantics; `MoveReference` is forbidden. The same-core/equal-or-lower-priority
+MotionLib rule remains a deployment requirement.
+The success response payload is exactly 24 bytes:
+P16 EchoedSemanticMode U16 = 1, P18 Reserved U16 = 0,
+P20 NativeCommandState U32 = 0.
+Success is start acceptance only. The prepared command crosses the TCP write
+boundary at most once and is never replayed after an uncertain result.
+The correlated start-failure allow-list is detail 10, 13, 15, 16, 17, 18, 40,
+41, or 42. Detail 11 NativeCommandRejected is malformed for LMC_Home and faults
+the exact session because this path has no native motion-command rejection ACK.
+
+0x7D18 ReadLmcHomeOutcome, request payload 56 bytes,
+Reference=original axis 1..4:
+P8 DiagnosticsBuild U32, P12 OriginalDiagnosticsBootId U32,
+P16 MapRevision U32, P20 CurrentDiagnosticsBootId U32
+P24 OriginalRequestId U32, P28/P32/P36/P40 ClientIntentId0..3 U32
+P44 SemanticMode U16 = 1, P46 Reserved U16 = 0
+P48 ExpectedActualPosition DINT, P52 TargetPosition DINT = 0
+An exact outcome response is 144 bytes:
+P16 RecordState U16: 1 Running, 2 Succeeded, 3 Failed, 4 Aborted,
+    5 Quarantined
+P18 SemanticMode U16 = 1
+P20 DiagnosticsBuild, P24 OriginalDiagnosticsBootId, P28 MapRevision U32
+P32 OriginalRequestId, P36/P40/P44/P48 ClientIntentId0..3 U32
+P52 AxisReference U16, P54 Reserved U16 = 0
+P56 ExpectedActualPosition DINT, P60 TargetPosition DINT = 0
+P64 TimeoutMilliseconds U32
+P68 OriginalCommandStatus U16, P70 OriginalErrorId I16
+P72 OriginalDetailCode U32, P76 AxisStatus U32, P80 AxisError DINT
+P84 RawDrivePositionBefore DINT, P88 RawDrivePositionAfter DINT
+P92 ActualApplicationPositionAfter DINT, P96 SetApplicationPositionAfter DINT
+P100 ActualInternalPositionAfter DINT, P104 SetInternalPositionAfter DINT
+P108 DestinationInternalPositionAfter DINT, P112 MasterInternalPositionAfter DINT
+P116 NativeCommandState U32, P120 EvidenceFlags U32
+P124 StartMilliseconds U32, P128 CompletionMilliseconds U32
+P132 StopState U32 raw bit pattern, P136 RuntimePhase U32,
+P140 RecordGeneration U32
+StopState carries the retained DINT RT/service FailureCode without changing its
+32-bit wire representation. Diagnostics must print both raw hexadecimal and the
+two's-complement signed DINT interpretation; for example 0xFFFFFFF9 is -7,
+RT verification mismatch. Zero is required for Succeeded.
+Only a Succeeded exact record proves completion, and it must contain all of the
+following fail-closed evidence: original status/error/detail, AxisError,
+NativeCommandState, and StopState are zero; AxisStatus contains the native LASAL
+Standstill bit 0x02000000; the wrap-safe U32 difference
+RawDrivePositionAfter-RawDrivePositionBefore is 0, 1, 2, 0xFFFFFFFF (-1 count),
+or 0xFFFFFFFE (-2 counts).
+The two raw fields are physical-feedback evidence snapshots, not a promise of
+bit-identical stationary samples; a delta of +/-3 counts or more fails closed.
+All six application/internal actual, set, destination,
+and master positions at P92..P112 are zero; EvidenceFlags is exactly 0x3F;
+StartMilliseconds, CompletionMilliseconds, and RecordGeneration are nonzero.
+RuntimePhase remains an opaque diagnostic value because this wire version does
+not define its numeric states; the PC parser must not invent a terminal value.
+The ACK alone is not completion evidence.
+
+The internal retained ZeroHomeState owner-release receipt occupies slots 60..63;
+these are not additional wire fields:
+  [60] U32 magic 0x484F4D50
+  [61] DINT phase: 1 PREPARED, 2 IDENTITY, 3 OBSERVER, 4 SINGLETON,
+       5 RECORD, 6 COMPLETE
+  [62] DINT initial PublishAxisOwnership result, exactly 0 in v1
+  [63] U32 exact RecordGeneration bound to the receipt
+The first ordinary Home success/safe-failure publish records PREPARED without
+releasing the owner. After the caller records finalize acceptance, exact replay
+advances the staged cleanup to COMPLETE. This receipt supports same-instance and
+warm continuation of a partial cleanup only. It is not a cold-persistent journal,
+and the current receipt change is source/static evidence, not a C78 build,
+download, runtime, or cold-restart recovery proof.
+An authenticated COMPLETE receipt remains terminal evidence but does not
+intercept a later ownership publish with a different tuple. An incomplete or
+corrupt receipt continues to block a different publish fail-closed.
+
+The 2026-08-04 runtime evidence is limited. On separate fresh-boot first attempts,
+Axis1 and Axis2 showed the current-position-zero/reference effect, but the old WPF
+log did not preserve the exact 144-byte terminal outcome. The immediately following
+axis was rejected with ErrorId=-31000, DetailCode=41. A quarantined first record
+that retained the singleton/common owner is the strongest current hypothesis, not
+a confirmed diagnosis. Start ACK and Read Home Status RPC PASS are not terminal
+success evidence.
+Query/retire domain failures admit only identity details 16..18 and LMC_Home
+outcome details 33..37, always in the 16-byte common failure envelope.
+
+0x7D19 RetireLmcHomeOutcome, request payload 60 bytes, repeats the exact 0x7D18
+key at P8..P52 and adds P56 RecordGeneration U32. It accepts only a terminal exact
+record and returns the same 144-byte terminal snapshot. Retry of the exact retire
+is idempotent. Query/retire never dispatches SetPosition and never replays Home.
+Admin feature bit 4 AxisHome is indivisible: it implies 0x7D13/0x7D18/0x7D19 and
+ErrorCatalogVersion>=5. Gate/bit activation is source availability only; F9,
+download, same-core task placement and PLC/pcap proof remain separate evidence.
+
+0x7D15 StartAxisDs402Home, request payload 72 bytes, Reference=axis 1..4:
+P8  ExpectedDiagnosticsBuild U32, nonzero
+P12 ExpectedDiagnosticsBootId U32, nonzero
+P16 ExpectedMapRevision U32, nonzero
+P20/P24/P28/P32 ClientIntentId0..3 U32, not all zero
+P36 HomingMethod DINT = 37, Homing on current position
+P40 Position DINT = 0, DS402 0x607C Home Offset
+P44 Velocity DINT = 0; method 37 performs no search motion
+P48 Acceleration DINT = 0
+P52 DistanceLimit DINT = 0; method -1/-2 distance-limit homing is not v1
+P56 TorqueLimit DINT = 0; torque-limit homing is not v1
+P60 BufferMode U16 = 1 Aborting, P62 Reserved U16 = 0
+P64 TimeoutMilliseconds U32, nonzero overall PLC-side homing watchdog. It is
+    not one SDO TimeoutCycles value; each individual SDO remains constrained to
+    the executor's 1..60000-cycle limit.
+P68 ExecuteToken U32 = 0x32303448, little-endian bytes 48 34 30 32 (`H402`)
+TCP ownership reservation is attempted only for this complete valid request
+shape and a valid axis. Malformed 0x7D15 requests remain delegated to the
+Diagnostics parser with zero ownership tokens. For a valid request, owner
+reservation result -2 is returned as detail 41; disconnected or every other
+nonzero admission result is returned as detail 42. This 24-byte mapper is
+specific to 0x7D15 and is never applied to encoder-maintenance 0x7E53.
+The success/failure response is exactly 24 bytes:
+P16 EchoedHomingMethod DINT, P20 NativeCommandState U32.
+Success and pre-native failures require NativeCommandState=0. Detail 11 requires
+ErrorId=-6 and nonzero NativeCommandState. A success is only start acceptance;
+it does not prove HomingAttained, final zero position or safe motion readiness.
+The public project name is LMC_HomeDS402. Method 35, arbitrary offsets and every
+switch-seeking method fail closed. Method 37 uses no Home or limit switch and
+does not require Operation Enabled as an admission precondition. The SDK faults
+an outcome-uncertain session after a post-write transport or parser failure.
+The PLC stores `ops.tAbsolute` service time at DS402 runtime slot 118 and cleanup
+start time at slot 119. Overall timeout and cleanup timeout use unsigned
+`serviceNow - serviceStart` and inclusive `>=` expiry; they continue when the RT
+latch cycle is frozen.
+Fresh latch samples gate stability/evidence only. A condition shaped as
+`newCycle AND timeout` is forbidden because it can suppress the watchdog forever.
+
+0x7D16 ReadAxisDs402HomeOutcome, request payload 44 bytes,
+Reference=axis 1..4:
+P8 DiagnosticsBuild U32, P12 DiagnosticsBootId U32, P16 MapRevision U32
+P20 OriginalRequestId U32
+P24/P28/P32/P36 ClientIntentId0..3 U32
+P40 HomingMethod DINT
+Success response payload is exactly 92 bytes:
+P16 RecordState U16: 1 Running, 2 Succeeded, 3 Failed, 4 Aborted
+P18 Reserved U16 = 0
+P20 DiagnosticsBuild, P24 DiagnosticsBootId, P28 MapRevision U32
+P32 OriginalRequestId U32, P36/P40/P44/P48 ClientIntentId0..3 U32
+P52 AxisReference U16, P54 Reserved U16 = 0, P56 HomingMethod DINT
+P60 OriginalCommandStatus U16, P62 OriginalErrorId I16
+P64 OriginalDetailCode U32, P68 DS402StatusWord U16, P70 Reserved U16 = 0
+P72 ActualPosition DINT, P76 StartCycle U32, P80 CompletionCycle U32
+P84 NativeCommandState U32, P88 RecordGeneration U32
+Running has CompletionCycle=0 and is not recovery resolution. Terminal records
+require CompletionCycle>=StartCycle. The PLC may commit Succeeded only after it
+has observed three fresh method-37 samples with homing attained (bit 12), target
+reached (bit 10), homing error clear (bit 13), and ActualPosition=0 before
+cleanup. P68 is the last StatusWord after restoring CSP mode 8, so bits 10 and
+12 no longer carry the homing-mode meaning and the PC parser must not require
+them in that post-cleanup snapshot. A Succeeded record still requires original
+status/error/detail/native state all zero, ActualPosition=0, StatusWord bit 3
+Fault clear, bit 13 clear, and a DS402 base state of 0x0040, 0x0021, 0x0023, or
+0x0027. The final success snapshot must be a fresh latch cycle observed after
+the RT control-word owner has been released, with no pending SDO, drain,
+mode-restore, RT-owner, or uncertainty flag. Stage 101 is indeterminate detail
+26, not Running success. Failed and Aborted preserve the terminal error/status snapshot; they do
+not authorize automatic replay. Query failures admit only identity details
+16..18 and DS402 Home outcome details 25..29; they return only the 16-byte
+common envelope and leave recovery unresolved.
+0x7D17 RetireAxisDs402HomeOutcome, request payload 48 bytes,
+Reference=axis 1..4:
+P8 DiagnosticsBuild U32, P12 DiagnosticsBootId U32, P16 MapRevision U32
+P20 OriginalRequestId U32
+P24/P28/P32/P36 ClientIntentId0..3 U32
+P40 HomingMethod DINT
+P44 RecordGeneration U32, nonzero and copied from the exact 0x7D16 result
+Success response payload is exactly 92 bytes and repeats the 0x7D16 terminal
+record layout at P16..P88. RecordState must be the masked base state 2, 3, or 4;
+Running and an unmasked internal tombstone value are malformed. The echoed
+identity and P88 RecordGeneration must exactly match the retire request. The
+first exact retire stores a tombstone; an exact retry after response loss returns
+the same success snapshot. Failures admit only identity details 16..18 and
+DS402 Home outcome details 25..29, and return exactly the 16-byte common envelope.
+Detail 26 covers Running/indeterminate, detail 28 covers exact-key or generation
+mismatch, and detail 32 is not valid for 0x7D17.
+
+Admin feature bit 6 AxisDs402Home is indivisible: it implies 0x7D15 start,
+0x7D16 outcome query, and 0x7D17 terminal retirement plus
+ErrorCatalogVersion>=4. Advertising any subset is forbidden. A same-axis new
+start returns detail 32 while a terminal record remains unretired; an exact
+retired tombstone may be replaced by the next admitted start. The current PLC
+implementation must change bit 6 atomically with the method-37-only parser,
+fresh-latch watchdog and owner interlock. F9 build, download and live DS402/pcap
+proof remain separate qualification gates even when the source bit is enabled.
+Earlier method-35 or switch-search results are not evidence for this contract.
+The 2026-08-04 source gate remains FALSE. Admission and final-evidence hardening
+alone do not activate the command. Prepared-stage warm reconciliation and the
+one-second fail-closed bound for cleanup stages 90..99 are source-implemented.
+Durable owner-release/rollback-complete receipt, DS402 bit-4 safety
+drain/tombstone, C78 build, download and live-axis proof remain required.
 
 0x7D20 ReadGroupParameters, request payload 12 bytes, Reference=0x0100:
 P8 SelectionMask U32, nonzero subset of 0x07. Bits select path velocity limit,
@@ -188,16 +541,27 @@ Success response outer payload is exactly 68 bytes (76 bytes including header):
 [28] CapabilityBits UDINT
      0x00004007 while DiagnosticsBootId is unavailable: D1 plus static
      EtherCATTopology only
-     0x0000613F when D1-D3, D4 RecorderTrigger, D5 SDORead,
-     SDOReadGeneralInline with a retained BootId are available in the internal
-     test profile. Bit 13 requires bit 8 and MaxSdoDataBytes=4. Bit 9 SDOWrite
-     remains zero while the PLC target gates are disabled. Bit 14
+     0x000C633F when D1-D3, D4 RecorderTrigger, D5 SDORead,
+     SDOReadGeneralInline, and the current Axis 1 exact SDO Write target are
+     available with a retained BootId. The pre-SDO-Write base mask is
+     0x0000613F. Bit 13 requires bit 8 and MaxSdoDataBytes=4. Bit 9 SDOWrite is
+     set only when the global gate and at least one per-axis target gate are
+     enabled; the current source enables only Axis 1. Bit 14
      EtherCATTopology is active for the fixed seven-node 0x7E11/0x7E12 source.
-     Bits 15 EtherCATNodeHealth, 16 DigitalIORead, and 17 DigitalIOWrite remain
-     zero until matching PLC handlers and runtime sources are implemented and
-     qualified.
+     Bits 15 EtherCATNodeHealth and 16 DigitalIORead remain zero while the
+     implemented read owner is dormant and awaits current PLC qualification.
+     Bit 17 DigitalIOWrite remains zero because 0x7E23 has no PLC route/handler.
      Bit 15 and bit 16 require bit 14. Bit 17 requires bits 14..16 and a
-     nonzero DiagnosticsBootId.
+     nonzero DiagnosticsBootId. Bit 18 EncoderTw20ErrorWarningReset follows
+     LMC_DIAG_ENCODER_TW20_ENABLED and bit 19 EncoderTw19MultiturnPositionReset
+     follows LMC_DIAG_ENCODER_TW19_ENABLED. Both gates are TRUE for the exact
+     fixed-value contract below. Each requires the dedicated 0x7E53/54/55 triad,
+     adequate request/response capacity, and nonzero DiagnosticsBuild,
+     DiagnosticsBootId and MapRevision. They do not depend on generic SDORead,
+     SDOWrite or SDOReadGeneralInline advertisement. Neither bit authorizes a
+     special-object bypass in generic 0x7E50. All UDINT capability overlays use
+     integer OR. LASAL `|` is forbidden here because C78 reduced the live mask to
+     BOOL 1 when it was used for these overlays.
 [32] MapRevision UDINT = 0x957F101E when D1 is available
 [36] CatalogEntryCount UINT16 = 24 when D1 is available
 [38] MaxBulkSignals UINT16 = 24 when D2 is available, otherwise 0
@@ -261,7 +625,8 @@ D1 active read-only commands:
   sampled value while invalid and must not be displayed or judged as current.
 
 EtherCAT topology and digital IO contract. Static topology is source-active;
-dynamic health and IO capabilities remain off:
+dynamic health and digital-I/O read handlers are implemented but dormant, and
+their capability bits remain off. Digital-output Write is not implemented:
 
 - 0x7E11 GetEtherCATTopologyInfo: request 8, response exactly 44 bytes
   P16 TopologyRevision U32, nonzero canonical entry CRC32
@@ -376,12 +741,13 @@ dynamic health and IO capabilities remain off:
 
 The SDK validates capability dependencies before sending these commands. The
 current LASAL source routes and handles 0x7E11/0x7E12 with a fixed seven-node
-topology, TopologyRevision=0x15867EEC, and MaxEntriesPerChunk=1; this activates
-bit 14 only. The digital-output SDK allowlist is currently empty, so 0x7E23 is
-blocked even if a target accidentally advertises bit 17. No matching 0x7E13,
-0x7E22, or 0x7E23 PLC handler or LASAL RT IO owner exists yet, so bits 15..17
-remain zero. Source-active topology is not a claim of LASAL build, PLC download,
-live response, or hardware support.
+topology, TopologyRevision=0x15867EEC, and MaxEntriesPerChunk=1. It also routes
+and handles 0x7E13/0x7E22 through LMCEcatInputLatch's coherent 464-byte snapshot;
+the CREVIS coupler, input slot, and output slot clients are wired. Only bit 14 is
+advertised: bits 15 and 16 remain zero until current PLC read-only qualification.
+The digital-output SDK allowlist is currently empty, and no 0x7E23 PLC route,
+handler, or RT output owner exists, so bit 17 remains zero. Source/static/IDE
+Rebuild success is not a claim of PLC download, live response, or hardware support.
 
 Topology/IO diagnostics detail codes reserved by the SDK contract are:
 26 TopologyRevisionMismatch, 27 NodeNotFound, 28 IOReferenceNotFound,
@@ -559,7 +925,8 @@ P8 MapRevision U32, P12 SlaveReference U16, P14 OperationFlags U16,
 P16 ObjectIndex U16, P18 SubIndex U8, P19 ValueType U8,
 P20 TimeoutCycles U32, P24 DataLength U16, P26 reserved,
 P28 DiagnosticsBootId U32, P32 WriteData[]. The current test profile sets bit 8
-SDORead and bit 13 SDOReadGeneralInline; bit 9 SDOWrite is zero.
+SDORead, bit 9 SDOWrite and bit 13 SDOReadGeneralInline. SDOWrite advertises only
+the Axis 1 exact target described below; it is not a general write capability.
 The parser accepts only OperationFlags 0/1, reserved=0, an exact 32-byte read
 request, or an exact 32+DataLength-byte write request. The active general-inline
 profile allows only OperationFlags=0, slave 1..4, nonzero ObjectIndex, any U8
@@ -570,23 +937,91 @@ successful terminal status carries exactly 1, 2 or 4 inline bytes and all unused
 result-tail bytes are zero. 8/12-byte reads and result chunks remain fail-closed;
 malformed shapes return BoundsInvalid or CapacityExceeded.
 
-The prepared Write path accepts only OperationFlags=1, an exact 36-byte request,
-ValueType=Int32(4), DataLength=4 and four little-endian data bytes. When the PLC
+The general prepared Write path accepts only OperationFlags=1, an exact 36-byte request,
+ValueType=Int32(4), DataLength=4 and four little-endian data bytes. There is no
+TW19/TW20 exception in this parser or its central policy. When the PLC
 global gate and the matching per-axis gate are enabled and every policy/state
 check passes, the returned ticket uses OperationKind=SDOWrite(3); successful
-terminal status has ResultLength=0 and
-zero result data. The only prepared candidate is Gold UI[24] at 0x2F00:24 on one
-of slaves 1..4, with the conservative local range -1073741823..1073741823. It is
-not approved yet: LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED and all four
-LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED..AXIS4_ENABLED gates are FALSE until the
-user drive program proves UI[24] unused and one target axis is selected. The
-deployment rule is to enable only that selected axis gate. The matching C#
-SdoWriteEnabled/SdoWriteUi24Axis1Enabled..Axis4Enabled gates and allowlist are
-also closed/empty, so the GUI remains disabled and raw Write requests are denied
-by policy. Arbitrary
+terminal status has ResultLength=0 and zero result data. The only approved
+source/policy target is Axis 1 Gold UI[24], SlaveReference=1, 0x2F00:24,
+Int32/4, with the conservative local range -1073741823..1073741823.
+LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED and
+LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED are TRUE; the Axis 2..4 gates remain
+FALSE. The matching C# SdoWriteEnabled/SdoWriteUi24Axis1Enabled gates and exact
+allowlist are enabled while the Axis 2..4 gates remain false. The WPF manual
+Write control remains disabled until baseline Read, pre-write guard Read,
+same-value Write and guarded readback complete with four distinct tickets on
+the exact current connection/session/DiagnosticsBuild/BootId/MapRevision and
+target. Its second confirmation uses the SDK identity-pinned submit path, which
+refreshes capabilities inside the mutation gate and sends no 0x7E50 frame on
+identity drift. This is source/PC activation, not current PLC or hardware proof.
+Arbitrary
 SDO writes are not supported. DS402 direct motion/control objects 0x6040, 0x607A,
 0x60FF and 0x6071 are permanently UnsafeWriteBlocked. PI Write 0x7E21 and extended
 result 0x7E51 remain disabled.
+
+Dedicated encoder maintenance uses only the following triad. Header Reference is
+zero; the target drive is carried inside the request.
+
+0x7E53 StartEncoderMaintenance, request payload 72 bytes:
+P8 DiagnosticsBuild U32, P12 DiagnosticsBootId U32, P16 MapRevision U32
+P20/P24/P28/P32 ClientIntentId0..3 U32, not all zero
+P36 Kind U16: 1 TW20 Error/Warning Reset, 2 TW19 Multiturn Position Reset
+P38 CompatibilityProfileId U16, nonzero recovery/audit identity
+P40 DriveReference U16, 1..4
+P42 FeedbackSocket U16, 1..4 legacy recovery/audit identity only
+P44 CommandValue U32, exactly 1
+P48 TimeoutMilliseconds U32, 1..60000
+P52/P56/P60/P64 CompatibilityEvidenceId0..3 U32, not all zero
+P68 ExecuteToken U32: 0x30325754 (`TW20`) for kind 1 or
+    0x39315754 (`TW19`) for kind 2
+Kind 1 dispatches exactly 0x20FC:0x02, UInt16 value 1, 2 bytes. Kind 2 dispatches
+exactly 0x20FC:0x01, UInt16 value 1, 2 bytes. DriveReference selects the physical
+drive; neither the axis number nor FeedbackSocket becomes the write value.
+Profile/socket/evidence fields remain exact recovery and audit identity only and
+do not select or authorize the SDO target. Both require motor off and the common
+axis-owner token. The generic TW[] LONG aliases
+0x3204:0x14/0x13 are excluded; substitution, fallback, retry or dual-send is
+forbidden.
+TimeoutMilliseconds is the overall unsigned `ops.tAbsolute` service-clock
+budget from request acceptance through terminal cleanup. RT latch cycle counts
+are evidence only and must never be interpreted as milliseconds. Before the one
+SDO write is submitted, the PLC computes elapsedMs and passes only the bounded
+remainingMs to `LMCSdoExecutor.TryStartWrite(..., TimeoutMs:=remainingMs)`.
+The generic D5 SDO `TimeoutCycles` contract is separate and remains unchanged.
+Success response payload is exactly 40 bytes:
+P16 Kind U16, P18 CompatibilityProfileId U16, P20 DriveReference U16,
+P22 FeedbackSocket U16, P24 CommandValue U32, P28 RecordGeneration U32,
+P32 OwnerGeneration U32, P36 StartCycle U32.
+
+0x7E54 ReadEncoderMaintenanceOutcome, request payload 72 bytes, repeats the exact
+identity at P8..P68 but places OriginalRequestId at P20 and the client intent at
+P24..P36. 0x7E55 RetireEncoderMaintenanceOutcome adds P72 RecordGeneration and
+has a 76-byte request. Both successful responses are exactly 156 bytes:
+P16 RecordState U16, P18 Kind U16
+P20 DiagnosticsBuild, P24 DiagnosticsBootId, P28 MapRevision U32
+P32 OriginalRequestId, P36/P40/P44/P48 ClientIntentId0..3 U32
+P52 CompatibilityProfileId U16, P54 DriveReference U16,
+P56 FeedbackSocket U16, P58 Reserved U16 = 0
+P60 CommandValue U32, P64 TimeoutMilliseconds U32,
+P68/P72/P76/P80 CompatibilityEvidenceId0..3 U32
+P84 OriginalCommandStatus U16, P86 OriginalErrorId I16,
+P88 OriginalDetailCode U32, P92 SdoAbortCode U32
+P96 StartCycle, P100 WriteCompletionCycle, P104 CompletionCycle U32
+P108 ExecutorState U32, P112 VerificationFlags U32
+P116 PreEvidence0, P120 PostEvidence0, P124 PreEvidence1,
+P128 PostEvidence1 U32, P132 StatusWord U16, P134 Reserved U16 = 0
+P136 AxisError DINT, P140 DriveErrorCode U32, P144 ActualPosition DINT,
+P148 RecordGeneration U32, P152 OwnerGeneration U32.
+Only an exact Succeeded terminal record with all required verification flags and
+executor released proves the maintenance workflow completed. It still does not
+by itself prove the physical encoder fault disappeared or the axis is motion-ready.
+All LASAL VerificationFlags accumulation and the retired-state tombstone use
+integer OR. Logical `|` is forbidden for these integer expressions because C78
+collapses their nonzero result to BOOL 1.
+Capability bits 18 and 19 are source-active for this fixed-value dedicated path.
+That source advertisement is not PLC download or physical-effect proof; current
+PLC identity and live before/after evidence are still required.
 
 The executor publishes Running before StartReadSDO or StartWriteSDO can callback.
 It copies Write data into executor-owned storage before dispatch. It owns cleanup
@@ -597,8 +1032,9 @@ hard Quarantined. Submit reports InternalError detail 24 when no public ticket o
 drain owns a non-Idle executor; ResourceBusy detail 9 is reserved for an owned
 queued/running/draining operation.
 
-The SDO Write source/API/WPF infrastructure and PC tests are not LASAL IDE build,
-PLC download, EtherCAT mailbox, drive-program, or hardware behavior proof.
+The SDO Write source/API/WPF infrastructure, PC tests, static contracts and
+current LASAL IDE build are not PLC download, EtherCAT mailbox, drive-program,
+or hardware behavior proof.
 
 D5 ReadSDOResultChunk 0x7E51 request is exactly 28 bytes:
 P8 TicketId U32, P12 ByteOffset U32, P16 RequestedBytes U16,
@@ -750,8 +1186,55 @@ ProfileError and in-position/standstill state.
 [8] Execute BYTE = 1
 The handler validates group reference 0x0100 and calls
 LMCRobot.AxQuitError(AxisNo:=0).
-This resets connected axis/hardware errors; it is not a guaranteed reset of the
-robot profile error. Poll GroupReadStatus and inspect GroupErrorId afterward.
+A success ACK means only that the reset call was dispatched. QuitError processing
+may complete later in the realtime task, and the ACK does not prove that every
+member axis error cleared. GroupReadStatus alone is insufficient because 0x2045
+does not return each member's ReadAxisError value.
+
+The implemented stable completion contract first validates and pins the observed
+0x20D2 member snapshot, sends exactly one 0x2049, and publishes
+PendingGroupResetWaitContinuation. Resume never replays 0x2049. Each Resume round
+sends one 0x2045 followed by one 0x2028 for every pinned member in snapshot order.
+A full-clear round requires successful reads, GroupErrorId=0 and every member
+AxisErrorId=0; completion requires three consecutive full-clear rounds. Any
+group/member nonzero error resets the stable count. The generic SDK accepts a
+successful 1..16-member snapshot with nonzero unique axis references. This proves
+only the observed snapshot; it does not attest the expected topology, the current
+PLC build, or the tracked LASAL source's nine-member layout. Stop/PowerOff/safe
+Disable may preempt the
+monitor, and Reset proof does not prove or promote power, profile lock, DS402 fault
+clearance, reference/home or motion readiness.
+
+The implemented public surface includes LMCGroupResetPreparedEvidence,
+LMCGroupResetDurableRecoveryRecord, PendingGroupResetWaitContinuation,
+BeginGroupResetWaitForStableErrorClearanceAsync,
+AttachGroupResetDurableRecoveryAsync,
+ResumeGroupResetWaitForStableErrorClearanceAsync and the compound facade. The local no-wire
+SupersedePendingGroupResetAfterCapturedMemberSafetyMutation helper reconciles an
+accepted/outcome-uncertain captured-member Axis safety generation with the exact
+pending Reset; a rolled-back valid NACK returns false and preserves the continuation.
+Raw GroupReset[Async] remains the
+ACK-only compatibility surface, while the WPF Group Reset button uses the stable
+path. Timeout, cancellation, and status failure preserve a same-session status-only
+continuation. Accepted or outcome-uncertain group/captured-member mutation is a
+terminal supersede; a pre-wire failure or structurally valid safety NACK preserves
+the Reset continuation. The compound facade shares one Begin+Resume deadline, but a
+later split Resume starts a new status-only timeout epoch and stable count.
+
+While exact live proof is pending or the Reset submission outcome is uncertain, WPF
+blocks fresh Reset, PowerOn, Enable, SetKin, Move, mutation qualification,
+Connect/Reconnect, and connection/window Close. It allows exact status-only Resume,
+read-only inspection, Stop, PowerOff, and safe Disable. Accepted Reset invalidates
+cached power-active, identity, Home, and profile-lock readiness; a successful proof
+does not restore them. WPF durably arms the exact endpoint, Diagnostics identity,
+group, ordered members, stable count, and operation ID at the prepared callback before
+the Reset write. A spontaneous disconnect or restart discards the old session
+continuation and promotes that record to recovery-required without replay. After exact
+endpoint/build/BootId/Map/group matching, Attach reads one fresh 0x20D2 and publishes a
+new-session status-only continuation only when count/order/name/reference/device all
+match. Attach and Resume send zero 0x2049. Identity mismatch preserves the durable
+record and sends no status wire. See
+GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md.
 
 0x204A GroupPowerOn, payload 1 byte (project-local LASAL extension; absent from the
 original Elmo capture set, current LASAL live capture available)
@@ -895,11 +1378,51 @@ Response payloads implemented by command-specific parsers:
   PLC verification. Legacy 136-byte LREAL is rejected.
 
 Callback and ownership:
+- 0x405C wire shape is unchanged. Request payload is exactly 12 bytes:
+    P0  EventMask UDINT
+    P4  CallbackPort DINT, valid registered range 1..65535
+    P8  CallbackIPv4 BYTE[4]
+  Response payload remains exactly 4 bytes: Status UINT16 + ErrorId INT16.
+- The LASAL handler validates into temporary values before commit. It requires
+  CurrentPeerValid, CallbackIPv4 exactly equal to the TCP peer IPv4, and a valid
+  port. The first valid tuple is committed; its exact duplicate is idempotent.
+  A different re-registration fails and preserves the accepted tuple unchanged.
+- Installed SIGMATEK GetBroadCastData source reconstructs IPv4 octets from a
+  UDINT least-significant byte first (then SHR 8/16/24). This is static byte-order
+  evidence for comparing the copied request IPv4 UDINT with
+  OS_TCP_USER_GETPEERIP; current PLC compile/download/capture is still pending.
 - UDP callback payload remains raw because no event datagram capture/contract exists.
 - Callback source-address validation and defensive payload copies are PC safeguards;
   they do not define a typed callback protocol.
+- Raw LMCCallbackEventArgs carries SessionGeneration and exposes BelongsTo and
+  BelongsToCurrentSession. The WPF dispatcher drops an event unless it still
+  belongs to the active connection and current session, so a queued old-session
+  event is not logged after reconnect.
 - Multi-PC read sharing and motion/control ownership must be enforced by the LASAL
   session/dispatcher. Separate PC LMCConnection instances cannot enforce server ownership.
+- The 2026-08-03 dormant common-ownership contract selects TCPMotionInterface as
+  the serialized admission owner, but production owner state/token/terminal
+  observation is not implemented. Ordinary Power/Reset/Stop/Move handlers still
+  return ACKs without retaining a long-lived axis owner. Axis/Group Stop and
+  PowerOff are safety-preemption commands and must not be rejected merely because
+  Home/encoder-maintenance/motion owns the target. LMCRobot is connected to Axis1..9 and 0x20D2
+  publishes that robot-connected set, while LockProfile and Cartesian profile
+  moves explicitly select Axis1..4. Ownership must therefore distinguish the
+  conservative robot-wide mask 0x01FF from the active profile mask 0x000F per
+  command; 0x20D2 must not be reused as the profile mask.
+  LMC_Home, DS402 Home and the Diagnostics SDO executor also remain independent
+  capacity-one global resources until their singleton state is refactored.
+  Stop/PowerOff dispatch must not wait for Home cleanup or SDO drain; dispatch it
+  once immediately, then require both a stable safe state and owner-specific
+  cleanup before release. Move completion additionally requires a post-acquire
+  activity transition so the pre-dispatch standstill sample cannot release it.
+  See docs/architecture/AXIS_COMMON_OWNERSHIP_INTERLOCK_DORMANT_CONTRACT_2026-08-03.md.
+  Admin bits 4/6, Diagnostics bits 18/19, and the corresponding feature gates remain
+  OFF until the bidirectional interlock, atomic Group acquisition, terminal
+  release, IDE build, PLC download, and concurrent-request proof are complete.
+- No typed callback sender/parser is approved until a real event payload is
+  captured or a separate local schema is explicitly approved. The P0 ownership
+  change is source/PC-contract work, not PLC runtime proof.
 
 MoveCircle scope:
 - The current public C# API has no MoveCircle method.

@@ -29,6 +29,7 @@ namespace LasalMotionControlLib.Tests
         internal bool RequireClientDisconnectBeforeRequest { get; set; }
         internal bool ContinueWithNextClientAfterDisconnect { get; set; }
         internal Action<byte[]> InspectRequest { get; set; }
+        internal Func<byte[], byte[]> ResponseFactory { get; set; }
         internal Action<byte[]> AfterResponse { get; set; }
         internal bool CloseClientBeforeResponse { get; set; }
         internal bool CloseClientBeforeResponseAndContinue { get; set; }
@@ -50,6 +51,9 @@ namespace LasalMotionControlLib.Tests
         private readonly TcpListener listener;
         private readonly FakeRpcStep[] steps;
         private readonly Thread worker;
+        private readonly object receivedRequestsSync;
+        private readonly List<byte[]> receivedRequests;
+        private readonly List<int> receivedRequestSessionOrdinals;
         private Exception workerException;
         private volatile bool disposed;
 
@@ -60,8 +64,9 @@ namespace LasalMotionControlLib.Tests
             listener.Start();
 
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            ReceivedRequests = new List<byte[]>();
-            ReceivedRequestSessionOrdinals = new List<int>();
+            receivedRequestsSync = new object();
+            receivedRequests = new List<byte[]>();
+            receivedRequestSessionOrdinals = new List<int>();
 
             worker = new Thread(Run)
             {
@@ -73,8 +78,27 @@ namespace LasalMotionControlLib.Tests
 
         internal int Port { get; private set; }
         internal int AcceptedClientCount { get; private set; }
-        internal IList<byte[]> ReceivedRequests { get; private set; }
-        internal IList<int> ReceivedRequestSessionOrdinals { get; private set; }
+        internal IList<byte[]> ReceivedRequests
+        {
+            get
+            {
+                lock (receivedRequestsSync)
+                {
+                    return receivedRequests.ToArray();
+                }
+            }
+        }
+
+        internal IList<int> ReceivedRequestSessionOrdinals
+        {
+            get
+            {
+                lock (receivedRequestsSync)
+                {
+                    return receivedRequestSessionOrdinals.ToArray();
+                }
+            }
+        }
 
         internal void Verify()
         {
@@ -179,8 +203,12 @@ namespace LasalMotionControlLib.Tests
                                         "The client sent an RPC request instead of disconnecting its transport.");
                                 }
 
-                                ReceivedRequests.Add(request);
-                                ReceivedRequestSessionOrdinals.Add(sessionOrdinal);
+                                lock (receivedRequestsSync)
+                                {
+                                    receivedRequests.Add(request);
+                                    receivedRequestSessionOrdinals.Add(
+                                        sessionOrdinal);
+                                }
 
                                 AssertEx.Equal(
                                     step.Command,
@@ -228,7 +256,10 @@ namespace LasalMotionControlLib.Tests
 
                                 try
                                 {
-                                    WriteResponse(stream, step.Response, step.ResponseChunks);
+                                    var response = step.ResponseFactory == null
+                                        ? step.Response
+                                        : step.ResponseFactory(request);
+                                    WriteResponse(stream, response, step.ResponseChunks);
                                 }
                                 catch (Exception ex) when (
                                     step.AllowClientDisconnectAfterRequest &&

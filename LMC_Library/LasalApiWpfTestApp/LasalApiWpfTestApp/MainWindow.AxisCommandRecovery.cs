@@ -100,6 +100,7 @@ namespace LasalMotionControlApiExample
                             axisCommandRecoveryJournalDirectoryPath);
                 axisCommandRecoveryJournalOpenError = null;
                 axisCommandRecoveryJournalRuntimeError = null;
+                TryFinalizeCommittedAxisCommandRetirementAtStartup();
                 var record = axisCommandRecoveryJournal.CurrentRecord;
                 if (record == null || !record.IsActive)
                 {
@@ -872,6 +873,9 @@ namespace LasalMotionControlApiExample
                     "Accepted Axis Stop does not match its durable identity.");
             }
             PersistAxisCommandAccepted(verificationRecord, "Axis Stop");
+            CheckpointAxisQualificationStopAccepted(
+                axis,
+                "Axis Stop accepted sequence checkpoint");
             pendingAxisStopWaitContinuation = continuation;
             pendingAxisResetWaitContinuation = null;
             axisResetAcceptedRestartRecovery = false;
@@ -1302,6 +1306,12 @@ namespace LasalMotionControlApiExample
             }
             try
             {
+                if (expectedOperation == AxisCommandRecoveryOperation.Stop)
+                {
+                    CheckpointAxisQualificationStopStableBeforeChildResolve(
+                        axis,
+                        operation + " sequence checkpoint");
+                }
                 axisCommandRecoveryJournal.Resolve(
                     current.Identity,
                     MonotonicUtcNow(current.UpdatedUtc));

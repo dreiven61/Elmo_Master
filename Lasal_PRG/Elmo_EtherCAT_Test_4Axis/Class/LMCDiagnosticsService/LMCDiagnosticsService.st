@@ -20,6 +20,7 @@
 	<Channels>
 		<Server Name="ClassSvr" GUID="{9DB9E1D9-002C-4FBC-A4C3-38A7C42F3815}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Server Name="DiagnosticsBootCounter" GUID="{030E4D7F-6C9D-4B30-AFDD-30FCCA2226DA}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="false" Retentive="File" Comment="Persistent diagnostics resource generation counter."/>
+		<Client Name="AxisOwnership" Required="true" Internal="false"/>
 		<Client Name="InputLatch" Required="true" Internal="false"/>
 		<Client Name="RecorderStore" Required="true" Internal="false"/>
 		<Client Name="SdoAxis1" Required="true" Internal="false"/>
@@ -35,6 +36,7 @@ LMCDiagnosticsService : CLASS
 	DiagnosticsBootCounter 	: SvrCh_UDINT;
   //Clients:
 	InputLatch 	: CltChCmd_LMCEcatInputLatch;
+	AxisOwnership 	: CltChCmd_LMCControlCommandService;
 	RecorderStore 	: CltChCmd_LMCRecorderStore;
 	SdoAxis1 	: CltChCmd_LMCSdoExecutor;
 	SdoAxis2 	: CltChCmd_LMCSdoExecutor;
@@ -80,6 +82,14 @@ LMCDiagnosticsService : CLASS
 		DiagnosticsBootId 	: UDINT;
 		BootIdInitialized 	: BOOL;
 		BootIdFault 	: BOOL;
+		Ds402HomeState : ARRAY [0..127] OF DINT;
+
+		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
+
+		EncoderMaintenanceServiceMilliseconds 	: UDINT;
+		EncoderMaintenanceObservedLatchCycle 	: UDINT;
+		EncoderMaintenanceLatchAdvanceServiceMilliseconds 	: UDINT;
+		EncoderMaintenanceLatchFreshSampleCount 	: UINT;
   //Functions:
 	
 	FUNCTION LMCDiagnosticsService
@@ -96,6 +106,9 @@ LMCDiagnosticsService : CLASS
 			pResponse 	: ^USINT;
 			ResponseCapacity 	: UDINT;
 			CallerSessionEpoch 	: UDINT;
+			RequestSequence 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
 		END_VAR
 		VAR_OUTPUT
 			ResponseSize 	: DINT;
@@ -145,6 +158,171 @@ LMCDiagnosticsService : CLASS
 		VAR_OUTPUT
 			Result 	: DINT;
 		END_VAR;
+	
+	FUNCTION HandleEtherCATTopologyIoRequest
+		VAR_INPUT
+			CommandId 	: UINT;
+			pRequest 	: ^USINT;
+			RequestSize 	: UDINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			CurrentDiagnosticsBootId 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisDs402HomeStart
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSequence 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisDs402HomeOutcome
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisDs402HomeRetire
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION ProcessAxisDs402Home;
+	
+	FUNCTION HandleDiagnosticsCapabilities
+		VAR_INPUT
+			RequestSize 	: UDINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CurrentDiagnosticsBootId 	: UDINT;
+			DetailCode 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleEncoderMaintenanceStart
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSequence 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleEncoderMaintenanceOutcome
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleEncoderMaintenanceRetire
+		VAR_INPUT
+			Reference 	: UINT;
+			pRequest 	: ^USINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+			RequestSize 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION ProcessEncoderMaintenance;
+	
+	FUNCTION HandleDiagnosticsBulkRequest
+		VAR_INPUT
+			CommandId 	: UINT;
+			pRequest 	: ^USINT;
+			RequestSize 	: UDINT;
+			pResponse 	: ^USINT;
+			ResponseCapacity 	: UDINT;
+			CallerSessionEpoch 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			ResponseSize 	: DINT;
+		END_VAR;
+	
+	FUNCTION ProcessAxisOwnershipStartup;
+	
+	FUNCTION HandleEncoderMaintenancePreemption
+		VAR_INPUT
+			Stage 	: DINT;
+			PreemptionResult 	: DINT;
+			pPreemptionSnapshot 	: ^USINT;
+			ServiceNow 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisDs402HomeReceiptStages
+		VAR_INPUT
+			Stage 	: DINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleAxisDs402HomeCleanupStages
+		VAR_INPUT
+			Stage 	: DINT;
+			AxisReference 	: UINT;
+			AxisMask 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+			Ds402ProcessOwnerSessionEpoch 	: UDINT;
+			OwnerRequestSequence 	: UDINT;
+			SafetyAdmissionToken 	: UDINT;
+			SafetyOwnerGeneration 	: UDINT;
+			InitialCurrentCycle 	: UDINT;
+			ServiceNow 	: UDINT;
+			ActualPosition 	: DINT;
+			PreemptionCleanup 	: BOOL;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -153,6 +331,7 @@ LMCDiagnosticsService : CLASS
 	FUNCTION GLOBAL TAB @CT_;
 END_CLASS;
 
+#pragma usingLtd LMCControlCommandService
 #pragma usingLtd LMCEcatInputLatch
 #pragma usingLtd LMCRecorderStore
 #pragma usingLtd LMCSdoExecutor
@@ -165,7 +344,7 @@ FUNCTION GLOBAL TAB LMCDiagnosticsService::@CT_
 0$UINT,
 2#0100000000000010$UINT, //TY_LMCDIAGNOSTICSSERVICE
 0$UINT, 0$UINT, (SIZEOF(::LMCDiagnosticsService))$UINT, 
-2$UINT, 6$UINT, 0$UINT, 
+2$UINT, 7$UINT, 0$UINT, 
 TO_UDINT(1037074496), "LMCDiagnosticsService", //Class
 TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 //Servers:
@@ -173,6 +352,7 @@ TO_UDINT(0), 0, 0$UINT, 0$UINT, //Baseclass
 (::LMCDiagnosticsService.DiagnosticsBootCounter.pMeth)$UINT, _CH_SVR$UINT, 2#0000000000011000$UINT, TO_UDINT(203618015), "DiagnosticsBootCounter", 
 //Clients:
 (::LMCDiagnosticsService.InputLatch.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(1391213222), "InputLatch", TO_UDINT(3935910575), "LMCEcatInputLatch", 0$UINT, 0$UINT, 
+(::LMCDiagnosticsService.AxisOwnership.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(275111594), "AxisOwnership", TO_UDINT(4292381624), "LMCControlCommandService", 0$UINT, 0$UINT, 
 (::LMCDiagnosticsService.RecorderStore.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(2254314628), "RecorderStore", TO_UDINT(3890278202), "LMCRecorderStore", 0$UINT, 0$UINT, 
 (::LMCDiagnosticsService.SdoAxis1.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(619195593), "SdoAxis1", TO_UDINT(619614998), "LMCSdoExecutor", 0$UINT, 0$UINT, 
 (::LMCDiagnosticsService.SdoAxis2.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(3185671539), "SdoAxis2", TO_UDINT(619614998), "LMCSdoExecutor", 0$UINT, 0$UINT, 
@@ -232,11 +412,97 @@ END_FUNCTION
 #define LMC_DIAG_D2_ENABLED           TRUE
 #define LMC_DIAG_D3_ENABLED           TRUE
 #define LMC_DIAG_D5_SDO_READ_ENABLED  TRUE
-#define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED FALSE
-#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED FALSE
+#define LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED TRUE
+#define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED TRUE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED FALSE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED FALSE
 #define LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED FALSE
+// Implementation remains dormant until RT mailbox, setpoint alignment and
+// no-jump CSP return have been proven on every enabled physical axis.
+#define LMC_DIAG_DS402_HOME_ENABLED FALSE
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2
+#define LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR 86
+#define LMC_DIAG_DS402_STAGE_RESERVE_INTENT 87
+#define LMC_DIAG_DS402_INTENT_MAGIC 0x4434494E
+#define LMC_DIAG_DS402_INTENT_ADOPT_MAGIC 0x44344144
+#define LMC_DIAG_ENCODER_TW20_ENABLED TRUE
+#define LMC_DIAG_ENCODER_TW19_ENABLED TRUE
+// TW[19] and TW[20] are drive-axis commands. Both write the fixed UInt16
+// value 1; the selected subindex identifies the maintenance operation.
+#define LMC_DIAG_ENCODER_RESET_VALUE 1
+
+#define LMC_DIAG_ENCODER_RECORD_STRIDE 38
+#define LMC_DIAG_ENCODER_RUNTIME_BASE 152
+#define LMC_DIAG_ENCODER_STAGE_IDLE 0
+#define LMC_DIAG_ENCODER_STAGE_PRE_STABLE 1
+#define LMC_DIAG_ENCODER_STAGE_DISPATCH 2
+#define LMC_DIAG_ENCODER_STAGE_WAIT_SDO 3
+#define LMC_DIAG_ENCODER_STAGE_POST_STABLE 4
+#define LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER 5
+#define LMC_DIAG_ENCODER_STAGE_DRAIN 90
+#define LMC_DIAG_ENCODER_STAGE_QUARANTINED 101
+#define LMC_DIAG_ENCODER_RECORD_RUNNING 1
+#define LMC_DIAG_ENCODER_RECORD_SUCCEEDED 2
+#define LMC_DIAG_ENCODER_RECORD_FAILED 3
+#define LMC_DIAG_ENCODER_RECORD_ABORTED 4
+#define LMC_DIAG_ENCODER_RECORD_RETIRED 0x00008000
+#define LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY 33
+#define LMC_DIAG_ENCODER_DETAIL_NOT_FOUND 34
+#define LMC_DIAG_ENCODER_DETAIL_INDETERMINATE 35
+#define LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT 36
+#define LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH 37
+#define LMC_DIAG_ENCODER_DETAIL_STORAGE 38
+#define LMC_DIAG_ENCODER_DETAIL_EXECUTION 39
+#define LMC_DIAG_ENCODER_DETAIL_ABORTED 40
+#define LMC_DIAG_ENCODER_DETAIL_SLOT_OCCUPIED 41
+#define LMC_DIAG_ENCODER_DETAIL_SEMANTIC 42
+#define LMC_DIAG_ENCODER_VERIFY_DRIVE_TARGET 0x00000001
+#define LMC_DIAG_ENCODER_VERIFY_SDO_CONTRACT 0x00000002
+#define LMC_DIAG_ENCODER_VERIFY_MOTOR_OFF_PRE 0x00000004
+#define LMC_DIAG_ENCODER_VERIFY_SDO_COMPLETE 0x00000008
+#define LMC_DIAG_ENCODER_VERIFY_EXECUTOR_DRAINED 0x00000010
+#define LMC_DIAG_ENCODER_VERIFY_MOTOR_OFF_POST 0x00000020
+#define LMC_DIAG_ENCODER_VERIFY_STABLE_WINDOW 0x00000040
+#define LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP 0x00000080
+#define LMC_DIAG_ENCODER_VERIFY_POST_WRITE_STATE 0x00000100
+#define LMC_DIAG_ENCODER_VERIFY_NO_MOTION 0x00000200
+#define LMC_DIAG_ENCODER_VERIFY_ALL 0x000003FF
+#define LMC_DIAG_OWNER_KIND_ENCODER 5
+#define LMC_DIAG_OWNER_KIND_DS402_HOME 4
+#define LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO 4
+#define LMC_DIAG_RESOURCE_DS402_HOME 3
+#define LMC_DIAG_ADMISSION_SAFETY 2
+#define LMC_DIAG_ADMISSION_LIFECYCLE 4
+#define LMC_DIAG_OWNER_PHASE_RESERVED 1
+#define LMC_DIAG_OWNER_PHASE_ACTIVE 2
+#define LMC_DIAG_OWNER_REPORT_DISPATCH 1
+#define LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS 2
+#define LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE 3
+#define LMC_DIAG_OWNER_REPORT_QUARANTINE 4
+#define LMC_DIAG_DS402_RECEIPT_MAGIC 0x44344850
+#define LMC_DIAG_DS402_RECEIPT_PREPARED 1
+#define LMC_DIAG_DS402_RECEIPT_COMPLETE 6
+#define LMC_DIAG_DS402_RECEIPT_ROLLBACK 0
+#define LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED 88
+#define LMC_DIAG_DS402_STAGE_FINALIZE 102
+#define LMC_DIAG_PREEMPT_SNAPSHOT_MAGIC 0x4C4D4350
+#define LMC_DIAG_PREEMPT_SNAPSHOT_VERSION 1
+#define LMC_DIAG_PREEMPT_SNAPSHOT_HEADER_SIZE 144
+#define LMC_DIAG_PREEMPT_SNAPSHOT_TOTAL_SIZE 216
+#define LMC_DIAG_PREEMPT_PENDING_FREEZE 1
+#define LMC_DIAG_PREEMPT_CLEANUP_REQUIRED 2
+#define LMC_DIAG_PREEMPT_CLEANUP_COMPLETE 3
+#define LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED 4
+#define LMC_DIAG_OWNER_STATE_RESERVED 1
+#define LMC_DIAG_OWNER_STATE_DS402_HOME_ACTIVE 6
+#define LMC_DIAG_OWNER_STATE_TW20_QUEUED 7
+#define LMC_DIAG_OWNER_STATE_TW20_RUNNING 8
+#define LMC_DIAG_OWNER_STATE_TW20_DRAINING 9
+#define LMC_DIAG_OWNER_STATE_SAFETY_PREEMPTING 10
+#define LMC_DIAG_OWNER_STATE_QUARANTINED 11
+#define LMC_DIAG_PREEMPT_CLEANUP_SAFE 1
+#define LMC_DIAG_PREEMPT_CLEANUP_COMPLETE_QUARANTINE 2
+#define LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE 3
 #define LMC_DIAG_ECAT_IO_WRITE_GLOBAL_ENABLED FALSE
 #define LMC_DIAG_ECAT_IO_WRITE_GT22BA_ENABLED FALSE
 #define LMC_DIAG_ECAT_IO_OUTPUT_REFERENCE 0x00010002
@@ -257,6 +523,13 @@ END_FUNCTION
 #define LMC_DIAG_SDO_OUTCOME_TIMED_OUT 4
 #define LMC_DIAG_SDO_DRAIN_EXPIRED     1
 #define LMC_DIAG_SDO_DRAIN_ORPHAN      2
+#define LMC_DIAG_ADMIN_ERROR_ID         -31000
+#define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC 0x4C4D4353
+#define LMC_OWNER_STARTUP_DIAG_SNAPSHOT 0x00000001
+#define LMC_OWNER_STARTUP_DIAG_DS402    0x00000002
+#define LMC_OWNER_STARTUP_DIAG_ENCODER  0x00000004
+#define LMC_OWNER_STARTUP_DIAG_GENERIC  0x00000008
+#define LMC_OWNER_STARTUP_DIAG_EXECUTOR 0x00000010
 
 
 FUNCTION GLOBAL LMCDiagnosticsService::GetDiagnosticsBootId
@@ -583,47 +856,47 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 		RETURN;
 	end_if;
 
-	// UI[24] is only a prepared candidate. The global and per-axis gates stay
-	// FALSE until each drive program use and hardware behavior are confirmed.
-	if LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE then
-		DetailCode := 7;
-		RETURN;
-	end_if;
-	if (SlaveReference < 1) | (SlaveReference > 4) |
-		(ObjectIndex <> 0x2F00) | (SubIndex <> 24) |
-		(ValueType <> 4) | (DataLength <> 4) then
-		DetailCode := 7;
-		RETURN;
-	end_if;
-	case SlaveReference of
-		1:
-			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = FALSE then
-				DetailCode := 7;
-				RETURN;
-			end_if;
-		2:
-			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = FALSE then
-				DetailCode := 7;
-				RETURN;
-			end_if;
-		3:
-			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = FALSE then
-				DetailCode := 7;
-				RETURN;
-			end_if;
-		4:
-			if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = FALSE then
-				DetailCode := 7;
-				RETURN;
-			end_if;
-	end_case;
+		// Generic UI[24] policy is the only approved 0x7E50 write target.
+		// Encoder maintenance objects are available only through 0x7E53.
+		if LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE then
+			DetailCode := 7;
+			RETURN;
+		end_if;
+		if (SlaveReference < 1) | (SlaveReference > 4) |
+			(ObjectIndex <> 0x2F00) | (SubIndex <> 24) |
+			(ValueType <> 4) | (DataLength <> 4) then
+			DetailCode := 7;
+			RETURN;
+		end_if;
+		case SlaveReference of
+			1:
+				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = FALSE then
+					DetailCode := 7;
+					RETURN;
+				end_if;
+			2:
+				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = FALSE then
+					DetailCode := 7;
+					RETURN;
+				end_if;
+			3:
+				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = FALSE then
+					DetailCode := 7;
+					RETURN;
+				end_if;
+			4:
+				if LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = FALSE then
+					DetailCode := 7;
+					RETURN;
+				end_if;
+		end_case;
 
-	// Conservative local policy range; this is not the vendor UI range.
-	writeValue := WriteData$DINT;
-	if (writeValue < -1073741823) | (writeValue > 1073741823) then
-		DetailCode := 12;
-		RETURN;
-	end_if;
+		// Conservative local policy range; this is not the vendor UI range.
+		writeValue := WriteData$DINT;
+		if (writeValue < -1073741823) | (writeValue > 1073741823) then
+			DetailCode := 12;
+			RETURN;
+		end_if;
 	if CheckAxisState = FALSE then
 		RETURN;
 	end_if;
@@ -641,8 +914,9 @@ FUNCTION LMCDiagnosticsService::GetSdoWritePolicyDetail
 		((pSnapshot + axisHealthOffset)^$DINT = 0) |
 		((pSnapshot + axisHealthOffset + 4)^$UDINT <> 8) |
 		((pSnapshot + axisHealthOffset + 12)^$UDINT <> 0) |
-		((pSnapshot + axisHealthOffset + 24)^$DINT <> 0) |
-		((pSnapshot + axisHealthOffset + 28)^$UDINT <> pSnapshot^$UDINT) |
+		((pSnapshot + axisHealthOffset + 28)^$UDINT <> pSnapshot^$UDINT) then
+		DetailCode := 19;
+	elsif ((pSnapshot + axisHealthOffset + 24)^$DINT <> 0) |
 		((statusWord and 0x0000006F) <> 0x00000040) then
 		DetailCode := 19;
 	end_if;
@@ -665,6 +939,13 @@ FUNCTION GLOBAL LMCDiagnosticsService::ProcessOperations
 		wasRunning : BOOL;
 		writePolicyDetail : UDINT;
 	END_VAR
+
+	// Dedicated lifecycles own the same per-axis SDO executor as generic D5
+	// operations. Pump them before the generic feature-gate return so cleanup
+	// cannot be skipped while their public feature gates remain disabled.
+	ProcessEncoderMaintenance();
+	ProcessAxisDs402Home();
+	ProcessAxisOwnershipStartup();
 
 	if (LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) &
 		(LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = FALSE) then
@@ -1215,6 +1496,9 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		pResponse 	: ^USINT;
 		ResponseCapacity 	: UDINT;
 		CallerSessionEpoch 	: UDINT;
+		RequestSequence 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
 	END_VAR
 	VAR_OUTPUT
 		ResponseSize 	: DINT;
@@ -1222,12 +1506,12 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	VAR
 		schemaVersion, requestFlags, physicalAxis, signalCode : UINT;
 		catalogIndex, startIndex, maxEntries, returnedCount : UINT;
-		entryIndex, signalCount, duplicateIndex, sdoOperationFlags : UINT;
+		entryIndex, sdoOperationFlags : UINT;
 		sdoDataLength, sdoReserved, requestSdoSlaveReference : UINT;
 		requestSdoObjectIndex : UINT;
 		requestId, detailCode, expectedMapRevision, signalId : UDINT;
-		entryOffset, healthOffset, valueOffset, requestedBulkId : UDINT;
-		requestBulkId, requestConfigRevision, expectedRequestSize : UDINT;
+		entryOffset, healthOffset, valueOffset : UDINT;
+		expectedRequestSize : UDINT;
 		entryDetailCode, currentBootId, requestSdoTimeoutCycles : UDINT;
 		requestSdoWriteData, writePolicyDetail, sdoBootId : UDINT;
 		sdoTicketId, currentCycle : UDINT;
@@ -1235,7 +1519,7 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 		requestSdoValueType : USINT;
 		copyResult : DINT;
 		snapshot : ARRAY [0..303] OF USINT;
-		hasInvalidEntry, executorConnected, executorReusable : BOOL;
+		executorConnected, executorReusable : BOOL;
 	END_VAR
 
 	ResponseSize := -1;
@@ -1265,6 +1549,53 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	(pResponse + 12)^$UDINT := 0;
 	detailCode := 0;
 
+	// Home uses physical axis references 1..4, unlike diagnostics commands below.
+	if CommandId = 0x7D15 then
+		ResponseSize := HandleAxisDs402HomeStart(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration,
+			RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7D16 then
+		ResponseSize := HandleAxisDs402HomeOutcome(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7D17 then
+		ResponseSize := HandleAxisDs402HomeRetire(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7E53 then
+		ResponseSize := HandleEncoderMaintenanceStart(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration,
+			RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7E54 then
+		ResponseSize := HandleEncoderMaintenanceOutcome(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	elsif CommandId = 0x7E55 then
+		ResponseSize := HandleEncoderMaintenanceRetire(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=RequestSize);
+		RETURN;
+	end_if;
+
 	if (pRequest = NIL) | (RequestSize < 8) | (Reference <> 0) then
 		detailCode := 12;
 	elsif schemaVersion <> LMC_DIAG_SCHEMA_VERSION then
@@ -1292,51 +1623,11 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 	end_if;
 
 	if CommandId = 0x7E00 then
-		if RequestSize <> 8 then
-			detailCode := 12;
-		end_if;
-		if detailCode <> 0 then
-			(pResponse + 4)^$UINT := 1;
-			(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
-			(pResponse + 12)^$UDINT := detailCode;
-		end_if;
-		(pResponse + 16)^$UDINT := 1;
-		(pResponse + 20)^$UDINT := 0x00004007;
-		(pResponse + 24)^$UDINT := LMC_DIAG_MAP_REVISION;
-		(pResponse + 28)^$UINT := 24;
-		(pResponse + 30)^$UINT := 0;
-		(pResponse + 32)^$UINT := 0;
-		(pResponse + 34)^$UINT := 0;
-		(pResponse + 36)^$UDINT := 0;
-		(pResponse + 40)^$UDINT := 1000;
-		(pResponse + 44)^$UINT := 1320;
-		(pResponse + 46)^$UINT := 2040;
-		(pResponse + 48)^$UINT := 1280;
-		(pResponse + 50)^$UINT := 80;
-		(pResponse + 52)^$UINT := 16;
-		(pResponse + 54)^$UINT := 0;
-		(pResponse + 56)^$UDINT := 0;
-		(pResponse + 60)^$UINT := 0;
-		(pResponse + 62)^$UINT := 0;
-		(pResponse + 64)^$UDINT := currentBootId;
-		if currentBootId <> 0 then
-			(pResponse + 20)^$UDINT := 0x0000613F;
-			(pResponse + 30)^$UINT := 24;
-			(pResponse + 32)^$UINT := 24;
-			(pResponse + 34)^$UINT := 1;
-			(pResponse + 36)^$UDINT := 320000;
-			(pResponse + 56)^$UDINT := 1280000;
-			(pResponse + 60)^$UINT := 4;
-			if (LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE) &
-				((LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = TRUE) |
-				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = TRUE) |
-				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = TRUE) |
-				 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = TRUE)) then
-				(pResponse + 20)^$UDINT :=
-					(pResponse + 20)^$UDINT | 0x00000200;
-			end_if;
-		end_if;
-		ResponseSize := 68;
+		ResponseSize := HandleDiagnosticsCapabilities(
+			RequestSize:=RequestSize, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CurrentDiagnosticsBootId:=currentBootId,
+			DetailCode:=detailCode);
 		RETURN;
 	end_if;
 
@@ -1480,27 +1771,16 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				end_if;
 			end_if;
 
-		0x7E11:
-			if RequestSize <> 8 then detailCode:=12;
-			elsif ResponseCapacity < 44 then detailCode:=20;
-			elsif BuildCatalogEntry(pEntry:=pResponse + 16,
-				CatalogIndex:=0x0200) <> 0 then detailCode:=24;
-			else ResponseSize:=44;
-			end_if;
-
-		0x7E12:
-			if RequestSize = 16 then
-				expectedMapRevision:=(pRequest + 8)^$UDINT; startIndex:=(pRequest + 12)^$UINT;
-				maxEntries:=(pRequest + 14)^$UINT;
-				if expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;
-				elsif (maxEntries <> 1) | (startIndex >= 7) then detailCode:=12;
-				elsif ResponseCapacity < 124 then detailCode:=20;
-				elsif BuildCatalogEntry(pEntry:=pResponse, CatalogIndex:=0x8000 or
-					(startIndex shl 8) or 1) <> 0 then detailCode:=24;
-				else ResponseSize:=124;
-				end_if;
-			else detailCode:=12;
-			end_if;
+		0x7E11, 0x7E12, 0x7E13, 0x7E22:
+			ResponseSize := HandleEtherCATTopologyIoRequest(
+				CommandId:=CommandId,
+				pRequest:=pRequest,
+				RequestSize:=RequestSize,
+				pResponse:=pResponse,
+				ResponseCapacity:=ResponseCapacity,
+				CallerSessionEpoch:=CallerSessionEpoch,
+				CurrentDiagnosticsBootId:=currentBootId);
+			RETURN;
 
 		0x7E20:
 			if RequestSize <> 20 then
@@ -1688,6 +1968,5189 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				detailCode := 2;
 			end_if;
 
+		0x7E30, 0x7E31, 0x7E32, 0x7E33:
+			ResponseSize := HandleDiagnosticsBulkRequest(
+				CommandId:=CommandId,
+				pRequest:=pRequest,
+				RequestSize:=RequestSize,
+				pResponse:=pResponse,
+				ResponseCapacity:=ResponseCapacity,
+				CallerSessionEpoch:=CallerSessionEpoch);
+
+		0x7E50:
+			if RequestSize < 32 then
+				detailCode := 12;
+			else
+				requestSdoWriteData := 0;
+				writePolicyDetail := 0;
+				expectedMapRevision := (pRequest + 8)^$UDINT;
+				requestSdoSlaveReference := (pRequest + 12)^$UINT;
+				sdoOperationFlags := (pRequest + 14)^$UINT;
+				requestSdoObjectIndex := (pRequest + 16)^$UINT;
+				requestSdoSubIndex := (pRequest + 18)^$USINT;
+				requestSdoValueType := (pRequest + 19)^$USINT;
+				requestSdoTimeoutCycles := (pRequest + 20)^$UDINT;
+				sdoDataLength := (pRequest + 24)^$UINT;
+				sdoReserved := (pRequest + 26)^$UINT;
+				sdoBootId := (pRequest + 28)^$UDINT;
+				expectedRequestSize := 32;
+				if sdoOperationFlags = 1 then
+					expectedRequestSize += TO_UDINT(sdoDataLength);
+				end_if;
+				if (sdoOperationFlags = 1) & (sdoDataLength = 4) &
+					(RequestSize = 36) then
+					requestSdoWriteData := (pRequest + 32)^$UDINT;
+					writePolicyDetail := GetSdoWritePolicyDetail(
+						requestSdoSlaveReference, requestSdoObjectIndex,
+						requestSdoSubIndex, requestSdoValueType, sdoDataLength,
+						requestSdoWriteData, FALSE, NIL, 0);
+				end_if;
+				if (sdoOperationFlags > 1) | (sdoReserved <> 0) |
+					(RequestSize <> expectedRequestSize) then
+					detailCode := 12;
+				elsif (sdoOperationFlags = 0) &
+					(LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) then
+					detailCode := 2;
+				elsif ResponseCapacity < 32 then
+					detailCode := 20;
+				elsif (CallerSessionEpoch = 0) |
+					(requestSdoSlaveReference < 1) | (requestSdoSlaveReference > 4) |
+					(requestSdoTimeoutCycles < 1) | (requestSdoTimeoutCycles > 60000) then
+					detailCode := 12;
+				elsif expectedMapRevision <> LMC_DIAG_MAP_REVISION then
+					detailCode := 3;
+				elsif (sdoBootId = 0) | (sdoBootId <> currentBootId) then
+					detailCode := 25;
+				elsif (sdoOperationFlags = 0) & (sdoDataLength > 4) then
+					detailCode := 20;
+				elsif (sdoOperationFlags = 0) &
+					(sdoDataLength <> 1) & (sdoDataLength <> 2) &
+					(sdoDataLength <> 4) then
+					detailCode := 12;
+				elsif requestSdoObjectIndex = 0 then
+					detailCode := 12;
+				elsif (requestSdoValueType < 1) | (requestSdoValueType > 11) then
+					detailCode := 5;
+				elsif (sdoOperationFlags = 1) & (sdoDataLength <> 4) then
+					detailCode := 5;
+				elsif (sdoOperationFlags = 1) &
+					(requestSdoValueType <> 4) then
+					detailCode := 5;
+				elsif (sdoOperationFlags = 1) & (writePolicyDetail <> 0) then
+					detailCode := writePolicyDetail;
+				elsif (sdoOperationFlags = 0) &
+					((((requestSdoValueType = 1) | (requestSdoValueType = 9) |
+					  (requestSdoValueType = 10) | (requestSdoValueType = 11)) &
+					 (sdoDataLength <> 1)) |
+					(((requestSdoValueType = 2) | (requestSdoValueType = 3) |
+					  (requestSdoValueType = 7)) & (sdoDataLength <> 2)) |
+					(((requestSdoValueType = 4) | (requestSdoValueType = 5) |
+					  (requestSdoValueType = 6) | (requestSdoValueType = 8)) &
+					 (sdoDataLength <> 4))) then
+					detailCode := 5;
+				elsif (Ds402HomeState[92] <> 0) |
+					(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) then
+					detailCode := 9;
+				elsif ((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
+					(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
+					(SdoInternalDrainState <> 0)) then
+					detailCode := 9;
+				elsif IsClientConnected(#InputLatch) = FALSE then
+					detailCode := 11;
+				else
+					copyResult := InputLatch.CopySnapshot(
+						pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
+					if copyResult <> 0 then
+						detailCode := 11;
+					else
+						currentCycle := snapshot[0]$UDINT;
+						executorConnected := FALSE;
+						executorReusable := FALSE;
+						case requestSdoSlaveReference of
+							1:
+								executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+								if executorConnected then
+									executorReusable := SdoAxis1.IsReusable();
+								end_if;
+							2:
+								executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+								if executorConnected then
+									executorReusable := SdoAxis2.IsReusable();
+								end_if;
+							3:
+								executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+								if executorConnected then
+									executorReusable := SdoAxis3.IsReusable();
+								end_if;
+							4:
+								executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+								if executorConnected then
+									executorReusable := SdoAxis4.IsReusable();
+								end_if;
+						end_case;
+
+						if executorConnected = FALSE then
+							detailCode := 11;
+						elsif executorReusable = FALSE then
+							detailCode := 24;
+						elsif (NextTicketId = 0xFFFFFFFF) |
+							(NextOperationToken = 0xFFFFFFFF) then
+							detailCode := 24;
+						else
+							NextTicketId += 1;
+							NextOperationToken += 1;
+							if (NextTicketId = 0) | (NextOperationToken = 0) then
+								detailCode := 24;
+							else
+								TicketId := NextTicketId;
+								OwnerSessionEpoch := CallerSessionEpoch;
+								TicketBootId := currentBootId;
+								TicketMapRevision := expectedMapRevision;
+								OperationToken := NextOperationToken;
+								OperationKind := 2;
+								if sdoOperationFlags = 1 then
+									OperationKind := 3;
+								end_if;
+								OperationState := LMC_DIAG_SDO_STATE_QUEUED;
+								OperationOutcome := 0;
+								SdoSlaveReference := requestSdoSlaveReference;
+								SdoObjectIndex := requestSdoObjectIndex;
+								SdoSubIndex := requestSdoSubIndex;
+								SdoValueType := requestSdoValueType;
+								SdoRequestedLength := sdoDataLength;
+								SdoTimeoutCycles := requestSdoTimeoutCycles;
+								SdoSubmitCycle := currentCycle;
+								SdoCompletionCycle := 0;
+								SdoLastProcessedCycle := currentCycle - 1;
+								SdoOperationErrorId := 0;
+								SdoOperationDetail := 0;
+								SdoResultLength := 0;
+								SdoResultData := 0;
+								SdoWriteData := requestSdoWriteData;
+								SdoInternalDrainState := 0;
+								(pResponse + 16)^$UDINT := TicketId;
+								(pResponse + 20)^$UINT := OperationKind;
+								(pResponse + 22)^$UINT := OperationState;
+								(pResponse + 24)^$UDINT := SdoSubmitCycle;
+								(pResponse + 28)^$UDINT := TicketBootId;
+								ResponseSize := 32;
+							end_if;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+
+		0x7E51:
+			if RequestSize <> 28 then
+				detailCode := 12;
+			else
+				detailCode := 2;
+			end_if;
+
+		else
+			detailCode := 2;
+	end_case;
+
+	if detailCode <> 0 then
+		_memset(dest:=pResponse + 16, usByte:=0, cntr:=ResponseCapacity - 16);
+		(pResponse + 2)^$UINT := 0;
+		(pResponse + 4)^$UINT := 1;
+		(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+		(pResponse + 12)^$UDINT := detailCode;
+		ResponseSize := 16;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::LMCDiagnosticsService
+	VAR_OUTPUT
+		ret_code 	: ConfStates;
+	END_VAR
+
+	NextBulkId := 0;
+	NextBulkConfigRevision := 0;
+	BulkId := 0;
+	BulkConfigRevision := 0;
+	BulkOwnerSessionEpoch := 0;
+	BulkConfiguredCycle := 0;
+	BulkActivationCycle := 0;
+	BulkState := 0;
+	BulkSignalCount := 0;
+	NextTicketId := 0;
+	NextOperationToken := 0;
+	TicketId := 0;
+	OwnerSessionEpoch := 0;
+	TicketBootId := 0;
+	TicketMapRevision := 0;
+	OperationToken := 0;
+	OperationKind := 0;
+	OperationState := 0;
+	OperationOutcome := 0;
+	SdoSlaveReference := 0;
+	SdoObjectIndex := 0;
+	SdoSubIndex := 0;
+	SdoValueType := 0;
+	SdoRequestedLength := 0;
+	SdoTimeoutCycles := 0;
+	SdoSubmitCycle := 0;
+	SdoCompletionCycle := 0;
+	SdoLastProcessedCycle := 0;
+	SdoOperationErrorId := 0;
+	SdoOperationDetail := 0;
+	SdoResultLength := 0;
+	SdoResultData := 0;
+	SdoWriteData := 0;
+	SdoInternalDrainState := 0;
+	DiagnosticsBootId := 0;
+	BootIdInitialized := FALSE;
+	BootIdFault := FALSE;
+	EncoderMaintenanceServiceMilliseconds := 0;
+	EncoderMaintenanceObservedLatchCycle := 0;
+	EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
+	EncoderMaintenanceLatchFreshSampleCount := 0;
+	_memset(dest:=#BulkSignalIds[0], usByte:=0,
+		cntr:=sizeof(BulkSignalIds));
+	_memset(dest:=#EncoderMaintenanceState[0], usByte:=0,
+		cntr:=sizeof(EncoderMaintenanceState));
+	ret_code := C_OK;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleEtherCATTopologyIoRequest
+	VAR_INPUT
+		CommandId 	: UINT;
+		pRequest 	: ^USINT;
+		RequestSize 	: UDINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		CurrentDiagnosticsBootId 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		startIndex : UINT;
+		maxEntries : UINT;
+		inputLatchConnected : BOOL;
+		detailCode : UDINT;
+		copyResult : DINT;
+		expectedMapRevision : UDINT;
+		requestedNodeId : UDINT;
+		healthOffset : UDINT;
+		nodeNativeOnline : DINT;
+		nodeEtherCATState : UDINT;
+		nodeSlaveState : UDINT;
+		nodeALStatus : UDINT;
+		nodeClassState : UDINT;
+		nodeDS402Status : UDINT;
+		nodeAxisError : UDINT;
+		nodeLastValidCycle : UDINT;
+		nodeLastStateChangeCycle : UDINT;
+		nodeDetected : BOOL;
+		nodeParentIdentityMatched : BOOL;
+		nodeIdentityMatched : BOOL;
+		nodeDataValid : BOOL;
+		nodeHealthFlags : UINT;
+		wireOnline : USINT;
+		requestIOReference : UDINT;
+		requestDirection : USINT;
+		requestBitWidth : USINT;
+		requestReserved : UINT;
+		ioNodeId : UDINT;
+		ioValueLow : UDINT;
+		ioValidMaskLow : UDINT;
+		ioStatus : UINT;
+		ioCycle : UDINT;
+		ioOutputRevision : UDINT;
+		snapshot : ARRAY [0..463] OF USINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	detailCode := 0;
+	inputLatchConnected := IsClientConnected(#InputLatch) <> 0;
+
+	case CommandId of
+		0x7E11:
+			if RequestSize <> 8 then detailCode:=12;
+			elsif ResponseCapacity < 44 then detailCode:=20;
+			elsif BuildCatalogEntry(pEntry:=pResponse + 16,
+				CatalogIndex:=0x0200) <> 0 then detailCode:=24;
+			else ResponseSize:=44;
+			end_if;
+
+		0x7E12:
+			if RequestSize = 16 then
+				expectedMapRevision := (pRequest + 8)^$UDINT;
+				startIndex := (pRequest + 12)^$UINT;
+				maxEntries := (pRequest + 14)^$UINT;
+				if expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION then detailCode:=26;
+				elsif (maxEntries <> 1) | (startIndex >= 7) then detailCode:=12;
+				elsif ResponseCapacity < 124 then detailCode:=20;
+				elsif BuildCatalogEntry(pEntry:=pResponse, CatalogIndex:=0x8000 or
+					(startIndex shl 8) or 1) <> 0 then detailCode:=24;
+				else ResponseSize:=124;
+				end_if;
+			else detailCode:=12;
+			end_if;
+
+		0x7E13:
+			if RequestSize <> 16 then
+				detailCode:=12;
+			end_if;
+			if (detailCode = 0) & (ResponseCapacity < 72) then
+				detailCode:=20;
+			end_if;
+			if detailCode = 0 then
+				expectedMapRevision := (pRequest + 8)^$UDINT;
+				requestedNodeId := (pRequest + 12)^$UDINT;
+			end_if;
+			if (detailCode = 0) &
+				(expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION) then
+				detailCode:=26;
+			end_if;
+			if (detailCode = 0) &
+				(inputLatchConnected = FALSE) then
+				detailCode:=11;
+			end_if;
+			if detailCode = 0 then
+				case requestedNodeId of
+					0xEC000001: healthOffset := 304;
+					0xEC000101: healthOffset := 64;
+					0xEC000102: healthOffset := 100;
+					0xEC000103: healthOffset := 136;
+					0xEC000104: healthOffset := 172;
+					0xEC010001: healthOffset := 340;
+					0xEC010002: healthOffset := 376;
+				else detailCode:=27;
+				end_case;
+			end_if;
+			if detailCode = 0 then
+				copyResult := InputLatch.CopyTopologyIoSnapshot(
+					pDest:=#snapshot[0], DestSize:=464);
+				if copyResult <> 0 then
+					detailCode:=31;
+				end_if;
+			end_if;
+			if detailCode = 0 then
+				nodeNativeOnline := snapshot[TO_DINT(healthOffset)]$DINT;
+				nodeEtherCATState := snapshot[TO_DINT(healthOffset + 4)]$UDINT;
+				nodeSlaveState := snapshot[TO_DINT(healthOffset + 8)]$UDINT;
+				nodeALStatus := snapshot[TO_DINT(healthOffset + 12)]$UDINT;
+				nodeClassState := snapshot[TO_DINT(healthOffset + 16)]$UDINT;
+				nodeDS402Status := snapshot[TO_DINT(healthOffset + 20)]$UDINT;
+				nodeAxisError := snapshot[TO_DINT(healthOffset + 24)]$UDINT;
+				nodeLastValidCycle := snapshot[TO_DINT(healthOffset + 28)]$UDINT;
+				nodeLastStateChangeCycle := snapshot[TO_DINT(healthOffset + 32)]$UDINT;
+				nodeDetected := (nodeClassState <> _NoHardware$UDINT) &
+					(nodeClassState <> 0xFFFFFFFF) &
+					(nodeEtherCATState <> 0);
+				nodeParentIdentityMatched := TRUE;
+				if (requestedNodeId = 0xEC010001) |
+					(requestedNodeId = 0xEC010002) then
+					nodeParentIdentityMatched :=
+						snapshot[320]$UDINT = _ClassOk$UDINT;
+				end_if;
+				nodeIdentityMatched := nodeDetected &
+					nodeParentIdentityMatched &
+					(nodeClassState = _ClassOk$UDINT) &
+					((nodeSlaveState and 0x00000020) = 0);
+				nodeDataValid := nodeIdentityMatched &
+					(snapshot[12]$UDINT = 8) &
+					(snapshot[16]$UDINT = 0) &
+					(nodeNativeOnline <> 0) &
+					(nodeEtherCATState = 8) &
+					(nodeALStatus = 0);
+				nodeHealthFlags := 0x0001;
+				if nodeDetected then
+					nodeHealthFlags := nodeHealthFlags or 0x0002;
+				end_if;
+				if nodeIdentityMatched then
+					nodeHealthFlags := nodeHealthFlags or 0x0004;
+				end_if;
+				if nodeDataValid then
+					nodeHealthFlags := nodeHealthFlags or 0x0008;
+				else
+					nodeHealthFlags := nodeHealthFlags or 0x0010;
+				end_if;
+				if nodeDetected then
+					wireOnline := 1;
+				else
+					wireOnline := 0;
+					nodeEtherCATState := 0;
+				end_if;
+				if nodeDataValid &
+					(requestedNodeId >= 0xEC000101) &
+					(requestedNodeId <= 0xEC000104) then
+					nodeHealthFlags := nodeHealthFlags or 0x0020;
+				else
+					nodeDS402Status := 0;
+					nodeAxisError := 0;
+				end_if;
+				(pResponse + 16)^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
+				(pResponse + 20)^$UDINT := requestedNodeId;
+				(pResponse + 24)^$UINT := 1;
+				(pResponse + 26)^$UINT := nodeHealthFlags;
+				(pResponse + 28)^$UDINT := snapshot[0]$UDINT;
+				(pResponse + 32)^$UDINT := snapshot[4]$UDINT;
+				(pResponse + 36)^$UDINT := snapshot[8]$UDINT;
+				(pResponse + 40)^$UDINT := snapshot[44]$UDINT;
+				(pResponse + 44)^$USINT := wireOnline;
+				(pResponse + 45)^$USINT := TO_USINT(nodeEtherCATState);
+				(pResponse + 46)^$UINT := TO_UINT(nodeALStatus);
+				(pResponse + 48)^$UDINT := nodeSlaveState;
+				(pResponse + 52)^$UDINT := nodeClassState;
+				(pResponse + 56)^$UDINT := nodeDS402Status;
+				(pResponse + 60)^$UDINT := nodeAxisError;
+				(pResponse + 64)^$UDINT := nodeLastValidCycle;
+				(pResponse + 68)^$UDINT := nodeLastStateChangeCycle;
+				ResponseSize:=72;
+			end_if;
+
+		0x7E22:
+			if RequestSize <> 20 then
+				detailCode:=12;
+			end_if;
+			if (detailCode = 0) & (ResponseCapacity < 56) then
+				detailCode:=20;
+			end_if;
+			if detailCode = 0 then
+				expectedMapRevision := (pRequest + 8)^$UDINT;
+				requestIOReference := (pRequest + 12)^$UDINT;
+				requestDirection := (pRequest + 16)^$USINT;
+				requestBitWidth := (pRequest + 17)^$USINT;
+				requestReserved := (pRequest + 18)^$UINT;
+			end_if;
+			if (detailCode = 0) &
+				(expectedMapRevision <> LMC_DIAG_TOPOLOGY_REVISION) then
+				detailCode:=26;
+			end_if;
+			if (detailCode = 0) & (requestReserved <> 0) then
+				detailCode:=12;
+			end_if;
+			if (detailCode = 0) & (
+				(requestDirection < 1) |
+				(requestDirection > 2) |
+				(requestBitWidth < 1) |
+				(requestBitWidth > 64)) then
+				detailCode:=12;
+			end_if;
+			if (detailCode = 0) &
+				(inputLatchConnected = FALSE) then
+				detailCode:=11;
+			end_if;
+			if detailCode = 0 then
+				case requestIOReference of
+					0x00010001:
+						if (requestDirection <> 1) |
+							(requestBitWidth <> 32) then
+							detailCode:=28;
+						else
+							ioNodeId := 0xEC010001;
+						end_if;
+					0x00010002:
+						if (requestDirection <> 2) |
+							(requestBitWidth <> 32) then
+							detailCode:=28;
+						else
+							ioNodeId := 0xEC010002;
+						end_if;
+				else detailCode:=28;
+				end_case;
+			end_if;
+			if detailCode = 0 then
+				copyResult := InputLatch.CopyTopologyIoSnapshot(
+					pDest:=#snapshot[0], DestSize:=464);
+				if copyResult <> 0 then
+					detailCode:=31;
+				end_if;
+			end_if;
+			if detailCode = 0 then
+				case requestIOReference of
+					0x00010001:
+						ioValueLow := snapshot[412]$UDINT;
+						ioValidMaskLow := snapshot[420]$UDINT;
+						ioStatus := snapshot[428]$UINT;
+						ioCycle := snapshot[432]$UDINT;
+						ioOutputRevision := 0;
+					0x00010002:
+						ioValueLow := snapshot[436]$UDINT;
+						ioValidMaskLow := snapshot[444]$UDINT;
+						ioStatus := snapshot[452]$UINT;
+						ioCycle := snapshot[456]$UDINT;
+						ioOutputRevision := snapshot[460]$UDINT;
+				end_case;
+				(pResponse + 16)^$UDINT := LMC_DIAG_TOPOLOGY_REVISION;
+				(pResponse + 20)^$UDINT := requestIOReference;
+				(pResponse + 24)^$UDINT := ioNodeId;
+				(pResponse + 28)^$USINT := requestDirection;
+				(pResponse + 29)^$USINT := requestBitWidth;
+				(pResponse + 30)^$UINT := ioStatus;
+				(pResponse + 32)^$UDINT := ioValueLow;
+				(pResponse + 36)^$UDINT := 0;
+				(pResponse + 40)^$UDINT := ioValidMaskLow;
+				(pResponse + 44)^$UDINT := 0;
+				(pResponse + 48)^$UDINT := ioCycle;
+				(pResponse + 52)^$UDINT := ioOutputRevision;
+				ResponseSize:=56;
+			end_if;
+
+	else
+		detailCode:=2;
+	end_case;
+
+	if detailCode <> 0 then
+		(pResponse + 4)^$UINT := 1;
+		(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+		(pResponse + 12)^$UDINT := detailCode;
+		ResponseSize := 16;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleEncoderMaintenanceStart
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSequence 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags, maintenanceKind : UINT;
+		compatibilityProfileId, driveReference : UINT;
+		maintenanceFeedbackSocket, maintenanceDataLength : UINT;
+		maintenanceObjectIndex : UINT;
+		maintenanceSubIndex : USINT;
+		requestId, diagnosticsBuild, encoderStartBootId : UDINT;
+		mapRevision, intent0, intent1, intent2, intent3 : UDINT;
+		maintenanceCommandValue, timeoutMilliseconds : UDINT;
+		evidence0, evidence1, evidence2, evidence3 : UDINT;
+		executeToken, expectedExecuteToken, currentBootId : UDINT;
+		detailCode, currentCycle, healthOffset, valueOffset : UDINT;
+		controlWord, statusWord, axisMask : UDINT;
+		nextRecordGeneration, encoderNextOperationToken : UDINT;
+		serviceStartMs : UDINT;
+		recordBase : DINT;
+		copyResult, ownerResult, rollbackResult : DINT;
+		snapshot : ARRAY [0..303] OF USINT;
+		snapshotReady : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 40) then
+		RETURN;
+	end_if;
+
+	_memset(dest:=pResponse, usByte:=0, cntr:=40);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+	ResponseSize := 16;
+	detailCode := 12;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+
+	if (pRequest = NIL) | (RequestSize <> 72) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	diagnosticsBuild := (pRequest + 8)^$UDINT;
+	encoderStartBootId := (pRequest + 12)^$UDINT;
+	mapRevision := (pRequest + 16)^$UDINT;
+	intent0 := (pRequest + 20)^$UDINT;
+	intent1 := (pRequest + 24)^$UDINT;
+	intent2 := (pRequest + 28)^$UDINT;
+	intent3 := (pRequest + 32)^$UDINT;
+	maintenanceKind := (pRequest + 36)^$UINT;
+	compatibilityProfileId := (pRequest + 38)^$UINT;
+	driveReference := (pRequest + 40)^$UINT;
+	maintenanceFeedbackSocket := (pRequest + 42)^$UINT;
+	maintenanceCommandValue := (pRequest + 44)^$UDINT;
+	timeoutMilliseconds := (pRequest + 48)^$UDINT;
+	evidence0 := (pRequest + 52)^$UDINT;
+	evidence1 := (pRequest + 56)^$UDINT;
+	evidence2 := (pRequest + 60)^$UDINT;
+	evidence3 := (pRequest + 64)^$UDINT;
+	executeToken := (pRequest + 68)^$UDINT;
+	maintenanceDataLength := 2;
+	maintenanceObjectIndex := 0;
+	maintenanceSubIndex := 0;
+	expectedExecuteToken := 0;
+	currentBootId := GetDiagnosticsBootId();
+
+	if schemaVersion <> LMC_DIAG_SCHEMA_VERSION then
+		detailCode := 1;
+	elsif requestFlags <> 0 then
+		detailCode := 2;
+	elsif (Reference <> 0) | (requestId = 0) |
+		(compatibilityProfileId = 0) |
+		(driveReference < 1) | (driveReference > 4) |
+		(maintenanceFeedbackSocket < 1) |
+		(maintenanceFeedbackSocket > 4) |
+		(maintenanceCommandValue <> LMC_DIAG_ENCODER_RESET_VALUE) |
+		(timeoutMilliseconds < 1) | (timeoutMilliseconds > 60000) |
+		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
+		((evidence0 = 0) & (evidence1 = 0) &
+		 (evidence2 = 0) & (evidence3 = 0)) then
+		detailCode := 12;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+	elsif (currentBootId = 0) | (encoderStartBootId <> currentBootId) then
+		detailCode := 25;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 3;
+	else
+		detailCode := 0;
+	end_if;
+
+	if detailCode = 0 then
+		if maintenanceKind = 1 then
+			maintenanceObjectIndex := 0x20FC;
+			maintenanceSubIndex := 0x02;
+			expectedExecuteToken := 0x30325754;
+			if LMC_DIAG_ENCODER_TW20_ENABLED = FALSE then
+				detailCode := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+			end_if;
+		elsif maintenanceKind = 2 then
+			maintenanceObjectIndex := 0x20FC;
+			maintenanceSubIndex := 0x01;
+			expectedExecuteToken := 0x39315754;
+			if LMC_DIAG_ENCODER_TW19_ENABLED = FALSE then
+				detailCode := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+			end_if;
+		else
+			detailCode := 12;
+		end_if;
+	end_if;
+
+	if (detailCode = 0) & (executeToken <> expectedExecuteToken) then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+	end_if;
+
+	recordBase := 0;
+	if (driveReference >= 1) & (driveReference <= 4) then
+		recordBase := TO_DINT(driveReference - 1) *
+			LMC_DIAG_ENCODER_RECORD_STRIDE;
+	end_if;
+	if detailCode = 0 then
+		if (sizeof(EncoderMaintenanceState) <> 768) |
+			(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) |
+			(Ds402HomeState[92] <> 0) |
+			(OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
+			(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
+			(SdoInternalDrainState <> 0) then
+			detailCode := 9;
+		elsif (EncoderMaintenanceState[recordBase]$UDINT =
+			LMC_DIAG_ENCODER_RECORD_SUCCEEDED) |
+			(EncoderMaintenanceState[recordBase]$UDINT =
+			LMC_DIAG_ENCODER_RECORD_FAILED) |
+			(EncoderMaintenanceState[recordBase]$UDINT =
+			LMC_DIAG_ENCODER_RECORD_ABORTED) then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_SLOT_OCCUPIED;
+		elsif (EncoderMaintenanceState[recordBase]$UDINT <> 0) &
+			(EncoderMaintenanceState[recordBase]$UDINT <>
+			 (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			  LMC_DIAG_ENCODER_RECORD_SUCCEEDED)) &
+			(EncoderMaintenanceState[recordBase]$UDINT <>
+			 (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			  LMC_DIAG_ENCODER_RECORD_FAILED)) &
+			(EncoderMaintenanceState[recordBase]$UDINT <>
+			 (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			  LMC_DIAG_ENCODER_RECORD_ABORTED)) then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		copyResult := -1;
+		if IsClientConnected(#InputLatch) then
+			copyResult := InputLatch.CopySnapshot(
+				pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
+		end_if;
+		snapshotReady := copyResult = 0;
+		if snapshotReady then
+			currentCycle := snapshot[0]$UDINT;
+			healthOffset := 64 + TO_UDINT(driveReference - 1) * 36;
+			valueOffset := 208 + TO_UDINT(driveReference - 1) * 24;
+			controlWord := snapshot[TO_DINT(valueOffset + 8)]$UDINT;
+			statusWord := snapshot[TO_DINT(valueOffset + 20)]$UDINT;
+			if (currentCycle = 0) | (snapshot[12]$UDINT <> 8) |
+				(snapshot[16]$UDINT <> 0) |
+				((snapshot[40]$UDINT and 3) <> 1) |
+				(snapshot[TO_DINT(healthOffset)]$DINT = 0) |
+				(snapshot[TO_DINT(healthOffset + 4)]$UDINT <> 8) |
+				(snapshot[TO_DINT(healthOffset + 12)]$UDINT <> 0) |
+				(snapshot[TO_DINT(healthOffset + 16)]$UDINT = 0xFFFFFFFF) |
+				(snapshot[TO_DINT(healthOffset + 28)]$UDINT <> currentCycle) |
+				((controlWord and 0x00000008) <> 0) |
+				((statusWord and 0x00000004) <> 0) then
+				snapshotReady := FALSE;
+			end_if;
+		end_if;
+		if snapshotReady = FALSE then
+			detailCode := 11;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		axisMask := TO_UDINT(1) shl TO_UDINT(driveReference - 1);
+		if (CallerSessionEpoch = 0) | (RequestSequence = 0) |
+			(AdmissionToken = 0) | (OwnerGeneration = 0) |
+			(IsClientConnected(#AxisOwnership) = FALSE) then
+			detailCode := 9;
+		else
+			ownerResult := AxisOwnership.ValidateAxisOwnershipIdentity(
+				CommandId:=0x7E53,
+				Reference:=driveReference,
+				ExpectedAxisMask:=axisMask,
+				OwnerKind:=LMC_DIAG_OWNER_KIND_ENCODER,
+				ResourceKind:=LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO,
+				AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+				CallerSessionEpoch:=CallerSessionEpoch,
+				RequestSequence:=RequestSequence,
+				AdmissionToken:=AdmissionToken,
+				OwnerGeneration:=OwnerGeneration,
+				RequiredPhase:=LMC_DIAG_OWNER_PHASE_RESERVED,
+				pIdentity:=pRequest$^void,
+				IdentitySize:=RequestSize);
+			if ownerResult <> 0 then
+				detailCode := 9;
+			end_if;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		nextRecordGeneration :=
+			EncoderMaintenanceState[187]$UDINT + 1;
+		encoderNextOperationToken := EncoderMaintenanceState[186]$UDINT + 1;
+		if (nextRecordGeneration = 0) | (encoderNextOperationToken = 0) then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_STORAGE;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		ownerResult := AxisOwnership.CommitAxisOwnership(
+			CommandId:=0x7E53,
+			Reference:=driveReference,
+			ExpectedAxisMask:=axisMask,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration);
+		if ownerResult <> 0 then
+			detailCode := 9;
+		end_if;
+	end_if;
+
+	if detailCode <> 0 then
+		if (AdmissionToken <> 0) & (OwnerGeneration <> 0) &
+			(CallerSessionEpoch <> 0) & (RequestSequence <> 0) &
+			IsClientConnected(#AxisOwnership) then
+			rollbackResult := AxisOwnership.RollbackAxisOwnership(
+				AdmissionToken:=AdmissionToken,
+				OwnerGeneration:=OwnerGeneration,
+				CallerSessionEpoch:=CallerSessionEpoch,
+				RequestSequence:=RequestSequence,
+				// A deterministic pre-dispatch rejection releases only the exact
+				// reservation. Nonzero reasons are reserved for quarantine.
+				Reason:=0);
+		end_if;
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	serviceStartMs := ops.tAbsolute;
+	_memset(dest:=#EncoderMaintenanceState[recordBase], usByte:=0,
+		cntr:=LMC_DIAG_ENCODER_RECORD_STRIDE * 4);
+	_memset(dest:=#EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE],
+		usByte:=0, cntr:=34 * 4);
+	_memset(dest:=#EncoderMaintenanceState[188], usByte:=0, cntr:=4 * 4);
+	EncoderMaintenanceState[recordBase + 1] := TO_DINT(maintenanceKind);
+	EncoderMaintenanceState[recordBase + 2] := diagnosticsBuild$DINT;
+	EncoderMaintenanceState[recordBase + 3] := encoderStartBootId$DINT;
+	EncoderMaintenanceState[recordBase + 4] := mapRevision$DINT;
+	EncoderMaintenanceState[recordBase + 5] := requestId$DINT;
+	EncoderMaintenanceState[recordBase + 6] := intent0$DINT;
+	EncoderMaintenanceState[recordBase + 7] := intent1$DINT;
+	EncoderMaintenanceState[recordBase + 8] := intent2$DINT;
+	EncoderMaintenanceState[recordBase + 9] := intent3$DINT;
+	EncoderMaintenanceState[recordBase + 10] :=
+		TO_DINT(compatibilityProfileId);
+	EncoderMaintenanceState[recordBase + 11] := TO_DINT(driveReference);
+	EncoderMaintenanceState[recordBase + 12] :=
+		TO_DINT(maintenanceFeedbackSocket);
+	EncoderMaintenanceState[recordBase + 13] := maintenanceCommandValue$DINT;
+	EncoderMaintenanceState[recordBase + 14]$UDINT := timeoutMilliseconds;
+	EncoderMaintenanceState[recordBase + 15] := evidence0$DINT;
+	EncoderMaintenanceState[recordBase + 16] := evidence1$DINT;
+	EncoderMaintenanceState[recordBase + 17] := evidence2$DINT;
+	EncoderMaintenanceState[recordBase + 18] := evidence3$DINT;
+	EncoderMaintenanceState[recordBase + 23] := currentCycle$DINT;
+	EncoderMaintenanceState[recordBase + 27]$UDINT :=
+		LMC_DIAG_ENCODER_VERIFY_DRIVE_TARGET OR
+		LMC_DIAG_ENCODER_VERIFY_SDO_CONTRACT;
+	EncoderMaintenanceState[recordBase + 28] := controlWord$DINT;
+	EncoderMaintenanceState[recordBase + 30] := statusWord$DINT;
+	EncoderMaintenanceState[recordBase + 32] := statusWord$DINT;
+	EncoderMaintenanceState[recordBase + 33] :=
+		snapshot[TO_DINT(healthOffset + 24)]$DINT;
+	EncoderMaintenanceState[recordBase + 35] :=
+		snapshot[TO_DINT(valueOffset + 12)]$DINT;
+	EncoderMaintenanceState[recordBase + 36] :=
+		nextRecordGeneration$DINT;
+	EncoderMaintenanceState[recordBase + 37] := OwnerGeneration$DINT;
+	EncoderMaintenanceState[152] := LMC_DIAG_ENCODER_STAGE_PRE_STABLE;
+	EncoderMaintenanceState[153] := TO_DINT(driveReference);
+	EncoderMaintenanceState[154] := recordBase;
+	EncoderMaintenanceState[155] := encoderNextOperationToken$DINT;
+	EncoderMaintenanceState[157] := TO_DINT(maintenanceObjectIndex);
+	EncoderMaintenanceState[158] := TO_DINT(maintenanceSubIndex);
+	EncoderMaintenanceState[159] := maintenanceCommandValue$DINT;
+	EncoderMaintenanceState[160] := AdmissionToken$DINT;
+	EncoderMaintenanceState[161] := OwnerGeneration$DINT;
+	EncoderMaintenanceState[162] := CallerSessionEpoch$DINT;
+	EncoderMaintenanceState[163] := RequestSequence$DINT;
+	EncoderMaintenanceState[164] := serviceStartMs$DINT;
+	EncoderMaintenanceState[166] := currentCycle$DINT;
+	EncoderMaintenanceState[168] := controlWord$DINT;
+	EncoderMaintenanceState[169] := statusWord$DINT;
+	EncoderMaintenanceState[170] :=
+		snapshot[TO_DINT(healthOffset + 24)]$DINT;
+	EncoderMaintenanceState[171] :=
+		snapshot[TO_DINT(valueOffset + 12)]$DINT;
+	EncoderMaintenanceState[182] := TO_DINT(maintenanceKind);
+	EncoderMaintenanceState[183] := TO_DINT(compatibilityProfileId);
+	EncoderMaintenanceState[184] := TO_DINT(maintenanceFeedbackSocket);
+	EncoderMaintenanceState[185] := nextRecordGeneration$DINT;
+	EncoderMaintenanceState[186] := encoderNextOperationToken$DINT;
+	EncoderMaintenanceState[187] := nextRecordGeneration$DINT;
+	EncoderMaintenanceServiceMilliseconds := serviceStartMs;
+	EncoderMaintenanceObservedLatchCycle := currentCycle;
+	EncoderMaintenanceLatchAdvanceServiceMilliseconds := serviceStartMs;
+	EncoderMaintenanceLatchFreshSampleCount := 0;
+	EncoderMaintenanceState[recordBase] := LMC_DIAG_ENCODER_RECORD_RUNNING;
+
+	(pResponse + 2)^$UINT := 0;
+	(pResponse + 4)^$UINT := 0;
+	(pResponse + 6)^$INT := 0;
+	(pResponse + 12)^$UDINT := 0;
+	(pResponse + 16)^$UINT := maintenanceKind;
+	(pResponse + 18)^$UINT := compatibilityProfileId;
+	(pResponse + 20)^$UINT := driveReference;
+	(pResponse + 22)^$UINT := maintenanceFeedbackSocket;
+	(pResponse + 24)^$UDINT := maintenanceCommandValue;
+	(pResponse + 28)^$UDINT := nextRecordGeneration;
+	(pResponse + 32)^$UDINT := OwnerGeneration;
+	(pResponse + 36)^$UDINT := currentCycle;
+	ResponseSize := 40;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleEncoderMaintenanceOutcome
+	VAR_INPUT
+		Reference : UINT;
+		pRequest : ^USINT;
+		pResponse : ^USINT;
+		ResponseCapacity : UDINT;
+		CallerSessionEpoch : UDINT;
+		RequestSize : UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize : DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags, maintenanceKind : UINT;
+		compatibilityProfileId, driveReference : UINT;
+		maintenanceFeedbackSocket : UINT;
+		requestId, diagnosticsBuild, encoderOutcomeBootId : UDINT;
+		mapRevision, originalRequestId : UDINT;
+		intent0, intent1, intent2, intent3 : UDINT;
+		maintenanceCommandValue, timeoutMilliseconds : UDINT;
+		evidence0, evidence1, evidence2, evidence3 : UDINT;
+		currentBootId, detailCode, rawState, baseState : UDINT;
+		startCycle, writeCompletionCycle, completionCycle : UDINT;
+		verificationFlags : UDINT;
+		recordBase : DINT;
+		stateValid, recordValid : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=16);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+	ResponseSize := 16;
+	detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+
+	if (pRequest = NIL) | (RequestSize <> 72) | (Reference <> 0) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	diagnosticsBuild := (pRequest + 8)^$UDINT;
+	encoderOutcomeBootId := (pRequest + 12)^$UDINT;
+	mapRevision := (pRequest + 16)^$UDINT;
+	originalRequestId := (pRequest + 20)^$UDINT;
+	intent0 := (pRequest + 24)^$UDINT;
+	intent1 := (pRequest + 28)^$UDINT;
+	intent2 := (pRequest + 32)^$UDINT;
+	intent3 := (pRequest + 36)^$UDINT;
+	maintenanceKind := (pRequest + 40)^$UINT;
+	compatibilityProfileId := (pRequest + 42)^$UINT;
+	driveReference := (pRequest + 44)^$UINT;
+	maintenanceFeedbackSocket := (pRequest + 46)^$UINT;
+	maintenanceCommandValue := (pRequest + 48)^$UDINT;
+	timeoutMilliseconds := (pRequest + 52)^$UDINT;
+	evidence0 := (pRequest + 56)^$UDINT;
+	evidence1 := (pRequest + 60)^$UDINT;
+	evidence2 := (pRequest + 64)^$UDINT;
+	evidence3 := (pRequest + 68)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+	recordBase := 0;
+
+	if (schemaVersion <> LMC_DIAG_SCHEMA_VERSION) | (requestFlags <> 0) |
+		(requestId = 0) | (originalRequestId = 0) |
+		(diagnosticsBuild <> 1) | (currentBootId = 0) |
+		(encoderOutcomeBootId <> currentBootId) |
+		(mapRevision <> LMC_DIAG_MAP_REVISION) |
+		((maintenanceKind <> 1) & (maintenanceKind <> 2)) |
+		(compatibilityProfileId = 0) |
+		(driveReference < 1) | (driveReference > 4) |
+		(maintenanceFeedbackSocket < 1) |
+		(maintenanceFeedbackSocket > 4) |
+		(maintenanceCommandValue <> LMC_DIAG_ENCODER_RESET_VALUE) |
+		(timeoutMilliseconds < 1) | (timeoutMilliseconds > 60000) |
+		((intent0 = 0) & (intent1 = 0) &
+		 (intent2 = 0) & (intent3 = 0)) |
+		((evidence0 = 0) & (evidence1 = 0) &
+		 (evidence2 = 0) & (evidence3 = 0)) then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+	elsif (sizeof(EncoderMaintenanceState) <> 768) |
+		(CallerSessionEpoch = 0) then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_STORAGE;
+	else
+		recordBase := TO_DINT(driveReference - 1) *
+			LMC_DIAG_ENCODER_RECORD_STRIDE;
+		rawState := EncoderMaintenanceState[recordBase]$UDINT;
+		baseState := rawState and 0x00007FFF;
+		stateValid :=
+			(rawState = LMC_DIAG_ENCODER_RECORD_RUNNING) |
+			(rawState = LMC_DIAG_ENCODER_RECORD_SUCCEEDED) |
+			(rawState = LMC_DIAG_ENCODER_RECORD_FAILED) |
+			(rawState = LMC_DIAG_ENCODER_RECORD_ABORTED) |
+			(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			 LMC_DIAG_ENCODER_RECORD_SUCCEEDED)) |
+			(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			 LMC_DIAG_ENCODER_RECORD_FAILED)) |
+			(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+			 LMC_DIAG_ENCODER_RECORD_ABORTED));
+		if rawState = 0 then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_NOT_FOUND;
+		elsif stateValid = FALSE then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+		elsif (EncoderMaintenanceState[recordBase + 1]$UINT < 1) |
+			(EncoderMaintenanceState[recordBase + 1]$UINT > 2) |
+			(EncoderMaintenanceState[recordBase + 2]$UDINT <>
+			 diagnosticsBuild) |
+			(EncoderMaintenanceState[recordBase + 3]$UDINT <>
+			 encoderOutcomeBootId) |
+			(EncoderMaintenanceState[recordBase + 4]$UDINT <> mapRevision) |
+			(EncoderMaintenanceState[recordBase + 5]$UDINT <>
+			 originalRequestId) |
+			(EncoderMaintenanceState[recordBase + 6]$UDINT <> intent0) |
+			(EncoderMaintenanceState[recordBase + 7]$UDINT <> intent1) |
+			(EncoderMaintenanceState[recordBase + 8]$UDINT <> intent2) |
+			(EncoderMaintenanceState[recordBase + 9]$UDINT <> intent3) |
+			(EncoderMaintenanceState[recordBase + 10]$UINT <>
+			 compatibilityProfileId) |
+			(EncoderMaintenanceState[recordBase + 11]$UINT <>
+			 driveReference) |
+			(EncoderMaintenanceState[recordBase + 12]$UINT <>
+			 maintenanceFeedbackSocket) |
+			(EncoderMaintenanceState[recordBase + 13]$UDINT <>
+			 maintenanceCommandValue) |
+			(EncoderMaintenanceState[recordBase + 14]$UDINT <>
+			 timeoutMilliseconds) |
+			(EncoderMaintenanceState[recordBase + 15]$UDINT <> evidence0) |
+			(EncoderMaintenanceState[recordBase + 16]$UDINT <> evidence1) |
+			(EncoderMaintenanceState[recordBase + 17]$UDINT <> evidence2) |
+			(EncoderMaintenanceState[recordBase + 18]$UDINT <> evidence3) |
+			(EncoderMaintenanceState[recordBase + 1]$UINT <>
+			 maintenanceKind) then
+			detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+		else
+			startCycle := EncoderMaintenanceState[recordBase + 23]$UDINT;
+			writeCompletionCycle :=
+				EncoderMaintenanceState[recordBase + 24]$UDINT;
+			completionCycle :=
+				EncoderMaintenanceState[recordBase + 25]$UDINT;
+			verificationFlags :=
+				EncoderMaintenanceState[recordBase + 27]$UDINT;
+			recordValid := (startCycle <> 0) &
+				(EncoderMaintenanceState[recordBase + 36]$UDINT <> 0) &
+				(EncoderMaintenanceState[recordBase + 37]$UDINT <> 0) &
+				((verificationFlags and
+				  NOT(LMC_DIAG_ENCODER_VERIFY_ALL)) = 0);
+			if baseState = LMC_DIAG_ENCODER_RECORD_RUNNING then
+				recordValid := recordValid & (completionCycle = 0) &
+					(EncoderMaintenanceState[recordBase + 19] = 0) &
+					(EncoderMaintenanceState[recordBase + 20] = 0) &
+					(EncoderMaintenanceState[recordBase + 21] = 0) &
+					(EncoderMaintenanceState[recordBase + 22] = 0);
+				if (EncoderMaintenanceState[152] =
+					LMC_DIAG_ENCODER_STAGE_QUARANTINED) &
+					(EncoderMaintenanceState[154] = recordBase) then
+					detailCode := LMC_DIAG_ENCODER_DETAIL_INDETERMINATE;
+				end_if;
+			elsif baseState = LMC_DIAG_ENCODER_RECORD_SUCCEEDED then
+				recordValid := recordValid &
+					(writeCompletionCycle <> 0) & (completionCycle <> 0) &
+					(EncoderMaintenanceState[recordBase + 19] = 0) &
+					(EncoderMaintenanceState[recordBase + 20] = 0) &
+					(EncoderMaintenanceState[recordBase + 21] = 0) &
+					(EncoderMaintenanceState[recordBase + 22] = 0) &
+					(EncoderMaintenanceState[recordBase + 26] = 0) &
+					(verificationFlags = LMC_DIAG_ENCODER_VERIFY_ALL);
+			elsif baseState = LMC_DIAG_ENCODER_RECORD_FAILED then
+				recordValid := recordValid & (completionCycle <> 0) &
+					(EncoderMaintenanceState[recordBase + 19] = 1) &
+					(EncoderMaintenanceState[recordBase + 20] =
+					 LMC_DIAG_ERROR_ID) &
+					((EncoderMaintenanceState[recordBase + 21] =
+					  LMC_DIAG_ENCODER_DETAIL_EXECUTION) |
+					 (EncoderMaintenanceState[recordBase + 21] =
+					  LMC_DIAG_ENCODER_DETAIL_SEMANTIC));
+			elsif baseState = LMC_DIAG_ENCODER_RECORD_ABORTED then
+				recordValid := recordValid & (completionCycle <> 0) &
+					(EncoderMaintenanceState[recordBase + 19] = 1) &
+					(EncoderMaintenanceState[recordBase + 20] =
+					 LMC_DIAG_ERROR_ID) &
+					(EncoderMaintenanceState[recordBase + 21] =
+					 LMC_DIAG_ENCODER_DETAIL_ABORTED) &
+					(EncoderMaintenanceState[recordBase + 22] = 0);
+			else
+				recordValid := FALSE;
+			end_if;
+			if (detailCode <> LMC_DIAG_ENCODER_DETAIL_INDETERMINATE) &
+				recordValid then
+				detailCode := 0;
+			elsif detailCode <>
+				LMC_DIAG_ENCODER_DETAIL_INDETERMINATE then
+				detailCode := LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+			end_if;
+		end_if;
+	end_if;
+
+	if detailCode <> 0 then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	if ResponseCapacity < 156 then
+		ResponseSize := -1;
+		RETURN;
+	end_if;
+
+	_memset(dest:=pResponse, usByte:=0, cntr:=156);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 0;
+	(pResponse + 6)^$INT := 0;
+	(pResponse + 8)^$UDINT := requestId;
+	(pResponse + 12)^$UDINT := 0;
+	(pResponse + 16)^$UINT := baseState$UINT;
+	(pResponse + 18)^$UINT := EncoderMaintenanceState[recordBase + 1]$UINT;
+	(pResponse + 20)^$UDINT := EncoderMaintenanceState[recordBase + 2]$UDINT;
+	(pResponse + 24)^$UDINT := EncoderMaintenanceState[recordBase + 3]$UDINT;
+	(pResponse + 28)^$UDINT := EncoderMaintenanceState[recordBase + 4]$UDINT;
+	(pResponse + 32)^$UDINT := EncoderMaintenanceState[recordBase + 5]$UDINT;
+	(pResponse + 36)^$UDINT := EncoderMaintenanceState[recordBase + 6]$UDINT;
+	(pResponse + 40)^$UDINT := EncoderMaintenanceState[recordBase + 7]$UDINT;
+	(pResponse + 44)^$UDINT := EncoderMaintenanceState[recordBase + 8]$UDINT;
+	(pResponse + 48)^$UDINT := EncoderMaintenanceState[recordBase + 9]$UDINT;
+	(pResponse + 52)^$UINT := EncoderMaintenanceState[recordBase + 10]$UINT;
+	(pResponse + 54)^$UINT := EncoderMaintenanceState[recordBase + 11]$UINT;
+	(pResponse + 56)^$UINT := EncoderMaintenanceState[recordBase + 12]$UINT;
+	(pResponse + 58)^$UINT := 0;
+	(pResponse + 60)^$UDINT := EncoderMaintenanceState[recordBase + 13]$UDINT;
+	(pResponse + 64)^$UDINT := EncoderMaintenanceState[recordBase + 14]$UDINT;
+	(pResponse + 68)^$UDINT := EncoderMaintenanceState[recordBase + 15]$UDINT;
+	(pResponse + 72)^$UDINT := EncoderMaintenanceState[recordBase + 16]$UDINT;
+	(pResponse + 76)^$UDINT := EncoderMaintenanceState[recordBase + 17]$UDINT;
+	(pResponse + 80)^$UDINT := EncoderMaintenanceState[recordBase + 18]$UDINT;
+	(pResponse + 84)^$UINT := EncoderMaintenanceState[recordBase + 19]$UINT;
+	(pResponse + 86)^$INT := EncoderMaintenanceState[recordBase + 20]$INT;
+	(pResponse + 88)^$UDINT := EncoderMaintenanceState[recordBase + 21]$UDINT;
+	(pResponse + 92)^$UDINT := EncoderMaintenanceState[recordBase + 22]$UDINT;
+	(pResponse + 96)^$UDINT := EncoderMaintenanceState[recordBase + 23]$UDINT;
+	(pResponse + 100)^$UDINT := EncoderMaintenanceState[recordBase + 24]$UDINT;
+	(pResponse + 104)^$UDINT := EncoderMaintenanceState[recordBase + 25]$UDINT;
+	(pResponse + 108)^$UDINT := EncoderMaintenanceState[recordBase + 26]$UDINT;
+	(pResponse + 112)^$UDINT := EncoderMaintenanceState[recordBase + 27]$UDINT;
+	(pResponse + 116)^$UDINT := EncoderMaintenanceState[recordBase + 28]$UDINT;
+	(pResponse + 120)^$UDINT := EncoderMaintenanceState[recordBase + 29]$UDINT;
+	(pResponse + 124)^$UDINT := EncoderMaintenanceState[recordBase + 30]$UDINT;
+	(pResponse + 128)^$UDINT := EncoderMaintenanceState[recordBase + 31]$UDINT;
+	(pResponse + 132)^$UINT := EncoderMaintenanceState[recordBase + 32]$UINT;
+	(pResponse + 134)^$UINT := 0;
+	(pResponse + 136)^$DINT := EncoderMaintenanceState[recordBase + 33];
+	(pResponse + 140)^$UDINT := EncoderMaintenanceState[recordBase + 34]$UDINT;
+	(pResponse + 144)^$DINT := EncoderMaintenanceState[recordBase + 35];
+	(pResponse + 148)^$UDINT := EncoderMaintenanceState[recordBase + 36]$UDINT;
+	(pResponse + 152)^$UDINT := EncoderMaintenanceState[recordBase + 37]$UDINT;
+	ResponseSize := 156;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleEncoderMaintenanceRetire
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		driveReference : UINT;
+		requestId, recordGeneration, detailCode : UDINT;
+		rawState, baseState : UDINT;
+		recordBase : DINT;
+		stateValid : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=16);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	ResponseSize := 16;
+	detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+
+	if (pRequest = NIL) | (RequestSize <> 76) | (Reference <> 0) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	driveReference := (pRequest + 44)^$UINT;
+	recordGeneration := (pRequest + 72)^$UDINT;
+	recordBase := 0;
+	if (driveReference < 1) | (driveReference > 4) |
+		(recordGeneration = 0) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	recordBase := TO_DINT(driveReference - 1) *
+		LMC_DIAG_ENCODER_RECORD_STRIDE;
+	rawState := EncoderMaintenanceState[recordBase]$UDINT;
+	baseState := rawState and 0x00007FFF;
+	stateValid :=
+		(rawState = LMC_DIAG_ENCODER_RECORD_SUCCEEDED) |
+		(rawState = LMC_DIAG_ENCODER_RECORD_FAILED) |
+		(rawState = LMC_DIAG_ENCODER_RECORD_ABORTED) |
+		(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+		 LMC_DIAG_ENCODER_RECORD_SUCCEEDED)) |
+		(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+		 LMC_DIAG_ENCODER_RECORD_FAILED)) |
+		(rawState = (LMC_DIAG_ENCODER_RECORD_RETIRED OR
+		 LMC_DIAG_ENCODER_RECORD_ABORTED));
+	if rawState = 0 then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_NOT_FOUND;
+	elsif rawState = LMC_DIAG_ENCODER_RECORD_RUNNING then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_INDETERMINATE;
+	elsif stateValid = FALSE then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+	elsif EncoderMaintenanceState[recordBase + 36]$UDINT <>
+		recordGeneration then
+		detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+	else
+		ResponseSize := HandleEncoderMaintenanceOutcome(
+			Reference:=Reference, pRequest:=pRequest,
+			pResponse:=pResponse, ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=72);
+		if (ResponseSize = 156) &
+			((pResponse + 148)^$UDINT = recordGeneration) then
+			if rawState = baseState then
+				// State is the publication word. Setting the tombstone last makes
+				// retrying the same exact retirement idempotent.
+				EncoderMaintenanceState[recordBase] :=
+					TO_DINT(baseState OR
+					LMC_DIAG_ENCODER_RECORD_RETIRED);
+			end_if;
+			RETURN;
+		end_if;
+		detailCode := LMC_DIAG_ENCODER_DETAIL_KEY_MISMATCH;
+	end_if;
+
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+	(pResponse + 12)^$UDINT := detailCode;
+	ResponseSize := 16;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessEncoderMaintenance
+	VAR
+		snapshot : ARRAY [0..303] OF USINT;
+		preemptionSnapshot : ARRAY [0..215] OF USINT;
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		stage, recordBase, desiredTerminalState : DINT;
+		axisReference, maintenanceObjectIndex : UINT;
+		maintenanceSubIndex : USINT;
+		maintenanceKind, preemptionCleanupKind : UINT;
+		maintenanceWriteValue : UINT;
+		axisMask, encoderProcessOperationToken, admissionToken, ownerGeneration : UDINT;
+		callerSessionEpoch, requestSequence : UDINT;
+		maintenanceCommandValue, timeoutMilliseconds : UDINT;
+		expectedExecuteToken, safetyAdmissionToken, safetyOwnerGeneration : UDINT;
+		serviceNow, serviceStartMs, cleanupStartMs : UDINT;
+		elapsedMs, remainingMs, currentCycle, previousCycle : UDINT;
+		healthOffset, valueOffset, controlWord, statusWord : UDINT;
+		failureDetail, failureNative, verificationFlags : UDINT;
+		axisError, actualPosition : DINT;
+		copyResult, ownerResult, orphanResult, preemptionResult : DINT;
+		startResult : iprStates;
+		snapshotValid, newCycle, motorOff : BOOL;
+		executorConnected, executorReusable, featureEnabled : BOOL;
+		safeFailure, quarantine, preemptionSnapshotValid : BOOL;
+		dispatchDefinitelyAbsent, publishPreemptionCleanup : BOOL;
+	END_VAR
+
+	stage := EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE];
+	if stage = LMC_DIAG_ENCODER_STAGE_IDLE then
+		RETURN;
+	end_if;
+
+	recordBase := EncoderMaintenanceState[154];
+	axisReference := EncoderMaintenanceState[153]$UINT;
+	admissionToken := EncoderMaintenanceState[160]$UDINT;
+	ownerGeneration := EncoderMaintenanceState[161]$UDINT;
+	_memset(dest:=#preemptionSnapshot[0], usByte:=0,
+		cntr:=sizeof(preemptionSnapshot));
+	preemptionResult := -1;
+	if IsClientConnected(#AxisOwnership) & (admissionToken <> 0) &
+		(ownerGeneration <> 0) then
+		preemptionResult := AxisOwnership.CopyAxisOwnershipPreemption(
+			PreemptedAdmissionToken:=admissionToken,
+			PreemptedOwnerGeneration:=ownerGeneration,
+			pDest:=#preemptionSnapshot[0],
+			DestSize:=sizeof(preemptionSnapshot));
+	end_if;
+	if preemptionResult = LMC_DIAG_PREEMPT_PENDING_FREEZE then
+		// Safety is only reserved. Freeze before changing any owner runtime word.
+		RETURN;
+	end_if;
+	if (preemptionResult < 0) |
+		(preemptionResult > LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED) then
+		EncoderMaintenanceState[179] :=
+			LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+		EncoderMaintenanceState[180] := TO_DINT(0 - preemptionResult);
+		EncoderMaintenanceState[152] :=
+			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+		RETURN;
+	end_if;
+	if (sizeof(EncoderMaintenanceState) <> 768) |
+		(axisReference < 1) | (axisReference > 4) |
+		(recordBase <> (TO_DINT(axisReference - 1) *
+		 LMC_DIAG_ENCODER_RECORD_STRIDE)) |
+		(EncoderMaintenanceState[recordBase] <>
+		 LMC_DIAG_ENCODER_RECORD_RUNNING) then
+		EncoderMaintenanceState[152] :=
+			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+		RETURN;
+	end_if;
+
+	axisMask := TO_UDINT(1) shl TO_UDINT(axisReference - 1);
+	maintenanceKind := EncoderMaintenanceState[182]$UINT;
+	maintenanceObjectIndex := EncoderMaintenanceState[157]$UINT;
+	maintenanceSubIndex := EncoderMaintenanceState[158]$USINT;
+	maintenanceCommandValue := EncoderMaintenanceState[159]$UDINT;
+	maintenanceWriteValue := LMC_DIAG_ENCODER_RESET_VALUE;
+	timeoutMilliseconds := EncoderMaintenanceState[recordBase + 14]$UDINT;
+	encoderProcessOperationToken := EncoderMaintenanceState[155]$UDINT;
+	callerSessionEpoch := EncoderMaintenanceState[162]$UDINT;
+	requestSequence := EncoderMaintenanceState[163]$UDINT;
+	serviceNow := ops.tAbsolute;
+	serviceStartMs := EncoderMaintenanceState[164]$UDINT;
+	cleanupStartMs := EncoderMaintenanceState[165]$UDINT;
+	elapsedMs := serviceNow - serviceStartMs;
+	previousCycle := EncoderMaintenanceState[166]$UDINT;
+	currentCycle := previousCycle;
+	controlWord := EncoderMaintenanceState[168]$UDINT;
+	statusWord := EncoderMaintenanceState[169]$UDINT;
+	axisError := EncoderMaintenanceState[170];
+	actualPosition := EncoderMaintenanceState[171];
+	expectedExecuteToken := 0;
+	if maintenanceKind = 1 then
+		expectedExecuteToken := 0x30325754;
+	elsif maintenanceKind = 2 then
+		expectedExecuteToken := 0x39315754;
+	end_if;
+
+	preemptionResult := HandleEncoderMaintenancePreemption(
+		Stage:=stage,
+		PreemptionResult:=preemptionResult,
+		pPreemptionSnapshot:=#preemptionSnapshot[0],
+		ServiceNow:=serviceNow);
+	if preemptionResult <> 0 then
+		RETURN;
+	end_if;
+
+	if stage = LMC_DIAG_ENCODER_STAGE_QUARANTINED then
+		RETURN;
+	end_if;
+	EncoderMaintenanceServiceMilliseconds := serviceNow;
+
+	snapshotValid := FALSE;
+	newCycle := FALSE;
+	motorOff := FALSE;
+	copyResult := -1;
+	if IsClientConnected(#InputLatch) then
+		copyResult := InputLatch.CopySnapshot(
+			pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
+	end_if;
+	if (copyResult = 0) & (snapshot[0]$UDINT <> 0) then
+		currentCycle := snapshot[0]$UDINT;
+		healthOffset := 64 + TO_UDINT(axisReference - 1) * 36;
+		valueOffset := 208 + TO_UDINT(axisReference - 1) * 24;
+		controlWord := snapshot[TO_DINT(valueOffset + 8)]$UDINT;
+		statusWord := snapshot[TO_DINT(valueOffset + 20)]$UDINT;
+		axisError := snapshot[TO_DINT(healthOffset + 24)]$DINT;
+		actualPosition := snapshot[TO_DINT(valueOffset + 12)]$DINT;
+		snapshotValid :=
+			(snapshot[12]$UDINT = 8) & (snapshot[16]$UDINT = 0) &
+			((snapshot[40]$UDINT and 3) = 1) &
+			(snapshot[TO_DINT(healthOffset)]$DINT <> 0) &
+			(snapshot[TO_DINT(healthOffset + 4)]$UDINT = 8) &
+			(snapshot[TO_DINT(healthOffset + 12)]$UDINT = 0) &
+			(snapshot[TO_DINT(healthOffset + 16)]$UDINT <>
+			 0xFFFFFFFF) &
+			(snapshot[TO_DINT(healthOffset + 28)]$UDINT = currentCycle);
+		newCycle := snapshotValid & (currentCycle <> previousCycle);
+		motorOff := snapshotValid &
+			((controlWord and 0x00000008) = 0) &
+			((statusWord and 0x00000004) = 0);
+		if snapshotValid then
+			EncoderMaintenanceState[166] := currentCycle$DINT;
+			EncoderMaintenanceState[168] := controlWord$DINT;
+			EncoderMaintenanceState[169] := statusWord$DINT;
+			EncoderMaintenanceState[170] := axisError;
+			EncoderMaintenanceState[171] := actualPosition;
+			EncoderMaintenanceState[recordBase + 32] := statusWord$DINT;
+			EncoderMaintenanceState[recordBase + 33] := axisError;
+			EncoderMaintenanceState[recordBase + 35] := actualPosition;
+		end_if;
+	end_if;
+
+	executorConnected := FALSE;
+	executorReusable := FALSE;
+	case axisReference of
+		1:
+			executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+			if executorConnected then
+				executorReusable := SdoAxis1.IsReusable();
+			end_if;
+		2:
+			executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+			if executorConnected then
+				executorReusable := SdoAxis2.IsReusable();
+			end_if;
+		3:
+			executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+			if executorConnected then
+				executorReusable := SdoAxis3.IsReusable();
+			end_if;
+		4:
+			executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+			if executorConnected then
+				executorReusable := SdoAxis4.IsReusable();
+			end_if;
+	end_case;
+
+	featureEnabled :=
+		((maintenanceKind = 1) &
+		 (LMC_DIAG_ENCODER_TW20_ENABLED = TRUE)) |
+		((maintenanceKind = 2) &
+		 (LMC_DIAG_ENCODER_TW19_ENABLED = TRUE));
+	safeFailure := FALSE;
+	quarantine := FALSE;
+	failureDetail := LMC_DIAG_ENCODER_DETAIL_EXECUTION;
+	failureNative := 0;
+	desiredTerminalState := LMC_DIAG_ENCODER_RECORD_FAILED;
+
+	if (maintenanceObjectIndex <> 0x20FC) |
+		(((maintenanceKind = 1) & (maintenanceSubIndex <> 0x02)) |
+		 ((maintenanceKind = 2) & (maintenanceSubIndex <> 0x01))) |
+		((maintenanceKind <> 1) & (maintenanceKind <> 2)) |
+		(maintenanceCommandValue <> LMC_DIAG_ENCODER_RESET_VALUE) |
+		(encoderProcessOperationToken = 0) | (admissionToken = 0) |
+		(ownerGeneration = 0) | (callerSessionEpoch = 0) |
+		(requestSequence = 0) | (timeoutMilliseconds < 1) |
+		(timeoutMilliseconds > 60000) then
+		quarantine := TRUE;
+		failureNative := 17;
+	elsif (featureEnabled = FALSE) &
+		(stage <> LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER) then
+		if EncoderMaintenanceState[189]$UDINT = 0 then
+			safeFailure := TRUE;
+			failureDetail := LMC_DIAG_ENCODER_DETAIL_EXECUTION;
+			failureNative := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+		else
+			quarantine := TRUE;
+			failureNative := LMC_DIAG_ENCODER_DETAIL_COMPATIBILITY;
+		end_if;
+	end_if;
+
+	if (safeFailure = FALSE) & (quarantine = FALSE) then
+		case stage of
+			LMC_DIAG_ENCODER_STAGE_PRE_STABLE:
+				if elapsedMs >= timeoutMilliseconds then
+					safeFailure := TRUE;
+					desiredTerminalState :=
+						LMC_DIAG_ENCODER_RECORD_ABORTED;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				elsif snapshotValid & (motorOff = FALSE) then
+					safeFailure := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_SEMANTIC;
+					failureNative := statusWord;
+				elsif newCycle & motorOff then
+					EncoderMaintenanceObservedLatchCycle := currentCycle;
+					EncoderMaintenanceLatchAdvanceServiceMilliseconds :=
+						serviceNow;
+					EncoderMaintenanceLatchFreshSampleCount += 1;
+					EncoderMaintenanceState[recordBase + 28] :=
+						controlWord$DINT;
+					EncoderMaintenanceState[recordBase + 30] :=
+						statusWord$DINT;
+					if EncoderMaintenanceLatchFreshSampleCount >= 3 then
+						EncoderMaintenanceState[recordBase + 27]$UDINT :=
+							EncoderMaintenanceState[recordBase + 27]$UDINT OR
+							LMC_DIAG_ENCODER_VERIFY_MOTOR_OFF_PRE OR
+							LMC_DIAG_ENCODER_VERIFY_NO_MOTION;
+						EncoderMaintenanceState[152] :=
+							LMC_DIAG_ENCODER_STAGE_DISPATCH;
+					end_if;
+				end_if;
+
+			LMC_DIAG_ENCODER_STAGE_DISPATCH:
+				if elapsedMs >= timeoutMilliseconds then
+					safeFailure := TRUE;
+					desiredTerminalState :=
+						LMC_DIAG_ENCODER_RECORD_ABORTED;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				elsif snapshotValid = FALSE then
+					// Wait only within the same overall service-clock budget.
+				elsif motorOff = FALSE then
+					safeFailure := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_SEMANTIC;
+					failureNative := statusWord;
+				elsif (executorConnected = FALSE) | (executorReusable = FALSE) |
+					(IsClientConnected(#AxisOwnership) = FALSE) then
+					quarantine := TRUE;
+					failureNative := 24;
+				else
+					ownerResult := AxisOwnership.ValidateAxisOwnership(
+						CommandId:=0x7E53,
+						Reference:=axisReference,
+						ExpectedAxisMask:=axisMask,
+						OwnerKind:=LMC_DIAG_OWNER_KIND_ENCODER,
+						ResourceKind:=LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO,
+						AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+						CallerSessionEpoch:=callerSessionEpoch,
+						RequestSequence:=requestSequence,
+						AdmissionToken:=admissionToken,
+						OwnerGeneration:=ownerGeneration,
+						RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+					if ownerResult <> 0 then
+						quarantine := TRUE;
+						failureNative := TO_UDINT(0 - ownerResult);
+					elsif EncoderMaintenanceState[189]$UDINT <> 0 then
+						// This is the irreversible one-shot dispatch claim. It is
+						// never cleared for retry within an active record.
+						quarantine := TRUE;
+						failureNative := 25;
+					else
+						remainingMs := timeoutMilliseconds - elapsedMs;
+						if remainingMs < 1 then
+							remainingMs := 1;
+						end_if;
+						if remainingMs > 60000 then
+							remainingMs := 60000;
+						end_if;
+						EncoderMaintenanceState[189]$UDINT := encoderProcessOperationToken;
+						startResult := ERROR;
+						case axisReference of
+							1:
+								startResult := SdoAxis1.TryStartWrite(
+									OperationToken:=encoderProcessOperationToken,
+									ObjectIndex:=maintenanceObjectIndex,
+									SubIndex:=maintenanceSubIndex,
+									pWriteData:=(#maintenanceWriteValue)$^USINT,
+									WriteLength:=2, TimeoutMs:=remainingMs);
+							2:
+								startResult := SdoAxis2.TryStartWrite(
+									OperationToken:=encoderProcessOperationToken,
+									ObjectIndex:=maintenanceObjectIndex,
+									SubIndex:=maintenanceSubIndex,
+									pWriteData:=(#maintenanceWriteValue)$^USINT,
+									WriteLength:=2, TimeoutMs:=remainingMs);
+							3:
+								startResult := SdoAxis3.TryStartWrite(
+									OperationToken:=encoderProcessOperationToken,
+									ObjectIndex:=maintenanceObjectIndex,
+									SubIndex:=maintenanceSubIndex,
+									pWriteData:=(#maintenanceWriteValue)$^USINT,
+									WriteLength:=2, TimeoutMs:=remainingMs);
+							4:
+								startResult := SdoAxis4.TryStartWrite(
+									OperationToken:=encoderProcessOperationToken,
+									ObjectIndex:=maintenanceObjectIndex,
+									SubIndex:=maintenanceSubIndex,
+									pWriteData:=(#maintenanceWriteValue)$^USINT,
+									WriteLength:=2, TimeoutMs:=remainingMs);
+						end_case;
+						if startResult = READY then
+							EncoderMaintenanceState[156] := 1;
+							EncoderMaintenanceState[152] :=
+								LMC_DIAG_ENCODER_STAGE_WAIT_SDO;
+							ownerResult := AxisOwnership.PublishAxisOwnership(
+								AxisMask:=axisMask,
+								AdmissionToken:=admissionToken,
+								OwnerGeneration:=ownerGeneration,
+								ReportKind:=LMC_DIAG_OWNER_REPORT_DISPATCH,
+								ReportValue0:=TO_UDINT(maintenanceObjectIndex),
+								ReportValue1:=encoderProcessOperationToken,
+								ObservationCycle:=currentCycle);
+							if ownerResult <> 0 then
+								// Drain the accepted write before quarantine.
+								EncoderMaintenanceState[176] := 1;
+							end_if;
+						else
+							case axisReference of
+								1: executorReusable := SdoAxis1.IsReusable();
+								2: executorReusable := SdoAxis2.IsReusable();
+								3: executorReusable := SdoAxis3.IsReusable();
+								4: executorReusable := SdoAxis4.IsReusable();
+							end_case;
+							if executorReusable then
+								safeFailure := TRUE;
+								failureNative := TO_UDINT(startResult);
+							else
+								quarantine := TRUE;
+								failureNative := TO_UDINT(startResult);
+							end_if;
+						end_if;
+					end_if;
+				end_if;
+
+			LMC_DIAG_ENCODER_STAGE_WAIT_SDO:
+				copyResult := -2;
+				case axisReference of
+					1: copyResult := SdoAxis1.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					2: copyResult := SdoAxis2.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					3: copyResult := SdoAxis3.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					4: copyResult := SdoAxis4.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+				end_case;
+				if copyResult = 0 then
+					EncoderMaintenanceState[156] := 0;
+					EncoderMaintenanceState[recordBase + 24] :=
+						currentCycle$DINT;
+					EncoderMaintenanceState[recordBase + 22] :=
+						completion.AbortCode$DINT;
+					EncoderMaintenanceState[recordBase + 27]$UDINT :=
+						EncoderMaintenanceState[recordBase + 27]$UDINT OR
+						LMC_DIAG_ENCODER_VERIFY_SDO_COMPLETE OR
+						LMC_DIAG_ENCODER_VERIFY_EXECUTOR_DRAINED;
+					case axisReference of
+						1: executorReusable := SdoAxis1.IsReusable();
+						2: executorReusable := SdoAxis2.IsReusable();
+						3: executorReusable := SdoAxis3.IsReusable();
+						4: executorReusable := SdoAxis4.IsReusable();
+					end_case;
+					if (completion.Token = encoderProcessOperationToken) &
+						(completion.ValidationCode = 0) &
+						(completion.OsResult = 0) &
+						(completion.AbortCode = 0) &
+						(completion.ObjectIndex = maintenanceObjectIndex) &
+						(completion.SubIndex = maintenanceSubIndex) &
+						(completion.IsWrite <> 0) &
+						(completion.ActualLength = 2) &
+						(completion.Reserved = 0) & executorReusable &
+						(EncoderMaintenanceState[176] = 0) then
+						EncoderMaintenanceLatchFreshSampleCount := 0;
+						EncoderMaintenanceObservedLatchCycle := currentCycle;
+						EncoderMaintenanceLatchAdvanceServiceMilliseconds :=
+							serviceNow;
+						EncoderMaintenanceState[152] :=
+							LMC_DIAG_ENCODER_STAGE_POST_STABLE;
+					else
+						quarantine := TRUE;
+						failureNative := completion.AbortCode;
+						if failureNative = 0 then
+							failureNative := TO_UDINT(0 - completion.OsResult);
+						end_if;
+					end_if;
+				elsif copyResult <> -2 then
+					quarantine := TRUE;
+					failureNative := TO_UDINT(0 - copyResult);
+				elsif elapsedMs >= timeoutMilliseconds then
+					orphanResult := -1;
+					case axisReference of
+						1: orphanResult := SdoAxis1.MarkOrphan(
+							ExpectedToken:=encoderProcessOperationToken);
+						2: orphanResult := SdoAxis2.MarkOrphan(
+							ExpectedToken:=encoderProcessOperationToken);
+						3: orphanResult := SdoAxis3.MarkOrphan(
+							ExpectedToken:=encoderProcessOperationToken);
+						4: orphanResult := SdoAxis4.MarkOrphan(
+							ExpectedToken:=encoderProcessOperationToken);
+					end_case;
+					if (orphanResult = 0) | (orphanResult = -2) then
+						// -2 can mean RESULT_READY won the timeout race. The drain
+						// stage consumes that exact completion before IsReusable.
+						EncoderMaintenanceState[165] := serviceNow$DINT;
+						EncoderMaintenanceState[177] := 1;
+						EncoderMaintenanceState[152] :=
+							LMC_DIAG_ENCODER_STAGE_DRAIN;
+					else
+						case axisReference of
+							1: executorReusable := SdoAxis1.IsReusable();
+							2: executorReusable := SdoAxis2.IsReusable();
+							3: executorReusable := SdoAxis3.IsReusable();
+							4: executorReusable := SdoAxis4.IsReusable();
+						end_case;
+						if executorReusable then
+							quarantine := TRUE;
+							failureNative := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+						end_if;
+					end_if;
+				end_if;
+
+			LMC_DIAG_ENCODER_STAGE_POST_STABLE:
+				if elapsedMs >= timeoutMilliseconds then
+					quarantine := TRUE;
+					failureNative := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				elsif executorReusable = FALSE then
+					quarantine := TRUE;
+					failureNative := 24;
+				elsif snapshotValid & (motorOff = FALSE) then
+					quarantine := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_SEMANTIC;
+					failureNative := statusWord;
+				elsif newCycle & motorOff then
+					EncoderMaintenanceObservedLatchCycle := currentCycle;
+					EncoderMaintenanceLatchAdvanceServiceMilliseconds :=
+						serviceNow;
+					EncoderMaintenanceLatchFreshSampleCount += 1;
+					EncoderMaintenanceState[recordBase + 29] :=
+						controlWord$DINT;
+					EncoderMaintenanceState[recordBase + 31] :=
+						statusWord$DINT;
+					if EncoderMaintenanceLatchFreshSampleCount >= 3 then
+						EncoderMaintenanceState[recordBase + 27]$UDINT :=
+							EncoderMaintenanceState[recordBase + 27]$UDINT OR
+							LMC_DIAG_ENCODER_VERIFY_MOTOR_OFF_POST OR
+							LMC_DIAG_ENCODER_VERIFY_STABLE_WINDOW OR
+							LMC_DIAG_ENCODER_VERIFY_POST_WRITE_STATE OR
+							LMC_DIAG_ENCODER_VERIFY_NO_MOTION;
+						EncoderMaintenanceState[178] :=
+							LMC_DIAG_ENCODER_RECORD_SUCCEEDED;
+						EncoderMaintenanceState[152] :=
+							LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER;
+					end_if;
+				end_if;
+
+			LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER:
+				desiredTerminalState := EncoderMaintenanceState[178];
+				if IsClientConnected(#AxisOwnership) = FALSE then
+					quarantine := TRUE;
+					failureNative := 24;
+				elsif desiredTerminalState =
+					LMC_DIAG_ENCODER_RECORD_SUCCEEDED then
+					verificationFlags :=
+						EncoderMaintenanceState[recordBase + 27]$UDINT;
+					if verificationFlags <>
+						(LMC_DIAG_ENCODER_VERIFY_ALL and
+						 NOT(LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP)) then
+						quarantine := TRUE;
+						failureNative := verificationFlags;
+					else
+						ownerResult := AxisOwnership.PublishAxisOwnership(
+							AxisMask:=axisMask,
+							AdmissionToken:=admissionToken,
+							OwnerGeneration:=ownerGeneration,
+							ReportKind:=
+								LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS,
+							ReportValue0:=0,
+							ReportValue1:=verificationFlags,
+							ObservationCycle:=currentCycle);
+						if ownerResult = 0 then
+							EncoderMaintenanceState[recordBase + 27]$UDINT :=
+								LMC_DIAG_ENCODER_VERIFY_ALL;
+							EncoderMaintenanceState[recordBase + 19] := 0;
+							EncoderMaintenanceState[recordBase + 20] := 0;
+							EncoderMaintenanceState[recordBase + 21] := 0;
+							EncoderMaintenanceState[recordBase + 22] := 0;
+							EncoderMaintenanceState[recordBase + 25] :=
+								currentCycle$DINT;
+							EncoderMaintenanceState[recordBase + 26] := 0;
+							// Terminal state is the final publication word, after the
+							// executor is reusable and the owner release succeeded.
+							EncoderMaintenanceState[recordBase] :=
+								LMC_DIAG_ENCODER_RECORD_SUCCEEDED;
+							_memset(
+								dest:=#EncoderMaintenanceState[152],
+								usByte:=0, cntr:=34 * 4);
+							EncoderMaintenanceServiceMilliseconds := 0;
+							EncoderMaintenanceObservedLatchCycle := 0;
+							EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
+							EncoderMaintenanceLatchFreshSampleCount := 0;
+							RETURN;
+						else
+							quarantine := TRUE;
+							failureNative := TO_UDINT(0 - ownerResult);
+						end_if;
+					end_if;
+				elsif (desiredTerminalState =
+					LMC_DIAG_ENCODER_RECORD_FAILED) |
+					(desiredTerminalState =
+					 LMC_DIAG_ENCODER_RECORD_ABORTED) then
+					ownerResult := AxisOwnership.PublishAxisOwnership(
+						AxisMask:=axisMask,
+						AdmissionToken:=admissionToken,
+						OwnerGeneration:=ownerGeneration,
+						ReportKind:=
+							LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE,
+						ReportValue0:=EncoderMaintenanceState[179]$UDINT,
+						ReportValue1:=EncoderMaintenanceState[180]$UDINT,
+						ObservationCycle:=currentCycle);
+					if ownerResult = 0 then
+						EncoderMaintenanceState[recordBase + 27]$UDINT :=
+							EncoderMaintenanceState[recordBase + 27]$UDINT OR
+							LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP;
+						EncoderMaintenanceState[recordBase + 19] := 1;
+						EncoderMaintenanceState[recordBase + 20] :=
+							LMC_DIAG_ERROR_ID;
+						EncoderMaintenanceState[recordBase + 21] :=
+							EncoderMaintenanceState[179];
+						EncoderMaintenanceState[recordBase + 22] := 0;
+						EncoderMaintenanceState[recordBase + 25] :=
+							currentCycle$DINT;
+						EncoderMaintenanceState[recordBase + 26] := 0;
+						EncoderMaintenanceState[recordBase] :=
+							desiredTerminalState;
+						_memset(dest:=#EncoderMaintenanceState[152],
+							usByte:=0, cntr:=34 * 4);
+						EncoderMaintenanceServiceMilliseconds := 0;
+						EncoderMaintenanceObservedLatchCycle := 0;
+						EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
+						EncoderMaintenanceLatchFreshSampleCount := 0;
+						RETURN;
+					else
+						quarantine := TRUE;
+						failureNative := TO_UDINT(0 - ownerResult);
+					end_if;
+				else
+					quarantine := TRUE;
+					failureNative := 17;
+				end_if;
+
+			LMC_DIAG_ENCODER_STAGE_DRAIN:
+				copyResult := -2;
+				case axisReference of
+					1: copyResult := SdoAxis1.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					2: copyResult := SdoAxis2.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					3: copyResult := SdoAxis3.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+					4: copyResult := SdoAxis4.CopyCompletion(
+						ExpectedToken:=encoderProcessOperationToken,
+						pDest:=#completion, DestSize:=sizeof(completion));
+				end_case;
+				if copyResult = 0 then
+					EncoderMaintenanceState[156] := 0;
+				end_if;
+				case axisReference of
+					1: executorReusable := SdoAxis1.IsReusable();
+					2: executorReusable := SdoAxis2.IsReusable();
+					3: executorReusable := SdoAxis3.IsReusable();
+					4: executorReusable := SdoAxis4.IsReusable();
+				end_case;
+				if (copyResult <> 0) & (copyResult <> -2) &
+					(executorReusable = FALSE) then
+					quarantine := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+					failureNative := TO_UDINT(0 - copyResult);
+				elsif executorReusable then
+					// The late callback drained, but the write may have occurred.
+					// Retaining owner quarantine is safer than a false terminal.
+					quarantine := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+					failureNative := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				elsif (cleanupStartMs <> 0) &
+					((serviceNow - cleanupStartMs) > 1000) then
+					quarantine := TRUE;
+					failureDetail := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+					failureNative := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				end_if;
+
+		else
+			quarantine := TRUE;
+			failureNative := 17;
+		end_case;
+	end_if;
+
+	if safeFailure then
+		EncoderMaintenanceState[178] := desiredTerminalState;
+		EncoderMaintenanceState[179] := failureDetail$DINT;
+		EncoderMaintenanceState[180] := failureNative$DINT;
+		EncoderMaintenanceState[152] :=
+			LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER;
+		RETURN;
+	end_if;
+
+	if quarantine then
+		EncoderMaintenanceState[179] := failureDetail$DINT;
+		EncoderMaintenanceState[180] := failureNative$DINT;
+		EncoderMaintenanceState[152] :=
+			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+		if IsClientConnected(#AxisOwnership) &
+			(admissionToken <> 0) & (ownerGeneration <> 0) then
+			ownerResult := AxisOwnership.PublishAxisOwnership(
+				AxisMask:=axisMask,
+				AdmissionToken:=admissionToken,
+				OwnerGeneration:=ownerGeneration,
+				ReportKind:=LMC_DIAG_OWNER_REPORT_QUARANTINE,
+				ReportValue0:=failureDetail,
+				ReportValue1:=failureNative,
+				ObservationCycle:=currentCycle);
+		end_if;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleEncoderMaintenancePreemption
+	VAR_INPUT
+		Stage 	: DINT;
+		PreemptionResult 	: DINT;
+		pPreemptionSnapshot 	: ^USINT;
+		ServiceNow 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		recordBase : DINT;
+		axisReference, maintenanceObjectIndex : UINT;
+		maintenanceSubIndex : USINT;
+		maintenanceKind, preemptionCleanupKind : UINT;
+		axisMask, encoderProcessOperationToken : UDINT;
+		admissionToken, ownerGeneration : UDINT;
+		callerSessionEpoch, requestSequence : UDINT;
+		maintenanceCommandValue, timeoutMilliseconds : UDINT;
+		expectedExecuteToken, safetyAdmissionToken : UDINT;
+		safetyOwnerGeneration, cleanupStartMs : UDINT;
+		currentCycle, previousCycle : UDINT;
+		copyResult, ownerResult, orphanResult : DINT;
+		executorConnected, executorReusable : BOOL;
+		preemptionSnapshotValid, dispatchDefinitelyAbsent : BOOL;
+		publishPreemptionCleanup : BOOL;
+	END_VAR
+
+	Result := 1;
+	recordBase := EncoderMaintenanceState[154];
+	axisReference := EncoderMaintenanceState[153]$UINT;
+	admissionToken := EncoderMaintenanceState[160]$UDINT;
+	ownerGeneration := EncoderMaintenanceState[161]$UDINT;
+	axisMask := TO_UDINT(1) shl TO_UDINT(axisReference - 1);
+	maintenanceKind := EncoderMaintenanceState[182]$UINT;
+	maintenanceObjectIndex := EncoderMaintenanceState[157]$UINT;
+	maintenanceSubIndex := EncoderMaintenanceState[158]$USINT;
+	maintenanceCommandValue := EncoderMaintenanceState[159]$UDINT;
+	timeoutMilliseconds := EncoderMaintenanceState[recordBase + 14]$UDINT;
+	encoderProcessOperationToken := EncoderMaintenanceState[155]$UDINT;
+	callerSessionEpoch := EncoderMaintenanceState[162]$UDINT;
+	requestSequence := EncoderMaintenanceState[163]$UDINT;
+	cleanupStartMs := EncoderMaintenanceState[165]$UDINT;
+	previousCycle := EncoderMaintenanceState[166]$UDINT;
+	currentCycle := previousCycle;
+	expectedExecuteToken := 0;
+	if maintenanceKind = 1 then
+		expectedExecuteToken := 0x30325754;
+	elsif maintenanceKind = 2 then
+		expectedExecuteToken := 0x39315754;
+	end_if;
+
+	if preemptionResult <> 0 then
+		preemptionSnapshotValid :=
+			((pPreemptionSnapshot + 0)^$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_MAGIC) &
+			((pPreemptionSnapshot + 4)^$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_VERSION) &
+			((pPreemptionSnapshot + 8)^$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_HEADER_SIZE) &
+			((pPreemptionSnapshot + 12)^$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_TOTAL_SIZE) &
+			((pPreemptionSnapshot + 16)^$DINT = preemptionResult) &
+			((pPreemptionSnapshot + 32)^$UDINT = axisMask) &
+			((pPreemptionSnapshot + 36)^$UDINT = admissionToken) &
+			((pPreemptionSnapshot + 40)^$UDINT = ownerGeneration) &
+			((pPreemptionSnapshot + 44)^$UDINT = callerSessionEpoch) &
+			((pPreemptionSnapshot + 48)^$UDINT = requestSequence) &
+			((pPreemptionSnapshot + 52)^$UDINT = 0x7E53) &
+			((pPreemptionSnapshot + 56)^$UDINT = TO_UDINT(axisReference)) &
+			((pPreemptionSnapshot + 60)^$UDINT = LMC_DIAG_OWNER_KIND_ENCODER) &
+			((pPreemptionSnapshot + 64)^$UDINT =
+			 LMC_DIAG_RESOURCE_DIAGNOSTICS_SDO) &
+			((pPreemptionSnapshot + 68)^$UDINT =
+			 LMC_DIAG_ADMISSION_LIFECYCLE) &
+			(encoderProcessOperationToken <> 0) &
+			(callerSessionEpoch <> 0) & (requestSequence <> 0) &
+			(maintenanceObjectIndex = 0x20FC) &
+			(((maintenanceKind = 1) & (maintenanceSubIndex = 0x02)) |
+			 ((maintenanceKind = 2) & (maintenanceSubIndex = 0x01))) &
+			((EncoderMaintenanceState[156] = 0) |
+			 (EncoderMaintenanceState[156] = 1)) &
+			((EncoderMaintenanceState[189]$UDINT = 0) |
+			 (EncoderMaintenanceState[189]$UDINT =
+			  encoderProcessOperationToken)) &
+			((pPreemptionSnapshot + 72)^$UDINT >=
+			 LMC_DIAG_OWNER_STATE_TW20_QUEUED) &
+			((pPreemptionSnapshot + 72)^$UDINT <=
+			 LMC_DIAG_OWNER_STATE_TW20_DRAINING) &
+			((pPreemptionSnapshot + 76)^$UDINT = 72) &
+			(((pPreemptionSnapshot + 104)^$UDINT and axisMask) = axisMask) &
+			((pPreemptionSnapshot + 108)^$UDINT <> 0) &
+			((pPreemptionSnapshot + 112)^$UDINT <> 0) &
+			(((pPreemptionSnapshot + 124)^$UDINT =
+			  LMC_DIAG_OWNER_STATE_SAFETY_PREEMPTING) |
+			 ((pPreemptionSnapshot + 124)^$UDINT =
+			  LMC_DIAG_OWNER_STATE_QUARANTINED)) &
+			((pPreemptionSnapshot + 136)^$UDINT =
+			 LMC_DIAG_ADMISSION_SAFETY) &
+			((pPreemptionSnapshot + 144)^$UINT = LMC_DIAG_SCHEMA_VERSION) &
+			((pPreemptionSnapshot + 146)^$UINT = 0) &
+			((pPreemptionSnapshot + 148)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 5]$UDINT) &
+			((pPreemptionSnapshot + 152)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 2]$UDINT) &
+			((pPreemptionSnapshot + 156)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 3]$UDINT) &
+			((pPreemptionSnapshot + 160)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 4]$UDINT) &
+			((pPreemptionSnapshot + 164)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 6]$UDINT) &
+			((pPreemptionSnapshot + 168)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 7]$UDINT) &
+			((pPreemptionSnapshot + 172)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 8]$UDINT) &
+			((pPreemptionSnapshot + 176)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 9]$UDINT) &
+			((pPreemptionSnapshot + 180)^$UINT = maintenanceKind) &
+			((pPreemptionSnapshot + 182)^$UINT =
+			 EncoderMaintenanceState[recordBase + 10]$UINT) &
+			((pPreemptionSnapshot + 184)^$UINT = axisReference) &
+			((pPreemptionSnapshot + 186)^$UINT =
+			 EncoderMaintenanceState[recordBase + 12]$UINT) &
+			((pPreemptionSnapshot + 188)^$UDINT = maintenanceCommandValue) &
+			((pPreemptionSnapshot + 192)^$UDINT = timeoutMilliseconds) &
+			((pPreemptionSnapshot + 196)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 15]$UDINT) &
+			((pPreemptionSnapshot + 200)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 16]$UDINT) &
+			((pPreemptionSnapshot + 204)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 17]$UDINT) &
+			((pPreemptionSnapshot + 208)^$UDINT =
+			 EncoderMaintenanceState[recordBase + 18]$UDINT) &
+			((pPreemptionSnapshot + 212)^$UDINT = expectedExecuteToken);
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_REQUIRED then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				(((pPreemptionSnapshot + 24)^$UDINT and axisMask) = axisMask) &
+				(((pPreemptionSnapshot + 28)^$UDINT and axisMask) = 0) &
+				((pPreemptionSnapshot + 124)^$UDINT <>
+				 LMC_DIAG_OWNER_STATE_RESERVED);
+		elsif preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				(((pPreemptionSnapshot + 28)^$UDINT and axisMask) = axisMask);
+		end_if;
+		if preemptionSnapshotValid = FALSE then
+			EncoderMaintenanceState[179] :=
+				LMC_DIAG_ENCODER_DETAIL_STORE_CORRUPT;
+			EncoderMaintenanceState[180] := 43;
+			EncoderMaintenanceState[152] :=
+				LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+			RETURN;
+		end_if;
+
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			EncoderMaintenanceState[recordBase + 27]$UDINT :=
+				EncoderMaintenanceState[recordBase + 27]$UDINT OR
+				LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP;
+			EncoderMaintenanceState[recordBase + 19] := 1;
+			EncoderMaintenanceState[recordBase + 20] := LMC_DIAG_ERROR_ID;
+			EncoderMaintenanceState[recordBase + 21] :=
+				LMC_DIAG_ENCODER_DETAIL_ABORTED;
+			EncoderMaintenanceState[recordBase + 22] := 0;
+			EncoderMaintenanceState[recordBase + 25] := currentCycle$DINT;
+			EncoderMaintenanceState[recordBase + 26] := 0;
+			EncoderMaintenanceState[recordBase] :=
+				LMC_DIAG_ENCODER_RECORD_ABORTED;
+			_memset(dest:=#EncoderMaintenanceState[152], usByte:=0,
+				cntr:=34 * 4);
+			EncoderMaintenanceServiceMilliseconds := 0;
+			EncoderMaintenanceObservedLatchCycle := 0;
+			EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
+			EncoderMaintenanceLatchFreshSampleCount := 0;
+			RETURN;
+		elsif preemptionResult =
+			LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED then
+			EncoderMaintenanceState[179] :=
+				LMC_DIAG_ENCODER_DETAIL_ABORTED;
+			EncoderMaintenanceState[180] :=
+				LMC_DIAG_ENCODER_DETAIL_INDETERMINATE;
+			EncoderMaintenanceState[152] :=
+				LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+			RETURN;
+		end_if;
+
+		// CLEANUP_REQUIRED is authorized only by this immutable coordinator
+		// snapshot. Never use the preempted token for ordinary publication.
+		safetyAdmissionToken := (pPreemptionSnapshot + 108)^$UDINT;
+		safetyOwnerGeneration := (pPreemptionSnapshot + 112)^$UDINT;
+		dispatchDefinitelyAbsent :=
+			(EncoderMaintenanceState[189]$UDINT = 0) &
+			(EncoderMaintenanceState[156] = 0) &
+			((stage = LMC_DIAG_ENCODER_STAGE_PRE_STABLE) |
+			 (stage = LMC_DIAG_ENCODER_STAGE_DISPATCH) |
+			 (stage = LMC_DIAG_ENCODER_STAGE_RELEASE_OWNER)) &
+			((pPreemptionSnapshot + 72)^$UDINT =
+			 LMC_DIAG_OWNER_STATE_TW20_QUEUED);
+		if dispatchDefinitelyAbsent then
+			ownerResult := AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+				ExpectedAxisMask:=axisMask,
+				PreemptedAdmissionToken:=admissionToken,
+				PreemptedOwnerGeneration:=ownerGeneration,
+				SafetyAdmissionToken:=safetyAdmissionToken,
+				SafetyOwnerGeneration:=safetyOwnerGeneration,
+				CleanupKind:=LMC_DIAG_PREEMPT_CLEANUP_SAFE,
+				ReportValue0:=LMC_DIAG_ENCODER_DETAIL_ABORTED,
+				ReportValue1:=0,
+				ObservationCycle:=currentCycle);
+			if ownerResult = 0 then
+				EncoderMaintenanceState[recordBase + 27]$UDINT :=
+					EncoderMaintenanceState[recordBase + 27]$UDINT OR
+					LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP;
+				EncoderMaintenanceState[recordBase + 19] := 1;
+				EncoderMaintenanceState[recordBase + 20] := LMC_DIAG_ERROR_ID;
+				EncoderMaintenanceState[recordBase + 21] :=
+					LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				EncoderMaintenanceState[recordBase + 22] := 0;
+				EncoderMaintenanceState[recordBase + 25] := currentCycle$DINT;
+				EncoderMaintenanceState[recordBase + 26] := 0;
+				EncoderMaintenanceState[recordBase] :=
+					LMC_DIAG_ENCODER_RECORD_ABORTED;
+				_memset(dest:=#EncoderMaintenanceState[152], usByte:=0,
+					cntr:=34 * 4);
+				EncoderMaintenanceServiceMilliseconds := 0;
+				EncoderMaintenanceObservedLatchCycle := 0;
+				EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
+				EncoderMaintenanceLatchFreshSampleCount := 0;
+			else
+				EncoderMaintenanceState[179] :=
+					LMC_DIAG_ENCODER_DETAIL_ABORTED;
+				EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
+				EncoderMaintenanceState[152] :=
+					LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+			end_if;
+			RETURN;
+		end_if;
+
+		// The irreversible dispatch claim means the write may have occurred.
+		// Drain the exact token and require executor reuse before quarantine.
+		if cleanupStartMs = 0 then
+			cleanupStartMs := serviceNow;
+			EncoderMaintenanceState[165] := cleanupStartMs$DINT;
+		end_if;
+		EncoderMaintenanceState[177] := 1;
+		EncoderMaintenanceState[152] := LMC_DIAG_ENCODER_STAGE_DRAIN;
+		executorConnected := FALSE;
+		executorReusable := FALSE;
+		case axisReference of
+			1: executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+			2: executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+			3: executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+			4: executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+		end_case;
+		copyResult := -2;
+		if executorConnected then
+			case axisReference of
+				1: copyResult := SdoAxis1.CopyCompletion(
+					ExpectedToken:=encoderProcessOperationToken,
+					pDest:=#completion, DestSize:=sizeof(completion));
+				2: copyResult := SdoAxis2.CopyCompletion(
+					ExpectedToken:=encoderProcessOperationToken,
+					pDest:=#completion, DestSize:=sizeof(completion));
+				3: copyResult := SdoAxis3.CopyCompletion(
+					ExpectedToken:=encoderProcessOperationToken,
+					pDest:=#completion, DestSize:=sizeof(completion));
+				4: copyResult := SdoAxis4.CopyCompletion(
+					ExpectedToken:=encoderProcessOperationToken,
+					pDest:=#completion, DestSize:=sizeof(completion));
+			end_case;
+			if copyResult = 0 then
+				EncoderMaintenanceState[156] := 0;
+				// Exact completion consumption proves this token is retired.
+				EncoderMaintenanceState[181] := 1;
+			elsif copyResult = -2 then
+				orphanResult := -1;
+				case axisReference of
+					1: orphanResult := SdoAxis1.MarkOrphan(
+						ExpectedToken:=encoderProcessOperationToken);
+					2: orphanResult := SdoAxis2.MarkOrphan(
+						ExpectedToken:=encoderProcessOperationToken);
+					3: orphanResult := SdoAxis3.MarkOrphan(
+						ExpectedToken:=encoderProcessOperationToken);
+					4: orphanResult := SdoAxis4.MarkOrphan(
+						ExpectedToken:=encoderProcessOperationToken);
+				end_case;
+				if (orphanResult = 0) | (orphanResult = -2) then
+					// IsReusable below supplies the matching drain proof.
+					EncoderMaintenanceState[181] := 1;
+				end_if;
+			end_if;
+			case axisReference of
+				1: executorReusable := SdoAxis1.IsReusable();
+				2: executorReusable := SdoAxis2.IsReusable();
+				3: executorReusable := SdoAxis3.IsReusable();
+				4: executorReusable := SdoAxis4.IsReusable();
+			end_case;
+		end_if;
+		publishPreemptionCleanup := executorReusable |
+			(executorConnected = FALSE) |
+			(copyResult < -2) |
+			((serviceNow - cleanupStartMs) > 1000);
+		if publishPreemptionCleanup = FALSE then
+			RETURN;
+		end_if;
+		if executorReusable & (EncoderMaintenanceState[181] <> 0) then
+			preemptionCleanupKind :=
+				LMC_DIAG_PREEMPT_CLEANUP_COMPLETE_QUARANTINE;
+		else
+			preemptionCleanupKind :=
+				LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE;
+		end_if;
+		ownerResult := AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+			ExpectedAxisMask:=axisMask,
+			PreemptedAdmissionToken:=admissionToken,
+			PreemptedOwnerGeneration:=ownerGeneration,
+			SafetyAdmissionToken:=safetyAdmissionToken,
+			SafetyOwnerGeneration:=safetyOwnerGeneration,
+			CleanupKind:=preemptionCleanupKind,
+			ReportValue0:=encoderProcessOperationToken,
+			ReportValue1:=TO_UDINT(copyResult),
+			ObservationCycle:=currentCycle);
+		EncoderMaintenanceState[179] :=
+			LMC_DIAG_ENCODER_DETAIL_ABORTED;
+		if ownerResult = 0 then
+			EncoderMaintenanceState[180] := TO_DINT(copyResult);
+		else
+			EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
+		end_if;
+		EncoderMaintenanceState[152] :=
+			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+		RETURN;
+	end_if;
+	Result := 0;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSequence 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags : UINT;
+		homingMethod, homePosition, velocity, acceleration : DINT;
+		distanceLimit, torqueLimit : DINT;
+		bufferMode, reservedValue : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		intent0, intent1, intent2, intent3 : UDINT;
+		timeoutMs, executeToken, currentBootId, detailCode : UDINT;
+		nextGeneration, currentCycle, serviceStart, healthOffset, valueOffset : UDINT;
+		axisMask : UDINT;
+		rawStartState, baseStartState : UDINT;
+		statusWord : UDINT;
+		recordBase : DINT;
+		copyResult, ownerResult, rollbackResult : DINT;
+		snapshot : ARRAY [0..303] OF USINT;
+		executorConnected, executorReusable : BOOL;
+		journalEligible, journalPrepared, preflightOnly : BOOL;
+		intentMatches : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 24) then
+		RETURN;
+	end_if;
+
+	_memset(dest:=pResponse, usByte:=0, cntr:=24);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	detailCode := 9;
+	requestId := 0;
+	homingMethod := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	if (pRequest <> NIL) & (RequestSize >= 40) then
+		homingMethod := (pRequest + 36)^$DINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	(pResponse + 16)^$DINT := homingMethod;
+	ResponseSize := 24;
+
+	if (pRequest = NIL) | (RequestSize <> 72) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	diagnosticsBuild := (pRequest + 8)^$UDINT;
+	bootId := (pRequest + 12)^$UDINT;
+	mapRevision := (pRequest + 16)^$UDINT;
+	intent0 := (pRequest + 20)^$UDINT;
+	intent1 := (pRequest + 24)^$UDINT;
+	intent2 := (pRequest + 28)^$UDINT;
+	intent3 := (pRequest + 32)^$UDINT;
+	homePosition := (pRequest + 40)^$DINT;
+	velocity := (pRequest + 44)^$DINT;
+	acceleration := (pRequest + 48)^$DINT;
+	distanceLimit := (pRequest + 52)^$DINT;
+	torqueLimit := (pRequest + 56)^$DINT;
+	bufferMode := (pRequest + 60)^$UINT;
+	reservedValue := (pRequest + 62)^$UINT;
+	timeoutMs := (pRequest + 64)^$UDINT;
+	executeToken := (pRequest + 68)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+	rawStartState := 0xFFFFFFFF;
+	baseStartState := 0xFFFFFFFF;
+	axisMask := 0;
+	journalEligible := FALSE;
+	journalPrepared := FALSE;
+	preflightOnly := (AdmissionToken = 0) & (OwnerGeneration = 0);
+	if (Reference >= 1) & (Reference <= 4) then
+		recordBase := TO_DINT(Reference - 1) * 23;
+		axisMask := TO_UDINT(1) shl TO_UDINT(Reference - 1);
+		rawStartState := Ds402HomeState[recordBase]$UDINT;
+		baseStartState := rawStartState and 0x00007FFF;
+	end_if;
+	if preflightOnly then
+		// Publish the request intent before TCP may create a common reservation.
+		// Stage 87 is the final publication word and can only resolve to rollback.
+		if (Reference < 1) | (Reference > 4) |
+			(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
+			((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
+			(homingMethod <> 37) | (homePosition <> 0) |
+			(velocity <> 0) | (acceleration <> 0) |
+			(distanceLimit <> 0) | (torqueLimit <> 0) |
+			(bufferMode <> 1) | (reservedValue <> 0) | (timeoutMs = 0) |
+			(executeToken <> 0x32303448) then
+			detailCode := 9;
+		elsif diagnosticsBuild <> 1 then
+			detailCode := 16;
+		elsif (currentBootId = 0) | (bootId <> currentBootId) then
+			detailCode := 17;
+		elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+			detailCode := 18;
+		elsif (CallerSessionEpoch = 0) | (RequestSequence = 0) |
+			(sizeof(Ds402HomeState) <> 512) |
+			(Ds402HomeState[92] <> 0) |
+			(Ds402HomeState[109]$UDINT = 0xFFFFFFFF) then
+			detailCode := 10;
+		elsif (rawStartState = 2) | (rawStartState = 3) |
+			(rawStartState = 4) then
+			detailCode := 32;
+		elsif (rawStartState <> 0) & (rawStartState <> 0x00008002) &
+			(rawStartState <> 0x00008003) &
+			(rawStartState <> 0x00008004) then
+			detailCode := 10;
+		else
+			recordBase := TO_DINT(Reference - 1) * 23;
+			// Slot 109 is the last committed operation generation. Intent
+			// publication must not consume it.
+			_memset(dest:=#Ds402HomeState[92], usByte:=0, cntr:=68);
+			_memset(dest:=#Ds402HomeState[110], usByte:=0, cntr:=72);
+			Ds402HomeState[93] := TO_DINT(Reference - 1);
+			_memcpy(ptr1:=#Ds402HomeState[94], ptr2:=pRequest, cntr:=60);
+			_memcpy(ptr1:=#Ds402HomeState[110], ptr2:=pRequest + 60,
+				cntr:=12);
+			Ds402HomeState[113] := CallerSessionEpoch$DINT;
+			Ds402HomeState[114] := RequestSequence$DINT;
+			Ds402HomeState[115] := rawStartState$DINT;
+			Ds402HomeState[116]$UDINT := LMC_DIAG_DS402_INTENT_MAGIC;
+			Ds402HomeState[117] := Ds402HomeState[109];
+			currentCycle := ops.tAbsolute;
+			if currentCycle = 0 then
+				currentCycle := 1;
+			end_if;
+			Ds402HomeState[118] := currentCycle$DINT;
+			Ds402HomeState[119] := 0;
+			copyResult := _memcmp(ptr1:=#Ds402HomeState[94],
+				ptr2:=pRequest, cntr:=60);
+			ownerResult := _memcmp(ptr1:=#Ds402HomeState[110],
+				ptr2:=pRequest + 60, cntr:=12);
+			if (copyResult = 0) & (ownerResult = 0) &
+				(Ds402HomeState[93] = TO_DINT(Reference - 1)) &
+				(Ds402HomeState[113]$UDINT = CallerSessionEpoch) &
+				(Ds402HomeState[114]$UDINT = RequestSequence) &
+				(Ds402HomeState[115]$UDINT = rawStartState) &
+				(Ds402HomeState[116]$UDINT =
+				 LMC_DIAG_DS402_INTENT_MAGIC) &
+				(Ds402HomeState[117] = Ds402HomeState[109]) &
+				(Ds402HomeState[118] <> 0) &
+				(Ds402HomeState[recordBase]$UDINT = rawStartState) then
+				Ds402HomeState[92] :=
+					LMC_DIAG_DS402_STAGE_RESERVE_INTENT;
+				if Ds402HomeState[92] =
+					LMC_DIAG_DS402_STAGE_RESERVE_INTENT then
+					ResponseSize := LMC_DIAG_DS402_PREFLIGHT_READY;
+					RETURN;
+				end_if;
+			end_if;
+			detailCode := 10;
+		end_if;
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	intentMatches := FALSE;
+	if (Reference >= 1) & (Reference <= 4) &
+		(Ds402HomeState[92] = LMC_DIAG_DS402_STAGE_RESERVE_INTENT) then
+		recordBase := TO_DINT(Reference - 1) * 23;
+		copyResult := _memcmp(ptr1:=#Ds402HomeState[94],
+			ptr2:=pRequest, cntr:=60);
+		ownerResult := _memcmp(ptr1:=#Ds402HomeState[110],
+			ptr2:=pRequest + 60, cntr:=12);
+		intentMatches := (copyResult = 0) & (ownerResult = 0) &
+			(Ds402HomeState[93] = TO_DINT(Reference - 1)) &
+			(Ds402HomeState[113]$UDINT = CallerSessionEpoch) &
+			(Ds402HomeState[114]$UDINT = RequestSequence) &
+			((Ds402HomeState[115]$UDINT = 0) |
+			 (Ds402HomeState[115]$UDINT = 0x00008002) |
+			 (Ds402HomeState[115]$UDINT = 0x00008003) |
+			 (Ds402HomeState[115]$UDINT = 0x00008004)) &
+			(Ds402HomeState[116]$UDINT = LMC_DIAG_DS402_INTENT_MAGIC) &
+			(Ds402HomeState[117] = Ds402HomeState[109]) &
+			(Ds402HomeState[118] <> 0) &
+			(Ds402HomeState[119] = 0) &
+			(Ds402HomeState[120] = 0) &
+			(Ds402HomeState[121] = 0) &
+			(Ds402HomeState[122] = 0) &
+			(Ds402HomeState[123] = 0) &
+			(Ds402HomeState[124] = 0) &
+			(Ds402HomeState[125] = 0) &
+			(Ds402HomeState[126] = 0) &
+			(Ds402HomeState[127] = 0) &
+			(Ds402HomeState[recordBase]$UDINT =
+			 Ds402HomeState[115]$UDINT);
+	end_if;
+
+	if (Reference < 1) | (Reference > 4) |
+		(schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
+		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
+		(homingMethod <> 37) | (homePosition <> 0) |
+		(velocity <> 0) | (acceleration <> 0) |
+		(distanceLimit <> 0) | (torqueLimit <> 0) |
+		(bufferMode <> 1) | (reservedValue <> 0) | (timeoutMs = 0) |
+		(executeToken <> 0x32303448) then
+		detailCode := 9;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif (LMC_DIAG_DS402_HOME_ENABLED = FALSE) |
+		(CallerSessionEpoch = 0) | (RequestSequence = 0) |
+		(AdmissionToken = 0) | (OwnerGeneration = 0) |
+		(IsClientConnected(#AxisOwnership) = FALSE) |
+		(sizeof(Ds402HomeState) <> 512) |
+		(intentMatches = FALSE) |
+		(Ds402HomeState[109]$UDINT = 0xFFFFFFFF) |
+		(EncoderMaintenanceState[LMC_DIAG_ENCODER_RUNTIME_BASE] <> 0) |
+		(OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
+		(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
+		(SdoInternalDrainState <> 0) then
+		detailCode := 10;
+	elsif (rawStartState = 2) | (rawStartState = 3) |
+		(rawStartState = 4) then
+		detailCode := 32;
+	elsif (rawStartState <> 0) & (rawStartState <> 0x00008002) &
+		(rawStartState <> 0x00008003) &
+		(rawStartState <> 0x00008004) then
+		detailCode := 10;
+	else
+		detailCode := 0;
+	end_if;
+
+	// Promote only the exact pre-reservation intent into a RESERVED rollback
+	// journal. Stage 88 can only roll back; stage 89 may commit.
+	journalEligible :=
+		(Reference >= 1) & (Reference <= 4) &
+		(schemaVersion = 1) & (requestFlags = 0) & (requestId <> 0) &
+		((intent0 <> 0) | (intent1 <> 0) | (intent2 <> 0) | (intent3 <> 0)) &
+		(homingMethod = 37) & (homePosition = 0) &
+		(velocity = 0) & (acceleration = 0) &
+		(distanceLimit = 0) & (torqueLimit = 0) &
+		(bufferMode = 1) & (reservedValue = 0) & (timeoutMs <> 0) &
+		(executeToken = 0x32303448) &
+		(CallerSessionEpoch <> 0) & (RequestSequence <> 0) &
+		(AdmissionToken <> 0) & (OwnerGeneration <> 0) &
+		(sizeof(Ds402HomeState) = 512) &
+		intentMatches &
+		((rawStartState = 0) | (rawStartState = 0x00008002) |
+		 (rawStartState = 0x00008003) | (rawStartState = 0x00008004));
+	if journalEligible then
+		nextGeneration := Ds402HomeState[117]$UDINT;
+		if nextGeneration = 0xFFFFFFFF then
+			journalEligible := FALSE;
+		else
+			nextGeneration += 1;
+			if nextGeneration = 0 then
+				journalEligible := FALSE;
+			end_if;
+		end_if;
+	end_if;
+	if journalEligible & IsClientConnected(#AxisOwnership) then
+		ownerResult := AxisOwnership.ValidateAxisOwnershipIdentity(
+			CommandId:=0x7D15,
+			Reference:=Reference,
+			ExpectedAxisMask:=axisMask,
+			OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+			ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+			AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration,
+			RequiredPhase:=LMC_DIAG_OWNER_PHASE_RESERVED,
+			pIdentity:=pRequest$^void,
+			IdentitySize:=RequestSize);
+		if ownerResult = -1 then
+			// A transient validation response still owns an exact local rollback
+			// journal, but it must never progress to the commit-ready stage.
+			detailCode := 10;
+		elsif ownerResult <> 0 then
+			journalEligible := FALSE;
+		end_if;
+	end_if;
+	if journalEligible then
+		recordBase := TO_DINT(Reference - 1) * 23;
+		currentCycle := ops.tAbsolute;
+		if currentCycle = 0 then
+			currentCycle := 1;
+		end_if;
+		serviceStart := Ds402HomeState[118]$UDINT;
+		if serviceStart = 0 then
+			serviceStart := currentCycle;
+		end_if;
+		// Publish the adopted tuple before a retained tombstone can be cleared.
+		// Slot 119 is the bridge commit word and is written last.
+		Ds402HomeState[120] := CallerSessionEpoch$DINT;
+		Ds402HomeState[121] := RequestSequence$DINT;
+		Ds402HomeState[122] := AdmissionToken$DINT;
+		Ds402HomeState[123] := OwnerGeneration$DINT;
+		Ds402HomeState[124] := axisMask$DINT;
+		Ds402HomeState[125] := LMC_DIAG_DS402_RECEIPT_PREPARED;
+		Ds402HomeState[119]$UDINT := LMC_DIAG_DS402_INTENT_ADOPT_MAGIC;
+		// Stage87 plus the adopted tuple remains authoritative while the selected
+		// record is rebuilt. Publish state 0 as a DINT commit before byte-clearing
+		// the body so a torn clear remains a replayable adopted raw intent.
+		Ds402HomeState[recordBase] := 0;
+		_memset(dest:=#Ds402HomeState[recordBase + 1], usByte:=0, cntr:=88);
+		Ds402HomeState[recordBase + 1] := diagnosticsBuild$DINT;
+		Ds402HomeState[recordBase + 2] := bootId$DINT;
+		Ds402HomeState[recordBase + 3] := mapRevision$DINT;
+		Ds402HomeState[recordBase + 4] := requestId$DINT;
+		Ds402HomeState[recordBase + 5] := intent0$DINT;
+		Ds402HomeState[recordBase + 6] := intent1$DINT;
+		Ds402HomeState[recordBase + 7] := intent2$DINT;
+		Ds402HomeState[recordBase + 8] := intent3$DINT;
+		Ds402HomeState[recordBase + 9] := homingMethod;
+		Ds402HomeState[recordBase + 10] := homePosition;
+		Ds402HomeState[recordBase + 11] := velocity;
+		Ds402HomeState[recordBase + 12] := acceleration;
+		Ds402HomeState[recordBase + 13] := timeoutMs$DINT;
+		Ds402HomeState[recordBase + 19] := currentCycle$DINT;
+		Ds402HomeState[recordBase + 22] := nextGeneration$DINT;
+		// Record state commits the exact body and target metadata before the WAL
+		// request bytes are reused.
+		Ds402HomeState[recordBase] := 1;
+		_memset(dest:=#Ds402HomeState[94], usByte:=0, cntr:=60);
+		_memset(dest:=#Ds402HomeState[110], usByte:=0, cntr:=36);
+		_memset(dest:=#Ds402HomeState[126], usByte:=0, cntr:=8);
+		Ds402HomeState[99] := nextGeneration$DINT;
+		Ds402HomeState[101] := nextGeneration$DINT;
+		Ds402HomeState[103] := 1;
+		Ds402HomeState[105] := 8;
+		Ds402HomeState[109] := nextGeneration$DINT;
+		Ds402HomeState[110] := currentCycle$DINT;
+		Ds402HomeState[118]$UDINT := serviceStart;
+		// This publication word means rollback-only until all start gates pass.
+		Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED;
+		journalPrepared := TRUE;
+		// Stage88 now replaces the adoption proof for the synchronous Start path.
+		Ds402HomeState[119] := 0;
+	elsif detailCode = 0 then
+		detailCode := 10;
+	end_if;
+	if journalPrepared & (detailCode = 0) &
+		(IsClientConnected(#AxisOwnership) = FALSE) then
+		// Preserve the exact rollback-only journal across a transient owner-client
+		// disconnect. The cyclic processor validates the common tuple later.
+		detailCode := 10;
+	end_if;
+
+	if detailCode = 0 then
+		copyResult := -1;
+		if IsClientConnected(#InputLatch) then
+			copyResult := InputLatch.CopySnapshot(
+				pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
+		end_if;
+		if copyResult <> 0 then
+			detailCode := 10;
+		else
+			currentCycle := snapshot[0]$UDINT;
+			serviceStart := ops.tAbsolute;
+			if serviceStart = 0 then
+				serviceStart := 1;
+			end_if;
+			healthOffset := 64 + TO_UDINT(Reference - 1) * 36;
+			valueOffset := 208 + TO_UDINT(Reference - 1) * 24;
+			statusWord := snapshot[TO_DINT(valueOffset + 20)]$UDINT;
+			if (currentCycle = 0) | (snapshot[12]$UDINT <> 8) |
+				(snapshot[16]$UDINT <> 0) |
+				((snapshot[40]$UDINT and 3) <> 1) |
+				(snapshot[TO_DINT(healthOffset)]$DINT = 0) |
+				(snapshot[TO_DINT(healthOffset + 4)]$UDINT <> 8) |
+				(snapshot[TO_DINT(healthOffset + 12)]$UDINT <> 0) |
+				(snapshot[TO_DINT(healthOffset + 16)]$UDINT = 0xFFFFFFFF) |
+				(snapshot[TO_DINT(healthOffset + 24)]$DINT <> 0) |
+				(snapshot[TO_DINT(healthOffset + 28)]$UDINT <> currentCycle) |
+				((statusWord and 0x0008) <> 0) |
+				(((statusWord and 0x006F) <> 0x0040) &
+				 ((statusWord and 0x006F) <> 0x0021) &
+				 ((statusWord and 0x006F) <> 0x0023) &
+				 ((statusWord and 0x006F) <> 0x0027)) then
+				 detailCode := 10;
+			else
+				Ds402HomeState[recordBase + 17] := statusWord$DINT;
+				Ds402HomeState[recordBase + 18] :=
+					snapshot[TO_DINT(valueOffset + 12)]$DINT;
+				Ds402HomeState[recordBase + 19] := currentCycle$DINT;
+				Ds402HomeState[102] :=
+					snapshot[TO_DINT(valueOffset + 12)]$DINT;
+				Ds402HomeState[110] := currentCycle$DINT;
+				Ds402HomeState[114] := statusWord$DINT;
+				Ds402HomeState[115] :=
+					snapshot[TO_DINT(valueOffset + 12)]$DINT;
+				Ds402HomeState[118]$UDINT := serviceStart;
+			end_if;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		executorConnected := FALSE;
+		executorReusable := FALSE;
+		case Reference of
+			1:
+				executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis1.IsReusable();
+				end_if;
+			2:
+				executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis2.IsReusable();
+				end_if;
+			3:
+				executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis3.IsReusable();
+				end_if;
+			4:
+				executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis4.IsReusable();
+				end_if;
+		end_case;
+		if (executorConnected = FALSE) | (executorReusable = FALSE) then
+			detailCode := 10;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		if journalPrepared = FALSE then
+			detailCode := 10;
+		else
+			// From this publication onward a warm recovery may finish Commit.
+			Ds402HomeState[92] := 89;
+		end_if;
+	end_if;
+
+	if (detailCode = 0) &
+		(IsClientConnected(#AxisOwnership) = FALSE) then
+		// Stage 89 permits warm Commit. Revoke that permission before exposing
+		// the disconnect error so rejected Start cleanup remains rollback-only.
+		Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED;
+		detailCode := 10;
+	end_if;
+	if detailCode = 0 then
+		ownerResult := AxisOwnership.CommitAxisOwnership(
+			CommandId:=0x7D15,
+			Reference:=Reference,
+			ExpectedAxisMask:=axisMask,
+			CallerSessionEpoch:=CallerSessionEpoch,
+			RequestSequence:=RequestSequence,
+			AdmissionToken:=AdmissionToken,
+			OwnerGeneration:=OwnerGeneration);
+		if ownerResult = 0 then
+			Ds402HomeState[125] := 2;
+			Ds402HomeState[92] := 1;
+		else
+			// A lost Commit response is accepted only after exact ACTIVE proof.
+			ownerResult := AxisOwnership.ValidateAxisOwnership(
+				CommandId:=0x7D15,
+				Reference:=Reference,
+				ExpectedAxisMask:=axisMask,
+				OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+				ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+				AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+				CallerSessionEpoch:=CallerSessionEpoch,
+				RequestSequence:=RequestSequence,
+				AdmissionToken:=AdmissionToken,
+				OwnerGeneration:=OwnerGeneration,
+				RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+			if ownerResult = 0 then
+				Ds402HomeState[125] := 2;
+				Ds402HomeState[92] := 1;
+			else
+				// Commit is uncertain but the handler has not run. Downgrade to the
+				// rollback-only publication word before returning an error.
+				Ds402HomeState[92] :=
+					LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED;
+				detailCode := 10;
+			end_if;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		(pResponse + 4)^$UINT := 0;
+		(pResponse + 6)^$INT := 0;
+	end_if;
+	if (detailCode <> 0) & (AdmissionToken <> 0) &
+		(OwnerGeneration <> 0) & (CallerSessionEpoch <> 0) &
+		(RequestSequence <> 0) then
+		if (Reference >= 1) & (Reference <= 4) &
+			((Ds402HomeState[92] =
+			  LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED) |
+			 (Ds402HomeState[92] = 89)) &
+			(Ds402HomeState[93] = TO_DINT(Reference - 1)) &
+			(Ds402HomeState[120]$UDINT = CallerSessionEpoch) &
+			(Ds402HomeState[121]$UDINT = RequestSequence) &
+			(Ds402HomeState[122]$UDINT = AdmissionToken) &
+			(Ds402HomeState[123]$UDINT = OwnerGeneration) &
+			(Ds402HomeState[124]$UDINT = axisMask) then
+			// The local journal now owns rollback completion across task restarts.
+			rollbackResult := -1;
+			if IsClientConnected(#AxisOwnership) then
+				rollbackResult :=
+					AxisOwnership.PublishAxisOwnershipDs402Receipt(
+						AxisMask:=axisMask,
+						AdmissionToken:=AdmissionToken,
+						OwnerGeneration:=OwnerGeneration,
+						ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+						ReportValue0:=0,
+						ReportValue1:=0,
+						ObservationCycle:=Ds402HomeState[110]$UDINT,
+						pDs402State:=#Ds402HomeState[0],
+						Ds402StateSize:=sizeof(Ds402HomeState));
+			end_if;
+			if rollbackResult = 0 then
+				if Ds402HomeState[125] =
+					LMC_DIAG_DS402_RECEIPT_PREPARED then
+					Ds402HomeState[125] := 2;
+				end_if;
+				// Finish owner cleanup before a rejected Start response can race a
+				// session-close quarantine of the still-RESERVED tuple.
+				rollbackResult := -1;
+				if IsClientConnected(#AxisOwnership) then
+					rollbackResult :=
+						AxisOwnership.PublishAxisOwnershipDs402Receipt(
+							AxisMask:=axisMask,
+							AdmissionToken:=AdmissionToken,
+							OwnerGeneration:=OwnerGeneration,
+							ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+							ReportValue0:=0,
+							ReportValue1:=0,
+							ObservationCycle:=Ds402HomeState[110]$UDINT,
+							pDs402State:=#Ds402HomeState[0],
+							Ds402StateSize:=sizeof(Ds402HomeState));
+				end_if;
+				if rollbackResult = 1 then
+					Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+				else
+					if (rollbackResult <> -1) |
+						(Ds402HomeState[92] <>
+						 LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED) then
+						Ds402HomeState[92] := 101;
+					end_if;
+					detailCode := 42;
+				end_if;
+			elsif rollbackResult = 1 then
+				Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+			else
+				if (rollbackResult <> -1) |
+					(Ds402HomeState[92] <>
+					 LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED) then
+					Ds402HomeState[92] := 101;
+				end_if;
+				detailCode := 42;
+			end_if;
+		elsif Ds402HomeState[92] =
+			LMC_DIAG_DS402_STAGE_RESERVE_INTENT then
+			// Stage 87 has no trusted token tuple yet. Only the cyclic tokenless
+			// provider may prove and resolve it; never issue a blind rollback here.
+			if intentMatches = FALSE then
+				Ds402HomeState[92] := 101;
+			end_if;
+			detailCode := 42;
+		else
+			// Errors before local journal publication still use exact reservation
+			// rollback. No runtime record exists to recover in this branch.
+			rollbackResult := -1;
+			if IsClientConnected(#AxisOwnership) then
+				rollbackResult := AxisOwnership.RollbackAxisOwnership(
+					AdmissionToken:=AdmissionToken,
+					OwnerGeneration:=OwnerGeneration,
+					CallerSessionEpoch:=CallerSessionEpoch,
+					RequestSequence:=RequestSequence,
+					Reason:=0);
+			end_if;
+			if rollbackResult <> 0 then
+				detailCode := 42;
+			end_if;
+		end_if;
+	end_if;
+
+	(pResponse + 12)^$UDINT := detailCode;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeOutcome
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+		currentBootId, detailCode, startCycle, completionCycle : UDINT;
+		rawOutcomeState, baseOutcomeState : UDINT;
+		homingMethod : DINT;
+		recordBase : DINT;
+		recordValid, outcomeStateValid : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=ResponseCapacity);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	detailCode := 28;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	ResponseSize := 16;
+
+	if (pRequest = NIL) | (RequestSize <> 44) |
+		(Reference < 1) | (Reference > 4) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	diagnosticsBuild := (pRequest + 8)^$UDINT;
+	bootId := (pRequest + 12)^$UDINT;
+	mapRevision := (pRequest + 16)^$UDINT;
+	originalRequestId := (pRequest + 20)^$UDINT;
+	intent0 := (pRequest + 24)^$UDINT;
+	intent1 := (pRequest + 28)^$UDINT;
+	intent2 := (pRequest + 32)^$UDINT;
+	intent3 := (pRequest + 36)^$UDINT;
+	homingMethod := (pRequest + 40)^$DINT;
+	currentBootId := GetDiagnosticsBootId();
+
+	if (schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
+		(originalRequestId = 0) |
+		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
+		(homingMethod <> 37) then
+		detailCode := 28;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif (sizeof(Ds402HomeState) <> 512) |
+		(CallerSessionEpoch = 0) then
+		detailCode := 29;
+	else
+		recordBase := TO_DINT(Reference - 1) * 23;
+		rawOutcomeState := Ds402HomeState[recordBase]$UDINT;
+		baseOutcomeState := rawOutcomeState and 0x00007FFF;
+		outcomeStateValid :=
+			(rawOutcomeState = 1) | (rawOutcomeState = 2) |
+			(rawOutcomeState = 3) | (rawOutcomeState = 4) |
+			(rawOutcomeState = 0x00008002) |
+			(rawOutcomeState = 0x00008003) |
+			(rawOutcomeState = 0x00008004);
+		if rawOutcomeState = 0 then
+			detailCode := 25;
+		elsif outcomeStateValid = FALSE then
+			detailCode := 27;
+		elsif (Ds402HomeState[recordBase + 1]$UDINT <> diagnosticsBuild) |
+			(Ds402HomeState[recordBase + 2]$UDINT <> bootId) |
+			(Ds402HomeState[recordBase + 3]$UDINT <> mapRevision) |
+			(Ds402HomeState[recordBase + 4]$UDINT <> originalRequestId) |
+			(Ds402HomeState[recordBase + 5]$UDINT <> intent0) |
+			(Ds402HomeState[recordBase + 6]$UDINT <> intent1) |
+			(Ds402HomeState[recordBase + 7]$UDINT <> intent2) |
+			(Ds402HomeState[recordBase + 8]$UDINT <> intent3) |
+			(Ds402HomeState[recordBase + 9] <> homingMethod) then
+			detailCode := 28;
+		elsif (baseOutcomeState = 1) & (Ds402HomeState[92] = 101) &
+			(Ds402HomeState[93] = TO_DINT(Reference - 1)) then
+			detailCode := 26;
+		else
+			startCycle := Ds402HomeState[recordBase + 19]$UDINT;
+			completionCycle := Ds402HomeState[recordBase + 20]$UDINT;
+			recordValid := (startCycle <> 0) &
+				(Ds402HomeState[recordBase + 22]$UDINT <> 0);
+			if baseOutcomeState = 1 then
+				recordValid := recordValid & (completionCycle = 0) &
+					(Ds402HomeState[recordBase + 14] = 0) &
+					(Ds402HomeState[recordBase + 15] = 0) &
+					(Ds402HomeState[recordBase + 16] = 0) &
+					(Ds402HomeState[recordBase + 21] = 0);
+			elsif baseOutcomeState = 2 then
+				recordValid := recordValid & (completionCycle >= startCycle) &
+					(Ds402HomeState[recordBase + 14] = 0) &
+					(Ds402HomeState[recordBase + 15] = 0) &
+					(Ds402HomeState[recordBase + 16] = 0) &
+					(Ds402HomeState[recordBase + 21] = 0) &
+					(Ds402HomeState[recordBase + 18] = 0) &
+					((Ds402HomeState[recordBase + 17]$UDINT and
+					  0x0008) = 0) &
+					((Ds402HomeState[recordBase + 17]$UDINT and
+					  0x2000) = 0) &
+					(((Ds402HomeState[recordBase + 17]$UDINT and
+					   0x006F) = 0x0040) |
+					 ((Ds402HomeState[recordBase + 17]$UDINT and
+					   0x006F) = 0x0021) |
+					 ((Ds402HomeState[recordBase + 17]$UDINT and
+					   0x006F) = 0x0023) |
+					 ((Ds402HomeState[recordBase + 17]$UDINT and
+					   0x006F) = 0x0027));
+			elsif baseOutcomeState = 3 then
+				recordValid := recordValid & (completionCycle >= startCycle) &
+					(Ds402HomeState[recordBase + 14] = 1) &
+					(((Ds402HomeState[recordBase + 16] = 11) &
+					  (Ds402HomeState[recordBase + 15] = -6) &
+					  (Ds402HomeState[recordBase + 21] <> 0)) |
+					 ((Ds402HomeState[recordBase + 16] = 10) &
+					  (Ds402HomeState[recordBase + 15] = LMC_DIAG_ADMIN_ERROR_ID) &
+					  (Ds402HomeState[recordBase + 21] = 0)) |
+					 ((Ds402HomeState[recordBase + 16] = 30) &
+					  (Ds402HomeState[recordBase + 15] = LMC_DIAG_ADMIN_ERROR_ID)));
+			elsif baseOutcomeState = 4 then
+				recordValid := recordValid & (completionCycle >= startCycle) &
+					(Ds402HomeState[recordBase + 14] = 1) &
+					(Ds402HomeState[recordBase + 15] = LMC_DIAG_ADMIN_ERROR_ID) &
+					(Ds402HomeState[recordBase + 16] = 31) &
+					(Ds402HomeState[recordBase + 21] = 0);
+			else
+				recordValid := FALSE;
+			end_if;
+			if recordValid then
+				detailCode := 0;
+			else
+				detailCode := 27;
+			end_if;
+		end_if;
+	end_if;
+
+	if detailCode <> 0 then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+	if ResponseCapacity < 92 then
+		ResponseSize := -1;
+		RETURN;
+	end_if;
+
+	(pResponse + 4)^$UINT := 0;
+	(pResponse + 6)^$INT := 0;
+	(pResponse + 12)^$UDINT := 0;
+	(pResponse + 16)^$UINT := baseOutcomeState$UINT;
+	(pResponse + 20)^$UDINT := Ds402HomeState[recordBase + 1]$UDINT;
+	(pResponse + 24)^$UDINT := Ds402HomeState[recordBase + 2]$UDINT;
+	(pResponse + 28)^$UDINT := Ds402HomeState[recordBase + 3]$UDINT;
+	(pResponse + 32)^$UDINT := Ds402HomeState[recordBase + 4]$UDINT;
+	(pResponse + 36)^$UDINT := Ds402HomeState[recordBase + 5]$UDINT;
+	(pResponse + 40)^$UDINT := Ds402HomeState[recordBase + 6]$UDINT;
+	(pResponse + 44)^$UDINT := Ds402HomeState[recordBase + 7]$UDINT;
+	(pResponse + 48)^$UDINT := Ds402HomeState[recordBase + 8]$UDINT;
+	(pResponse + 52)^$UINT := Reference;
+	(pResponse + 56)^$DINT := Ds402HomeState[recordBase + 9];
+	(pResponse + 60)^$UINT := Ds402HomeState[recordBase + 14]$UINT;
+	(pResponse + 62)^$INT := Ds402HomeState[recordBase + 15]$INT;
+	(pResponse + 64)^$UDINT := Ds402HomeState[recordBase + 16]$UDINT;
+	(pResponse + 68)^$UINT := Ds402HomeState[recordBase + 17]$UINT;
+	(pResponse + 72)^$DINT := Ds402HomeState[recordBase + 18];
+	(pResponse + 76)^$UDINT := Ds402HomeState[recordBase + 19]$UDINT;
+	(pResponse + 80)^$UDINT := Ds402HomeState[recordBase + 20]$UDINT;
+	(pResponse + 84)^$UDINT := Ds402HomeState[recordBase + 21]$UDINT;
+	(pResponse + 88)^$UDINT := Ds402HomeState[recordBase + 22]$UDINT;
+	ResponseSize := 92;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeRetire
+	VAR_INPUT
+		Reference 	: UINT;
+		pRequest 	: ^USINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+		RequestSize 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		schemaVersion, requestFlags : UINT;
+		requestId, diagnosticsBuild, bootId, mapRevision : UDINT;
+		originalRequestId, intent0, intent1, intent2, intent3 : UDINT;
+		recordGeneration, detailCode, currentBootId : UDINT;
+		rawRetireState, baseRetireState : UDINT;
+		homingMethod, recordBase : DINT;
+		retireStateValid : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 16) then
+		RETURN;
+	end_if;
+	_memset(dest:=pResponse, usByte:=0, cntr:=ResponseCapacity);
+	pResponse^$UINT := LMC_DIAG_SCHEMA_VERSION;
+	(pResponse + 4)^$UINT := 1;
+	(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+	requestId := 0;
+	if (pRequest <> NIL) & (RequestSize >= 8) then
+		requestId := (pRequest + 4)^$UDINT;
+	end_if;
+	(pResponse + 8)^$UDINT := requestId;
+	ResponseSize := 16;
+	detailCode := 28;
+	if (pRequest = NIL) | (RequestSize <> 48) |
+		(Reference < 1) | (Reference > 4) then
+		(pResponse + 12)^$UDINT := detailCode;
+		RETURN;
+	end_if;
+
+	schemaVersion := pRequest^$UINT;
+	requestFlags := (pRequest + 2)^$UINT;
+	requestId := (pRequest + 4)^$UDINT;
+	diagnosticsBuild := (pRequest + 8)^$UDINT;
+	bootId := (pRequest + 12)^$UDINT;
+	mapRevision := (pRequest + 16)^$UDINT;
+	originalRequestId := (pRequest + 20)^$UDINT;
+	intent0 := (pRequest + 24)^$UDINT;
+	intent1 := (pRequest + 28)^$UDINT;
+	intent2 := (pRequest + 32)^$UDINT;
+	intent3 := (pRequest + 36)^$UDINT;
+	homingMethod := (pRequest + 40)^$DINT;
+	recordGeneration := (pRequest + 44)^$UDINT;
+	currentBootId := GetDiagnosticsBootId();
+
+	if (schemaVersion <> 1) | (requestFlags <> 0) | (requestId = 0) |
+		(originalRequestId = 0) | (recordGeneration = 0) |
+		((intent0 = 0) & (intent1 = 0) & (intent2 = 0) & (intent3 = 0)) |
+		(homingMethod <> 37) then
+		detailCode := 28;
+	elsif diagnosticsBuild <> 1 then
+		detailCode := 16;
+	elsif (currentBootId = 0) | (bootId <> currentBootId) then
+		detailCode := 17;
+	elsif mapRevision <> LMC_DIAG_MAP_REVISION then
+		detailCode := 18;
+	elsif (sizeof(Ds402HomeState) <> 512) |
+		(CallerSessionEpoch = 0) then
+		detailCode := 29;
+	else
+		recordBase := TO_DINT(Reference - 1) * 23;
+		rawRetireState := Ds402HomeState[recordBase]$UDINT;
+		baseRetireState := rawRetireState and 0x00007FFF;
+		retireStateValid :=
+			(rawRetireState = 2) | (rawRetireState = 3) |
+			(rawRetireState = 4) | (rawRetireState = 0x00008002) |
+			(rawRetireState = 0x00008003) |
+			(rawRetireState = 0x00008004);
+		if rawRetireState = 0 then
+			detailCode := 25;
+		elsif rawRetireState = 1 then
+			detailCode := 26;
+		elsif retireStateValid = FALSE then
+			detailCode := 27;
+		elsif (Ds402HomeState[recordBase + 1]$UDINT <> diagnosticsBuild) |
+			(Ds402HomeState[recordBase + 2]$UDINT <> bootId) |
+			(Ds402HomeState[recordBase + 3]$UDINT <> mapRevision) |
+			(Ds402HomeState[recordBase + 4]$UDINT <> originalRequestId) |
+			(Ds402HomeState[recordBase + 5]$UDINT <> intent0) |
+			(Ds402HomeState[recordBase + 6]$UDINT <> intent1) |
+			(Ds402HomeState[recordBase + 7]$UDINT <> intent2) |
+			(Ds402HomeState[recordBase + 8]$UDINT <> intent3) |
+			(Ds402HomeState[recordBase + 9] <> homingMethod) |
+			(Ds402HomeState[recordBase + 22]$UDINT <> recordGeneration) then
+			detailCode := 28;
+		else
+			detailCode := 0;
+		end_if;
+	end_if;
+
+	if detailCode = 0 then
+		ResponseSize := HandleAxisDs402HomeOutcome(
+			Reference:=Reference, pRequest:=pRequest, pResponse:=pResponse,
+			ResponseCapacity:=ResponseCapacity,
+			CallerSessionEpoch:=CallerSessionEpoch, RequestSize:=44);
+		if ResponseSize <> 92 then
+			RETURN;
+		end_if;
+		if (pResponse + 88)^$UDINT <> recordGeneration then
+			detailCode := 28;
+		end_if;
+		if detailCode = 0 then
+			if rawRetireState = baseRetireState then
+				Ds402HomeState[recordBase] :=
+					TO_DINT(baseRetireState or 0x00008000);
+			end_if;
+		end_if;
+	end_if;
+	if detailCode <> 0 then
+		(pResponse + 4)^$UINT := 1;
+		(pResponse + 6)^$INT := LMC_DIAG_ADMIN_ERROR_ID;
+		(pResponse + 12)^$UDINT := detailCode;
+		ResponseSize := 16;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
+	VAR
+		snapshot : ARRAY [0..303] OF USINT;
+		preemptionSnapshot : ARRAY [0..215] OF USINT;
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		stage, nextStage, activeIndex, recordBase : DINT;
+		axisReference, preemptionCleanupKind : UINT;
+		currentCycle, previousCycle, startCycle, elapsedCycles : UDINT;
+		serviceNow, serviceStart, cleanupStart : UDINT;
+		timeoutMs, remainingMs, healthOffset, valueOffset : UDINT;
+		statusWord, baseState, sdoToken, sdoData, failureDetail, failureNative : UDINT;
+		axisMask, admissionToken, ownerGeneration : UDINT;
+		ds402ProcessOwnerSessionEpoch, ownerRequestSequence : UDINT;
+		safetyAdmissionToken, safetyOwnerGeneration : UDINT;
+		sdoIndex, sdoLength : UINT;
+		homeSdoSubIndex : USINT;
+		actualPosition : DINT;
+		copyResult, completionResult, mailboxResult, orphanResult : DINT;
+		preemptionResult : DINT;
+		ownerResult : DINT;
+		receiptResult : DINT;
+		receiptKind : DINT;
+		receiptPhase : DINT;
+		receiptGeneration : UDINT;
+		terminalRecordState : DINT;
+		startResult : iprStates;
+		snapshotValid, newCycle, executorConnected, executorReusable : BOOL;
+		startSdo, waitSdo, sdoIsWrite, failure : BOOL;
+		preemptionSnapshotValid, preemptionCleanup, cleanupExpired : BOOL;
+	END_VAR
+
+	stage := Ds402HomeState[92];
+	receiptResult := HandleAxisDs402HomeReceiptStages(Stage:=stage);
+	if receiptResult <> 0 then
+		RETURN;
+	end_if;
+	activeIndex := Ds402HomeState[93];
+	admissionToken := Ds402HomeState[122]$UDINT;
+	ownerGeneration := Ds402HomeState[123]$UDINT;
+	_memset(dest:=#preemptionSnapshot[0], usByte:=0,
+		cntr:=sizeof(preemptionSnapshot));
+	preemptionResult := -1;
+	if IsClientConnected(#AxisOwnership) & (admissionToken <> 0) &
+		(ownerGeneration <> 0) then
+		preemptionResult := AxisOwnership.CopyAxisOwnershipPreemption(
+			PreemptedAdmissionToken:=admissionToken,
+			PreemptedOwnerGeneration:=ownerGeneration,
+			pDest:=#preemptionSnapshot[0],
+			DestSize:=sizeof(preemptionSnapshot));
+	end_if;
+	if preemptionResult = LMC_DIAG_PREEMPT_PENDING_FREEZE then
+		// A RESERVED safety owner may freeze any normal stage for at most one
+		// second from the DS402 service start; neither owner is mutated here.
+		serviceStart := Ds402HomeState[118]$UDINT;
+		cleanupExpired := (serviceStart <> 0) &
+			((ops.tAbsolute - serviceStart) >= 1000);
+		if cleanupExpired then
+			Ds402HomeState[92] := 101;
+		end_if;
+		RETURN;
+	end_if;
+	if (preemptionResult < 0) |
+		(preemptionResult > LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED) then
+		Ds402HomeState[92] := 101;
+		RETURN;
+	end_if;
+	if (activeIndex < 0) | (activeIndex > 3) |
+		(sizeof(Ds402HomeState) <> 512) then
+		Ds402HomeState[92] := 101;
+		RETURN;
+	end_if;
+
+	axisReference := TO_UINT(activeIndex + 1);
+	recordBase := activeIndex * 23;
+	axisMask := Ds402HomeState[124]$UDINT;
+	ds402ProcessOwnerSessionEpoch := Ds402HomeState[120]$UDINT;
+	ownerRequestSequence := Ds402HomeState[121]$UDINT;
+	if (axisMask <> (TO_UDINT(1) shl TO_UDINT(activeIndex))) |
+		(ds402ProcessOwnerSessionEpoch = 0) | (ownerRequestSequence = 0) |
+		(admissionToken = 0) | (ownerGeneration = 0) |
+		(Ds402HomeState[125] <> 2) then
+		Ds402HomeState[92] := 101;
+		RETURN;
+	end_if;
+	serviceNow := ops.tAbsolute;
+	serviceStart := Ds402HomeState[118]$UDINT;
+	cleanupStart := Ds402HomeState[119]$UDINT;
+	currentCycle := Ds402HomeState[110]$UDINT;
+	previousCycle := currentCycle;
+	statusWord := Ds402HomeState[114]$UDINT;
+	actualPosition := Ds402HomeState[115];
+	preemptionCleanup := FALSE;
+	if preemptionResult <> 0 then
+		preemptionSnapshotValid :=
+			(preemptionSnapshot[0]$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_MAGIC) &
+			(preemptionSnapshot[4]$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_VERSION) &
+			(preemptionSnapshot[8]$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_HEADER_SIZE) &
+			(preemptionSnapshot[12]$UDINT =
+			 LMC_DIAG_PREEMPT_SNAPSHOT_TOTAL_SIZE) &
+			(preemptionSnapshot[16]$DINT = preemptionResult) &
+			(preemptionSnapshot[32]$UDINT = axisMask) &
+			(preemptionSnapshot[36]$UDINT = admissionToken) &
+			(preemptionSnapshot[40]$UDINT = ownerGeneration) &
+			(preemptionSnapshot[44]$UDINT =
+			 ds402ProcessOwnerSessionEpoch) &
+			(preemptionSnapshot[48]$UDINT = ownerRequestSequence) &
+			(preemptionSnapshot[52]$UDINT = 0x7D15) &
+			(preemptionSnapshot[56]$UDINT = TO_UDINT(axisReference)) &
+			(preemptionSnapshot[60]$UDINT =
+			 LMC_DIAG_OWNER_KIND_DS402_HOME) &
+			(preemptionSnapshot[64]$UDINT =
+			 LMC_DIAG_RESOURCE_DS402_HOME) &
+			(preemptionSnapshot[68]$UDINT =
+			 LMC_DIAG_ADMISSION_LIFECYCLE) &
+			(Ds402HomeState[recordBase] = 1) &
+			(Ds402HomeState[101]$UDINT <> 0) &
+			(((stage >= 1) & (stage <= 34)) |
+			 ((stage >= 90) & (stage <= 101))) &
+			(preemptionSnapshot[72]$UDINT =
+			 LMC_DIAG_OWNER_STATE_DS402_HOME_ACTIVE) &
+			(preemptionSnapshot[76]$UDINT = 72) &
+			((preemptionSnapshot[104]$UDINT and axisMask) = axisMask) &
+			(preemptionSnapshot[108]$UDINT <> 0) &
+			(preemptionSnapshot[112]$UDINT <> 0) &
+			((preemptionSnapshot[124]$UDINT =
+			  LMC_DIAG_OWNER_STATE_SAFETY_PREEMPTING) |
+			 (preemptionSnapshot[124]$UDINT =
+			  LMC_DIAG_OWNER_STATE_QUARANTINED)) &
+			(preemptionSnapshot[136]$UDINT =
+			 LMC_DIAG_ADMISSION_SAFETY) &
+			(preemptionSnapshot[144]$UINT = LMC_DIAG_SCHEMA_VERSION) &
+			(preemptionSnapshot[146]$UINT = 0) &
+			(preemptionSnapshot[148]$UDINT =
+			 Ds402HomeState[recordBase + 4]$UDINT) &
+			(preemptionSnapshot[152]$UDINT =
+			 Ds402HomeState[recordBase + 1]$UDINT) &
+			(preemptionSnapshot[156]$UDINT =
+			 Ds402HomeState[recordBase + 2]$UDINT) &
+			(preemptionSnapshot[160]$UDINT =
+			 Ds402HomeState[recordBase + 3]$UDINT) &
+			(preemptionSnapshot[164]$UDINT =
+			 Ds402HomeState[recordBase + 5]$UDINT) &
+			(preemptionSnapshot[168]$UDINT =
+			 Ds402HomeState[recordBase + 6]$UDINT) &
+			(preemptionSnapshot[172]$UDINT =
+			 Ds402HomeState[recordBase + 7]$UDINT) &
+			(preemptionSnapshot[176]$UDINT =
+			 Ds402HomeState[recordBase + 8]$UDINT) &
+			(preemptionSnapshot[180]$DINT =
+			 Ds402HomeState[recordBase + 9]) &
+			(preemptionSnapshot[184]$DINT =
+			 Ds402HomeState[recordBase + 10]) &
+			(preemptionSnapshot[188]$DINT =
+			 Ds402HomeState[recordBase + 11]) &
+			(preemptionSnapshot[192]$DINT =
+			 Ds402HomeState[recordBase + 12]) &
+			(preemptionSnapshot[196]$DINT = 0) &
+			(preemptionSnapshot[200]$DINT = 0) &
+			(preemptionSnapshot[204]$UINT = 1) &
+			(preemptionSnapshot[206]$UINT = 0) &
+			(preemptionSnapshot[208]$UDINT =
+			 Ds402HomeState[recordBase + 13]$UDINT) &
+			(preemptionSnapshot[212]$UDINT = 0x32303448);
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_REQUIRED then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				((preemptionSnapshot[24]$UDINT and axisMask) = axisMask) &
+				((preemptionSnapshot[28]$UDINT and axisMask) = 0) &
+				(preemptionSnapshot[124]$UDINT <>
+				 LMC_DIAG_OWNER_STATE_RESERVED);
+		elsif preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			preemptionSnapshotValid := preemptionSnapshotValid &
+				((preemptionSnapshot[28]$UDINT and axisMask) = axisMask);
+		end_if;
+		if preemptionSnapshotValid = FALSE then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		if preemptionResult = LMC_DIAG_PREEMPT_CLEANUP_COMPLETE then
+			if currentCycle < Ds402HomeState[recordBase + 19]$UDINT then
+				currentCycle := Ds402HomeState[recordBase + 19]$UDINT;
+			end_if;
+			Ds402HomeState[recordBase + 14] := 1;
+			Ds402HomeState[recordBase + 15] := LMC_DIAG_ADMIN_ERROR_ID;
+			Ds402HomeState[recordBase + 16] := 31;
+			Ds402HomeState[recordBase + 20] := currentCycle$DINT;
+			Ds402HomeState[recordBase + 21] := 0;
+			Ds402HomeState[101] := 0;
+			Ds402HomeState[recordBase] := 4;
+			Ds402HomeState[92] := 0;
+			RETURN;
+		elsif preemptionResult =
+			LMC_DIAG_PREEMPT_CLEANUP_QUARANTINED then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		safetyAdmissionToken := preemptionSnapshot[108]$UDINT;
+		safetyOwnerGeneration := preemptionSnapshot[112]$UDINT;
+		preemptionCleanup := TRUE;
+	end_if;
+	snapshotValid := FALSE;
+	newCycle := FALSE;
+	copyResult := -1;
+	if IsClientConnected(#InputLatch) then
+		copyResult := InputLatch.CopySnapshot(
+			pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
+	end_if;
+	if (copyResult = 0) & (snapshot[0]$UDINT <> 0) then
+		snapshotValid := TRUE;
+		currentCycle := snapshot[0]$UDINT;
+		newCycle := currentCycle <> previousCycle;
+		healthOffset := 64 + TO_UDINT(activeIndex) * 36;
+		valueOffset := 208 + TO_UDINT(activeIndex) * 24;
+		statusWord := snapshot[TO_DINT(valueOffset + 20)]$UDINT;
+		baseState := statusWord and 0x006F;
+		actualPosition := snapshot[TO_DINT(valueOffset + 12)]$DINT;
+		Ds402HomeState[recordBase + 17] := statusWord$DINT;
+		Ds402HomeState[recordBase + 18] := actualPosition;
+		Ds402HomeState[114] := statusWord$DINT;
+		Ds402HomeState[115] := actualPosition;
+		if newCycle then
+			Ds402HomeState[110] := currentCycle$DINT;
+		end_if;
+	end_if;
+
+	failure := FALSE;
+	failureDetail := 30;
+	failureNative := 0;
+	if preemptionCleanup & (stage < 90) then
+		// Skip every normal Home transition and enter only owner cleanup.
+		failure := TRUE;
+		failureDetail := 31;
+		failureNative := preemptionSnapshot[116]$UDINT;
+	elsif stage < 90 then
+		if LMC_DIAG_DS402_HOME_ENABLED = FALSE then
+			failure := TRUE;
+			failureNative := 10;
+		elsif (Ds402HomeState[recordBase] <> 1) |
+			(Ds402HomeState[recordBase + 2]$UDINT <> GetDiagnosticsBootId()) |
+			(Ds402HomeState[recordBase + 3]$UDINT <> LMC_DIAG_MAP_REVISION) then
+			failure := TRUE;
+			failureNative := 17;
+		elsif snapshotValid = FALSE then
+			failure := TRUE;
+			failureNative := 11;
+		elsif (snapshot[12]$UDINT <> 8) | (snapshot[16]$UDINT <> 0) |
+			((snapshot[40]$UDINT and 3) <> 1) |
+			(snapshot[TO_DINT(healthOffset)]$DINT = 0) |
+			(snapshot[TO_DINT(healthOffset + 4)]$UDINT <> 8) |
+			(snapshot[TO_DINT(healthOffset + 12)]$UDINT <> 0) |
+			(snapshot[TO_DINT(healthOffset + 16)]$UDINT = 0xFFFFFFFF) |
+			(snapshot[TO_DINT(healthOffset + 24)]$DINT <> 0) |
+			(snapshot[TO_DINT(healthOffset + 28)]$UDINT <> currentCycle) |
+			((statusWord and 0x0008) <> 0) |
+			((baseState <> 0x0040) & (baseState <> 0x0021) &
+			 (baseState <> 0x0023) & (baseState <> 0x0027)) then
+			failure := TRUE;
+			failureNative := 19;
+		end_if;
+		startCycle := Ds402HomeState[recordBase + 19]$UDINT;
+		timeoutMs := Ds402HomeState[recordBase + 13]$UDINT;
+		if (serviceNow - serviceStart) >= timeoutMs then
+			failure := TRUE;
+			failureNative := LMC_DIAG_SDO_ABORT_TIMEOUT;
+		end_if;
+	end_if;
+
+	if (failure = FALSE) & (stage < 90) then
+		case stage of
+			1:
+				if newCycle then
+					if ((statusWord and 0x0008) <> 0) |
+						((baseState <> 0x0040) & (baseState <> 0x0021) &
+						 (baseState <> 0x0023) & (baseState <> 0x0027)) then
+						failure := TRUE;
+						failureNative := 10;
+					elsif actualPosition = Ds402HomeState[102] then
+						Ds402HomeState[103] += 1;
+					else
+						Ds402HomeState[102] := actualPosition;
+						Ds402HomeState[103] := 1;
+					end_if;
+					if Ds402HomeState[103] >= 3 then
+						Ds402HomeState[92] := 2;
+					end_if;
+				end_if;
+
+			14:
+				mailboxResult := InputLatch.SubmitDs402HomeControl(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference, Command:=1);
+				if mailboxResult = 0 then
+					// Runtime slot 117 means the RT control-word owner may be held.
+					Ds402HomeState[117] := 1;
+					Ds402HomeState[92] := 16;
+				elsif mailboxResult = 1 then
+					Ds402HomeState[117] := 1;
+					Ds402HomeState[92] := 15;
+				else
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			15:
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					OperationToken:=Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[117] := 1;
+					Ds402HomeState[92] := 16;
+				elsif mailboxResult <> 1 then
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			20:
+				if newCycle then
+					if (statusWord and 0x3000) = 0 then
+						Ds402HomeState[111] := 1;
+						Ds402HomeState[92] := 21;
+					else
+						failure := TRUE;
+						failureNative := statusWord;
+					end_if;
+				end_if;
+
+			21:
+				mailboxResult := InputLatch.SubmitDs402HomeControl(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference, Command:=2);
+				if mailboxResult = 0 then
+					Ds402HomeState[104] := currentCycle$DINT;
+					Ds402HomeState[102] := actualPosition;
+					Ds402HomeState[103] := 0;
+					Ds402HomeState[92] := 23;
+				elsif mailboxResult = 1 then
+					// Once SetHigh is queued, the drive coordinate may change before
+					// its result is observed. Cleanup must therefore require alignment.
+					Ds402HomeState[104] := currentCycle$DINT;
+					Ds402HomeState[102] := actualPosition;
+					Ds402HomeState[103] := 0;
+					Ds402HomeState[92] := 22;
+				else
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			22:
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					OperationToken:=Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[104] := currentCycle$DINT;
+					Ds402HomeState[92] := 23;
+				elsif mailboxResult <> 1 then
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			23:
+				if newCycle then
+					if (statusWord and 0x2000) <> 0 then
+						failure := TRUE;
+						failureNative := statusWord;
+					elsif (Ds402HomeState[111] <> 0) &
+						((statusWord and 0x1000) <> 0) &
+						((statusWord and 0x0400) <> 0) then
+						if actualPosition = Ds402HomeState[recordBase + 10] then
+							if actualPosition = Ds402HomeState[102] then
+								Ds402HomeState[103] += 1;
+							else
+								Ds402HomeState[102] := actualPosition;
+								Ds402HomeState[103] := 1;
+							end_if;
+							if Ds402HomeState[103] >= 3 then
+								Ds402HomeState[92] := 24;
+							end_if;
+						else
+							Ds402HomeState[103] := 0;
+						end_if;
+					else
+						Ds402HomeState[103] := 0;
+					end_if;
+				end_if;
+
+			24:
+				mailboxResult := InputLatch.SubmitDs402HomeControl(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference, Command:=3);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 26;
+				elsif mailboxResult = 1 then
+					Ds402HomeState[92] := 25;
+				else
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			25:
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					OperationToken:=Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 26;
+				elsif mailboxResult <> 1 then
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			26:
+				mailboxResult := InputLatch.SubmitDs402HomeSetpointAlignment(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference,
+					ActualPosition:=actualPosition);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 28;
+				elsif mailboxResult = 1 then
+					Ds402HomeState[92] := 27;
+				else
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			27:
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					OperationToken:=Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 28;
+				elsif mailboxResult <> 1 then
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			32:
+				mailboxResult := InputLatch.SubmitDs402HomeControl(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference, Command:=4);
+				if mailboxResult = 0 then
+					Ds402HomeState[117] := 0;
+					Ds402HomeState[112] := currentCycle$DINT;
+					Ds402HomeState[92] := 34;
+				elsif mailboxResult = 1 then
+					Ds402HomeState[92] := 33;
+				else
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			33:
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					OperationToken:=Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[117] := 0;
+					Ds402HomeState[112] := currentCycle$DINT;
+					Ds402HomeState[92] := 34;
+				elsif mailboxResult <> 1 then
+					failure := TRUE;
+					failureDetail := 11;
+					failureNative := TO_UDINT(0 - mailboxResult);
+				end_if;
+
+			34:
+				if newCycle &
+					(currentCycle <> Ds402HomeState[112]$UDINT) then
+					if (Ds402HomeState[94] <> 0) |
+						(Ds402HomeState[113] <> 0) |
+						(Ds402HomeState[116] <> 0) |
+						(Ds402HomeState[117] <> 0) |
+						(Ds402HomeState[127] <> 0) |
+						((statusWord and 0x0008) <> 0) |
+						((statusWord and 0x2000) <> 0) |
+						((baseState <> 0x0040) & (baseState <> 0x0021) &
+						 (baseState <> 0x0023) & (baseState <> 0x0027)) |
+						(actualPosition <> 0) then
+						failure := TRUE;
+						failureNative := 24;
+					else
+						Ds402HomeState[106] := 2;
+						Ds402HomeState[107] := 0;
+						Ds402HomeState[108] := 0;
+						Ds402HomeState[recordBase + 14] := 0;
+						Ds402HomeState[recordBase + 15] := 0;
+						Ds402HomeState[recordBase + 16] := 0;
+						Ds402HomeState[recordBase + 20] := currentCycle$DINT;
+						Ds402HomeState[recordBase + 21] := 0;
+						ownerResult := -1;
+						if IsClientConnected(#AxisOwnership) then
+							ownerResult :=
+								AxisOwnership.PublishAxisOwnershipDs402Receipt(
+								AxisMask:=axisMask,
+								AdmissionToken:=admissionToken,
+								OwnerGeneration:=ownerGeneration,
+								ReportKind:=
+									LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS,
+								ReportValue0:=0,
+								ReportValue1:=0,
+								ObservationCycle:=currentCycle,
+								pDs402State:=#Ds402HomeState[0],
+								Ds402StateSize:=sizeof(Ds402HomeState));
+						end_if;
+						if ownerResult = 0 then
+							Ds402HomeState[125] := 2;
+							ownerResult :=
+								AxisOwnership.PublishAxisOwnershipDs402Receipt(
+									AxisMask:=axisMask,
+									AdmissionToken:=admissionToken,
+									OwnerGeneration:=ownerGeneration,
+									ReportKind:=
+										LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS,
+									ReportValue0:=0,
+									ReportValue1:=0,
+									ObservationCycle:=currentCycle,
+									pDs402State:=#Ds402HomeState[0],
+									Ds402StateSize:=sizeof(Ds402HomeState));
+							if ownerResult = 1 then
+								Ds402HomeState[92] :=
+									LMC_DIAG_DS402_STAGE_FINALIZE;
+							elsif ownerResult <> 0 then
+								Ds402HomeState[92] := 101;
+							end_if;
+							RETURN;
+						elsif ownerResult = 1 then
+							Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+							RETURN;
+						else
+							Ds402HomeState[92] := 101;
+						end_if;
+					end_if;
+				end_if;
+		end_case;
+	end_if;
+
+	// SDO start stages use one persistent executor at a time.
+	stage := Ds402HomeState[92];
+	startSdo := FALSE;
+	sdoIsWrite := FALSE;
+	sdoIndex := 0;
+	homeSdoSubIndex := 0;
+	sdoLength := 0;
+	sdoData := 0;
+	nextStage := stage;
+	if (failure = FALSE) & (stage < 90) then
+		case stage of
+			2:
+				startSdo := TRUE; sdoIndex := 0x6061;
+				sdoLength := 1; nextStage := 3;
+			4:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x607C;
+				sdoLength := 4; sdoData := Ds402HomeState[recordBase + 10]$UDINT;
+				nextStage := 5;
+			6:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6098;
+				sdoLength := 1; sdoData := Ds402HomeState[recordBase + 9]$UDINT;
+				nextStage := 7;
+			16:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6060;
+				sdoLength := 1; sdoData := 6; nextStage := 17;
+			18:
+				startSdo := TRUE; sdoIndex := 0x6061;
+				sdoLength := 1; nextStage := 19;
+			28:
+				startSdo := TRUE; sdoIsWrite := TRUE; sdoIndex := 0x6060;
+				sdoLength := 1; sdoData := 8; nextStage := 29;
+			30:
+				startSdo := TRUE; sdoIndex := 0x6061;
+				sdoLength := 1; nextStage := 31;
+		end_case;
+	end_if;
+
+	if startSdo then
+		if IsClientConnected(#AxisOwnership) = FALSE then
+			failure := TRUE;
+			failureNative := 24;
+		else
+			ownerResult := AxisOwnership.ValidateAxisOwnership(
+				CommandId:=0x7D15,
+				Reference:=axisReference,
+				ExpectedAxisMask:=axisMask,
+				OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+				ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+				AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+				CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+				RequestSequence:=ownerRequestSequence,
+				AdmissionToken:=admissionToken,
+				OwnerGeneration:=ownerGeneration,
+				RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+			if ownerResult <> 0 then
+				failure := TRUE;
+				failureNative := TO_UDINT(0 - ownerResult);
+			elsif Ds402HomeState[126] = 0 then
+					ownerResult := AxisOwnership.PublishAxisOwnership(
+						AxisMask:=axisMask,
+						AdmissionToken:=admissionToken,
+						OwnerGeneration:=ownerGeneration,
+						ReportKind:=LMC_DIAG_OWNER_REPORT_DISPATCH,
+						ReportValue0:=TO_UDINT(sdoIndex),
+						ReportValue1:=Ds402HomeState[101]$UDINT,
+						ObservationCycle:=currentCycle);
+				if ownerResult = 0 then
+					Ds402HomeState[126] := 1;
+				else
+					failure := TRUE;
+					failureNative := TO_UDINT(0 - ownerResult);
+				end_if;
+			end_if;
+		end_if;
+	end_if;
+
+	if startSdo & (failure = FALSE) then
+		executorConnected := FALSE;
+		executorReusable := FALSE;
+		case axisReference of
+			1:
+				executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis1.IsReusable();
+				end_if;
+			2:
+				executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis2.IsReusable();
+				end_if;
+			3:
+				executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis3.IsReusable();
+				end_if;
+			4:
+				executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+				if executorConnected then
+					executorReusable := SdoAxis4.IsReusable();
+				end_if;
+		end_case;
+		if (executorConnected = FALSE) | (executorReusable = FALSE) then
+			failure := TRUE;
+			failureNative := 24;
+		else
+			sdoToken := Ds402HomeState[99]$UDINT + 1;
+			if sdoToken = 0 then
+				sdoToken := 1;
+			end_if;
+			Ds402HomeState[99] := sdoToken$DINT;
+			Ds402HomeState[95] := 0;
+			if sdoIsWrite then
+				Ds402HomeState[95] := 1;
+			end_if;
+			Ds402HomeState[96] := sdoIndex$DINT;
+			Ds402HomeState[97] := homeSdoSubIndex$DINT;
+			Ds402HomeState[98] := sdoLength$DINT;
+			Ds402HomeState[100] := sdoData$DINT;
+			startCycle := Ds402HomeState[recordBase + 19]$UDINT;
+			timeoutMs := Ds402HomeState[recordBase + 13]$UDINT;
+			elapsedCycles := serviceNow - serviceStart;
+			remainingMs := 1;
+			if elapsedCycles < timeoutMs then
+				remainingMs := timeoutMs - elapsedCycles;
+			end_if;
+			if remainingMs > 60000 then
+				remainingMs := 60000;
+			end_if;
+			startResult := ERROR;
+			case axisReference of
+				1:
+					if sdoIsWrite then
+						startResult := SdoAxis1.TryStartWrite(sdoToken, sdoIndex,
+							homeSdoSubIndex, (#sdoData)$^USINT, sdoLength, remainingMs);
+					else
+						startResult := SdoAxis1.TryStartRead(sdoToken, sdoIndex,
+							homeSdoSubIndex, sdoLength, remainingMs);
+					end_if;
+				2:
+					if sdoIsWrite then
+						startResult := SdoAxis2.TryStartWrite(sdoToken, sdoIndex,
+							homeSdoSubIndex, (#sdoData)$^USINT, sdoLength, remainingMs);
+					else
+						startResult := SdoAxis2.TryStartRead(sdoToken, sdoIndex,
+							homeSdoSubIndex, sdoLength, remainingMs);
+					end_if;
+				3:
+					if sdoIsWrite then
+						startResult := SdoAxis3.TryStartWrite(sdoToken, sdoIndex,
+							homeSdoSubIndex, (#sdoData)$^USINT, sdoLength, remainingMs);
+					else
+						startResult := SdoAxis3.TryStartRead(sdoToken, sdoIndex,
+							homeSdoSubIndex, sdoLength, remainingMs);
+					end_if;
+				4:
+					if sdoIsWrite then
+						startResult := SdoAxis4.TryStartWrite(sdoToken, sdoIndex,
+							homeSdoSubIndex, (#sdoData)$^USINT, sdoLength, remainingMs);
+					else
+						startResult := SdoAxis4.TryStartRead(sdoToken, sdoIndex,
+							homeSdoSubIndex, sdoLength, remainingMs);
+					end_if;
+			end_case;
+			if startResult = READY then
+				// Once the mode-6 write is accepted, cleanup must assume it may
+				// have reached the drive even if its callback is later lost.
+				if stage = 16 then
+					Ds402HomeState[116] := 1;
+				end_if;
+				Ds402HomeState[94] := 1;
+				Ds402HomeState[92] := nextStage;
+			else
+				failure := TRUE;
+				failureNative := 24;
+			end_if;
+		end_if;
+	end_if;
+
+	stage := Ds402HomeState[92];
+	waitSdo := (stage = 3) | (stage = 5) | (stage = 7) |
+		(stage = 17) | (stage = 19) | (stage = 29) | (stage = 31);
+	if (failure = FALSE) & waitSdo then
+		completionResult := -2;
+		case axisReference of
+			1:
+				if IsClientConnected(#SdoAxis1) then
+					completionResult := SdoAxis1.CopyCompletion(
+						Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+				end_if;
+			2:
+				if IsClientConnected(#SdoAxis2) then
+					completionResult := SdoAxis2.CopyCompletion(
+						Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+				end_if;
+			3:
+				if IsClientConnected(#SdoAxis3) then
+					completionResult := SdoAxis3.CopyCompletion(
+						Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+				end_if;
+			4:
+				if IsClientConnected(#SdoAxis4) then
+					completionResult := SdoAxis4.CopyCompletion(
+						Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+				end_if;
+		end_case;
+		if completionResult = 0 then
+			Ds402HomeState[94] := 0;
+			if (completion.ValidationCode <> 0) | (completion.OsResult <> 0) |
+				(completion.AbortCode <> 0) |
+				(completion.ObjectIndex <> Ds402HomeState[96]$UINT) |
+				(completion.SubIndex <> Ds402HomeState[97]$USINT) |
+				(completion.ActualLength <> Ds402HomeState[98]$UDINT) |
+				(completion.IsWrite <> Ds402HomeState[95]$USINT) then
+				failure := TRUE;
+				if completion.AbortCode <> 0 then
+					failureNative := completion.AbortCode;
+				elsif completion.OsResult <> 0 then
+					failureNative := completion.OsResult$UDINT;
+				else
+					failureNative := completion.ValidationCode;
+				end_if;
+			else
+				case stage of
+					3:
+						if (completion.Data and 0xFF) <> 8 then
+							failure := TRUE; failureNative := completion.Data;
+						else
+							Ds402HomeState[105] := 8; Ds402HomeState[92] := 4;
+						end_if;
+					5: Ds402HomeState[92] := 6;
+					7: Ds402HomeState[92] := 14;
+					17:
+						Ds402HomeState[116] := 1; Ds402HomeState[92] := 18;
+					19:
+						if (completion.Data and 0xFF) <> 6 then
+							failure := TRUE; failureNative := completion.Data;
+						else
+							Ds402HomeState[92] := 20;
+						end_if;
+					29: Ds402HomeState[92] := 30;
+					31:
+						if (completion.Data and 0xFF) <> 8 then
+							failure := TRUE; failureNative := completion.Data;
+						else
+							Ds402HomeState[116] := 0; Ds402HomeState[92] := 32;
+						end_if;
+				end_case;
+			end_if;
+		elsif (completionResult <> -2) & (completionResult <> -3) then
+			failure := TRUE;
+			failureNative := TO_UDINT(0 - completionResult);
+		end_if;
+	end_if;
+
+	if failure then
+		if Ds402HomeState[94] <> 0 then
+			orphanResult := -1;
+			case axisReference of
+				1:
+					if IsClientConnected(#SdoAxis1) then
+						orphanResult := SdoAxis1.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				2:
+					if IsClientConnected(#SdoAxis2) then
+						orphanResult := SdoAxis2.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				3:
+					if IsClientConnected(#SdoAxis3) then
+						orphanResult := SdoAxis3.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				4:
+					if IsClientConnected(#SdoAxis4) then
+						orphanResult := SdoAxis4.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+			end_case;
+			// -2 can mean that the exact result won the timeout race. Keep the
+			// executor in the cleanup drain path so a ready result is consumed.
+			if (orphanResult = 0) | (orphanResult = -2) then
+				Ds402HomeState[94] := 0;
+				Ds402HomeState[113] := 1;
+				Ds402HomeState[127] := 0;
+			else
+				// Keep the pending token and remember that exact retirement failed.
+				Ds402HomeState[127] := 1;
+			end_if;
+		end_if;
+		if preemptionCleanup then
+			Ds402HomeState[106] := 4;
+		else
+			Ds402HomeState[106] := 3;
+		end_if;
+		Ds402HomeState[107] := failureDetail$DINT;
+		Ds402HomeState[108] := failureNative$DINT;
+		Ds402HomeState[112] := currentCycle$DINT;
+		Ds402HomeState[119]$UDINT := serviceNow;
+		Ds402HomeState[92] := 90;
+		RETURN;
+	end_if;
+
+	// Failure cleanup attempts bit 4 low, setpoint alignment, CSP restore and RT
+	// release. Timeout never claims that any of those cleanup steps completed.
+	stage := Ds402HomeState[92];
+	if stage < 90 then
+		RETURN;
+	end_if;
+	if preemptionCleanup then
+		HandleAxisDs402HomeCleanupStages(
+			Stage:=stage,
+			AxisReference:=axisReference,
+			AxisMask:=axisMask,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			Ds402ProcessOwnerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+			OwnerRequestSequence:=ownerRequestSequence,
+			SafetyAdmissionToken:=safetyAdmissionToken,
+			SafetyOwnerGeneration:=safetyOwnerGeneration,
+			InitialCurrentCycle:=currentCycle,
+			ServiceNow:=serviceNow,
+			ActualPosition:=actualPosition,
+			PreemptionCleanup:=TRUE);
+	else
+		HandleAxisDs402HomeCleanupStages(
+			Stage:=stage,
+			AxisReference:=axisReference,
+			AxisMask:=axisMask,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			Ds402ProcessOwnerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+			OwnerRequestSequence:=ownerRequestSequence,
+			SafetyAdmissionToken:=0,
+			SafetyOwnerGeneration:=0,
+			InitialCurrentCycle:=currentCycle,
+			ServiceNow:=serviceNow,
+			ActualPosition:=actualPosition,
+			PreemptionCleanup:=FALSE);
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeReceiptStages
+	VAR_INPUT
+		Stage 	: DINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+	VAR
+		activeIndex, recordBase : DINT;
+		axisReference : UINT;
+		axisMask, admissionToken, ownerGeneration : UDINT;
+		ds402ProcessOwnerSessionEpoch, ownerRequestSequence : UDINT;
+		receiptGeneration : UDINT;
+		ownerResult, receiptResult, receiptKind, receiptPhase : DINT;
+		terminalRecordState : DINT;
+	END_VAR
+
+	Result := 1;
+	if stage = LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR then
+		activeIndex := Ds402HomeState[93];
+		if (activeIndex < 0) | (activeIndex > 3) |
+			(sizeof(Ds402HomeState) <> 512) then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		recordBase := activeIndex * 23;
+		// Stage 86 keeps the axis selector authoritative until this idempotent
+		// record clear is complete. Runtime WAL bytes remain invalid under stage 0
+		// and are replaced by the next preflight.
+		_memset(dest:=#Ds402HomeState[recordBase], usByte:=0, cntr:=92);
+		Ds402HomeState[92] := 0;
+		RETURN;
+	end_if;
+	if stage = LMC_DIAG_DS402_STAGE_RESERVE_INTENT then
+		activeIndex := Ds402HomeState[93];
+		if (activeIndex < 0) | (activeIndex > 3) |
+			(sizeof(Ds402HomeState) <> 512) then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		recordBase := activeIndex * 23;
+		axisMask := TO_UDINT(1) shl TO_UDINT(activeIndex);
+		if IsClientConnected(#AxisOwnership) = FALSE then
+			RETURN;
+		end_if;
+		// Tokenless mode is confined to stage 87 rollback resolution. The
+		// provider either adopts one exact RESERVED tuple, proves absence/later
+		// ownership, or leaves the intent fail-closed.
+		receiptResult := AxisOwnership.PublishAxisOwnershipDs402Receipt(
+			AxisMask:=axisMask,
+			AdmissionToken:=0,
+			OwnerGeneration:=0,
+			ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+			ReportValue0:=0,
+			ReportValue1:=0,
+			ObservationCycle:=Ds402HomeState[118]$UDINT,
+			pDs402State:=#Ds402HomeState[0],
+			Ds402StateSize:=sizeof(Ds402HomeState));
+		if receiptResult = 1 then
+			// Commit record cleanup before touching any selector or WAL byte.
+			Ds402HomeState[92] :=
+				LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR;
+		elsif receiptResult = 2 then
+			// Preserve only an untouched raw tombstone. Once adoption or the record
+			// bridge was published, commit a durable record-clear cleanup first.
+			if (Ds402HomeState[119]$UDINT =
+				LMC_DIAG_DS402_INTENT_ADOPT_MAGIC) |
+				(Ds402HomeState[recordBase] = 1) then
+				Ds402HomeState[92] :=
+					LMC_DIAG_DS402_STAGE_INTENT_DISCARD_CLEAR;
+			elsif Ds402HomeState[recordBase]$UDINT <>
+				Ds402HomeState[115]$UDINT then
+				Ds402HomeState[92] := 101;
+				RETURN;
+			else
+				// No local record changed. Stage 0 invalidates the retained WAL in one
+				// commit; the next preflight overwrites it before reuse.
+				Ds402HomeState[92] := 0;
+			end_if;
+		elsif receiptResult = -1 then
+			// A transient result retains the durable intent indefinitely.
+		elsif receiptResult <> 0 then
+			Ds402HomeState[92] := 101;
+		end_if;
+		RETURN;
+	end_if;
+	if stage = 0 then
+		RETURN;
+	end_if;
+	activeIndex := Ds402HomeState[93];
+	admissionToken := Ds402HomeState[122]$UDINT;
+	ownerGeneration := Ds402HomeState[123]$UDINT;
+	if (activeIndex < 0) | (activeIndex > 3) |
+		(sizeof(Ds402HomeState) <> 512) then
+		Ds402HomeState[92] := 101;
+		RETURN;
+	end_if;
+	recordBase := activeIndex * 23;
+	axisMask := TO_UDINT(1) shl TO_UDINT(activeIndex);
+	receiptPhase := Ds402HomeState[125];
+	receiptGeneration := Ds402HomeState[127]$UDINT;
+
+	if stage = LMC_DIAG_DS402_STAGE_FINALIZE then
+		receiptKind := Ds402HomeState[126];
+		if (Ds402HomeState[124]$UDINT <> LMC_DIAG_DS402_RECEIPT_MAGIC) |
+			(receiptPhase <> LMC_DIAG_DS402_RECEIPT_COMPLETE) |
+			(receiptGeneration = 0) |
+			(receiptGeneration <> Ds402HomeState[109]$UDINT) |
+			(admissionToken = 0) | (ownerGeneration = 0) then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		case receiptKind of
+			LMC_DIAG_DS402_RECEIPT_ROLLBACK:
+				if (Ds402HomeState[106] <> 0) |
+					((Ds402HomeState[recordBase] <> 0) &
+					 (Ds402HomeState[recordBase] <> 1)) |
+					((Ds402HomeState[recordBase + 22]$UDINT <> 0) &
+					 (Ds402HomeState[recordBase + 22]$UDINT <>
+					  receiptGeneration)) then
+					Ds402HomeState[92] := 101;
+					RETURN;
+				end_if;
+				_memset(dest:=#Ds402HomeState[recordBase],
+					usByte:=0, cntr:=92);
+			LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS,
+			LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE:
+				terminalRecordState := Ds402HomeState[106];
+				if (((receiptKind = LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS) &
+					  (terminalRecordState <> 2)) |
+					 ((receiptKind =
+					   LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE) &
+					  (terminalRecordState <> 3))) |
+					(Ds402HomeState[recordBase + 22]$UDINT <>
+					 receiptGeneration) |
+					((Ds402HomeState[recordBase] <> 1) &
+					 (Ds402HomeState[recordBase] <> terminalRecordState)) then
+					Ds402HomeState[92] := 101;
+					RETURN;
+				end_if;
+				Ds402HomeState[101] := 0;
+				Ds402HomeState[recordBase] := terminalRecordState;
+		else
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_case;
+		// The local lifecycle stage is the final publication word.
+		Ds402HomeState[92] := 0;
+		RETURN;
+	end_if;
+
+	if Ds402HomeState[124]$UDINT = LMC_DIAG_DS402_RECEIPT_MAGIC then
+		if receiptGeneration = 0 then
+			case stage of
+				LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED:
+					receiptKind := LMC_DIAG_DS402_RECEIPT_ROLLBACK;
+				89: receiptKind := LMC_DIAG_DS402_RECEIPT_ROLLBACK;
+				34: receiptKind := LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS;
+				100: receiptKind :=
+					LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE;
+			else
+				Ds402HomeState[92] := 101;
+				RETURN;
+			end_case;
+		else
+			receiptKind := Ds402HomeState[126];
+		end_if;
+		receiptResult := -1;
+		if IsClientConnected(#AxisOwnership) = FALSE then
+			RETURN;
+		end_if;
+		receiptResult := AxisOwnership.PublishAxisOwnershipDs402Receipt(
+			AxisMask:=axisMask,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			ReportKind:=TO_UINT(receiptKind),
+			ReportValue0:=Ds402HomeState[107]$UDINT,
+			ReportValue1:=Ds402HomeState[108]$UDINT,
+			ObservationCycle:=Ds402HomeState[110]$UDINT,
+			pDs402State:=#Ds402HomeState[0],
+			Ds402StateSize:=sizeof(Ds402HomeState));
+		if receiptResult = 0 then
+			if Ds402HomeState[125] = LMC_DIAG_DS402_RECEIPT_PREPARED then
+				Ds402HomeState[125] := 2;
+			end_if;
+			if IsClientConnected(#AxisOwnership) = FALSE then
+				RETURN;
+			end_if;
+			receiptResult :=
+				AxisOwnership.PublishAxisOwnershipDs402Receipt(
+					AxisMask:=axisMask,
+					AdmissionToken:=admissionToken,
+					OwnerGeneration:=ownerGeneration,
+					ReportKind:=TO_UINT(receiptKind),
+					ReportValue0:=Ds402HomeState[107]$UDINT,
+					ReportValue1:=Ds402HomeState[108]$UDINT,
+					ObservationCycle:=Ds402HomeState[110]$UDINT,
+					pDs402State:=#Ds402HomeState[0],
+					Ds402StateSize:=sizeof(Ds402HomeState));
+			if receiptResult = 1 then
+				Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+			elsif (receiptResult <> 0) & (receiptResult <> -1) then
+				Ds402HomeState[92] := 101;
+			end_if;
+		elsif receiptResult = 1 then
+			Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+		elsif receiptResult <> -1 then
+			Ds402HomeState[92] := 101;
+		end_if;
+		RETURN;
+	end_if;
+
+	if stage = LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED then
+		// This state is rollback-only. It must never warm-resume into Commit.
+		receiptResult := -1;
+		if IsClientConnected(#AxisOwnership) = FALSE then
+			RETURN;
+		end_if;
+		receiptResult := AxisOwnership.PublishAxisOwnershipDs402Receipt(
+			AxisMask:=axisMask,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+			ReportValue0:=0,
+			ReportValue1:=0,
+			ObservationCycle:=Ds402HomeState[110]$UDINT,
+			pDs402State:=#Ds402HomeState[0],
+			Ds402StateSize:=sizeof(Ds402HomeState));
+		if receiptResult = 0 then
+			if Ds402HomeState[125] =
+				LMC_DIAG_DS402_RECEIPT_PREPARED then
+				Ds402HomeState[125] := 2;
+			end_if;
+			if IsClientConnected(#AxisOwnership) = FALSE then
+				RETURN;
+			end_if;
+			receiptResult :=
+				AxisOwnership.PublishAxisOwnershipDs402Receipt(
+					AxisMask:=axisMask,
+					AdmissionToken:=admissionToken,
+					OwnerGeneration:=ownerGeneration,
+					ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+					ReportValue0:=0,
+					ReportValue1:=0,
+					ObservationCycle:=Ds402HomeState[110]$UDINT,
+					pDs402State:=#Ds402HomeState[0],
+					Ds402StateSize:=sizeof(Ds402HomeState));
+			if receiptResult = 1 then
+				Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+			elsif (receiptResult <> 0) & (receiptResult <> -1) then
+				Ds402HomeState[92] := 101;
+			end_if;
+		elsif receiptResult = 1 then
+			Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+		elsif receiptResult <> -1 then
+			Ds402HomeState[92] := 101;
+		end_if;
+		RETURN;
+	end_if;
+
+	if stage = 101 then
+		// Quarantine is terminal for this cyclic processor.
+		RETURN;
+	end_if;
+	if stage = 89 then
+		if (activeIndex < 0) | (activeIndex > 3) |
+			(sizeof(Ds402HomeState) <> 512) then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		axisReference := TO_UINT(activeIndex + 1);
+		recordBase := activeIndex * 23;
+		axisMask := Ds402HomeState[124]$UDINT;
+		ds402ProcessOwnerSessionEpoch := Ds402HomeState[120]$UDINT;
+		ownerRequestSequence := Ds402HomeState[121]$UDINT;
+		if (axisMask <> (TO_UDINT(1) shl TO_UDINT(activeIndex))) |
+			(ds402ProcessOwnerSessionEpoch = 0) |
+			(ownerRequestSequence = 0) | (admissionToken = 0) |
+			(ownerGeneration = 0) |
+			(Ds402HomeState[recordBase] <> 1) |
+			(Ds402HomeState[recordBase + 1] <> 1) |
+			(Ds402HomeState[recordBase + 2]$UDINT <>
+			 GetDiagnosticsBootId()) |
+			(Ds402HomeState[recordBase + 3]$UDINT <>
+			 LMC_DIAG_MAP_REVISION) |
+			(Ds402HomeState[recordBase + 4] = 0) |
+			((Ds402HomeState[recordBase + 5] = 0) &
+			 (Ds402HomeState[recordBase + 6] = 0) &
+			 (Ds402HomeState[recordBase + 7] = 0) &
+			 (Ds402HomeState[recordBase + 8] = 0)) |
+			(Ds402HomeState[recordBase + 9] <> 37) |
+			(Ds402HomeState[recordBase + 10] <> 0) |
+			(Ds402HomeState[recordBase + 11] <> 0) |
+			(Ds402HomeState[recordBase + 12] <> 0) |
+			(Ds402HomeState[recordBase + 13] = 0) |
+			(Ds402HomeState[recordBase + 14] <> 0) |
+			(Ds402HomeState[recordBase + 15] <> 0) |
+			(Ds402HomeState[recordBase + 16] <> 0) |
+			(Ds402HomeState[recordBase + 19] = 0) |
+			(Ds402HomeState[recordBase + 20] <> 0) |
+			(Ds402HomeState[recordBase + 21] <> 0) |
+			(Ds402HomeState[recordBase + 22] = 0) |
+			(Ds402HomeState[94] <> 0) |
+			(Ds402HomeState[95] <> 0) |
+			(Ds402HomeState[96] <> 0) |
+			(Ds402HomeState[97] <> 0) |
+			(Ds402HomeState[98] <> 0) |
+			(Ds402HomeState[100] <> 0) |
+			(Ds402HomeState[109] <>
+			 Ds402HomeState[recordBase + 22]) |
+			(Ds402HomeState[99] <>
+			 Ds402HomeState[recordBase + 22]) |
+			(Ds402HomeState[101] <>
+			 Ds402HomeState[recordBase + 22]) |
+			(Ds402HomeState[102] <>
+			 Ds402HomeState[recordBase + 18]) |
+			(Ds402HomeState[103] <> 1) |
+			(Ds402HomeState[104] <> 0) |
+			(Ds402HomeState[105] <> 8) |
+			(Ds402HomeState[106] <> 0) |
+			(Ds402HomeState[107] <> 0) |
+			(Ds402HomeState[108] <> 0) |
+			(Ds402HomeState[110] <>
+			 Ds402HomeState[recordBase + 19]) |
+			(Ds402HomeState[111] <> 0) |
+			(Ds402HomeState[112] <> 0) |
+			(Ds402HomeState[113] <> 0) |
+			(Ds402HomeState[114] <>
+			 Ds402HomeState[recordBase + 17]) |
+			(Ds402HomeState[115] <>
+			 Ds402HomeState[recordBase + 18]) |
+			(Ds402HomeState[116] <> 0) |
+			(Ds402HomeState[117] <> 0) |
+			(Ds402HomeState[119] <> 0) |
+			(Ds402HomeState[126] <> 0) |
+			(Ds402HomeState[127] <> 0) |
+			((Ds402HomeState[125] <> 1) &
+			 (Ds402HomeState[125] <> 2)) then
+			Ds402HomeState[92] := 101;
+			RETURN;
+		end_if;
+		if IsClientConnected(#AxisOwnership) = FALSE then
+			RETURN;
+		end_if;
+
+		// Commit may already have completed before the local phase was advanced.
+		ownerResult := AxisOwnership.ValidateAxisOwnership(
+			CommandId:=0x7D15,
+			Reference:=axisReference,
+			ExpectedAxisMask:=axisMask,
+			OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+			ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+			AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+			CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+			RequestSequence:=ownerRequestSequence,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+		if ownerResult = 0 then
+			Ds402HomeState[125] := 2;
+			Ds402HomeState[92] := 1;
+			RETURN;
+		end_if;
+
+		ownerResult := AxisOwnership.ValidateAxisOwnership(
+			CommandId:=0x7D15,
+			Reference:=axisReference,
+			ExpectedAxisMask:=axisMask,
+			OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+			ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+			AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+			CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+			RequestSequence:=ownerRequestSequence,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			RequiredPhase:=LMC_DIAG_OWNER_PHASE_RESERVED);
+		if (ownerResult = 0) & (Ds402HomeState[125] = 1) then
+			ownerResult := AxisOwnership.CommitAxisOwnership(
+				CommandId:=0x7D15,
+				Reference:=axisReference,
+				ExpectedAxisMask:=axisMask,
+				CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+				RequestSequence:=ownerRequestSequence,
+				AdmissionToken:=admissionToken,
+				OwnerGeneration:=ownerGeneration);
+			if ownerResult = 0 then
+				Ds402HomeState[125] := 2;
+				Ds402HomeState[92] := 1;
+				RETURN;
+			end_if;
+			ownerResult := AxisOwnership.ValidateAxisOwnership(
+				CommandId:=0x7D15,
+				Reference:=axisReference,
+				ExpectedAxisMask:=axisMask,
+				OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+				ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+				AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+				CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+				RequestSequence:=ownerRequestSequence,
+				AdmissionToken:=admissionToken,
+				OwnerGeneration:=ownerGeneration,
+				RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+			if ownerResult = 0 then
+				Ds402HomeState[125] := 2;
+				Ds402HomeState[92] := 1;
+				RETURN;
+			end_if;
+		end_if;
+
+		receiptResult := AxisOwnership.PublishAxisOwnershipDs402Receipt(
+			AxisMask:=axisMask,
+			AdmissionToken:=admissionToken,
+			OwnerGeneration:=ownerGeneration,
+			ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+			ReportValue0:=0,
+			ReportValue1:=0,
+			ObservationCycle:=Ds402HomeState[110]$UDINT,
+			pDs402State:=#Ds402HomeState[0],
+			Ds402StateSize:=sizeof(Ds402HomeState));
+		if receiptResult = 0 then
+			if Ds402HomeState[125] =
+				LMC_DIAG_DS402_RECEIPT_PREPARED then
+				Ds402HomeState[125] := 2;
+			end_if;
+			receiptResult := AxisOwnership.PublishAxisOwnershipDs402Receipt(
+				AxisMask:=axisMask,
+				AdmissionToken:=admissionToken,
+				OwnerGeneration:=ownerGeneration,
+				ReportKind:=LMC_DIAG_DS402_RECEIPT_ROLLBACK,
+				ReportValue0:=0,
+				ReportValue1:=0,
+				ObservationCycle:=Ds402HomeState[110]$UDINT,
+				pDs402State:=#Ds402HomeState[0],
+				Ds402StateSize:=sizeof(Ds402HomeState));
+			if receiptResult = 1 then
+				Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+			elsif (receiptResult <> 0) & (receiptResult <> -1) then
+				Ds402HomeState[92] := 101;
+			end_if;
+		elsif receiptResult = 1 then
+			Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_FINALIZE;
+		elsif receiptResult <> -1 then
+			Ds402HomeState[92] := 101;
+		end_if;
+		RETURN;
+	end_if;
+	Result := 0;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
+	VAR_INPUT
+		Stage 	: DINT;
+		AxisReference 	: UINT;
+		AxisMask 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+		Ds402ProcessOwnerSessionEpoch 	: UDINT;
+		OwnerRequestSequence 	: UDINT;
+		SafetyAdmissionToken 	: UDINT;
+		SafetyOwnerGeneration 	: UDINT;
+		InitialCurrentCycle 	: UDINT;
+		ServiceNow 	: UDINT;
+		ActualPosition 	: DINT;
+		PreemptionCleanup 	: BOOL;
+	END_VAR
+	VAR
+		completion : LMCSdoExecutor::LMCSdoExecutorResult;
+		recordBase : DINT;
+		preemptionCleanupKind : UINT;
+		currentCycle, cleanupStart, sdoToken, sdoData : UDINT;
+		completionResult, mailboxResult, orphanResult, ownerResult : DINT;
+		startResult : iprStates;
+		executorConnected, executorReusable, cleanupExpired : BOOL;
+	END_VAR
+
+	currentCycle := InitialCurrentCycle;
+	recordBase := TO_DINT(AxisReference - 1) * 23;
+	cleanupStart := Ds402HomeState[119]$UDINT;
+	cleanupExpired := (cleanupStart <> 0) & (stage >= 90) & (stage <= 99) &
+		((serviceNow - cleanupStart) >= 1000);
+	if cleanupExpired then
+		if Ds402HomeState[94] <> 0 then
+			orphanResult := -1;
+			case axisReference of
+				1:
+					if IsClientConnected(#SdoAxis1) then
+						orphanResult := SdoAxis1.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				2:
+					if IsClientConnected(#SdoAxis2) then
+						orphanResult := SdoAxis2.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				3:
+					if IsClientConnected(#SdoAxis3) then
+						orphanResult := SdoAxis3.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+				4:
+					if IsClientConnected(#SdoAxis4) then
+						orphanResult := SdoAxis4.MarkOrphan(Ds402HomeState[99]$UDINT);
+					end_if;
+			end_case;
+			// MarkOrphan acceptance is not executor retirement proof. Keep every
+			// pending flag and retain exact-token uncertainty in quarantine.
+			Ds402HomeState[127] := 1;
+		end_if;
+		if Ds402HomeState[113] <> 0 then
+			Ds402HomeState[127] := 1;
+		end_if;
+		ownerResult := -1;
+		if IsClientConnected(#AxisOwnership) then
+			if preemptionCleanup then
+				ownerResult :=
+					AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+						ExpectedAxisMask:=axisMask,
+						PreemptedAdmissionToken:=admissionToken,
+						PreemptedOwnerGeneration:=ownerGeneration,
+						SafetyAdmissionToken:=safetyAdmissionToken,
+						SafetyOwnerGeneration:=safetyOwnerGeneration,
+						CleanupKind:=
+							LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE,
+						ReportValue0:=Ds402HomeState[107]$UDINT,
+						ReportValue1:=Ds402HomeState[108]$UDINT,
+						ObservationCycle:=currentCycle);
+			else
+				ownerResult := AxisOwnership.PublishAxisOwnership(
+					AxisMask:=axisMask,
+					AdmissionToken:=admissionToken,
+					OwnerGeneration:=ownerGeneration,
+					ReportKind:=LMC_DIAG_OWNER_REPORT_QUARANTINE,
+					ReportValue0:=Ds402HomeState[107]$UDINT,
+					ReportValue1:=Ds402HomeState[108]$UDINT,
+					ObservationCycle:=currentCycle);
+			end_if;
+		end_if;
+		Ds402HomeState[92] := 101;
+		RETURN;
+	end_if;
+
+	case stage of
+		90:
+			if IsClientConnected(#InputLatch) then
+				mailboxResult := InputLatch.RequestDs402HomeSafetyDrain(
+					OperationToken:=Ds402HomeState[101]$UDINT,
+					AxisReference:=axisReference);
+				if mailboxResult = 0 then
+					Ds402HomeState[117] := 0;
+					Ds402HomeState[92] := 92;
+				elsif mailboxResult <> 1 then
+					// Stay in bounded cleanup until timeout; never infer LOW.
+					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+				end_if;
+			end_if;
+		91:
+			// Recover an older cleanup stage through the durable drain path.
+			Ds402HomeState[92] := 90;
+		92:
+			if Ds402HomeState[116] = 0 then
+				// Stage 94 also drains a timeout-raced SDO before any terminal record.
+				Ds402HomeState[92] := 94;
+			elsif Ds402HomeState[104] = 0 then
+				Ds402HomeState[92] := 94;
+			elsif IsClientConnected(#InputLatch) then
+				mailboxResult := InputLatch.SubmitDs402HomeSetpointAlignment(
+					Ds402HomeState[101]$UDINT, axisReference, actualPosition);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 94;
+				elsif mailboxResult = 1 then
+					Ds402HomeState[92] := 93;
+				else
+					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					Ds402HomeState[92] := 98;
+				end_if;
+			end_if;
+		93:
+			if IsClientConnected(#InputLatch) then
+				mailboxResult := InputLatch.GetDs402HomeControlState(
+					Ds402HomeState[101]$UDINT);
+				if mailboxResult = 0 then
+					Ds402HomeState[92] := 94;
+				elsif mailboxResult <> 1 then
+					Ds402HomeState[108] := TO_DINT(0 - mailboxResult);
+					Ds402HomeState[92] := 98;
+				end_if;
+			end_if;
+		94:
+			// MarkOrphan returns -2 when completion may already be ready. Drain
+			// that exact token before waiting for IsReusable and restoring CSP.
+			if Ds402HomeState[113] <> 0 then
+				completionResult := -2;
+				case axisReference of
+					1:
+						if IsClientConnected(#SdoAxis1) then
+							completionResult := SdoAxis1.CopyCompletion(
+								Ds402HomeState[99]$UDINT, #completion,
+								sizeof(completion));
+						end_if;
+					2:
+						if IsClientConnected(#SdoAxis2) then
+							completionResult := SdoAxis2.CopyCompletion(
+								Ds402HomeState[99]$UDINT, #completion,
+								sizeof(completion));
+						end_if;
+					3:
+						if IsClientConnected(#SdoAxis3) then
+							completionResult := SdoAxis3.CopyCompletion(
+								Ds402HomeState[99]$UDINT, #completion,
+								sizeof(completion));
+						end_if;
+					4:
+						if IsClientConnected(#SdoAxis4) then
+							completionResult := SdoAxis4.CopyCompletion(
+								Ds402HomeState[99]$UDINT, #completion,
+								sizeof(completion));
+						end_if;
+				end_case;
+				if completionResult = 0 then
+					Ds402HomeState[94] := 0;
+					Ds402HomeState[113] := 0;
+					Ds402HomeState[127] := 0;
+				end_if;
+			end_if;
+			executorConnected := FALSE;
+			executorReusable := FALSE;
+			case axisReference of
+				1:
+					executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+					if executorConnected then
+						executorReusable := SdoAxis1.IsReusable();
+					end_if;
+				2:
+					executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+					if executorConnected then
+						executorReusable := SdoAxis2.IsReusable();
+					end_if;
+				3:
+					executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+					if executorConnected then
+						executorReusable := SdoAxis3.IsReusable();
+					end_if;
+				4:
+					executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+					if executorConnected then
+						executorReusable := SdoAxis4.IsReusable();
+					end_if;
+			end_case;
+			if executorConnected = FALSE then
+				Ds402HomeState[92] := 98;
+			elsif executorReusable then
+				Ds402HomeState[113] := 0;
+				if Ds402HomeState[116] = 0 then
+					Ds402HomeState[92] := 98;
+				else
+					ownerResult := -3;
+					if preemptionCleanup then
+						// The coordinator snapshot authorizes only this cleanup SDO.
+						ownerResult := 0;
+					end_if;
+					if IsClientConnected(#AxisOwnership) &
+						(preemptionCleanup = FALSE) then
+						ownerResult := AxisOwnership.ValidateAxisOwnership(
+							CommandId:=0x7D15,
+							Reference:=axisReference,
+							ExpectedAxisMask:=axisMask,
+							OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+							ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+							AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+							CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+							RequestSequence:=ownerRequestSequence,
+							AdmissionToken:=admissionToken,
+							OwnerGeneration:=ownerGeneration,
+							RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+					end_if;
+					if ownerResult <> 0 then
+						Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+						Ds402HomeState[92] := 98;
+					else
+						sdoToken := Ds402HomeState[99]$UDINT + 1;
+						if sdoToken = 0 then
+							sdoToken := 1;
+						end_if;
+						Ds402HomeState[99] := sdoToken$DINT;
+						sdoData := 8;
+						startResult := ERROR;
+						case axisReference of
+							1: startResult := SdoAxis1.TryStartWrite(sdoToken, 0x6060, 0, (#sdoData)$^USINT, 1, 1000);
+							2: startResult := SdoAxis2.TryStartWrite(sdoToken, 0x6060, 0, (#sdoData)$^USINT, 1, 1000);
+							3: startResult := SdoAxis3.TryStartWrite(sdoToken, 0x6060, 0, (#sdoData)$^USINT, 1, 1000);
+							4: startResult := SdoAxis4.TryStartWrite(sdoToken, 0x6060, 0, (#sdoData)$^USINT, 1, 1000);
+						end_case;
+						if startResult = READY then
+							Ds402HomeState[112] := currentCycle$DINT;
+							Ds402HomeState[94] := 1;
+							Ds402HomeState[92] := 95;
+						elsif startResult = ERROR then
+							Ds402HomeState[92] := 98;
+						end_if;
+					end_if;
+				end_if;
+			end_if;
+		95:
+			completionResult := -2;
+			case axisReference of
+				1:
+					if IsClientConnected(#SdoAxis1) then
+						completionResult := SdoAxis1.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				2:
+					if IsClientConnected(#SdoAxis2) then
+						completionResult := SdoAxis2.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				3:
+					if IsClientConnected(#SdoAxis3) then
+						completionResult := SdoAxis3.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				4:
+					if IsClientConnected(#SdoAxis4) then
+						completionResult := SdoAxis4.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+			end_case;
+			if completionResult = 0 then
+				Ds402HomeState[94] := 0;
+				if (completion.ValidationCode = 0) & (completion.OsResult = 0) &
+					(completion.AbortCode = 0) & (completion.ObjectIndex = 0x6060) &
+					(completion.IsWrite <> 0) & (completion.ActualLength = 1) then
+					Ds402HomeState[92] := 96;
+				else
+					Ds402HomeState[92] := 98;
+				end_if;
+			elsif (completionResult <> -2) & (completionResult <> -3) then
+				// Token mismatch or executor quarantine is not retirement proof.
+				Ds402HomeState[127] := 1;
+				Ds402HomeState[92] := 98;
+			end_if;
+		96:
+			executorReusable := FALSE;
+			case axisReference of
+				1:
+					if IsClientConnected(#SdoAxis1) then
+						executorReusable := SdoAxis1.IsReusable();
+					end_if;
+				2:
+					if IsClientConnected(#SdoAxis2) then
+						executorReusable := SdoAxis2.IsReusable();
+					end_if;
+				3:
+					if IsClientConnected(#SdoAxis3) then
+						executorReusable := SdoAxis3.IsReusable();
+					end_if;
+				4:
+					if IsClientConnected(#SdoAxis4) then
+						executorReusable := SdoAxis4.IsReusable();
+					end_if;
+			end_case;
+			if executorReusable then
+				ownerResult := -3;
+				if preemptionCleanup then
+					// The old active tuple is intentionally hidden by safety overlay.
+					ownerResult := 0;
+				end_if;
+				if IsClientConnected(#AxisOwnership) &
+					(preemptionCleanup = FALSE) then
+					ownerResult := AxisOwnership.ValidateAxisOwnership(
+						CommandId:=0x7D15,
+						Reference:=axisReference,
+						ExpectedAxisMask:=axisMask,
+						OwnerKind:=LMC_DIAG_OWNER_KIND_DS402_HOME,
+						ResourceKind:=LMC_DIAG_RESOURCE_DS402_HOME,
+						AdmissionMode:=LMC_DIAG_ADMISSION_LIFECYCLE,
+						CallerSessionEpoch:=ds402ProcessOwnerSessionEpoch,
+						RequestSequence:=ownerRequestSequence,
+						AdmissionToken:=admissionToken,
+						OwnerGeneration:=ownerGeneration,
+						RequiredPhase:=LMC_DIAG_OWNER_PHASE_ACTIVE);
+				end_if;
+				if ownerResult <> 0 then
+					Ds402HomeState[108] := TO_DINT(0 - ownerResult);
+					Ds402HomeState[92] := 98;
+				else
+					sdoToken := Ds402HomeState[99]$UDINT + 1;
+					if sdoToken = 0 then
+						sdoToken := 1;
+					end_if;
+					Ds402HomeState[99] := sdoToken$DINT;
+					startResult := ERROR;
+					case axisReference of
+						1: startResult := SdoAxis1.TryStartRead(sdoToken, 0x6061, 0, 1, 1000);
+						2: startResult := SdoAxis2.TryStartRead(sdoToken, 0x6061, 0, 1, 1000);
+						3: startResult := SdoAxis3.TryStartRead(sdoToken, 0x6061, 0, 1, 1000);
+						4: startResult := SdoAxis4.TryStartRead(sdoToken, 0x6061, 0, 1, 1000);
+					end_case;
+					if startResult = READY then
+						Ds402HomeState[112] := currentCycle$DINT;
+						Ds402HomeState[94] := 1;
+						Ds402HomeState[92] := 97;
+					elsif startResult = ERROR then
+						Ds402HomeState[92] := 98;
+					end_if;
+				end_if;
+			end_if;
+		97:
+			completionResult := -2;
+			case axisReference of
+				1:
+					if IsClientConnected(#SdoAxis1) then
+						completionResult := SdoAxis1.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				2:
+					if IsClientConnected(#SdoAxis2) then
+						completionResult := SdoAxis2.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				3:
+					if IsClientConnected(#SdoAxis3) then
+						completionResult := SdoAxis3.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+				4:
+					if IsClientConnected(#SdoAxis4) then
+						completionResult := SdoAxis4.CopyCompletion(
+							Ds402HomeState[99]$UDINT, #completion, sizeof(completion));
+					end_if;
+			end_case;
+			if completionResult = 0 then
+				Ds402HomeState[94] := 0;
+				if (completion.ValidationCode = 0) & (completion.OsResult = 0) &
+					(completion.AbortCode = 0) & (completion.ObjectIndex = 0x6061) &
+					(completion.IsWrite = 0) & (completion.ActualLength = 1) &
+					((completion.Data and 0xFF) = 8) then
+					Ds402HomeState[116] := 0;
+				end_if;
+				Ds402HomeState[92] := 98;
+			elsif (completionResult <> -2) & (completionResult <> -3) then
+				// Preserve the pending tuple and force incomplete quarantine.
+				Ds402HomeState[127] := 1;
+				Ds402HomeState[92] := 98;
+			end_if;
+		98:
+			if Ds402HomeState[117] = 0 then
+				Ds402HomeState[92] := 100;
+			else
+				Ds402HomeState[92] := 90;
+			end_if;
+		99:
+			Ds402HomeState[92] := 90;
+		100:
+			if preemptionCleanup then
+				// SAFE requires bit 4 low, CSP readback, RT release and an idle
+				// exact SDO executor. Every weaker outcome stays quarantined.
+				executorConnected := FALSE;
+				executorReusable := FALSE;
+				case axisReference of
+					1:
+						executorConnected := IsClientConnected(#SdoAxis1) <> 0;
+						if executorConnected then
+							executorReusable := SdoAxis1.IsReusable();
+						end_if;
+					2:
+						executorConnected := IsClientConnected(#SdoAxis2) <> 0;
+						if executorConnected then
+							executorReusable := SdoAxis2.IsReusable();
+						end_if;
+					3:
+						executorConnected := IsClientConnected(#SdoAxis3) <> 0;
+						if executorConnected then
+							executorReusable := SdoAxis3.IsReusable();
+						end_if;
+					4:
+						executorConnected := IsClientConnected(#SdoAxis4) <> 0;
+						if executorConnected then
+							executorReusable := SdoAxis4.IsReusable();
+						end_if;
+				end_case;
+				preemptionCleanupKind :=
+					LMC_DIAG_PREEMPT_CLEANUP_INCOMPLETE_QUARANTINE;
+				if (Ds402HomeState[117] = 0) &
+					(Ds402HomeState[94] = 0) &
+					(Ds402HomeState[113] = 0) &
+					(Ds402HomeState[116] = 0) &
+					(Ds402HomeState[127] = 0) &
+					executorConnected & executorReusable then
+					preemptionCleanupKind :=
+						LMC_DIAG_PREEMPT_CLEANUP_SAFE;
+				end_if;
+				ownerResult :=
+					AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+						ExpectedAxisMask:=axisMask,
+						PreemptedAdmissionToken:=admissionToken,
+						PreemptedOwnerGeneration:=ownerGeneration,
+						SafetyAdmissionToken:=safetyAdmissionToken,
+						SafetyOwnerGeneration:=safetyOwnerGeneration,
+						CleanupKind:=preemptionCleanupKind,
+						ReportValue0:=Ds402HomeState[107]$UDINT,
+						ReportValue1:=Ds402HomeState[108]$UDINT,
+						ObservationCycle:=currentCycle);
+				if (preemptionCleanupKind =
+					LMC_DIAG_PREEMPT_CLEANUP_SAFE) & (ownerResult = 0) then
+					if currentCycle <
+						Ds402HomeState[recordBase + 19]$UDINT then
+						currentCycle :=
+							Ds402HomeState[recordBase + 19]$UDINT;
+					end_if;
+					Ds402HomeState[recordBase + 14] := 1;
+					Ds402HomeState[recordBase + 15] :=
+						LMC_DIAG_ADMIN_ERROR_ID;
+					Ds402HomeState[recordBase + 16] := 31;
+					Ds402HomeState[recordBase + 20] := currentCycle$DINT;
+					Ds402HomeState[recordBase + 21] := 0;
+					Ds402HomeState[101] := 0;
+					Ds402HomeState[recordBase] := 4;
+					Ds402HomeState[92] := 0;
+				else
+					Ds402HomeState[92] := 101;
+				end_if;
+				RETURN;
+			elsif Ds402HomeState[117] <> 0 then
+				// Never publish a terminal record while RT ownership is uncertain.
+				Ds402HomeState[92] := 99;
+			elsif (Ds402HomeState[94] <> 0) |
+				(Ds402HomeState[113] <> 0) |
+				(Ds402HomeState[116] <> 0) |
+				(Ds402HomeState[127] <> 0) then
+				// A non-reusable executor or unverified CSP mode is quarantined.
+				Ds402HomeState[92] := 101;
+			else
+				ownerResult := -1;
+				if Ds402HomeState[126] = 0 then
+					if currentCycle <
+						Ds402HomeState[recordBase + 19]$UDINT then
+						currentCycle :=
+							Ds402HomeState[recordBase + 19]$UDINT;
+					end_if;
+					Ds402HomeState[106] := 3;
+					Ds402HomeState[recordBase + 14] := 1;
+					if Ds402HomeState[107] = 11 then
+						Ds402HomeState[recordBase + 15] := -6;
+					else
+						Ds402HomeState[recordBase + 15] :=
+							LMC_DIAG_ADMIN_ERROR_ID;
+					end_if;
+					Ds402HomeState[recordBase + 16] :=
+						Ds402HomeState[107];
+					Ds402HomeState[recordBase + 20] := currentCycle$DINT;
+					Ds402HomeState[recordBase + 21] :=
+						Ds402HomeState[108];
+					if IsClientConnected(#AxisOwnership) then
+						ownerResult :=
+							AxisOwnership.PublishAxisOwnershipDs402Receipt(
+								AxisMask:=axisMask,
+								AdmissionToken:=admissionToken,
+								OwnerGeneration:=ownerGeneration,
+								ReportKind:=
+									LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE,
+								ReportValue0:=Ds402HomeState[107]$UDINT,
+								ReportValue1:=Ds402HomeState[108]$UDINT,
+								ObservationCycle:=currentCycle,
+								pDs402State:=#Ds402HomeState[0],
+								Ds402StateSize:=sizeof(Ds402HomeState));
+					end_if;
+					if ownerResult = 0 then
+						Ds402HomeState[125] := 2;
+						ownerResult :=
+							AxisOwnership.PublishAxisOwnershipDs402Receipt(
+								AxisMask:=axisMask,
+								AdmissionToken:=admissionToken,
+								OwnerGeneration:=ownerGeneration,
+								ReportKind:=
+									LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE,
+								ReportValue0:=Ds402HomeState[107]$UDINT,
+								ReportValue1:=Ds402HomeState[108]$UDINT,
+								ObservationCycle:=currentCycle,
+								pDs402State:=#Ds402HomeState[0],
+								Ds402StateSize:=sizeof(Ds402HomeState));
+						if ownerResult = 1 then
+							Ds402HomeState[92] :=
+								LMC_DIAG_DS402_STAGE_FINALIZE;
+						elsif ownerResult <> 0 then
+							Ds402HomeState[92] := 101;
+						end_if;
+						RETURN;
+					elsif ownerResult = 1 then
+						Ds402HomeState[92] :=
+							LMC_DIAG_DS402_STAGE_FINALIZE;
+						RETURN;
+					else
+						Ds402HomeState[92] := 101;
+					end_if;
+				else
+					if IsClientConnected(#AxisOwnership) then
+						// Once an SDO dispatch was reported, a non-success path
+						// remains quarantined instead of claiming safe release.
+						ownerResult := AxisOwnership.PublishAxisOwnership(
+							AxisMask:=axisMask,
+							AdmissionToken:=admissionToken,
+							OwnerGeneration:=ownerGeneration,
+							ReportKind:=LMC_DIAG_OWNER_REPORT_QUARANTINE,
+							ReportValue0:=Ds402HomeState[107]$UDINT,
+							ReportValue1:=Ds402HomeState[108]$UDINT,
+							ObservationCycle:=currentCycle);
+					end_if;
+				end_if;
+				if Ds402HomeState[126] <> 0 then
+					Ds402HomeState[92] := 101;
+				end_if;
+			end_if;
+		101:
+			// Fail-closed quarantine. A PLC restart or a future explicit recovery
+			// command is required; generic D5 remains excluded while stage is nonzero.
+			RETURN;
+	end_case;
+
+END_FUNCTION
+
+
+FUNCTION LMCDiagnosticsService::HandleDiagnosticsCapabilities
+	VAR_INPUT
+		RequestSize 	: UDINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CurrentDiagnosticsBootId 	: UDINT;
+		DetailCode 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		localDetailCode : UDINT;
+	END_VAR
+
+	ResponseSize := -1;
+	if (pResponse = NIL) | (ResponseCapacity < 68) then
+		RETURN;
+	end_if;
+
+	localDetailCode := DetailCode;
+	if RequestSize <> 8 then
+		localDetailCode := 12;
+	end_if;
+	if localDetailCode <> 0 then
+		(pResponse + 4)^$UINT := 1;
+		(pResponse + 6)^$INT := LMC_DIAG_ERROR_ID;
+		(pResponse + 12)^$UDINT := localDetailCode;
+	end_if;
+	(pResponse + 16)^$UDINT := 1;
+	(pResponse + 20)^$UDINT := 0x00004007;
+	(pResponse + 24)^$UDINT := LMC_DIAG_MAP_REVISION;
+	(pResponse + 28)^$UINT := 24;
+	(pResponse + 30)^$UINT := 0;
+	(pResponse + 32)^$UINT := 0;
+	(pResponse + 34)^$UINT := 0;
+	(pResponse + 36)^$UDINT := 0;
+	(pResponse + 40)^$UDINT := 1000;
+	(pResponse + 44)^$UINT := 1320;
+	(pResponse + 46)^$UINT := 2040;
+	(pResponse + 48)^$UINT := 1280;
+	(pResponse + 50)^$UINT := 80;
+	(pResponse + 52)^$UINT := 16;
+	(pResponse + 54)^$UINT := 0;
+	(pResponse + 56)^$UDINT := 0;
+	(pResponse + 60)^$UINT := 0;
+	(pResponse + 62)^$UINT := 0;
+	(pResponse + 64)^$UDINT := CurrentDiagnosticsBootId;
+	if CurrentDiagnosticsBootId <> 0 then
+		(pResponse + 20)^$UDINT := 0x0000613F;
+		(pResponse + 30)^$UINT := 24;
+		(pResponse + 32)^$UINT := 24;
+		(pResponse + 34)^$UINT := 1;
+		(pResponse + 36)^$UDINT := 320000;
+		(pResponse + 56)^$UDINT := 1280000;
+		(pResponse + 60)^$UINT := 4;
+		if (LMC_DIAG_D5_SDO_WRITE_GLOBAL_ENABLED = TRUE) &
+			((LMC_DIAG_D5_SDO_WRITE_UI24_AXIS1_ENABLED = TRUE) |
+			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS2_ENABLED = TRUE) |
+			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS3_ENABLED = TRUE) |
+			 (LMC_DIAG_D5_SDO_WRITE_UI24_AXIS4_ENABLED = TRUE)) then
+			(pResponse + 20)^$UDINT :=
+				(pResponse + 20)^$UDINT OR 0x00000200;
+		end_if;
+		if LMC_DIAG_ENCODER_TW20_ENABLED = TRUE then
+			(pResponse + 20)^$UDINT :=
+				(pResponse + 20)^$UDINT OR 0x00040000;
+		end_if;
+		if LMC_DIAG_ENCODER_TW19_ENABLED = TRUE then
+			(pResponse + 20)^$UDINT :=
+				(pResponse + 20)^$UDINT OR 0x00080000;
+		end_if;
+	end_if;
+	ResponseSize := 68;
+
+END_FUNCTION
+
+
+
+
+FUNCTION LMCDiagnosticsService::HandleDiagnosticsBulkRequest
+	VAR_INPUT
+		CommandId 	: UINT;
+		pRequest 	: ^USINT;
+		RequestSize 	: UDINT;
+		pResponse 	: ^USINT;
+		ResponseCapacity 	: UDINT;
+		CallerSessionEpoch 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		ResponseSize 	: DINT;
+	END_VAR
+	VAR
+		physicalAxis, signalCode, catalogIndex, signalCount : UINT;
+		duplicateIndex, entryIndex : UINT;
+		expectedMapRevision, requestedBulkId, signalId : UDINT;
+		expectedRequestSize, requestBulkId, requestConfigRevision : UDINT;
+		healthOffset, valueOffset, entryOffset, entryDetailCode : UDINT;
+		detailCode : UDINT;
+		valueType, entryStatus : USINT;
+		copyResult : DINT;
+		snapshot : ARRAY [0..303] OF USINT;
+		hasInvalidEntry : BOOL;
+	END_VAR
+
+	ResponseSize := -1;
+	detailCode := 0;
+
+	case CommandId of
 		0x7E30:
 			if RequestSize < 20 then
 				detailCode := 12;
@@ -1987,171 +7450,6 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 				end_if;
 			end_if;
 
-		0x7E50:
-			if RequestSize < 32 then
-				detailCode := 12;
-			else
-				requestSdoWriteData := 0;
-				writePolicyDetail := 0;
-				expectedMapRevision := (pRequest + 8)^$UDINT;
-				requestSdoSlaveReference := (pRequest + 12)^$UINT;
-				sdoOperationFlags := (pRequest + 14)^$UINT;
-				requestSdoObjectIndex := (pRequest + 16)^$UINT;
-				requestSdoSubIndex := (pRequest + 18)^$USINT;
-				requestSdoValueType := (pRequest + 19)^$USINT;
-				requestSdoTimeoutCycles := (pRequest + 20)^$UDINT;
-				sdoDataLength := (pRequest + 24)^$UINT;
-				sdoReserved := (pRequest + 26)^$UINT;
-				sdoBootId := (pRequest + 28)^$UDINT;
-				expectedRequestSize := 32;
-				if sdoOperationFlags = 1 then
-					expectedRequestSize += TO_UDINT(sdoDataLength);
-				end_if;
-				if (sdoOperationFlags = 1) & (sdoDataLength = 4) &
-					(RequestSize = 36) then
-					requestSdoWriteData := (pRequest + 32)^$UDINT;
-					writePolicyDetail := GetSdoWritePolicyDetail(
-						requestSdoSlaveReference, requestSdoObjectIndex,
-						requestSdoSubIndex, requestSdoValueType, sdoDataLength,
-						requestSdoWriteData, FALSE, NIL, 0);
-				end_if;
-				if (sdoOperationFlags > 1) | (sdoReserved <> 0) |
-					(RequestSize <> expectedRequestSize) then
-					detailCode := 12;
-				elsif (sdoOperationFlags = 0) &
-					(LMC_DIAG_D5_SDO_READ_ENABLED = FALSE) then
-					detailCode := 2;
-				elsif ResponseCapacity < 32 then
-					detailCode := 20;
-				elsif (CallerSessionEpoch = 0) |
-					(requestSdoSlaveReference < 1) | (requestSdoSlaveReference > 4) |
-					(requestSdoTimeoutCycles < 1) | (requestSdoTimeoutCycles > 60000) then
-					detailCode := 12;
-				elsif expectedMapRevision <> LMC_DIAG_MAP_REVISION then
-					detailCode := 3;
-				elsif (sdoBootId = 0) | (sdoBootId <> currentBootId) then
-					detailCode := 25;
-				elsif (sdoOperationFlags = 0) & (sdoDataLength > 4) then
-					detailCode := 20;
-				elsif (sdoOperationFlags = 0) &
-					(sdoDataLength <> 1) & (sdoDataLength <> 2) &
-					(sdoDataLength <> 4) then
-					detailCode := 12;
-				elsif requestSdoObjectIndex = 0 then
-					detailCode := 12;
-				elsif (requestSdoValueType < 1) | (requestSdoValueType > 11) then
-					detailCode := 5;
-				elsif (sdoOperationFlags = 1) &
-					((requestSdoValueType <> 4) | (sdoDataLength <> 4)) then
-					detailCode := 5;
-				elsif (sdoOperationFlags = 1) & (writePolicyDetail <> 0) then
-					detailCode := writePolicyDetail;
-				elsif (sdoOperationFlags = 0) &
-					((((requestSdoValueType = 1) | (requestSdoValueType = 9) |
-					  (requestSdoValueType = 10) | (requestSdoValueType = 11)) &
-					 (sdoDataLength <> 1)) |
-					(((requestSdoValueType = 2) | (requestSdoValueType = 3) |
-					  (requestSdoValueType = 7)) & (sdoDataLength <> 2)) |
-					(((requestSdoValueType = 4) | (requestSdoValueType = 5) |
-					  (requestSdoValueType = 6) | (requestSdoValueType = 8)) &
-					 (sdoDataLength <> 4))) then
-					detailCode := 5;
-				elsif ((OperationState = LMC_DIAG_SDO_STATE_QUEUED) |
-					(OperationState = LMC_DIAG_SDO_STATE_RUNNING) |
-					(SdoInternalDrainState <> 0)) then
-					detailCode := 9;
-				elsif IsClientConnected(#InputLatch) = FALSE then
-					detailCode := 11;
-				else
-					copyResult := InputLatch.CopySnapshot(
-						pDest:=#snapshot[0], DestSize:=sizeof(snapshot));
-					if copyResult <> 0 then
-						detailCode := 11;
-					else
-						currentCycle := snapshot[0]$UDINT;
-						executorConnected := FALSE;
-						executorReusable := FALSE;
-						case requestSdoSlaveReference of
-							1:
-								executorConnected := IsClientConnected(#SdoAxis1) <> 0;
-								if executorConnected then
-									executorReusable := SdoAxis1.IsReusable();
-								end_if;
-							2:
-								executorConnected := IsClientConnected(#SdoAxis2) <> 0;
-								if executorConnected then
-									executorReusable := SdoAxis2.IsReusable();
-								end_if;
-							3:
-								executorConnected := IsClientConnected(#SdoAxis3) <> 0;
-								if executorConnected then
-									executorReusable := SdoAxis3.IsReusable();
-								end_if;
-							4:
-								executorConnected := IsClientConnected(#SdoAxis4) <> 0;
-								if executorConnected then
-									executorReusable := SdoAxis4.IsReusable();
-								end_if;
-						end_case;
-
-						if executorConnected = FALSE then
-							detailCode := 11;
-						elsif executorReusable = FALSE then
-							detailCode := 24;
-						elsif (NextTicketId = 0xFFFFFFFF) |
-							(NextOperationToken = 0xFFFFFFFF) then
-							detailCode := 24;
-						else
-							NextTicketId += 1;
-							NextOperationToken += 1;
-							if (NextTicketId = 0) | (NextOperationToken = 0) then
-								detailCode := 24;
-							else
-								TicketId := NextTicketId;
-								OwnerSessionEpoch := CallerSessionEpoch;
-								TicketBootId := currentBootId;
-								TicketMapRevision := expectedMapRevision;
-								OperationToken := NextOperationToken;
-								OperationKind := 2;
-								if sdoOperationFlags = 1 then
-									OperationKind := 3;
-								end_if;
-								OperationState := LMC_DIAG_SDO_STATE_QUEUED;
-								OperationOutcome := 0;
-								SdoSlaveReference := requestSdoSlaveReference;
-								SdoObjectIndex := requestSdoObjectIndex;
-								SdoSubIndex := requestSdoSubIndex;
-								SdoValueType := requestSdoValueType;
-								SdoRequestedLength := sdoDataLength;
-								SdoTimeoutCycles := requestSdoTimeoutCycles;
-								SdoSubmitCycle := currentCycle;
-								SdoCompletionCycle := 0;
-								SdoLastProcessedCycle := currentCycle - 1;
-								SdoOperationErrorId := 0;
-								SdoOperationDetail := 0;
-								SdoResultLength := 0;
-								SdoResultData := 0;
-								SdoWriteData := requestSdoWriteData;
-								SdoInternalDrainState := 0;
-								(pResponse + 16)^$UDINT := TicketId;
-								(pResponse + 20)^$UINT := OperationKind;
-								(pResponse + 22)^$UINT := OperationState;
-								(pResponse + 24)^$UDINT := SdoSubmitCycle;
-								(pResponse + 28)^$UDINT := TicketBootId;
-								ResponseSize := 32;
-							end_if;
-						end_if;
-					end_if;
-				end_if;
-			end_if;
-
-		0x7E51:
-			if RequestSize <> 28 then
-				detailCode := 12;
-			else
-				detailCode := 2;
-			end_if;
-
 		else
 			detailCode := 2;
 	end_case;
@@ -2168,50 +7466,68 @@ FUNCTION GLOBAL LMCDiagnosticsService::HandleRequest
 END_FUNCTION
 
 
-FUNCTION LMCDiagnosticsService::LMCDiagnosticsService
-	VAR_OUTPUT
-		ret_code 	: ConfStates;
+FUNCTION LMCDiagnosticsService::ProcessAxisOwnershipStartup
+	VAR
+		startupSnapshot : ARRAY [0..11] OF UDINT;
+		copyResult : DINT;
+		reconcileResult : DINT;
+		currentBootId : UDINT;
+		reportCycle : UDINT;
+		drainFlags : UDINT;
+		executorsReusable : BOOL;
 	END_VAR
 
-	NextBulkId := 0;
-	NextBulkConfigRevision := 0;
-	BulkId := 0;
-	BulkConfigRevision := 0;
-	BulkOwnerSessionEpoch := 0;
-	BulkConfiguredCycle := 0;
-	BulkActivationCycle := 0;
-	BulkState := 0;
-	BulkSignalCount := 0;
-	NextTicketId := 0;
-	NextOperationToken := 0;
-	TicketId := 0;
-	OwnerSessionEpoch := 0;
-	TicketBootId := 0;
-	TicketMapRevision := 0;
-	OperationToken := 0;
-	OperationKind := 0;
-	OperationState := 0;
-	OperationOutcome := 0;
-	SdoSlaveReference := 0;
-	SdoObjectIndex := 0;
-	SdoSubIndex := 0;
-	SdoValueType := 0;
-	SdoRequestedLength := 0;
-	SdoTimeoutCycles := 0;
-	SdoSubmitCycle := 0;
-	SdoCompletionCycle := 0;
-	SdoLastProcessedCycle := 0;
-	SdoOperationErrorId := 0;
-	SdoOperationDetail := 0;
-	SdoResultLength := 0;
-	SdoResultData := 0;
-	SdoWriteData := 0;
-	SdoInternalDrainState := 0;
-	DiagnosticsBootId := 0;
-	BootIdInitialized := FALSE;
-	BootIdFault := FALSE;
-	_memset(dest:=#BulkSignalIds[0], usByte:=0,
-		cntr:=sizeof(BulkSignalIds));
-	ret_code := C_OK;
+	if (IsClientConnected(#InputLatch) = FALSE) |
+		(IsClientConnected(#AxisOwnership) = FALSE) then
+		RETURN;
+	end_if;
+	copyResult := InputLatch.CopyAxisOwnershipStartupSnapshot(
+		pDest:=#startupSnapshot[0], DestSize:=48);
+	if copyResult <> 0 then
+		RETURN;
+	end_if;
+	if (startupSnapshot[0] <> LMC_OWNER_STARTUP_SNAPSHOT_MAGIC) |
+		(startupSnapshot[1] = 0) | (startupSnapshot[11] <> 0) then
+		RETURN;
+	end_if;
+
+	drainFlags := LMC_OWNER_STARTUP_DIAG_SNAPSHOT;
+	if Ds402HomeState[92] = 0 then
+		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_DS402;
+	end_if;
+	if EncoderMaintenanceState[152] = 0 then
+		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_ENCODER;
+	end_if;
+	if (OperationState <> LMC_DIAG_SDO_STATE_QUEUED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_RUNNING) &
+		(SdoInternalDrainState = 0) then
+		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_GENERIC;
+	end_if;
+
+	executorsReusable := (IsClientConnected(#SdoAxis1) <> 0) &
+		(IsClientConnected(#SdoAxis2) <> 0) &
+		(IsClientConnected(#SdoAxis3) <> 0) &
+		(IsClientConnected(#SdoAxis4) <> 0);
+	if executorsReusable then
+		executorsReusable := SdoAxis1.IsReusable() & SdoAxis2.IsReusable() &
+			SdoAxis3.IsReusable() & SdoAxis4.IsReusable();
+	end_if;
+	if executorsReusable then
+		drainFlags := drainFlags or LMC_OWNER_STARTUP_DIAG_EXECUTOR;
+	end_if;
+
+	currentBootId := GetDiagnosticsBootId();
+	if currentBootId = 0 then
+		RETURN;
+	end_if;
+	reportCycle := ops.tAbsolute;
+	if reportCycle = 0 then
+		reportCycle := 1;
+	end_if;
+	reconcileResult := AxisOwnership.ReconcileAxisOwnershipStartup(
+		DiagnosticsBootId:=currentBootId,
+		ObservationCycle:=startupSnapshot[1],
+		ReportCycle:=reportCycle,
+		DiagnosticsDrainFlags:=drainFlags);
 
 END_FUNCTION

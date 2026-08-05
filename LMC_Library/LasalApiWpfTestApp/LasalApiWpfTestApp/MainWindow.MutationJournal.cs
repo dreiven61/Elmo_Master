@@ -789,14 +789,15 @@ namespace LasalMotionControlApiExample
                 ? d5SdoPendingWriteReadback
                 : null;
             var confirmation = MessageBox.Show(
-                (staleSdoRecovery
+                TranslateUiText(staleSdoRecovery
                     ? "The exact SDO readback cannot run in the current connection session. Confirm that the SDO target and PLC state were checked independently."
                     : "Confirm that the physical target and PLC state were checked independently.")
                     + Environment.NewLine
                     + FormatDiagnosticsMutationRecord(record)
                     + Environment.NewLine
-                    + "This writes a durable Resolved tombstone. It does not replay the command or prove the previous outcome.",
-                "Acknowledge Recovered Mutation",
+                    + TranslateUiText(
+                        "This writes a durable Resolved tombstone. It does not replay the command or prove the previous outcome."),
+                TranslateUiText("Acknowledge Recovered Mutation"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
                 MessageBoxResult.No);
@@ -879,10 +880,11 @@ namespace LasalMotionControlApiExample
                     "Recovered durable mutation acknowledgement failed: "
                     + error.Message);
                 MessageBox.Show(
-                    "The durable Resolved tombstone could not be written. The interlock remains active."
+                    TranslateUiText(
+                        "The durable Resolved tombstone could not be written. The interlock remains active.")
                         + Environment.NewLine
                         + error.Message,
-                    "Mutation Recovery Failed",
+                    TranslateUiText("Mutation Recovery Failed"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 UpdateUiState();
@@ -1220,47 +1222,75 @@ namespace LasalMotionControlApiExample
         {
             try
             {
-                DisposeGroupPowerRecoveryJournal();
+                DisposeMaintenanceActionRecoveryJournal();
             }
             finally
             {
                 try
                 {
-                    DisposeAxisCommandRecoveryJournal();
+                    DisposeAxisQualificationRecoveryJournal();
                 }
                 finally
                 {
                     try
                     {
-                        DisposeAxisPowerOnRecoveryJournal();
+                        DisposeGroupResetRecoveryJournal();
                     }
                     finally
                     {
                         try
                         {
-                            DisposeMotionUncertaintyJournal();
+                            DisposeRecoveryRecordRetirementLedger();
                         }
                         finally
                         {
                             try
                             {
-                                DisposeGroupProfileLockRecoveryJournal();
+                                DisposeGroupPowerRecoveryJournal();
                             }
                             finally
                             {
                                 try
                                 {
-                                    DisposeRecorderDoubleRecoveryJournal();
+                                    DisposeAxisCommandRecoveryJournal();
                                 }
                                 finally
                                 {
                                     try
                                     {
-                                        DisposeDiagnosticsMutationJournal();
+                                        DisposeAxisPowerOnRecoveryJournal();
                                     }
                                     finally
                                     {
-                                        base.OnClosed(e);
+                                        try
+                                        {
+                                            DisposeMotionUncertaintyJournal();
+                                        }
+                                        finally
+                                        {
+                                            try
+                                            {
+                                                DisposeGroupProfileLockRecoveryJournal();
+                                            }
+                                            finally
+                                            {
+                                                try
+                                                {
+                                                    DisposeRecorderDoubleRecoveryJournal();
+                                                }
+                                                finally
+                                                {
+                                                    try
+                                                    {
+                                                        DisposeDiagnosticsMutationJournal();
+                                                    }
+                                                    finally
+                                                    {
+                                                        base.OnClosed(e);
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

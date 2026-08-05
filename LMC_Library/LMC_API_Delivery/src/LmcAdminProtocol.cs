@@ -3,7 +3,7 @@ using System.IO;
 
 namespace LasalMotionControlLib
 {
-    internal static class LMC_AdminFrame
+    internal static partial class LMC_AdminFrame
     {
         internal const ushort SchemaVersion = 1;
         internal const int CommonRequestPayloadLength = 8;
@@ -140,7 +140,7 @@ namespace LasalMotionControlLib
             {
                 throw new ArgumentOutOfRangeException(
                     "axisReference",
-                    "Phase 1 admin reads support physical AxisReference 1 through 4 only.");
+                    "LASAL-local admin commands support physical AxisReference 1 through 4 only.");
             }
         }
 
@@ -211,7 +211,7 @@ namespace LasalMotionControlLib
         }
     }
 
-    internal static class LMC_AdminParser
+    internal static partial class LMC_AdminParser
     {
         internal const int CommonResponsePayloadLength = 16;
         internal const int CapabilitiesPayloadLength = 40;
@@ -263,7 +263,11 @@ namespace LasalMotionControlLib
             const LMCAdminFeature knownFeatures =
                 LMCAdminFeature.AxisParameterRead
                 | LMCAdminFeature.GroupParameterRead
-                | LMCAdminFeature.GroupLinearRelative;
+                | LMCAdminFeature.GroupLinearRelative
+                | LMCAdminFeature.AxisSetPosition
+                | LMCAdminFeature.AxisHome
+                | LMCAdminFeature.AxisSetPositionOutcomeRead
+                | LMCAdminFeature.AxisDs402Home;
             const uint knownAxisMask = 0x0000003Fu;
 
             if ((features & ~knownFeatures) != 0
@@ -285,6 +289,25 @@ namespace LasalMotionControlLib
                         || maxGroupParameterCount == 0))
                 || ((features & LMCAdminFeature.GroupLinearRelative) != 0
                     && groupReference != 0x0100)
+                || ((features & LMCAdminFeature.AxisSetPosition) != 0
+                    && ((features
+                            & LMCAdminFeature.AxisSetPositionOutcomeRead) == 0
+                        || physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 2))
+                || ((features & LMCAdminFeature.AxisHome) != 0
+                    && (physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 5))
+                || ((features
+                        & LMCAdminFeature.AxisSetPositionOutcomeRead) != 0
+                    && (physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 2))
+                || ((features & LMCAdminFeature.AxisDs402Home) != 0
+                    && (physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 4))
                 || errorCatalogVersion == 0)
             {
                 throw new InvalidDataException(
@@ -453,6 +476,7 @@ namespace LasalMotionControlLib
             return ParseCommonResponse(
                 transport,
                 expectedRequestId,
+                false,
                 false);
         }
 
@@ -460,6 +484,93 @@ namespace LasalMotionControlLib
             LMC_Response transport,
             uint expectedRequestId,
             bool allowMotionFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                allowSetPositionFailureDetails,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                allowSetPositionFailureDetails,
+                allowSetPositionOutcomeFailureDetails,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails,
+            bool allowDs402HomeOutcomeFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                allowSetPositionFailureDetails,
+                allowSetPositionOutcomeFailureDetails,
+                allowDs402HomeOutcomeFailureDetails,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails,
+            bool allowDs402HomeOutcomeFailureDetails,
+            bool allowDs402HomeStartFailureDetails)
+        {
+            return ParseCommonResponse(
+                transport,
+                expectedRequestId,
+                allowMotionFailureDetails,
+                allowSetPositionFailureDetails,
+                allowSetPositionOutcomeFailureDetails,
+                allowDs402HomeOutcomeFailureDetails,
+                allowDs402HomeStartFailureDetails,
+                false,
+                false);
+        }
+
+        private static LMCAdminResponse ParseCommonResponse(
+            LMC_Response transport,
+            uint expectedRequestId,
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails,
+            bool allowDs402HomeOutcomeFailureDetails,
+            bool allowDs402HomeStartFailureDetails,
+            bool allowLmcHomeOutcomeFailureDetails,
+            bool allowLmcHomeStartFailureDetails)
         {
             if (transport.Payload.Length < CommonResponsePayloadLength)
             {
@@ -490,7 +601,13 @@ namespace LasalMotionControlLib
                     && !IsValidCommandFailure(
                         errorId,
                         detailCode,
-                        allowMotionFailureDetails)))
+                        allowMotionFailureDetails,
+                        allowSetPositionFailureDetails,
+                        allowSetPositionOutcomeFailureDetails,
+                        allowDs402HomeOutcomeFailureDetails,
+                        allowDs402HomeStartFailureDetails,
+                        allowLmcHomeOutcomeFailureDetails,
+                        allowLmcHomeStartFailureDetails)))
             {
                 throw new InvalidDataException(
                     "Admin response contains an invalid status/error/detail combination.");
@@ -509,7 +626,13 @@ namespace LasalMotionControlLib
         private static bool IsValidCommandFailure(
             short errorId,
             uint detailCode,
-            bool allowMotionFailureDetails)
+            bool allowMotionFailureDetails,
+            bool allowSetPositionFailureDetails,
+            bool allowSetPositionOutcomeFailureDetails,
+            bool allowDs402HomeOutcomeFailureDetails,
+            bool allowDs402HomeStartFailureDetails,
+            bool allowLmcHomeOutcomeFailureDetails,
+            bool allowLmcHomeStartFailureDetails)
         {
             if (detailCode >= (uint)LMCAdminDetailCode.UnsupportedSchema
                 && detailCode <= (uint)LMCAdminDetailCode.InvalidSelection)
@@ -517,18 +640,126 @@ namespace LasalMotionControlLib
                 return errorId == AdminErrorId;
             }
 
-            if (!allowMotionFailureDetails)
-            {
-                return false;
-            }
-
-            if (detailCode == (uint)LMCAdminDetailCode.InvalidMotionParameters
-                || detailCode == (uint)LMCAdminDetailCode.InvalidState)
+            if (allowMotionFailureDetails
+                && (detailCode
+                        == (uint)LMCAdminDetailCode
+                            .InvalidMotionParameters
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.InvalidState))
             {
                 return errorId == AdminErrorId;
             }
 
-            if (detailCode == (uint)LMCAdminDetailCode.NativeCommandRejected)
+            if (allowSetPositionFailureDetails
+                && (detailCode == (uint)LMCAdminDetailCode.NonZeroVelocity
+                || detailCode == (uint)LMCAdminDetailCode.ActiveAxisError
+                || detailCode == (uint)LMCAdminDetailCode
+                    .InvalidSetPositionSafetyConfiguration
+                || detailCode == (uint)LMCAdminDetailCode
+                    .CoordinatePreconditionFailed))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowSetPositionFailureDetails
+                && ((detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || (detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .SetPositionOutcomeSlotOccupied
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode
+                                .SetPositionOutcomeStorageUnavailable)))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowSetPositionOutcomeFailureDetails
+                && detailCode
+                    >= (uint)LMCAdminDetailCode.DiagnosticsBuildMismatch
+                && detailCode
+                    <= (uint)LMCAdminDetailCode
+                        .SetPositionOutcomeStorageUnavailable)
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowDs402HomeOutcomeFailureDetails
+                && ((detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || (detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .Ds402HomeOutcomeNotFound
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode
+                                .Ds402HomeOutcomeStorageUnavailable)))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowDs402HomeStartFailureDetails
+                && (detailCode
+                        == (uint)LMCAdminDetailCode
+                            .Ds402HomeOutcomeSlotOccupied
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.AxisOwnershipConflict
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .AxisOwnershipQuarantined))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowLmcHomeOutcomeFailureDetails
+                && ((detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || (detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .LmcHomeOutcomeNotFound
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode
+                                .LmcHomeOutcomeStorageUnavailable)))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if (allowLmcHomeStartFailureDetails
+                && (detailCode == (uint)LMCAdminDetailCode.InvalidState
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.ActiveAxisError
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .CoordinatePreconditionFailed
+                    || (detailCode
+                            >= (uint)LMCAdminDetailCode
+                                .DiagnosticsBuildMismatch
+                        && detailCode
+                            <= (uint)LMCAdminDetailCode.MapRevisionMismatch)
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .LmcHomeOutcomeSlotOccupied
+                    || detailCode
+                        == (uint)LMCAdminDetailCode.AxisOwnershipConflict
+                    || detailCode
+                        == (uint)LMCAdminDetailCode
+                            .AxisOwnershipQuarantined))
+            {
+                return errorId == AdminErrorId;
+            }
+
+            if ((allowMotionFailureDetails
+                    || allowSetPositionFailureDetails)
+                && detailCode
+                    == (uint)LMCAdminDetailCode.NativeCommandRejected)
             {
                 return errorId > 0 || errorId == -6;
             }

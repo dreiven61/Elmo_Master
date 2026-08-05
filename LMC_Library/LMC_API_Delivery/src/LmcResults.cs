@@ -222,15 +222,32 @@ namespace LasalMotionControlLib
             get { return LMC_ResultSemantics.HasCommandError(FunctionStatus); }
         }
 
-        public bool IsSuccess
+        /// <summary>
+        /// True when the GroupReadStatus RPC and LASAL function call succeeded.
+        /// A native group error can still be present and is reported separately
+        /// through HasGroupError and GroupErrorId.
+        /// </summary>
+        public bool IsReadSuccessful
         {
             get
             {
                 return LMC_ResultSemantics.IsFunctionResultSuccess(
-                        Response,
-                        FunctionStatus,
-                        ErrorId)
-                    && GroupErrorId == 0;
+                    Response,
+                    FunctionStatus,
+                    ErrorId);
+            }
+        }
+
+        public bool HasGroupError
+        {
+            get { return GroupErrorId != 0; }
+        }
+
+        public bool IsSuccess
+        {
+            get
+            {
+                return IsReadSuccessful && !HasGroupError;
             }
         }
     }

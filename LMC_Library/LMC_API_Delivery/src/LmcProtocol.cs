@@ -78,15 +78,25 @@ namespace LasalMotionControlLib
     public sealed class LMCCallbackEventArgs : EventArgs
     {
         private readonly byte[] payload;
+        private readonly LMCConnection ownerConnection;
+        private readonly long connectionLifetimeGeneration;
+        private readonly long sessionGeneration;
 
         internal LMCCallbackEventArgs(
             byte[] payload,
             IPEndPoint remoteEndPoint,
-            DateTime receivedAtUtc)
+            DateTime receivedAtUtc,
+            LMCConnection ownerConnection,
+            long connectionLifetimeGeneration,
+            long sessionGeneration)
         {
             this.payload = payload == null
                 ? new byte[0]
                 : (byte[])payload.Clone();
+            this.ownerConnection = ownerConnection;
+            this.connectionLifetimeGeneration =
+                connectionLifetimeGeneration;
+            this.sessionGeneration = sessionGeneration;
             RemoteEndPoint = remoteEndPoint;
             ReceivedAtUtc = receivedAtUtc;
         }
@@ -98,6 +108,25 @@ namespace LasalMotionControlLib
 
         public IPEndPoint RemoteEndPoint { get; private set; }
         public DateTime ReceivedAtUtc { get; private set; }
+
+        public long SessionGeneration
+        {
+            get { return sessionGeneration; }
+        }
+
+        public bool BelongsTo(LMCConnection connection)
+        {
+            return connection != null
+                && ReferenceEquals(ownerConnection, connection);
+        }
+
+        public bool BelongsToCurrentSession(LMCConnection connection)
+        {
+            return BelongsTo(connection)
+                && connection.IsCurrentCallbackSession(
+                    connectionLifetimeGeneration,
+                    sessionGeneration);
+        }
     }
 
     public sealed class LMCCallbackErrorEventArgs : EventArgs
@@ -145,6 +174,14 @@ namespace LasalMotionControlLib
 
         internal const ushort GetAdminCapabilities = 0x7D00;
         internal const ushort ReadAxisParameter = 0x7D10;
+        internal const ushort SetAxisPosition = 0x7D12;
+        internal const ushort StartAxisHome = 0x7D13;
+        internal const ushort ReadAxisSetPositionOutcome = 0x7D14;
+        internal const ushort StartAxisDs402Home = 0x7D15;
+        internal const ushort ReadAxisDs402HomeOutcome = 0x7D16;
+        internal const ushort RetireAxisDs402HomeOutcome = 0x7D17;
+        internal const ushort ReadAxisHomeOutcome = 0x7D18;
+        internal const ushort RetireAxisHomeOutcome = 0x7D19;
         internal const ushort ReadGroupParameters = 0x7D20;
         internal const ushort GroupMoveLinearRelative = 0x7D22;
 
@@ -181,6 +218,9 @@ namespace LasalMotionControlLib
         internal const ushort ReadRecoverableRecorderBankInventory = 0x7E4D;
         internal const ushort SubmitSdo = 0x7E50;
         internal const ushort ReadSdoResultChunk = 0x7E51;
+        internal const ushort StartEncoderMaintenance = 0x7E53;
+        internal const ushort ReadEncoderMaintenanceOutcome = 0x7E54;
+        internal const ushort RetireEncoderMaintenanceOutcome = 0x7E55;
     }
 
     internal static class LMC_Frame

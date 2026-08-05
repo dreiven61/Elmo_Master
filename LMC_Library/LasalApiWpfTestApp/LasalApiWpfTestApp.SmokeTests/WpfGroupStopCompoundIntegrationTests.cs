@@ -410,6 +410,10 @@ namespace LasalApiWpfTestApp.SmokeTests
             var steps = CreateConnectAndTopologySteps(
                 LMCDiagnosticCapability.EtherCATTopology);
             steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(CapabilitiesStep(
+                11,
+                LMCDiagnosticCapability.EtherCATTopology));
+            steps.Add(GroupResetMembersStep());
             var delayedReset = CreateGroupResetStep();
             delayedReset.ResponseDelayMilliseconds = 400;
             steps.Add(delayedReset);
@@ -500,6 +504,16 @@ namespace LasalApiWpfTestApp.SmokeTests
                         CountRequestCommand(
                             server.ReceivedRequests,
                             0x2045));
+                    AssertEx.False(
+                        (bool)GetPrivateField(
+                            window,
+                            "groupResetVerificationPending"),
+                        "A terminal/superseded Reset continuation left the WPF status-only interlock pending.");
+                    AssertEx.False(
+                        (bool)InvokePrivate(
+                            window,
+                            "HasUnresolvedGroupResetState"),
+                        "A later accepted Group Stop must retire local Reset completion attribution without replay.");
 
                     CloseConnectedWindow(window);
                     window = null;

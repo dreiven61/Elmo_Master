@@ -38,16 +38,28 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="UiLocalizationTests.cs" />
+    <Compile Include="ApplicationInstanceLeaseTests.cs" />
+    <Compile Include="RecoveryRecordRetirementTests.cs" />
     <Compile Include="GroupProfileLockRecoveryJournalTests.cs" />
     <Compile Include="AxisPowerOnRecoveryJournalTests.cs" />
+    <Compile Include="AxisSetPositionRecoveryJournalTests.cs" />
+    <Compile Include="MaintenanceActionRecoveryJournalTests.cs" />
     <Compile Include="AxisCommandRecoveryJournalTests.cs" />
+    <Compile Include="AxisQualificationRecoveryJournalTests.cs" />
     <Compile Include="GroupPowerRecoveryJournalTests.cs" />
+    <Compile Include="GroupResetRecoveryJournalTests.cs" />
     <Compile Include="MotionUncertaintyJournalTests.cs" />
+    <Compile Include="SdoWriteActivationQualificationProofTests.cs" />
     <Compile Include="WpfMotionRecoveryIntegrationTests.cs" />
     <Compile Include="WpfAxisPowerOnRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfRecoveryRecordRetirementIntegrationTests.cs" />
     <Compile Include="WpfAxisCommandRecoveryIntegrationTests.cs" />
+    <Compile Include="WpfAxisQualificationIntegrationTests.cs" />
+    <Compile Include="WpfMaintenanceActionIntegrationTests.cs" />
     <Compile Include="WpfGroupEnableWaitIntegrationTests.cs" />
     <Compile Include="WpfGroupStopCompoundIntegrationTests.cs" />
+    <Compile Include="WpfGroupResetRecoveryIntegrationTests.cs" />
     <Compile Include="WpfMainWindowIntegrationTests.cs" />
     <Compile Include="WpfRecorderManualDoubleAdapterIntegrationTests.cs" />
     <Compile Include="WpfConfiguredTopologyEvidenceTests.cs" />

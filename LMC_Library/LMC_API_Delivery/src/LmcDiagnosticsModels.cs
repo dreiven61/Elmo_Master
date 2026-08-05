@@ -23,7 +23,9 @@ namespace LasalMotionControlLib
         EtherCATTopology = 1u << 14,
         EtherCATNodeHealth = 1u << 15,
         DigitalIORead = 1u << 16,
-        DigitalIOWrite = 1u << 17
+        DigitalIOWrite = 1u << 17,
+        EncoderTw20ErrorWarningReset = 1u << 18,
+        EncoderTw19MultiturnPositionReset = 1u << 19
     }
 
     [Flags]
@@ -68,7 +70,17 @@ namespace LasalMotionControlLib
         OutputRevisionMismatch = 29,
         OutputMaskInvalid = 30,
         RTOwnerUnavailable = 31,
-        RecorderConfigurationAbsent = 32
+        RecorderConfigurationAbsent = 32,
+        EncoderMaintenanceCompatibilityMismatch = 33,
+        EncoderMaintenanceOutcomeNotFound = 34,
+        EncoderMaintenanceOutcomeIndeterminate = 35,
+        EncoderMaintenanceOutcomeStoreCorrupt = 36,
+        EncoderMaintenanceOutcomeKeyMismatch = 37,
+        EncoderMaintenanceOutcomeStorageUnavailable = 38,
+        EncoderMaintenanceExecutionFailed = 39,
+        EncoderMaintenanceAborted = 40,
+        EncoderMaintenanceOutcomeSlotOccupied = 41,
+        EncoderMaintenanceSemanticVerificationFailed = 42
     }
 
     public sealed class LMCDiagnosticsResponse

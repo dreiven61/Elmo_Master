@@ -52,10 +52,10 @@ namespace LasalMotionControlLib
     /// </summary>
     public static class LMCErrorCatalog
     {
-        public const uint CurrentCatalogVersion = 1;
+        public const uint CurrentCatalogVersion = 2;
 
         public const string AdapterSourceVersion =
-            "Elmo_Master TCPMotionInterface local errors v1";
+            "Elmo_Master TCPMotionInterface local errors v2";
 
         public const string DiagnosticsSourceVersion =
             "Elmo_Master diagnostics schema v1";
@@ -177,6 +177,14 @@ namespace LasalMotionControlLib
                 "The request queue or transport framing contract was violated.",
                 "Reconnect if the session faulted, then retry with one exact framed request.",
                 AdapterSourceVersion);
+            Add(
+                entries,
+                LMCErrorDomain.AdapterCommand,
+                -9,
+                "AxisOwnershipConflict",
+                "The requested axes are reserved by another active or retained operation.",
+                "Read the current operation outcome, wait for its ownership to retire, then retry once.",
+                AdapterSourceVersion);
 
             return entries;
         }
@@ -214,14 +222,107 @@ namespace LasalMotionControlLib
                 "The group parameter selection is empty or contains unsupported bits.",
                 "Use a nonzero subset of the advertised group parameter selection mask.");
             AddAdmin(entries, LMCAdminDetailCode.InvalidMotionParameters,
-                "The LASAL-local motion request contains an unsupported or out-of-range parameter.",
-                "Use the documented distance topology, positive dynamics, and supported motion options.");
+                "The LASAL-local motion request contains an unsupported parameter, range, or execution guard.",
+                "Use the command's documented payload, execute confirmation, dynamics, topology, and supported options.");
             AddAdmin(entries, LMCAdminDetailCode.InvalidState,
-                "The LASAL group is not ready to accept the requested motion.",
-                "Verify client wiring, kinematic readiness, power, profile ownership, and lock state.");
+                "The LASAL motion target is not ready to accept the requested command.",
+                "Verify the advertised capability and the applicable axis or group wiring, power, readiness, and ownership state.");
             AddAdmin(entries, LMCAdminDetailCode.NativeCommandRejected,
-                "The native LASAL group profile command rejected the request.",
-                "Interpret a positive ErrorId in the GroupProfile domain; -6 is the adapter fallback when the native code cannot be preserved.");
+                "The native LASAL motion command rejected the request.",
+                "For group motion, interpret a positive ErrorId in the GroupProfile domain. SetAxisPosition uses ErrorId -6 and preserves the full axis command bitfield in NativeCommandState.");
+            AddAdmin(entries, LMCAdminDetailCode.NonZeroVelocity,
+                "The axis velocity is not zero, so its application coordinate cannot be reassigned safely.",
+                "Stop the axis and verify zero velocity before preparing a new SetAxisPosition intent.");
+            AddAdmin(entries, LMCAdminDetailCode.ActiveAxisError,
+                "The axis has an active error that blocks application-coordinate reassignment.",
+                "Read and clear the axis error, then verify the axis state before preparing a new intent.");
+            AddAdmin(entries, LMCAdminDetailCode.InvalidSetPositionSafetyConfiguration,
+                "The PLC SetAxisPosition safety configuration is invalid or not enabled.",
+                "Correct the PLC-side safety configuration; do not bypass this admission failure in the SDK.");
+            AddAdmin(entries, LMCAdminDetailCode.CoordinatePreconditionFailed,
+                "The current actual position does not match the expected value, or the requested correction exceeds the approved jump limit.",
+                "Read the current position, verify the approved SetPositionMaxJump policy, and prepare a new one-shot intent without bypassing either check.");
+            AddAdmin(entries, LMCAdminDetailCode.DiagnosticsBuildMismatch,
+                "The SetAxisPosition diagnostics build identity does not match the current PLC.",
+                "Do not replay the mutation; obtain fresh capabilities and resolve only through an exact retained outcome query.");
+            AddAdmin(entries, LMCAdminDetailCode.BootIdMismatch,
+                "The SetAxisPosition diagnostics BootId does not match the current PLC boot.",
+                "Treat the old outcome as unresolved and follow the durable recovery policy without inferring from current position.");
+            AddAdmin(entries, LMCAdminDetailCode.MapRevisionMismatch,
+                "The SetAxisPosition map revision does not match the current PLC diagnostics map.",
+                "Obtain fresh capabilities and do not reuse the stale mutation identity.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeNotFound,
+                "No exact retained SetAxisPosition terminal record was found.",
+                "Keep the durable recovery record unresolved; absence is not proof that the mutation was not dispatched.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeIndeterminate,
+                "The retained SetAxisPosition record is armed or indeterminate rather than terminal.",
+                "Keep the durable recovery record unresolved and do not replay the mutation.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeStoreCorrupt,
+                "The retained SetAxisPosition outcome store failed its integrity checks.",
+                "Keep the durable recovery record unresolved and service the PLC retained store.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeKeyMismatch,
+                "The retained SetAxisPosition record does not exactly match the requested recovery key.",
+                "Keep the durable recovery record unresolved and verify every persisted identity field.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeSlotOccupied,
+                "The SetAxisPosition retained intent slot is occupied by another unresolved request.",
+                "Resolve or retire the exact existing terminal record before preparing another mutation.");
+            AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeStorageUnavailable,
+                "The SetAxisPosition retained outcome storage is unavailable.",
+                "Do not execute or replay SetAxisPosition until retained storage is healthy and advertised.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeNotFound,
+                "No exact retained DS402 Home record was found.",
+                "Keep the durable recovery record unresolved; absence is not proof that Home was not dispatched.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeIndeterminate,
+                "The retained DS402 Home record is transitional or indeterminate.",
+                "Keep the durable recovery record unresolved and query the exact identity again without replaying Home.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeStoreCorrupt,
+                "The retained DS402 Home outcome store failed its integrity checks.",
+                "Keep recovery unresolved and service the PLC retained store before any new Home attempt.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeKeyMismatch,
+                "The retained DS402 Home record does not exactly match the requested recovery key.",
+                "Keep recovery unresolved and verify every persisted identity field.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeStorageUnavailable,
+                "The DS402 Home outcome storage is unavailable.",
+                "Do not execute or replay DS402 Home until outcome storage is healthy and advertised.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeExecutionFailed,
+                "The accepted DS402 Home operation failed during PLC-side execution.",
+                "Inspect the retained DS402 status word, native state, axis error, and drive error before deciding recovery.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeAborted,
+                "The accepted DS402 Home operation was aborted.",
+                "Inspect the retained result and current machine safety state; do not infer completion or replay automatically.");
+            AddAdmin(entries, LMCAdminDetailCode.Ds402HomeOutcomeSlotOccupied,
+                "The axis already has an unretired terminal DS402 Home outcome.",
+                "Read the exact terminal outcome, retire it with its record generation, and only then prepare a new Home intent.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeNotFound,
+                "No exact retained LMC_Home terminal record was found.",
+                "Keep recovery unresolved; absence is not proof that LMC_Home was not dispatched.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeIndeterminate,
+                "The retained LMC_Home record is transitional or indeterminate.",
+                "Keep recovery unresolved and query the exact identity again without replaying LMC_Home.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeStoreCorrupt,
+                "The retained LMC_Home outcome store failed its integrity checks.",
+                "Keep recovery unresolved and service the PLC retained store before another LMC_Home attempt.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeKeyMismatch,
+                "The retained LMC_Home record does not exactly match the requested recovery key.",
+                "Keep recovery unresolved and verify every persisted identity field.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeStorageUnavailable,
+                "The LMC_Home retained outcome storage is unavailable.",
+                "Do not execute or replay LMC_Home until retained storage is healthy and advertised.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeExecutionFailed,
+                "The accepted LMC_Home operation failed during PLC-side execution.",
+                "Inspect the retained native state, axis error, and position evidence before deciding recovery.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeAborted,
+                "The accepted LMC_Home operation was aborted.",
+                "Inspect the retained result and current machine safety state; do not infer completion or replay automatically.");
+            AddAdmin(entries, LMCAdminDetailCode.LmcHomeOutcomeSlotOccupied,
+                "The axis already has an unretired terminal LMC_Home outcome.",
+                "Read and retire the exact terminal record before preparing a new LMC_Home intent.");
+            AddAdmin(entries, LMCAdminDetailCode.AxisOwnershipConflict,
+                "Another admitted operation currently owns the selected axis.",
+                "Wait for the current owner to publish and release its terminal outcome before submitting another mutation.");
+            AddAdmin(entries, LMCAdminDetailCode.AxisOwnershipQuarantined,
+                "The selected axis ownership record is quarantined after an indeterminate operation.",
+                "Resolve the exact retained operation outcome and clear the quarantine through the documented recovery path.");
 
             return entries;
         }
@@ -331,6 +432,46 @@ namespace LasalMotionControlLib
                 LMCDiagnosticsDetailCode.RecorderConfigurationAbsent,
                 "The exact Recorder configuration is absent and the Recorder store is canonically empty.",
                 "For 0x7E4A, require a previously persisted exact configuration Release intent. For token-qualified 0x7E4D, resolve only the matching pre-dispatch recovery token without issuing Release.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceCompatibilityMismatch,
+                "The requested encoder maintenance operation is incompatible with the selected axis configuration.",
+                "Verify the encoder family, feedback socket, axis identity, PLC build, BootId, and diagnostics map revision.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeNotFound,
+                "No exact retained encoder maintenance terminal record was found.",
+                "Keep recovery unresolved; absence is not proof that the maintenance write was not dispatched.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeIndeterminate,
+                "The retained encoder maintenance record is transitional or indeterminate.",
+                "Keep recovery unresolved and query the exact identity again without replaying the write.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeStoreCorrupt,
+                "The retained encoder maintenance outcome store failed its integrity checks.",
+                "Keep recovery unresolved and service the PLC retained store before another maintenance attempt.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeKeyMismatch,
+                "The retained encoder maintenance record does not exactly match the requested recovery key.",
+                "Keep recovery unresolved and verify every persisted identity field.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeStorageUnavailable,
+                "The encoder maintenance retained outcome storage is unavailable.",
+                "Do not execute or replay the write until retained storage is healthy and advertised.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceExecutionFailed,
+                "The accepted encoder maintenance operation failed during PLC-side execution.",
+                "Inspect the retained SDO abort, axis state, and drive error evidence before deciding recovery.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceAborted,
+                "The accepted encoder maintenance operation was aborted.",
+                "Inspect the retained result and machine safety state; do not replay automatically.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceOutcomeSlotOccupied,
+                "The selected axis already has an unretired terminal encoder maintenance outcome.",
+                "Read and retire the exact terminal record before preparing another encoder maintenance intent.");
+            AddDiagnostic(entries,
+                LMCDiagnosticsDetailCode.EncoderMaintenanceSemanticVerificationFailed,
+                "The encoder maintenance write completed but its required semantic verification did not pass.",
+                "Keep the outcome retained and inspect the supported drive evidence before any further maintenance action.");
 
             return entries;
         }

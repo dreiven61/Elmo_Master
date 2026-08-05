@@ -166,6 +166,7 @@ namespace LasalMotionControlLib
         public LMC_Response GroupEnable()
         {
             EnsureCurrentSessionForUse();
+            ThrowIfGroupResetObserverReentrantMutation();
             groupEnableWaitCoordinator.MutationGate.Wait();
             try
             {
@@ -193,6 +194,7 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            ThrowIfGroupResetObserverReentrantMutation();
             await groupEnableWaitCoordinator.MutationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try
@@ -466,6 +468,8 @@ namespace LasalMotionControlLib
         public LMC_Response GroupDisable()
         {
             EnsureCurrentSessionForUse();
+            WaitForGroupResetObserverHandoffForSafetyMutation(
+                CancellationToken.None);
             groupEnableWaitCoordinator.StatusObservationGate.Wait();
             try
             {
@@ -497,6 +501,8 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            WaitForGroupResetObserverHandoffForSafetyMutation(
+                cancellationToken);
             await groupEnableWaitCoordinator.StatusObservationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try
@@ -1470,6 +1476,7 @@ namespace LasalMotionControlLib
                 Action beforeGroupEnableWriteCommit = null,
                 Action beforeAcceptedContinuationPublication = null)
         {
+            ThrowIfGroupResetObserverReentrantMutation();
             var validatedOptions = ValidateGroupEnableWaitOptions(
                 options,
                 elapsedMilliseconds,
@@ -1661,6 +1668,16 @@ namespace LasalMotionControlLib
             {
                 EnsureCurrentSessionForUse();
                 cancellationToken.ThrowIfCancellationRequested();
+                var observerHandoffRemaining =
+                    validatedOptions.TimeoutMilliseconds
+                    - elapsedMilliseconds();
+                if (observerHandoffRemaining <= 0
+                    || !WaitForGroupResetObserverHandoffForSafetyMutation(
+                        cancellationToken,
+                        (int)observerHandoffRemaining))
+                {
+                    throw new LMCGroupPowerStateWaitDeadlineException();
+                }
                 await AcquireGroupStopStatusGateAsync(
                     validatedOptions,
                     cancellationToken,
@@ -2018,10 +2035,12 @@ namespace LasalMotionControlLib
                         },
                         () =>
                         {
+                            ThrowIfGroupResetWaitBlocksCommand(
+                                LMC_CommandId.GroupStop);
                             tracker.MarkSubmissionOutcomeUncertain();
                             tracker.SetStopMutationGeneration(
                                 groupEnableWaitCoordinator
-                                    .MarkMutationMayHaveBeenSent());
+                                    .MarkMutationMayHaveBeenSent(true));
                             groupEnableWaitCoordinator
                                 .ResetPendingMutationProof();
                         }).ConfigureAwait(false);
@@ -2041,10 +2060,24 @@ namespace LasalMotionControlLib
                     LMCConnection.ParseCommandAcknowledgement(
                         raw,
                         "GroupStop");
+                ResolveGroupResetSafetyMutationAcknowledgement(
+                    LMC_CommandId.GroupStop,
+                    tracker.StopMutationGeneration,
+                    acknowledgement);
+                if (!acknowledgement.IsSuccess)
+                {
+                    tracker.SetAcknowledgement(acknowledgement);
+                }
                 connection.PublishSessionBoundSendPriorityResult(
                     sessionGeneration,
                     LMC_CommandId.GroupStop,
-                    () => tracker.SetAcknowledgement(acknowledgement));
+                    () =>
+                    {
+                        if (acknowledgement.IsSuccess)
+                        {
+                            tracker.SetAcknowledgement(acknowledgement);
+                        }
+                    });
                 return acknowledgement;
             }
         }
@@ -2339,6 +2372,7 @@ namespace LasalMotionControlLib
                 Action beforeAcceptedContinuationPublication = null,
                 Action afterPowerAcknowledgementParsed = null)
         {
+            ThrowIfGroupResetObserverReentrantMutation();
             var validatedOptions = ValidateGroupPowerStateWaitOptions(
                 options,
                 elapsedMilliseconds,
@@ -2356,6 +2390,19 @@ namespace LasalMotionControlLib
             {
                 EnsureCurrentSessionForUse();
                 cancellationToken.ThrowIfCancellationRequested();
+                if (!expectedPowerOn)
+                {
+                    var observerHandoffRemaining =
+                        validatedOptions.TimeoutMilliseconds
+                        - elapsedMilliseconds();
+                    if (observerHandoffRemaining <= 0
+                        || !WaitForGroupResetObserverHandoffForSafetyMutation(
+                            cancellationToken,
+                            (int)observerHandoffRemaining))
+                    {
+                        throw new LMCGroupPowerStateWaitDeadlineException();
+                    }
+                }
                 await AcquireGroupPowerStateStatusGateAsync(
                     validatedOptions,
                     cancellationToken,
@@ -2774,10 +2821,13 @@ namespace LasalMotionControlLib
                         },
                         () =>
                         {
+                            ThrowIfGroupResetWaitBlocksCommand(
+                                LMC_Frame.GetRequestCommand(request));
                             tracker.MarkSubmissionOutcomeUncertain();
                             tracker.SetPowerMutationGeneration(
                                 groupEnableWaitCoordinator
-                                    .MarkMutationMayHaveBeenSent());
+                                    .MarkMutationMayHaveBeenSent(
+                                        !tracker.ExpectedPowerOn));
                             groupEnableWaitCoordinator
                                 .ResetPendingMutationProof();
                         }).ConfigureAwait(false);
@@ -2799,6 +2849,14 @@ namespace LasalMotionControlLib
                         tracker.ExpectedPowerOn
                             ? "GroupPowerOn"
                             : "GroupPowerOff");
+                ResolveGroupResetSafetyMutationAcknowledgement(
+                    LMC_Frame.GetRequestCommand(request),
+                    tracker.PowerMutationGeneration,
+                    acknowledgement);
+                if (!acknowledgement.IsSuccess)
+                {
+                    tracker.SetAcknowledgement(acknowledgement);
+                }
                 if (afterPowerAcknowledgementParsed != null)
                 {
                     afterPowerAcknowledgementParsed();
@@ -2812,11 +2870,12 @@ namespace LasalMotionControlLib
                     {
                         lock (groupEnableWaitCoordinator.Sync)
                         {
-                            tracker.SetAcknowledgement(acknowledgement);
                             if (!acknowledgement.IsSuccess)
                             {
                                 return;
                             }
+
+                            tracker.SetAcknowledgement(acknowledgement);
 
                             if (beforeAcceptedContinuationPublication
                                 != null)
@@ -4477,6 +4536,8 @@ namespace LasalMotionControlLib
                     },
                     () =>
                     {
+                        ThrowIfGroupResetWaitBlocksCommand(
+                            LMC_CommandId.GroupProfileLock);
                         submissionTracker.MarkSubmissionOutcomeUncertain();
                         groupEnableWaitCoordinator
                             .MarkMutationMayHaveBeenSent();
@@ -4626,19 +4687,39 @@ namespace LasalMotionControlLib
             bool expectedPowerOn)
         {
             EnsureCurrentSessionForUse();
-            groupEnableWaitCoordinator.MutationGate.Wait();
+            ThrowIfGroupResetObserverReentrantMutation();
+            var statusGateAcquired = false;
+            if (!expectedPowerOn)
+            {
+                WaitForGroupResetObserverHandoffForSafetyMutation(
+                    CancellationToken.None);
+                groupEnableWaitCoordinator.StatusObservationGate.Wait();
+                statusGateAcquired = true;
+            }
             try
             {
-                ThrowIfRawGroupPowerCommandIsUnsafe(expectedPowerOn);
-                return SendUnchecked(
-                    expectedPowerOn
-                        ? LMC_Frame.LMCGroupPowerOn(GroupReference)
-                        : LMC_Frame.LMCGroupPowerOff(GroupReference),
-                    true);
+                groupEnableWaitCoordinator.MutationGate.Wait();
+                try
+                {
+                    ThrowIfRawGroupPowerCommandIsUnsafe(expectedPowerOn);
+                    return SendUnchecked(
+                        expectedPowerOn
+                            ? LMC_Frame.LMCGroupPowerOn(GroupReference)
+                            : LMC_Frame.LMCGroupPowerOff(GroupReference),
+                        true);
+                }
+                finally
+                {
+                    groupEnableWaitCoordinator.MutationGate.Release();
+                }
             }
             finally
             {
-                groupEnableWaitCoordinator.MutationGate.Release();
+                if (statusGateAcquired)
+                {
+                    groupEnableWaitCoordinator
+                        .StatusObservationGate.Release();
+                }
             }
         }
 
@@ -4647,21 +4728,42 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
-            await groupEnableWaitCoordinator.MutationGate.WaitAsync(
-                cancellationToken).ConfigureAwait(false);
+            ThrowIfGroupResetObserverReentrantMutation();
+            var statusGateAcquired = false;
+            if (!expectedPowerOn)
+            {
+                WaitForGroupResetObserverHandoffForSafetyMutation(
+                    cancellationToken);
+                await groupEnableWaitCoordinator.StatusObservationGate
+                    .WaitAsync(cancellationToken).ConfigureAwait(false);
+                statusGateAcquired = true;
+            }
             try
             {
-                ThrowIfRawGroupPowerCommandIsUnsafe(expectedPowerOn);
-                return await SendAsyncUnchecked(
-                    expectedPowerOn
-                        ? LMC_Frame.LMCGroupPowerOn(GroupReference)
-                        : LMC_Frame.LMCGroupPowerOff(GroupReference),
-                    cancellationToken,
-                    true).ConfigureAwait(false);
+                await groupEnableWaitCoordinator.MutationGate.WaitAsync(
+                    cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    ThrowIfRawGroupPowerCommandIsUnsafe(expectedPowerOn);
+                    return await SendAsyncUnchecked(
+                        expectedPowerOn
+                            ? LMC_Frame.LMCGroupPowerOn(GroupReference)
+                            : LMC_Frame.LMCGroupPowerOff(GroupReference),
+                        cancellationToken,
+                        true).ConfigureAwait(false);
+                }
+                finally
+                {
+                    groupEnableWaitCoordinator.MutationGate.Release();
+                }
             }
             finally
             {
-                groupEnableWaitCoordinator.MutationGate.Release();
+                if (statusGateAcquired)
+                {
+                    groupEnableWaitCoordinator
+                        .StatusObservationGate.Release();
+                }
             }
         }
 
@@ -4690,14 +4792,35 @@ namespace LasalMotionControlLib
         private LMC_Response Send(byte[] request)
         {
             EnsureCurrentSessionForUse();
-            groupEnableWaitCoordinator.MutationGate.Wait();
+            ThrowIfGroupResetObserverReentrantMutation();
+            var command = LMC_Frame.GetRequestCommand(request);
+            var statusGateAcquired = false;
+            if (IsGroupResetSafetyCommand(command))
+            {
+                WaitForGroupResetObserverHandoffForSafetyMutation(
+                    CancellationToken.None);
+                groupEnableWaitCoordinator.StatusObservationGate.Wait();
+                statusGateAcquired = true;
+            }
             try
             {
-                return SendUnchecked(request);
+                groupEnableWaitCoordinator.MutationGate.Wait();
+                try
+                {
+                    return SendUnchecked(request);
+                }
+                finally
+                {
+                    groupEnableWaitCoordinator.MutationGate.Release();
+                }
             }
             finally
             {
-                groupEnableWaitCoordinator.MutationGate.Release();
+                if (statusGateAcquired)
+                {
+                    groupEnableWaitCoordinator
+                        .StatusObservationGate.Release();
+                }
             }
         }
 
@@ -4706,13 +4829,18 @@ namespace LasalMotionControlLib
             bool resetPendingMutationProof = false)
         {
             EnsureCurrentSessionForUse();
+            ThrowIfGroupResetObserverReentrantMutation();
+            var command = LMC_Frame.GetRequestCommand(request);
+            var mutationGeneration = 0L;
             var raw = connection.Exchange(
                 request,
                 sessionGeneration,
                 () =>
                 {
-                    groupEnableWaitCoordinator
-                        .MarkMutationMayHaveBeenSent();
+                    ThrowIfGroupResetWaitBlocksCommand(command);
+                    mutationGeneration = groupEnableWaitCoordinator
+                        .MarkMutationMayHaveBeenSent(
+                            IsGroupResetSafetyCommand(command));
                     if (resetPendingMutationProof)
                     {
                         groupEnableWaitCoordinator
@@ -4722,10 +4850,14 @@ namespace LasalMotionControlLib
             var response = LMCConnection.ParseCommandAcknowledgement(
                 raw,
                 "Group command");
+            ResolveGroupResetSafetyMutationAcknowledgement(
+                command,
+                mutationGeneration,
+                response);
             LMC_Response publishedResponse = null;
             connection.PublishSessionBoundSendPriorityResult(
                 sessionGeneration,
-                LMC_Frame.GetRequestCommand(request),
+                command,
                 () => publishedResponse = response);
             return publishedResponse;
         }
@@ -4735,17 +4867,39 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
-            await groupEnableWaitCoordinator.MutationGate.WaitAsync(
-                cancellationToken).ConfigureAwait(false);
+            ThrowIfGroupResetObserverReentrantMutation();
+            var command = LMC_Frame.GetRequestCommand(request);
+            var statusGateAcquired = false;
+            if (IsGroupResetSafetyCommand(command))
+            {
+                WaitForGroupResetObserverHandoffForSafetyMutation(
+                    cancellationToken);
+                await groupEnableWaitCoordinator.StatusObservationGate
+                    .WaitAsync(cancellationToken).ConfigureAwait(false);
+                statusGateAcquired = true;
+            }
             try
             {
-                return await SendAsyncUnchecked(
-                    request,
+                await groupEnableWaitCoordinator.MutationGate.WaitAsync(
                     cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await SendAsyncUnchecked(
+                        request,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    groupEnableWaitCoordinator.MutationGate.Release();
+                }
             }
             finally
             {
-                groupEnableWaitCoordinator.MutationGate.Release();
+                if (statusGateAcquired)
+                {
+                    groupEnableWaitCoordinator
+                        .StatusObservationGate.Release();
+                }
             }
         }
 
@@ -4756,14 +4910,18 @@ namespace LasalMotionControlLib
         {
             EnsureCurrentSessionForUse();
             cancellationToken.ThrowIfCancellationRequested();
+            var command = LMC_Frame.GetRequestCommand(request);
+            var mutationGeneration = 0L;
             var raw = await connection.ExchangeAsync(
                 request,
                 sessionGeneration,
                 cancellationToken,
                 () =>
                 {
-                    groupEnableWaitCoordinator
-                        .MarkMutationMayHaveBeenSent();
+                    ThrowIfGroupResetWaitBlocksCommand(command);
+                    mutationGeneration = groupEnableWaitCoordinator
+                        .MarkMutationMayHaveBeenSent(
+                            IsGroupResetSafetyCommand(command));
                     if (resetPendingMutationProof)
                     {
                         groupEnableWaitCoordinator
@@ -4774,17 +4932,47 @@ namespace LasalMotionControlLib
             var response = LMCConnection.ParseCommandAcknowledgement(
                 raw,
                 "Group command");
+            ResolveGroupResetSafetyMutationAcknowledgement(
+                command,
+                mutationGeneration,
+                response);
             LMC_Response publishedResponse = null;
             connection.PublishSessionBoundSendPriorityResult(
                 sessionGeneration,
-                LMC_Frame.GetRequestCommand(request),
+                command,
                 () => publishedResponse = response);
             return publishedResponse;
+        }
+
+        private void ResolveGroupResetSafetyMutationAcknowledgement(
+            ushort command,
+            long mutationGeneration,
+            LMC_Response response)
+        {
+            if (!IsGroupResetSafetyCommand(command)
+                || mutationGeneration <= 0)
+            {
+                return;
+            }
+
+            if (response != null && response.IsSuccess)
+            {
+                groupEnableWaitCoordinator
+                    .FinalizeSafetyMutationAcknowledgement(
+                        mutationGeneration);
+            }
+            else
+            {
+                groupEnableWaitCoordinator
+                    .TryRestoreGroupResetAfterRejectedSafetyMutation(
+                        mutationGeneration);
+            }
         }
 
         private LMC_Response SendShortAcknowledgement(byte[] request)
         {
             EnsureCurrentSessionForUse();
+            ThrowIfGroupResetObserverReentrantMutation();
             groupEnableWaitCoordinator.MutationGate.Wait();
             try
             {
@@ -4799,18 +4987,23 @@ namespace LasalMotionControlLib
         private LMC_Response SendShortAcknowledgementUnchecked(byte[] request)
         {
             EnsureCurrentSessionForUse();
+            var command = LMC_Frame.GetRequestCommand(request);
             var raw = connection.Exchange(
                 request,
                 sessionGeneration,
-                () => groupEnableWaitCoordinator
-                    .MarkMutationMayHaveBeenSent());
+                () =>
+                {
+                    ThrowIfGroupResetWaitBlocksCommand(command);
+                    groupEnableWaitCoordinator
+                        .MarkMutationMayHaveBeenSent(false);
+                });
             var response = LMCConnection.ParseShortAcknowledgement(
                 raw,
                 "SetKinTransformCartesian4Axis");
             LMC_Response publishedResponse = null;
             connection.PublishSessionBoundSendPriorityResult(
                 sessionGeneration,
-                LMC_Frame.GetRequestCommand(request),
+                command,
                 () => publishedResponse = response);
             return publishedResponse;
         }
@@ -4820,6 +5013,7 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken)
         {
             EnsureCurrentSessionForUse();
+            ThrowIfGroupResetObserverReentrantMutation();
             await groupEnableWaitCoordinator.MutationGate.WaitAsync(
                 cancellationToken).ConfigureAwait(false);
             try
@@ -4841,12 +5035,17 @@ namespace LasalMotionControlLib
         {
             EnsureCurrentSessionForUse();
             cancellationToken.ThrowIfCancellationRequested();
+            var command = LMC_Frame.GetRequestCommand(request);
             var raw = await connection.ExchangeAsync(
                 request,
                 sessionGeneration,
                 cancellationToken,
-                () => groupEnableWaitCoordinator
-                    .MarkMutationMayHaveBeenSent())
+                () =>
+                {
+                    ThrowIfGroupResetWaitBlocksCommand(command);
+                    groupEnableWaitCoordinator
+                        .MarkMutationMayHaveBeenSent(false);
+                })
                 .ConfigureAwait(false);
             var response = LMCConnection.ParseShortAcknowledgement(
                 raw,
@@ -4854,7 +5053,7 @@ namespace LasalMotionControlLib
             LMC_Response publishedResponse = null;
             connection.PublishSessionBoundSendPriorityResult(
                 sessionGeneration,
-                LMC_Frame.GetRequestCommand(request),
+                command,
                 () => publishedResponse = response);
             return publishedResponse;
         }

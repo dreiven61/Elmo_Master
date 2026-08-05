@@ -706,11 +706,12 @@ namespace LasalMotionControlLib
 
     internal static class LMCDiagnosticsWritePolicy
     {
-        // Enable a target only after its PLC mapping, drive-program ownership,
-        // and hardware behavior are verified. The global and per-axis gates
-        // deliberately require two source changes before any target is exposed.
-        private static readonly bool SdoWriteEnabled = false;
-        private static readonly bool SdoWriteUi24Axis1Enabled = false;
+        // Axis 1 UI[24] is source-approved for an explicitly supervised live
+        // qualification. Drive-program ownership and hardware behavior still
+        // require PLC/runtime proof, so exact capability, axis-state, target,
+        // confirmation, journal, and readback interlocks remain mandatory.
+        private static readonly bool SdoWriteEnabled = true;
+        private static readonly bool SdoWriteUi24Axis1Enabled = true;
         private static readonly bool SdoWriteUi24Axis2Enabled = false;
         private static readonly bool SdoWriteUi24Axis3Enabled = false;
         private static readonly bool SdoWriteUi24Axis4Enabled = false;

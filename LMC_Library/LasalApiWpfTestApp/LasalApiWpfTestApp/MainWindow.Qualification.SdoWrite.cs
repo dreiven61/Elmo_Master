@@ -117,6 +117,10 @@ namespace LasalMotionControlApiExample
                 throw new ArgumentNullException("input");
             }
 
+            // A new live qualification attempt supersedes any earlier
+            // session proof. Only this attempt's complete four-ticket PASS
+            // may reopen the ordinary manual Write path.
+            sdoWriteActivationQualificationProof = null;
             EnsureNoPendingManualD5Operation();
             EnsureNoUnresolvedD5SdoQualificationTicket(
                 "Same-value SDO Write qualification");
@@ -450,10 +454,24 @@ namespace LasalMotionControlApiExample
                     cancellationToken);
 
             var completed = result.RecoveryScope;
+            SdoWriteActivationQualificationProof activationProof;
+            if (!SdoWriteActivationQualificationProof.TryCapture(
+                    currentConnection,
+                    completed.FinalCapabilities,
+                    input.Target,
+                    out activationProof))
+            {
+                throw new InvalidOperationException(
+                    "The same-value SDO Write round trip passed, but its exact current-session activation proof could not be captured. Manual SDO Write remains blocked.");
+            }
+
             WriteD5SdoQualificationLog(
                 "event=D5_WRITE_SAME_VALUE_ASSERT",
                 "baseline="
                     + BitConverter.ToString(completed.BaselineData),
+                "preWriteGuard="
+                    + BitConverter.ToString(
+                        completed.PreWriteGuardStatus.ResultData),
                 "write="
                     + BitConverter.ToString(
                         completed.WriteRequest.WriteData),
@@ -478,16 +496,26 @@ namespace LasalMotionControlApiExample
                 "singleWriterConfirmed=true",
                 "sentinelWrite=false",
                 "automaticRestore=false",
+                "activationProof=current_session",
+                "diagnosticsBuild=0x"
+                    + activationProof.DiagnosticsBuild.ToString("X8"),
+                "bootId=0x"
+                    + activationProof.DiagnosticsBootId.ToString("X8"),
+                "mapRevision=0x"
+                    + activationProof.MapRevision.ToString("X8"),
                 "verdict=PASS");
             CloseExternalD5TrackingLogIfResolved(
                 "SAME_VALUE_WRITE_EXACT_READBACK_VERIFIED");
             SetD5SdoWriteSameValueProgress(
                 100,
-                "PASS: baseline, byte-identical Write, and exact readback verified; durable mutation interlock resolved");
+                "PASS: baseline, unchanged pre-Write guard, byte-identical Write, and exact readback verified; durable mutation interlock resolved");
             TextD5SdoWriteQualificationSummary.Text =
                 "PASS | Target=" + input.Target
                 + " | Baseline="
                 + BitConverter.ToString(completed.BaselineData)
+                + " | PreWriteGuard="
+                + BitConverter.ToString(
+                    completed.PreWriteGuardStatus.ResultData)
                 + " | Tickets="
                 + completed.BaselineTicket.TicketId.ToString(
                     CultureInfo.InvariantCulture)
@@ -500,7 +528,9 @@ namespace LasalMotionControlApiExample
                 + "/"
                 + completed.ReadbackTicket.TicketId.ToString(
                     CultureInfo.InvariantCulture)
+                + " | ManualWriteProof=current-session"
                 + " | Sentinel=false | AutoRestore=false";
+            sdoWriteActivationQualificationProof = activationProof;
         }
 
         private async Task<LMCOperationTicket>
@@ -903,6 +933,11 @@ namespace LasalMotionControlApiExample
                 && runnerAdmissionReady
                 && DiagnosticsMutationJournalCanArm
                 && confirmationCount == 4;
+            var manualWriteProofCurrent =
+                HasCurrentSdoWriteActivationQualificationProof(
+                    connection,
+                    capabilities,
+                    selectedTarget);
 
             var builder = new StringBuilder();
             builder.Append("OVERALL       ")
@@ -1024,6 +1059,11 @@ namespace LasalMotionControlApiExample
                 .AppendLine("/4");
             builder.AppendLine(
                 "AXIS PROOF     PENDING_RUNNER_PREFLIGHT | PowerOn=False, Standstill=True, stable position are not cached here.");
+            builder.Append("MANUAL WRITE  ")
+                .Append(manualWriteProofCurrent
+                    ? "OPEN_CURRENT_SESSION"
+                    : "CLOSED_RUN_SAME_VALUE_FIRST")
+                .AppendLine(" | proof never transfers across connection sessions or PLC identity changes.");
             builder.Append("NEXT          ")
                 .Append(GetD5SdoWriteSameValueGateReason());
             return builder.ToString();

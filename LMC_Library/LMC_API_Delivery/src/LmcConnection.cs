@@ -545,7 +545,8 @@ namespace LasalMotionControlLib
                     StartCallbackListener(
                         parsedLocalAddress,
                         callbackPort,
-                        openingLifetimeGeneration);
+                        openingLifetimeGeneration,
+                        openingSessionGeneration);
                     var registeredCallbackPort = CallbackLocalEndPoint.Port;
 
                     RpcCallbackRegistrationResponse = ParseShortAcknowledgement(
@@ -626,13 +627,30 @@ namespace LasalMotionControlLib
             long expectedGeneration,
             Action onWriteStarting)
         {
+            return Exchange(
+                request,
+                expectedGeneration,
+                onWriteStarting,
+                null,
+                null);
+        }
+
+        internal byte[] Exchange(
+            byte[] request,
+            long expectedGeneration,
+            Action onWriteStarting,
+            Func<byte[], bool> responseValidator,
+            Action responsePublisher)
+        {
             return ExchangeCore(
                 request,
                 client,
                 false,
                 CancellationToken.None,
                 expectedGeneration,
-                onWriteStarting);
+                onWriteStarting,
+                responseValidator,
+                responsePublisher);
         }
 
         private byte[] ExchangeCore(
@@ -641,7 +659,9 @@ namespace LasalMotionControlLib
             bool allowLifecycleState,
             CancellationToken cancellationToken,
             long expectedGeneration,
-            Action onWriteStarting = null)
+            Action onWriteStarting = null,
+            Func<byte[], bool> responseValidator = null,
+            Action responsePublisher = null)
         {
             if (request == null)
             {
@@ -650,6 +670,7 @@ namespace LasalMotionControlLib
 
             EnterGate(sync, cancellationToken);
 
+            var responseValidationFailed = false;
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -696,11 +717,38 @@ namespace LasalMotionControlLib
                         ? new byte[0]
                         : ReadExact(stream, payloadLength);
 
-                    return CombineResponse(header, payload);
+                    var response = CombineResponse(header, payload);
+                    if (responseValidator != null)
+                    {
+                        try
+                        {
+                            if (responseValidator(response))
+                            {
+                                PublishExchangeBoundSendPriorityResult(
+                                    operationClient,
+                                    expectedGeneration,
+                                    command,
+                                    responsePublisher);
+                            }
+                        }
+                        catch
+                        {
+                            responseValidationFailed = true;
+                            throw;
+                        }
+                    }
+
+                    return response;
                 }
             }
             catch (Exception ex)
             {
+                if (responseValidationFailed)
+                {
+                    MarkTransportFault(ex, operationClient);
+                    throw;
+                }
+
                 if (cancellationToken.IsCancellationRequested)
                 {
                     throw new OperationCanceledException(cancellationToken);
@@ -747,6 +795,23 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken,
             Action onWriteStarting)
         {
+            return ExchangeAsync(
+                request,
+                expectedGeneration,
+                cancellationToken,
+                onWriteStarting,
+                null,
+                null);
+        }
+
+        internal Task<byte[]> ExchangeAsync(
+            byte[] request,
+            long expectedGeneration,
+            CancellationToken cancellationToken,
+            Action onWriteStarting,
+            Func<byte[], bool> responseValidator,
+            Action responsePublisher)
+        {
             var operationClient = client;
 
             return Task.Run(
@@ -756,7 +821,9 @@ namespace LasalMotionControlLib
                     false,
                     cancellationToken,
                     expectedGeneration,
-                    onWriteStarting));
+                    onWriteStarting,
+                    responseValidator,
+                    responsePublisher));
         }
 
         /// <summary>
@@ -966,6 +1033,39 @@ namespace LasalMotionControlLib
             publish();
         }
 
+        private void PublishExchangeBoundSendPriorityResult(
+            TcpClient operationClient,
+            long expectedGeneration,
+            ushort command,
+            Action publish)
+        {
+            if (publish == null)
+            {
+                throw new ArgumentNullException("publish");
+            }
+
+            // ExchangeCore owns sync here. Do not acquire lifecycleSync: Close
+            // owns lifecycleSync before it waits for sync. This narrower state
+            // lock pins the exact client/session/lifetime through publication.
+            lock (lifecycleStateSync)
+            {
+                if (State != LMCConnectionState.Connected
+                    || expectedGeneration <= 0
+                    || sessionGeneration != expectedGeneration
+                    || clientSessionGeneration != expectedGeneration
+                    || !ReferenceEquals(client, operationClient)
+                    || clientLifetimeGeneration <= 0
+                    || connectionLifetimeGeneration
+                        != clientLifetimeGeneration)
+                {
+                    throw new InvalidOperationException(
+                        "The RPC response cannot be published because its exact connection session is no longer active.");
+                }
+
+                PublishSendPriorityResult(command, publish);
+            }
+        }
+
         internal void PublishSessionBoundSendPriorityResult(
             long expectedGeneration,
             ushort command,
@@ -1005,6 +1105,60 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidOperationException(
                     "The axis or group handle belongs to an inactive RPC session; create it again after reconnecting.");
+            }
+        }
+
+        /// <summary>
+        /// Detaches only the still-current transport for an exact RPC session
+        /// after a mutation crossed its write boundary without a definitive
+        /// correlated result. A newer session is never detached.
+        /// </summary>
+        internal bool TryInvalidateSessionAfterUncertainMutation(
+            long expectedSessionGeneration,
+            Exception exception)
+        {
+            if (expectedSessionGeneration <= 0 || exception == null)
+            {
+                return false;
+            }
+
+            EnterGate(lifecycleSync, CancellationToken.None);
+            try
+            {
+                TcpClient currentClient;
+                long detachedLifetimeGeneration;
+                lock (lifecycleStateSync)
+                {
+                    if (State != LMCConnectionState.Connected
+                        || sessionGeneration
+                            != expectedSessionGeneration
+                        || clientSessionGeneration
+                            != expectedSessionGeneration
+                        || client == null
+                        || clientLifetimeGeneration <= 0
+                        || connectionLifetimeGeneration
+                            != clientLifetimeGeneration)
+                    {
+                        return false;
+                    }
+
+                    currentClient = client;
+                    detachedLifetimeGeneration =
+                        clientLifetimeGeneration;
+                    client = null;
+                    clientLifetimeGeneration = 0;
+                    clientSessionGeneration = 0;
+                }
+
+                CloseClientQuietly(currentClient);
+                return InvalidateDetachedTransport(
+                    exception,
+                    detachedLifetimeGeneration,
+                    true);
+            }
+            finally
+            {
+                Monitor.Exit(lifecycleSync);
             }
         }
 
@@ -1721,7 +1875,8 @@ namespace LasalMotionControlLib
         private void StartCallbackListener(
             IPAddress localAddress,
             int callbackPort,
-            long lifetimeGeneration)
+            long lifetimeGeneration,
+            long openingSessionGeneration)
         {
             StopCallbackListener();
 
@@ -1731,7 +1886,8 @@ namespace LasalMotionControlLib
                 () => ReceiveCallbackLoop(
                     listener,
                     callbackSourceAddress,
-                    lifetimeGeneration))
+                    lifetimeGeneration,
+                    openingSessionGeneration))
             {
                 IsBackground = true,
                 Name = "LMC RPC callback listener"
@@ -1794,7 +1950,8 @@ namespace LasalMotionControlLib
         private void ReceiveCallbackLoop(
             UdpClient ownedListener,
             IPAddress ownedSourceAddress,
-            long ownedLifetimeGeneration)
+            long ownedLifetimeGeneration,
+            long openingSessionGeneration)
         {
             while (IsCurrentCallbackListener(
                 ownedListener,
@@ -1828,7 +1985,10 @@ namespace LasalMotionControlLib
                         new LMCCallbackEventArgs(
                             payload,
                             remoteEndPoint,
-                            DateTime.UtcNow));
+                            DateTime.UtcNow,
+                            this,
+                            ownedLifetimeGeneration,
+                            openingSessionGeneration));
                 }
                 catch (ObjectDisposedException)
                 {
@@ -2024,6 +2184,30 @@ namespace LasalMotionControlLib
                     && ReferenceEquals(callbackListener, ownedListener)
                     && callbackListenerLifetimeGeneration
                         == ownedLifetimeGeneration;
+            }
+        }
+
+        internal bool IsCurrentCallbackSession(
+            long expectedLifetimeGeneration,
+            long expectedSessionGeneration)
+        {
+            // Combined provenance checks use lifecycle -> callback lock order.
+            // Callback-only paths never acquire lifecycleStateSync while
+            // holding callbackSync, so Close/receive cannot form a lock cycle.
+            lock (lifecycleStateSync)
+            {
+                lock (callbackSync)
+                {
+                    return expectedLifetimeGeneration > 0
+                        && expectedSessionGeneration > 0
+                        && connectionLifetimeGeneration
+                            == expectedLifetimeGeneration
+                        && sessionGeneration == expectedSessionGeneration
+                        && callbackListenerRunning
+                        && callbackListener != null
+                        && callbackListenerLifetimeGeneration
+                            == expectedLifetimeGeneration;
+                }
             }
         }
 

@@ -1074,29 +1074,48 @@ namespace LasalMotionControlLib.Tests
                 var callbackCount = 0;
                 var errorCount = 0;
                 string reportedErrorMessage = null;
+                LMCCallbackEventArgs oldCallback = null;
+                LMCCallbackEventArgs replacementCallback = null;
 
-                connection.CallbackReceived += delegate
+                connection.CallbackReceived += delegate(
+                    object sender,
+                    LMCCallbackEventArgs e)
                 {
                     var invocation = Interlocked.Increment(
                         ref callbackCount);
                     if (invocation == 1)
                     {
+                        oldCallback = e;
+                        AssertEx.True(e.BelongsTo(connection));
+                        AssertEx.True(
+                            e.BelongsToCurrentSession(connection),
+                            "The first callback must be current before Close.");
                         oldCallbackThread = Thread.CurrentThread;
                         oldCallbackEntered.Set();
                         AssertEx.True(
                             releaseOldCallback.Wait(
                                 WaitTimeoutMilliseconds),
                             "Timed out waiting to release the old callback handler.");
+                        AssertEx.False(
+                            e.BelongsToCurrentSession(connection),
+                            "The blocked old handler must remain stale after replacement.");
                         throw new InvalidOperationException(
                             oldFailureMessage);
                     }
 
                     if (invocation == 2)
                     {
+                        replacementCallback = e;
+                        AssertEx.True(e.BelongsTo(connection));
+                        AssertEx.True(
+                            e.BelongsToCurrentSession(connection),
+                            "The replacement callback must own the current session.");
                         throw new InvalidOperationException(
                             currentFailureMessage);
                     }
 
+                    AssertEx.True(e.BelongsTo(connection));
+                    AssertEx.True(e.BelongsToCurrentSession(connection));
                     replacementCallbackReceived.Set();
                 };
                 connection.CallbackListenerError += delegate(
@@ -1116,6 +1135,10 @@ namespace LasalMotionControlLib.Tests
                         oldCallbackEntered,
                         "old callback handler");
                     AssertEx.NotNull(oldCallbackThread);
+                    AssertEx.NotNull(oldCallback);
+                    var oldSessionGeneration =
+                        oldCallback.SessionGeneration;
+                    AssertEx.True(oldSessionGeneration > 0);
 
                     var close = Task.Run(
                         () => connection.CloseConnection());
@@ -1124,12 +1147,19 @@ namespace LasalMotionControlLib.Tests
                         "Close did not honor the callback join bound before replacement.");
                     close.GetAwaiter().GetResult();
                     AssertDisconnected(connection);
+                    AssertEx.True(oldCallback.BelongsTo(connection));
+                    AssertEx.False(
+                        oldCallback.BelongsToCurrentSession(connection),
+                        "Close must stale an event even while its handler is blocked.");
                     firstServer.Verify();
 
                     Initialize(connection, replacementServer.Port);
                     AssertEx.True(connection.IsConnected);
                     AssertEx.True(connection.IsCallbackListenerRunning);
                     AssertEx.Equal(0L, connection.RejectedCallbackCount);
+                    AssertEx.False(
+                        oldCallback.BelongsToCurrentSession(connection),
+                        "Reconnect must not revalidate an old callback event.");
 
                     SendCallback(connection);
                     AssertSignaled(
@@ -1139,6 +1169,15 @@ namespace LasalMotionControlLib.Tests
                     AssertEx.Equal(
                         currentFailureMessage,
                         reportedErrorMessage);
+                    AssertEx.NotNull(replacementCallback);
+                    AssertEx.True(
+                        replacementCallback.SessionGeneration
+                            > oldSessionGeneration,
+                        "Replacement callbacks must capture the new session generation.");
+                    AssertEx.True(
+                        replacementCallback.BelongsToCurrentSession(connection));
+                    AssertEx.False(
+                        oldCallback.BelongsToCurrentSession(connection));
 
                     releaseOldCallback.Set();
                     AssertEx.True(

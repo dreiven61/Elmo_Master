@@ -192,6 +192,19 @@ TCPMotionInterface : CLASS
 		END_VAR;
 	
 	FUNCTION MsgPaser;
+	
+	FUNCTION HandleControlSafetyDrainPending
+		VAR_INPUT
+			Phase 	: UINT;
+			EffectiveAxisMask 	: UDINT;
+			AdmissionToken 	: UDINT;
+			OwnerGeneration 	: UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
+	
+	FUNCTION HandleRpcLifecycleCommands;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -283,6 +296,38 @@ END_FUNCTION
 
 //{{LSL_IMPLEMENTATION
 
+#define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED FALSE
+#define LMC_OWNER_PROFILE_AXIS_MASK 0x0000000F
+#define LMC_OWNER_ROBOT_AXIS_MASK 0x000001FF
+#define LMC_OWNER_KIND_DIRECT 1
+#define LMC_OWNER_KIND_GROUP 2
+#define LMC_OWNER_RESOURCE_AXIS 1
+#define LMC_OWNER_ADMISSION_ORDINARY 1
+#define LMC_OWNER_ADMISSION_SAFETY 2
+#define LMC_OWNER_ADMISSION_LIFECYCLE 4
+#define LMC_OWNER_ADAPTER_ERROR_CONFLICT -9
+#define LMC_OWNER_SAFETY_DRAIN_PENDING -10
+#define LMC_OWNER_SAFETY_PHASE_PREPARE 1
+#define LMC_OWNER_SAFETY_PHASE_RETAIN 2
+#define LMC_OWNER_SAFETY_PHASE_TERMINAL 3
+#define LMC_OWNER_SAFETY_PENDING_MAGIC 0x5344504E
+#define LMC_OWNER_SAFETY_DRAIN_TIMEOUT_MS 1000
+#define LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET 1252
+#define LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET 1264
+#define LMC_OWNER_SAFETY_PENDING_MASK_OFFSET 1268
+#define LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET 1272
+#define LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET 1276
+#define LMC_OWNER_SAFETY_PENDING_START_OFFSET 1280
+#define LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET 1284
+#define LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET 1288
+#define LMC_OWNER_SAFETY_PENDING_CHECK_OFFSET 1292
+#define LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET 1296
+#define LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET 1300
+#define LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET 1304
+#define LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET 1308
+#define LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET 1312
+#define LMC_OWNER_SAFETY_PENDING_CHECK_COPY_OFFSET 1316
+#define LMC_DIAG_DS402_PREFLIGHT_READY -2
 
 FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 	VAR_INPUT
@@ -294,29 +339,166 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 	VAR
 		currentEpoch 	: UDINT;
 		sendRet 	: DINT;
+		cleanupAxisMask : UDINT;
+		cleanupAdmissionToken : UDINT;
+		cleanupOwnerGeneration : UDINT;
+		cleanupSessionEpoch : UDINT;
+		cleanupRequestSequence : UDINT;
+		cleanupRollbackResult : DINT;
+		cleanupPublishResult : DINT;
+		cleanupPrimaryValid : BOOL;
+		cleanupCopyValid : BOOL;
+		cleanupPendingActive : BOOL;
 	END_VAR
 
   // The ordinary TCP server and this interface run in one cyclic task.
   // Response publishes the queue before this CyWork consumes it.
   if (PendingClosedSessionEpoch <> 0) &
-     IsClientConnected(#Diagnostics) then
+     IsClientConnected(#Diagnostics) &
+     IsClientConnected(#ControlCommands) then
+    cleanupPendingActive :=
+      (ActiveRequest.Reserved = 1) |
+      ((ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+          LMC_OWNER_SAFETY_PENDING_MAGIC) &
+       (((ActiveRequest.CommandId = 0x2022) &
+         (ActiveRequest.PayloadLength = 16)) |
+        ((ActiveRequest.CommandId = 0x2023) &
+         (ActiveRequest.PayloadLength = 8)) |
+        ((ActiveRequest.CommandId = 0x2048) &
+         (ActiveRequest.PayloadLength = 1)) |
+        ((ActiveRequest.CommandId = 0x204B) &
+         (ActiveRequest.PayloadLength = 1)) |
+        ((ActiveRequest.CommandId = 0x2085) &
+         (ActiveRequest.PayloadLength = 16))));
+    // A retained safety-drain request owns a RESERVED tuple. Roll it back
+    // before session-close quarantine processing and never dispatch native IO.
+    if cleanupPendingActive &
+       (ActiveRequest.SessionEpoch = PendingClosedSessionEpoch) then
+      cleanupPrimaryValid :=
+        (ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+          LMC_OWNER_SAFETY_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_CHECK_OFFSET]$UDINT =
+         (LMC_OWNER_SAFETY_PENDING_MAGIC xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT));
+      cleanupCopyValid :=
+        (ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+          LMC_OWNER_SAFETY_PENDING_MAGIC) &
+        (ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_CHECK_COPY_OFFSET]$UDINT =
+         (LMC_OWNER_SAFETY_PENDING_MAGIC xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT xor
+          ActiveRequest.PayloadData[
+            LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT));
+
+      if cleanupPrimaryValid then
+        cleanupAxisMask := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT;
+        cleanupAdmissionToken := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT;
+        cleanupOwnerGeneration := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT;
+        cleanupSessionEpoch := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT;
+        cleanupRequestSequence := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT;
+      else
+        // The redundant tuple is also the fail-closed rollback candidate when
+        // both checks are corrupt. NotifySessionClosed then quarantines any
+        // RESERVED record that cannot be matched exactly.
+        cleanupAxisMask := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT;
+        cleanupAdmissionToken := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT;
+        cleanupOwnerGeneration := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT;
+        cleanupSessionEpoch := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT;
+        cleanupRequestSequence := ActiveRequest.PayloadData[
+          LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT;
+      end_if;
+      if (cleanupPrimaryValid = FALSE) & (cleanupCopyValid = FALSE) then
+        cleanupSessionEpoch := ActiveRequest.SessionEpoch;
+        cleanupRequestSequence := ActiveRequest.Sequence;
+      end_if;
+
+      cleanupRollbackResult := ControlCommands.RollbackAxisOwnership(
+        AdmissionToken:=cleanupAdmissionToken,
+        OwnerGeneration:=cleanupOwnerGeneration,
+        CallerSessionEpoch:=cleanupSessionEpoch,
+        RequestSequence:=cleanupRequestSequence,
+        Reason:=0);
+      if cleanupRollbackResult <> 0 then
+        cleanupPublishResult := ControlCommands.PublishAxisOwnership(
+          AxisMask:=cleanupAxisMask,
+          AdmissionToken:=cleanupAdmissionToken,
+          OwnerGeneration:=cleanupOwnerGeneration,
+          ReportKind:=4,
+          ReportValue0:=TO_UDINT(cleanupRollbackResult),
+          ReportValue1:=42,
+          ObservationCycle:=ops.tAbsolute);
+      end_if;
+      ActiveRequest.Reserved := 0;
+      ActiveRequestValid := FALSE;
+    end_if;
     Diagnostics.NotifySessionClosed(
       SessionEpoch:=PendingClosedSessionEpoch);
+    ControlCommands.NotifyAxisOwnershipSessionClosed(
+      SessionEpoch:=PendingClosedSessionEpoch);
+    if ActiveRequest.SessionEpoch = PendingClosedSessionEpoch then
+      _memset(dest:=#ActiveRequest, usByte:=0, cntr:=sizeof(ActiveRequest));
+    end_if;
     PendingClosedSessionEpoch := 0;
   end_if;
 
   currentEpoch := SessionEpoch;
 
+  // Retained owner and Home watchdogs continue across TCP session loss.
+  if IsClientConnected(#ControlCommands) then
+    ControlCommands.ProcessAxisZeroHome();
+    ControlCommands.ProcessAxisOwnership();
+  end_if;
+
+  // Finish retained diagnostics receipts before admitting a new request that
+  // could legally acquire the same axis after the old common owner is cleared.
+  if IsClientConnected(#Diagnostics) then
+    Diagnostics.ProcessOperations();
+  end_if;
+
   // ControlCommands resolves object names on demand through MsgPaser in this
   // CyWork context. CyWork performs no periodic discovery or retry loop.
 
-  if (ActiveRequestValid = TRUE) &
+  if (PendingClosedSessionEpoch = 0) &
+     (ActiveRequestValid = TRUE) &
      (ActiveRequest.SessionEpoch <> currentEpoch) then
     ActiveRequestValid := FALSE;
   end_if;
 
   // The queue has one cyclic owner, so enum states use direct transitions.
-  if ActiveRequestValid = FALSE then
+  if (PendingClosedSessionEpoch = 0) & (ActiveRequestValid = FALSE) then
     if RequestQueue[QueueReadIndex$DINT].State = TCPMI_QUEUE_READY then
       RequestQueue[QueueReadIndex$DINT].State := TCPMI_QUEUE_ACTIVE;
       _StdLib.MemCpy(
@@ -330,7 +512,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
     end_if;
   end_if;
 
-  if ActiveRequestValid = TRUE then
+  if (PendingClosedSessionEpoch = 0) & (ActiveRequestValid = TRUE) then
     if ActiveRequest.SessionEpoch = currentEpoch then
       _memset(dest:=#RequestBuf, usByte:=0, cntr:=sizeof(RequestBuf));
       RequestBuf[0]$UINT := ActiveRequest.CommandId;
@@ -348,13 +530,13 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
       AxisRef := TO_DINT(ActiveRequest.Reference);
       Payload := TO_DINT(ActiveRequest.PayloadLength);
       CurrentSock := ActiveRequest.Socket;
+	  // Reserved remains one only while the same authenticated safety tuple is
+	  // waiting for the RT LOW/readback drain. MsgPaser clears it on terminal.
       MsgPaser();
     end_if;
-    ActiveRequestValid := FALSE;
-  end_if;
-
-  if IsClientConnected(#Diagnostics) then
-    Diagnostics.ProcessOperations();
+	if ActiveRequest.Reserved = 0 then
+	  ActiveRequestValid := FALSE;
+	end_if;
   end_if;
 
   // Fault responses are ordered after every request accepted before the fault.
@@ -409,6 +591,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		takeCandidate 	: BOOL;
 		takeover 	: BOOL;
 		candidatePeerValid 	: BOOL;
+		preservePendingActive : BOOL;
 		candidatePeerIPv4 	: UDINT;
 		activePeerIPv4 	: UDINT;
 	END_VAR
@@ -530,7 +713,26 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         _memset(dest:=#RequestQueue[0], usByte:=0, cntr:=sizeof(RequestQueue));
         QueueWriteIndex := 0;
         QueueReadIndex := 0;
-        _memset(dest:=#ActiveRequest, usByte:=0, cntr:=sizeof(ActiveRequest));
+        // Preserve only an authenticated safety-drain continuation long enough
+        // for CyWork to roll its exact RESERVED tuple back before close notify.
+        preservePendingActive :=
+          (ActiveRequest.Reserved = 1) |
+          ((ActiveRequest.PayloadData[
+              LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+              LMC_OWNER_SAFETY_PENDING_MAGIC) &
+           (((ActiveRequest.CommandId = 0x2022) &
+             (ActiveRequest.PayloadLength = 16)) |
+            ((ActiveRequest.CommandId = 0x2023) &
+             (ActiveRequest.PayloadLength = 8)) |
+            ((ActiveRequest.CommandId = 0x2048) &
+             (ActiveRequest.PayloadLength = 1)) |
+            ((ActiveRequest.CommandId = 0x204B) &
+             (ActiveRequest.PayloadLength = 1)) |
+            ((ActiveRequest.CommandId = 0x2085) &
+             (ActiveRequest.PayloadLength = 16))));
+        if preservePendingActive = FALSE then
+          _memset(dest:=#ActiveRequest, usByte:=0, cntr:=sizeof(ActiveRequest));
+        end_if;
         _memset(dest:=#RequestBuf, usByte:=0, cntr:=sizeof(RequestBuf));
         CommandID := 0;
         AxisRef := 0;
@@ -912,143 +1114,544 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
 END_FUNCTION
 
 
-FUNCTION TCPMotionInterface::MsgPaser
+FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
+	VAR_INPUT
+		Phase 	: UINT;
+		EffectiveAxisMask 	: UDINT;
+		AdmissionToken 	: UDINT;
+		OwnerGeneration 	: UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
 	VAR
-		controlResponseSize : DINT;
-		diagnosticsResponseSize : DINT;
+		pendingRequiredMask : UDINT;
+		pendingAxisMask : UDINT;
+		pendingAdmissionToken : UDINT;
+		pendingOwnerGeneration : UDINT;
+		pendingStart : UDINT;
+		pendingRollbackResult : DINT;
+		pendingPublishResult : DINT;
+		pendingResponseSize : DINT;
+		pendingShapeValid : BOOL;
+		pendingPrimaryValid : BOOL;
+		pendingCopyValid : BOOL;
+		pendingContextValid : BOOL;
+		pendingTimedOut : BOOL;
+		pendingCloseRequired : BOOL;
+		pendingSendResponse : BOOL;
+		pendingAccepted : BOOL;
+		pendingFailure : BOOL;
 	END_VAR
 
-  // Motion/read/lookup commands are accepted only after this socket completed
-  // session init and UDP callback registration.
-  if (CommandID <> 0x8080) & (CommandID <> 0x405C) &
-     (CommandID <> 0x405D) &
-     ((RpcInitialized = FALSE) | (RpcCallbackRegistered = FALSE) |
-      (RpcSocket <> CurrentSock)) then
-    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-    Sendbuf[0]$UINT := 1;
-    Sendbuf[2]$UINT := 4;
-    Sendbuf[4]$UDINT := 0;
-    Sendbuf[8]$UINT := 1;
-    Sendbuf[10]$INT := -1;
+	Result := -1;
+	pendingRequiredMask := 0;
+	pendingAxisMask := 0;
+	pendingAdmissionToken := 0;
+	pendingOwnerGeneration := 0;
+	pendingStart := 0;
+	pendingRollbackResult := 0;
+	pendingPublishResult := 0;
+	pendingResponseSize := 0;
+	pendingShapeValid := FALSE;
+	pendingPrimaryValid := FALSE;
+	pendingCopyValid := FALSE;
+	pendingContextValid := FALSE;
+	pendingTimedOut := FALSE;
+	pendingCloseRequired := FALSE;
+	pendingSendResponse := FALSE;
+	pendingAccepted := FALSE;
+	pendingFailure := FALSE;
 
-    SendData(
-      pData:=#Sendbuf[0],
-      udSize:=12,
-      dSocket:=CurrentSock,
-      bDirect:=TRUE
-    );
-    RETURN;
-  end_if;
+	// Only these five authenticated safety forms may retain a RESERVED tuple.
+	case CommandID of
+		0x2022:
+			pendingShapeValid :=
+				(Payload = 16) & (AxisRef >= 1) & (AxisRef <= 9) &
+				(RequestBuf[8]$DINT > 0) &
+				(RequestBuf[12]$DINT >= 0) &
+				(RequestBuf[16]$DINT = 1) &
+				(RequestBuf[20]$DINT = 1);
+		0x2023:
+			pendingShapeValid :=
+				(Payload = 8) & (AxisRef >= 1) & (AxisRef <= 9) &
+				(RequestBuf[8]$UDINT = 1) &
+				(RequestBuf[12] = 0) &
+				(RequestBuf[13] = 1) & (RequestBuf[14] = 0) &
+				(RequestBuf[15] = 1);
+		0x2048:
+			pendingShapeValid :=
+				(Payload = 1) & (AxisRef = 0x0100) &
+				(RequestBuf[8] = 1);
+			pendingRequiredMask := LMC_OWNER_PROFILE_AXIS_MASK;
+		0x204B:
+			pendingShapeValid :=
+				(Payload = 1) & (AxisRef = 0x0100) &
+				(RequestBuf[8] = 1);
+			pendingRequiredMask := LMC_OWNER_ROBOT_AXIS_MASK;
+		0x2085:
+			pendingShapeValid :=
+				(Payload = 16) & (AxisRef = 0x0100) &
+				(RequestBuf[8]$DINT >= 0) &
+				(RequestBuf[12]$DINT >= 0) &
+				(RequestBuf[16]$DINT = 1) &
+				(RequestBuf[20]$DINT = 1) &
+				((RequestBuf[12]$DINT = 0) |
+				 (RequestBuf[8]$DINT > 0));
+			pendingRequiredMask := LMC_OWNER_PROFILE_AXIS_MASK;
+	else
+	end_case;
+	if pendingShapeValid & (pendingRequiredMask = 0) then
+		case AxisRef of
+			1: pendingRequiredMask := 0x00000001;
+			2: pendingRequiredMask := 0x00000002;
+			3: pendingRequiredMask := 0x00000004;
+			4: pendingRequiredMask := 0x00000008;
+			5: pendingRequiredMask := 0x00000010;
+			6: pendingRequiredMask := 0x00000020;
+			7: pendingRequiredMask := 0x00000040;
+			8: pendingRequiredMask := 0x00000080;
+			9: pendingRequiredMask := 0x00000100;
+		else
+		end_case;
+	end_if;
 
+	case Phase of
+		LMC_OWNER_SAFETY_PHASE_PREPARE:
+			if (ActiveRequest.Reserved <> 1) &
+			   (ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT <>
+				 LMC_OWNER_SAFETY_PENDING_MAGIC) then
+				Result := 0;
+			else
+				pendingPrimaryValid :=
+					(ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+					 LMC_OWNER_SAFETY_PENDING_MAGIC) &
+					(ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_CHECK_OFFSET]$UDINT =
+					 (LMC_OWNER_SAFETY_PENDING_MAGIC xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT));
+				pendingCopyValid :=
+					(ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+					 LMC_OWNER_SAFETY_PENDING_MAGIC) &
+					(ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_CHECK_COPY_OFFSET]$UDINT =
+					 (LMC_OWNER_SAFETY_PENDING_MAGIC xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT xor
+					  ActiveRequest.PayloadData[
+					   LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT));
+				pendingStart := ActiveRequest.PayloadData[
+					LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT;
+				if pendingPrimaryValid then
+					pendingAxisMask := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT;
+					pendingAdmissionToken := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT;
+					pendingOwnerGeneration := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT;
+				else
+					pendingAxisMask := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT;
+					pendingAdmissionToken := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT;
+					pendingOwnerGeneration := ActiveRequest.PayloadData[
+						LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT;
+				end_if;
+				pendingContextValid := pendingShapeValid &
+					(pendingPrimaryValid | pendingCopyValid) &
+					(pendingAxisMask <> 0) &
+					(pendingAxisMask <= LMC_OWNER_ROBOT_AXIS_MASK) &
+					((pendingAxisMask and pendingRequiredMask) =
+					 pendingRequiredMask) &
+					(pendingAdmissionToken <> 0) &
+					(pendingOwnerGeneration <> 0) &
+					(ActiveRequest.SessionEpoch <> 0) &
+					(ActiveRequest.Sequence <> 0);
+				if pendingPrimaryValid then
+					pendingContextValid := pendingContextValid &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT =
+						 ActiveRequest.SessionEpoch) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT =
+						 ActiveRequest.Sequence);
+				else
+					pendingContextValid := pendingContextValid &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT =
+						 ActiveRequest.SessionEpoch) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT =
+						 ActiveRequest.Sequence);
+				end_if;
+				if pendingPrimaryValid & pendingCopyValid then
+					pendingContextValid := pendingContextValid &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT =
+						 ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT =
+						 ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT =
+						 ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT =
+						 ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT =
+						 ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT);
+				end_if;
+				pendingTimedOut := pendingContextValid &
+					((ops.tAbsolute - pendingStart) >=
+					 LMC_OWNER_SAFETY_DRAIN_TIMEOUT_MS);
+				if pendingContextValid & (pendingTimedOut = FALSE) then
+					// Canonicalize the primary copy before the parser loads it.
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT := pendingAxisMask;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT :=
+						pendingAdmissionToken;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT :=
+						pendingOwnerGeneration;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT :=
+						ActiveRequest.SessionEpoch;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT :=
+						ActiveRequest.Sequence;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_CHECK_OFFSET]$UDINT :=
+						LMC_OWNER_SAFETY_PENDING_MAGIC xor pendingAxisMask xor
+						pendingAdmissionToken xor pendingOwnerGeneration xor
+						pendingStart xor ActiveRequest.SessionEpoch xor
+						ActiveRequest.Sequence;
+					ActiveRequest.Reserved := 1;
+					Result := 1;
+				else
+					if IsClientConnected(#ControlCommands) then
+						pendingRollbackResult :=
+						  ControlCommands.RollbackAxisOwnership(
+							AdmissionToken:=pendingAdmissionToken,
+							OwnerGeneration:=pendingOwnerGeneration,
+							CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+							RequestSequence:=ActiveRequest.Sequence,
+							Reason:=0);
+					else
+						pendingRollbackResult := -3;
+					end_if;
+					if pendingRollbackResult <> 0 then
+						pendingCloseRequired := TRUE;
+						if IsClientConnected(#ControlCommands) then
+						  pendingPublishResult :=
+							ControlCommands.PublishAxisOwnership(
+								AxisMask:=pendingAxisMask,
+								AdmissionToken:=pendingAdmissionToken,
+								OwnerGeneration:=pendingOwnerGeneration,
+								ReportKind:=4,
+								ReportValue0:=TO_UDINT(pendingRollbackResult),
+								ReportValue1:=42,
+								ObservationCycle:=ActiveRequest.Sequence);
+						end_if;
+					end_if;
+					if pendingContextValid = FALSE then
+						pendingCloseRequired := TRUE;
+					end_if;
+					ActiveRequest.Reserved := 0;
+					pendingSendResponse := TRUE;
+					Result := 0;
+				end_if;
+			end_if;
+
+		LMC_OWNER_SAFETY_PHASE_RETAIN:
+			pendingContextValid := pendingShapeValid &
+				(EffectiveAxisMask <> 0) &
+				(EffectiveAxisMask <= LMC_OWNER_ROBOT_AXIS_MASK) &
+				((EffectiveAxisMask and pendingRequiredMask) =
+				 pendingRequiredMask) &
+				(AdmissionToken <> 0) & (OwnerGeneration <> 0) &
+				(ActiveRequest.SessionEpoch <> 0) &
+				(ActiveRequest.Sequence <> 0);
+			if pendingContextValid then
+				if ActiveRequest.Reserved = 0 then
+					pendingStart := ops.tAbsolute;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT := 0;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET]$DINT := 0;
+					ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT := pendingStart;
+				else
+					pendingStart := ActiveRequest.PayloadData[
+					 LMC_OWNER_SAFETY_PENDING_START_OFFSET]$UDINT;
+					pendingContextValid :=
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+						 LMC_OWNER_SAFETY_PENDING_MAGIC) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT =
+						 EffectiveAxisMask) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT =
+						 AdmissionToken) &
+						(ActiveRequest.PayloadData[
+						 LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT =
+						 OwnerGeneration);
+				end_if;
+			end_if;
+			if pendingContextValid then
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT := EffectiveAxisMask;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT := AdmissionToken;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT := OwnerGeneration;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_SESSION_OFFSET]$UDINT :=
+					ActiveRequest.SessionEpoch;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_SEQUENCE_OFFSET]$UDINT :=
+					ActiveRequest.Sequence;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_MASK_COPY_OFFSET]$UDINT := EffectiveAxisMask;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_TOKEN_COPY_OFFSET]$UDINT := AdmissionToken;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_GENERATION_COPY_OFFSET]$UDINT :=
+					OwnerGeneration;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_SESSION_COPY_OFFSET]$UDINT :=
+					ActiveRequest.SessionEpoch;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_SEQUENCE_COPY_OFFSET]$UDINT :=
+					ActiveRequest.Sequence;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_CHECK_OFFSET]$UDINT :=
+					LMC_OWNER_SAFETY_PENDING_MAGIC xor EffectiveAxisMask xor
+					AdmissionToken xor OwnerGeneration xor pendingStart xor
+					ActiveRequest.SessionEpoch xor ActiveRequest.Sequence;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_CHECK_COPY_OFFSET]$UDINT :=
+					LMC_OWNER_SAFETY_PENDING_MAGIC xor EffectiveAxisMask xor
+					AdmissionToken xor OwnerGeneration xor pendingStart xor
+					ActiveRequest.SessionEpoch xor ActiveRequest.Sequence;
+				ActiveRequest.PayloadData[
+				 LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT :=
+					LMC_OWNER_SAFETY_PENDING_MAGIC;
+				ActiveRequest.Reserved := 1;
+				Result := 1;
+			else
+				if IsClientConnected(#ControlCommands) then
+					pendingRollbackResult :=
+					  ControlCommands.RollbackAxisOwnership(
+						AdmissionToken:=AdmissionToken,
+						OwnerGeneration:=OwnerGeneration,
+						CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+						RequestSequence:=ActiveRequest.Sequence,
+						Reason:=0);
+				else
+					pendingRollbackResult := -3;
+				end_if;
+				if pendingRollbackResult <> 0 then
+					if IsClientConnected(#ControlCommands) then
+					  pendingPublishResult := ControlCommands.PublishAxisOwnership(
+						AxisMask:=EffectiveAxisMask,
+						AdmissionToken:=AdmissionToken,
+						OwnerGeneration:=OwnerGeneration,
+						ReportKind:=4,
+						ReportValue0:=TO_UDINT(pendingRollbackResult),
+						ReportValue1:=42,
+						ObservationCycle:=ActiveRequest.Sequence);
+					end_if;
+				end_if;
+				pendingCloseRequired := TRUE;
+				ActiveRequest.Reserved := 0;
+				pendingSendResponse := TRUE;
+				Result := 0;
+			end_if;
+
+		LMC_OWNER_SAFETY_PHASE_TERMINAL:
+			pendingResponseSize := ActiveRequest.PayloadData[
+				LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET]$DINT;
+			pendingAccepted :=
+				(pendingResponseSize = 16) &
+				(Sendbuf[0]$UINT = 0) & (Sendbuf[2]$UINT = 8) &
+				(Sendbuf[4]$UDINT = 0) &
+				(Sendbuf[8]$UDINT = TO_UDINT(AxisRef)) &
+				(Sendbuf[12]$UINT = 0) & (Sendbuf[14]$INT = 0);
+			pendingFailure :=
+				(pendingResponseSize = 16) &
+				(Sendbuf[0]$UINT = 0) & (Sendbuf[2]$UINT = 8) &
+				(Sendbuf[4]$UDINT = 0) &
+				(Sendbuf[8]$UDINT = TO_UDINT(AxisRef)) &
+				(Sendbuf[12]$UINT = 1) & (Sendbuf[14]$INT <> 0);
+			if (pendingAccepted = FALSE) & (pendingFailure = FALSE) then
+				if IsClientConnected(#ControlCommands) then
+				  pendingPublishResult := ControlCommands.PublishAxisOwnership(
+					AxisMask:=EffectiveAxisMask,
+					AdmissionToken:=AdmissionToken,
+					OwnerGeneration:=OwnerGeneration,
+					ReportKind:=4,
+					ReportValue0:=TO_UDINT(pendingResponseSize),
+					ReportValue1:=42,
+					ObservationCycle:=ActiveRequest.Sequence);
+				end_if;
+				pendingCloseRequired := TRUE;
+			end_if;
+			ActiveRequest.Reserved := 0;
+			pendingSendResponse := TRUE;
+			Result := 0;
+	else
+	end_case;
+
+	if pendingSendResponse then
+		if (pendingAccepted = FALSE) & (pendingFailure = FALSE) then
+			_memset(dest:=#Sendbuf, usByte:=0, cntr:=16);
+			Sendbuf[0]$UINT := 0;
+			Sendbuf[2]$UINT := 8;
+			Sendbuf[8]$UDINT := TO_UDINT(AxisRef);
+			Sendbuf[12]$UINT := 1;
+			Sendbuf[14]$INT := -8;
+		end_if;
+		SendData(pData:=#Sendbuf[0], udSize:=16,
+			dSocket:=CurrentSock, bDirect:=TRUE);
+		if pendingCloseRequired then
+			// Fence this epoch before the asynchronous socket-close callback.
+			// SendData already owns the fence if its direct send failed.
+			if (ActiveRequest.SessionEpoch <> 0) &
+			   (PendingClosedSessionEpoch = 0) then
+				PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;
+				SessionEpoch += 1;
+				if SessionEpoch = 0 then
+					SessionEpoch := 1;
+				end_if;
+			end_if;
+			IngressBlocked := TRUE;
+			IngressFaultCloseRequired := TRUE;
+			LastOwnerDisconnectRequestRet :=
+				_TCPIPServerInterface::SetSocketParameter(
+					dSock:=CurrentSock, Cmd:=100, SubCmd:=0, ParaValue:=0);
+		end_if;
+	end_if;
+
+END_FUNCTION
+
+
+FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
+	VAR
+		callbackEventMask : UDINT;
+		callbackPort : DINT;
+		callbackIPv4 : UDINT;
+	END_VAR
+
+  // Keep RPC lifecycle dispatch isolated from the aggregate message parser.
   case CommandID of
+  0x8080:
 
-    0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x7E04,
-    0x7E10, 0x7E11, 0x7E12, 0x7E20, 0x7E21,
-    0x7E30, 0x7E31, 0x7E32, 0x7E33,
-    0x7E40, 0x7E41, 0x7E42, 0x7E43, 0x7E44,
-    0x7E45, 0x7E46, 0x7E47, 0x7E48, 0x7E49, 0x7E4A, 0x7E4B,
-    0x7E4C, 0x7E4D,
-    0x7E50, 0x7E51:
-      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-      diagnosticsResponseSize := -1;
-      if IsClientConnected(#Diagnostics) then
-        diagnosticsResponseSize := Diagnostics.HandleRequest(
-          CommandId:=CommandID$UINT,
-          Reference:=AxisRef$UINT,
-          pRequest:=(#RequestBuf[8])$^USINT,
-          RequestSize:=Payload$UDINT,
-          pResponse:=(#Sendbuf[8])$^USINT,
-          ResponseCapacity:=2040,
-          CallerSessionEpoch:=SessionEpoch
-        );
-      end_if;
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
 
-      if (diagnosticsResponseSize >= 16) &
-         (diagnosticsResponseSize <= 2040) then
-        Sendbuf[0]$UINT := 0;
-        Sendbuf[2]$UINT := diagnosticsResponseSize$UINT;
-        Sendbuf[4]$UDINT := 0;
-        diagnosticsResponseSize := diagnosticsResponseSize + 8;
-      else
-        Sendbuf[0]$UINT := 1;
-        Sendbuf[2]$UINT := 4;
-        Sendbuf[4]$UDINT := 0;
-        Sendbuf[8]$UINT := 1;
-        Sendbuf[10]$INT := -1;
-        diagnosticsResponseSize := 12;
-      end_if;
+    if (Payload = 1) & (RequestBuf[8] = 0) &
+       ((RpcInitialized = FALSE) | (RpcSocket = CurrentSock)) then
+      RpcSocket := CurrentSock;
+      RpcInitialized := TRUE;
+      RpcCallbackRegistered := FALSE;
+      RpcCallbackEventMask := 0;
+      RpcCallbackPort := 0;
+      RpcCallbackIPv4[0] := 0;
+      RpcCallbackIPv4[1] := 0;
+      RpcCallbackIPv4[2] := 0;
+      RpcCallbackIPv4[3] := 0;
+
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 24;
+      Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UDINT := 64;  // Captured opaque value; meaning not confirmed.
 
       SendData(
         pData:=#Sendbuf[0],
-        udSize:=diagnosticsResponseSize$UDINT,
+        udSize:=32,
         dSocket:=CurrentSock,
         bDirect:=TRUE
       );
-
-    // RPC session init. Response payload follows the captured 24-byte shape.
-    0x8080:
-
-      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-
-      if (Payload = 1) & (RequestBuf[8] = 0) &
-         ((RpcInitialized = FALSE) | (RpcSocket = CurrentSock)) then
-        RpcSocket := CurrentSock;
-        RpcInitialized := TRUE;
-        RpcCallbackRegistered := FALSE;
-        RpcCallbackEventMask := 0;
-        RpcCallbackPort := 0;
-        RpcCallbackIPv4[0] := 0;
-        RpcCallbackIPv4[1] := 0;
-        RpcCallbackIPv4[2] := 0;
-        RpcCallbackIPv4[3] := 0;
-
-        Sendbuf[0]$UINT := 0;
-        Sendbuf[2]$UINT := 24;
-        Sendbuf[4]$UDINT := 0;
-        Sendbuf[8]$UDINT := 64;  // Captured opaque value; meaning not confirmed.
-
-        SendData(
-          pData:=#Sendbuf[0],
-          udSize:=32,
-          dSocket:=CurrentSock,
-          bDirect:=TRUE
-        );
-      else
-        Sendbuf[0]$UINT := 1;
-        Sendbuf[2]$UINT := 4;
-        Sendbuf[4]$UDINT := 0;
-        Sendbuf[8]$UINT := 1;
-        Sendbuf[10]$INT := -1;
-
-        SendData(
-          pData:=#Sendbuf[0],
-          udSize:=12,
-          dSocket:=CurrentSock,
-          bDirect:=TRUE
-        );
-      end_if;
-
-    // Register the PC UDP callback endpoint. Event payload sending is pending
-    // a real callback capture/specification.
-    0x405C:
-
-      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-      Sendbuf[0]$UINT := 0;
+    else
+      Sendbuf[0]$UINT := 1;
       Sendbuf[2]$UINT := 4;
       Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$INT := -1;
 
-      if (Payload = 12) & (RpcInitialized = TRUE) &
-         (RpcSocket = CurrentSock) then
-        _StdLib.MemCpy(dest:=#RpcCallbackEventMask, source:=#RequestBuf[8], size:=4);
-        _StdLib.MemCpy(dest:=#RpcCallbackPort, source:=#RequestBuf[12], size:=4);
-        _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#RequestBuf[16], size:=4);
+      SendData(
+        pData:=#Sendbuf[0],
+        udSize:=12,
+        dSocket:=CurrentSock,
+        bDirect:=TRUE
+      );
+    end_if;
 
-        if (RpcCallbackPort > 0) & (RpcCallbackPort <= 65535) then
+  0x405C:
+
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 0;
+    Sendbuf[2]$UINT := 4;
+    Sendbuf[4]$UDINT := 0;
+
+    callbackEventMask := 0;
+    callbackPort := 0;
+    callbackIPv4 := 0;
+
+    if (Payload = 12) & (RpcInitialized = TRUE) &
+       (RpcSocket = CurrentSock) then
+      _StdLib.MemCpy(dest:=#callbackEventMask, source:=#RequestBuf[8], size:=4);
+      _StdLib.MemCpy(dest:=#callbackPort, source:=#RequestBuf[12], size:=4);
+      _StdLib.MemCpy(dest:=#callbackIPv4, source:=#RequestBuf[16], size:=4);
+
+      if (CurrentPeerValid = TRUE) &
+         (callbackIPv4 = CurrentPeerIPv4) &
+         (callbackPort > 0) & (callbackPort <= 65535) then
+        if RpcCallbackRegistered = FALSE then
+          RpcCallbackEventMask := callbackEventMask;
+          RpcCallbackPort := callbackPort;
+          _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#RequestBuf[16], size:=4);
           RpcCallbackRegistered := TRUE;
           Sendbuf[8]$UINT := 0;
           Sendbuf[10]$INT := 0;
+        elsif (RpcCallbackEventMask = callbackEventMask) &
+              (RpcCallbackPort = callbackPort) &
+              (RpcCallbackIPv4[0] = RequestBuf[16]) &
+              (RpcCallbackIPv4[1] = RequestBuf[17]) &
+              (RpcCallbackIPv4[2] = RequestBuf[18]) &
+              (RpcCallbackIPv4[3] = RequestBuf[19]) then
+          Sendbuf[8]$UINT := 0;
+          Sendbuf[10]$INT := 0;
         else
-          RpcCallbackRegistered := FALSE;
           Sendbuf[8]$UINT := 1;
           Sendbuf[10]$INT := -1;
         end_if;
@@ -1056,6 +1659,29 @@ FUNCTION TCPMotionInterface::MsgPaser
         Sendbuf[8]$UINT := 1;
         Sendbuf[10]$INT := -1;
       end_if;
+    else
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$INT := -1;
+    end_if;
+
+    SendData(
+      pData:=#Sendbuf[0],
+      udSize:=12,
+      dSocket:=CurrentSock,
+      bDirect:=TRUE
+    );
+
+  0x405D:
+
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 0;
+    Sendbuf[2]$UINT := 4;
+    Sendbuf[4]$UDINT := 0;
+
+    if (Payload = 1) & (RpcInitialized = TRUE) &
+       (RpcSocket = CurrentSock) then
+      Sendbuf[8]$UINT := 0;
+      Sendbuf[10]$INT := 0;
 
       SendData(
         pData:=#Sendbuf[0],
@@ -1064,70 +1690,776 @@ FUNCTION TCPMotionInterface::MsgPaser
         bDirect:=TRUE
       );
 
-    // Acknowledge before the PC closes the TCP socket, then clear this session.
-    0x405D:
+      RpcSocket := 0;
+      RpcInitialized := FALSE;
+      RpcCallbackRegistered := FALSE;
+      RpcCallbackEventMask := 0;
+      RpcCallbackPort := 0;
+      RpcCallbackIPv4[0] := 0;
+      RpcCallbackIPv4[1] := 0;
+      RpcCallbackIPv4[2] := 0;
+      RpcCallbackIPv4[3] := 0;
+      if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+        PendingClosedSessionEpoch := SessionEpoch;
+      end_if;
+      SessionEpoch += 1;
+      if SessionEpoch = 0 then
+        SessionEpoch := 1;
+      end_if;
+    else
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$INT := -1;
 
-      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+      SendData(
+        pData:=#Sendbuf[0],
+        udSize:=12,
+        dSocket:=CurrentSock,
+        bDirect:=TRUE
+      );
+    end_if;
+  end_case;
+
+END_FUNCTION
+
+
+FUNCTION TCPMotionInterface::MsgPaser
+	VAR
+		controlResponseSize : DINT;
+		diagnosticsResponseSize : DINT;
+		controlAxisMask : UDINT;
+		controlEffectiveAxisMask : UDINT;
+		controlAdmissionToken : UDINT;
+		controlOwnerGeneration : UDINT;
+		controlAdmissionResult : DINT;
+		controlRollbackResult : DINT;
+		controlPublishResult : DINT;
+		controlOwnerKind : UINT;
+		controlResourceKind : UINT;
+		controlAdmissionMode : UINT;
+		controlIdentityIndex : DINT;
+		controlInvokeService : BOOL;
+		controlReserved : BOOL;
+		controlManagedCommand : BOOL;
+		controlClassifierValid : BOOL;
+		controlExactAccepted : BOOL;
+		controlExactFailure : BOOL;
+		controlPendingContinuation : BOOL;
+		controlPendingResult : DINT;
+		diagnosticsAxisMask : UDINT;
+		diagnosticsEffectiveAxisMask : UDINT;
+		diagnosticsAdmissionToken : UDINT;
+		diagnosticsOwnerGeneration : UDINT;
+		diagnosticsAdmissionResult : DINT;
+		diagnosticsRollbackResult : DINT;
+		diagnosticsPublishResult : DINT;
+		diagnosticsOwnerReference : UINT;
+		diagnosticsOwnerKind : UINT;
+		diagnosticsResourceKind : UINT;
+		diagnosticsReserved : BOOL;
+		diagnosticsDs402StartValid : BOOL;
+		diagnosticsDs402PreflightAttempted : BOOL;
+		diagnosticsDs402PreflightAccepted : BOOL;
+		diagnosticsExactAccepted : BOOL;
+		diagnosticsExactFailure : BOOL;
+	END_VAR
+
+if (CommandID <> 0x8080) & (CommandID <> 0x405C) &
+   (CommandID <> 0x405D) &
+   ((RpcInitialized = FALSE) | (RpcCallbackRegistered = FALSE) |
+    (RpcSocket <> CurrentSock)) then
+  _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+  Sendbuf[0]$UINT := 1;
+  Sendbuf[2]$UINT := 4;
+  Sendbuf[4]$UDINT := 0;
+  Sendbuf[8]$UINT := 1;
+  Sendbuf[10]$INT := -1;
+
+  SendData(
+    pData:=#Sendbuf[0],
+    udSize:=12,
+    dSocket:=CurrentSock,
+    bDirect:=TRUE
+  );
+  RETURN;
+end_if;
+
+case CommandID of
+
+  0x7D15, 0x7D16, 0x7D17,
+  0x7E00, 0x7E01, 0x7E02, 0x7E03, 0x7E04,
+  0x7E10, 0x7E11, 0x7E12, 0x7E13, 0x7E20, 0x7E21, 0x7E22,
+  0x7E30, 0x7E31, 0x7E32, 0x7E33,
+  0x7E40, 0x7E41, 0x7E42, 0x7E43, 0x7E44,
+  0x7E45, 0x7E46, 0x7E47, 0x7E48, 0x7E49, 0x7E4A, 0x7E4B,
+  0x7E4C, 0x7E4D,
+  0x7E50, 0x7E51,
+  0x7E53, 0x7E54, 0x7E55:
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    diagnosticsResponseSize := -1;
+	  diagnosticsAxisMask := 0;
+	  diagnosticsEffectiveAxisMask := 0;
+	  diagnosticsAdmissionToken := 0;
+	  diagnosticsOwnerGeneration := 0;
+	  diagnosticsAdmissionResult := -1;
+	  diagnosticsRollbackResult := 0;
+	  diagnosticsPublishResult := 0;
+	  diagnosticsOwnerReference := 0;
+	  diagnosticsOwnerKind := 0;
+	  diagnosticsResourceKind := 0;
+	  diagnosticsReserved := FALSE;
+	  diagnosticsDs402StartValid := FALSE;
+	  diagnosticsDs402PreflightAttempted := FALSE;
+	  diagnosticsDs402PreflightAccepted := FALSE;
+	  diagnosticsExactAccepted := FALSE;
+	  diagnosticsExactFailure := FALSE;
+
+	  if (CommandID = 0x7E53) & (Payload = 72) then
+		diagnosticsOwnerReference := RequestBuf[48]$UINT;
+		diagnosticsOwnerKind := 5;
+		diagnosticsResourceKind := 4;
+	  elsif (CommandID = 0x7D15) & (Payload = 72) then
+		diagnosticsOwnerReference := AxisRef$UINT;
+		diagnosticsOwnerKind := 4;
+		diagnosticsResourceKind := 3;
+	  end_if;
+	  case diagnosticsOwnerReference of
+		1: diagnosticsAxisMask := 0x00000001;
+		2: diagnosticsAxisMask := 0x00000002;
+		3: diagnosticsAxisMask := 0x00000004;
+		4: diagnosticsAxisMask := 0x00000008;
+	  else
+	  end_case;
+	  if (CommandID = 0x7D15) & (Payload = 72) &
+		 (diagnosticsAxisMask <> 0) then
+		diagnosticsDs402StartValid :=
+		  (RequestBuf[8]$UINT = 1) &
+		  (RequestBuf[10]$UINT = 0) &
+		  (RequestBuf[12]$UDINT <> 0) &
+		  (RequestBuf[16]$UDINT <> 0) &
+		  (RequestBuf[20]$UDINT <> 0) &
+		  (RequestBuf[24]$UDINT <> 0) &
+		  ((RequestBuf[28]$UDINT <> 0) |
+		   (RequestBuf[32]$UDINT <> 0) |
+		   (RequestBuf[36]$UDINT <> 0) |
+		   (RequestBuf[40]$UDINT <> 0)) &
+		  (RequestBuf[44]$DINT = 37) &
+		  (RequestBuf[48]$DINT = 0) &
+		  (RequestBuf[52]$DINT = 0) &
+		  (RequestBuf[56]$DINT = 0) &
+		  (RequestBuf[60]$DINT = 0) &
+		  (RequestBuf[64]$DINT = 0) &
+		  (RequestBuf[68]$UINT = 1) &
+		  (RequestBuf[70]$UINT = 0) &
+		  (RequestBuf[72]$UDINT <> 0) &
+		  (RequestBuf[76]$UDINT = 0x32303448);
+	  end_if;
+	  if diagnosticsDs402StartValid &
+		 IsClientConnected(#Diagnostics) &
+		 IsClientConnected(#ControlCommands) then
+		diagnosticsDs402PreflightAttempted := TRUE;
+		diagnosticsResponseSize := Diagnostics.HandleRequest(
+		  CommandId:=CommandID$UINT,
+		  Reference:=AxisRef$UINT,
+		  pRequest:=(#RequestBuf[8])$^USINT,
+		  RequestSize:=Payload$UDINT,
+		  pResponse:=(#Sendbuf[8])$^USINT,
+		  ResponseCapacity:=2040,
+		  CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+		  RequestSequence:=ActiveRequest.Sequence,
+		  AdmissionToken:=0,
+		  OwnerGeneration:=0);
+		diagnosticsDs402PreflightAccepted :=
+		  diagnosticsResponseSize = LMC_DIAG_DS402_PREFLIGHT_READY;
+	  end_if;
+	  if (diagnosticsAxisMask <> 0) &
+		 ((CommandID = 0x7E53) |
+		  (diagnosticsDs402StartValid &
+		   diagnosticsDs402PreflightAccepted)) &
+		 IsClientConnected(#Diagnostics) &
+		 IsClientConnected(#ControlCommands) then
+		diagnosticsAdmissionResult :=
+		  ControlCommands.ReserveAxisOwnership(
+			CommandId:=CommandID$UINT,
+			Reference:=diagnosticsOwnerReference,
+			RequestedAxisMask:=diagnosticsAxisMask,
+			OwnerKind:=diagnosticsOwnerKind,
+			ResourceKind:=diagnosticsResourceKind,
+			AdmissionMode:=4,
+			CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+			RequestSequence:=ActiveRequest.Sequence,
+			pIdentity:=(#RequestBuf[8])$^void,
+			IdentitySize:=Payload$UDINT,
+			pEffectiveAxisMask:=#diagnosticsEffectiveAxisMask,
+			pAdmissionToken:=#diagnosticsAdmissionToken,
+			pOwnerGeneration:=#diagnosticsOwnerGeneration);
+		if diagnosticsAdmissionResult = 0 then
+		  diagnosticsReserved := TRUE;
+		end_if;
+	  elsif diagnosticsDs402StartValid then
+		diagnosticsAdmissionResult := -3;
+	  end_if;
+
+    if diagnosticsDs402StartValid &
+		 (diagnosticsAdmissionResult <> 0) &
+		 ((diagnosticsDs402PreflightAttempted = FALSE) |
+		  diagnosticsDs402PreflightAccepted) then
+      _memset(dest:=#Sendbuf[8], usByte:=0, cntr:=24);
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[12]$UINT := 1;
+      Sendbuf[14]$INT := -31000;
+      Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+      if diagnosticsAdmissionResult = -2 then
+        Sendbuf[20]$UDINT := 41;
+      else
+        Sendbuf[20]$UDINT := 42;
+      end_if;
+      Sendbuf[24]$DINT := RequestBuf[44]$DINT;
+      Sendbuf[28]$UDINT := 0;
+      diagnosticsResponseSize := 24;
+    end_if;
+
+    if ((diagnosticsDs402StartValid = FALSE) |
+		  (diagnosticsDs402PreflightAccepted &
+		   (diagnosticsAdmissionResult = 0))) &
+       IsClientConnected(#Diagnostics) then
+      diagnosticsResponseSize := Diagnostics.HandleRequest(
+        CommandId:=CommandID$UINT,
+        Reference:=AxisRef$UINT,
+        pRequest:=(#RequestBuf[8])$^USINT,
+        RequestSize:=Payload$UDINT,
+        pResponse:=(#Sendbuf[8])$^USINT,
+        ResponseCapacity:=2040,
+		  CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+		  RequestSequence:=ActiveRequest.Sequence,
+		  AdmissionToken:=diagnosticsAdmissionToken,
+		  OwnerGeneration:=diagnosticsOwnerGeneration
+      );
+    end_if;
+
+	  if diagnosticsReserved then
+		if CommandID = 0x7E53 then
+		  diagnosticsExactAccepted :=
+			(diagnosticsResponseSize = 40) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 0) &
+			(Sendbuf[14]$INT = 0) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT = 0) &
+			(Sendbuf[40]$UDINT = diagnosticsOwnerGeneration);
+		  diagnosticsExactFailure :=
+			(diagnosticsResponseSize = 16) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 1) &
+			(Sendbuf[14]$INT = -32000) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT <> 0);
+		elsif CommandID = 0x7D15 then
+		  diagnosticsExactAccepted :=
+			(diagnosticsResponseSize = 24) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 0) &
+			(Sendbuf[14]$INT = 0) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT = 0);
+		  diagnosticsExactFailure :=
+			(diagnosticsResponseSize = 24) &
+			(Sendbuf[8]$UINT = 1) &
+			(Sendbuf[12]$UINT = 1) &
+			(Sendbuf[14]$INT = -31000) &
+			(Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+			(Sendbuf[20]$UDINT <> 0);
+		end_if;
+
+		if (diagnosticsExactAccepted = FALSE) &
+		   (diagnosticsExactFailure = FALSE) then
+		  diagnosticsRollbackResult :=
+			ControlCommands.RollbackAxisOwnership(
+			  AdmissionToken:=diagnosticsAdmissionToken,
+			  OwnerGeneration:=diagnosticsOwnerGeneration,
+			  CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+			  RequestSequence:=ActiveRequest.Sequence,
+			  Reason:=-21);
+		  if diagnosticsRollbackResult <> 0 then
+			diagnosticsPublishResult :=
+			  ControlCommands.PublishAxisOwnership(
+				AxisMask:=diagnosticsEffectiveAxisMask,
+				AdmissionToken:=diagnosticsAdmissionToken,
+				OwnerGeneration:=diagnosticsOwnerGeneration,
+				ReportKind:=4,
+				ReportValue0:=TO_UDINT(diagnosticsRollbackResult),
+				ReportValue1:=42,
+				ObservationCycle:=ActiveRequest.Sequence);
+		  end_if;
+		end_if;
+	  end_if;
+
+    if (diagnosticsResponseSize >= 16) &
+       (diagnosticsResponseSize <= 2040) then
       Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := diagnosticsResponseSize$UINT;
+      Sendbuf[4]$UDINT := 0;
+      diagnosticsResponseSize := diagnosticsResponseSize + 8;
+    else
+      Sendbuf[0]$UINT := 1;
       Sendbuf[2]$UINT := 4;
       Sendbuf[4]$UDINT := 0;
+      Sendbuf[8]$UINT := 1;
+      Sendbuf[10]$INT := -1;
+      diagnosticsResponseSize := 12;
+    end_if;
 
-      if (Payload = 1) & (RpcInitialized = TRUE) &
-         (RpcSocket = CurrentSock) then
-        Sendbuf[8]$UINT := 0;
-        Sendbuf[10]$INT := 0;
+    SendData(
+      pData:=#Sendbuf[0],
+      udSize:=diagnosticsResponseSize$UDINT,
+      dSocket:=CurrentSock,
+      bDirect:=TRUE
+    );
 
-        SendData(
-          pData:=#Sendbuf[0],
-          udSize:=12,
-          dSocket:=CurrentSock,
-          bDirect:=TRUE
-        );
+  0x8080, 0x405C, 0x405D: HandleRpcLifecycleCommands();
 
-        RpcSocket := 0;
-        RpcInitialized := FALSE;
-        RpcCallbackRegistered := FALSE;
-        RpcCallbackEventMask := 0;
-        RpcCallbackPort := 0;
-        RpcCallbackIPv4[0] := 0;
-        RpcCallbackIPv4[1] := 0;
-        RpcCallbackIPv4[2] := 0;
-        RpcCallbackIPv4[3] := 0;
-        if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
-          PendingClosedSessionEpoch := SessionEpoch;
-        end_if;
-        SessionEpoch += 1;
-        if SessionEpoch = 0 then
-          SessionEpoch := 1;
-        end_if;
+  0x103C, 0x1042, 0x202B,
+  0x2023, 0x2024, 0x2022, 0x2028,
+  0x202E, 0x209F, 0x20A0, 0x20A2,
+  0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
+  0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7,
+  0x7D00, 0x7D10, 0x7D12, 0x7D13, 0x7D18, 0x7D19,
+  0x7D20, 0x7D22:
+    controlResponseSize := -1;
+    controlAxisMask := 0;
+    controlEffectiveAxisMask := 0;
+    controlAdmissionToken := 0;
+    controlOwnerGeneration := 0;
+    controlAdmissionResult := -1;
+    controlRollbackResult := 0;
+    controlPublishResult := 0;
+    controlOwnerKind := 0;
+    controlResourceKind := 0;
+    controlAdmissionMode := 0;
+	  controlInvokeService := TRUE;
+	  controlReserved := FALSE;
+	  controlManagedCommand := FALSE;
+	  controlClassifierValid := FALSE;
+    controlExactAccepted := FALSE;
+    controlExactFailure := FALSE;
+	  controlPendingContinuation :=
+		(ActiveRequest.Reserved = 1) |
+		((ActiveRequest.PayloadData[
+		   LMC_OWNER_SAFETY_PENDING_MAGIC_OFFSET]$UDINT =
+		   LMC_OWNER_SAFETY_PENDING_MAGIC) &
+		 (((CommandID = 0x2022) & (Payload = 16)) |
+		  ((CommandID = 0x2023) & (Payload = 8)) |
+		  ((CommandID = 0x2048) & (Payload = 1)) |
+		  ((CommandID = 0x204B) & (Payload = 1)) |
+		  ((CommandID = 0x2085) & (Payload = 16))));
+	  if controlPendingContinuation then
+		controlPendingResult := HandleControlSafetyDrainPending(
+		  Phase:=LMC_OWNER_SAFETY_PHASE_PREPARE,
+		  EffectiveAxisMask:=0,
+		  AdmissionToken:=0,
+		  OwnerGeneration:=0);
+		if controlPendingResult <> 1 then
+		  RETURN;
+		end_if;
+		controlEffectiveAxisMask := ActiveRequest.PayloadData[
+		  LMC_OWNER_SAFETY_PENDING_MASK_OFFSET]$UDINT;
+		controlAdmissionToken := ActiveRequest.PayloadData[
+		  LMC_OWNER_SAFETY_PENDING_TOKEN_OFFSET]$UDINT;
+		controlOwnerGeneration := ActiveRequest.PayloadData[
+		  LMC_OWNER_SAFETY_PENDING_GENERATION_OFFSET]$UDINT;
+	  else
+
+    if (CommandID = 0x7D13) & (Payload = 56) then
+      case AxisRef of
+        1: controlAxisMask := 0x00000001;
+        2: controlAxisMask := 0x00000002;
+        3: controlAxisMask := 0x00000004;
+        4: controlAxisMask := 0x00000008;
       else
-        Sendbuf[8]$UINT := 1;
-        Sendbuf[10]$INT := -1;
-
-        SendData(
-          pData:=#Sendbuf[0],
-          udSize:=12,
-          dSocket:=CurrentSock,
-          bDirect:=TRUE
-        );
-      end_if;
-
-    0x103C, 0x1042, 0x202B,
-    0x2023, 0x2024, 0x2022, 0x2028,
-    0x202E, 0x209F, 0x20A0, 0x20A2,
-    0x20D2, 0x2047, 0x2048, 0x2049, 0x204A, 0x204B,
-    0x2085, 0x20A4, 0x2045, 0x2051, 0x20E7,
-    0x7D00, 0x7D10, 0x7D20, 0x7D22:
-      controlResponseSize := -1;
-      if IsClientConnected(#ControlCommands) then
-        controlResponseSize := ControlCommands.HandleRequest(
-          CommandId:=CommandID$UINT,
+      end_case;
+      if (controlAxisMask <> 0) &
+         IsClientConnected(#ControlCommands) then
+        controlAdmissionResult := ControlCommands.ReserveAxisOwnership(
+          CommandId:=0x7D13,
           Reference:=AxisRef$UINT,
-          pRequestFrame:=(#RequestBuf[0])$^USINT,
-          RequestFrameSize:=(Payload + 8)$UDINT,
-          pResponseFrame:=(#Sendbuf[0])$^USINT,
-          ResponseCapacity:=sizeof(Sendbuf));
+          RequestedAxisMask:=controlAxisMask,
+          OwnerKind:=3,
+          ResourceKind:=2,
+          AdmissionMode:=4,
+          CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+          RequestSequence:=ActiveRequest.Sequence,
+          pIdentity:=(#RequestBuf[8])$^void,
+          IdentitySize:=Payload$UDINT,
+          pEffectiveAxisMask:=#controlEffectiveAxisMask,
+          pAdmissionToken:=#controlAdmissionToken,
+          pOwnerGeneration:=#controlOwnerGeneration);
+        if controlAdmissionResult = 0 then
+          controlReserved := TRUE;
+        else
+          _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+          Sendbuf[0]$UINT := 0;
+          Sendbuf[2]$UINT := 16;
+          Sendbuf[4]$UDINT := 0;
+          Sendbuf[8]$UINT := 1;
+          Sendbuf[10]$UINT := 0;
+          Sendbuf[12]$UINT := 1;
+          Sendbuf[14]$INT := -31000;
+          Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+          if controlAdmissionResult = -2 then
+            Sendbuf[20]$UDINT := 41;
+          else
+            Sendbuf[20]$UDINT := 42;
+          end_if;
+          controlResponseSize := 24;
+          controlInvokeService := FALSE;
+        end_if;
       end_if;
+    end_if;
+
+    // LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN
+    // Dormant ordinary Axis/Group classifier. The same exact gate is also
+    // enforced inside LMCControlCommandService before every native handler.
+	  if LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED &
+		 (CommandID <> 0x7D13) then
+		case CommandID of
+        0x2023:
+          controlClassifierValid :=
+            (Payload = 8) & (AxisRef >= 1) & (AxisRef <= 9) &
+            (RequestBuf[8]$UDINT = 1) &
+            ((RequestBuf[12] = 0) | (RequestBuf[12] = 1)) &
+            (RequestBuf[13] = 1) & (RequestBuf[14] = 0) &
+            (RequestBuf[15] = 1);
+          controlOwnerKind := LMC_OWNER_KIND_DIRECT;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          if RequestBuf[12] = 1 then
+            controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+          else
+            controlAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
+          end_if;
+        0x2024:
+          controlClassifierValid :=
+            (Payload = 1) & (AxisRef >= 1) & (AxisRef <= 9) &
+            (RequestBuf[8] = 1);
+          controlOwnerKind := LMC_OWNER_KIND_DIRECT;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x2022:
+          controlClassifierValid :=
+            (Payload = 16) & (AxisRef >= 1) & (AxisRef <= 9) &
+            (RequestBuf[8]$DINT > 0) &
+            (RequestBuf[12]$DINT >= 0) &
+            (RequestBuf[16]$DINT = 1) &
+            (RequestBuf[20]$DINT = 1);
+          controlOwnerKind := LMC_OWNER_KIND_DIRECT;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
+        0x209F, 0x20A0:
+          controlClassifierValid :=
+            (Payload = 32) & (AxisRef >= 1) & (AxisRef <= 9) &
+            (RequestBuf[28]$DINT = 2) &
+            (RequestBuf[32]$DINT = 1) &
+            (RequestBuf[36]$DINT = 1);
+          controlOwnerKind := LMC_OWNER_KIND_DIRECT;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x20A2:
+          controlClassifierValid :=
+            (Payload = 24) & (AxisRef >= 1) & (AxisRef <= 9) &
+            (RequestBuf[16]$DINT = 0) &
+            (RequestBuf[28]$DINT = 1) &
+            (((RequestBuf[24]$DINT = 1) &
+              (RequestBuf[8]$DINT >= 0)) |
+             ((RequestBuf[24]$DINT = 3) &
+              (RequestBuf[8]$DINT <= 0)));
+          controlOwnerKind := LMC_OWNER_KIND_DIRECT;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x2047:
+          controlClassifierValid :=
+            (Payload = 1) & (AxisRef = 0x0100) &
+            (RequestBuf[8] = 1);
+          controlAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x2048:
+          controlClassifierValid :=
+            (Payload = 1) & (AxisRef = 0x0100) &
+            (RequestBuf[8] = 1);
+          controlAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
+        0x2049, 0x204A:
+          controlClassifierValid :=
+            (Payload = 1) & (AxisRef = 0x0100) &
+            (RequestBuf[8] = 1);
+          controlAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x204B:
+          controlClassifierValid :=
+            (Payload = 1) & (AxisRef = 0x0100) &
+            (RequestBuf[8] = 1);
+          controlAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
+        0x2085:
+          controlClassifierValid :=
+            (Payload = 16) & (AxisRef = 0x0100) &
+            (RequestBuf[8]$DINT >= 0) &
+            (RequestBuf[12]$DINT >= 0) &
+            (RequestBuf[16]$DINT = 1) &
+            (RequestBuf[20]$DINT = 1) &
+            ((RequestBuf[12]$DINT = 0) |
+             (RequestBuf[8]$DINT > 0));
+          controlAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_SAFETY;
+        0x20A4:
+          controlClassifierValid :=
+            (Payload = 96) & (AxisRef = 0x0100) &
+            (RequestBuf[72]$DINT > 0) &
+            (RequestBuf[76]$DINT > 0) &
+            (RequestBuf[80]$DINT > 0) &
+            (RequestBuf[84]$DINT >= 0) &
+            (RequestBuf[88]$DINT = 0) &
+            ((RequestBuf[92]$DINT = 0) |
+             (RequestBuf[92]$DINT = 2)) &
+            ((RequestBuf[96]$DINT = 1) |
+             (RequestBuf[96]$DINT = 2)) &
+            (RequestBuf[100]$DINT = 1);
+          controlIdentityIndex := 4;
+          while controlIdentityIndex <= 15 do
+            if RequestBuf[8 + (controlIdentityIndex * 4)]$DINT <> 0 then
+              controlClassifierValid := FALSE;
+            end_if;
+            controlIdentityIndex += 1;
+          end_while;
+          controlAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x7D22:
+          controlClassifierValid :=
+            (Payload = 104) & (AxisRef = 0x0100) &
+            (RequestBuf[8]$UINT = 1) &
+            (RequestBuf[10]$UINT = 0) &
+            (RequestBuf[12]$UDINT <> 0) &
+            (RequestBuf[80]$DINT > 0) &
+            (RequestBuf[84]$DINT > 0) &
+            (RequestBuf[88]$DINT > 0) &
+            (RequestBuf[92]$DINT >= 0) &
+            (RequestBuf[96]$DINT = 0) &
+            ((RequestBuf[100]$DINT = 0) |
+             (RequestBuf[100]$DINT = 2)) &
+            ((RequestBuf[104]$DINT = 1) |
+             (RequestBuf[104]$DINT = 2)) &
+            (RequestBuf[108]$DINT = 1);
+          controlIdentityIndex := 4;
+          while controlIdentityIndex <= 15 do
+            if RequestBuf[16 + (controlIdentityIndex * 4)]$DINT <> 0 then
+              controlClassifierValid := FALSE;
+            end_if;
+            controlIdentityIndex += 1;
+          end_while;
+          controlAxisMask := LMC_OWNER_PROFILE_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_ORDINARY;
+        0x20E7:
+          controlClassifierValid :=
+            (Payload = 1320) & (AxisRef = 0x0100);
+          controlAxisMask := LMC_OWNER_ROBOT_AXIS_MASK;
+          controlOwnerKind := LMC_OWNER_KIND_GROUP;
+          controlResourceKind := LMC_OWNER_RESOURCE_AXIS;
+          controlAdmissionMode := LMC_OWNER_ADMISSION_LIFECYCLE;
+      else
+      end_case;
+		controlManagedCommand := controlOwnerKind <> 0;
+		if controlClassifierValid &
+		   (controlOwnerKind = LMC_OWNER_KIND_DIRECT) then
+        case AxisRef of
+          1: controlAxisMask := 0x00000001;
+          2: controlAxisMask := 0x00000002;
+          3: controlAxisMask := 0x00000004;
+          4: controlAxisMask := 0x00000008;
+          5: controlAxisMask := 0x00000010;
+          6: controlAxisMask := 0x00000020;
+          7: controlAxisMask := 0x00000040;
+          8: controlAxisMask := 0x00000080;
+          9: controlAxisMask := 0x00000100;
+        else
+          controlAxisMask := 0;
+        end_case;
+		end_if;
+		if controlManagedCommand & (controlClassifierValid = FALSE) then
+		  controlInvokeService := FALSE;
+		end_if;
+
+		if controlClassifierValid & (controlAxisMask <> 0) then
+        if IsClientConnected(#ControlCommands) then
+          controlAdmissionResult := ControlCommands.ReserveAxisOwnership(
+            CommandId:=CommandID$UINT,
+            Reference:=AxisRef$UINT,
+            RequestedAxisMask:=controlAxisMask,
+            OwnerKind:=controlOwnerKind,
+            ResourceKind:=controlResourceKind,
+            AdmissionMode:=controlAdmissionMode,
+            CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+            RequestSequence:=ActiveRequest.Sequence,
+            pIdentity:=(#RequestBuf[8])$^void,
+            IdentitySize:=Payload$UDINT,
+            pEffectiveAxisMask:=#controlEffectiveAxisMask,
+            pAdmissionToken:=#controlAdmissionToken,
+            pOwnerGeneration:=#controlOwnerGeneration);
+        else
+          controlAdmissionResult := -3;
+        end_if;
+		if controlAdmissionResult < 0 then
+          if CommandID = 0x7D22 then
+            _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+            Sendbuf[0]$UINT := 0;
+            Sendbuf[2]$UINT := 16;
+            Sendbuf[8]$UINT := 1;
+            Sendbuf[12]$UINT := 1;
+            Sendbuf[14]$INT := -31000;
+            Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+            if controlAdmissionResult = -2 then
+              Sendbuf[20]$UDINT := 41;
+            else
+              Sendbuf[20]$UDINT := 42;
+            end_if;
+            controlResponseSize := 24;
+          elsif CommandID = 0x20E7 then
+            _memset(dest:=#Sendbuf, usByte:=0, cntr:=12);
+            Sendbuf[0]$UINT := 0;
+            Sendbuf[2]$UINT := 4;
+            Sendbuf[8]$UINT := 1;
+            Sendbuf[10]$INT := LMC_OWNER_ADAPTER_ERROR_CONFLICT;
+            controlResponseSize := 12;
+          else
+            _memset(dest:=#Sendbuf, usByte:=0, cntr:=16);
+            Sendbuf[0]$UINT := 0;
+            Sendbuf[2]$UINT := 8;
+            Sendbuf[8]$UDINT := TO_UDINT(AxisRef);
+            Sendbuf[12]$UINT := 1;
+            Sendbuf[14]$INT := LMC_OWNER_ADAPTER_ERROR_CONFLICT;
+            controlResponseSize := 16;
+          end_if;
+          controlInvokeService := FALSE;
+        end_if;
+      end_if;
+    end_if;
+    // LMC_OWNER_ORDINARY_CLASSIFIER_END
+	  end_if;
+
+    if controlInvokeService & IsClientConnected(#ControlCommands) then
+      controlResponseSize := ControlCommands.HandleRequest(
+        CommandId:=CommandID$UINT,
+        Reference:=AxisRef$UINT,
+        pRequestFrame:=(#RequestBuf[0])$^USINT,
+        RequestFrameSize:=(Payload + 8)$UDINT,
+        pResponseFrame:=(#Sendbuf[0])$^USINT,
+        ResponseCapacity:=sizeof(Sendbuf),
+        CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+        RequestSequence:=ActiveRequest.Sequence,
+        AdmissionToken:=controlAdmissionToken,
+        OwnerGeneration:=controlOwnerGeneration);
+    end_if;
+
+    if controlResponseSize = LMC_OWNER_SAFETY_DRAIN_PENDING then
+		controlPendingResult := HandleControlSafetyDrainPending(
+		  Phase:=LMC_OWNER_SAFETY_PHASE_RETAIN,
+		  EffectiveAxisMask:=controlEffectiveAxisMask,
+		  AdmissionToken:=controlAdmissionToken,
+		  OwnerGeneration:=controlOwnerGeneration);
+		RETURN;
+	  elsif controlPendingContinuation then
+		ActiveRequest.PayloadData[
+		  LMC_OWNER_SAFETY_PENDING_RESPONSE_OFFSET]$DINT :=
+		  controlResponseSize;
+		controlPendingResult := HandleControlSafetyDrainPending(
+		  Phase:=LMC_OWNER_SAFETY_PHASE_TERMINAL,
+		  EffectiveAxisMask:=controlEffectiveAxisMask,
+		  AdmissionToken:=controlAdmissionToken,
+		  OwnerGeneration:=controlOwnerGeneration);
+		RETURN;
+		elsif controlReserved then
+      controlExactAccepted :=
+        (controlResponseSize = 32) &
+        (Sendbuf[0]$UINT = 0) &
+        (Sendbuf[2]$UINT = 24) &
+        (Sendbuf[8]$UINT = 1) &
+        (Sendbuf[12]$UINT = 0) &
+        (Sendbuf[14]$INT = 0) &
+        (Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+        (Sendbuf[24]$UINT = 1) &
+        (Sendbuf[26]$UINT = 0) &
+        (Sendbuf[28]$UDINT = 0);
+      controlExactFailure :=
+        (controlResponseSize = 24) &
+        (Sendbuf[0]$UINT = 0) &
+        (Sendbuf[2]$UINT = 16) &
+        (Sendbuf[8]$UINT = 1) &
+        (Sendbuf[12]$UINT = 1) &
+        (Sendbuf[14]$INT = -31000) &
+        (Sendbuf[16]$UDINT = RequestBuf[12]$UDINT) &
+        (((Sendbuf[20]$UDINT >= 1) &
+          (Sendbuf[20]$UDINT <= 5)) |
+         (Sendbuf[20]$UDINT = 10) |
+         (Sendbuf[20]$UDINT = 13) |
+         ((Sendbuf[20]$UDINT >= 15) &
+          (Sendbuf[20]$UDINT <= 18)) |
+         ((Sendbuf[20]$UDINT >= 40) &
+          (Sendbuf[20]$UDINT <= 42)));
+      if controlExactFailure then
+        controlRollbackResult := ControlCommands.RollbackAxisOwnership(
+          AdmissionToken:=controlAdmissionToken,
+          OwnerGeneration:=controlOwnerGeneration,
+          CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+          RequestSequence:=ActiveRequest.Sequence,
+          Reason:=0);
+        if controlRollbackResult <> 0 then
+          controlPublishResult := ControlCommands.PublishAxisOwnership(
+            AxisMask:=controlEffectiveAxisMask,
+            AdmissionToken:=controlAdmissionToken,
+            OwnerGeneration:=controlOwnerGeneration,
+            ReportKind:=4,
+            ReportValue0:=TO_UDINT(controlRollbackResult),
+            ReportValue1:=42,
+            ObservationCycle:=ActiveRequest.Sequence);
+          _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+          Sendbuf[0]$UINT := 0;
+          Sendbuf[2]$UINT := 16;
+          Sendbuf[8]$UINT := 1;
+          Sendbuf[12]$UINT := 1;
+          Sendbuf[14]$INT := -31000;
+          Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+          Sendbuf[20]$UDINT := 42;
+          controlResponseSize := 24;
+        end_if;
+      elsif controlExactAccepted = FALSE then
+        controlRollbackResult := ControlCommands.RollbackAxisOwnership(
+          AdmissionToken:=controlAdmissionToken,
+          OwnerGeneration:=controlOwnerGeneration,
+          CallerSessionEpoch:=ActiveRequest.SessionEpoch,
+          RequestSequence:=ActiveRequest.Sequence,
+          Reason:=-21);
+        if controlRollbackResult <> 0 then
+          controlPublishResult := ControlCommands.PublishAxisOwnership(
+            AxisMask:=controlEffectiveAxisMask,
+            AdmissionToken:=controlAdmissionToken,
+            OwnerGeneration:=controlOwnerGeneration,
+            ReportKind:=4,
+            ReportValue0:=TO_UDINT(controlRollbackResult),
+            ReportValue1:=42,
+            ObservationCycle:=ActiveRequest.Sequence);
+        end_if;
+      end_if;
+    end_if;
 
       if (controlResponseSize <= 0) |
          (controlResponseSize > sizeof(Sendbuf)) then
@@ -1147,16 +2479,16 @@ FUNCTION TCPMotionInterface::MsgPaser
         bDirect:=TRUE
       );
 
-    else
-      _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-      Sendbuf[0]$UINT := 1;
-      Sendbuf[2]$UINT := 4;
-      Sendbuf[4]$UDINT := 0;
-      Sendbuf[8]$UINT := 1;
-      Sendbuf[10]$INT := -4;
-      SendData(pData:=#Sendbuf[0], udSize:=12,
-               dSocket:=CurrentSock, bDirect:=TRUE);
-  end_case;
+  else
+    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    Sendbuf[0]$UINT := 1;
+    Sendbuf[2]$UINT := 4;
+    Sendbuf[4]$UDINT := 0;
+    Sendbuf[8]$UINT := 1;
+    Sendbuf[10]$INT := -4;
+    SendData(pData:=#Sendbuf[0], udSize:=12,
+             dSocket:=CurrentSock, bDirect:=TRUE);
+end_case;
 
 
 

@@ -38,7 +38,8 @@ namespace LasalMotionControlLib
 
         private const ushort KnownResponseFlagsMask = 0x0003;
         private const uint MaximumDefinedDetailCode =
-            (uint)LMCDiagnosticsDetailCode.RecorderConfigurationAbsent;
+            (uint)LMCDiagnosticsDetailCode
+                .EncoderMaintenanceSemanticVerificationFailed;
         private const uint StatefulCapabilityMask =
             (uint)(LMCDiagnosticCapability.BulkSnapshot
                 | LMCDiagnosticCapability.RecorderSingleBank
@@ -49,7 +50,10 @@ namespace LasalMotionControlLib
                 | LMCDiagnosticCapability.SDOWrite
                 | LMCDiagnosticCapability.ExtendedSdoResultChunk
                 | LMCDiagnosticCapability.SDOReadGeneralInline
-                | LMCDiagnosticCapability.DigitalIOWrite);
+                | LMCDiagnosticCapability.DigitalIOWrite
+                | LMCDiagnosticCapability.EncoderTw20ErrorWarningReset
+                | LMCDiagnosticCapability
+                    .EncoderTw19MultiturnPositionReset);
 
         internal static LMCDiagnosticCapabilities ParseCapabilities(
             byte[] raw,
@@ -131,6 +135,7 @@ namespace LasalMotionControlLib
             }
 
             var payload = transportResponse.Payload;
+            var diagnosticsBuild = LMC_Frame.ReadUInt32(payload, 16);
             var capabilityBits = LMC_Frame.ReadUInt32(payload, 20);
             var mapRevision = LMC_Frame.ReadUInt32(payload, 24);
             var catalogEntryCount = LMC_Frame.ReadUInt16(payload, 28);
@@ -182,6 +187,12 @@ namespace LasalMotionControlLib
             var digitalIOWriteEnabled =
                 (capabilityBits
                     & (uint)LMCDiagnosticCapability.DigitalIOWrite) != 0;
+            var encoderMaintenanceEnabled =
+                (capabilityBits
+                    & (uint)(LMCDiagnosticCapability
+                            .EncoderTw20ErrorWarningReset
+                        | LMCDiagnosticCapability
+                            .EncoderTw19MultiturnPositionReset)) != 0;
 
             if (piReadEnabled && !signalCatalogEnabled)
             {
@@ -212,6 +223,21 @@ namespace LasalMotionControlLib
             {
                 throw new InvalidDataException(
                     "DigitalIOWrite requires EtherCATNodeHealth and DigitalIORead capabilities.");
+            }
+
+            if (encoderMaintenanceEnabled
+                && (diagnosticsBuild == 0 || mapRevision == 0))
+            {
+                throw new InvalidDataException(
+                    "Encoder maintenance requires non-zero DiagnosticsBuild and MapRevision identity values.");
+            }
+
+            if (encoderMaintenanceEnabled
+                && (maxRequestPayloadBytes < 76
+                    || maxResponsePayloadBytes < 156))
+            {
+                throw new InvalidDataException(
+                    "Encoder maintenance requires request capacity 76 and response capacity 156.");
             }
 
             if (extendedSdoResultEnabled
@@ -276,7 +302,7 @@ namespace LasalMotionControlLib
             return new LMCDiagnosticCapabilities(
                 response,
                 connectionSessionGeneration,
-                LMC_Frame.ReadUInt32(payload, 16),
+                diagnosticsBuild,
                 capabilityBits,
                 mapRevision,
                 catalogEntryCount,

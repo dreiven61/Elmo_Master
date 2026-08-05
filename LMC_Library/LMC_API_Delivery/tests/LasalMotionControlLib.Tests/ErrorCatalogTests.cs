@@ -32,7 +32,7 @@ namespace LasalMotionControlLib.Tests
         {
             LMCErrorDescription description;
 
-            for (long code = -8; code <= -1; code++)
+            for (long code = -9; code <= -1; code++)
             {
                 AssertEx.True(
                     LMCErrorCatalog.TryDescribe(
@@ -69,6 +69,25 @@ namespace LasalMotionControlLib.Tests
                 -8,
                 "QueueOrFramingError",
                 LMCErrorCatalog.AdapterSourceVersion);
+
+            AssertEx.True(
+                LMCErrorCatalog.TryDescribe(
+                    LMCErrorDomain.AdapterCommand,
+                    -9,
+                    out description));
+            AssertDescription(
+                description,
+                LMCErrorDomain.AdapterCommand,
+                -9,
+                "AxisOwnershipConflict",
+                LMCErrorCatalog.AdapterSourceVersion);
+
+            AssertEx.False(
+                LMCErrorCatalog.TryDescribe(
+                    LMCErrorDomain.AdapterCommand,
+                    -10,
+                    out description));
+            AssertEx.Equal<LMCErrorDescription>(null, description);
 
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
@@ -139,7 +158,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
                     LMCErrorDomain.DiagnosticsDetail,
-                    33,
+                    43,
                     out unknown));
             AssertEx.Equal<LMCErrorDescription>(null, unknown);
         }
@@ -168,7 +187,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.False(
                 LMCErrorCatalog.TryDescribe(
                     LMCErrorDomain.AdminDetail,
-                    12,
+                    43,
                     out unknown));
             AssertEx.Equal<LMCErrorDescription>(null, unknown);
         }

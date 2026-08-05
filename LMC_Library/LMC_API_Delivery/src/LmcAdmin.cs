@@ -9,13 +9,14 @@ namespace LasalMotionControlLib
     /// advertised motion facades use stable wire values rather than native
     /// MotionLib enum values.
     /// </summary>
-    public sealed class LMCAdmin
+    public sealed partial class LMCAdmin
     {
         public const ushort ProtocolSchemaVersion =
             LMC_AdminFrame.SchemaVersion;
 
         private readonly LMCConnection connection;
         private int requestSequence;
+        private long capabilityObservationSequence;
 
         internal LMCAdmin(LMCConnection connection)
         {
@@ -43,7 +44,9 @@ namespace LasalMotionControlLib
                 sessionGeneration,
                 connection);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return result;
+            return result.BindProvenance(
+                this,
+                NextCapabilityObservationSequence());
         }
 
         public async Task<LMCAdminCapabilities> GetCapabilitiesAsync(
@@ -71,7 +74,9 @@ namespace LasalMotionControlLib
                 sessionGeneration,
                 connection);
             connection.EnsureSessionGeneration(sessionGeneration);
-            return result;
+            return result.BindProvenance(
+                this,
+                NextCapabilityObservationSequence());
         }
 
         public LMCAxisParameterResult ReadAxisParameter(
@@ -451,18 +456,38 @@ namespace LasalMotionControlLib
                 connection.GetGroupEnableWaitCoordinator(
                     sessionGeneration,
                     groupReference);
-            var raw = connection.Exchange(
-                LMC_AdminFrame.GroupMoveLinearRelative(
-                    requestId,
-                    groupReference,
-                    distance,
-                    velocity,
-                    acceleration,
-                    deceleration,
-                    jerk,
-                    options),
+            LMCGroupResetObserverScope.ThrowIfGroupMutationReentrant(
+                connection,
                 sessionGeneration,
-                () => mutationCoordinator.MarkMutationMayHaveBeenSent());
+                groupReference);
+            mutationCoordinator.MutationGate.Wait();
+            byte[] raw;
+            try
+            {
+                mutationCoordinator
+                    .ThrowIfGroupResetBlocksUnsafeMutation();
+                raw = connection.Exchange(
+                    LMC_AdminFrame.GroupMoveLinearRelative(
+                        requestId,
+                        groupReference,
+                        distance,
+                        velocity,
+                        acceleration,
+                        deceleration,
+                        jerk,
+                        options),
+                    sessionGeneration,
+                    () =>
+                    {
+                        mutationCoordinator
+                            .ThrowIfGroupResetBlocksUnsafeMutation();
+                        mutationCoordinator.MarkMutationMayHaveBeenSent();
+                    });
+            }
+            finally
+            {
+                mutationCoordinator.MutationGate.Release();
+            }
             var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
                 raw,
                 requestId);
@@ -635,20 +660,40 @@ namespace LasalMotionControlLib
                 connection.GetGroupEnableWaitCoordinator(
                     sessionGeneration,
                     groupReference);
-            var raw = await connection.ExchangeAsync(
-                LMC_AdminFrame.GroupMoveLinearRelative(
-                    requestId,
-                    groupReference,
-                    distance,
-                    velocity,
-                    acceleration,
-                    deceleration,
-                    jerk,
-                    options),
+            LMCGroupResetObserverScope.ThrowIfGroupMutationReentrant(
+                connection,
                 sessionGeneration,
-                cancellationToken,
-                () => mutationCoordinator.MarkMutationMayHaveBeenSent())
-                .ConfigureAwait(false);
+                groupReference);
+            await mutationCoordinator.MutationGate.WaitAsync(
+                cancellationToken).ConfigureAwait(false);
+            byte[] raw;
+            try
+            {
+                mutationCoordinator
+                    .ThrowIfGroupResetBlocksUnsafeMutation();
+                raw = await connection.ExchangeAsync(
+                    LMC_AdminFrame.GroupMoveLinearRelative(
+                        requestId,
+                        groupReference,
+                        distance,
+                        velocity,
+                        acceleration,
+                        deceleration,
+                        jerk,
+                        options),
+                    sessionGeneration,
+                    cancellationToken,
+                    () =>
+                    {
+                        mutationCoordinator
+                            .ThrowIfGroupResetBlocksUnsafeMutation();
+                        mutationCoordinator.MarkMutationMayHaveBeenSent();
+                    }).ConfigureAwait(false);
+            }
+            finally
+            {
+                mutationCoordinator.MutationGate.Release();
+            }
             var result = LMC_AdminParser.ParseGroupMoveLinearRelative(
                 raw,
                 requestId);
@@ -798,6 +843,28 @@ namespace LasalMotionControlLib
             while (requestId == 0);
 
             return requestId;
+        }
+
+        private long NextCapabilityObservationSequence()
+        {
+            var sequence = Interlocked.Increment(
+                ref capabilityObservationSequence);
+            if (sequence <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Admin capability observation sequence overflowed.");
+            }
+
+            return sequence;
+        }
+
+        internal long CurrentCapabilityObservationSequence
+        {
+            get
+            {
+                return Interlocked.Read(
+                    ref capabilityObservationSequence);
+            }
         }
     }
 }

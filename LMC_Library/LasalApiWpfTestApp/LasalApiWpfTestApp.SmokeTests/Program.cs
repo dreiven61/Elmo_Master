@@ -49,25 +49,48 @@ namespace LasalApiWpfTestApp.SmokeTests
 
                 var tests = new List<TestCase>();
                 LasalMotionControlApiExample
+                    .UiLocalizationTests.Register(tests);
+                LasalMotionControlApiExample
+                    .ApplicationInstanceLeaseTests.Register(tests);
+                LasalMotionControlApiExample
+                    .RecoveryRecordRetirementTests.Register(tests);
+                LasalMotionControlApiExample
                     .GroupProfileLockRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
                     .AxisPowerOnRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
+                    .AxisSetPositionRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample
+                    .MaintenanceActionRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample
                     .AxisCommandRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample
+                    .AxisQualificationRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
                     .GroupPowerRecoveryJournalTests.Register(tests);
                 LasalMotionControlApiExample
+                    .GroupResetRecoveryJournalTests.Register(tests);
+                LasalMotionControlApiExample
                     .MotionUncertaintyJournalTests.Register(tests);
+                LasalMotionControlApiExample
+                    .SdoWriteActivationQualificationProofTests.Register(tests);
                 WpfMainWindowIntegrationTests
                     .RegisterMotionRecoveryIntegrationTests(tests);
                 WpfMainWindowIntegrationTests
                     .RegisterAxisPowerOnRecoveryTests(tests);
                 WpfMainWindowIntegrationTests
+                    .RegisterRecoveryRecordRetirementIntegrationTests(tests);
+                WpfMainWindowIntegrationTests
                     .RegisterAxisCommandRecoveryIntegrationTests(tests);
+                WpfMainWindowIntegrationTests
+                    .RegisterAxisQualificationIntegrationTests(tests);
+                WpfMaintenanceActionIntegrationTests.Register(tests);
                 WpfTopologyIoLiveEvidenceTests.Register(tests);
                 WpfMainWindowIntegrationTests.Register(tests);
                 WpfMainWindowIntegrationTests
                     .RegisterGroupStopCompoundTests(tests);
+                WpfMainWindowIntegrationTests
+                    .RegisterGroupResetRecoveryTests(tests);
                 WpfMutationRecoveryProcessTests.Register(tests);
 
                 var selected = 0;

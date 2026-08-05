@@ -2,7 +2,7 @@
     x:Class="LasalMotionControlApiExample.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="LASAL Motion Control API Example [CREVIS topology / editable SDO draft]"
+    Title="LASAL Motion Control API Example [LIVE Axis qualification / qualified Axis1 UI24 SDO Write]"
     Width="1180"
     Height="860"
     MinWidth="980"
@@ -53,6 +53,19 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" Margin="2,0,2,10">
+            <StackPanel
+                Margin="16,0,0,0"
+                VerticalAlignment="Top"
+                DockPanel.Dock="Right">
+                <TextBlock
+                    Style="{StaticResource FieldLabel}"
+                    Text="Language" />
+                <ComboBox
+                    x:Name="ComboUiLanguage"
+                    MinWidth="120"
+                    DisplayMemberPath="DisplayName"
+                    SelectionChanged="ComboUiLanguage_SelectionChanged" />
+            </StackPanel>
             <StackPanel DockPanel.Dock="Left">
                 <TextBlock
                     FontSize="24"
@@ -148,14 +161,60 @@
             BorderBrush="#E0B34B"
             BorderThickness="1"
             CornerRadius="4">
-            <DockPanel>
+            <StackPanel>
                 <TextBlock
                     x:Name="TextMotionWarning"
                     VerticalAlignment="Center"
                     Foreground="#8A4A00"
                     Text="Power On, Reset, motion, and group preparation commands are sent immediately without a confirmation dialog. Stop and axis Power Off remain available while connected. Closing the connection does not stop motion."
                     TextWrapping="Wrap" />
-            </DockPanel>
+                <Border
+                    x:Name="PanelRecoveryIdentityRetirement"
+                    Margin="0,9,0,0"
+                    Padding="10"
+                    Background="#FFFFFBF0"
+                    BorderBrush="#D59A22"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock
+                            FontWeight="SemiBold"
+                            Text="Archive and retire stale recovery evidence"
+                            TextWrapping="Wrap" />
+                        <TextBox
+                            x:Name="TextRecoveryIdentityRetirementSnapshot"
+                            Height="112"
+                            Margin="0,7,0,6"
+                            FontFamily="Consolas"
+                            HorizontalScrollBarVisibility="Auto"
+                            IsReadOnly="True"
+                            Text="No stale recovery snapshot is available."
+                            TextWrapping="NoWrap"
+                            VerticalScrollBarVisibility="Auto" />
+                        <CheckBox
+                            x:Name="CheckConfirmStaleRecoveryRetirement"
+                            Margin="0,3,0,8"
+                            Checked="RecoveryIdentityRetirementConfirmation_Changed"
+                            HorizontalContentAlignment="Stretch"
+                            IsEnabled="False"
+                            Unchecked="RecoveryIdentityRetirementConfirmation_Changed">
+                            <CheckBox.Content>
+                                <TextBlock
+                                    Text="I independently verified the machine and drive physical state. I accept that every listed old-PLC command outcome remains unknown, and I want to archive and retire only the listed stale recovery records."
+                                    TextWrapping="Wrap" />
+                            </CheckBox.Content>
+                        </CheckBox>
+                        <Button
+                            x:Name="ButtonArchiveAndRetireStaleRecovery"
+                            HorizontalAlignment="Left"
+                            Click="ButtonArchiveAndRetireStaleRecovery_Click"
+                            Content="Archive and Retire Stale Recovery"
+                            IsEnabled="False"
+                            ToolTip="No PLC command is sent. The current RPC connection must close, and a fresh reconnect must validate the current PLC identity before control or write is permitted." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </Border>
 
         <TabControl
@@ -325,6 +384,230 @@
                                         Foreground="#8A4A00"
                                         Text="Absolute/Relative use Shortest. Relative direction comes from the distance sign. Velocity runs until Stop or PowerOff is verified."
                                         TextWrapping="Wrap" />
+                                </StackPanel>
+                            </GroupBox>
+
+                            <GroupBox Header="Home (explicit one-shot actions)">
+                                <StackPanel>
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="Both Home routes set the current coordinate to zero without physical motion, a Home switch, or a limit switch. Refresh capabilities and verify the exact stationary axis before the one-shot confirmation."
+                                        TextWrapping="Wrap" />
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button
+                                            x:Name="ButtonRefreshHomeCapabilities"
+                                            Click="ButtonRefreshMaintenanceCapabilities_Click"
+                                            Content="Refresh Home Capabilities" />
+                                        <Button
+                                            x:Name="ButtonReadHomeStatus"
+                                            Click="ButtonReadHomeStatus_Click"
+                                            Content="Read Home Status (no replay)" />
+                                    </WrapPanel>
+
+                                    <TextBlock
+                                        Margin="0,6,0,0"
+                                        FontWeight="SemiBold"
+                                        Text="LMC Home - Current Position Zero (0x7D13)" />
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="The app reads the current actual position as an exact stale-read guard, then requests TargetPosition=0. Start acceptance is not completion; Read Home Status queries the retained 0x7D18 outcome and retires a terminal record with 0x7D19."
+                                        TextWrapping="Wrap" />
+                                    <WrapPanel>
+                                        <StackPanel Width="135">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms)" />
+                                            <TextBox x:Name="TextLmcHomeTimeout" Text="5000" TextChanged="MaintenanceInput_Changed" />
+                                        </StackPanel>
+                                    </WrapPanel>
+
+                                    <TextBlock
+                                        Margin="0,6,0,0"
+                                        FontWeight="SemiBold"
+                                        Text="DS402 Home (0x7D15)" />
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="This route is fixed to DS402 method 37 and Home offset 0. Method 37 takes the current position as Home without enabling motion or seeking a switch; offset 0 makes the completed actual position zero."
+                                        TextWrapping="Wrap" />
+                                    <WrapPanel>
+                                        <StackPanel Width="230">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Fixed semantic" />
+                                            <TextBlock Text="Method=37; HomeOffset=0; no motion" />
+                                        </StackPanel>
+                                        <StackPanel Width="135">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms)" />
+                                            <TextBox x:Name="TextDs402HomeTimeout" Text="60000" TextChanged="MaintenanceInput_Changed" />
+                                        </StackPanel>
+                                    </WrapPanel>
+
+                                    <CheckBox
+                                        x:Name="CheckHomeOneShotConfirmed"
+                                        Margin="0,4,0,0"
+                                        Checked="MaintenanceConfirmation_Changed"
+                                        Unchecked="MaintenanceConfirmation_Changed">
+                                        <CheckBox.Content>
+                                            <TextBlock
+                                                Text="I verified the exact stationary axis, its current actual position, raw units, and the coordinate-zero effect. Send the selected Home route once only and never replay it after an uncertain result."
+                                                TextWrapping="Wrap" />
+                                        </CheckBox.Content>
+                                    </CheckBox>
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button x:Name="ButtonLmcHome" Click="ButtonLmcHome_Click" Content="Execute LMC Home Once" />
+                                        <Button x:Name="ButtonDs402Home" Click="ButtonDs402Home_Click" Content="Execute DS402 Home Once" />
+                                    </WrapPanel>
+                                    <TextBlock
+                                        x:Name="TextHomeResult"
+                                        Margin="0,4,0,0"
+                                        FontFamily="Consolas"
+                                        Text="No Home action has been sent."
+                                        TextWrapping="Wrap" />
+                                    <Border Margin="0,6,0,0" Padding="6" Background="#FFF7E6" BorderBrush="#E6B85C" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock
+                                                x:Name="TextMaintenanceRecoveryStatus"
+                                                FontFamily="Consolas"
+                                                Text="Opening the durable Home/encoder-maintenance recovery journal..."
+                                                TextWrapping="Wrap" />
+                                            <CheckBox
+                                                x:Name="CheckMaintenanceRecoveryPhysicallyVerified"
+                                                Checked="MaintenanceRecoveryConfirmation_Changed"
+                                                Content="I independently verified the physical axis/drive state and understand that resolving this record sends no command and does not prove the previous action result."
+                                                IsEnabled="False"
+                                                Unchecked="MaintenanceRecoveryConfirmation_Changed" />
+                                            <Button
+                                                x:Name="ButtonResolveMaintenanceRecovery"
+                                                HorizontalAlignment="Left"
+                                                Click="ButtonResolveMaintenanceRecovery_Click"
+                                                Content="Resolve Recovery Record (no command)"
+                                                IsEnabled="False" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <GroupBox Header="Single Axis live qualification (Power / relative Move / Stop / Power Off)">
+                                <StackPanel>
+                                    <TextBlock
+                                        Foreground="#8A4A00"
+                                        Text="LIVE AXIS MOTION. This runner sends real 0x2023, 0x20A0, 0x2022, and 0x2023 commands. Stop is sent after the planned move reaches standstill; it proves accepted-once/stable Stop handling, not an in-motion halt."
+                                        TextWrapping="Wrap" />
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Relative delta (raw DINT, nonzero, |value| &lt;= 1000000)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationDelta"
+                                                Text="10000"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Velocity (raw DINT, positive)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationVelocity"
+                                                Text="10000"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Acceleration (raw DINT, positive)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationAcceleration"
+                                                Text="100000"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Deceleration / Stop (raw DINT, positive)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationDeceleration"
+                                                Text="100000"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Jerk (raw DINT; first live slice requires 0)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationJerk"
+                                                Text="0"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Final position tolerance (raw DINT, positive)" />
+                                            <TextBox
+                                                x:Name="TextAxisQualificationTolerance"
+                                                Text="100"
+                                                TextChanged="AxisQualificationInput_Changed" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <CheckBox
+                                        x:Name="CheckAxisQualificationTravelSafe"
+                                        Margin="0,4,0,0"
+                                        Checked="AxisQualificationSafetyConfirmation_Changed"
+                                        Unchecked="AxisQualificationSafetyConfirmation_Changed">
+                                        <CheckBox.Content>
+                                            <TextBlock
+                                                Text="I verified E-stop/STO, software limits, and clear travel for this exact nonzero relative delta."
+                                                TextWrapping="Wrap" />
+                                        </CheckBox.Content>
+                                    </CheckBox>
+                                    <CheckBox
+                                        x:Name="CheckAxisQualificationIdentitySafe"
+                                        Checked="AxisQualificationSafetyConfirmation_Changed"
+                                        Unchecked="AxisQualificationSafetyConfirmation_Changed">
+                                        <CheckBox.Content>
+                                            <TextBlock
+                                                Text="I independently verified the loaded axis name/reference, direction, raw units, target, and tolerance."
+                                                TextWrapping="Wrap" />
+                                        </CheckBox.Content>
+                                    </CheckBox>
+                                    <CheckBox
+                                        x:Name="CheckAxisQualificationExclusiveOwner"
+                                        Checked="AxisQualificationSafetyConfirmation_Changed"
+                                        Unchecked="AxisQualificationSafetyConfirmation_Changed">
+                                        <CheckBox.Content>
+                                            <TextBlock
+                                                Text="I have exclusive motion ownership; people/tooling are clear and PLC/packet evidence capture is running. Keep the capture running for at least two seconds after PASS."
+                                                TextWrapping="Wrap" />
+                                        </CheckBox.Content>
+                                    </CheckBox>
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button
+                                            x:Name="ButtonRunAxisQualification"
+                                            Click="ButtonRunAxisQualification_Click"
+                                            Content="Run LIVE Axis Qualification" />
+                                        <Button
+                                            x:Name="ButtonCancelAxisQualification"
+                                            Click="ButtonCancelQualification_Click"
+                                            Content="Cancel / Safe Cleanup" />
+                                        <Button
+                                            x:Name="ButtonSaveAxisQualificationLog"
+                                            Click="ButtonSaveQualificationLog_Click"
+                                            Content="Save Axis QTEST Log" />
+                                    </WrapPanel>
+                                    <ProgressBar
+                                        x:Name="ProgressAxisQualification"
+                                        Height="18"
+                                        Margin="0,2,8,4"
+                                        Maximum="100"
+                                        Minimum="0" />
+                                    <TextBlock
+                                        x:Name="TextAxisQualificationProgress"
+                                        Margin="0,0,0,4"
+                                        FontFamily="Consolas"
+                                        Text="No Single Axis qualification has run yet."
+                                        TextWrapping="Wrap" />
+                                    <TextBox
+                                        x:Name="TextAxisQualificationSummary"
+                                        Height="145"
+                                        FontFamily="Consolas"
+                                        HorizontalScrollBarVisibility="Auto"
+                                        IsReadOnly="True"
+                                        Text="Structured Axis QTEST results will appear here."
+                                        TextWrapping="NoWrap"
+                                        VerticalScrollBarVisibility="Auto" />
                                 </StackPanel>
                             </GroupBox>
                         </StackPanel>
@@ -1520,6 +1803,103 @@
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12">
+                        <GroupBox
+                            x:Name="GroupEncoderMaintenance"
+                            Header="TEST ONLY - Encoder Maintenance (TW[20] / TW[19])">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="#B00020"
+                                    FontWeight="Bold"
+                                    Text="DESTRUCTIVE TEST ONLY: TW[20] writes UInt16 1 to 0x20FC:0x02. TW[19] writes UInt16 1 to 0x20FC:0x01, resets the absolute multi-turn position, and requires LMC Home before motion. Select the exact drive axis."
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="TextEncoderMaintenanceFixedTargets"
+                                    Tag="UiLocalization.Preserve"
+                                    FontFamily="Consolas"
+                                    FontWeight="SemiBold"
+                                    Text="Fixed writes: TW[20]=0x20FC:0x02 &lt;- UInt16 1; TW[19]=0x20FC:0x01 &lt;- UInt16 1"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Foreground="#8A4A00"
+                                    Text="Before arming: power off the selected axis, verify stable standstill and physical position independently, and confirm support for the exact 0x20FC command. This dedicated 0x7E53/0x7E54/0x7E55 path is separate from generic SDO Write."
+                                    TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel Width="220">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Operation" />
+                                        <ComboBox x:Name="ComboEncoderMaintenanceKind" SelectionChanged="TestResetInput_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Width="165" Visibility="Collapsed">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Wire schema profile (fixed 1)" />
+                                        <TextBox x:Name="TextEncoderMaintenanceProfile" Text="1" TextChanged="TestResetInput_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Width="150">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Drive / axis (1..4)" />
+                                        <ComboBox x:Name="ComboTestResetAxis" SelectionChanged="TestResetInput_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Width="180" Visibility="Collapsed">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Wire schema socket (fixed 1)" />
+                                        <ComboBox x:Name="ComboTestResetSocket" SelectionChanged="TestResetInput_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Width="160">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Timeout (ms, 1..60000)" />
+                                        <TextBox x:Name="TextTestResetTimeout" Text="1000" TextChanged="TestResetInput_Changed" />
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="ButtonRefreshTestResetCapabilities"
+                                        Click="ButtonRefreshMaintenanceCapabilities_Click"
+                                        Content="Refresh Encoder Maintenance Capabilities" />
+                                    <Button
+                                        x:Name="ButtonReadTestResetStatus"
+                                        Click="ButtonReadTestResetStatus_Click"
+                                        Content="Read Encoder Maintenance Outcome" />
+                                </WrapPanel>
+                                <CheckBox
+                                    x:Name="CheckTestResetPowerOffVerified"
+                                    Checked="TestResetConfirmation_Changed"
+                                    Content="Step 1A: I verified PowerOn=False and stable standstill for the selected physical axis."
+                                    Unchecked="TestResetConfirmation_Changed" />
+                                <CheckBox
+                                    x:Name="CheckTestResetPhysicalPositionVerified"
+                                    Checked="TestResetConfirmation_Changed"
+                                    Content="Step 1B: I recorded the physical position and will run the required Home procedure before motion."
+                                    Unchecked="TestResetConfirmation_Changed" />
+                                <CheckBox
+                                    x:Name="CheckTestResetExactTargetVerified"
+                                    Checked="TestResetConfirmation_Changed"
+                                    Content="Step 1C: I verified the exact drive axis and the selected TW[20] or TW[19] destructive effect."
+                                    Unchecked="TestResetConfirmation_Changed" />
+                                <CheckBox
+                                    x:Name="CheckEncoderMaintenanceCompatibilityVerified"
+                                    Checked="TestResetConfirmation_Changed"
+                                    Content="Step 1D: I independently verified that the selected drive supports this exact 0x20FC maintenance command."
+                                    Unchecked="TestResetConfirmation_Changed" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button
+                                        x:Name="ButtonArmTestReset"
+                                        Click="ButtonArmTestReset_Click"
+                                        Content="Step 1 - Arm Encoder Maintenance" />
+                                    <CheckBox
+                                        x:Name="CheckTestResetFinalConfirmed"
+                                        VerticalAlignment="Center"
+                                        Checked="TestResetConfirmation_Changed"
+                                        Content="Step 2: Execute this unchanged armed request once only."
+                                        IsEnabled="False"
+                                        Unchecked="TestResetConfirmation_Changed" />
+                                    <Button
+                                        x:Name="ButtonExecuteTestReset"
+                                        Click="ButtonExecuteTestReset_Click"
+                                        Content="Step 2 - Execute Encoder Maintenance Once"
+                                        IsEnabled="False" />
+                                </WrapPanel>
+                                <TextBlock
+                                    x:Name="TextTestResetResult"
+                                    Margin="0,4,0,0"
+                                    FontFamily="Consolas"
+                                    Text="No encoder maintenance operation is armed or pending."
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
+
                         <GroupBox Header="Persisted Mutation Recovery">
                             <StackPanel>
                                 <TextBlock
@@ -1639,7 +2019,7 @@
                                         x:Name="ButtonSubmitSdo"
                                         Click="ButtonSubmitSdo_Click"
                                         Content="Submit SDO Read"
-                                        ToolTip="Write mode changes this button to Arm SDO Write. If it remains disabled, PLC capability bit 9 or the exact SDK-approved target is unavailable."
+                                        ToolTip="Write mode remains fail-closed until the exact current session passes the four-ticket Same-Value SDO Write qualification, then changes this button to Arm SDO Write."
                                         ToolTipService.ShowOnDisabled="True" />
                                     <Button
                                         x:Name="ButtonReadSdoInline"
@@ -1670,7 +2050,7 @@
                                     Grid.Row="4"
                                     Grid.ColumnSpan="5"
                                     FontFamily="Consolas"
-                                    Text="SDO Read supports exact 1/2/4-byte typed values. SDO Write requires PLC bit 9 and an exact SDK-approved target; arbitrary object writes remain blocked."
+                                    Text="SDO Read supports exact 1/2/4-byte typed values. Manual SDO Write also requires a four-ticket Same-Value qualification PASS bound to the exact current session and PLC identity; arbitrary object writes remain blocked."
                                     TextWrapping="Wrap" />
                             </Grid>
                         </GroupBox>
@@ -1866,6 +2246,7 @@
                                     x:Name="TextD5SdoWriteQualificationGateStatus"
                                     FontFamily="Consolas"
                                     Foreground="#8A4A00"
+                                    Tag="UiLocalization.Preserve"
                                     Text="OVERALL CLOSED | EVALUATION_WIRE=NONE"
                                     TextWrapping="Wrap" />
                                 <TextBlock

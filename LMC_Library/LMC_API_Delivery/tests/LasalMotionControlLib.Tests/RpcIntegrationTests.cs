@@ -15,6 +15,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.Success.EphemeralCallbackUdpAndClose", SuccessEphemeralCallbackUdpAndClose);
             tests.Add("Rpc.Callback.HandlerFailureReportsAndListenerContinues", CallbackHandlerFailureReportsAndListenerContinues);
             tests.Add("Rpc.Callback.ErrorHandlerFailureDoesNotStopListener", CallbackErrorHandlerFailureDoesNotStopListener);
+            tests.Add(
+                "Rpc.Callback.ProvenanceOwnerAndCloseInvalidation",
+                CallbackProvenanceOwnerAndCloseInvalidation);
             tests.Add("Rpc.Callback.ReentrantCloseConnectionStopsListener", ReentrantCallbackCloseConnectionStopsListener);
             tests.Add("Rpc.Callback.ReentrantDisposeStopsListener", ReentrantCallbackDisposeStopsListener);
             tests.Add("Rpc.Failure.InitStatusCleansUp", InitStatusFailureCleansUp);
@@ -42,6 +45,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.Lifecycle.QueuedCancellationKeepsActiveRequest", QueuedCancellationKeepsActiveRequest);
             tests.Add("Rpc.Lifecycle.InFlightCancellationInvalidatesTransport", InFlightCancellationInvalidatesTransport);
             tests.Add("Rpc.Lifecycle.ReconnectRejectsStaleGroup", ReconnectRejectsStaleGroup);
+            tests.Add(
+                "Rpc.TestHarness.RequestObservationUsesStableSnapshots",
+                RequestObservationUsesStableSnapshots);
             tests.Add("Rpc.Async.InitAndClose", AsyncInitAndClose);
             tests.Add("Rpc.AxisConstructor.AxisInfoSuccess", AxisConstructorAxisInfoSuccess);
             tests.Add("Rpc.AxisConstructor.MismatchedAxisInfoDescriptorRejected", AxisConstructorMismatchedAxisInfoDescriptorRejected);
@@ -56,6 +62,44 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.GroupCreateAsync.LookupErrorPreserved", GroupCreateAsyncLookupErrorPreserved);
             tests.Add("Rpc.AxisReadStatus.ShortErrorPreserved", AxisReadStatusShortErrorPreserved);
             tests.Add("Rpc.Group.PositionAndKinematics", GroupPositionAndKinematics);
+        }
+
+        private static void RequestObservationUsesStableSnapshots()
+        {
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                var requestsBeforeConnection = server.ReceivedRequests;
+                var sessionsBeforeConnection =
+                    server.ReceivedRequestSessionOrdinals;
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+
+                AssertEx.Equal(0, requestsBeforeConnection.Count);
+                AssertEx.Equal(0, sessionsBeforeConnection.Count);
+                AssertEx.Equal(2, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    server.ReceivedRequests.Count,
+                    server.ReceivedRequestSessionOrdinals.Count);
+
+                connection.CloseConnection();
+                server.Verify();
+
+                AssertEx.Equal(0, requestsBeforeConnection.Count);
+                AssertEx.Equal(0, sessionsBeforeConnection.Count);
+                AssertEx.Equal(3, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    server.ReceivedRequests.Count,
+                    server.ReceivedRequestSessionOrdinals.Count);
+            }
         }
 
         private static void QualificationAbortOmitsRpcClose()
@@ -290,6 +334,91 @@ namespace LasalMotionControlLib.Tests
 
                 connection.CloseConnection();
                 server.Verify();
+            }
+        }
+
+        private static void CallbackProvenanceOwnerAndCloseInvalidation()
+        {
+            LMCCallbackEventArgs callback = null;
+            object callbackSender = null;
+
+            using (var callbackSignal = new ManualResetEventSlim(false))
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var unrelatedServer = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            using (var unrelatedConnection = new LMCConnection())
+            {
+                connection.CallbackReceived += delegate(
+                    object sender,
+                    LMCCallbackEventArgs e)
+                {
+                    callbackSender = sender;
+                    callback = e;
+                    callbackSignal.Set();
+                };
+
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+                unrelatedConnection.RpcInitConnection(
+                    "127.0.0.1",
+                    unrelatedServer.Port,
+                    "127.0.0.1",
+                    0,
+                    LMCConnection.DefaultEventMask);
+                var activeSessionGeneration = connection.SessionGeneration;
+                AssertEx.Equal(1L, activeSessionGeneration);
+                AssertEx.Equal(
+                    1L,
+                    unrelatedConnection.SessionGeneration);
+                AssertEx.Equal(
+                    activeSessionGeneration,
+                    unrelatedConnection.SessionGeneration,
+                    "Both owners must deliberately collide on the same numeric session generation.");
+                AssertEx.True(unrelatedConnection.IsCallbackListenerRunning);
+
+                SendCallback(
+                    connection,
+                    TestFrame.Hex("10 20 30 40"));
+                AssertEx.True(
+                    callbackSignal.Wait(2000),
+                    "The callback provenance event was not received.");
+                AssertEx.True(ReferenceEquals(connection, callbackSender));
+                AssertEx.NotNull(callback);
+                AssertEx.Equal(
+                    activeSessionGeneration,
+                    callback.SessionGeneration);
+                AssertEx.True(callback.BelongsTo(connection));
+                AssertEx.False(callback.BelongsTo(unrelatedConnection));
+                AssertEx.False(callback.BelongsTo(null));
+                AssertEx.True(
+                    callback.BelongsToCurrentSession(connection));
+                AssertEx.False(
+                    callback.BelongsToCurrentSession(unrelatedConnection));
+
+                connection.CloseConnection();
+
+                AssertEx.True(
+                    callback.BelongsTo(connection),
+                    "Immutable ownership provenance must survive Close.");
+                AssertEx.Equal(
+                    activeSessionGeneration,
+                    callback.SessionGeneration);
+                AssertEx.False(
+                    callback.BelongsToCurrentSession(connection),
+                    "A callback captured before Close must become stale.");
+                unrelatedConnection.CloseConnection();
+                server.Verify();
+                unrelatedServer.Verify();
             }
         }
 

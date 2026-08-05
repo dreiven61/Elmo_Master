@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -25,6 +26,7 @@ namespace LasalMotionControlLib.Tests
             "integrated-read-owner-dormant";
         internal const string TopologyInventoryScope =
             "topology-inventory";
+        internal const int PostResultRetentionMilliseconds = 2000;
 
         internal TopologyIoQualificationOptions()
         {
@@ -44,6 +46,7 @@ namespace LasalMotionControlLib.Tests
         internal int TimeoutMilliseconds { get; private set; }
         internal string OutputPath { get; private set; }
         internal string Confirmation { get; private set; }
+        internal string SourceFingerprint { get; private set; }
 
         internal static TopologyIoQualificationOptions Parse(string[] args)
         {
@@ -116,6 +119,16 @@ namespace LasalMotionControlLib.Tests
                 {
                     options.Confirmation = ReadValue(args, ref index, argument);
                 }
+                else if (string.Equals(
+                    argument,
+                    "--source-fingerprint",
+                    StringComparison.Ordinal))
+                {
+                    options.SourceFingerprint = ReadValue(
+                        args,
+                        ref index,
+                        argument);
+                }
                 else if (string.Equals(argument, "--scope", StringComparison.Ordinal))
                 {
                     if (options.ScopeWasExplicit)
@@ -148,6 +161,18 @@ namespace LasalMotionControlLib.Tests
                 return options;
             }
 
+            if (!options.ScopeWasExplicit)
+            {
+                throw new ArgumentException(
+                    "Qualification requires an explicit --scope.");
+            }
+
+            if (!sawDryRun && !options.ExecuteLive)
+            {
+                throw new ArgumentException(
+                    "Qualification requires exactly one of --dry-run or --execute-live.");
+            }
+
             if (options.ExecuteLive)
             {
                 RequireLiveOptions(options);
@@ -176,6 +201,7 @@ namespace LasalMotionControlLib.Tests
 
             RequireIpv4(options.RemoteAddress, "--host");
             RequireIpv4(options.LocalAddress, "--local");
+            RequireSourceFingerprint(options.SourceFingerprint);
             if (string.IsNullOrWhiteSpace(options.OutputPath))
             {
                 throw new ArgumentException(
@@ -183,6 +209,49 @@ namespace LasalMotionControlLib.Tests
             }
 
             options.OutputPath = Path.GetFullPath(options.OutputPath);
+        }
+
+        private static void RequireSourceFingerprint(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException(
+                    "Live execution requires --source-fingerprint HEAD/TRACKED/UNTRACKED.");
+            }
+
+            var parts = value.Split('/');
+            if (parts.Length != 3)
+            {
+                throw new ArgumentException(
+                    "--source-fingerprint must be HEAD/TRACKED/UNTRACKED using Git object hashes.");
+            }
+
+            for (var partIndex = 0; partIndex < parts.Length; partIndex++)
+            {
+                var part = parts[partIndex];
+                if ((part.Length != 40 && part.Length != 64)
+                    || !IsHex(part))
+                {
+                    throw new ArgumentException(
+                        "--source-fingerprint components must be 40- or 64-character hexadecimal Git object hashes.");
+                }
+            }
+        }
+
+        private static bool IsHex(string value)
+        {
+            for (var index = 0; index < value.Length; index++)
+            {
+                var character = value[index];
+                if (!((character >= '0' && character <= '9')
+                    || (character >= 'a' && character <= 'f')
+                    || (character >= 'A' && character <= 'F')))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         internal static string GetScopeToken(
@@ -303,7 +372,7 @@ namespace LasalMotionControlLib.Tests
         internal TopologyIoQualificationReport(
             TopologyIoQualificationOptions options)
         {
-            Add("FORMAT", "LMC_TOPOLOGY_IO_QUALIFICATION_V1");
+            Add("FORMAT", "LMC_TOPOLOGY_IO_QUALIFICATION_V2");
             Add("START_UTC", DateTime.UtcNow.ToString("O"));
             Add("MODE", options.ExecuteLive ? "LIVE" : "DRY_RUN");
             Add(
@@ -329,6 +398,11 @@ namespace LasalMotionControlLib.Tests
                     + options.RemotePort);
                 Add("LOCAL_IPV4", options.LocalAddress);
                 Add("TIMEOUT_MS", options.TimeoutMilliseconds);
+                Add("SOURCE_FINGERPRINT_DECLARED", options.SourceFingerprint);
+                Add(
+                    "POST_RESULT_RETENTION_MS",
+                    TopologyIoQualificationOptions
+                        .PostResultRetentionMilliseconds);
             }
         }
 
@@ -371,10 +445,14 @@ namespace LasalMotionControlLib.Tests
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(
+            using (var stream = new FileStream(
                 fullPath,
-                text.ToString(),
-                new UTF8Encoding(false));
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            {
+                WriteAndFlush(stream, text.ToString());
+            }
         }
 
         internal bool CheckpointFailed { get; private set; }
@@ -500,6 +578,7 @@ namespace LasalMotionControlLib.Tests
         internal const int VerificationFailureExitCode = 3;
         internal const int ReportFailureExitCode = 4;
         internal const uint ExpectedTopologyRevision = 0x15867EECu;
+        internal const uint ExpectedMapRevision = 0x957F101Eu;
 
         private static readonly ushort[] TopologyInventoryRawCommands =
         {
@@ -550,7 +629,18 @@ namespace LasalMotionControlLib.Tests
             var report = new TopologyIoQualificationReport(options);
             if (!options.ExecuteLive)
             {
-                AppendDryRunPlan(options, report);
+                try
+                {
+                    AppendRuntimeProvenance(report);
+                    AppendDryRunPlan(options, report);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine(
+                        "ERROR dry-run preflight failed: " + ex.Message);
+                    return VerificationFailureExitCode;
+                }
+
                 Console.Write(report.ToString());
                 if (!string.IsNullOrWhiteSpace(options.OutputPath))
                 {
@@ -597,6 +687,7 @@ namespace LasalMotionControlLib.Tests
             var result = SuccessExitCode;
             try
             {
+                AppendRuntimeProvenance(report);
                 RunLive(options, report);
                 report.Add("OVERALL_RESULT", "PASS");
             }
@@ -620,6 +711,30 @@ namespace LasalMotionControlLib.Tests
                     }
                 }
                 Console.Error.WriteLine(ex);
+            }
+
+            if (!report.CheckpointFailed)
+            {
+                try
+                {
+                    report.Add(
+                        "POST_RESULT_RETENTION_START_UTC",
+                        DateTime.UtcNow.ToString("O"));
+                    Thread.Sleep(
+                        TopologyIoQualificationOptions
+                            .PostResultRetentionMilliseconds);
+                    report.Add(
+                        "POST_RESULT_RETENTION_END_UTC",
+                        DateTime.UtcNow.ToString("O"));
+                    report.Add("POST_RESULT_RETENTION_RESULT", "PASS");
+                }
+                catch (Exception ex)
+                {
+                    result = ReportFailureExitCode;
+                    Console.Error.WriteLine(
+                        "ERROR post-result evidence retention failed: "
+                        + ex.Message);
+                }
             }
 
             if (report.CheckpointFailed)
@@ -771,6 +886,22 @@ namespace LasalMotionControlLib.Tests
                     + " requires a non-zero DiagnosticsBootId for evidence identity.");
             }
 
+            if (capabilities.DiagnosticsBuild == 0)
+            {
+                throw new InvalidDataException(
+                    operation
+                    + " requires a non-zero DiagnosticsBuild for evidence identity.");
+            }
+
+            if (capabilities.MapRevision != ExpectedMapRevision)
+            {
+                throw new InvalidDataException(
+                    operation
+                    + " requires current MapRevision "
+                    + Hex(ExpectedMapRevision)
+                    + ".");
+            }
+
             if (capabilities.MaxRequestPayloadBytes
                     < minimumRequestPayloadBytes
                 || capabilities.MaxResponsePayloadBytes
@@ -810,6 +941,8 @@ namespace LasalMotionControlLib.Tests
             LMCDiagnosticCapabilities capabilities)
         {
             report.Add("CAPABILITY_BITS", Hex(capabilities.CapabilityBits));
+            report.Add("DIAGNOSTICS_BUILD", Hex(capabilities.DiagnosticsBuild));
+            report.Add("MAP_REVISION", Hex(capabilities.MapRevision));
             report.Add(
                 "DIAGNOSTICS_BOOT_ID",
                 Hex(capabilities.DiagnosticsBootId));
@@ -819,6 +952,18 @@ namespace LasalMotionControlLib.Tests
             report.Add(
                 "DIAGNOSTICS_BOOT_ID_BEFORE",
                 Hex(capabilities.DiagnosticsBootId));
+            report.Add(
+                "DIAGNOSTICS_BUILD_BEFORE",
+                Hex(capabilities.DiagnosticsBuild));
+            report.Add(
+                "MAP_REVISION_BEFORE",
+                Hex(capabilities.MapRevision));
+            report.Add(
+                "MAX_REQUEST_PAYLOAD_BYTES_BEFORE",
+                capabilities.MaxRequestPayloadBytes);
+            report.Add(
+                "MAX_RESPONSE_PAYLOAD_BYTES_BEFORE",
+                capabilities.MaxResponsePayloadBytes);
         }
 
         private static void AddCapabilityIdentityAfter(
@@ -831,6 +976,18 @@ namespace LasalMotionControlLib.Tests
             report.Add(
                 "DIAGNOSTICS_BOOT_ID_AFTER",
                 Hex(capabilities.DiagnosticsBootId));
+            report.Add(
+                "DIAGNOSTICS_BUILD_AFTER",
+                Hex(capabilities.DiagnosticsBuild));
+            report.Add(
+                "MAP_REVISION_AFTER",
+                Hex(capabilities.MapRevision));
+            report.Add(
+                "MAX_REQUEST_PAYLOAD_BYTES_AFTER",
+                capabilities.MaxRequestPayloadBytes);
+            report.Add(
+                "MAX_RESPONSE_PAYLOAD_BYTES_AFTER",
+                capabilities.MaxResponsePayloadBytes);
         }
 
         private static void RequireCapabilityIdentityUnchanged(
@@ -866,15 +1023,27 @@ namespace LasalMotionControlLib.Tests
                 report);
 
             var before = readCapabilities();
-            ValidateTopologyInventoryCapabilities(before);
+            if (before == null)
+            {
+                throw new InvalidDataException(
+                    "Topology-inventory capability precondition returned null.");
+            }
+
             AddCapabilityIdentityBefore(report, before);
+            ValidateTopologyInventoryCapabilities(before);
             report.Add("TOPOLOGY_CAPABILITY_PRECONDITION", "PASS");
 
             var result = RunTopologyInventoryRaw(exchange, report);
 
             var after = readCapabilities();
-            ValidateTopologyInventoryCapabilities(after);
+            if (after == null)
+            {
+                throw new InvalidDataException(
+                    "Topology-inventory capability postcondition returned null.");
+            }
+
             AddCapabilityIdentityAfter(report, after);
+            ValidateTopologyInventoryCapabilities(after);
             RequireCapabilityIdentityUnchanged(
                 before,
                 after,
@@ -897,15 +1066,27 @@ namespace LasalMotionControlLib.Tests
                 report);
 
             var before = readCapabilities();
-            ValidateDormantCapabilities(before);
+            if (before == null)
+            {
+                throw new InvalidDataException(
+                    "Dormant capability precondition returned null.");
+            }
+
             AddCapabilityIdentityBefore(report, before);
+            ValidateDormantCapabilities(before);
             report.Add("DORMANT_CAPABILITY_PRECONDITION", "PASS");
 
             var result = RunReadOnlyRaw(exchange, report);
 
             var after = readCapabilities();
-            ValidateDormantCapabilities(after);
+            if (after == null)
+            {
+                throw new InvalidDataException(
+                    "Dormant capability postcondition returned null.");
+            }
+
             AddCapabilityIdentityAfter(report, after);
+            ValidateDormantCapabilities(after);
             RequireCapabilityIdentityUnchanged(
                 before,
                 after,
@@ -1001,6 +1182,8 @@ namespace LasalMotionControlLib.Tests
 
             report.Add("RAW_NODE_HEALTH_COUNT", healthValues.Count);
             report.Add("RAW_DIGITAL_IO_COUNT", ioValues.Count);
+            report.Add("RAW_TOPOLOGY_REQUEST_COUNT", 8);
+            report.Add("RAW_TOTAL_REQUEST_COUNT", 17);
             report.Add("RAW_SCHEMA_RESULT", "PASS");
             report.Add("LIVE_GATE_RESULT", "REQUIRES_PHYSICAL_CORRELATION");
             return new TopologyIoQualificationResult(
@@ -1031,6 +1214,7 @@ namespace LasalMotionControlLib.Tests
             report.Add("RAW_NODE_HEALTH_COUNT", 0);
             report.Add("RAW_DIGITAL_IO_COUNT", 0);
             report.Add("RAW_TOPOLOGY_REQUEST_COUNT", 8);
+            report.Add("RAW_TOTAL_REQUEST_COUNT", 8);
             report.Add("RAW_SCHEMA_RESULT", "PASS");
             report.Add("LIVE_GATE_RESULT", "STATIC_TOPOLOGY_ONLY");
             return new TopologyIoQualificationResult(
@@ -1048,18 +1232,23 @@ namespace LasalMotionControlLib.Tests
                 + " --dry-run [--output FILE]");
             writer.WriteLine(
                 "  LasalMotionControlLib.Tests.exe topology-io-qualify --scope "
+                + TopologyIoQualificationOptions
+                    .IntegratedReadOwnerDormantScope
+                + " --dry-run [--output FILE]");
+            writer.WriteLine(
+                "  LasalMotionControlLib.Tests.exe topology-io-qualify --scope "
                 + TopologyIoQualificationOptions.TopologyInventoryScope
                 + " --execute-live --confirm "
                 + TopologyIoQualificationOptions
                     .TopologyInventoryLiveConfirmation
-                + " --host IPv4 --local IPv4 [--port 4000] [--timeout-ms 3000] --output FILE");
+                + " --host IPv4 --local IPv4 --source-fingerprint HEAD/TRACKED/UNTRACKED [--port 4000] [--timeout-ms 3000] --output FILE");
             writer.WriteLine(
                 "  LasalMotionControlLib.Tests.exe topology-io-qualify --scope "
                 + TopologyIoQualificationOptions
                     .IntegratedReadOwnerDormantScope
                 + " --execute-live --confirm "
                 + TopologyIoQualificationOptions.LiveConfirmation
-                + " --host IPv4 --local IPv4 [--port 4000] [--timeout-ms 3000] --output FILE");
+                + " --host IPv4 --local IPv4 --source-fingerprint HEAD/TRACKED/UNTRACKED [--port 4000] [--timeout-ms 3000] --output FILE");
             writer.WriteLine(
                 "Topology-inventory allowlist: 0x7E11, 0x7E12 only. Integrated dormant allowlist: 0x7E11, 0x7E12, 0x7E13, 0x7E22. 0x7E23 and all mutation commands are forbidden.");
         }
@@ -1183,57 +1372,121 @@ namespace LasalMotionControlLib.Tests
                     ? "FORBIDDEN"
                     : "ALLOWED");
             report.Add("RAW_WRITE_0x7E23", "FORBIDDEN");
-            report.Add("DRY_RUN_RESULT", "NO_NETWORK_IO");
-
-            var sampleRequests = options.Scope
-                    == TopologyIoQualificationScope.TopologyInventory
-                ? new[]
-                {
-                    LMC_DiagnosticsFrame.GetEtherCATTopologyInfo(
-                        0x54490001u),
-                    LMC_DiagnosticsFrame.GetEtherCATTopologyChunk(
-                        0x54490002u,
-                        ExpectedTopologyRevision,
-                        0,
-                        1)
-                }
-                : new[]
+            var plannedRequests = CreateDryRunRequests(options.Scope);
+            report.Add("PLANNED_REQUEST_COUNT", plannedRequests.Count);
+            var commandSequence = new StringBuilder();
+            for (var index = 0; index < plannedRequests.Count; index++)
             {
-                LMC_DiagnosticsFrame.GetEtherCATTopologyInfo(0x54490001u),
-                LMC_DiagnosticsFrame.GetEtherCATTopologyChunk(
-                    0x54490002u,
-                    ExpectedTopologyRevision,
-                    0,
-                    1),
-                LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
-                    0x54490003u,
-                    ExpectedTopologyRevision,
-                    0xEC000001u),
+                var request = plannedRequests[index];
+                EnsureAllowedReadOnlyRequest(
+                    request,
+                    options.Scope);
+                report.AddFrame(
+                    "PLANNED_REQUEST_"
+                        + index.ToString("D2", CultureInfo.InvariantCulture),
+                    request);
+                if (commandSequence.Length != 0)
+                {
+                    commandSequence.Append(',');
+                }
+
+                commandSequence.Append("0x");
+                commandSequence.Append(
+                    LMC_Frame.GetRequestCommand(request).ToString(
+                        "X4",
+                        CultureInfo.InvariantCulture));
+            }
+
+            report.Add("PLANNED_COMMAND_SEQUENCE", commandSequence.ToString());
+            report.Add("DRY_RUN_RESULT", "NO_NETWORK_IO");
+        }
+
+        private static IList<byte[]> CreateDryRunRequests(
+            TopologyIoQualificationScope scope)
+        {
+            var requests = new List<byte[]>();
+            requests.Add(
+                LMC_DiagnosticsFrame.GetEtherCATTopologyInfo(0x54490001u));
+            for (ushort startIndex = 0; startIndex < 7; startIndex++)
+            {
+                requests.Add(
+                    LMC_DiagnosticsFrame.GetEtherCATTopologyChunk(
+                        checked(0x54490002u + startIndex),
+                        ExpectedTopologyRevision,
+                        startIndex,
+                        1));
+            }
+
+            if (scope == TopologyIoQualificationScope.TopologyInventory)
+            {
+                return requests;
+            }
+
+            var entries = ExpectedCurrentTopologyEntries();
+            for (var index = 0; index < entries.Length; index++)
+            {
+                requests.Add(
+                    LMC_DiagnosticsFrame.ReadEtherCATNodeHealth(
+                        checked(0x54490009u + (uint)index),
+                        ExpectedTopologyRevision,
+                        entries[index].NodeId));
+            }
+
+            requests.Add(
                 LMC_DiagnosticsFrame.ReadDigitalIO(
-                    0x54490004u,
+                    0x54490010u,
                     new LMCDigitalIOReadRequest(
                         ExpectedTopologyRevision,
                         0x00010001u,
                         LMCDigitalIODirection.Input,
-                        32)),
+                        32)));
+            requests.Add(
                 LMC_DiagnosticsFrame.ReadDigitalIO(
-                    0x54490005u,
+                    0x54490011u,
                     new LMCDigitalIOReadRequest(
                         ExpectedTopologyRevision,
                         0x00010002u,
                         LMCDigitalIODirection.Output,
-                        32))
-            };
-            for (var index = 0; index < sampleRequests.Length; index++)
+                        32)));
+            return requests;
+        }
+
+        private static void AppendRuntimeProvenance(
+            TopologyIoQualificationReport report)
+        {
+            AddFileProvenance(
+                report,
+                "TEST_EXECUTABLE",
+                Assembly.GetExecutingAssembly().Location);
+            AddFileProvenance(
+                report,
+                "SDK_ASSEMBLY",
+                typeof(LMCConnection).Assembly.Location);
+        }
+
+        private static void AddFileProvenance(
+            TopologyIoQualificationReport report,
+            string prefix,
+            string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
-                EnsureAllowedReadOnlyRequest(
-                    sampleRequests[index],
-                    options.Scope);
-                report.AddFrame(
-                    "SAMPLE_REQUEST_"
-                        + index.ToString("D2", CultureInfo.InvariantCulture),
-                    sampleRequests[index]);
+                throw new FileNotFoundException(
+                    prefix + " provenance file was not found.",
+                    path);
             }
+
+            var fullPath = Path.GetFullPath(path);
+            var file = new FileInfo(fullPath);
+            report.Add(prefix + "_PATH", fullPath);
+            report.Add(prefix + "_BYTES", file.Length);
+            report.Add(
+                prefix + "_LAST_WRITE_UTC",
+                file.LastWriteTimeUtc.ToString("O"));
+            report.Add(
+                prefix + "_SHA256",
+                NegativeWireReport.ComputeSha256(
+                    File.ReadAllBytes(fullPath)));
         }
 
         private static byte[] ExchangeReadOnly(

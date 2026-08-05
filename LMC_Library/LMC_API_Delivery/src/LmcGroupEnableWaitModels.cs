@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace LasalMotionControlLib
@@ -6,6 +7,10 @@ namespace LasalMotionControlLib
     internal sealed class LMCGroupEnableWaitCoordinator
     {
         private long mutationGeneration;
+        private long provisionalResetSafetyMutationGeneration;
+        private LMCGroupResetWaitContinuation
+            provisionalResetSafetyContinuation;
+        private bool provisionalResetSafetyPermanentlySuperseded;
 
         internal LMCGroupEnableWaitCoordinator()
         {
@@ -34,6 +39,11 @@ namespace LasalMotionControlLib
             get;
             set;
         }
+        internal LMCGroupResetWaitContinuation PendingResetContinuation
+        {
+            get;
+            set;
+        }
         internal bool WaitInProgress { get; set; }
         internal bool StopWaitInProgress { get; set; }
         internal bool PowerStateWaitInProgress { get; set; }
@@ -41,6 +51,8 @@ namespace LasalMotionControlLib
         internal bool PowerAcceptanceObserverInProgress { get; set; }
         internal bool EnableAcceptanceObserverInProgress { get; set; }
         internal bool DisableAcceptanceObserverInProgress { get; set; }
+        internal bool ResetAcceptanceObserverInProgress { get; set; }
+        internal bool ResetWaitInProgress { get; set; }
         internal bool DirectEnableInProgress { get; set; }
 
         internal long MutationGeneration
@@ -56,10 +68,237 @@ namespace LasalMotionControlLib
 
         internal long MarkMutationMayHaveBeenSent()
         {
+            return MarkMutationMayHaveBeenSent(false);
+        }
+
+        internal long MarkMutationMayHaveBeenSent(
+            bool groupResetSafetyMutation)
+        {
             lock (Sync)
             {
+                provisionalResetSafetyMutationGeneration = 0;
+                provisionalResetSafetyContinuation = null;
+                provisionalResetSafetyPermanentlySuperseded = false;
+                if (ResetAcceptanceObserverInProgress)
+                {
+                    throw new InvalidOperationException(
+                        "A Group Reset accepted-continuation observer is still running.");
+                }
+
+                if (PendingResetContinuation != null
+                    && PendingResetContinuation.IsPending)
+                {
+                    if (!groupResetSafetyMutation)
+                    {
+                        throw new LMCGroupResetWaitPendingException(
+                            PendingResetContinuation);
+                    }
+
+                    PendingResetContinuation
+                        .MarkSupersededBySafetyMutation();
+                    provisionalResetSafetyContinuation =
+                        PendingResetContinuation;
+                    PendingResetContinuation = null;
+                }
+
                 mutationGeneration++;
+                if (provisionalResetSafetyContinuation != null)
+                {
+                    provisionalResetSafetyMutationGeneration =
+                        mutationGeneration;
+                }
                 return mutationGeneration;
+            }
+        }
+
+        internal void FinalizeSafetyMutationAcknowledgement(
+            long reservedGeneration)
+        {
+            lock (Sync)
+            {
+                if (provisionalResetSafetyMutationGeneration
+                    == reservedGeneration)
+                {
+                    provisionalResetSafetyMutationGeneration = 0;
+                    provisionalResetSafetyContinuation = null;
+                    provisionalResetSafetyPermanentlySuperseded = false;
+                }
+            }
+        }
+
+        internal bool TryPermanentlySupersedeProvisionalGroupReset(
+            LMCGroupResetWaitContinuation continuation)
+        {
+            lock (Sync)
+            {
+                if (continuation == null
+                    || provisionalResetSafetyMutationGeneration <= 0
+                    || !ReferenceEquals(
+                        provisionalResetSafetyContinuation,
+                        continuation)
+                    || continuation.State
+                        != LMCGroupResetWaitContinuationState
+                            .SupersededBySafetyMutation)
+                {
+                    return false;
+                }
+
+                provisionalResetSafetyPermanentlySuperseded = true;
+                return true;
+            }
+        }
+
+        internal void ThrowIfGroupResetBlocksUnsafeMutation()
+        {
+            lock (Sync)
+            {
+                if (ResetAcceptanceObserverInProgress)
+                {
+                    throw new InvalidOperationException(
+                        "A Group Reset accepted-continuation observer is still running.");
+                }
+
+                var pending = PendingResetContinuation;
+                if (pending != null && pending.IsPending)
+                {
+                    throw new LMCGroupResetWaitPendingException(pending);
+                }
+            }
+        }
+
+        internal void ThrowIfGroupResetObserverReentrantSafetyMutation()
+        {
+            WaitForGroupResetObserverHandoffForSafetyMutation(
+                CancellationToken.None);
+        }
+
+        internal void WaitForGroupResetObserverHandoffForSafetyMutation(
+            CancellationToken cancellationToken)
+        {
+            WaitForGroupResetObserverHandoffForSafetyMutation(
+                cancellationToken,
+                Timeout.Infinite);
+        }
+
+        internal bool WaitForGroupResetObserverHandoffForSafetyMutation(
+            CancellationToken cancellationToken,
+            int timeoutMilliseconds)
+        {
+            if (timeoutMilliseconds < Timeout.Infinite)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "timeoutMilliseconds");
+            }
+
+            var stopwatch = timeoutMilliseconds == Timeout.Infinite
+                ? null
+                : Stopwatch.StartNew();
+            lock (Sync)
+            {
+                while (ResetAcceptanceObserverInProgress)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var waitMilliseconds = 25;
+                    if (stopwatch != null)
+                    {
+                        var remaining = timeoutMilliseconds
+                            - stopwatch.ElapsedMilliseconds;
+                        if (remaining <= 0)
+                        {
+                            return false;
+                        }
+
+                        waitMilliseconds = (int)Math.Min(
+                            waitMilliseconds,
+                            remaining);
+                    }
+
+                    Monitor.Wait(Sync, waitMilliseconds);
+                }
+
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Removes only the exact most-recent process-local mutation
+        /// reservation after a structurally valid negative acknowledgement.
+        /// The caller must still hold MutationGate.
+        /// </summary>
+        internal bool TryRollbackRejectedMutation(long reservedGeneration)
+        {
+            lock (Sync)
+            {
+                if (reservedGeneration <= 0
+                    || mutationGeneration != reservedGeneration)
+                {
+                    return false;
+                }
+
+                if (provisionalResetSafetyMutationGeneration
+                    == reservedGeneration)
+                {
+                    if (PendingResetContinuation != null
+                        || provisionalResetSafetyContinuation == null
+                        || !provisionalResetSafetyContinuation
+                            .TryRestoreAfterRejectedSafetyMutation())
+                    {
+                        return false;
+                    }
+
+                    PendingResetContinuation =
+                        provisionalResetSafetyContinuation;
+                    provisionalResetSafetyMutationGeneration = 0;
+                    provisionalResetSafetyContinuation = null;
+                    provisionalResetSafetyPermanentlySuperseded = false;
+                }
+
+                mutationGeneration--;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Restores only a pending Group Reset provisionally superseded by a
+        /// safety request whose structurally valid acknowledgement rejected
+        /// the request. Non-Reset mutation-generation behavior is unchanged.
+        /// </summary>
+        internal bool TryRestoreGroupResetAfterRejectedSafetyMutation(
+            long reservedGeneration)
+        {
+            lock (Sync)
+            {
+                if (reservedGeneration <= 0
+                    || mutationGeneration != reservedGeneration
+                    || provisionalResetSafetyMutationGeneration
+                        != reservedGeneration
+                    || PendingResetContinuation != null
+                    || provisionalResetSafetyContinuation == null)
+                {
+                    return false;
+                }
+
+                if (provisionalResetSafetyPermanentlySuperseded)
+                {
+                    provisionalResetSafetyMutationGeneration = 0;
+                    provisionalResetSafetyContinuation = null;
+                    provisionalResetSafetyPermanentlySuperseded = false;
+                    mutationGeneration--;
+                    return true;
+                }
+                if (!provisionalResetSafetyContinuation
+                    .TryRestoreAfterRejectedSafetyMutation())
+                {
+                    return false;
+                }
+
+                PendingResetContinuation =
+                    provisionalResetSafetyContinuation;
+                provisionalResetSafetyMutationGeneration = 0;
+                provisionalResetSafetyContinuation = null;
+                provisionalResetSafetyPermanentlySuperseded = false;
+                mutationGeneration--;
+                return true;
             }
         }
 

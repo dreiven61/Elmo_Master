@@ -7,6 +7,13 @@ namespace LasalMotionControlLib.Tests
 {
     internal static class TopologyIoQualificationToolTests
     {
+        private static readonly string ValidSourceFingerprint =
+            new string('a', 40)
+            + "/"
+            + new string('b', 40)
+            + "/"
+            + new string('c', 40);
+
         internal static void Register(ICollection<TestCase> tests)
         {
             tests.Add(
@@ -49,13 +56,22 @@ namespace LasalMotionControlLib.Tests
 
         private static void OptionsAreFailClosed()
         {
-            var dry = TopologyIoQualificationOptions.Parse(
-                new[] { "topology-io-qualify", "--dry-run" });
+            AssertEx.Throws<ArgumentException>(() =>
+                TopologyIoQualificationOptions.Parse(
+                    new[] { "topology-io-qualify", "--dry-run" }));
+            var dry = TopologyIoQualificationOptions.Parse(new[]
+            {
+                "topology-io-qualify",
+                "--scope",
+                TopologyIoQualificationOptions
+                    .IntegratedReadOwnerDormantScope,
+                "--dry-run"
+            });
             AssertEx.False(dry.ExecuteLive);
             AssertEx.Equal(
                 TopologyIoQualificationScope.IntegratedReadOwnerDormant,
                 dry.Scope);
-            AssertEx.False(dry.ScopeWasExplicit);
+            AssertEx.True(dry.ScopeWasExplicit);
 
             var inventoryDry = TopologyIoQualificationOptions.Parse(new[]
             {
@@ -73,6 +89,9 @@ namespace LasalMotionControlLib.Tests
                 TopologyIoQualificationOptions.Parse(new[]
                 {
                     "topology-io-qualify",
+                    "--scope",
+                    TopologyIoQualificationOptions
+                        .IntegratedReadOwnerDormantScope,
                     "--dry-run",
                     "--execute-live"
                 }));
@@ -80,6 +99,9 @@ namespace LasalMotionControlLib.Tests
                 TopologyIoQualificationOptions.Parse(new[]
                 {
                     "topology-io-qualify",
+                    "--scope",
+                    TopologyIoQualificationOptions
+                        .IntegratedReadOwnerDormantScope,
                     "--execute-live",
                     "--confirm",
                     "WRONG",
@@ -87,6 +109,8 @@ namespace LasalMotionControlLib.Tests
                     "192.0.2.1",
                     "--local",
                     "192.0.2.2",
+                    "--source-fingerprint",
+                    ValidSourceFingerprint,
                     "--output",
                     "report.txt"
                 }));
@@ -113,6 +137,9 @@ namespace LasalMotionControlLib.Tests
             var live = TopologyIoQualificationOptions.Parse(new[]
             {
                 "topology-io-qualify",
+                "--scope",
+                TopologyIoQualificationOptions
+                    .IntegratedReadOwnerDormantScope,
                 "--execute-live",
                 "--confirm",
                 TopologyIoQualificationOptions.LiveConfirmation,
@@ -120,6 +147,8 @@ namespace LasalMotionControlLib.Tests
                 "192.0.2.1",
                 "--local",
                 "192.0.2.2",
+                "--source-fingerprint",
+                ValidSourceFingerprint,
                 "--output",
                 "report.txt"
             });
@@ -139,6 +168,8 @@ namespace LasalMotionControlLib.Tests
                     "192.0.2.1",
                     "--local",
                     "192.0.2.2",
+                    "--source-fingerprint",
+                    ValidSourceFingerprint,
                     "--output",
                     "report.txt"
                 }));
@@ -155,12 +186,55 @@ namespace LasalMotionControlLib.Tests
                 "192.0.2.1",
                 "--local",
                 "192.0.2.2",
+                "--source-fingerprint",
+                ValidSourceFingerprint,
                 "--output",
                 "report.txt"
             });
             AssertEx.Equal(
                 TopologyIoQualificationScope.TopologyInventory,
                 inventoryLive.Scope);
+            AssertEx.Equal(
+                ValidSourceFingerprint,
+                inventoryLive.SourceFingerprint);
+
+            AssertEx.Throws<ArgumentException>(() =>
+                TopologyIoQualificationOptions.Parse(new[]
+                {
+                    "topology-io-qualify",
+                    "--scope",
+                    TopologyIoQualificationOptions.TopologyInventoryScope,
+                    "--execute-live",
+                    "--confirm",
+                    TopologyIoQualificationOptions
+                        .TopologyInventoryLiveConfirmation,
+                    "--host",
+                    "192.0.2.1",
+                    "--local",
+                    "192.0.2.2",
+                    "--output",
+                    "report.txt"
+                }));
+
+            AssertEx.Throws<ArgumentException>(() =>
+                TopologyIoQualificationOptions.Parse(new[]
+                {
+                    "topology-io-qualify",
+                    "--scope",
+                    TopologyIoQualificationOptions.TopologyInventoryScope,
+                    "--execute-live",
+                    "--confirm",
+                    TopologyIoQualificationOptions
+                        .TopologyInventoryLiveConfirmation,
+                    "--host",
+                    "192.0.2.1",
+                    "--local",
+                    "192.0.2.2",
+                    "--source-fingerprint",
+                    "not-a-source-fingerprint",
+                    "--output",
+                    "report.txt"
+                }));
         }
 
         private static void ReadOnlyAllowlistAcceptsExactFrames()
@@ -444,6 +518,23 @@ namespace LasalMotionControlLib.Tests
                         1,
                         19,
                         2040)));
+            AssertEx.Throws<InvalidDataException>(() =>
+                TopologyIoQualificationTool.ValidateDormantCapabilities(
+                    Capabilities(
+                        LMCDiagnosticCapability.EtherCATTopology,
+                        1,
+                        1320,
+                        2040,
+                        TopologyIoQualificationTool.ExpectedMapRevision + 1)));
+            AssertEx.Throws<InvalidDataException>(() =>
+                TopologyIoQualificationTool.ValidateDormantCapabilities(
+                    Capabilities(
+                        LMCDiagnosticCapability.EtherCATTopology,
+                        1,
+                        1320,
+                        2040,
+                        TopologyIoQualificationTool.ExpectedMapRevision,
+                        0)));
             AssertEx.Throws<NotSupportedException>(() =>
                 TopologyIoQualificationTool
                     .ValidateTopologyInventoryCapabilities(
@@ -491,6 +582,9 @@ namespace LasalMotionControlLib.Tests
                     exitCode = TopologyIoQualificationTool.Run(new[]
                     {
                         "topology-io-qualify",
+                        "--scope",
+                        TopologyIoQualificationOptions
+                            .IntegratedReadOwnerDormantScope,
                         "--dry-run",
                         "--output",
                         output
@@ -508,7 +602,13 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(text.Contains("MODE=DRY_RUN"));
                 AssertEx.True(text.Contains("NETWORK_CONNECTED=FALSE"));
                 AssertEx.True(text.Contains("RAW_WRITE_0x7E23=FORBIDDEN"));
-                AssertEx.True(text.Contains("SAMPLE_REQUEST_04_HEX="));
+                AssertEx.True(text.Contains("PLANNED_REQUEST_COUNT=17"));
+                AssertEx.True(text.Contains("PLANNED_REQUEST_16_HEX="));
+                AssertEx.True(text.Contains("TEST_EXECUTABLE_SHA256="));
+                AssertEx.True(text.Contains("SDK_ASSEMBLY_SHA256="));
+                AssertEx.Throws<IOException>(() =>
+                    NewDryRunReport().Save(output));
+                AssertEx.Equal(text, File.ReadAllText(output));
 
                 try
                 {
@@ -544,9 +644,11 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(inventoryText.Contains(
                     "RAW_WRITE_0x7E23=FORBIDDEN"));
                 AssertEx.True(inventoryText.Contains(
-                    "SAMPLE_REQUEST_01_HEX="));
+                    "PLANNED_REQUEST_COUNT=8"));
+                AssertEx.True(inventoryText.Contains(
+                    "PLANNED_REQUEST_07_HEX="));
                 AssertEx.False(inventoryText.Contains(
-                    "SAMPLE_REQUEST_02_HEX="));
+                    "PLANNED_REQUEST_08_HEX="));
             }
             finally
             {
@@ -572,6 +674,9 @@ namespace LasalMotionControlLib.Tests
                 TopologyIoQualificationOptions.Parse(new[]
                 {
                     "topology-io-qualify",
+                    "--scope",
+                    TopologyIoQualificationOptions
+                        .IntegratedReadOwnerDormantScope,
                     "--dry-run"
                 }));
             var canonical = CurrentTopologyCanonicalBytes();
@@ -758,6 +863,33 @@ namespace LasalMotionControlLib.Tests
             var capabilityReadCount = 0;
             var exchangeCount = 0;
             var canonical = CurrentTopologyCanonicalBytes();
+            var invalidPreconditionReport = NewDryRunReport();
+            AssertEx.Throws<InvalidDataException>(() =>
+                TopologyIoQualificationTool
+                    .RunReadOnlyRawWithCapabilityIdentity(
+                        () => Capabilities(
+                            LMCDiagnosticCapability.EtherCATTopology,
+                            0x01020304u,
+                            1320,
+                            2040,
+                            TopologyIoQualificationTool.ExpectedMapRevision + 1),
+                        request =>
+                        {
+                            exchangeCount++;
+                            return RespondToReadOnlyRequest(
+                                request,
+                                canonical);
+                        },
+                        invalidPreconditionReport));
+            AssertEx.Equal(0, exchangeCount);
+            AssertEx.Contains(
+                "DIAGNOSTICS_BOOT_ID_BEFORE=0x01020304",
+                invalidPreconditionReport.ToString());
+            AssertEx.Contains(
+                "MAP_REVISION_BEFORE=0x957F101F",
+                invalidPreconditionReport.ToString());
+
+            exchangeCount = 0;
             AssertEx.Throws<InvalidDataException>(() =>
                 TopologyIoQualificationTool
                     .RunReadOnlyRawWithCapabilityIdentity(
@@ -848,6 +980,18 @@ namespace LasalMotionControlLib.Tests
             AssertEx.Contains(
                 "CAPABILITY_IDENTITY_RESULT=PASS",
                 inventoryReport.ToString());
+            AssertEx.Contains(
+                "MAP_REVISION_BEFORE=0x957F101E",
+                inventoryReport.ToString());
+            AssertEx.Contains(
+                "MAP_REVISION_AFTER=0x957F101E",
+                inventoryReport.ToString());
+            AssertEx.Contains(
+                "DIAGNOSTICS_BUILD_BEFORE=0x00000001",
+                inventoryReport.ToString());
+            AssertEx.Contains(
+                "RAW_TOTAL_REQUEST_COUNT=8",
+                inventoryReport.ToString());
         }
 
         private static void CheckpointFailurePreservesPrefix()
@@ -870,7 +1014,7 @@ namespace LasalMotionControlLib.Tests
             AssertEx.True(report.CheckpointFailed);
             AssertEx.SequenceEqual(durablePrefix, stream.ToArray());
             AssertEx.Contains(
-                "FORMAT=LMC_TOPOLOGY_IO_QUALIFICATION_V1",
+                "FORMAT=LMC_TOPOLOGY_IO_QUALIFICATION_V2",
                 Encoding.UTF8.GetString(durablePrefix));
         }
 
@@ -1332,14 +1476,17 @@ namespace LasalMotionControlLib.Tests
             LMCDiagnosticCapability capability,
             uint bootId,
             ushort maxRequestPayloadBytes,
-            ushort maxResponsePayloadBytes)
+            ushort maxResponsePayloadBytes,
+            uint mapRevision =
+                TopologyIoQualificationTool.ExpectedMapRevision,
+            uint diagnosticsBuild = 1)
         {
             return new LMCDiagnosticCapabilities(
                 null,
                 1,
-                1,
+                diagnosticsBuild,
                 (uint)capability,
-                1,
+                mapRevision,
                 0,
                 32,
                 8,

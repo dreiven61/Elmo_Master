@@ -490,6 +490,64 @@ namespace LasalMotionControlApiExample
             }
         }
 
+        internal RecoveryJournalSourceEvidence
+            CaptureActiveRetirementEvidence()
+        {
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                return CaptureActiveRetirementEvidenceCore();
+            }
+        }
+
+        internal GroupPowerRecoveryRecord ResolveOperatorRetirement(
+            RecoveryJournalSourceEvidence expectedEvidence,
+            RecoveryRecordRetirementDecision committedDecision,
+            DateTime updatedUtc)
+        {
+            if (expectedEvidence == null)
+            {
+                throw new ArgumentNullException("expectedEvidence");
+            }
+            if (committedDecision == null)
+            {
+                throw new ArgumentNullException("committedDecision");
+            }
+            if (!committedDecision.IsDurablyCommitted)
+            {
+                throw new InvalidOperationException(
+                    "Group Power retirement requires a durably committed ledger decision.");
+            }
+
+            lock (sync)
+            {
+                ThrowIfDisposed();
+                if (!committedDecision.MatchesSourceEvidence(
+                    expectedEvidence))
+                {
+                    throw new InvalidOperationException(
+                        "The committed retirement decision does not match the expected Group Power source evidence.");
+                }
+
+                var currentEvidence =
+                    CaptureActiveRetirementEvidenceCore();
+                if (!expectedEvidence.ExactSourceEquals(currentEvidence)
+                    || !committedDecision.MatchesSourceEvidence(
+                        currentEvidence))
+                {
+                    throw new InvalidOperationException(
+                        "Group Power recovery changed after operator confirmation; retirement was not applied.");
+                }
+
+                var resolved = currentRecord.TransitionTo(
+                    GroupPowerRecoveryState.Resolved,
+                    updatedUtc);
+                PersistRecord(resolved);
+                currentRecord = resolved;
+                return resolved.Copy();
+            }
+        }
+
         internal static GroupPowerRecoveryJournal Open(
             string directoryPath)
         {
@@ -725,6 +783,99 @@ namespace LasalMotionControlApiExample
             }
 
             return currentRecord;
+        }
+
+        private RecoveryJournalSourceEvidence
+            CaptureActiveRetirementEvidenceCore()
+        {
+            if (currentRecord == null || !currentRecord.IsActive)
+            {
+                throw new InvalidOperationException(
+                    "No active Group Power recovery record exists for operator retirement.");
+            }
+
+            var originalBytes = ReadRetirementSourceBytes();
+            var diskRecord = DeserializeRecord(originalBytes);
+            if (!RecordsEqual(currentRecord, diskRecord))
+            {
+                throw new InvalidDataException(
+                    "Group Power recovery memory state does not match the exact durable source bytes.");
+            }
+
+            return new RecoveryJournalSourceEvidence(
+                RecoveryRecordOwner.GroupPower,
+                diskRecord.Identity,
+                (int)diskRecord.State,
+                diskRecord.CreatedUtc,
+                diskRecord.UpdatedUtc,
+                diskRecord.EndpointIp,
+                diskRecord.EndpointPort,
+                diskRecord.DiagnosticsBootId,
+                diskRecord.MapRevision,
+                "Group",
+                diskRecord.GroupName,
+                diskRecord.GroupReference,
+                diskRecord.ExpectedPowerOn ? "PowerOn" : "PowerOff",
+                "ExpectedPowerOn="
+                    + (diskRecord.ExpectedPowerOn ? "true" : "false"),
+                originalBytes);
+        }
+
+        private byte[] ReadRetirementSourceBytes()
+        {
+            using (var stream = new FileStream(
+                journalFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read))
+            {
+                if (stream.Length < 1 || stream.Length > MaximumFileLength)
+                {
+                    throw new InvalidDataException(
+                        "Group Power recovery source length is invalid.");
+                }
+                var bytes = new byte[checked((int)stream.Length)];
+                var offset = 0;
+                while (offset < bytes.Length)
+                {
+                    var read = stream.Read(
+                        bytes,
+                        offset,
+                        bytes.Length - offset);
+                    if (read <= 0)
+                    {
+                        throw new InvalidDataException(
+                            "Group Power recovery source is truncated.");
+                    }
+                    offset += read;
+                }
+                return bytes;
+            }
+        }
+
+        private static bool RecordsEqual(
+            GroupPowerRecoveryRecord left,
+            GroupPowerRecoveryRecord right)
+        {
+            return left != null
+                && right != null
+                && left.Identity == right.Identity
+                && left.ExpectedPowerOn == right.ExpectedPowerOn
+                && string.Equals(
+                    left.EndpointIp,
+                    right.EndpointIp,
+                    StringComparison.Ordinal)
+                && left.EndpointPort == right.EndpointPort
+                && string.Equals(
+                    left.GroupName,
+                    right.GroupName,
+                    StringComparison.Ordinal)
+                && left.GroupReference == right.GroupReference
+                && left.DiagnosticsBootId == right.DiagnosticsBootId
+                && left.MapRevision == right.MapRevision
+                && left.State == right.State
+                && left.CreatedUtc == right.CreatedUtc
+                && left.UpdatedUtc == right.UpdatedUtc;
         }
 
         private void PersistRecord(GroupPowerRecoveryRecord record)

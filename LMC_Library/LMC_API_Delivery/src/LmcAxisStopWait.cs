@@ -1198,6 +1198,10 @@ namespace LasalMotionControlLib
             CancellationToken cancellationToken,
             Func<long> elapsedMilliseconds)
         {
+            LMCGroupResetObserverScope.ThrowIfMemberMutationReentrant(
+                connection,
+                sessionGeneration,
+                AxisReference);
             var remaining = GetAxisStopWaitRemaining(
                 options,
                 cancellationToken,

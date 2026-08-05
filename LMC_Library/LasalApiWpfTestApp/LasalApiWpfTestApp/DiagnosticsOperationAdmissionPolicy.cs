@@ -13,7 +13,8 @@ namespace LasalMotionControlApiExample
         ConnectOrReconnect = 6,
         CloseConnection = 7,
         CloseWindow = 8,
-        TrackedD5ReadOnlyInspection = 9
+        TrackedD5ReadOnlyInspection = 9,
+        RetireStaleRecoveryEvidence = 10
     }
 
     internal enum DiagnosticsAdmissionDenialReason
@@ -30,7 +31,8 @@ namespace LasalMotionControlApiExample
         AxisPowerOnUnresolved = 9,
         GroupPowerUnresolved = 10,
         PowerRecoveryJournalUnavailable = 11,
-        RecoveryIdentityReadOnly = 12
+        RecoveryIdentityReadOnly = 12,
+        StaleRecoveryRetirementUnavailable = 13
     }
 
     internal sealed class DiagnosticsAdmissionState
@@ -147,6 +149,21 @@ namespace LasalMotionControlApiExample
                     case DiagnosticsAdmissionOperation.CloseWindow:
                         return DiagnosticsAdmissionDecision.Allow();
 
+                    case DiagnosticsAdmissionOperation
+                        .RetireStaleRecoveryEvidence:
+                        if (!state.IsConnected)
+                        {
+                            return DiagnosticsAdmissionDecision.Deny(
+                                DiagnosticsAdmissionDenialReason
+                                    .StaleRecoveryRetirementUnavailable);
+                        }
+
+                        return state.OperationSlotAvailable
+                            ? DiagnosticsAdmissionDecision.Allow()
+                            : DiagnosticsAdmissionDecision.Deny(
+                                DiagnosticsAdmissionDenialReason
+                                    .OperationSlotOccupied);
+
                     case DiagnosticsAdmissionOperation.ConnectOrReconnect:
                         return state.IsConnected
                             ? DiagnosticsAdmissionDecision.Deny(
@@ -225,6 +242,12 @@ namespace LasalMotionControlApiExample
                             DiagnosticsAdmissionDenialReason
                                 .GroupPowerUnresolved)
                         : DiagnosticsAdmissionDecision.Allow();
+
+                case DiagnosticsAdmissionOperation
+                    .RetireStaleRecoveryEvidence:
+                    return DiagnosticsAdmissionDecision.Deny(
+                        DiagnosticsAdmissionDenialReason
+                            .StaleRecoveryRetirementUnavailable);
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(operation));

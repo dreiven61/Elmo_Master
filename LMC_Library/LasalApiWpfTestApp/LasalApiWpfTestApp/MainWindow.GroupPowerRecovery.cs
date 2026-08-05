@@ -70,6 +70,8 @@ namespace LasalMotionControlApiExample
                 groupPowerRecoveryJournalOpenError = null;
                 groupPowerRecoveryJournalRuntimeError = null;
 
+                TryFinalizeCommittedGroupPowerRetirementAtStartup();
+
                 var record = groupPowerRecoveryJournal.CurrentRecord;
                 if (record != null && record.IsActive)
                 {

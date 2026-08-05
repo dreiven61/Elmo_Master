@@ -76,7 +76,7 @@ namespace LasalMotionControlApiExample
         {
             get
             {
-                return !EvaluateDiagnosticsAdmission(
+                return !EvaluateDiagnosticsAdmissionIgnoringPendingGroupReset(
                         DiagnosticsAdmissionOperation.NewLiveOrMutation)
                     .IsAllowed;
             }
@@ -86,6 +86,46 @@ namespace LasalMotionControlApiExample
             DiagnosticsAdmissionOperation operation,
             bool operationSlotAvailable = true)
         {
+            return EvaluateDiagnosticsAdmissionCore(
+                operation,
+                operationSlotAvailable,
+                false);
+        }
+
+        private DiagnosticsAdmissionDecision
+            EvaluateDiagnosticsAdmissionIgnoringPendingGroupReset(
+                DiagnosticsAdmissionOperation operation,
+                bool operationSlotAvailable = true)
+        {
+            return EvaluateDiagnosticsAdmissionCore(
+                operation,
+                operationSlotAvailable,
+                true);
+        }
+
+        private DiagnosticsAdmissionDecision EvaluateDiagnosticsAdmissionCore(
+            DiagnosticsAdmissionOperation operation,
+            bool operationSlotAvailable,
+            bool allowPendingGroupReset)
+        {
+            if (!allowPendingGroupReset
+                && HasUnresolvedGroupResetState()
+                && (operation
+                        == DiagnosticsAdmissionOperation.NewLiveOrMutation
+                    || operation
+                        == DiagnosticsAdmissionOperation.TrackedD5Submit
+                    || (operation
+                            == DiagnosticsAdmissionOperation.ConnectOrReconnect
+                        && !GroupResetRecoveryReconnectAvailable)
+                    || operation
+                        == DiagnosticsAdmissionOperation.CloseConnection
+                    || operation
+                        == DiagnosticsAdmissionOperation.CloseWindow))
+            {
+                return DiagnosticsAdmissionDecision.Deny(
+                    DiagnosticsAdmissionDenialReason.UnresolvedMutation);
+            }
+
             var currentConnection = connection;
             var pendingReadback = d5SdoPendingWriteReadback;
             return DiagnosticsOperationAdmissionPolicy.Evaluate(
@@ -102,10 +142,14 @@ namespace LasalMotionControlApiExample
                             currentConnection),
                     HasD5SdoTicketOrQuarantine,
                     HasUnresolvedDigitalOutputWrite,
-                    HasUnresolvedAxisPowerState(),
+                    HasUnresolvedAxisPowerState()
+                        || (HasUnresolvedAxisQualificationState()
+                            && !IsCurrentAxisQualificationMutationScope()),
                     HasUnresolvedGroupPowerState(),
                     AxisPowerOnRecoveryJournalUnavailable
-                        || GroupPowerRecoveryJournalUnavailable,
+                        || AxisQualificationRecoveryJournalUnavailable
+                        || GroupPowerRecoveryJournalUnavailable
+                        || GroupResetRecoveryJournalUnavailable,
                     IsRecoveryIdentityReadOnlyExitPermitted()));
         }
 
@@ -189,7 +233,10 @@ namespace LasalMotionControlApiExample
                     .PowerRecoveryJournalUnavailable:
                     return new InvalidOperationException(
                         operation
-                        + " is blocked because an Axis or Group Power recovery journal is unavailable. Axis Stop, explicit Axis Power Off, Group Stop, read-only inspection, cleanup, reconnect, and Close remain available. "
+                        + " is blocked because a durable Axis/Group control "
+                        + "recovery journal is unavailable. Axis Stop, explicit "
+                        + "Axis Power Off, Group Stop, read-only inspection, "
+                        + "cleanup, reconnect, and Close remain available. "
                         + GetAnyDiagnosticsMutationJournalUnavailableGuidance());
 
                 case DiagnosticsAdmissionDenialReason
@@ -198,6 +245,13 @@ namespace LasalMotionControlApiExample
                         operation
                         + " is blocked because this connection is in recovery-identity read-only quarantine. "
                         + GetRecoveryIdentityReadOnlyGuidance());
+
+                case DiagnosticsAdmissionDenialReason
+                    .StaleRecoveryRetirementUnavailable:
+                    return new InvalidOperationException(
+                        operation
+                        + " is available only on a connected recovery-identity "
+                        + "read-only quarantine with an idle operation slot.");
 
                 default:
                     return new InvalidOperationException(
@@ -256,6 +310,21 @@ namespace LasalMotionControlApiExample
             EnsureDiagnosticsAdmission(
                 DiagnosticsAdmissionOperation.NewLiveOrMutation,
                 operation);
+        }
+
+        private void
+            EnsureNoUnresolvedDiagnosticMutationIgnoringPendingGroupReset(
+                string operation)
+        {
+            var decision =
+                EvaluateDiagnosticsAdmissionIgnoringPendingGroupReset(
+                    DiagnosticsAdmissionOperation.NewLiveOrMutation);
+            if (!decision.IsAllowed)
+            {
+                throw CreateDiagnosticsAdmissionException(
+                    operation,
+                    decision);
+            }
         }
 
         private void EnsureDiagnosticsAdmission(
@@ -985,14 +1054,16 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".txt",
-                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                Filter = TranslateUiText(
+                    "Text files (*.txt)|*.txt|All files (*.*)|*.*"),
                 FileName = "configured-ethercat-topology-"
                     + DateTime.Now.ToString(
                         "yyyyMMdd-HHmmss",
                         CultureInfo.InvariantCulture)
                     + ".txt",
                 OverwritePrompt = true,
-                Title = "Save Configured EtherCAT Topology Evidence"
+                Title = TranslateUiText(
+                    "Save Configured EtherCAT Topology Evidence")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -1032,7 +1103,8 @@ namespace LasalMotionControlApiExample
             {
                 AddExtension = true,
                 DefaultExt = ".txt",
-                Filter = "Text evidence (*.txt)|*.txt|CSV evidence (*.csv)|*.csv",
+                Filter = TranslateUiText(
+                    "Text evidence (*.txt)|*.txt|CSV evidence (*.csv)|*.csv"),
                 FilterIndex = 1,
                 FileName = "live-ethercat-topology-io-"
                     + DateTime.Now.ToString(
@@ -1040,7 +1112,8 @@ namespace LasalMotionControlApiExample
                         CultureInfo.InvariantCulture)
                     + ".txt",
                 OverwritePrompt = true,
-                Title = "Save Live EtherCAT Topology / I/O Evidence"
+                Title = TranslateUiText(
+                    "Save Live EtherCAT Topology / I/O Evidence")
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -2016,7 +2089,8 @@ namespace LasalMotionControlApiExample
                         value,
                         mask);
                     var confirmation = MessageBox.Show(
-                        "Submit guarded digital output write?"
+                        TranslateUiText(
+                            "Submit guarded digital output write?")
                             + Environment.NewLine
                             + "Node=" + row.Entry.Name
                             + ", IOReference=" + FormatHex32(row.Entry.IOReference)
@@ -2026,7 +2100,7 @@ namespace LasalMotionControlApiExample
                             + Environment.NewLine
                             + "ExpectedOutputRevision="
                             + FormatHex32(shadow.OutputRevision),
-                        "Confirm Digital Output Write",
+                        TranslateUiText("Confirm Digital Output Write"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Warning,
                         MessageBoxResult.No);
@@ -2202,12 +2276,16 @@ namespace LasalMotionControlApiExample
             }
 
             var confirmation = MessageBox.Show(
-                "This clears only the GUI output-write interlock. It does not prove whether the PLC applied the write."
+                TranslateUiText(
+                    "This clears only the GUI output-write interlock. It does not prove whether the PLC applied the write.")
                     + Environment.NewLine
-                    + "Confirm the physical output and PLC output shadow independently before continuing."
+                    + TranslateUiText(
+                        "Confirm the physical output and PLC output shadow independently before continuing.")
                     + Environment.NewLine
-                    + "Clear the unverified-outcome interlock now?",
-                "Acknowledge Unverified Digital Output Outcome",
+                    + TranslateUiText(
+                        "Clear the unverified-outcome interlock now?"),
+                TranslateUiText(
+                    "Acknowledge Unverified Digital Output Outcome"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
                 MessageBoxResult.No);
@@ -2238,10 +2316,11 @@ namespace LasalMotionControlApiExample
                         "Digital output acknowledgement failed to persist the Resolved tombstone: "
                         + error.Message);
                     MessageBox.Show(
-                        "The durable Resolved tombstone could not be written. The output interlock remains active."
+                        TranslateUiText(
+                            "The durable Resolved tombstone could not be written. The output interlock remains active.")
                             + Environment.NewLine
                             + error.Message,
-                        "Output Recovery Failed",
+                        TranslateUiText("Output Recovery Failed"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     UpdateUiState();

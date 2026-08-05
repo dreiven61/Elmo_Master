@@ -26,6 +26,12 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.GroupEnable.OneEnableThenThreeStableLockedStandbySamples",
                 GroupEnableUsesOneRequestAndThreeStableSamples);
             tests.Add(
+                "Wpf.Qualification.GroupEnableUsesDurableAcceptedOncePath",
+                QualificationGroupEnableUsesDurableAcceptedOncePath);
+            tests.Add(
+                "Wpf.Qualification.GroupEnableActiveRecoveryDisablesRunner",
+                ActiveGroupProfileRecoveryDisablesQualificationRunner);
+            tests.Add(
                 "Wpf.GroupEnable.PreemptedVerificationResumesWithoutEnableReplay",
                 PreemptedGroupEnableVerificationResumesWithoutReplay);
             tests.Add(
@@ -4480,6 +4486,144 @@ namespace LasalApiWpfTestApp.SmokeTests
                             server.ReceivedRequests,
                             0x2045));
 
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            QualificationGroupEnableUsesDurableAcceptedOncePath()
+        {
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var stableDisabled = GroupEnableWaitPowerOn
+                | GroupEnableWaitDisabled;
+            var lockedStandby = GroupEnableWaitPowerOn
+                | GroupEnableWaitStandby;
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(GroupEnableWaitStatusStep(stableDisabled));
+            steps.Add(GroupEnableWaitStatusStep(stableDisabled));
+            steps.Add(GroupEnableWaitStatusStep(stableDisabled));
+            steps.Add(CapabilitiesStep(11, capabilities));
+            steps.Add(GroupEnableWaitEnableStep());
+            steps.Add(GroupEnableWaitStatusStep(lockedStandby));
+            steps.Add(GroupEnableWaitStatusStep(lockedStandby));
+            steps.Add(GroupEnableWaitStatusStep(lockedStandby));
+            steps.Add(CapabilitiesStep(12, capabilities));
+            steps.Add(CloseStep());
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreatePreparedGroupEnableWindow(
+                        journalDirectory,
+                        server.Port);
+                    AssertEx.True(
+                        window.ButtonRunGroupEnableQualification.IsEnabled);
+
+                    Click(window.ButtonRunGroupEnableQualification);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                "GroupEnableAcceptedThenLocked PASS",
+                                StringComparison.Ordinal)
+                            && window.TextQualificationSummary.Text.IndexOf(
+                                "durableResolved=true",
+                                StringComparison.Ordinal) >= 0,
+                        "The Group Enable qualification did not finish through the durable accepted-once path.");
+
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(
+                            server.ReceivedRequests,
+                            0x2047));
+                    AssertEx.Equal(
+                        6,
+                        CountRequestCommand(
+                            server.ReceivedRequests,
+                            0x2045));
+                    AssertEx.Contains(
+                        "durableAccepted=true",
+                        window.TextQualificationSummary.Text);
+                    AssertEx.Contains(
+                        "reusedAck=False",
+                        window.TextQualificationSummary.Text);
+                    AssertEx.Equal(
+                        GroupProfileLockRecoveryState.Resolved,
+                        GetGroupProfileLockRecoveryJournal(window)
+                            .CurrentRecord.State);
+                    AssertEx.True(
+                        (bool)GetPrivateField(
+                            window,
+                            "groupProfileLocked"));
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            ActiveGroupProfileRecoveryDisablesQualificationRunner()
+        {
+            var capabilities = LMCDiagnosticCapability.EtherCATTopology;
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            steps.Add(GroupEnableWaitLookupStep());
+            steps.Add(CloseStep());
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreatePreparedGroupEnableWindow(
+                        journalDirectory,
+                        server.Port);
+                    AssertEx.True(
+                        window.ButtonRunGroupEnableQualification.IsEnabled);
+
+                    var journal = GetGroupProfileLockRecoveryJournal(window);
+                    var record = journal.ArmBeforeDispatch(
+                        true,
+                        "127.0.0.1",
+                        server.Port,
+                        GroupEnableWaitName,
+                        GroupEnableWaitReference,
+                        DiagnosticsBootId,
+                        DiagnosticMapRevision,
+                        DateTime.UtcNow);
+                    InvokePrivate(window, "UpdateUiState");
+
+                    AssertEx.False(
+                        window.ButtonRunGroupEnableQualification.IsEnabled,
+                        "An active durable Group Profile Lock record did not close the qualification runner.");
+                    AssertEx.Equal(
+                        0,
+                        CountRequestCommand(
+                            server.ReceivedRequests,
+                            0x2047));
+
+                    journal.Resolve(
+                        record.Identity,
+                        record.UpdatedUtc.AddTicks(1));
+                    InvokePrivate(window, "UpdateUiState");
                     CloseConnectedWindow(window);
                     window = null;
                     server.Verify();

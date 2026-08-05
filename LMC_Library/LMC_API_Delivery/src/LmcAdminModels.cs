@@ -8,7 +8,11 @@ namespace LasalMotionControlLib
         None = 0,
         AxisParameterRead = 1u << 0,
         GroupParameterRead = 1u << 1,
-        GroupLinearRelative = 1u << 2
+        GroupLinearRelative = 1u << 2,
+        AxisSetPosition = 1u << 3,
+        AxisHome = 1u << 4,
+        AxisSetPositionOutcomeRead = 1u << 5,
+        AxisDs402Home = 1u << 6
     }
 
     public enum LMCAxisParameterKey : ushort
@@ -65,7 +69,38 @@ namespace LasalMotionControlLib
         InvalidSelection = 8,
         InvalidMotionParameters = 9,
         InvalidState = 10,
-        NativeCommandRejected = 11
+        NativeCommandRejected = 11,
+        NonZeroVelocity = 12,
+        ActiveAxisError = 13,
+        InvalidSetPositionSafetyConfiguration = 14,
+        CoordinatePreconditionFailed = 15,
+        DiagnosticsBuildMismatch = 16,
+        BootIdMismatch = 17,
+        MapRevisionMismatch = 18,
+        SetPositionOutcomeNotFound = 19,
+        SetPositionOutcomeIndeterminate = 20,
+        SetPositionOutcomeStoreCorrupt = 21,
+        SetPositionOutcomeKeyMismatch = 22,
+        SetPositionOutcomeSlotOccupied = 23,
+        SetPositionOutcomeStorageUnavailable = 24,
+        Ds402HomeOutcomeNotFound = 25,
+        Ds402HomeOutcomeIndeterminate = 26,
+        Ds402HomeOutcomeStoreCorrupt = 27,
+        Ds402HomeOutcomeKeyMismatch = 28,
+        Ds402HomeOutcomeStorageUnavailable = 29,
+        Ds402HomeExecutionFailed = 30,
+        Ds402HomeAborted = 31,
+        Ds402HomeOutcomeSlotOccupied = 32,
+        LmcHomeOutcomeNotFound = 33,
+        LmcHomeOutcomeIndeterminate = 34,
+        LmcHomeOutcomeStoreCorrupt = 35,
+        LmcHomeOutcomeKeyMismatch = 36,
+        LmcHomeOutcomeStorageUnavailable = 37,
+        LmcHomeExecutionFailed = 38,
+        LmcHomeAborted = 39,
+        LmcHomeOutcomeSlotOccupied = 40,
+        AxisOwnershipConflict = 41,
+        AxisOwnershipQuarantined = 42
     }
 
     public sealed class LMCAdminResponse
@@ -156,6 +191,49 @@ namespace LasalMotionControlLib
 
         internal long ConnectionSessionGeneration { get; private set; }
         internal LMCConnection ConnectionOwner { get; private set; }
+        internal LMCAdmin Owner { get; private set; }
+        internal long ObservationSequence { get; private set; }
+
+        internal LMCAdminCapabilities BindProvenance(
+            LMCAdmin owner,
+            long observationSequence)
+        {
+            if (owner == null)
+            {
+                throw new ArgumentNullException("owner");
+            }
+
+            if (ConnectionOwner == null
+                || ConnectionSessionGeneration <= 0
+                || observationSequence <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Admin capabilities cannot be bound without connection and observation provenance.");
+            }
+
+            if (Owner != null
+                && (!ReferenceEquals(Owner, owner)
+                    || ObservationSequence != observationSequence))
+            {
+                throw new InvalidOperationException(
+                    "Admin capabilities are already bound to another owner or observation.");
+            }
+
+            Owner = owner;
+            ObservationSequence = observationSequence;
+            return this;
+        }
+
+        internal bool IsBoundTo(
+            LMCAdmin owner,
+            long connectionSessionGeneration)
+        {
+            return owner != null
+                && ReferenceEquals(Owner, owner)
+                && ConnectionSessionGeneration
+                    == connectionSessionGeneration
+                && ObservationSequence > 0;
+        }
 
         public bool Supports(LMCAdminFeature feature)
         {

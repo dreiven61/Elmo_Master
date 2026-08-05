@@ -48,6 +48,170 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.DiagnosticsD5.RequiredIdentitySubmitSyncAndAsync",
                 RequiredIdentitySubmitSyncAndAsync);
+            tests.Add(
+                "Rpc.DiagnosticsD5.IdentityPinnedSdoWritePreWire",
+                IdentityPinnedSdoWritePreWire);
+        }
+
+        private static void IdentityPinnedSdoWritePreWire()
+        {
+            RunIdentityPinnedSdoWriteMismatch(6, DiagnosticsBootId, MapRevision);
+            RunIdentityPinnedSdoWriteMismatch(
+                5,
+                DiagnosticsBootId + 1,
+                MapRevision);
+            RunIdentityPinnedSdoWriteMismatch(
+                5,
+                DiagnosticsBootId,
+                MapRevision + 1);
+            RunIdentityPinnedSdoWriteSuccess();
+        }
+
+        private static void RunIdentityPinnedSdoWriteMismatch(
+            uint freshBuild,
+            uint freshBootId,
+            uint freshMapRevision)
+        {
+            var requiredCapabilitiesBits =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOWrite
+                | LMCDiagnosticCapability.SDOReadGeneralInline;
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            MapRevision,
+                            DiagnosticsBootId,
+                            5,
+                            requiredCapabilitiesBits))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
+                            freshMapRevision,
+                            freshBootId,
+                            freshBuild,
+                            requiredCapabilitiesBits))),
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requiredCapabilities =
+                    connection.Diagnostics.GetCapabilities();
+                var target = connection.Diagnostics
+                    .GetApprovedSdoWriteTargets()[0];
+                var request = target.CreateRequest(17, 100);
+
+                var error = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.Diagnostics
+                        .SubmitSdoWriteIdentityPinnedAsync(
+                            request,
+                            requiredCapabilities,
+                            target,
+                            CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult());
+                var context = RequireSdoSubmissionFailureContext(error);
+                AssertEx.Equal(
+                    LMCSdoSubmissionPhase.CapabilityPreflight,
+                    context.Phase);
+                AssertEx.Equal(
+                    LMCSdoSubmissionOutcome.NotAttempted,
+                    context.SubmissionOutcome);
+                AssertEx.Equal(4, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    (ushort)0x7E00,
+                    TestFrame.ReadUInt16(
+                        server.ReceivedRequests[3],
+                        0));
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void RunIdentityPinnedSdoWriteSuccess()
+        {
+            const uint writeTicketId = 0x71717171u;
+            var requiredCapabilitiesBits =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOWrite
+                | LMCDiagnosticCapability.SDOReadGeneralInline;
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                CallbackStep(),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            1,
+                            MapRevision,
+                            DiagnosticsBootId,
+                            5,
+                            requiredCapabilitiesBits))),
+                new FakeRpcStep(
+                    0x7E00,
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            2,
+                            MapRevision,
+                            DiagnosticsBootId,
+                            5,
+                            requiredCapabilitiesBits))),
+                new FakeRpcStep(
+                    0x7E50,
+                    TestFrame.Response(
+                        0,
+                        SubmitPayload(
+                            3,
+                            writeTicketId,
+                            LMCOperationKind.SDOWrite,
+                            DiagnosticsBootId)))
+                {
+                    InspectRequest = frame =>
+                    {
+                        AssertEx.Equal(
+                            MapRevision,
+                            TestFrame.ReadUInt32(frame, 16));
+                        AssertEx.Equal(
+                            DiagnosticsBootId,
+                            TestFrame.ReadUInt32(frame, 36));
+                    }
+                },
+                CloseStep()))
+            using (var connection = new LMCConnection())
+            {
+                Connect(connection, server.Port);
+                var requiredCapabilities =
+                    connection.Diagnostics.GetCapabilities();
+                var target = connection.Diagnostics
+                    .GetApprovedSdoWriteTargets()[0];
+                var request = target.CreateRequest(17, 100);
+
+                var ticket = connection.Diagnostics
+                    .SubmitSdoWriteIdentityPinnedAsync(
+                        request,
+                        requiredCapabilities,
+                        target,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+                AssertEx.Equal(writeTicketId, ticket.TicketId);
+                AssertEx.Equal(DiagnosticsBootId, ticket.DiagnosticsBootId);
+                AssertEx.Equal(MapRevision, ticket.SubmissionMapRevision);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
         }
 
         private static void PIWriteValidation()
@@ -276,8 +440,21 @@ namespace LasalMotionControlLib.Tests
             using (var connection = new LMCConnection())
             {
                 approved = connection.Diagnostics.GetApprovedSdoWriteTargets();
-                AssertEx.Equal(0, approved.Count);
+                AssertEx.Equal(1, approved.Count);
             }
+
+            AssertEx.Equal(
+                "Reserved diagnostic UI[24]",
+                approved[0].DisplayName);
+            AssertEx.Equal((ushort)1, approved[0].SlaveReference);
+            AssertEx.Equal((ushort)0x2F00, approved[0].ObjectIndex);
+            AssertEx.Equal((byte)24, approved[0].SubIndex);
+            AssertEx.Equal(LMCSignalValueType.Int32, approved[0].ValueType);
+            AssertEx.Equal((ushort)4, approved[0].DataLength);
+            AssertEx.Equal(-1073741823L, approved[0].MinimumIntegerValue);
+            AssertEx.Equal(1073741823L, approved[0].MaximumIntegerValue);
+            LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(
+                approved[0].CreateRequest(0, 100));
 
             var target = new LMCSdoWriteTarget(
                 "Reserved diagnostic UI[24]",
@@ -404,15 +581,30 @@ namespace LasalMotionControlLib.Tests
                     0,
                     100));
 
-            var blocked = LMCSdoRequest.CreateWrite(
-                2,
+            foreach (var blockedAxis in new ushort[] { 2, 3, 4 })
+            {
+                var blocked = LMCSdoRequest.CreateWrite(
+                    blockedAxis,
+                    0x2F00,
+                    24,
+                    LMCSignalValueType.Int32,
+                    TestFrame.Hex("00 00 00 00"),
+                    100);
+                AssertEx.Throws<NotSupportedException>(
+                    () => LMCDiagnosticsWritePolicy
+                        .RequireSdoWriteAllowed(blocked));
+            }
+
+            var outOfRangeAxis1 = LMCSdoRequest.CreateWrite(
+                1,
                 0x2F00,
                 24,
                 LMCSignalValueType.Int32,
-                TestFrame.Hex("00 00 00 00"),
+                TestFrame.Hex("FF FF FF 7F"),
                 100);
             AssertEx.Throws<NotSupportedException>(
-                () => LMCDiagnosticsWritePolicy.RequireSdoWriteAllowed(blocked));
+                () => LMCDiagnosticsWritePolicy
+                    .RequireSdoWriteAllowed(outOfRangeAxis1));
 
             AssertEx.Throws<ArgumentNullException>(
                 () => LMCDiagnosticsWritePolicy
@@ -2078,15 +2270,18 @@ namespace LasalMotionControlLib.Tests
         private static byte[] CapabilitiesPayload(
             uint requestId,
             uint mapRevision = MapRevision,
-            uint diagnosticsBootId = DiagnosticsBootId)
+            uint diagnosticsBootId = DiagnosticsBootId,
+            uint diagnosticsBuild = 5,
+            LMCDiagnosticCapability capabilityBits =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOReadGeneralInline)
         {
             var payload = CommonPayload(68, requestId);
-            TestFrame.WriteUInt32(payload, 16, 5);
+            TestFrame.WriteUInt32(payload, 16, diagnosticsBuild);
             TestFrame.WriteUInt32(
                 payload,
                 20,
-                (uint)(LMCDiagnosticCapability.SDORead
-                    | LMCDiagnosticCapability.SDOReadGeneralInline));
+                (uint)capabilityBits);
             TestFrame.WriteUInt32(payload, 24, mapRevision);
             TestFrame.WriteUInt32(payload, 40, 1000);
             TestFrame.WriteUInt16(payload, 44, 1320);
