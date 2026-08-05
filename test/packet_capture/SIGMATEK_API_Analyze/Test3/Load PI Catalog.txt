@@ -1,0 +1,3 @@
+[13:29:56.094] Load Signal Catalog started.
+[13:29:56.111] Catalog loaded. Revision=0x957F101E, Entries=24, default selection=actual_position signals.
+[13:29:56.294] Load Signal Catalog PASS.

@@ -1,0 +1,3 @@
+[13:32:23.234] Load EtherCAT Topology started.
+[13:32:23.266] EtherCAT topology loaded (manual reload). Revision=0x15867EEC, Nodes=7, CREVIS=3, ConfiguredComparison=UNCHANGED, SHA256=C04AEB1F36E36753160317F95E2DF96E3E204D60EE5184EF9E240FBDE1F4D8AD.
+[13:32:23.439] Load EtherCAT Topology PASS.

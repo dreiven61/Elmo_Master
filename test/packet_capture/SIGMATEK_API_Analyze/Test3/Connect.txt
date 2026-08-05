@@ -1,0 +1,7 @@
+[13:23:01.267] Connect started.
+[13:23:01.276] Connection state Connected -> Closing
+[13:23:01.295] Connection state Disconnected -> Connecting
+[13:23:01.319] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0xFFFFFFFF
+[13:23:01.340] Connection state Connecting -> Connected
+[13:23:01.355] EtherCAT topology loaded (automatic post-connect load). Revision=0x15867EEC, Nodes=7, CREVIS=3, ConfiguredComparison=UNCHANGED, SHA256=C04AEB1F36E36753160317F95E2DF96E3E204D60EE5184EF9E240FBDE1F4D8AD.
+[13:23:01.359] Connect PASS.

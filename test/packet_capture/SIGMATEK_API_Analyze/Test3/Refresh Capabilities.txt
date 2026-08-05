@@ -1,0 +1,2 @@
+[13:27:40.684] Refresh Diagnostics Capabilities started.
+[13:27:40.695] Refresh Diagnostics Capabilities PASS.
