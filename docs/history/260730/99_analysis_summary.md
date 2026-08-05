@@ -11,6 +11,74 @@
 
 다음 작업 시작점은 PLC TCP 장애가 아니다. 먼저 현재 full-static 검증기의 control-service 객체 번호 하드코딩을 고치고, 그다음 Axis Power에서 실제 드러난 identity mismatch를 포함해 다섯 recovery owner의 post-connect 정책을 함께 설계해야 한다. `read-only recovery quarantine`은 그 설계의 후보안이지 확정 요구사항이 아니다.
 
+## 2026-07-30 current 후속 진행 (아래 초기 분석보다 우선)
+
+아래 “한 줄 결론”과 P0-1/P0-2는 최초 분석 시점의 작업 지시다. 이후 current
+`main@6537bcf` + working tree에서 다음 단계까지 진행됐으므로 새 시작점은 PLC 적용과
+qualification이다.
+
+- full-static verifier/generated metadata 불일치는 해소됐다. `Phase5TransportClean /
+  IntegratedReadOwnerDormant` SourceOnly와 full/network static이 모두 PASS한다.
+- recovery identity mismatch는 read-only quarantine, 명시적 retirement/readmission과
+  no-replay 경계를 포함한 current C#/WPF 구현으로 진행됐다. 최신 source 전체 회귀도 PASS했다.
+- Group Enable qualification runner는 일반 raw 경로가 아니라 durable journal arm ->
+  `0x2047` exactly once -> accepted-before-first-status durable publish -> `0x2045` status-only
+  stable proof -> durable resolve의 accepted-once 경로를 사용한다. focused PC 시험은 PASS했지만
+  current PLC Group Enable/Lock 증거는 없다.
+- Axis1 exact target `0x2F00:24 Int32/4` SDO Write는 source/PC 경로가 활성화됐다. manual
+  SDO Write는 exact current connection session, `DiagnosticsBuild`, `BootId`, `MapRevision`,
+  approved target이 일치하고 baseline Read, 값 불변 `preWriteGuard` Read, Write, readback의
+  서로 다른 four-ticket same-value proof가 끝난 뒤에만 열린다. 로그는 `preWriteGuard`, 네
+  ticket과 각 terminal `resultBytes`를 보존한다. axis 2~4는 차단 상태이며 current PLC Write
+  증거는 아직 없다. manual second-click은 SDK mutation gate 안의 fresh
+  `DiagnosticsBuild`/`BootId`/`MapRevision` exact 비교를 통과해야 하며 drift면 `0x7E50` 0회다.
+  identity mismatch/disconnect를 관측한 proof는 A -> B -> A에서도 영구 폐기된다.
+- 최신 SDK Debug/Release 각각 `976/976`, WPF Debug/Release 각각 `235/235`, LASAL
+  SourceOnly/full static은 모두 PASS했다. 이는 PC/static 증거이며 PLC live 증거가 아니다.
+- internal topology qualifier는 V2로 보강됐다. explicit scope/mode, exact 17-frame
+  zero-network dry-run, `0x7E23` 금지, executable/SDK SHA-256, declared source fingerprint,
+  BootId/build/exact `MapRevision=0x957F101E`, create-new durable report와 cleanup/result 뒤
+  2초 retention 계약을 검증했다. actual PLC live report는 아직 없다.
+- 최신 source의 Release 예제 EXE를 forced Rebuild한 경로는
+  `LMC_Library/LasalApiWpfTestApp/LasalApiWpfTestApp/bin/Release/LasalMotionControlApiExample.exe`,
+  SHA-256은 `363E613DCE768C269A74EFFC8CB3FF253C52875568E71CDC39B32D9E5956AFD5`다.
+  같은 폴더의 `LasalMotionControlLib.dll` SHA-256은
+  `2C1393058188B7484A45F5CC9ECC9485F6ADE13EAC9CE78A9E4577EF96925C7D`다. EXE/DLL version은
+  `0.9.1.0`, DLL product version은 `0.9.1-preview`이고 V4 marker/title 회귀도 PASS했다. 이
+  hash는 current 미커밋 working-tree 개발 산출물 provenance이며 distribution/production
+  provenance는 아니다.
+  `LMC_API_Distribution`은 Axis1 SDO Write/retirement/single-instance 보호가 없는 이전
+  gate-off manifest snapshot이므로 이번 작업에서 동기화하지 않았다. 기존 package를 건드리지
+  않는 staging/atomic-finalize candidate와 SDK/LASAL/WPF/DOCX/PDF semantic policy preflight는
+  P0 pending이다.
+- current C# protocol ID는 62개, LASAL dispatcher route는 61개다. route는 capability-advertised
+  active 53개, dormant read-owner `0x7E13/0x7E22` 2개와 reserved/dormant 6개다.
+  `0x7E23`은 C# contract에는 있지만 PLC route/handler가 없다.
+- 요구사항 65개는 직접 구현 16, LASAL 적응 구현 24, 부분/비활성 12, 실제 미구현 9,
+  흡수/비동등 보류 4다. 완전/적응 구현은 `40/65 = 61.5%`, 부분 포함은
+  `52/65 = 80.0%`이며 PLC live 통과율이 아니다.
+- current LASAL source는 `0x7E11/0x7E12/0x7E13/0x7E22`를 route/구현한다.
+  `LMCEcatInputLatch`는 CREVIS coupler/input/output을 포함한 coherent 464-byte snapshot을
+  publish하고 해당 client는 Motion Network에 연결됐다. bits 15/16은 의도적으로 OFF이며
+  current PLC download와 dynamic read live proof는 없다. `0x7E23` PLC route/handler는 없고
+  bit 17도 OFF다.
+- fresh LASAL reload 뒤 Ctrl+F9 Rebuild/Link는 `0 error(s), 20 warning(s)`, Linker
+  `Done`으로 끝났다. `LMCSdoExecutor.st`의 build 전후 SHA-256은 동일했고, 기존
+  implementation 검색과 latest 변경 implementation 직접 open smoke가 성공했다. 현재 IDE PID의
+  `CInvalidArgException`은 0건이다.
+- 이 결과는 source/static/IDE build와 focused PC 증거다. canonical current PLC cold download,
+  BootId/MapRevision 및 source/network/unit/task provenance, 실제 Motion/Power/Group Enable/SDO
+  Write 전송, CREVIS dynamic read와 final state/readback은 아직 검증하지 않았다. source-active
+  기능의 runtime enablement도 완료 상태가 아니다.
+
+따라서 다음 우선순위는 current working tree를 목적별 commit/clean checkout으로 고정하고,
+기존 package를 보존하는 transactional candidate/semantic preflight P0를 병행하는 것이다.
+그다음 fresh build를
+current PLC에 cold download해 read-only identity, safety chain, UNIT/reference, topology와 dormant
+`0x7E13/0x7E22` raw read를 먼저 확인한다. 검증 결과에 따라 bits 15/16을 활성화한 뒤 승인된
+작은 범위에서 Motion/Power, Group Enable과 Axis1 SDO Write를 pcap/QTEST/PLC log로
+qualification한다. 아래 본문은 최초 분석의 근거와 당시 상태를 보존한 기록으로 읽는다.
+
 ## 현재 checkout에서 재확인한 사실
 
 ### Git와 변경 경계
@@ -75,7 +143,9 @@
 - Phase 3B부터 Phase 5 transport-only 구조까지 진행했고, control/diagnostics routing, connection generation, safety priority, durable mutation/recovery journal, Recorder/Bulk/D5 qualification, Axis/Group accepted-once state machine이 크게 확장됐다.
 - 같은 IPv4의 stale socket을 새 client가 takeover하는 로직을 editable `TCPIPServer`와 `TCPMotionInterface`에 반영했다.
 - 기록상 마지막 PC 결과는 SDK Debug/Release `974/974`, WPF Release `206/206` PASS였지만 과거 snapshot 수치다. 현재 build/runtime 증거로 재사용하지 않는다.
-- CREVIS configured topology는 7개 항목, 그중 CREVIS 3개 표시까지 갔지만 live node health/DI/DO와 `0x7E13/0x7E22/0x7E23`은 닫히지 않았다.
+- 당시 CREVIS configured topology는 7개 항목, 그중 CREVIS 3개 표시까지 갔지만 live node
+  health/DI/DO와 `0x7E13/0x7E22/0x7E23`은 닫히지 않았다. 위 current override에서
+  `0x7E13/0x7E22` source/static/IDE 구현까지는 전진했지만 live 판정은 여전히 미완료다.
 - SDO Write와 Recorder Double live gate는 계속 OFF였다.
 
 ### History 2 — Encoder Multiturn fault reset
