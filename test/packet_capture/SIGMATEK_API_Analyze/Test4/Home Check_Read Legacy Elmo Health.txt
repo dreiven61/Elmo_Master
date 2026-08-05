@@ -1,0 +1,8 @@
+[17:10:10.765] Load Group started.
+[17:10:10.804] Group loaded. Name=_LMCRobotBase1, Ref=256
+[17:10:10.806] Load Group PASS.
+[17:10:13.253] Identity Home Check started.
+[17:10:13.318] Identity Home Check PASS: 4/4 axes referenced.
+[17:10:13.320] Identity Home Check PASS.
+[17:10:22.182] Read EtherCAT Health started.
+[17:10:22.189] Read EtherCAT Health PASS.

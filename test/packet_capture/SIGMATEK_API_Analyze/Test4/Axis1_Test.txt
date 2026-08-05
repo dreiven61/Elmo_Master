@@ -1,0 +1,41 @@
+[15:25:35.700] Connect started.
+[15:25:35.754] Connection state Disconnected -> Connecting
+[15:25:35.766] RPC initialized. Callback endpoint=10.10.150.13:5000, EventMask=0xFFFFFFFF
+[15:25:35.778] Connection state Connecting -> Connected
+[15:25:35.856] CREVIS / EtherCAT topology auto-load failed; the RPC connection remains available and Reload can be retried: EtherCAT Topology is not advertised by the connected PLC.
+[15:25:35.864] Connect PASS.
+[15:25:42.512] Load Axis started.
+[15:25:42.535] Axis loaded. Name=_LMCAxis1, Ref=1
+[15:25:42.540] Load Axis PASS.
+[15:25:46.599] Refresh Diagnostics Capabilities started.
+[15:25:46.609] Refresh Diagnostics Capabilities PASS.
+[15:25:54.432] Load Axis started.
+[15:25:54.449] Axis loaded. Name=_LMCAxis1, Ref=1
+[15:25:54.452] Load Axis PASS.
+[15:25:59.358] Power On started.
+[15:25:59.584] Axis Power On stable proof resolved the durable Axis Power record.
+[15:25:59.585] Power On PASS.
+[15:26:29.970] Get Drive Operation Mode started.
+[15:26:29.980] QTEST|utc=2026-07-31T06:26:29.980Z|elapsedMs=0|run=0cb9ea8f4e8c4b7caaae375fba45ef37|scenario=D5ExternalTracking:drive-operation-mode-0x6061|step=1|event=BEGIN|stage=drive-operation-mode-0x6061
+[15:26:30.008] QTEST|utc=2026-07-31T06:26:30.008Z|elapsedMs=27|run=0cb9ea8f4e8c4b7caaae375fba45ef37|scenario=D5ExternalTracking:drive-operation-mode-0x6061|step=2|event=D5_EXTERNAL_PREFLIGHT|stage=drive-operation-mode-0x6061|errorType=NotSupportedException|error=D5 SDO recovery requires SDORead capability.|verdict=FAIL
+[15:26:30.013] QTEST|utc=2026-07-31T06:26:30.013Z|elapsedMs=33|run=0cb9ea8f4e8c4b7caaae375fba45ef37|scenario=D5ExternalTracking:drive-operation-mode-0x6061|step=3|event=END|resolution=PREFLIGHT_FAILED|verdict=RESOLVED
+[15:26:30.090] Get Drive Operation Mode FAILED: D5 SDO recovery requires SDORead capability.
+[15:26:33.186] Read Drive Status started.
+[15:26:33.190] QTEST|utc=2026-07-31T06:26:33.190Z|elapsedMs=0|run=480551c9f78d4a91af4e5f97cbea004e|scenario=D5ExternalTracking:drive-status-0x6041-0x6061|step=1|event=BEGIN|stage=drive-status-0x6041-0x6061
+[15:26:33.211] QTEST|utc=2026-07-31T06:26:33.211Z|elapsedMs=20|run=480551c9f78d4a91af4e5f97cbea004e|scenario=D5ExternalTracking:drive-status-0x6041-0x6061|step=2|event=D5_EXTERNAL_PREFLIGHT|stage=drive-status-0x6041-0x6061|errorType=NotSupportedException|error=D5 SDO recovery requires SDORead capability.|verdict=FAIL
+[15:26:33.212] QTEST|utc=2026-07-31T06:26:33.212Z|elapsedMs=21|run=480551c9f78d4a91af4e5f97cbea004e|scenario=D5ExternalTracking:drive-status-0x6041-0x6061|step=3|event=END|resolution=PREFLIGHT_FAILED|verdict=RESOLVED
+[15:26:33.285] Read Drive Status FAILED: D5 SDO recovery requires SDORead capability.
+[15:26:35.885] Get Drive Error Code started.
+[15:26:35.890] QTEST|utc=2026-07-31T06:26:35.890Z|elapsedMs=0|run=f01efb7286344ce798515bed6616b2e2|scenario=D5ExternalTracking:drive-error-code-0x603F|step=1|event=BEGIN|stage=drive-error-code-0x603F
+[15:26:35.909] QTEST|utc=2026-07-31T06:26:35.909Z|elapsedMs=19|run=f01efb7286344ce798515bed6616b2e2|scenario=D5ExternalTracking:drive-error-code-0x603F|step=2|event=D5_EXTERNAL_PREFLIGHT|stage=drive-error-code-0x603F|errorType=NotSupportedException|error=D5 SDO recovery requires SDORead capability.|verdict=FAIL
+[15:26:35.910] QTEST|utc=2026-07-31T06:26:35.910Z|elapsedMs=20|run=f01efb7286344ce798515bed6616b2e2|scenario=D5ExternalTracking:drive-error-code-0x603F|step=3|event=END|resolution=PREFLIGHT_FAILED|verdict=RESOLVED
+[15:26:35.983] Get Drive Error Code FAILED: D5 SDO recovery requires SDORead capability.
+[15:27:09.566] Read EtherCAT Health started.
+[15:27:09.583] Read EtherCAT Health PASS.
+[15:27:17.531] Power Off Send queued with safety priority.
+[15:27:17.539] Power Off Send transmitting.
+[15:27:17.591] Axis Power Off accepted preserved one accepted Axis Power Off ACK. Resume performs status-only 0x2028 polling; 0x2023 will not be replayed.
+[15:27:17.592] Power Off Send PASS.
+[15:27:17.595] Power Off accepted. Verifying three stable Standstill samples; explicit newer safety commands allowed by the current recovery policy remain available.
+[15:27:17.767] Axis Power Off stable proof resolved the durable Axis Power record.
+[15:27:17.771] Power Off safety verification PASS.
