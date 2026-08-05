@@ -1,10 +1,10 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
-- 문서 버전: `2.3`
-- 작성 기준: `2026-07-22`
+- 문서 버전: `2.5`
+- 작성 기준: `2026-07-31`
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
-- diagnostics/admin 기준: 2026-07-23 current source
+- diagnostics/admin/release 기준: 2026-07-31 current source
 - 대상 독자: C# API, LASAL TCP adapter, MotionLib 연결과 배포 패키지를 유지보수하는 개발자
 
 이 문서는 공개 API의 signature와 인자를 다시 나열하는 문서가 아니다. 사용자 코드에서
@@ -14,26 +14,35 @@
 
 검토 대상인 Distribution DOCX
 `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`
-문서 버전 `1.0`은 빠른 API 참조다. 각 기능에서 sync/async signature를 함께 보여 주지만
-두 메서드가 내부적으로 같은 transport와 command를 공유한다는 사실은 설명하지 않는다.
+와 PDF의 표지 버전은 `1.9`지만 current source와 같은 내용이 아니다. 두 artifact는 Axis1
+SDO Write와 stale recovery retirement가 들어가기 전 gate-off Distribution snapshot이다.
+각 기능에서 sync/async signature를 함께 보여 주지만 두 메서드가 내부적으로 같은
+transport와 command를 공유한다는 사실은 설명하지 않는다.
 현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
-버전 `1.6`이다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
+버전 `1.9`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
-> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-23 current
-> source는 PC 자동 시험 Debug/Release와 LASAL SourceOnly/full 정적 계약,
-> WPF Debug/Release build와 각 3초 startup smoke를 통과했다. `Classes.lcb`의 general
-> `TryStartRead` declaration도 현재 source와 동기화되어 있다.
+> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-31 current
+> source는 PC 자동 시험 Debug/Release 1042/1042, WPF Debug/Release actual-control smoke
+> 297/297, `ExpectedSdoWriteAxis=1`의 `IntegratedReadOwnerDormant` LASAL SourceOnly/full
+> 정적 계약과 fresh IDE Rebuild/Link `0 errors / 20 warnings` 및 3-class implementation
+> smoke를 통과했다.
+> `Classes.lcb`의 general `TryStartRead`와 SDO executor declaration도 현재 source와 동기화되어 있다.
 > legacy `0x13F` PLC capture의 `0x1000:0` UInt32 4-byte SDO Read는 BootId 5에서 축 1~4
 > 모두 Completed/Success를 반환했다. 과거 BootId 6의 `0x213F` 캡처에서는 executor
 > 재사용 결함으로 Submit이 `ResourceBusy(9)`로 거부됐고, callback/rollback/release 상태
 > 전이를 수정했다. 이후 사용자가 general-inline 1/2/4-byte runtime 정상 동작을 확인했다.
 > 최종 확인에 대한 신규 pcap/log와 D5 fault matrix는 없고, motion command의 실제 PLC
 > E2E는 여전히 `0/25`이며 diagnostics D1~D4도 미실시다.
-> D4 Double, PI/SDO Write와 extended SDO result는 capability-off다.
+> D4 Double, PI Write와 extended SDO result는 capability-off다. SDO Write는 Axis 1의 exact
+> `0x2F00:24 Int32/4` target만 source-active이고 Axis 2..4와 비승인 target은 fail-closed다.
+> current PLC download와 live Motion/Power/SDO Write 증거는 아직 없다.
+> EtherCAT topology read-owner는 464-byte coherent snapshot과 `0x7E13/0x7E22` route/handler까지
+> source/static/IDE build가 완료됐지만 capability bits 15~17은 OFF다. `0x7E23`은 없으며
+> current PLC raw read, disconnect/recovery와 physical DI correlation은 아직 검증하지 않았다.
 > Phase 1 read-only Admin `0x7D00/0x7D10/0x7D20`, typed drive read, PI/Bulk facade,
 > PC-local error catalog와 Phase 2 `0x7D22 GroupMoveLinearRelative`는 source와
-> 자동/정적 시험까지 구현했다. 새 Admin command의 LASAL IDE Rebuild/Link, PLC
-> download와 실물 값/UNIT/relative-motion 검증은 아직 수행하지 않았다.
+> 자동/정적 시험까지 구현했고 current LASAL IDE Rebuild/Link도 PASS했다. PLC download와
+> 실물 값/UNIT/relative-motion 검증은 아직 수행하지 않았다.
 > 아래 설명에서 `구현됨`은 current source에 경로가 존재한다는 뜻이며 실기 완료를 뜻하지 않는다.
 
 ## 1. 먼저 바로잡아야 할 핵심 오해
@@ -739,6 +748,7 @@ Reset 귀속을 무효화하므로 이후에는 명시적 새 Reset이 필요하
 | `GroupEnableAndWaitForLockedStandbyAsync` + `ResumeGroupEnableWaitForLockedStandbyAsync` | fresh `0x2047` 1회, accepted/resume `0x2045` 반복 | 1 / 8, 8 / 12 | `LockProfile`, group status read | accepted continuation + `PowerOn && IsStandby` 기본 3회 연속 |
 | `GroupDisable[Async]` | `0x2048` | 1 / 8 | in-position 확인 후 `UnlockProfile` | `IsDisabled` |
 | `GroupReset[Async]` | `0x2049` | 1 / 8 | `AxQuitError(AxisNo:=0)` | Group/Axis error 재조회 |
+| `BeginGroupResetWaitForStableErrorClearanceAsync` + `AttachGroupResetDurableRecoveryAsync` + `ResumeGroupResetWaitForStableErrorClearanceAsync` | fresh Begin `0x20D2` 뒤 `0x2049` 1회, durable attach `0x20D2` 1회와 `0x2049` 0회, Resume `0x2045` + pinned member별 `0x2028` 반복 | 1 / 1350, 1 / 8, 8 / 12, 8 / 16 | command-before/exact member evidence, `AxQuitError(AxisNo:=0)`, group/member status read | same-session 또는 exact durable recovery continuation + group/member error all-clear 기본 3회 연속 |
 | `GroupStop[Async]` | `0x2085` | 16 / 8 | `StopMove(Mode:=3)` | status/in-position |
 | `BeginGroupStopWaitForStableStandbyAsync` + `ResumeGroupStopWaitForStableStandbyAsync` (`GroupStopAndWaitForStableStandbyAsync` 조합 제공) | Begin `0x2085` 1회, Resume `0x2045` 반복 | 16 / 8, 8 / 12 | `StopMove(Mode:=3)`, group status read | accepted continuation + `IsStandby` 기본 3회 연속 |
 | `GroupReadStatusResult[Async]` | `0x2045` | 8 / 12 | power/lock/in-position/error 조합 | response 자체 |
@@ -758,6 +768,23 @@ response를 drain하고 accepted ACK/status를 먼저 게시한 뒤 typed cancel
 continuation을 만들지 않는다. accepted continuation의
 `ResumeGroupEnableWaitForLockedStandbyAsync`는 `0x2045`만 보내고 `0x2047`을 replay하지 않는다.
 이 경계는 Group Enable 전용 fake-RPC 회귀 35개로 확인했으며 PLC runtime proof는 아니다.
+
+raw `GroupReset[Async]`의 success ACK는 dispatch acceptance다. stable Begin은 성공한
+`0x20D2` observed snapshot의 `1..16`개 nonzero/unique axis reference를 고정하고 `0x2049`를
+한 번만 보낸다. Resume은 각 full round에서 `0x2045` 뒤 pinned 순서의 모든 `0x2028`을 읽고
+group/member error가 모두 0인 round를 기본 3회 연속 요구한다. snapshot은 expected topology나
+현재 PLC build attestation이 아니다. timeout/cancel/status failure는 same-session continuation을
+보존하며 split Resume은 새 status-only timeout epoch와 stable count로 시작한다. prepared observer는
+`0x2049` 직전에 operation ID와 exact snapshot을 제공하고 throw/reentrant mutation은 zero Reset
+wire다. WPF durable journal은 exact endpoint/build/BootId/Map/group/member identity를 command 전에
+저장한다. reconnect/restart의 `AttachGroupResetDurableRecoveryAsync`는 current PLC의 fresh `0x20D2`
+count/order/name/reference/device가 모두 일치할 때만 status-only continuation을 게시하며 Reset을
+replay하지 않는다. accepted 또는 outcome-uncertain Stop/PowerOff/safe Disable이나 pinned-member
+mutation은 terminal supersede이고, valid safety NACK와 pre-wire failure는 Reset continuation을
+보존한다. captured-member Axis safety coordinator는
+`SupersedePendingGroupResetAfterCapturedMemberSafetyMutation`으로 exact continuation/member와
+actual generation mismatch를 검증해 SDK pending을 즉시 terminalize할 수 있다. 이 proof는 DS402 Fault, drive error, power/profile lock 또는 motion-ready를
+증명하지 않는다.
 
 current `GroupStop` handler의 `StopMove()` 반환은 오류가 아니라 정지가 끝날
 profile-buffer `StopCmdNo`다. ACK는 입력 검증, Robot client 연결과 method dispatch를
@@ -968,16 +995,17 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics/admin 합계 | Debug/Release 각 148/148 PASS; Phase 1 회귀와 Phase 2 `0x7D22` 신규 case 포함 |
-| 개발 WPF | Debug/Release build와 각 3초 startup smoke PASS |
-| LASAL SourceOnly static contract | PASS |
-| LASAL full static contract | PASS; `Classes.lcb` general `TryStartRead` metadata 동기화 확인 |
-| LASAL IDE rebuild/link | 이전 snapshot 0 error 및 gate-on runtime download 확인; 이번 executor state-machine 수정 뒤 build/download는 재실행 필요 |
-| `Find in Implementation` smoke | 기존 통합 source 3/3 PASS, fixed-source 최신 smoke log 미보존 |
-| LASAL diagnostics command contract | active 22/handled 24: D0~D3 18 + D4 Trigger 1 + D5 Read submit/status/cancel 3 active, PI Write/extended result 2 fail-closed |
-| 전체 성공 응답 capable PLC active path | 51개: 기존 motion/group 25 + diagnostics 22 + admin 4 |
-| C#/dispatcher/wire handled contract | 53개: active 51 + capability-off diagnostics 2 |
-| Admin LASAL IDE/PLC | `0x7D00/10/20/22` source/static PASS; IDE Rebuild/Link, download와 실물 E2E 미실시 |
+| PC request/parser/fake-RPC/diagnostics/admin 합계 | current Debug/Release 각 1042/1042 PASS |
+| 개발 WPF | current Debug/Release build와 actual-control smoke 각 297/297 PASS |
+| LASAL SourceOnly static contract | `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS |
+| LASAL full static contract | `IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS; generated metadata, topology network와 same-peer transport 구조 동기화 확인 |
+| LASAL IDE rebuild/link | current Axis 1 gate-on source `0 errors / 20 warnings`, Linker Done; PLC download는 미실시 |
+| implementation smoke | `LMCEcatInputLatch`, `LMCDiagnosticsService`, `TCPMotionInterface` direct implementation open 성공; current PID 신규 `CInvalidArgException` 0건 |
+| LASAL diagnostics command contract | capability-advertised active 24 + dormant read-owner `0x7E13/0x7E22` 2 / handled 32; reserved D5 2와 dormant D4 4 포함 |
+| 전체 성공 응답 capable PLC active path | 53개: 기존 motion/group 25 + diagnostics 24 + admin 4 |
+| C#/dispatcher/wire handled contract | 61개: capability-advertised active 53 + dormant read-owner 2 + reserved/dormant diagnostics 6; C#-only route는 `0x7E23` 1개 |
+| EtherCAT topology read-owner | 464-byte coherent snapshot, `0x7E13/0x7E22` route/handler와 IDE/static PASS; bits 15~17 OFF, `0x7E23` 없음, current PLC/raw/physical proof 미실시 |
+| Admin LASAL IDE/PLC | `0x7D00/10/20/22` source/static 및 current IDE Rebuild/Link PASS; current PLC download와 실물 E2E 미실시 |
 | 기존 motion PLC download 및 25 command E2E | 0/25 |
 | diagnostics D1~D4 및 D5 general-inline SDO Read PLC runtime | legacy 축 1~4와 general-inline 1/2/4-byte 사용자 실기 PASS; 최종 확인 신규 pcap/log, D5 fault와 D1~D4 시험은 없음 |
 | actual TCP/UDP recapture | D5 PC-PLC TCP capture 확보; 기존 motion/group 미검증 |
@@ -1035,11 +1063,31 @@ EtherCAT PDO update
   nonzero ObjectIndex, 임의 U8 SubIndex와 ValueType에 정확히 맞는 1/2/4-byte를 허용한다.
   legacy 축 1~4와 general-inline 1/2/4-byte runtime은 사용자가 정상 동작을 확인했다.
   최종 확인에 대한 신규 pcap/log와 fault matrix는 없다.
-  D4 Double, D5 PI/SDO Write와 extended result는 C# contract가 있어도 PLC capability는
-  0이다. exact request는 `UnsupportedFeature`를 반환하고 write allowlist는 empty다.
+  D4 Double, PI Write와 extended result는 C# contract가 있어도 PLC capability/route gate가
+  0이다. D5 SDO Write는 축 1의 `0x2F00:24`, Int32/4-byte 한 건만 SDK/PLC source에서
+  허용하고 bit 9를 광고한다. WPF 일반 수동 Write는 같은 exact connection/session과
+  `DiagnosticsBuild`/`BootId`/`MapRevision`에서 baseline, pre-Write guard, same-value Write,
+  exact readback의 서로 다른 4개 ticket qualification이 PASS한 뒤에만 열린다. proof는
+  reconnect 또는 PLC identity/target 변경 시 재사용하지 않는다. mismatch/disconnect를 한 번
+  관측하면 proof를 영구 폐기하고, SDK identity-pinned submit의 mutation gate가 fresh
+  Build/BootId/MapRevision/target을 exact 비교해 drift 시 `NotAttempted`/`0x7E50` 0회로 닫는다.
+  다만 current PLC download와
+  live write/readback 증거가 없어 production 승인 상태는 아니다. 축 2~4와 다른 target의
+  write allowlist는 계속 empty다.
 - diagnostics 상태 변경 async 호출의 cancellation은 송신 전까지만 취소한다. PLC가
   요청을 수락한 뒤에는 handle/ticket/result identity를 잃지 않도록 응답을 끝까지
   수신한다. Recorder PC download cancellation은 PLC recording이나 motion stop이 아니다.
+- WPF가 durable recovery record와 현재 PLC identity 불일치를 발견하면
+  read-only quarantine으로 전환한다. 운영자가 physical state와 unknown old outcome을 명시적으로
+  확인한 `Archive and Retire Stale Recovery`만 immutable archive + exact journal CAS로 stale
+  record를 retire할 수 있다. 이 절차는 PLC command를 0개 보내고 connection close/app restart를
+  강제하며, fresh process/reconnect 전에는 control admission을 다시 열지 않는다. 혼합
+  record에서는 current-endpoint stale subset만 retire하고 exact-current와 other-endpoint record는
+  보존한다. 남은 exact record의 status-only recovery 완료 전에는 Motion/Power/approved SDO
+  Write admission이 열리지 않는다. 기존 recovery
+  record는 BootId/MapRevision을 비교하고, Build-bearing Group Reset record는
+  DiagnosticsBuild/BootId/MapRevision을 모두 비교한다. retirement ledger format 2는 source/current
+  Build를 보존하며 format 1 entry read compatibility를 유지한다.
 
 세부 byte layout과 RT/non-RT 경계는
 [LMC EtherCAT PI/Bulk/Recorder 구현 설계](../../docs/architecture/LMC_ETHERCAT_PI_BULK_RECORDER_IMPLEMENTATION_DESIGN_2026-07-20.md),
@@ -1093,10 +1141,75 @@ source-only verifier를 직접 실행할 수도 있다.
 
 ```powershell
 & LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\Verify-LasalContract.ps1 `
-  -RepositoryRoot (Get-Location)
+  -RepositoryRoot (Get-Location) `
+  -SourceOnly `
+  -ControlServiceCheckpoint Phase5TransportClean `
+  -TopologyIoCheckpoint IntegratedReadOwnerDormant `
+  -ExpectedSdoWriteAxis 1
 ```
 
 정적 PASS를 LASAL IDE build 또는 PLC E2E PASS로 기록하지 않는다.
+
+### 18.1 Transactional Distribution candidate
+
+`Build-LmcApiDistribution.ps1`은 기존 `LMC_API_Distribution`을 갱신하는 스크립트가 아니다.
+current SDK/WPF source와 read-only 외부 DOCX/PDF를 같은 volume의 sibling staging에 모으고,
+다음 gate를 모두 통과할 때만 존재하지 않는 `LMC_API_Distribution_candidate_*`로 한 번
+rename한다.
+
+1. 시작/종료 release input tree SHA-256 일치
+2. 시작/승격 전/승격 후 canonical file-set 및 content SHA-256 일치
+3. SDK Debug/Release test와 LASAL network/static contract PASS
+4. 개발 WPF Debug/Release smoke PASS
+5. binary-reference candidate example Debug/Release build PASS
+6. candidate WPF source set/content와 current 개발 project exact 일치
+7. SDK/LASAL/WPF/DINT/README/DOCX/PDF 15-check semantic policy PASS
+8. source/API/runtime DLL byte identity PASS
+9. `bin/obj/.vs`, Reports, captures와 내부 source path 부재
+10. schema 2 manifest atomic write와 즉시 재검증 PASS
+
+transaction은 sibling `FileShare.None` lock, staging seal, input/canonical drift 검사를 사용한다.
+commit 전 실패는 검증된 staging만 제거한다. canonical과 이미 commit된 candidate는 자동으로
+삭제하거나 되돌리지 않는다.
+
+clean release candidate는 다음처럼 만든다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File LMC_Library\LMC_API\Build-LmcApiDistribution.ps1 `
+  -RepositoryRoot C:\work\Elmo\Elmo_Master
+```
+
+`-AllowDirty`는 개발 fail-path 검증용이며 production candidate에는 사용하지 않는다.
+`-CandidatePath`를 지정할 때는 canonical의 존재하지 않는 direct sibling이어야 한다.
+
+schema 2 `RELEASE_MANIFEST.md`는 source commit/worktree state, assembly/file/product version,
+release input tree SHA-256, semantic policy SHA-256/result와 package 파일별 size/SHA-256을
+기록한다.
+
+2026-07-31 current input 전체 실행은 build/test와 DOCX 구조 검사를 통과한 뒤
+`MANUAL_SDO_WRITE_SCOPE`에서 차단됐다. 외부 DOCX/PDF가 Axis 1 exact
+`0x2F00:24 Int32/4`, current-session `DiagnosticsBuild`/`BootId`/`MapRevision`/target identity,
+four-ticket same-value proof와 Axis 2~4 차단을 아직 설명하지 않기 때문이다. candidate는
+생성되지 않았고 canonical tree hash는 전후 동일했으며 staging/lock residue는 0이었다.
+이것은 release fail-closed 검증이지 PLC/live proof가 아니다.
+
+단위 회귀는 다음처럼 실행한다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File LMC_Library\LMC_API\Test-LmcReleaseManifest.ps1
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File LMC_Library\LMC_API\Test-LmcDistributionSemanticPolicy.ps1
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File LMC_Library\LMC_API\Test-LmcApiDistributionPipeline.ps1
+```
+
+세부 설계와 실제 fail-path 증거는
+[LMC API transactional Distribution candidate 설계](../../docs/architecture/LMC_API_TRANSACTIONAL_DISTRIBUTION_CANDIDATE_2026-07-31.md)를
+따른다.
 
 이 문서의 standalone HTML은 다음 명령으로 재생성한다.
 

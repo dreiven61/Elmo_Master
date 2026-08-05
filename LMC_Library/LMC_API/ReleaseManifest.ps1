@@ -238,11 +238,29 @@ function Get-LmcReleaseManifestContent {
         [Parameter(Mandatory = $true)]
         [string]$FileVersion,
         [Parameter(Mandatory = $true)]
-        [string]$ProductVersion
+        [string]$ProductVersion,
+        [Parameter(Mandatory = $true)]
+        [string]$InputTreeSha256,
+        [Parameter(Mandatory = $true)]
+        [string]$SemanticPolicySha256,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$SemanticPolicyResult
     )
 
     if ($SourceCommit -notmatch '^[0-9a-fA-F]{40}$') {
         throw 'Source commit must be an exact 40-character Git object id.'
+    }
+    if ($InputTreeSha256 -notmatch '^[0-9a-fA-F]{64}$') {
+        throw 'Release input tree SHA-256 must be an exact 64-character hexadecimal value.'
+    }
+    if ($SemanticPolicySha256 -notmatch '^[0-9a-fA-F]{64}$') {
+        throw 'Semantic policy SHA-256 must be an exact 64-character hexadecimal value.'
+    }
+    if (-not $SemanticPolicyResult.Equals(
+        'PASS',
+        [System.StringComparison]::Ordinal)) {
+        throw 'Semantic policy result must be exactly PASS.'
     }
     foreach ($version in @($AssemblyVersion, $FileVersion, $ProductVersion)) {
         if ($version -notmatch '^[0-9A-Za-z][0-9A-Za-z.+-]*$') {
@@ -284,9 +302,12 @@ function Get-LmcReleaseManifestContent {
     $lines = @(
         '# LASAL Motion Control API Release Manifest',
         '',
-        '- Manifest schema: `1`',
+        '- Manifest schema: `2`',
         "- Source commit: ``$($SourceCommit.ToLowerInvariant())``",
         "- Worktree state: ``$WorktreeState``",
+        "- Release input tree SHA-256: ``$($InputTreeSha256.ToUpperInvariant())``",
+        "- Semantic policy SHA-256: ``$($SemanticPolicySha256.ToUpperInvariant())``",
+        "- Semantic policy result: ``$SemanticPolicyResult``",
         '- Configuration: `Release`',
         "- Assembly version: ``$AssemblyVersion``",
         "- File version: ``$FileVersion``",
@@ -331,7 +352,14 @@ function Test-LmcReleaseManifest {
         [Parameter(Mandatory = $true)]
         [string]$FileVersion,
         [Parameter(Mandatory = $true)]
-        [string]$ProductVersion
+        [string]$ProductVersion,
+        [Parameter(Mandatory = $true)]
+        [string]$InputTreeSha256,
+        [Parameter(Mandatory = $true)]
+        [string]$SemanticPolicySha256,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$SemanticPolicyResult
     )
 
     $root = Get-LmcReleaseManifestRoot -DistributionRoot $DistributionRoot
@@ -376,7 +404,14 @@ function Write-LmcReleaseManifestAtomic {
         [Parameter(Mandatory = $true)]
         [string]$FileVersion,
         [Parameter(Mandatory = $true)]
-        [string]$ProductVersion
+        [string]$ProductVersion,
+        [Parameter(Mandatory = $true)]
+        [string]$InputTreeSha256,
+        [Parameter(Mandatory = $true)]
+        [string]$SemanticPolicySha256,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$SemanticPolicyResult
     )
 
     $root = Get-LmcReleaseManifestRoot -DistributionRoot $DistributionRoot

@@ -10,9 +10,9 @@
 | `LMC_API` | packet 근거, 상세 개발 설명, source review, package build script | 내부 개발용 |
 | `LMC_API_Distribution` | API, 독립 WPF 예제, 단일 API 사용설명서 | 외부 전달 기준 |
 
-현재 버전은 `0.9.1-preview`다. current PC Debug/Release 테스트는 각각 752/752, 개발 WPF
-Release build와 actual-control smoke는 110/110 통과했다. LASAL SourceOnly static 계약은
-PASS했고, full static은 새 `TCPIPServer`의 stale `Classes.lcb` 등록을 정확히 차단했다.
+현재 버전은 `0.9.1-preview`다. current PC Debug/Release 테스트는 각각 1042/1042,
+개발 WPF Debug/Release build와 smoke는 각각 297/297 통과했다. LASAL
+SourceOnly와 Network static 계약도 PASS했다.
 send-priority 회귀는 Axis Reset, Admin `GroupMoveLinearRelative`, Group Enable
 wait, D5 `SubmitSdo`/`CancelOperation`과 Recorder Trigger/Stop의 지연 ACK를
 `ResultDiscarded`로 폐기하고, Recorder Release의 불확실한 결과는 `OutcomeUnverified`로
@@ -21,7 +21,11 @@ wait, D5 `SubmitSdo`/`CancelOperation`과 Recorder Trigger/Stop의 지연 ACK를
 delayed Configure의 accepted recovery-only handle 보존/명시 Release와 수동 Double Configure가
 ordinary route/field로 유입되지 않는 fail-closed 분기를 고정한다. SDO Write policy/readiness
 평가는 immutable cached snapshot을 wire 없이 사용하며
-PLC bit 9와 empty SDK target을 별도 blocker로 표시한다. `Classes.lcb`의 general
+PLC bit 9와 SDK target policy를 별도 blocker로 표시한다. current development source의 SDK
+allowlist는 Axis 1 `0x2F00:24` Int32/4-byte 한 건이며 Axis 2~4와 다른 tuple은 거부한다.
+일반 수동 SDO Write는 exact current connection/session/build/boot/map에서 same-value 4-ticket
+qualification을 통과하기 전까지 wire 전에 차단된다.
+`Classes.lcb`의 general
 `TryStartRead`/`TryStartWrite` declaration도 current source와
 동기화되어 있다. BootId 5 legacy `0x13F` PLC capture에서 `0x1000:0` UInt32 4-byte SDO Read는
 물리축 1~4 모두 Completed/Success를 반환했다. 2026-07-23 BootId 8 `0x213F`
@@ -29,8 +33,10 @@ general-inline capture에서는 첫 오류 뒤 Submit `ResourceBusy(9)` 고착�
 machine을 수정했고, 이후 1/2/4-byte runtime 정상 동작과 관련 capture 분석을 확인했다.
 후속 `Test2` capture에서는 current `0x613F`, static topology revision `0x15867EEC`와
 `0x7E11` 1회 + `0x7E12` 7회의 exact 7-entry configured inventory를 확인했다. 이는
-`0x7E13/0x7E22/0x7E23` dynamic health/I/O 증거가 아니다. 전체 D5
-fault matrix와 최신 IDE build/download/smoke log는 남아 있다. 2026-07-23 live capture는
+`0x7E13/0x7E22/0x7E23` dynamic health/I/O 증거가 아니다. current source에는
+`0x7E13/0x7E22` read-owner와 464-byte CREVIS snapshot이 추가됐지만 capability bit 15~16은
+의도적으로 OFF이고 `0x7E23`은 없다. 최신 fresh IDE Rebuild/Link와 smoke/log는 PASS했지만
+current PLC download, CREVIS runtime/actual-hardware proof와 전체 D5 fault matrix는 남아 있다. 2026-07-23 live capture는
 Admin `0x7D00/10/20/22`, 대표 absolute/relative group 경로, PowerOff final status,
 `0x2051` None/ACS static alias, axis 1~4 drive read, D1 PI/D2 Bulk happy path와 D5
 TypeMismatch 후 same-BootId 복구를 확인했다. 다만 기존 motion/group 25-command 전체
@@ -51,10 +57,12 @@ bank가 read-only inventory에서 발견되면 local journal만 갱신하고 Ado
 계획을 다시 확인하게 한다. config-only manual Double Configure adapter도 구현됐지만 네 D4
 proof/route gate는
 모두 `false`이고 PLC/live/pcap 증거는 없다. SDO Write 실행/API/GUI와 durable journal v2도
-gate-off로 구현됐다. PI Write PLC handler, 8/12-byte와 extended SDO result는 미구현이다.
+구현됐고 development source는 Axis1-only gate를 활성화했지만 PLC/live/pcap 증거는 아직 없다.
+`LMC_API_Distribution`은 다음 고객 배포 검증 때 동기화하는 이전 gate-off bundle로 유지한다.
+PI Write PLC handler, 8/12-byte와 extended SDO result는 미구현이다.
 Phase 1의 D1/D2 기반 PI/Bulk compatibility facade는 구현됐으며, 실제 소비자가 없는 D6
-static/handle wrapper는 current release에서 `Not Planned`로 닫았다. `0x2047` accepted-then-poll 수정본은 source/static 계약만
-통과했으며 LASAL IDE build/download와 live ACK 재검증이 남아 있다.
+static/handle wrapper는 current release에서 `Not Planned`로 닫았다. `0x2047` accepted-then-poll 수정본은
+source/static과 current LASAL IDE build를 통과했으며 PLC download와 live ACK 재검증이 남아 있다.
 Drive read facade는 실제 D5 SDO `0x6041:0` bit 3의 `HasDs402Fault`와 별도
 `GetDriveErrorCode[Async]`의 `0x603F:0 UInt16/2` 결과를 노출한다. `0x2028`의 reserved
 `StatusWord=0`, LASAL AxisErrorId와 이 두 drive 관측은 서로 대체하지 않는다. 새 opcode나

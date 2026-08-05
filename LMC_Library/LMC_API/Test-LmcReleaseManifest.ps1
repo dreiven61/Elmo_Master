@@ -131,11 +131,37 @@ try {
         DllReplicaRelativePaths = $dllReplicaPaths
         SourceCommit = $sourceCommit
         WorktreeState = 'clean'
+        InputTreeSha256 = ('A1' * 32)
+        SemanticPolicySha256 = ('B2' * 32)
+        SemanticPolicyResult = 'PASS'
         AssemblyVersion = '0.9.1.0'
         FileVersion = '0.9.1.0'
         ProductVersion = '0.9.1-preview'
     }
     $fixtureManifestGitPath = 'package/RELEASE_MANIFEST.md'
+
+    foreach ($functionName in @(
+        'Get-LmcReleaseManifestContent',
+        'Test-LmcReleaseManifest',
+        'Write-LmcReleaseManifestAtomic')) {
+        $command = Get-Command -Name $functionName -CommandType Function
+        foreach ($parameterName in @(
+            'InputTreeSha256',
+            'SemanticPolicySha256',
+            'SemanticPolicyResult')) {
+            $parameter = $command.Parameters[$parameterName]
+            $mandatoryAttributes = @(
+                $parameter.Attributes |
+                    Where-Object {
+                        $_ -is [System.Management.Automation.ParameterAttribute] -and
+                        $_.Mandatory
+                    })
+            Assert-True `
+                -Condition ($null -ne $parameter -and
+                    $mandatoryAttributes.Count -eq 1) `
+                -Message "$functionName parameter $parameterName is not mandatory."
+        }
+    }
 
     $manifestPath = Write-LmcReleaseManifestAtomic @parameters
     Assert-True `
@@ -183,8 +209,12 @@ try {
 
     $manifestText = [System.IO.File]::ReadAllText($manifestPath)
     foreach ($requiredText in @(
+        'Manifest schema: `2`',
         "Source commit: ``$sourceCommit``",
         'Worktree state: `clean`',
+        ('Release input tree SHA-256: `' + ('A1' * 32) + '`'),
+        ('Semantic policy SHA-256: `' + ('B2' * 32) + '`'),
+        'Semantic policy result: `PASS`',
         'Assembly version: `0.9.1.0`',
         'File version: `0.9.1.0`',
         'Product version: `0.9.1-preview`',
@@ -218,6 +248,38 @@ try {
                 -AllowDirty:$false
         } `
         -ExpectedMessage 'worktree is dirty'
+
+    $invalidInputTreeParameters = $parameters.Clone()
+    $invalidInputTreeParameters.InputTreeSha256 = 'not-a-sha256'
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @invalidInputTreeParameters
+        } `
+        -ExpectedMessage 'Release input tree SHA-256 must be an exact 64-character hexadecimal value'
+
+    $invalidSemanticPolicyHashParameters = $parameters.Clone()
+    $invalidSemanticPolicyHashParameters.SemanticPolicySha256 = ('G0' * 32)
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @invalidSemanticPolicyHashParameters
+        } `
+        -ExpectedMessage 'Semantic policy SHA-256 must be an exact 64-character hexadecimal value'
+
+    $invalidSemanticPolicyResultParameters = $parameters.Clone()
+    $invalidSemanticPolicyResultParameters.SemanticPolicyResult = 'FAIL'
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @invalidSemanticPolicyResultParameters
+        } `
+        -ExpectedMessage 'does not belong to the set'
+
+    $lowercaseSemanticPolicyResultParameters = $parameters.Clone()
+    $lowercaseSemanticPolicyResultParameters.SemanticPolicyResult = 'pass'
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @lowercaseSemanticPolicyResultParameters
+        } `
+        -ExpectedMessage 'Semantic policy result must be exactly PASS'
 
     $generatedGuid = '0123456789abcdef0123456789abcdef'
     $generatedOnlyStatus = @(
