@@ -5,12 +5,15 @@
 - 대상 시트/범위: `API 목록!A4:G68`
 - 원본 SHA-256: `A4441C88A489EE2898A8A6FA34182E387ABCA03C97B07EA9F68DB73AA29E34A4`
 - 판정 대상: 현재 Git working source의 C# 공개 API, TCP wire, LASAL handler/network, WPF 노출
-- 갱신일: 2026-07-27
+- 갱신일: 2026-07-31
 - 상태: Phase 0, Phase 1과 Phase 2 첫 슬라이스 `0x7D22 GroupMoveLinearRelative` 구현 완료. PC 자동 시험/LASAL 정적 계약과 2026-07-23 기존 live capture가 PASS했고, 이후 `0x2047` accepted-then-poll 및 Group/Bulk/Recorder qualification UI는 code/build 완료했다. 신규 runner의 PLC live, fault/stale/reconnect/RT matrix는 별도다.
 - 2026-07-27 supplement: current LASAL working source의 CREVIS GL-9086 + Elmo 4개
   configured topology와 별도 topology/node-health/digital-I/O API 설계를 추가했다. 신규 C#
   command contract/parser/test는 구현했지만 PLC/LASAL handler와 capability 광고는 미구현이며,
   이 supplement는 workbook 65개 판정 수를 바꾸지 않는다.
+- 2026-07-31 supplement: `0x7D13 StartAxisReference`의 typed SDK/wire와 LASAL
+  fail-closed parser를 추가했다. 이 경로는 capability bit 4 OFF, native call 0인 dormant
+  계약이며 `HomeDS402`의 LASAL-native 부분 대응으로만 분류한다. IDE/PLC/실축 증거는 없다.
 - workbook 추출: OOXML read-only. 숨김 행과 수식은 없었고 실제 값은 A1:G68에 있었다. 현재 세션에는 workbook renderer가 없어 색/조건부 서식에 의미를 둔 판정은 하지 않았다.
 
 ## 1. 결론
@@ -23,8 +26,8 @@
 |---|---:|---|
 | 직접 구현 | 16 | 동일 기능의 C# 공개 경로와 LASAL 실행 경로가 있다. 원래 OPUS/OPERA 시그니처나 wire와 완전 동일하다는 뜻은 아니다. |
 | LASAL 적응 구현 | 24 | 별도 API를 통합했거나 LASAL-native diagnostics/workflow로 같은 목적을 달성한다. |
-| 부분 구현/비활성 scaffold | 10 | 일부 범위만 실행되거나 C# 계약만 있고 PLC capability 또는 정책이 꺼져 있다. |
-| 실제 미구현 | 11 | 공개 API 또는 PLC handler가 없고 다른 활성 경로도 요구 목적을 충족하지 못한다. |
+| 부분 구현/비활성 scaffold | 12 | 일부 범위만 실행되거나 C# 계약만 있고 PLC capability 또는 정책이 꺼져 있다. |
+| 실제 미구현 | 9 | 공개 API 또는 PLC handler가 없고 다른 활성 경로도 요구 목적을 충족하지 못한다. |
 | 흡수/비동등 보류 | 4 | 다른 요구사항에 흡수하거나 1:1 복제하면 잘못된 의미가 되는 항목이다. |
 | 합계 | **65** | |
 
@@ -32,15 +35,18 @@
 
 | 우선순위 | 직접 | LASAL 적응 | 부분/비활성 | 미구현 | 흡수/보류 | 합계 |
 |---|---:|---:|---:|---:|---:|---:|
-| 상 | 11 | 6 | 0 | 4 | 0 | 21 |
+| 상 | 11 | 6 | 2 | 2 | 0 | 21 |
 | 중 | 4 | 10 | 7 | 1 | 3 | 25 |
 | 하 | 1 | 8 | 3 | 6 | 1 | 19 |
-| 합계 | **16** | **24** | **10** | **11** | **4** | **65** |
+| 합계 | **16** | **24** | **12** | **9** | **4** | **65** |
 
 핵심 판단은 아래와 같다.
 
 1. 우선순위 상 21개 중 기능 경로가 있는 항목은 17개다. `GroupStop`의 `StopMove()` 반환은 오류가 아니라 `StopCmdNo`이므로 기존 ACK 처리는 결함이 아니었다.
-2. 우선순위 상의 실제 공백은 `HomeDS402`, `HomeDS402Ex`, `SetOpMode`, `SetPosition` 4개다.
+2. 우선순위 상의 production-active 공백은 `HomeDS402`, `HomeDS402Ex`, `SetOpMode`,
+   `SetPosition` 4개다. `HomeDS402` 요구 목적에는 LASAL-native `ReferenceAxis`의 SDK/wire와
+   fail-closed PLC parser를 부분 대응으로 추가했고, `SetPosition`도 같은 dormant 단계다.
+   두 기능 모두 capability와 native mutation이 꺼져 있으므로 활성 기능 경로로 계산하지 않는다.
 3. SDO Read 1/2/4 byte 경로는 source-active이며 live packet PASS다. `12` capture는
    general-inline UInt32/4 성공과 동일 BootId의 의도한 TypeMismatch 실패 후 Int8/1
    복구를 확인했다. offline/abort, timeout, queued cancel, disconnect/orphan과 contention은 별도다.
@@ -152,7 +158,7 @@
 | 16 | 하 | Emergency typed callback | G | UDP listener와 raw callback log만 있다. PLC event producer와 typed schema가 없다. |
 | 17 | 하 | Group member info | D | `GetGroupMembersInfo`, PLC `0x20D2`; name/ref/device/count를 제공한다. software descriptor는 1..9, 실제 EtherCAT 축은 1..4다. |
 | 18 | 하 | Group parameter batch read | E | `connection.Admin.ReadGroupParameters[Async]`, local `0x7D20`; Group `0x0100`의 velocity/acceleration/jerk-time 선택 mask만 허용하며 2026-07-23 live happy path가 PASS했다. |
-| 19 | 상 | HomeDS402 | G | 공개 API/handler가 없다. `_LMCAxis.MoveReference`는 존재하지만 DS402 method 1..36과 동등하지 않다. |
+| 19 | 상 | HomeDS402 | P | `0x7D13 ReferenceAxis` typed SDK/wire와 fail-closed PLC parser로 LASAL-native reference 목적을 부분 대응한다. capability bit 4는 OFF이고 native `_LMCAxis.MoveReference` 호출은 0회다. Elmo Gold DS402 method `1..14`, `17..30`, `33..35`와 동등하지 않다. |
 | 20 | 중 | Axis ReadStatus | D | `ReadStatus[Result][Async]`, PLC `0x2028`. |
 | 21 | 중 | GroupReadStatus | D | `GroupReadStatus[Result][Async]`, PLC `0x2045`. |
 | 22 | 상 | HomeDS402Ex | G | 확장 homing model/handler가 없다. LASAL-native reference adapter로 별도 설계해야 한다. |
@@ -191,7 +197,7 @@
 | 55 | 하 | Group actual position | P | `GroupReadActualPosition`, PLC `0x2051`; `09b`에서 None/ACS static member-slot alias의 byte-identical 68-byte 응답을 live 확인했다. true ACS transform는 아니며 MCS/PCS 변환은 지원하지 않는다. |
 | 56 | 하 | StatusRegister/MCS limit | P | `ReadDriveStatus[Async]`가 axis status, DS402 `0x6041`, `0x6061`을 source별로 분리하고 limit indication을 제공한다. 축 1..4 live 순차 read는 PASS했지만 Maestro StatusRegister/MCS limit와 동일한 atomic register는 아니다. |
 | 57 | 중 | ReadBoolParameter | X | workbook상 OPERA 미사용이며 목적은 current mode 확인이다. raw API를 복제하지 않고 No.34 typed mode read로 흡수한다. |
-| 58 | 상 | SetPosition | G | 공개 API/handler가 없다. `_LMCAxis.SetPosition`은 있으나 상태 제한이 필요한 고위험 operation이다. |
+| 58 | 상 | SetPosition | P | `0x7D12` typed SDK/wire와 fail-closed PLC parser를 구현했다. capability bit 3은 OFF이고 native `_LMCAxis.SetPosition` 호출은 0회다. 별도 max-jump 설정, task/core/priority, state/ownership과 PLC proof 전에는 활성 기능이 아니다. |
 | 59 | 중 | SetKinTransform | P | `SetKinTransformCartesian4Axis`, PLC `0x20E7`; fixed X/Y/Z/U identity ready 검증이지 generic kinematics가 아니다. |
 | 60 | 하 | StopRecording | E | D3/D4 `StopRecorder`, PLC `0x7E43`; qualification cleanup은 final Status를 확인해 `Ready`/`Uploading`에서만 자동 Release하고 `Fault`는 resource를 보존한다. 신규 PLC live는 대기다. |
 | 61 | 하 | Recording status | E | `GetRecorderStatus`, PLC `0x7E44`; bounded qualification poll code/build 완료, live는 대기다. |
@@ -263,8 +269,8 @@ Phase 1에서 read-only 3개 ID를 구현해 `DINT_PACKET_MAP.txt`, golden/parse
 | GetAdminCapabilities | `0x7D00` | admin schema/version/feature bit/limit 광고 | source 구현 |
 | ReadAxisParameter | `0x7D10` | semantic key 기반 axis parameter read | source 구현 |
 | WriteAxisParameter | `0x7D11` | 이중 allowlist 기반 제한 write | 후속 |
-| SetAxisPosition | `0x7D12` | 제한된 mode/state에서 position set | 후속 |
-| StartAxisReference | `0x7D13` | LASAL `MoveReference` 기반 homing | 후속 |
+| SetAxisPosition | `0x7D12` | 제한된 mode/state에서 position set | SDK/wire + fail-closed PLC parser, activation 후속 |
+| StartAxisReference | `0x7D13` | LASAL `MoveReference` 기반 reference | SDK/wire + fail-closed PLC parser, activation 후속 |
 | SetDriveOperationMode | `0x7D15` | ownership 승인 후 dedicated mode change | 보류 |
 | SetAxisOverride | `0x7D16` | v1 velocity override permille | 후속 |
 | ReadGroupParameters | `0x7D20` | bounded batch read | source 구현 |
@@ -406,31 +412,48 @@ Phase 1 source 결과:
 
 #### 6.2.1 Reference/Homing
 
-API 이름은 `ReferenceAxis` 또는 `HomeUsingLasalReference`로 한다. 전체 DS402 method 1..36을 지원하지 않으면서 `HomeDS402Ex`라고 부르지 않는다.
+API 이름은 `ReferenceAxis` 또는 `HomeUsingLasalReference`로 한다. Elmo Gold DS402 method `1..14`, `17..30`, `33..35`를 지원하지 않으면서 `HomeDS402Ex`라고 부르지 않는다.
 
 backend는 `_LMCAxis.MoveReference`이며 v1 조건은 다음과 같다.
 
 - physical axis 1..4만 허용
 - axis powered, StandStill, no active error
 - group/profile ownership과 충돌하지 않음
-- `RefSwitch`, `HWMin`, `HWMax`, `LatchPos`의 실제 장비 연결 확인
+- `RefSwitch`, `HWMin`, `HWMax`, `ZImpulse`, `LatchPos`의 실제 장비 연결 확인
 - mode, position, VRef1, VRef2, acceleration, window, jerk의 bounded validation
+- PLC가 연결 단절과 무관하게 집행하는 positive `MaxTravel`과 `TimeoutMs`
 - cancel은 새로운 reference command가 아니라 기존 controlled Stop을 사용
-- 완료는 status/reference bit poll 또는 typed event로 판단
+- 완료는 original command provenance가 있는 상태에서 status/reference bit의 stable poll 또는
+  typed event로 판단
 
 현재 Motion Network에는 `_LMCAxis` 내부 client 정의는 있으나 physical reference input source가 연결됐다는 증거가 없다. 객체/IO 배치가 확정되기 전에는 capability를 광고하지 않는다.
+현재 source는 `0x7D13` request/response와 one-shot SDK 계약, fail-closed PLC parser까지만
+고정하고 capability bit 4와 native `_LMCAxis.MoveReference()` 호출을 끈다. exact wire와
+activation gate는
+[Axis Reference LASAL-native dormant 계약](AXIS_REFERENCE_LASAL_NATIVE_DORMANT_CONTRACT_2026-07-31.md)을
+따른다.
 
 #### 6.2.2 SetPosition
 
 `_LMCAxis.SetPosition`을 사용하되 v1에서는 한 개의 명확한 semantic mode만 허용한다.
 
-- axis state/zero velocity 조건
-- simulation axis와 physical axis 구분
-- explicit execute token
-- software limit와 actual/destination jump 검사
-- response에 LASAL command result와 applied mode echo
+- request는 target과 expected actual position을 함께 보내 stale coordinate snapshot을 CAS로 거부한다.
+- public semantic mode는 actual position과 destination을 application units로 함께 맞추는 mode 1뿐이다.
+- explicit one-shot confirmation과 little-endian ASCII `SETP` token을 사용한다.
+- response는 applied position, semantic mode와 full native command-state를 echo한다.
+- PC prepared command는 owner/session/axis/capability/target/expected actual에 고정되며 write boundary를
+  한 번만 넘는다. post-boundary loss는 outcome uncertain이고 reconnect 뒤 replay하지 않는다.
+- PLC activation은 physical/non-modulo/non-simulation, `IsReferenced=1` axis, powered-off standstill, actual/set velocity 0,
+  no error/coupling/profile owner, valid software limits와 별도 application-approved max-jump를 요구한다.
+- `LMCAXIS_PAR_RD_SWLIMWINDOW`는 software end-position standstill tolerance이므로 max-jump로 쓰지 않는다.
+- `_LMCAxis.SetPosition`의 same-core/equal-or-lower-priority 조건은 IDE task map과 PLC에서 별도 확인한다.
 
 raw enum passthrough는 금지한다.
+
+현재 source는 request/response/parser 계약만 고정하고 capability bit 3을 광고하지 않는다.
+유효한 raw `0x7D12` 요청도 fail-closed `InvalidState`로 응답하며 native mutation은 0회다. exact wire,
+activation gate와 검증 기준은
+[Axis Set Position 제한 좌표 보정 설계](AXIS_SET_POSITION_BOUNDED_COORDINATE_CORRECTION_2026-07-31.md)를 따른다.
 
 #### 6.2.3 Group relative move
 

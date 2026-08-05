@@ -151,7 +151,8 @@ protocol에서는 wire 전후 crash를 완전히 구분할 수 없다.
 
 ## 자동 검증
 
-최신 Release에서 SDK 전체 `974/974 PASS`를 확인했다. Stop/Reset 및 transport safety 회귀는 다음을
+2026-07-29 당시 Release에서 SDK 전체 `974/974 PASS`를 확인했다. 이 수치는 historical checkpoint이며
+current 전체 수치는 status 문서를 따른다. Stop/Reset 및 transport safety 회귀는 다음을
 고정한다.
 
 - one Stop + three stable standstill status
@@ -180,7 +181,8 @@ protocol에서는 wire 전후 crash를 완전히 구분할 수 없다.
   status publication race 폐기와 pending continuation 보존
 - validation/선점 zero-wire mutation의 generation 불변과 다른 AxisReference mutation의 비간섭
 
-WPF Release build는 warning/error 0/0, actual-control smoke는 `206/206 PASS`다. Axis Stop/Reset
+같은 2026-07-29 checkpoint의 WPF Release build는 warning/error 0/0, actual-control smoke는
+`206/206 PASS`다. Axis Stop/Reset
 통합 회귀는 `18/18`, journal은 `9/9`, 실제 child-process recovery는 `4/4`를 통과했다. delayed
 Stop status poll을 명시적 priority Power Off가 선점한 뒤에도 Stop `0x2022`는 1회뿐이며,
 Power Off `0x2023` 1회와 후속 safe-state `0x2028` 3회가 완료되는 경로를 고정한다. ACK 뒤 durable

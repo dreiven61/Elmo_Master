@@ -4,14 +4,15 @@
 
 `LasalMotionControlLib.Tests.exe topology-io-qualify` is an internal raw-read
 qualification tool. It does not add a capability bypass to the production SDK or WPF.
-Use an explicit `--scope` in every documented invocation.
+The tool requires an explicit `--scope` and exactly one of `--dry-run` or
+`--execute-live`; there is no implicit live or scope default.
 
 | Scope | Current use | Raw request allowlist | Request count |
 |---|---|---|---:|
-| `topology-inventory` | Qualify the currently implemented static configured topology before T2 node-health/I/O ownership is installed | `0x7E11`, `0x7E12` only | 8 |
-| `integrated-read-owner-dormant` | Qualify the later dormant `0x7E13` node-health and `0x7E22` digital-I/O read integration before capability bits 15/16 are enabled | `0x7E11`, `0x7E12`, `0x7E13`, `0x7E22` | 17 |
+| `topology-inventory` | Re-qualify the static configured-topology baseline | `0x7E11`, `0x7E12` only | 8 |
+| `integrated-read-owner-dormant` | Qualify the current dormant `0x7E13` node-health and `0x7E22` digital-I/O read integration before capability bits 15/16 are enabled | `0x7E11`, `0x7E12`, `0x7E13`, `0x7E22` | 17 |
 
-The `topology-inventory` scope is the safe scope for the current LASAL source. It sends
+The `topology-inventory` scope remains the bounded static-baseline scope. It sends
 one topology-info request and seven single-entry chunk requests. It never sends
 `0x7E13`, `0x7E22`, `0x7E23`, SDO/PI/motion/resource commands, or any other mutation.
 Public capability reads and connection lifecycle traffic required by the transport are
@@ -20,15 +21,25 @@ outside the raw qualification allowlist.
 ## Common fail-closed and evidence contract
 
 - Live execution requires the confirmation token matching the selected scope, explicit
-  host/local IPv4 addresses, and an explicit report path.
+  host/local IPv4 addresses, an explicit report path, and a declared
+  `HEAD/TRACKED/UNTRACKED` source fingerprint.
 - The report target must not already exist. The tool reserves a sibling
   `.inprogress-*.tmp` file before network access, appends and durably flushes evidence,
   and only moves the completed report to the requested path at the end. A checkpoint
-  write failure stops the run without truncating the already recorded prefix.
+  write failure stops the run without truncating the already recorded prefix. Dry-run
+  output also uses create-new semantics and never overwrites an existing file.
 - Every raw request must have an allowed command and exact payload length, zero header
   reserved/reference fields, schema version 1, zero flags, and a nonzero RequestId.
 - `0x7E23` and all mutation commands are rejected in both scopes.
 - The tool records the request/response bytes and SHA-256 for each raw exchange.
+- Report format V2 records the test executable and loaded SDK assembly path, byte count,
+  UTC timestamp, and SHA-256. It also records the declared source fingerprint and the
+  before/after diagnostics build, capability bits, BootId, MapRevision, and payload
+  limits. The fingerprint is caller-declared, so recompute it after the run and require
+  exact equality with the pre-run value.
+- After connection cleanup and `OVERALL_RESULT=PASS` or `FAIL` is durably recorded, the
+  tool retains a two-second post-result evidence window before finalizing the report.
+  The tool does not start or stop packet capture.
 
 ## Build
 
@@ -36,6 +47,35 @@ outside the raw qualification allowlist.
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
   LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\LasalMotionControlLib.Tests.csproj `
   /t:Build /p:Configuration=Release /p:Platform=AnyCPU
+```
+
+Create the source fingerprint immediately before live execution. Including `HEAD` is
+required; hashing only `git diff HEAD` would give the same empty-diff hash for unrelated
+clean commits.
+
+```powershell
+function Get-TopologyQualificationSourceFingerprint {
+  $qualificationHead = (git rev-parse HEAD).Trim()
+  $qualificationTracked = (
+    git diff --binary HEAD 2>$null | git hash-object --stdin
+  ).Trim()
+  $qualificationUntrackedManifest = @(
+    git -c core.quotepath=false ls-files --others --exclude-standard |
+      Sort-Object |
+      ForEach-Object {
+        $qualificationFile = $_
+        '{0}  {1}' -f `
+          (Get-FileHash -LiteralPath $qualificationFile -Algorithm SHA256).Hash, `
+          $qualificationFile
+      }
+  )
+  $qualificationUntracked = (
+    ($qualificationUntrackedManifest -join "`n") | git hash-object --stdin
+  ).Trim()
+  "$qualificationHead/$qualificationTracked/$qualificationUntracked"
+}
+
+$sourceFingerprintBefore = Get-TopologyQualificationSourceFingerprint
 ```
 
 ## Static topology inventory scope
@@ -49,8 +89,9 @@ outside the raw qualification allowlist.
   --dry-run
 ```
 
-The dry run performs no network I/O. It emits only `0x7E11` and `0x7E12` sample
-frames and explicitly records `0x7E13`, `0x7E22`, and `0x7E23` as forbidden.
+The dry run performs no network I/O. It emits the exact planned sequence of one
+`0x7E11` and seven `0x7E12` frames and explicitly records `0x7E13`, `0x7E22`, and
+`0x7E23` as forbidden. Require `PLANNED_REQUEST_COUNT=8`.
 
 ### Live run
 
@@ -63,6 +104,7 @@ $report = 'C:\work\Elmo\evidence\topology-inventory-20260728.txt'
   --confirm PLC-RAW-TOPOLOGY-INVENTORY-READ `
   --host 192.168.0.3 `
   --local 192.168.0.10 `
+  --source-fingerprint $sourceFingerprintBefore `
   --port 4000 `
   --timeout-ms 3000 `
   --output $report
@@ -73,6 +115,7 @@ eight raw topology requests, this scope reads capabilities and requires:
 
 - capability bit 14 `EtherCATTopology` set;
 - nonzero `DiagnosticsBootId`;
+- nonzero `DiagnosticsBuild` and exact current `MapRevision=0x957F101E`;
 - request/response capacities large enough for the topology chunk contract;
 - unchanged `DiagnosticsBootId`, `DiagnosticsBuild`, `CapabilityBits`, `MapRevision`,
   `MaxRequestPayloadBytes`, and `MaxResponsePayloadBytes` across the snapshot.
@@ -103,6 +146,19 @@ PLC output control.
 Use this only after the LASAL IDE T2 structure, `0x7E13/0x7E22` implementations, route,
 and read-owner wiring exist while capability bits 15/16/17 remain off.
 
+First run the exact 17-frame, zero-network plan and inspect the command sequence and
+per-frame SHA-256:
+
+```powershell
+& LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe `
+  topology-io-qualify `
+  --scope integrated-read-owner-dormant `
+  --dry-run
+```
+
+Require `PLANNED_REQUEST_COUNT=17`: one `0x7E11`, seven `0x7E12`, seven configured-node
+`0x7E13`, and the two exact 32-bit `0x7E22` reads. No sample-only shortcut is used.
+
 ```powershell
 $report = 'C:\work\Elmo\evidence\topology-io-dormant-20260728.txt'
 & LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe `
@@ -112,6 +168,7 @@ $report = 'C:\work\Elmo\evidence\topology-io-dormant-20260728.txt'
   --confirm PLC-RAW-TOPOLOGY-IO-READ `
   --host 192.168.0.3 `
   --local 192.168.0.10 `
+  --source-fingerprint $sourceFingerprintBefore `
   --port 4000 `
   --timeout-ms 3000 `
   --output $report
@@ -129,3 +186,55 @@ or output write. The report therefore records
 `PCAP_EVIDENCE=NOT_CAPTURED_BY_TOOL`. Capability bits 15/16 may be enabled only after
 the separate normal, disconnect/reconnect, and 32-pattern physical-correlation matrix is
 captured. `0x7E23` and bit 17 remain outside this tool and gate.
+
+After either live command returns, verify that the working-tree source identity did not
+change during qualification:
+
+```powershell
+$sourceFingerprintAfter = Get-TopologyQualificationSourceFingerprint
+if ($sourceFingerprintAfter -ne $sourceFingerprintBefore) {
+  throw "Source changed during topology qualification: $sourceFingerprintBefore -> $sourceFingerprintAfter"
+}
+```
+
+The final report must contain `FORMAT=LMC_TOPOLOGY_IO_QUALIFICATION_V2`, matching
+`SOURCE_FINGERPRINT_DECLARED`, test/SDK SHA-256 values, exact before/after
+`MAP_REVISION=0x957F101E`, the expected raw request count, `OVERALL_RESULT`, and
+`POST_RESULT_RETENTION_RESULT=PASS`.
+
+## External packet-capture evidence
+
+`PCAP_EVIDENCE=NOT_CAPTURED_BY_TOOL` is intentional. For a formal live run, create one
+basename and preserve the qualifier report, packet capture, and PLC log together:
+
+```powershell
+$evidenceBase = 'C:\work\Elmo\evidence\topology-io-dormant-20260730-01'
+$report = "$evidenceBase.txt"
+$packetCapture = "$evidenceBase.pcapng"
+$plcLog = "$evidenceBase-plc.log"
+$hashManifest = "$evidenceBase-sha256.txt"
+```
+
+1. Start the packet capture before launching the qualifier. For the current controller
+   network, use capture filter
+   `host 10.10.150.1 and (tcp port 4000 or udp port 5000)`.
+2. Run the live qualifier with `--output $report`. Preserve the PLC log under
+   `$plcLog` using the same basename.
+3. Do not stop capture when the last raw response arrives. The process closes the RPC
+   connection, records `OVERALL_RESULT`, and retains two more seconds. Stop the
+   capture only after the qualifier process exits.
+4. Inspect normal payload traffic with display filter
+   `ip.addr == 10.10.150.1 && tcp.port == 4000 && tcp.len > 0`. Inspect transport faults
+   separately with
+   `tcp.analysis.retransmission || tcp.analysis.lost_segment || tcp.analysis.out_of_order || tcp.flags.reset == 1`.
+5. Hash the three evidence files and preserve the result beside them:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath $report, $packetCapture, $plcLog |
+  Format-Table -AutoSize |
+  Out-File -LiteralPath $hashManifest -Encoding ascii
+```
+
+The report's request/response hashes must be traceable to the same frames in the pcap.
+`OVERALL_RESULT=PASS` alone is not physical DI, disconnect/recovery, or output-write
+proof.

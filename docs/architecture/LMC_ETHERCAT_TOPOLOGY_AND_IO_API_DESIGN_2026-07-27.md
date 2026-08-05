@@ -242,12 +242,12 @@ protocol/API read 계약과 별개로 internal dormant qualification 도구는 1
 실행 identity에 속했다는 증거를 만들기 위해 시작/종료 시 동일한 nonzero `DiagnosticsBootId`를
 추가로 요구한다. 이는 bit 14 또는 production read API의 일반 전제조건이 아니다.
 
-`0x7E13/0x7E22/0x7E23`은 LASAL handler와 data source가 없고 bit 15~17도 0이다. 특히
-`0x7E13/0x7E22`를 구현하려면 LASAL IDE에서 기존 `LMCEcatInputLatch`에 CREVIS coupler와
-input/output slot client channels, 네 output observation 변수와
-`CopyTopologyIoSnapshot`/`AdvanceOutputRevision` method declaration을 먼저 추가해야 한다.
-이 IDE 구조 단계에서는 method body를 비워 두며 live snapshot/output owner 구현은 다음
-checkpoint에서 외부 편집한다.
+2026-07-30 current source에는 `0x7E13/0x7E22` LASAL handler와 data source가 있다.
+LASAL IDE에서 `LMCEcatInputLatch`에 CREVIS coupler와 input/output slot client channels,
+네 output observation 변수와 `CopyTopologyIoSnapshot`/`AdvanceOutputRevision` method declaration을
+추가했고, 외부 implementation으로 464-byte coherent snapshot/read owner를 완성했다.
+`IntegratedReadOwnerDormant` SourceOnly/full static과 fresh IDE Rebuild/Link/smoke는 PASS했다.
+bit 15~17은 계속 0이고 `0x7E23` output owner/handler는 없다. PLC download와 live evidence도 없다.
 
 ## 7. wire schema v1
 
@@ -474,9 +474,11 @@ capability가 잘못 켜져도 `0x7E23`을 송신하지 않는다.
 
 ### 7.6 신규 detail code
 
-기존 diagnostics detail 0..25 뒤에 아래 code를 SDK catalog에 추가했다. 현재 LASAL
-`0x7E12` handler는 topology revision 불일치에 `TopologyRevisionMismatch(26)`을 사용한다.
-`0x7E13/0x7E22/0x7E23` handler가 없으므로 code 27~31의 target-side 사용은 아직 없다.
+기존 diagnostics detail 0..25 뒤에 아래 code를 SDK catalog에 추가했다. current LASAL
+`0x7E12/0x7E13/0x7E22` handler는 revision/selector/read-owner 오류에
+`TopologyRevisionMismatch(26)`, `NodeNotFound(27)`, `IOReferenceNotFound(28)`,
+`RTOwnerUnavailable(31)`을 사용한다. output write `0x7E23`은 없으므로
+`OutputRevisionMismatch(29)`와 `OutputMaskInvalid(30)`의 target-side 사용은 아직 없다.
 
 | Code | 이름 | 사용 조건 |
 |---:|---|---|
@@ -875,19 +877,19 @@ service로 옮기거나 두 번째 연결을 합성하지 않는다.
 
 ```powershell
 # 현재 static topology만 있는 source
-Verify-LasalContract.ps1 ... -TopologyIoCheckpoint StaticTopologyOnly
+Verify-LasalContract.ps1 ... -TopologyIoCheckpoint StaticTopologyOnly -ExpectedSdoWriteAxis 1
 
 # IDE client/network와 declaration/method stub 생성 직후, live route/bit는 없음
-Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IdeStructureReady
+Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IdeStructureReady -ExpectedSdoWriteAxis 1
 
 # IDE client/network와 0x7E13/0x7E22 read owner 구현 뒤, bit 15/16은 off
-Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedReadOwnerDormant
+Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedReadOwnerDormant -ExpectedSdoWriteAxis 1
 
 # raw live node/DI 검증 뒤 bit 15/16 활성
-Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedReadOwner
+Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedReadOwner -ExpectedSdoWriteAxis 1
 
 # 0x7E23 single mailbox 구현 뒤, write capability는 계속 off
-Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedOutputOwnerDormant
+Verify-LasalContract.ps1 ... -TopologyIoCheckpoint IntegratedOutputOwnerDormant -ExpectedSdoWriteAxis 1
 ```
 
 `StaticTopologyOnly`는 부분적으로 손으로 만든 client/method를 거부한다. `IdeStructureReady`는
@@ -1154,7 +1156,7 @@ evidence가 없을 때만 허용하고, active evidence가 남으면 connection/
 
 현재 SDK allowlist가 empty이고 PLC bit 17도 off이므로 controls는 표시되지만 submit은
 fail-closed 상태다. VS2019 isolated Debug/Release build와 별도 STA actual-control smoke는
-각각 통과했다. smoke는 VS2019 MSBuild current Release 125/125이며 Admin/Drive read-only exact fake-RPC와 실제 Connect event로 bit-14-only
+각각 통과했다. smoke는 VS2019 MSBuild current Debug/Release 278/278이며 Admin/Drive read-only exact fake-RPC와 실제 Connect event로 bit-14-only
 7-node topology의 7행/CREVIS 3행 표시, 초기 bit 14 OFF 뒤 수동 Load CREVIS 복구, bits
 14~16에서 `0x7E13` Health와 selected-DI `0x7E22` 표시, output-shadow background poll 0회,
 capability downgrade의 stale LIVE 폐기, late-response selection/session guard, mixed-I/O output
@@ -1170,8 +1172,9 @@ verified Enable/Disable/PowerOff는 fresh identity와 post-identity safety gener
 durable resolve를 volatile clear보다 먼저 수행한다. 이 역시 fake-TCP/WPF 회귀이며 PLC runtime
 profile-lock 증거는 아니다.
 same-value SDO Write qualification도 두 번째 안전검사와 값 불변 pre-Write guard를 포함한
-서로 다른 4-ticket PC 흐름만 검증했다. current all-false/empty gate의 강제 handler는
-zero-wire이며 PLC/live Write 증거가 아니다.
+서로 다른 4-ticket PC 흐름을 검증했다. current SDK/PLC source는 Axis 1 exact
+`0x2F00:24 Int32/4`만 활성이고 Axis 2..4와 비승인 target의 강제 handler는 zero-wire다.
+current LASAL Rebuild/Link와 implementation smoke는 PASS했지만 PLC/live Write 증거는 아니다.
 `0x7E13/0x7E22/0x7E23` capability가 off인 현재 WPF build 성공은 runtime 조회나 write 성공을
 뜻하지 않는다.
 
@@ -1238,11 +1241,12 @@ inventory 이후의 dynamic node/I/O gate는 아직 확보하지 않았다.
 - output write capability active: RT owner와 write safety matrix까지 통과한 상태
 
 현재는 configured source snapshot, C# SDK contract/PC 자동 테스트, LASAL
-`0x7E11/0x7E12` static handler/TCP route, bit 14 source activation, 사용자가 보고한 LASAL build PASS,
-`Test2` static inventory wire response와 WPF 7행/CREVIS 3행 표시까지 존재한다. runtime mutation은 fail-closed다.
-`0x7E13/0x7E22/0x7E23`, `LMCEcatInputLatch` CREVIS client/mailbox 확장과 live evidence는
-없다. bit 15~17과 SDK output allowlist도 닫혀 있다.
+`0x7E11/0x7E12` static handler/TCP route, bit 14 source activation,
+`0x7E13/0x7E22` dormant handler와 464-byte `LMCEcatInputLatch` CREVIS read owner,
+fresh IDE Rebuild/Link/smoke PASS, `Test2` static inventory wire response와 WPF 7행/CREVIS 3행
+표시까지 존재한다. runtime mutation은 fail-closed다. `0x7E13/0x7E22` live evidence와
+`0x7E23` output owner/handler는 없고, bit 15~17과 SDK output allowlist도 닫혀 있다.
 
-따라서 static topology wire path는 확인됐지만 dynamic read owner와 production I/O 지원은 아니다.
-`0x7E13/0x7E22` 구현, bit 15/16, GL/slot 상태·DI 변화 capture와 11절의 후속 증거가 없으면
-read-only dynamic topology runtime 완료나 production I/O 지원으로 분류하지 않는다.
+따라서 static topology wire path와 dynamic read-owner source는 확인됐지만 production I/O 지원은 아니다.
+bit 15/16 활성화, GL/slot 상태·DI 변화 capture와 11절의 후속 증거가 없으면 read-only dynamic
+topology runtime 완료나 production I/O 지원으로 분류하지 않는다.

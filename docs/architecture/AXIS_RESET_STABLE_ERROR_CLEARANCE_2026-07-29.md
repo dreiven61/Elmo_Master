@@ -111,6 +111,8 @@ DS402 Fault and drive error-register clearance are not proven.
 
 ## 5. 자동 검증
 
+아래 수치는 2026-07-29 historical checkpoint이며 current 전체 수치는 status 문서를 따른다.
+
 - SDK Release 전체: `974/974 PASS`
 - WPF Release build: warning 0, error 0
 - WPF Release actual-control smoke: `206/206 PASS`

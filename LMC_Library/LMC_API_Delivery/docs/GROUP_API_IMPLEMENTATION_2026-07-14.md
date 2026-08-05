@@ -4,6 +4,12 @@
 
 최종 갱신: 2026-07-23 (`0x7D22 GroupMoveLinearRelative` source/static)
 
+> 이 문서는 2026-07-23 당시 Group command dispatch mapping snapshot을 보존한다.
+> 현재 Group Reset의 pinned group/member stable clearance, prepared/accepted durable journal,
+> exact reconnect/process-restart status-only recovery와 no-replay/PLC-runtime 경계는
+> [Group Reset stable member error-clearance contract](../../../docs/architecture/GROUP_RESET_STABLE_MEMBER_ERROR_CLEARANCE_2026-07-31.md)를
+> 우선한다.
+
 대상:
 
 - PC: `LMC_Library/LMC_API_Delivery/src/LmcGroup.cs`
@@ -87,9 +93,10 @@ Rebuild/Link하거나 PLC에 download하지 않았다. CPU core/priority와 실�
 
 - request: payload 1 byte, `Execute=1`, group descriptor `0x0100`
 - action: group에 연결된 전체 축을 대상으로 `AxQuitError(AxisNo:=0)` 호출
-- 주의: 이 호출은 축/하드웨어 오류를 초기화한다. robot profile 오류 전체를
-  지우는 API가 아니며, ACK 뒤 `GroupReadStatusResult`로 `_ROBOT_ERROR`와
-  `GroupErrorId`가 실제로 해제됐는지 확인해야 한다.
+- 주의: 이 호출은 MMCLib axis error-clearance를 요청한다. Drive의 DS402 Fault
+  Reset 완료나 hardware fault 해제를 뜻하지 않고 robot profile 오류 전체를
+  지우는 API도 아니다. ACK 뒤 pinned member axis status와
+  `GroupReadStatusResult`를 독립적으로 확인해야 한다.
 - servo enable이나 motion 재시작 명령이 아니다.
 
 ### GroupStop

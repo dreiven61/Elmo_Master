@@ -60,10 +60,11 @@ LASAL Class 2 `02.03.001`에서 canonical 프로젝트에 `Rebuild All`을 실�
 즉 최신 저장 결과에서 기존 `_Edit` 프로젝트에서 보였던 implementation 검색
 오류는 canonical 프로젝트에 재현되지 않았다.
 
-## LASAL 설치 자체의 남은 문제
+## LASAL 설치 자체의 남은 문제 (project open-time, Rebuild 차단 아님)
 
 프로젝트를 처음 열 때 발생하는 아래 오류는 저장소 source 오류가 아니라 현재
-PC의 LASAL library 설치 조합 문제다.
+PC의 LASAL library 설치 조합에 의한 open/load-time 오류다. canonical project의
+Rebuild/Link 자체를 차단하는 오류로 분류하지 않는다.
 
 ```text
 MotionLib/Include/global.h(15): Error reading file
@@ -77,6 +78,20 @@ Hardware library에는 그 파일이 없다. 권한 문제가 아니며, 이전 
 또한 현재 프로젝트 compiler는 C78이고 설치된 Hardware, MotionLib, OS Interface,
 System, Tools library는 C81이라 시작 시 version warning이 발생한다. 이번 Rebuild는
 성공했지만 이 경고가 사라진 것은 아니다.
+
+### 2026-07-30 재검증
+
+fresh LASAL reload 후 canonical 프로젝트에서 `Ctrl+F9` Rebuild/Link를 다시
+실행했다. 최종 결과는 `0 error(s), 20 warning(s)`이고 Linker는 `Done`이었다.
+`LMCSdoExecutor.st`의 SHA-256은
+`DA7FD8454F16D24B1696579A54A9807F27B14D06535AEB4AA0000B5B9BB89254`로 build 전후
+변하지 않았다. build 후 implementation 검색은 constructor의 당시 line 949를 포함한
+`LMCSdoExecutor` 8건과 `LMCDiagnosticsService` constructor 1건을 반환했고, smoke 기준
+이후 새 `CInvalidArgException`은 0건이었다. SourceOnly 및 full static contract도 통과했다.
+
+따라서 위 `DriveComL2.h` 오류는 설치 library 무결성 문제로 남지만 현재 canonical
+project의 Rebuild/Link 차단 근거는 아니다. 이 검증은 IDE build/link와 정적 계약만
+증명하며 PLC download 및 live runtime 동작은 아직 증명하지 않는다.
 
 정식 해결은 같은 LASAL release에 맞는 Hardware와 MotionLib 전체 세트를 함께
 설치하거나 LASAL 설치 복구를 수행하는 것이다. 그 뒤 프로젝트 compiler/library

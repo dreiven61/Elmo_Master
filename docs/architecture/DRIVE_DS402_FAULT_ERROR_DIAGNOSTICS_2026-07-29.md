@@ -68,7 +68,7 @@ must record all three observations before and after Reset.
 
 ## Verification boundary
 
-Current PC verification:
+2026-07-29 PC verification checkpoint (historical counts; see the current status document for current totals):
 
 - SDK Debug full suite: `876/876 PASS`
 - SDK Release full suite: `876/876 PASS`

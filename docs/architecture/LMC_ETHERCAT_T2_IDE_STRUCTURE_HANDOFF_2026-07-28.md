@@ -8,18 +8,16 @@
 
 ## 1. 현재 확인 상태
 
-현재 `LMCEcatInputLatch`에는 `EcatMaster`, `Drive1..4`, `RecorderStore` 여섯 client와
-`RtWork`, `CopySnapshot`만 있다. `Motion_Network`도 같은 legacy 연결만 갖고 있다.
-`LMCDiagnosticsService`에는 `HandleEtherCATTopologyIoRequest` 선언이 없으며 `0x7E11/0x7E12`는
-아직 `HandleRequest` 안에 있다.
+2026-07-28~29의 시작 상태에는 `LMCEcatInputLatch`의 legacy client 6개와
+`RtWork`/`CopySnapshot`만 있었고 `HandleEtherCATTopologyIoRequest`와 live route도 없었다.
 
-따라서 아래 구조를 IDE에서 생성하기 전에는 implementation source를 추가하지 않는다.
-
-2026-07-29 재확인에서도 `Coupler/InputSlot/OutputSlot`,
-`HandleEtherCATTopologyIoRequest`, `0x7E13/0x7E22/0x7E23` route는 tracked LASAL source/network에
-없다. 현재 WPF가 7개 configured node와 CREVIS 3행을 표시하는 것은 정적 `0x7E11/0x7E12`
-inventory까지의 결과다. capability bits 15~17이 0인 현재 상태에서 live health/DI/DO 값이
-올라오지 않는 것은 구현 경계와 일치하며, WPF 표시 문제로 판정하지 않는다.
+2026-07-30에는 아래 IDE 구조 생성을 완료했다. `Coupler/InputSlot/OutputSlot` client,
+네 output observation 변수, `CopyTopologyIoSnapshot`/`AdvanceOutputRevision`, diagnostics helper와
+exact `Motion_Network` 연결이 tracked project에 남아 있다. 이어 external implementation으로
+464-byte coherent snapshot과 `0x7E13/0x7E22` route/handler를 완성했다.
+`IntegratedReadOwnerDormant` SourceOnly/full static, fresh IDE Rebuild 0 errors/20 warnings,
+Linker Done와 변경 class direct-open smoke는 PASS했다. capability bits 15~17은 계속 0이고
+`0x7E23`은 없다. PLC download와 live health/DI/DO evidence는 아직 없다.
 
 또한 현재 `.lcp`가 등록한 아래 CREVIS/slot support source 디렉터리는 Git 미추적 상태다.
 
@@ -132,12 +130,14 @@ method implementation은 비워 둬도 된다. IDE 저장 뒤 외부 편집 단�
 ```powershell
 & LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1 `
   -RepositoryRoot C:\work\Elmo\Elmo_Master `
-  -TopologyIoCheckpoint IdeStructureReady
+  -TopologyIoCheckpoint IdeStructureReady `
+  -ExpectedSdoWriteAxis 1
 ```
 
 `IdeStructureReady`는 IDE가 생성한 세 typed client, exact `Motion_Network` 연결, 네 변수와 세 method
-stub만 검증한다. `0x7E13/0x7E22/0x7E23` route는 없어야 하며 capability bit 15~17도 계속 0이어야
-한다. 현재 tree는 client가 6개뿐이라 이 checkpoint를 의도대로 통과하지 않는다.
+stub만 검증한다. 이 과거 구조-only checkpoint에서는 `0x7E13/0x7E22/0x7E23` route가 없어야 하며
+capability bit 15~17도 0이어야 한다. current tree는 이 단계를 지나
+`IntegratedReadOwnerDormant`를 기본 checkpoint로 사용한다.
 
 2. `LMCEcatInputLatch` 464-byte coherent snapshot과 CREVIS health/I/O source 구현
 3. `CopyTopologyIoSnapshot`, `AdvanceOutputRevision` 구현
@@ -148,7 +148,8 @@ stub만 검증한다. `0x7E13/0x7E22/0x7E23` route는 없어야 하며 capabilit
 ```powershell
 & LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1 `
   -RepositoryRoot C:\work\Elmo\Elmo_Master `
-  -TopologyIoCheckpoint IntegratedReadOwnerDormant
+  -TopologyIoCheckpoint IntegratedReadOwnerDormant `
+  -ExpectedSdoWriteAxis 1
 ```
 
 `IntegratedReadOwnerDormant` checkpoint는 read owner와 route/handler를 모두 요구하지만

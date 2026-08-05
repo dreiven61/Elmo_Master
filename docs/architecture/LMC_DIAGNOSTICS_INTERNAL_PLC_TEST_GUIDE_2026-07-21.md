@@ -1,17 +1,18 @@
 # LMC EtherCAT Diagnostics 내부 PLC 시험 가이드
 
 - 작성일: 2026-07-21
+- 최종 preflight 갱신: 2026-07-30
 - 대상: `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
 - PC 시험 앱: `LMC_Library/LasalApiWpfTestApp`
 - 범위: D1 Health/Catalog/PI Read, D2 Bulk, D3 Recorder v1,
-  D4 single-bank Ring/Trigger, D5 general-inline SDO Read와 gate-off exact SDO Write checkpoint
+  D4 single-bank Ring/Trigger, D5 general-inline SDO Read와 Axis 1 exact SDO Write qualification
 - 제외: 고객 배포 패키지 갱신, D4 Double bank, PI Write, arbitrary SDO Write, 8/12-byte 및
   extended SDO result, 기존 D6 static/handle facade
-- preflight 상태: PC 자동 테스트 Debug/Release 각 277/277와 WPF Debug/Release 별도 output
-  build PASS. LASAL SourceOnly 정적 계약은 PASS했다. 새 `TryStartWrite`, `ActiveIsWrite`,
-  `WriteBuffer`, `SdoWriteData`, `GetSdoWritePolicyDetail` declaration은 tracked `.st`에만 있고
-  `Classes.lcb`에는 아직 없으므로 switch 없는 full static은 현재 의도적으로 FAIL한다.
-  사용자가 LASAL IDE에서 declaration 동기화·저장·build한 뒤 full을 다시 통과시켜야 한다.
+- preflight 상태: PC 자동 테스트 Debug/Release 각 1006/1006와 WPF Debug/Release actual-control smoke
+  각 278/278 PASS. `ExpectedSdoWriteAxis=1` LASAL SourceOnly/full 정적 계약도 PASS했다.
+  `TryStartWrite`, `ActiveIsWrite`, `WriteBuffer`, `SdoWriteData`, `GetSdoWritePolicyDetail` declaration은
+  `Classes.lcb`와 동기화됐고 current IDE Rebuild/Link `0 errors / 20 warnings`, implementation smoke와
+  신규 `CInvalidArgException=0`도 PASS했다. current PLC download와 live Write는 미검증이다.
   legacy fixed-vector D5 시험의 same-cycle timeout을 수정했고 후속 download의 Slave 1~4
   `0x1000:0` UInt32 4-byte 경로는 모두 Completed/Success, 43~54 cycles로 PASS했다.
   과거 BootId 6 general-inline 시험은 Submit 두 건이 ticket 전 `ResourceBusy`로

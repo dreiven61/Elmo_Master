@@ -7,12 +7,28 @@
 - 현재 test-profile source capability: BootId 0=`0x00004007`, stable BootId=`0x0000613F`,
   `MaxSdoDataBytes=4`; 신규 topology bit 14 포함
 
-## 2026-07-27 SDO Write checkpoint
+## 2026-07-30 CREVIS integrated read-owner checkpoint
+
+- current LASAL source는 `0x7E11/0x7E12/0x7E13/0x7E22`를
+  `LMCDiagnosticsService`로 route/구현한다. `LMCEcatInputLatch`는 기존 304-byte prefix를
+  유지하면서 CREVIS coupler/input/output 상태와 값을 포함한 coherent 464-byte snapshot을
+  publish하고, `Coupler`/`InputSlot`/`OutputSlot` client는 Motion Network에 연결됐다.
+- `Phase5TransportClean / IntegratedReadOwnerDormant` SourceOnly와 full/network static은
+  PASS했다. fresh LASAL IDE Rebuild/Link는 `0 error(s), 20 warning(s)`, Linker `Done`이고,
+  변경 implementation 직접 open smoke도 성공했다. 현재 LASAL IDE PID의
+  `CInvalidArgException`은 0건이다.
+- 이 단계는 의도적으로 dormant다. capability bit 15 `EtherCATNodeHealth`와 bit 16
+  `DigitalIORead`는 OFF이고, `0x7E23` PLC route/handler는 없으며 bit 17
+  `DigitalIOWrite`도 OFF다. current PLC download, `0x7E13/0x7E22` live response와 실제
+  CREVIS input/output 값 검증은 아직 없다.
+
+## 2026-07-30 SDO Write activation checkpoint
 
 - LASAL `0x7E50`, C# API와 WPF의 exact Int32/4-byte SDO Write 경로를 구현했다.
-- 후보는 Gold `UI[24] 0x2F00:24`, local range `-1073741823..1073741823`이지만 drive
-  program 미사용 여부와 첫 적용 축이 확정되지 않아 PLC/SDK global 및 axis 1..4 gate는 모두
-  FALSE다. 현재 실제 승인 target은 0개다.
+- source 승인 target은 Axis 1 Gold `UI[24] 0x2F00:24`, `Int32/4`, local range
+  `-1073741823..1073741823`의 exact singleton이다. PLC/SDK global gate와 Axis 1 gate는
+  `TRUE`, Axis 2..4 gate는 `FALSE`다. 이는 전송 가능한 source/PC/IDE 계약이며, drive program의
+  UI[24] ownership과 실제 장비 적용 안전성까지 입증한 것은 아니다.
 - WPF는 Write `Completed/Success` 뒤 동일 target/type/length의 exact 4-byte Readback이
   원 Write owner/current session/BootId/MapRevision에서 일치할 때까지 mutation과 Close를
   차단한다. identity mismatch는 Read submit 전에 거부한다. 불명확한 Write outcome은 Read proof로
@@ -23,10 +39,11 @@
   exact ticket/SubmitCycle/BootId의 `Completed+Success` Write terminal status도 context 생성에
   필수다. guarded sync/async readback submit과 owner/session-bound fresh capability/Read status
   terminal 평가를 WPF도 사용하며 capability observation sequence는 context baseline보다 커야 한다.
-  public factory는 current empty SDK allowlist를
+  public factory는 current Axis 1 exact singleton SDK allowlist를
   우회하지 않는다. public SDO Write policy 평가는 승인 target의 immutable snapshot과 cached
   blocker matrix만 사용해 wire 0회로 끝난다. WPF readiness는 `EVALUATION_WIRE=NONE`을 표시하고
-  PLC bit 9가 켜진 경우에도 empty SDK allowlist의 `NoApprovedTarget`을 별도 blocker로 유지한다.
+  PLC bit 9와 SDK target 승인을 독립적으로 평가하며 Axis 2..4 또는 비승인 target은
+  `NoApprovedTarget`으로 wire 전에 거부한다.
 - SDO 요청은 클릭 시 immutable request로 먼저 고정하므로 submit RPC가 진행 중이거나 accepted
   ticket이 operation slot을 점유해도 다음 요청의 필드는 편집할 수 있다. Write의
   Slave/Index/SubIndex/Type/Length/Value도 편집할 수 있지만 실제 Submit은 선택한 SDK-approved
@@ -50,9 +67,9 @@
   보존해 명시 Release만 허용한다. `RecorderDoubleManualActionsReady`,
   `RecorderDoubleManualConfigureRouteReady`, `RecorderDoubleQualificationExecutionReady`,
   `RecorderDoubleReconnectRecoveryReady`는 모두 `false`다.
-- PC current Debug/Release는 876/876 PASS했다. WPF actual-control smoke는 VS2019 MSBuild current
-  Release 125/125 PASS했다. 별도 Release output build와 LASAL SourceOnly static은 PASS했다.
-  full static은 새 same-peer `TCPIPServer`의 stale `Classes.lcb` 등록을 차단했다. smoke는
+- PC current Debug/Release는 1006/1006 PASS했다. WPF actual-control smoke는 VS2019 MSBuild current
+  Debug/Release 278/278 PASS했다. 별도 Debug/Release output build와 LASAL SourceOnly/full static은
+  `ExpectedSdoWriteAxis=1`로 PASS했다. smoke는
   bit-14-only CREVIS 자동 표시, configured `INITIAL/UNCHANGED/CHANGED`, endpoint reset,
   failed/stale baseline 보존과 evidence export, 초기 bit 14 OFF 뒤 수동 Reload CREVIS 복구와 일반 RPC 중
   SDO Write editor 유지/Submit 직렬화, 비모달 immutable arm/편집 시 re-arm/exact second-click consume과
@@ -61,10 +78,10 @@
   Write를 송신하지 않는다. bits 14~16 fake RPC의 `0x7E13/0x7E22` Health/selected-DI 표시,
   output-shadow background poll 0회, 늦은 수동 응답 selection/session guard, mixed-I/O output
   proof와 Health/DI channel별 stale/error, invalid PI/Bulk raw의 `UNAVAILABLE` 표시를 추가로
-  고정했지만 LASAL live handler/PLC 증거는
-  아니다. 실제 WPF child process의 SDO/DO unresolved startup, single-writer,
+  고정했지만 LASAL current source handler의 PLC live 증거는 아니다. 실제 WPF child process의
+  SDO/DO unresolved startup, single-writer,
   Close 차단, `0x7E50/0x7E23` zero-replay, 강제종료 재복구와 typed v2 SDO restart recovery의
-  current empty-allowlist zero-wire도 포함한다. D4 Double active journal의 WPF single-writer
+  Axis 2..4와 비승인 target의 zero-wire도 포함한다. D4 Double active journal의 WPF single-writer
   수명주기, 전역 mutation/Close interlock, 잠긴 journal fail-closed와 두 번의 child process
   강제 종료/restart에서 `0x7E40..0x7E4F` zero-replay 및 byte-identical identity/state 보존도
   포함한다. 추가 smoke는 결정적 Double recovery Guid -> RequestedConfigId와 active journal에서도
@@ -74,23 +91,26 @@
   연속 safe-state proof와 강제 종료 zero-replay를 검증한다. Double
   qualification/retained-cleanup/reconnect/config-only manual Configure adapter는 구현됐지만
   `ManualActions`, `ManualConfigureRoute`, `QualificationExecution`, `ReconnectRecovery`
-  proof/route gate는 모두 `false`이며 live wire/PLC/pcap
-  증거는 없다. generated
-  `Classes.lcb`의 신규 Write declaration 동기화도
-  확인됐다. 사용자는 current topology handler가 포함된 LASAL build PASS를 보고했고 `Test2`에서
-  static `0x7E11/0x7E12` 7-entry wire 응답을 확인했다. 독립 build/download/smoke 로그는
-  보존되지 않았으며 dynamic `0x7E13/0x7E22` T2 client/method/network 구조는 아직 미구현이다.
+  proof/route gate는 모두 `false`이며 live wire/PLC/pcap 증거는 없다. generated
+  `Classes.lcb`의 신규 Write/read-owner declaration 동기화도 확인됐다. current tracked source를
+  다시 연 LASAL IDE에서 Rebuild/Link `0 errors / 20 warnings`, Linker Done을 확인했고,
+  변경 implementation 직접 open smoke와 현재 IDE PID의 `CInvalidArgException` 0건도 확인했다.
+  `Test2`에서는 static `0x7E11/0x7E12` 7-entry wire 응답을 확인했다. current source에는
+  `0x7E13/0x7E22` T2 client/method/network와 464-byte coherent snapshot이 구현됐지만 bits
+  15/16은 OFF다. current PLC download와 live Motion/Power/SDO Write 및 dynamic Health/I/O
+  response는 미검증이다.
 - same-value qualification은 initial baseline Read -> fresh capability -> 첫 safe check -> 운영자
   네 가지 확인 -> unchanged exact pre-Write guard Read -> 최종 두 번째 safe check -> durable journal ->
   동일 4 bytes Write 1회 -> exact guarded Readback 순서다. initial/guard/Write/readback은 서로 다른
   네 ticket을 사용한다. 반환된 Write ticket은 semantic validation 전에 durable journal/quarantine에
   먼저 adopt한다. 두 번째 Read는 race window를 좁히지만 compare-and-write를 원자적으로 만들지
   않으므로 명시적 단일 writer 작업창이 필수다. sentinel, 자동 restore와
-  accepted/outcome-uncertain Write replay는 하지 않는다. current all-false/empty gate에서 강제
-  handler 호출도 zero-wire다. 상세 절차는
+  accepted/outcome-uncertain Write replay는 하지 않는다. current Axis 1 exact target만 전송 경로에
+  진입할 수 있고 Axis 2..4와 비승인 target의 강제 handler 호출은 zero-wire다. 상세 절차는
   `LMC_SDO_WRITE_SAME_VALUE_QUALIFICATION_2026-07-28.md`를 따른다.
-- 실제 활성화 전 남은 gate는 UI[24] 미사용 확인과 시험 축 하나 확정, PLC/SDK 동일 gate 활성화,
-  LASAL build/smoke/download, mailbox/pcap 실행, 명시적 단일 writer 작업창 및 물리 증거다. durable
+- 실제 운전 승인 전 남은 gate는 Axis 1 UI[24] ownership 확인, current PLC download,
+  mailbox/pcap 실행, 명시적 단일 writer 작업창 및 물리 증거다. PLC/SDK 동일 Axis 1 gate와
+  LASAL build/smoke는 현재 source에서 활성/PASS했다. durable
   journal/운영자 ACK 정책은 구현됐고 PC child process와 실제 WPF child process의 강제 종료 뒤
   reopen/interlock 및 RPC zero-replay 회귀도 통과했다. 실제 전원 손실 뒤 recovery와 장비에서의
   물리 확인/ACK 절차 검증은 남았다.
@@ -219,15 +239,16 @@
   status, cancel, deadline과 generation은 한 coordinator 결정으로 선형화한다. proof commit 뒤의
   late cancel/deadline은 이미 게시된 성공을 뒤집지 않는다.
 - restart용 Axis `WaitForPowerStateAsync`는 `0x2028`만 사용하고 ACK를 재사용했다고 표시하지 않는다.
-  current PC 자동 검증은 SDK Debug/Release 876/876, WPF VS2019 MSBuild Release smoke 125/125, LASAL SourceOnly
-  PASS다. 이것은 fake-RPC/정적 증거이며 실제 PLC download, DS402 상태와 물리 축 정지·전원 상태
+  current PC 자동 검증은 SDK Debug/Release 1006/1006, WPF VS2019 MSBuild Debug/Release smoke 278/278,
+  LASAL SourceOnly/full static PASS다. 이것은 fake-RPC/정적 증거이며 실제 PLC download,
+  DS402 상태와 물리 축 정지·전원 상태
   검증은 남아 있다.
 
 ## 2026-07-27 CREVIS topology 및 digital I/O checkpoint
 
 - 현재 working source의 configured physical order는 `GL_9086_11(SlaveIndex 0) ->
   Elmo_11..41(SlaveIndex 1..4)`인 5-slave 구성이다. 이것은 source/ENI/network 확인 결과이며
-  현재 변경의 LASAL Rebuild/Link, PLC download와 실제 I/O PASS는 아니다.
+  current LASAL Rebuild/Link는 PASS했지만 PLC download와 실제 I/O PASS는 아니다.
 - slave 순서/identity, slot module, PDO index/sub-index, I/O 폭과 generated process-image
   mapping은 configured topology에 고정한다. Online/EtherCAT state/AL status, value와
   valid/fresh/stale quality만 runtime에 변한다. 물리 순서를 바꾸면 ENI/network를 다시
@@ -237,9 +258,10 @@
   0..4는 신규 topology API에서만 제공한다.
 - C# SDK contract command는 `0x7E11/0x7E12` topology info/chunk, `0x7E13` node health,
   `0x7E22` digital I/O read, `0x7E23` output write submit이다. model/parser/golden과 capability-off
-  pre-wire 검증은 구현했다. LASAL source에는 7-entry `0x7E11/0x7E12` static serializer와 TCP
-  route가 추가됐고 bit 14를 활성화했다. revision은 `0x15867EEC`, advertised chunk limit은 1이다.
-  `0x7E13/0x7E22/0x7E23`과 capability bit 15~17은 아직 미구현/off다.
+  pre-wire 검증은 구현했다. LASAL source에는 7-entry `0x7E11/0x7E12` static serializer와
+  `0x7E13/0x7E22` read handler/route가 있으며, latch의 coherent 464-byte snapshot과 CREVIS
+  coupler/input/output client도 연결됐다. revision은 `0x15867EEC`, advertised chunk limit은 1이다.
+  bit 14만 활성이고 bit 15/16은 dormant/OFF다. `0x7E23` PLC route/handler는 없고 bit 17도 OFF다.
 - output write는 GT-22BA output slot-module의 configured `IOReference`와 valid mask만 허용한다. whole-word와 atomic
   masked write를 하나의 PLC RT owner가 적용하고, non-RT diagnostics service는 owner/session,
   BootId/topology revision과 ticket을 소유한다. validation 실패, stale/offline/not-OP,
@@ -280,7 +302,8 @@
   CREVIS 구성 정보 표시 개선이며 bit 15~17이 off인 현재 live Health/DI/DO 증거는 아니다.
   현재 실행 파일이면 제목과 startup log에 `CREVIS topology / editable SDO draft` marker가 보인다.
   이 marker가 있는데도 구성 7행/CREVIS 3행이 없으면 PLC bit 14 및 `0x7E11/0x7E12` 응답을
-  먼저 확인한다. live 열은 T2 구조와 bit 15/16이 들어오기 전까지 `UNAVAILABLE`이 정상이다.
+  먼저 확인한다. T2 read-owner 구조가 source에 있어도 bit 15/16 활성화와 current PLC live
+  qualification 전까지 live 열이 `UNAVAILABLE`인 것이 정상이다.
 - `Verify-LasalContract.ps1`는 `Eni.xml`의 GL-9086 -> Elmo 4대 order/identity/physical address,
   CREVIS 32-bit process image와 PDO를 EtherCAT network의 SlaveIndex/slot/device/connection,
   7-entry serializer/revision과 교차검증한다. full static은 generated
@@ -295,10 +318,10 @@
   foreground/safety/qualification/in-flight 중에는 건너뛴다. 현재 bit 15/16이 모두 off이므로
   wire request는 0회다. background monitor는 output shadow를 읽거나 write-authorizing shadow를
   갱신하지 않는다.
-- `0x7E13/0x7E22` LASAL implementation은
-  `LMC_ETHERCAT_T2_IDE_STRUCTURE_HANDOFF_2026-07-28.md`의 client/method/network 구조를 사용자가
-  LASAL IDE에서 생성하기 전까지 진행할 수 없다. generated `.lcb/.lcn`과 channel/table을 외부
-  편집기로 합성하지 않는다.
+- `LMC_ETHERCAT_T2_IDE_STRUCTURE_HANDOFF_2026-07-28.md`의 client/method/network 구조는
+  current tracked project에 생성됐고, `0x7E13/0x7E22` route/handler와 coherent read owner까지
+  `IntegratedReadOwnerDormant` 정적 계약 및 IDE Rebuild/Link로 확인했다. capability bits 15/16은
+  PLC download와 raw live qualification 전까지 OFF로 유지한다.
 - internal qualifier의 `--scope topology-inventory`는 현재 bit 14 단계에서 capability identity
   전후 일치와 exact `0x15867EEC` 7-entry order/identity/CRC를 검증한다. raw allowlist는
   `0x7E11/0x7E12`뿐이고 총 8개 request만 전송하며 `0x7E13/0x7E22/0x7E23`은 전송하지 않는다.
@@ -313,7 +336,7 @@
 | IO-1 | C# model/protocol/golden과 capability-off facade | 완료, 모두 off |
 | IO-1B | PLC topology handler route와 exact envelope | `0x7E11/12` source 구현, bit 14 활성; `Test2` wire response 확인 |
 | IO-2 | configured topology info/chunk와 revision | `0x15867EEC` 7-entry `Test2` live response 확인; durable qualifier report 대기 |
-| IO-3 | node health와 DI/output-shadow coherent snapshot | bit 15/16을 각각 runtime PASS 뒤 활성 |
+| IO-3 | node health와 DI/output-shadow coherent 464-byte snapshot, `0x7E13/0x7E22` route와 CREVIS read-owner wiring | source/static/IDE build 완료; bit 15/16은 각각 PLC runtime PASS 뒤 활성 |
 | IO-4 | RT single-writer, whole/masked mailbox와 `0x7E23` ticket | bit 17 off |
 | IO-5 | invalid mask/offline/stale/contention/response-loss/RT 및 physical output matrix | bit 17을 최종 활성 |
 
@@ -385,12 +408,17 @@ matrix, D1/D2 fault/soak와 D3/D4 실장 시험은 아직 남아 있다.
 | 단계 | 현재 상태 | 구현 범위 | 남은 작업 |
 |---|---|---|---|
 | D0 | 구현됨 | common envelope, capability, BootId, C#/PLC dispatcher | 회귀 시험 유지 |
-| D1 | internal test source 활성; static topology wire PASS | legacy 4-drive Health, 24-entry Catalog, PI Read, RT latch/seqlock, 7-entry static EtherCAT topology source; C# Catalog/Topology owner-session provenance; one-slave Bulk와 4축 Health/StatusWord PI baseline-fault-recovery 교차 판정, invalid raw `UNAVAILABLE` 표시; `Test2`에서 bit 14와 `0x7E11/12` exact 7-entry 응답 확인 | 변경된 `0x7E20` DetailCode의 실제 offline/recovery PLC 검증; topology durable qualifier report, node health/I/O snapshot과 bit 15/16 구현 |
+| D1 | internal test source 활성; static topology wire PASS; integrated read owner dormant | legacy 4-drive Health, 24-entry Catalog, PI Read, RT latch/seqlock, 7-entry static EtherCAT topology; C# Catalog/Topology owner-session provenance; one-slave Bulk와 4축 Health/StatusWord PI baseline-fault-recovery 교차 판정, invalid raw `UNAVAILABLE` 표시; `Test2`에서 bit 14와 `0x7E11/12` exact 7-entry 응답 확인; current source의 464-byte coherent snapshot, `0x7E13/0x7E22` route와 CREVIS coupler/input/output wiring은 source/static/IDE build PASS | 변경된 `0x7E20` DetailCode의 실제 offline/recovery PLC 검증; topology durable qualifier report; current PLC download와 node health/I/O raw live qualification 뒤 bit 15/16 활성 |
 | D2 | internal test source 활성 | 최대 24-entry Bulk configure/status/snapshot/release | same-cycle 및 부하 PLC 검증 |
 | D3 | internal test source 활성 | 1,280,000-byte single bank, 최대 24채널 Manual Recorder, download/adopt/release | RAM, jitter, 장시간 upload, reconnect PLC 검증 |
 | D4 | single-bank Ring/Trigger 활성; C# Double fail-closed contract | pre-trigger ring, Edge/Window/Mask, forced trigger, chronological upload; Double enum/identity/capability-off validation | trigger PLC 검증, 실제 2-bank PLC storage/ownership 및 WPF live qualification 구현 |
-| D5 | general-inline Read source 구현; legacy 4-byte와 수정본 1/2/4-byte 성공 pcap PASS, TypeMismatch 후 same-Boot recovery PASS; public `ReadSdoInline[Async]` bounded terminal facade와 immutable `LMCSdoReadResult` 구현; deliberate contention/timeout/queued-cancel runner code test PASS; disconnect/orphan UI 독립 코어 회귀 28개와 MainWindow abrupt-disconnect application-recovery adapter 및 fake-RPC 2-session full-handler smoke 구현, Debug/Release code/test PASS | 4축 derived executor, 한 ticket, nonzero Index/any SubIndex, typed 1/2/4-byte inline status, queued cancel, timeout/orphan drain; public facade는 capability preflight -> submit -> bounded status poll 뒤 exact owner/session terminal을 판정하고, 이미 수신한 terminal 성공/실패를 늦은 PC cancellation보다 우선한다. nonterminal cancel/timeout은 accepted ticket과 exact `LastObservedStatus`를 보존한다. WPF는 별도 `Read SDO Inline (wait terminal)` 버튼으로 성공 ticket/status/typed/raw를 한 번에 표시하고, accepted timeout/cancel은 기존 수동 cleanup으로 넘긴다. local TCP zero-linger close/no-RPC-`0x405D`, distinct new connection과 fresh owner/session-bound capability, exact `0x6061:0` two-ticket recovery, stable Boot/Map/build/bits/cycle/payload contract, request-timeout+5초/25 ms/exact Rejected-ResourceBusy-only monotonic retry-admission budget, PASS-log-before-clear, proof commit 뒤 late-cancel 무시, GUI adoption 뒤 다른 revision의 CREVIS auto-load와 quarantine clear를 two-session PC E2E로 확인; 결과는 Running/Queued 모두 `ApplicationRecoveryOnly`/`orphanQualified=false`; exact Int32/4-byte SDO Write 실행/API/GUI와 durable policy 및 four-ticket same-value qualification은 gate-off로 구현; returned Write ticket adoption-before-validation과 changed pre-Write zero-mutation 계약 포함; PI Write C# request/API와 Catalog provenance는 fail-closed | PLC `MarkOrphan`/executor token/late-callback drain durable witness와 실제 owner-loss live PLC/pcap을 포함한 Read fault matrix 및 contention/timeout/queued-cancel live packet, public facade의 실제 PLC 재확인, Write target/axis 승인, PLC/SDK 동일 gate 활성화, Rebuild/download, 명시적 single-writer 작업창 및 same-value Write/readback의 mailbox/pcap/물리 증거 후 production 승인; PI Write PLC handler/allowlist/live qualification은 off |
+| D5 | general-inline Read source 구현; legacy 4-byte와 수정본 1/2/4-byte 성공 pcap PASS, TypeMismatch 후 same-Boot recovery PASS; public `ReadSdoInline[Async]` bounded terminal facade와 immutable `LMCSdoReadResult` 구현; deliberate contention/timeout/queued-cancel runner code test PASS; disconnect/orphan UI 독립 코어 회귀 28개와 MainWindow abrupt-disconnect application-recovery adapter 및 fake-RPC 2-session full-handler smoke 구현, Debug/Release code/test PASS | 4축 derived executor, 한 ticket, nonzero Index/any SubIndex, typed 1/2/4-byte inline status, queued cancel, timeout/orphan drain; public facade는 capability preflight -> submit -> bounded status poll 뒤 exact owner/session terminal을 판정하고, 이미 수신한 terminal 성공/실패를 늦은 PC cancellation보다 우선한다. nonterminal cancel/timeout은 accepted ticket과 exact `LastObservedStatus`를 보존한다. WPF는 별도 `Read SDO Inline (wait terminal)` 버튼으로 성공 ticket/status/typed/raw를 한 번에 표시하고, accepted timeout/cancel은 기존 수동 cleanup으로 넘긴다. local TCP zero-linger close/no-RPC-`0x405D`, distinct new connection과 fresh owner/session-bound capability, exact `0x6061:0` two-ticket recovery, stable Boot/Map/build/bits/cycle/payload contract, request-timeout+5초/25 ms/exact Rejected-ResourceBusy-only monotonic retry-admission budget, PASS-log-before-clear, proof commit 뒤 late-cancel 무시, GUI adoption 뒤 다른 revision의 CREVIS auto-load와 quarantine clear를 two-session PC E2E로 확인; 결과는 Running/Queued 모두 `ApplicationRecoveryOnly`/`orphanQualified=false`; exact Axis 1 `0x2F00:24 Int32/4` SDO Write 실행/API/GUI와 durable policy, four-ticket same-value qualification, returned Write ticket adoption-before-validation과 changed pre-Write zero-mutation 계약 활성; Axis 2..4와 비승인 target은 fail-closed; PI Write C# request/API와 Catalog provenance는 fail-closed | current source/PC contract와 LASAL Rebuild/Link/implementation smoke PASS. PLC `MarkOrphan`/executor token/late-callback drain durable witness와 실제 owner-loss live PLC/pcap을 포함한 Read fault matrix 및 contention/timeout/queued-cancel live packet, public facade의 실제 PLC 재확인, current PLC download, Axis 1 UI[24] ownership 확인, 명시적 single-writer 작업창 및 same-value Write/readback의 mailbox/pcap/물리 증거 후 production 승인; PI Write PLC handler/allowlist/live qualification은 off |
 | D6 | Closed - current release Not Planned | Phase 1 D1/D2 기반 PI/Bulk instance facade가 owner/session provenance와 reconnect-stale pre-wire 거부를 포함해 현재 사용 목적을 충족 | 이름이 정해진 Elmo-style compatibility 소비자가 실제로 생길 때만 별도 milestone로 재개; 현재 릴리스 작업 없음 |
+
+current C# protocol inventory는 62개 고유 ID이고 LASAL TCP route는 61개다. route 61개는
+capability-advertised active 53개, dormant read-owner `0x7E13/0x7E22` 2개,
+reserved/dormant 6개로 나뉜다. C# contract에는 있으나 LASAL route가 없는 ID는
+`0x7E23` 하나다.
 
 현재 정상 retained BootId 경로의 capability는 다음과 같다.
 
@@ -487,9 +515,10 @@ case에 맡기지 않고 `LMCDiagnosticsService`의 명시적 handler와 one-tic
   LASAL 구조는 없다. `0x2028 StatusWord=0`, LASAL AxisErrorId, DS402 Fault와
   `0x603F`는 각각 별도 관측이며 실제 Reset 전후 PLC/drive capture가 남아 있다.
 
-위 세 handler와 executor/service 실행부는 최신 정적 계약을 통과했다. 10:53 LASAL IDE
-Rebuild/Link는 gate-off source 기준이므로 gate-on source는 다시 Rebuild해야 한다. 어느
-결과도 PLC mailbox 동작 성공 증거가 아니다.
+위 세 handler와 executor/service 실행부는 최신 정적 계약을 통과했다. current Axis 1 gate-on
+source를 다시 연 LASAL IDE Rebuild/Link는 `0 errors / 20 warnings`, Linker Done이며
+implementation smoke와 신규 `CInvalidArgException` 0건도 확인했다. 어느 결과도 PLC mailbox
+동작 성공 증거가 아니다.
 
 ### 3.7 `EtherCAT_SDOBase` 파생 executor 구현
 
@@ -528,9 +557,9 @@ wire DetailCode 9는 service active/drain gate와 executor non-reusable gate를 
 completion cleanup에는 내부 `Releasing=6`을 사용한다. owned validation failure는
 `ResultReady`로 publish해 service가 terminal Failed로 보고한 뒤 release하고, orphan
 callback은 public 결과 없이 release한다. active token이 없는 unsolicited/duplicate
-callback과 token/atomic ownership 불일치만 hard quarantine한다. SourceOnly/full static
-계약은 PASS했고 `Classes.lcb` declaration도 동기화됐다. 최신 IDE Rebuild/Link는
-대기 중이다. 수정 source의 PLC download와 같은 BootId TypeMismatch 후 한 번의
+  callback과 token/atomic ownership 불일치만 hard quarantine한다. SourceOnly/full static
+  계약은 PASS했고 `Classes.lcb` declaration도 동기화됐다. 최신 IDE Rebuild/Link와
+  implementation smoke도 PASS했다. 수정 source의 PLC download와 같은 BootId TypeMismatch 후 한 번의
 재사용은 12번 capture로 PASS했지만, 더 넓은 연속/fault 재사용 matrix는 남았다.
 
 ## 4. 구현 우선순위
@@ -539,11 +568,11 @@ callback과 token/atomic ownership 불일치만 hard quarantine한다. SourceOnl
 
 | 우선순위 | 작업 | 완료 조건 |
 |---|---|---|
-| P0 | LASAL source 회귀와 D5 shadowing 수정 완료 | D5 실행 source, Recorder terminal Stop, request-local 수정과 정적 계약 통과; 10:53 build는 gate-off baseline |
-| P1 | executor 명시 초기화와 최신 LASAL source PLC 검증 | IDE에서 `LMCSdoExecutor` constructor declaration/`@STD` wiring을 생성하고 private state를 초기화한 뒤 gate-on source Rebuild/implementation smoke, 5절의 D1-D4 행과 D5 재시험을 통과해 packet/trace 결과 보존. `ExpectedSdoWriteAxis>0` 정적 검증은 declaration/metadata/초기화/Idle 공개 순서가 하나라도 없으면 activation을 거부한다. |
+| P0 | LASAL source 회귀와 D5 shadowing 수정 완료 | D5 실행 source, Recorder terminal Stop, request-local 수정, SourceOnly/full 정적 계약과 current Axis 1 gate-on IDE Rebuild/Link·implementation smoke 통과 |
+| P1 | executor 명시 초기화 완료, 최신 LASAL source PLC 검증 대기 | IDE `LMCSdoExecutor` constructor declaration/`@STD` wiring과 private state 명시 초기화, `ExpectedSdoWriteAxis=1` 정적 검증 및 gate-on source Rebuild/implementation smoke는 PASS했다. current PLC download 뒤 5절의 D1-D4 행과 D5 재시험을 통과해 packet/trace 결과를 보존해야 한다. |
 | P2 | D5 general-inline SDO Read-only | 한 ticket/4축/1·2·4-byte inline source와 bit 8+13 광고, public bounded facade 및 WPF one-click terminal Read 구현 완료. terminal-before-cancel과 nonterminal cancel/timeout `LastObservedStatus` 보존을 PC에서 검증했다. legacy 4축, general-inline 1/2/4-byte packet success와 TypeMismatch 후 same-Boot recovery는 확보했으며, 실제 facade packet과 나머지 fault/cancel/orphan matrix가 잔여 gate다. |
 | P3 | D4 Double bank | 두 고정 bank의 dormant source와 정적/PC reference 계약, WPF durable journal open/lock/status/interlock/restart zero-replay 및 qualification/retained-cleanup/reconnect/config-only manual Configure adapter 구현 완료. 네 proof/route gate는 `false`. LASAL build, 2.56 MB RAM, RT jitter, A upload/B capture, exact reconnect/release 실기와 pcap 통과 후에만 bit 6/count 2 및 gate 활성화 |
-| P4 | D5 SDO Write activation qualification | exact Int32/4-byte 실행/API/GUI와 이중 allowlist, type/range/state/owner, durable journal 및 initial baseline -> fresh capability -> safe -> 4 confirmations -> unchanged pre-Write guard -> final safe -> byte-identical Write 1회 -> exact Readback 실행기는 gate-off 구현 완료; four-ticket, returned-ticket durable adoption-before-validation, sentinel/자동 restore/replay 없음. constructor readiness 정적 gate도 구현돼 현재 구조에서는 gate-on을 의도적으로 거부한다. target/axis 승인, IDE constructor 구조 생성, PLC/SDK 동일 gate 활성화, Rebuild/download, single-writer 작업창과 mailbox/pcap/물리 증거 확보. PI Write는 별도 미구현/off 유지 |
+| P4 | D5 SDO Write activation qualification | Axis 1 exact `0x2F00:24 Int32/4` 실행/API/GUI와 PLC/SDK 이중 allowlist, type/range/state/owner, durable journal 및 initial baseline -> fresh capability -> safe -> 4 confirmations -> unchanged pre-Write guard -> final safe -> byte-identical Write 1회 -> exact Readback 실행기가 source/PC에서 활성이다. four-ticket, returned-ticket durable adoption-before-validation, sentinel/자동 restore/replay 없음. constructor readiness, SourceOnly/full static, IDE Rebuild/implementation smoke도 PASS했다. current PLC download, Axis 1 UI[24] ownership 확인, single-writer 작업창과 mailbox/pcap/물리 증거 확보가 남았다. Axis 2..4와 비승인 target은 계속 off이며 PI Write도 별도 미구현/off 유지 |
 | P5 | Closed - D6 static/handle facade Not Planned | current instance facade로 필요한 사용성과 provenance 계약을 충족했다. 명시적인 compatibility 소비자가 생기기 전에는 registry/static wrapper를 추가하지 않음 |
 
 P2를 P3보다 먼저 둔 이유는 SDO Read-only가 한 ticket과 4-byte 결과로 범위를
@@ -738,16 +767,18 @@ loss 복구, RAM/jitter 시험을 모두 통과한 뒤에만 PLC에서 광고하
 
 D5 SDO Write는 Read-only 증분과 분리한 별도 증분으로 이미 구현했다. exact Int32/4-byte
 LASAL 실행 경로, C# API, WPF 편집/submit/readback interlock, SDK/PLC 이중 allowlist와 typed v2
-durable journal이 있으며 기본 gate와 승인 target은 모두 off/empty다. same-value qualification은
+durable journal이 있으며 current source는 Axis 1 exact `0x2F00:24 Int32/4` singleton만 승인한다.
+global과 Axis 1 gate는 on이고 Axis 2..4 및 그 밖의 target은 off다. same-value qualification은
 initial baseline Read와 fresh capability, 첫 safety check, 네 가지 operator confirmation,
 unchanged exact pre-Write guard Read와 그 직후의 최종 두 번째 safety check를 통과한 뒤에만 journal arm -> byte-identical Write 1회 ->
 exact Readback을 수행한다. 네 단계는 서로 다른 ticket이며 returned Write ticket을 durable
 adopt/quarantine한 뒤 의미를 검증한다. 두 번째 Read는 atomic compare-and-write가 아니므로
 single-writer 작업창이 필수다. sentinel, 자동 restore와 자동 replay를 하지 않는다. journal
 recovery는 Write를 replay하지 않고 승인된 terminal-success
-record의 exact target을 1회 Read할 뿐이며 legacy v1과 현재 empty allowlist는 zero-wire다.
-따라서 현재 남은 작업은 target/시험 축 승인, PLC/SDK 동일 gate 활성화, Rebuild/download 및
-mailbox/pcap/물리 evidence 확보다. 후보라도 type, 범위, owner, 물리 축,
+record의 exact target을 1회 Read할 뿐이며 legacy v1, Axis 2..4와 비승인 target은 zero-wire다.
+현재 source/PC 계약과 LASAL Rebuild/Link·implementation smoke는 PASS했다. 따라서 남은 작업은
+current PLC download, Axis 1 UI[24] ownership 확인 및 mailbox/pcap/물리 evidence 확보다.
+승인 target도 type, 범위, owner, 물리 축,
 축 상태를 모두 검사하고 ControlWord와 Target 계열 direct write는 영구 차단한다. PI Write는
 구현하지 않았고 계속 off다.
 
@@ -763,17 +794,17 @@ stale handle, dispose와 concurrent call을 독립 검증한다.
 
 | Gate | 명령 또는 절차 | 합격 기준 | 현재 판단 |
 |---|---|---|---|
-| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU` | current Debug/Release `876/876 passed` | config-only Double Configure, pinned capability owner/session/single-observation, Axis Power On mutation 귀속/final publication, Axis Stop 32개, Axis Reset 33개, Axis PowerOff 35개, Group Enable 35개, GroupStop 34개와 DS402 drive read 계약을 포함한다. PLC runtime 증거는 별도다. |
-| WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.SmokeTests.csproj` Release | current Release 125/125 PASS 및 build error 0 | 기존 회귀에 Axis Power On durable zero-replay, Stop interference 뒤 explicit Power Off completion, PowerOff transient status-only Resume/monitor 재클릭 zero-wire/confirmed-interference replacement/rejected replacement 보존과 Axis Reset accepted-once recovery를 추가했다. 네 D4 proof/route gate는 `false`; 실제 PLC `0x7E13/0x7E22`, Double live recovery, D5 live smoke와 실제 축 motion recovery는 대기다. |
-| LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly` | PASS | `LMCDiagnosticsService` 전체 constructor 38-state 이름/타입, scalar 37개, `BulkSignalIds[0..23]`, no-control-flow/final `C_OK` exact gate와 `LMCRecorderStore` 54개 scalar/array/token, bank descriptor 24개, publish-last/final `C_OK` negative fixture, gate-on `LMCSdoExecutor` constructor readiness activation guard 포함 |
-| LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo>` | 현재 의도한 FAIL | source 검증은 통과하지만 새 same-peer `TCPIPServer`가 stale `Classes.lcb`에 아직 등록되지 않았다. master Save/Rebuild 뒤 재검증한다. |
-| executor initialization | LASAL IDE에서 `LMCSdoExecutor` constructor 생성 후 state/buffer 명시 초기화 | declaration, generated `@STD` call, implementation 및 정적 assertion 일치 | 미완료; current gate-off static은 PASS하지만 `ExpectedSdoWriteAxis=1`은 missing constructor로 의도한 FAIL. 자동 zero-init 보장을 확인하지 못했으며 current Busy의 직접 원인으로 확정된 것은 아님 |
-| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | 10:53 gate-off baseline 통과; fixed-source runtime download 확인, build log 미보존 |
-| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | InputLatch, RecorderStore, DiagnosticsService와 새 executor implementation이 정상 로드되고 IDE 예외가 없음 | fixed-source smoke 기록은 미보존 |
-| LASAL IDE log | smoke 시작 시각 이후 `%TEMP%\Lasal2.log` 검색 | 신규 `CInvalidArgException` 0건 | 10:53 Rebuild error 0; 최신 implementation smoke 기준 검사는 대기 |
+| C# PC contract | `MSBuild.exe LasalMotionControlLib.Tests.csproj /t:RunPcTests /p:Configuration=Debug /p:Platform=AnyCPU` | current Debug/Release `1006/1006 passed` | config-only Double Configure, pinned capability owner/session/single-observation, identity-pinned SDO Write pre-wire, Axis Power On mutation 귀속/final publication, Axis Stop/Reset/PowerOff, Group Enable/Stop/Reset, recovery identity retirement/readmission과 DS402 drive read 계약을 포함한다. PLC runtime 증거는 별도다. |
+| WPF build/smoke | VS2019 MSBuild로 `LasalApiWpfTestApp.SmokeTests.csproj` Debug/Release | current Debug/Release 278/278 PASS 및 build error 0 | 기존 actual-control 회귀와 recovery identity read-only quarantine/explicit retirement/readmission, Single Axis live accepted-once/no-duplicate qualification, Axis 1 exact SDO Write activation, Group Reset accepted-once/member proof/safety reconciliation, proof identity drift/disconnect 영구 폐기 및 Axis 2..4 zero-wire를 포함한다. 네 D4 proof/route gate는 `false`; 실제 PLC `0x7E13/0x7E22`, Double live recovery, D5 live Write와 실제 축 motion recovery는 대기다. |
+| LASAL SourceOnly contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -SourceOnly -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint IntegratedReadOwnerDormant -ExpectedSdoWriteAxis 1` | PASS | 기존 diagnostics/Recorder/SDO 계약에 더해 464-byte coherent snapshot, `0x7E11/12/13/22` route/handler와 CREVIS read-owner client 계약을 확인한다. bit 15/16은 OFF로 요구한다. |
+| LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint IntegratedReadOwnerDormant -ExpectedSdoWriteAxis 1` | PASS | source, generated metadata, same-peer `TCPIPServer`, executor declaration/network, Axis 1 exact allowlist와 CREVIS coupler/input/output network wiring이 current tracked project와 일치한다. |
+| executor initialization | LASAL IDE의 `LMCSdoExecutor` constructor state/buffer 명시 초기화 | declaration, generated `@STD` call, implementation 및 정적 assertion 일치 | PASS; constructor implementation SHA256 `DA7FD8454F16D24B1696579A54A9807F27B14D06535AEB4AA0000B5B9BB89254`, `ActiveToken := 0;` 8건을 build 전후 확인했다. |
+| LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | current integrated read-owner/Axis 1 gate-on source Rebuild/Link `0 errors / 20 warnings`, Linker Done. 설치 library/project version warning은 남아 있고 PLC download는 미실시다. |
+| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | 변경 implementation이 정상 로드되고 IDE 예외가 없음 | PASS; 기존 executor/service 검색과 latest 변경 implementation 직접 open 성공 |
+| LASAL IDE log | 현재 IDE PID의 `%TEMP%\Lasal2.log` 검색 | `CInvalidArgException` 0건 | PASS; current IDE PID `CInvalidArgException` 0건 |
 | CREVIS configured topology | current project Rebuild/Link, download 후 EtherCAT diagnostics | GL=physical index 0, Elmo=1..4인 5-slave configured order와 Vendor/Product/slot/PDO exact | ENI/network/serializer/generated-table drift static gate와 9개 negative fixture PASS. 사용자 LASAL build PASS 보고; `Test2`에서 GL + Elmo 4 + slot 2의 static 7-entry 응답 확인 |
 | topology inventory raw qualifier | `topology-io-qualify --scope topology-inventory --execute-live --confirm PLC-RAW-TOPOLOGY-INVENTORY-READ ...` | bit 14와 nonzero BootId, pre/post capability identity 동일, `0x15867EEC` 7-entry order/identity/CRC exact; raw request는 `0x7E11/12` 8개뿐이고 `0x7E13/22/23` 없음; durable report 완결 | `Test2` raw pcap의 static sequence/response PASS, qualifier durable report 대기; static configured inventory만 입증 |
-| topology/I/O read | `0x7E11/12/13/22` golden과 PLC read | topology revision/order exact, legacy `0x7E10` byte-identical, node state/quality만 동적, DI bit pattern 일치 | C# contract/parser와 WPF configured/live read UI 완료; LASAL `0x7E11/12` static live PASS; generated 구조-only `IdeStructureReady`를 추가했으며 current latch client 6개라 예상 실패; `IntegratedReadOwnerDormant`도 route 목록에 `0x7E13/22`가 없어 예상 실패하며 bit 15/16과 T2 IDE 구조가 미구현 |
+| topology/I/O read | `0x7E11/12/13/22` golden과 PLC read | topology revision/order exact, legacy `0x7E10` byte-identical, node state/quality만 동적, DI bit pattern 일치 | C# contract/parser와 WPF configured/live read UI 완료; LASAL `0x7E11/12` static live PASS; current `IntegratedReadOwnerDormant` source/full static과 IDE build/smoke PASS, 464-byte snapshot 및 `0x7E13/22` route/client wiring 구현. bit 15/16은 OFF이며 current PLC dynamic read는 미검증 |
 | digital output write | `0x7E23` CAS ticket whole/masked/fault/RT matrix | single RT owner, stale output revision 거부, unmasked bit 보존, invalid/stale/offline에서 mutation 0, response-loss 자동 replay 0 | C# snapshot-bound request, ticket/policy/submission outcome context와 guarded WPF submit/exact full-shadow readback, durable unresolved mutation/Close interlock, restart recovery와 physical-verify/explicit-ACK UI 완료, SDK allowlist empty; PLC/LASAL 미구현, capability bit 17은 0 |
 | diff hygiene | `git diff --check`와 staging 시 `git diff --cached --check` | whitespace error 0 | 최종 작업 종료 시 반복 |
 | PLC capability | 변경 project download 후 `Refresh Capabilities` | stable BootId에서 `0x0000613F`, MaxSDO=4, topology bit 14 | `Test2` BootId 17에서 `0x0000613F` live 확인; bits 15~17 off |
@@ -808,17 +839,19 @@ model을 저장해 외부 implementation을 덮어쓰지 않는다.
 4. 사용자 문서와 release status의 수치 및 미구현 표기가 source와 일치한다.
 
 현재 working source에는 D1-D4와 활성화한 D5 general-inline 실행부, shadowing 수정 및
-4개 Elmo에 앞선 GL-9086을 포함한 configured 5-slave network source가 있다. 후자는 아직
-LASAL build/download/live I/O 증거가 없다. legacy `0x1000:0` drive 1~4와 수정본 general-inline 1/2/4-byte
+4개 Elmo에 앞선 GL-9086을 포함한 configured 5-slave network source가 있다. CREVIS
+read-owner의 464-byte snapshot, `0x7E13/0x7E22` route와 network wiring은 current
+SourceOnly/full static 및 LASAL Rebuild/Link를 통과했다. PLC download와 live I/O 증거는 없다.
+legacy `0x1000:0` drive 1~4와 수정본 general-inline 1/2/4-byte
 happy path는 성공 pcap을 확보했고 TypeMismatch 후 same-Boot executor 재사용도
 확인했다. contention runner와 PC 계약 12개, disconnect/orphan UI 독립 코어와 계약 28개 및
 WPF abrupt-disconnect application-recovery adapter와 fake-RPC 2-session full-handler smoke는 완료됐다.
 후자는 local TCP abort 뒤 새 connection recovery, quarantine clear와 새 CREVIS topology adoption까지만
 증명하며 `orphanQualified=false`다. PLC durable lifecycle witness와
-live owner-loss packet은 없다. D1 one-slave Health/PI 판정과 stale raw
-표시도 PC/WPF/정적 계약까지만 완료됐고 LASAL build/download/live fault evidence는 없다.
-constructor 명시 초기화, 나머지 D5 fault/timeout/cancel/orphan live matrix와
-5절 검증 및 위 IO-0~IO-5가 남았다.
+live owner-loss packet은 없다. D1 one-slave Health/PI 판정과 stale raw 표시 및 integrated
+read-owner는 PC/WPF/source/static/IDE build까지만 완료됐고 PLC download/live fault evidence는
+없다. constructor 명시 초기화, 나머지 D5 fault/timeout/cancel/orphan live matrix와 5절 검증,
+IO-3의 raw live qualification 및 IO-4~IO-5가 남았다.
 따라서 D1-D5를 production 완료로 분류하지 않는다. current test source 광고값은
 `0x0000613F`, `MaxSdoDataBytes=4`다. `0x0000213F`는 topology bit 14 추가 전 BootId 6
 capture 값이다.

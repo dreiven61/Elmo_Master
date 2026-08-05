@@ -2,7 +2,8 @@
 
 - 작성일: 2026-07-20
 - 상태: D1~D3, D4 single-bank Ring/Trigger와 D5 general-inline SDO Read
-  internal test source 활성, D4 Double 및 D5 Write/extended result는 capability-off,
+  internal test source 활성. D5 Write는 Axis 1 exact `0x2F00:24 Int32/4`만 source/PC/IDE active이고
+  Axis 2..4와 비승인 target은 fail-closed다. D4 Double 및 D5 extended result는 capability-off,
   기존 static/handle D6 계획은 후속 재평가, D1/D2 기반 PI/Bulk instance facade 구현,
   최신 외부 source 정적 계약 통과, D0/D1/D2와 D5 legacy 4-byte 및 수정본
   general-inline 1/2/4-byte 성공 pcap PASS, TypeMismatch 후 same-Boot recovery PASS,
@@ -2357,10 +2358,10 @@ PLC와 wire 변경 없이 C# compatibility layer만 추가한다.
   compiler warning 6줄(C78 project 1줄과 C81 library mismatch 5줄)
 - 해당 snapshot `Find in Implementation`: InputLatch, RecorderStore,
   TCPMotionInterface.Diagnostics 3건 PASS, 신규 `CInvalidArgException` 0건
-- 현재 외부 source의 SourceOnly/full static contract: PASS
+- 2026-07-21 당시 외부 source의 SourceOnly/full static contract: PASS
 - `Classes.lcb` general `TryStartRead` declaration과 generated metadata 동기화: PASS
 - gate-on D5 fixed-source runtime download: 확인, 대응 IDE Rebuild/Link log는 미보존
-- 현행 PC 자동 테스트: Debug/Release 각 148/148 PASS
+- 당시 PC 자동 테스트: Debug/Release 각 148/148 PASS; current total은 status 문서를 따른다.
 - 개발 WPF Debug/Release build와 각 3초 startup smoke: PASS
 
 2026-07-22 legacy runtime에서 BootId 5, `0x13F`, MaxSDO=4와 Slave 1~4

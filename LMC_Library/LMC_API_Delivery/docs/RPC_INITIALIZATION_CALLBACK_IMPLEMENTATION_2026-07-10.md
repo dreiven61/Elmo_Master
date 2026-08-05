@@ -2,6 +2,8 @@
 
 작성일: 2026-07-10
 
+P0 endpoint ownership/session provenance 갱신: 2026-07-31
+
 ## 결론
 
 RPC 연결은 단순 TCP connect가 아니다. 현재 사용 순서는 아래와 같다.
@@ -65,6 +67,31 @@ UINT16 Status
 INT16  ErrorId
 ```
 
+2026-07-31 P0 변경에서도 이 wire shape는 그대로다. command ID, request 12-byte
+payload와 response 4-byte ACK에 새 필드를 추가하지 않았다.
+
+LASAL handler는 request 값을 바로 persistent state에 쓰지 않고 임시
+`callbackEventMask`, `callbackPort`, `callbackIPv4`에 먼저 읽는다. 아래 조건을 모두
+통과할 때 최초 tuple만 commit한다.
+
+1. payload가 정확히 12 bytes이고 현재 socket이 초기화된 RPC owner다.
+2. `CurrentPeerValid = TRUE`다.
+3. 요청 IPv4가 `CurrentPeerIPv4`와 exact match한다.
+4. port가 `1..65535`다.
+
+이미 tuple이 등록된 경우에는 event mask, port, IPv4가 모두 같은 exact duplicate만
+멱등 성공한다. 하나라도 다른 re-registration은 실패 ACK를 반환하고 기존 tuple은
+변경하지 않는다. malformed/peer mismatch 요청도 기존 등록을 지우지 않는다. endpoint
+변경은 새 RPC session에서만 가능하다.
+
+IPv4 raw value 비교의 정적 근거는 설치된 SIGMATEK 예제
+`GetBroadCastData\GetBroadCastData.st`다. 이 예제는 `UDINT`를
+`value & 16#ff`, `(value SHR 8) & 16#ff`, `(value SHR 16) & 16#ff`,
+`value SHR 24` 순서로 `OS_TCP_USER_TOIP`에 전달한다. 즉 주소 octet을 UDINT
+LSB부터 복원한다. 이는 `0x405C`의 `BYTE[4]`를 UDINT로 읽어
+`OS_TCP_USER_GETPEERIP` 결과와 비교하는 현재 구현의 byte order 근거다. 다만 이는
+설치 source 검토 결과이며 target PLC runtime wire 검증은 아니다.
+
 ### `0x405D` Close
 
 payload byte 하나가 `0`인 9-byte 요청을 보내고 4-byte ACK를 받은 뒤 PC가
@@ -93,6 +120,8 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - close nonzero ACK는 `RpcCloseResponse`를 보존하고 local TCP/UDP cleanup 뒤
   호출자에게 예외 전달
 - callback remote source-address 기본 검증, rejected count와 payload 방어 복사
+- raw `LMCCallbackEventArgs`에 listener가 소유한 positive `SessionGeneration`과
+  `BelongsTo`/`BelongsToCurrentSession` provenance 제공
 - 취소 가능한 init/close/axis/group async API
 - timeout/전송 오류와 in-flight 취소는 해당 transport generation을 폐기하고
   `Faulted`로 전환. queue 대기 중 취소는 active request를 닫지 않음
@@ -101,6 +130,8 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - UDP callback receive/error/rejected-count 경로를 listener 객체와 connection
   lifetime generation에 귀속해 bounded join 뒤 늦게 끝난 이전 handler가 replacement
   session의 error event나 rejected count를 오염시키지 않음
+- WPF dispatcher queue에 들어온 raw callback도 active connection identity와
+  `BelongsToCurrentSession`을 다시 확인하고 stale session이면 log/UI 반영 없이 폐기
 
 ### Tracked LASAL
 
@@ -116,7 +147,9 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - 응답 socket을 마지막 접속 socket이 아니라 요청 `dSock`으로 선택
 - callback 등록을 끝낸 owner socket만 lookup/read/motion command 허용
 - `0x8080` init response
-- `0x405C` event mask, UDP port, IPv4 저장과 ACK
+- `0x405C` validate-then-commit endpoint ownership: `CurrentPeerValid`, exact TCP-peer
+  IPv4, port `1..65535`, first-valid commit, exact-duplicate idempotence, mismatch
+  re-registration rejection과 기존 tuple 보존
 - `0x405D` ACK 후 session/callback state 정리
 - socket disconnect 시 해당 RPC state 정리
 
@@ -159,9 +192,17 @@ CodeGenerator 실행에서 declaration이 사라지고 구현부 compile이 깨�
    각각 한 번만 처리되는지 확인
 10. callback 등록 전 motion 요청과 다른 socket의 motion 요청이 nonzero
     header status로 거부되는지 확인
+11. `CurrentPeerValid=FALSE`, peer IPv4 mismatch와 port `0`/`65536`이 실패하고
+    accepted tuple을 바꾸지 않는지 확인
+12. 최초 valid tuple과 exact duplicate는 성공하고 event mask/port/IP 중 하나라도
+    다른 re-registration은 실패하면서 최초 tuple을 보존하는지 확인
+13. reconnect 직전 UI dispatcher에 queued된 raw callback이 새 session log에 나타나지
+    않는지 확인
 
-LASAL IDE build와 실제 PLC 재캡처는 이 환경에서 수행할 수 없으므로 아직
-E2E 완료로 표시하지 않는다.
+LASAL IDE compile, PLC download와 실제 PLC 재캡처는 아직 수행하지 않았으므로
+E2E 완료로 표시하지 않는다. 특히 endpoint ownership은 tracked source/PC 계약이며
+target의 `OS_TCP_USER_GETPEERIP` byte order와 duplicate/mismatch ACK는 live capture가
+필요하다.
 
 ## PC 로컬 검증 결과
 

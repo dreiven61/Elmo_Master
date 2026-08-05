@@ -57,7 +57,11 @@
 ## 4. ST 문법/구현 규칙
 
 - `CASE ... OF` 기본 분기는 `default:`가 아니라 `else`를 사용한다.
-- 이 프로젝트에서 검증된 OR 표현은 `|`다. `OR`는 기존 코드/컴파일 근거 없이 새로 쓰지 않는다.
+- BOOL 조건 결합에는 `|`를 사용할 수 있지만, 정수 bit mask 결합에는 `OR`를
+  사용한다. `|`를 UDINT capability mask에 사용하면 C78 runtime에서 결과가 BOOL
+  `1`로 축약되는 것이 확인됐다. `LMCDiagnosticsService`의 capability overlay,
+  verification flag 누적 및 retired tombstone처럼 bit를 보존해야 하는 식에는
+  `value OR mask`만 사용한다.
 - postfix `$DINT`/`$UDINT`는 숫자 변환이 아니라 해당 주소를 지정 폭으로
   재해석하는 memory overlay다. `UINT`/`INT` 값을 32비트 숫자로 확대할 때는
   `TO_DINT(...)`/`TO_UDINT(...)`를 사용한다. wire byte buffer를 읽고 쓰는

@@ -2,6 +2,8 @@
 
 Date: 2026-07-09
 
+P0 ownership/session-provenance update: 2026-07-31
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -44,6 +46,37 @@ The captured `0x405C` frame confirms that the controller receives a PC IPv4
 address and UDP port. No actual callback datagram has been captured yet, so the
 payload remains raw and LASAL event sending is not defined in this phase.
 
+The `0x405C` wire shape is unchanged: its payload remains exactly 12 bytes
+(`event mask UDINT + callback port DINT + IPv4 BYTE[4]`) and the response remains
+the existing 4-byte command-result ACK. The P0 change tightens ownership; it does
+not introduce a new command, payload field, or typed event schema.
+
+## PLC endpoint ownership
+
+The tracked `TCPMotionInterface` treats the callback endpoint as part of the
+current TCP RPC session:
+
+- `CurrentPeerValid` must be true.
+- The requested callback IPv4 must exactly equal the current TCP peer IPv4.
+- The requested UDP port must be in `1..65535`.
+- The handler parses into temporary values and commits the first valid
+  `(event mask, port, IPv4)` tuple only after every check passes.
+- Repeating the exact accepted tuple is idempotent.
+- A different re-registration is rejected and the previously accepted tuple is
+  preserved unchanged.
+
+Thus a client cannot register a third-party callback address, change the
+accepted endpoint in place, or destroy a valid registration with a malformed
+retry. A new tuple requires a new RPC session.
+
+The byte-order comparison has static vendor evidence. The installed SIGMATEK
+`GetBroadCastData.st` example converts an IPv4 `UDINT` to text by passing the
+least-significant byte first, followed by shifts of 8, 16, and 24 bits, to
+`OS_TCP_USER_TOIP`. This is consistent with copying the four `0x405C` IPv4 bytes
+into a LASAL `UDINT` and comparing that value with `OS_TCP_USER_GETPEERIP`.
+This evidence is source-level only; a current PLC compile/download and packet
+capture must still prove the comparison on the target runtime.
+
 ## Public API
 
 `LMCConnection` exposes:
@@ -54,11 +87,20 @@ payload remains raw and LASAL event sending is not defined in this phase.
 - `CallbackLocalEndPoint`
 - `RejectedCallbackCount`
 - `LMCConnectionOptions.ValidateCallbackSourceAddress` (default `true`)
+- `LMCCallbackEventArgs.SessionGeneration`
+- `LMCCallbackEventArgs.BelongsTo(connection)`
+- `LMCCallbackEventArgs.BelongsToCurrentSession(connection)`
 
 The payload is intentionally raw bytes. `LMCCallbackEventArgs.Payload` returns
 a defensive copy, and the default listener accepts datagrams only from the
 configured controller IPv4. Do not parse the bytes until real callback captures
 exist.
+
+Each raw callback event also carries the RPC session generation captured by its
+owning listener. `BelongsTo` checks the owning `LMCConnection` instance;
+`BelongsToCurrentSession` additionally requires that the captured generation is
+still the connection's current session. These members establish provenance for
+raw bytes only and do not assign those bytes a typed meaning.
 
 ## Lifecycle
 
@@ -107,11 +149,23 @@ listener object and connection-lifetime generation. A late exception from an
 old handler is therefore suppressed after a replacement session starts and
 cannot contaminate that session's error event or rejected count.
 
+The example WPF application repeats the provenance check after its dispatcher
+queue is reached. It drops a callback unless the sender is still the active
+connection and `BelongsToCurrentSession` is true. An event accepted by an old
+listener therefore cannot become a raw log entry after Close/reconnect merely
+because it was already queued for the UI thread.
+
 ## Current Limitation
 
 The listener does not interpret callback payloads yet. The tracked LASAL phase-1
-handler stores event mask, UDP port, and PC IPv4 but does not send event
-datagrams. Consumers can log or capture `CallbackReceived.Payload` and
-`CallbackReceived.RemoteEndPoint` after a sender is added to build the parser.
+handler validates and owns event mask, UDP port, and PC IPv4 but does not send
+event datagrams. Consumers can log or capture current-session
+`CallbackReceived.Payload` and `CallbackReceived.RemoteEndPoint` after a sender
+is added to build the parser. A typed sender/parser remains explicitly excluded
+until a real callback payload is captured or an approved local schema is added.
+
+No PLC runtime result is claimed by this document. LASAL IDE compile, PLC
+download, exact duplicate/mismatch registration capture, and real callback
+datagram capture remain pending.
 
 See `RPC_INITIALIZATION_CALLBACK_IMPLEMENTATION_2026-07-10.md`.

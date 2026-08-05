@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>LMC_HOME_CURRENT_POSITION_ZERO_AND_ENCODER_MAINTENANCE_IDE_HANDOFF_2026-08-03</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+
+<style id="md-pandoc-exporter-clean-print-style">
+@page { size: Letter; margin: 0.60in 0.45in 0.55in 0.45in; }
+html {
+  background: #fff !important;
+  color: #222;
+  font-family: Arial, "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #222;
+  overflow-wrap: break-word;
+}
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 28px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 28px 0 18px;
+  font-weight: 700;
+}
+h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 26px 0 14px;
+  font-weight: 700;
+}
+p { margin: 0 0 14px; }
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  page-break-inside: auto;
+  table-layout: auto !important;
+}
+thead { display: table-header-group; }
+tr {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+th,
+td {
+  border: 1px solid #d9d9d9 !important;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+th {
+  font-weight: 700;
+  background: #fff;
+}
+tbody { border: 0 !important; }
+code {
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-size: 0.84em;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+ul,
+ol {
+  margin: 0 0 14px 24px;
+  padding: 0;
+}
+li { margin: 3px 0; }
+@media print {
+  body { font-size: 14px !important; }
+  h2,
+  h3,
+  h4 { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<h1 id="lmc-home-current-position-zero-and-encoder-maintenance-ide-handoff">LMC
+Home current-position zero and encoder maintenance IDE handoff</h1>
+<p>작성일: 2026-08-03</p>
+<blockquote>
+<p>2026-08-04 TW19/TW20 정정·활성화: 이 문서의 과거 checkpoint에 기록된
+<code>CommandValue=FeedbackSocket</code>, 축별 manifest 및 gate OFF
+판정은 <a href="./LMC_ENCODER_MAINTENANCE_TW19_TW20_FIXED_ONE_ACTIVATION_2026-08-04.md">TW19/TW20
+fixed-one activation</a>으로 대체한다.</p>
+</blockquote>
+<h2 id="확정-범위">1. 확정 범위</h2>
+<p>이 문서는 다음 네 기능을 실제 구현하기 위한 LASAL IDE declaration 및
+Network 변경의 authoritative handoff다.</p>
+<table>
+<thead>
+<tr>
+<th>기능</th>
+<th>Wire</th>
+<th>확정 동작</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LMC_Home</code></td>
+<td><code>0x7D13/0x7D18/0x7D19</code></td>
+<td>현재 축 좌표를 <code>0</code>으로 재설정한다. 물리 이동, Home
+switch, limit switch를 사용하지 않는다.</td>
+</tr>
+<tr>
+<td><code>LMC_HomeDS402</code></td>
+<td><code>0x7D15/0x7D16/0x7D17</code></td>
+<td>DS402 Homing method <code>37</code>, Home offset <code>0</code>만
+허용한다. 물리 이동과 switch를 사용하지 않는다.</td>
+</tr>
+<tr>
+<td><code>TW20</code></td>
+<td><code>0x7E53/0x7E54/0x7E55</code></td>
+<td>exact <code>0x20FC:0x02</code>에 UInt16 <code>1</code>을 2 byte로
+쓴다.</td>
+</tr>
+<tr>
+<td><code>TW19</code></td>
+<td><code>0x7E53/0x7E54/0x7E55</code></td>
+<td>exact <code>0x20FC:0x01</code>에 UInt16 <code>1</code>을 2 byte로
+쓴다.</td>
+</tr>
+</tbody>
+</table>
+<p>프로젝트 공개 API, UI, LASAL symbol, test 및 설계 문서에서는
+<code>LMC</code> 이름만 사용한다. 이전 문서의 switch-search Home,
+<code>MoveReference()</code>, DS402 method 35 및 임의 Home offset 설계는
+이 문서로 폐기한다.</p>
+<p><code>TW19</code>와 <code>TW20</code>의 write value는 둘 다 고정
+UInt16 <code>1</code>이다. <code>DriveReference</code>가 실제 drive 축을
+선택한다. 범용 <code>TW[]</code> LONG alias
+<code>0x3204:0x13/0x14</code>로 대체, fallback 또는 이중 전송하지
+않는다.</p>
+<p>전용 source gate는 <code>LMC_ADMIN_AXIS_HOME_ENABLED</code>,
+<code>LMC_DIAG_DS402_HOME_ENABLED</code>,
+<code>LMC_DIAG_ENCODER_TW20_ENABLED</code>,
+<code>LMC_DIAG_ENCODER_TW19_ENABLED</code>다. 앞의 두 gate는 각 complete
+triad와 Admin capability bit 4/6을 원자적으로 맞춘다. TW20/TW19 gate와
+Diagnostics bit 18/19는 2026-08-04 fixed-one 계약에서
+<code>TRUE</code>/ON으로 활성화했다. Home과 DS402 Home gate는 별도
+상태이며 이 변경으로 활성화하지 않는다.</p>
+<h2 id="실행-경계">2. 실행 경계</h2>
+<p><code>_LMCAxis.SetPosition()</code>은 해당 axis realtime thread와
+같은 CPU core에서, realtime thread와 같거나 더 낮은 priority의
+thread에서만 호출할 수 있다. 따라서 <code>LMC_Home</code>의 좌표
+재설정은 TCP task에서 직접 실행하지 않는다.</p>
+<p>현재 <code>LMCEcatInputLatch1</code>은
+<code>_LMCAxis1.LMCPreRtWorkTrigger</code>에 연결돼 있고
+<code>_LMCAxis1..4.Control</code> client를 이미 가진다. 여기에 전용
+one-shot RT mailbox를 추가해 다음을 연속된 RT sample로 수행한다.</p>
+<ol type="1">
+<li>대상 axis가 Standstill인지 확인한다.</li>
+<li>raw drive actual position과 LASAL application/internal position을
+보존한다.</li>
+<li><code>SetPosition(Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST, Position:=0)</code>을
+정확히 한 번 호출한다.</li>
+<li>raw drive actual position 전후 sample의 차이는 stationary feedback
+허용 창 <code>-1/0/+1 count</code> 안이고 LASAL
+actual/set/destination/master position은 <code>0</code>으로 정렬되는지
+3개의 fresh sample로 확인한다. <code>+/-2 count</code> 이상은 계속
+fail-closed한다.</li>
+<li>native command state, axis status/error, 전후 위치 및 cycle을
+terminal result로 게시한다.</li>
+</ol>
+<p>이 경로는 모터를 움직이는 reference search가 아니다.</p>
+<p>PC response parser와 PLC detail mapping은 다음 exact failure
+allow-list를 공유한다.</p>
+<ul>
+<li><code>LMC_Home</code> Start: common envelope 외
+<code>10/13/15/16/17/18/40/41/42</code>. Detail
+<code>11 NativeCommandRejected</code>는 금지한다.</li>
+<li><code>LMC_Home</code> Outcome/Retire: identity
+<code>16/17/18</code>과 outcome <code>33..37</code>.</li>
+<li><code>LMC_HomeDS402</code> Outcome/Retire: identity
+<code>16/17/18</code>과 outcome <code>25..29</code>.</li>
+</ul>
+<p>Outcome/Retire의 identity failure는 정확히 16-byte common failure
+envelope여야 하며 retained record payload로 해석하지 않는다.</p>
+<h2 id="lasal-ide-declaration-작업">3. LASAL IDE declaration 작업</h2>
+<p>아래 identifier, comment 및 symbol은 모두 7-bit ASCII로 입력한다.
+declaration과 Network만 IDE에서 변경하고 implementation body는 Codex가
+추적된 <code>.st</code> source에서 수정한다.</p>
+<h3 id="lmcecatinputlatch">3.1 <code>LMCEcatInputLatch</code></h3>
+<p>Variables에 추가한다.</p>
+<pre class="text"><code>AxisZeroHomeRequestSequence : UDINT
+AxisZeroHomeAppliedSequence : UDINT
+AxisZeroHomeCancelSequence : UDINT
+AxisZeroHomeMailbox : ARRAY [0..7] OF DINT
+AxisZeroHomeResult : ARRAY [0..31] OF DINT</code></pre>
+<p>다음 세 Home function을 <code>GLOBAL</code>로 추가한다.</p>
+<pre class="text"><code>FUNCTION GLOBAL SubmitAxisZeroHome
+VAR_INPUT
+    OperationToken : UDINT
+    AxisReference : DINT
+    ExpectedActualPosition : DINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL CancelAxisZeroHome
+VAR_INPUT
+    OperationToken : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL CopyAxisZeroHomeResult
+VAR_INPUT
+    OperationToken : UDINT
+    pDest : ^void
+    DestSize : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION</code></pre>
+<p>startup reconciler 후속 반영에는 다음 <code>GLOBAL</code> snapshot
+copy function도 포함된다.</p>
+<pre class="text"><code>FUNCTION GLOBAL CopyAxisOwnershipStartupSnapshot
+VAR_INPUT
+    pDest : ^void
+    DestSize : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION</code></pre>
+<p>이 function은 <code>PublishSequence</code> seqlock 아래
+<code>SnapshotBytes[464..511]</code>의 exact 48 byte만 복사한다. scalar
+flag getter로 대체하지 않는다.</p>
+<p><code>ExpectedActualPosition</code>은 PC가 준비 시 고정한
+application-unit 실제 위치다. RT mailbox가 <code>SetPosition</code>을
+호출하기 직전에 읽은 fresh actual position과 exact 일치하지 않으면
+native 호출 0회로 거부한다. 이 stale-position guard를 TCP task의 과거
+snapshot으로 대체하지 않는다.</p>
+<p><code>CopyAxisZeroHomeResult.pDest</code>는 정확히
+<code>^void</code>다. <code>pVoid</code>에 포인터를 한 단계 더 붙인
+<code>^pVoid</code>는 이 프로젝트의 pointer-out ABI이며 이 buffer-copy
+ABI에 사용하지 않는다.</p>
+<h4 id="rt-mailboxresult-slot-계약">3.1.1 RT mailbox/result slot
+계약</h4>
+<p><code>AxisZeroHomeMailbox[0..3]</code>은 request sequence 게시 뒤
+immutable이다. Slot 4는 RT만 쓰는 irrevocable dispatch claim이고 새
+request producer만 <code>0</code>으로 초기화한다. Slot 5는
+<code>CancelAxisZeroHome</code> producer가 exact request sequence를 써서
+취소 요청을 echo하는 곳이며, slot 6..7은 예약 영역이다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Slot</th>
+<th>형식</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td><code>UDINT</code></td>
+<td><code>OperationToken</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>DINT</code></td>
+<td><code>AxisReference</code> (<code>1..4</code>)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>DINT</code></td>
+<td><code>ExpectedActualPosition</code> (application unit)</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>UDINT</code></td>
+<td><code>RequestSequenceEcho</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>UDINT</code></td>
+<td><code>NativeDispatchSequenceClaim</code>; native 호출 직전에 RT가
+request sequence를 1회 기록</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>UDINT</code></td>
+<td><code>CancelRequestSequenceEcho</code>; 취소 없음은 <code>0</code>,
+취소 게시 중/완료는 exact request sequence</td>
+</tr>
+<tr>
+<td style="text-align: right;">6..7</td>
+<td><code>DINT</code></td>
+<td>Reserved, 반드시 <code>0</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>AxisZeroHomeResult[0..31]</code>은 다음 exact layout을
+사용한다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Slot</th>
+<th>형식</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td><code>UDINT</code></td>
+<td><code>OperationToken</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>DINT</code></td>
+<td><code>State</code>: <code>1 Running</code>,
+<code>2 Succeeded</code>, <code>3 Failed</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>DINT</code></td>
+<td>내부 RT <code>FailureCode</code>; 성공은 <code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>DINT</code></td>
+<td><code>AxisReference</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>DINT</code></td>
+<td><code>ExpectedActualPosition</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>DINT</code></td>
+<td><code>RuntimePhase</code>: <code>0 Dispatch</code>,
+<code>1 Verify</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>DINT</code></td>
+<td><code>StableSampleCount</code>; 성공은 <code>3</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>UDINT</code></td>
+<td><code>EvidenceFlags</code>; 성공은 정확히
+<code>0x0000003F</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>DINT</code></td>
+<td><code>NativeCallCount</code>; 성공은 정확히 <code>1</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>UDINT</code></td>
+<td><code>StartRtCycle</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>UDINT</code></td>
+<td><code>CompletionRtCycle</code>; terminal에서만 nonzero</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><code>UDINT</code></td>
+<td><code>_LMCAXIS_STATUS</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>UDINT</code></td>
+<td><code>_LMCAXIS_ERROR</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>DINT</code></td>
+<td><code>RawDrivePositionBefore</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><code>DINT</code></td>
+<td><code>RawDrivePositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td><code>DINT</code></td>
+<td><code>ActualApplicationPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td><code>DINT</code></td>
+<td><code>SetApplicationPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td><code>DINT</code></td>
+<td><code>ActualInternalPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td><code>DINT</code></td>
+<td><code>SetInternalPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">19</td>
+<td><code>DINT</code></td>
+<td><code>DestinationInternalPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td><code>DINT</code></td>
+<td><code>MasterInternalPositionAfter</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td><code>UDINT</code></td>
+<td><code>NativeCommandState</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td><code>UDINT</code></td>
+<td><code>RequestSequenceEcho</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">23</td>
+<td><code>UDINT</code></td>
+<td><code>LastObservationRtCycle</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">24..31</td>
+<td><code>DINT</code></td>
+<td>Reserved, 반드시 <code>0</code></td>
+</tr>
+</tbody>
+</table>
+<p>Evidence bit는 bit 0 expected-position CAS, bit 1
+Standstill/AxisError state, bit 2 raw drive position 불변, bit 3
+application actual/set zero, bit 4 internal
+actual/set/destination/master zero, bit 5 서로 다른 RT 호출의 3개 연속
+sample을 뜻한다. Verify phase 진입 시 허용되는
+<code>(StableSampleCount, EvidenceFlags)</code>는
+<code>(0, 0x03)</code>, <code>(1, 0x1F)</code>,
+<code>(2, 0x1F)</code>뿐이며 다른 조합은 재호출 없이 corrupt
+terminal이다.</p>
+<p>내부 failure는 <code>-1 invalid identity</code>,
+<code>-3 client disconnected</code>, <code>-4 invalid axis state</code>,
+<code>-5 stale expected position</code>, <code>-6 native state</code>,
+<code>-7 verification mismatch</code>, <code>-8 corrupt runtime</code>,
+<code>-9 DS402 owner active</code>다. <code>SubmitAxisZeroHome</code>의
+<code>-2</code>는 다른 request가 진행 중임을 뜻한다.
+<code>CopyAxisZeroHomeResult</code>는 <code>0 copied</code>,
+<code>1 pending</code>, <code>-1 invalid token</code>,
+<code>-2 invalid destination</code>,
+<code>-4 missing/key mismatch</code>를 반환한다.</p>
+<p>Producer는 mailbox payload와 slot 3을 먼저 쓰고 slot 4를
+<code>0</code>으로 초기화한 뒤
+<code>AxisZeroHomeRequestSequence</code>를 마지막에 원자적으로 게시한다.
+RT는 native 호출 직전에 slot 4에 current request sequence를 기록한다.
+Phase 0에서 slot 4 또는 <code>NativeCallCount</code>가 이미 nonzero이면
+재호출하지 않고 corrupt terminal로 끝낸다. RT는 terminal result 전체를
+먼저 쓴 뒤 <code>AxisZeroHomeAppliedSequence</code>를 마지막에
+원자적으로 게시한다. <code>CopyAxisZeroHomeResult</code>는 두 sequence가
+같은 terminal에서만 128 byte를 복사하고 복사 전후 sequence가 모두 같은지
+다시 확인한다. Exact retry는 terminal result를 재사용하며
+<code>SetPosition</code>을 다시 호출하지 않는다.</p>
+<p><code>CancelAxisZeroHome</code>는 slot 5에 exact request sequence
+echo를 먼저 쓰고 <code>AxisZeroHomeCancelSequence</code>를 마지막에
+원자적으로 게시한다. RT는 두 값이 모두 current request sequence와 exact
+일치할 때만 취소로 판정한다. Echo만 먼저 보이는 게시 중간 구간에서는
+native dispatch나 terminal success를 commit하지 않는다.</p>
+<p><code>SubmitAxisZeroHome</code>의 유일한 producer는
+<code>LMCControlCommandService</code>다. 다른 class/task에서 이 method를
+직접 호출하거나 둘 이상의 producer가 동시에 호출하는 것은 금지한다. 이
+invariant는 Comm Network와 static verifier에서 caller count 1로
+고정한다.</p>
+<p>Slot 9, 10, 23은 RT cycle이고 wire의 millisecond가 아니다.
+<code>0x7D18/0x7D19</code>의 <code>StartMilliseconds</code>와
+<code>CompletionMilliseconds</code>는
+<code>LMCControlCommandService</code>가 자기 service-clock
+<code>ops.tAbsolute</code>로 기록한다. RT cycle에 상수를 곱해 wire
+millisecond로 변환하지 않는다.</p>
+<p>기존 DS402 Home declaration은 삭제하거나 이름을 바꾸지 않는다.</p>
+<h3 id="lmccontrolcommandservice">3.2
+<code>LMCControlCommandService</code></h3>
+<p>Client를 추가한다.</p>
+<pre class="text"><code>InputLatch : CltChCmd_LMCEcatInputLatch
+Required : true
+Internal : false</code></pre>
+<p>Variables를 다음과 같이 변경한다.</p>
+<pre class="text"><code>delete ReferenceState : ARRAY [0..18] OF DINT
+add ZeroHomeState : ARRAY [0..63] OF DINT
+add OwnershipState : ARRAY [0..351] OF DINT
+add OwnershipStartupState : ARRAY [0..15] OF DINT
+add OwnershipObserverState : ARRAY [0..107] OF DINT</code></pre>
+<p><code>HandleRequest</code>의 기존 six inputs 뒤에 다음 inputs를
+순서대로 추가한다.</p>
+<pre class="text"><code>CallerSessionEpoch : UDINT
+RequestSequence : UDINT
+AdmissionToken : UDINT
+OwnerGeneration : UDINT</code></pre>
+<p>기존 global function <code>ProcessAxisReference</code>를 삭제하고
+다음 global function을 추가한다.</p>
+<pre class="text"><code>FUNCTION GLOBAL ProcessAxisZeroHome
+END_FUNCTION</code></pre>
+<p>공통 축 소유권을 위해 다음 global functions를 추가한다.</p>
+<pre class="text"><code>FUNCTION GLOBAL ReserveAxisOwnership
+VAR_INPUT
+    CommandId : UINT
+    Reference : UINT
+    RequestedAxisMask : UDINT
+    OwnerKind : UINT
+    ResourceKind : UINT
+    AdmissionMode : UINT
+    CallerSessionEpoch : UDINT
+    RequestSequence : UDINT
+    pIdentity : ^UDINT
+    IdentityCount : UINT
+    pEffectiveAxisMask : ^UDINT
+    pAdmissionToken : ^UDINT
+    pOwnerGeneration : ^UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL ValidateAxisOwnership
+VAR_INPUT
+    CommandId : UINT
+    Reference : UINT
+    ExpectedAxisMask : UDINT
+    OwnerKind : UINT
+    ResourceKind : UINT
+    AdmissionMode : UINT
+    CallerSessionEpoch : UDINT
+    RequestSequence : UDINT
+    AdmissionToken : UDINT
+    OwnerGeneration : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL CommitAxisOwnership
+VAR_INPUT
+    CommandId : UINT
+    Reference : UINT
+    ExpectedAxisMask : UDINT
+    CallerSessionEpoch : UDINT
+    RequestSequence : UDINT
+    AdmissionToken : UDINT
+    OwnerGeneration : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL RollbackAxisOwnership
+VAR_INPUT
+    AdmissionToken : UDINT
+    OwnerGeneration : UDINT
+    CallerSessionEpoch : UDINT
+    RequestSequence : UDINT
+    Reason : DINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL PublishAxisOwnership
+VAR_INPUT
+    AxisMask : UDINT
+    AdmissionToken : UDINT
+    OwnerGeneration : UDINT
+    ReportKind : UINT
+    ReportValue0 : UDINT
+    ReportValue1 : UDINT
+    ObservationCycle : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL ReconcileAxisOwnershipStartup
+VAR_INPUT
+    DiagnosticsBootId : UDINT
+    ObservationCycle : UDINT
+    ReportCycle : UDINT
+    DiagnosticsDrainFlags : UDINT
+END_VAR
+VAR_OUTPUT
+    Result : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL NotifyAxisOwnershipSessionClosed
+VAR_INPUT
+    SessionEpoch : UDINT
+END_VAR
+END_FUNCTION
+
+FUNCTION GLOBAL ProcessAxisOwnership
+END_FUNCTION</code></pre>
+<h4 id="zerohomestate0..63-exact-retained-layout">3.2.1
+<code>ZeroHomeState[0..63]</code> exact retained layout</h4>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Slot</th>
+<th>형식</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td><code>DINT</code></td>
+<td>record state: <code>0 Empty</code>, <code>1 Running</code>,
+<code>2 Succeeded</code>, <code>3 Failed</code>, <code>4 Aborted</code>,
+<code>5 Quarantined</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1..4</td>
+<td><code>UDINT</code></td>
+<td>DiagnosticsBuild, original BootId, MapRevision, original
+RequestId</td>
+</tr>
+<tr>
+<td style="text-align: right;">5..8</td>
+<td><code>UDINT</code></td>
+<td>ClientIntentId 128-bit</td>
+</tr>
+<tr>
+<td style="text-align: right;">9..10</td>
+<td><code>DINT</code></td>
+<td>AxisReference, SemanticMode
+(<code>1 CurrentPositionZero</code>)</td>
+</tr>
+<tr>
+<td style="text-align: right;">11..12</td>
+<td><code>DINT</code></td>
+<td>ExpectedActualPosition, TargetPosition(항상 <code>0</code>)</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>UDINT</code></td>
+<td>TimeoutMilliseconds</td>
+</tr>
+<tr>
+<td style="text-align: right;">14..16</td>
+<td><code>DINT</code></td>
+<td>wire Status, ErrorId, DetailCode</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td><code>UDINT</code></td>
+<td>terminal <code>_LMCAXIS_STATUS</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td><code>DINT</code></td>
+<td>terminal <code>_LMCAXIS_ERROR</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">19..20</td>
+<td><code>DINT</code></td>
+<td>RawDrivePositionBefore/After</td>
+</tr>
+<tr>
+<td style="text-align: right;">21..26</td>
+<td><code>DINT</code></td>
+<td>application actual/set, internal actual/set/destination/master
+after</td>
+</tr>
+<tr>
+<td style="text-align: right;">27..28</td>
+<td><code>UDINT</code></td>
+<td>NativeCommandState, EvidenceFlags</td>
+</tr>
+<tr>
+<td style="text-align: right;">29..30</td>
+<td><code>UDINT</code></td>
+<td>service-clock StartMilliseconds, CompletionMilliseconds</td>
+</tr>
+<tr>
+<td style="text-align: right;">31..32</td>
+<td><code>DINT</code></td>
+<td>FailureCode, RuntimePhase</td>
+</tr>
+<tr>
+<td style="text-align: right;">33..38</td>
+<td><code>UDINT</code></td>
+<td>RecordGeneration, AdmissionToken, OwnerGeneration, SessionEpoch,
+RequestSequence, AxisMask</td>
+</tr>
+<tr>
+<td style="text-align: right;">39..43</td>
+<td><code>DINT</code></td>
+<td>engine state, RT state, RT failure, NativeCallCount,
+StableSampleCount</td>
+</tr>
+<tr>
+<td style="text-align: right;">44..46</td>
+<td><code>UDINT</code></td>
+<td>StartRtCycle, CompletionRtCycle, LastObservationRtCycle</td>
+</tr>
+<tr>
+<td style="text-align: right;">47</td>
+<td><code>DINT</code></td>
+<td>owner transition/publish result</td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td><code>DINT</code></td>
+<td>Retired flag</td>
+</tr>
+<tr>
+<td style="text-align: right;">49</td>
+<td><code>UDINT</code></td>
+<td>RetirementGeneration</td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td><code>UDINT</code></td>
+<td>monotonic record generation counter</td>
+</tr>
+<tr>
+<td style="text-align: right;">51</td>
+<td><code>UDINT</code></td>
+<td>record magic</td>
+</tr>
+<tr>
+<td style="text-align: right;">52</td>
+<td><code>DINT</code></td>
+<td>RT mailbox submit result</td>
+</tr>
+<tr>
+<td style="text-align: right;">53</td>
+<td><code>DINT</code></td>
+<td>post-mailbox owner-commit uncertainty flag</td>
+</tr>
+<tr>
+<td style="text-align: right;">54</td>
+<td><code>UDINT</code></td>
+<td>cancel/drain start service milliseconds</td>
+</tr>
+<tr>
+<td style="text-align: right;">55</td>
+<td><code>UDINT</code></td>
+<td>RT <code>RequestSequenceEcho</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">56</td>
+<td><code>UDINT</code></td>
+<td>Home lifecycle flags</td>
+</tr>
+<tr>
+<td style="text-align: right;">57</td>
+<td><code>DINT</code></td>
+<td>pending terminal record state</td>
+</tr>
+<tr>
+<td style="text-align: right;">58</td>
+<td><code>DINT</code></td>
+<td>pending owner report kind</td>
+</tr>
+<tr>
+<td style="text-align: right;">59</td>
+<td><code>DINT</code></td>
+<td>pending preemption cleanup kind; ordinary Home owner publish는
+<code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td><code>UDINT</code></td>
+<td>ordinary Home owner-release receipt magic
+<code>0x484F4D50</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">61</td>
+<td><code>DINT</code></td>
+<td>receipt phase: <code>1 PREPARED</code>, <code>2 IDENTITY</code>,
+<code>3 OBSERVER</code>, <code>4 SINGLETON</code>,
+<code>5 RECORD</code>, <code>6 COMPLETE</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">62</td>
+<td><code>DINT</code></td>
+<td>initial owner publish result; v1은 정확히 <code>0</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">63</td>
+<td><code>UDINT</code></td>
+<td>receipt가 구속된 exact RecordGeneration</td>
+</tr>
+</tbody>
+</table>
+<p>Receipt는 ordinary Home success/safe-failure의 owner release만
+다룬다. 첫 번째 exact <code>PublishAxisOwnership</code>는 owner를 지우지
+않고 slot 60을 마지막에 commit한 <code>PREPARED</code>를 남긴다.
+Caller가 finalize acceptance를 retained flag에 기록한 뒤 같은 exact
+publish를 replay하면 identity, observer, singleton, axis record를
+phase별로 정리하고 <code>COMPLETE</code>를 게시한다. 이 receipt는 같은
+<code>LMCControlCommandService</code> instance의 재호출과 warm
+continuation에서 partial cleanup을 판별하기 위한 retained ledger이다.
+Cold restart 후에도 보존되는 persistent journal이 아니며 cold-restart
+recovery proof로 사용하지 않는다. 인증된 <code>COMPLETE</code> receipt는
+terminal outcome 증거로 남지만, tuple이 다른 후속 ownership publish를
+가로채지 않는다. 반면 incomplete 또는 손상된 receipt는 계속
+fail-closed로 차단한다.</p>
+<p><code>StartMilliseconds</code>와
+<code>CompletionMilliseconds</code>는 <code>ops.tAbsolute</code>의
+unsigned 차이로 timeout을 판정한다. RT cycle slot을 millisecond로
+변환하지 않는다. <code>NativeCallCount=1</code>, raw drive 전후 sample의
+wrap-safe 차이 <code>-1/0/+1 count</code>, application/internal 좌표
+<code>0</code>, fresh sample 3개와 evidence <code>0x3F</code>가 모두
+맞아야 성공이다. raw 전후 값은 물리 feedback 증거이며 반드시
+bit-identical해야 한다는 계약은 아니다.</p>
+<h4 id="ownershipstate0..351-exact-layout">3.2.2
+<code>OwnershipState[0..351]</code> exact layout</h4>
+<p>global prefix <code>0..27</code>은 다음과 같다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Slot</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>table magic <code>0x4C4D434F</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">1..2</td>
+<td>next AdmissionToken, next OwnerGeneration</td>
+</tr>
+<tr>
+<td style="text-align: right;">3..6</td>
+<td>reconciled DiagnosticsBootId, report cycle, proof flags, quarantine
+reason</td>
+</tr>
+<tr>
+<td style="text-align: right;">7..9</td>
+<td>LMC Home engine token/generation/exact mask</td>
+</tr>
+<tr>
+<td style="text-align: right;">10..12</td>
+<td>DS402 Home engine token/generation/exact mask</td>
+</tr>
+<tr>
+<td style="text-align: right;">13..15</td>
+<td>Diagnostics SDO engine token/generation/exact mask</td>
+</tr>
+<tr>
+<td style="text-align: right;">16..21</td>
+<td>synchronous HandleRequest
+session/sequence/token/generation/command/reference context</td>
+</tr>
+<tr>
+<td style="text-align: right;">22..24</td>
+<td>last closed SessionEpoch, last process time, global quarantine
+flag</td>
+</tr>
+<tr>
+<td style="text-align: right;">25..27</td>
+<td>Reserved</td>
+</tr>
+</tbody>
+</table>
+<p>Axis <code>n</code>의 record base는
+<code>28 + (n - 1) * 36</code>이다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Offset</th>
+<th>의미</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0..3</td>
+<td>AxisReference, State, OwnerKind, CommandId</td>
+</tr>
+<tr>
+<td style="text-align: right;">4..7</td>
+<td>AdmissionToken, OwnerGeneration, SessionEpoch, RequestSequence</td>
+</tr>
+<tr>
+<td style="text-align: right;">8..10</td>
+<td>AcquireCycle, LastObservationCycle, StableSinceCycle</td>
+</tr>
+<tr>
+<td style="text-align: right;">11..14</td>
+<td>exact AxisMask, Reference, ResourceKind, AdmissionMode</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td>identity word count (<code>0..16</code>)</td>
+</tr>
+<tr>
+<td style="text-align: right;">16..31</td>
+<td>exact operation identity raw UDINT words</td>
+</tr>
+<tr>
+<td style="text-align: right;">32..34</td>
+<td>ReportKind, ReportValue0, ReportValue1</td>
+</tr>
+<tr>
+<td style="text-align: right;">35</td>
+<td>record magic <code>0x4F574E00 + AxisReference</code></td>
+</tr>
+</tbody>
+</table>
+<p>State 값은 <code>0 Idle</code>, <code>1 Reserved</code>,
+<code>2 DirectActive</code>, <code>3 GroupLease</code>,
+<code>4 GroupActive</code>, <code>5 LmcHomeActive</code>,
+<code>6 Ds402HomeActive</code>, <code>7 Tw20Queued</code>,
+<code>8 Tw20Running</code>, <code>9 Tw20Draining</code>,
+<code>10 SafetyPreempting</code>, <code>11 Quarantined</code>다. owner
+kind는 <code>1 Direct</code>, <code>2 Group</code>,
+<code>3 LMC Home</code>, <code>4 DS402 Home</code>,
+<code>5 Encoder</code>다. resource kind는 <code>1 Axis</code>,
+<code>2 LMC Home engine</code>, <code>3 DS402 Home engine</code>,
+<code>4 Diagnostics SDO engine</code>다.</p>
+<p>Home Start의 identity는 frame byte <code>8..63</code> 전체, 즉
+<code>14</code>개의 raw UDINT다. reserve/validate/
+commit/rollback/publish는 같은 token, generation, session, request
+sequence, exact mask와 singleton engine tuple을 mutation 전에 모두
+확인한다. 반환값은 <code>0 success</code>,
+<code>-1 invalid input</code>, <code>-2 busy/stale/mismatch</code>,
+<code>-3 startup 또는 quarantine</code>이다. session close는 아직
+dispatch되지 않은 <code>Reserved</code>만 quarantine하고 이미 active인
+Home을 임의 release하지 않는다.</p>
+<h4 id="startup-proof와-현재-명시적-blocker">3.2.3 startup proof와 현재
+명시적 blocker</h4>
+<p>startup proof는 exact <code>0x0000000F</code>가 필요하다.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Bit</th>
+<th>필요한 증거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td>nonzero current Diagnostics BootId</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>physical axes가 fresh/stable idle, standstill 및 power-transition
+없음</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Group/profile lease와 active motion 없음</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Home/DS402/SDO executor 및 mailbox가 drained/stable idle</td>
+</tr>
+</tbody>
+</table>
+<p>과거 <code>TCPMotionInterface</code>의 BootId-only
+<code>ReportAxisOwnershipStartup</code> caller와 해당 public ABI는
+삭제됐다. 현재 private
+<code>LMCDiagnosticsService.ProcessAxisOwnershipStartup</code>가
+<code>LMCEcatInputLatch.CopyAxisOwnershipStartupSnapshot</code>으로
+seqlock 48-byte snapshot을 읽고 Diagnostics drain flags를 만든 뒤
+<code>ReconcileAxisOwnershipStartup</code>를 호출한다.</p>
+<p>48-byte snapshot은 magic, observation cycle, Axis1..4
+<code>_LMCAXIS_STATUS</code>, Axis1..4 <code>Drive.StateWord</code> low
+16-bit, exact latch drain <code>0x0000001F</code>, reserved zero를
+가진다. 여기의 <code>Drive.StateWord</code>를 DS402 <code>0x6041</code>
+read라고 단정하지 않는다. latch drain은 physical EtherCAT health/current
+cycle, Zero Home request/applied terminal, DS402 request/applied, RT
+owner/alignment idle 및 네 drive ControlWord bit 4 low를 각각 증명한다.
+Diagnostics drain도 snapshot validity, DS402 lifecycle idle, encoder
+lifecycle idle, generic SDO idle 및 네 executor
+<code>IsReusable()</code>의 exact <code>0x0000001F</code>가
+필요하다.</p>
+<p>reconciler는 exact proof <code>0x0000000F</code>, 동일
+axis/drive/group signature의 서로 다른 fresh latch cycle 3개와
+<code>ops.tAbsolute</code> 100 ms를 모두 만족한 경우에만 zero table 또는
+exact prior-BootId idle table을 초기화한다. 같은 cycle replay는 sample
+count를 올리지 않는다. 같은 BootId로 이미 완료된 valid table은 정상
+operation의 transient non-idle을 startup failure로 재해석하지 않는다.
+corrupt, active 또는 quarantined prior table은 <code>-3</code>이며
+임의로 지우지 않는다.</p>
+<p>따라서 BootId-only permanent quarantine blocker는 source에서
+제거됐다. 그러나 이 경로의 runtime fresh-cycle/100 ms 동작은 PLC에서
+검증되지 않았고 아래 ordinary/safety blocker도 남아 있다.
+<code>LMC_ADMIN_AXIS_HOME_ENABLED</code>를 포함한 gate를 단독으로 바꾸는
+것은 활성화 절차가 아니다.</p>
+<h3 id="lmcdiagnosticsservice">3.3
+<code>LMCDiagnosticsService</code></h3>
+<p>Client를 추가한다.</p>
+<pre class="text"><code>AxisOwnership : CltChCmd_LMCControlCommandService
+Required : true
+Internal : false</code></pre>
+<p>Variables에 추가한다.</p>
+<pre class="text"><code>EncoderMaintenanceState : ARRAY [0..191] OF DINT
+EncoderMaintenanceServiceMilliseconds : UDINT
+EncoderMaintenanceObservedLatchCycle : UDINT
+EncoderMaintenanceLatchAdvanceServiceMilliseconds : UDINT
+EncoderMaintenanceLatchFreshSampleCount : UINT</code></pre>
+<p>전용 encoder-maintenance wire field는 cycle 수가 아니다.
+<code>0x7E53</code> request의 P48, <code>0x7E54/0x7E55</code> identity의
+해당 field 및 outcome P64는 모두
+<code>TimeoutMilliseconds : UDINT</code>이며 허용 범위는
+<code>1..60000</code>이다. 이 값은 request 수락부터
+terminal/cleanup까지의 전체 PLC service-clock timeout이다. 일반 D5 SDO의
+<code>TimeoutCycles</code> 계약과 섞지 않는다.</p>
+<p><code>ProcessEncoderMaintenance</code>는 시작 시점의
+<code>ops.tAbsolute</code>를 runtime state에 보존하고 매 호출마다
+unsigned <code>elapsedMs := serviceNow - serviceStartMs</code>를
+계산한다. RT latch cycle이 정지해도 overall timeout과 cleanup timeout은
+계속 진행해야 한다. executor를 시작하기 전
+<code>elapsedMs &gt;= TimeoutMilliseconds</code>이면 timeout terminal로
+전환한다. 그렇지 않으면
+<code>remainingMs := TimeoutMilliseconds - elapsedMs</code>를 계산하고
+<code>1..60000</code>으로 제한한 뒤
+<code>LMCSdoExecutor.TryStartWrite(..., TimeoutMs:=remainingMs)</code>에
+전달한다. 전체 timeout 값을 그대로 재사용하거나
+<code>EncoderMaintenanceServiceMilliseconds</code>/RT latch cycle을 같은
+단위로 간주해서는 안 된다.
+<code>EncoderMaintenanceObservedLatchCycle</code>,
+<code>EncoderMaintenanceLatchAdvanceServiceMilliseconds</code> 및 fresh
+sample count는 완료 evidence에만 사용한다.</p>
+<p>DS402 service-clock용 새 IDE variable은 추가하지 않는다. 기존
+<code>Ds402HomeState</code> runtime record의 slot 118은
+<code>ops.tAbsolute</code> service start, slot 119는 cleanup start를
+보존한다. 전체 timeout과 cleanup timeout은 unsigned
+<code>serviceNow - serviceStart</code>로 판정하며 RT latch cycle이
+멈춰도 진행해야 한다. <code>newCycle AND timeout</code> 형태로 timeout을
+fresh-latch 조건 안에 넣지 않는다. fresh latch는 완료 안정성/evidence
+판정에만 사용한다.</p>
+<p><code>HandleRequest</code>의 기존 <code>CallerSessionEpoch</code>
+뒤에 다음 inputs를 순서대로 추가한다.</p>
+<pre class="text"><code>RequestSequence : UDINT
+AdmissionToken : UDINT
+OwnerGeneration : UDINT</code></pre>
+<p>기존 <code>HandleAxisDs402HomeStart</code>의
+<code>CallerSessionEpoch</code> 뒤, <code>RequestSize</code> 앞에 다음
+inputs를 추가한다.</p>
+<pre class="text"><code>RequestSequence : UDINT
+AdmissionToken : UDINT
+OwnerGeneration : UDINT</code></pre>
+<p>다음 private functions를 추가한다. <code>GLOBAL</code>로 만들지
+않는다.</p>
+<pre class="text"><code>FUNCTION HandleEncoderMaintenanceStart
+VAR_INPUT
+    Reference : UINT
+    pRequest : ^USINT
+    pResponse : ^USINT
+    ResponseCapacity : UDINT
+    CallerSessionEpoch : UDINT
+    RequestSequence : UDINT
+    AdmissionToken : UDINT
+    OwnerGeneration : UDINT
+    RequestSize : UDINT
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION HandleEncoderMaintenanceOutcome
+VAR_INPUT
+    Reference : UINT
+    pRequest : ^USINT
+    pResponse : ^USINT
+    ResponseCapacity : UDINT
+    CallerSessionEpoch : UDINT
+    RequestSize : UDINT
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION HandleEncoderMaintenanceRetire
+VAR_INPUT
+    Reference : UINT
+    pRequest : ^USINT
+    pResponse : ^USINT
+    ResponseCapacity : UDINT
+    CallerSessionEpoch : UDINT
+    RequestSize : UDINT
+END_VAR
+VAR_OUTPUT
+    ResponseSize : DINT
+END_VAR
+END_FUNCTION
+
+FUNCTION ProcessEncoderMaintenance
+END_FUNCTION
+
+FUNCTION ProcessAxisOwnershipStartup
+END_FUNCTION</code></pre>
+<p><code>ProcessAxisOwnershipStartup</code>도 <code>PRIVATE</code>이며
+<code>GLOBAL</code>로 만들지 않는다. <code>ProcessOperations</code>에서
+encoder maintenance와 DS402 Home cleanup을 먼저 pump한 뒤 generic-SDO
+early return보다 앞에서 호출한다.</p>
+<h3 id="tcpmotioninterface">3.4 <code>TCPMotionInterface</code></h3>
+<p>새 declaration은 없다. 기존 <code>ActiveRequest.Sequence</code>와
+<code>ActiveRequest.SessionEpoch</code>를 사용한다. Codex가
+implementation에서 owner reserve/validate/commit/rollback, 새 command
+route와 cyclic processing을 추가한다.</p>
+<h2 id="comm-network-작업">4. Comm Network 작업</h2>
+<p><code>Comm_Network</code>에 아래 두 연결을 추가한다.</p>
+<pre class="text"><code>LMCControlCommandService1.InputLatch -&gt; LMCEcatInputLatch1.ClassSvr
+LMCDiagnosticsService1.AxisOwnership -&gt; LMCControlCommandService1.ClassSvr</code></pre>
+<p>기존 연결은 삭제하지 않는다.</p>
+<h2 id="ide-저장-절차">5. IDE 저장 절차</h2>
+<ol type="1">
+<li>Git 추적 production project
+<code>Lasal_PRG/Elmo_EtherCAT_Test_4Axis</code>인지 확인한다.</li>
+<li>위 declaration과 두 Network 연결만 입력한다.</li>
+<li>Save All 한다.</li>
+<li>이 시점에는 F9 build를 실행하지 않는다. implementation signature가
+아직 이전 declaration과 다르므로 Codex가 <code>.st</code> body를 맞춘 뒤
+build해야 한다.</li>
+<li>저장 완료 시각을 Codex에 알려준다. Codex가 generated declaration,
+implementation 보존 및 Network diff를 먼저 검사한다.</li>
+</ol>
+<h2 id="codex-구현-뒤-사용자-검증">6. Codex 구현 뒤 사용자 검증</h2>
+<p>Codex가 source, SDK, WPF, protocol map 및 static tests를 맞춘 뒤
+사용자에게 다음을 별도로 요청한다.</p>
+<ol type="1">
+<li>F9 incremental build.</li>
+<li>변경 class의 <code>Find in Implementation</code> smoke.</li>
+<li>smoke 시작 시점 이후 <code>%TEMP%\Lasal2.log</code> 신규
+<code>CInvalidArgException</code> 0건 확인.</li>
+<li>PLC download.</li>
+<li>축별 no-motion Home 및 maintenance live test.</li>
+</ol>
+<p><code>Find in Implementation</code>이 큰 implementation block 전체를
+출력하는 것은 class 크기 때문에 결과가 길어진 것이며, hit count와
+<code>Last command succeeded</code> 및 신규 exception 유무로 성공을
+판정한다.</p>
+<h2 id="아직-필요한-실기-정보">7. 아직 필요한 실기 정보</h2>
+<p><code>LMC_Home</code>과 <code>LMC_HomeDS402</code>는 switch 정보가
+필요 없다. <code>TW19/TW20</code> activation에는 각 축의 아래 정보가
+필요하다.</p>
+<pre class="text"><code>Axis1: encoder family, feedback socket 1..4
+Axis2: encoder family, feedback socket 1..4
+Axis3: encoder family, feedback socket 1..4
+Axis4: encoder family, feedback socket 1..4</code></pre>
+<p>현재 repo/local EAS 자료에서 Axis4에 대해서만 과거 근거가 발견됐다.
+2026-06-11 export의 serial <code>25493155</code>와 <code>P01.a04</code>
+화면은 <code>Serial Absolute - Panasonic, Port A</code>,
+<code>CA[41]=6</code>, <code>CA[45]=1</code>, <code>CA[46]=1</code>,
+<code>CA[47]=1</code>, <code>CA[59]=23</code>, <code>CA[62]=0</code>을
+보인다. 이는 과거 시점의 Panasonic/socket 1 구성은 뒷받침하지만 현재
+live readback이 아니며, multi-turn resolution이 0이므로 TW19 적용 근거가
+아니다. 현재 좁은 TW20 계약인 EnDat 2.2 ID30 근거도 아니다. Axis1..3은
+family/socket 근거가 없다. 따라서 활성화 가능한 축은 현재
+<code>0</code>개다.</p>
+<p>다음 IDE/실기 단계에서는 각 <code>P01.a01..a04</code>의 대상명과
+drive serial이 보이는 상태로 아래 값을 읽고, 가능하면 축별
+<code>.gprm</code>을 새로 export한다.</p>
+<pre class="text"><code>CA[41]
+CA[42]
+CA[43]
+CA[44]
+CA[45]
+CA[46]
+CA[47]
+CA[59]
+CA[62]</code></pre>
+<p><code>Port A/B</code>, software feedback socket <code>1..4</code>,
+axis 번호를 서로 같은 값으로 추정하지 않는다. TW19는 지원 family가
+배치된 socket과 <code>CA[62] &gt; 0</code>을 확인한 뒤, TW20은 exact
+EnDat 2.2 ID30을 확인한 뒤에만 활성화한다.</p>
+<p>이 정보와 motor-off live proof가 없으면 source/parser/test를 완성해도
+해당 capability bit는 계속 OFF로 둔다.</p>
+<h2 id="source-checkpoint">8. 2026-08-03 source checkpoint</h2>
+<p>현재 추적 <code>.st</code> implementation에는 아래 dormant 경로가
+prewire돼 있다.</p>
+<ul>
+<li><code>0x7D13/0x7D18/0x7D19</code> current-position-zero Start,
+retained Outcome, exact-generation Retire</li>
+<li>TCP full-payload identity, session/request/token/generation
+fencing과 exact response correlation</li>
+<li>RT mailbox의 stale-position guard, native call 1회, raw drive
+<code>-1/0/+1 count</code> 창 및 3 fresh sample 검증</li>
+<li>exact-mask common owner reserve/validate/commit/rollback/publish와
+singleton engine lease</li>
+<li><code>0x7E53/0x7E54/0x7E55</code> Start, retained Outcome,
+exact-generation Retire</li>
+<li>exact <code>0x20FC:0x02</code> UInt16 TW20과 exact
+<code>0x20FC:0x01</code> UInt16 TW19 one-shot SDO dispatch</li>
+<li>request 수락부터 owner cleanup까지 <code>ops.tAbsolute</code> 기반
+<code>1..60000 ms</code> overall timeout</li>
+<li>executor drain과 common-owner release 뒤 terminal record를 마지막에
+게시하는 순서</li>
+<li>generic D5, DS402 Home, encoder-maintenance SDO engine 상호
+배제</li>
+<li><code>0x3204:0x13/0x14</code> LONG alias fallback 및 generic
+<code>0x7E50</code> bypass 없음</li>
+</ul>
+<p>이 checkpoint는 활성화 증거가 아니다. 이 절 작성 당시 두 global
+gate는 <code>FALSE</code>였고, TW20/TW19의 축 1..4 <code>PROFILE</code>,
+<code>SOCKET</code>, <code>EVIDENCE0..3</code> manifest 48개 값은 전부
+<code>0</code>이다. 따라서 global gate 하나를 실수로 바꿔도 축별 exact
+manifest가 provision되지 않으면 SDO write 전 fail-closed한다.
+Diagnostics capability bit 18/19도 해당 gate가 <code>TRUE</code>일 때만
+게시되므로 현재 OFF다.</p>
+<p><code>LMC_ADMIN_AXIS_HOME_ENABLED</code>도 <code>FALSE</code>이고
+Admin capability bit 4는 OFF다. 이 절 작성 시점에는 startup proof가
+BootId-only라 common owner가 quarantine되고 reserve가
+<code>-3</code>으로 거부됐다. 그 specific blocker는 이후 3.2.3의
+reconciler로 교체됐지만, Home gate만 바꾸는 것이 활성화 절차가 아니라는
+판정은 유지한다.</p>
+<p>이 절 작성 당시 generated declaration은 의도적으로 직접 수정하지
+않았다. 사용자가 LASAL IDE에서 3.2와 3.3의 declaration을 저장하기 전에는
+implementation과 ABI가 일치하지 않으므로 F9 build를 실행하지 않는다.
+특히 <code>LMCDiagnosticsService</code>에는 아래 항목이 모두
+필요하다.</p>
+<pre class="text"><code>AxisOwnership client
+EncoderMaintenanceState and four service/evidence variables
+HandleRequest RequestSequence/AdmissionToken/OwnerGeneration inputs
+HandleAxisDs402HomeStart RequestSequence/AdmissionToken/OwnerGeneration inputs
+HandleEncoderMaintenanceStart/Outcome/Retire private functions
+ProcessEncoderMaintenance private function</code></pre>
+<p>Comm Network의 두 연결도 4절 그대로 사용자 IDE 작업으로 추가됐다.
+이후 generated declaration, implementation 보존 및 Network diff를 확인한
+뒤 F9와 Find smoke를 진행했다.</p>
+<p>이 당시 static/source checkpoint가 보장하지 않은 항목 중 LASAL
+build는 9절에서 완료됐다. PLC download, task/core 배치, 실축 motor-off
+상태, exact encoder family/socket, SDO callback, 실제 TW19/TW20 효과다.
+이 항목이 확인되기 전에는 기능을 <code>사용 가능</code> 또는
+<code>실기 검증 완료</code>로 판정하지 않는다.</p>
+<h2 id="post-idebuild-checkpoint">9. 2026-08-03 post-IDE/build
+checkpoint</h2>
+<p>이 절은 8절의 source checkpoint와 당시의 안전 차단 근거를 삭제하거나
+변경하지 않는다. 다만 8절 작성 뒤 진행된 IDE 반영, source 분할, build 및
+IDE smoke 결과를 추가로 기록한다.</p>
+<p>사용자가 Git 추적 production project의 LASAL IDE에서 다음
+declaration과 Network 변경을 저장했고, 생성된 source와 연결 metadata에서
+반영을 확인했다.</p>
+<ul>
+<li><code>LMCControlCommandService</code>: <code>InputLatch</code>,
+<code>ZeroHomeState[0..63]</code>, <code>OwnershipState[0..351]</code>,
+확장된 <code>HandleRequest</code>, <code>ProcessAxisZeroHome</code> 및
+ownership global functions</li>
+<li><code>LMCDiagnosticsService</code>: <code>AxisOwnership</code>,
+encoder-maintenance 변수 5개, 확장된 <code>HandleRequest</code>와
+<code>HandleAxisDs402HomeStart</code>, encoder-maintenance private
+functions 4개</li>
+<li><code>Comm_Network</code>:
+<code>LMCControlCommandService1.InputLatch -&gt; LMCEcatInputLatch1.ClassSvr</code></li>
+<li><code>Comm_Network</code>:
+<code>LMCDiagnosticsService1.AxisOwnership -&gt; LMCControlCommandService1.ClassSvr</code></li>
+</ul>
+<p>큰 parent implementation의 command 처리는 각각
+<code>LMCControlCommandService.HandleAxisZeroHomeCommands</code>와
+<code>LMCDiagnosticsService.HandleDiagnosticsBulkRequest</code> helper로
+분리했다. parent는 대상 command 범위를 helper에 위임하고 helper가
+fail-closed parsing과 처리를 담당한다. 이 분할로 parent function 크기와
+IDE 검색 범위를 줄여, 큰 class에서 method 위치를 비정상적으로 찾던
+부담을 완화했다.</p>
+<p>이 최초 post-IDE checkpoint에서 Git 추적 production project를 LASAL
+compiler C78, ARM target으로 Rebuild한 결과는
+<code>0 error(s), 38 warning(s)</code>이다. 이어서 아래 두 method의
+method-to-implementation smoke가 각 implementation으로 정상
+이동했다.</p>
+<ul>
+<li><code>LMCControlCommandService.HandleAxisZeroHomeCommands</code></li>
+<li><code>LMCDiagnosticsService.HandleDiagnosticsBulkRequest</code></li>
+</ul>
+<p>smoke 시작 기준점 이후 <code>%TEMP%\Lasal2.log</code>에 새
+<code>CInvalidArgException</code>은 <code>0</code>건이다. post-IDE/build
+상태의 최종 재검증 결과는 다음과 같다.</p>
+<ul>
+<li>PowerShell parser <code>2/2</code> PASS</li>
+<li>negative fixture: AxisZeroHome IDE ABI <code>10/10</code>,
+AxisZeroHome RT mailbox <code>26/26</code>, Encoder Maintenance
+<code>52/52</code>, Axis Ownership <code>24/24</code>, DS402 Home
+Retirement <code>19/19</code> PASS</li>
+<li>SourceOnly 및 generated Network/metadata 포함 full static contract
+PASS</li>
+<li>C# Release build warning/error <code>0/0</code>, 전체 test
+<code>1075/1075</code> PASS</li>
+</ul>
+<p>이 build와 smoke는 기능 활성화 또는 실축 검증 증거가 아니다. 이
+checkpoint의 아래 gate는 모두 <code>FALSE</code>였다.</p>
+<pre class="text"><code>LMC_ADMIN_AXIS_HOME_ENABLED
+LMC_DIAG_DS402_HOME_ENABLED
+LMC_DIAG_ENCODER_TW20_ENABLED
+LMC_DIAG_ENCODER_TW19_ENABLED</code></pre>
+<p>TW20/TW19의 축 1..4 <code>PROFILE</code>, <code>SOCKET</code>,
+<code>EVIDENCE0..3</code> manifest도 계속 전부 <code>0</code>이다. 축별
+current drive/encoder family/socket 증거가 없으므로
+encoder-maintenance는 SDO dispatch 전 fail-closed한다. 이 checkpoint
+당시에는 common owner startup proof가 BootId-only라 startup quarantine
+blocker가 남아 있었다. 이후 3.2.3의 startup reconciler가 해당
+BootId-only 경로를 교체했으며 최신 build/search 상태는 10절에
+기록한다.</p>
+<p>current-position-zero Home은 home switch나 limit switch를 찾는 DS402
+homing 동작이 아니다. 대상 축의 현재 actual position을 확인한 뒤
+<code>SetPosition(Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST, Position:=0)</code>으로
+현재 위치 좌표만 <code>0</code>으로 설정하는 no-motion 경로이므로
+switch/limit 입력을 사용하지 않는다. 그러나 현재 gate와 startup runtime
+proof가 없고 PLC download, motor-off 실축 실행, raw drive 허용 창, fresh
+sample 및 재기동 보존 proof도 없다. 따라서 이 checkpoint에서
+current-position-zero, DS402 Home, TW20, TW19 중 어느 것도
+<code>실기 사용 가능</code> 또는 <code>실기 검증 완료</code>로 판정하지
+않는다.</p>
+<h2 id="startupordinary-ownership-follow-up">10. 2026-08-04
+startup/ordinary ownership follow-up</h2>
+<p>BootId-only <code>ReportAxisOwnershipStartup</code> ABI와 TCP
+caller는 삭제됐고, 다음 source chain이 canonical project에 반영됐다.</p>
+<pre class="text"><code>LMCEcatInputLatch.CopyAxisOwnershipStartupSnapshot
+  -&gt; LMCDiagnosticsService.ProcessAxisOwnershipStartup (PRIVATE)
+  -&gt; LMCControlCommandService.ReconcileAxisOwnershipStartup</code></pre>
+<p>latest LASAL Class2 02.03.001 C78 ARM build 결과는
+<code>0 error(s), 40 warning(s)</code>다. 최신 implementation 검색
+smoke는 다음과 같다.</p>
+<ul>
+<li><code>LMC_OWNER_ORDINARY_CLASSIFIER_BEGIN</code>:
+<code>TCPMotionInterface</code>에서 1 match</li>
+<li><code>OwnershipObserverState</code>:
+<code>LMCControlCommandService</code>에서 54 matches</li>
+<li>smoke start: <code>2026-08-03T23:50:12.8194686+09:00</code></li>
+<li>그 시점 이후 <code>%TEMP%\Lasal2.log</code> 신규
+<code>CInvalidArgException</code>: 0건</li>
+</ul>
+<p>이 결과는 source/static/build/IDE search proof다. PLC download나 PLC
+runtime proof가 아니다. 현재 source의 아래 gate는 모두
+<code>FALSE</code>다.</p>
+<pre class="text"><code>LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED   // TCP and control service
+LMC_ADMIN_AXIS_HOME_ENABLED
+LMC_DIAG_DS402_HOME_ENABLED
+LMC_DIAG_ENCODER_TW20_ENABLED
+LMC_DIAG_ENCODER_TW19_ENABLED</code></pre>
+<p>따라서 current-position-zero Home, DS402 Home, TW20, TW19 및 ordinary
+Axis/Group ownership은 어느 것도 production 또는 실기 사용 가능으로
+판정하지 않는다. activation 전에 다음 blocker를 모두 닫아야 한다.</p>
+<ol type="1">
+<li>safety preemption은 기존 axis record를 덮어쓰고 observer에 이전
+token/generation/state만 남긴다. 이전 special owner의 kind/session/raw
+identity 전체를 보존하는 overlay가 필요하다.</li>
+<li>ordinary observer는 service task에서
+<code>_LMCAxis</code>/<code>LMCRobot</code>를 직접 읽는다. coherent
+InputLatch cycle이 아니며 DS402 <code>0x6041</code>을 관찰하지
+않는다.</li>
+<li>current handler-entry fence에는 실제 native-call marker가 없다.
+handler boundary를 넘은 뒤 accepted가 아닌 모든 응답을 보수적으로
+quarantine하므로 definite pre-wire rollback과 post-wire uncertainty를
+정확히 구분하지 못한다.</li>
+<li>owner record의 identity는 최대 16 DINT다. <code>0x20E7</code> 및
+large move payload의 전체 byte identity를 보존하지 못한다.</li>
+<li>startup/ordinary stability <code>100 ms</code>와 ordinary timeout
+<code>120000 ms</code>는 PLC task/EtherCAT에서 측정되지 않았다.</li>
+<li>SDK error catalog는 v1이고 symbolic
+<code>-9 AxisOwnershipConflict</code>가 없다.</li>
+<li>safety preemption이 LMC Home, DS402 Home, TW20/TW19를 exact
+cancel/drain하고 Group lease를 파기하는 전체 경로가 검증되지
+않았다.</li>
+</ol>
+<p>TW20/TW19 축별 manifest 48개 값도 계속 0이며 encoder family/socket과
+motor-off 실기 증거가 없다. 이 blocker와 PLC activation matrix가 끝나기
+전에는 gate 또는 capability bit를 켜지 않는다.</p>
+<h2 id="lmc-home-safety-preemption-canceldrain-source-checkpoint">11.
+2026-08-04 LMC Home safety-preemption cancel/drain source
+checkpoint</h2>
+<p>10절의 blocker 목록 중 LMC Home에 한정한 safety-preemption consumer가
+canonical source에 추가됐다. 안전 admission이 exact reservation 검증을
+통과하면 <code>LMCControlCommandService.HandleRequest</code>가 native
+Stop/PowerOff handler를 호출하기 전에
+<code>ProcessAxisZeroHome()</code>을 동기 호출한다. 이 호출은 200-byte
+preemption snapshot의 144-byte header와 56-byte <code>0x7D13</code>
+identity를 검증하고, retained operation token으로
+<code>LMCEcatInputLatch.CancelAxisZeroHome</code>을 먼저 게시한 뒤
+normal Home 진행을 동결한다.</p>
+<p>안전 명령 commit 뒤의 cyclic processor는 다음 순서를 사용한다.</p>
+<ol type="1">
+<li>같은 old token/generation으로
+<code>CopyAxisOwnershipPreemption</code>을 다시 읽는다.</li>
+<li><code>CLEANUP_REQUIRED</code>이면 cancel을 idempotent하게 다시
+게시하고 exact RT terminal을 drain한다.</li>
+<li>exact terminal이면 safe cleanup 또는 complete quarantine을,
+terminal을 증명하지 못하면 incomplete quarantine을
+<code>PublishAxisOwnershipPreemptionCleanup</code>으로 게시한다.</li>
+<li>preemption 경로에서는 old token으로 일반
+<code>PublishAxisOwnership</code>을 호출하지 않는다.</li>
+<li>normal Home timeout도 즉시 terminal 처리하지 않고 cancel 뒤 exact RT
+terminal을 기다린다.</li>
+</ol>
+<p><code>CLEANUP_COMPLETE</code> replay는 retained Home을
+<code>ABORTED/detail 39</code>로 복구하고,
+<code>CLEANUP_QUARANTINED</code> replay는
+<code>QUARANTINED/detail 42</code>로 복구한다. invalid snapshot, cancel
+실패, drain timeout 또는 cleanup publish 실패는 global ownership
+quarantine를 유지한다.</p>
+<p>변경 뒤
+<code>Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1</code>은
+PASS했다. 이 결과는 source ordering과 fail-closed 정적 계약만 증명한다.
+이 변경 이후 C78 rebuild와 Find-in-Implementation smoke, PLC download,
+실제 Stop/PowerOff 동시 요청, mailbox drain timing 및 실축 좌표 불변
+검증은 아직 수행하지 않았다. DS402 Home, TW20/TW19 및 Group lease의
+cancel/drain consumer도 이 절의 완료 범위가 아니다. 따라서 모든 관련
+gate는 계속 <code>FALSE</code>로 둔다.</p>
+<h2 id="tw19tw20-fixed-one-활성화-정정">12. 2026-08-04 TW19/TW20
+fixed-one 활성화 정정</h2>
+<p>8~11절의 TW19/TW20 gate OFF와 48개 manifest 판정은 각 작성 시점의
+dormant checkpoint다. 현재 source는 아래처럼 정정됐다.</p>
+<ul>
+<li><code>LMC_DIAG_ENCODER_TW20_ENABLED TRUE</code></li>
+<li><code>LMC_DIAG_ENCODER_TW19_ENABLED TRUE</code></li>
+<li><code>LMC_DIAG_ENCODER_RESET_VALUE 1</code></li>
+<li>축별 profile/socket/evidence manifest 제거</li>
+<li>TW20: selected drive의 <code>0x20FC:0x02</code>에 UInt16
+<code>1</code></li>
+<li>TW19: selected drive의 <code>0x20FC:0x01</code>에 UInt16
+<code>1</code></li>
+</ul>
+<p>profile/socket/evidence wire field는 기존 72/76/156-byte recovery
+ABI의 exact identity로만 보존한다. SDO target과 value를 선택하거나
+gate를 열지 않는다. WPF는 profile/socket 입력을 숨기고
+drive/operation/timeout만 받으며 capability refresh 로그에 bit mask,
+Build, BootId, MapRevision과 TW19/TW20 boolean을 남긴다.</p>
+<p>현재 source의 nonzero-Boot 예상 Diagnostics CapabilityBits는
+<code>0x000C633F</code>다. 09:33 C78 rebuild/download/restart 뒤 09:35
+runtime은 <code>0x00000001</code>을 반환했다. 원인은 capability bit를
+추가하는 세 UDINT 식이 정수 <code>OR</code>가 아니라 BOOL 결합
+<code>|</code>를 사용해 전체 nonzero mask를 <code>1</code>로 축약한
+것이었다. 후속 전수 감사에서 같은 오류가 verification flag 누적 7개 식과
+retired tombstone 1개 식에도 확인됐다. capability 3개 식과 maintenance
+8개 식의 <code>|</code> 16개를 모두 정수 <code>OR</code>로 수정하고
+verifier에 <code>|</code> negative fixture를 추가했다. 수정 binary의
+clean C78 rebuild/download/restart 및 새 runtime mask 확인은 아직
+필요하다.</p>
+<p>Terminal success는 exact SDO completion, executor drain, motor-off
+post observation 및 owner cleanup 증거다. 실제 encoder reset 효과는 별도
+확인해야 한다. TW19 뒤에는 motion 전에 LMC Home current-position-zero가
+필요하다.</p>
+<p>별도 read-only review에서 11절 LMC Home cancel/drain은 cancel 실패 후
+safety handler 진행, terminal-before-cleanup restart window 및 unbounded
+normal drain 문제가 발견됐다. 이 Home 문제는 TW19/TW20 fixed-one
+correction과 분리하며, Home gate를 계속 <code>FALSE</code>로 유지하고
+후속 수정한다.</p>
+<h2 id="first-axis-home-evidence-and-owner-release-receipt-follow-up">13.
+2026-08-04 first-axis Home evidence and owner-release receipt
+follow-up</h2>
+<p>2026-08-04 실기 시험에서 확인한 범위는 다음과 같다.</p>
+<ul>
+<li>서로 다른 fresh PLC boot/session의 첫 Home에서 Axis1과 Axis2의
+current-position-zero/reference 효과는 관찰됐다.</li>
+<li>11:12 로그의 fresh <code>BootId=0x00000013</code> 시도에서 Axis2
+Start ACK와 후속 <code>Read Home Status</code> RPC는 PASS했다. 그러나
+당시 WPF는 exact 144-byte terminal outcome field를 로그에 남기지
+않았다.</li>
+<li>같은 boot에서 바로 다음 Axis3 Start는 <code>ErrorId=-31000</code>,
+<code>DetailCode=41</code>로 수락되지 않았다.</li>
+</ul>
+<p>따라서 첫 축의 native/reference 효과는 관찰 사실이지만 exact terminal
+success 증거는 아니다. Detail 41은 다음 admission 시점에 Home
+singleton/common owner가 계속 busy였음을 뜻한다. 첫 작업이 strict RT
+post-verification 후 Quarantined로 남아 owner가 release되지 않았다는
+것이 현재 가장 강한 가설이다. 다만 이는 기존 로그로 확정할 수 없다.
+<code>Read Home Status PASS</code>나 Start ACK를 terminal success로
+대체하지 않는다.</p>
+<p>후속 source는 ordinary Home owner release에 slot 60..63 receipt를
+추가했다. First publish는 <code>PREPARED</code>를 남기고 owner를
+유지하며, caller acceptance 후 exact replay가 phase 2..6을 거쳐
+cleanup을 완료한다. 중간에 재진입하면 같은 token/generation/mask/record
+identity로만 이어간다. 이 수정은 현재 source/static 계약일 뿐이다. C78
+Rebuild, PLC download/restart, same-instance/warm continuation 실행 및
+cold-restart persistent recovery는 아직 증명되지 않았다. Receipt 자체도
+cold-persistent store가 아니다. 인증된 <code>COMPLETE</code> receipt와
+tuple이 다른 후속 publish는 일반 ownership 경로로 진행하며,
+incomplete/corrupt receipt와 tuple이 다른 요청은 전역 quarantine으로
+차단한다.</p>
+<p>새 WPF는 exact outcome을 받으면 다음 prefix의 한 줄을 남긴다.</p>
+<pre class="text"><code>LMC Home outcome: RecordState=...; HomeSucceeded=...; OriginalStatus=...; OriginalErrorId=...; OriginalDetail=... (...); AxisStatus=0x...; AxisError=...; RawDriveBefore=...; RawDriveAfter=...; ActualApplicationAfter=...; SetApplicationAfter=...; ActualInternalAfter=...; SetInternalAfter=...; DestinationInternalAfter=...; MasterInternalAfter=...; NativeCommandState=...; EvidenceFlags=0x...; StopState=0x... (...); RuntimePhase=...; RecordGeneration=....</code></pre>
+<p><code>StopState</code>는 이전 wire field 이름을 유지하지만 실제로는
+retained RT/service failure code다. 이 no-motion Home에는 별도 Stop
+명령이 없다. raw 32-bit hex와 signed DINT 해석을 같이 출력하며, 예를
+들어 <code>0xFFFFFFF9 (-7)</code>은 RT verification mismatch failure를
+뜻한다.</p>
+<p>2026-08-04 Axis2 실기에서는 <code>AxisStatus=0x22D0000A</code>,
+<code>AxisError=0</code>, native state <code>0</code>, LASAL
+application/internal 좌표 6개가 모두 <code>0</code>이었지만 raw
+feedback이 <code>8382700 -&gt; 8382701</code>로 한 count 변했다. 기존
+exact-equality gate 때문에 <code>EvidenceFlags=0x1F</code>,
+<code>StopState=-7</code>, <code>RecordState=Quarantined</code>, detail
+<code>38</code>이 게시됐고 다음 Start는 held owner 때문에 detail
+<code>41</code>로 거부됐다. 이 로그가 증명하는 실패 조건만 대상으로
+current source는 raw 비교를 wrap-safe <code>-1/0/+1 count</code> 창으로
+바꿨다. SDK parser도 같은 창을 사용하며 <code>-2/+2</code>를 거부하는
+자동 시험을 포함한다. 이 수정은 아직 C78 Rebuild/Download되지 않았으므로
+새 PLC runtime 성공 증거가 아니다.</p>
+<p>다음 실기 확인은 여러 축을 연속 시험하지 말고 다음 one-axis 절차로
+제한한다.</p>
+<ol type="1">
+<li>수정 source를 C78 Rebuild하고 PLC에 download한 뒤 PLC를
+restart한다.</li>
+<li>새 WPF executable로 connect하고 fresh Build/BootId/MapRevision을
+로그로 고정한다.</li>
+<li>한 축만 load하고 Home 전 <code>Read Home Status</code>를 1회
+수행한다.</li>
+<li>그 축에 <code>LMC Home (Current Position Zero)</code>를 정확히 1회
+수행한다.</li>
+<li>다음 축 Home을 누르지 말고, <code>LMC Home outcome:</code> 전체 한
+줄과 Home 전/후 축 status를 보존한다.</li>
+<li><code>RecordState</code>, <code>OriginalDetail</code>,
+<code>StopState</code>, raw before/after, application/internal 좌표,
+<code>EvidenceFlags</code>, <code>RuntimePhase</code>, generation으로
+terminal과 owner release를 판정한 뒤에만 다음 축 시험을 한다.</li>
+</ol>
+<h2 id="ds402-home-admissionfinal-evidence-hardening">14. 2026-08-04
+DS402 Home admission/final-evidence hardening</h2>
+<p>앱과 LASAL IDE를 닫은 뒤 tracked external source만 수정했다. IDE
+declaration, generated channel, Network, C78 build와 PLC download는
+수행하지 않았다. <code>LMC_DIAG_DS402_HOME_ENABLED</code>는 계속
+<code>FALSE</code>다.</p>
+<p><code>TCPMotionInterface.MsgPaser</code>는 exact 72-byte method-37
+Start와 valid axis에만 common axis ownership reservation을 요청한다.
+malformed <code>0x7D15</code>는 ownership token을 만들지 않고
+Diagnostics parser로 위임한다. valid Start의 reservation
+<code>-2</code>는 detail <code>41</code>, disconnected 또는 그 밖의
+nonzero admission 결과는 detail <code>42</code>의 exact 24-byte 응답으로
+보존한다. 이 mapper는 encoder-maintenance <code>0x7E53</code>에 적용하지
+않는다.</p>
+<p><code>LMCDiagnosticsService</code>는 Outcome/Retire identity 실패를
+shape/key <code>28</code>, Build <code>16</code>, Boot <code>17</code>,
+Map <code>18</code>, storage/session <code>29</code>로 분리한다. stage
+<code>101</code>의 active record는 Running으로 숨기지 않고 indeterminate
+detail <code>26</code>을 반환한다. 성공 record와 stage <code>34</code>는
+ActualPosition <code>0</code>, StatusWord bit 3/13 clear, DS402 base
+state <code>0x0040/0x0021/0x0023/0x0027</code>를 모두 요구한다. stage
+<code>32/33</code>의 RT owner release cycle을 slot <code>112</code>에
+저장하고, 그 이후 fresh latch cycle에서 pending SDO, drain, mode
+restore, RT owner와 uncertainty slot <code>94/113/116/117/127</code>이
+모두 <code>0</code>일 때만 terminal success를 publish한다.
+overall/cleanup timeout 비교는 inclusive <code>&gt;=</code>로
+맞췄다.</p>
+<p>Start는 common owner Commit 전에 exact record/runtime을 구성하고 slot
+<code>125=1</code>, record state <code>1</code>, stage <code>89</code>
+순서로 prepared state를 publish한다. Commit 성공 뒤에만 slot
+<code>125=2</code>, stage <code>1</code>과 ACK를 publish한다. warm
+continuation의 stage <code>89</code>는 preemption 조회보다 먼저 exact
+ACTIVE를 검증하고, 아니면 exact RESERVED에서만 Commit을 재시도한 뒤
+ACTIVE를 다시 확인한다. 복구할 수 없으면 exact Rollback 성공 시
+generation slot <code>109</code>를 보존해 state를 clear하고, 실패하면
+stage <code>101</code>에 남긴다. runtime clear는 slot
+<code>92..108</code>과 <code>110..127</code>로 분리해 slot
+<code>109</code>를 한 번도 지우지 않는다. normal state machine은
+committed phase <code>2</code>만 허용한다.</p>
+<p>cleanup stage <code>90..99</code>는 service clock 기준 1초가 지나면
+exact SDO token의 <code>MarkOrphan</code>을 한 번 시도하고
+pending/uncertainty flag를 지우지 않은 채 quarantine를 best-effort
+publish한 후 local stage <code>101</code>로 종료한다. safety owner가
+아직 RESERVED인 <code>PENDING_FREEZE</code>에서는 owner나 receipt를
+변경하지 않고 1초 만료 시 local stage <code>101</code>로만 격리한다.</p>
+<p>정적 검증 결과는 다음과 같다.</p>
+<ul>
+<li>DS402 Home
+Retirement/admission/runtime/warm-reconcile/bounded-cleanup negative
+fixture <code>61/61</code> PASS</li>
+<li>current source adversarial mutation <code>7/7</code> reject
+PASS</li>
+<li>current DS402 targeted source contract PASS</li>
+<li><code>TCPMotionInterface.MsgPaser</code> UTF-8 크기
+<code>31378</code> bytes, 상한 <code>32768</code> bytes 이내</li>
+<li>변경 LASAL source 4개 7-bit ASCII PASS</li>
+<li>관련 파일 <code>git diff --check</code> PASS</li>
+<li>full <code>-SourceOnly</code>는 새 DS402/size/transport 검사를
+통과한 뒤, 이 작업과 무관한 기존
+<code>D5 SDO Write global production gate must remain FALSE</code> 정책
+gate에서 중단</li>
+</ul>
+<p>따라서 이번 수정은 gate를 열 근거가 아니다. 다음 blocker가 남아
+있다.</p>
+<ol type="1">
+<li>DS402 owner-release durable receipt와 rollback-complete durable
+receipt</li>
+<li>safety dispatch 전에 DS402 control-word bit 4를
+low/readback/tombstone 처리하는 InputLatch drain</li>
+<li>위 ABI를 위한 LASAL IDE declaration/client regeneration 뒤 C78
+build/download</li>
+<li>motor-off 한 축 단독 method-37 실행, exact outcome/retire와 pcap
+proof</li>
+</ol>
+<h2 id="pending-lasal-ide-declaration-handoff">15. pending LASAL IDE
+declaration handoff</h2>
+<p>아래 ABI는 아직 IDE에 입력하지 않았다. external source 구현과
+verifier를 먼저 준비한 뒤 사용자가 LASAL IDE에서 declaration/client
+wrapper만 생성하는 단계다. <code>GLOBAL</code>/private 구분과 입력
+순서를 바꾸면 안 된다.</p>
+<h3 id="lmcecatinputlatch-1">15.1 <code>LMCEcatInputLatch</code></h3>
+<p>class variable 4개를 추가한다.</p>
+<pre class="text"><code>Ds402HomeDrainRequestSequence : UDINT
+Ds402HomeDrainAppliedSequence : UDINT
+Ds402HomeDispatchSequence : UDINT
+Ds402HomeDrainMailbox : ARRAY [0..7] OF DINT</code></pre>
+<p>아래 function은 <code>GLOBAL</code>로 추가한다.</p>
+<pre class="text"><code>RequestDs402HomeSafetyDrain
+  OperationToken : UDINT
+  AxisReference : DINT
+  Result : DINT</code></pre>
+<h3 id="lmccontrolcommandservice-1">15.2
+<code>LMCControlCommandService</code></h3>
+<p>아래 function은 <code>GLOBAL</code>로 추가한다.
+<code>pDs402State</code>는 <code>^void</code>다.</p>
+<pre class="text"><code>PublishAxisOwnershipDs402Receipt
+  AxisMask : UDINT
+  AdmissionToken : UDINT
+  OwnerGeneration : UDINT
+  ReportKind : UINT
+  ReportValue0 : UDINT
+  ReportValue1 : UDINT
+  ObservationCycle : UDINT
+  pDs402State : ^void
+  Ds402StateSize : UDINT
+  Result : DINT</code></pre>
+<p><code>LMCControlCommandService.InputLatch : CltChCmd_LMCEcatInputLatch</code>와
+<code>LMCDiagnosticsService.AxisOwnership : CltChCmd_LMCControlCommandService</code>는
+이미 존재한다. IDE가 두 신규 호출 경로의 client wrapper를 새 ABI로
+regenerate해야 하지만 <code>Comm_Network</code> 연결은 추가하거나
+삭제하지 않는다. declaration 생성 확인 뒤에는
+<code>Save All -&gt; IDE 종료</code>까지만 하고, external
+implementation과 verifier를 맞춘 뒤 별도 요청에서 C78 Rebuild한다.</p>
+</body>
+</html>
