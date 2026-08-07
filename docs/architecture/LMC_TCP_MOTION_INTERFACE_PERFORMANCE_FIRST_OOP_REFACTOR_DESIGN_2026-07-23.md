@@ -995,54 +995,54 @@ general publish continue를 뜻한다. 기존 `-4/-3/0/1` 결과, Home state rea
 결과를 local에만 매핑한 뒤 `destroyBanks` 계산부터 계속하며 두 validator가 끝나기 전 persistent main
 commit을 시작하지 않는다.
 
-2026-08-07 A51E current source를 대상으로 한 read-only in-memory 계획 크기는 다음과 같다.
+2026-08-07 LASAL Save All 뒤 실제 post-IDE/pre-split source를 캡처했다. 물리 파일은 CRLF
+`609947` bytes / SHA-256
+`C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5`, canonical LF projection은
+`593113` bytes / SHA-256
+`F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC`다. 두 private declaration은
+`//Tables:` 직전에 Home -> Decision 순서로 있고, 같은 순서의 qualified empty implementation stub은
+source EOF에 있다. 이 capture가 실제 CodeGenerator header와 separator의 기준이다.
 
-- terminal EOL을 제외한 public adapter canonical-LF/all-CRLF `26265/26996`, canonical-LF SHA-256
+그 snapshot을 LF로 정규화한 뒤 external implementation split을 적용했다. current canonical source는
+LF `594938` bytes / SHA-256
+`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. 같은 text를 모두 CRLF로
+투영한 expected 값은 `611837` bytes / SHA-256
+`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`이지만, 아직 IDE Save/Rebuild로
+관찰한 물리 파일 값은 아니다. terminal EOL을 제외한 current method canonical-LF 크기와 SHA-256은
+다음과 같다.
+
+- public adapter: `26265` bytes,
   `355A0EA77E13D0CA612BDBD9FA0A55FCA5233B33D3C4DEAC91F5BAEED2B108BE`
-- terminal EOL을 제외한 Home helper canonical-LF/all-CRLF `15027/15394`, canonical-LF SHA-256
-  `AB18CA50D45748231E00DC9789981B3A69E76F45A2921B40369E0558CEEE5BBD`
-- terminal EOL을 제외한 decision helper canonical-LF/all-CRLF `24697/25369`, canonical-LF SHA-256
-  `098A25EE39ED51E37917547611CC53E41E49F1C151EB9BED9EEEC68BB82816B2`
-- terminal EOL을 제외한 Home extraction canonical-LF/all-CRLF `13892/14214`, canonical-LF/CRLF SHA-256
-  `84A8FE035018CC10F595EEF8024357E0EDD75035BAE9C51F11B85D49547FBFF1` /
-  `3B9C74787829FDF51B1F7E3EF2F7DB4FE1519AC17A7C146C60B56E0785507E2D`
-- terminal EOL을 제외한 decision extraction canonical-LF/all-CRLF `22769/23361`, canonical-LF/CRLF SHA-256
-  `90B7E61AA6F4F85896835C7F0EE05855930FE73A891546E8832A46196213DB8E` /
-  `E2E06E5ADBF2F526C765E893512D365C008A6AE9BA1C1494500BB1133D5D58A3`
+- Home helper: `15035` bytes,
+  `EF68864255B888F8E579AE066BB65C1313349B8BE44E0FCEB402FE2DF4DCC849`
+- decision helper: `24708` bytes,
+  `75804F7C0681D51416E75C55D54038162E71768EAFF00C4057F8200D138FC377`
 
-세 method 모두 LF와 CRLF에서 `32768` 미만이다. LASAL CodeGenerator의 기존 관례대로 두 private
-declaration을 `//Tables:` 직전에, implementation을 source EOF에 같은 순서로 append한 계획 whole
-source는 canonical LF `594900` bytes / SHA-256
-`A2934DA0EB3E937CD934649458F0628971115D1725F089FD5FC43F71C07EC1B0`, IDE CRLF `611799` bytes /
-SHA-256 `C4B93F2D243839F1ABA9C8C4C6829921B1B585A0035590320E13D9D6660F5692`다.
-이 whole-source 값은 append 위치만 모사한 계획 진단값이다. 실제 IDE-generated tab 정렬, separator와
-empty stub을 아직 캡처하지 않았으므로 post-IDE 승인 ratchet으로 사용하지 않는다. Save All 뒤 실제
-post-IDE snapshot을 저장하고 stub header를 byte-exact 보존하는 planner로 rebaseline해야 한다.
-전용 read-only planner는
-`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`이며 기본 실행과
-`-RunSelfTest`의 negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. planner는 canonical
-source/generated file을 쓰지 않는다. 두 helper/declaration과 call/map을 제거하고 원 두 block을
-reverse-inline하면 canonical LF
-`7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE`와 IDE CRLF
-`A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`을 byte-exact
-복원한다. 실제 split 뒤에는 exact private ABI/one-call dominance, adapter+helper transitive
-read/write/call/Result inventory, Home `Result=2` containment, decision bit `0..2` domain, no input/live tuple
-재표본, first main commit dominance, reverse-inline proof와 size debt 제거를 다시 승인한다.
+세 method는 모두 `32768` bytes 미만이다. current custom method inventory는 `98/95/3`
+(전체/under-limit/baseline debt)이다. source의 private helper record는 각각 `1/1`이고,
+`Classes.lcb`는 ordered input `7/10`, output `1`, `Result : DINT`의 exact private ABI record를 각각
+한 개 포함한다. external body 적용 뒤에도 generated/project/Network는 다음 pre-build ratchet과 같다.
 
-2026-08-07 pre-transition verifier는 current monolith와 final split만 허용한다. monolith provider
-negative `69/69`, split structural transition `8/8`, planner semantic negative `19/19`, production caller
-`19/19/0`을 통과했고 SourceOnly/full current gate도 PASS했다. declaration 또는 implementation 일부만
-존재하거나 실제 CodeGenerator empty stub 두 개가 남은 `98/94/4` 상태는 default FAIL이다. final
-split에서는 source의 exact private ABI와 함께 `Classes.lcb`의 private zero-scope record, ordered input
-count `7/10`, output count `1`, `Result : DINT`를 요구한다.
+- `Classes.lcb`: SHA-256
+  `6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22`
+- project `.lcb`: SHA-256
+  `B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA`
+- Network inventory: SHA-256
+  `B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`
 
-post-IDE snapshot은
-`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Capture-PublishSplitIdeBaseline.ps1`로만
-승인한다. 이 도구는 LASAL 종료, exact evidence output directory, BOM 없는 ASCII source, ordered
-declaration/qualified empty stub, A51E/7EAB reverse removal, Classes helper-name evidence와 전체 Network
-inventory의 stable revalidation을 강제하고 기존 evidence file을 덮어쓰지 않는다. self-test는
-`14/14`다. helper 생성 전 Network inventory SHA-256은
-`B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`이며 post-IDE와 비교한다.
+Publish focused static contract는 current split을 PASS했고 중간 empty-stub 상태는 더 이상 current가 아니다.
+TW19 verifier도 split adapter와 Home helper를 함께 검사하도록 보완해 negative `37/37`을 거부했다.
+waiver 없는 full `-SourceOnly -ExpectedSdoWriteAxis 1`은 `233.9`초에 exit `0`으로 PASS했다. generated
+metadata를 포함한 full `-ExpectedSdoWriteAxis 1`도 `236.2`초에 exact private ABI `1/1`로 PASS했다.
+C78 Rebuild와 implementation smoke는 아직 수행하지 않았다. 따라서 이 checkpoint는 source-only split과
+static contract 완료이지 build/IDE/runtime 완료가 아니다.
+
+body split만 reverse하면 generated declaration과 qualified empty stub을 유지한 채 post-IDE PRE인
+canonical LF `F923D5F5...` / physical CRLF `C6362652...`를 복원한다. generated declaration/stub까지
+별도로 제거해야만 더 오래된 canonical LF `7EAB9F0E...` / IDE CRLF `A51E7163...`로 돌아간다.
+과거 A51E monolith 대상 Home `15027`, decision `24697` bytes와 whole-source
+`A2934DA0...` / `C4B93F2D...`는 실제 IDE capture 전에 계산한 superseded planning simulation일 뿐이며
+current 승인값으로 사용하지 않는다.
 
 ### 8.6 post-C78 ownership reservation split plan
 

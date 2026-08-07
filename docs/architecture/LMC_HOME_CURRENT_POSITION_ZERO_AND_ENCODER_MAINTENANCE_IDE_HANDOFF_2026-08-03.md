@@ -1259,23 +1259,25 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
   재검증하지 않는다. production caller ordering/whitelist가 precondition이다. 2026-08-07 current source는
   production call `19`, assigned Result `19`, consumed Result `19`, OPEN `0`이며 과거 `21/10/11`은
   synthetic regression fixture에만 남음
-- publish의 post-C78 별도 split은 private
-  `HandleAxisOwnershipPublishHomeReceipt(...)`와 `PrepareAxisOwnershipPublishDecision(...)` 두 helper가
-  minimum인 미적용 계획이다. A51E rebaseline에서 terminal EOL을 제외한 canonical-LF/all-CRLF는
-  adapter `26265/26996`,
-  Home helper `15027/15394`, decision helper `24697/25369` bytes다. 기존 CodeGenerator 관례대로 두
-  declaration을 `//Tables:` 직전, implementation을 source EOF에 같은 순서로 append한 계획 whole
-  source SHA-256은 canonical LF
-  `A2934DA0EB3E937CD934649458F0628971115D1725F089FD5FC43F71C07EC1B0`, IDE CRLF
-  `C4B93F2D243839F1ABA9C8C4C6829921B1B585A0035590320E13D9D6660F5692`이고 reverse-inline은 current
-  canonical LF `7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE` / IDE CRLF
-  `A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`을 byte-exact 복원한다.
-  이 whole-source 값은 append 위치만 모사한 계획 진단값이며 실제 IDE가 생성하는 tab 정렬, separator,
-  empty stub을 아직 포함하지 않은 승인 ratchet이 아니다. Save All 뒤 실제 post-IDE snapshot을 캡처하고
-  IDE-generated header를 그대로 보존한 상태로 planner와 whole-source hash를 다시 baseline 해야 한다.
-  read-only planner `test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`는
-  AST, 기본 실행, negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. 두 helper 모두 현재
-  Section 17 선언 목록에 추가하지 않음
+- publish의 post-C78 split은 private
+  `HandleAxisOwnershipPublishHomeReceipt(...)`와 `PrepareAxisOwnershipPublishDecision(...)` 두 helper로
+  source-only 적용됐다. 실제 post-IDE/pre-split capture는 CRLF `609947` bytes /
+  `C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5`, canonical LF `593113` bytes /
+  `F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC`다. declaration은
+  `//Tables:` 직전, qualified empty stub은 EOF에 모두 Home -> Decision 순서로 존재했다. external body
+  적용 뒤 canonical LF는 `594938` bytes /
+  `8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. expected CRLF projection
+  `611837` bytes / `B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`은
+  아직 IDE Save/Rebuild로 관찰한 값이 아니다. terminal EOL 제외 adapter/Home/Decision canonical-LF는
+  각각 `26265/15035/24708` bytes이고 SHA-256은 `355A0EA7...` / `EF688642...` / `75804F7C...`다.
+  inventory는 `98/95/3`이며 source private helper와 `Classes.lcb` exact private ABI record는 각각
+  `1/1`, ordered input은 `7/10`, output은 각 `Result : DINT` 하나다. body rollback은 declaration/stub을
+  유지한 채 F923/C636 post-IDE PRE를 복원하며, generated declaration/stub까지 별도로 제거해야만
+  7EAB/A51E를 복원한다. 과거 Home `15027`, Decision `24697`, A293/C4B whole-source 값은 실제 IDE
+  capture 전 superseded planning simulation이다. Publish focused static contract와 TW19 negative
+  `37/37`, waiver 없는 full `-SourceOnly -ExpectedSdoWriteAxis 1`은 PASS했다. generated metadata를
+  포함한 full `-ExpectedSdoWriteAxis 1`도 exact private ABI `1/1`로 PASS했다. C78
+  Rebuild/implementation smoke는 아직 남아 있음
 - `ReserveAxisOwnership` 안의 미선언 `preemptRecordBase` 5개 참조를 이미 선언된 동일 record-base local
   `probeRecordBase`로 교정했다. public/class ABI, local 수와 call/write/result 순서는 불변이다.
   교정 뒤 method raw/LF/all-CRLF는 `79880/77732/79881`, raw block SHA-256은
@@ -1814,42 +1816,46 @@ Client/Server는 별도로 `Find in Implementation`을 실행한다. 로그는 c
 
 ## 24. 2026-08-07 PublishAxisOwnership split transition guard
 
-Section 8.5의 Publish split을 IDE에 적용하기 전에 current monolith와 final split을 모두 검증하고
-중간상태는 거부하는 dual-state contract를 추가했다. 현재 A51E source와 `Classes.lcb`에는 두 Publish
-helper가 각각 `0/0`이며 monolith state로 승인된다.
+Section 8.5의 두 private function IDE declaration 작업과 post-IDE capture, external body split 적용을
+완료했다. declaration은 `//Tables:` 직전, qualified implementation은 source EOF에 모두
+`HandleAxisOwnershipPublishHomeReceipt` -> `PrepareAxisOwnershipPublishDecision` 순서다.
+`GLOBAL`/`VIRTUAL GLOBAL`과 Network 연결은 없다.
 
-- monolith provider negative `69/69` PASS
-- split structural transition negative `8/8` PASS: partial/duplicate declaration 또는 implementation,
-  실제 blank-line empty Home/Decision stub, GLOBAL implementation, adapter call 누락을 거부
-- planner semantic negative `19/19`, LF/CRLF positive와 reverse exact PASS
-- production caller current `19/19/0` total/consumed/OPEN과 preemption cleanup caller `4`곳의 exact
-  `{0,1}` success domain PASS
-- SourceOnly/full current gate 각각 약 `233`초에 PASS
-- generated contract current monolith `Classes.lcb` helper record `0/0` PASS. final split은 exact private
-  record, zero scope flags, ordered input count `7/10`, output count `1`, `Result : DINT`를 요구
-- current custom method inventory `96/92/4`; IDE empty-stub 중간상태 예상 `98/94/4`는 default FAIL,
-  final split만 `98/95/3`으로 승인
+실제 post-IDE/pre-split source는 CRLF `609947` bytes / SHA-256
+`C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5`다. canonical LF는 `593113`
+bytes / SHA-256
+`F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC`이며 두 helper가 qualified
+empty stub인 중간상태였다. capture는
+`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_manifest.json`과 원본 CRLF
+snapshot에 보존했다.
 
-post-IDE capture 도구
-`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Capture-PublishSplitIdeBaseline.ps1`는 source의
-exact ordered private declaration과 qualified EOF empty stub을 제거했을 때 A51E/7EAB가 복원되는지를
-검사한다. self-test는 `14/14`다. 캡처는 LASAL process가 완전히 종료된 경우에만 허용하고 출력 경로를
-exact evidence directory로 제한하며, source/Classes/Network를 single-read hash한 뒤 캡처 전후 다시
-검사한다. 기존 snapshot/manifest는 `FileMode.CreateNew`로 덮어쓰지 않는다.
+external split 적용 뒤 current canonical source는 LF `594938` bytes / SHA-256
+`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. expected all-CRLF projection은
+`611837` bytes / SHA-256
+`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`이지만 아직 실제 C78 IDE가
+저장하거나 빌드한 physical evidence는 아니다. terminal EOL 제외 current method는 다음과 같다.
 
-현재 IDE가 열린 상태에서 고정한 pre-helper observed baseline은
-`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/pre_publish_helper_ide_baseline_manifest.json`이다.
-Network tracked/available/union은 `15/23/23`, inventory SHA-256은
-`B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`다. 이 값은 final approval
-ratchet이 아니라 helper 생성 전후 Network 변화 탐지 기준이다.
+- adapter: `26265` bytes /
+  `355A0EA77E13D0CA612BDBD9FA0A55FCA5233B33D3C4DEAC91F5BAEED2B108BE`
+- Home: `15035` bytes /
+  `EF68864255B888F8E579AE066BB65C1313349B8BE44E0FCEB402FE2DF4DCC849`
+- Decision: `24708` bytes /
+  `75804F7C0681D51416E75C55D54038162E71768EAFF00C4057F8200D138FC377`
 
-다음 IDE 작업은 `LMCControlCommandService`에 아래 두 private function을 **Home -> Decision 순서**로
-추가하는 것이다. exact input/output ABI는 Section 8.5를 그대로 사용하고 `GLOBAL`/`VIRTUAL GLOBAL`,
-Network 연결은 만들지 않는다.
+current inventory는 `98/95/3`이다. source private helper는 각각 한 개이고 `Classes.lcb`에도 exact private
+ABI record가 각각 한 개 있다. ordered input은 `7/10`, output은 각 `Result : DINT` 하나다. external
+body 적용 뒤 pre-build ratchet은 다음과 같이 유지됐다.
 
-1. `HandleAxisOwnershipPublishHomeReceipt` (`7` inputs, `Result : DINT`)
-2. `PrepareAxisOwnershipPublishDecision` (`10` inputs, `Result : DINT`)
+- `Classes.lcb`: `6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22`
+- project `.lcb`: `B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA`
+- Network inventory: `B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`
 
-두 function 추가 뒤에는 Save All하고 Rebuild/Download/Online 없이 LASAL을 종료한다. 실제
-post-IDE source/Classes/Network snapshot을 통과한 뒤에만 IDE-generated stub header를 그대로 보존해
-adapter와 두 helper body를 외부 적용한다.
+Publish focused static contract와 TW19 negative `37/37`은 PASS했다. waiver 없는 full
+`-SourceOnly -ExpectedSdoWriteAxis 1`도 `233.9`초에 exit `0`으로 PASS했다. generated metadata를 포함한
+full `-ExpectedSdoWriteAxis 1`은 `236.2`초에 exact private ABI `1/1`로 PASS했다. C78 Rebuild와
+implementation smoke는 아직 수행하지 않았다. body split만 reverse하면 generated declaration/empty
+stub을 유지한 F923/C636 post-IDE PRE를 복원한다. generated
+declaration/stub까지 별도로 제거해야만 7EAB/A51E를 복원한다. A51E를 대상으로 계산했던 Home
+`15027`, Decision `24697` bytes와 A293/C4B whole-source 값은 actual capture 전의 superseded planning
+simulation이다. 다음 순서는 C78 Rebuild와 implementation smoke로 실제 generated/build 상태를
+확인하는 것이다.
