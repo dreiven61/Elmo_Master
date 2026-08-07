@@ -1,0 +1,168 @@
+{
+  "status": "PASS",
+  "phase": "post_implementation_static_gate_passed",
+  "mode": "DAA8 post-IDE one-shot in-memory candidate was applied byte-exact; the planner did not write canonical source",
+  "planner": "Plan-RollbackSplit.ps1",
+  "plannerSha256": "597064AA3DD43D2212C016243E6DD1BA67563B98F26A21911BE9DF13E89D49CF",
+  "plannerSelfTest": {
+    "status": "PASS",
+    "negativeFixturesRejected": 18,
+    "negativeFixturesTotal": 18,
+    "positiveCandidateAccepted": true,
+    "fixtureCountAndErrorKeySetRatcheted": true,
+    "expectedRejectionReasonChecked": true,
+    "scope": "Executed against the DAA8 post-IDE/pre-implementation source; this is a one-shot planning proof, not an A51E post-state verifier."
+  },
+  "postIdeBaseline": {
+    "source": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "bytes": 606820,
+      "sha256": "DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0"
+    },
+    "classesLcb": {
+      "bytes": 8429648,
+      "sha256": "2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5"
+    },
+    "helperDeclarationAndEmptyStubPresent": true,
+    "methodInventory": {
+      "classes": 6,
+      "methods": 96,
+      "underLimit": 91,
+      "baselineDebt": 5
+    }
+  },
+  "originalMethod": {
+    "lineStart1": 5032,
+    "lineEnd1": 6337,
+    "byteStart0": 180762,
+    "byteEndExclusive0": 230865,
+    "rawBytes": 50103,
+    "lfBytes": 48798,
+    "crlfBytes": 50104,
+    "sha256": "2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745"
+  },
+  "extraction": {
+    "selectedOccurrence": 2,
+    "lineStart1": 5375,
+    "lineEnd1": 5879,
+    "byteStart0": 192424,
+    "byteEndExclusive0": 212796,
+    "rawBytes": 20372,
+    "lfBytes": 19867,
+    "crlfBytes": 20372,
+    "sha256": "9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C"
+  },
+  "candidate": {
+    "adapter": {
+      "canonicalLfBytes": 29124,
+      "ideCrlfBytes": 29922,
+      "canonicalLfSha256": "8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC",
+      "historicalIdeCrlfSliceBytes": 29921,
+      "historicalIdeCrlfSliceSha256": "7D6F50F68B7E4EC274BCEFE123996A30EB7DD860F6D91ACB16C70A976988156C",
+      "persistentWrites": 79,
+      "resultAssignments": 15,
+      "returns": 14
+    },
+    "helper": {
+      "canonicalLfBytes": 21451,
+      "ideCrlfBytes": 22046,
+      "canonicalLfSha256": "AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09",
+      "historicalIdeCrlfSliceBytes": 22045,
+      "historicalIdeCrlfSliceSha256": "CBEB97FCDC96231E2959AD5960192CF9D9FD14935E29CD227D490B1D8AA84675",
+      "persistentWrites": 0,
+      "contextWrites": 10,
+      "memcmpCalls": 3
+    },
+    "callMap": {
+      "canonicalLfBytes": 758,
+      "ideCrlfBytes": 776,
+      "canonicalLfSha256": "66E328773321E978F63BF13F3080E77193D27D69E704081A7205D366EC76FF55",
+      "historicalIdeCrlfSha256": "43ADA8EEDEBB564BB8DCB0796EDA786274C9AB668F82B67B1A9CBBBB5C51E30F"
+    },
+    "ideGeneratedClassDeclaration": {
+      "canonicalLfBytes": 207,
+      "ideCrlfBytes": 216,
+      "canonicalLfSha256": "4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4",
+      "historicalIdeCrlfSha256": "29318A8AE8C4732BE365D60B5F665B862704748C9EA2E1E6CB2A9A2E5AA0039A",
+      "scope": "actual LASAL IDE-generated exact private declaration; no GLOBAL or VIRTUAL GLOBAL"
+    },
+    "wholePlannedSource": {
+      "canonicalLfBytes": 591670,
+      "canonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+      "ideCrlfBytes": 608436,
+      "ideCrlfSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753"
+    }
+  },
+  "application": {
+    "status": "APPLIED_C78_RAW_LOG_AND_STATIC_VERIFIED",
+    "canonicalLfSourceBytes": 591670,
+    "canonicalLfSourceSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+    "ideCrlfSourceBytes": 608436,
+    "ideCrlfSourceSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753",
+    "matchesWholePlannedSourceInBothEolProjections": true,
+    "preRebuildClassesLcbSha256": "2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5",
+    "postC78ClassesLcbSha256": "3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B",
+    "networkChanged": false
+  },
+  "postC78RawLogEvidence": {
+    "status": "PASS_RAW_LOG_STRICT_DUAL_EVIDENCE_PENDING",
+    "compiler": "C78",
+    "targetArchitecture": "ARM",
+    "compilerErrors": 0,
+    "codedWarnings": 55,
+    "postResultCompatibilityWarnings": 6,
+    "capturedInputsByteExact": true,
+    "requiredCustomSourcesCompiledExactlyOnce": 6,
+    "linkerDone": true,
+    "commandSucceeded": true,
+    "appendedCInvalidArgExceptionCount": 0,
+    "independentGuiTranscriptCaptured": false,
+    "exactImplementationSearchSmokeProven": false,
+    "evidence": "postbuild_raw_log_audit.json"
+  },
+  "provedContracts": {
+    "helperPrivateAbiGenerated": true,
+    "secondExtractionOccurrenceOnly": true,
+    "extractionOnlyLocalsMoved": 23,
+    "successOnlyContextPublication": true,
+    "contextOffsetsBytes": [0, 4, 8, 12, 16, 20, 24, 28, 32, 36],
+    "adapterMapsHelperNonzeroToPublicMinus3Return": true,
+    "adapterPersistentMutationInventoryPreserved": true,
+    "publicResultSequencePreserved": true,
+    "publicReturnCountPreserved": true,
+    "exactAdapterAndHelperBytesClosed": true,
+    "appliedSourceMatchesExactFragments": true,
+    "reverseInlineRestoredByteExact": true,
+    "reverseInlineSha256": "DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0"
+  },
+  "currentStaticVerification": {
+    "mainVerifier": "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1",
+    "mainVerifierSha256": "D9C4AD42C27EFA8C40284623B28CDAE3C816AB9A72EFF25548C7E6102E1B3670",
+    "methodSizeVerifierSha256": "A2561FB2C1E6437E3376F5F90EBF6DD90008D3CCF78BC998FE2D102D8DAD9CA8",
+    "rollbackSplitVerifier": "PASS 20/20 negative fixtures rejected for their expected semantic contract; current adapter/helper accepted",
+    "ownershipAggregateNegativeFixtures": "PASS 287/287",
+    "sourceOnly": "PASS waiver-free with -ExpectedSdoWriteAxis 1",
+    "postC78FullStatic": "PASS waiver-free with -ExpectedSdoWriteAxis 1",
+    "methodInventoryTuple": "96/92/4",
+    "eolReproducibility": "PASS current IDE CRLF and fresh-checkout LF for integrated 20/20 and planner 18/18",
+    "plannerReverseEvidence": {
+      "path": "test/Reports_Lasal/C78_20260806_preemption_cleanup_split/pre_ide_LMCControlCommandService.st",
+      "canonicalLfBytes": 588317,
+      "canonicalLfSha256": "B9C1226D164D754CA7CBD5C7B2B07D55F4C0F255ACCEE826427D4B510D637744",
+      "historicalPhysicalMixedEolBytes": 604861,
+      "historicalPhysicalMixedEolSha256": "D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E"
+    },
+    "methodInventory": {
+      "classes": 6,
+      "methods": 96,
+      "underLimit": 92,
+      "baselineDebt": 4
+    }
+  },
+  "remainingGates": [
+    "Capture an independent GUI Build Output transcript and pass the strict dual-evidence verifier.",
+    "Run and preserve the two exact changed-class Find in Implementation smoke searches.",
+    "Run download/restart and runtime validation in separate evidence layers.",
+    "Design and validate durable power-loss rollback recovery separately; this split does not add it."
+  ]
+}

@@ -52,6 +52,9 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/** -whitespace
 # Preserve CodeGenerator trailing spaces in the rollback planner evidence.
 test/Reports_Lasal/C78_20260806_preemption_cleanup_split/pre_ide_LMCControlCommandService.st -whitespace
 
+# Preserve generated method-snapshot whitespace in LASAL evidence.
+test/Reports_Lasal/C78_20260806_ds402_receipt_split/pre_split_method.txt -whitespace
+
 # Preserve the raw exported thread history byte-for-byte and suppress text diffs.
 docs/history/Elmo_Master_history_260724.md binary
 

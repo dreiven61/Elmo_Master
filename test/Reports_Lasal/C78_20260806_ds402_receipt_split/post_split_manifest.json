@@ -1,0 +1,109 @@
+{
+  "captured_at": "2026-08-07T08:16:09+09:00",
+  "phase": "post_c78_rebuild_smoke_static_verified_pre_download",
+  "control_source": {
+    "bytes": 606348,
+    "sha256": "DA93EB01DBF7E842C36EE22E1ACBF6277D60C0E12C58B93A24BA870976321FCF",
+    "crlf_count": 16666,
+    "bare_lf_count": 1,
+    "bare_lf_matches_post_ide_snapshot": true
+  },
+  "adapter": {
+    "name": "PublishAxisOwnershipDs402Receipt",
+    "raw_bytes": 21836,
+    "lf_bytes": 21279,
+    "all_crlf_bytes": 21837,
+    "local_count": 35,
+    "persistent_mutation_count": 28,
+    "persistent_mutation_sha256": "91A354E4243C20A7EFD1FCF326B04CDDD99CE80BCAF9F3ED8F7D7B4F5C5EB0E4"
+  },
+  "helper": {
+    "name": "HandleAxisOwnershipDs402ReceiptStage87Recovery",
+    "private": true,
+    "virtual": false,
+    "global": false,
+    "input_count": 7,
+    "output_count": 1,
+    "raw_bytes": 26182,
+    "lf_bytes": 25531,
+    "all_crlf_bytes": 26183,
+    "local_count": 42,
+    "persistent_mutation_count": 49,
+    "persistent_mutation_sha256": "3E30219133119237C9115F267CDEA3CC186759E96DC7DBCD517305FB06AC2F17",
+    "result_sequence": "-2|-3|-2|-3|-1|-3|-3|-3|-3|-3|-3|0|2|2|-1|-3",
+    "return_count": 15
+  },
+  "semantic_proof": {
+    "moved_branch_lines": 588,
+    "moved_branch_exact_after_one_tab_deindent": true,
+    "reverse_inline_byte_exact": true,
+    "reverse_inline_sha256": "BAB60FF1891F424B132C52EF3FBF5D099AB010BFF1D7E812648DFA7BF619BE7A",
+    "transitive_persistent_mutation_count": 77,
+    "transitive_persistent_mutation_sha256": "95A9EAF512D0F4DCB5B406F2FB8B1B433A420A8C729C722AF3BC7C41B93388BA"
+  },
+  "generated_metadata": {
+    "classes_lcb_pre_rebuild_sha256": "DC71B0F8B8A493B84D2BE0A294408E462FEF87D758F28F9AA8C50C1F32124B7B",
+    "classes_lcb_sha256": "9147D2185860FE2082777013FC944248196B686402FE88F7EF52FAB9875301E0",
+    "helper_flags": "0x00000000",
+    "helper_input_count": 7,
+    "handle_registry_commands_input_count": 6,
+    "post_rebuild_semantic_contract": "PASS"
+  },
+  "network": {
+    "comm_network_sha256": "55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B",
+    "one_comm_network_table_sha256": "18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D",
+    "networks_lcb_sha256": "56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF"
+  },
+  "verification": {
+    "focused_negative": "67/67 PASS",
+    "method_size_selftest": "6/6 PASS",
+    "method_inventory": "95 total / 90 under-limit / 5 baseline debt",
+    "source_only_command": "Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1",
+    "source_only_exit_code": 0,
+    "source_only_elapsed_seconds": 177.0,
+    "independent_source_only_elapsed_seconds": 178.4,
+    "post_rebuild_source_only_exit_code": 0,
+    "post_rebuild_source_only_elapsed_seconds": 177.247,
+    "git_diff_check": "PASS"
+  },
+  "ide_rebuild_smoke": {
+    "ide_version": "02.03.001",
+    "compiler": "C78",
+    "target_architecture": "ARM",
+    "rebuild_started_at": "2026-08-07T08:02:44.426+09:00",
+    "rebuild_succeeded": true,
+    "rebuild_elapsed_milliseconds": 26318.1,
+    "ide_result_error_count": 0,
+    "ide_result_warning_count": 55,
+    "log_warning_line_count": 61,
+    "source_warning_codes": {
+      "W0069": 35,
+      "W0072": 17,
+      "W0073": 3
+    },
+    "source_warning_classes": {
+      "LMCControlCommandService": 12,
+      "LMCDiagnosticsService": 38,
+      "LMCEcatInputLatch": 1,
+      "LMCSdoExecutor": 3,
+      "TCPMotionInterface": 1
+    },
+    "compiler_library_version_warning_count": 6,
+    "log_error_fatal_line_count": 0,
+    "rebuild_cinvalidargexception_count": 0,
+    "find_in_implementation_channel": "Comm_Network.LMCControlCommandService1.LMCAxis1",
+    "find_in_implementation_hits": 29,
+    "find_in_implementation_matched_files": 1,
+    "find_in_implementation_searched_files": 3,
+    "find_in_implementation_elapsed_milliseconds": 302.2,
+    "find_in_implementation_succeeded": true,
+    "post_smoke_cinvalidargexception_count": 0,
+    "save_all_succeeded": true,
+    "save_all_elapsed_milliseconds": 1893.5,
+    "ide_exit_completed_at": "2026-08-07T08:16:09+09:00",
+    "download_performed": false
+  },
+  "pending": [
+    "PLC download/restart/runtime validation"
+  ]
+}

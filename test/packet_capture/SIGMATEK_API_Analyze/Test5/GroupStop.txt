@@ -1,0 +1,48 @@
+[16:25:06.311] Move Linear Absolute Send started.
+[16:25:06.323] Move Linear Absolute input: StartRaw=X=963235, Y=963235, Z=963235, U=963235, TargetRaw=X=0, Y=0, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting, MonitorTimeoutMs=486868.
+[16:25:06.341] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[16:25:06.357] SAFETY: Move Linear Absolute dispatch result is not a confirmed rejection; durable motion recovery remains active and no Move will be replayed.
+[16:25:06.358] Move Linear Absolute Send PASS.
+[16:25:06.361] Move Linear Absolute group monitor started with timeout 486868 ms. Group Stop remains available.
+[16:25:06.619] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[16:25:07.463] Group Stop Send queued with safety priority.
+[16:25:07.468] Group Stop Send transmitting.
+[16:25:07.473] SAFETY: Group Stop was accepted for the exact durable motion identity. Stable safe-state proof is still required.
+[16:25:07.474] Group Stop Send PASS.
+[16:25:07.475] Group Stop ACK was accepted exactly once. Verifying three stable Group Standby samples with status-only 0x2045 reads; Group Stop and Power Off remain available.
+[16:25:07.730] Motion warning cleared: Group Stop and stable Group Standby were verified.
+[16:25:07.731] Group Stop ACK accepted exactly once; status-only verification polls=5, Stable=3/3.
+[16:25:07.732] Group Stop safety verification PASS.
+[16:25:07.734] Move Linear Absolute monitor ended because a safety action cleared tracking.
+[16:25:08.961] Move Linear Absolute Send started.
+[16:25:08.971] Move Linear Absolute input: StartRaw=X=957592, Y=957592, Z=957592, U=957592, TargetRaw=X=0, Y=0, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting, MonitorTimeoutMs=484047.
+[16:25:08.990] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[16:25:09.010] SAFETY: Move Linear Absolute dispatch result is not a confirmed rejection; durable motion recovery remains active and no Move will be replayed.
+[16:25:09.011] Move Linear Absolute Send PASS.
+[16:25:09.013] Move Linear Absolute group monitor started with timeout 484047 ms. Group Stop remains available.
+[16:25:09.272] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[16:25:09.992] Group Stop Send queued with safety priority.
+[16:25:10.009] Group Stop Send transmitting.
+[16:25:10.015] SAFETY: Group Stop was accepted for the exact durable motion identity. Stable safe-state proof is still required.
+[16:25:10.016] Group Stop Send PASS.
+[16:25:10.017] Group Stop ACK was accepted exactly once. Verifying three stable Group Standby samples with status-only 0x2045 reads; Group Stop and Power Off remain available.
+[16:25:10.281] Motion warning cleared: Group Stop and stable Group Standby were verified.
+[16:25:10.282] Group Stop ACK accepted exactly once; status-only verification polls=5, Stable=3/3.
+[16:25:10.283] Group Stop safety verification PASS.
+[16:25:10.297] Move Linear Absolute monitor ended because a safety action cleared tracking.
+[16:25:11.299] Move Linear Absolute Send started.
+[16:25:11.310] Move Linear Absolute input: StartRaw=X=952489, Y=952489, Z=952489, U=952489, TargetRaw=X=0, Y=0, Z=0, U=0, VelocityRaw=10000, AccelerationRaw=100000, DecelerationRaw=100000, JerkRaw=0, Transition=ExactStop, Buffer=Aborting, MonitorTimeoutMs=481495.
+[16:25:11.329] SAFETY: Move Linear Absolute send may start for _LMCRobotBase1. Motion state is uncertain until rejection or verified standstill.
+[16:25:11.346] SAFETY: Move Linear Absolute dispatch result is not a confirmed rejection; durable motion recovery remains active and no Move will be replayed.
+[16:25:11.347] Move Linear Absolute Send PASS.
+[16:25:11.350] Move Linear Absolute group monitor started with timeout 481495 ms. Group Stop remains available.
+[16:25:11.607] SAFETY: Non-standstill motion was observed for _LMCRobotBase1.
+[16:25:12.459] Group Stop Send queued with safety priority.
+[16:25:12.464] Group Stop Send transmitting.
+[16:25:12.468] SAFETY: Group Stop was accepted for the exact durable motion identity. Stable safe-state proof is still required.
+[16:25:12.468] Group Stop Send PASS.
+[16:25:12.470] Group Stop ACK was accepted exactly once. Verifying three stable Group Standby samples with status-only 0x2045 reads; Group Stop and Power Off remain available.
+[16:25:12.707] Motion warning cleared: Group Stop and stable Group Standby were verified.
+[16:25:12.708] Group Stop ACK accepted exactly once; status-only verification polls=5, Stable=3/3.
+[16:25:12.709] Group Stop safety verification PASS.
+[16:25:12.712] Move Linear Absolute monitor ended because a safety action cleared tracking.

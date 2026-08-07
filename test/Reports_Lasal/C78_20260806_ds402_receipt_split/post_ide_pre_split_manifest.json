@@ -1,0 +1,30 @@
+{
+  "captured_at": "2026-08-06T18:31:38+09:00",
+  "phase": "post_ide_pre_split",
+  "source": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "bytes": 606170,
+    "sha256": "BAB60FF1891F424B132C52EF3FBF5D099AB010BFF1D7E812648DFA7BF619BE7A"
+  },
+  "classes_lcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+    "bytes": 8428428,
+    "sha256": "DC71B0F8B8A493B84D2BE0A294408E462FEF87D758F28F9AA8C50C1F32124B7B"
+  },
+  "network": {
+    "comm_network_sha256": "55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B",
+    "one_comm_network_table_sha256": "18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D",
+    "networks_lcb_sha256": "56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF"
+  },
+  "helper": {
+    "name": "HandleAxisOwnershipDs402ReceiptStage87Recovery",
+    "private": true,
+    "virtual": false,
+    "global": false,
+    "input_count": 7,
+    "output_count": 1
+  },
+  "handle_registry_commands_restored": true,
+  "stray_sult_removed": true,
+  "lasal_ide_closed": true
+}

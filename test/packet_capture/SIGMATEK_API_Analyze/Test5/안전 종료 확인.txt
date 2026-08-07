@@ -1,0 +1,45 @@
+[16:34:21.163] Group Disable (Unlock Profile) started.
+[16:34:21.371] Group Disable (Unlock Profile) PASS.
+[16:34:27.049] Group Power Off Send queued with safety priority.
+[16:34:27.058] Group Power Off Send transmitting.
+[16:34:27.092] Group Power Off accepted/start only. Verifying three consecutive PowerOn=False samples before safe state is trusted.
+[16:34:27.094] Group Power Off Send PASS.
+[16:34:27.098] Group Power Off is verifying three stable PowerOn=False samples; Group Stop remains available.
+[16:34:27.244] Group Power Off stable Power Off proof resolved the durable Group Power record.
+[16:34:27.246] Group Power Off safety verification PASS with 3 stable samples.
+[16:34:29.407] Group Power On started.
+[16:34:29.447] Group Power On accepted/start only. Verifying three consecutive PowerOn=True samples before ACTIVE is trusted.
+[16:34:29.587] Group Power On stable Power On proof resolved the durable Group Power record.
+[16:34:29.588] Group Power Ready/ACTIVE verified with three consecutive PowerOn=True samples. Set Identity is now available; 0x204A was not replayed by verification.
+[16:34:29.591] Group Power On PASS.
+[16:34:32.745] Group Power Off Send queued with safety priority.
+[16:34:32.754] Group Power Off Send transmitting.
+[16:34:32.786] Group Power Off accepted/start only. Verifying three consecutive PowerOn=False samples before safe state is trusted.
+[16:34:32.788] Group Power Off Send PASS.
+[16:34:32.789] Group Power Off is verifying three stable PowerOn=False samples; Group Stop remains available.
+[16:34:32.929] Group Power Off stable Power Off proof resolved the durable Group Power record.
+[16:34:32.930] Group Power Off safety verification PASS with 3 stable samples.
+[16:34:34.550] Group Power On started.
+[16:34:34.593] Group Power On accepted/start only. Verifying three consecutive PowerOn=True samples before ACTIVE is trusted.
+[16:34:34.729] Group Power On stable Power On proof resolved the durable Group Power record.
+[16:34:34.730] Group Power Ready/ACTIVE verified with three consecutive PowerOn=True samples. Set Identity is now available; 0x204A was not replayed by verification.
+[16:34:34.732] Group Power On PASS.
+[16:34:35.840] Group Power Off Send queued with safety priority.
+[16:34:35.849] Group Power Off Send transmitting.
+[16:34:35.881] Group Power Off accepted/start only. Verifying three consecutive PowerOn=False samples before safe state is trusted.
+[16:34:35.882] Group Power Off Send PASS.
+[16:34:35.883] Group Power Off is verifying three stable PowerOn=False samples; Group Stop remains available.
+[16:34:36.026] Group Power Off stable Power Off proof resolved the durable Group Power record.
+[16:34:36.026] Group Power Off safety verification PASS with 3 stable samples.
+[16:34:37.137] Group Power On started.
+[16:34:37.178] Group Power On accepted/start only. Verifying three consecutive PowerOn=True samples before ACTIVE is trusted.
+[16:34:37.324] Group Power On stable Power On proof resolved the durable Group Power record.
+[16:34:37.325] Group Power Ready/ACTIVE verified with three consecutive PowerOn=True samples. Set Identity is now available; 0x204A was not replayed by verification.
+[16:34:37.327] Group Power On PASS.
+[16:34:38.540] Group Power Off Send queued with safety priority.
+[16:34:38.549] Group Power Off Send transmitting.
+[16:34:38.582] Group Power Off accepted/start only. Verifying three consecutive PowerOn=False samples before safe state is trusted.
+[16:34:38.584] Group Power Off Send PASS.
+[16:34:38.586] Group Power Off is verifying three stable PowerOn=False samples; Group Stop remains available.
+[16:34:38.729] Group Power Off stable Power Off proof resolved the durable Group Power record.
+[16:34:38.730] Group Power Off safety verification PASS with 3 stable samples.

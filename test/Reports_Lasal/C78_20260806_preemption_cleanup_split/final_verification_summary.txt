@@ -1,0 +1,62 @@
+DERIVED EVIDENCE SUMMARY - PREEMPTION CLEANUP SPLIT
+Captured: 2026-08-06 KST
+
+Evidence boundary:
+- Derived from the current source, generated files, VS2019 MSBuild output,
+  and the current process section of %TEMP%\Lasal2.log.
+- This is not PLC download or runtime evidence.
+
+First C78 rebuild:
+- 17:04:45 ERROR E0016
+- TCPMotionInterface.st line 298: Not expected input 'U'
+- 17:04:47 Rebuild project failed
+- Cause: stray U and UDINT lines immediately after //{{LSL_IMPLEMENTATION
+
+Correction and regression guard:
+- Removed only the stray U and UDINT lines.
+- TCP implementation prefix restored to tracked form.
+- Ownership activation focused verifier: 287/287 PASS.
+- Named negative fixtures reject stray U and stray UDINT.
+
+Successful C78 rebuild:
+- 17:16:13 Rebuild project started.
+- Compiler version: C78
+- Target architecture: ARM
+- LMCControlCommandService compile count: 1 (17:16:29)
+- LMCDiagnosticsService compile count: 1 (17:16:30)
+- TCPMotionInterface compile count: 1 (17:16:32)
+- Linker: Done
+- 17:16:35 Last command succeeded (22764.9 ms)
+- Coded result: 0 errors, 55 warnings
+- Warning histogram: W0069=35, W0072=17, W0073=3
+- Compatibility warnings after ResultCount: 6
+- Download/Connect command matches in the rebuild slice: 0
+
+Implementation smoke after log byte offset 5121586:
+- 17:18:53 Open Implementation Editor for LMCControlCommandService
+- 17:19:15 Open Implementation Editor for LMCDiagnosticsService
+- 17:20:44 Open Implementation Editor for TCPMotionInterface
+- New CInvalidArgException count: 0
+- New exception/invalidarg line count: 0
+
+Final hashes:
+- TCPMotionInterface.st:
+  9210C199A02153FEE4110556C5396CD49C9AEAC7F22B1405AA20F00FC522A129
+- LMCControlCommandService.st:
+  3BCA660E4569E8EA6222CD81EA683BF7D9BD2A007AB2464162DF5673FDB3EEBE
+- LMCDiagnosticsService.st:
+  097462D1751E4A6ED7466827B8F6E3EB2C2914D5EE0409AED3CD43BD1404FB54
+- Class/Classes.lcb:
+  D82728DC9C2AC703BF7461E14709C98082A7F3436555A8DB58924D36149E1EDE
+- Comm_Network.lcn:
+  55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B
+
+Static and PC results:
+- Helper focused verifier: 38/38 PASS
+- Method-size verifier self-test: 5/5 PASS
+- Method-size inventory: 94 methods, 88 under limit, baseline debt 6
+- Post-build SourceOnly: PASS
+- Post-build full generated-metadata contract: PASS
+- SDK Debug PC tests: 1082/1082 PASS
+- WPF Debug Rebuild: PASS
+- WPF Debug smoke: 330/330 PASS

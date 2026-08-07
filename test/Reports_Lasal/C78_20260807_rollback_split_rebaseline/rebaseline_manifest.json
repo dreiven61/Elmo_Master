@@ -1,0 +1,194 @@
+{
+  "phase": "post_ide_baseline_rebased_candidate_applied_and_static_gate_passed",
+  "dateKst": "2026-08-07",
+  "ideDeclarationSaved": true,
+  "implementationAppliedExternally": true,
+  "postIdeBaseline": {
+    "source": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "bytes": 606820,
+      "sha256": "DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0"
+    },
+    "classesLcb": {
+      "bytes": 8429648,
+      "sha256": "2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5"
+    },
+    "methodInventory": {
+      "classes": 6,
+      "methods": 96,
+      "underLimit": 91,
+      "baselineDebt": 5
+    },
+    "helperDeclarationPresent": true,
+    "helperImplementationStubEmpty": true
+  },
+  "postIdeMonolithicRollbackMethod": {
+    "name": "RollbackAxisOwnership",
+    "lineStart1": 5032,
+    "lineEnd1": 6337,
+    "byteStart0": 180762,
+    "byteEndExclusive0": 230865,
+    "sliceRule": "Canonical method-size verifier slice includes the final END_FUNCTION CR and excludes its LF.",
+    "rawBytes": 50103,
+    "lfBytes": 48798,
+    "crlfBytes": 50104,
+    "sha256": "2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745",
+    "physicalFullLine": {
+      "byteEndExclusive0": 230866,
+      "rawBytes": 50104,
+      "sha256": "3B21687191BE296FCC351564F8404FF4BA7F15ACB32162C2429EE249845757C5"
+    }
+  },
+  "validationExtraction": {
+    "anchor": "second preemptBankValid := TRUE occurrence inside if restorePreempt then",
+    "lineStart1": 5375,
+    "lineEnd1": 5879,
+    "byteStart0": 192424,
+    "byteEndExclusive0": 212796,
+    "includesFinalCrlf": true,
+    "rawBytes": 20372,
+    "lfBytes": 19867,
+    "crlfBytes": 20372,
+    "sha256": "9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C",
+    "outerWrapperRemainsInAdapter": {
+      "lineStart1": 5374,
+      "lineEnd1": 5880,
+      "byteStart0": 192398,
+      "byteEndExclusive0": 212807,
+      "rawBytes": 20409,
+      "lfBytes": 19902,
+      "crlfBytes": 20409
+    },
+    "calls": {
+      "_memcmp": 3,
+      "TO_UDINT": 9,
+      "_memcpy": 0,
+      "_memset": 0
+    },
+    "persistentWrites": 0,
+    "referencedLocals": 45,
+    "extractionOnlyLocals": 23
+  },
+  "rejectedWideBoundary": {
+    "lineStart1": 5375,
+    "lineEnd1": 6233,
+    "rawBytes": 34935,
+    "lfBytes": 34076,
+    "crlfBytes": 34935,
+    "reason": "Exceeds 32768 bytes and crosses lease validation, live restore mutation, and destructive bank invalidation."
+  },
+  "postIdeMonolithicContracts": {
+    "locals": 72,
+    "usedDefineClosure": 47,
+    "persistentWrites": 79,
+    "persistentWriteJoinedLength": 6251,
+    "persistentWriteSha256": "FFA826951AFAD84F64A21788ED0590330D5FA6A92C22B89A0363E03F9CF3BB08",
+    "resultReturnTokens": 29,
+    "resultReturnJoinedLength": 290,
+    "resultReturnSha256": "E03138AF05891034DAF1DFE79BAD9B3FB68B33E6D6730950068F622476E32A51",
+    "semanticTokenLength": 36717,
+    "semanticTokenSha256": "B997DB4BE547EF3EE07B4A2D2C8CAFC0588A1BACE65FF3A59D78C1F5E9AE2142"
+  },
+  "generatedPrivateAbi": {
+    "name": "ValidateAxisOwnershipRollbackPreemptBank",
+    "flags": "private only; no GLOBAL or VIRTUAL GLOBAL",
+    "inputs": [
+      "ExpectedAxisMask : UDINT",
+      "pRestoreContext : ^void",
+      "RestoreContextSize : UDINT"
+    ],
+    "output": "Result : DINT",
+    "declarationCanonicalLfBytes": 207,
+    "declarationIdeCrlfBytes": 216,
+    "declarationCanonicalLfSha256": "4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4",
+    "declarationHistoricalIdeCrlfSha256": "29318A8AE8C4732BE365D60B5F665B862704748C9EA2E1E6CB2A9A2E5AA0039A",
+    "contextBytes": 40,
+    "contextSlots": [
+      "restored Group active 0/1",
+      "mask",
+      "token",
+      "generation",
+      "session",
+      "sequence",
+      "identity size",
+      "command bit pattern",
+      "reference bit pattern",
+      "admission-mode bit pattern"
+    ]
+  },
+  "candidateEvidence": {
+    "planner": "Plan-RollbackSplit.ps1",
+    "plannerSha256": "597064AA3DD43D2212C016243E6DD1BA67563B98F26A21911BE9DF13E89D49CF",
+    "manifest": "candidate_manifest.json",
+    "adapterCanonicalLfSha256": "8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC",
+    "helperCanonicalLfSha256": "AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09",
+    "wholePlannedSourceCanonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+    "wholePlannedSourceIdeCrlfSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753",
+    "reverseInlineSha256": "DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0",
+    "plannerSelfTest": "18/18 negative fixtures rejected for their expected contract; positive candidate accepted for current IDE CRLF and fresh-checkout LF inputs",
+    "reverseEvidence": {
+      "path": "test/Reports_Lasal/C78_20260806_preemption_cleanup_split/pre_ide_LMCControlCommandService.st",
+      "canonicalLfBytes": 588317,
+      "canonicalLfSha256": "B9C1226D164D754CA7CBD5C7B2B07D55F4C0F255ACCEE826427D4B510D637744",
+      "historicalPhysicalMixedEolBytes": 604861,
+      "historicalPhysicalMixedEolSha256": "D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E"
+    }
+  },
+  "currentAppliedState": {
+    "source": {
+      "canonicalLfBytes": 591670,
+      "canonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+      "ideCrlfBytes": 608436,
+      "ideCrlfSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753"
+    },
+    "adapter": {
+      "canonicalLfBytes": 29124,
+      "ideCrlfBytes": 29922,
+      "canonicalLfSha256": "8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC"
+    },
+    "helper": {
+      "canonicalLfBytes": 21451,
+      "ideCrlfBytes": 22046,
+      "canonicalLfSha256": "AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09"
+    },
+    "matchesCandidateInBothEolProjections": true,
+    "preRebuildClassesLcbSha256": "2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5",
+    "postC78ClassesLcbSha256": "3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B",
+    "networkHashes": {
+      "Comm_Network.lcn": "55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B",
+      "ONE_Comm_Network_Table.st": "18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D",
+      "Networks.lcb": "56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF"
+    }
+  },
+  "verifiedCurrentState": {
+    "mainVerifierSha256": "D9C4AD42C27EFA8C40284623B28CDAE3C816AB9A72EFF25548C7E6102E1B3670",
+    "methodSizeVerifierSha256": "A2561FB2C1E6437E3376F5F90EBF6DD90008D3CCF78BC998FE2D102D8DAD9CA8",
+    "rollbackSplitNegativeFixtures": "20/20 PASS for expected semantic rejection reasons; current adapter/helper accepted",
+    "ownershipAggregateNegativeFixtures": "287/287 PASS",
+    "sourceOnlyIntegration": "waiver-free -SourceOnly -ExpectedSdoWriteAxis 1 exit 0 PASS",
+    "postC78FullStaticIntegration": "waiver-free -ExpectedSdoWriteAxis 1 exit 0 PASS",
+    "methodInventoryTuple": "96/92/4",
+    "eolReproducibility": "PASS integrated 20/20 and planner 18/18 for IDE CRLF and fresh-checkout LF",
+    "customMethodInventory": {
+      "classes": 6,
+      "methods": 96,
+      "underLimit": 92,
+      "baselineDebt": 4
+    }
+  },
+  "staleEvidenceNotToReuse": {
+    "oldWholeControlSha256": "ACCDD97A171A5D054F1115A7CDFA0B0C83FCF165FF59ED75E5C180D448C64AD3",
+    "preIdeReadOnlyControlSha256": "DA93EB01DBF7E842C36EE22E1ACBF6277D60C0E12C58B93A24BA870976321FCF",
+    "oldPlannedWholeSourceSha256": "066335AF5FF84796B0888C08F46BAA932D7E6AAAB05275DF24F1C0B86353C1AD",
+    "da93PlannedWholeSourceSha256": "9B13CD16BAFCEBF44CD6FB206C1BDF8376EC2C6F415B492DE982BC4DBA1F2DCB",
+    "oldOwnershipAggregate": "271/271",
+    "oldMethodInventory": "93/86/7",
+    "reason": "The private IDE declaration changed the whole source to DAA8 and the applied split changed it to A51E; only phase-labelled hashes are valid."
+  },
+  "remainingGates": {
+    "c78Rebuild": "RAW_LOG_PASS_STRICT_GUI_TRANSCRIPT_PENDING",
+    "implementationSmoke": "EXACT_TWO_SEARCHES_NOT_PROVEN",
+    "downloadRestartRuntime": "NOT_RUN",
+    "durablePowerLossRollbackRecovery": "NOT_ADDED"
+  }
+}

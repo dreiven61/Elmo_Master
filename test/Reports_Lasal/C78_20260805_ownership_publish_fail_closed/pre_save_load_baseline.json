@@ -1,0 +1,43 @@
+{
+  "Schema": "LasalC78RebuildEvidence/v1",
+  "CapturedAtUtc": "2026-08-05T08:47:34.0420915Z",
+  "RepositoryRoot": "C:\\work\\Elmo\\Elmo_Master",
+  "CanonicalProjectPath": "C:\\work\\Elmo\\Elmo_Master\\Lasal_PRG\\Elmo_EtherCAT_Test_4Axis\\Elmo_EtherCAT_Test_4Axis.lcp",
+  "LasalLogPath": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+  "LogPrefixLength": 837265,
+  "LogPrefixSha256": "c068f9e0958e97425935d081683cc4c41e010e53a7a08975a22e54cf19f1650c",
+  "Files": [
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+      "Sha256": "98ee4a57a6e8eae3ae6606f1db892d30ea50b62d79c230aea8b9fadd6348046f"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "Sha256": "d044e29218255e5859facb1831b5b33e6e3eaef34ab9758e4b1edda9cef6cf5e"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st",
+      "Sha256": "097462d1751e4a6ed7466827b8f6e3eb2c2914d5ee0409aed3cd43bd1404fb54"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st",
+      "Sha256": "c63039654a724b6d0cbe4743befe34f77eb8902251f3a1cef25a0a176bf17b3d"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCRecorderStore/LMCRecorderStore.st",
+      "Sha256": "0a256e2c1d4c0ec6479387c322006a5b638427f75e627697ecb252b1b0d25c11"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSdoExecutor/LMCSdoExecutor.st",
+      "Sha256": "a91a4177f26486fedce50f8c4fec72fa8a61a3b34d5939df08bee2d09055cbd4"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcp",
+      "Sha256": "505ed858199cec4687e320571339833c968806de15883234844c659d61aa2317"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn",
+      "Sha256": "55284463115c04b3edfa380c0cf3766f652c6e3d944f9582e692963c0575516b"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+C78 ARM REBUILD AND IMPLEMENTATION SMOKE
+Captured: 2026-08-07 Asia/Seoul
+
+IDE: LASAL Class 2 02.03.001
+Project: Elmo_EtherCAT_Test_4Axis
+Compiler: C78
+Target: ARM
+Rebuild start: 08:02:44.426
+Rebuild result: PASS
+Rebuild command duration: 26318.1 ms
+IDE result summary: 0 errors / 55 warnings
+
+Rebuild log WARN lines: 61
+  Source warnings: 55
+    W 0069: 35
+    W 0072: 17
+    W 0073: 3
+  Compiler/library version warnings: 6
+Rebuild log ERROR/FATAL lines: 0
+Rebuild CInvalidArgException: 0
+
+Find in Implementation channel:
+  Comm_Network.LMCControlCommandService1.LMCAxis1
+Search target: LMCControlCommandService / LMCAxis1
+Search result: PASS
+Search duration: 302.2 ms
+Hits: 29
+Matched files: 1
+Searched files: 3
+Post-smoke CInvalidArgException: 0
+
+Save All: PASS, 1893.5 ms
+LASAL exit: PASS at 08:16:09
+Unused library removal prompt: No
+LASAL process after exit: none
+Project lock after exit: none
+PLC download: not performed
+
+Control SHA256:
+  DA93EB01DBF7E842C36EE22E1ACBF6277D60C0E12C58B93A24BA870976321FCF
+Classes.lcb pre-Rebuild SHA256:
+  DC71B0F8B8A493B84D2BE0A294408E462FEF87D758F28F9AA8C50C1F32124B7B
+Classes.lcb post-Rebuild Save All SHA256:
+  9147D2185860FE2082777013FC944248196B686402FE88F7EF52FAB9875301E0
+
+Post-Rebuild no-waiver SourceOnly:
+  PASS, exit 0, 177.247 seconds
+Focused receipt verifier:
+  PASS, 67/67 negative fixtures rejected
+Method-size verifier:
+  PASS, 95 total / 90 under-limit / 5 baseline debt

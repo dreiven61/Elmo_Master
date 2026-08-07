@@ -1,0 +1,100 @@
+{
+  "schema": "LasalC78RawLogAudit/v1",
+  "dateKst": "2026-08-07",
+  "status": "RAW_LOG_PASS_STRICT_DUAL_EVIDENCE_PENDING",
+  "baselineEvidence": "c78_rebuild_baseline.json",
+  "log": {
+    "path": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+    "baselinePrefixBytes": 8044145,
+    "baselinePrefixSha256": "ce3bb2a1157beacef28e57c19b7dca989b6ccb152c3eecbcbdb57b9197b06a84",
+    "prefixStillByteExact": true,
+    "currentBytes": 8804871,
+    "currentSha256": "0F31FDA40135CEB57A0743F475B247914CC80F6331E2B1F7BD2FCCE3CEBDAB58",
+    "appendedBytes": 760726,
+    "appendedCInvalidArgExceptionCount": 0,
+    "appendedProhibitedDownloadOrOnlineCommandCount": 0
+  },
+  "canonicalSession": {
+    "pid": 36152,
+    "loadProjectKst": "11:39:06",
+    "saveProjectKst": "11:39:49",
+    "rebuildStartKst": "11:39:58",
+    "rebuildTerminalSuccessKst": "11:40:21",
+    "applicationExitKst": "11:41:10",
+    "lasalProcessStoppedAfterAudit": true
+  },
+  "rebuild": {
+    "compiler": "C78",
+    "targetArchitecture": "ARM",
+    "sameCommandCompilerErrors": 0,
+    "sameCommandCodedWarnings": 55,
+    "warningHistogram": {
+      "W0069": 35,
+      "W0072": 17,
+      "W0073": 3
+    },
+    "postResultCompatibilityWarnings": 6,
+    "requiredCustomSourcesCompiledExactlyOnce": 6,
+    "linkerDone": true,
+    "commandSucceeded": true
+  },
+  "preRebuildSessionDiagnostic": {
+    "motionLibLoadE0015Count": 1,
+    "insideRebuildCommandWindow": false,
+    "note": "The project-load diagnostic preceded the rebuild. The load command and the later rebuild both terminated successfully."
+  },
+  "capturedInputs": {
+    "count": 8,
+    "allByteExactAfterBuild": true,
+    "controlSourceBytes": 608436,
+    "controlSourceSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753",
+    "controlSourceLineEnding": "LASAL IDE CRLF checkpoint",
+    "controlSourceCanonicalLfBytes": 591670,
+    "controlSourceCanonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE"
+  },
+  "generatedArtifacts": {
+    "classesLcb": {
+      "bytes": 8430171,
+      "sha256": "3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B"
+    },
+    "projectLcb": {
+      "bytes": 634514,
+      "sha256": "417B225C0003AB267C7A2E7D86B61832948AAB62DBF9963F228535E00DD9FA0E"
+    },
+    "rollbackHelperExactPrivateAbiRecord": {
+      "count": 1,
+      "offset": 6139988,
+      "bytes": 565,
+      "sha256": "094573D70AC34005F1072D5FE88D705CD2D63BD8F4B3A16068228D97EFB4F337"
+    },
+    "rollbackHelperCompactSymbolEntryCount": 1
+  },
+  "networkInvariants": {
+    "changed": false,
+    "commNetworkSha256": "55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B",
+    "commTableSha256": "18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D",
+    "networksLcbSha256": "56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF"
+  },
+  "postBuildStaticVerification": {
+    "command": "Verify-LasalContract.ps1 -RepositoryRoot C:\\work\\Elmo\\Elmo_Master -ExpectedSdoWriteAxis 1",
+    "exitCode": 0,
+    "mainVerifierSha256": "D9C4AD42C27EFA8C40284623B28CDAE3C816AB9A72EFF25548C7E6102E1B3670",
+    "rollbackSplitNegativeFixtures": "20/20 PASS",
+    "publishCallerContract": "19/19/0 PASS",
+    "methodInventory": "96/92/4 PASS",
+    "staticContract": "PASS",
+    "eolReproducibility": "PASS integrated verifier for LF and CRLF; planner wrapper 18/18 for both"
+  },
+  "verifierCorrection": {
+    "reason": "C78 Rebuild adds one compact helper symbol entry in addition to the single detailed ABI record.",
+    "oldRule": "Require the helper name to occur once in the whole binary database.",
+    "currentRule": "Require exactly one helper occurrence followed by the exact method-tag, private-flags, and three-input header; retain the 565-byte ABI SHA ratchet."
+  },
+  "remainingEvidenceGaps": {
+    "independentGuiBuildTranscript": "NOT_CAPTURED",
+    "adapterAndHelperFindInImplementationSmoke": "NOT_PROVEN",
+    "postSessionCInvalidArgException": "PASS_ZERO_IN_ENTIRE_APPEND",
+    "downloadRestartRuntime": "NOT_RUN",
+    "durablePowerLossRollbackRecovery": "NOT_ADDED"
+  }
+}

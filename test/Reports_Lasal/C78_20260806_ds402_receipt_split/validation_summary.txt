@@ -1,0 +1,16 @@
+PASS LASAL.Ds402OwnerReceiptProviderVerifier.SelfTest (67/67 negative fixtures rejected)
+PASS method-size verifier self-test 6/6
+PASS method-size inventory classes=6 methods=95 under-limit=90 baseline-debt=5
+PASS no-waiver SourceOnly with ExpectedSdoWriteAxis=1 (exit 0, 177.0 seconds)
+PASS independent no-waiver SourceOnly review (exit 0, 178.4 seconds)
+PASS raw reverse-inline to BAB60FF1891F424B132C52EF3FBF5D099AB010BFF1D7E812648DFA7BF619BE7A
+PASS generated private ABI and Classes.lcb metadata
+PASS Network hashes unchanged
+PASS C78 ARM Rebuild (0 errors / 55 IDE source warnings, command succeeded in 26318.1 ms)
+PASS rebuild log audit (61 WARN lines: 55 source + 6 version, 0 ERROR/FATAL, CInvalidArgException=0)
+PASS LMCControlCommandService1.LMCAxis1 Find in Implementation (29 hits, 1 matched file / 3 searched, 302.2 ms)
+PASS post-smoke CInvalidArgException=0
+PASS Save All and LASAL exit; no process or project lock remains
+PASS post-Rebuild no-waiver SourceOnly with ExpectedSdoWriteAxis=1 (exit 0, 177.247 seconds)
+PASS post-Rebuild Classes.lcb semantic metadata; SHA256=9147D2185860FE2082777013FC944248196B686402FE88F7EF52FAB9875301E0
+PENDING PLC download/restart/runtime validation

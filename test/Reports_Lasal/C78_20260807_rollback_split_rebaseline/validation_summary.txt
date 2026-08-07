@@ -1,0 +1,79 @@
+2026-08-07 RollbackAxisOwnership post-C78 raw-log and static checkpoint
+
+Phase separation:
+- post-IDE/pre-implementation Control: 606820 bytes, SHA-256 DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0
+- current applied Control IDE CRLF checkpoint: 608436 bytes, SHA-256 A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753
+- current applied Control Git canonical LF: 591670 bytes, SHA-256 7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE
+- post-IDE/pre-Rebuild Classes.lcb: 8429648 bytes, SHA-256 2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5
+- post-C78 Classes.lcb: 8430171 bytes, SHA-256 3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B
+- post-C78 project LCB: 634514 bytes, SHA-256 417B225C0003AB267C7A2E7D86B61832948AAB62DBF9963F228535E00DD9FA0E
+- the DAA8 snapshot contains the exact private declaration and empty implementation stub
+- the A51E snapshot replaces only the monolithic method and empty stub with the planned adapter/helper implementation
+
+DAA8 post-IDE monolithic RollbackAxisOwnership baseline:
+- lines 5032..6337
+- byte0 [180762,230865), final CR included and LF excluded
+- raw/LF/all-CRLF 50103/48798/50104
+- SHA-256 2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745
+
+DAA8 safe validation extraction:
+- SECOND preemptBankValid := TRUE occurrence, lines 5375..5879
+- byte0 [192424,212796), final CRLF included
+- raw/LF/all-CRLF 20372/19867/20372
+- SHA-256 9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C
+- _memcmp=3, TO_UDINT=9, persistent writes=0, _memcpy=0, _memset=0
+- outer if restorePreempt then / end_if at lines 5374/5880 remains in the public adapter
+
+Rejected boundary:
+- DAA8 lines 5375..6233 is 34935/34076/34935 bytes
+- it exceeds 32768 and crosses lease validation, live mutation, and destructive bank invalidation
+
+Applied candidate:
+- public adapter canonical LF/all-CRLF 29124/29922, canonical LF SHA-256 8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC
+- private helper canonical LF/all-CRLF 21451/22046, canonical LF SHA-256 AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09
+- adapter call map canonical LF/all-CRLF 758/776, canonical LF SHA-256 66E328773321E978F63BF13F3080E77193D27D69E704081A7205D366EC76FF55
+- actual IDE-generated class declaration canonical LF/all-CRLF 207/216, canonical LF SHA-256 4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4
+- whole candidate equals the current source in both canonical LF and IDE CRLF projections
+- reverse-inline restores the DAA8 post-IDE source byte-exact
+
+Current static verification:
+- rollback split verifier PASS: 20/20 negative fixtures rejected for their expected semantic contract; current adapter/helper accepted
+- ownership aggregate PASS: 287/287 negative fixtures rejected
+- method-size inventory PASS: 6 classes / methods/under-limit/debt 96/92/4
+- waiver-free Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1 exit 0 PASS
+- post-C78 Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1 exit 0 PASS
+- ownership publish caller contract PASS: 19/19/0 total/consumed/OPEN
+- current verifier SHA-256 D9C4AD42C27EFA8C40284623B28CDAE3C816AB9A72EFF25548C7E6102E1B3670
+- planner self-test PASS: 18/18 negative fixtures rejected for their expected contract; positive candidate accepted
+- planner SHA-256 597064AA3DD43D2212C016243E6DD1BA67563B98F26A21911BE9DF13E89D49CF
+- planner current-A51E self-test and wrapper PASS for both IDE CRLF and fresh-checkout LF inputs
+- planner reverse evidence dependency canonical LF: C78_20260806_preemption_cleanup_split/pre_ide_LMCControlCommandService.st, 588317 bytes, SHA-256 B9C1226D164D754CA7CBD5C7B2B07D55F4C0F255ACCEE826427D4B510D637744
+- the same evidence file's pre-Git physical mixed-EOL checkpoint was 604861 bytes, SHA-256 D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E
+- the planner remains a DAA8 one-shot construction/reverse proof; current A51E acceptance is owned by the integrated split verifier
+- the integrated split verifier accepts both LF and CRLF and retains canonical LF hashes plus LF/all-CRLF byte ceilings
+
+Network invariants:
+- Comm_Network.lcn SHA-256 55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B
+- ONE_Comm_Network_Table.st SHA-256 18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D
+- Networks.lcb SHA-256 56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF
+
+Current C78 raw-log evidence:
+- one canonical LASAL session, PID 36152
+- Rebuild project with compiler version C78, target architecture ARM
+- same-command compiler errors 0, coded warnings 55: W0069=35, W0072=17, W0073=3
+- post-result C78/C81 compatibility warnings 6
+- six required custom ST files each compiled exactly once; Linker Done; command succeeded
+- all eight captured input files byte-exact after build
+- appended Lasal2.log CInvalidArgException 0 and prohibited download/online command 0
+- pre-Rebuild project-load E0015 occurred once outside the rebuild command window; load and rebuild both terminated successfully
+- the generated helper has one exact 565-byte private ABI record, SHA-256 094573D70AC34005F1072D5FE88D705CD2D63BD8F4B3A16068228D97EFB4F337
+- C78 also emitted a compact symbol entry with the helper name; the verifier now qualifies the single ABI record by its exact header instead of requiring a globally unique name string
+- detailed evidence: postbuild_raw_log_audit.json
+
+Open evidence gates:
+- independent GUI Build Output transcript: NOT CAPTURED; strict dual-evidence verifier is pending
+- exact RollbackAxisOwnership and ValidateAxisOwnershipRollbackPreemptBank Find in Implementation smoke: NOT PROVEN
+- the entire appended LASAL session has CInvalidArgException=0, but this does not prove the two exact search actions
+- retry baseline c78_rebuild_final_baseline.json captured with log prefix 8804871 bytes, SHA-256 0F31FDA40135CEB57A0743F475B247914CC80F6331E2B1F7BD2FCCE3CEBDAB58
+- download/restart/runtime: NOT RUN for A51E
+- this split removes method-size debt only; it does not add durable power-loss rollback recovery
