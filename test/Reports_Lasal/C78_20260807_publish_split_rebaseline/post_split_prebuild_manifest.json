@@ -1,0 +1,93 @@
+{
+  "schema": "LasalPublishSplitPostSplitPrebuildManifest/v1",
+  "phase": "post_split_prebuild",
+  "observedAt": "2026-08-07T16:25:55.5433081+09:00",
+  "lasalIdeBuildObserved": false,
+  "runtimeObserved": false,
+  "source": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "lineEnding": "LF",
+    "bytes": 594938,
+    "sha256": "8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65",
+    "methodInventory": {
+      "total": 98,
+      "underLimit": 95,
+      "baselineDebt": 3
+    }
+  },
+  "generatedPrebuild": {
+    "classesLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "bytes": 8433167,
+      "sha256": "6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22",
+      "homeRecordCount": 1,
+      "homeOrderedInputCount": 7,
+      "decisionRecordCount": 1,
+      "decisionOrderedInputCount": 10,
+      "eachOutput": "Result : DINT"
+    },
+    "projectLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb",
+      "bytes": 634514,
+      "sha256": "B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA"
+    },
+    "network": {
+      "fileCount": 23,
+      "driftCountFromPostIdePreSplitManifest": 0,
+      "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759"
+    }
+  },
+  "planner": {
+    "path": "test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1",
+    "bytes": 102955,
+    "sha256": "EA6B56BD8581BA8F7BABA10106A0CD7F963461ED36DEA1F126342D121F9D1EA1",
+    "selfTest": "PASS 26/26",
+    "targetState": "PostSplit",
+    "preSplitRequirementRejected": true,
+    "reverseRestoresPostIdePreSplitLfSha256": "F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC"
+  },
+  "applyPatchArtifacts": [
+    {
+      "step": 1,
+      "name": "adapter",
+      "bytes": 41640,
+      "sha256": "DD243404411966E88BAFCFDB0C43CA538961EE9F163778606EE0DC71B47A89C0",
+      "observedOutputSha256": "D50F50C9D172D27F1909AFD088A98E6CA4E1B033BCB1A88C28DEF83140C7AE74"
+    },
+    {
+      "step": 2,
+      "name": "home",
+      "bytes": 15270,
+      "sha256": "846C064C999D1A4AA3290B09DF26E3EFE72DE8E2721F929C06589575150B8031",
+      "observedOutputSha256": "5518AB8335A0AAE5E57C13C0B8BB946A2B8CFAF948FBC182E797502DCEF985B5"
+    },
+    {
+      "step": 3,
+      "name": "decision",
+      "bytes": 25147,
+      "sha256": "646A1BC3FD88B0BAEF6E7022D3737258CDD6FB05A8B38E9FED48C397CB5746AE",
+      "observedOutputSha256": "8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65"
+    }
+  ],
+  "staticVerification": {
+    "publishFocused": "PASS current Split; production callers 19/19/0; structural transition negatives 8/8",
+    "tw19Barrier": "PASS negative fixtures 37/37",
+    "sourceOnly": {
+      "command": "Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1",
+      "exitCode": 0,
+      "elapsedSeconds": 233.9
+    },
+    "full": {
+      "command": "Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1",
+      "exitCode": 0,
+      "elapsedSeconds": 236.2,
+      "generatedPublishContract": "PASS Split 1/1 exact private ABI records"
+    }
+  },
+  "nextRequiredEvidence": [
+    "C78 ARM Rebuild and Linker Done",
+    "Find in Implementation for PublishAxisOwnership and both private helpers",
+    "no new CInvalidArgException in Lasal2.log after smoke start",
+    "post-build source, Classes.lcb, project LCB, and Network manifest"
+  ]
+}

@@ -1,0 +1,1046 @@
+*** Begin Patch
+*** Update File: Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+@@
+ 		axisBit : UDINT;
+ 		recordBase : DINT;
+ 		firstRecordBase : DINT;
+-		leaseRecordBase : DINT;
+-		leaseFirstRecordBase : DINT;
+-		preemptRecordBase : DINT;
+-		probeRecordBase : DINT;
+-		probeAxisIndex : DINT;
+-		probeAxisBit : UDINT;
+ 		observerBase : DINT;
+ 		observerIndex : DINT;
+ 		identityIndex : DINT;
+@@
+ 		expectedSession : UDINT;
+ 		expectedSequence : UDINT;
+ 		observerFlags : UDINT;
+-		preemptFlags : UDINT;
+-		cleanupRequiredMask : UDINT;
+-		cleanupCompleteMask : UDINT;
+ 		identitySize : UDINT;
+ 		identityPrefixSize : UDINT;
+ 		identityTailSize : UDINT;
+ 		identityTailOffset : UDINT;
+ 		identityPackedCommand : UDINT;
+ 		identityPackedOwner : UDINT;
+-		preemptToken : UDINT;
+-		preemptGeneration : UDINT;
+-		preemptSession : UDINT;
+-		preemptSequence : UDINT;
+-		preemptMask : UDINT;
+-		preemptIdentitySize : UDINT;
+-		preemptState : DINT;
+-		preemptOwnerKind : DINT;
+-		preemptResourceKind : DINT;
+-		preemptCommand : DINT;
+-		preemptReference : DINT;
+-		preemptAdmission : DINT;
+-		replacementRecordBase : DINT;
+-		replacementHeaderBase : DINT;
+-		singletonToken : UDINT;
+-		singletonGeneration : UDINT;
+-		singletonMask : UDINT;
+-		replacementIdentitySize : UDINT;
+-		replacementTailSize : UDINT;
+-		replacementTailOffset : UDINT;
+-		replacementPackedCommand : UDINT;
+-		replacementPackedOwner : UDINT;
+ 		resourceValid : BOOL;
+ 		selectedFound : BOOL;
+ 		identityShapeValid : BOOL;
+ 		retainGroupLease : BOOL;
+ 		forceQuarantine : BOOL;
+ 		preemptRootValid : BOOL;
+-		cleanupReady : BOOL;
+ 		restoreLease : BOOL;
+-		leaseValid : BOOL;
+ 		retainLeaseValid : BOOL;
+-		preemptBankValid : BOOL;
+-		preemptSpecialValid : BOOL;
+-		replacementFound : BOOL;
+-		replacementValid : BOOL;
+-		replacementStateValid : BOOL;
+-		preemptLmcFound : BOOL;
+-		preemptDs402Found : BOOL;
+-		preemptEncoderFound : BOOL;
+ 		destroyBanks : BOOL;
+ 		clearOwner : BOOL;
+ 		groupHeaderPublished : BOOL;
+-		homeReceiptExact : BOOL;
+-		homeReceiptCallMatches : BOOL;
+-		homeReceiptTerminalComplete : BOOL;
++		homeReceiptResult : DINT;
++		publishDecisionResult : DINT;
+ 		homeReceiptAxisMaskValid : BOOL;
+-		homeReceiptIdentityPre : BOOL;
+-		homeReceiptIdentityPost : BOOL;
+-		homeReceiptObserverPre : BOOL;
+-		homeReceiptObserverPost : BOOL;
+-		homeReceiptRecordPre : BOOL;
+-		homeReceiptRecordBodyPost : BOOL;
+-		homeReceiptRecordPost : BOOL;
+-		homeReceiptSingletonPre : BOOL;
+-		homeReceiptSingletonPost : BOOL;
+-		homeReceiptSurfaceValid : BOOL;
+-		homeReceiptPhase : DINT;
+-		homeReceiptIndex : DINT;
+-		rebaseUpdateResult : DINT;
+ 	END_VAR
+ 
+ 	Result := -1;
+@@
+ 	   (ReportKind > LMC_OWNER_REPORT_SAFETY_PREEMPT) then
+ 		RETURN;
+ 	end_if;
+-	if ZeroHomeState[60]$UDINT = LMC_HOME_OWNER_RECEIPT_MAGIC then
+-		homeReceiptCallMatches :=
+-			(ZeroHomeState[34]$UDINT = AdmissionToken) &
+-			(ZeroHomeState[35]$UDINT = OwnerGeneration) &
+-			(ZeroHomeState[38]$UDINT = AxisMask) &
+-			(ZeroHomeState[58] = TO_DINT(ReportKind)) &
+-			(ZeroHomeState[57]$UDINT = ReportValue0) &
+-			(ZeroHomeState[31]$UDINT = ReportValue1) &
+-			(ZeroHomeState[46]$UDINT = ObservationCycle);
+-		homeReceiptTerminalComplete :=
+-			(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
+-			(ZeroHomeState[33]$UDINT <> 0) &
+-			(ZeroHomeState[63]$UDINT = ZeroHomeState[33]$UDINT) &
+-			(ZeroHomeState[62] = 0) &
+-			(ZeroHomeState[61] = LMC_HOME_OWNER_RECEIPT_COMPLETE) &
+-			(ZeroHomeState[59] = 0) &
+-			(ZeroHomeState[39] = LMC_HOME_ENGINE_TERMINAL) &
+-			(ZeroHomeState[0] >= LMC_HOME_RECORD_SUCCEEDED) &
+-			(ZeroHomeState[0] <= LMC_HOME_RECORD_ABORTED) &
+-			(ZeroHomeState[57] = ZeroHomeState[0]) &
+-			(ZeroHomeState[47] = 1) &
+-			((ZeroHomeState[56]$UDINT and
+-			  LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED) <> 0) &
+-			((ZeroHomeState[56]$UDINT and
+-			  LMC_HOME_FLAG_TERMINAL_PUBLISHED) <> 0) &
+-			((ZeroHomeState[56]$UDINT and
+-			  LMC_HOME_FLAG_PREEMPTION_CLEANUP) = 0) &
+-			(((ZeroHomeState[0] = LMC_HOME_RECORD_SUCCEEDED) &
+-			  (ZeroHomeState[58] = LMC_OWNER_REPORT_TERMINAL_SUCCESS)) |
+-			 (((ZeroHomeState[0] = LMC_HOME_RECORD_FAILED) |
+-			   (ZeroHomeState[0] = LMC_HOME_RECORD_ABORTED)) &
+-			  (ZeroHomeState[58] =
+-			   LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE)));
+-		if homeReceiptCallMatches then
+-		homeReceiptPhase := ZeroHomeState[61];
+-		homeReceiptAxisMaskValid := FALSE;
+-		case ZeroHomeState[9] of
+-			1: homeReceiptAxisMaskValid := AxisMask = 0x00000001;
+-			2: homeReceiptAxisMaskValid := AxisMask = 0x00000002;
+-			3: homeReceiptAxisMaskValid := AxisMask = 0x00000004;
+-			4: homeReceiptAxisMaskValid := AxisMask = 0x00000008;
+-		else
+-		end_case;
+-		homeReceiptExact :=
+-			homeReceiptAxisMaskValid &
+-			(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
+-			(ZeroHomeState[33]$UDINT <> 0) &
+-			(ZeroHomeState[63]$UDINT = ZeroHomeState[33]$UDINT) &
+-			(ZeroHomeState[62] = 0) &
+-			(ZeroHomeState[34]$UDINT = AdmissionToken) &
+-			(ZeroHomeState[35]$UDINT = OwnerGeneration) &
+-			(ZeroHomeState[38]$UDINT = AxisMask) &
+-			(ZeroHomeState[58] = TO_DINT(ReportKind)) &
+-			(ZeroHomeState[57]$UDINT = ReportValue0) &
+-			(ZeroHomeState[31]$UDINT = ReportValue1) &
+-			(ZeroHomeState[46]$UDINT = ObservationCycle) &
+-			(ZeroHomeState[59] = 0) &
+-			((ZeroHomeState[39] = LMC_HOME_ENGINE_FINALIZE) |
+-			 (ZeroHomeState[39] = LMC_HOME_ENGINE_TERMINAL)) &
+-			((ZeroHomeState[56]$UDINT and
+-			  LMC_HOME_FLAG_OWNER_FINALIZE_INTENT) <> 0) &
+-			((ZeroHomeState[56]$UDINT and
+-			  LMC_HOME_FLAG_PREEMPTION_CLEANUP) = 0) &
+-			((ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) |
+-			 (ReportKind = LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE)) &
+-			(homeReceiptPhase >= LMC_HOME_OWNER_RECEIPT_PREPARED) &
+-			(homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_COMPLETE);
+-		if homeReceiptExact = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-
+-		axisIndex := ZeroHomeState[9];
+-		recordBase := LMC_OWNER_GLOBAL_SLOTS +
+-			((axisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
+-		observerBase := (axisIndex - 1) * LMC_OWNER_OBSERVER_STRIDE;
+-		identityHeaderBase := LMC_OWNER_IDENTITY_AXIS_HEADER_BASE +
+-			((axisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE);
+-		identityPackedCommand := TO_UDINT(0x7D13) or
+-			(TO_UDINT(axisIndex) shl 16);
+-		identityPackedOwner := TO_UDINT(LMC_OWNER_KIND_LMC_HOME) or
+-			(TO_UDINT(LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) shl 8) or
+-			(TO_UDINT(LMC_OWNER_ADMISSION_LIFECYCLE) shl 16);
+-		identitySize := OwnershipState[recordBase + 15]$UDINT;
+-		identityTailOffset := TO_UDINT(axisIndex - 1) * 8;
+-		identityTailSize := 0;
+-		if identitySize > LMC_OWNER_IDENTITY_PREFIX_BYTES then
+-			identityTailSize := identitySize - LMC_OWNER_IDENTITY_PREFIX_BYTES;
+-		end_if;
+-
+-		homeReceiptIdentityPre :=
+-			(OwnershipIdentityState[identityHeaderBase]$UDINT =
+-			 (LMC_OWNER_IDENTITY_AXIS_MAGIC + TO_UDINT(axisIndex))) &
+-			(OwnershipIdentityState[identityHeaderBase + 1] =
+-			 LMC_OWNER_IDENTITY_VERSION) &
+-			(OwnershipIdentityState[identityHeaderBase + 2]$UDINT = 56) &
+-			(OwnershipIdentityState[identityHeaderBase + 3]$UDINT =
+-			 AdmissionToken) &
+-			(OwnershipIdentityState[identityHeaderBase + 4]$UDINT =
+-			 OwnerGeneration) &
+-			(OwnershipIdentityState[identityHeaderBase + 5]$UDINT = AxisMask) &
+-			(OwnershipIdentityState[identityHeaderBase + 6]$UDINT =
+-			 ZeroHomeState[36]$UDINT) &
+-			(OwnershipIdentityState[identityHeaderBase + 7]$UDINT =
+-			 ZeroHomeState[37]$UDINT) &
+-			(OwnershipIdentityState[identityHeaderBase + 8]$UDINT =
+-			 identityPackedCommand) &
+-			(OwnershipIdentityState[identityHeaderBase + 9]$UDINT =
+-			 identityPackedOwner) &
+-			(OwnershipIdentityState[identityHeaderBase + 10]$UDINT =
+-			 identityTailOffset) &
+-			(OwnershipIdentityState[identityHeaderBase + 11]$UDINT = 0) &
+-			(identitySize = 56) & (identityTailSize = 0);
+-		homeReceiptIdentityPost := TRUE;
+-		homeReceiptIndex := 0;
+-		while homeReceiptIndex < LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE do
+-			if OwnershipIdentityState[identityHeaderBase + homeReceiptIndex] <> 0 then
+-				homeReceiptIdentityPost := FALSE;
+-			end_if;
+-			homeReceiptIndex += 1;
+-		end_while;
+-
+-		homeReceiptObserverPre :=
+-			(OwnershipObserverState[observerBase]$UDINT =
+-			 (LMC_OWNER_OBSERVER_MAGIC + TO_UDINT(axisIndex))) &
+-			(OwnershipObserverState[observerBase + 1]$UDINT = AdmissionToken) &
+-			(OwnershipObserverState[observerBase + 2]$UDINT = OwnerGeneration) &
+-			((OwnershipObserverState[observerBase + 5]$UDINT and
+-			  LMC_OWNER_OBSERVER_EVIDENCE_CLEAR_MASK) = 0) &
+-			(OwnershipObserverState[observerBase + 9] = 0) &
+-			(OwnershipObserverState[observerBase + 10] = 0) &
+-			(OwnershipObserverState[observerBase + 11] = 0);
+-		homeReceiptObserverPost := TRUE;
+-		homeReceiptIndex := 0;
+-		while homeReceiptIndex < LMC_OWNER_OBSERVER_STRIDE do
+-			if OwnershipObserverState[observerBase + homeReceiptIndex] <> 0 then
+-				homeReceiptObserverPost := FALSE;
+-			end_if;
+-			homeReceiptIndex += 1;
+-		end_while;
+-
+-		homeReceiptRecordPre :=
+-			(OwnershipState[recordBase] = axisIndex) &
+-			(OwnershipState[recordBase + 1] = LMC_OWNER_STATE_LMC_HOME_ACTIVE) &
+-			(OwnershipState[recordBase + 2] = LMC_OWNER_KIND_LMC_HOME) &
+-			(OwnershipState[recordBase + 3] = 0x7D13) &
+-			(OwnershipState[recordBase + 4]$UDINT = AdmissionToken) &
+-			(OwnershipState[recordBase + 5]$UDINT = OwnerGeneration) &
+-			(OwnershipState[recordBase + 6]$UDINT = ZeroHomeState[36]$UDINT) &
+-			(OwnershipState[recordBase + 7]$UDINT = ZeroHomeState[37]$UDINT) &
+-			(OwnershipState[recordBase + 8]$UDINT <> 0) &
+-			(OwnershipState[recordBase + 9]$UDINT <> 0) &
+-			(OwnershipState[recordBase + 10] = 0) &
+-			(OwnershipState[recordBase + 11]$UDINT = AxisMask) &
+-			(OwnershipState[recordBase + 12] = axisIndex) &
+-			(OwnershipState[recordBase + 13] =
+-			 LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
+-			(OwnershipState[recordBase + 14] =
+-			 LMC_OWNER_ADMISSION_LIFECYCLE) &
+-			(OwnershipState[recordBase + 15]$UDINT = 56) &
+-			(OwnershipState[recordBase + 16]$UDINT = 1) &
+-			(OwnershipState[recordBase + 17]$UDINT = ZeroHomeState[4]$UDINT) &
+-			(OwnershipState[recordBase + 18]$UDINT = ZeroHomeState[1]$UDINT) &
+-			(OwnershipState[recordBase + 19]$UDINT = ZeroHomeState[2]$UDINT) &
+-			(OwnershipState[recordBase + 20]$UDINT = ZeroHomeState[3]$UDINT) &
+-			(OwnershipState[recordBase + 21]$UDINT = ZeroHomeState[5]$UDINT) &
+-			(OwnershipState[recordBase + 22]$UDINT = ZeroHomeState[6]$UDINT) &
+-			(OwnershipState[recordBase + 23]$UDINT = ZeroHomeState[7]$UDINT) &
+-			(OwnershipState[recordBase + 24]$UDINT = ZeroHomeState[8]$UDINT) &
+-			(OwnershipState[recordBase + 25]$UDINT = 1) &
+-			(OwnershipState[recordBase + 26] = ZeroHomeState[11]) &
+-			(OwnershipState[recordBase + 27] = ZeroHomeState[12]) &
+-			(OwnershipState[recordBase + 28]$UDINT = ZeroHomeState[13]$UDINT) &
+-			(OwnershipState[recordBase + 29]$UDINT = 0x454D4F48) &
+-			(OwnershipState[recordBase + 30] = 0) &
+-			(OwnershipState[recordBase + 31] = 0) &
+-			(OwnershipState[recordBase + 32] = 0) &
+-			(OwnershipState[recordBase + 33] = 0) &
+-			(OwnershipState[recordBase + 34] = 0) &
+-			(OwnershipState[recordBase + 35]$UDINT =
+-			 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex)));
+-		homeReceiptRecordBodyPost := OwnershipState[recordBase] = axisIndex;
+-		homeReceiptIndex := 1;
+-		while homeReceiptIndex <= 34 do
+-			if OwnershipState[recordBase + homeReceiptIndex] <> 0 then
+-				homeReceiptRecordBodyPost := FALSE;
+-			end_if;
+-			homeReceiptIndex += 1;
+-		end_while;
+-		homeReceiptRecordPost := homeReceiptRecordBodyPost &
+-			(OwnershipState[recordBase + 35]$UDINT =
+-			 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex)));
+-		homeReceiptSingletonPre :=
+-			(OwnershipState[7]$UDINT = AdmissionToken) &
+-			(OwnershipState[8]$UDINT = OwnerGeneration) &
+-			(OwnershipState[9]$UDINT = AxisMask);
+-		homeReceiptSingletonPost :=
+-			(OwnershipState[7]$UDINT = 0) &
+-			(OwnershipState[8]$UDINT = 0) &
+-			(OwnershipState[9]$UDINT = 0);
+-
+-		homeReceiptSurfaceValid := FALSE;
+-		case homeReceiptPhase of
+-			LMC_HOME_OWNER_RECEIPT_PREPARED:
+-				homeReceiptSurfaceValid := homeReceiptIdentityPre &
+-					homeReceiptObserverPre & homeReceiptRecordPre &
+-					homeReceiptSingletonPre;
+-			LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY:
+-				homeReceiptSurfaceValid :=
+-					(homeReceiptIdentityPre | homeReceiptIdentityPost |
+-					 (OwnershipIdentityState[identityHeaderBase] = 0)) &
+-					homeReceiptObserverPre & homeReceiptRecordPre &
+-					homeReceiptSingletonPre;
+-			LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER:
+-				homeReceiptSurfaceValid := homeReceiptIdentityPost &
+-					(homeReceiptObserverPre | homeReceiptObserverPost |
+-					 (OwnershipObserverState[observerBase] = 0)) &
+-					homeReceiptRecordPre & homeReceiptSingletonPre;
+-			LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON:
+-				homeReceiptSurfaceValid := homeReceiptIdentityPost &
+-					homeReceiptObserverPost & homeReceiptRecordPre &
+-					(homeReceiptSingletonPre |
+-					 ((OwnershipState[7]$UDINT = 0) &
+-					  (OwnershipState[8]$UDINT = OwnerGeneration) &
+-					  (OwnershipState[9]$UDINT = AxisMask)) |
+-					 ((OwnershipState[7]$UDINT = 0) &
+-					  (OwnershipState[8]$UDINT = 0) &
+-					  (OwnershipState[9]$UDINT = AxisMask)) |
+-					 homeReceiptSingletonPost);
+-			LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD:
+-				homeReceiptSurfaceValid := homeReceiptIdentityPost &
+-					homeReceiptObserverPost & homeReceiptSingletonPost &
+-					(homeReceiptRecordPre |
+-					 (OwnershipState[recordBase + 35] = 0));
+-			LMC_HOME_OWNER_RECEIPT_COMPLETE:
+-				homeReceiptSurfaceValid := homeReceiptIdentityPost &
+-					homeReceiptObserverPost & homeReceiptSingletonPost &
+-					(homeReceiptRecordPost |
+-					 (homeReceiptRecordBodyPost &
+-					  (OwnershipState[recordBase + 35] = 0)));
+-		else
+-		end_case;
+-		if homeReceiptSurfaceValid = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-		if (ZeroHomeState[56]$UDINT and
+-		   LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED) = 0 then
+-			if homeReceiptPhase <> LMC_HOME_OWNER_RECEIPT_PREPARED then
+-				OwnershipState[24] := 1;
+-				Result := -3;
+-				RETURN;
+-			end_if;
+-			Result := 0;
+-			RETURN;
+-		end_if;
+-
+-		// The axis-record magic is committed last. Each phase is stored before its
+-		// mutation, so the exact receipt can resume a partial cleanup fail-closed.
+-		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY then
+-			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY;
+-			OwnershipIdentityState[identityHeaderBase] := 0;
+-			_memset(dest:=#OwnershipIdentityState[identityHeaderBase],
+-				usByte:=0, cntr:=LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE * 4);
+-		end_if;
+-		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER then
+-			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER;
+-			OwnershipObserverState[observerBase] := 0;
+-			_memset(dest:=#OwnershipObserverState[observerBase],
+-				usByte:=0, cntr:=LMC_OWNER_OBSERVER_STRIDE * 4);
+-		end_if;
+-		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON then
+-			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON;
+-			OwnershipState[7] := 0;
+-			OwnershipState[8] := 0;
+-			OwnershipState[9] := 0;
+-		end_if;
+-		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD then
+-			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD;
+-			OwnershipState[recordBase + 35] := 0;
+-			_memset(dest:=#OwnershipState[recordBase], usByte:=0,
+-				cntr:=LMC_OWNER_AXIS_STRIDE * 4);
+-			OwnershipState[recordBase] := axisIndex;
+-			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_COMPLETE;
+-			OwnershipState[recordBase + 35]$UDINT :=
+-				LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex);
+-		elsif (homeReceiptPhase = LMC_HOME_OWNER_RECEIPT_COMPLETE) &
+-		      homeReceiptRecordBodyPost &
+-		      (OwnershipState[recordBase + 35] = 0) then
+-			OwnershipState[recordBase + 35]$UDINT :=
+-				LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex);
+-		end_if;
+-		if (ZeroHomeState[61] <> LMC_HOME_OWNER_RECEIPT_COMPLETE) |
+-		   (OwnershipState[recordBase + 35]$UDINT <>
+-		    (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-		// Clear only after exact successful Home and durable owner cleanup. The
+-		// caller has not published ZeroHomeState[0] yet, so the receipt-bound
+-		// terminal tuple is the authoritative success proof at this point.
+-		if LMC_AXIS_REBASE_BARRIER_ENABLED &
+-		   (ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) &
+-		   (ReportValue0 = LMC_HOME_RECORD_SUCCEEDED) &
+-		   (ZeroHomeState[57] = LMC_HOME_RECORD_SUCCEEDED) then
+-			rebaseUpdateResult := UpdateAxisRebaseRequiredState(
+-				SetAxisMask:=0, ClearAxisMask:=AxisMask);
+-			if rebaseUpdateResult <> 0 then
+-				Result := rebaseUpdateResult;
+-				RETURN;
+-			end_if;
+-		end_if;
+-		Result := 1;
++	homeReceiptResult := HandleAxisOwnershipPublishHomeReceipt(
++		AxisMask:=AxisMask, AdmissionToken:=AdmissionToken,
++		OwnerGeneration:=OwnerGeneration, ReportKind:=ReportKind,
++		ReportValue0:=ReportValue0, ReportValue1:=ReportValue1,
++		ObservationCycle:=ObservationCycle);
++	if homeReceiptResult <> 2 then
++		Result := homeReceiptResult;
+ 		RETURN;
+-		elsif homeReceiptTerminalComplete = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+ 	end_if;
+ 	expectedResourceKind := 0;
+ 	expectedOwnerKind := 0;
+@@
+ 		RETURN;
+ 	end_if;
+ 
+-	preemptRootValid :=
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE]$UDINT =
+-		 LMC_OWNER_PREEMPT_IDENTITY_MAGIC) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 2]$UDINT = AdmissionToken) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 3]$UDINT = OwnerGeneration) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 4]$UDINT = AxisMask) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 5]$UDINT = expectedSession) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 6]$UDINT = expectedSequence) &
+-		(OwnershipPreemptedIdentityState[
+-		 LMC_OWNER_PREEMPT_HEADER_BASE + 7]$UDINT =
+-		 (TO_UDINT(expectedCommandId) or
+-		  (TO_UDINT(expectedReference) shl 16))) &
+-		((OwnershipPreemptedIdentityState[
+-		  LMC_OWNER_PREEMPT_HEADER_BASE + 1]$UDINT and 0x0000FFFF) =
+-		 LMC_OWNER_IDENTITY_VERSION) &
+-		((OwnershipPreemptedIdentityState[
+-		  LMC_OWNER_PREEMPT_HEADER_BASE + 1]$UDINT and 0xFFFE0000) = 0);
+-	if (expectedAdmissionMode = LMC_OWNER_ADMISSION_SAFETY) &
+-	   (OwnershipPreemptedIdentityState[
+-	    LMC_OWNER_PREEMPT_HEADER_BASE]$UDINT =
+-	    LMC_OWNER_PREEMPT_IDENTITY_MAGIC) &
+-	   (preemptRootValid = FALSE) then
+-		OwnershipState[24] := 1;
++	publishDecisionResult := PrepareAxisOwnershipPublishDecision(
++		AxisMask:=AxisMask, AdmissionToken:=AdmissionToken,
++		OwnerGeneration:=OwnerGeneration, ReportKind:=ReportKind,
++		ExpectedSession:=expectedSession,
++		ExpectedSequence:=expectedSequence,
++		ExpectedCommandId:=expectedCommandId,
++		ExpectedReference:=expectedReference,
++		ExpectedAdmissionMode:=expectedAdmissionMode,
++		ExpectedOwnerKind:=expectedOwnerKind);
++	if publishDecisionResult < 0 then
++		Result := publishDecisionResult;
++		RETURN;
++	elsif publishDecisionResult > 7 then
+ 		Result := -3;
+ 		RETURN;
+ 	end_if;
+-	if (expectedAdmissionMode = LMC_OWNER_ADMISSION_SAFETY) &
+-	   (preemptRootValid = FALSE) then
+-		preemptBankValid := TRUE;
+-		identityIndex := 0;
+-		while identityIndex <= 323 do
+-			if OwnershipPreemptedState[identityIndex] <> 0 then
+-				preemptBankValid := FALSE;
+-			end_if;
+-			identityIndex += 1;
+-		end_while;
+-		identityIndex := 0;
+-		while identityIndex <= 431 do
+-			if OwnershipPreemptedIdentityState[identityIndex] <> 0 then
+-				preemptBankValid := FALSE;
+-			end_if;
+-			identityIndex += 1;
+-		end_while;
+-		if preemptBankValid = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-	end_if;
+-	preemptFlags := 0;
+-	cleanupRequiredMask := 0;
+-	cleanupCompleteMask := 0;
+-	if preemptRootValid then
+-		preemptFlags := OwnershipPreemptedIdentityState[
+-			LMC_OWNER_PREEMPT_HEADER_BASE + 1]$UDINT;
+-		cleanupRequiredMask := OwnershipPreemptedIdentityState[
+-			LMC_OWNER_PREEMPT_HEADER_BASE + 8]$UDINT;
+-		cleanupCompleteMask := OwnershipPreemptedIdentityState[
+-			LMC_OWNER_PREEMPT_HEADER_BASE + 9]$UDINT;
+-		if ((cleanupRequiredMask and (not AxisMask)) <> 0) |
+-		   ((cleanupCompleteMask and (not cleanupRequiredMask)) <> 0) then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-		preemptBankValid := TRUE;
+-		preemptLmcFound := FALSE;
+-		preemptDs402Found := FALSE;
+-		preemptEncoderFound := FALSE;
+-		axisIndex := 1;
+-		while axisIndex <= LMC_OWNER_AXIS_COUNT do
+-			case axisIndex of
+-				1: axisBit := 0x00000001;
+-				2: axisBit := 0x00000002;
+-				3: axisBit := 0x00000004;
+-				4: axisBit := 0x00000008;
+-				5: axisBit := 0x00000010;
+-				6: axisBit := 0x00000020;
+-				7: axisBit := 0x00000040;
+-				8: axisBit := 0x00000080;
+-				9: axisBit := 0x00000100;
+-			else
+-				axisBit := 0;
+-			end_case;
+-			preemptRecordBase := (axisIndex - 1) * LMC_OWNER_AXIS_STRIDE;
+-			if (OwnershipPreemptedState[preemptRecordBase] <> axisIndex) |
+-			   (OwnershipPreemptedState[preemptRecordBase + 35]$UDINT <>
+-			    (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
+-				preemptBankValid := FALSE;
+-			end_if;
+-			if (AxisMask and axisBit) <> 0 then
+-				preemptState := OwnershipPreemptedState[preemptRecordBase + 1];
+-				preemptOwnerKind :=
+-					OwnershipPreemptedState[preemptRecordBase + 2];
+-				preemptCommand := OwnershipPreemptedState[preemptRecordBase + 3];
+-				preemptToken :=
+-					OwnershipPreemptedState[preemptRecordBase + 4]$UDINT;
+-				preemptGeneration :=
+-					OwnershipPreemptedState[preemptRecordBase + 5]$UDINT;
+-				preemptSession :=
+-					OwnershipPreemptedState[preemptRecordBase + 6]$UDINT;
+-				preemptSequence :=
+-					OwnershipPreemptedState[preemptRecordBase + 7]$UDINT;
+-				preemptMask :=
+-					OwnershipPreemptedState[preemptRecordBase + 11]$UDINT;
+-				preemptReference :=
+-					OwnershipPreemptedState[preemptRecordBase + 12];
+-				preemptResourceKind :=
+-					OwnershipPreemptedState[preemptRecordBase + 13];
+-				preemptAdmission :=
+-					OwnershipPreemptedState[preemptRecordBase + 14];
+-				preemptIdentitySize :=
+-					OwnershipPreemptedState[preemptRecordBase + 15]$UDINT;
+-				preemptSpecialValid := FALSE;
+-				case preemptOwnerKind of
+-					LMC_OWNER_KIND_LMC_HOME:
+-						preemptSpecialValid :=
+-							(preemptCommand = 0x7D13) &
+-							(preemptResourceKind =
+-							 LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
+-							(preemptAdmission =
+-							 LMC_OWNER_ADMISSION_LIFECYCLE) &
+-							((preemptState = LMC_OWNER_STATE_RESERVED) |
+-							 (preemptState =
+-							  LMC_OWNER_STATE_LMC_HOME_ACTIVE)) &
+-							(preemptIdentitySize = 56);
+-					LMC_OWNER_KIND_DS402_HOME:
+-						preemptSpecialValid :=
+-							(preemptCommand = 0x7D15) &
+-							(preemptResourceKind =
+-							 LMC_OWNER_RESOURCE_DS402_HOME_ENGINE) &
+-							(preemptAdmission =
+-							 LMC_OWNER_ADMISSION_LIFECYCLE) &
+-							((preemptState = LMC_OWNER_STATE_RESERVED) |
+-							 (preemptState =
+-							  LMC_OWNER_STATE_DS402_HOME_ACTIVE)) &
+-							(preemptIdentitySize = 72);
+-					LMC_OWNER_KIND_ENCODER:
+-						preemptSpecialValid :=
+-							(preemptCommand = 0x7E53) &
+-							(preemptResourceKind =
+-							 LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE) &
+-							(preemptAdmission =
+-							 LMC_OWNER_ADMISSION_LIFECYCLE) &
+-							((preemptState = LMC_OWNER_STATE_RESERVED) |
+-							 (preemptState = LMC_OWNER_STATE_TW20_QUEUED) |
+-							 (preemptState = LMC_OWNER_STATE_TW20_RUNNING) |
+-							 (preemptState = LMC_OWNER_STATE_TW20_DRAINING)) &
+-							(preemptIdentitySize = 72);
+-				else
+-				end_case;
+-				if preemptSpecialValid then
+-					case preemptResourceKind of
+-						LMC_OWNER_RESOURCE_LMC_HOME_ENGINE:
+-							if preemptLmcFound then
+-								preemptBankValid := FALSE;
+-							end_if;
+-							preemptLmcFound := TRUE;
+-						LMC_OWNER_RESOURCE_DS402_HOME_ENGINE:
+-							if preemptDs402Found then
+-								preemptBankValid := FALSE;
+-							end_if;
+-							preemptDs402Found := TRUE;
+-						LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE:
+-							if preemptEncoderFound then
+-								preemptBankValid := FALSE;
+-							end_if;
+-							preemptEncoderFound := TRUE;
+-					else
+-						preemptBankValid := FALSE;
+-					end_case;
+-					if (preemptToken = 0) | (preemptGeneration = 0) |
+-					   (preemptSession = 0) | (preemptSequence = 0) |
+-					   (preemptMask <> axisBit) |
+-					   (preemptReference <> axisIndex) |
+-					   ((cleanupRequiredMask and axisBit) = 0) then
+-						preemptBankValid := FALSE;
+-					end_if;
+-					if (cleanupCompleteMask and axisBit) = 0 then
+-						case preemptResourceKind of
+-							LMC_OWNER_RESOURCE_LMC_HOME_ENGINE:
+-								preemptBankValid := preemptBankValid &
+-									(OwnershipState[7]$UDINT = preemptToken) &
+-									(OwnershipState[8]$UDINT =
+-									 preemptGeneration) &
+-									(OwnershipState[9]$UDINT = axisBit);
+-							LMC_OWNER_RESOURCE_DS402_HOME_ENGINE:
+-								preemptBankValid := preemptBankValid &
+-									(OwnershipState[10]$UDINT = preemptToken) &
+-									(OwnershipState[11]$UDINT =
+-									 preemptGeneration) &
+-									(OwnershipState[12]$UDINT = axisBit);
+-							LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE:
+-								preemptBankValid := preemptBankValid &
+-									(OwnershipState[13]$UDINT = preemptToken) &
+-									(OwnershipState[14]$UDINT =
+-									 preemptGeneration) &
+-									(OwnershipState[15]$UDINT = axisBit);
+-						else
+-							preemptBankValid := FALSE;
+-						end_case;
+-					else
+-						singletonToken := 0;
+-						singletonGeneration := 0;
+-						singletonMask := 0;
+-						case preemptResourceKind of
+-							LMC_OWNER_RESOURCE_LMC_HOME_ENGINE:
+-								singletonToken := OwnershipState[7]$UDINT;
+-								singletonGeneration := OwnershipState[8]$UDINT;
+-								singletonMask := OwnershipState[9]$UDINT;
+-							LMC_OWNER_RESOURCE_DS402_HOME_ENGINE:
+-								singletonToken := OwnershipState[10]$UDINT;
+-								singletonGeneration := OwnershipState[11]$UDINT;
+-								singletonMask := OwnershipState[12]$UDINT;
+-							LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE:
+-								singletonToken := OwnershipState[13]$UDINT;
+-								singletonGeneration := OwnershipState[14]$UDINT;
+-								singletonMask := OwnershipState[15]$UDINT;
+-						else
+-							preemptBankValid := FALSE;
+-						end_case;
+-						replacementValid := (singletonToken = 0) &
+-							(singletonGeneration = 0) & (singletonMask = 0);
+-						if replacementValid = FALSE then
+-							replacementValid :=
+-								(singletonToken <> 0) &
+-								(singletonGeneration <> 0) &
+-								(singletonMask <> 0) &
+-								(singletonMask <= LMC_OWNER_PROFILE_AXIS_MASK) &
+-								((singletonMask and (singletonMask - 1)) = 0) &
+-								(singletonToken <> preemptToken) &
+-								(singletonGeneration <> preemptGeneration);
+-							replacementFound := FALSE;
+-							probeAxisIndex := 1;
+-							while probeAxisIndex <= LMC_OWNER_AXIS_COUNT do
+-								case probeAxisIndex of
+-									1: probeAxisBit := 0x00000001;
+-									2: probeAxisBit := 0x00000002;
+-									3: probeAxisBit := 0x00000004;
+-									4: probeAxisBit := 0x00000008;
+-									5: probeAxisBit := 0x00000010;
+-									6: probeAxisBit := 0x00000020;
+-									7: probeAxisBit := 0x00000040;
+-									8: probeAxisBit := 0x00000080;
+-									9: probeAxisBit := 0x00000100;
+-								else
+-									probeAxisBit := 0;
+-								end_case;
+-								replacementRecordBase := LMC_OWNER_GLOBAL_SLOTS +
+-									((probeAxisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
+-								if singletonMask = probeAxisBit then
+-									if replacementFound then
+-										replacementValid := FALSE;
+-									end_if;
+-									replacementFound := TRUE;
+-									replacementStateValid := FALSE;
+-									case preemptOwnerKind of
+-										LMC_OWNER_KIND_LMC_HOME:
+-											replacementStateValid :=
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_RESERVED) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_LMC_HOME_ACTIVE) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_QUARANTINED);
+-										LMC_OWNER_KIND_DS402_HOME:
+-											replacementStateValid :=
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_RESERVED) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_DS402_HOME_ACTIVE) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_QUARANTINED);
+-										LMC_OWNER_KIND_ENCODER:
+-											replacementStateValid :=
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_RESERVED) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_TW20_QUEUED) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_TW20_RUNNING) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_TW20_DRAINING) |
+-												(OwnershipState[replacementRecordBase + 1] =
+-												 LMC_OWNER_STATE_QUARANTINED);
+-									else
+-									end_case;
+-									replacementIdentitySize := preemptIdentitySize;
+-									replacementTailSize := 0;
+-									if replacementIdentitySize >
+-									   LMC_OWNER_IDENTITY_PREFIX_BYTES then
+-										replacementTailSize := replacementIdentitySize -
+-											LMC_OWNER_IDENTITY_PREFIX_BYTES;
+-									end_if;
+-									replacementTailOffset :=
+-										TO_UDINT(probeAxisIndex - 1) * 8;
+-									replacementPackedCommand :=
+-										TO_UDINT(preemptCommand) or
+-										(TO_UDINT(probeAxisIndex) shl 16);
+-									replacementPackedOwner :=
+-										TO_UDINT(preemptOwnerKind) or
+-										(TO_UDINT(preemptResourceKind) shl 8) or
+-										(TO_UDINT(LMC_OWNER_ADMISSION_LIFECYCLE) shl 16);
+-									replacementHeaderBase :=
+-										LMC_OWNER_IDENTITY_AXIS_HEADER_BASE +
+-										((probeAxisIndex - 1) *
+-										 LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE);
+-									replacementValid := replacementValid &
+-										replacementStateValid &
+-										(OwnershipState[replacementRecordBase] =
+-										 probeAxisIndex) &
+-										(OwnershipState[replacementRecordBase + 35]$UDINT =
+-										 (LMC_OWNER_AXIS_RECORD_MAGIC +
+-										  TO_UDINT(probeAxisIndex))) &
+-										(OwnershipState[replacementRecordBase + 2] =
+-										 preemptOwnerKind) &
+-										(OwnershipState[replacementRecordBase + 3] =
+-										 preemptCommand) &
+-										(OwnershipState[replacementRecordBase + 4]$UDINT =
+-										 singletonToken) &
+-										(OwnershipState[replacementRecordBase + 5]$UDINT =
+-										 singletonGeneration) &
+-										(OwnershipState[replacementRecordBase + 6]$UDINT <> 0) &
+-										(OwnershipState[replacementRecordBase + 7]$UDINT <> 0) &
+-										(OwnershipState[replacementRecordBase + 11]$UDINT =
+-										 singletonMask) &
+-										(OwnershipState[replacementRecordBase + 12] =
+-										 probeAxisIndex) &
+-										(OwnershipState[replacementRecordBase + 13] =
+-										 preemptResourceKind) &
+-										(OwnershipState[replacementRecordBase + 14] =
+-										 LMC_OWNER_ADMISSION_LIFECYCLE) &
+-										(OwnershipState[replacementRecordBase + 15]$UDINT =
+-										 replacementIdentitySize) &
+-										(OwnershipIdentityState[replacementHeaderBase]$UDINT =
+-										 (LMC_OWNER_IDENTITY_AXIS_MAGIC +
+-										  TO_UDINT(probeAxisIndex))) &
+-										(OwnershipIdentityState[replacementHeaderBase + 1] =
+-										 LMC_OWNER_IDENTITY_VERSION) &
+-										(OwnershipIdentityState[replacementHeaderBase + 2]$UDINT =
+-										 replacementIdentitySize) &
+-										(OwnershipIdentityState[replacementHeaderBase + 3]$UDINT =
+-										 singletonToken) &
+-										(OwnershipIdentityState[replacementHeaderBase + 4]$UDINT =
+-										 singletonGeneration) &
+-										(OwnershipIdentityState[replacementHeaderBase + 5]$UDINT =
+-										 singletonMask) &
+-										(OwnershipIdentityState[replacementHeaderBase + 6]$UDINT =
+-										 OwnershipState[replacementRecordBase + 6]$UDINT) &
+-										(OwnershipIdentityState[replacementHeaderBase + 7]$UDINT =
+-										 OwnershipState[replacementRecordBase + 7]$UDINT) &
+-										(OwnershipIdentityState[replacementHeaderBase + 8]$UDINT =
+-										 replacementPackedCommand) &
+-										(OwnershipIdentityState[replacementHeaderBase + 9]$UDINT =
+-										 replacementPackedOwner) &
+-										(OwnershipIdentityState[replacementHeaderBase + 10]$UDINT =
+-										 replacementTailOffset) &
+-										(OwnershipIdentityState[replacementHeaderBase + 11]$UDINT =
+-										 replacementTailSize);
+-									if replacementIdentitySize = 56 then
+-										replacementValid := replacementValid &
+-											(OwnershipState[replacementRecordBase + 30] = 0) &
+-											(OwnershipState[replacementRecordBase + 31] = 0);
+-									end_if;
+-								elsif (OwnershipState[replacementRecordBase + 4]$UDINT =
+-								       singletonToken) |
+-								      (OwnershipState[replacementRecordBase + 5]$UDINT =
+-								       singletonGeneration) then
+-									replacementValid := FALSE;
+-								end_if;
+-								probeAxisIndex += 1;
+-							end_while;
+-							replacementValid := replacementValid & replacementFound;
+-						end_if;
+-						probeAxisIndex := 1;
+-						while probeAxisIndex <= LMC_OWNER_AXIS_COUNT do
+-							replacementRecordBase := LMC_OWNER_GLOBAL_SLOTS +
+-								((probeAxisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
+-							if (OwnershipState[replacementRecordBase + 4]$UDINT =
+-							    preemptToken) |
+-							   (OwnershipState[replacementRecordBase + 5]$UDINT =
+-							    preemptGeneration) then
+-								replacementValid := FALSE;
+-							end_if;
+-							probeAxisIndex += 1;
+-						end_while;
+-						if replacementValid = FALSE then
+-							preemptBankValid := FALSE;
+-						end_if;
+-					end_if;
+-					probeAxisIndex := 1;
+-					while probeAxisIndex <= LMC_OWNER_AXIS_COUNT do
+-						probeRecordBase := (probeAxisIndex - 1) *
+-							LMC_OWNER_AXIS_STRIDE;
+-						if (probeAxisIndex <> axisIndex) &
+-						   ((OwnershipPreemptedState[
+-						     probeRecordBase + 4]$UDINT = preemptToken) |
+-						    (OwnershipPreemptedState[
+-						     probeRecordBase + 5]$UDINT =
+-						     preemptGeneration)) then
+-							preemptBankValid := FALSE;
+-						end_if;
+-						probeAxisIndex += 1;
+-					end_while;
+-				elsif (cleanupRequiredMask and axisBit) <> 0 then
+-					preemptBankValid := FALSE;
+-				end_if;
+-			end_if;
+-			axisIndex += 1;
+-		end_while;
+-		if preemptBankValid = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-	end_if;
+-	cleanupReady := (cleanupCompleteMask and cleanupRequiredMask) =
+-		cleanupRequiredMask;
+-	forceQuarantine :=
+-		(preemptFlags and LMC_OWNER_PREEMPT_FLAG_FORCE_QUARANTINE) <> 0;
+-	axisIndex := 1;
+-	while axisIndex <= LMC_OWNER_AXIS_COUNT do
+-		case axisIndex of
+-			1: axisBit := 0x00000001;
+-			2: axisBit := 0x00000002;
+-			3: axisBit := 0x00000004;
+-			4: axisBit := 0x00000008;
+-			5: axisBit := 0x00000010;
+-			6: axisBit := 0x00000020;
+-			7: axisBit := 0x00000040;
+-			8: axisBit := 0x00000080;
+-			9: axisBit := 0x00000100;
+-		else
+-			axisBit := 0;
+-		end_case;
+-		if (AxisMask and axisBit) <> 0 then
+-			observerBase := (axisIndex - 1) * LMC_OWNER_OBSERVER_STRIDE;
+-			if (OwnershipObserverState[observerBase + 5]$UDINT and
+-			    LMC_OWNER_OBSERVER_FORCE_QUARANTINE) <> 0 then
+-				forceQuarantine := TRUE;
+-			end_if;
+-		end_if;
+-		axisIndex += 1;
+-	end_while;
+-	if (ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) &
+-	   (expectedAdmissionMode = LMC_OWNER_ADMISSION_SAFETY) &
+-	   (cleanupReady = FALSE) then
+-		forceQuarantine := TRUE;
+-	end_if;
+-	restoreLease :=
+-		(ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) &
+-		(forceQuarantine = FALSE) &
+-		(expectedOwnerKind = LMC_OWNER_KIND_GROUP) &
+-		((expectedCommandId = 0x20A4) |
+-		 (expectedCommandId = 0x7D22) |
+-		 (expectedCommandId = 0x2085));
+-	if restoreLease then
+-		// The lease header is preserved in its bank. Prove the complete exact
+-		// 0x2047 lease, selected records, one-byte identity, and zero suffix
+-		// before the first live ownership mutation.
+-		leaseValid :=
+-			(AxisMask = LMC_OWNER_PROFILE_AXIS_MASK) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE]$UDINT =
+-			 LMC_OWNER_LEASE_IDENTITY_MAGIC) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 1] =
+-			 LMC_OWNER_IDENTITY_VERSION) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 2]$UDINT = 1) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 3]$UDINT <> 0) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 4]$UDINT <> 0) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 5]$UDINT = AxisMask) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 6]$UDINT <> 0) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 7]$UDINT <> 0) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 8]$UDINT =
+-			 (TO_UDINT(0x2047) or (TO_UDINT(0x0100) shl 16))) &
+-			(OwnershipLeaseIdentityState[
+-			 LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 9]$UDINT =
+-			 (TO_UDINT(LMC_OWNER_KIND_GROUP) or
+-			  (TO_UDINT(LMC_OWNER_RESOURCE_AXIS) shl 8) or
+-			  (TO_UDINT(LMC_OWNER_ADMISSION_ORDINARY) shl 16)));
+-		leaseFirstRecordBase := -1;
+-		axisIndex := 1;
+-		while axisIndex <= LMC_OWNER_AXIS_COUNT do
+-			case axisIndex of
+-				1: axisBit := 0x00000001;
+-				2: axisBit := 0x00000002;
+-				3: axisBit := 0x00000004;
+-				4: axisBit := 0x00000008;
+-				5: axisBit := 0x00000010;
+-				6: axisBit := 0x00000020;
+-				7: axisBit := 0x00000040;
+-				8: axisBit := 0x00000080;
+-				9: axisBit := 0x00000100;
+-			else
+-				axisBit := 0;
+-			end_case;
+-			leaseRecordBase := (axisIndex - 1) * LMC_OWNER_AXIS_STRIDE;
+-			if (OwnershipLeaseState[leaseRecordBase] <> axisIndex) |
+-			   (OwnershipLeaseState[leaseRecordBase + 35]$UDINT <>
+-			    (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
+-				leaseValid := FALSE;
+-			end_if;
+-			if (AxisMask and axisBit) <> 0 then
+-				if (OwnershipLeaseState[leaseRecordBase + 1] <>
+-				    LMC_OWNER_STATE_GROUP_LEASE) |
+-				   (OwnershipLeaseState[leaseRecordBase + 2] <>
+-				    LMC_OWNER_KIND_GROUP) |
+-				   (OwnershipLeaseState[leaseRecordBase + 3] <> 0x2047) |
+-				   (OwnershipLeaseState[leaseRecordBase + 4]$UDINT <>
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 3]$UDINT) |
+-				   (OwnershipLeaseState[leaseRecordBase + 5]$UDINT <>
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 4]$UDINT) |
+-				   (OwnershipLeaseState[leaseRecordBase + 6]$UDINT <>
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 6]$UDINT) |
+-				   (OwnershipLeaseState[leaseRecordBase + 7]$UDINT <>
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 7]$UDINT) |
+-				   (OwnershipLeaseState[leaseRecordBase + 11]$UDINT <> AxisMask) |
+-				   (OwnershipLeaseState[leaseRecordBase + 12] <> 0x0100) |
+-				   (OwnershipLeaseState[leaseRecordBase + 13] <>
+-				    LMC_OWNER_RESOURCE_AXIS) |
+-				   (OwnershipLeaseState[leaseRecordBase + 14] <>
+-				    LMC_OWNER_ADMISSION_ORDINARY) |
+-				   (OwnershipLeaseState[leaseRecordBase + 15]$UDINT <> 1) |
+-				   (OwnershipLeaseState[leaseRecordBase + 16]$UDINT <> 1) then
+-					leaseValid := FALSE;
+-				end_if;
+-				identityIndex := 17;
+-				while identityIndex <= 31 do
+-					if OwnershipLeaseState[leaseRecordBase + identityIndex] <> 0 then
+-						leaseValid := FALSE;
+-					end_if;
+-					identityIndex += 1;
+-				end_while;
+-				if leaseFirstRecordBase < 0 then
+-					leaseFirstRecordBase := leaseRecordBase;
+-				else
+-					identityCompareResult := _memcmp(
+-						ptr1:=#OwnershipLeaseState[leaseFirstRecordBase + 16],
+-						ptr2:=#OwnershipLeaseState[leaseRecordBase + 16], cntr:=1);
+-					if identityCompareResult <> 0 then
+-						leaseValid := FALSE;
+-					end_if;
+-				end_if;
+-			else
+-				if (OwnershipLeaseState[leaseRecordBase + 4]$UDINT =
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 3]$UDINT) |
+-				   (OwnershipLeaseState[leaseRecordBase + 5]$UDINT =
+-				    OwnershipLeaseIdentityState[
+-				     LMC_OWNER_LEASE_IDENTITY_HEADER_BASE + 4]$UDINT) then
+-					leaseValid := FALSE;
+-				end_if;
+-				identityIndex := 1;
+-				while identityIndex <= 34 do
+-					if OwnershipLeaseState[leaseRecordBase + identityIndex] <> 0 then
+-						leaseValid := FALSE;
+-					end_if;
+-					identityIndex += 1;
+-				end_while;
+-			end_if;
+-			axisIndex += 1;
+-		end_while;
+-		identityIndex := 0;
+-		while identityIndex < LMC_OWNER_IDENTITY_SUFFIX_DINTS do
+-			if OwnershipLeaseIdentityState[identityIndex] <> 0 then
+-				leaseValid := FALSE;
+-			end_if;
+-			identityIndex += 1;
+-		end_while;
+-		if leaseValid = FALSE then
+-			OwnershipState[24] := 1;
+-			Result := -3;
+-			RETURN;
+-		end_if;
+-	end_if;
++	preemptRootValid := (publishDecisionResult and 1) <> 0;
++	forceQuarantine := (publishDecisionResult and 2) <> 0;
++	restoreLease := (publishDecisionResult and 4) <> 0;
+ 	destroyBanks :=
+ 		(ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) &
+ 		((expectedCommandId = 0x2048) | (expectedCommandId = 0x204B));
+*** End Patch

@@ -1,0 +1,294 @@
+{
+  "phase": "post_ide_pre_split",
+  "mode": "captured",
+  "observedAt": "2026-08-07T15:01:33.1956129+09:00",
+  "source": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "inputLineEnding": "CRLF",
+    "physicalBytes": 609947,
+    "physicalSha256": "C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5",
+    "asciiOnly": true,
+    "utf8Bom": false,
+    "canonicalLfBytes": 593113,
+    "canonicalLfSha256": "F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC"
+  },
+  "generatedOnlyProof": {
+    "exactOrderedPrivateDeclarations": true,
+    "exactOrderedQualifiedEmptyStubs": true,
+    "declarationInsertionLine": 407,
+    "declarationInsertionCanonicalLfBytes": 697,
+    "declarationInsertionCanonicalLfSha256": "A7F2759D8D88EC7523A3FC7E11265E3783BE11EF628C91DA27279697A6CD67A5",
+    "implementationInsertionLine": 16798,
+    "implementationInsertionCanonicalLfBytes": 746,
+    "implementationInsertionCanonicalLfSha256": "86129DF207C35329FC734CBB3D710BD600AD279D8EA7902CA6C481D0649320B1",
+    "helpers": [
+      {
+        "name": "HandleAxisOwnershipPublishHomeReceipt",
+        "private": true,
+        "global": false,
+        "virtualGlobal": false,
+        "inputCount": 7,
+        "inputs": [
+          "AxisMask : UDINT",
+          "AdmissionToken : UDINT",
+          "OwnerGeneration : UDINT",
+          "ReportKind : UINT",
+          "ReportValue0 : UDINT",
+          "ReportValue1 : UDINT",
+          "ObservationCycle : UDINT"
+        ],
+        "output": "Result : DINT",
+        "declarationLine": 408,
+        "declarationCanonicalLfBytes": 297,
+        "declarationCanonicalLfSha256": "9646C411E51D4EC072C3A5BD1AF888CF6861FD548F6856F3B2E17FD9BB15EE43",
+        "implementationLine": 16800,
+        "implementationQualified": true,
+        "implementationEmpty": true,
+        "stubCanonicalLfBytes": 323,
+        "stubCanonicalLfSha256": "10A87A7F2C280A65379E74AACFBB95C238B8182549E7FF65A48EFC68E43F2D0B"
+      },
+      {
+        "name": "PrepareAxisOwnershipPublishDecision",
+        "private": true,
+        "global": false,
+        "virtualGlobal": false,
+        "inputCount": 10,
+        "inputs": [
+          "AxisMask : UDINT",
+          "AdmissionToken : UDINT",
+          "OwnerGeneration : UDINT",
+          "ReportKind : UINT",
+          "ExpectedSession : UDINT",
+          "ExpectedSequence : UDINT",
+          "ExpectedCommandId : DINT",
+          "ExpectedReference : DINT",
+          "ExpectedAdmissionMode : DINT",
+          "ExpectedOwnerKind : DINT"
+        ],
+        "output": "Result : DINT",
+        "declarationLine": 422,
+        "declarationCanonicalLfBytes": 396,
+        "declarationCanonicalLfSha256": "514A99A5A4BE8D8C6B23E2373B6D0F836054E7F2C62CA1C4033E51F606DAE1F8",
+        "implementationLine": 16817,
+        "implementationQualified": true,
+        "implementationEmpty": true,
+        "stubCanonicalLfBytes": 419,
+        "stubCanonicalLfSha256": "577932A085940A8B79260724A4C31BB057CCDEB6478A78620A600EE151B66ACD"
+      }
+    ],
+    "removalRestoresApprovedBaseline": true,
+    "restoredCanonicalLfBytes": 591670,
+    "restoredCanonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+    "restoredIdeCrlfBytes": 608436,
+    "restoredIdeCrlfSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753"
+  },
+  "classesLcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+    "bytes": 8433167,
+    "sha256": "6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22",
+    "formatSignature": "SigmatekLasal2Binary",
+    "parser": "safe exact ASCII name scan only",
+    "helpers": [
+      {
+        "name": "HandleAxisOwnershipPublishHomeReceipt",
+        "exactAsciiNameCount": 1,
+        "asciiByteOffsets": [
+          6140621
+        ],
+        "sourceVisibility": "private",
+        "sourceGlobal": false,
+        "sourceVirtualGlobal": false,
+        "binaryVisibilityDecoded": false,
+        "binaryVisibilityNote": "Proprietary flag records are not decoded; privacy is proven from exact source declarations."
+      },
+      {
+        "name": "PrepareAxisOwnershipPublishDecision",
+        "exactAsciiNameCount": 1,
+        "asciiByteOffsets": [
+          6141797
+        ],
+        "sourceVisibility": "private",
+        "sourceGlobal": false,
+        "sourceVirtualGlobal": false,
+        "binaryVisibilityDecoded": false,
+        "binaryVisibilityNote": "Proprietary flag records are not decoded; privacy is proven from exact source declarations."
+      }
+    ]
+  },
+  "network": {
+    "trackedCount": 15,
+    "availableCount": 23,
+    "unionCount": 23,
+    "allTrackedFilesAvailable": true,
+    "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759",
+    "files": [
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn",
+        "tracked": true,
+        "available": true,
+        "bytes": 12945,
+        "sha256": "55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/ONE_Comm_Network_Table.lba",
+        "tracked": false,
+        "available": true,
+        "bytes": 3484,
+        "sha256": "F856FF73BBC4722F887F0AD13A775A37065F4FEF0582EB80F90A5151FE474791"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/ONE_Comm_Network_Table.st",
+        "tracked": true,
+        "available": true,
+        "bytes": 8574,
+        "sha256": "18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.lba",
+        "tracked": false,
+        "available": true,
+        "bytes": 7740,
+        "sha256": "E5FD5FEED47195D8A4471B108506961D5E909FF3C0C18DD26E71D9D07EBA2AC4"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.lob",
+        "tracked": false,
+        "available": true,
+        "bytes": 4279,
+        "sha256": "B4B04091FFF0E6F6F4BC52E7051A8786759951638E92DDB9E90D8A158997770B"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConfigObjects.st",
+        "tracked": true,
+        "available": true,
+        "bytes": 8672,
+        "sha256": "FF39F5DF5ABC341D026644DBB2F9E7BF75D5C5F6F57BBEA87FA647141722B895"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/ConnectionFileManager.xml",
+        "tracked": true,
+        "available": true,
+        "bytes": 141,
+        "sha256": "46C35461F244C19B643EC8822C5C840F6D9FEE62863C05AFF0CDD692CFD09B1B"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Eni.xml",
+        "tracked": true,
+        "available": true,
+        "bytes": 302300,
+        "sha256": "C9CA387991A31DBF1095EF87F7F8306224D5F884D147F5D5C7BC0B4F6758C96B"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/EtherCAT_Network.lcn",
+        "tracked": true,
+        "available": true,
+        "bytes": 74551,
+        "sha256": "87C5E35CF60EDC2CA54934AEA040574D8CCE84757F1BB7215A05A32343EA6EEF"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.lba",
+        "tracked": false,
+        "available": true,
+        "bytes": 10212,
+        "sha256": "8EA0AAD443C7BF81C16CF6B5BEAE0EB01653C2ECB094909694542DE0A1585F51"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.st",
+        "tracked": true,
+        "available": true,
+        "bytes": 29769,
+        "sha256": "AFD381920C00BC3C8986B347CECCCA2F5DAC2DF18F40EC6B778210EABF44FB6B"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/HW_Network/HW_Network.lcn",
+        "tracked": true,
+        "available": true,
+        "bytes": 11621,
+        "sha256": "69E5035C6B09762F81EB248770CF69592E07C59FD2D7ECB5CC0A1324C3822A3C"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/HW_Network/ONE_HW_Network_Table.lba",
+        "tracked": false,
+        "available": true,
+        "bytes": 3324,
+        "sha256": "E45D5E330AB028889321C15167644DBE41687BA3761E045DAB77A098C82D96C4"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/HW_Network/ONE_HW_Network_Table.lob",
+        "tracked": false,
+        "available": true,
+        "bytes": 4672,
+        "sha256": "6C06F4EC72631316733F5F565F1A93BD2873E507914A13E966C0B8730207311F"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/HW_Network/ONE_HW_Network_Table.st",
+        "tracked": true,
+        "available": true,
+        "bytes": 14600,
+        "sha256": "31BD34C526D65B3A8414B8D5826FB6449C3BA7E0698208E14438830BDD8D2F91"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/HwVisualConfigMngr.xml",
+        "tracked": true,
+        "available": true,
+        "bytes": 1057,
+        "sha256": "341FA46633D28AD441DEDDC642B2F67CF375A092E90835E1F2E1129392EE5D67"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/IOConnectionManager.xml",
+        "tracked": true,
+        "available": true,
+        "bytes": 7682,
+        "sha256": "DD6922DA3D499B3F3FED809C8685A9F8EB395E171910A7AFF81610FB442E0208"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/Motion_Network.lcn",
+        "tracked": true,
+        "available": true,
+        "bytes": 191793,
+        "sha256": "19A81E1CCBF147DBBE35EA0B2E766B66AA61B0B9D8DBC2820B5C0E27E33E60D6"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.lba",
+        "tracked": false,
+        "available": true,
+        "bytes": 42896,
+        "sha256": "64575AADB5E8C8977F8F48919348555C3E3EBDF1A45815A80D7FAF9E964DD880"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.lob",
+        "tracked": false,
+        "available": true,
+        "bytes": 8735,
+        "sha256": "AC0116C8AE761FF06906342A9A8FC42F63DE7C05468B38A3EAFCAB9456D55252"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Motion_Network/ONE_Motion_Network_Table.st",
+        "tracked": true,
+        "available": true,
+        "bytes": 106506,
+        "sha256": "7138030C83BF64B6CCC138F8011738E3935F87AF022E7FDF15AD98332F3E5057"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb",
+        "tracked": true,
+        "available": true,
+        "bytes": 239778,
+        "sha256": "56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF"
+      },
+      {
+        "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/VirtualCommissioningMngr.xml",
+        "tracked": true,
+        "available": true,
+        "bytes": 100,
+        "sha256": "FB99A0E5B8444095ECD8533E133D7069304099E3709BDCC67E98A1792778C468"
+      }
+    ]
+  },
+  "capture": {
+    "performed": true,
+    "outputDirectory": "C:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260807_publish_split_rebaseline",
+    "snapshotFile": "C:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260807_publish_split_rebaseline\\post_ide_pre_split_LMCControlCommandService.st",
+    "manifestFile": "C:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260807_publish_split_rebaseline\\post_ide_pre_split_manifest.json"
+  }
+}

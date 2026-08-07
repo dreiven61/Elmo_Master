@@ -14278,17 +14278,50 @@ function Assert-LasalAxisRebaseBarrierContract {
     }
 
     $publish = $blocks['PublishAxisOwnership']
+    $publishHomeProvider = $publish
+    $publishMode = Get-LasalAxisOwnershipPublishMode `
+        -ControlServiceText $ControlServiceText
+    if ($publishMode -ceq 'SplitCandidate') {
+        try {
+            $publishSplitFragments =
+                Get-LasalAxisOwnershipPublishSplitFragments `
+                    -ControlServiceText $ControlServiceText `
+                    -Owner "$Owner TW19 Home provider"
+        }
+        catch {
+            throw (
+                "$blocker split Home provider closure is invalid: " +
+                $_.Exception.Message)
+        }
+        $publish = Get-LasalScanText $publishSplitFragments.Adapter
+        $publishHomeProvider = Get-LasalScanText $publishSplitFragments.Home
+        Assert-Match $publish (
+            '(?is)homeReceiptResult\s*:=\s*' +
+            'HandleAxisOwnershipPublishHomeReceipt\s*\(\s*' +
+            'AxisMask\s*:=\s*AxisMask\s*,\s*' +
+            'AdmissionToken\s*:=\s*AdmissionToken\s*,\s*' +
+            'OwnerGeneration\s*:=\s*OwnerGeneration\s*,\s*' +
+            'ReportKind\s*:=\s*ReportKind\s*,\s*' +
+            'ReportValue0\s*:=\s*ReportValue0\s*,\s*' +
+            'ReportValue1\s*:=\s*ReportValue1\s*,\s*' +
+            'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
+            'if\s+homeReceiptResult\s*<>\s*2\s+then\s*' +
+            'Result\s*:=\s*homeReceiptResult\s*;\s*' +
+            'RETURN\s*;\s*end_if\s*;') (
+            "$blocker split adapter must call the exact Home provider and " +
+            'return every non-continuation result.')
+    }
     $completeFence = [regex]::Match(
-        $publish,
+        $publishHomeProvider,
         '(?is)if\s*\(ZeroHomeState\[61\]\s*<>\s*' +
         'LMC_HOME_OWNER_RECEIPT_COMPLETE\).*?Result\s*:=\s*-3\s*;\s*RETURN\s*;')
     $clearWrite = [regex]::Match(
-        $publish,
+        $publishHomeProvider,
         '(?is)rebaseUpdateResult\s*:=\s*UpdateAxisRebaseRequiredState\(\s*' +
         'SetAxisMask\s*:=\s*0\s*,\s*' +
         'ClearAxisMask\s*:=\s*AxisMask\s*\)\s*;')
     $successReturn = [regex]::Match(
-        $publish,
+        $publishHomeProvider,
         'Result\s*:=\s*1\s*;\s*RETURN\s*;',
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     if (-not $completeFence.Success -or -not $clearWrite.Success -or
@@ -14297,7 +14330,7 @@ function Assert-LasalAxisRebaseBarrierContract {
         $clearWrite.Index -ge $successReturn.Index) {
         throw "$blocker Home clear must follow COMPLETE receipt proof and precede Result=1."
     }
-    Assert-Match $publish (
+    Assert-Match $publishHomeProvider (
         '(?is)if\s+LMC_AXIS_REBASE_BARRIER_ENABLED\s*&\s*' +
         '\(ReportKind\s*=\s*LMC_OWNER_REPORT_TERMINAL_SUCCESS\)\s*&\s*' +
         '\(ReportValue0\s*=\s*LMC_HOME_RECORD_SUCCEEDED\)\s*&\s*' +
@@ -14308,7 +14341,7 @@ function Assert-LasalAxisRebaseBarrierContract {
         'Result\s*:=\s*rebaseUpdateResult\s*;\s*RETURN\s*;') (
         "$blocker only exact terminal-success Home may clear one selected axis with readback.")
     if ([regex]::Matches(
-            $publish,
+            $publishHomeProvider,
             'UpdateAxisRebaseRequiredState\s*\(').Count -ne 1 -or
         [regex]::Matches(
             $scan,

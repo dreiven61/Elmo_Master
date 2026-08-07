@@ -55,6 +55,12 @@ test/Reports_Lasal/C78_20260806_preemption_cleanup_split/pre_ide_LMCControlComma
 # Preserve generated method-snapshot whitespace in LASAL evidence.
 test/Reports_Lasal/C78_20260806_ds402_receipt_split/pre_split_method.txt -whitespace
 
+# Preserve the raw post-IDE CRLF source snapshot used by the publish split manifest.
+test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_LMCControlCommandService.st -text -eol -whitespace
+
+# Preserve generated Codex apply_patch artifacts byte-for-byte, including LF and indentation.
+test/Reports_Lasal/C78_20260807_publish_split_rebaseline/PublishAxisOwnership_split_*.patch -text -eol -whitespace
+
 # Preserve the raw exported thread history byte-for-byte and suppress text diffs.
 docs/history/Elmo_Master_history_260724.md binary
 

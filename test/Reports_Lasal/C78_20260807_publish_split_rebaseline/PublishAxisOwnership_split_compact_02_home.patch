@@ -1,0 +1,363 @@
+*** Begin Patch
+*** Update File: Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st
+@@
+ 	VAR_OUTPUT
+ 		Result 	: DINT;
+ 	END_VAR
++	VAR
++		axisIndex : DINT;
++		recordBase : DINT;
++		observerBase : DINT;
++		identityHeaderBase : DINT;
++		identitySize : UDINT;
++		identityTailSize : UDINT;
++		identityTailOffset : UDINT;
++		identityPackedCommand : UDINT;
++		identityPackedOwner : UDINT;
++		homeReceiptAxisMaskValid : BOOL;
++		homeReceiptExact : BOOL;
++		homeReceiptCallMatches : BOOL;
++		homeReceiptTerminalComplete : BOOL;
++		homeReceiptIdentityPre : BOOL;
++		homeReceiptIdentityPost : BOOL;
++		homeReceiptObserverPre : BOOL;
++		homeReceiptObserverPost : BOOL;
++		homeReceiptRecordPre : BOOL;
++		homeReceiptRecordBodyPost : BOOL;
++		homeReceiptRecordPost : BOOL;
++		homeReceiptSingletonPre : BOOL;
++		homeReceiptSingletonPost : BOOL;
++		homeReceiptSurfaceValid : BOOL;
++		homeReceiptPhase : DINT;
++		homeReceiptIndex : DINT;
++		rebaseUpdateResult : DINT;
++	END_VAR
++
++	Result := 2;
++	if ZeroHomeState[60]$UDINT = LMC_HOME_OWNER_RECEIPT_MAGIC then
++		homeReceiptCallMatches :=
++			(ZeroHomeState[34]$UDINT = AdmissionToken) &
++			(ZeroHomeState[35]$UDINT = OwnerGeneration) &
++			(ZeroHomeState[38]$UDINT = AxisMask) &
++			(ZeroHomeState[58] = TO_DINT(ReportKind)) &
++			(ZeroHomeState[57]$UDINT = ReportValue0) &
++			(ZeroHomeState[31]$UDINT = ReportValue1) &
++			(ZeroHomeState[46]$UDINT = ObservationCycle);
++		homeReceiptTerminalComplete :=
++			(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
++			(ZeroHomeState[33]$UDINT <> 0) &
++			(ZeroHomeState[63]$UDINT = ZeroHomeState[33]$UDINT) &
++			(ZeroHomeState[62] = 0) &
++			(ZeroHomeState[61] = LMC_HOME_OWNER_RECEIPT_COMPLETE) &
++			(ZeroHomeState[59] = 0) &
++			(ZeroHomeState[39] = LMC_HOME_ENGINE_TERMINAL) &
++			(ZeroHomeState[0] >= LMC_HOME_RECORD_SUCCEEDED) &
++			(ZeroHomeState[0] <= LMC_HOME_RECORD_ABORTED) &
++			(ZeroHomeState[57] = ZeroHomeState[0]) &
++			(ZeroHomeState[47] = 1) &
++			((ZeroHomeState[56]$UDINT and
++			  LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED) <> 0) &
++			((ZeroHomeState[56]$UDINT and
++			  LMC_HOME_FLAG_TERMINAL_PUBLISHED) <> 0) &
++			((ZeroHomeState[56]$UDINT and
++			  LMC_HOME_FLAG_PREEMPTION_CLEANUP) = 0) &
++			(((ZeroHomeState[0] = LMC_HOME_RECORD_SUCCEEDED) &
++			  (ZeroHomeState[58] = LMC_OWNER_REPORT_TERMINAL_SUCCESS)) |
++			 (((ZeroHomeState[0] = LMC_HOME_RECORD_FAILED) |
++			   (ZeroHomeState[0] = LMC_HOME_RECORD_ABORTED)) &
++			  (ZeroHomeState[58] =
++			   LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE)));
++		if homeReceiptCallMatches then
++		homeReceiptPhase := ZeroHomeState[61];
++		homeReceiptAxisMaskValid := FALSE;
++		case ZeroHomeState[9] of
++			1: homeReceiptAxisMaskValid := AxisMask = 0x00000001;
++			2: homeReceiptAxisMaskValid := AxisMask = 0x00000002;
++			3: homeReceiptAxisMaskValid := AxisMask = 0x00000004;
++			4: homeReceiptAxisMaskValid := AxisMask = 0x00000008;
++		else
++		end_case;
++		homeReceiptExact :=
++			homeReceiptAxisMaskValid &
++			(ZeroHomeState[51]$UDINT = LMC_HOME_RECORD_MAGIC) &
++			(ZeroHomeState[33]$UDINT <> 0) &
++			(ZeroHomeState[63]$UDINT = ZeroHomeState[33]$UDINT) &
++			(ZeroHomeState[62] = 0) &
++			(ZeroHomeState[34]$UDINT = AdmissionToken) &
++			(ZeroHomeState[35]$UDINT = OwnerGeneration) &
++			(ZeroHomeState[38]$UDINT = AxisMask) &
++			(ZeroHomeState[58] = TO_DINT(ReportKind)) &
++			(ZeroHomeState[57]$UDINT = ReportValue0) &
++			(ZeroHomeState[31]$UDINT = ReportValue1) &
++			(ZeroHomeState[46]$UDINT = ObservationCycle) &
++			(ZeroHomeState[59] = 0) &
++			((ZeroHomeState[39] = LMC_HOME_ENGINE_FINALIZE) |
++			 (ZeroHomeState[39] = LMC_HOME_ENGINE_TERMINAL)) &
++			((ZeroHomeState[56]$UDINT and
++			  LMC_HOME_FLAG_OWNER_FINALIZE_INTENT) <> 0) &
++			((ZeroHomeState[56]$UDINT and
++			  LMC_HOME_FLAG_PREEMPTION_CLEANUP) = 0) &
++			((ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) |
++			 (ReportKind = LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE)) &
++			(homeReceiptPhase >= LMC_HOME_OWNER_RECEIPT_PREPARED) &
++			(homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_COMPLETE);
++		if homeReceiptExact = FALSE then
++			OwnershipState[24] := 1;
++			Result := -3;
++			RETURN;
++		end_if;
++
++		axisIndex := ZeroHomeState[9];
++		recordBase := LMC_OWNER_GLOBAL_SLOTS +
++			((axisIndex - 1) * LMC_OWNER_AXIS_STRIDE);
++		observerBase := (axisIndex - 1) * LMC_OWNER_OBSERVER_STRIDE;
++		identityHeaderBase := LMC_OWNER_IDENTITY_AXIS_HEADER_BASE +
++			((axisIndex - 1) * LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE);
++		identityPackedCommand := TO_UDINT(0x7D13) or
++			(TO_UDINT(axisIndex) shl 16);
++		identityPackedOwner := TO_UDINT(LMC_OWNER_KIND_LMC_HOME) or
++			(TO_UDINT(LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) shl 8) or
++			(TO_UDINT(LMC_OWNER_ADMISSION_LIFECYCLE) shl 16);
++		identitySize := OwnershipState[recordBase + 15]$UDINT;
++		identityTailOffset := TO_UDINT(axisIndex - 1) * 8;
++		identityTailSize := 0;
++		if identitySize > LMC_OWNER_IDENTITY_PREFIX_BYTES then
++			identityTailSize := identitySize - LMC_OWNER_IDENTITY_PREFIX_BYTES;
++		end_if;
++
++		homeReceiptIdentityPre :=
++			(OwnershipIdentityState[identityHeaderBase]$UDINT =
++			 (LMC_OWNER_IDENTITY_AXIS_MAGIC + TO_UDINT(axisIndex))) &
++			(OwnershipIdentityState[identityHeaderBase + 1] =
++			 LMC_OWNER_IDENTITY_VERSION) &
++			(OwnershipIdentityState[identityHeaderBase + 2]$UDINT = 56) &
++			(OwnershipIdentityState[identityHeaderBase + 3]$UDINT =
++			 AdmissionToken) &
++			(OwnershipIdentityState[identityHeaderBase + 4]$UDINT =
++			 OwnerGeneration) &
++			(OwnershipIdentityState[identityHeaderBase + 5]$UDINT = AxisMask) &
++			(OwnershipIdentityState[identityHeaderBase + 6]$UDINT =
++			 ZeroHomeState[36]$UDINT) &
++			(OwnershipIdentityState[identityHeaderBase + 7]$UDINT =
++			 ZeroHomeState[37]$UDINT) &
++			(OwnershipIdentityState[identityHeaderBase + 8]$UDINT =
++			 identityPackedCommand) &
++			(OwnershipIdentityState[identityHeaderBase + 9]$UDINT =
++			 identityPackedOwner) &
++			(OwnershipIdentityState[identityHeaderBase + 10]$UDINT =
++			 identityTailOffset) &
++			(OwnershipIdentityState[identityHeaderBase + 11]$UDINT = 0) &
++			(identitySize = 56) & (identityTailSize = 0);
++		homeReceiptIdentityPost := TRUE;
++		homeReceiptIndex := 0;
++		while homeReceiptIndex < LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE do
++			if OwnershipIdentityState[identityHeaderBase + homeReceiptIndex] <> 0 then
++				homeReceiptIdentityPost := FALSE;
++			end_if;
++			homeReceiptIndex += 1;
++		end_while;
++
++		homeReceiptObserverPre :=
++			(OwnershipObserverState[observerBase]$UDINT =
++			 (LMC_OWNER_OBSERVER_MAGIC + TO_UDINT(axisIndex))) &
++			(OwnershipObserverState[observerBase + 1]$UDINT = AdmissionToken) &
++			(OwnershipObserverState[observerBase + 2]$UDINT = OwnerGeneration) &
++			((OwnershipObserverState[observerBase + 5]$UDINT and
++			  LMC_OWNER_OBSERVER_EVIDENCE_CLEAR_MASK) = 0) &
++			(OwnershipObserverState[observerBase + 9] = 0) &
++			(OwnershipObserverState[observerBase + 10] = 0) &
++			(OwnershipObserverState[observerBase + 11] = 0);
++		homeReceiptObserverPost := TRUE;
++		homeReceiptIndex := 0;
++		while homeReceiptIndex < LMC_OWNER_OBSERVER_STRIDE do
++			if OwnershipObserverState[observerBase + homeReceiptIndex] <> 0 then
++				homeReceiptObserverPost := FALSE;
++			end_if;
++			homeReceiptIndex += 1;
++		end_while;
++
++		homeReceiptRecordPre :=
++			(OwnershipState[recordBase] = axisIndex) &
++			(OwnershipState[recordBase + 1] = LMC_OWNER_STATE_LMC_HOME_ACTIVE) &
++			(OwnershipState[recordBase + 2] = LMC_OWNER_KIND_LMC_HOME) &
++			(OwnershipState[recordBase + 3] = 0x7D13) &
++			(OwnershipState[recordBase + 4]$UDINT = AdmissionToken) &
++			(OwnershipState[recordBase + 5]$UDINT = OwnerGeneration) &
++			(OwnershipState[recordBase + 6]$UDINT = ZeroHomeState[36]$UDINT) &
++			(OwnershipState[recordBase + 7]$UDINT = ZeroHomeState[37]$UDINT) &
++			(OwnershipState[recordBase + 8]$UDINT <> 0) &
++			(OwnershipState[recordBase + 9]$UDINT <> 0) &
++			(OwnershipState[recordBase + 10] = 0) &
++			(OwnershipState[recordBase + 11]$UDINT = AxisMask) &
++			(OwnershipState[recordBase + 12] = axisIndex) &
++			(OwnershipState[recordBase + 13] =
++			 LMC_OWNER_RESOURCE_LMC_HOME_ENGINE) &
++			(OwnershipState[recordBase + 14] =
++			 LMC_OWNER_ADMISSION_LIFECYCLE) &
++			(OwnershipState[recordBase + 15]$UDINT = 56) &
++			(OwnershipState[recordBase + 16]$UDINT = 1) &
++			(OwnershipState[recordBase + 17]$UDINT = ZeroHomeState[4]$UDINT) &
++			(OwnershipState[recordBase + 18]$UDINT = ZeroHomeState[1]$UDINT) &
++			(OwnershipState[recordBase + 19]$UDINT = ZeroHomeState[2]$UDINT) &
++			(OwnershipState[recordBase + 20]$UDINT = ZeroHomeState[3]$UDINT) &
++			(OwnershipState[recordBase + 21]$UDINT = ZeroHomeState[5]$UDINT) &
++			(OwnershipState[recordBase + 22]$UDINT = ZeroHomeState[6]$UDINT) &
++			(OwnershipState[recordBase + 23]$UDINT = ZeroHomeState[7]$UDINT) &
++			(OwnershipState[recordBase + 24]$UDINT = ZeroHomeState[8]$UDINT) &
++			(OwnershipState[recordBase + 25]$UDINT = 1) &
++			(OwnershipState[recordBase + 26] = ZeroHomeState[11]) &
++			(OwnershipState[recordBase + 27] = ZeroHomeState[12]) &
++			(OwnershipState[recordBase + 28]$UDINT = ZeroHomeState[13]$UDINT) &
++			(OwnershipState[recordBase + 29]$UDINT = 0x454D4F48) &
++			(OwnershipState[recordBase + 30] = 0) &
++			(OwnershipState[recordBase + 31] = 0) &
++			(OwnershipState[recordBase + 32] = 0) &
++			(OwnershipState[recordBase + 33] = 0) &
++			(OwnershipState[recordBase + 34] = 0) &
++			(OwnershipState[recordBase + 35]$UDINT =
++			 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex)));
++		homeReceiptRecordBodyPost := OwnershipState[recordBase] = axisIndex;
++		homeReceiptIndex := 1;
++		while homeReceiptIndex <= 34 do
++			if OwnershipState[recordBase + homeReceiptIndex] <> 0 then
++				homeReceiptRecordBodyPost := FALSE;
++			end_if;
++			homeReceiptIndex += 1;
++		end_while;
++		homeReceiptRecordPost := homeReceiptRecordBodyPost &
++			(OwnershipState[recordBase + 35]$UDINT =
++			 (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex)));
++		homeReceiptSingletonPre :=
++			(OwnershipState[7]$UDINT = AdmissionToken) &
++			(OwnershipState[8]$UDINT = OwnerGeneration) &
++			(OwnershipState[9]$UDINT = AxisMask);
++		homeReceiptSingletonPost :=
++			(OwnershipState[7]$UDINT = 0) &
++			(OwnershipState[8]$UDINT = 0) &
++			(OwnershipState[9]$UDINT = 0);
++
++		homeReceiptSurfaceValid := FALSE;
++		case homeReceiptPhase of
++			LMC_HOME_OWNER_RECEIPT_PREPARED:
++				homeReceiptSurfaceValid := homeReceiptIdentityPre &
++					homeReceiptObserverPre & homeReceiptRecordPre &
++					homeReceiptSingletonPre;
++			LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY:
++				homeReceiptSurfaceValid :=
++					(homeReceiptIdentityPre | homeReceiptIdentityPost |
++					 (OwnershipIdentityState[identityHeaderBase] = 0)) &
++					homeReceiptObserverPre & homeReceiptRecordPre &
++					homeReceiptSingletonPre;
++			LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER:
++				homeReceiptSurfaceValid := homeReceiptIdentityPost &
++					(homeReceiptObserverPre | homeReceiptObserverPost |
++					 (OwnershipObserverState[observerBase] = 0)) &
++					homeReceiptRecordPre & homeReceiptSingletonPre;
++			LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON:
++				homeReceiptSurfaceValid := homeReceiptIdentityPost &
++					homeReceiptObserverPost & homeReceiptRecordPre &
++					(homeReceiptSingletonPre |
++					 ((OwnershipState[7]$UDINT = 0) &
++					  (OwnershipState[8]$UDINT = OwnerGeneration) &
++					  (OwnershipState[9]$UDINT = AxisMask)) |
++					 ((OwnershipState[7]$UDINT = 0) &
++					  (OwnershipState[8]$UDINT = 0) &
++					  (OwnershipState[9]$UDINT = AxisMask)) |
++					 homeReceiptSingletonPost);
++			LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD:
++				homeReceiptSurfaceValid := homeReceiptIdentityPost &
++					homeReceiptObserverPost & homeReceiptSingletonPost &
++					(homeReceiptRecordPre |
++					 (OwnershipState[recordBase + 35] = 0));
++			LMC_HOME_OWNER_RECEIPT_COMPLETE:
++				homeReceiptSurfaceValid := homeReceiptIdentityPost &
++					homeReceiptObserverPost & homeReceiptSingletonPost &
++					(homeReceiptRecordPost |
++					 (homeReceiptRecordBodyPost &
++					  (OwnershipState[recordBase + 35] = 0)));
++		else
++		end_case;
++		if homeReceiptSurfaceValid = FALSE then
++			OwnershipState[24] := 1;
++			Result := -3;
++			RETURN;
++		end_if;
++		if (ZeroHomeState[56]$UDINT and
++		   LMC_HOME_FLAG_OWNER_FINALIZE_ACCEPTED) = 0 then
++			if homeReceiptPhase <> LMC_HOME_OWNER_RECEIPT_PREPARED then
++				OwnershipState[24] := 1;
++				Result := -3;
++				RETURN;
++			end_if;
++			Result := 0;
++			RETURN;
++		end_if;
++
++		// The axis-record magic is committed last. Each phase is stored before its
++		// mutation, so the exact receipt can resume a partial cleanup fail-closed.
++		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY then
++			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_IDENTITY;
++			OwnershipIdentityState[identityHeaderBase] := 0;
++			_memset(dest:=#OwnershipIdentityState[identityHeaderBase],
++				usByte:=0, cntr:=LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE * 4);
++		end_if;
++		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER then
++			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER;
++			OwnershipObserverState[observerBase] := 0;
++			_memset(dest:=#OwnershipObserverState[observerBase],
++				usByte:=0, cntr:=LMC_OWNER_OBSERVER_STRIDE * 4);
++		end_if;
++		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON then
++			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_SINGLETON;
++			OwnershipState[7] := 0;
++			OwnershipState[8] := 0;
++			OwnershipState[9] := 0;
++		end_if;
++		if homeReceiptPhase <= LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD then
++			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_CLEAR_RECORD;
++			OwnershipState[recordBase + 35] := 0;
++			_memset(dest:=#OwnershipState[recordBase], usByte:=0,
++				cntr:=LMC_OWNER_AXIS_STRIDE * 4);
++			OwnershipState[recordBase] := axisIndex;
++			ZeroHomeState[61] := LMC_HOME_OWNER_RECEIPT_COMPLETE;
++			OwnershipState[recordBase + 35]$UDINT :=
++				LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex);
++		elsif (homeReceiptPhase = LMC_HOME_OWNER_RECEIPT_COMPLETE) &
++		      homeReceiptRecordBodyPost &
++		      (OwnershipState[recordBase + 35] = 0) then
++			OwnershipState[recordBase + 35]$UDINT :=
++				LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex);
++		end_if;
++		if (ZeroHomeState[61] <> LMC_HOME_OWNER_RECEIPT_COMPLETE) |
++		   (OwnershipState[recordBase + 35]$UDINT <>
++		    (LMC_OWNER_AXIS_RECORD_MAGIC + TO_UDINT(axisIndex))) then
++			OwnershipState[24] := 1;
++			Result := -3;
++			RETURN;
++		end_if;
++		// Clear only after exact successful Home and durable owner cleanup. The
++		// caller has not published ZeroHomeState[0] yet, so the receipt-bound
++		// terminal tuple is the authoritative success proof at this point.
++		if LMC_AXIS_REBASE_BARRIER_ENABLED &
++		   (ReportKind = LMC_OWNER_REPORT_TERMINAL_SUCCESS) &
++		   (ReportValue0 = LMC_HOME_RECORD_SUCCEEDED) &
++		   (ZeroHomeState[57] = LMC_HOME_RECORD_SUCCEEDED) then
++			rebaseUpdateResult := UpdateAxisRebaseRequiredState(
++				SetAxisMask:=0, ClearAxisMask:=AxisMask);
++			if rebaseUpdateResult <> 0 then
++				Result := rebaseUpdateResult;
++				RETURN;
++			end_if;
++		end_if;
++		Result := 1;
++		RETURN;
++		elsif homeReceiptTerminalComplete = FALSE then
++			OwnershipState[24] := 1;
++			Result := -3;
++			RETURN;
++		end_if;
++	end_if;
+ 
+ END_FUNCTION
+ 
+*** End Patch

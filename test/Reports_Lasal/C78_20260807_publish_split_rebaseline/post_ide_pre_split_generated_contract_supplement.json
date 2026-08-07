@@ -1,0 +1,58 @@
+{
+  "schema": "LasalPublishSplitPostIdeGeneratedContractSupplement/v1",
+  "phase": "post_ide_pre_split",
+  "observedAt": "2026-08-07T15:10:52.1586760+09:00",
+  "lasalProcessRunning": false,
+  "reason": "The primary capture manifest does not include the root project LCB or decoded private ABI records. This supplement closes that evidence boundary without altering the original capture output.",
+  "captureManifest": {
+    "path": "test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_manifest.json",
+    "bytes": 11822,
+    "sha256": "72B8CCFD52DC477133E45097415B4D1C6323523147E4D0AFE53AF5D5109B3D51"
+  },
+  "sourceSnapshot": {
+    "path": "test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_LMCControlCommandService.st",
+    "bytes": 609947,
+    "sha256": "C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5",
+    "matchesCanonicalSource": true,
+    "gitRawBytesPreservedByPathAttribute": true
+  },
+  "classesLcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+    "bytes": 8433167,
+    "sha256": "6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22",
+    "lastWriteTime": "2026-08-07T15:00:43.3652320+09:00",
+    "postExternalSourceApplyPreIdeMustRemainExact": true,
+    "exactPrivateAbiParser": {
+      "status": "PASS",
+      "home": {
+        "name": "HandleAxisOwnershipPublishHomeReceipt",
+        "recordCount": 1,
+        "headerHex": "0B0000000000000007000000",
+        "orderedInputCount": 7,
+        "outputCount": 1,
+        "output": "Result : DINT"
+      },
+      "decision": {
+        "name": "PrepareAxisOwnershipPublishDecision",
+        "recordCount": 1,
+        "headerHex": "0B000000000000000A000000",
+        "orderedInputCount": 10,
+        "outputCount": 1,
+        "output": "Result : DINT"
+      }
+    }
+  },
+  "projectLcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb",
+    "bytes": 634514,
+    "sha256": "B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA",
+    "lastWriteTime": "2026-08-07T15:00:52.1367867+09:00",
+    "lastWritePredatesPrimaryCapture": true,
+    "postExternalSourceApplyPreIdeMustRemainExact": true
+  },
+  "network": {
+    "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759",
+    "matchesPreHelperBaseline": true,
+    "postExternalSourceApplyPreIdeMustRemainExact": true
+  }
+}
