@@ -33,6 +33,8 @@
     <Compile Include="AssertEx.cs" />
     <Compile Include="TestFrame.cs" />
     <Compile Include="FakeRpcServer.cs" />
+    <Compile Include="CallbackProtocolTests.cs" />
+    <Compile Include="CallbackSessionFencingTests.cs" />
     <Compile Include="AdminContractTests.cs" />
     <Compile Include="AdminMotionContractTests.cs" />
     <Compile Include="AdminSetAxisPositionContractTests.cs" />

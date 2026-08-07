@@ -56,6 +56,8 @@ namespace LasalMotionControlLib.Tests
             AdminDs402HomeOutcomeRetirementContractTests.Register(tests);
             ErrorCatalogTests.Register(tests);
             RequestGoldenTests.Register(tests);
+            CallbackProtocolTests.Register(tests);
+            CallbackSessionFencingTests.Register(tests);
             ResponseParserTests.Register(tests);
             NegativeWireToolTests.Register(tests);
             TopologyIoQualificationToolTests.Register(tests);
