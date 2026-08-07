@@ -427,6 +427,20 @@ typedef struct CltChCmd__TCPIPServer
     _TCPIPServer *pCmd;
   } CltChCmd__TCPIPServer;
 
+typedef struct SvrChCmd__FSM_UDP_USER_PTofCls__UDPTransceiver 
+  {
+    CMDMETH *pMeth;
+    _FSM_UDP_USER dData;
+    SVRDSC *pDsc;
+  } SvrChCmd__FSM_UDP_USER_PTofCls__UDPTransceiver;
+
+typedef struct CltChCmd__UDPTransceiver 
+  {
+    struct SvrChCmd__FSM_UDP_USER_PTofCls__UDPTransceiver *pCh;
+    _FSM_UDP_USER dData;
+    _UDPTransceiver *pCmd;
+  } CltChCmd__UDPTransceiver;
+
 typedef struct CltChCmd_ASCII_BIN 
   {
     struct SvrChCmd_DINT *pCh;
@@ -812,6 +826,13 @@ typedef struct SvrCh__FSM_UDP_ERROR_PTofCls_SafetyUDP
     SVRDSC *pDsc;
   } SvrCh__FSM_UDP_ERROR_PTofCls_SafetyUDP;
 
+typedef struct SvrCh__FSM_UDP_USER_PTofCls__UDPTransceiver 
+  {
+    CHMETH *pMeth;
+    _FSM_UDP_USER dData;
+    SVRDSC *pDsc;
+  } SvrCh__FSM_UDP_USER_PTofCls__UDPTransceiver;
+
 typedef struct SvrCh__FSM_UDP_USER_PTofCls_SafetyUDP 
   {
     CHMETH *pMeth;
@@ -1042,6 +1063,20 @@ typedef struct SvrCh__STATE_TCPIP_INTF_PTofCls__TCPIPServerInterface
     _STATE_TCPIP_INTF dData;
     SVRDSC *pDsc;
   } SvrCh__STATE_TCPIP_INTF_PTofCls__TCPIPServerInterface;
+
+typedef struct SvrCh__STATE_UDP_INTF_PTofCls__UDPTransceiverInterface 
+  {
+    CHMETH *pMeth;
+    _STATE_UDP_INTF dData;
+    SVRDSC *pDsc;
+  } SvrCh__STATE_UDP_INTF_PTofCls__UDPTransceiverInterface;
+
+typedef struct SvrCh__UDP_ERROR_PTofCls__UDPTransceiver 
+  {
+    CHMETH *pMeth;
+    _UDP_ERROR dData;
+    SVRDSC *pDsc;
+  } SvrCh__UDP_ERROR_PTofCls__UDPTransceiver;
 
 typedef struct SvrCh_DS402_Control 
   {

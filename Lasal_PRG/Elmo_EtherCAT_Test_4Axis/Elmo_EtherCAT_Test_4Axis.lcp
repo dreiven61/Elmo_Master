@@ -262,6 +262,8 @@
 		<File Path=".\Class\GL_9086_1\GL_9086_1.st"/>
 		<File Path=".\Class\GL_9086_1_Slot00\GL_9086_1_Slot00.st"/>
 		<File Path=".\Class\GL_9086_1_Slot01\GL_9086_1_Slot01.st"/>
+		<File Path=".\Class\_UDPTransceiver\_UDPTransceiver.st"/>
+		<File Path=".\Class\_UDPTransceiverInterface\_UDPTransceiverInterface.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
@@ -398,6 +400,8 @@
 			<Folder Name="Communication">
 				<Class Name="_CanLib"/>
 				<Class Name="_SerLib"/>
+				<Class Name="_UDPTransceiver"/>
+				<Class Name="_UDPTransceiverInterface"/>
 				<Folder Name="TCPIP">
 					<Class Name="_TCPIPServer"/>
 					<Class Name="_TCPIPServerInterface"/>

@@ -306,6 +306,16 @@ TYPE
     dData : _TCPIPServer::_FSM_TCPIP_SERVER;
     pCmd : ^_TCPIPServer;
   END_STRUCT;
+  SvrChCmd__FSM_UDP_USER_PTofCls__UDPTransceiver : STRUCT
+    pMeth : ^CMDMETH;
+    dData : _UDPTransceiver::_FSM_UDP_USER;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  CltChCmd__UDPTransceiver : STRUCT
+    pCh : ^SvrChCmd__FSM_UDP_USER_PTofCls__UDPTransceiver;
+    dData : _UDPTransceiver::_FSM_UDP_USER;
+    pCmd : ^_UDPTransceiver;
+  END_STRUCT;
   CltChCmd_ASCII_BIN : STRUCT
     pCh : ^SvrChCmd_DINT;
     dData : DINT;
@@ -581,6 +591,11 @@ TYPE
     dData : SafetyUDP::_FSM_UDP_ERROR;
     pDsc : ^SVRDSC;
   END_STRUCT;
+  SvrCh__FSM_UDP_USER_PTofCls__UDPTransceiver : STRUCT
+    pMeth : ^CHMETH;
+    dData : _UDPTransceiver::_FSM_UDP_USER;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
   SvrCh__FSM_UDP_USER_PTofCls_SafetyUDP : STRUCT
     pMeth : ^CHMETH;
     dData : SafetyUDP::_FSM_UDP_USER;
@@ -744,6 +759,16 @@ TYPE
   SvrCh__STATE_TCPIP_INTF_PTofCls__TCPIPServerInterface : STRUCT
     pMeth : ^CHMETH;
     dData : _TCPIPServerInterface::_STATE_TCPIP_INTF;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  SvrCh__STATE_UDP_INTF_PTofCls__UDPTransceiverInterface : STRUCT
+    pMeth : ^CHMETH;
+    dData : _UDPTransceiverInterface::_STATE_UDP_INTF;
+    pDsc : ^SVRDSC;
+  END_STRUCT;
+  SvrCh__UDP_ERROR_PTofCls__UDPTransceiver : STRUCT
+    pMeth : ^CHMETH;
+    dData : _UDPTransceiver::_UDP_ERROR;
     pDsc : ^SVRDSC;
   END_STRUCT;
   SvrCh_DS402_Control : STRUCT
