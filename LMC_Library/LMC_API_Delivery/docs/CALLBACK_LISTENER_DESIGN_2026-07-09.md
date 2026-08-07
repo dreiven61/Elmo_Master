@@ -6,6 +6,8 @@ P0 ownership/session-provenance update: 2026-07-31
 
 UDP sender implementation handoff: 2026-08-07
 
+Gate A import/build evidence: 2026-08-07
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -45,13 +47,16 @@ the connection parameter names the callback port as `uiCbUdpPort`, and the
 callback function is described as a UDP callback.
 
 The captured `0x405C` frame confirms that the controller receives a PC IPv4
-address and UDP port. No actual callback datagram has been captured yet, so the
-payload remains raw and LASAL event sending is not defined in this phase.
+address and UDP port. No actual Maestro callback datagram has been captured.
+The existing listener therefore continues to expose legacy payloads as raw
+bytes. The `LMC2` format below is an explicitly approved project-local version-2
+schema, not a reverse-engineered Maestro payload, and is not active on the live
+connection path yet.
 
-The `0x405C` wire shape is unchanged: its payload remains exactly 12 bytes
-(`event mask UDINT + callback port DINT + IPv4 BYTE[4]`) and the response remains
-the existing 4-byte command-result ACK. The P0 change tightens ownership; it does
-not introduce a new command, payload field, or typed event schema.
+The active/default legacy `0x405C` wire shape is unchanged: its payload remains
+exactly 12 bytes (`event mask UDINT + callback port DINT + IPv4 BYTE[4]`) and the
+response remains the existing 4-byte command-result ACK. The P0 ownership change
+itself did not introduce a new command, payload field, or typed event schema.
 
 ## PLC endpoint ownership
 
@@ -76,8 +81,8 @@ The byte-order comparison has static vendor evidence. The installed SIGMATEK
 least-significant byte first, followed by shifts of 8, 16, and 24 bits, to
 `OS_TCP_USER_TOIP`. This is consistent with copying the four `0x405C` IPv4 bytes
 into a LASAL `UDINT` and comparing that value with `OS_TCP_USER_GETPEERIP`.
-This evidence is source-level only; a current PLC compile/download and packet
-capture must still prove the comparison on the target runtime.
+This evidence is source-level only; a PLC download and packet capture must still
+prove the comparison on the target runtime.
 
 ## Public API
 
@@ -159,21 +164,32 @@ because it was already queued for the UI thread.
 
 ## Current implemented baseline and limitation
 
-The listener does not interpret callback payloads yet. The tracked LASAL phase-1
+The listener does not interpret legacy callback payloads. The tracked LASAL
 handler validates and owns event mask, UDP port, and PC IPv4 but does not send
-event datagrams. Consumers can log or capture current-session
-`CallbackReceived.Payload` and `CallbackReceived.RemoteEndPoint` after a sender
-is added to build the parser. A typed sender/parser remains explicitly excluded
-until a real callback payload is captured or an approved local schema is added.
+event datagrams. The PC delivery source now contains the bounded version-2
+codec, callback models, the named
+`LMCCallbackProtocolPolicy.InitialV2WakeHint` policy, and static
+codec/fence/production-policy tests. `LmcConnection` still uses the legacy
+registration and raw-listener path. Version-2 negotiation, live receive
+fencing, typed dispatch, and authoritative TCP follow-up are not wired or
+qualified yet.
 
-No PLC runtime result is claimed by this document. LASAL IDE compile, PLC
-download, exact duplicate/mismatch registration capture, and real callback
-datagram capture remain pending.
+The canonical LASAL project now contains the two exact vendor UDP classes and
+has passed the Gate A C78/ARM import build and focused/full static contract
+checks.
+`LMCUdpCallbackSender`, its Network objects, TCP lifecycle integration, and PLC
+datagram production do not exist yet. Gate A has no imported UDP objects or
+links, so the imported class-definition client/server menus do not offer
+`Find in Implementation`. That is not a Gate A blocker. Qualified method
+direct-open smoke is complete. Client/server `Find in Implementation` becomes
+possible after Gate B2 creates the objects and links, but it is executed after
+the Gate C Rebuild.
 
-The statements above describe the current implementation. Everything below is
-a proposed implementation handoff. None of the vendor imports, derived class,
-new Network objects, version-2 wire fields, typed parser, or queue described
-below exists in the canonical project yet.
+No PLC runtime result is claimed by this document. PLC download, exact
+duplicate/mismatch registration capture, real callback datagram capture, and
+loss/duplicate/reorder qualification remain pending. The sections below are the
+approved Gate B/C implementation contract unless they explicitly record Gate A
+evidence.
 
 ## 2026-08-07 implementation decision
 
@@ -183,16 +199,18 @@ which authoritative state should be queried over TCP, but it must never by
 itself complete a motion command, clear an ownership record, acknowledge a
 safety action, or establish a terminal result.
 
-Implementation is split into two independently qualified phases.
+Wire activation is split into two independently qualified phases.
 
 1. Phase 1 preserves the current legacy `0x405C` 12-byte request and 4-byte
-   response and proves only that the PLC can send a raw datagram to the already
-   implemented PC listener. The received bytes remain opaque. The proof payload
-   is a qualification fixture, not a public event schema, and its producer is
-   disabled after the transport capture.
+   response. The fixture macro is reserved at zero, but the initial Gate C
+   sender does not implement a version-1 publication path. An exact raw fixture
+   must first be frozen in PLC/C# tests and approved as a separate change.
 2. Phase 2 adds an explicitly negotiated `0x405C` version-2 request/response and
    the `LMC2` datagram envelope. Only Phase 2 provides PLC BootId, PLC session
-   epoch, 64-bit client cookie, and 64-bit datagram sequence fencing.
+   epoch, 64-bit client cookie, and 64-bit datagram sequence fencing. Its initial
+   production policy permits only event type 1, event-mask bit 1, delivery class
+   0, and a zero-byte payload. It remains inactive until the PC receiver enforces
+   the complete fence and wake-hint policy.
 
 Phase 1 must not be described as same-IP/same-port stale-datagram safe. The
 current C# listener object/lifetime checks stop an old receive thread from
@@ -202,12 +220,15 @@ wire-provenance gap.
 
 ## Vendor import boundary
 
-Import exactly these two SIGMATEK classes from `Lasal_PRG/MotionTCPDemo`:
+Gate A imported exactly these two SIGMATEK classes from
+`Lasal_PRG/MotionTCPDemo`:
 
-1. `_UDPTransceiver`, source revision `1.2`, current source SHA-256
-   `B3883DF82C942196EB2AA4313DEDBD7BE9430C850052140BAE323B35B272D95D`
-2. `_UDPTransceiverInterface`, source revision `1.3`, current source SHA-256
-   `6FC3C64D84DDE21EEA8ADC44E89CEF3966A2597D03CD87AB799B344935E7A505`
+1. `_UDPTransceiver`, source revision `1.2`, current physical CRLF source
+   SHA-256 `C3713C1E76E0027F6E90007268BFC2DFA8962F778A7B2EE2B3E50C11F520C321`
+   and canonical LF SHA-256
+   `D0D35828725B41B0E1C2323FE2120A1F492F7C6DA56254CAF9A10D07E7492DD1`
+2. `_UDPTransceiverInterface`, source revision `1.3`, current LF source SHA-256
+   `9575ED267B9629D811E18C9A5156EC4089F8223464D42DA4ADA6F1F8E8188D80`
 
 Do not import `UDPTransmission`, TCP/DataManager classes, SafetyUDP, `_StdLib`,
 `CriticalSection`, or any common dependency offered by the import dialog. The
@@ -218,21 +239,188 @@ hashes are not equal:
 - demo/canonical `_StdLib`: `5E729CED...` / `53DA7E45...`
 - demo/canonical `CriticalSection`: `AFA7E2C8...` / `752ED613...`
 
-If LASAL cannot import the two UDP classes without overwriting one of those
-existing dependencies, cancel the import. Do not resolve the conflict by
-copying the demo dependency over the canonical project. The demo is a C80
-project while the target remains C78, so an import-only C78 Rebuild is a required
-compatibility gate; the source revision date is not C78 proof.
+The protected canonical dependency hashes after import are:
+
+- `_StdLib.st`:
+  `53DA7E459AE214D28AB8D77CC2F1FDED9E2F7D8D552C91D71488D63DD22050EA`
+- `CriticalSection.st`:
+  `752ED61394D1B708176613DE8B002E197ED46D46EDB3C0BA497560D222A8B9EE`
+- `Source/interfaces/lsl_st_tcp_user.h`:
+  `2DEC7C124CEC1B44766367188D5F00F6B2B812F372A3868EA1604F19C9621EDD`
+
+These files must remain canonical. Any later import that cannot exclude them is
+cancelled rather than resolved by copying a demo dependency.
+
+### Gate A verified evidence
+
+- The final C78/ARM Rebuild ran from `2026-08-07 17:59:52` through `18:00:16`.
+  Compiler error diagnostics were zero; both compiler passes and the linker
+  reported Done, and LASAL reported `Last command succeeded` in `23683.9 ms`.
+- The numbered build warnings were `W0069=35`, `W0072=17`, and `W0073=3`.
+  The six separate C78/C82 library-version warnings already existed before the
+  import; they are recorded separately from the zero-error result.
+- The Gate A verifier snapshot committed in `e287d07` is `180340` bytes with SHA-256
+  `F020F310CE6DFB79D504E1099E36C6F5D5703B0A75789C51AE55A5569B5BACBD`.
+  Its self-test passed `61/61`, and its `VendorImported` check passed the
+  imported source, generated declarations, protected dependencies,
+  class/project registries, and Network boundary.
+- The exact true generated `Classes.lcb` chunks are `_UDPTransceiver`, `52552` bytes,
+  SHA-256
+  `958A2EC0945A01878261A7B055A25EBB5A44AFCADDD3BE7A2309744B69F90FAB`,
+  and `_UDPTransceiverInterface`, `25583` bytes, SHA-256
+  `7FC931079DCFBB894D29EC1A92B291E67D21A01F250B0B1639B22A82BEB614EB`.
+- The final repository-wide
+  `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1` run passed in
+  `250.494 s` with `Axis1 PASS`; the focused verifier SHA-256 was identical
+  before and after that run.
+- `_UDPTransceiver::Init` and `_UDPTransceiverInterface::AddSocket` opened
+  directly in their qualified implementations. No new `CInvalidArgException`
+  was recorded after that smoke. This is complete Gate A method direct-open
+  evidence. With no UDP object/link in Gate A, the class-definition client/server
+  menus have no `Find in Implementation`. That channel smoke becomes possible
+  after Gate B2 wiring and is executed after the Gate C Rebuild.
+- `ConfigObjects.st` and `Networks.lcb` changed only in the IDE-generated class
+  registry needed to register the two imported classes. All Network topology
+  files and links remained unchanged; no UDP object was added in Gate A.
+- The verifier snapshot committed in `e287d07` proves only the Gate A
+  `VendorImported` boundary and rejects its then-existing higher-state mode.
+  `DerivedDeclaration` and `DerivedWired` are later verifier work and are not
+  attributed to that 61-fixture snapshot; their own frozen hash and tests must
+  be recorded before Gate B1 starts.
+
+### Expanded verifier hardening evidence
+
+- The committed `e287d07` / `F020F310...` / `61/61` / `250.494 s` evidence
+  above remains the historical Gate A snapshot. It is not replaced or
+  retroactively attributed to the later Gate B/C state-ladder work.
+- The later expanded focused verifier is `409934` bytes and `9859` lines with
+  SHA-256
+  `E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC`.
+  Its direct self-test and the main
+  `Verify-LasalContract.ps1 -UdpCallbackVerifierSelfTestOnly` wiring each passed
+  `249/249`. The current canonical `VendorImported` check also passed with
+  `ProductionApproved=true` and `NeedsRebaseline=false`.
+- A later full
+  `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1` run passed in
+  `242.1 s` with `Axis1 PASS`; the expanded focused verifier SHA-256 was exactly
+  `E5211F3D...E6FC` before and after the run. An independent read-only review of
+  that exact snapshot returned GO.
+- These later tests validate the state resolver and fail-closed capture
+  boundaries; they do not approve a synthetic higher state. `DerivedDeclaration`,
+  `DerivedWired`, and `DerivedCandidate` remain capture-only with
+  `ProductionApproved=false` and `NeedsRebaseline=true`. Gate B1 has not started.
+  The pending
+  `test/Reports_Lasal/C78_20260807_udp_callback_gate_b/Capture-UdpCallbackGateBCheckpoint.ps1`
+  tool is still untrusted and has produced no Gate B checkpoint manifest. Its
+  output cannot become production evidence until the tool is independently
+  reviewed and the actual post-IDE checkpoint is captured.
 
 ## Derived sender class contract
 
 Create `LMCUdpCallbackSender` as a derived class of
-`_UDPTransceiverInterface`. It owns a cyclic, non-RT transmit pump and inherits
-the vendor `ClassSvr` and `_UDPTransceiver` client. New names, declarations,
+`_UDPTransceiverInterface`. It is a non-RT cyclic class with a fixed 10 ms cycle,
+owns the application transmit pump, and inherits the vendor `ClassSvr`,
+`_UDPTransceiver`, and `CriticalSection_UDP` channels. New names, declarations,
 comments, and implementation source remain 7-bit ASCII.
 
-Add these three proposed public `GLOBAL` functions in this exact order. They
-are callable through `LMCUdpCallbackSender1.ClassSvr`.
+Class settings are exact: `RealtimeTask=false`, `CyclicTask=true`,
+`DefCyclictime=10 ms`, `BackgroundTask=false`, and `Sigmatek=false`. Preserve
+the generated defaults `OSInterface=false`, `HighPriority=false`,
+`Automatic=false`, `UpdateMode=Prescan`, and `SharedCommandTable=true`. Do not
+add `#pragma pack`;
+the following structures are storage, not wire overlays. Do not add private
+variable initializers. A fresh object's zero state is used, and a new arm
+explicitly sets `NextSequenceLo=1` and `NextSequenceHi=0`.
+
+The LASAL-derived internal `_base` Network is mandatory. Preserve exactly the
+generated `_UDPTransceiverInterface` base relation, the `ClassSvr`, `ErrorCode`,
+`ErrorMessage`, `ErrorState`, and `State` server exposure, the external
+`_UDPTransceiver` client, and its six generated connections.
+`CriticalSection_UDP` remains internal and must not be exposed or relinked.
+
+Use this exact TYPE, server, and variable declaration order:
+
+```st
+//{{LSL_DEFINES
+#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE
+#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0
+#endif
+//}}LSL_DEFINES
+
+#pragma using _UDPTransceiverInterface
+
+TYPE
+  _LMC_UDP_ACTIVE_ENDPOINT : STRUCT
+    Armed : BOOL;
+    ProtocolVersion : UINT;
+    EventMask : UDINT;
+    CallbackIPv4 : UDINT;
+    CallbackPort : DINT;
+    SessionEpoch : UDINT;
+    BootId : UDINT;
+    CookieLo : UDINT;
+    CookieHi : UDINT;
+    MaxDatagramBytes : UDINT;
+  END_STRUCT;
+
+  _LMC_UDP_TX_SLOT : STRUCT
+    InUse : BOOL;
+    ProtocolVersion : UINT;
+    DatagramBytes : UDINT;
+    DestinationIPv4 : UDINT;
+    DestinationPort : UDINT;
+    SessionEpoch : UDINT;
+    BootId : UDINT;
+    CookieLo : UDINT;
+    CookieHi : UDINT;
+    SequenceLo : UDINT;
+    SequenceHi : UDINT;
+    PlcTimeMs : UDINT;
+    RetryCount : UDINT;
+    Data : ARRAY [0..511] OF BYTE;
+  END_STRUCT;
+END_TYPE
+
+QueueDepth : SvrCh_UDINT;
+QueuedCount : SvrCh_UDINT;
+RingAcceptedCount : SvrCh_UDINT;
+AdmissionRetryCount : SvrCh_UDINT;
+QueueFullDropCount : SvrCh_UDINT;
+AdmissionErrorDropCount : SvrCh_UDINT;
+DisarmClearedCount : SvrCh_UDINT;
+TransportErrorCount : SvrCh_UDINT;
+LastAdmissionResult : SvrCh_DINT;
+
+ActiveEndpoint : _LMC_UDP_ACTIVE_ENDPOINT;
+TxSlots : ARRAY [0..7] OF _LMC_UDP_TX_SLOT;
+ReadIndex : UDINT;
+WriteIndex : UDINT;
+Depth : UDINT;
+NextSequenceLo : UDINT;
+NextSequenceHi : UDINT;
+```
+
+There are no new client channels. The derived class uses the inherited
+`_UDPTransceiver` client and inherited `Socket : DINT` and `State` storage.
+`CallbackIPv4` remains a raw `UDINT`; do not add a string copy or separate socket
+handle/state.
+
+The standard cyclic method is separate from every user function and has this
+exact LASAL ABI:
+
+```text
+FUNCTION VIRTUAL GLOBAL CyWork
+  EAX : UDINT
+  state (EAX) : UDINT
+```
+
+The generated command table must contain
+`vmt.CmdTable.CyWork := #CyWork();`. Omitting this standard method leaves the
+sender queue without a cyclic pump even when the three public user functions are
+callable.
+
+Add these three public `GLOBAL` functions in this exact order. They are callable
+through `LMCUdpCallbackSender1.ClassSvr`.
 
 ```text
 ArmEndpoint
@@ -264,42 +452,166 @@ PublishEvent
   Result : DINT
 ```
 
-Add these private functions; do not select `GLOBAL` or `VIRTUAL GLOBAL`:
+Add these private functions with the exact inputs, outputs, types, and order
+below. Do not select `GLOBAL` or `VIRTUAL GLOBAL`:
 
 ```text
 EnsureSocketReady
+  Result : DINT
+
 ValidateEndpoint
+  ProtocolVersion : UINT
+  EventMask : UDINT
+  CallbackIPv4 : UDINT
+  CallbackPort : DINT
+  SessionEpoch : UDINT
+  BootId : UDINT
+  CookieLo : UDINT
+  CookieHi : UDINT
+  MaxDatagramBytes : UDINT
+  Result : DINT
+
 BuildDatagram
-FindFreeOrVictimSlot
+  SlotIndex : UDINT
+  EventMaskBit : UDINT
+  EventType : UINT
+  DeliveryClass : UINT
+  EventId : UDINT
+  ProducerSessionEpoch : UDINT
+  pPayload : ^void
+  PayloadBytes : UDINT
+  Result : DINT
+
+FindFreeSlot
+  SlotIndex : DINT
+
 ServiceTransmitQueue
+
 SendSlot
+  SlotIndex : UDINT
+  VendorResult : DINT
+
 RetryOrDropSlot
+  SlotIndex : UDINT
+  VendorResult : DINT
+
 ClearPendingFrames
+
 FenceMatches
+  ExpectedSessionEpoch : UDINT
+  ExpectedCookieLo : UDINT
+  ExpectedCookieHi : UDINT
+  Matches : BOOL
 ```
 
-The exact numeric `Result` constants, event type IDs, delivery-class IDs, retry
-limits, and victim policy are not approved by this handoff. They must be added
-as a fail-closed code/test contract in the same implementation tranche; do not
-invent them in the IDE. Until that contract exists, unknown values, unsupported
-delivery classes, and queue-policy ambiguity must reject without endpoint or
-queue mutation.
+Override the inherited vendor callback with its exact three-input ABI. This is a
+`VIRTUAL GLOBAL` override, not one of the private helpers:
+
+```text
+ErrorCallback
+  FSM_UDP : _UDPTransceiver::_FSM_UDP_USER
+  UdpError : _UDPTransceiver::_UDP_ERROR
+  ErrCode : DINT
+```
+
+Do not depend on an uncertain base-call syntax. `ErrorCallback` takes
+`CriticalSection_UDP` once, repeats the vendor base behavior as the three exact
+assignments `ErrorState := FSM_UDP`, `ErrorMessage := UdpError`, and
+`ErrorCode := ErrCode`, saturating-increments `TransportErrorCount`, and releases
+the lock. An asynchronous vendor send error is not correlated back to an
+application slot and is not retried by the sender.
+
+### Public result domains
+
+No public method may return an undocumented value.
+
+| Method | Result | Exact meaning |
+|---|---:|---|
+| `ArmEndpoint` | `0` | new endpoint committed |
+| | `1` | exact duplicate; endpoint, queue, and sequence preserved |
+| | `-1` | invalid endpoint or fence input |
+| | `-2` | `AddSocket` failed; endpoint, FIFO, and sequence are unchanged |
+| | `-3` | conflicting endpoint already armed; old endpoint preserved |
+| | `-6` | unsupported protocol or policy |
+| | `-9` | internal failure |
+| `DisarmEndpoint` | `0` | matching endpoint and queue cleared |
+| | `1` | already disarmed and empty |
+| | `-8` | stale fence; active endpoint and queue preserved |
+| | `-9` | internal failure |
+| `PublishEvent` | `0` | 52-byte initial-policy datagram enqueued in the application FIFO |
+| | `-2` | `AddSocket` failed; endpoint, FIFO, and sequence are unchanged |
+| | `-4` | endpoint not armed |
+| | `-5` | FIFO full; the new event was dropped |
+| | `-6` | unsupported event, protocol, or delivery policy |
+| | `-7` | invalid payload pointer or length |
+| | `-8` | stale producer session |
+| | `-9` | internal failure |
+
+Validation is fail-closed and does not partially mutate an endpoint. The
+initial sender accepts protocol version 2 only. It requires nonzero
+`SessionEpoch` and `BootId`, a valid nonzero IPv4, a port in `1..65535`,
+`(EventMask AND 16#00000001) = 16#00000001`, a nonzero 64-bit cookie, and a
+maximum in `52..512`. Protocol version 1 returns `-6` regardless of the reserved
+fixture macro until exact raw bytes and their tests are approved. Exact
+duplicate comparison covers all nine `ArmEndpoint` inputs.
 
 `ArmEndpoint` accepts `SessionEpoch` and `BootId` only from trusted
 `TCPMotionInterface` state, never from a UDP payload. `PublishEvent` requires a
-single subscribed `EventMaskBit`, a `ProducerSessionEpoch` equal to the armed
-epoch, a valid pointer for nonzero payload, and a payload within the active
-protocol limit. `DisarmEndpoint` clears an endpoint and its pending slots only
-when all supplied fence values match; a stale caller cannot disarm a newer
-endpoint.
+subscribed `EventMaskBit`, a `ProducerSessionEpoch` equal to the armed epoch, a
+valid pointer for nonzero payload, and a payload within the protocol limit. The
+initial production version-2 policy accepts only `EventMaskBit=1`,
+`EventType=1`, `DeliveryClass=0`, and `PayloadBytes=0`. A structurally invalid
+pointer/length returns `-7`; an otherwise valid but unapproved event/payload
+policy returns `-6`. Under that type-1 policy, every `EventId` value in the full
+`UDINT` domain, including zero, is valid opaque producer correlation. The sender
+does not generate it, and it never becomes completion authority.
+`DisarmEndpoint` clears an endpoint and its pending slots only when all three
+supplied fence values match; a stale caller cannot disarm a newer endpoint.
+
+### Observable channels
+
+Add these server channels in this exact order and with no Network connection:
+
+```text
+QueueDepth : SvrCh_UDINT
+QueuedCount : SvrCh_UDINT
+RingAcceptedCount : SvrCh_UDINT
+AdmissionRetryCount : SvrCh_UDINT
+QueueFullDropCount : SvrCh_UDINT
+AdmissionErrorDropCount : SvrCh_UDINT
+DisarmClearedCount : SvrCh_UDINT
+TransportErrorCount : SvrCh_UDINT
+LastAdmissionResult : SvrCh_DINT
+```
+
+Every channel has `Initialize=true`, `DefValue=0`, `WriteProtected=true`,
+`Retentive=false`, and `Visualized=false`. `QueueDepth` is the current FIFO
+depth. `QueuedCount` counts successful application enqueues,
+`RingAcceptedCount` counts vendor-ring admissions, `AdmissionRetryCount` counts
+retained buffer-full retries, `QueueFullDropCount` counts new events rejected at
+full depth, `AdmissionErrorDropCount` counts head slots dropped after bounded
+admission failure, and `DisarmClearedCount` counts pending slots cleared by a
+matched disarm. It saturating-adds the number of slots in the pre-clear `Depth`;
+it does not increment once per disarm call. `LastAdmissionResult` stores the
+latest immediate `SendData` return. Every UDINT count saturates at
+`16#FFFFFFFF`.
 
 ## Fixed memory and transport limits
 
-The application-owned queue is exactly eight fixed slots of 512 bytes. Slot
-payload is copied at `PublishEvent` time, and slot metadata contains the endpoint
-fence and retry/drop state. `LMCUdpCallbackSender` must not call `Malloc`,
-`MallocV1`, `Realloc`, or `Free`, and it must not retain the caller's payload
-pointer after `PublishEvent` returns.
+The application-owned queue is an exact FIFO of eight fixed 512-byte datagram
+slots. Its bounded state uses `ReadIndex`, `WriteIndex`, and `Depth`. A full FIFO
+drops only the newly submitted event and does not disturb any queued slot. The
+initial PLC version-2 path accepts only `PayloadBytes=0`, builds exactly the
+52-byte `LMC2` header synchronously in the selected slot, and sets
+`DatagramBytes=52`. It does not dereference, copy, or retain `pPayload`.
+Nonzero PLC payload copying is not implemented; a structurally valid nonzero
+payload is rejected by policy before slot mutation. Slot metadata contains the
+destination, endpoint fence, 64-bit sequence, enqueue timestamp, and admission
+retry count. `LMCUdpCallbackSender` must not call `Malloc`, `MallocV1`,
+`Realloc`, or `Free`. `FindFreeSlot` returns `WriteIndex` only when `Depth<8` and
+`TxSlots[WriteIndex].InUse=FALSE`; otherwise it fails without changing queue
+state. Only `DatagramBytes` bytes are sent, so stale bytes beyond that length
+never reach the wire.
 
 The imported vendor class internally allocates its configured general buffers
 during initialization and a socket send ring during `AddSocket`; that vendor
@@ -314,8 +626,70 @@ socket and these exact Network values:
 
 `SendData` uses the vendor queued path (`bDirect := FALSE`). The local eight-slot
 queue remains the admission/fencing boundary; the vendor ring is only the
-transport queue. Queue-full, send-error, retry, coalesce, and drop counters must
-be bounded and observable. No scan may wait for a UDP acknowledgement.
+transport queue. `ServiceTransmitQueue` examines only the FIFO head and invokes
+`SendData` at most once in one sender `CyWork`. Result `0` removes the head and
+increments `RingAcceptedCount`. Vendor result `-4`
+(`UDP_CLT_SEND_BUFFER_FULL`) retains the head for at most three retries, so one
+slot receives at most four total admission attempts. Each of the first three
+retained retries increments `AdmissionRetryCount`; a fourth `-4` drops the head
+and increments `AdmissionErrorDropCount`. Any other negative vendor result drops
+the head immediately and increments `AdmissionErrorDropCount`. A retained head
+blocks every later slot. No scan waits for a UDP acknowledgement.
+
+Gate C uses the inherited interface wrapper exactly as
+`SendData(pData, udSize, bDirect, udIpAddress, udPort)`; it does not pass a
+socket argument or call the lower-level transceiver ABI directly. The null
+payload test is `pPayload = NIL`, never a numeric zero, and the header byte at
+offset 50 uses `TO_USINT(DeliveryClass)`, not `TO_BYTE`.
+
+The sender owns exactly one send-only socket. `EnsureSocketReady` uses the
+inherited `Socket : DINT`. If `Socket=0`, it calls `AddSocket`; a returned handle
+of `0` is failure `-2`, while every nonzero DINT bit pattern, including a
+negative signed value, is a valid handle to poll. It then returns `0` when
+`IsOpen()` is true and `1` while open is pending. It never calls `BindSocket` or
+`DelSocket`. Disarm clears the endpoint and application FIFO but preserves the
+socket for reuse.
+
+A matched `DisarmEndpoint` snapshots the old `Depth`, zeroes the complete
+`ActiveEndpoint`, and calls `ClearPendingFrames`. That helper zeroes every byte
+of all eight `TxSlots` and resets `ReadIndex`, `WriteIndex`, `Depth`, and
+`QueueDepth`. The matched disarm then saturating-adds the saved depth to
+`DisarmClearedCount`. An already-disarmed or stale-fence call performs none of
+these mutations.
+
+`CyWork` calls `EnsureSocketReady` every scan even while disarmed, so it can
+precreate the socket. A new `ArmEndpoint` commits when that helper returns ready
+`0` or pending `1`; both cases return public result `0`. A helper result of `-2`
+rejects the arm without endpoint mutation. An exact duplicate arm returns `1`
+before socket-state handling and preserves the endpoint, FIFO, and sequence.
+`PublishEvent` likewise enqueues on helper result `0` or `1`, preserving events
+while the OS socket opens, and returns `-2` without mutation only on helper
+failure.
+
+All shared endpoint, FIFO, sequence, and counter state is protected by the
+inherited `CriticalSection_UDP`. Each public function, `CyWork`, and
+`ErrorCallback` calls `CriticalSection_UDP.SectionStart()` and
+`CriticalSection_UDP.SectionStop()` exactly once. It calls the private helpers
+while already locked, does not re-enter that lock, and does not execute `RETURN`
+while locked. `CyWork` calls `EnsureSocketReady` under that lock and calls
+`ServiceTransmitQueue` only when the helper returned `0`, the endpoint is armed,
+and `Depth>0`; it then returns `state := READY`. The sender and vendor transceiver
+are two separate 10 ms non-RT pumps: the sender admits at most one head slot to
+the vendor ring per scan, and the vendor transceiver performs the OS send in its
+own `CyWork`. Queued `SendData` uses the vendor ring's separate critical
+section. Vendor `CyWork` releases that lock before the OS send and before any
+`ErrorCallback`, so the queued call cannot synchronously re-enter the sender
+lock.
+
+On a new arm the next sequence is reset to `1`. An exact duplicate arm preserves
+it. Queue-full rejection does not consume a sequence; successful enqueue assigns
+the current sequence and advances it. Vendor-ring admission failure may therefore
+leave a sequence gap, while retries keep the same sequence. Disarm and the next
+new arm reset it to `1`; low-word wrap increments the high word and high-word
+wrap explicitly returns it to zero. At enqueue, the slot takes
+`PlcTimeMs := ops.tAbsolute` and copies that exact value to header offset 44. It
+does not synthesize time by adding the 10 ms cycle. The wire timestamp naturally
+wraps modulo `2^32` and is never command authority.
 
 ## Phase 1: legacy raw transport proof
 
@@ -329,27 +703,84 @@ Phase 1 does not change the current wire contract:
 
 The request payload stays exactly 12 bytes and its ACK payload stays exactly
 4 bytes. `TCPMotionInterface` continues its current exact-peer, valid-port,
-first-commit, exact-duplicate-idempotent, mismatch-preserve behavior. On the
-first accepted registration it may arm the sender as protocol version 1; close,
-disconnect, and same-peer takeover disarm it before clearing the stored
-registration tuple.
+first-commit, exact-duplicate-idempotent, mismatch-preserve behavior. Normal
+production builds do not arm or publish through the version-1 sender path. The
+reserved compile-time fixture flag is not an activation switch in the initial
+Gate C implementation; changing it alone must not make version 1 armable.
 
-The raw proof sends one known fixture byte sequence through the fixed queue to
-the registered IPv4/port and verifies the existing C#
-`CallbackReceived.Payload` byte-for-byte. Protocol version 1 has no `LMC2`
-envelope, cookie, typed event, or authoritative completion meaning. It is not
-allowed to become a production event stream. The exact proof bytes are fixed in
-the test that introduces the temporary trigger and are removed or disabled when
-the capture is complete.
+The exact proof-only fixture byte sequence is still pending and is not a current
+contract or test vector. Before a dedicated qualification build, freeze one
+sequence in both PLC and C# tests, send it through the fixed queue to the
+registered IPv4/port, and verify `CallbackReceived.Payload` byte-for-byte. That
+future change must add its own guarded sender implementation and verifier.
+Protocol version 1 has no `LMC2` envelope, cookie, typed event, or authoritative
+completion meaning. It is not allowed to become a production event stream.
+`LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE` remains reserved at `0`; version-1 arm
+or publication is rejected with `-6` and does not mutate the endpoint or FIFO.
 
-For lifecycle integration, request validation and sender arming precede
-`RpcCallbackRegistered := TRUE` and the success ACK. If the connected sender
-does not return an approved success result, the registration tuple is not
-committed. Close, disconnect, failed initialization, and takeover pass the old
+For version-2 lifecycle integration, request validation and sender arming precede
+`RpcCallbackRegistered := TRUE` and the success response. If the connected
+sender does not return `0` or `1`, the registration tuple is not committed.
+Close, disconnect, failed initialization, and takeover pass the old
 session/cookie fence to `DisarmEndpoint` before incrementing or clearing the TCP
 session fields. The `CallbackSender` client is optional at the class boundary so
-an import-only checkpoint can still load; a version-2 request must fail closed
-when that client is not connected.
+an import-only checkpoint can still load; a version-2 request fails closed when
+that client is not connected. Gate C preserves the legacy 12/4 lifecycle bytes
+and shape lock but does not arm the UDP sender or publish a version-1 event.
+
+Gate B2 adds these private `TCPMotionInterface` variables in exact order, with
+no inline initializers:
+
+```st
+RpcCallbackProtocolVersion : UINT;
+RpcCallbackAcceptedMaxDatagram : UINT;
+RpcCallbackSessionEpoch : UDINT;
+RpcCallbackBootId : UDINT;
+RpcCallbackCookieLo : UDINT;
+RpcCallbackCookieHi : UDINT;
+RpcCallbackLastDisarmResult : DINT;
+```
+
+It also adds private, non-virtual `DisarmRpcCallbackEndpoint()` with no input
+and `Result : DINT` output. Gate B2 keeps that helper's generated implementation
+stub empty. `RpcCallbackProtocolVersion` is the per-RPC-session registration
+shape lock. Inside an initialized owning RPC session, the first exact 12- or
+32-byte registration attempt sets it to `1` or `2` before semantic validation;
+a rejected attempt still blocks the opposite
+shape while the same shape may retry. `RpcCallbackRegistered` remains the
+successful-commit/armed flag. The helper calls the sender only when
+`(RpcCallbackProtocolVersion=2) & (RpcCallbackRegistered=TRUE)`. Any other tuple
+has no armed sender endpoint: it returns `1` and clears the residual TCP tuple.
+For an armed v2 tuple it requires `IsClientConnected(#CallbackSender)` or
+returns `-9`, then forwards the exact stored session epoch and two cookie words.
+It records every result in `RpcCallbackLastDisarmResult`. Result `0` or `1`
+permits clearing the complete legacy and v2 TCP tuple; a negative result
+preserves the complete v2 tuple so a later initialization retries the same
+disarm and remains fail-closed. A repeated `0x8080` initialization does not
+report success when that retry fails. `RpcCallbackLastDisarmResult` is the
+diagnostic latch and is never part of the cleared tuple.
+
+`0x8080` validates its one-byte initialization shape and socket ownership
+before calling the disarm helper. The validation rejection itself does not
+disarm or mutate an active callback tuple. Its existing failure frame still
+uses TCP `SendData`; a partial or failed failure-frame send follows the general
+forced transport-quarantine path and may then disarm and advance the session.
+On an accepted `0x405D`, the old nonzero
+`SessionEpoch` is copied to `PendingClosedSessionEpoch` when that latch is zero
+before the close response is sent or the epoch is incremented. If that direct
+send already quarantines and advances the session, the close handler must not
+advance it a second time.
+
+The v2 registration path requires `IsClientConnected(#Diagnostics)`, obtains the
+current value from `Diagnostics.GetDiagnosticsBootId()`, and rejects zero before
+calling `ArmEndpoint`. It commits the complete TCP tuple and
+`RpcCallbackRegistered=TRUE` before the full 28-byte TCP frame, containing the
+20-byte response payload, enters TCP `SendData` with `udSize=28`.
+That ordering lets a partial direct send disarm the exact endpoint. Every
+semantically valid v2 arm attempt, including an exact duplicate, calls the
+sender's complete nine-input
+`ArmEndpoint` contract; `RpcCallbackAcceptedMaxDatagram : UINT` is passed as
+`UDINT`. A session cannot switch between the legacy and v2 registration shapes.
 
 ## Phase 2: version-2 registration
 
@@ -358,17 +789,20 @@ length. A 12-byte request receives the legacy 4-byte ACK. A 32-byte request is
 version 2 and receives a 20-byte response. Any other length is rejected without
 mutating the active endpoint.
 
-Legacy remains the PC default until the version-2 tranche is explicitly
-activated. A connection chooses one registration shape before endpoint commit;
-it does not downgrade inside the same TCP session after a version-2 rejection.
-This prevents an ambiguous partial v2/legacy endpoint. A fallback attempt, if
-approved later, starts a new RPC session and a new listener generation.
+Legacy remains the PC default. Although the bounded version-2 codec and golden
+tests exist, version-2 registration stays inactive until `LmcConnection` wires
+the accepted BootId/session/cookie fence, strict parser, sequence policy, and TCP
+wake-hint follow-up. A connection chooses one registration shape before endpoint
+commit; it does not downgrade inside the same TCP session after a version-2
+rejection. This prevents an ambiguous partial v2/legacy endpoint. A fallback
+attempt, if approved later, starts a new RPC session and a new listener
+generation.
 
 All multi-byte fields are little-endian. The exact 32-byte request payload is:
 
 | Offset | Size | Field | Required value/rule |
 |---:|---:|---|---|
-| 0 | 4 | EventMask `UDINT` | nonzero approved mask |
+| 0 | 4 | EventMask `UDINT` | bit 1 set: `(EventMask AND 1) = 1` |
 | 4 | 4 | CallbackPort `DINT` | `1..65535` |
 | 8 | 4 | CallbackIPv4 `BYTE[4]` | exact current TCP peer |
 | 12 | 2 | ProtocolVersion `UINT` | `2` |
@@ -392,13 +826,20 @@ BootId. The exact 20-byte response payload is:
 | 12 | 4 | SessionEpoch `UDINT` |
 | 16 | 4 | AcceptedFlags `UDINT` |
 
+A new arm result `0` and exact-duplicate result `1` both map to `Status=0` and
+`ErrorId=0`. The remaining fields then carry the complete accepted fence:
+`AcceptedVersion=2`, the accepted requested maximum, the current nonzero
+Diagnostics BootId, the current nonzero TCP SessionEpoch, and
+`AcceptedFlags=0`. Every failure maps to `Status=1`, `ErrorId=-1`, and zeros for
+all remaining 16 bytes; it preserves the prior endpoint and FIFO. The outer TCP
+frame status remains zero and the response payload is exactly 20 bytes.
+
 Success requires version 2, a maximum in `52..512`, nonzero BootId and session
-epoch, a nonzero client-generated cookie that remains bound to the endpoint, and
-accepted flags zero. The PC stores this response with the owning UDP listener
-generation and its generated cookie. Exact duplicate registration is
-idempotent. Any different tuple in the same TCP session is rejected while the
-previous endpoint and queue remain unchanged. A new cookie requires a new RPC
-session.
+epoch, `(ClientCookieLo OR ClientCookieHi) <> 0`, and accepted flags zero. The PC
+stores this response with the owning UDP listener generation and its generated
+cookie. Exact duplicate registration returns the existing accepted fence. Any
+different tuple in the same TCP session is rejected while the previous endpoint
+and queue remain unchanged. A new cookie requires a new RPC session.
 
 ## Phase 2: `LMC2` datagram envelope
 
@@ -411,76 +852,149 @@ field in version 2.
 | 4 | 2 | ProtocolVersion `UINT` | `2` |
 | 6 | 2 | HeaderBytes `UINT` | `52` |
 | 8 | 2 | DatagramBytes `UINT` | `52 + PayloadBytes`, max `512` |
-| 10 | 2 | EventType `UINT` | approved ID only |
-| 12 | 4 | EventMaskBit `UDINT` | one bit, included in registered mask |
+| 10 | 2 | EventType `UINT` | initial production value `1` only |
+| 12 | 4 | EventMaskBit `UDINT` | initial production value `1` only |
 | 16 | 4 | BootId `UDINT` | exact accepted response value |
 | 20 | 4 | SessionEpoch `UDINT` | exact accepted response value |
 | 24 | 4 | CookieLo `UDINT` | exact client cookie |
 | 28 | 4 | CookieHi `UDINT` | exact client cookie |
 | 32 | 4 | SequenceLo `UDINT` | low word of monotonic 64-bit sequence |
 | 36 | 4 | SequenceHi `UDINT` | high word of monotonic 64-bit sequence |
-| 40 | 4 | EventId `UDINT` | producer correlation only |
+| 40 | 4 | EventId `UDINT` | any value, including zero; producer correlation only |
 | 44 | 4 | PlcTimeMs `UDINT` | PLC timestamp, not PC authority |
-| 48 | 2 | PayloadBytes `UINT` | `0..460` |
-| 50 | 1 | DeliveryClass `BYTE` | approved class only |
+| 48 | 2 | PayloadBytes `UINT` | format permits `0..460`; initial policy requires `0` |
+| 50 | 1 | DeliveryClass `BYTE` | initial production value `0` only |
 | 51 | 1 | Flags `BYTE` | `0` in version 2 |
 
-The PC validates source IPv4, exact datagram length, all fixed header fields,
-BootId, PLC session epoch, cookie, event-mask bit, payload length, and sequence
-before raising a version-2 notification. Duplicate, stale, malformed, wrong-
-cookie, wrong-session, wrong-boot, and unknown-class datagrams increment rejected
-counters and do not reach application handlers. Local
-`LMCCallbackEventArgs.SessionGeneration` remains a separate PC-side listener
-provenance fence.
+The implemented receiver-fence codec validates source IPv4, exact datagram
+length, all fixed header fields, BootId, PLC session epoch, cookie, event-mask
+bit, payload length, and sequence when it is invoked. Its direct tests prove
+rejection results and counters for duplicate, stale, malformed, wrong-cookie,
+wrong-session, wrong-boot, and unknown-class datagrams. `LmcConnection` does not
+invoke that codec or dispatch typed v2 application handlers yet. Local
+`LMCCallbackEventArgs.SessionGeneration`
+remains a separate PC-side listener provenance fence. The sender assigns `1` to
+the first enqueue, but the receiver accepts its first valid datagram as the
+baseline because earlier UDP datagrams may be lost. Thereafter unsigned delta
+`0` is duplicate, delta `>= 0x8000000000000000` is out of order, and a delta in
+`1..0x7FFFFFFFFFFFFFFF` is a forward sequence, including a loss gap.
 
-Even after a valid envelope, the handler treats the event as a wake hint. It
-uses the TCP API to read the referenced status/outcome and uses only that TCP
-response to update command completion or safety state. UDP loss, duplication,
-or reordering therefore changes notification latency and counters, not command
-truth.
+The named `LMCCallbackProtocolPolicy.InitialV2WakeHint` policy and its targeted
+tests require registration mask bit 1, `EventMaskBit=1`, `EventType=1`,
+`DeliveryClass=0`, zero payload, and registration `Status=0/ErrorId=0`, while
+accepting every `EventId : UDINT`. These static tests do not prove live
+`LmcConnection` negotiation, receiver dispatch, or TCP follow-up.
+
+When the live version-2 path is wired, its handler treats even a valid envelope
+as a wake hint. It uses the TCP API to read the referenced status/outcome and
+uses only that TCP response to update command completion or safety state. UDP
+loss, duplication, or reordering therefore changes notification latency and
+counters, not command truth.
 
 ## Exact IDE and Network handoff
 
-Do the work in these gates; do not combine them into one unverified import.
+The verifier state ladder is exact and monotonic:
+
+`VendorImported -> DerivedDeclaration -> DerivedWired -> DerivedCandidate`.
+
+No state may be skipped or inferred from a synthetic fixture. Production
+approval at every transition requires hashes captured from the actual canonical
+project after the stated LASAL Save All/exit checkpoint. Synthetic generated
+text is planning and verifier-self-test input only; it is never production
+evidence.
 
 ### Gate A: import compatibility
 
-1. Close LASAL, record a read-only canonical project baseline, and stage an
-   import package that contains only `_UDPTransceiver` and
-   `_UDPTransceiverInterface`.
-2. Open the canonical C78 project and import exactly those two classes. Keep the
-   canonical `_StdLib`, `CriticalSection`, and `lsl_st_tcp_user.h`.
-3. Save All, run a C78 Rebuild, open both imported implementations, then exit
-   LASAL. Do not create a UDP object or change Network in this gate.
-4. Accept Gate A only with zero compiler errors, no new
-   `CInvalidArgException`, both exact imported class sources present, and the
-   protected dependency hashes unchanged.
+1. The canonical C78 project contains only the two requested UDP imports and
+   retains canonical `_StdLib`, `CriticalSection`, and `lsl_st_tcp_user.h`.
+2. Save All and C78/ARM Rebuild completed with zero compiler errors; both
+   qualified methods opened directly and no post-smoke `CInvalidArgException`
+   appeared.
+3. The source/generated/protected-boundary focused verifier passes and Network
+   topology is unchanged. No UDP object or link exists in this gate.
+4. Qualified method direct-open smoke is complete. Class-definition
+    client/server menus cannot run `Find in Implementation` without object/link
+    instances. Gate B2 makes that channel-index smoke possible, and Gate C runs
+    it after Rebuild; the missing Gate A smoke does not keep Gate A open.
 
-### Gate B: derived declaration and Network
+### Gate B1: `DerivedDeclaration`
+
+This gate creates declarations only. All new method implementation regions stay
+as the empty LASAL-generated stubs.
 
 1. In LASAL create `LMCUdpCallbackSender` derived from
-   `_UDPTransceiverInterface`, with cyclic non-RT execution, and add the three
-   public functions and nine private functions in the exact order above.
-2. Add optional external client `CallbackSender` to `TCPMotionInterface`.
-3. In `Comm_Network`, add exactly these objects:
+   `_UDPTransceiverInterface` as a non-RT cyclic class. Add the separate standard
+   `CyWork`/command-table entry, three public functions, nine private helpers,
+   `ErrorCallback` override, observable channels, and fixed FIFO state exactly as
+   specified above.
+2. Preserve the generated internal `_base` Network exactly as specified above.
+   Do not expose or relink `CriticalSection_UDP`.
+3. Leave `TCPMotionInterface` and every top-level Network file byte-exact to the
+   approved Gate A state.
+4. Save All without Rebuild and exit LASAL. Capture exact actual raw/canonical-LF
+   sender source hashes plus the class registry, include set, and root project
+   registry hashes. `DerivedDeclaration` approval is impossible until those
+   post-IDE values replace every planning placeholder in the verifier.
+
+### Gate B2: `DerivedWired`
+
+This gate preserves the B1 empty sender method stubs and changes only the exact
+TCP client/fence declarations, one empty TCP helper stub, and top-level callback
+Network wiring listed below.
+
+1. Add exactly one optional external client
+   `CallbackSender : LMCUdpCallbackSender` to `TCPMotionInterface` with
+   `Required=false` and `Internal=false`, immediately after `ControlCommands`.
+2. Add the seven exact private callback-fence variables and the private
+   `DisarmRpcCallbackEndpoint() -> Result : DINT` declaration specified above.
+   The variables are immediately after `RpcCallbackIPv4`; the helper declaration
+   is immediately after `HandleRpcLifecycleCommands`, is neither GLOBAL nor
+   VIRTUAL, and its generated implementation stub remains empty.
+3. In `Comm_Network`, add exactly these two UDP objects:
    - `LMCUdpTransceiver1 : _UDPTransceiver`
    - `LMCUdpCallbackSender1 : LMCUdpCallbackSender`
-4. Set the two buffer clients to `512` and `8 kb`, then add exactly these links:
+4. Set both objects to a 10 ms non-RT cyclic time. Set the transceiver buffer
+   clients to `512` and `8 kb`, then add exactly these links:
    - `LMCUdpCallbackSender1._UDPTransceiver -> LMCUdpTransceiver1.sControl`
    - `TCPMotionInterface1.CallbackSender -> LMCUdpCallbackSender1.ClassSvr`
-5. Do not add direct Control, Diagnostics, Recorder, axis, robot, or EtherCAT
-   links. The inherited `CriticalSection_UDP` objects stay internal and
-   `coStdLib` keeps its vendor automatic/optional behavior.
-6. Save All without Rebuild and exit LASAL. Capture generated declarations,
-   `Classes.lcb`, project `.lcb`, and Network before external implementation.
+5. These are exactly two added UDP objects and exactly two added callback links.
+   Do not add direct Control, Diagnostics, Recorder, axis, robot, EtherCAT, or
+   critical-section links. `coStdLib` keeps its vendor automatic/optional
+   behavior, and all unrelated topology remains byte-exact to B1.
+6. Save All without Rebuild and exit LASAL. Capture exact actual hashes for
+   `TCPMotionInterface`, its generated declaration, both callback Network
+   objects/links, and the affected generated project/Network files.
+   `DerivedWired` approval requires those post-IDE hash ratchets and must reject
+   any nonempty new implementation body.
 
-### Gate C: source implementation and rebuild
+### Gate C: `DerivedCandidate`
 
-Implement only tracked custom implementation regions outside the IDE, add the
-static verifier, and run SourceOnly validation. Then reopen LASAL once, Save
-All, C78 Rebuild, directly open the sender and lifecycle implementations, run
-the existing client/server `Find in Implementation` smoke, and exit. PLC
-download and packet proof are separate final gates.
+Keep the exact B2 declarations and wiring, then implement every sender and TCP
+lifecycle body only in tracked custom implementation regions outside the IDE.
+The exact TCP implementation set is `ConnSocketInfo`, `SendData`,
+`HandleControlSafetyDrainPending`, `HandleRpcLifecycleCommands`, and the new
+`DisarmRpcCallbackEndpoint`; no other TCP method belongs to this Gate C delta.
+Each of the four existing methods calls the helper before its callback tuple is
+cleared or `SessionEpoch` is incremented. The verifier freezes all five
+canonical-LF function bodies independently.
+For voluntary repeated `0x8080` initialization and explicit `0x405D` close, a
+negative disarm produces the existing-shaped failure and does not clear the
+callback tuple or advance the session. Forced owner loss/takeover, direct-send
+failure, and safety-drain close still retire the TCP transport after calling the
+helper, but a negative result preserves the complete callback tuple so the next
+initialization must retry and cannot arm a different endpoint.
+Malformed or non-owner `0x8080` requests fail before the helper, so validation
+alone does not mutate callback state. If sending that failure frame itself
+fails, the normal forced partial-send quarantine still applies. A successful
+`0x405D` captures the old epoch in `PendingClosedSessionEpoch` before sending
+the ACK and performs at most one epoch advance even when that send itself
+enters the partial-send quarantine path.
+Capture the complete source hash plus canonical-LF per-function hashes and make
+the verifier reject partial, mixed-phase, or unknown bodies. Run SourceOnly
+validation. Then reopen LASAL once, Save All, C78 Rebuild, directly open the
+sender and lifecycle implementations, run the client/server
+`Find in Implementation` smoke, and exit. PLC download and packet proof are
+separate final gates.
 
 ## Planned files and tests
 
@@ -506,32 +1020,61 @@ The implementation tranche is limited to these production surfaces:
 - wire documentation:
   `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt` and this document
 
-Add a focused LASAL verifier
+The focused LASAL verifier
 `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1`
-and wire it into the adjacent `Verify-LasalContract.ps1`. Add C# tests
-`CallbackProtocolTests.cs` and `CallbackSessionFencingTests.cs`, then extend
-`RequestGoldenTests.cs`, `ResponseParserTests.cs`, `RpcIntegrationTests.cs`,
-`RpcLifecycleConcurrencyTests.cs`, and `FakeRpcServer.cs`.
+now exists and is wired into the adjacent `Verify-LasalContract.ps1`. The
+expanded verifier implements the complete state ladder, and the current tree
+still resolves to the approved `VendorImported` state. `DerivedDeclaration`,
+`DerivedWired`, and `DerivedCandidate` are capture-only states with
+`ProductionApproved=false` and `NeedsRebaseline=true` until their actual
+post-IDE ratchets are recorded; they are not current production approvals.
+Gate B1 has not started.
+`LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
+`CallbackProtocolTests.cs`, and `CallbackSessionFencingTests.cs` are implemented.
+The initial production policy and its codec tests are implemented. Live wiring
+still requires targeted additions to `RequestGoldenTests.cs`, `ResponseParserTests.cs`,
+`RpcIntegrationTests.cs`, `RpcLifecycleConcurrencyTests.cs`, and
+`FakeRpcServer.cs`.
 
 Minimum acceptance matrix:
 
-1. Legacy `0x405C` request/ACK stays byte-exact `12/4`; the Phase-1 known raw
-   fixture arrives byte-exact from the configured PLC IPv4.
+1. Legacy `0x405C` request/ACK stays byte-exact `12/4`. The proof-only raw
+   fixture remains default-off and cannot be tested until its exact bytes are
+   frozen; after that, it must arrive byte-exact from the configured PLC IPv4.
 2. Version-2 `32/20` registration and the 52-byte header pass little-endian
-   golden tests; 460-byte payload passes and 461-byte payload fails before send.
+   golden tests. Success is exactly `Status=0/ErrorId=0` with all accepted fields;
+   every failure is `Status=1/ErrorId=-1` with the remaining 16 bytes zero.
 3. Wrong length, peer IP, port, version, maximum, zero cookie, flags, or reserved
    fields do not mutate an accepted endpoint.
 4. Exact duplicate registration is idempotent; mismatched re-registration
    preserves the accepted tuple and pending queue.
-5. Close, disconnect, failed initialization, and same-peer takeover fence and
-   clear the exact old queue. A delayed old-cookie/session/BootId datagram is
-   rejected after reconnect to the same IP and port.
-6. Queue pressure, send failure, retry, victim/drop selection, and sequence-wrap
-   fixtures prove fixed memory, bounded work per scan, and observable counters.
-7. UDP loss, duplication, and reordering cannot mark an operation complete. A
+5. Socket fixtures cover `AddSocket=0` failure, a nonzero negative DINT handle,
+   pending and ready `IsOpen`, precreation while disarmed, pending arm commit,
+   pending publish enqueue, and socket-failure publish with no mutation.
+6. A successful matched disarm during close, disconnect, failed initialization,
+   or same-peer takeover fences and clears the exact old queue. A negative
+   disarm preserves the callback tuple and queue debt so the next initialization
+   retries the same fence and fails closed until it succeeds. After a successful
+   reconnect, a delayed old-cookie/session/BootId datagram is rejected even at
+   the same IP and port.
+7. FIFO pressure proves strict eight-slot drop-new behavior. A sender `CyWork` invokes
+   `SendData` no more than once; head-only `-4`
+   handling retains three retries, drops on the fourth total failed attempt, and
+   blocks the tail. Hard admission failure, matched-disarm full endpoint/slot
+   zeroing, cleared-depth saturation, asynchronous `ErrorCallback`'s three
+   inherited-channel assignments, and counter saturation prove every observable
+   channel.
+8. Sequence fixtures cover low/high wrap and retry identity. An enqueue at
+   `ops.tAbsolute=16#FFFFFFFF` writes that exact value to `PlcTimeMs`; a
+   460-byte generic PC codec payload passes and 461 bytes fail encoding, while
+   the initial PLC sender rejects every nonzero payload before enqueue.
+9. Production-policy tests accept every `EventId : UDINT` for `EventType=1` and
+   reject a different type, nonzero delivery class, or nonzero production
+   payload. UDP loss, duplication, and reordering cannot mark an operation
+   complete. A
    valid wake hint causes an authoritative TCP query, and only the TCP response
    changes application state.
-8. C78 Rebuild, implementation smoke, PLC download, source/destination packet
+10. C78 Rebuild, implementation smoke, PLC download, source/destination packet
    capture, reconnect/takeover capture, and a bounded loss/duplicate/reorder
    test all pass before activation.
 
