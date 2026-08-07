@@ -3734,6 +3734,881 @@ function Invoke-LasalAxisOwnershipPublishVerifierSelfTest {
     return $negativeCount
 }
 
+function ConvertTo-LasalPublishSplitLf {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
+function Get-LasalPublishSplitTextSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Text)
+        return ([BitConverter]::ToString(
+                $sha.ComputeHash($bytes))).Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Replace-LasalPublishSplitExactOne {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$Old,
+        [AllowEmptyString()][string]$New,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $first = $Text.IndexOf($Old, [StringComparison]::Ordinal)
+    $last = $Text.LastIndexOf($Old, [StringComparison]::Ordinal)
+    if (($first -lt 0) -or ($first -ne $last)) {
+        throw "$Owner exact replacement count is not one."
+    }
+    return $Text.Substring(0, $first) + $New +
+        $Text.Substring($first + $Old.Length)
+}
+
+function Replace-LasalPublishSplitRegexExactOne {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$Pattern,
+        [Parameter(Mandatory = $true)][string]$Replacement,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $regex = [regex]::new(
+        $Pattern,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [Text.RegularExpressions.RegexOptions]::Singleline -bor
+        [Text.RegularExpressions.RegexOptions]::Multiline)
+    if ($regex.Matches($Text).Count -ne 1) {
+        throw "$Owner regex replacement count is not one."
+    }
+    return $regex.Replace($Text, $Replacement, 1)
+}
+
+function Get-LasalAxisOwnershipPublishMode {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText
+    )
+
+    $scan = Get-LasalLexicalScanText $ControlServiceText
+    $helperSurfaceCount = [regex]::Matches(
+        $scan,
+        ('(?i)(?<![A-Za-z0-9_])(?:' +
+         'HandleAxisOwnershipPublishHomeReceipt|' +
+         'PrepareAxisOwnershipPublishDecision)' +
+         '(?![A-Za-z0-9_])')).Count
+    if ($helperSurfaceCount -eq 0) {
+        return 'Monolith'
+    }
+    return 'SplitCandidate'
+}
+
+function Get-LasalAxisOwnershipPublishSplitFragments {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership publish split blocker:"
+    $canonicalText = ConvertTo-LasalPublishSplitLf -Text $ControlServiceText
+    $scan = Get-LasalLexicalScanText $canonicalText
+    $classMatches = [regex]::Matches(
+        $scan,
+        ('(?is)\bLMCControlCommandService\s*:\s*CLASS\b.*?' +
+         '\bEND_CLASS\s*;'))
+    if ($classMatches.Count -ne 1) {
+        throw "$blocker exact class declaration block is missing."
+    }
+    $classMatch = $classMatches[0]
+    $classText = $canonicalText.Substring(
+        $classMatch.Index,
+        $classMatch.Length)
+    $classScan = $scan.Substring($classMatch.Index, $classMatch.Length)
+
+    $adapterMatches = [regex]::Matches(
+        $scan,
+        ('(?ims)^[ \t]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+         'LMCControlCommandService::PublishAxisOwnership[ \t]*$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*(?:\n|$)'))
+    if ($adapterMatches.Count -ne 1) {
+        throw "$blocker public adapter implementation count is not one."
+    }
+    $adapterMatch = $adapterMatches[0]
+
+    $result = [ordered]@{
+        CanonicalText = $canonicalText
+        Scan = $scan
+        ClassText = $classText
+        ClassScan = $classScan
+        Adapter = $canonicalText.Substring(
+            $adapterMatch.Index,
+            $adapterMatch.Length)
+        AdapterIndex = $adapterMatch.Index
+    }
+    foreach ($helper in @(
+            @{
+                Key = 'Home'
+                Name = 'HandleAxisOwnershipPublishHomeReceipt'
+            },
+            @{
+                Key = 'Decision'
+                Name = 'PrepareAxisOwnershipPublishDecision'
+            })) {
+        $name = $helper.Name
+        $implementationMatches = [regex]::Matches(
+            $scan,
+            ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+             'LMCControlCommandService::' + [regex]::Escape($name) +
+             '[ \t]*$.*?^[ \t]*END_FUNCTION[ \t]*(?:\n|$)'))
+        if ($implementationMatches.Count -ne 1) {
+            throw (
+                "$blocker $name private implementation count is " +
+                "$($implementationMatches.Count), expected one.")
+        }
+        $implementationMatch = $implementationMatches[0]
+        $declarationMatches = [regex]::Matches(
+            $classScan,
+            ('(?ims)^[ \t]*FUNCTION[ \t]+' +
+             [regex]::Escape($name) + '[ \t]*$' +
+             '.*?^[ \t]*END_VAR;?[ \t]*$' +
+             '.*?^[ \t]*END_VAR;?[ \t]*(?:\n|$)'))
+        if ($declarationMatches.Count -ne 1) {
+            throw (
+                "$blocker $name private declaration count is " +
+                "$($declarationMatches.Count), expected one.")
+        }
+        $declarationMatch = $declarationMatches[0]
+        $result[$helper.Key] = $canonicalText.Substring(
+            $implementationMatch.Index,
+            $implementationMatch.Length)
+        $result[$helper.Key + 'Index'] = $implementationMatch.Index
+        $result[$helper.Key + 'Declaration'] = $classText.Substring(
+            $declarationMatch.Index,
+            $declarationMatch.Length)
+        $result[$helper.Key + 'DeclarationIndex'] =
+            $declarationMatch.Index
+    }
+    return [pscustomobject]$result
+}
+
+function Get-LasalAxisOwnershipPublishSplitFragmentMetrics {
+    param(
+        [Parameter(Mandatory = $true)][string]$Fragment
+    )
+
+    $scan = Get-LasalLexicalScanText $Fragment
+    $lexicalTokens = @(
+        [regex]::Matches(
+            $scan,
+            ('(?i)0x[0-9a-f]+|[A-Za-z_][A-Za-z0-9_]*|\d+|' +
+             ':=|<>|<=|>=|\+=|-=|\*=|/=|[^\s]')) |
+            ForEach-Object { $_.Value.ToLowerInvariant() })
+    $lexicalInventory = [string]::Join('|', $lexicalTokens)
+
+    $localBlocks = [regex]::Matches(
+        $scan,
+        ('(?is)(?<![A-Za-z0-9_])VAR(?=[ \t\r\n])\s*' +
+         '(?<Body>.*?)\bEND_VAR\s*;?'))
+    $localInventory = ''
+    $localCount = 0
+    if ($localBlocks.Count -eq 1) {
+        $locals = @(
+            [regex]::Matches(
+                $localBlocks[0].Groups['Body'].Value,
+                ('(?im)^\s*(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+                 '(?<Type>[^;\r\n]+)\s*;')) |
+                ForEach-Object {
+                    ($_.Groups['Name'].Value + ':' +
+                     [regex]::Replace(
+                         $_.Groups['Type'].Value,
+                         '\s+',
+                         '')).ToLowerInvariant()
+                })
+        $localCount = $locals.Count
+        $localInventory = [string]::Join('|', $locals)
+    }
+
+    $ignoredCalls = @(
+        'and', 'case', 'else', 'elsif', 'for', 'if', 'not', 'or',
+        'then', 'while')
+    $calls = @{}
+    foreach ($call in [regex]::Matches(
+            $scan,
+            ('(?i)(?<![A-Za-z0-9_])' +
+             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
+        $callName = $call.Groups['Name'].Value.ToLowerInvariant()
+        if ($ignoredCalls -contains $callName) {
+            continue
+        }
+        if (-not $calls.ContainsKey($callName)) {
+            $calls[$callName] = 0
+        }
+        $calls[$callName]++
+    }
+    $callInventory = [string]::Join(
+        '|',
+        @($calls.Keys | Sort-Object | ForEach-Object {
+                "$_=$($calls[$_])"
+            }))
+
+    $mutationPattern = (
+        '(?is)(?:' +
+        '\b(?:Ownership[A-Za-z0-9_]*State|ZeroHomeState)\s*' +
+        '\[[^\]]+\]\s*(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
+        '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;' +
+        '|' +
+        '\b_memset\s*\(\s*dest\s*:=\s*#' +
+        '(?:Ownership[A-Za-z0-9_]*State|ZeroHomeState)\s*\[.*?\)\s*;' +
+        '|' +
+        '\b_memcpy\s*\(\s*ptr1\s*:=\s*#' +
+        '(?:Ownership[A-Za-z0-9_]*State|ZeroHomeState)\s*\[.*?\)\s*;' +
+        ')')
+    $mutations = @(
+        [regex]::Matches($scan, $mutationPattern) |
+            ForEach-Object {
+                [regex]::Replace(
+                    $_.Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            })
+    $mutationInventory = [string]::Join('|', $mutations)
+
+    $controlFlow = @(
+        [regex]::Matches(
+            $scan,
+            '(?is)\bResult\s*:=\s*[^;]+\s*;|\bRETURN\s*;') |
+            ForEach-Object {
+                [regex]::Replace(
+                    $_.Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            })
+    $controlFlowInventory = [string]::Join('|', $controlFlow)
+
+    return [pscustomobject]@{
+        LexicalCount = $lexicalTokens.Count
+        LexicalLength = $lexicalInventory.Length
+        LexicalSha256 = Get-LasalPublishSplitTextSha256 `
+            -Text $lexicalInventory
+        LocalBlockCount = $localBlocks.Count
+        LocalCount = $localCount
+        LocalLength = $localInventory.Length
+        LocalSha256 = Get-LasalPublishSplitTextSha256 -Text $localInventory
+        CallInventory = $callInventory
+        MutationCount = $mutations.Count
+        MutationLength = $mutationInventory.Length
+        MutationSha256 = Get-LasalPublishSplitTextSha256 `
+            -Text $mutationInventory
+        ControlFlowCount = $controlFlow.Count
+        ControlFlowLength = $controlFlowInventory.Length
+        ControlFlowSha256 = Get-LasalPublishSplitTextSha256 `
+            -Text $controlFlowInventory
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishSplitMutationFences {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership publish split blocker:"
+    $fragments = Get-LasalAxisOwnershipPublishSplitFragments `
+        -ControlServiceText $ControlServiceText `
+        -Owner $Owner
+    $scan = $fragments.Scan
+    $classScan = $fragments.ClassScan
+    $adapterScan = Get-LasalLexicalScanText $fragments.Adapter
+    $homeScan = Get-LasalLexicalScanText $fragments.Home
+    $decisionScan = Get-LasalLexicalScanText $fragments.Decision
+
+    if ($scan -match '\r(?!\n)') {
+        throw "$blocker bare carriage-return line endings are forbidden."
+    }
+    if ($scan -match '\\[^\S\r\n]*\r?\n') {
+        throw "$blocker preprocessor-style line splicing is forbidden."
+    }
+    if ($scan -match
+            ('(?im)^[ \t]*#[ \t]*' +
+             '(?:if|ifdef|ifndef|elif|else|endif|undef|include)\b')) {
+        throw "$blocker conditional compilation and includes are forbidden."
+    }
+
+    $publicAbi = (
+        'VAR_INPUT\s*' +
+        'AxisMask\s*:\s*UDINT\s*;\s*' +
+        'AdmissionToken\s*:\s*UDINT\s*;\s*' +
+        'OwnerGeneration\s*:\s*UDINT\s*;\s*' +
+        'ReportKind\s*:\s*UINT\s*;\s*' +
+        'ReportValue0\s*:\s*UDINT\s*;\s*' +
+        'ReportValue1\s*:\s*UDINT\s*;\s*' +
+        'ObservationCycle\s*:\s*UDINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*;?')
+    $publicDeclarationCount = [regex]::Matches(
+        $classScan,
+        ('(?is)\bFUNCTION\s+GLOBAL\s+PublishAxisOwnership\s*' +
+         $publicAbi + '\s*(?=FUNCTION\b)')).Count
+    $publicImplementationCount = [regex]::Matches(
+        $adapterScan,
+        ('(?is)^\s*FUNCTION\s+GLOBAL\s+' +
+         'LMCControlCommandService::PublishAxisOwnership\s*' +
+         $publicAbi + '\s*(?=VAR\b)')).Count
+    if (($publicDeclarationCount -ne 1) -or
+        ($publicImplementationCount -ne 1)) {
+        throw "$blocker public adapter ABI drifted."
+    }
+
+    $helperContracts = @(
+        @{
+            Name = 'HandleAxisOwnershipPublishHomeReceipt'
+            Scan = $homeScan
+            Declaration = $fragments.HomeDeclaration
+            Inputs = (
+                'AxisMask\s*:\s*UDINT\s*;\s*' +
+                'AdmissionToken\s*:\s*UDINT\s*;\s*' +
+                'OwnerGeneration\s*:\s*UDINT\s*;\s*' +
+                'ReportKind\s*:\s*UINT\s*;\s*' +
+                'ReportValue0\s*:\s*UDINT\s*;\s*' +
+                'ReportValue1\s*:\s*UDINT\s*;\s*' +
+                'ObservationCycle\s*:\s*UDINT\s*;\s*')
+        },
+        @{
+            Name = 'PrepareAxisOwnershipPublishDecision'
+            Scan = $decisionScan
+            Declaration = $fragments.DecisionDeclaration
+            Inputs = (
+                'AxisMask\s*:\s*UDINT\s*;\s*' +
+                'AdmissionToken\s*:\s*UDINT\s*;\s*' +
+                'OwnerGeneration\s*:\s*UDINT\s*;\s*' +
+                'ReportKind\s*:\s*UINT\s*;\s*' +
+                'ExpectedSession\s*:\s*UDINT\s*;\s*' +
+                'ExpectedSequence\s*:\s*UDINT\s*;\s*' +
+                'ExpectedCommandId\s*:\s*DINT\s*;\s*' +
+                'ExpectedReference\s*:\s*DINT\s*;\s*' +
+                'ExpectedAdmissionMode\s*:\s*DINT\s*;\s*' +
+                'ExpectedOwnerKind\s*:\s*DINT\s*;\s*')
+        })
+    foreach ($helper in $helperContracts) {
+        $name = $helper.Name
+        $abi = (
+            'VAR_INPUT\s*' + $helper.Inputs + 'END_VAR\s*;?\s*' +
+            'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*;?')
+        $declarationAbiCount = [regex]::Matches(
+            (Get-LasalLexicalScanText $helper.Declaration),
+            ('(?is)^\s*FUNCTION\s+' + [regex]::Escape($name) +
+             '\s*' + $abi + '\s*$')).Count
+        $implementationAbiCount = [regex]::Matches(
+            $helper.Scan,
+            ('(?is)^\s*FUNCTION\s+LMCControlCommandService::' +
+             [regex]::Escape($name) + '\s*' + $abi +
+             '\s*(?=VAR\b)')).Count
+        $allHeaders = [regex]::Matches(
+            $scan,
+            ('(?im)^[ \t]*FUNCTION[^\r\n]*\b' +
+             [regex]::Escape($name) + '[ \t]*$'))
+        $globalHeaders = [regex]::Matches(
+            $scan,
+            ('(?im)^[ \t]*FUNCTION[ \t]+(?:VIRTUAL[ \t]+)?GLOBAL\b' +
+             '[^\r\n]*\b' + [regex]::Escape($name) + '[ \t]*$'))
+        if (($declarationAbiCount -ne 1) -or
+            ($implementationAbiCount -ne 1) -or
+            ($allHeaders.Count -ne 2) -or
+            ($globalHeaders.Count -ne 0)) {
+            throw (
+                "$blocker $name must retain one exact private " +
+                'declaration and nonempty implementation ABI.')
+        }
+    }
+
+    $tablesIndex = $fragments.ClassText.IndexOf(
+        '//Tables:',
+        [StringComparison]::Ordinal)
+    if (($tablesIndex -lt 0) -or
+        ($fragments.HomeDeclarationIndex -ge
+            $fragments.DecisionDeclarationIndex) -or
+        ($fragments.DecisionDeclarationIndex -ge $tablesIndex) -or
+        ($fragments.AdapterIndex -ge $fragments.HomeIndex) -or
+        ($fragments.HomeIndex -ge $fragments.DecisionIndex)) {
+        throw "$blocker declaration or implementation append order drifted."
+    }
+
+    $classVariableRegion = [regex]::Match(
+        $scan,
+        ('(?is)LMCControlCommandService\s*:\s*CLASS\b' +
+         '(?<Body>.*?)\bFUNCTION\s+GLOBAL\s+HandleRequest\b'))
+    if (-not $classVariableRegion.Success) {
+        throw "$blocker class variable region is missing."
+    }
+    foreach ($stateContract in @(
+            @{ Name = 'ZeroHomeState'; Upper = 63 },
+            @{ Name = 'OwnershipState'; Upper = 351 },
+            @{ Name = 'OwnershipObserverState'; Upper = 107 },
+            @{ Name = 'OwnershipLeaseState'; Upper = 323 },
+            @{ Name = 'OwnershipPreemptedState'; Upper = 323 },
+            @{ Name = 'OwnershipIdentityState'; Upper = 431 },
+            @{ Name = 'OwnershipLeaseIdentityState'; Upper = 323 },
+            @{ Name = 'OwnershipPreemptedIdentityState'; Upper = 431 })) {
+        $statePattern = (
+            '(?im)^\s*' + [regex]::Escape($stateContract.Name) +
+            '\s*:\s*ARRAY\s*\[\s*0\s*\.\.\s*' +
+            $stateContract.Upper + '\s*\]\s*OF\s*DINT\s*;\s*$')
+        if (([regex]::Matches($scan, $statePattern).Count -ne 1) -or
+            ([regex]::Matches(
+                $classVariableRegion.Groups['Body'].Value,
+                $statePattern).Count -ne 1)) {
+            throw (
+                "$blocker state member $($stateContract.Name) exact " +
+                'type/bound/location drifted.')
+        }
+    }
+
+    $expectedPragmas = @(
+        'usingLtd _LMCAxis',
+        'usingLtd _LMCRobotBase',
+        'usingLtd LMCEcatInputLatch')
+    $observedPragmas = @(
+        [regex]::Matches(
+            $scan,
+            ('(?im)^[^\S\r\n]*#[^\S\r\n]*pragma[^\S\r\n]+' +
+             '(?<Body>[^\r\n]*?)[^\S\r\n]*\r?$')) |
+            ForEach-Object { $_.Groups['Body'].Value })
+    if ([string]::Join('|', $observedPragmas) -cne
+        [string]::Join('|', $expectedPragmas)) {
+        throw "$blocker exact usingLtd pragma closure drifted."
+    }
+
+    $macroInventory = @(
+        [regex]::Matches(
+            $scan,
+            ('(?im)^[^\S\r\n]*#[^\S\r\n]*define[^\S\r\n]+' +
+             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)' +
+             '(?<Value>[^\r\n]*)\r?$')) |
+            ForEach-Object {
+                ($_.Groups['Name'].Value.ToLowerInvariant() + '=' +
+                 [regex]::Replace(
+                     $_.Groups['Value'].Value.Trim(),
+                     '\s+',
+                     ' ').ToLowerInvariant())
+            })
+    $joinedMacros = [string]::Join('|', $macroInventory)
+    if (($macroInventory.Count -ne 165) -or
+        ($joinedMacros.Length -ne 6175) -or
+        ((Get-LasalPublishSplitTextSha256 -Text $joinedMacros) -cne
+            '67348A046E35A28C733ACB27B811B4C88EB6402BEC697CE22ADAF726EC6A2928')) {
+        throw "$blocker whole-control macro inventory drifted."
+    }
+
+    $fragmentContracts = @(
+        @{
+            Name = 'adapter'
+            Fragment = $fragments.Adapter
+            Lexical = @(4170, 25319,
+                '3C1049ED8E8B05BA66B4E356865B6580DAE5FA69FE413A11E60322F62FC17000')
+            Locals = @(38, 829,
+                '3732E95DEC618170651A42C7A956ECA78CC53C8F5D6D8CD80FB3159F8362CA62')
+            Calls = (
+                '_memcmp=2|_memcpy=2|_memset=15|' +
+                'handleaxisownershippublishhomereceipt=1|' +
+                'prepareaxisownershippublishdecision=1|sizeof=4|' +
+                'to_dint=6|to_udint=18')
+            Mutations = @(56, 3638,
+                'E685A4E71455615571B824AD4464434E5158B9A3C67FEA43FF24FE1F13BB258E')
+            ControlFlow = @(27, 303,
+                '3A83F0E059E5A9A57815948D3EB397FAAEF20B7289228FAB2ACFB62AB04CCEAC')
+        },
+        @{
+            Name = 'Home helper'
+            Fragment = $fragments.Home
+            Lexical = @(2491, 14812,
+                'E0A83B3502A850E0DA66DDDDFE10BBCE0F158D851292369B92A7096F3DF597E8')
+            Locals = @(26, 660,
+                'CE0C97DDC04924C7DA1391BC4A18F7254EF15FE2D6A273FF9D784F1D2D493F50')
+            Calls = '_memset=3|to_dint=2|to_udint=13|updateaxisrebaserequiredstate=1'
+            Mutations = @(22, 1094,
+                '8CE9A7539C508733BE6A2DEF03CF791271642E474DAE8EA40010BD22F8AF5A86')
+            ControlFlow = @(17, 184,
+                '089F69C095181311F7B4E606035BFA5E56E40455A465AAC1829CE0DA3DBFCB78')
+        },
+        @{
+            Name = 'decision helper'
+            Fragment = $fragments.Decision
+            Lexical = @(3372, 22104,
+                'C1035138B3C7020306E8243C8F613D817680A06F83A8A578AA85CF487543FA10')
+            Locals = @(49, 1100,
+                '5F8DB2CE8C6D09E32D0F5919D816E61843B3FDDD4920BC5A702E05A936DD67A4')
+            Calls = '_memcmp=1|to_udint=17'
+            Mutations = @(5, 114,
+                'BAD222CADD90EF1C7221EAED84E0DD31D651A031201648E08C567B643FBCECF3')
+            ControlFlow = @(11, 110,
+                '39824D0FA2E2DC29621CE1CEE70A0046D938B6753A6806D66CF880484CB9571B')
+        })
+    foreach ($fragmentContract in $fragmentContracts) {
+        $metrics = Get-LasalAxisOwnershipPublishSplitFragmentMetrics `
+            -Fragment $fragmentContract.Fragment
+        if (($metrics.LexicalCount -ne $fragmentContract.Lexical[0]) -or
+            ($metrics.LexicalLength -ne $fragmentContract.Lexical[1]) -or
+            ($metrics.LexicalSha256 -cne $fragmentContract.Lexical[2])) {
+            throw "$blocker $($fragmentContract.Name) lexical token inventory drifted."
+        }
+        if (($metrics.LocalBlockCount -ne 1) -or
+            ($metrics.LocalCount -ne $fragmentContract.Locals[0]) -or
+            ($metrics.LocalLength -ne $fragmentContract.Locals[1]) -or
+            ($metrics.LocalSha256 -cne $fragmentContract.Locals[2])) {
+            throw "$blocker $($fragmentContract.Name) local inventory drifted or is empty."
+        }
+        if ($metrics.CallInventory -cne $fragmentContract.Calls) {
+            throw "$blocker $($fragmentContract.Name) call inventory drifted."
+        }
+        if (($metrics.MutationCount -ne $fragmentContract.Mutations[0]) -or
+            ($metrics.MutationLength -ne $fragmentContract.Mutations[1]) -or
+            ($metrics.MutationSha256 -cne $fragmentContract.Mutations[2])) {
+            throw "$blocker $($fragmentContract.Name) persistent mutation inventory drifted."
+        }
+        if (($metrics.ControlFlowCount -ne
+                $fragmentContract.ControlFlow[0]) -or
+            ($metrics.ControlFlowLength -ne
+                $fragmentContract.ControlFlow[1]) -or
+            ($metrics.ControlFlowSha256 -cne
+                $fragmentContract.ControlFlow[2])) {
+            throw "$blocker $($fragmentContract.Name) Result/RETURN inventory drifted."
+        }
+        $lfFragment = ConvertTo-LasalPublishSplitLf `
+            -Text $fragmentContract.Fragment
+        $lfBytes = [Text.Encoding]::UTF8.GetByteCount($lfFragment)
+        $crlfBytes = [Text.Encoding]::UTF8.GetByteCount(
+            $lfFragment.Replace("`n", "`r`n"))
+        if (($lfBytes -ge 32768) -or ($crlfBytes -ge 32768)) {
+            throw "$blocker $($fragmentContract.Name) violates the method-size hard limit."
+        }
+    }
+
+    Assert-Match $adapterScan (
+        '(?is)homeReceiptResult\s*:=\s*' +
+        'HandleAxisOwnershipPublishHomeReceipt\s*\(.*?' +
+        'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
+        'if\s+homeReceiptResult\s*<>\s*2\s+then\s*' +
+        'Result\s*:=\s*homeReceiptResult\s*;\s*RETURN\s*;\s*end_if\s*;') (
+        "$blocker Home helper call or Result=2 continuation fence drifted.")
+    Assert-Match $adapterScan (
+        '(?is)publishDecisionResult\s*:=\s*' +
+        'PrepareAxisOwnershipPublishDecision\s*\(.*?' +
+        'ExpectedOwnerKind\s*:=\s*expectedOwnerKind\s*\)\s*;\s*' +
+        'if\s+publishDecisionResult\s*<\s*0\s+then\s*' +
+        'Result\s*:=\s*publishDecisionResult\s*;\s*RETURN\s*;\s*' +
+        'elsif\s+publishDecisionResult\s*>\s*7\s+then\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;\s*' +
+        'preemptRootValid\s*:=\s*' +
+        '\(publishDecisionResult\s+and\s+1\)\s*<>\s*0\s*;\s*' +
+        'forceQuarantine\s*:=\s*' +
+        '\(publishDecisionResult\s+and\s+2\)\s*<>\s*0\s*;\s*' +
+        'restoreLease\s*:=\s*' +
+        '\(publishDecisionResult\s+and\s+4\)\s*<>\s*0\s*;') (
+        "$blocker decision helper call, failure fence, or bit map drifted.")
+    Assert-Match $homeScan (
+        '(?is)END_VAR\s*Result\s*:=\s*2\s*;.*?' +
+        'END_FUNCTION\s*$') (
+        "$blocker Home Result=2 containment drifted.")
+    Assert-Match $decisionScan (
+        '(?is)Result\s*:=\s*0\s*;\s*' +
+        'if\s+preemptRootValid\s+then\s*Result\s*\+=\s*1\s*;.*?' +
+        'if\s+forceQuarantine\s+then\s*Result\s*\+=\s*2\s*;.*?' +
+        'if\s+restoreLease\s+then\s*Result\s*\+=\s*4\s*;.*?' +
+        'END_FUNCTION\s*$') (
+        "$blocker decision Result bit domain drifted.")
+
+    return [pscustomobject]@{
+        Mode = 'Split'
+        Adapter = $fragments.Adapter
+        Home = $fragments.Home
+        Decision = $fragments.Decision
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishStateContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $mode = Get-LasalAxisOwnershipPublishMode `
+        -ControlServiceText $ControlServiceText
+    if ($mode -ceq 'Monolith') {
+        $scan = Get-LasalLexicalScanText $ControlServiceText
+        $publishMatches = [regex]::Matches(
+            $scan,
+            ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
+             'LMCControlCommandService::PublishAxisOwnership\s*$' +
+             '.*?^\s*END_FUNCTION\s*$'))
+        if ($publishMatches.Count -ne 1) {
+            throw (
+                "$Owner axis ownership publish state blocker: monolith " +
+                "implementation count is $($publishMatches.Count), expected one.")
+        }
+        Assert-LasalAxisOwnershipPublishMutationFences `
+            -PublishBlock $publishMatches[0].Value `
+            -ControlServiceText $ControlServiceText `
+            -Owner $Owner
+        return [pscustomobject]@{
+            Mode = 'Monolith'
+            Adapter = $publishMatches[0].Value
+            Home = ''
+            Decision = ''
+        }
+    }
+
+    return Assert-LasalAxisOwnershipPublishSplitMutationFences `
+        -ControlServiceText $ControlServiceText `
+        -Owner $Owner
+}
+
+function Get-LasalAxisOwnershipPublishPlannedSplitFixture {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $plannerPath = Join-Path $RepositoryRoot (
+        'test\Reports_Lasal\C78_20260807_publish_split_rebaseline\' +
+        'Plan-PublishSplit.ps1')
+    if (-not (Test-Path -LiteralPath $plannerPath -PathType Leaf)) {
+        throw "$Owner publish split planner is missing."
+    }
+    # Dot-source only inside a disposable child scope. The production verifier
+    # accepts split source from its own contracts; planner internals are used
+    # only to synthesize a pre-transition self-test fixture.
+    $plannerResult = & {
+        param($ChildPlannerPath, $ChildRepositoryRoot)
+
+        $childOutput = @(
+            . $ChildPlannerPath -RepositoryRoot $ChildRepositoryRoot)
+        return [pscustomobject]@{
+            Output = $childOutput
+            Candidate = [string]$plannedSource
+        }
+    } $plannerPath $RepositoryRoot
+    if (($plannerResult.Output.Count -ne 1) -or
+        [string]::IsNullOrWhiteSpace(
+            [string]$plannerResult.Output[0]) -or
+        [string]::IsNullOrWhiteSpace($plannerResult.Candidate)) {
+        throw "$Owner publish split planner did not produce one candidate."
+    }
+    return ConvertTo-LasalPublishSplitLf `
+        -Text ([string]$plannerResult.Candidate)
+}
+
+function Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $currentState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $ControlServiceText `
+        -Owner "$Owner current state"
+    $splitFixture = if ($currentState.Mode -ceq 'Split') {
+        ConvertTo-LasalPublishSplitLf -Text $ControlServiceText
+    }
+    else {
+        Get-LasalAxisOwnershipPublishPlannedSplitFixture `
+            -RepositoryRoot $RepositoryRoot `
+            -Owner $Owner
+    }
+    $splitState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $splitFixture `
+        -Owner "$Owner positive split LF"
+    if ($splitState.Mode -cne 'Split') {
+        throw "$Owner planned positive fixture did not resolve to Split."
+    }
+    $crlfFixture = $splitFixture.Replace("`n", "`r`n")
+    $crlfState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $crlfFixture `
+        -Owner "$Owner positive split CRLF"
+    if ($crlfState.Mode -cne 'Split') {
+        throw "$Owner CRLF positive fixture did not resolve to Split."
+    }
+    $fragments = Get-LasalAxisOwnershipPublishSplitFragments `
+        -ControlServiceText $splitFixture `
+        -Owner $Owner
+
+    $emptyHome = [string]::Join("`n", @(
+            'FUNCTION LMCControlCommandService::HandleAxisOwnershipPublishHomeReceipt',
+            "`tVAR_INPUT",
+            "`t`tAxisMask : UDINT;",
+            "`t`tAdmissionToken : UDINT;",
+            "`t`tOwnerGeneration : UDINT;",
+            "`t`tReportKind : UINT;",
+            "`t`tReportValue0 : UDINT;",
+            "`t`tReportValue1 : UDINT;",
+            "`t`tObservationCycle : UDINT;",
+            "`tEND_VAR",
+            "`tVAR_OUTPUT",
+            "`t`tResult : DINT;",
+            "`tEND_VAR",
+            '',
+            'END_FUNCTION',
+            ''))
+    $emptyDecision = [string]::Join("`n", @(
+            'FUNCTION LMCControlCommandService::PrepareAxisOwnershipPublishDecision',
+            "`tVAR_INPUT",
+            "`t`tAxisMask : UDINT;",
+            "`t`tAdmissionToken : UDINT;",
+            "`t`tOwnerGeneration : UDINT;",
+            "`t`tReportKind : UINT;",
+            "`t`tExpectedSession : UDINT;",
+            "`t`tExpectedSequence : UDINT;",
+            "`t`tExpectedCommandId : DINT;",
+            "`t`tExpectedReference : DINT;",
+            "`t`tExpectedAdmissionMode : DINT;",
+            "`t`tExpectedOwnerKind : DINT;",
+            "`tEND_VAR",
+            "`tVAR_OUTPUT",
+            "`t`tResult : DINT;",
+            "`tEND_VAR",
+            '',
+            'END_FUNCTION',
+            ''))
+
+    $homeGlobal = Replace-LasalPublishSplitRegexExactOne `
+        -Text $fragments.Home `
+        -Pattern ('^FUNCTION\s+(?=LMCControlCommandService::' +
+            'HandleAxisOwnershipPublishHomeReceipt)') `
+        -Replacement 'FUNCTION GLOBAL ' `
+        -Owner "$Owner Home global fixture"
+    $adapterCallRemoved = Replace-LasalPublishSplitExactOne `
+        -Text $fragments.Adapter `
+        -Old 'HandleAxisOwnershipPublishHomeReceipt(' `
+        -New 'HandleAxisOwnershipPublishHomeReceiptMissing(' `
+        -Owner "$Owner adapter call fixture"
+
+    $fixtures = @(
+        @{
+            Name = 'PartialHomeDeclaration'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.HomeDeclaration `
+                -New '' `
+                -Owner "$Owner partial Home declaration fixture"
+        },
+        @{
+            Name = 'PartialDecisionImplementation'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Decision `
+                -New '' `
+                -Owner "$Owner partial decision implementation fixture"
+        },
+        @{
+            Name = 'DuplicateHomeDeclaration'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.HomeDeclaration `
+                -New ($fragments.HomeDeclaration +
+                    $fragments.HomeDeclaration) `
+                -Owner "$Owner duplicate Home declaration fixture"
+        },
+        @{
+            Name = 'DuplicateDecisionImplementation'
+            Value = $splitFixture + "`n" + $fragments.Decision
+        },
+        @{
+            Name = 'EmptyHomeStub'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Home `
+                -New $emptyHome `
+                -Owner "$Owner empty Home stub fixture"
+        },
+        @{
+            Name = 'EmptyDecisionStub'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Decision `
+                -New $emptyDecision `
+                -Owner "$Owner empty decision stub fixture"
+        },
+        @{
+            Name = 'HomeImplementationMadeGlobal'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Home `
+                -New $homeGlobal `
+                -Owner "$Owner Home global source fixture"
+        },
+        @{
+            Name = 'AdapterHomeCallRemoved'
+            Value = Replace-LasalPublishSplitExactOne `
+                -Text $splitFixture `
+                -Old $fragments.Adapter `
+                -New $adapterCallRemoved `
+                -Owner "$Owner adapter call source fixture"
+        })
+    if (($fixtures.Count -ne 8) -or
+        (@($fixtures.Name | Select-Object -Unique).Count -ne 8)) {
+        throw "$Owner split fixture inventory drifted."
+    }
+
+    $rejected = 0
+    foreach ($fixture in $fixtures) {
+        if ($fixture.Value -ceq $splitFixture) {
+            throw "$Owner split fixture '$($fixture.Name)' did not mutate."
+        }
+        $negativeOwner = "$Owner negative $($fixture.Name)"
+        $didReject = $false
+        try {
+            $null = Assert-LasalAxisOwnershipPublishStateContract `
+                -ControlServiceText $fixture.Value `
+                -Owner $negativeOwner
+        }
+        catch {
+            if (-not $_.Exception.Message.StartsWith(
+                    "$negativeOwner axis ownership publish split blocker:",
+                    [StringComparison]::Ordinal)) {
+                throw
+            }
+            $didReject = $true
+        }
+        if (-not $didReject) {
+            throw (
+                "$Owner split verifier accepted negative fixture " +
+                "'$($fixture.Name)'.")
+        }
+        $rejected++
+    }
+
+    $commentAdapter = Replace-LasalPublishSplitExactOne `
+        -Text $fragments.Adapter `
+        -Old "`tResult := -1;" `
+        -New "`tResult := -1; // split verifier comment-only fixture" `
+        -Owner "$Owner split positive comment fixture"
+    $commentFixture = Replace-LasalPublishSplitExactOne `
+        -Text $splitFixture `
+        -Old $fragments.Adapter `
+        -New $commentAdapter `
+        -Owner "$Owner split positive comment source fixture"
+    $commentState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $commentFixture `
+        -Owner "$Owner positive split comment-only"
+    if ($commentState.Mode -cne 'Split') {
+        throw "$Owner split comment-only fixture did not resolve to Split."
+    }
+    return $rejected
+}
+
 function Get-LasalAxisOwnershipPublishCallerMethodBlock {
     param(
         [string]$SourceText,
@@ -6467,16 +7342,7 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     $blocker = "$Owner axis ownership reserve mutation blocker:"
     $controlScan = Get-LasalLexicalScanText $ControlServiceText
     if (-not $SharedControlClosureAlreadyChecked) {
-        $publishMatches = [regex]::Matches(
-            $controlScan,
-            ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
-             'LMCControlCommandService::PublishAxisOwnership\s*$' +
-             '.*?^\s*END_FUNCTION\s*$'))
-        if ($publishMatches.Count -ne 1) {
-            throw "$blocker shared control closure publish scope drifted."
-        }
-        Assert-LasalAxisOwnershipPublishMutationFences `
-            -PublishBlock $publishMatches[0].Value `
+        $null = Assert-LasalAxisOwnershipPublishStateContract `
             -ControlServiceText $ControlServiceText `
             -Owner $Owner
     }
@@ -6618,6 +7484,13 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
         'validateaxisownershippreemptionreplacement',
         'handleaxisownershipds402receiptstage87recovery',
         'validateaxisownershiprollbackpreemptbank')
+    if ((Get-LasalAxisOwnershipPublishMode `
+            -ControlServiceText $ControlServiceText) -ceq
+        'SplitCandidate') {
+        $expectedImplementationHeaderInventory += @(
+            'handleaxisownershippublishhomereceipt',
+            'prepareaxisownershippublishdecision')
+    }
     if ([string]::Join('|', $implementationHeaderInventory) -cne
         [string]::Join('|', $expectedImplementationHeaderInventory)) {
         throw "$blocker whole implementation header inventory/order drifted."
@@ -7901,8 +8774,7 @@ function Invoke-LasalAxisOwnershipReserveVerifierSelfTest {
                     "$negativeOwner publish implementation count is " +
                     "$($publishMatches.Count), expected one.")
             }
-            Assert-LasalAxisOwnershipPublishMutationFences `
-                -PublishBlock $publishMatches[0].Value `
+            $null = Assert-LasalAxisOwnershipPublishStateContract `
                 -ControlServiceText $negativeFixture.Value `
                 -Owner $negativeOwner
             $reserveMatches = [regex]::Matches(
@@ -7926,6 +8798,8 @@ function Invoke-LasalAxisOwnershipReserveVerifierSelfTest {
             $allowedNegativePrefixes = @(
                 ($negativeOwner +
                  ' axis ownership publish mutation blocker:'),
+                ($negativeOwner +
+                 ' axis ownership publish split blocker:'),
                 ($negativeOwner +
                  ' axis ownership reserve mutation blocker:'),
                 ($negativeOwner + ' publish implementation count is '),
@@ -7983,8 +8857,7 @@ function Invoke-LasalAxisOwnershipReserveVerifierSelfTest {
         ($positiveReserveMatches.Count -ne 1)) {
         throw "$Owner reserve positive comment fixture lost a method."
     }
-    Assert-LasalAxisOwnershipPublishMutationFences `
-        -PublishBlock $positivePublishMatches[0].Value `
+    $null = Assert-LasalAxisOwnershipPublishStateContract `
         -ControlServiceText $positiveFixture `
         -Owner "$Owner positive comment-only fixture"
     Assert-LasalAxisOwnershipReserveMutationFences `
@@ -8063,10 +8936,17 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
     Assert-LasalAxisOwnershipRollbackSplitMutationFences `
         -ControlServiceText $ControlServiceText `
         -Owner $Owner
-    Assert-LasalAxisOwnershipPublishMutationFences `
-        -PublishBlock $publishBlock `
-        -ControlServiceText $ControlServiceText `
-        -Owner $Owner
+    $publishProviderState =
+        Assert-LasalAxisOwnershipPublishStateContract `
+            -ControlServiceText $ControlServiceText `
+            -Owner $Owner
+    $publishProofBlock = if ($publishProviderState.Mode -ceq 'Split') {
+        $publishProviderState.Decision + "`n" +
+            $publishProviderState.Adapter
+    }
+    else {
+        $publishBlock
+    }
     Assert-LasalAxisOwnershipReserveMutationFences `
         -ReserveBlock $reserveBlock `
         -ControlServiceText $ControlServiceText `
@@ -8718,7 +9598,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
 
     # Publish must prove the full preemption root/bank and any completed special
     # replacement before report fields, live records, or bank destruction move.
-    Assert-Match $publishBlock (
+    Assert-Match $publishProofBlock (
         '(?s)preemptRootValid\s*:=.*?' +
         'LMC_OWNER_PREEMPT_HEADER_BASE\s*\+\s*2\]\$UDINT\s*=\s*AdmissionToken.*?' +
         '\+\s*3\]\$UDINT\s*=\s*OwnerGeneration.*?' +
@@ -8729,7 +9609,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         '\(TO_UDINT\(expectedReference\)\s+shl\s+16\)\).*?' +
         '0xFFFE0000\)\s*=\s*0\)\s*;') (
         "$blocker Publish preemption-root tuple/version proof drifted.")
-    Assert-Match $publishBlock (
+    Assert-Match $publishProofBlock (
         '(?s)if\s+\(expectedAdmissionMode\s*=\s*LMC_OWNER_ADMISSION_SAFETY\)\s*&\s*' +
         '\(preemptRootValid\s*=\s*FALSE\)\s+then\s*preemptBankValid\s*:=\s*TRUE\s*;.*?' +
         'while\s+identityIndex\s*<=\s*323\s+do.*?' +
@@ -8737,7 +9617,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'if\s+preemptBankValid\s*=\s*FALSE\s+then\s*' +
         'OwnershipState\[24\]\s*:=\s*1\s*;\s*Result\s*:=\s*-3\s*;') (
         "$blocker Publish accepts a dirty bank behind an absent root.")
-    Assert-Match $publishBlock (
+    Assert-Match $publishProofBlock (
         '(?s)if\s+preemptRootValid\s+then.*?' +
         '\(\(cleanupRequiredMask\s+and\s+\(not\s+AxisMask\)\)\s*<>\s*0\)\s*\|\s*' +
         '\(\(cleanupCompleteMask\s+and\s+\(not\s+cleanupRequiredMask\)\)\s*<>\s*0\).*?' +
@@ -8753,16 +9633,18 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'OwnershipState\[replacementRecordBase\s*\+\s*4\]\$UDINT\s*=\s*preemptToken.*?' +
         'preemptBankValid\s*:=\s*FALSE\s*;') (
         "$blocker Publish special-owner singleton/replacement proof drifted.")
-    Assert-Match $publishBlock (
+    Assert-Match $publishProofBlock (
         '(?s)end_while\s*;\s*if\s+preemptBankValid\s*=\s*FALSE\s+then\s*' +
         'OwnershipState\[24\]\s*:=\s*1\s*;\s*Result\s*:=\s*-3\s*;\s*' +
         'RETURN\s*;\s*end_if\s*;\s*end_if\s*;\s*cleanupReady\s*:=' ) (
         "$blocker Publish full preemption-bank gate is missing before cleanup/mutation.")
-    $publishRootIndex = $publishBlock.IndexOf('preemptRootValid :=')
-    $publishBankGate = $publishBlock.LastIndexOf('if preemptBankValid = FALSE then')
-    $publishCleanupReady = $publishBlock.IndexOf('cleanupReady :=')
-    $publishLiveMutation = $publishBlock.IndexOf('OwnershipState[recordBase + 9]$UDINT := ObservationCycle;')
-    $publishRootDestroy = $publishBlock.IndexOf(
+    $publishRootIndex = $publishProofBlock.IndexOf('preemptRootValid :=')
+    $publishBankGate = $publishProofBlock.LastIndexOf(
+        'if preemptBankValid = FALSE then')
+    $publishCleanupReady = $publishProofBlock.IndexOf('cleanupReady :=')
+    $publishLiveMutation = $publishProofBlock.IndexOf(
+        'OwnershipState[recordBase + 9]$UDINT := ObservationCycle;')
+    $publishRootDestroy = $publishProofBlock.IndexOf(
         'OwnershipPreemptedIdentityState[' + [Environment]::NewLine +
         "`t`t`t`tLMC_OWNER_PREEMPT_HEADER_BASE] := 0;")
     if ($publishRootIndex -lt 0 -or $publishBankGate -lt 0 -or
@@ -8771,7 +9653,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         $publishCleanupReady -ge $publishLiveMutation) {
         throw "$blocker Publish preemption proof is not complete before terminal mutation."
     }
-    Assert-Match $publishBlock (
+    Assert-Match $publishProofBlock (
         '(?s)if\s+clearOwner\s+then.*?' +
         'if\s+expectedOwnerKind\s*=\s*LMC_OWNER_KIND_GROUP\s+then.*?' +
         'if\s+expectedAdmissionMode\s*<>\s*LMC_OWNER_ADMISSION_SAFETY\s+then\s*' +
@@ -9315,6 +10197,17 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
     Assert-LasalAxisOwnershipIdentityPreemptionContract `
         -ControlServiceText $control `
         -Owner 'compact identity/preemption self-test baseline'
+    $publishMode = Get-LasalAxisOwnershipPublishMode `
+        -ControlServiceText $control
+    $publishDecisionFunctionPattern = if (
+        $publishMode -ceq 'SplitCandidate') {
+        'FUNCTION\s+LMCControlCommandService::' +
+            'PrepareAxisOwnershipPublishDecision'
+    }
+    else {
+        'FUNCTION\s+GLOBAL\s+' +
+            'LMCControlCommandService::PublishAxisOwnership'
+    }
 
     $negativeFixtures = @(
         @{ Name = 'PrefixBytes'; Pattern = '(?m)^#define\s+LMC_OWNER_IDENTITY_PREFIX_BYTES\s+0x00000040\s*$'; Replacement = '#define LMC_OWNER_IDENTITY_PREFIX_BYTES 0x00000044' },
@@ -9378,10 +10271,10 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
         @{ Name = 'RollbackRecordRestoreLength'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?_memcpy\(ptr1:=#OwnershipState\[recordBase\],\s*ptr2:=#OwnershipPreemptedState\[clearIndex\],\s*cntr:=)LMC_OWNER_AXIS_STRIDE\s*\*\s*4(\))'; Replacement = '${1}140${2}' },
         @{ Name = 'RollbackTailZeroClear'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?if\s+restorePreempt\s+then\s*)if\s+identityTailSize\s*>\s*0\s+then'; Replacement = '${1}if TRUE then' },
         @{ Name = 'RollbackGroupMagicSuppressed'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?end_while\s*;\s*if\s+)groupHeaderPublished(\s+then\s*OwnershipIdentityState\[\s*LMC_OWNER_IDENTITY_GROUP_HEADER_BASE\])'; Replacement = '${1}FALSE${2}' },
-        @{ Name = 'PublishRootSequence'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership.*?LMC_OWNER_PREEMPT_HEADER_BASE\s*\+\s*6\]\$UDINT\s*=\s*)expectedSequence'; Replacement = '${1}expectedSession' },
-        @{ Name = 'PublishDirtyAbsentRoot'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership.*?preemptRootValid\s*=\s*FALSE.*?while\s+identityIndex\s*<=\s*)431(\s+do)'; Replacement = '${1}430${2}' },
-        @{ Name = 'PublishReplacementOldToken'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership.*?singletonToken\s*)<>(\s*preemptToken)'; Replacement = '${1}=${2}' },
-        @{ Name = 'PublishPreproofBypass'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership\b.*)(if\s+preemptBankValid\s*=\s*)FALSE(\s+then\s*OwnershipState\[24\].*?Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;\s*end_if\s*;\s*cleanupReady\s*:=)'; Replacement = '${1}${2}TRUE${3}' },
+        @{ Name = 'PublishRootSequence'; Pattern = ('(?is)(' + $publishDecisionFunctionPattern + '.*?LMC_OWNER_PREEMPT_HEADER_BASE\s*\+\s*6\]\$UDINT\s*=\s*)expectedSequence'); Replacement = '${1}expectedSession' },
+        @{ Name = 'PublishDirtyAbsentRoot'; Pattern = ('(?is)(' + $publishDecisionFunctionPattern + '.*?preemptRootValid\s*=\s*FALSE.*?while\s+identityIndex\s*<=\s*)431(\s+do)'); Replacement = '${1}430${2}' },
+        @{ Name = 'PublishReplacementOldToken'; Pattern = ('(?is)(' + $publishDecisionFunctionPattern + '.*?singletonToken\s*)<>(\s*preemptToken)'); Replacement = '${1}=${2}' },
+        @{ Name = 'PublishPreproofBypass'; Pattern = ('(?is)(' + $publishDecisionFunctionPattern + '.*?if\s+preemptBankValid\s*=\s*)FALSE(\s+then\s*OwnershipState\[24\].*?Result\s*:=\s*-3\s*;\s*RETURN\s*;)'); Replacement = '${1}TRUE${2}' },
         @{ Name = 'PublishTailZeroClear'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership.*?if\s+clearOwner\s+then.*?)elsif\s+identityTailSize\s*>\s*0\s+then'; Replacement = '${1}elsif TRUE then' },
         @{ Name = 'CleanupLocalMoved'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?publishedCleanupValid\s*:\s*)BOOL(\s*;)'; Replacement = '${1}DINT${2}' },
         @{ Name = 'CleanupOldBankStartsInvalid'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?oldBankValid\s*:=\s*)TRUE(\s*;)'; Replacement = '${1}FALSE${2}' },
@@ -9407,10 +10300,11 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
             if ($_.Exception.Message -notmatch
                     ('compact ownership identity/preemption blocker|' +
                      'axis ownership preemption cleanup blocker:|' +
-                     'axis ownership rollback mutation blocker:|' +
-                     'axis ownership rollback split blocker:|' +
-                     'axis ownership publish mutation blocker:|' +
-                     'axis ownership reserve mutation blocker:')) {
+                      'axis ownership rollback mutation blocker:|' +
+                      'axis ownership rollback split blocker:|' +
+                      'axis ownership publish mutation blocker:|' +
+                      'axis ownership publish split blocker:|' +
+                      'axis ownership reserve mutation blocker:')) {
                 throw
             }
             $rejected++
@@ -15872,6 +16766,25 @@ function Assert-LasalAdminLmcHomeContract {
     $publishOwnershipBlock = [regex]::Match(
         $serviceScan,
         '(?is)FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnership\b.*?END_FUNCTION').Value
+    $publishMode = Get-LasalAxisOwnershipPublishMode `
+        -ControlServiceText $ControlServiceText
+    if ($publishMode -ceq 'SplitCandidate') {
+        $publishSplitFragments =
+            Get-LasalAxisOwnershipPublishSplitFragments `
+                -ControlServiceText $ControlServiceText `
+                -Owner "$Owner Home receipt provider"
+        $publishHomeReceiptReplayBlock =
+            Get-LasalScanText $publishSplitFragments.Home
+        $publishHomeReceiptPrepareBlock = $publishOwnershipBlock
+        $homeReceiptReplayTailPattern =
+            'end_if\s*;\s*(?=END_FUNCTION)'
+    }
+    else {
+        $publishHomeReceiptPrepareBlock = $publishOwnershipBlock
+        $publishHomeReceiptReplayBlock = $publishOwnershipBlock
+        $homeReceiptReplayTailPattern =
+            'end_if\s*;\s*expectedResourceKind\s*:=\s*0\s*;'
+    }
     if ([string]::IsNullOrWhiteSpace($handleRequestBlock) -or
         [string]::IsNullOrWhiteSpace($adminHandlerBlock) -or
         [string]::IsNullOrWhiteSpace($zeroHomeHandlerBlock) -or
@@ -16149,7 +17062,7 @@ function Assert-LasalAdminLmcHomeContract {
     }
 
     $homeReceiptPrepareMatch = [regex]::Match(
-        $publishOwnershipBlock,
+        $publishHomeReceiptPrepareBlock,
         ('(?is)if\s*\(expectedCommandId\s*=\s*0x7D13\)\s*&\s*' +
          '\(expectedOwnerKind\s*=\s*LMC_OWNER_KIND_LMC_HOME\)\s*&\s*' +
          '\(expectedResourceKind\s*=\s*LMC_OWNER_RESOURCE_LMC_HOME_ENGINE\)\s*&\s*' +
@@ -16181,10 +17094,10 @@ function Assert-LasalAdminLmcHomeContract {
         "$Owner Home receipt is not prepared magic-last before returning result 0.")
 
     $homeReceiptReplayMatch = [regex]::Match(
-        $publishOwnershipBlock,
+        $publishHomeReceiptReplayBlock,
         ('(?is)if\s+ZeroHomeState\[60\]\$UDINT\s*=\s*' +
          'LMC_HOME_OWNER_RECEIPT_MAGIC\s+then(?<Body>.*?)' +
-         'end_if\s*;\s*expectedResourceKind\s*:=\s*0\s*;'))
+         $homeReceiptReplayTailPattern))
     if (-not $homeReceiptReplayMatch.Success) {
         throw "$Owner Home receipt replay/cleanup branch was not found."
     }
@@ -23979,6 +24892,312 @@ function Get-LasalClassDatabaseRecord {
     return $DatabaseText.Substring($recordStart, $recordEnd - $recordStart)
 }
 
+function Test-LasalClassDatabaseByteSequence {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$DatabaseBytes,
+        [Parameter(Mandatory = $true)][int]$Start,
+        [Parameter(Mandatory = $true)][byte[]]$ExpectedBytes
+    )
+
+    if (($Start -lt 0) -or
+        (($Start + $ExpectedBytes.Count) -gt $DatabaseBytes.Count)) {
+        return $false
+    }
+    for ($byteIndex = 0;
+         $byteIndex -lt $ExpectedBytes.Count;
+         $byteIndex++) {
+        if ($DatabaseBytes[$Start + $byteIndex] -ne
+            $ExpectedBytes[$byteIndex]) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Assert-LasalClassDatabasePrivateFunctionAbiRecord {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$DatabaseBytes,
+        [Parameter(Mandatory = $true)][string]$DatabaseText,
+        [Parameter(Mandatory = $true)][string]$FunctionName,
+        [Parameter(Mandatory = $true)][object[]]$Inputs,
+        [Parameter(Mandatory = $true)][string]$OutputName,
+        [Parameter(Mandatory = $true)][string]$OutputType,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    if ($DatabaseBytes.Count -ne $DatabaseText.Length) {
+        throw "$Owner byte/text views do not share exact offsets."
+    }
+    if ($Inputs.Count -gt [UInt32]::MaxValue) {
+        throw "$Owner input inventory exceeds the Classes.lcb field width."
+    }
+
+    # LASAL Classes.lcb stores a function tag, scope flags, and input count
+    # immediately after the method name. 0B + zero flags is the established
+    # private-method record shape; GLOBAL records have nonzero scope bytes.
+    $inputCount = [uint32]$Inputs.Count
+    $headerBytes = [byte[]]@(
+        0x0B, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        [byte]($inputCount -band 0xFF),
+        [byte](($inputCount -shr 8) -band 0xFF),
+        [byte](($inputCount -shr 16) -band 0xFF),
+        [byte](($inputCount -shr 24) -band 0xFF))
+    $metadataCandidates = @()
+    $nameSearchStart = 0
+    while ($nameSearchStart -lt $DatabaseText.Length) {
+        $nameStart = $DatabaseText.IndexOf(
+            $FunctionName,
+            $nameSearchStart,
+            [StringComparison]::Ordinal)
+        if ($nameStart -lt 0) {
+            break
+        }
+        $headerStart = $nameStart + $FunctionName.Length
+        if (Test-LasalClassDatabaseByteSequence `
+                -DatabaseBytes $DatabaseBytes `
+                -Start $headerStart `
+                -ExpectedBytes $headerBytes) {
+            $metadataCandidates += $nameStart
+        }
+        $nameSearchStart = $nameStart + $FunctionName.Length
+    }
+    if ($metadataCandidates.Count -ne 1) {
+        throw (
+            "$Owner exact private ABI record count is " +
+            "$($metadataCandidates.Count), expected one.")
+    }
+
+    $metadataStart = $metadataCandidates[0]
+    $headerEnd = $metadataStart + $FunctionName.Length +
+        $headerBytes.Count
+    $metadataLimit = [Math]::Min(
+        $DatabaseText.Length,
+        $metadataStart + 32768)
+    $cursor = $headerEnd
+    $expectedTokens = @()
+    foreach ($inputVariable in $Inputs) {
+        $inputName = [string]$inputVariable.Name
+        $inputType = [string]$inputVariable.Type
+        $inputNameStart = $DatabaseText.IndexOf(
+            $inputName,
+            $cursor,
+            [StringComparison]::Ordinal)
+        if (($inputNameStart -lt 0) -or
+            (($inputNameStart + $inputName.Length) -gt $metadataLimit)) {
+            throw "$Owner ordered input $inputName was not found in its record."
+        }
+        $inputNameLength = [uint32]$inputName.Length
+        $inputNamePrefix = [byte[]]@(
+            0x00, 0x01,
+            [byte]($inputNameLength -band 0xFF),
+            [byte](($inputNameLength -shr 8) -band 0xFF),
+            [byte](($inputNameLength -shr 16) -band 0xFF),
+            0xAA)
+        if (-not (Test-LasalClassDatabaseByteSequence `
+                    -DatabaseBytes $DatabaseBytes `
+                    -Start ($inputNameStart - $inputNamePrefix.Count) `
+                    -ExpectedBytes $inputNamePrefix)) {
+            throw "$Owner input $inputName lacks an exact variable-name record."
+        }
+
+        $inputTypeStart = $DatabaseText.IndexOf(
+            $inputType,
+            $inputNameStart + $inputName.Length,
+            [StringComparison]::Ordinal)
+        if (($inputTypeStart -lt 0) -or
+            (($inputTypeStart + $inputType.Length) -gt $metadataLimit)) {
+            throw "$Owner input $inputName type $inputType was not found in order."
+        }
+        $inputTypeLength = [uint32]$inputType.Length
+        $inputTypePrefix = [byte[]]@(
+            [byte]($inputTypeLength -band 0xFF),
+            [byte](($inputTypeLength -shr 8) -band 0xFF),
+            [byte](($inputTypeLength -shr 16) -band 0xFF),
+            0xAA)
+        if (-not (Test-LasalClassDatabaseByteSequence `
+                    -DatabaseBytes $DatabaseBytes `
+                    -Start ($inputTypeStart - $inputTypePrefix.Count) `
+                    -ExpectedBytes $inputTypePrefix)) {
+            throw "$Owner input $inputName type metadata is not exact $inputType."
+        }
+        $expectedTokens += $inputName
+        $expectedTokens += $inputType
+        $cursor = $inputTypeStart + $inputType.Length
+    }
+
+    $outputNameStart = $DatabaseText.IndexOf(
+        $OutputName,
+        $cursor,
+        [StringComparison]::Ordinal)
+    if (($outputNameStart -lt 0) -or
+        (($outputNameStart + $OutputName.Length) -gt $metadataLimit)) {
+        throw "$Owner output $OutputName was not found after the inputs."
+    }
+    $outputNameLength = [uint32]$OutputName.Length
+    $outputPrefix = [byte[]]@(
+        0x01, 0x00, 0x00, 0x00,
+        0x00, 0x01,
+        [byte]($outputNameLength -band 0xFF),
+        [byte](($outputNameLength -shr 8) -band 0xFF),
+        [byte](($outputNameLength -shr 16) -band 0xFF),
+        0xAA)
+    if (-not (Test-LasalClassDatabaseByteSequence `
+                -DatabaseBytes $DatabaseBytes `
+                -Start ($outputNameStart - $outputPrefix.Count) `
+                -ExpectedBytes $outputPrefix)) {
+        throw "$Owner output count/name metadata is not exactly one $OutputName."
+    }
+
+    $outputTypeStart = $DatabaseText.IndexOf(
+        $OutputType,
+        $outputNameStart + $OutputName.Length,
+        [StringComparison]::Ordinal)
+    if (($outputTypeStart -lt 0) -or
+        (($outputTypeStart + $OutputType.Length) -gt $metadataLimit)) {
+        throw "$Owner output $OutputName type $OutputType was not found."
+    }
+    $outputTypeLength = [uint32]$OutputType.Length
+    $outputTypePrefix = [byte[]]@(
+        [byte]($outputTypeLength -band 0xFF),
+        [byte](($outputTypeLength -shr 8) -band 0xFF),
+        [byte](($outputTypeLength -shr 16) -band 0xFF),
+        0xAA)
+    if (-not (Test-LasalClassDatabaseByteSequence `
+                -DatabaseBytes $DatabaseBytes `
+                -Start ($outputTypeStart - $outputTypePrefix.Count) `
+                -ExpectedBytes $outputTypePrefix)) {
+        throw "$Owner output $OutputName type metadata is not exact $OutputType."
+    }
+
+    $expectedTokens += $OutputName
+    $expectedTokens += $OutputType
+    $metadataTokenSegment = $DatabaseText.Substring(
+        $headerEnd,
+        ($outputTypeStart + $OutputType.Length) - $headerEnd)
+    $observedTokens = @(
+        [regex]::Matches(
+            $metadataTokenSegment,
+            ('(?<![A-Za-z0-9_])' +
+             '(?<Token>[A-Za-z_][A-Za-z0-9_]*)' +
+             '(?![A-Za-z0-9_])')) |
+            ForEach-Object { $_.Groups['Token'].Value })
+    if ([string]::Join('|', $observedTokens) -cne
+        [string]::Join('|', $expectedTokens)) {
+        throw "$Owner ordered input/output token inventory drifted."
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishGeneratedContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$ControlServiceText,
+        [Parameter(Mandatory = $true)][byte[]]$ClassDatabaseBytes,
+        [Parameter(Mandatory = $true)][string]$ClassDatabaseText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $publishState = Assert-LasalAxisOwnershipPublishStateContract `
+        -ControlServiceText $ControlServiceText `
+        -Owner "$Owner source"
+    $sourcePath =
+        '.\Class\LMCControlCommandService\LMCControlCommandService.st'
+    $recordStart = $ClassDatabaseText.IndexOf(
+        $sourcePath,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($recordStart -lt 0) {
+        throw "$Owner LMCControlCommandService Classes.lcb record is missing."
+    }
+    $recordEnd = $ClassDatabaseText.IndexOf(
+        '.\Class\',
+        $recordStart + $sourcePath.Length,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($recordEnd -lt 0) {
+        $recordEnd = $ClassDatabaseText.Length
+    }
+    $recordLength = $recordEnd - $recordStart
+    $recordBytes = [byte[]]::new($recordLength)
+    [Array]::Copy(
+        $ClassDatabaseBytes,
+        $recordStart,
+        $recordBytes,
+        0,
+        $recordLength)
+    $recordText = $ClassDatabaseText.Substring(
+        $recordStart,
+        $recordLength)
+
+    $helperContracts = @(
+        @{
+            Name = 'HandleAxisOwnershipPublishHomeReceipt'
+            Inputs = @(
+                @{ Name = 'AxisMask'; Type = 'UDINT' },
+                @{ Name = 'AdmissionToken'; Type = 'UDINT' },
+                @{ Name = 'OwnerGeneration'; Type = 'UDINT' },
+                @{ Name = 'ReportKind'; Type = 'UINT' },
+                @{ Name = 'ReportValue0'; Type = 'UDINT' },
+                @{ Name = 'ReportValue1'; Type = 'UDINT' },
+                @{ Name = 'ObservationCycle'; Type = 'UDINT' })
+        },
+        @{
+            Name = 'PrepareAxisOwnershipPublishDecision'
+            Inputs = @(
+                @{ Name = 'AxisMask'; Type = 'UDINT' },
+                @{ Name = 'AdmissionToken'; Type = 'UDINT' },
+                @{ Name = 'OwnerGeneration'; Type = 'UDINT' },
+                @{ Name = 'ReportKind'; Type = 'UINT' },
+                @{ Name = 'ExpectedSession'; Type = 'UDINT' },
+                @{ Name = 'ExpectedSequence'; Type = 'UDINT' },
+                @{ Name = 'ExpectedCommandId'; Type = 'DINT' },
+                @{ Name = 'ExpectedReference'; Type = 'DINT' },
+                @{ Name = 'ExpectedAdmissionMode'; Type = 'DINT' },
+                @{ Name = 'ExpectedOwnerKind'; Type = 'DINT' })
+        })
+
+    if ($publishState.Mode -ceq 'Monolith') {
+        foreach ($helperContract in $helperContracts) {
+            $nameCount = 0
+            $nameSearchStart = 0
+            while ($nameSearchStart -lt $ClassDatabaseText.Length) {
+                $nameStart = $ClassDatabaseText.IndexOf(
+                    $helperContract.Name,
+                    $nameSearchStart,
+                    [StringComparison]::Ordinal)
+                if ($nameStart -lt 0) {
+                    break
+                }
+                $nameCount++
+                $nameSearchStart = $nameStart + $helperContract.Name.Length
+            }
+            if ($nameCount -ne 0) {
+                throw (
+                    "$Owner monolith Classes.lcb helper " +
+                    "$($helperContract.Name) count is $nameCount, expected 0.")
+            }
+        }
+        return [pscustomobject]@{
+            Mode = 'Monolith'
+            HomeRecordCount = 0
+            DecisionRecordCount = 0
+        }
+    }
+
+    foreach ($helperContract in $helperContracts) {
+        Assert-LasalClassDatabasePrivateFunctionAbiRecord `
+            -DatabaseBytes $recordBytes `
+            -DatabaseText $recordText `
+            -FunctionName $helperContract.Name `
+            -Inputs $helperContract.Inputs `
+            -OutputName 'Result' `
+            -OutputType 'DINT' `
+            -Owner "$Owner Classes.lcb $($helperContract.Name)"
+    }
+    return [pscustomobject]@{
+        Mode = 'Split'
+        HomeRecordCount = 1
+        DecisionRecordCount = 1
+    }
+}
+
 function Get-LasalNetworkDatabaseRecord {
     param(
         [string]$DatabaseText,
@@ -25644,25 +26863,24 @@ if ($AxisOwnershipPublishVerifierSelfTestOnly) {
     $publishControl = Get-Content -Raw -LiteralPath $publishControlPath
     $publishDiagnostics =
         Get-Content -Raw -LiteralPath $publishDiagnosticsPath
-    $publishScan = Get-LasalScanText $publishControl
-    $publishMatches = [regex]::Matches(
-        $publishScan,
-        ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
-         'LMCControlCommandService::PublishAxisOwnership\s*$' +
-         '.*?^\s*END_FUNCTION\s*$'))
-    if ($publishMatches.Count -ne 1) {
-        throw (
-            'Current LMCControlCommandService publish implementation count ' +
-            "is $($publishMatches.Count), expected one.")
-    }
-    Assert-LasalAxisOwnershipPublishMutationFences `
-        -PublishBlock $publishMatches[0].Value `
+    $publishProviderState =
+        Assert-LasalAxisOwnershipPublishStateContract `
         -ControlServiceText $publishControl `
         -Owner 'Current LMCControlCommandService publish'
-    $publishNegativeFixtureCount =
+    $publishSplitNegativeFixtureCount =
+        Invoke-LasalAxisOwnershipPublishSplitVerifierSelfTest `
+            -ControlServiceText $publishControl `
+            -RepositoryRoot $publishRoot `
+            -Owner 'Axis ownership publish split transition'
+    $publishNegativeFixtureCount = if (
+        $publishProviderState.Mode -ceq 'Monolith') {
         Invoke-LasalAxisOwnershipPublishVerifierSelfTest `
             -ControlServiceText $publishControl `
             -Owner 'Current LMCControlCommandService publish'
+    }
+    else {
+        0
+    }
     $publishCallerContract =
         Assert-LasalAxisOwnershipPublishCallerContract `
             -TcpText $publishTcp `
@@ -25677,8 +26895,19 @@ if ($AxisOwnershipPublishVerifierSelfTestOnly) {
             -Owner 'Post-C78 target contract'
     Write-Host (
         'PASS LASAL.AxisOwnershipPublishVerifier.SelfTest (' +
-        "$publishNegativeFixtureCount/" +
-        "$publishNegativeFixtureCount provider negative fixtures rejected; " +
+        $(if ($publishProviderState.Mode -ceq 'Monolith') {
+                "$publishNegativeFixtureCount/" +
+                "$publishNegativeFixtureCount monolith provider negative " +
+                'fixtures rejected; '
+            }
+            else {
+                'legacy monolith provider verifier preserved; '
+            }) +
+        "$publishSplitNegativeFixtureCount/" +
+        "$publishSplitNegativeFixtureCount split structural transition " +
+        'fixtures rejected (planner semantic fixtures remain independent); ' +
+        'current provider state ' +
+        "$($publishProviderState.Mode); " +
         "$($publishCallerLegacySelfTest.NegativeCount)/" +
         "$($publishCallerLegacySelfTest.NegativeCount) legacy inventory negative fixtures " +
         'rejected; ' +
@@ -25723,8 +26952,7 @@ if ($AxisOwnershipReserveVerifierSelfTestOnly) {
             'Current LMCControlCommandService reserve shared closure or ' +
             'implementation count drifted.')
     }
-    Assert-LasalAxisOwnershipPublishMutationFences `
-        -PublishBlock $reservePublishMatches[0].Value `
+    $null = Assert-LasalAxisOwnershipPublishStateContract `
         -ControlServiceText $reserveControl `
         -Owner 'Current LMCControlCommandService reserve'
     Assert-LasalAxisOwnershipReserveMutationFences `
@@ -26683,6 +27911,20 @@ $controlServiceClassDbRecord = Get-LasalClassDatabaseRecord `
     -DatabaseText $classDbText `
     -SourcePath '.\Class\LMCControlCommandService\LMCControlCommandService.st' `
     -ClassName 'LMCControlCommandService'
+if (-not $SourceOnly) {
+    $publishGeneratedContract =
+        Assert-LasalAxisOwnershipPublishGeneratedContract `
+            -ControlServiceText $controlCommandService `
+            -ClassDatabaseBytes $classDbBytes `
+            -ClassDatabaseText $classDbText `
+            -Owner 'LMCControlCommandService Publish generated contract'
+    Write-Host (
+        'PASS LASAL.AxisOwnershipPublishGeneratedContract ' +
+        "$($publishGeneratedContract.Mode) " +
+        "($($publishGeneratedContract.HomeRecordCount)/" +
+        "$($publishGeneratedContract.DecisionRecordCount) " +
+        'Home/decision exact private ABI records)')
+}
 $axisRebaseClassDbPresent = $controlServiceClassDbRecord -match (
     '(?<![A-Za-z0-9_])AxisRebaseRequiredState(?![A-Za-z0-9_])')
 if ($axisRebaseDeclarationPresent -ne $axisRebaseClassDbPresent) {
@@ -39739,10 +40981,19 @@ $lmcHomeNegativeFixtures['ReserveIncompleteReceiptAccepted'] =
             $controlCommandService,
             '${1}=${2}',
             1)
+$lmcHomePublishProviderPattern = if (
+    (Get-LasalAxisOwnershipPublishMode `
+        -ControlServiceText $controlCommandService) -ceq 'SplitCandidate') {
+    'FUNCTION\s+LMCControlCommandService::' +
+        'HandleAxisOwnershipPublishHomeReceipt'
+}
+else {
+    'FUNCTION\s+GLOBAL\s+' +
+        'LMCControlCommandService::PublishAxisOwnership'
+}
 $lmcHomeNegativeFixtures['ReceiptReplayGenerationFenceInverted'] =
     ([regex]::new(
-        ('(?is)(FUNCTION\s+GLOBAL\s+' +
-         'LMCControlCommandService::PublishAxisOwnership\b.*?' +
+        ('(?is)(' + $lmcHomePublishProviderPattern + '\b.*?' +
          'if\s+ZeroHomeState\[60\]\$UDINT\s*=\s*' +
          'LMC_HOME_OWNER_RECEIPT_MAGIC.*?' +
          'ZeroHomeState\[63\]\$UDINT\s*)=(\s*ZeroHomeState\[33\]\$UDINT)'))).Replace(
@@ -39751,8 +41002,7 @@ $lmcHomeNegativeFixtures['ReceiptReplayGenerationFenceInverted'] =
             1)
 $lmcHomeNegativeFixtures['CompletedReceiptInterceptsUnrelatedPublish'] =
     ([regex]::new(
-        ('(?is)(FUNCTION\s+GLOBAL\s+' +
-         'LMCControlCommandService::PublishAxisOwnership\b.*?' +
+        ('(?is)(' + $lmcHomePublishProviderPattern + '\b.*?' +
          'if\s+ZeroHomeState\[60\]\$UDINT\s*=\s*' +
          'LMC_HOME_OWNER_RECEIPT_MAGIC.*?if\s+)' +
          'homeReceiptCallMatches(\s+then)'))).Replace(
@@ -39761,8 +41011,7 @@ $lmcHomeNegativeFixtures['CompletedReceiptInterceptsUnrelatedPublish'] =
             1)
 $lmcHomeNegativeFixtures['ReceiptObserverCleanupCanBeSkipped'] =
     ([regex]::new(
-        ('(?is)(FUNCTION\s+GLOBAL\s+' +
-         'LMCControlCommandService::PublishAxisOwnership\b.*?' +
+        ('(?is)(' + $lmcHomePublishProviderPattern + '\b.*?' +
          'if\s+homeReceiptPhase\s*<=\s*)' +
          'LMC_HOME_OWNER_RECEIPT_CLEAR_OBSERVER'))).Replace(
             $controlCommandService,

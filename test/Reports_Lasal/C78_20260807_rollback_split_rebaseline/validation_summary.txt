@@ -72,7 +72,8 @@ Current C78 raw-log evidence:
 
 Open evidence gates:
 - independent GUI Build Output transcript: NOT CAPTURED; strict dual-evidence verifier is pending
-- exact RollbackAxisOwnership and ValidateAxisOwnershipRollbackPreemptBank Find in Implementation smoke: NOT PROVEN
+- exact RollbackAxisOwnership and ValidateAxisOwnershipRollbackPreemptBank Edit Method direct-open smoke: NOT PROVEN
+- Object Network channel Find in Implementation class-index smoke: NOT PROVEN FOR THIS CHECKPOINT
 - the entire appended LASAL session has CInvalidArgException=0, but this does not prove the two exact search actions
 - retry baseline c78_rebuild_final_baseline.json captured with log prefix 8804871 bytes, SHA-256 0F31FDA40135CEB57A0743F475B247914CC80F6331E2B1F7BD2FCCE3CEBDAB58
 - download/restart/runtime: NOT RUN for A51E

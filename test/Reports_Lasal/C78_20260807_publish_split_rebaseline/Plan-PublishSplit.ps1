@@ -593,27 +593,29 @@ if ($privateClassDeclarations -match '(?i)\b(?:GLOBAL|VIRTUAL)\b') {
     throw 'Publish helper class declarations are not private.'
 }
 
-$publicClassDeclarationMatches = [regex]::Matches(
-    $source,
-    ('(?ms)^\tFUNCTION GLOBAL PublishAxisOwnership\n' +
-     '\t\tVAR_INPUT\n.*?^\t\tEND_VAR;\n'))
-if ($publicClassDeclarationMatches.Count -ne 1) {
-    throw 'Publish public class declaration count is not one.'
+$classTableAnchor = "  //Tables:`n"
+if ([regex]::Matches(
+        $source, '(?m)^  //Tables:\n').Count -ne 1) {
+    throw 'Publish class table insertion anchor count is not one.'
 }
-$publicClassDeclaration = $publicClassDeclarationMatches[0].Value
-
-$implementationBundle = $adapter + "`n`n" + $homeHelper +
+# LASAL CodeGenerator appends new private declarations immediately before the
+# table declarations and appends their implementation stubs at source EOF.
+# This is only a planning approximation: the IDE-generated stub header uses
+# its own tab alignment and separators.  Do not use the planned whole-source
+# hash as a post-IDE approval ratchet; rebase from the actual saved snapshot.
+$implementationAppend = "`n`n" + $homeHelper +
     "`n`n" + $decisionHelper
 $plannedSource = Replace-ExactOne `
     -Text $source `
-    -Old $publicClassDeclaration `
-    -New ($privateClassDeclarations + $publicClassDeclaration) `
+    -Old $classTableAnchor `
+    -New ($privateClassDeclarations + $classTableAnchor) `
     -Owner 'Publish planned private declarations'
 $plannedSource = Replace-ExactOne `
     -Text $plannedSource `
     -Old $method `
-    -New $implementationBundle `
-    -Owner 'Publish planned implementation bundle'
+    -New $adapter `
+    -Owner 'Publish planned adapter'
+$plannedSource += $implementationAppend
 
 function New-PlannedSourceFromFragments {
     param(
@@ -625,16 +627,16 @@ function New-PlannedSourceFromFragments {
 
     $candidateSource = Replace-ExactOne `
         -Text $source `
-        -Old $publicClassDeclaration `
-        -New ($CandidateDeclarations + $publicClassDeclaration) `
+        -Old $classTableAnchor `
+        -New ($CandidateDeclarations + $classTableAnchor) `
         -Owner 'Publish candidate private declarations'
-    $candidateBundle = $CandidateAdapter + "`n`n" +
-        $CandidateHomeHelper + "`n`n" + $CandidateDecisionHelper
-    return Replace-ExactOne `
+    $candidateSource = Replace-ExactOne `
         -Text $candidateSource `
         -Old $method `
-        -New $candidateBundle `
-        -Owner 'Publish candidate implementation bundle'
+        -New $CandidateAdapter `
+        -Owner 'Publish candidate adapter'
+    return $candidateSource + "`n`n" + $CandidateHomeHelper +
+        "`n`n" + $CandidateDecisionHelper
 }
 
 function Get-ReversedAdapter {
@@ -846,13 +848,17 @@ function Assert-PublishSplitCandidate {
     if ($CandidateSource -cne $expectedCandidateSource) {
         throw "$Owner candidate source/fragments diverged."
     }
-    $candidateBundle = $CandidateAdapter + "`n`n" +
-        $CandidateHomeHelper + "`n`n" + $CandidateDecisionHelper
     $reverseSource = Replace-ExactOne `
         -Text $CandidateSource `
-        -Old $candidateBundle `
+        -Old $CandidateAdapter `
         -New $reversedAdapter `
-        -Owner "$Owner reverse implementation bundle"
+        -Owner "$Owner reverse adapter"
+    $reverseSource = Replace-ExactOne `
+        -Text $reverseSource `
+        -Old ("`n`n" + $CandidateHomeHelper +
+            "`n`n" + $CandidateDecisionHelper) `
+        -New '' `
+        -Owner "$Owner reverse appended helpers"
     $reverseSource = Replace-ExactOne `
         -Text $reverseSource `
         -Old $CandidateDeclarations `
@@ -1248,6 +1254,10 @@ $result = [ordered]@{
             ($privateClassDeclarations -notmatch '(?i)\b(?:GLOBAL|VIRTUAL)\b')
         homeResult2Contained = $true
         decisionBitDomainChecked = $true
+        codeGeneratorAppendLayoutModeled = $true
+        wholeSourceHashIsPlanningOnly = $true
+        actualIdeStubHeaderNotCaptured = $true
+        requiresPostIdeSnapshotRebaseline = $true
         extractionOnlyLocalMovement = '16 Home + 41 decision locals'
         persistentMutationInventoryExact = $true
         originalCallInventoryExact = $true

@@ -1,0 +1,56 @@
+{
+  "schema": "LasalPublishSplitPreIdeBaseline/v1",
+  "phase": "post_c78_pre_publish_helper_ide",
+  "observedAt": "2026-08-07T14:00:38.4129759+09:00",
+  "captureMode": "read_only_checkpoint_while_lasal_open",
+  "approvalRatchet": false,
+  "source": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "physicalBytes": 608436,
+    "physicalSha256": "A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753",
+    "canonicalLfBytes": 591670,
+    "canonicalLfSha256": "7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE",
+    "lastWriteTime": "2026-08-07T10:38:06.9226422+09:00"
+  },
+  "classesLcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+    "bytes": 8430171,
+    "sha256": "54617F162BF631ECD7779CC7356414E7BC95C1C680FA0A74587E5C9C5B3EE553",
+    "lastWriteTime": "2026-08-07T13:28:15.0721895+09:00"
+  },
+  "projectLcb": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb",
+    "bytes": 634514,
+    "sha256": "4F384C743CFF388967594F1F37F2CA51952134D3D53A9AEED201FDA2423F5F7A",
+    "lastWriteTime": "2026-08-07T13:28:15.3162173+09:00"
+  },
+  "network": {
+    "trackedCount": 15,
+    "availableCount": 23,
+    "unionCount": 23,
+    "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759",
+    "inventoryAlgorithm": "sort unique tracked-plus-available relative paths; join path|tracked01|available01|bytes|uppercase-sha256 with LF; UTF-8 SHA-256",
+    "ioConnectionManager": {
+      "bytes": 7682,
+      "sha256": "DD6922DA3D499B3F3FED809C8685A9F8EB395E171910A7AFF81610FB442E0208",
+      "lastWriteTime": "2026-08-07T13:26:48.0217323+09:00",
+      "note": "IDE migrated schema Version 2 to Version 3 before this checkpoint; compare later phases to this observed state, not HEAD."
+    }
+  },
+  "ide": {
+    "processName": "Lasal2",
+    "processId": 12836,
+    "observedAt": "2026-08-07T14:05:26.6562416+09:00",
+    "processStart": "2026-08-07T13:48:39.8172075+09:00",
+    "windowTitle": "Lasal Class 2 (02.03.002) - {Elmo_EtherCAT_Test_4Axis} - TCPMotionInterface",
+    "runningAtCheckpoint": true,
+    "note": "This checkpoint anchors pre-helper hashes only. Final post-IDE capture requires LASAL to be fully closed and stable-input revalidation."
+  },
+  "lasalLog": {
+    "path": "%TEMP%/Lasal2.log",
+    "observedAt": "2026-08-07T14:05:26.6562416+09:00",
+    "bytes": 11190840,
+    "lastObservedLine": 128132,
+    "lastWriteTime": "2026-08-07T13:49:22.4009489+09:00"
+  }
+}
