@@ -1261,23 +1261,26 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
   synthetic regression fixture에만 남음
 - publish의 post-C78 split은 private
   `HandleAxisOwnershipPublishHomeReceipt(...)`와 `PrepareAxisOwnershipPublishDecision(...)` 두 helper로
-  source-only 적용됐다. 실제 post-IDE/pre-split capture는 CRLF `609947` bytes /
+  적용됐다. 실제 post-IDE/pre-split capture는 CRLF `609947` bytes /
   `C636265238F44D73FDC483309BFB1FF48384EFCD7AF44EE487071CB467281AE5`, canonical LF `593113` bytes /
   `F923D5F5A2649B33911072537BFF4B9CB597FAB1C3C8E1D956C8AB5F3C80B2DC`다. declaration은
   `//Tables:` 직전, qualified empty stub은 EOF에 모두 Home -> Decision 순서로 존재했다. external body
-  적용 뒤 canonical LF는 `594938` bytes /
-  `8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. expected CRLF projection
-  `611837` bytes / `B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`은
-  아직 IDE Save/Rebuild로 관찰한 값이 아니다. terminal EOL 제외 adapter/Home/Decision canonical-LF는
+  적용과 final C78 Rebuild 뒤 canonical LF는 `594938` bytes /
+  `8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`로 유지됐다. expected CRLF
+  projection `611837` bytes / `B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`은 actual
+  post-build source가 아니다. terminal EOL 제외 adapter/Home/Decision canonical-LF는
   각각 `26265/15035/24708` bytes이고 SHA-256은 `355A0EA7...` / `EF688642...` / `75804F7C...`다.
-  inventory는 `98/95/3`이며 source private helper와 `Classes.lcb` exact private ABI record는 각각
-  `1/1`, ordered input은 `7/10`, output은 각 `Result : DINT` 하나다. body rollback은 declaration/stub을
-  유지한 채 F923/C636 post-IDE PRE를 복원하며, generated declaration/stub까지 별도로 제거해야만
-  7EAB/A51E를 복원한다. 과거 Home `15027`, Decision `24697`, A293/C4B whole-source 값은 실제 IDE
-  capture 전 superseded planning simulation이다. Publish focused static contract와 TW19 negative
-  `37/37`, waiver 없는 full `-SourceOnly -ExpectedSdoWriteAxis 1`은 PASS했다. generated metadata를
-  포함한 full `-ExpectedSdoWriteAxis 1`도 exact private ABI `1/1`로 PASS했다. C78
-  Rebuild/implementation smoke는 아직 남아 있음
+  inventory는 `98/95/3`이다. post-build `Classes.lcb`는 `8434505` bytes / `CA5CE9AB...`이고 Split
+  exact private ABI record `1/1`, ordered input `7/10`, output 각 `Result : DINT`를 보존한다. project
+  `.lcb`는 `634514` bytes / `438DE310...`, Network는 `23/23`, drift `0`, `B80867C9...`다. body rollback은
+  declaration/stub을 유지한 채 F923/C636 post-IDE PRE를 복원하며, generated declaration/stub까지
+  별도로 제거해야만 7EAB/A51E를 복원한다. 과거 Home `15027`, Decision `24697`, A293/C4B whole-source
+  값은 실제 IDE capture 전 superseded planning simulation이다. Publish focused static contract와 TW19
+  negative `37/37`, waiver 없는 full SourceOnly은 PASS했다. final C78/ARM Rebuild는
+  16:31:49~16:32:12에 `0 errors / 61 warnings`, Compiler Done 2회, Linker Done, command succeeded
+  `23.5 s`로 완료됐다. class-level `InputLatch`/`LMCAxis1` implementation search와
+  `CInvalidArgException=0`도 PASS했고, post-build full contract는 `236.9`초에 generated Split ABI
+  `1/1`로 PASS했다. PLC/runtime proof는 남아 있음
 - `ReserveAxisOwnership` 안의 미선언 `preemptRecordBase` 5개 참조를 이미 선언된 동일 record-base local
   `probeRecordBase`로 교정했다. public/class ABI, local 수와 call/write/result 순서는 불변이다.
   교정 뒤 method raw/LF/all-CRLF는 `79880/77732/79881`, raw block SHA-256은
@@ -1829,11 +1832,11 @@ empty stub인 중간상태였다. capture는
 `test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_manifest.json`과 원본 CRLF
 snapshot에 보존했다.
 
-external split 적용 뒤 current canonical source는 LF `594938` bytes / SHA-256
-`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. expected all-CRLF projection은
-`611837` bytes / SHA-256
-`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`이지만 아직 실제 C78 IDE가
-저장하거나 빌드한 physical evidence는 아니다. terminal EOL 제외 current method는 다음과 같다.
+external split 적용과 final C78 Rebuild 뒤 current canonical source는 LF `594938` bytes / SHA-256
+`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`로 byte-exact 유지됐다. expected
+all-CRLF projection `611837` bytes / SHA-256
+`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`은 actual post-build source가
+아닌 projection 진단값이다. terminal EOL 제외 current method는 다음과 같다.
 
 - adapter: `26265` bytes /
   `355A0EA77E13D0CA612BDBD9FA0A55FCA5233B33D3C4DEAC91F5BAEED2B108BE`
@@ -1842,20 +1845,30 @@ external split 적용 뒤 current canonical source는 LF `594938` bytes / SHA-25
 - Decision: `24708` bytes /
   `75804F7C0681D51416E75C55D54038162E71768EAFF00C4057F8200D138FC377`
 
-current inventory는 `98/95/3`이다. source private helper는 각각 한 개이고 `Classes.lcb`에도 exact private
-ABI record가 각각 한 개 있다. ordered input은 `7/10`, output은 각 `Result : DINT` 하나다. external
-body 적용 뒤 pre-build ratchet은 다음과 같이 유지됐다.
+current inventory는 `98/95/3`이다. post-build generated/project/Network evidence는 다음과 같다.
 
-- `Classes.lcb`: `6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22`
-- project `.lcb`: `B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA`
-- Network inventory: `B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`
+- `Classes.lcb`: `8434505` bytes /
+  `CA5CE9AB4B6AFB498D55CF6E5D3460A2C35D54FF8E4FE9C9D3B59636C3603F78`; Split helper record
+  `1/1`, exact private ABI, ordered input `7/10`, 각 output `Result : DINT`
+- project `.lcb`: `634514` bytes /
+  `438DE310CA23C672B52F57483159520887890C17A76B2AE288B7707F4549A919`
+- Network available/union `23/23`, pre-build 대비 drift `0`, inventory
+  `B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`
 
-Publish focused static contract와 TW19 negative `37/37`은 PASS했다. waiver 없는 full
-`-SourceOnly -ExpectedSdoWriteAxis 1`도 `233.9`초에 exit `0`으로 PASS했다. generated metadata를 포함한
-full `-ExpectedSdoWriteAxis 1`은 `236.2`초에 exact private ABI `1/1`로 PASS했다. C78 Rebuild와
-implementation smoke는 아직 수행하지 않았다. body split만 reverse하면 generated declaration/empty
-stub을 유지한 F923/C636 post-IDE PRE를 복원한다. generated
-declaration/stub까지 별도로 제거해야만 7EAB/A51E를 복원한다. A51E를 대상으로 계산했던 Home
-`15027`, Decision `24697` bytes와 A293/C4B whole-source 값은 actual capture 전의 superseded planning
-simulation이다. 다음 순서는 C78 Rebuild와 implementation smoke로 실제 generated/build 상태를
-확인하는 것이다.
+final C78/ARM Rebuild는 16:31:49~16:32:12에 `0 errors / 61 warnings`, `Compiler Done` 2회,
+`Linker Done`, command succeeded로 끝났고 경과시간은 `23.5 s`다. 그보다 앞선 project-load `E0015`와
+첫 persistence write 실패는 final build window와 분리한 이전 시도 이력이다. final 성공은 이 과거
+실패를 삭제하지 않으며, 과거 실패도 최종 성공 rebuild의 compiler error로 합산하지 않는다. 관련
+`Lasal2.log` 전체의 `CInvalidArgException`은 `0`건이다.
+
+class-level `InputLatch`와 `LMCAxis1`의 `Find in Implementation`은 성공했다. 첨부 출력은 `29` hits,
+`1` matched file / `3` searched files이고 result presentation이 큰 것은 검색 실패가 아니다. 이를 changed-
+class implementation smoke로 승인하지만 새 Home/Decision helper를 직접 검색했다고 주장하지 않는다.
+
+Publish focused static contract와 TW19 negative `37/37`, waiver 없는 pre-build full SourceOnly은 PASS했다.
+post-build full `Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1`도 `236.9`초에 generated Split exact private
+ABI `1/1`로 PASS했다. 따라서 source/static/C78/link/generated/changed-class smoke gate는 닫혔다. body
+split만 reverse하면 generated declaration/empty stub을 유지한 F923/C636 post-IDE PRE를 복원하고,
+generated declaration/stub까지 별도로 제거해야만 7EAB/A51E를 복원한다. A51E를 대상으로 계산했던
+Home `15027`, Decision `24697` bytes와 A293/C4B whole-source 값은 actual capture 전 superseded planning
+simulation이다. PLC download, reconnect와 실축 runtime proof는 아직 남아 있다.

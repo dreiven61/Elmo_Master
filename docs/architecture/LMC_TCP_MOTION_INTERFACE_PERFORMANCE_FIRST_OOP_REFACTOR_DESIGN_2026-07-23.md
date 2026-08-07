@@ -1003,12 +1003,12 @@ commit을 시작하지 않는다.
 `//Tables:` 직전에 Home -> Decision 순서로 있고, 같은 순서의 qualified empty implementation stub은
 source EOF에 있다. 이 capture가 실제 CodeGenerator header와 separator의 기준이다.
 
-그 snapshot을 LF로 정규화한 뒤 external implementation split을 적용했다. current canonical source는
-LF `594938` bytes / SHA-256
-`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`다. 같은 text를 모두 CRLF로
-투영한 expected 값은 `611837` bytes / SHA-256
-`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`이지만, 아직 IDE Save/Rebuild로
-관찰한 물리 파일 값은 아니다. terminal EOL을 제외한 current method canonical-LF 크기와 SHA-256은
+그 snapshot을 LF로 정규화한 뒤 external implementation split을 적용했다. final C78 Rebuild 뒤에도
+canonical source는 LF `594938` bytes / SHA-256
+`8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`로 byte-exact 유지됐다. 같은 text의
+all-CRLF expected projection `611837` bytes / SHA-256
+`B6A3D9368AA5A81ADD58B002A8504607443ACDAA6AD176E8193FFEBEC9552636`은 실제 post-build source가
+아니라 projection 진단값이다. terminal EOL을 제외한 current method canonical-LF 크기와 SHA-256은
 다음과 같다.
 
 - public adapter: `26265` bytes,
@@ -1019,23 +1019,33 @@ LF `594938` bytes / SHA-256
   `75804F7C0681D51416E75C55D54038162E71768EAFF00C4057F8200D138FC377`
 
 세 method는 모두 `32768` bytes 미만이다. current custom method inventory는 `98/95/3`
-(전체/under-limit/baseline debt)이다. source의 private helper record는 각각 `1/1`이고,
-`Classes.lcb`는 ordered input `7/10`, output `1`, `Result : DINT`의 exact private ABI record를 각각
-한 개 포함한다. external body 적용 뒤에도 generated/project/Network는 다음 pre-build ratchet과 같다.
+(전체/under-limit/baseline debt)이다. post-build generated/project/Network ratchet은 다음과 같다.
 
-- `Classes.lcb`: SHA-256
-  `6B90C4DB117AB5C2B01BF773BA5A19DA845F3533ABBF1273CC4A25E4B8710E22`
-- project `.lcb`: SHA-256
-  `B14FFC8FC952BF7059A738A51380215CAEEE31FE2662F4E754E91653EB2F33CA`
-- Network inventory: SHA-256
+- `Classes.lcb`: `8434505` bytes / SHA-256
+  `CA5CE9AB4B6AFB498D55CF6E5D3460A2C35D54FF8E4FE9C9D3B59636C3603F78`;
+  Split helper record `1/1`, exact private ABI, ordered input `7/10`, 각 output `Result : DINT`
+- project `.lcb`: `634514` bytes / SHA-256
+  `438DE310CA23C672B52F57483159520887890C17A76B2AE288B7707F4549A919`
+- Network available/union `23/23`, pre-build 대비 drift `0`, inventory SHA-256
   `B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`
 
-Publish focused static contract는 current split을 PASS했고 중간 empty-stub 상태는 더 이상 current가 아니다.
-TW19 verifier도 split adapter와 Home helper를 함께 검사하도록 보완해 negative `37/37`을 거부했다.
-waiver 없는 full `-SourceOnly -ExpectedSdoWriteAxis 1`은 `233.9`초에 exit `0`으로 PASS했다. generated
-metadata를 포함한 full `-ExpectedSdoWriteAxis 1`도 `236.2`초에 exact private ABI `1/1`로 PASS했다.
-C78 Rebuild와 implementation smoke는 아직 수행하지 않았다. 따라서 이 checkpoint는 source-only split과
-static contract 완료이지 build/IDE/runtime 완료가 아니다.
+final C78/ARM Rebuild는 2026-08-07 16:31:49~16:32:12에 실행됐다. compiler 집계는
+`0 errors / 61 warnings`, `Compiler Done` 2회, `Linker Done`, command succeeded이며 경과시간은
+`23.5 s`다. 이 final build window보다 앞선 project-load `E0015`와 첫 persistence write 실패는 이전
+시도 이력으로 별도 보존한다. 둘을 final rebuild 오류로 합산하지 않으며, 반대로 final 성공이 이전 시도
+실패가 없었다는 뜻도 아니다. 최종 source/Classes/project hash와 command 결과가 후속 성공 상태다.
+관련 `Lasal2.log` 전체의 `CInvalidArgException`은 `0`건이다.
+
+changed-class smoke로 class-level `InputLatch`와 `LMCAxis1`의 `Find in Implementation`이 성공했다.
+첨부 결과는 `29` hits, `1` matched file / `3` searched files이며 large result presentation은 검색 실패가
+아니다. 이 증거는 변경 class의 implementation search smoke로 승인하지만 새 Home/Decision helper를
+직접 검색했다고 주장하지 않는다.
+
+Publish focused static contract와 split-aware TW19 negative `37/37`, pre-build waiver 없는 full
+`-SourceOnly -ExpectedSdoWriteAxis 1`은 PASS했다. Rebuild 뒤 generated metadata를 다시 읽은 full
+`Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1`도 `236.9`초에 Split exact private ABI `1/1`로 PASS했다.
+따라서 source/static/C78/link/generated/changed-class smoke gate는 닫혔다. PLC download, reconnect 및
+실축 runtime proof는 아직 수행하지 않았다.
 
 body split만 reverse하면 generated declaration과 qualified empty stub을 유지한 채 post-IDE PRE인
 canonical LF `F923D5F5...` / physical CRLF `C6362652...`를 복원한다. generated declaration/stub까지
