@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
-<IOConnectionManager Version="2" Detail="0" PLC="">
+<IOConnectionManager Version="3" Detail="0" PLC="">
 	<!-- List of Entries -->
-	<Entry Name="**IOCONN_EMPTY**" GUID="{CFC3F6B6-2BC4-4341-B7EA-79F5774572AB}" Objectsize="284">
+	<Entry
+		Name       = "**IOCONN_EMPTY**"
+		GUID       = "{CFC3F6B6-2BC4-4341-B7EA-79F5774572AB}"
+		Objectsize = "284"
+		Advanced   = "0">
 		<!-- List of Connections -->
 		<IOConnections>
 			<IOConnection ObjSrv="Elmo_11" Server="AxError" ObjClt="PosController1" Client="iHWErrors" IOI="Input" Type="Digital" SortIndex="0" KeyName="000000" Advanced="0"/>
