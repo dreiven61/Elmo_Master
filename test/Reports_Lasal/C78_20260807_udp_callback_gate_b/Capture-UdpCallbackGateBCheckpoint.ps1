@@ -29,9 +29,12 @@ $TargetRelativeRoot = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
 $VerifierRelativePath =
     'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/' +
     'Verify-LasalUdpCallbackContract.ps1'
+$AllowedAmbientNonIgnoredTargetPaths = @(
+    "$TargetRelativeRoot/Class/TestClass/TestClass.st")
 $ExpectedVerifierCanonicalLfBytes = 409934
 $ExpectedVerifierCanonicalLfSha256 =
     'E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC'
+$script:ContainedProcessNativeType = $null
 
 $PhaseContracts = [ordered]@{
     GateA_VendorImported = [ordered]@{
@@ -299,16 +302,41 @@ function Set-SanitizedChildProcessEnvironment {
         [Diagnostics.ProcessStartInfo]$StartInfo
     )
 
-    # A caller-controlled Git environment can redirect repository, index,
-    # object, ref, shallow, namespace, or injected configuration state even
-    # when every command supplies an explicit -C repository root. Remove the
-    # complete Git control namespace, then add back only deterministic controls
-    # needed by this evidence tool. This applies to Git and verifier children.
+    # Caller-controlled Git variables can redirect repository/index/object/ref
+    # state. Managed-runtime variables can execute startup hooks or profilers
+    # before pwsh reaches -NoProfile -File. Remove both control surfaces before
+    # constructing the explicit child environment block. This applies to Git,
+    # verifier, and native filter descendants through normal environment
+    # inheritance.
     foreach ($name in @($StartInfo.Environment.Keys)) {
-        if ([string]$name -and
-            ([string]$name).StartsWith(
+        $environmentName = [string]$name
+        $removeByPrefix = $false
+        foreach ($prefix in @(
                 'GIT_',
-                [StringComparison]::OrdinalIgnoreCase)) {
+                'DOTNET_',
+                'CORECLR_',
+                'COREHOST_',
+                'COR_',
+                'COMPLUS_',
+                'MSBUILD',
+                'NUGET_',
+                'VSTEST_',
+                'POWERSHELL_')) {
+            if ($environmentName.StartsWith(
+                    $prefix,
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                $removeByPrefix = $true
+                break
+            }
+        }
+        $removeExact = @(
+            'APPDOMAIN_MANAGER_ASM',
+            'APPDOMAIN_MANAGER_TYPE',
+            'DEVPATH',
+            'PSExecutionPolicyPreference',
+            'PSModulePath',
+            '__PSLockdownPolicy') -contains $environmentName
+        if ($environmentName -and ($removeByPrefix -or $removeExact)) {
             $null = $StartInfo.Environment.Remove([string]$name)
         }
     }
@@ -316,53 +344,836 @@ function Set-SanitizedChildProcessEnvironment {
     $StartInfo.Environment['GIT_PAGER'] = 'cat'
     $StartInfo.Environment['GIT_TERMINAL_PROMPT'] = '0'
     $StartInfo.Environment['NO_COLOR'] = '1'
+    $StartInfo.Environment['PSModulePath'] = Join-Path $PSHOME 'Modules'
+}
+
+function Initialize-ContainedProcessNativeType {
+    if ($null -ne $script:ContainedProcessNativeType) {
+        return $script:ContainedProcessNativeType
+    }
+
+    $namespace = 'ElmoUdpCheckpoint_' + [Guid]::NewGuid().ToString('N')
+    $expectedTypeName = $namespace + '.NativeContainedProcess'
+    $source = @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
+
+namespace __ELMO_UDP_CHECKPOINT_NAMESPACE__
+{
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct IoCounters
+    {
+        internal ulong ReadOperationCount;
+        internal ulong WriteOperationCount;
+        internal ulong OtherOperationCount;
+        internal ulong ReadTransferCount;
+        internal ulong WriteTransferCount;
+        internal ulong OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct JobObjectBasicLimitInformation
+    {
+        internal long PerProcessUserTimeLimit;
+        internal long PerJobUserTimeLimit;
+        internal uint LimitFlags;
+        internal UIntPtr MinimumWorkingSetSize;
+        internal UIntPtr MaximumWorkingSetSize;
+        internal uint ActiveProcessLimit;
+        internal UIntPtr Affinity;
+        internal uint PriorityClass;
+        internal uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct JobObjectExtendedLimitInformation
+    {
+        internal JobObjectBasicLimitInformation BasicLimitInformation;
+        internal IoCounters IoInfo;
+        internal UIntPtr ProcessMemoryLimit;
+        internal UIntPtr JobMemoryLimit;
+        internal UIntPtr PeakProcessMemoryUsed;
+        internal UIntPtr PeakJobMemoryUsed;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct StartupInfo
+    {
+        internal uint cb;
+        internal IntPtr lpReserved;
+        internal IntPtr lpDesktop;
+        internal IntPtr lpTitle;
+        internal uint dwX;
+        internal uint dwY;
+        internal uint dwXSize;
+        internal uint dwYSize;
+        internal uint dwXCountChars;
+        internal uint dwYCountChars;
+        internal uint dwFillAttribute;
+        internal uint dwFlags;
+        internal ushort wShowWindow;
+        internal ushort cbReserved2;
+        internal IntPtr lpReserved2;
+        internal IntPtr hStdInput;
+        internal IntPtr hStdOutput;
+        internal IntPtr hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct StartupInfoEx
+    {
+        internal StartupInfo StartupInfo;
+        internal IntPtr lpAttributeList;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ProcessInformation
+    {
+        internal IntPtr hProcess;
+        internal IntPtr hThread;
+        internal uint dwProcessId;
+        internal uint dwThreadId;
+    }
+
+    public sealed class NativeContainedProcess : IDisposable
+    {
+        private const uint JobObjectLimitKillOnJobClose = 0x00002000;
+        private const int JobObjectExtendedLimitInformationClass = 9;
+        private const uint StartfUseStdHandles = 0x00000100;
+        private const uint CreateSuspended = 0x00000004;
+        private const uint CreateUnicodeEnvironment = 0x00000400;
+        private const uint ExtendedStartupInfoPresent = 0x00080000;
+        private const uint CreateNoWindow = 0x08000000;
+        private const UIntPtr ProcThreadAttributeHandleList =
+            (UIntPtr)0x00020002;
+        private const UIntPtr ProcThreadAttributeJobList =
+            (UIntPtr)0x0002000D;
+        private const uint Infinite = 0xFFFFFFFF;
+        private const uint WaitObject0 = 0x00000000;
+        private const uint WaitFailed = 0xFFFFFFFF;
+
+        private SafeFileHandle processHandle;
+        private SafeFileHandle jobHandle;
+        private Task<int> exitTask;
+
+        private NativeContainedProcess(
+            SafeFileHandle process,
+            SafeFileHandle job,
+            uint processId)
+        {
+            processHandle = process;
+            jobHandle = job;
+            ProcessId = processId;
+        }
+
+        public uint ProcessId { get; private set; }
+
+        public static string BuildCommandLine(
+            string applicationPath,
+            string[] arguments)
+        {
+            if (applicationPath == null)
+                throw new ArgumentNullException("applicationPath");
+            if (arguments == null)
+                throw new ArgumentNullException("arguments");
+            if (applicationPath.IndexOf('\0') >= 0)
+                throw new ArgumentException(
+                    "The application path cannot contain NUL.",
+                    "applicationPath");
+            StringBuilder result = new StringBuilder();
+            result.Append(QuoteArgument(applicationPath));
+            foreach (string argument in arguments)
+            {
+                if (argument == null)
+                    throw new ArgumentException(
+                        "A process argument cannot be null.", "arguments");
+                if (argument.IndexOf('\0') >= 0)
+                    throw new ArgumentException(
+                        "A process argument cannot contain NUL.", "arguments");
+                result.Append(' ');
+                result.Append(QuoteArgument(argument));
+            }
+            if (result.Length >= 32767)
+                throw new ArgumentException(
+                    "The Windows process command line is too long.",
+                    "arguments");
+            return result.ToString();
+        }
+
+        private static string QuoteArgument(string value)
+        {
+            bool needsQuotes = value.Length == 0;
+            foreach (char character in value)
+            {
+                if (Char.IsWhiteSpace(character) || character == '"')
+                {
+                    needsQuotes = true;
+                    break;
+                }
+            }
+            if (!needsQuotes)
+                return value;
+
+            StringBuilder result = new StringBuilder();
+            result.Append('"');
+            int backslashes = 0;
+            foreach (char character in value)
+            {
+                if (character == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+                if (character == '"')
+                {
+                    result.Append('\\', (backslashes * 2) + 1);
+                    result.Append('"');
+                    backslashes = 0;
+                    continue;
+                }
+                result.Append('\\', backslashes);
+                backslashes = 0;
+                result.Append(character);
+            }
+            result.Append('\\', backslashes * 2);
+            result.Append('"');
+            return result.ToString();
+        }
+
+        public static NativeContainedProcess Start(
+            string applicationPath,
+            string commandLine,
+            string workingDirectory,
+            string environmentBlock,
+            IntPtr standardInput,
+            IntPtr standardOutput,
+            IntPtr standardError)
+        {
+            SafeFileHandle job = null;
+            SafeFileHandle process = null;
+            SafeFileHandle thread = null;
+            IntPtr attributeList = IntPtr.Zero;
+            IntPtr handleList = IntPtr.Zero;
+            IntPtr jobList = IntPtr.Zero;
+            IntPtr environment = IntPtr.Zero;
+            bool attributeListInitialized = false;
+            try
+            {
+                IntPtr rawJob = CreateJobObject(IntPtr.Zero, null);
+                if (rawJob == IntPtr.Zero || rawJob == new IntPtr(-1))
+                    ThrowLastWin32("CreateJobObject");
+                job = new SafeFileHandle(rawJob, true);
+
+                JobObjectExtendedLimitInformation limits =
+                    new JobObjectExtendedLimitInformation();
+                limits.BasicLimitInformation.LimitFlags =
+                    JobObjectLimitKillOnJobClose;
+                if (!SetInformationJobObject(
+                        job.DangerousGetHandle(),
+                        JobObjectExtendedLimitInformationClass,
+                        ref limits,
+                        (uint)Marshal.SizeOf(
+                            typeof(JobObjectExtendedLimitInformation))))
+                    ThrowLastWin32("SetInformationJobObject");
+
+                UIntPtr attributeBytes = UIntPtr.Zero;
+                InitializeProcThreadAttributeList(
+                    IntPtr.Zero, 2, 0, ref attributeBytes);
+                if (attributeBytes == UIntPtr.Zero)
+                    ThrowLastWin32("InitializeProcThreadAttributeList(size)");
+                attributeList = Marshal.AllocHGlobal(
+                    checked((int)attributeBytes.ToUInt64()));
+                if (!InitializeProcThreadAttributeList(
+                        attributeList, 2, 0, ref attributeBytes))
+                    ThrowLastWin32("InitializeProcThreadAttributeList");
+                attributeListInitialized = true;
+
+                handleList = Marshal.AllocHGlobal(IntPtr.Size * 3);
+                Marshal.WriteIntPtr(handleList, 0, standardInput);
+                Marshal.WriteIntPtr(handleList, IntPtr.Size, standardOutput);
+                Marshal.WriteIntPtr(handleList, IntPtr.Size * 2, standardError);
+                if (!UpdateProcThreadAttribute(
+                        attributeList,
+                        0,
+                        ProcThreadAttributeHandleList,
+                        handleList,
+                        (IntPtr)(IntPtr.Size * 3),
+                        IntPtr.Zero,
+                        IntPtr.Zero))
+                    ThrowLastWin32("UpdateProcThreadAttribute(handle list)");
+
+                jobList = Marshal.AllocHGlobal(IntPtr.Size);
+                Marshal.WriteIntPtr(jobList, job.DangerousGetHandle());
+                if (!UpdateProcThreadAttribute(
+                        attributeList,
+                        0,
+                        ProcThreadAttributeJobList,
+                        jobList,
+                        (IntPtr)IntPtr.Size,
+                        IntPtr.Zero,
+                        IntPtr.Zero))
+                    ThrowLastWin32("UpdateProcThreadAttribute(job list)");
+
+                StartupInfoEx startup = new StartupInfoEx();
+                startup.StartupInfo.cb =
+                    (uint)Marshal.SizeOf(typeof(StartupInfoEx));
+                startup.StartupInfo.dwFlags = StartfUseStdHandles;
+                startup.StartupInfo.hStdInput = standardInput;
+                startup.StartupInfo.hStdOutput = standardOutput;
+                startup.StartupInfo.hStdError = standardError;
+                startup.lpAttributeList = attributeList;
+
+                environment = Marshal.StringToHGlobalUni(environmentBlock);
+                ProcessInformation processInformation;
+                StringBuilder mutableCommandLine = new StringBuilder(commandLine);
+                uint creationFlags =
+                    CreateSuspended |
+                    CreateUnicodeEnvironment |
+                    ExtendedStartupInfoPresent |
+                    CreateNoWindow;
+                if (!CreateProcess(
+                        applicationPath,
+                        mutableCommandLine,
+                        IntPtr.Zero,
+                        IntPtr.Zero,
+                        true,
+                        creationFlags,
+                        environment,
+                        workingDirectory,
+                        ref startup,
+                        out processInformation))
+                    ThrowLastWin32("CreateProcess");
+                process = new SafeFileHandle(processInformation.hProcess, true);
+                thread = new SafeFileHandle(processInformation.hThread, true);
+
+                bool isInJob;
+                if (!IsProcessInJob(
+                        process.DangerousGetHandle(),
+                        job.DangerousGetHandle(),
+                        out isInJob))
+                    ThrowLastWin32("IsProcessInJob");
+                if (!isInJob)
+                    throw new InvalidOperationException(
+                        "Created process was not atomically assigned to its job.");
+
+                uint previousSuspendCount =
+                    ResumeThread(thread.DangerousGetHandle());
+                if (previousSuspendCount == UInt32.MaxValue)
+                    ThrowLastWin32("ResumeThread");
+
+                NativeContainedProcess result = new NativeContainedProcess(
+                    process,
+                    job,
+                    processInformation.dwProcessId);
+                process = null;
+                job = null;
+                return result;
+            }
+            catch
+            {
+                if (job != null)
+                    job.Dispose();
+                if (process != null && !process.IsInvalid)
+                {
+                    TerminateProcess(process.DangerousGetHandle(), 1);
+                    WaitForSingleObject(process.DangerousGetHandle(), 5000);
+                }
+                throw;
+            }
+            finally
+            {
+                if (thread != null)
+                    thread.Dispose();
+                if (process != null)
+                    process.Dispose();
+                if (job != null)
+                    job.Dispose();
+                if (attributeListInitialized)
+                    DeleteProcThreadAttributeList(attributeList);
+                if (attributeList != IntPtr.Zero)
+                    Marshal.FreeHGlobal(attributeList);
+                if (handleList != IntPtr.Zero)
+                    Marshal.FreeHGlobal(handleList);
+                if (jobList != IntPtr.Zero)
+                    Marshal.FreeHGlobal(jobList);
+                if (environment != IntPtr.Zero)
+                    Marshal.FreeHGlobal(environment);
+            }
+        }
+
+        public Task<int> WaitForExitAsync()
+        {
+            if (exitTask != null)
+                return exitTask;
+            SafeFileHandle retainedProcessHandle = processHandle;
+            bool addedReference = false;
+            retainedProcessHandle.DangerousAddRef(ref addedReference);
+            try
+            {
+                IntPtr handle = retainedProcessHandle.DangerousGetHandle();
+                exitTask = Task.Run(() =>
+                {
+                    try
+                    {
+                        uint waitResult = WaitForSingleObject(handle, Infinite);
+                        if (waitResult == WaitFailed)
+                            ThrowLastWin32("WaitForSingleObject");
+                        if (waitResult != WaitObject0)
+                            throw new InvalidOperationException(
+                                "Unexpected process wait result: " + waitResult);
+                        uint exitCode;
+                        if (!GetExitCodeProcess(handle, out exitCode))
+                            ThrowLastWin32("GetExitCodeProcess");
+                        return unchecked((int)exitCode);
+                    }
+                    finally
+                    {
+                        if (addedReference)
+                            retainedProcessHandle.DangerousRelease();
+                    }
+                });
+                return exitTask;
+            }
+            catch
+            {
+                if (addedReference)
+                    retainedProcessHandle.DangerousRelease();
+                throw;
+            }
+        }
+
+        public void TerminateJob()
+        {
+            if (jobHandle == null)
+                return;
+            jobHandle.Dispose();
+            jobHandle = null;
+        }
+
+        public void Dispose()
+        {
+            TerminateJob();
+            if (processHandle != null)
+            {
+                processHandle.Dispose();
+                processHandle = null;
+            }
+        }
+
+        private static void ThrowLastWin32(string owner)
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(), owner + " failed");
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode,
+            SetLastError = true)]
+        private static extern IntPtr CreateJobObject(
+            IntPtr jobAttributes,
+            string name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetInformationJobObject(
+            IntPtr job,
+            int informationClass,
+            ref JobObjectExtendedLimitInformation information,
+            uint informationLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool InitializeProcThreadAttributeList(
+            IntPtr attributeList,
+            int attributeCount,
+            int flags,
+            ref UIntPtr size);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UpdateProcThreadAttribute(
+            IntPtr attributeList,
+            uint flags,
+            UIntPtr attribute,
+            IntPtr value,
+            IntPtr size,
+            IntPtr previousValue,
+            IntPtr returnSize);
+
+        [DllImport("kernel32.dll")]
+        private static extern void DeleteProcThreadAttributeList(
+            IntPtr attributeList);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode,
+            SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CreateProcess(
+            string applicationName,
+            StringBuilder commandLine,
+            IntPtr processAttributes,
+            IntPtr threadAttributes,
+            [MarshalAs(UnmanagedType.Bool)] bool inheritHandles,
+            uint creationFlags,
+            IntPtr environment,
+            string currentDirectory,
+            ref StartupInfoEx startupInfo,
+            out ProcessInformation processInformation);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsProcessInJob(
+            IntPtr process,
+            IntPtr job,
+            [MarshalAs(UnmanagedType.Bool)] out bool result);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint ResumeThread(IntPtr thread);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool TerminateProcess(
+            IntPtr process,
+            uint exitCode);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint WaitForSingleObject(
+            IntPtr handle,
+            uint milliseconds);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetExitCodeProcess(
+            IntPtr process,
+            out uint exitCode);
+    }
+}
+'@
+    $source = $source.Replace(
+        '__ELMO_UDP_CHECKPOINT_NAMESPACE__',
+        $namespace)
+    $compiledTypes = @(Add-Type -TypeDefinition $source -PassThru)
+    $matchingTypes = @($compiledTypes | Where-Object {
+            $_.FullName -ceq $expectedTypeName
+        })
+    if ($matchingTypes.Count -ne 1) {
+        throw (
+            'Dynamic contained process type compilation returned an ' +
+            "unexpected identity: $expectedTypeName")
+    }
+    $script:ContainedProcessNativeType = [type]$matchingTypes[0]
+    return $script:ContainedProcessNativeType
+}
+
+function Get-SanitizedEnvironmentBlock {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Diagnostics.ProcessStartInfo]$StartInfo
+    )
+
+    $keys = [string[]]@($StartInfo.Environment.Keys)
+    [Array]::Sort($keys, [StringComparer]::OrdinalIgnoreCase)
+    $entries = [Collections.Generic.List[string]]::new()
+    $previousKey = $null
+    foreach ($key in $keys) {
+        $value = [string]$StartInfo.Environment[$key]
+        if ([string]::IsNullOrEmpty($key) -or
+            $key.Contains('=') -or
+            $key.Contains([char]0) -or
+            $value.Contains([char]0)) {
+            throw "Invalid child process environment entry: $key"
+        }
+        if (($null -ne $previousKey) -and
+            [string]::Equals(
+                $previousKey,
+                $key,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Duplicate child process environment entry: $key"
+        }
+        $entries.Add("$key=$value")
+        $previousKey = $key
+    }
+    return [string]::Join("`0", $entries) + "`0`0"
+}
+
+function Wait-TaskBeforeProcessDeadline {
+    param(
+        [Parameter(Mandatory = $true)][Threading.Tasks.Task]$Task,
+        [Parameter(Mandatory = $true)][Diagnostics.Stopwatch]$Stopwatch,
+        [Parameter(Mandatory = $true)][int]$TimeoutMilliseconds,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $remaining =
+        [long]$TimeoutMilliseconds - [long]$Stopwatch.ElapsedMilliseconds
+    if ($remaining -le 0) {
+        throw [TimeoutException]::new("Process timed out while $Owner.")
+    }
+    $boundedRemaining = [int][Math]::Min(
+        $remaining,
+        [long][int]::MaxValue)
+    if (-not $Task.Wait($boundedRemaining)) {
+        throw [TimeoutException]::new("Process timed out while $Owner.")
+    }
+}
+
+function Invoke-ContainedProcessRaw {
+    param(
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()][string[]]$Arguments,
+        [AllowNull()][byte[]]$StandardInputBytes,
+        [ValidateRange(1, 2147483647)]
+        [int]$TimeoutMilliseconds = 600000
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $hasStandardInput = $PSBoundParameters.ContainsKey('StandardInputBytes')
+    Set-SanitizedChildProcessEnvironment -StartInfo $startInfo
+    $resolvedCommand = @(
+        Get-Command `
+            -Name $FileName `
+            -CommandType Application `
+            -ErrorAction Stop)[0]
+    $applicationPath = [IO.Path]::GetFullPath($resolvedCommand.Source)
+    $canonicalPwshPath = [IO.Path]::GetFullPath(
+        (Join-Path $PSHOME 'pwsh.exe'))
+    if ([string]::Equals(
+            $applicationPath,
+            $canonicalPwshPath,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        # PowerShell prepends its CurrentUser module directory even when the
+        # inherited PSModulePath is restricted. Give verifier children a
+        # non-user HOME rooted at the trusted pwsh installation, so the only
+        # prepended module roots are non-user locations.
+        $safeHome = [IO.Path]::GetDirectoryName($canonicalPwshPath)
+        $safeHomeRoot = [IO.Path]::GetPathRoot($safeHome).TrimEnd('\')
+        $startInfo.Environment['USERPROFILE'] = $safeHome
+        $startInfo.Environment['HOME'] = $safeHome
+        $startInfo.Environment['HOMEDRIVE'] = $safeHomeRoot
+        $startInfo.Environment['HOMEPATH'] = $safeHome.Substring(
+            $safeHomeRoot.Length)
+    }
+    $environmentBlock = Get-SanitizedEnvironmentBlock -StartInfo $startInfo
+    $workingDirectory = (Get-Location).ProviderPath
+    if (-not [IO.Directory]::Exists($workingDirectory)) {
+        throw "Process working directory is unavailable: $workingDirectory"
+    }
+
+    $nativeProcessType = Initialize-ContainedProcessNativeType
+    $commandLine =
+        $nativeProcessType::BuildCommandLine(
+            $applicationPath,
+            [string[]]$Arguments)
+
+    $stdinPipe = [IO.Pipes.AnonymousPipeServerStream]::new(
+        [IO.Pipes.PipeDirection]::Out,
+        [IO.HandleInheritability]::Inheritable)
+    $stdoutPipe = [IO.Pipes.AnonymousPipeServerStream]::new(
+        [IO.Pipes.PipeDirection]::In,
+        [IO.HandleInheritability]::Inheritable)
+    $stderrPipe = [IO.Pipes.AnonymousPipeServerStream]::new(
+        [IO.Pipes.PipeDirection]::In,
+        [IO.HandleInheritability]::Inheritable)
+    $stdoutBuffer = [IO.MemoryStream]::new()
+    $stderrBuffer = [IO.MemoryStream]::new()
+
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+    $containedProcess = $null
+    $completed = $false
+    $stdoutTask = $null
+    $stderrTask = $null
+    $stdinWriteTask = $null
+    $exitTask = $null
+    $clientCopiesDisposed = $false
+    try {
+        $standardInputHandle = [IntPtr][long]::Parse(
+            $stdinPipe.GetClientHandleAsString(),
+            [Globalization.CultureInfo]::InvariantCulture)
+        $standardOutputHandle = [IntPtr][long]::Parse(
+            $stdoutPipe.GetClientHandleAsString(),
+            [Globalization.CultureInfo]::InvariantCulture)
+        $standardErrorHandle = [IntPtr][long]::Parse(
+            $stderrPipe.GetClientHandleAsString(),
+            [Globalization.CultureInfo]::InvariantCulture)
+        $containedProcess =
+            $nativeProcessType::Start(
+                $applicationPath,
+                $commandLine,
+                $workingDirectory,
+                $environmentBlock,
+                $standardInputHandle,
+                $standardOutputHandle,
+                $standardErrorHandle)
+        $stdinPipe.DisposeLocalCopyOfClientHandle()
+        $stdoutPipe.DisposeLocalCopyOfClientHandle()
+        $stderrPipe.DisposeLocalCopyOfClientHandle()
+        $clientCopiesDisposed = $true
+
+        # Begin both output drains before writing input. This prevents a child
+        # that fills stdout or stderr before consuming stdin from deadlocking.
+        $stdoutTask = $stdoutPipe.CopyToAsync($stdoutBuffer)
+        $stderrTask = $stderrPipe.CopyToAsync($stderrBuffer)
+        if ($hasStandardInput -and
+            ($null -ne $StandardInputBytes) -and
+            ($StandardInputBytes.Length -gt 0)) {
+            $stdinWriteTask = $stdinPipe.WriteAsync(
+                $StandardInputBytes,
+                0,
+                $StandardInputBytes.Length)
+            Wait-TaskBeforeProcessDeadline `
+                -Task $stdinWriteTask `
+                -Stopwatch $stopwatch `
+                -TimeoutMilliseconds $TimeoutMilliseconds `
+                -Owner "writing standard input for $FileName"
+        }
+        # No buffered writer exists. Closing the parent pipe publishes EOF for
+        # absent, null, empty, and completed binary input without text encoding.
+        $stdinPipe.Dispose()
+
+        $exitTask = $containedProcess.WaitForExitAsync()
+        Wait-TaskBeforeProcessDeadline `
+            -Task $exitTask `
+            -Stopwatch $stopwatch `
+            -TimeoutMilliseconds $TimeoutMilliseconds `
+            -Owner "waiting for $FileName to exit"
+        $drainTask = [Threading.Tasks.Task]::WhenAll(
+            [Threading.Tasks.Task[]]@($stdoutTask, $stderrTask))
+        Wait-TaskBeforeProcessDeadline `
+            -Task $drainTask `
+            -Stopwatch $stopwatch `
+            -TimeoutMilliseconds $TimeoutMilliseconds `
+            -Owner "draining output from $FileName"
+
+        $stopwatch.Stop()
+        $result = [pscustomobject]@{
+            FileName = $FileName
+            Arguments = @($Arguments)
+            ExitCode = $exitTask.GetAwaiter().GetResult()
+            StdoutBytes = $stdoutBuffer.ToArray()
+            StderrBytes = $stderrBuffer.ToArray()
+            DurationMilliseconds = $stopwatch.ElapsedMilliseconds
+        }
+        $completed = $true
+        return $result
+    }
+    finally {
+        if (-not $clientCopiesDisposed) {
+            try {
+                $stdinPipe.DisposeLocalCopyOfClientHandle()
+            }
+            catch {
+            }
+            try {
+                $stdoutPipe.DisposeLocalCopyOfClientHandle()
+            }
+            catch {
+            }
+            try {
+                $stderrPipe.DisposeLocalCopyOfClientHandle()
+            }
+            catch {
+            }
+        }
+        if (-not $completed) {
+            try {
+                $stdinPipe.Dispose()
+            }
+            catch {
+            }
+        }
+        if ($null -ne $containedProcess) {
+            try {
+                # Closing a KILL_ON_JOB_CLOSE job terminates the root and every
+                # descendant even when the root already exited or detached its
+                # standard handles. This also runs after success so no helper
+                # process can outlive the command evidence it produced.
+                $containedProcess.TerminateJob()
+            }
+            catch {
+            }
+        }
+        if (-not $completed) {
+            $pendingTasks = @(
+                $exitTask,
+                $stdoutTask,
+                $stderrTask,
+                $stdinWriteTask) | Where-Object { $null -ne $_ }
+            if ($pendingTasks.Count -gt 0) {
+                try {
+                    $cleanupDrain = [Threading.Tasks.Task]::WhenAll(
+                        [Threading.Tasks.Task[]]$pendingTasks)
+                    $null = $cleanupDrain.Wait(5000)
+                }
+                catch {
+                }
+            }
+        }
+        foreach ($stream in @($stdinPipe, $stdoutPipe, $stderrPipe)) {
+            try {
+                $stream.Dispose()
+            }
+            catch {
+            }
+        }
+        if ($null -ne $containedProcess) {
+            $containedProcess.Dispose()
+        }
+        $stdoutBuffer.Dispose()
+        $stderrBuffer.Dispose()
+        $stopwatch.Stop()
+    }
+}
+
+function ConvertFrom-StrictUtf8ProcessOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    try {
+        return $Utf8NoBom.GetString($Bytes)
+    }
+    catch {
+        throw "$Owner was not valid UTF-8: $($_.Exception.Message)"
+    }
 }
 
 function Invoke-ProcessCapture {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()][string[]]$Arguments,
+        [AllowNull()][byte[]]$StandardInputBytes,
+        [ValidateRange(1, 2147483647)]
         [int]$TimeoutMilliseconds = 600000
     )
 
-    $startInfo = [Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $FileName
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.StandardOutputEncoding = $Utf8NoBom
-    $startInfo.StandardErrorEncoding = $Utf8NoBom
-    foreach ($argument in $Arguments) {
-        $startInfo.ArgumentList.Add($argument)
-    }
-    Set-SanitizedChildProcessEnvironment -StartInfo $startInfo
-
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
-    if (-not $process.Start()) {
-        throw "Failed to start process: $FileName"
-    }
-    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $stderrTask = $process.StandardError.ReadToEndAsync()
-    if (-not $process.WaitForExit($TimeoutMilliseconds)) {
-        try {
-            $process.Kill($true)
-        }
-        catch {
-        }
-        throw "Process timed out: $FileName"
-    }
-    [Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
-    $stopwatch.Stop()
-    return [pscustomobject]@{
+    $parameters = @{
         FileName = $FileName
-        Arguments = @($Arguments)
-        ExitCode = $process.ExitCode
-        Stdout = $stdoutTask.Result
-        Stderr = $stderrTask.Result
-        DurationMilliseconds = $stopwatch.ElapsedMilliseconds
+        Arguments = $Arguments
+        TimeoutMilliseconds = $TimeoutMilliseconds
+    }
+    if ($PSBoundParameters.ContainsKey('StandardInputBytes')) {
+        $parameters.StandardInputBytes = $StandardInputBytes
+    }
+    $raw = Invoke-ContainedProcessRaw @parameters
+    return [pscustomobject]@{
+        FileName = $raw.FileName
+        Arguments = @($raw.Arguments)
+        ExitCode = $raw.ExitCode
+        Stdout = ConvertFrom-StrictUtf8ProcessOutput `
+            -Bytes $raw.StdoutBytes `
+            -Owner "$FileName stdout"
+        Stderr = ConvertFrom-StrictUtf8ProcessOutput `
+            -Bytes $raw.StderrBytes `
+            -Owner "$FileName stderr"
+        DurationMilliseconds = $raw.DurationMilliseconds
     }
 }
 
@@ -376,6 +1187,82 @@ function ConvertTo-CommandEvidence {
         durationMilliseconds = $Result.DurationMilliseconds
         stdout = $Result.Stdout.Replace("`r`n", "`n").Replace("`r", "`n")
         stderr = $Result.Stderr.Replace("`r`n", "`n").Replace("`r", "`n")
+    }
+}
+
+function Get-CommitBlobPolicyForPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $extension = [IO.Path]::GetExtension($RelativePath).ToLowerInvariant()
+    $textExtensions = @(
+        '.c', '.cpp', '.h', '.json', '.ps1', '.st', '.txt', '.xml')
+    $binaryExtensions = @(
+        '.ico', '.lba', '.lcb', '.lcc', '.lcn', '.lcp', '.ldi', '.lhd',
+        '.lob', '.mme', '.mmc', '.vov')
+    if ($textExtensions -contains $extension) {
+        return 'byte-crlf-to-lf-text-v1'
+    }
+    if ($binaryExtensions -contains $extension) {
+        return 'raw-binary-v1'
+    }
+    throw (
+        "$Owner has no tool-owned commit blob policy for extension " +
+        "'$extension': $RelativePath")
+}
+
+function Get-CanonicalGitBlobOidForBytes {
+    param(
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $policy = Get-CommitBlobPolicyForPath `
+        -RelativePath $RelativePath `
+        -Owner $Owner
+    [byte[]]$canonicalBytes = [byte[]]::new(0)
+    if ($policy -ceq 'byte-crlf-to-lf-text-v1') {
+        $output = [IO.MemoryStream]::new()
+        try {
+            for ($index = 0; $index -lt $Bytes.Length; $index++) {
+                if (($Bytes[$index] -eq 0x0D) -and
+                    (($index + 1) -lt $Bytes.Length) -and
+                    ($Bytes[$index + 1] -eq 0x0A)) {
+                    $output.WriteByte(0x0A)
+                    $index++
+                }
+                else {
+                    $output.WriteByte($Bytes[$index])
+                }
+            }
+            $canonicalBytes = $output.ToArray()
+        }
+        finally {
+            $output.Dispose()
+        }
+    }
+    elseif ($policy -ceq 'raw-binary-v1') {
+        $canonicalBytes = [byte[]]$Bytes.Clone()
+    }
+    else {
+        throw "$Owner resolved an unknown commit blob policy: $policy"
+    }
+
+    $header = [Text.Encoding]::ASCII.GetBytes(
+        "blob $($canonicalBytes.Length)`0")
+    $hasher = [Security.Cryptography.IncrementalHash]::CreateHash(
+        [Security.Cryptography.HashAlgorithmName]::SHA1)
+    try {
+        $hasher.AppendData($header)
+        $hasher.AppendData($canonicalBytes)
+        return [Convert]::ToHexString($hasher.GetHashAndReset())
+    }
+    finally {
+        $hasher.Dispose()
     }
 }
 
@@ -441,27 +1328,47 @@ function Read-SingleFileEvidence {
         throw "Input changed while it was read: $RelativePath"
     }
     $traits = Get-RawTextTraits -Bytes $bytes
-    $blobResult = Invoke-ProcessCapture `
-        -FileName $GitPath `
-        -Arguments @(
-            '-C', $Root, 'hash-object', "--path=$RelativePath", $fullPath)
-    Assert-CommandPassed `
-        -Result $blobResult `
-        -Owner "filtered capture blob for $RelativePath"
-    $filteredGitBlobOid = $blobResult.Stdout.Trim().ToUpperInvariant()
-    Assert-GitObjectId `
-        -Value $filteredGitBlobOid `
-        -Owner "filtered capture blob for $RelativePath"
+    $commitBlobPolicy = Get-CommitBlobPolicyForPath `
+        -RelativePath $RelativePath `
+        -Owner "commit blob policy for $RelativePath"
+    $canonicalGitBlobOid = Get-CanonicalGitBlobOidForBytes `
+        -RelativePath $RelativePath `
+        -Bytes $bytes `
+        -Owner "canonical capture blob for $RelativePath"
+    $gitTracked = $TrackedPaths.Contains($RelativePath)
+    $gitIgnored = $false
+    $nonIgnoredUntracked = $false
+    if (-not $gitTracked) {
+        $ignoreResult = Invoke-ProcessCapture `
+            -FileName $GitPath `
+            -Arguments @(
+                '-C', $Root, 'check-ignore', '--quiet', '--no-index',
+                '--', $RelativePath)
+        if ($ignoreResult.ExitCode -eq 0) {
+            $gitIgnored = $true
+        }
+        elseif ($ignoreResult.ExitCode -eq 1) {
+            $nonIgnoredUntracked = $true
+        }
+        else {
+            throw (
+                "Git ignore classification failed for $RelativePath; " +
+                "exit=$($ignoreResult.ExitCode); stderr=$($ignoreResult.Stderr)")
+        }
+    }
     return [pscustomobject]@{
         RawBytes = $bytes
         Metadata = $metadata
         Public = [ordered]@{
             path = $RelativePath
-            gitTracked = $TrackedPaths.Contains($RelativePath)
+            gitTracked = $gitTracked
+            gitIgnored = $gitIgnored
+            nonIgnoredUntracked = $nonIgnoredUntracked
             available = $true
             bytes = $bytes.Length
             sha256 = Get-BytesSha256 -Bytes $bytes
-            filteredGitBlobOid = $filteredGitBlobOid
+            commitBlobPolicy = $commitBlobPolicy
+            canonicalGitBlobOid = $canonicalGitBlobOid
             lastWriteTimeUtc = [DateTime]::new(
                 $metadata.lastWriteTimeUtcTicks,
                 [DateTimeKind]::Utc).ToString('o')
@@ -719,11 +1626,26 @@ function Get-InventoryEvidence {
             [ordered]@{
                 path = $relativePath
                 gitTracked = $tracked
+                gitIgnored = if ($available) { $public.gitIgnored } else { $false }
+                nonIgnoredUntracked = if ($available) {
+                    $public.nonIgnoredUntracked
+                }
+                else {
+                    $false
+                }
                 available = $available
                 bytes = if ($available) { $public.bytes } else { $null }
                 sha256 = if ($available) { $public.sha256 } else { $null }
-                filteredGitBlobOid = if ($available) {
-                    $public.filteredGitBlobOid
+                commitBlobPolicy = if ($available) {
+                    $public.commitBlobPolicy
+                }
+                else {
+                    Get-CommitBlobPolicyForPath `
+                        -RelativePath $relativePath `
+                        -Owner "$Owner absent file"
+                }
+                canonicalGitBlobOid = if ($available) {
+                    $public.canonicalGitBlobOid
                 }
                 else {
                     $null
@@ -739,32 +1661,42 @@ function Get-InventoryEvidence {
         })
     $identity = [string]::Join("`n", @(
             foreach ($file in $files) {
-                '{0}|{1}|{2}|{3}|{4}' -f
+                '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}' -f
                     $file.path,
                     ([int][bool]$file.gitTracked),
+                    ([int][bool]$file.gitIgnored),
+                    ([int][bool]$file.nonIgnoredUntracked),
                     ([int][bool]$file.available),
                     $file.bytes,
-                    $file.sha256
+                    $file.sha256,
+                    $file.commitBlobPolicy,
+                    $file.canonicalGitBlobOid
             }))
     $trackedIdentity = [string]::Join("`n", @(
             $files |
                 Where-Object { $_.gitTracked } |
                 Sort-Object path |
                 ForEach-Object {
-                    "$($_.path)|$($_.bytes)|$($_.sha256)"
+                    ("$($_.path)|$($_.bytes)|$($_.sha256)|" +
+                        "$($_.commitBlobPolicy)|$($_.canonicalGitBlobOid)")
                 }))
     return [ordered]@{
         trackedCount = @($TrackedPaths).Count
+        ignoredCount = @($files | Where-Object { $_.gitIgnored }).Count
+        nonIgnoredUntrackedCount = @(
+            $files | Where-Object { $_.nonIgnoredUntracked }).Count
         availableCount = @($AvailablePaths).Count
         unionCount = $allPaths.Count
         inventoryAlgorithm = (
             'sort unique tracked-plus-available relative paths; join ' +
-            'path|tracked01|available01|bytes|uppercase-sha256 with LF; ' +
+            'path|tracked01|ignored01|nonignored-untracked01|' +
+            'available01|bytes|uppercase-sha256|commit-blob-policy|' +
+            'canonical-git-blob-oid with LF; ' +
             'UTF-8 SHA-256')
         inventorySha256 = Get-TextSha256 -Text $identity
         trackedInventoryAlgorithm = (
-            'sort tracked relative paths; join path|bytes|uppercase-sha256 ' +
-            'with LF; UTF-8 SHA-256')
+            'sort tracked relative paths; join path|bytes|uppercase-sha256|' +
+            'commit-blob-policy|canonical-git-blob-oid with LF; UTF-8 SHA-256')
         trackedInventorySha256 = Get-TextSha256 -Text $trackedIdentity
         files = $files
     }
@@ -785,10 +1717,15 @@ function Get-PresenceEvidence {
     return [ordered]@{
         path = $RelativePath
         gitTracked = $TrackedPaths.Contains($RelativePath)
+        gitIgnored = $false
+        nonIgnoredUntracked = $false
         available = $false
         bytes = $null
         sha256 = $null
-        filteredGitBlobOid = $null
+        commitBlobPolicy = Get-CommitBlobPolicyForPath `
+            -RelativePath $RelativePath `
+            -Owner 'absent presence evidence'
+        canonicalGitBlobOid = $null
         lastWriteTimeUtc = $null
         text = $null
     }
@@ -922,7 +1859,11 @@ function Assert-ManifestSealBytes {
     }
     $data = $null
     try {
-        $data = $text | ConvertFrom-Json -AsHashtable -Depth 50
+        $data = $text | ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
     }
     catch {
         throw "$Owner sealed JSON parse failed: $($_.Exception.Message)"
@@ -1034,7 +1975,11 @@ function ConvertFrom-StrictCheckpointJson {
     }
     $sealEvidence = Assert-ManifestSealBytes -Bytes $File.RawBytes -Owner $Owner
     try {
-        $data = $text | ConvertFrom-Json -AsHashtable -Depth 50
+        $data = $text | ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
     }
     catch {
         throw "$Owner JSON object conversion failed: $($_.Exception.Message)"
@@ -1053,10 +1998,24 @@ function Assert-ExactMapKeys {
         [Parameter(Mandatory = $true)][string]$Owner
     )
 
-    $expected = @($Keys | Sort-Object -Unique)
-    $actual = @($Map.Keys | ForEach-Object { [string]$_ } | Sort-Object -Unique)
-    if ([string]::Join("`n", $actual) -cne
-        [string]::Join("`n", $expected)) {
+    $expectedSet = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($key in $Keys) {
+        if (-not $expectedSet.Add($key)) {
+            throw "$Owner internal exact-key contract contains a duplicate: $key"
+        }
+    }
+    $actualKeys = @($Map.Keys)
+    $unexpected = @(
+        $actualKeys | Where-Object {
+            ($_ -isnot [string]) -or
+            (-not $expectedSet.Contains([string]$_))
+        })
+    if (($Map.Count -ne $expectedSet.Count) -or
+        ($unexpected.Count -ne 0)) {
+        $expected = @($Keys | Sort-Object -CaseSensitive)
+        $actual = @($actualKeys | ForEach-Object { [string]$_ } |
+                Sort-Object -CaseSensitive)
         throw (
             "$Owner property set drifted; expected=" +
             [string]::Join(',', $expected) + '; observed=' +
@@ -1150,19 +2109,40 @@ function Assert-PublicFileEvidence {
         [AllowNull()][string]$ExpectedPath
     )
 
+    $expectedPathProvided = $PSBoundParameters.ContainsKey('ExpectedPath')
     Assert-ExactMapKeys `
         -Map $File `
         -Keys @(
-            'path', 'gitTracked', 'available', 'bytes', 'sha256',
-            'filteredGitBlobOid', 'lastWriteTimeUtc', 'text') `
+            'path', 'gitTracked', 'gitIgnored', 'nonIgnoredUntracked',
+            'available', 'bytes', 'sha256',
+            'commitBlobPolicy', 'canonicalGitBlobOid',
+            'lastWriteTimeUtc', 'text') `
         -Owner $Owner
     if (($File.path -isnot [string]) -or
         [string]::IsNullOrWhiteSpace([string]$File.path) -or
         ([string]$File.path -match '\\') -or
-        (($null -ne $ExpectedPath) -and ($File.path -cne $ExpectedPath)) -or
+        ($expectedPathProvided -and ($File.path -cne $ExpectedPath)) -or
         ($File.gitTracked -isnot [bool]) -or
+        ($File.gitIgnored -isnot [bool]) -or
+        ($File.nonIgnoredUntracked -isnot [bool]) -or
         ($File.available -isnot [bool])) {
         throw "$Owner path/presence evidence is malformed."
+    }
+    $expectedCommitBlobPolicy = Get-CommitBlobPolicyForPath `
+        -RelativePath ([string]$File.path) `
+        -Owner $Owner
+    if (($File.commitBlobPolicy -isnot [string]) -or
+        ($File.commitBlobPolicy -cne $expectedCommitBlobPolicy)) {
+        throw "$Owner commit blob policy drifted."
+    }
+    $membershipCount =
+        ([int][bool]$File.gitTracked) +
+        ([int][bool]$File.gitIgnored) +
+        ([int][bool]$File.nonIgnoredUntracked)
+    if (([bool]$File.available -and ($membershipCount -ne 1)) -or
+        ((-not [bool]$File.available) -and
+            ([bool]$File.gitIgnored -or [bool]$File.nonIgnoredUntracked))) {
+        throw "$Owner Git membership classification is malformed."
     }
     if ([bool]$File.available) {
         if ((-not (Test-IsJsonInteger -Value $File.bytes)) -or
@@ -1171,8 +2151,8 @@ function Assert-PublicFileEvidence {
         }
         Assert-UpperSha256 -Value $File.sha256 -Owner "$Owner sha256"
         Assert-GitObjectId `
-            -Value $File.filteredGitBlobOid `
-            -Owner "$Owner filtered Git blob"
+            -Value $File.canonicalGitBlobOid `
+            -Owner "$Owner canonical Git blob"
         if ($File.lastWriteTimeUtc -isnot [string]) {
             throw "$Owner lastWriteTimeUtc is missing."
         }
@@ -1191,7 +2171,7 @@ function Assert-PublicFileEvidence {
         Assert-TextTraitsEvidence -Traits $File.text -Owner "$Owner text"
     }
     elseif (($null -ne $File.bytes) -or ($null -ne $File.sha256) -or
-        ($null -ne $File.filteredGitBlobOid) -or
+        ($null -ne $File.canonicalGitBlobOid) -or
         ($null -ne $File.lastWriteTimeUtc) -or ($null -ne $File.text)) {
         throw "$Owner absent-file evidence contains fabricated content."
     }
@@ -1208,11 +2188,14 @@ function Assert-InventoryEvidence {
     Assert-ExactMapKeys `
         -Map $Inventory `
         -Keys @(
-            'trackedCount', 'availableCount', 'unionCount',
+            'trackedCount', 'ignoredCount', 'nonIgnoredUntrackedCount',
+            'availableCount', 'unionCount',
             'inventoryAlgorithm', 'inventorySha256',
             'trackedInventoryAlgorithm', 'trackedInventorySha256', 'files') `
         -Owner $Owner
-    foreach ($name in @('trackedCount', 'availableCount', 'unionCount')) {
+    foreach ($name in @(
+            'trackedCount', 'ignoredCount', 'nonIgnoredUntrackedCount',
+            'availableCount', 'unionCount')) {
         if ((-not (Test-IsJsonInteger -Value $Inventory[$name])) -or
             ([long]$Inventory[$name] -lt 0)) {
             throw "$Owner $name is not a nonnegative integer."
@@ -1220,11 +2203,14 @@ function Assert-InventoryEvidence {
     }
     if (($Inventory.inventoryAlgorithm -cne
             ('sort unique tracked-plus-available relative paths; join ' +
-                'path|tracked01|available01|bytes|uppercase-sha256 with LF; ' +
+                'path|tracked01|ignored01|nonignored-untracked01|' +
+                'available01|bytes|uppercase-sha256|commit-blob-policy|' +
+                'canonical-git-blob-oid with LF; ' +
                 'UTF-8 SHA-256')) -or
         ($Inventory.trackedInventoryAlgorithm -cne
-            ('sort tracked relative paths; join path|bytes|uppercase-sha256 ' +
-                'with LF; UTF-8 SHA-256'))) {
+            ('sort tracked relative paths; join path|bytes|uppercase-sha256|' +
+                'commit-blob-policy|canonical-git-blob-oid with LF; ' +
+                'UTF-8 SHA-256'))) {
         throw "$Owner inventory algorithm drifted."
     }
     Assert-UpperSha256 `
@@ -1256,25 +2242,34 @@ function Assert-InventoryEvidence {
             [string]::Join("`n", $sortedPaths)) -or
         (@($files | Where-Object { $_.gitTracked }).Count -ne
             [long]$Inventory.trackedCount) -or
+        (@($files | Where-Object { $_.gitIgnored }).Count -ne
+            [long]$Inventory.ignoredCount) -or
+        (@($files | Where-Object { $_.nonIgnoredUntracked }).Count -ne
+            [long]$Inventory.nonIgnoredUntrackedCount) -or
         (@($files | Where-Object { $_.available }).Count -ne
             [long]$Inventory.availableCount)) {
         throw "$Owner counts or canonical path order drifted."
     }
     $identity = [string]::Join("`n", @(
             foreach ($file in $files) {
-                '{0}|{1}|{2}|{3}|{4}' -f
+                '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}' -f
                     $file.path,
                     ([int][bool]$file.gitTracked),
+                    ([int][bool]$file.gitIgnored),
+                    ([int][bool]$file.nonIgnoredUntracked),
                     ([int][bool]$file.available),
                     $file.bytes,
-                    $file.sha256
+                    $file.sha256,
+                    $file.commitBlobPolicy,
+                    $file.canonicalGitBlobOid
             }))
     $trackedIdentity = [string]::Join("`n", @(
             $files |
                 Where-Object { $_.gitTracked } |
                 Sort-Object path |
                 ForEach-Object {
-                    "$($_.path)|$($_.bytes)|$($_.sha256)"
+                    ("$($_.path)|$($_.bytes)|$($_.sha256)|" +
+                        "$($_.commitBlobPolicy)|$($_.canonicalGitBlobOid)")
                 }))
     if (((Get-TextSha256 -Text $identity) -cne
             $Inventory.inventorySha256) -or
@@ -1307,7 +2302,12 @@ function Assert-TargetWorktreeEvidence {
     if ($Inventory.identityAlgorithm -cne
         ('sort unique target tracked-plus-nonignored-untracked paths; ' +
             'join path|tracked01|untracked01|available01|bytes|' +
-            'uppercase-sha256|lastWriteTimeUtcTicks with LF; UTF-8 SHA-256')) {
+            'uppercase-sha256|commit-blob-policy|' +
+            'tool-canonical-git-blob-oid|' +
+            'lastWriteTimeUtcTicks with LF; UTF-8 SHA-256; canonical blob ' +
+            'policy is byte CRLF-to-LF for c/cpp/h/json/ps1/st/txt/xml and raw ' +
+            'bytes for ico/lba/lcb/lcc/lcn/lcp/ldi/lhd/lob/mme/mmc/vov; ' +
+            'Git attributes and filters are not consulted')) {
         throw "$Owner identity algorithm drifted."
     }
     Assert-UpperSha256 -Value $Inventory.identitySha256 -Owner "$Owner digest"
@@ -1324,18 +2324,28 @@ function Assert-TargetWorktreeEvidence {
             -Map $file `
             -Keys @(
                 'path', 'gitTracked', 'nonIgnoredUntracked', 'available',
-                'bytes', 'sha256', 'lastWriteTimeUtcTicks') `
+                'bytes', 'sha256', 'commitBlobPolicy',
+                'canonicalGitBlobOid',
+                'lastWriteTimeUtcTicks') `
             -Owner "$Owner file"
         if (($file.path -isnot [string]) -or
             (-not ([string]$file.path).StartsWith(
                     $TargetRelativeRoot + '/',
                     [StringComparison]::Ordinal)) -or
+            ([string]$file.path -match '[\\\r\n\x00]') -or
             ($file.gitTracked -isnot [bool]) -or
             ($file.nonIgnoredUntracked -isnot [bool]) -or
             ($file.available -isnot [bool]) -or
             (([bool]$file.gitTracked) -eq
                 ([bool]$file.nonIgnoredUntracked))) {
             throw "$Owner file membership is malformed."
+        }
+        $expectedCommitBlobPolicy = Get-CommitBlobPolicyForPath `
+            -RelativePath ([string]$file.path) `
+            -Owner "$Owner file"
+        if (($file.commitBlobPolicy -isnot [string]) -or
+            ($file.commitBlobPolicy -cne $expectedCommitBlobPolicy)) {
+            throw "$Owner file commit blob policy drifted."
         }
         if ([bool]$file.available) {
             if ((-not (Test-IsJsonInteger -Value $file.bytes)) -or
@@ -1345,8 +2355,12 @@ function Assert-TargetWorktreeEvidence {
                 throw "$Owner file byte/time evidence is malformed."
             }
             Assert-UpperSha256 -Value $file.sha256 -Owner "$Owner file sha256"
+            Assert-GitObjectId `
+                -Value $file.canonicalGitBlobOid `
+                -Owner "$Owner file canonical Git blob"
         }
         elseif (($null -ne $file.bytes) -or ($null -ne $file.sha256) -or
+            ($null -ne $file.canonicalGitBlobOid) -or
             ($null -ne $file.lastWriteTimeUtcTicks)) {
             throw "$Owner absent file contains fabricated raw evidence."
         }
@@ -1364,13 +2378,15 @@ function Assert-TargetWorktreeEvidence {
     }
     $identity = [string]::Join("`n", @(
             foreach ($file in $files) {
-                '{0}|{1}|{2}|{3}|{4}|{5}|{6}' -f
+                '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}' -f
                     $file.path,
                     ([int][bool]$file.gitTracked),
                     ([int][bool]$file.nonIgnoredUntracked),
                     ([int][bool]$file.available),
                     $file.bytes,
                     $file.sha256,
+                    $file.commitBlobPolicy,
+                    $file.canonicalGitBlobOid,
                     $file.lastWriteTimeUtcTicks
             }))
     if ((Get-TextSha256 -Text $identity) -cne $Inventory.identitySha256) {
@@ -1409,6 +2425,8 @@ function Assert-GitSnapshotEvidence {
             'indexEntryCount', 'indexRawTextSha256', 'indexEntries',
             'trackedPathCount', 'trackedPathRawTextSha256', 'trackedPaths',
             'statusEntryCount', 'statusRawTextSha256', 'statusEntries',
+            'targetIgnoredPathCount', 'targetIgnoredPathRawTextSha256',
+            'targetIgnoredPaths',
             'targetWorktree') `
         -Owner $Owner
     if ($Snapshot.scope -cne 'full-repository-index-and-status') {
@@ -1430,8 +2448,12 @@ function Assert-GitSnapshotEvidence {
     Assert-UpperSha256 `
         -Value $Snapshot.trackedPathRawTextSha256 `
         -Owner "$Owner tracked path raw digest"
+    Assert-UpperSha256 `
+        -Value $Snapshot.targetIgnoredPathRawTextSha256 `
+        -Owner "$Owner target ignored path raw digest"
     foreach ($name in @(
-            'indexEntryCount', 'trackedPathCount', 'statusEntryCount')) {
+            'indexEntryCount', 'trackedPathCount', 'statusEntryCount',
+            'targetIgnoredPathCount')) {
         if ((-not (Test-IsJsonInteger -Value $Snapshot[$name])) -or
             ([long]$Snapshot[$name] -lt 0)) {
             throw "$Owner $name is not a nonnegative integer."
@@ -1439,15 +2461,19 @@ function Assert-GitSnapshotEvidence {
     }
     if (($Snapshot.indexEntries -isnot [Collections.IList]) -or
         ($Snapshot.trackedPaths -isnot [Collections.IList]) -or
-        ($Snapshot.statusEntries -isnot [Collections.IList])) {
+        ($Snapshot.statusEntries -isnot [Collections.IList]) -or
+        ($Snapshot.targetIgnoredPaths -isnot [Collections.IList])) {
         throw "$Owner Git entry evidence is not array-valued."
     }
     $indexEntries = @($Snapshot.indexEntries)
     $trackedPaths = @($Snapshot.trackedPaths)
     $statusEntries = @($Snapshot.statusEntries)
+    $targetIgnoredPaths = @($Snapshot.targetIgnoredPaths)
     if (($indexEntries.Count -ne [long]$Snapshot.indexEntryCount) -or
         ($trackedPaths.Count -ne [long]$Snapshot.trackedPathCount) -or
         ($statusEntries.Count -ne [long]$Snapshot.statusEntryCount) -or
+        ($targetIgnoredPaths.Count -ne
+            [long]$Snapshot.targetIgnoredPathCount) -or
         ((Get-TextSha256 -Text (
                 ConvertTo-NulTerminatedEvidenceText -Entries $indexEntries)) -cne
             $Snapshot.indexRawTextSha256) -or
@@ -1456,15 +2482,32 @@ function Assert-GitSnapshotEvidence {
             $Snapshot.trackedPathRawTextSha256) -or
         ((Get-TextSha256 -Text (
                 ConvertTo-NulTerminatedEvidenceText -Entries $statusEntries)) -cne
-            $Snapshot.statusRawTextSha256)) {
+            $Snapshot.statusRawTextSha256) -or
+        ((Get-TextSha256 -Text (
+                ConvertTo-NulTerminatedEvidenceText `
+                    -Entries $targetIgnoredPaths)) -cne
+            $Snapshot.targetIgnoredPathRawTextSha256)) {
         throw "$Owner Git NUL-stream digest or count does not reproduce."
     }
     $uniqueTrackedPaths = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::Ordinal)
     foreach ($path in $trackedPaths) {
-        if (($path -isnot [string]) -or ([string]$path -match '\\') -or
+        if (($path -isnot [string]) -or
+            ([string]$path -match '[\\\r\n\x00]') -or
             (-not $uniqueTrackedPaths.Add([string]$path))) {
             throw "$Owner tracked path list is malformed or duplicated."
+        }
+    }
+    $uniqueTargetIgnoredPaths = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($path in $targetIgnoredPaths) {
+        if (($path -isnot [string]) -or
+            (-not ([string]$path).StartsWith(
+                    $TargetRelativeRoot + '/',
+                    [StringComparison]::Ordinal)) -or
+            ([string]$path -match '[\\\r\n\x00]') -or
+            (-not $uniqueTargetIgnoredPaths.Add([string]$path))) {
+            throw "$Owner target ignored path list is malformed or duplicated."
         }
     }
     if ($Snapshot.targetWorktree -isnot [Collections.IDictionary]) {
@@ -1473,57 +2516,81 @@ function Assert-GitSnapshotEvidence {
     Assert-TargetWorktreeEvidence `
         -Inventory $Snapshot.targetWorktree `
         -Owner "$Owner targetWorktree"
+    $expectedTargetTrackedPaths = @(
+        $trackedPaths |
+            Where-Object {
+                $_.StartsWith(
+                    $TargetRelativeRoot + '/',
+                    [StringComparison]::Ordinal)
+            } |
+            Sort-Object -CaseSensitive -Unique)
+    $recordedTargetTrackedPaths = @(
+        $Snapshot.targetWorktree.files |
+            Where-Object { $_.gitTracked } |
+            ForEach-Object { [string]$_.path })
+    $targetMembershipMatches =
+        $expectedTargetTrackedPaths.Count -eq $recordedTargetTrackedPaths.Count
+    if ($targetMembershipMatches) {
+        for ($index = 0; $index -lt $expectedTargetTrackedPaths.Count; $index++) {
+            if ($expectedTargetTrackedPaths[$index] -cne
+                $recordedTargetTrackedPaths[$index]) {
+                $targetMembershipMatches = $false
+                break
+            }
+        }
+    }
+    if (-not $targetMembershipMatches) {
+        throw "$Owner targetWorktree Git membership differs from trackedPaths."
+    }
+    $expectedTargetUntrackedPaths = @(
+        $statusEntries |
+            Where-Object { ([string]$_).StartsWith('? ') } |
+            ForEach-Object { ([string]$_).Substring(2) } |
+            Where-Object {
+                $_.StartsWith(
+                    $TargetRelativeRoot + '/',
+                    [StringComparison]::Ordinal)
+            } |
+            Sort-Object -CaseSensitive -Unique)
+    $recordedTargetUntrackedPaths = @(
+        $Snapshot.targetWorktree.files |
+            Where-Object { $_.nonIgnoredUntracked } |
+            ForEach-Object { [string]$_.path })
+    $targetUntrackedMembershipMatches =
+        $expectedTargetUntrackedPaths.Count -eq
+            $recordedTargetUntrackedPaths.Count
+    if ($targetUntrackedMembershipMatches) {
+        for ($index = 0; $index -lt $expectedTargetUntrackedPaths.Count; $index++) {
+            if ($expectedTargetUntrackedPaths[$index] -cne
+                $recordedTargetUntrackedPaths[$index]) {
+                $targetUntrackedMembershipMatches = $false
+                break
+            }
+        }
+    }
+    if (-not $targetUntrackedMembershipMatches) {
+        throw "$Owner targetWorktree nonignored membership differs from status."
+    }
 }
 
 function Invoke-ProcessRawStdout {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()][string[]]$Arguments,
         [int]$TimeoutMilliseconds = 600000
     )
 
-    $startInfo = [Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $FileName
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.StandardErrorEncoding = $Utf8NoBom
-    foreach ($argument in $Arguments) {
-        $startInfo.ArgumentList.Add($argument)
-    }
-    Set-SanitizedChildProcessEnvironment -StartInfo $startInfo
-
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    $output = [IO.MemoryStream]::new()
-    try {
-        if (-not $process.Start()) {
-            throw "Failed to start process: $FileName"
-        }
-        $copyTask = $process.StandardOutput.BaseStream.CopyToAsync($output)
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        $allTasks = [Threading.Tasks.Task[]]@($copyTask, $stderrTask)
-        if (-not [Threading.Tasks.Task]::WaitAll(
-                $allTasks,
-                $TimeoutMilliseconds)) {
-            try {
-                $process.Kill($true)
-            }
-            catch {
-            }
-            throw "Process timed out: $FileName"
-        }
-        $process.WaitForExit()
-        return [pscustomobject]@{
-            ExitCode = $process.ExitCode
-            StdoutBytes = $output.ToArray()
-            Stderr = $stderrTask.Result
-        }
-    }
-    finally {
-        $output.Dispose()
-        $process.Dispose()
+    $raw = Invoke-ContainedProcessRaw `
+        -FileName $FileName `
+        -Arguments $Arguments `
+        -TimeoutMilliseconds $TimeoutMilliseconds
+    return [pscustomobject]@{
+        ExitCode = $raw.ExitCode
+        StdoutBytes = $raw.StdoutBytes
+        Stderr = ConvertFrom-StrictUtf8ProcessOutput `
+            -Bytes $raw.StderrBytes `
+            -Owner "$FileName stderr"
     }
 }
 
@@ -1752,6 +2819,37 @@ function Get-InventoryFileEvidenceByPath {
     return $matches[0]
 }
 
+function Get-VerifierCompatibleNetworkProjection {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Inventory
+    )
+
+    $files = @($Inventory.files)
+    $fullIdentity = [string]::Join("`n", @(
+            foreach ($file in $files) {
+                '{0}|{1}|{2}|{3}|{4}' -f
+                    $file.path,
+                    ([int][bool]$file.gitTracked),
+                    ([int][bool]$file.available),
+                    $file.bytes,
+                    $file.sha256
+            }))
+    $trackedFiles = @($files | Where-Object { $_.gitTracked })
+    $trackedIdentity = [string]::Join("`n", @(
+            $trackedFiles |
+                Sort-Object path |
+                ForEach-Object {
+                    "$($_.path)|$($_.bytes)|$($_.sha256)"
+                }))
+    return [ordered]@{
+        fullCount = $files.Count
+        fullSha256 = Get-TextSha256 -Text $fullIdentity
+        trackedCount = $trackedFiles.Count
+        trackedSha256 = Get-TextSha256 -Text $trackedIdentity
+    }
+}
+
 function Assert-RecordedVerifierEvidence {
     param(
         [Parameter(Mandatory = $true)]
@@ -1859,12 +2957,16 @@ function Assert-RecordedVerifierEvidence {
     Assert-UpperSha256 `
         -Value $network.trackedSha256 `
         -Owner "$Owner tracked Network"
-    if (([long]$network.fullCount -ne [long]$Artifacts.fullNetwork.unionCount) -or
-        ($network.fullSha256 -cne $Artifacts.fullNetwork.inventorySha256) -or
+    $verifierCompatibleNetwork = Get-VerifierCompatibleNetworkProjection `
+        -Inventory $Artifacts.fullNetwork
+    if (([long]$network.fullCount -ne
+            [long]$verifierCompatibleNetwork.fullCount) -or
+        ($network.fullSha256 -cne
+            $verifierCompatibleNetwork.fullSha256) -or
         ([long]$network.trackedCount -ne
-            [long]$Artifacts.fullNetwork.trackedCount) -or
+            [long]$verifierCompatibleNetwork.trackedCount) -or
         ($network.trackedSha256 -cne
-            $Artifacts.fullNetwork.trackedInventorySha256)) {
+            $verifierCompatibleNetwork.trackedSha256)) {
         throw "$Owner verifier Network evidence differs from artifacts."
     }
 
@@ -1982,10 +3084,34 @@ function Assert-ArtifactEvidenceContract {
         if (-not [bool]$Artifacts[$name].available) {
             throw "$Owner required artifact is unavailable: $name"
         }
+        if ((-not [bool]$Artifacts[$name].gitTracked) -or
+            [bool]$Artifacts[$name].gitIgnored -or
+            [bool]$Artifacts[$name].nonIgnoredUntracked) {
+            throw "$Owner required artifact is not tracked SOR: $name"
+        }
     }
     $derivedExpected = $ExpectedState -cne 'VendorImported'
     if ([bool]$Artifacts.derivedSender.available -ne $derivedExpected) {
         throw "$Owner derived sender presence does not match phase state."
+    }
+    if ($ExpectedState -ceq 'VendorImported') {
+        if ([bool]$Artifacts.derivedSender.gitTracked -or
+            [bool]$Artifacts.derivedSender.gitIgnored -or
+            [bool]$Artifacts.derivedSender.nonIgnoredUntracked) {
+            throw "$Owner absent derived sender has a fabricated Git class."
+        }
+    }
+    elseif ($ExpectedState -ceq 'DerivedDeclaration') {
+        if ([bool]$Artifacts.derivedSender.gitTracked -or
+            [bool]$Artifacts.derivedSender.gitIgnored -or
+            (-not [bool]$Artifacts.derivedSender.nonIgnoredUntracked)) {
+            throw "$Owner B1 derived sender is not the explicit untracked ratchet."
+        }
+    }
+    elseif ((-not [bool]$Artifacts.derivedSender.gitTracked) -or
+        [bool]$Artifacts.derivedSender.gitIgnored -or
+        [bool]$Artifacts.derivedSender.nonIgnoredUntracked) {
+        throw "$Owner B2 derived sender is not tracked SOR."
     }
 
     $vendorPaths = @(
@@ -2022,6 +3148,11 @@ function Assert-ArtifactEvidenceContract {
             if (-not [bool]$file.available) {
                 throw "$Owner required artifact list item is unavailable."
             }
+            if ((-not [bool]$file.gitTracked) -or
+                [bool]$file.gitIgnored -or
+                [bool]$file.nonIgnoredUntracked) {
+                throw "$Owner required artifact list item is not tracked SOR."
+            }
         }
     }
 
@@ -2038,6 +3169,39 @@ function Assert-ArtifactEvidenceContract {
         -Owner "$Owner full Network" `
         -RequiredPathPrefix "$TargetRelativeRoot/Network/"
 
+    foreach ($inventoryContract in @(
+            [ordered]@{
+                Name = 'generated Includes'
+                Inventory = $Artifacts.generatedIncludes
+                IgnoredExtensions = @('.lba', '.ldi', '.lob')
+            },
+            [ordered]@{
+                Name = 'full Network'
+                Inventory = $Artifacts.fullNetwork
+                IgnoredExtensions = @('.lba', '.lob')
+            })) {
+        foreach ($file in @($inventoryContract.Inventory.files)) {
+            $extension = [IO.Path]::GetExtension([string]$file.path).ToLowerInvariant()
+            if ([bool]$file.gitIgnored) {
+                if ((-not [bool]$file.available) -or
+                    [bool]$file.gitTracked -or
+                    [bool]$file.nonIgnoredUntracked -or
+                    ($extension -notin $inventoryContract.IgnoredExtensions)) {
+                    throw (
+                        "$Owner $($inventoryContract.Name) ignored output " +
+                        "is outside the generated-output policy: $($file.path)")
+                }
+            }
+            elseif ((-not [bool]$file.available) -or
+                (-not [bool]$file.gitTracked) -or
+                [bool]$file.nonIgnoredUntracked) {
+                throw (
+                    "$Owner $($inventoryContract.Name) critical artifact " +
+                    "is not tracked SOR: $($file.path)")
+            }
+        }
+    }
+
     foreach ($name in @(
             'configObjects', 'networksDatabase', 'commNetwork',
             'commNetworkTable')) {
@@ -2051,7 +3215,8 @@ function Assert-ArtifactEvidenceContract {
             -Owner "$Owner Network duplicate $name"
     }
 
-    $targetByPath = @{}
+    $targetByPath = [Collections.Generic.Dictionary[string, object]]::new(
+        [StringComparer]::Ordinal)
     foreach ($targetFile in @($TargetWorktree.files)) {
         $targetByPath[[string]$targetFile.path] = $targetFile
     }
@@ -2063,13 +3228,30 @@ function Assert-ArtifactEvidenceContract {
         @($Artifacts.fullNetwork.files))
     foreach ($file in $artifactFiles) {
         if ([bool]$file.available) {
-            if (-not $targetByPath.ContainsKey([string]$file.path)) {
-                throw "$Owner artifact is absent from full target inventory: $($file.path)"
+            if ([bool]$file.gitIgnored) {
+                if ($targetByPath.ContainsKey([string]$file.path)) {
+                    throw (
+                        "$Owner ignored generated output leaked into the " +
+                        "tracked/nonignored target inventory: $($file.path)")
+                }
             }
-            Assert-PublicFileTupleMatches `
-                -Expected $file `
-                -Observed $targetByPath[[string]$file.path] `
-                -Owner "$Owner artifact/target inventory $($file.path)"
+            else {
+                if (-not $targetByPath.ContainsKey([string]$file.path)) {
+                    throw (
+                        "$Owner tracked/nonignored artifact is absent from " +
+                        "the target inventory: $($file.path)")
+                }
+                $targetFile = $targetByPath[[string]$file.path]
+                if (([bool]$file.gitTracked -ne [bool]$targetFile.gitTracked) -or
+                    ([bool]$file.nonIgnoredUntracked -ne
+                        [bool]$targetFile.nonIgnoredUntracked)) {
+                    throw "$Owner artifact/target Git class differs: $($file.path)"
+                }
+                Assert-PublicFileTupleMatches `
+                    -Expected $file `
+                    -Observed $targetFile `
+                    -Owner "$Owner artifact/target inventory $($file.path)"
+            }
         }
         elseif ($targetByPath.ContainsKey([string]$file.path) -and
             [bool]$targetByPath[[string]$file.path].available) {
@@ -2120,7 +3302,13 @@ function Assert-ToolingEvidenceContract {
         -ExpectedPath $VerifierRelativePath `
         -Owner "$Owner verifier"
     if ((-not [bool]$Tooling.captureScript.available) -or
-        (-not [bool]$Tooling.verifier.available)) {
+        (-not [bool]$Tooling.verifier.available) -or
+        (-not [bool]$Tooling.captureScript.gitTracked) -or
+        (-not [bool]$Tooling.verifier.gitTracked) -or
+        [bool]$Tooling.captureScript.gitIgnored -or
+        [bool]$Tooling.verifier.gitIgnored -or
+        [bool]$Tooling.captureScript.nonIgnoredUntracked -or
+        [bool]$Tooling.verifier.nonIgnoredUntracked) {
         throw "$Owner tooling files are not both available."
     }
 
@@ -2180,7 +3368,8 @@ function Assert-ToolingEvidenceContract {
             -Keys @(
                 'path', 'committedExact', 'startHead', 'indexMode',
                 'indexStage', 'indexFlagTag', 'indexDebugFlags',
-                'stageBlobOid', 'headBlobOid', 'filteredWorktreeBlobOid',
+                'stageBlobOid', 'headBlobOid', 'commitBlobPolicy',
+                'canonicalWorktreeBlobOid',
                 'physicalBytes', 'physicalSha256', 'canonicalLfBytes',
                 'canonicalLfSha256', 'headCanonicalLfBytes',
                 'headCanonicalLfSha256', 'canonicalHeadMatch') `
@@ -2203,15 +3392,19 @@ function Assert-ToolingEvidenceContract {
             throw "$Owner tool identity does not prove normal stage-0 flags."
         }
         foreach ($name in @(
-                'stageBlobOid', 'headBlobOid', 'filteredWorktreeBlobOid')) {
+                'stageBlobOid', 'headBlobOid', 'canonicalWorktreeBlobOid')) {
             Assert-GitObjectId `
                 -Value $identity[$name] `
                 -Owner "$Owner tool $($identity.path) $name"
         }
+        $expectedCommitBlobPolicy = Get-CommitBlobPolicyForPath `
+            -RelativePath ([string]$identity.path) `
+            -Owner "$Owner tool identity"
         if (($identity.stageBlobOid -cne $identity.headBlobOid) -or
-            ($identity.filteredWorktreeBlobOid -cne $identity.headBlobOid) -or
-            ($identity.filteredWorktreeBlobOid -cne
-                $toolFiles[[string]$identity.path].filteredGitBlobOid) -or
+            ($identity.commitBlobPolicy -cne $expectedCommitBlobPolicy) -or
+            ($identity.canonicalWorktreeBlobOid -cne $identity.headBlobOid) -or
+            ($identity.canonicalWorktreeBlobOid -cne
+                $toolFiles[[string]$identity.path].canonicalGitBlobOid) -or
             (-not (Test-IsJsonInteger -Value $identity.physicalBytes)) -or
             ([long]$identity.physicalBytes -ne
                 [long]$toolFiles[[string]$identity.path].bytes) -or
@@ -2382,49 +3575,13 @@ function Assert-JsonStructuralEquality {
     }
 }
 
-function Assert-TargetInventoryBoundToCommit {
+function Get-ArtifactFileRecords {
     param(
         [Parameter(Mandatory = $true)]
-        [Collections.IDictionary]$TargetWorktree,
-        [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][string]$GitPath,
-        [Parameter(Mandatory = $true)][string]$Commit,
-        [Parameter(Mandatory = $true)][string]$Owner
+        [Collections.IDictionary]$Artifacts
     )
 
-    $treeResult = Invoke-ProcessCapture `
-        -FileName $GitPath `
-        -Arguments @(
-            '-C', $Root, 'ls-tree', '-r', '-z', '--name-only', $Commit,
-            '--', $TargetRelativeRoot)
-    Assert-CommandPassed -Result $treeResult -Owner "$Owner target tree lookup"
-    $treePaths = @(
-        ConvertFrom-NulPathOutput -Output $treeResult.Stdout |
-            Sort-Object -Unique)
-    $recordedAvailablePaths = @(
-        $TargetWorktree.files |
-            Where-Object { $_.available } |
-            ForEach-Object { [string]$_.path } |
-            Sort-Object -Unique)
-    if ([string]::Join("`n", $treePaths) -cne
-        [string]::Join("`n", $recordedAvailablePaths)) {
-        throw (
-            "$Owner full target path inventory is not exactly enclosed by " +
-            'the binding commit.')
-    }
-}
-
-function Assert-ArtifactFilesBoundToCommit {
-    param(
-        [Parameter(Mandatory = $true)]
-        [Collections.IDictionary]$Artifacts,
-        [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][string]$GitPath,
-        [Parameter(Mandatory = $true)][string]$Commit,
-        [Parameter(Mandatory = $true)][string]$Owner
-    )
-
-    $files = @(
+    return @(
         @(
             'classesDatabase', 'projectDatabase', 'projectDefinition',
             'tcpMotionInterface', 'derivedSender', 'configObjects',
@@ -2434,6 +3591,405 @@ function Assert-ArtifactFilesBoundToCommit {
         @($Artifacts.protectedDependencies) +
         @($Artifacts.generatedIncludes.files) +
         @($Artifacts.fullNetwork.files))
+}
+
+function Assert-ArtifactGitMembershipBoundToTrackedPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Artifacts,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()][object[]]$TrackedPaths,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $trackedSet = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($path in $TrackedPaths) {
+        if (($path -isnot [string]) -or
+            (-not $trackedSet.Add([string]$path))) {
+            throw "$Owner tracked path evidence is malformed or duplicated."
+        }
+    }
+    foreach ($file in @(Get-ArtifactFileRecords -Artifacts $Artifacts)) {
+        $path = [string]$file.path
+        if ([bool]$file.gitTracked -ne $trackedSet.Contains($path)) {
+            throw "$Owner artifact Git membership differs from trackedPaths: $path"
+        }
+    }
+}
+
+function Assert-TargetIgnoredPathPolicy {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Snapshot,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Artifacts,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $ignoredPaths = @($Snapshot.targetIgnoredPaths)
+    $allowedGeneratedExtensions = @('.lba', '.lob', '.ldi', '.lhd', '.lcc')
+    foreach ($path in $ignoredPaths) {
+        $extension = [IO.Path]::GetExtension([string]$path).ToLowerInvariant()
+        $isProjectInternal = ([string]$path).StartsWith(
+            "$TargetRelativeRoot/ProjectInternal/",
+            [StringComparison]::Ordinal)
+        if ((-not $isProjectInternal) -and
+            ($extension -notin $allowedGeneratedExtensions)) {
+            throw "$Owner ignored target path is not an approved generated output: $path"
+        }
+    }
+    $ignoredArtifactPaths = @(
+        Get-ArtifactFileRecords -Artifacts $Artifacts |
+            Where-Object { $_.gitIgnored } |
+            ForEach-Object { [string]$_.path } |
+            Sort-Object -CaseSensitive -Unique)
+    $ignoredArtifactSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$ignoredArtifactPaths,
+        [StringComparer]::Ordinal)
+    $ignoredSnapshotSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$ignoredPaths,
+        [StringComparer]::Ordinal)
+    foreach ($path in $ignoredArtifactPaths) {
+        if (-not $ignoredSnapshotSet.Contains($path)) {
+            throw "$Owner ignored artifact is absent from target ignored evidence: $path"
+        }
+    }
+    $capturedGeneratedRoots = @(
+        "$TargetRelativeRoot/Include/",
+        "$TargetRelativeRoot/Network/")
+    foreach ($path in $ignoredPaths) {
+        $mustBeArtifact = @(
+            $capturedGeneratedRoots | Where-Object {
+                ([string]$path).StartsWith($_, [StringComparison]::Ordinal)
+            }).Count -ne 0
+        if ($mustBeArtifact -and (-not $ignoredArtifactSet.Contains($path))) {
+            throw "$Owner ignored Include/Network path lacks raw artifact evidence: $path"
+        }
+    }
+}
+
+function New-TargetCommitBindingPolicy {
+    param(
+        [Parameter(Mandatory = $true)][string]$Phase,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$TargetWorktree,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Artifacts
+    )
+
+    if (-not $PhaseContracts.Contains($Phase)) {
+        throw "Target commit binding phase is unknown: $Phase"
+    }
+    $derivedPath =
+        "$TargetRelativeRoot/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st"
+    $critical = @(
+        $TargetWorktree.files |
+            Where-Object { $_.gitTracked -and $_.available } |
+            ForEach-Object { [string]$_.path })
+    $requiredAbsent = @(
+        $TargetWorktree.files |
+            Where-Object { $_.gitTracked -and (-not $_.available) } |
+            ForEach-Object { [string]$_.path })
+    $promoted = @()
+    if ($Phase -ceq 'GateA_VendorImported') {
+        $requiredAbsent += $derivedPath
+    }
+    elseif ($Phase -ceq 'GateB1_DerivedDeclaration') {
+        $promoted += $derivedPath
+        $critical += $derivedPath
+    }
+    $capturedNonIgnoredUntracked = @(
+        $TargetWorktree.files |
+            Where-Object { $_.nonIgnoredUntracked } |
+            ForEach-Object { [string]$_.path })
+    $unexpectedNonIgnoredUntracked = @(
+        $capturedNonIgnoredUntracked |
+            Where-Object {
+                ($_ -notin $promoted) -and
+                ($_ -cnotin $AllowedAmbientNonIgnoredTargetPaths)
+            })
+    if ($unexpectedNonIgnoredUntracked.Count -ne 0) {
+        throw (
+            'Target commit binding contains an unapproved nonignored ' +
+            'untracked path: ' +
+            [string]::Join(',', $unexpectedNonIgnoredUntracked))
+    }
+    $ambient = @(
+        @(
+            $capturedNonIgnoredUntracked |
+                Where-Object { $_ -notin $promoted }) +
+        @(
+            Get-ArtifactFileRecords -Artifacts $Artifacts |
+                Where-Object { $_.gitIgnored -and $_.available } |
+                ForEach-Object { [string]$_.path }))
+    $critical = @($critical | Sort-Object -Unique)
+    $requiredAbsent = @($requiredAbsent | Sort-Object -Unique)
+    $promoted = @($promoted | Sort-Object -Unique)
+    $ambient = @($ambient | Sort-Object -Unique)
+
+    foreach ($pair in @(
+            @('critical/requiredAbsent', $critical, $requiredAbsent),
+            @('critical/ambient', $critical, $ambient),
+            @('requiredAbsent/ambient', $requiredAbsent, $ambient))) {
+        $overlap = @($pair[1] | Where-Object { $_ -in $pair[2] })
+        if ($overlap.Count -ne 0) {
+            throw (
+                "Target commit binding $($pair[0]) sets overlap: " +
+                [string]::Join(',', $overlap))
+        }
+    }
+    if (@($promoted | Where-Object { $_ -notin $critical }).Count -ne 0) {
+        throw 'Target commit binding promoted paths are not a critical subset.'
+    }
+    $targetByPath = [Collections.Generic.Dictionary[string, object]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($file in @($TargetWorktree.files)) {
+        $targetByPath[[string]$file.path] = $file
+    }
+    $criticalBlobIdentity = [string]::Join("`n", @(
+            foreach ($path in $critical) {
+                if (-not $targetByPath.ContainsKey($path)) {
+                    throw "Target commit binding critical path is not captured: $path"
+                }
+                $file = $targetByPath[$path]
+                $expectedPolicy = Get-CommitBlobPolicyForPath `
+                    -RelativePath $path `
+                    -Owner "target commit binding critical blob $path"
+                if ((-not [bool]$file.available) -or
+                    ([string]$file.commitBlobPolicy -cne $expectedPolicy) -or
+                    ([string]$file.canonicalGitBlobOid -notmatch
+                        '^[A-F0-9]{40,64}$')) {
+                    throw "Target commit binding critical blob is unavailable: $path"
+                }
+                "$path|$expectedPolicy|$($file.canonicalGitBlobOid)"
+            }))
+
+    return [ordered]@{
+        schema = 'LasalUdpCallbackTargetCommitBinding/v1'
+        phase = $Phase
+        projectionRule = (
+            'binding target tree minus sealed ambientCurrentOnlyPaths must ' +
+            'equal criticalTrackedPaths; requiredAbsentPaths must be absent')
+        criticalTrackedPathCount = $critical.Count
+        criticalTrackedPathSha256 =
+            Get-TextSha256 -Text ([string]::Join("`n", $critical))
+        criticalTrackedBlobIdentitySha256 =
+            Get-TextSha256 -Text $criticalBlobIdentity
+        criticalTrackedPaths = $critical
+        requiredAbsentPathCount = $requiredAbsent.Count
+        requiredAbsentPathSha256 =
+            Get-TextSha256 -Text ([string]::Join("`n", $requiredAbsent))
+        requiredAbsentPaths = $requiredAbsent
+        phasePromotedPathCount = $promoted.Count
+        phasePromotedPathSha256 =
+            Get-TextSha256 -Text ([string]::Join("`n", $promoted))
+        phasePromotedPaths = $promoted
+        ambientCurrentOnlyPathCount = $ambient.Count
+        ambientCurrentOnlyPathSha256 =
+            Get-TextSha256 -Text ([string]::Join("`n", $ambient))
+        ambientCurrentOnlyPaths = $ambient
+    }
+}
+
+function Assert-TargetCommitBindingPolicyEvidence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Policy,
+        [Parameter(Mandatory = $true)][string]$ExpectedPhase,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    Assert-ExactMapKeys `
+        -Map $Policy `
+        -Keys @(
+            'schema', 'phase', 'projectionRule',
+            'criticalTrackedPathCount', 'criticalTrackedPathSha256',
+            'criticalTrackedBlobIdentitySha256',
+            'criticalTrackedPaths', 'requiredAbsentPathCount',
+            'requiredAbsentPathSha256', 'requiredAbsentPaths',
+            'phasePromotedPathCount', 'phasePromotedPathSha256',
+            'phasePromotedPaths', 'ambientCurrentOnlyPathCount',
+            'ambientCurrentOnlyPathSha256', 'ambientCurrentOnlyPaths') `
+        -Owner $Owner
+    if (($Policy.schema -cne 'LasalUdpCallbackTargetCommitBinding/v1') -or
+        ($Policy.phase -cne $ExpectedPhase) -or
+        ($Policy.projectionRule -cne
+            ('binding target tree minus sealed ambientCurrentOnlyPaths must ' +
+                'equal criticalTrackedPaths; requiredAbsentPaths must be absent'))) {
+        throw "$Owner identity drifted."
+    }
+    Assert-UpperSha256 `
+        -Value $Policy.criticalTrackedBlobIdentitySha256 `
+        -Owner "$Owner critical tracked blob identity digest"
+    foreach ($prefix in @(
+            'criticalTracked', 'requiredAbsent', 'phasePromoted',
+            'ambientCurrentOnly')) {
+        $countName = $prefix + 'PathCount'
+        $shaName = $prefix + 'PathSha256'
+        $pathsName = $prefix + 'Paths'
+        if ((-not (Test-IsJsonInteger -Value $Policy[$countName])) -or
+            ([long]$Policy[$countName] -lt 0) -or
+            ($Policy[$pathsName] -isnot [Collections.IList])) {
+            throw "$Owner $prefix path evidence is malformed."
+        }
+        Assert-UpperSha256 -Value $Policy[$shaName] -Owner "$Owner $prefix digest"
+        $paths = @($Policy[$pathsName])
+        foreach ($path in $paths) {
+            if (($path -isnot [string]) -or
+                (-not ([string]$path).StartsWith(
+                        $TargetRelativeRoot + '/',
+                        [StringComparison]::Ordinal)) -or
+                ([string]$path -match '[\\\r\n\x00]')) {
+                throw "$Owner $prefix contains an invalid target path."
+            }
+        }
+        $sorted = @($paths | Sort-Object -Unique)
+        if (($paths.Count -ne [long]$Policy[$countName]) -or
+            ([string]::Join("`n", $paths) -cne
+                [string]::Join("`n", $sorted)) -or
+            ((Get-TextSha256 -Text ([string]::Join("`n", $paths))) -cne
+                $Policy[$shaName])) {
+            throw "$Owner $prefix path count/order/digest drifted."
+        }
+    }
+    $critical = @($Policy.criticalTrackedPaths)
+    $absent = @($Policy.requiredAbsentPaths)
+    $promoted = @($Policy.phasePromotedPaths)
+    $ambient = @($Policy.ambientCurrentOnlyPaths)
+    if ((@($critical | Where-Object { $_ -in $absent }).Count -ne 0) -or
+        (@($critical | Where-Object { $_ -in $ambient }).Count -ne 0) -or
+        (@($absent | Where-Object { $_ -in $ambient }).Count -ne 0) -or
+        (@($promoted | Where-Object { $_ -notin $critical }).Count -ne 0)) {
+        throw "$Owner path classes overlap or promotion is not critical."
+    }
+}
+
+function Assert-TargetInventoryBoundToCommit {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$TargetWorktree,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Policy,
+        [Parameter(Mandatory = $true)][string]$ExpectedPhase,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$GitPath,
+        [Parameter(Mandatory = $true)][string]$Commit,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $treeResult = Invoke-ProcessCapture `
+        -FileName $GitPath `
+        -Arguments @(
+            '-C', $Root, 'ls-tree', '-r', '-z', $Commit,
+            '--', $TargetRelativeRoot)
+    Assert-CommandPassed -Result $treeResult -Owner "$Owner target tree lookup"
+    $treeRecords = [Collections.Generic.Dictionary[string, object]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($entry in @(ConvertFrom-NulPathOutput -Output $treeResult.Stdout)) {
+        $match = [regex]::Match(
+            $entry,
+            '^(?<Mode>[0-9]{6}) (?<Type>blob) ' +
+                '(?<Oid>[0-9a-fA-F]{40,64})\t(?<Path>.+)$',
+            [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+        if (-not $match.Success) {
+            throw "$Owner target tree contains a non-blob or malformed entry."
+        }
+        $path = $match.Groups['Path'].Value
+        if (($path -match '[\\\r\n\x00]') -or $treeRecords.ContainsKey($path)) {
+            throw "$Owner target tree path is malformed or duplicated."
+        }
+        $treeRecords[$path] = [ordered]@{
+            mode = $match.Groups['Mode'].Value
+            blobOid = $match.Groups['Oid'].Value.ToUpperInvariant()
+        }
+    }
+    $treePaths = @($treeRecords.Keys | Sort-Object -CaseSensitive)
+    Assert-TargetCommitBindingPolicyEvidence `
+        -Policy $Policy `
+        -ExpectedPhase $ExpectedPhase `
+        -Owner "$Owner target commit binding"
+    $ambientSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($Policy.ambientCurrentOnlyPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $projectedTreePaths = @(
+        $treePaths | Where-Object { -not $ambientSet.Contains($_) })
+    $criticalPaths = @($Policy.criticalTrackedPaths)
+    $projectionMatches = $projectedTreePaths.Count -eq $criticalPaths.Count
+    if ($projectionMatches) {
+        for ($index = 0; $index -lt $criticalPaths.Count; $index++) {
+            if ($projectedTreePaths[$index] -cne $criticalPaths[$index]) {
+                $projectionMatches = $false
+                break
+            }
+        }
+    }
+    if (-not $projectionMatches) {
+        throw "$Owner binding commit target projection differs from critical SOR."
+    }
+    $targetByPath = [Collections.Generic.Dictionary[string, object]]::new(
+        [StringComparer]::Ordinal)
+    foreach ($file in @($TargetWorktree.files)) {
+        $targetByPath[[string]$file.path] = $file
+    }
+    $criticalBlobIdentity = [string]::Join("`n", @(
+            foreach ($path in $criticalPaths) {
+                if (-not $targetByPath.ContainsKey($path)) {
+                    throw "$Owner critical target evidence is missing: $path"
+                }
+                $file = $targetByPath[$path]
+                $expectedPolicy = Get-CommitBlobPolicyForPath `
+                    -RelativePath $path `
+                    -Owner "$Owner critical target $path"
+                if ((-not [bool]$file.available) -or
+                    ([string]$file.commitBlobPolicy -cne $expectedPolicy) -or
+                    (-not $treeRecords.ContainsKey($path)) -or
+                    ($treeRecords[$path].mode -cne '100644') -or
+                    ($treeRecords[$path].blobOid -cne
+                        [string]$file.canonicalGitBlobOid)) {
+                    throw "$Owner binding commit target blob differs: $path"
+                }
+                "$path|$expectedPolicy|$($file.canonicalGitBlobOid)"
+            }))
+    if ((Get-TextSha256 -Text $criticalBlobIdentity) -cne
+        $Policy.criticalTrackedBlobIdentitySha256) {
+        throw "$Owner critical target blob identity digest differs."
+    }
+    $treeSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$treePaths,
+        [StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in @($Policy.requiredAbsentPaths)) {
+        if ($treeSet.Contains([string]$path)) {
+            throw "$Owner required-absent path exists in binding commit: $path"
+        }
+    }
+}
+
+function Assert-ArtifactFilesBoundToCommit {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Artifacts,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Policy,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$GitPath,
+        [Parameter(Mandatory = $true)][string]$Commit,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $criticalSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($Policy.criticalTrackedPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $requiredAbsentSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($Policy.requiredAbsentPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $promotedSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($Policy.phasePromotedPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $ambientSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($Policy.ambientCurrentOnlyPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $files = @(Get-ArtifactFileRecords -Artifacts $Artifacts)
     $byPath = @{}
     foreach ($file in $files) {
         $path = [string]$file.path
@@ -2449,24 +4005,55 @@ function Assert-ArtifactFilesBoundToCommit {
     }
     foreach ($path in @($byPath.Keys | Sort-Object)) {
         $file = $byPath[$path]
-        if ([bool]$file.available) {
+        $isCritical = $criticalSet.Contains($path)
+        $isRequiredAbsent = $requiredAbsentSet.Contains($path)
+        $isPromoted = $promotedSet.Contains($path)
+        $isAmbient = $ambientSet.Contains($path)
+        $membershipCount = @(
+            $isCritical, $isRequiredAbsent, $isAmbient |
+                Where-Object { $_ }).Count
+        if ($membershipCount -ne 1) {
+            throw "$Owner artifact has no unique commit-binding class: $path"
+        }
+        if ($isCritical) {
+            $expectedPolicy = Get-CommitBlobPolicyForPath `
+                -RelativePath $path `
+                -Owner "$Owner artifact $path"
+            if ((-not [bool]$file.available) -or [bool]$file.gitIgnored -or
+                ([string]$file.commitBlobPolicy -cne $expectedPolicy) -or
+                ((-not [bool]$file.gitTracked) -and
+                    (-not ($isPromoted -and
+                            [bool]$file.nonIgnoredUntracked)))) {
+                throw "$Owner Git-bound artifact is unavailable: $path"
+            }
             $historical = Get-GitBlobEvidence `
                 -Root $Root `
                 -GitPath $GitPath `
                 -Commit $Commit `
                 -Path $path `
                 -Owner "$Owner artifact $path"
-            if ($historical.blobOid -cne $file.filteredGitBlobOid) {
+            if ($historical.blobOid -cne $file.canonicalGitBlobOid) {
                 throw "$Owner binding-commit artifact blob differs: $path"
             }
         }
-        else {
+        elseif ($isRequiredAbsent) {
+            if ([bool]$file.available -or [bool]$file.gitTracked -or
+                [bool]$file.gitIgnored -or
+                [bool]$file.nonIgnoredUntracked) {
+                throw "$Owner required-absent artifact has fabricated evidence: $path"
+            }
             $lookup = Invoke-ProcessCapture `
                 -FileName $GitPath `
                 -Arguments @('-C', $Root, 'cat-file', '-e', "$Commit`:$path")
             if ($lookup.ExitCode -eq 0) {
                 throw "$Owner absent artifact exists in binding commit: $path"
             }
+        }
+        elseif ((-not [bool]$file.available) -or
+            (-not [bool]$file.gitIgnored) -or
+            [bool]$file.gitTracked -or
+            [bool]$file.nonIgnoredUntracked) {
+            throw "$Owner ambient artifact is outside ignored-output policy: $path"
         }
     }
 }
@@ -2774,7 +4361,7 @@ function Assert-CheckpointManifestContract {
             'finalCommitGuard', 'stageGuardRevalidationRequired',
             'fullRepositoryTrackedPathCount',
             'fullRepositoryTrackedPathInventorySha256',
-            'fullRepositoryTrackedPaths') `
+            'fullRepositoryTrackedPaths', 'targetCommitBinding') `
         -Owner "$owner git"
     Assert-GitObjectId -Value $recordedGit.head -Owner "$owner git HEAD"
     foreach ($name in @('start', 'prePublish', 'finalCommitGuard')) {
@@ -2890,6 +4477,31 @@ function Assert-CheckpointManifestContract {
         -TargetWorktree $recordedGit.start.targetWorktree `
         -ExpectedState $ExpectedContract.ExpectedState `
         -Owner $owner
+    Assert-ArtifactGitMembershipBoundToTrackedPaths `
+        -Artifacts $artifacts `
+        -TrackedPaths @($recordedGit.start.trackedPaths) `
+        -Owner $owner
+    Assert-TargetIgnoredPathPolicy `
+        -Snapshot $recordedGit.start `
+        -Artifacts $artifacts `
+        -Owner $owner
+    $targetCommitBinding = Get-RequiredMapValue `
+        $recordedGit targetCommitBinding "$owner git"
+    if ($targetCommitBinding -isnot [Collections.IDictionary]) {
+        throw "$owner git targetCommitBinding is not an object."
+    }
+    Assert-TargetCommitBindingPolicyEvidence `
+        -Policy $targetCommitBinding `
+        -ExpectedPhase $ExpectedPhase `
+        -Owner "$owner git targetCommitBinding"
+    $expectedTargetCommitBinding = New-TargetCommitBindingPolicy `
+        -Phase $ExpectedPhase `
+        -TargetWorktree $recordedGit.start.targetWorktree `
+        -Artifacts $artifacts
+    Assert-JsonStructuralEquality `
+        -Expected $expectedTargetCommitBinding `
+        -Observed $targetCommitBinding `
+        -Owner "$owner recomputed target commit binding"
     Assert-ToolingEvidenceContract `
         -Tooling $tooling `
         -RecordedGit $recordedGit `
@@ -2910,12 +4522,15 @@ function Assert-CheckpointManifestContract {
         -RequireDistinct
     Assert-TargetInventoryBoundToCommit `
         -TargetWorktree $recordedGit.start.targetWorktree `
+        -Policy $targetCommitBinding `
+        -ExpectedPhase $ExpectedPhase `
         -Root $RepositoryRoot `
         -GitPath $GitPath `
         -Commit $RepositoryBindingHead `
         -Owner $owner
     Assert-ArtifactFilesBoundToCommit `
         -Artifacts $artifacts `
+        -Policy $targetCommitBinding `
         -Root $RepositoryRoot `
         -GitPath $GitPath `
         -Commit $RepositoryBindingHead `
@@ -2963,7 +4578,8 @@ function Assert-CheckpointManifestContract {
     Assert-ExactMapKeys `
         -Map $parent `
         -Keys @(
-            'path', 'bytes', 'sha256', 'schema', 'phase', 'state',
+            'path', 'bytes', 'sha256', 'commitBlobPolicy',
+            'canonicalGitBlobOid', 'schema', 'phase', 'state',
             'observedAt', 'gitHead', 'verifierCanonicalLfSha256',
             'artifactBindingHead', 'manifestCommittedAtChildStartHead',
             'manifestCommittedBlobOid') `
@@ -2971,7 +4587,8 @@ function Assert-CheckpointManifestContract {
     Assert-ExactMapKeys `
         -Map $rootGateA `
         -Keys @(
-            'path', 'bytes', 'sha256', 'artifactBindingHead',
+            'path', 'bytes', 'sha256', 'commitBlobPolicy',
+            'canonicalGitBlobOid', 'artifactBindingHead',
             'manifestCommittedAtChildStartHead',
             'manifestCommittedBlobOid') `
         -Owner "$owner rootGateA"
@@ -2983,6 +4600,12 @@ function Assert-CheckpointManifestContract {
             [long]$ExpectedParentFile.Public.bytes) -or
         ((Get-RequiredMapValue $parent sha256 "$owner lineage parent") -cne
             $ExpectedParentFile.Public.sha256) -or
+        ((Get-RequiredMapValue $parent commitBlobPolicy (
+                    "$owner lineage parent")) -cne
+            $ExpectedParentFile.Public.commitBlobPolicy) -or
+        ((Get-RequiredMapValue $parent canonicalGitBlobOid (
+                    "$owner lineage parent")) -cne
+            $ExpectedParentFile.Public.canonicalGitBlobOid) -or
         ((Get-RequiredMapValue $parent schema "$owner lineage parent") -cne
             'LasalUdpCallbackGateBCheckpoint/v2') -or
         ((Get-RequiredMapValue $parent phase "$owner lineage parent") -cne
@@ -3023,6 +4646,14 @@ function Assert-CheckpointManifestContract {
             $recordedGit.head)) {
         throw "$owner lineage artifact/manifest ratchet HEAD drifted."
     }
+    if (($parent.commitBlobPolicy -cne 'byte-crlf-to-lf-text-v1') -or
+        ($rootGateA.commitBlobPolicy -cne 'byte-crlf-to-lf-text-v1') -or
+        ($parent.canonicalGitBlobOid -cne
+            $parent.manifestCommittedBlobOid) -or
+        ($rootGateA.canonicalGitBlobOid -cne
+            $rootGateA.manifestCommittedBlobOid)) {
+        throw "$owner lineage manifest commit blob identity drifted."
+    }
     Assert-GitObjectId `
         -Value $parent.artifactBindingHead `
         -Owner "$owner parent artifact binding HEAD"
@@ -3052,7 +4683,13 @@ function Assert-CheckpointManifestContract {
         ([long](Get-RequiredMapValue $rootGateA bytes "$owner rootGateA") -ne
             [long]$ExpectedRootFile.Public.bytes) -or
         ((Get-RequiredMapValue $rootGateA sha256 "$owner rootGateA") -cne
-            $ExpectedRootFile.Public.sha256)) {
+            $ExpectedRootFile.Public.sha256) -or
+        ((Get-RequiredMapValue $rootGateA commitBlobPolicy (
+                    "$owner rootGateA")) -cne
+            $ExpectedRootFile.Public.commitBlobPolicy) -or
+        ((Get-RequiredMapValue $rootGateA canonicalGitBlobOid (
+                    "$owner rootGateA")) -cne
+            $ExpectedRootFile.Public.canonicalGitBlobOid)) {
         throw "$owner Gate A root link drifted."
     }
     $rootBlob = Invoke-ProcessCapture `
@@ -3097,7 +4734,11 @@ function Get-ValidatedLineageEvidence {
         -RequireAsciiCanonical
     if (([long]$gateAIdentity.physicalBytes -ne
             [long]$gateAFile.Public.bytes) -or
-        ($gateAIdentity.physicalSha256 -cne $gateAFile.Public.sha256)) {
+        ($gateAIdentity.physicalSha256 -cne $gateAFile.Public.sha256) -or
+        ($gateAIdentity.commitBlobPolicy -cne
+            $gateAFile.Public.commitBlobPolicy) -or
+        ($gateAIdentity.canonicalWorktreeBlobOid -cne
+            $gateAFile.Public.canonicalGitBlobOid)) {
         throw 'Gate A parent manifest differs from its committed-path identity.'
     }
     $gateAParsed = ConvertFrom-StrictCheckpointJson `
@@ -3121,7 +4762,11 @@ function Get-ValidatedLineageEvidence {
     }
     if (([long]$parentIdentity.physicalBytes -ne
             [long]$parentFile.Public.bytes) -or
-        ($parentIdentity.physicalSha256 -cne $parentFile.Public.sha256)) {
+        ($parentIdentity.physicalSha256 -cne $parentFile.Public.sha256) -or
+        ($parentIdentity.commitBlobPolicy -cne
+            $parentFile.Public.commitBlobPolicy) -or
+        ($parentIdentity.canonicalWorktreeBlobOid -cne
+            $parentFile.Public.canonicalGitBlobOid)) {
         throw 'Parent manifest differs from its committed-path identity.'
     }
     $parentParsed = if ($contract.ParentPhase -ceq 'GateA_VendorImported') {
@@ -3185,6 +4830,8 @@ function Get-ValidatedLineageEvidence {
             path = $parentPath
             bytes = $parentFile.Public.bytes
             sha256 = $parentFile.Public.sha256
+            commitBlobPolicy = $parentFile.Public.commitBlobPolicy
+            canonicalGitBlobOid = $parentFile.Public.canonicalGitBlobOid
             schema = 'LasalUdpCallbackGateBCheckpoint/v2'
             phase = $contract.ParentPhase
             state = $contract.ParentState
@@ -3201,6 +4848,8 @@ function Get-ValidatedLineageEvidence {
             path = $gateAPath
             bytes = $gateAFile.Public.bytes
             sha256 = $gateAFile.Public.sha256
+            commitBlobPolicy = $gateAFile.Public.commitBlobPolicy
+            canonicalGitBlobOid = $gateAFile.Public.canonicalGitBlobOid
             artifactBindingHead = $gateAArtifactBindingHead
             manifestCommittedAtChildStartHead = $StartHead
             manifestCommittedBlobOid = $gateAIdentity.headBlobOid
@@ -3269,6 +4918,7 @@ function ConvertFrom-NulPathOutput {
 function Get-TargetWorktreeInventory {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$GitPath,
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()][string[]]$TrackedPaths,
         [Parameter(Mandatory = $true)]
@@ -3304,6 +4954,10 @@ function Get-TargetWorktreeInventory {
                 throw "Target inventory path is not canonical: $relativePath"
             }
             $available = [IO.File]::Exists($fullPath)
+            $commitBlobPolicy = Get-CommitBlobPolicyForPath `
+                -RelativePath $relativePath `
+                -Owner "target commit blob policy for $relativePath"
+            $canonicalGitBlobOid = $null
             if ($available) {
                 $null = Assert-PathComponentsNoReparse `
                     -Root $Root `
@@ -3317,6 +4971,10 @@ function Get-TargetWorktreeInventory {
                         $after.lastWriteTimeUtcTicks)) {
                     throw "Target inventory input changed while read: $relativePath"
                 }
+                $canonicalGitBlobOid = Get-CanonicalGitBlobOidForBytes `
+                    -RelativePath $relativePath `
+                    -Bytes $bytes `
+                    -Owner "target canonical blob for $relativePath"
             }
             [ordered]@{
                 path = $relativePath
@@ -3326,6 +4984,13 @@ function Get-TargetWorktreeInventory {
                 bytes = if ($available) { $bytes.Length } else { $null }
                 sha256 = if ($available) {
                     Get-BytesSha256 -Bytes $bytes
+                }
+                else {
+                    $null
+                }
+                commitBlobPolicy = $commitBlobPolicy
+                canonicalGitBlobOid = if ($available) {
+                    $canonicalGitBlobOid
                 }
                 else {
                     $null
@@ -3340,13 +5005,15 @@ function Get-TargetWorktreeInventory {
         })
     $identity = [string]::Join("`n", @(
             foreach ($file in $files) {
-                '{0}|{1}|{2}|{3}|{4}|{5}|{6}' -f
+                '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}' -f
                     $file.path,
                     ([int][bool]$file.gitTracked),
                     ([int][bool]$file.nonIgnoredUntracked),
                     ([int][bool]$file.available),
                     $file.bytes,
                     $file.sha256,
+                    $file.commitBlobPolicy,
+                    $file.canonicalGitBlobOid,
                     $file.lastWriteTimeUtcTicks
             }))
     return [ordered]@{
@@ -3356,7 +5023,12 @@ function Get-TargetWorktreeInventory {
         identityAlgorithm = (
             'sort unique target tracked-plus-nonignored-untracked paths; ' +
             'join path|tracked01|untracked01|available01|bytes|' +
-            'uppercase-sha256|lastWriteTimeUtcTicks with LF; UTF-8 SHA-256')
+            'uppercase-sha256|commit-blob-policy|' +
+            'tool-canonical-git-blob-oid|' +
+            'lastWriteTimeUtcTicks with LF; UTF-8 SHA-256; canonical blob ' +
+            'policy is byte CRLF-to-LF for c/cpp/h/json/ps1/st/txt/xml and raw ' +
+            'bytes for ico/lba/lcb/lcc/lcn/lcp/ldi/lhd/lob/mme/mmc/vov; ' +
+            'Git attributes and filters are not consulted')
         identitySha256 = Get-TextSha256 -Text $identity
         files = $files
     }
@@ -3421,14 +5093,25 @@ function Get-GitStateSnapshot {
     Assert-CommandPassed `
         -Result $untrackedResult `
         -Owner 'target nonignored untracked path snapshot'
+    $ignoredResult = Invoke-ProcessCapture `
+        -FileName $GitPath `
+        -Arguments @(
+            '-C', $Root, 'ls-files', '--others', '--ignored',
+            '--exclude-standard', '-z', '--', $TargetRelativeRoot)
+    Assert-CommandPassed `
+        -Result $ignoredResult `
+        -Owner 'target ignored path snapshot'
     $trackedPaths = @(
         ConvertFrom-NulPathOutput -Output $trackedResult.Stdout |
             Sort-Object -Unique)
     $untrackedPaths = @(
         ConvertFrom-NulPathOutput -Output $untrackedResult.Stdout |
             Sort-Object -Unique)
+    $ignoredPaths = @(
+        ConvertFrom-NulPathOutput -Output $ignoredResult.Stdout)
     $inventory = Get-TargetWorktreeInventory `
         -Root $Root `
+        -GitPath $GitPath `
         -TrackedPaths $trackedPaths `
         -UntrackedPaths $untrackedPaths
     $indexEntries = @(ConvertFrom-NulPathOutput -Output $indexResult.Stdout)
@@ -3443,7 +5126,7 @@ function Get-GitStateSnapshot {
         -Expected $repositoryContextBefore `
         -Observed $repositoryContextAfter `
         -Owner 'Git snapshot repository context'
-    return [ordered]@{
+    $snapshot = [ordered]@{
         scope = 'full-repository-index-and-status'
         repositoryContext = $repositoryContextBefore
         head = $head.ToUpperInvariant()
@@ -3457,8 +5140,16 @@ function Get-GitStateSnapshot {
         statusEntryCount = $statusEntries.Count
         statusRawTextSha256 = Get-TextSha256 -Text $statusResult.Stdout
         statusEntries = $statusEntries
+        targetIgnoredPathCount = $ignoredPaths.Count
+        targetIgnoredPathRawTextSha256 =
+            Get-TextSha256 -Text $ignoredResult.Stdout
+        targetIgnoredPaths = $ignoredPaths
         targetWorktree = $inventory
     }
+    Assert-GitSnapshotEvidence `
+        -Snapshot $snapshot `
+        -Owner 'current Git snapshot'
+    return $snapshot
 }
 
 function Assert-GitStateStable {
@@ -3483,6 +5174,10 @@ function Assert-GitStateStable {
             $Expected.trackedPathRawTextSha256) -or
         ($Observed.statusEntryCount -ne $Expected.statusEntryCount) -or
         ($Observed.statusRawTextSha256 -cne $Expected.statusRawTextSha256) -or
+        ($Observed.targetIgnoredPathCount -ne
+            $Expected.targetIgnoredPathCount) -or
+        ($Observed.targetIgnoredPathRawTextSha256 -cne
+            $Expected.targetIgnoredPathRawTextSha256) -or
         ($Observed.targetWorktree.trackedCount -ne
             $Expected.targetWorktree.trackedCount) -or
         ($Observed.targetWorktree.nonIgnoredUntrackedCount -ne
@@ -3562,13 +5257,14 @@ function Get-CommittedPathIdentity {
     else {
         $null
     }
-    $worktreeBlobResult = Invoke-ProcessCapture `
-        -FileName $GitPath `
-        -Arguments @('-C', $Root, 'hash-object', "--path=$Path", $fullPath)
-    Assert-CommandPassed `
-        -Result $worktreeBlobResult `
-        -Owner "filtered worktree blob for $Path"
-    $worktreeBlobOid = $worktreeBlobResult.Stdout.Trim().ToUpperInvariant()
+    $bytes = [IO.File]::ReadAllBytes($fullPath)
+    $commitBlobPolicy = Get-CommitBlobPolicyForPath `
+        -RelativePath $Path `
+        -Owner "committed path policy for $Path"
+    $worktreeBlobOid = Get-CanonicalGitBlobOidForBytes `
+        -RelativePath $Path `
+        -Bytes $bytes `
+        -Owner "canonical worktree blob for $Path"
     $stageBlobOid = if ($stage0Exact) {
         $stageMatch.Groups['Oid'].Value.ToUpperInvariant()
     }
@@ -3576,7 +5272,6 @@ function Get-CommittedPathIdentity {
         $null
     }
 
-    $bytes = [IO.File]::ReadAllBytes($fullPath)
     $traits = Get-RawTextTraits -Bytes $bytes
     $canonicalBytes = $null
     $canonicalSha256 = $null
@@ -3654,7 +5349,8 @@ function Get-CommittedPathIdentity {
         else { $null }
         stageBlobOid = $stageBlobOid
         headBlobOid = $headBlobOid
-        filteredWorktreeBlobOid = $worktreeBlobOid
+        commitBlobPolicy = $commitBlobPolicy
+        canonicalWorktreeBlobOid = $worktreeBlobOid
         physicalBytes = $bytes.Length
         physicalSha256 = Get-BytesSha256 -Bytes $bytes
         canonicalLfBytes = if ($null -ne $canonicalBytes) {
@@ -3877,6 +5573,16 @@ function Assert-PublicFileTupleMatches {
             "$($Expected.bytes)/$($Expected.sha256), capture=" +
             "$($Observed.bytes)/$($Observed.sha256)")
     }
+    if ($Expected.Contains('commitBlobPolicy')) {
+        if ((-not $Observed.Contains('commitBlobPolicy')) -or
+            (-not $Expected.Contains('canonicalGitBlobOid')) -or
+            (-not $Observed.Contains('canonicalGitBlobOid')) -or
+            ($Expected.commitBlobPolicy -cne $Observed.commitBlobPolicy) -or
+            ($Expected.canonicalGitBlobOid -cne
+                $Observed.canonicalGitBlobOid)) {
+            throw "$Owner commit blob policy or canonical blob differs."
+        }
+    }
 }
 
 function Assert-VerifierEvidenceMatchesCapture {
@@ -3956,13 +5662,16 @@ function Assert-VerifierEvidenceMatchesCapture {
             -Observed $ReadFiles[$path].Public `
             -Owner "protected dependency $($item.name)"
     }
-    if (($evidence.network.fullCount -ne $NetworkInventory.unionCount) -or
+    $verifierCompatibleNetwork = Get-VerifierCompatibleNetworkProjection `
+        -Inventory $NetworkInventory
+    if (($evidence.network.fullCount -ne
+            $verifierCompatibleNetwork.fullCount) -or
         ($evidence.network.fullSha256 -cne
-            $NetworkInventory.inventorySha256) -or
+            $verifierCompatibleNetwork.fullSha256) -or
         ($evidence.network.trackedCount -ne
-            $NetworkInventory.trackedCount) -or
+            $verifierCompatibleNetwork.trackedCount) -or
         ($evidence.network.trackedSha256 -cne
-            $NetworkInventory.trackedInventorySha256)) {
+            $verifierCompatibleNetwork.trackedSha256)) {
         throw 'Network verifier/capture inventory evidence differs.'
     }
     return [ordered]@{
@@ -4189,12 +5898,1060 @@ function Publish-VerifiedJsonStage {
     }
 }
 
+function Invoke-SyntheticFullManifestContractSelfTest {
+    param([Parameter(Mandatory = $true)][string]$TestRoot)
+
+    $positive = 0
+    $negative = 0
+    $repositoryRoot = Join-Path $TestRoot 'full-manifest-contract'
+    $null = [IO.Directory]::CreateDirectory($repositoryRoot)
+    $writeAscii = {
+        param(
+            [Parameter(Mandatory = $true)][string]$RelativePath,
+            [Parameter(Mandatory = $true)][string]$Text
+        )
+
+        $fullPath = Join-Path $repositoryRoot $RelativePath.Replace('/', '\')
+        $null = [IO.Directory]::CreateDirectory(
+            [IO.Path]::GetDirectoryName($fullPath))
+        [IO.File]::WriteAllBytes($fullPath, $Utf8NoBom.GetBytes($Text))
+    }
+    $invokeGit = {
+        param(
+            [Parameter(Mandatory = $true)][string[]]$Arguments,
+            [Parameter(Mandatory = $true)][string]$Owner
+        )
+
+        $result = Invoke-ProcessCapture -FileName 'git' -Arguments $Arguments
+        Assert-CommandPassed -Result $result -Owner $Owner
+        return $result
+    }
+    $capturePath =
+        "$EvidenceRelativeRoot/Capture-UdpCallbackGateBCheckpoint.ps1"
+    $derivedPath =
+        "$TargetRelativeRoot/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st"
+    $classesPath = "$TargetRelativeRoot/Class/Classes.lcb"
+    $projectDatabasePath = "$TargetRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcb"
+    $projectDefinitionPath = "$TargetRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcp"
+    $tcpPath = "$TargetRelativeRoot/Class/TCPMotionInterface/TCPMotionInterface.st"
+    $configObjectsPath = "$TargetRelativeRoot/Network/ConfigObjects.st"
+    $networksDatabasePath = "$TargetRelativeRoot/Network/Networks.lcb"
+    $commNetworkPath =
+        "$TargetRelativeRoot/Network/Comm_Network/Comm_Network.lcn"
+    $commTablePath =
+        "$TargetRelativeRoot/Network/Comm_Network/ONE_Comm_Network_Table.st"
+    $vendorPaths = @(
+        "$TargetRelativeRoot/Class/_UDPTransceiver/_UDPTransceiver.st",
+        ("$TargetRelativeRoot/Class/_UDPTransceiverInterface/" +
+            '_UDPTransceiverInterface.st'))
+    $protectedPaths = @(
+        "$TargetRelativeRoot/Class/_StdLib/_StdLib.st",
+        "$TargetRelativeRoot/Class/CriticalSection/CriticalSection.st",
+        "$TargetRelativeRoot/Source/interfaces/lsl_st_tcp_user.h")
+    $includePaths = @(
+        "$TargetRelativeRoot/Include/C_channels.h",
+        "$TargetRelativeRoot/Include/channels.h",
+        "$TargetRelativeRoot/Include/lslpublictypes.h")
+    $ignoredIncludePath = "$TargetRelativeRoot/Include/global.lob"
+    $ignoredNetworkPath = "$TargetRelativeRoot/Network/ConfigObjects.lob"
+    $ambientTestClassPath =
+        "$TargetRelativeRoot/Class/TestClass/TestClass.st"
+    $nonArtifactTrackedPath =
+        "$TargetRelativeRoot/Class/Other/Other.st"
+    $fixedArtifactPaths = @(
+        $classesPath, $projectDatabasePath, $projectDefinitionPath, $tcpPath,
+        $configObjectsPath, $networksDatabasePath, $commNetworkPath,
+        $commTablePath)
+    $criticalArtifactPaths = @(
+        @($fixedArtifactPaths) + @($vendorPaths) + @($protectedPaths) +
+        @($includePaths))
+    $toolPaths = @($capturePath, $VerifierRelativePath)
+
+    foreach ($setup in @(
+            @('-C', $repositoryRoot, 'init', '--quiet'),
+            @('-C', $repositoryRoot, 'config', 'user.name', 'Synthetic Test'),
+            @('-C', $repositoryRoot, 'config', 'user.email',
+                'synthetic@example.invalid'))) {
+        $null = & $invokeGit $setup 'synthetic full-manifest Git setup'
+    }
+    & $writeAscii '.gitignore' "*.lba`n*.ldi`n*.lob`n"
+    & $writeAscii $capturePath "Write-Output 'synthetic capture'`n"
+    & $writeAscii $VerifierRelativePath "Write-Output 'synthetic verifier'`n"
+    $ordinal = 0
+    foreach ($path in $criticalArtifactPaths) {
+        $ordinal++
+        & $writeAscii $path "synthetic critical artifact $ordinal`n"
+    }
+    & $writeAscii $nonArtifactTrackedPath "synthetic non-artifact tracked SOR`n"
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', '.') `
+        'synthetic full-manifest initial add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'gate-a-capture') `
+        'synthetic full-manifest initial commit'
+    $captureHeadResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic full-manifest capture HEAD'
+    $captureHead = $captureHeadResult.Stdout.Trim().ToUpperInvariant()
+
+    & $writeAscii $ambientTestClassPath "user ambient TestClass`n"
+    & $writeAscii $ignoredIncludePath "ignored Include output`n"
+    & $writeAscii $ignoredNetworkPath "ignored Network output`n"
+    foreach ($name in @('-x.lob', '.x.lob', '0x.lob', 'A.lob', '_x.lob', 'a.lob')) {
+        & $writeAscii `
+            "$TargetRelativeRoot/Class/IgnoredOrder/$name" `
+            "ignored ordering fixture $name`n"
+    }
+    $gatedPathspec = @(
+        $TargetRelativeRoot,
+        $VerifierRelativePath,
+        $capturePath |
+            Sort-Object -Unique)
+    $gitSnapshot = Get-GitStateSnapshot `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -GatedPathspec $gatedPathspec
+    $trackedPathArray = @($gitSnapshot.trackedPaths)
+    $trackedPathSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$trackedPathArray,
+        [StringComparer]::OrdinalIgnoreCase)
+    $readFiles =
+        [Collections.Generic.Dictionary[string, object]]::new(
+            [StringComparer]::OrdinalIgnoreCase)
+    $availableArtifactPaths = @(
+        @($criticalArtifactPaths) +
+        @($ignoredIncludePath, $ignoredNetworkPath) + @($toolPaths) |
+            Sort-Object -Unique)
+    foreach ($path in $availableArtifactPaths) {
+        $readFiles[$path] = Read-SingleFileEvidence `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -RelativePath $path `
+            -TrackedPaths $trackedPathSet
+    }
+    $includeAvailablePaths = @(
+        @($includePaths) + $ignoredIncludePath |
+            Sort-Object -Unique)
+    $networkAvailablePaths = @(
+        @($criticalArtifactPaths | Where-Object {
+                $_.StartsWith(
+                    "$TargetRelativeRoot/Network/",
+                    [StringComparison]::Ordinal)
+            }) + $ignoredNetworkPath |
+            Sort-Object -Unique)
+    $includeTrackedPaths = @(
+        $trackedPathArray | Where-Object {
+            $_.StartsWith(
+                "$TargetRelativeRoot/Include/",
+                [StringComparison]::Ordinal)
+        })
+    $networkTrackedPaths = @(
+        $trackedPathArray | Where-Object {
+            $_.StartsWith(
+                "$TargetRelativeRoot/Network/",
+                [StringComparison]::Ordinal)
+        })
+    $includeInventory = Get-InventoryEvidence `
+        -TrackedPaths $includeTrackedPaths `
+        -AvailablePaths $includeAvailablePaths `
+        -ReadFiles $readFiles `
+        -Owner 'synthetic full generated Include'
+    $networkInventory = Get-InventoryEvidence `
+        -TrackedPaths $networkTrackedPaths `
+        -AvailablePaths $networkAvailablePaths `
+        -ReadFiles $readFiles `
+        -Owner 'synthetic full Network'
+    $artifacts = [ordered]@{
+        classesDatabase = $readFiles[$classesPath].Public
+        projectDatabase = $readFiles[$projectDatabasePath].Public
+        projectDefinition = $readFiles[$projectDefinitionPath].Public
+        generatedIncludes = $includeInventory
+        vendorSources = @($vendorPaths | ForEach-Object {
+                $readFiles[$_].Public
+            })
+        protectedDependencies = @($protectedPaths | ForEach-Object {
+                $readFiles[$_].Public
+            })
+        tcpMotionInterface = $readFiles[$tcpPath].Public
+        derivedSender = Get-PresenceEvidence `
+            -RelativePath $derivedPath `
+            -TrackedPaths $trackedPathSet `
+            -ReadFiles $readFiles
+        configObjects = $readFiles[$configObjectsPath].Public
+        networksDatabase = $readFiles[$networksDatabasePath].Public
+        commNetwork = $readFiles[$commNetworkPath].Public
+        commNetworkTable = $readFiles[$commTablePath].Public
+        fullNetwork = $networkInventory
+    }
+    $targetCommitBinding = New-TargetCommitBindingPolicy `
+        -Phase 'GateA_VendorImported' `
+        -TargetWorktree $gitSnapshot.targetWorktree `
+        -Artifacts $artifacts
+    if (($targetCommitBinding.ambientCurrentOnlyPaths -notcontains
+            $ambientTestClassPath) -or
+        ($targetCommitBinding.ambientCurrentOnlyPaths -notcontains
+            $ignoredIncludePath) -or
+        ($targetCommitBinding.ambientCurrentOnlyPaths -notcontains
+            $ignoredNetworkPath)) {
+        throw 'Synthetic ambient evidence was not classified as current-only.'
+    }
+    $toolTrust = Get-ToolTrustEvidence `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -ToolPaths $toolPaths `
+        -StartHead $captureHead
+    $verifierBytes = $readFiles[$VerifierRelativePath].RawBytes
+    $verifierText = [Text.Encoding]::ASCII.GetString($verifierBytes)
+    $verifierCanonicalBytes = $Utf8NoBom.GetBytes(
+        $verifierText.Replace("`r`n", "`n").Replace("`r", "`n"))
+    $syntheticVerifierBytes = $verifierCanonicalBytes.Length
+    $syntheticVerifierSha256 = Get-BytesSha256 -Bytes $verifierCanonicalBytes
+    $verifierPin = Get-CanonicalAsciiPinEvidence `
+        -Bytes $verifierBytes `
+        -Owner 'synthetic verifier' `
+        -ExpectedCanonicalLfBytes $syntheticVerifierBytes `
+        -ExpectedCanonicalLfSha256 $syntheticVerifierSha256
+    $verifierPin.Public.pinSource = 'committed-reviewed-pin'
+
+    $includeEvidenceText = [string]::Join(',', @(
+            for ($index = 0; $index -lt $includePaths.Count; $index++) {
+                $file = $readFiles[$includePaths[$index]].Public
+                $name = [IO.Path]::GetFileName($includePaths[$index])
+                "$name=$($file.bytes)/$($file.sha256)"
+            }))
+    $protectedNames = @('_StdLib', 'CriticalSection', 'lsl_st_tcp_user.h')
+    $protectedEvidenceText = [string]::Join(',', @(
+            for ($index = 0; $index -lt $protectedPaths.Count; $index++) {
+                $file = $readFiles[$protectedPaths[$index]].Public
+                "$($protectedNames[$index])=$($file.bytes)/$($file.sha256)"
+            }))
+    $vendor = @($artifacts.vendorSources)
+    $verifierNetwork = Get-VerifierCompatibleNetworkProjection `
+        -Inventory $networkInventory
+    $authoritativeLine =
+        'PASS LASAL.UdpCallbackContract.Current ' +
+        '(state=VendorImported; IDEClosed=true; productionApproved=True; ' +
+        'needsRebaseline=False; ' +
+        "vendor=$($vendor[0].bytes)/$($vendor[0].sha256)," +
+        "$($vendor[1].bytes)/$($vendor[1].sha256); " +
+        "Classes=$($artifacts.classesDatabase.bytes)/" +
+        "$($artifacts.classesDatabase.sha256); " +
+        "project=$($artifacts.projectDatabase.bytes)/" +
+        "$($artifacts.projectDatabase.sha256); " +
+        "lcp=$($artifacts.projectDefinition.bytes)/" +
+        "$($artifacts.projectDefinition.sha256); " +
+        "Includes=$includeEvidenceText; " +
+        "TCP=$($artifacts.tcpMotionInterface.sha256); " +
+        "Network=$($verifierNetwork.fullCount)/" +
+        "$($verifierNetwork.fullSha256)," +
+        "tracked=$($verifierNetwork.trackedCount)/" +
+        "$($verifierNetwork.trackedSha256); " +
+        "protected=$protectedEvidenceText)"
+    $decision = Get-CurrentDecisionFromVerifierOutput `
+        -Output $authoritativeLine `
+        -ExpectedState 'VendorImported' `
+        -ExpectedProductionApproved $true `
+        -ExpectedNeedsRebaseline $false
+
+    & $writeAscii 'binding/gate-a.txt' "Gate A manifest binding marker`n"
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', 'binding/gate-a.txt') `
+        'synthetic Gate A binding add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'bind-gate-a') `
+        'synthetic Gate A binding commit'
+    $bindingHeadResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic Gate A binding HEAD'
+    $bindingHead = $bindingHeadResult.Stdout.Trim().ToUpperInvariant()
+    $newCommand = {
+        param(
+            [Parameter(Mandatory = $true)]
+            [AllowEmptyString()][string]$Stdout
+        )
+
+        return [ordered]@{
+            executable = 'pwsh'
+            arguments = @()
+            exitCode = 0
+            durationMilliseconds = 1
+            stdout = $Stdout
+            stderr = ''
+        }
+    }
+    $tooling = [ordered]@{
+        trust = $toolTrust
+        captureScript = $readFiles[$capturePath].Public
+        verifier = $readFiles[$VerifierRelativePath].Public
+        verifierCanonicalPin = $verifierPin.Public
+        canonicalPinSelfTest = Invoke-CanonicalAsciiPinSelfTest
+        ast = @(
+            Get-AstEvidence `
+                -Text ([Text.Encoding]::ASCII.GetString(
+                        $readFiles[$capturePath].RawBytes)) `
+                -Owner 'Gate B capture script'
+            Get-AstEvidence `
+                -Text $verifierText `
+                -Owner 'UDP callback verifier')
+        verifierSelfTest = & $newCommand `
+            'PASS LASAL.UdpCallbackContract.SelfTest synthetic'
+        verifierCurrent = & $newCommand $authoritativeLine
+        verifierCrossCheck = [ordered]@{
+            exactRawEvidenceCrossChecked = $true
+            vendorCount = 2
+            generatedIncludeCount = 3
+            protectedDependencyCount = 3
+            networkUnionCount = $networkInventory.unionCount
+            note = 'Synthetic raw evidence cross-checked exactly.'
+        }
+        diffCheck = & $newCommand ''
+        cachedDiffCheck = & $newCommand ''
+    }
+    $manifest = [ordered]@{
+        schema = 'LasalUdpCallbackGateBCheckpoint/v2'
+        phase = 'GateA_VendorImported'
+        observedAt = '2026-08-08T00:00:00.0000000+09:00'
+        lineage = [ordered]@{
+            sequence = 0
+            parent = $null
+            rootGateA = $null
+            validatedAncestorCount = 0
+        }
+        targetProject = [ordered]@{
+            path = $TargetRelativeRoot
+            compilerVersion = 'C78'
+            targetArchitecture = 'ARM'
+        }
+        verifierDecision = $decision
+        approvalRatchet = [ordered]@{
+            productionApproved = $true
+            needsRebaseline = $false
+            note = 'Synthetic Gate A approval.'
+        }
+        captureSafety = [ordered]@{
+            lasalProcessName = 'Lasal2'
+            initialPidCount = 0
+            finalPrePublishPidCount = 0
+            finalCommitGuardPidCount = 0
+            lasalObservedClosedAtAllGuards = $true
+            continuousProcessAbsenceClaimed = $false
+            outputDirectory = $EvidenceRelativeRoot
+            outputFile = $PhaseContracts.GateA_VendorImported.OutputFile
+            outputMode = 'Synthetic verified stage and atomic move.'
+            writeScope = 'Synthetic temporary repository only.'
+            capturedInputsStable = $true
+            rawReadStrategy = 'Synthetic exact raw bytes reread.'
+            textPolicy = 'Synthetic ASCII LF policy.'
+            finalizationProtocol =
+                'verified-stage/all-final-guards/atomic-move-last/v1'
+            atomicMoveIsFinalExternalStateCommitPoint = $true
+            postMoveExternalStateChecks = $false
+            orphanStagePolicy = 'Synthetic orphan stages block retry.'
+            derivedSenderExpectedPresent = $false
+        }
+        git = [ordered]@{
+            head = $gitSnapshot.head
+            gatedPathspec = $gatedPathspec
+            start = $gitSnapshot
+            prePublish = $gitSnapshot
+            finalCommitGuard = $gitSnapshot
+            stageGuardRevalidationRequired = $true
+            fullRepositoryTrackedPathCount = $trackedPathArray.Count
+            fullRepositoryTrackedPathInventorySha256 = Get-TextSha256 -Text (
+                [string]::Join("`n", $trackedPathArray))
+            fullRepositoryTrackedPaths = $trackedPathArray
+            targetCommitBinding = $targetCommitBinding
+        }
+        tooling = $tooling
+        artifacts = $artifacts
+    }
+    $sealed = ConvertTo-SealedManifestBytes -Manifest $manifest
+    $manifestFile = [pscustomobject]@{
+        RawBytes = $sealed.Bytes
+        Public = [ordered]@{
+            text = Get-RawTextTraits -Bytes $sealed.Bytes
+        }
+    }
+    $parsed = ConvertFrom-StrictCheckpointJson `
+        -File $manifestFile `
+        -Owner 'synthetic production-sized Gate A manifest'
+    if (($parsed.Data.observedAt -isnot [string]) -or
+        ($parsed.Data.observedAt -cne $manifest.observedAt)) {
+        throw 'Strict manifest reader coerced the ISO timestamp.'
+    }
+    $savedExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+    $savedExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
+    try {
+        $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+        Assert-CheckpointManifestContract `
+            -Data $parsed.Data `
+            -ExpectedPhase 'GateA_VendorImported' `
+            -ExpectedContract $PhaseContracts.GateA_VendorImported `
+            -SealEvidence $parsed.Seal `
+            -RepositoryRoot $repositoryRoot `
+            -GitPath 'git' `
+            -RepositoryBindingHead $bindingHead `
+            -ExpectedParentFile $null `
+            -ExpectedParentData $null `
+            -ExpectedRootFile $null
+    }
+    finally {
+        $script:ExpectedVerifierCanonicalLfBytes = $savedExpectedBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $savedExpectedSha256
+    }
+    $positive++
+
+    $unapprovedTargetPath =
+        "$TargetRelativeRoot/Class/UnknownBeforeCapture/Backdoor.st"
+    & $writeAscii $unapprovedTargetPath "unapproved pre-capture source`n"
+    try {
+        $unknownBeforeSnapshot = Get-GitStateSnapshot `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -GatedPathspec $gatedPathspec
+        try {
+            $null = New-TargetCommitBindingPolicy `
+                -Phase 'GateA_VendorImported' `
+                -TargetWorktree $unknownBeforeSnapshot.targetWorktree `
+                -Artifacts $artifacts
+            throw 'Synthetic pre-capture unknown source was accepted as ambient.'
+        }
+        catch {
+            if ($_.Exception.Message -ceq
+                'Synthetic pre-capture unknown source was accepted as ambient.') {
+                throw
+            }
+            $negative++
+        }
+    }
+    finally {
+        [IO.File]::Delete(
+            (Join-Path $repositoryRoot $unapprovedTargetPath.Replace('/', '\')))
+    }
+
+    $ignoredEvilPath =
+        "$TargetRelativeRoot/Class/IgnoredEvil/Evil.st"
+    $excludePath = Join-Path $repositoryRoot '.git/info/exclude'
+    $excludeOriginalBytes = [IO.File]::ReadAllBytes($excludePath)
+    try {
+        $excludeSuffix = $Utf8NoBom.GetBytes("`n/$ignoredEvilPath`n")
+        $excludeBytes = [byte[]]::new(
+            $excludeOriginalBytes.Length + $excludeSuffix.Length)
+        [Array]::Copy(
+            $excludeOriginalBytes, 0, $excludeBytes, 0,
+            $excludeOriginalBytes.Length)
+        [Array]::Copy(
+            $excludeSuffix, 0, $excludeBytes, $excludeOriginalBytes.Length,
+            $excludeSuffix.Length)
+        [IO.File]::WriteAllBytes($excludePath, $excludeBytes)
+        & $writeAscii $ignoredEvilPath "ignored malicious source`n"
+        $ignoredEvilSnapshot = Get-GitStateSnapshot `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -GatedPathspec $gatedPathspec
+        try {
+            Assert-TargetIgnoredPathPolicy `
+                -Snapshot $ignoredEvilSnapshot `
+                -Artifacts $artifacts `
+                -Owner 'synthetic ignored source forgery'
+            throw 'Synthetic ignored target source was accepted.'
+        }
+        catch {
+            if ($_.Exception.Message -ceq
+                'Synthetic ignored target source was accepted.') {
+                throw
+            }
+            $negative++
+        }
+    }
+    finally {
+        [IO.File]::WriteAllBytes($excludePath, $excludeOriginalBytes)
+        [IO.File]::Delete(
+            (Join-Path $repositoryRoot $ignoredEvilPath.Replace('/', '\')))
+    }
+
+    $forgedTargetSnapshot = $gitSnapshot | ConvertTo-Json -Depth 30 |
+        ConvertFrom-Json -AsHashtable -Depth 30 -DateKind String -NoEnumerate
+    $forgedTargetFile = @(
+        $forgedTargetSnapshot.targetWorktree.files |
+            Where-Object { $_.path -ceq $nonArtifactTrackedPath })
+    if ($forgedTargetFile.Count -ne 1) {
+        throw 'Synthetic non-artifact tracked fixture is missing.'
+    }
+    $forgedTargetFile[0].gitTracked = $false
+    $forgedTargetFile[0].nonIgnoredUntracked = $true
+    $forgedTargetSnapshot.targetWorktree.trackedCount--
+    $forgedTargetSnapshot.targetWorktree.nonIgnoredUntrackedCount++
+    $forgedTargetIdentity = [string]::Join("`n", @(
+            foreach ($file in $forgedTargetSnapshot.targetWorktree.files) {
+                '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}' -f
+                    $file.path,
+                    ([int][bool]$file.gitTracked),
+                    ([int][bool]$file.nonIgnoredUntracked),
+                    ([int][bool]$file.available),
+                    $file.bytes,
+                    $file.sha256,
+                    $file.commitBlobPolicy,
+                    $file.canonicalGitBlobOid,
+                    $file.lastWriteTimeUtcTicks
+            }))
+    $forgedTargetSnapshot.targetWorktree.identitySha256 =
+        Get-TextSha256 -Text $forgedTargetIdentity
+    try {
+        Assert-GitSnapshotEvidence `
+            -Snapshot $forgedTargetSnapshot `
+            -Owner 'synthetic upstream critical-to-ambient forgery'
+        throw 'Synthetic forged target Git membership was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic forged target Git membership was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    $forgedDowngrade = $artifacts | ConvertTo-Json -Depth 30 |
+        ConvertFrom-Json -AsHashtable -Depth 30 -DateKind String -NoEnumerate
+    $forgedDowngrade.tcpMotionInterface.gitTracked = $false
+    $forgedDowngrade.tcpMotionInterface.nonIgnoredUntracked = $true
+    try {
+        Assert-ArtifactEvidenceContract `
+            -Artifacts $forgedDowngrade `
+            -Decision $decision `
+            -TargetWorktree $gitSnapshot.targetWorktree `
+            -ExpectedState 'VendorImported' `
+            -Owner 'synthetic required-path downgrade'
+        throw 'Synthetic critical tracked artifact downgrade was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic critical tracked artifact downgrade was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    try {
+        Assert-ArtifactGitMembershipBoundToTrackedPaths `
+            -Artifacts $forgedDowngrade `
+            -TrackedPaths $trackedPathArray `
+            -Owner 'synthetic artifact membership downgrade'
+        throw 'Synthetic artifact/full-tracked membership mismatch was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic artifact/full-tracked membership mismatch was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    & $writeAscii $derivedPath "synthetic derived declaration`n"
+    $b1GatedPathspec = @(
+        $TargetRelativeRoot,
+        $VerifierRelativePath,
+        $capturePath,
+        "$EvidenceRelativeRoot/$($PhaseContracts.GateA_VendorImported.OutputFile)" |
+            Sort-Object -Unique)
+    $b1Snapshot = Get-GitStateSnapshot `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -GatedPathspec $b1GatedPathspec
+    $b1TrackedSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($b1Snapshot.trackedPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    $readFiles[$derivedPath] = Read-SingleFileEvidence `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -RelativePath $derivedPath `
+        -TrackedPaths $b1TrackedSet
+    $b1Artifacts = [ordered]@{
+        classesDatabase = $artifacts.classesDatabase
+        projectDatabase = $artifacts.projectDatabase
+        projectDefinition = $artifacts.projectDefinition
+        generatedIncludes = $artifacts.generatedIncludes
+        vendorSources = $artifacts.vendorSources
+        protectedDependencies = $artifacts.protectedDependencies
+        tcpMotionInterface = $artifacts.tcpMotionInterface
+        derivedSender = $readFiles[$derivedPath].Public
+        configObjects = $artifacts.configObjects
+        networksDatabase = $artifacts.networksDatabase
+        commNetwork = $artifacts.commNetwork
+        commNetworkTable = $artifacts.commNetworkTable
+        fullNetwork = $artifacts.fullNetwork
+    }
+    $b1Policy = New-TargetCommitBindingPolicy `
+        -Phase 'GateB1_DerivedDeclaration' `
+        -TargetWorktree $b1Snapshot.targetWorktree `
+        -Artifacts $b1Artifacts
+    & $writeAscii 'binding/gate-b1.txt' "Gate B1 binding marker`n"
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', $derivedPath,
+            'binding/gate-b1.txt') `
+        'synthetic Gate B1 binding add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'bind-gate-b1') `
+        'synthetic Gate B1 binding commit'
+    $b1BindingResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic Gate B1 binding HEAD'
+    $b1BindingHead = $b1BindingResult.Stdout.Trim().ToUpperInvariant()
+    Assert-TargetInventoryBoundToCommit `
+        -TargetWorktree $b1Snapshot.targetWorktree `
+        -Policy $b1Policy `
+        -ExpectedPhase 'GateB1_DerivedDeclaration' `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -Commit $b1BindingHead `
+        -Owner 'synthetic Gate B1 binding'
+    Assert-ArtifactFilesBoundToCommit `
+        -Artifacts $b1Artifacts `
+        -Policy $b1Policy `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -Commit $b1BindingHead `
+        -Owner 'synthetic Gate B1 binding'
+    $positive++
+
+    $nonArtifactFullPath = Join-Path `
+        $repositoryRoot `
+        $nonArtifactTrackedPath.Replace('/', '\')
+    $nonArtifactOriginalBytes = [IO.File]::ReadAllBytes($nonArtifactFullPath)
+    $infoAttributesPath = Join-Path $repositoryRoot '.git/info/attributes'
+    $hadInfoAttributes = [IO.File]::Exists($infoAttributesPath)
+    $originalInfoAttributes = if ($hadInfoAttributes) {
+        [IO.File]::ReadAllBytes($infoAttributesPath)
+    }
+    else {
+        $null
+    }
+    try {
+        & $writeAscii '.git/info/attributes' `
+            "$nonArtifactTrackedPath filter=mask`n"
+        $null = & $invokeGit `
+            @('-C', $repositoryRoot, 'config', 'filter.mask.clean',
+                "git cat-file blob HEAD:$nonArtifactTrackedPath") `
+            'synthetic malicious clean-filter setup'
+        $null = & $invokeGit `
+            @('-C', $repositoryRoot, 'config', 'filter.mask.required', 'true') `
+            'synthetic malicious clean-filter required setup'
+
+        & $writeAscii $nonArtifactTrackedPath `
+            "synthetic non-artifact uncommitted captured content`n"
+        $contentDriftBytes = [IO.File]::ReadAllBytes($nonArtifactFullPath)
+        $headNonArtifactResult = & $invokeGit `
+            @('-C', $repositoryRoot, 'rev-parse',
+                "HEAD:$nonArtifactTrackedPath") `
+            'synthetic malicious-filter HEAD blob'
+        $filteredBaitResult = Invoke-ProcessCapture `
+            -FileName 'git' `
+            -Arguments @(
+                '-C', $repositoryRoot, 'hash-object', '--stdin',
+                "--path=$nonArtifactTrackedPath") `
+            -StandardInputBytes $contentDriftBytes
+        Assert-CommandPassed `
+            -Result $filteredBaitResult `
+            -Owner 'synthetic malicious filtered blob bait'
+        $toolCanonicalBaitOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath $nonArtifactTrackedPath `
+            -Bytes $contentDriftBytes `
+            -Owner 'synthetic malicious-filter tool-owned blob'
+        $headNonArtifactOid =
+            $headNonArtifactResult.Stdout.Trim().ToUpperInvariant()
+        if (($filteredBaitResult.Stdout.Trim().ToUpperInvariant() -cne
+                $headNonArtifactOid) -or
+            ($toolCanonicalBaitOid -ceq $headNonArtifactOid)) {
+            throw (
+                'Synthetic malicious clean filter did not establish the old ' +
+                'filtered-OID bypass while preserving a distinct tool OID.')
+        }
+        $positive++
+
+        $contentDriftSnapshot = Get-GitStateSnapshot `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -GatedPathspec $b1GatedPathspec
+        $contentDriftFile = @(
+            $contentDriftSnapshot.targetWorktree.files |
+                Where-Object { $_.path -ceq $nonArtifactTrackedPath })
+        if (($contentDriftFile.Count -ne 1) -or
+            ($contentDriftFile[0].canonicalGitBlobOid -cne
+                $toolCanonicalBaitOid) -or
+            ($contentDriftFile[0].commitBlobPolicy -cne
+                'byte-crlf-to-lf-text-v1')) {
+            throw 'Synthetic malicious-filter target capture did not use tool policy.'
+        }
+        $contentDriftPolicy = New-TargetCommitBindingPolicy `
+            -Phase 'GateB1_DerivedDeclaration' `
+            -TargetWorktree $contentDriftSnapshot.targetWorktree `
+            -Artifacts $b1Artifacts
+        [IO.File]::WriteAllBytes($nonArtifactFullPath, $nonArtifactOriginalBytes)
+        & $writeAscii 'binding/content-revert.txt' `
+            "Non-artifact content-revert binding marker`n"
+        $null = & $invokeGit `
+            @('-C', $repositoryRoot, 'add', '--', 'binding/content-revert.txt') `
+            'synthetic non-artifact content-revert add'
+        $null = & $invokeGit `
+            @('-C', $repositoryRoot, 'commit', '--quiet', '-m',
+                'bind-without-captured-content') `
+            'synthetic non-artifact content-revert commit'
+        $contentRevertHeadResult = & $invokeGit `
+            @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+            'synthetic non-artifact content-revert HEAD'
+        try {
+            Assert-TargetInventoryBoundToCommit `
+                -TargetWorktree $contentDriftSnapshot.targetWorktree `
+                -Policy $contentDriftPolicy `
+                -ExpectedPhase 'GateB1_DerivedDeclaration' `
+                -Root $repositoryRoot `
+                -GitPath 'git' `
+                -Commit $contentRevertHeadResult.Stdout.Trim().ToUpperInvariant() `
+                -Owner 'synthetic malicious-filter content-revert binding'
+            throw 'Synthetic malicious filtered content revert was accepted.'
+        }
+        catch {
+            if ($_.Exception.Message -ceq
+                'Synthetic malicious filtered content revert was accepted.') {
+                throw
+            }
+            $negative++
+        }
+    }
+    finally {
+        [IO.File]::WriteAllBytes($nonArtifactFullPath, $nonArtifactOriginalBytes)
+        foreach ($key in @('filter.mask.required', 'filter.mask.clean')) {
+            $unset = Invoke-ProcessCapture `
+                -FileName 'git' `
+                -Arguments @('-C', $repositoryRoot, 'config', '--unset-all', $key)
+            if ($unset.ExitCode -notin @(0, 5)) {
+                throw "Synthetic malicious filter cleanup failed: $key"
+            }
+        }
+        if ($hadInfoAttributes) {
+            [IO.File]::WriteAllBytes($infoAttributesPath, $originalInfoAttributes)
+        }
+        else {
+            [IO.File]::Delete($infoAttributesPath)
+        }
+    }
+
+    try {
+        Assert-TargetInventoryBoundToCommit `
+            -TargetWorktree $gitSnapshot.targetWorktree `
+            -Policy $targetCommitBinding `
+            -ExpectedPhase 'GateA_VendorImported' `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -Commit $b1BindingHead `
+            -Owner 'synthetic Gate A derived-present binding'
+        throw 'Synthetic Gate A policy accepted a committed derived sender.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate A policy accepted a committed derived sender.') {
+            throw
+        }
+        $negative++
+    }
+
+    $forgedOverlap = $b1Policy | ConvertTo-Json -Depth 20 |
+        ConvertFrom-Json -AsHashtable -Depth 20 -DateKind String -NoEnumerate
+    $forgedAmbient = @(
+        @($forgedOverlap.ambientCurrentOnlyPaths) +
+        @($forgedOverlap.criticalTrackedPaths[0]) |
+            Sort-Object -Unique)
+    $forgedOverlap.ambientCurrentOnlyPaths = $forgedAmbient
+    $forgedOverlap.ambientCurrentOnlyPathCount = $forgedAmbient.Count
+    $forgedOverlap.ambientCurrentOnlyPathSha256 = Get-TextSha256 -Text (
+        [string]::Join("`n", $forgedAmbient))
+    try {
+        Assert-TargetCommitBindingPolicyEvidence `
+            -Policy $forgedOverlap `
+            -ExpectedPhase 'GateB1_DerivedDeclaration' `
+            -Owner 'synthetic overlapping policy'
+        throw 'Synthetic overlapping commit-binding policy was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic overlapping commit-binding policy was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    $forgedBait = $b1Policy | ConvertTo-Json -Depth 20 |
+        ConvertFrom-Json -AsHashtable -Depth 20 -DateKind String -NoEnumerate
+    $baitPath = [string]$forgedBait.criticalTrackedPaths[0]
+    $forgedBait.criticalTrackedPaths = @(
+        $forgedBait.criticalTrackedPaths | Where-Object { $_ -cne $baitPath })
+    $forgedBait.criticalTrackedPathCount =
+        @($forgedBait.criticalTrackedPaths).Count
+    $forgedBait.criticalTrackedPathSha256 = Get-TextSha256 -Text (
+        [string]::Join("`n", @($forgedBait.criticalTrackedPaths)))
+    $forgedBait.ambientCurrentOnlyPaths = @(
+        @($forgedBait.ambientCurrentOnlyPaths) + $baitPath |
+            Sort-Object -Unique)
+    $forgedBait.ambientCurrentOnlyPathCount =
+        @($forgedBait.ambientCurrentOnlyPaths).Count
+    $forgedBait.ambientCurrentOnlyPathSha256 = Get-TextSha256 -Text (
+        [string]::Join("`n", @($forgedBait.ambientCurrentOnlyPaths)))
+    Assert-TargetCommitBindingPolicyEvidence `
+        -Policy $forgedBait `
+        -ExpectedPhase 'GateB1_DerivedDeclaration' `
+        -Owner 'synthetic structurally valid critical bait'
+    try {
+        Assert-JsonStructuralEquality `
+            -Expected $b1Policy `
+            -Observed $forgedBait `
+            -Owner 'synthetic recomputed policy bait'
+        throw 'Synthetic critical-to-ambient bait matched recomputed policy.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic critical-to-ambient bait matched recomputed policy.') {
+            throw
+        }
+        $negative++
+    }
+
+    $ambientBefore = Get-GitStateSnapshot `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -GatedPathspec $b1GatedPathspec
+    $ambientOriginalBytes = [IO.File]::ReadAllBytes(
+        (Join-Path $repositoryRoot $ambientTestClassPath.Replace('/', '\')))
+    & $writeAscii $ambientTestClassPath "user ambient TestClass changed`n"
+    $ambientAfter = Get-GitStateSnapshot `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -GatedPathspec $b1GatedPathspec
+    try {
+        Assert-GitStateStable `
+            -Expected $ambientBefore `
+            -Observed $ambientAfter `
+            -Owner 'synthetic ambient mutation'
+        throw 'Synthetic ambient TestClass mutation was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic ambient TestClass mutation was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    [IO.File]::WriteAllBytes(
+        (Join-Path $repositoryRoot $ambientTestClassPath.Replace('/', '\')),
+        $ambientOriginalBytes)
+
+    $ignoredOriginalBytes = [IO.File]::ReadAllBytes(
+        (Join-Path $repositoryRoot $ignoredIncludePath.Replace('/', '\')))
+    & $writeAscii $ignoredIncludePath "ignored Include output changed`n"
+    try {
+        Assert-InputContentStable `
+            -Root $repositoryRoot `
+            -ReadFiles $readFiles `
+            -InitialIncludePaths $includeAvailablePaths `
+            -InitialNetworkPaths $networkAvailablePaths
+        throw 'Synthetic ignored generated-output mutation was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic ignored generated-output mutation was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    [IO.File]::WriteAllBytes(
+        (Join-Path $repositoryRoot $ignoredIncludePath.Replace('/', '\')),
+        $ignoredOriginalBytes)
+
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'rm', '--quiet', '--', $tcpPath) `
+        'synthetic critical missing setup'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'missing-critical') `
+        'synthetic critical missing commit'
+    $missingHeadResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic critical missing HEAD'
+    try {
+        Assert-TargetInventoryBoundToCommit `
+            -TargetWorktree $b1Snapshot.targetWorktree `
+            -Policy $b1Policy `
+            -ExpectedPhase 'GateB1_DerivedDeclaration' `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -Commit $missingHeadResult.Stdout.Trim().ToUpperInvariant() `
+            -Owner 'synthetic missing critical binding'
+        throw 'Synthetic missing critical path was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic missing critical path was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    $tcpFullPath = Join-Path $repositoryRoot $tcpPath.Replace('/', '\')
+    $null = [IO.Directory]::CreateDirectory(
+        [IO.Path]::GetDirectoryName($tcpFullPath))
+    [IO.File]::WriteAllBytes($tcpFullPath, $readFiles[$tcpPath].RawBytes)
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', $tcpPath) `
+        'synthetic critical restore add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'restore-critical') `
+        'synthetic critical restore commit'
+
+    & $writeAscii $vendorPaths[0] "synthetic critical artifact drift`n"
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', $vendorPaths[0]) `
+        'synthetic artifact drift add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'artifact-drift') `
+        'synthetic artifact drift commit'
+    $driftHeadResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic artifact drift HEAD'
+    try {
+        Assert-ArtifactFilesBoundToCommit `
+            -Artifacts $b1Artifacts `
+            -Policy $b1Policy `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -Commit $driftHeadResult.Stdout.Trim().ToUpperInvariant() `
+            -Owner 'synthetic artifact blob drift'
+        throw 'Synthetic critical artifact blob drift was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic critical artifact blob drift was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    $unknownTargetPath = "$TargetRelativeRoot/Class/Unknown/Unknown.st"
+    & $writeAscii $unknownTargetPath "unknown committed target bait`n"
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'add', '--', $unknownTargetPath) `
+        'synthetic unknown target add'
+    $null = & $invokeGit `
+        @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'unknown-target') `
+        'synthetic unknown target commit'
+    $unknownHeadResult = & $invokeGit `
+        @('-C', $repositoryRoot, 'rev-parse', 'HEAD') `
+        'synthetic unknown target HEAD'
+    try {
+        Assert-TargetInventoryBoundToCommit `
+            -TargetWorktree $b1Snapshot.targetWorktree `
+            -Policy $b1Policy `
+            -ExpectedPhase 'GateB1_DerivedDeclaration' `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -Commit $unknownHeadResult.Stdout.Trim().ToUpperInvariant() `
+            -Owner 'synthetic unknown target binding'
+        throw 'Synthetic unknown committed target path was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic unknown committed target path was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    return [ordered]@{
+        positiveCount = $positive
+        negativeCount = $negative
+    }
+}
+
 function Invoke-CaptureToolSelfTest {
     $positive = 0
     $negative = 0
     $pin = Invoke-CanonicalAsciiPinSelfTest
     $positive += $pin.acceptedPositiveCount
     $negative += $pin.rejectedNegativeCount
+
+    if ($null -eq ('ElmoUdpCheckpoint.NativeContainedProcess' -as [type])) {
+        $null = Add-Type -TypeDefinition @'
+using System;
+using System.Threading.Tasks;
+namespace ElmoUdpCheckpoint
+{
+    public sealed class NativeContainedProcess : IDisposable
+    {
+        public static string BuildCommandLine(
+            string applicationPath,
+            string[] arguments)
+        {
+            return "attacker-controlled-command-line";
+        }
+        public static NativeContainedProcess Start(
+            string applicationPath,
+            string commandLine,
+            string workingDirectory,
+            string environmentBlock,
+            IntPtr standardInput,
+            IntPtr standardOutput,
+            IntPtr standardError)
+        {
+            return new NativeContainedProcess();
+        }
+        public Task<int> WaitForExitAsync()
+        {
+            return Task.FromResult(0);
+        }
+        public void TerminateJob() { }
+        public void Dispose() { }
+    }
+}
+'@
+    }
+    $preloadedNativeType =
+        'ElmoUdpCheckpoint.NativeContainedProcess' -as [type]
+    if ($null -eq $preloadedNativeType) {
+        throw 'Synthetic attacker native type preload failed.'
+    }
+
+    $timeoutProbe = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $null = Invoke-ProcessCapture `
+            -FileName (Join-Path $PSHOME 'pwsh.exe') `
+            -Arguments @(
+                '-NoLogo', '-NoProfile', '-NonInteractive',
+                '-Command', 'Start-Sleep -Seconds 30') `
+            -StandardInputBytes ([byte[]]::new(4 * 1024 * 1024)) `
+            -TimeoutMilliseconds 250
+        throw 'Synthetic blocked-stdin child escaped the process deadline.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic blocked-stdin child escaped the process deadline.') {
+            throw
+        }
+        if ($_.Exception -isnot [TimeoutException]) {
+            throw (
+                'Synthetic blocked-stdin child failed for an unexpected ' +
+                "reason: $($_.Exception.Message)")
+        }
+        $timeoutProbe.Stop()
+        if ($timeoutProbe.ElapsedMilliseconds -gt 15000) {
+            throw 'Synthetic blocked-stdin timeout cleanup exceeded its bound.'
+        }
+        $negative++
+    }
+    if (($null -eq $script:ContainedProcessNativeType) -or
+        ($script:ContainedProcessNativeType.FullName -ceq
+            $preloadedNativeType.FullName) -or
+        ([object]::ReferenceEquals(
+            $script:ContainedProcessNativeType.Assembly,
+            $preloadedNativeType.Assembly))) {
+        throw 'Preloaded fixed-name native runner was trusted.'
+    }
+    $negative++
 
     $hashA = 'A' * 64
     $hashB = 'B' * 64
@@ -4316,6 +7073,59 @@ function Invoke-CaptureToolSelfTest {
         $negative++
     }
 
+    $caseVariantLength = 0
+    $caseVariantPlaceholderBytes = $null
+    foreach ($attempt in 1..8) {
+        $caseVariantText = [string]::Join("`n", @(
+                '{',
+                '  "phase": "Synthetic",',
+                '  "Phase": "Synthetic",',
+                '  "integrity": {',
+                '    "algorithm": "SHA-256",',
+                ('    "canonicalization": "exact UTF-8 ASCII/LF JSON ' +
+                    'bytes with sealSha256 set to 64 zeros",'),
+                "    `"sealedPayloadBytes`": $caseVariantLength,",
+                ('    "sealSha256": "' + ('0' * 64) + '"'),
+                '  }',
+                '}')) + "`n"
+        $caseVariantPlaceholderBytes = $Utf8NoBom.GetBytes($caseVariantText)
+        if ($caseVariantLength -eq $caseVariantPlaceholderBytes.Length) {
+            break
+        }
+        $caseVariantLength = $caseVariantPlaceholderBytes.Length
+    }
+    if ($caseVariantLength -ne $caseVariantPlaceholderBytes.Length) {
+        throw 'Synthetic case-variant seal length did not converge.'
+    }
+    $caseVariantSeal = Get-BytesSha256 -Bytes $caseVariantPlaceholderBytes
+    $caseVariantFinalText = $caseVariantText.Replace(
+        '"sealSha256": "' + ('0' * 64) + '"',
+        '"sealSha256": "' + $caseVariantSeal + '"')
+    $caseVariantBytes = $Utf8NoBom.GetBytes($caseVariantFinalText)
+    $caseVariantFile = [pscustomobject]@{
+        RawBytes = $caseVariantBytes
+        Public = [ordered]@{
+            text = Get-RawTextTraits -Bytes $caseVariantBytes
+        }
+    }
+    $caseVariantParsed = ConvertFrom-StrictCheckpointJson `
+        -File $caseVariantFile `
+        -Owner 'synthetic case-variant manifest'
+    try {
+        Assert-ExactMapKeys `
+            -Map $caseVariantParsed.Data `
+            -Keys @('phase', 'integrity') `
+            -Owner 'synthetic case-variant manifest'
+        throw 'Synthetic case-variant extra JSON property was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic case-variant extra JSON property was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
     $minimal = ConvertTo-SealedManifestBytes -Manifest ([ordered]@{
             schema = 'LasalUdpCallbackGateBCheckpoint/v2'
             phase = 'GateA_VendorImported'
@@ -4357,7 +7167,11 @@ function Invoke-CaptureToolSelfTest {
             }
         })
     $minimalData = $Utf8NoBom.GetString($minimal.Bytes) |
-        ConvertFrom-Json -AsHashtable -Depth 50
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
     try {
         Assert-CheckpointManifestContract `
             -Data $minimalData `
@@ -4422,6 +7236,258 @@ function Invoke-CaptureToolSelfTest {
     $null = [IO.Directory]::CreateDirectory($testRoot)
     $output = Join-Path $testRoot 'checkpoint.json'
     try {
+        $runtimeTraceMarker = Join-Path $testRoot 'runtime-injection.trace'
+        $poisonedEnvironment = [ordered]@{
+            DOTNET_STARTUP_HOOKS = Join-Path $testRoot 'attacker-hook.dll'
+            DOTNET_ADDITIONAL_DEPS = Join-Path $testRoot 'attacker.deps.json'
+            DOTNET_SHARED_STORE = Join-Path $testRoot 'attacker-store'
+            DOTNET_HOST_TRACEFILE = $runtimeTraceMarker
+            COREHOST_TRACEFILE = $runtimeTraceMarker
+            CORECLR_ENABLE_PROFILING = '1'
+            CORECLR_PROFILER = '{11111111-1111-1111-1111-111111111111}'
+            CORECLR_PROFILER_PATH = Join-Path $testRoot 'attacker-profiler.dll'
+            COR_ENABLE_PROFILING = '1'
+            COR_PROFILER = '{11111111-1111-1111-1111-111111111111}'
+            COMPlus_ReadyToRun = '0'
+            APPDOMAIN_MANAGER_ASM = 'Attacker.Assembly'
+            APPDOMAIN_MANAGER_TYPE = 'Attacker.Manager'
+            DEVPATH = $testRoot
+            PSExecutionPolicyPreference = 'Bypass'
+            PSModulePath = Join-Path $testRoot 'attacker-modules'
+        }
+        $originalPoisonedEnvironment = [ordered]@{}
+        foreach ($name in $poisonedEnvironment.Keys) {
+            $originalPoisonedEnvironment[$name] = [ordered]@{
+                present = Test-Path -LiteralPath "Env:$name"
+                value = [Environment]::GetEnvironmentVariable(
+                    $name,
+                    [EnvironmentVariableTarget]::Process)
+            }
+            [Environment]::SetEnvironmentVariable(
+                $name,
+                [string]$poisonedEnvironment[$name],
+                [EnvironmentVariableTarget]::Process)
+        }
+        try {
+            $runtimeEnvironmentCommand = @'
+$blocked = @(
+    'DOTNET_STARTUP_HOOKS', 'DOTNET_ADDITIONAL_DEPS',
+    'DOTNET_SHARED_STORE', 'DOTNET_HOST_TRACEFILE', 'COREHOST_TRACEFILE',
+    'CORECLR_ENABLE_PROFILING', 'CORECLR_PROFILER',
+    'CORECLR_PROFILER_PATH', 'COR_ENABLE_PROFILING', 'COR_PROFILER',
+    'COMPlus_ReadyToRun', 'APPDOMAIN_MANAGER_ASM',
+    'APPDOMAIN_MANAGER_TYPE', 'DEVPATH', 'PSExecutionPolicyPreference')
+$present = @($blocked | Where-Object {
+        $null -ne [Environment]::GetEnvironmentVariable($_)
+    })
+[Console]::Out.Write(
+    ([string]::Join(',', $present)) + "`n" +
+    $env:PSModulePath + "`n" + $HOME)
+'@
+            $runtimeEnvironmentProbe = Invoke-ProcessCapture `
+                -FileName (Join-Path $PSHOME 'pwsh.exe') `
+                -Arguments @(
+                    '-NoLogo', '-NoProfile', '-NonInteractive',
+                    '-Command', $runtimeEnvironmentCommand)
+        }
+        finally {
+            foreach ($name in $originalPoisonedEnvironment.Keys) {
+                $original = $originalPoisonedEnvironment[$name]
+                [Environment]::SetEnvironmentVariable(
+                    $name,
+                    $(if ($original.present) { [string]$original.value } else { $null }),
+                    [EnvironmentVariableTarget]::Process)
+            }
+        }
+        Assert-CommandPassed `
+            -Result $runtimeEnvironmentProbe `
+            -Owner 'synthetic managed-runtime environment sanitization probe'
+        $runtimeEnvironmentLines = @(
+            $runtimeEnvironmentProbe.Stdout.Replace("`r", '').Split("`n"))
+        $expectedCoreModulePath = Join-Path $PSHOME 'Modules'
+        $unsafeUserModulePath = Join-Path (
+            [Environment]::GetFolderPath(
+                [Environment+SpecialFolder]::UserProfile)) `
+            'Documents\PowerShell\Modules'
+        if (($runtimeEnvironmentLines.Count -ne 3) -or
+            ($runtimeEnvironmentLines[0] -cne '') -or
+            (-not (@($runtimeEnvironmentLines[1].Split(';')) -contains
+                    $expectedCoreModulePath)) -or
+            (@($runtimeEnvironmentLines[1].Split(';')) -contains
+                $unsafeUserModulePath) -or
+            ($runtimeEnvironmentLines[2] -cne $PSHOME) -or
+            [IO.File]::Exists($runtimeTraceMarker)) {
+            throw (
+                'Managed-runtime injection environment reached the child: ' +
+                "output=$($runtimeEnvironmentProbe.Stdout); " +
+                "trace=$([IO.File]::Exists($runtimeTraceMarker))")
+        }
+        $negative++
+
+        $argumentProbePath = Join-Path $testRoot 'argument-probe.ps1'
+        [IO.File]::WriteAllBytes(
+            $argumentProbePath,
+            $Utf8NoBom.GetBytes(@'
+$encoded = @($args | ForEach-Object {
+        [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($_))
+    })
+[Console]::Out.Write([string]::Join('|', $encoded))
+'@))
+        $argumentProbeValues = @(
+            '',
+            'space value',
+            'quote"value',
+            'trailing\')
+        $argumentProbeResult = Invoke-ProcessCapture `
+            -FileName (Join-Path $PSHOME 'pwsh.exe') `
+            -Arguments (@(
+                '-NoLogo', '-NoProfile', '-NonInteractive',
+                '-File', $argumentProbePath) + $argumentProbeValues)
+        Assert-CommandPassed `
+            -Result $argumentProbeResult `
+            -Owner 'synthetic native argument probe'
+        $expectedArgumentProbe = [string]::Join('|', @(
+                $argumentProbeValues | ForEach-Object {
+                    [Convert]::ToBase64String(
+                        [Text.Encoding]::UTF8.GetBytes($_))
+                }))
+        if ($argumentProbeResult.Stdout -cne $expectedArgumentProbe) {
+            throw 'Synthetic native process argument quoting drifted.'
+        }
+        $positive++
+
+        for ($fastExitIndex = 0; $fastExitIndex -lt 5; $fastExitIndex++) {
+            $fastExit = Invoke-ProcessCapture `
+                -FileName (Join-Path $PSHOME 'pwsh.exe') `
+                -Arguments @(
+                    '-NoLogo', '-NoProfile', '-NonInteractive',
+                    '-Command', 'exit 0') `
+                -TimeoutMilliseconds 10000
+            Assert-CommandPassed `
+                -Result $fastExit `
+                -Owner 'synthetic immediate-exit containment probe'
+        }
+        $positive++
+
+        $dualOutputScript = @'
+$bytes = [byte[]]::new(262144)
+[Console]::OpenStandardOutput().Write($bytes, 0, $bytes.Length)
+[Console]::OpenStandardError().Write($bytes, 0, $bytes.Length)
+'@
+        $dualOutputEncoded = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes($dualOutputScript))
+        $dualOutput = Invoke-ContainedProcessRaw `
+            -FileName (Join-Path $PSHOME 'pwsh.exe') `
+            -Arguments @(
+                '-NoLogo', '-NoProfile', '-NonInteractive',
+                '-EncodedCommand', $dualOutputEncoded) `
+            -TimeoutMilliseconds 10000
+        if (($dualOutput.ExitCode -ne 0) -or
+            ($dualOutput.StdoutBytes.Length -ne 262144) -or
+            ($dualOutput.StderrBytes.Length -ne 262144)) {
+            throw 'Synthetic concurrent large output drain drifted.'
+        }
+        $positive++
+
+        $descendantPidPath = Join-Path $testRoot 'descendant.pid'
+        $lateMarkerPath = Join-Path $testRoot 'descendant-late.marker'
+        $descendantRootScript = @'
+$childInfo = [Diagnostics.ProcessStartInfo]::new()
+$childInfo.FileName = Join-Path $PSHOME 'pwsh.exe'
+$childInfo.UseShellExecute = $false
+$childInfo.CreateNoWindow = $true
+$childInfo.ArgumentList.Add('-NoLogo')
+$childInfo.ArgumentList.Add('-NoProfile')
+$childInfo.ArgumentList.Add('-NonInteractive')
+$childInfo.ArgumentList.Add('-Command')
+$childInfo.ArgumentList.Add(
+    'Start-Sleep -Seconds 3; [IO.File]::WriteAllText($env:ELMO_JOB_LATE_MARKER, ''late'')')
+$child = [Diagnostics.Process]::Start($childInfo)
+[IO.File]::WriteAllText($env:ELMO_JOB_DESCENDANT_PID, [string]$child.Id)
+'@
+        $descendantRootEncoded = [Convert]::ToBase64String(
+            [Text.Encoding]::Unicode.GetBytes($descendantRootScript))
+        $hadDescendantPidEnvironment =
+            Test-Path -LiteralPath 'Env:ELMO_JOB_DESCENDANT_PID'
+        $oldDescendantPidEnvironment = $env:ELMO_JOB_DESCENDANT_PID
+        $hadLateMarkerEnvironment =
+            Test-Path -LiteralPath 'Env:ELMO_JOB_LATE_MARKER'
+        $oldLateMarkerEnvironment = $env:ELMO_JOB_LATE_MARKER
+        $descendantFailure = $null
+        $descendantProbe = [Diagnostics.Stopwatch]::StartNew()
+        try {
+            $env:ELMO_JOB_DESCENDANT_PID = $descendantPidPath
+            $env:ELMO_JOB_LATE_MARKER = $lateMarkerPath
+            try {
+                $null = Invoke-ProcessCapture `
+                    -FileName (Join-Path $PSHOME 'pwsh.exe') `
+                    -Arguments @(
+                        '-NoLogo', '-NoProfile', '-NonInteractive',
+                        '-EncodedCommand', $descendantRootEncoded) `
+                    -TimeoutMilliseconds 1500
+                throw (
+                    'Synthetic pipe-inheriting descendant escaped the ' +
+                    'process deadline.')
+            }
+            catch {
+                $descendantFailure = $_
+            }
+        }
+        finally {
+            if ($hadDescendantPidEnvironment) {
+                $env:ELMO_JOB_DESCENDANT_PID = $oldDescendantPidEnvironment
+            }
+            else {
+                Remove-Item -LiteralPath 'Env:ELMO_JOB_DESCENDANT_PID' `
+                    -ErrorAction SilentlyContinue
+            }
+            if ($hadLateMarkerEnvironment) {
+                $env:ELMO_JOB_LATE_MARKER = $oldLateMarkerEnvironment
+            }
+            else {
+                Remove-Item -LiteralPath 'Env:ELMO_JOB_LATE_MARKER' `
+                    -ErrorAction SilentlyContinue
+            }
+        }
+        $descendantProbe.Stop()
+        if ($descendantFailure.Exception.Message -ceq
+            ('Synthetic pipe-inheriting descendant escaped the ' +
+                'process deadline.')) {
+            throw $descendantFailure
+        }
+        if (($descendantFailure.Exception -isnot [TimeoutException]) -or
+            ($descendantFailure.Exception.Message -notmatch
+                'draining output')) {
+            throw (
+                'Synthetic pipe-inheriting descendant did not reach the ' +
+                "drain deadline: $($descendantFailure.Exception.Message)")
+        }
+        if ($descendantProbe.ElapsedMilliseconds -gt 12000) {
+            throw 'Synthetic descendant containment cleanup exceeded its bound.'
+        }
+        if (-not [IO.File]::Exists($descendantPidPath)) {
+            throw 'Synthetic descendant did not publish its PID before root exit.'
+        }
+        $descendantPid = [int][IO.File]::ReadAllText($descendantPidPath)
+        for ($processProbe = 0; $processProbe -lt 40; $processProbe++) {
+            if ($null -eq (Get-Process `
+                    -Id $descendantPid `
+                    -ErrorAction SilentlyContinue)) {
+                break
+            }
+            Start-Sleep -Milliseconds 50
+        }
+        if ($null -ne (Get-Process `
+                -Id $descendantPid `
+                -ErrorAction SilentlyContinue)) {
+            throw 'Synthetic pipe-inheriting descendant survived job closure.'
+        }
+        Start-Sleep -Milliseconds 2000
+        if ([IO.File]::Exists($lateMarkerPath)) {
+            throw 'Synthetic terminated descendant produced its late marker.'
+        }
+        $negative++
+
         $stage = New-VerifiedJsonStage `
             -Root $testRoot `
             -EvidenceDirectory $testRoot `
@@ -4520,10 +7586,137 @@ function Invoke-CaptureToolSelfTest {
             -Path 'tool.ps1' `
             -StartHead $head `
             -RequireAsciiCanonical
-        if (-not $normalIdentity.committedExact) {
+        if ((-not $normalIdentity.committedExact) -or
+            ($normalIdentity.commitBlobPolicy -cne
+                'byte-crlf-to-lf-text-v1')) {
             throw 'Synthetic normal stage-0 tool was not trusted.'
         }
         $positive++
+        $stdinProbeBytes = $Utf8NoBom.GetBytes(
+            "supplied bytes differ from the physical tool`n")
+        $stdinProbeOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath 'tool.ps1' `
+            -Bytes $stdinProbeBytes `
+            -Owner 'synthetic exact-byte canonical blob probe'
+        $stdinProbeHeader = [Text.Encoding]::ASCII.GetBytes(
+            "blob $($stdinProbeBytes.Length)`0")
+        $stdinProbeHasher =
+            [Security.Cryptography.IncrementalHash]::CreateHash(
+                [Security.Cryptography.HashAlgorithmName]::SHA1)
+        try {
+            $stdinProbeHasher.AppendData($stdinProbeHeader)
+            $stdinProbeHasher.AppendData($stdinProbeBytes)
+            $expectedStdinProbeOid =
+                [Convert]::ToHexString($stdinProbeHasher.GetHashAndReset())
+        }
+        finally {
+            $stdinProbeHasher.Dispose()
+        }
+        if (($stdinProbeOid -cne $expectedStdinProbeOid) -or
+            ($stdinProbeOid -ceq $normalIdentity.canonicalWorktreeBlobOid)) {
+            throw (
+                'Synthetic canonical blob helper did not hash the supplied ' +
+                'byte snapshot independently of the physical path.')
+        }
+        $positive++
+        $emptyStdinProbeOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath 'empty.lcb' `
+            -Bytes ([byte[]]::new(0)) `
+            -Owner 'synthetic empty canonical blob probe'
+        if ($emptyStdinProbeOid -cne
+            'E69DE29BB2D1D6434B8B29AE775AD8C2E48C5391') {
+            throw 'Synthetic empty binary stdin blob identity drifted.'
+        }
+        $emptyProcessProbe = Invoke-ProcessCapture `
+            -FileName 'git' `
+            -Arguments @('-C', $gitRoot, 'hash-object', '--stdin') `
+            -StandardInputBytes ([byte[]]::new(0))
+        Assert-CommandPassed `
+            -Result $emptyProcessProbe `
+            -Owner 'synthetic empty process stdin probe'
+        if ($emptyProcessProbe.Stdout.Trim().ToUpperInvariant() -cne
+            $emptyStdinProbeOid) {
+            throw 'Synthetic empty process stdin bytes drifted.'
+        }
+        $positive++
+        $largeStdinProbeBytes = [byte[]]::new(1024 * 1024)
+        [Random]::new(20260808).NextBytes($largeStdinProbeBytes)
+        $largeStdinProbeOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath 'large.lcb' `
+            -Bytes $largeStdinProbeBytes `
+            -Owner 'synthetic large canonical blob probe'
+        $largeStdinProbeHeader = [Text.Encoding]::ASCII.GetBytes(
+            "blob $($largeStdinProbeBytes.Length)`0")
+        $largeStdinProbeHasher =
+            [Security.Cryptography.IncrementalHash]::CreateHash(
+                [Security.Cryptography.HashAlgorithmName]::SHA1)
+        try {
+            $largeStdinProbeHasher.AppendData($largeStdinProbeHeader)
+            $largeStdinProbeHasher.AppendData($largeStdinProbeBytes)
+            $expectedLargeStdinProbeOid = [Convert]::ToHexString(
+                $largeStdinProbeHasher.GetHashAndReset())
+        }
+        finally {
+            $largeStdinProbeHasher.Dispose()
+        }
+        if ($largeStdinProbeOid -cne $expectedLargeStdinProbeOid) {
+            throw 'Synthetic large binary stdin blob identity drifted.'
+        }
+        $largeProcessProbe = Invoke-ProcessCapture `
+            -FileName 'git' `
+            -Arguments @('-C', $gitRoot, 'hash-object', '--stdin') `
+            -StandardInputBytes $largeStdinProbeBytes
+        Assert-CommandPassed `
+            -Result $largeProcessProbe `
+            -Owner 'synthetic large process stdin probe'
+        if ($largeProcessProbe.Stdout.Trim().ToUpperInvariant() -cne
+            $largeStdinProbeOid) {
+            throw 'Synthetic large process stdin bytes drifted.'
+        }
+        $positive++
+        $crlfBytes = [Text.Encoding]::ASCII.GetBytes("one`r`ntwo`r`n")
+        $lfBytes = [Text.Encoding]::ASCII.GetBytes("one`ntwo`n")
+        $crlfCanonicalOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath 'normalize.st' `
+            -Bytes $crlfBytes `
+            -Owner 'synthetic CRLF canonical blob probe'
+        $lfProcessProbe = Invoke-ProcessCapture `
+            -FileName 'git' `
+            -Arguments @('-C', $gitRoot, 'hash-object', '--stdin') `
+            -StandardInputBytes $lfBytes
+        Assert-CommandPassed `
+            -Result $lfProcessProbe `
+            -Owner 'synthetic LF process stdin probe'
+        if ($crlfCanonicalOid -cne
+            $lfProcessProbe.Stdout.Trim().ToUpperInvariant()) {
+            throw 'Synthetic CRLF-to-LF commit blob policy drifted.'
+        }
+        $positive++
+        $jsonCanonicalOid = Get-CanonicalGitBlobOidForBytes `
+            -RelativePath 'gate_a_vendor_imported_baseline.json' `
+            -Bytes $crlfBytes `
+            -Owner 'synthetic JSON lineage canonical blob probe'
+        if (($jsonCanonicalOid -cne $crlfCanonicalOid) -or
+            ((Get-CommitBlobPolicyForPath `
+                    -RelativePath 'gate_a_vendor_imported_baseline.json' `
+                    -Owner 'synthetic JSON lineage policy') -cne
+                'byte-crlf-to-lf-text-v1')) {
+            throw 'Synthetic JSON lineage commit blob policy drifted.'
+        }
+        $positive++
+        try {
+            $null = Get-CommitBlobPolicyForPath `
+                -RelativePath 'unknown.extension-not-approved' `
+                -Owner 'synthetic unknown commit blob policy'
+            throw 'Synthetic unknown commit blob extension was accepted.'
+        }
+        catch {
+            if ($_.Exception.Message -ceq
+                'Synthetic unknown commit blob extension was accepted.') {
+                throw
+            }
+            $negative++
+        }
         $historicalTool = Get-GitBlobEvidence `
             -Root $gitRoot `
             -GitPath 'git' `
@@ -4579,7 +7772,11 @@ function Invoke-CaptureToolSelfTest {
             }
         }
         $badGitSnapshot = $gitSnapshot | ConvertTo-Json -Depth 20 |
-            ConvertFrom-Json -AsHashtable -Depth 20
+            ConvertFrom-Json `
+                -AsHashtable `
+                -Depth 20 `
+                -DateKind String `
+                -NoEnumerate
         $badGitSnapshot.indexRawTextSha256 = $hashA
         try {
             Assert-GitSnapshotEvidence `
@@ -4879,6 +8076,11 @@ function Invoke-CaptureToolSelfTest {
             throw 'Synthetic skip-worktree modification was trusted.'
         }
         $negative++
+
+        $fullManifestResult = Invoke-SyntheticFullManifestContractSelfTest `
+            -TestRoot $testRoot
+        $positive += [int]$fullManifestResult.positiveCount
+        $negative += [int]$fullManifestResult.negativeCount
     }
     finally {
         if ([IO.Directory]::Exists($testRoot)) {
@@ -4946,6 +8148,9 @@ function Get-CompactGitStateEvidence {
         indexRawTextSha256 = $Snapshot.indexRawTextSha256
         statusEntryCount = $Snapshot.statusEntryCount
         statusRawTextSha256 = $Snapshot.statusRawTextSha256
+        targetIgnoredPathCount = $Snapshot.targetIgnoredPathCount
+        targetIgnoredPathRawTextSha256 =
+            $Snapshot.targetIgnoredPathRawTextSha256
         targetTrackedCount = $Snapshot.targetWorktree.trackedCount
         targetNonIgnoredUntrackedCount =
             $Snapshot.targetWorktree.nonIgnoredUntrackedCount
@@ -5230,6 +8435,37 @@ $networkInventory = Get-InventoryEvidence `
     -AvailablePaths $networkAvailablePaths `
     -ReadFiles $readFiles `
     -Owner 'Full Network'
+$derivedSenderEvidence = Get-PresenceEvidence `
+    -RelativePath $derivedPath `
+    -TrackedPaths $trackedPathSet `
+    -ReadFiles $readFiles
+$artifacts = [ordered]@{
+    classesDatabase = $readFiles[$classesPath].Public
+    projectDatabase = $readFiles[$projectDatabasePath].Public
+    projectDefinition = $readFiles[$projectDefinitionPath].Public
+    generatedIncludes = $includeInventory
+    vendorSources = @($vendorPaths | ForEach-Object {
+            $readFiles[$_].Public
+        })
+    protectedDependencies = @($protectedPaths | ForEach-Object {
+            $readFiles[$_].Public
+        })
+    tcpMotionInterface = $readFiles[$tcpPath].Public
+    derivedSender = $derivedSenderEvidence
+    configObjects = $readFiles[$configObjectsPath].Public
+    networksDatabase = $readFiles[$networksDatabasePath].Public
+    commNetwork = $readFiles[$commNetworkPath].Public
+    commNetworkTable = $readFiles[$commTablePath].Public
+    fullNetwork = $networkInventory
+}
+$targetCommitBinding = New-TargetCommitBindingPolicy `
+    -Phase $Phase `
+    -TargetWorktree $gitStart.targetWorktree `
+    -Artifacts $artifacts
+Assert-TargetCommitBindingPolicyEvidence `
+    -Policy $targetCommitBinding `
+    -ExpectedPhase $Phase `
+    -Owner 'current target commit binding policy'
 $lineageEvidence = Get-ValidatedLineageEvidence `
     -CurrentPhase $Phase `
     -ReadFiles $readFiles `
@@ -5320,6 +8556,20 @@ $verifierCrossCheck = Assert-VerifierEvidenceMatchesCapture `
     -NetworkInventory $networkInventory `
     -IncludeNameToPath $includeNameToPath `
     -ProtectedNameToPath $protectedNameToPath
+Assert-ArtifactEvidenceContract `
+    -Artifacts $artifacts `
+    -Decision $verifierDecision `
+    -TargetWorktree $gitStart.targetWorktree `
+    -ExpectedState $phaseContract.ExpectedState `
+    -Owner 'current checkpoint producer'
+Assert-ArtifactGitMembershipBoundToTrackedPaths `
+    -Artifacts $artifacts `
+    -TrackedPaths $trackedPathArray `
+    -Owner 'current checkpoint producer'
+Assert-TargetIgnoredPathPolicy `
+    -Snapshot $gitStart `
+    -Artifacts $artifacts `
+    -Owner 'current checkpoint producer'
 
 $diffCheckResult = Invoke-ProcessCapture `
     -FileName $gitPath `
@@ -5358,6 +8608,14 @@ Assert-GitStateStable `
     -Expected $gitStart `
     -Observed $gitPublishGuard `
     -Owner 'publish guard'
+$publishGuardTargetCommitBinding = New-TargetCommitBindingPolicy `
+    -Phase $Phase `
+    -TargetWorktree $gitPublishGuard.targetWorktree `
+    -Artifacts $artifacts
+Assert-JsonStructuralEquality `
+    -Expected $targetCommitBinding `
+    -Observed $publishGuardTargetCommitBinding `
+    -Owner 'start/publish-guard target commit binding policy'
 $null = Resolve-ExactEvidenceDirectory `
     -Root $root `
     -RequestedPath $OutputPath
@@ -5405,7 +8663,8 @@ $manifest = [ordered]@{
             'Recorded bytes and SHA-256 came from initial ReadAllBytes ' +
             'snapshots. Existing inputs, full Include and Network inventories, ' +
             'optional derived presence, committed tool identity, Git HEAD, ' +
-            'full-repository index/status, and the complete nonignored target worktree ' +
+            'full-repository index/status, the complete nonignored target ' +
+            'worktree content/blob inventory, and the target ignored-path NUL ' +
             'inventory were checked again before publication.')
         textPolicy = (
             'Tooling, vendor/protected sources, and the newly derived sender ' +
@@ -5438,6 +8697,7 @@ $manifest = [ordered]@{
         fullRepositoryTrackedPathInventorySha256 = Get-TextSha256 -Text (
             [string]::Join("`n", $trackedPathArray))
         fullRepositoryTrackedPaths = $trackedPathArray
+        targetCommitBinding = $targetCommitBinding
     }
     tooling = [ordered]@{
         trust = $toolTrust
@@ -5452,28 +8712,7 @@ $manifest = [ordered]@{
         diffCheck = ConvertTo-CommandEvidence -Result $diffCheckResult
         cachedDiffCheck = ConvertTo-CommandEvidence -Result $cachedDiffCheckResult
     }
-    artifacts = [ordered]@{
-        classesDatabase = $readFiles[$classesPath].Public
-        projectDatabase = $readFiles[$projectDatabasePath].Public
-        projectDefinition = $readFiles[$projectDefinitionPath].Public
-        generatedIncludes = $includeInventory
-        vendorSources = @($vendorPaths | ForEach-Object {
-                $readFiles[$_].Public
-            })
-        protectedDependencies = @($protectedPaths | ForEach-Object {
-                $readFiles[$_].Public
-            })
-        tcpMotionInterface = $readFiles[$tcpPath].Public
-        derivedSender = Get-PresenceEvidence `
-            -RelativePath $derivedPath `
-            -TrackedPaths $trackedPathSet `
-            -ReadFiles $readFiles
-        configObjects = $readFiles[$configObjectsPath].Public
-        networksDatabase = $readFiles[$networksDatabasePath].Public
-        commNetwork = $readFiles[$commNetworkPath].Public
-        commNetworkTable = $readFiles[$commTablePath].Public
-        fullNetwork = $networkInventory
-    }
+    artifacts = $artifacts
 }
 
 $sealedManifest = ConvertTo-SealedManifestBytes -Manifest $manifest
@@ -5525,6 +8764,14 @@ Assert-JsonStructuralEquality `
     -Expected $gitPublishGuard `
     -Observed $stageGitGuard `
     -Owner 'recorded/post-stage final Git guard'
+$stageTargetCommitBinding = New-TargetCommitBindingPolicy `
+    -Phase $Phase `
+    -TargetWorktree $stageGitGuard.targetWorktree `
+    -Artifacts $artifacts
+Assert-JsonStructuralEquality `
+    -Expected $targetCommitBinding `
+    -Observed $stageTargetCommitBinding `
+    -Owner 'start/post-stage target commit binding policy'
 $stageToolTrust = Get-ToolTrustEvidence `
     -Root $root `
     -GitPath $gitPath `
