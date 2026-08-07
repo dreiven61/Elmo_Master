@@ -1204,8 +1204,8 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
   COMPLETE-last 및 full semantic-token fallback ratchet을 포함
 - DS402 Home retirement negative mutation `50/50` reject
 - split-aware direct contract 독립 audit에서 남은 monolithic-method 위치 가정 없음
-- custom method-size debt ratchet self-test `5/5` PASS; 6개 service class의 qualified implementation
-  `93`개를 전수 계산해 under-limit `86`, 증가 금지 baseline debt `7`을 확인
+- custom method-size debt ratchet self-test `5/5` PASS; 2026-08-05 pre-split 시점 6개 service class의
+  qualified implementation `93`개를 전수 계산해 under-limit `86`, 증가 금지 baseline debt `7`을 확인
 - integrated five-waiver full `-SourceOnly`는 위 size ratchet까지 포함해 다시 PASS
 - 이 inventory 작업은 LASAL source, generated declaration, Network와 Section 17의 1 channel +
   8 private function handoff를 변경하지 않음
@@ -1263,11 +1263,16 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
   `HandleAxisOwnershipPublishHomeReceipt(...)`와 `PrepareAxisOwnershipPublishDecision(...)` 두 helper가
   minimum인 미적용 계획이다. A51E rebaseline에서 terminal EOL을 제외한 canonical-LF/all-CRLF는
   adapter `26265/26996`,
-  Home helper `15027/15394`, decision helper `24697/25369` bytes다. 계획 whole source SHA-256은
-  canonical LF `1378A9748F4598252990CA687D36425D0464C06C079386F12106B484E374B36D`, IDE CRLF
-  `51CDC9D1EAC3D10311AF433F03A071FD7BAC563166DC1761648403A63E7BFEDC`이고 reverse-inline은 current
+  Home helper `15027/15394`, decision helper `24697/25369` bytes다. 기존 CodeGenerator 관례대로 두
+  declaration을 `//Tables:` 직전, implementation을 source EOF에 같은 순서로 append한 계획 whole
+  source SHA-256은 canonical LF
+  `A2934DA0EB3E937CD934649458F0628971115D1725F089FD5FC43F71C07EC1B0`, IDE CRLF
+  `C4B93F2D243839F1ABA9C8C4C6829921B1B585A0035590320E13D9D6660F5692`이고 reverse-inline은 current
   canonical LF `7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE` / IDE CRLF
   `A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`을 byte-exact 복원한다.
+  이 whole-source 값은 append 위치만 모사한 계획 진단값이며 실제 IDE가 생성하는 tab 정렬, separator,
+  empty stub을 아직 포함하지 않은 승인 ratchet이 아니다. Save All 뒤 실제 post-IDE snapshot을 캡처하고
+  IDE-generated header를 그대로 보존한 상태로 planner와 whole-source hash를 다시 baseline 해야 한다.
   read-only planner `test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`는
   AST, 기본 실행, negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. 두 helper 모두 현재
   Section 17 선언 목록에 추가하지 않음
@@ -1348,7 +1353,8 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
 2. `TCPMotionInterface`, `LMCControlCommandService`, `LMCDiagnosticsService` 세 class의 generated
    declaration/`Classes.lcb` external inspection과 다섯 pre-IDE waiver 제거
 3. LASAL C78 Rebuild와 generated declaration/client ABI compile
-4. 변경 class `Find in Implementation` smoke와 그 시작 이후 `%TEMP%\Lasal2.log`의 새
+4. 변경 function의 `Edit Method` 직접-open smoke, Object Network channel의
+   `Find in Implementation` class-index smoke와 그 시작 이후 `%TEMP%\Lasal2.log`의 새
    `CInvalidArgException` 부재
 5. PLC cold download/restart 후 새 `BootId`와 capability/map identity
 6. 한 축 LMC Home의 exact terminal success 및 owner release
@@ -1759,7 +1765,91 @@ SHA-256은 기존 값
 그 뒤 waiver 없는 full `Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1`은 exit `0`으로 PASS했다.
 
 actual C78 build는 raw log로 확인됐지만 별도 GUI Build Output transcript가 없어 strict dual-evidence gate는
-미완료다. `RollbackAxisOwnership`과 `ValidateAxisOwnershipRollbackPreemptBank` 두 exact
-`Find in Implementation`도 현재 로그로 증명되지 않는다. download/restart와 PLC/실축 runtime은 아직
-수행하지 않았다. 이 split은 method-size debt만 줄였고 durable power-loss rollback recovery journal을
-추가하지 않았다.
+미완료다. function row의 우클릭 메뉴에는 `Find in Implementation`이 없으므로 두 exact function의 올바른
+smoke는 각각 `Edit Method` 또는 `Enter`로 implementation header를 직접 여는 것이다. 별도로 Object
+Network channel의 `Find in Implementation`은 class index smoke로 유지한다. 현재
+`RollbackAxisOwnership`과 `ValidateAxisOwnershipRollbackPreemptBank`의 exact direct-open은 증명되지
+않았다. download/restart와 PLC/실축 runtime도 아직 수행하지 않았다. 이 split은 method-size debt만
+줄였고 durable power-loss rollback recovery journal을 추가하지 않았다.
+
+## 23. 2026-08-07 current C78 rebuild, download and corrected IDE smoke checkpoint
+
+A51E Control source를 바꾸지 않은 상태에서 사용자가 canonical 프로젝트를 다시 C78/ARM으로
+Rebuild했다. latest command window는 13:27:53~13:28:15 KST이며 compiler error/fatal `0`, coded warning
+`55`개(`W0069=35`, `W0072=17`, `W0073=3`), C78 project와 C82 library compatibility warning `6`개,
+필수 custom ST 6개 각 1회 compile, Linker `Done`, command success다. 같은 세션의 바로 전
+13:26:45~13:27:09 Rebuild도 성공했다. 두 build window에는 새 `CInvalidArgException`이 없다.
+
+build-only gate 뒤 13:28:59~13:29:04에 PLC download가 추가로 실행되어 `279` files와 `Download Ok`가
+기록됐고 13:29:10 project load 뒤 13:29:56 Offline으로 전환됐다. 이 download는 static/build 승인과
+별도 external-state 변경이며 새 BootId, capability/map identity와 축 결과를 수집하지 않았으므로
+runtime 기능 성공 증거로 사용하지 않는다. 추가 Download/Online은 금지하고 다음 runtime tranche에서
+identity부터 다시 수집한다.
+
+post-build observed baseline은 다음과 같다.
+
+- `LMCControlCommandService.st`: `608436` bytes, SHA-256
+  `A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`
+- `Classes.lcb`: `8430171` bytes, SHA-256
+  `54617F162BF631ECD7779CC7356414E7BC95C1C680FA0A74587E5C9C5B3EE553`
+- project `.lcb`: `634514` bytes, SHA-256
+  `4F384C743CFF388967594F1F37F2CA51952134D3D53A9AEED201FDA2423F5F7A`
+- `IOConnectionManager.xml`: IDE가 schema Version `2 -> 3`, formatting과 `Advanced="0"`를
+  기록한 `7682` bytes, SHA-256
+  `DD6922DA3D499B3F3FED809C8685A9F8EB395E171910A7AFF81610FB442E0208`. connection tuple의 의미
+  변경으로 간주하지 않지만 이후 Network 무변경 비교는 HEAD가 아니라 이 observed state를 기준으로 함
+
+13:45:32~13:48:12에는 TCPMotionInterface의 `ClassSvr`, `ConnectedClients`, `ControlCommands`,
+LMCDiagnosticsService의 `AxisOwnership` 및 GL slot symbol을 대상으로 `Find in Implementation` 검색이
+성공했다. 13:46:10~13:47:33에는 LMCControlCommandService, LMCDiagnosticsService,
+LMCEcatInputLatch, LMCSdoExecutor, TCPMotionInterface implementation editor direct-open이 성공했고 이
+구간의 신규 `CInvalidArgException`은 `0`이다. 이후 PID `12836`으로 canonical 프로젝트를 다시 열었고
+source/generated/Network hash는 위 baseline에서 변하지 않았다.
+
+function 행에는 `Find in Implementation` 메뉴가 없다는 실제 UI 결과에 따라 smoke 계약을 바로잡았다.
+function은 `Edit Method` 또는 `Enter`로 exact implementation header를 직접 열고, Object Network
+Client/Server는 별도로 `Find in Implementation`을 실행한다. 로그는 class 이름만 남기므로
+`RollbackAxisOwnership`과 `ValidateAxisOwnershipRollbackPreemptBank` 두 exact header direct-open은
+화면 확인 전까지 미완료다.
+
+## 24. 2026-08-07 PublishAxisOwnership split transition guard
+
+Section 8.5의 Publish split을 IDE에 적용하기 전에 current monolith와 final split을 모두 검증하고
+중간상태는 거부하는 dual-state contract를 추가했다. 현재 A51E source와 `Classes.lcb`에는 두 Publish
+helper가 각각 `0/0`이며 monolith state로 승인된다.
+
+- monolith provider negative `69/69` PASS
+- split structural transition negative `8/8` PASS: partial/duplicate declaration 또는 implementation,
+  실제 blank-line empty Home/Decision stub, GLOBAL implementation, adapter call 누락을 거부
+- planner semantic negative `19/19`, LF/CRLF positive와 reverse exact PASS
+- production caller current `19/19/0` total/consumed/OPEN과 preemption cleanup caller `4`곳의 exact
+  `{0,1}` success domain PASS
+- SourceOnly/full current gate 각각 약 `233`초에 PASS
+- generated contract current monolith `Classes.lcb` helper record `0/0` PASS. final split은 exact private
+  record, zero scope flags, ordered input count `7/10`, output count `1`, `Result : DINT`를 요구
+- current custom method inventory `96/92/4`; IDE empty-stub 중간상태 예상 `98/94/4`는 default FAIL,
+  final split만 `98/95/3`으로 승인
+
+post-IDE capture 도구
+`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Capture-PublishSplitIdeBaseline.ps1`는 source의
+exact ordered private declaration과 qualified EOF empty stub을 제거했을 때 A51E/7EAB가 복원되는지를
+검사한다. self-test는 `14/14`다. 캡처는 LASAL process가 완전히 종료된 경우에만 허용하고 출력 경로를
+exact evidence directory로 제한하며, source/Classes/Network를 single-read hash한 뒤 캡처 전후 다시
+검사한다. 기존 snapshot/manifest는 `FileMode.CreateNew`로 덮어쓰지 않는다.
+
+현재 IDE가 열린 상태에서 고정한 pre-helper observed baseline은
+`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/pre_publish_helper_ide_baseline_manifest.json`이다.
+Network tracked/available/union은 `15/23/23`, inventory SHA-256은
+`B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`다. 이 값은 final approval
+ratchet이 아니라 helper 생성 전후 Network 변화 탐지 기준이다.
+
+다음 IDE 작업은 `LMCControlCommandService`에 아래 두 private function을 **Home -> Decision 순서**로
+추가하는 것이다. exact input/output ABI는 Section 8.5를 그대로 사용하고 `GLOBAL`/`VIRTUAL GLOBAL`,
+Network 연결은 만들지 않는다.
+
+1. `HandleAxisOwnershipPublishHomeReceipt` (`7` inputs, `Result : DINT`)
+2. `PrepareAxisOwnershipPublishDecision` (`10` inputs, `Result : DINT`)
+
+두 function 추가 뒤에는 Save All하고 Rebuild/Download/Online 없이 LASAL을 종료한다. 실제
+post-IDE source/Classes/Network snapshot을 통과한 뒤에만 IDE-generated stub header를 그대로 보존해
+adapter와 두 helper body를 외부 적용한다.

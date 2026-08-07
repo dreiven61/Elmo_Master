@@ -481,6 +481,14 @@ Client 또는 Server 이름을 우클릭하고 `Find in Implementation`을 실�
 - 로그에서 명령이 `Last command succeeded`로 끝난다.
 - `CInvalidArgException`이 없다.
 
+function/method 행의 우클릭 메뉴에는 `Find in Implementation`이 없다. 변경 function 자체의
+직접-open smoke는 method 목록에서 대상을 선택한 뒤 `Edit Method` 또는 `Enter`를 실행하고,
+implementation editor가 exact qualified header를 연 것을 화면으로 확인한다. 따라서 검증 기록은
+다음 두 항목을 섞지 않는다.
+
+- Object Network Client/Server의 `Find in Implementation`: class index와 source 위치 검색
+- function/method의 `Edit Method` 직접 open: exact implementation header와 IDE model 연결
+
 smoke 시작 전에 현재 로그 행 수를 저장한다.
 
 ```powershell

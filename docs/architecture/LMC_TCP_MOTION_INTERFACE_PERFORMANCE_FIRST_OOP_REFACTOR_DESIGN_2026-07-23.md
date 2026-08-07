@@ -1010,9 +1010,14 @@ commit을 시작하지 않는다.
   `90B7E61AA6F4F85896835C7F0EE05855930FE73A891546E8832A46196213DB8E` /
   `E2E06E5ADBF2F526C765E893512D365C008A6AE9BA1C1494500BB1133D5D58A3`
 
-세 method 모두 LF와 CRLF에서 `32768` 미만이다. 계획 whole source는 canonical LF `594900` bytes /
-SHA-256 `1378A9748F4598252990CA687D36425D0464C06C079386F12106B484E374B36D`, IDE CRLF
-`611799` bytes / SHA-256 `51CDC9D1EAC3D10311AF433F03A071FD7BAC563166DC1761648403A63E7BFEDC`다.
+세 method 모두 LF와 CRLF에서 `32768` 미만이다. LASAL CodeGenerator의 기존 관례대로 두 private
+declaration을 `//Tables:` 직전에, implementation을 source EOF에 같은 순서로 append한 계획 whole
+source는 canonical LF `594900` bytes / SHA-256
+`A2934DA0EB3E937CD934649458F0628971115D1725F089FD5FC43F71C07EC1B0`, IDE CRLF `611799` bytes /
+SHA-256 `C4B93F2D243839F1ABA9C8C4C6829921B1B585A0035590320E13D9D6660F5692`다.
+이 whole-source 값은 append 위치만 모사한 계획 진단값이다. 실제 IDE-generated tab 정렬, separator와
+empty stub을 아직 캡처하지 않았으므로 post-IDE 승인 ratchet으로 사용하지 않는다. Save All 뒤 실제
+post-IDE snapshot을 저장하고 stub header를 byte-exact 보존하는 planner로 rebaseline해야 한다.
 전용 read-only planner는
 `test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`이며 기본 실행과
 `-RunSelfTest`의 negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. planner는 canonical
@@ -1023,6 +1028,21 @@ reverse-inline하면 canonical LF
 복원한다. 실제 split 뒤에는 exact private ABI/one-call dominance, adapter+helper transitive
 read/write/call/Result inventory, Home `Result=2` containment, decision bit `0..2` domain, no input/live tuple
 재표본, first main commit dominance, reverse-inline proof와 size debt 제거를 다시 승인한다.
+
+2026-08-07 pre-transition verifier는 current monolith와 final split만 허용한다. monolith provider
+negative `69/69`, split structural transition `8/8`, planner semantic negative `19/19`, production caller
+`19/19/0`을 통과했고 SourceOnly/full current gate도 PASS했다. declaration 또는 implementation 일부만
+존재하거나 실제 CodeGenerator empty stub 두 개가 남은 `98/94/4` 상태는 default FAIL이다. final
+split에서는 source의 exact private ABI와 함께 `Classes.lcb`의 private zero-scope record, ordered input
+count `7/10`, output count `1`, `Result : DINT`를 요구한다.
+
+post-IDE snapshot은
+`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Capture-PublishSplitIdeBaseline.ps1`로만
+승인한다. 이 도구는 LASAL 종료, exact evidence output directory, BOM 없는 ASCII source, ordered
+declaration/qualified empty stub, A51E/7EAB reverse removal, Classes helper-name evidence와 전체 Network
+inventory의 stable revalidation을 강제하고 기존 evidence file을 덮어쓰지 않는다. self-test는
+`14/14`다. helper 생성 전 Network inventory SHA-256은
+`B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759`이며 post-IDE와 비교한다.
 
 ### 8.6 post-C78 ownership reservation split plan
 

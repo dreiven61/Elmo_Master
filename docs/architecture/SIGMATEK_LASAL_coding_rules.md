@@ -184,5 +184,7 @@ git diff --cached --check
 - 이미 tracked인 LASAL 생성 파일 변경은 왜 필요한지 커밋 메시지나 문서에서 설명 가능하다.
 - C# 송신 프레임과 LASAL 파서가 같은 command id, endian, payload offset을 사용한다.
 - 새로 추가한 LASAL custom source와 IDE metadata 입력에 비ASCII 문자가 없다.
-- 변경 클래스의 `Find in Implementation` smoke test가 성공하고 smoke 시작 이후 `Lasal2.log`에 새 `CInvalidArgException`이 없다.
+- Object Network Client/Server의 `Find in Implementation` class-index smoke와 변경 function의
+  `Edit Method` direct-open smoke가 성공하고, smoke 시작 이후 `Lasal2.log`에 새
+  `CInvalidArgException`이 없다.
 - `git diff --check`와 `git diff --cached --check`를 통과한다.
