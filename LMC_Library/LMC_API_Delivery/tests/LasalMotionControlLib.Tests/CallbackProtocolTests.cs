@@ -38,6 +38,27 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "CallbackProtocol.UnknownIdentifiers.FailClosed",
                 UnknownIdentifiersFailClosed);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.RegistrationMask",
+                InitialV2WakeHintRegistrationMask);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.EventMaskBitExact",
+                InitialV2WakeHintEventMaskBitExact);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.EventAndDeliveryPolicy",
+                InitialV2WakeHintEventAndDeliveryPolicy);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.ExactSuccessResponse",
+                InitialV2WakeHintExactSuccessResponse);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.FailureResponseFailClosed",
+                InitialV2WakeHintFailureResponseFailClosed);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.ZeroPayloadGolden",
+                InitialV2WakeHintZeroPayloadGolden);
+            tests.Add(
+                "CallbackProtocol.InitialV2WakeHint.PayloadPredicateFailClosed",
+                InitialV2WakeHintPayloadPredicateFailClosed);
         }
 
         private static void Legacy405CRemains12Request4Response()
@@ -486,6 +507,8 @@ namespace LasalMotionControlLib.Tests
         private static void UnknownIdentifiersFailClosed()
         {
             var failClosed = LMCCallbackProtocolPolicy.FailClosed;
+            AssertEx.False(failClosed.ApprovesEventMaskBit(1u));
+            AssertEx.False(failClosed.ApprovesPayloadLength(0));
             AssertEx.Throws<ArgumentException>(
                 () => LMCCallbackProtocol.EncodeRegistrationV2Payload(
                     ApprovedRequest(),
@@ -612,6 +635,265 @@ namespace LasalMotionControlLib.Tests
                         new byte[0]),
                     fence,
                     ApprovedPolicy()));
+        }
+
+        private static void InitialV2WakeHintRegistrationMask()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+
+            AssertEx.True(policy.ApprovesRegistrationMask(1u));
+            AssertEx.True(policy.ApprovesRegistrationMask(3u));
+            AssertEx.True(
+                policy.ApprovesRegistrationMask(0x80000001u));
+            AssertEx.True(
+                policy.ApprovesRegistrationMask(uint.MaxValue));
+            AssertEx.False(policy.ApprovesRegistrationMask(0u));
+            AssertEx.False(policy.ApprovesRegistrationMask(2u));
+            AssertEx.False(
+                policy.ApprovesRegistrationMask(0xFFFFFFFEu));
+        }
+
+        private static void InitialV2WakeHintEventMaskBitExact()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+
+            AssertEx.True(policy.ApprovesEventMaskBit(1u));
+            AssertEx.False(policy.ApprovesEventMaskBit(0u));
+            AssertEx.False(policy.ApprovesEventMaskBit(2u));
+            AssertEx.False(policy.ApprovesEventMaskBit(3u));
+            AssertEx.False(policy.ApprovesEventMaskBit(uint.MaxValue));
+
+            var structuralPolicy = InitialV2WakeHintStructuralPolicy();
+            var fence = InitialV2WakeHintFence(structuralPolicy, 3u);
+            var bitTwoWrite = new LMCCallbackDatagramWrite(
+                1,
+                2,
+                1,
+                0u,
+                0u,
+                0,
+                new byte[0]);
+            var bitTwoDatagram = LMCCallbackProtocol.EncodeDatagram(
+                bitTwoWrite,
+                fence,
+                structuralPolicy);
+
+            AssertEx.Throws<ArgumentException>(
+                () => LMCCallbackProtocol.EncodeDatagram(
+                    bitTwoWrite,
+                    fence,
+                    policy));
+            AssertDatagramError(
+                bitTwoDatagram,
+                fence,
+                policy,
+                LMCCallbackProtocolError.EventMaskBitNotApproved);
+        }
+
+        private static void InitialV2WakeHintEventAndDeliveryPolicy()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+
+            AssertEx.True(policy.ApprovesEventIdentifier(1, 0u));
+            AssertEx.True(
+                policy.ApprovesEventIdentifier(1, uint.MaxValue));
+            AssertEx.False(policy.ApprovesEventIdentifier(0, 0u));
+            AssertEx.False(policy.ApprovesEventIdentifier(2, 0u));
+            AssertEx.False(
+                policy.ApprovesEventIdentifier(
+                    ushort.MaxValue,
+                    uint.MaxValue));
+            AssertEx.True(policy.ApprovesDeliveryClass(0));
+            AssertEx.False(policy.ApprovesDeliveryClass(1));
+            AssertEx.False(policy.ApprovesDeliveryClass(byte.MaxValue));
+        }
+
+        private static void InitialV2WakeHintExactSuccessResponse()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+            var request = InitialV2WakeHintRequest(0x80000001u);
+            var payload = TestFrame.Hex(
+                "00 00 00 00 02 00 00 02 "
+                + "04 03 02 01 08 07 06 05 00 00 00 00");
+
+            AssertEx.Equal(20, payload.Length);
+            AssertEx.True(policy.ApprovesRegistrationResult(0, 0));
+            var parsed = LMCCallbackProtocol.ParseRegistrationV2Response(
+                payload,
+                request,
+                SourceIPv4,
+                17,
+                policy);
+
+            AssertEx.True(parsed.IsAccepted);
+            AssertEx.Equal((ushort)0, parsed.Value.Status);
+            AssertEx.Equal((short)0, parsed.Value.ErrorId);
+            AssertEx.Equal((ushort)2, parsed.Value.AcceptedVersion);
+            AssertEx.Equal((ushort)512, parsed.Value.AcceptedMaxDatagram);
+            AssertEx.Equal(0x01020304u, parsed.Value.DiagnosticsBootId);
+            AssertEx.Equal(0x05060708u, parsed.Value.SessionEpoch);
+            AssertEx.Equal(0u, parsed.Value.AcceptedFlags);
+            AssertEx.Equal(17L, parsed.Value.SessionFence.ListenerGeneration);
+            AssertEx.Equal(
+                0x80000001u,
+                parsed.Value.SessionFence.RegisteredEventMask);
+        }
+
+        private static void InitialV2WakeHintFailureResponseFailClosed()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+            var payload = TestFrame.Hex(
+                "01 00 FF FF 00 00 00 00 "
+                + "00 00 00 00 00 00 00 00 00 00 00 00");
+
+            AssertEx.Equal(20, payload.Length);
+            AssertEx.False(policy.ApprovesRegistrationResult(1, -1));
+            AssertResponseError(
+                payload,
+                InitialV2WakeHintRequest(1u),
+                17,
+                policy,
+                LMCCallbackProtocolError.RegistrationResultNotApproved);
+        }
+
+        private static void InitialV2WakeHintZeroPayloadGolden()
+        {
+            var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
+            var response = TestFrame.Hex(
+                "00 00 00 00 02 00 00 02 "
+                + "04 03 02 01 08 07 06 05 00 00 00 00");
+            var parsedResponse = LMCCallbackProtocol
+                .ParseRegistrationV2Response(
+                    response,
+                    InitialV2WakeHintRequest(1u),
+                    SourceIPv4,
+                    17,
+                    policy);
+            AssertEx.True(parsedResponse.IsAccepted);
+
+            var datagram = LMCCallbackProtocol.EncodeDatagram(
+                new LMCCallbackDatagramWrite(
+                    1,
+                    1,
+                    1,
+                    uint.MaxValue,
+                    0x01020304u,
+                    0,
+                    new byte[0]),
+                parsedResponse.Value.SessionFence,
+                policy);
+
+            AssertEx.SequenceEqual(
+                TestFrame.Hex(
+                    "4C 4D 43 32 02 00 34 00 34 00 01 00 "
+                    + "01 00 00 00 04 03 02 01 08 07 06 05 "
+                    + "DD CC BB AA 44 33 22 11 01 00 00 00 "
+                    + "00 00 00 00 FF FF FF FF 04 03 02 01 "
+                    + "00 00 00 00"),
+                datagram);
+            var parsedDatagram = LMCCallbackProtocol.ParseDatagram(
+                datagram,
+                parsedResponse.Value.SessionFence,
+                policy);
+            AssertEx.True(parsedDatagram.IsAccepted);
+            AssertEx.Equal(0, parsedDatagram.Value.Payload.Length);
+
+            var structuralPolicy = InitialV2WakeHintStructuralPolicy();
+            var nonzeroWrite = new LMCCallbackDatagramWrite(
+                1,
+                1,
+                2,
+                0u,
+                0x01020305u,
+                0,
+                new byte[] { 0xA5 });
+            var nonzeroDatagram = LMCCallbackProtocol.EncodeDatagram(
+                nonzeroWrite,
+                parsedResponse.Value.SessionFence,
+                structuralPolicy);
+            AssertEx.Throws<ArgumentException>(
+                () => LMCCallbackProtocol.EncodeDatagram(
+                    nonzeroWrite,
+                    parsedResponse.Value.SessionFence,
+                    policy));
+            AssertDatagramError(
+                nonzeroDatagram,
+                parsedResponse.Value.SessionFence,
+                policy,
+                LMCCallbackProtocolError.PayloadNotApproved);
+        }
+
+        private static void InitialV2WakeHintPayloadPredicateFailClosed()
+        {
+            var structuralPolicy = InitialV2WakeHintStructuralPolicy();
+            var fence = InitialV2WakeHintFence(structuralPolicy);
+            var datagram = LMCCallbackProtocol.EncodeDatagram(
+                new LMCCallbackDatagramWrite(
+                    1,
+                    1,
+                    1,
+                    0u,
+                    0u,
+                    0,
+                    new byte[0]),
+                fence,
+                structuralPolicy);
+            var throwingPolicy = new LMCCallbackProtocolPolicy(
+                eventMask => (eventMask & 1u) == 1u,
+                (eventType, eventId) => eventType == 1,
+                deliveryClass => deliveryClass == 0,
+                (status, errorId) => status == 0 && errorId == 0,
+                payloadBytes => { throw new InvalidOperationException(); });
+
+            AssertDatagramError(
+                datagram,
+                fence,
+                throwingPolicy,
+                LMCCallbackProtocolError.PayloadNotApproved);
+        }
+
+        private static LMCCallbackRegistrationV2Request
+            InitialV2WakeHintRequest(uint eventMask)
+        {
+            return new LMCCallbackRegistrationV2Request(
+                eventMask,
+                0x1234,
+                CallbackIPv4,
+                512,
+                0xAABBCCDDu,
+                0x11223344u);
+        }
+
+        private static LMCCallbackProtocolPolicy
+            InitialV2WakeHintStructuralPolicy()
+        {
+            return new LMCCallbackProtocolPolicy(
+                eventMask => (eventMask & 1u) == 1u,
+                (eventType, eventId) => eventType == 1,
+                deliveryClass => deliveryClass == 0,
+                (status, errorId) => status == 0 && errorId == 0);
+        }
+
+        private static LMCCallbackSessionFence InitialV2WakeHintFence(
+            LMCCallbackProtocolPolicy policy)
+        {
+            return InitialV2WakeHintFence(policy, 1u);
+        }
+
+        private static LMCCallbackSessionFence InitialV2WakeHintFence(
+            LMCCallbackProtocolPolicy policy,
+            uint eventMask)
+        {
+            var parsed = LMCCallbackProtocol.ParseRegistrationV2Response(
+                TestFrame.Hex(
+                    "00 00 00 00 02 00 00 02 "
+                    + "04 03 02 01 08 07 06 05 00 00 00 00"),
+                InitialV2WakeHintRequest(eventMask),
+                SourceIPv4,
+                17,
+                policy);
+            AssertEx.True(parsed.IsAccepted);
+            return parsed.Value.SessionFence;
         }
 
         internal static LMCCallbackProtocolPolicy ApprovedPolicy()

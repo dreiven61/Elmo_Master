@@ -8,24 +8,84 @@ namespace LasalMotionControlLib
         private readonly Func<ushort, uint, bool> eventIdentifierPredicate;
         private readonly Func<byte, bool> deliveryClassPredicate;
         private readonly Func<ushort, short, bool> registrationResultPredicate;
+        private readonly Func<int, bool> payloadLengthPredicate;
+        private readonly Func<uint, bool> eventMaskBitPredicate;
 
         public LMCCallbackProtocolPolicy(
             Func<uint, bool> registrationMaskPredicate,
             Func<ushort, uint, bool> eventIdentifierPredicate,
             Func<byte, bool> deliveryClassPredicate,
             Func<ushort, short, bool> registrationResultPredicate)
+            : this(
+                registrationMaskPredicate,
+                eventIdentifierPredicate,
+                deliveryClassPredicate,
+                registrationResultPredicate,
+                payloadBytes => true,
+                eventMaskBit => true)
+        {
+        }
+
+        public LMCCallbackProtocolPolicy(
+            Func<uint, bool> registrationMaskPredicate,
+            Func<ushort, uint, bool> eventIdentifierPredicate,
+            Func<byte, bool> deliveryClassPredicate,
+            Func<ushort, short, bool> registrationResultPredicate,
+            Func<int, bool> payloadLengthPredicate)
+            : this(
+                registrationMaskPredicate,
+                eventIdentifierPredicate,
+                deliveryClassPredicate,
+                registrationResultPredicate,
+                payloadLengthPredicate,
+                eventMaskBit => true)
+        {
+        }
+
+        public LMCCallbackProtocolPolicy(
+            Func<uint, bool> registrationMaskPredicate,
+            Func<ushort, uint, bool> eventIdentifierPredicate,
+            Func<byte, bool> deliveryClassPredicate,
+            Func<ushort, short, bool> registrationResultPredicate,
+            Func<int, bool> payloadLengthPredicate,
+            Func<uint, bool> eventMaskBitPredicate)
         {
             this.registrationMaskPredicate = registrationMaskPredicate;
             this.eventIdentifierPredicate = eventIdentifierPredicate;
             this.deliveryClassPredicate = deliveryClassPredicate;
             this.registrationResultPredicate = registrationResultPredicate;
+            this.payloadLengthPredicate = payloadLengthPredicate;
+            this.eventMaskBitPredicate = eventMaskBitPredicate;
         }
 
         public static LMCCallbackProtocolPolicy FailClosed
         {
             get
             {
-                return new LMCCallbackProtocolPolicy(null, null, null, null);
+                return new LMCCallbackProtocolPolicy(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+            }
+        }
+
+        /// <summary>
+        /// Gets the initial production policy for version-2 UDP wake hints.
+        /// </summary>
+        public static LMCCallbackProtocolPolicy InitialV2WakeHint
+        {
+            get
+            {
+                return new LMCCallbackProtocolPolicy(
+                    eventMask => (eventMask & 1u) == 1u,
+                    (eventType, eventId) => eventType == 1,
+                    deliveryClass => deliveryClass == 0,
+                    (status, errorId) => status == 0 && errorId == 0,
+                    payloadBytes => payloadBytes == 0,
+                    eventMaskBit => eventMaskBit == 1u);
             }
         }
 
@@ -34,6 +94,13 @@ namespace LasalMotionControlLib
             return InvokeFailClosed(
                 registrationMaskPredicate,
                 eventMask);
+        }
+
+        internal bool ApprovesEventMaskBit(uint eventMaskBit)
+        {
+            return InvokeFailClosed(
+                eventMaskBitPredicate,
+                eventMaskBit);
         }
 
         internal bool ApprovesEventIdentifier(
@@ -79,6 +146,13 @@ namespace LasalMotionControlLib
             {
                 return false;
             }
+        }
+
+        internal bool ApprovesPayloadLength(int payloadBytes)
+        {
+            return InvokeFailClosed(
+                payloadLengthPredicate,
+                payloadBytes);
         }
 
         private static bool InvokeFailClosed<T>(
@@ -437,7 +511,9 @@ namespace LasalMotionControlLib
         DeliveryClassNotApproved,
         StaleBootId,
         StaleSessionEpoch,
-        StaleCookie
+        StaleCookie,
+        PayloadNotApproved,
+        EventMaskBitNotApproved
     }
 
     internal sealed class LMCCallbackParseResult<T>

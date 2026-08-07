@@ -651,6 +651,11 @@ namespace LasalMotionControlLib
             {
                 return LMCCallbackProtocolError.EventMaskNotSubscribed;
             }
+            if (policy == null
+                || !policy.ApprovesEventMaskBit(eventMaskBit))
+            {
+                return LMCCallbackProtocolError.EventMaskBitNotApproved;
+            }
             if (payloadBytes < 0 || payloadBytes > MaxPayloadBytes)
             {
                 return LMCCallbackProtocolError.PayloadTooLarge;
@@ -668,6 +673,10 @@ namespace LasalMotionControlLib
             if (!policy.ApprovesDeliveryClass(deliveryClass))
             {
                 return LMCCallbackProtocolError.DeliveryClassNotApproved;
+            }
+            if (!policy.ApprovesPayloadLength(payloadBytes))
+            {
+                return LMCCallbackProtocolError.PayloadNotApproved;
             }
             return LMCCallbackProtocolError.None;
         }
