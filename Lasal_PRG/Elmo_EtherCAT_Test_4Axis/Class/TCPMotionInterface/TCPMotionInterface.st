@@ -346,14 +346,40 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
 		cleanupRequestSequence : UDINT;
 		cleanupRollbackResult : DINT;
 		cleanupPublishResult : DINT;
+		publishFailureCloseSocket : DINT;
 		cleanupPrimaryValid : BOOL;
 		cleanupCopyValid : BOOL;
 		cleanupPendingActive : BOOL;
 	END_VAR
 
+  if ActiveRequest.Reserved = 2 then
+    ActiveRequestValid := TRUE;
+    IngressBlocked := TRUE;
+    IngressFaultPending := FALSE;
+    IngressFaultCloseRequired := TRUE;
+    IngressFaultSocket := ActiveRequest.Socket;
+    IngressFaultEpoch := ActiveRequest.SessionEpoch;
+    IngressFaultError := -8;
+    if PendingClosedSessionEpoch = 0 then
+      PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;
+    end_if;
+    publishFailureCloseSocket := CurrentSock;
+    ActiveRequest.Reserved := 3;
+    if publishFailureCloseSocket <> 0 then
+      LastOwnerDisconnectRequestRet :=
+        _TCPIPServerInterface::SetSocketParameter(
+          dSock:=publishFailureCloseSocket,
+          Cmd:=100,
+          SubCmd:=0,
+          ParaValue:=0
+        );
+    end_if;
+  end_if;
+
   // The ordinary TCP server and this interface run in one cyclic task.
   // Response publishes the queue before this CyWork consumes it.
-  if (PendingClosedSessionEpoch <> 0) &
+  if (ActiveRequest.Reserved < 2) &
+     (PendingClosedSessionEpoch <> 0) &
      IsClientConnected(#Diagnostics) &
      IsClientConnected(#ControlCommands) then
     cleanupPendingActive :=
@@ -460,6 +486,12 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
           ReportValue0:=TO_UDINT(cleanupRollbackResult),
           ReportValue1:=42,
           ObservationCycle:=ops.tAbsolute);
+        if cleanupPublishResult <> 0 then
+          ActiveRequest.Reserved := 2;
+          ActiveRequestValid := TRUE;
+          state := READY;
+          RETURN;
+        end_if;
       end_if;
       ActiveRequest.Reserved := 0;
       ActiveRequestValid := FALSE;
@@ -486,6 +518,11 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
   // could legally acquire the same axis after the old common owner is cleared.
   if IsClientConnected(#Diagnostics) then
     Diagnostics.ProcessOperations();
+  end_if;
+
+  if ActiveRequest.Reserved >= 2 then
+    state := READY;
+    RETURN;
   end_if;
 
   // ControlCommands resolves object names on demand through MsgPaser in this
@@ -605,6 +642,16 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
       end_if;
 
       ConnectedClients +=1;
+      if ActiveRequest.Reserved >= 2 then
+        LastCandidateDisconnectRequestRet :=
+          _TCPIPServerInterface::SetSocketParameter(
+            dSock:=dSock,
+            Cmd:=100,
+            SubCmd:=0,
+            ParaValue:=0
+          );
+        RETURN;
+      end_if;
       takeCandidate := FALSE;
       takeover := FALSE;
       candidatePeerValid := FALSE;
@@ -790,9 +837,11 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         if SessionEpoch = 0 then
           SessionEpoch := 1;
         end_if;
-        IngressBlocked := FALSE;
-        IngressFaultPending := FALSE;
-        IngressFaultCloseRequired := FALSE;
+        if ActiveRequest.Reserved < 2 then
+          IngressBlocked := FALSE;
+          IngressFaultPending := FALSE;
+          IngressFaultCloseRequired := FALSE;
+        end_if;
       end_if;
       if RpcSocket = dSock then
         RpcSocket := 0;
@@ -811,13 +860,11 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
       end_if;
       if IngressFaultSocket = dSock then
-        IngressFaultPending := FALSE;
-        IngressFaultCloseRequired := FALSE;
-        IngressBlocked := FALSE;
-      end_if;
-      if IngressDiscardSocket = dSock then
-        IngressDiscardRemaining := 0;
-        IngressDiscardSocket := 0;
+        if ActiveRequest.Reserved < 2 then
+          IngressFaultPending := FALSE;
+          IngressFaultCloseRequired := FALSE;
+          IngressBlocked := FALSE;
+        end_if;
       end_if;
   end_case;
 
@@ -928,6 +975,10 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
 	udFrameSize : UDINT;
 	udRemainingSize : UDINT;
 	END_VAR
+
+  if ActiveRequest.Reserved >= 2 then
+    RETURN;
+  end_if;
 
   if udSize = 0 then
     RETURN;
@@ -1370,6 +1421,7 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 					end_if;
 					if pendingRollbackResult <> 0 then
 						pendingCloseRequired := TRUE;
+						pendingPublishResult := -3;
 						if IsClientConnected(#ControlCommands) then
 						  pendingPublishResult :=
 							ControlCommands.PublishAxisOwnership(
@@ -1380,6 +1432,11 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 								ReportValue0:=TO_UDINT(pendingRollbackResult),
 								ReportValue1:=42,
 								ObservationCycle:=ActiveRequest.Sequence);
+						end_if;
+						if pendingPublishResult <> 0 then
+							ActiveRequest.Reserved := 2;
+							ActiveRequestValid := TRUE;
+							RETURN;
 						end_if;
 					end_if;
 					if pendingContextValid = FALSE then
@@ -1481,6 +1538,7 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 					pendingRollbackResult := -3;
 				end_if;
 				if pendingRollbackResult <> 0 then
+					pendingPublishResult := -3;
 					if IsClientConnected(#ControlCommands) then
 					  pendingPublishResult := ControlCommands.PublishAxisOwnership(
 						AxisMask:=EffectiveAxisMask,
@@ -1489,7 +1547,12 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 						ReportKind:=4,
 						ReportValue0:=TO_UDINT(pendingRollbackResult),
 						ReportValue1:=42,
-						ObservationCycle:=ActiveRequest.Sequence);
+							ObservationCycle:=ActiveRequest.Sequence);
+					end_if;
+					if pendingPublishResult <> 0 then
+						ActiveRequest.Reserved := 2;
+						ActiveRequestValid := TRUE;
+						RETURN;
 					end_if;
 				end_if;
 				pendingCloseRequired := TRUE;
@@ -1514,6 +1577,7 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 				(Sendbuf[8]$UDINT = TO_UDINT(AxisRef)) &
 				(Sendbuf[12]$UINT = 1) & (Sendbuf[14]$INT <> 0);
 			if (pendingAccepted = FALSE) & (pendingFailure = FALSE) then
+				pendingPublishResult := -3;
 				if IsClientConnected(#ControlCommands) then
 				  pendingPublishResult := ControlCommands.PublishAxisOwnership(
 					AxisMask:=EffectiveAxisMask,
@@ -1522,7 +1586,12 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 					ReportKind:=4,
 					ReportValue0:=TO_UDINT(pendingResponseSize),
 					ReportValue1:=42,
-					ObservationCycle:=ActiveRequest.Sequence);
+						ObservationCycle:=ActiveRequest.Sequence);
+				end_if;
+				if pendingPublishResult <> 0 then
+					ActiveRequest.Reserved := 2;
+					ActiveRequestValid := TRUE;
+					RETURN;
 				end_if;
 				pendingCloseRequired := TRUE;
 			end_if;
@@ -1731,8 +1800,6 @@ FUNCTION TCPMotionInterface::MsgPaser
 		controlAdmissionToken : UDINT;
 		controlOwnerGeneration : UDINT;
 		controlAdmissionResult : DINT;
-		controlRollbackResult : DINT;
-		controlPublishResult : DINT;
 		controlOwnerKind : UINT;
 		controlResourceKind : UINT;
 		controlAdmissionMode : UINT;
@@ -1979,17 +2046,22 @@ case CommandID of
 			  CallerSessionEpoch:=ActiveRequest.SessionEpoch,
 			  RequestSequence:=ActiveRequest.Sequence,
 			  Reason:=-21);
-		  if diagnosticsRollbackResult <> 0 then
-			diagnosticsPublishResult :=
+	  if diagnosticsRollbackResult <> 0 then
+		diagnosticsPublishResult :=
 			  ControlCommands.PublishAxisOwnership(
 				AxisMask:=diagnosticsEffectiveAxisMask,
 				AdmissionToken:=diagnosticsAdmissionToken,
 				OwnerGeneration:=diagnosticsOwnerGeneration,
 				ReportKind:=4,
 				ReportValue0:=TO_UDINT(diagnosticsRollbackResult),
-				ReportValue1:=42,
-				ObservationCycle:=ActiveRequest.Sequence);
-		  end_if;
+			ReportValue1:=42,
+			ObservationCycle:=ActiveRequest.Sequence);
+		if diagnosticsPublishResult <> 0 then
+		  ActiveRequest.Reserved := 2;
+		  ActiveRequestValid := TRUE;
+		  RETURN;
+		end_if;
+	  end_if;
 		end_if;
 	  end_if;
 
@@ -2030,8 +2102,6 @@ case CommandID of
     controlAdmissionToken := 0;
     controlOwnerGeneration := 0;
     controlAdmissionResult := -1;
-    controlRollbackResult := 0;
-    controlPublishResult := 0;
     controlOwnerKind := 0;
     controlResourceKind := 0;
     controlAdmissionMode := 0;
@@ -2415,49 +2485,17 @@ case CommandID of
           (Sendbuf[20]$UDINT <= 18)) |
          ((Sendbuf[20]$UDINT >= 40) &
           (Sendbuf[20]$UDINT <= 42)));
-      if controlExactFailure then
-        controlRollbackResult := ControlCommands.RollbackAxisOwnership(
-          AdmissionToken:=controlAdmissionToken,
-          OwnerGeneration:=controlOwnerGeneration,
-          CallerSessionEpoch:=ActiveRequest.SessionEpoch,
-          RequestSequence:=ActiveRequest.Sequence,
-          Reason:=0);
-        if controlRollbackResult <> 0 then
-          controlPublishResult := ControlCommands.PublishAxisOwnership(
-            AxisMask:=controlEffectiveAxisMask,
-            AdmissionToken:=controlAdmissionToken,
-            OwnerGeneration:=controlOwnerGeneration,
-            ReportKind:=4,
-            ReportValue0:=TO_UDINT(controlRollbackResult),
-            ReportValue1:=42,
-            ObservationCycle:=ActiveRequest.Sequence);
-          _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
-          Sendbuf[0]$UINT := 0;
-          Sendbuf[2]$UINT := 16;
-          Sendbuf[8]$UINT := 1;
-          Sendbuf[12]$UINT := 1;
-          Sendbuf[14]$INT := -31000;
-          Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
-          Sendbuf[20]$UDINT := 42;
-          controlResponseSize := 24;
-        end_if;
-      elsif controlExactAccepted = FALSE then
-        controlRollbackResult := ControlCommands.RollbackAxisOwnership(
-          AdmissionToken:=controlAdmissionToken,
-          OwnerGeneration:=controlOwnerGeneration,
-          CallerSessionEpoch:=ActiveRequest.SessionEpoch,
-          RequestSequence:=ActiveRequest.Sequence,
-          Reason:=-21);
-        if controlRollbackResult <> 0 then
-          controlPublishResult := ControlCommands.PublishAxisOwnership(
-            AxisMask:=controlEffectiveAxisMask,
-            AdmissionToken:=controlAdmissionToken,
-            OwnerGeneration:=controlOwnerGeneration,
-            ReportKind:=4,
-            ReportValue0:=TO_UDINT(controlRollbackResult),
-            ReportValue1:=42,
-            ObservationCycle:=ActiveRequest.Sequence);
-        end_if;
+      if (controlExactAccepted = FALSE) &
+         (controlExactFailure = FALSE) then
+        _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := 16;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+        Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+        Sendbuf[20]$UDINT := 42;
+        controlResponseSize := 24;
       end_if;
     end_if;
 

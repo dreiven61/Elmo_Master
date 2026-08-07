@@ -53,27 +53,6 @@ $BaselineDebt = @(
         CRLFBytes = 65119
     },
     [pscustomobject]@{
-        ClassName = 'LMCControlCommandService'
-        MethodName = 'RollbackAxisOwnership'
-        RawBytes = 50103
-        LFBytes = 48798
-        CRLFBytes = 50104
-    },
-    [pscustomobject]@{
-        ClassName = 'LMCControlCommandService'
-        MethodName = 'PublishAxisOwnershipDs402Receipt'
-        RawBytes = 47506
-        LFBytes = 46336
-        CRLFBytes = 47507
-    },
-    [pscustomobject]@{
-        ClassName = 'LMCControlCommandService'
-        MethodName = 'PublishAxisOwnershipPreemptionCleanup'
-        RawBytes = 37128
-        LFBytes = 36143
-        CRLFBytes = 37129
-    },
-    [pscustomobject]@{
         ClassName = 'LMCRecorderStore'
         MethodName = 'HandleRequest'
         RawBytes = 75829
@@ -227,8 +206,8 @@ function Get-BaselineDebtIndex {
         }
         $index[$key] = $entry
     }
-    if ($index.Count -ne 7) {
-        throw "Method-size baseline count is $($index.Count), expected exactly 7."
+    if ($index.Count -ne 4) {
+        throw "Method-size baseline count is $($index.Count), expected exactly 4."
     }
     return $index
 }
@@ -427,6 +406,45 @@ function Invoke-SelfTest {
         -Name 'new debt'
     $testCount++
     Write-Output "SELFTEST $testCount PASS new debt rejection"
+
+    $retiredReceiptDebtInventory = @(
+        New-TestInventoryEntry `
+            -ClassName 'LMCControlCommandService' `
+            -MethodName 'PublishAxisOwnershipDs402Receipt' `
+            -RawBytes ($MethodSizeLimitBytes - 1) `
+            -LFBytes ($MethodSizeLimitBytes - 1) `
+            -CRLFBytes $MethodSizeLimitBytes)
+    Assert-SelfTestThrows `
+        -Action {
+            [void](Assert-MethodSizeBudget `
+                    -Inventory $retiredReceiptDebtInventory `
+                    -Owner 'self-test retired receipt debt')
+        } `
+        -ExpectedText (
+            'new debt LMCControlCommandService::' +
+            'PublishAxisOwnershipDs402Receipt') `
+        -Name 'retired receipt debt recurrence'
+    $testCount++
+    Write-Output "SELFTEST $testCount PASS retired receipt debt rejection"
+
+    $retiredRollbackDebtInventory = @(
+        New-TestInventoryEntry `
+            -ClassName 'LMCControlCommandService' `
+            -MethodName 'RollbackAxisOwnership' `
+            -RawBytes ($MethodSizeLimitBytes - 1) `
+            -LFBytes ($MethodSizeLimitBytes - 1) `
+            -CRLFBytes $MethodSizeLimitBytes)
+    Assert-SelfTestThrows `
+        -Action {
+            [void](Assert-MethodSizeBudget `
+                    -Inventory $retiredRollbackDebtInventory `
+                    -Owner 'self-test retired rollback debt')
+        } `
+        -ExpectedText (
+            'new debt LMCControlCommandService::RollbackAxisOwnership') `
+        -Name 'retired rollback debt recurrence'
+    $testCount++
+    Write-Output "SELFTEST $testCount PASS retired rollback debt rejection"
 
     $growthInventory = @(
         New-TestInventoryEntry `

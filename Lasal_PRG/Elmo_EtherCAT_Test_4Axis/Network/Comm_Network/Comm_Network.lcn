@@ -9,6 +9,7 @@
 			Position   = "(930,1440)"
 			Visualized = "false">
 			<Channels>
+				<Server Name="AxisRebaseRequiredState" Value="16#5242530F"/>
 				<Server Name="ClassSvr"/>
 				<Client Name="InputLatch"/>
 				<Client Name="LMCAxis1"/>

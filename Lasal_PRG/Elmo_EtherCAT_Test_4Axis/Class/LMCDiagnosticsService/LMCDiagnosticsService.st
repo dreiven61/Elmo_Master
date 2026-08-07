@@ -425,6 +425,7 @@ END_FUNCTION
 #define LMC_DIAG_DS402_STAGE_RESERVE_INTENT 87
 #define LMC_DIAG_DS402_INTENT_MAGIC 0x4434494E
 #define LMC_DIAG_DS402_INTENT_ADOPT_MAGIC 0x44344144
+#define LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC 0x50424631
 #define LMC_DIAG_ENCODER_TW20_ENABLED TRUE
 #define LMC_DIAG_ENCODER_TW19_ENABLED TRUE
 // TW[19] and TW[20] are drive-axis commands. Both write the fixed UInt16
@@ -3868,6 +3869,7 @@ FUNCTION LMCDiagnosticsService::ProcessEncoderMaintenance
 		EncoderMaintenanceState[180] := failureNative$DINT;
 		EncoderMaintenanceState[152] :=
 			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+		ownerResult := -1;
 		if IsClientConnected(#AxisOwnership) &
 			(admissionToken <> 0) & (ownerGeneration <> 0) then
 			ownerResult := AxisOwnership.PublishAxisOwnership(
@@ -3878,6 +3880,13 @@ FUNCTION LMCDiagnosticsService::ProcessEncoderMaintenance
 				ReportValue0:=failureDetail,
 				ReportValue1:=failureNative,
 				ObservationCycle:=currentCycle);
+			if ownerResult <> 0 then
+				EncoderMaintenanceState[190] := ownerResult;
+				EncoderMaintenanceState[191] := 1;
+			end_if;
+		else
+			EncoderMaintenanceState[190] := ownerResult;
+			EncoderMaintenanceState[191] := 1;
 		end_if;
 	end_if;
 
@@ -4092,7 +4101,7 @@ FUNCTION LMCDiagnosticsService::HandleEncoderMaintenancePreemption
 				ReportValue0:=LMC_DIAG_ENCODER_DETAIL_ABORTED,
 				ReportValue1:=0,
 				ObservationCycle:=currentCycle);
-			if ownerResult = 0 then
+			if (ownerResult = 0) | (ownerResult = 1) then
 				EncoderMaintenanceState[recordBase + 27]$UDINT :=
 					EncoderMaintenanceState[recordBase + 27]$UDINT OR
 					LMC_DIAG_ENCODER_VERIFY_OWNER_CLEANUP;
@@ -4112,11 +4121,14 @@ FUNCTION LMCDiagnosticsService::HandleEncoderMaintenancePreemption
 				EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
 				EncoderMaintenanceLatchFreshSampleCount := 0;
 			else
+				EncoderMaintenanceState[190] := ownerResult;
 				EncoderMaintenanceState[179] :=
 					LMC_DIAG_ENCODER_DETAIL_ABORTED;
 				EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
+				EncoderMaintenanceState[191] := 1;
 				EncoderMaintenanceState[152] :=
 					LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+				RETURN;
 			end_if;
 			RETURN;
 		end_if;
@@ -4205,13 +4217,19 @@ FUNCTION LMCDiagnosticsService::HandleEncoderMaintenancePreemption
 			ReportValue0:=encoderProcessOperationToken,
 			ReportValue1:=TO_UDINT(copyResult),
 			ObservationCycle:=currentCycle);
+		if (ownerResult <> 0) & (ownerResult <> 1) then
+			EncoderMaintenanceState[190] := ownerResult;
+			EncoderMaintenanceState[179] :=
+				LMC_DIAG_ENCODER_DETAIL_ABORTED;
+			EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
+			EncoderMaintenanceState[191] := 1;
+			EncoderMaintenanceState[152] :=
+				LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+			RETURN;
+		end_if;
 		EncoderMaintenanceState[179] :=
 			LMC_DIAG_ENCODER_DETAIL_ABORTED;
-		if ownerResult = 0 then
-			EncoderMaintenanceState[180] := TO_DINT(copyResult);
-		else
-			EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
-		end_if;
+		EncoderMaintenanceState[180] := TO_DINT(copyResult);
 		EncoderMaintenanceState[152] :=
 			LMC_DIAG_ENCODER_STAGE_QUARANTINED;
 		RETURN;
@@ -4250,6 +4268,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 		statusWord : UDINT;
 		recordBase : DINT;
 		copyResult, ownerResult, rollbackResult : DINT;
+		intentBodyCompareResult, intentTailCompareResult : UDINT;
 		snapshot : ARRAY [0..303] OF USINT;
 		executorConnected, executorReusable : BOOL;
 		journalEligible, journalPrepared, preflightOnly : BOOL;
@@ -4365,11 +4384,12 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 			end_if;
 			Ds402HomeState[118] := currentCycle$DINT;
 			Ds402HomeState[119] := 0;
-			copyResult := _memcmp(ptr1:=#Ds402HomeState[94],
+			intentBodyCompareResult := _memcmp(ptr1:=#Ds402HomeState[94],
 				ptr2:=pRequest, cntr:=60);
-			ownerResult := _memcmp(ptr1:=#Ds402HomeState[110],
+			intentTailCompareResult := _memcmp(ptr1:=#Ds402HomeState[110],
 				ptr2:=pRequest + 60, cntr:=12);
-			if (copyResult = 0) & (ownerResult = 0) &
+			if (intentBodyCompareResult = 0) &
+				(intentTailCompareResult = 0) &
 				(Ds402HomeState[93] = TO_DINT(Reference - 1)) &
 				(Ds402HomeState[113]$UDINT = CallerSessionEpoch) &
 				(Ds402HomeState[114]$UDINT = RequestSequence) &
@@ -4396,11 +4416,12 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeStart
 	if (Reference >= 1) & (Reference <= 4) &
 		(Ds402HomeState[92] = LMC_DIAG_DS402_STAGE_RESERVE_INTENT) then
 		recordBase := TO_DINT(Reference - 1) * 23;
-		copyResult := _memcmp(ptr1:=#Ds402HomeState[94],
+		intentBodyCompareResult := _memcmp(ptr1:=#Ds402HomeState[94],
 			ptr2:=pRequest, cntr:=60);
-		ownerResult := _memcmp(ptr1:=#Ds402HomeState[110],
+		intentTailCompareResult := _memcmp(ptr1:=#Ds402HomeState[110],
 			ptr2:=pRequest + 60, cntr:=12);
-		intentMatches := (copyResult = 0) & (ownerResult = 0) &
+		intentMatches := (intentBodyCompareResult = 0) &
+			(intentTailCompareResult = 0) &
 			(Ds402HomeState[93] = TO_DINT(Reference - 1)) &
 			(Ds402HomeState[113]$UDINT = CallerSessionEpoch) &
 			(Ds402HomeState[114]$UDINT = RequestSequence) &
@@ -6547,6 +6568,13 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 						ReportValue0:=Ds402HomeState[107]$UDINT,
 						ReportValue1:=Ds402HomeState[108]$UDINT,
 						ObservationCycle:=currentCycle);
+				if (ownerResult <> 0) & (ownerResult <> 1) then
+					Ds402HomeState[119] := ownerResult;
+					Ds402HomeState[118]$UDINT :=
+						LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+					Ds402HomeState[92] := 101;
+					RETURN;
+				end_if;
 			else
 				ownerResult := AxisOwnership.PublishAxisOwnership(
 					AxisMask:=axisMask,
@@ -6556,7 +6584,20 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 					ReportValue0:=Ds402HomeState[107]$UDINT,
 					ReportValue1:=Ds402HomeState[108]$UDINT,
 					ObservationCycle:=currentCycle);
+				if ownerResult <> 0 then
+					Ds402HomeState[119] := ownerResult;
+					Ds402HomeState[118]$UDINT :=
+						LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+					Ds402HomeState[92] := 101;
+					RETURN;
+				end_if;
 			end_if;
+		else
+			Ds402HomeState[119] := ownerResult;
+			Ds402HomeState[118]$UDINT :=
+				LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+			Ds402HomeState[92] := 101;
+			RETURN;
 		end_if;
 		Ds402HomeState[92] := 101;
 		RETURN;
@@ -6923,8 +6964,15 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 						ReportValue0:=Ds402HomeState[107]$UDINT,
 						ReportValue1:=Ds402HomeState[108]$UDINT,
 						ObservationCycle:=currentCycle);
-				if (preemptionCleanupKind =
-					LMC_DIAG_PREEMPT_CLEANUP_SAFE) & (ownerResult = 0) then
+				if (ownerResult <> 0) & (ownerResult <> 1) then
+					Ds402HomeState[119] := ownerResult;
+					Ds402HomeState[118]$UDINT :=
+						LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+					Ds402HomeState[92] := 101;
+					RETURN;
+				end_if;
+				if preemptionCleanupKind =
+					LMC_DIAG_PREEMPT_CLEANUP_SAFE then
 					if currentCycle <
 						Ds402HomeState[recordBase + 19]$UDINT then
 						currentCycle :=
@@ -7016,6 +7064,7 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 						Ds402HomeState[92] := 101;
 					end_if;
 				else
+					ownerResult := -1;
 					if IsClientConnected(#AxisOwnership) then
 						// Once an SDO dispatch was reported, a non-success path
 						// remains quarantined instead of claiming safe release.
@@ -7027,6 +7076,19 @@ FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
 							ReportValue0:=Ds402HomeState[107]$UDINT,
 							ReportValue1:=Ds402HomeState[108]$UDINT,
 							ObservationCycle:=currentCycle);
+						if ownerResult <> 0 then
+							Ds402HomeState[119] := ownerResult;
+							Ds402HomeState[118]$UDINT :=
+								LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+							Ds402HomeState[92] := 101;
+							RETURN;
+						end_if;
+					else
+						Ds402HomeState[119] := ownerResult;
+						Ds402HomeState[118]$UDINT :=
+							LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+						Ds402HomeState[92] := 101;
+						RETURN;
 					end_if;
 				end_if;
 				if Ds402HomeState[126] <> 0 then

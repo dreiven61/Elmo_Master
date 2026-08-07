@@ -140,7 +140,8 @@ TO_UDINT(10), "ControlCommands", TO_UDINT(1), "ClassSvr",
 
 //Initialization values
 0$UDINT,
-11$UDINT,
+12$UDINT,
+TO_UDINT(1), "AxisRebaseRequiredState", TO_UDINT(16#5242530F),//|Comm_Network.LMCControlCommandService1.AxisRebaseRequiredState;
 TO_UDINT(2), "DiagnosticsBootCounter", TO_UDINT(0),//|Comm_Network.LMCDiagnosticsService1.DiagnosticsBootCounter;
 TO_UDINT(3), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName01\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
 TO_UDINT(4), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName02\_base\TCPIPServer1\MerkerEx0.ThreadSafe;

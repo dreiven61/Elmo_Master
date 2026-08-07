@@ -18,7 +18,7 @@ namespace LasalMotionControlLib.Tests
         private const int TimeoutMilliseconds = 2500;
         private const uint RecordGeneration = 17u;
         private const uint AxisStandstill = 0x02000000u;
-        private const uint RequiredEvidenceFlags = 0x0000003Fu;
+        private const uint RequiredEvidenceFlags = 0x0000003Bu;
 
         internal static void Register(ICollection<TestCase> tests)
         {
@@ -44,8 +44,8 @@ namespace LasalMotionControlLib.Tests
                 "Response.Admin.LMC_Home.OutcomeSuccessStrict",
                 OutcomeSuccessStrict);
             tests.Add(
-                "Response.Admin.LMC_Home.RawDriveTwoCountWindow",
-                RawDriveTwoCountWindow);
+                "Response.Admin.LMC_Home.RawDriveDeltaDiagnosticOnly",
+                RawDriveDeltaDiagnosticOnly);
             tests.Add(
                 "Response.Admin.LMC_Home.OutcomeSuccessEvidenceFailsClosed",
                 OutcomeSuccessEvidenceFailsClosed);
@@ -281,6 +281,7 @@ namespace LasalMotionControlLib.Tests
                 payload => TestFrame.WriteInt32(payload, 112, 1),
                 payload => TestFrame.WriteUInt32(payload, 116, 1),
                 payload => TestFrame.WriteUInt32(payload, 120, 0x1F),
+                payload => TestFrame.WriteUInt32(payload, 120, 0x3F),
                 payload => TestFrame.WriteUInt32(payload, 120, 0x7F),
                 payload => TestFrame.WriteUInt32(payload, 124, 0),
                 payload => TestFrame.WriteUInt32(payload, 128, 0),
@@ -334,94 +335,12 @@ namespace LasalMotionControlLib.Tests
                     RequiredEvidenceFlags - 1).HomeSucceeded);
         }
 
-        private static void RawDriveTwoCountWindow()
+        private static void RawDriveDeltaDiagnosticOnly()
         {
-            foreach (var rawDrivePositionAfter in new[]
-            {
-                ExpectedActualPosition - 1,
-                ExpectedActualPosition,
-                ExpectedActualPosition + 1,
-                ExpectedActualPosition - 2,
-                ExpectedActualPosition + 2
-            })
-            {
-                var key = RecoveryKey();
-                var payload = OutcomePayload(
-                    3,
-                    key,
-                    LMCHomeOutcomeRecordState.Succeeded,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    200,
-                    RecordGeneration);
-                TestFrame.WriteInt32(payload, 88, rawDrivePositionAfter);
-                var parsed = LMC_AdminParser.ParseLmcHomeOutcome(
-                    TestFrame.Response(0, payload),
-                    3,
-                    key);
-                AssertEx.True(CreatePublicOutcome(parsed, key).HomeSucceeded);
-            }
-
-            foreach (var rawDrivePositionAfter in new[]
-            {
-                ExpectedActualPosition - 3,
-                ExpectedActualPosition + 3
-            })
-            {
-                var key = RecoveryKey();
-                var payload = OutcomePayload(
-                    3,
-                    key,
-                    LMCHomeOutcomeRecordState.Succeeded,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    200,
-                    RecordGeneration);
-                TestFrame.WriteInt32(payload, 88, rawDrivePositionAfter);
-                AssertEx.Throws<InvalidDataException>(
-                    () => LMC_AdminParser.ParseLmcHomeOutcome(
-                        TestFrame.Response(0, payload),
-                        3,
-                        key));
-            }
-
             foreach (var rawDrivePair in new[]
             {
-                new[] { int.MaxValue, int.MinValue },
-                new[] { int.MaxValue, int.MinValue + 1 },
-                new[] { int.MinValue, int.MaxValue },
-                new[] { int.MinValue, int.MaxValue - 1 }
-            })
-            {
-                var key = RecoveryKey();
-                var payload = OutcomePayload(
-                    3,
-                    key,
-                    LMCHomeOutcomeRecordState.Succeeded,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    200,
-                    RecordGeneration);
-                TestFrame.WriteInt32(payload, 84, rawDrivePair[0]);
-                TestFrame.WriteInt32(payload, 88, rawDrivePair[1]);
-                var parsed = LMC_AdminParser.ParseLmcHomeOutcome(
-                    TestFrame.Response(0, payload),
-                    3,
-                    key);
-                AssertEx.True(CreatePublicOutcome(parsed, key).HomeSucceeded);
-            }
-
-            foreach (var rawDrivePair in new[]
-            {
+                new[] { ExpectedActualPosition, ExpectedActualPosition + 4 },
+                new[] { ExpectedActualPosition, ExpectedActualPosition - 4 },
                 new[] { int.MaxValue, int.MinValue + 2 },
                 new[] { int.MinValue, int.MaxValue - 2 }
             })
@@ -440,11 +359,14 @@ namespace LasalMotionControlLib.Tests
                     RecordGeneration);
                 TestFrame.WriteInt32(payload, 84, rawDrivePair[0]);
                 TestFrame.WriteInt32(payload, 88, rawDrivePair[1]);
-                AssertEx.Throws<InvalidDataException>(
-                    () => LMC_AdminParser.ParseLmcHomeOutcome(
-                        TestFrame.Response(0, payload),
-                        3,
-                        key));
+                var parsed = LMC_AdminParser.ParseLmcHomeOutcome(
+                    TestFrame.Response(0, payload),
+                    3,
+                    key);
+                var result = CreatePublicOutcome(parsed, key);
+                AssertEx.True(result.HomeSucceeded);
+                AssertEx.Equal(rawDrivePair[0], result.RawDrivePositionBefore);
+                AssertEx.Equal(rawDrivePair[1], result.RawDrivePositionAfter);
             }
         }
 

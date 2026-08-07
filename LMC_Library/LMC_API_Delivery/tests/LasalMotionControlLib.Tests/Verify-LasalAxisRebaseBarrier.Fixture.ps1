@@ -77,16 +77,32 @@ function Add-NetworkNegativeFixture {
     param(
         [string]$Name,
         [string]$ArtifactName,
-        [string]$Injection
+        [string]$Pattern,
+        [string]$Replacement
     )
 
+    $regex = [regex]::new(
+        $Pattern,
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [System.Text.RegularExpressions.RegexOptions]::Singleline -bor
+        [System.Text.RegularExpressions.RegexOptions]::Multiline)
     $targetCount = 0
     $mutatedArtifacts = @(
         foreach ($artifact in $networkArtifacts) {
             $artifactText = [string]$artifact.Text
             if ([string]$artifact.Name -ceq $ArtifactName) {
                 $targetCount++
-                $artifactText += $Injection
+                $matches = $regex.Matches($artifactText)
+                if ($matches.Count -ne 1) {
+                    throw (
+                        "TW19 Home barrier fixture '$Name' found " +
+                        "$($matches.Count) mutation targets in '$ArtifactName', " +
+                        'expected exactly one.')
+                }
+                $artifactText = $regex.Replace(
+                    $artifactText,
+                    $Replacement,
+                    1)
             }
             [pscustomobject]@{
                 Name = [string]$artifact.Name
@@ -105,12 +121,17 @@ function Add-NetworkNegativeFixture {
         })
 }
 
-Add-NetworkNegativeFixture 'AuthoritativeNetworkServerAdded' `
+Add-NetworkNegativeFixture 'AuthoritativeNetworkConnectionAdded' `
     'Comm_Network\Comm_Network.lcn' `
-    "`r`nAxisRebaseRequiredState`r`n"
-Add-NetworkNegativeFixture 'GeneratedNetworkServerAdded' `
+    '(?m)^(\s*</Connections>\s*\r?\n\s*<!-- Headerfiles -->)' `
+    ('        <Connection Source="TCPMotionInterface1.ControlCommands" ' +
+     'Destination="LMCControlCommandService1.AxisRebaseRequiredState"/>' +
+     [Environment]::NewLine + '${1}')
+Add-NetworkNegativeFixture 'GeneratedNetworkConnectionAdded' `
     'Comm_Network\ONE_Comm_Network_Table.st' `
-    "`r`n//|LMCControlCommandService1.AxisRebaseRequiredState;`r`n"
+    ('(?m)^([ \t]*TO_UDINT\(\d+\),[ \t]*"ControlCommands",[ \t]*' +
+     'TO_UDINT\(\d+\),[ \t]*)"ClassSvr"(,[^\r\n]*\r?)$') `
+    '${1}"AxisRebaseRequiredState"${2}'
 
 Add-NegativeFixture 'BarrierGateDisabled' `
     '(#define\s+LMC_AXIS_REBASE_BARRIER_ENABLED\s+)TRUE' '${1}FALSE'

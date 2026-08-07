@@ -101,6 +101,28 @@ function Get-LasalScanText {
     return $scanText
 }
 
+function Invoke-LasalAxisOwnershipRollbackSplitVerifierGate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $output = @(
+        & $PSCommandPath `
+            -RepositoryRoot $Root `
+            -AxisOwnershipRollbackVerifierSelfTestOnly *>&1 |
+            ForEach-Object { $_.ToString() })
+    $expectedTerminalPass = (
+        'PASS LASAL.AxisOwnershipRollbackSplitVerifier.SelfTest ' +
+        '(20/20 negative fixtures rejected; current adapter/helper accepted)')
+    if (($output.Count -ne 1) -or ($output[0] -cne $expectedTerminalPass)) {
+        throw (
+            'LASAL axis ownership rollback split verifier did not publish the ' +
+            'exact single 20/20 terminal PASS line.')
+    }
+    return $output
+}
+
 function Get-LasalLexicalScanText {
     param(
         [string]$Text
@@ -126,16 +148,107 @@ function Get-LasalLexicalScanText {
 function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
     param(
         [string]$CleanupBlock,
+        [string]$ReplacementBlock,
+        [string]$ControlServiceText,
         [string]$Owner
     )
 
     $scan = Get-LasalScanText $CleanupBlock
+    $replacementScan = Get-LasalScanText $ReplacementBlock
+    $controlScan = Get-LasalScanText $ControlServiceText
     $blocker = "$Owner axis ownership preemption cleanup blocker:"
     Assert-Match $scan (
         '(?is)^\s*FUNCTION\s+GLOBAL\s+' +
         'LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup\b.*?' +
         'END_FUNCTION\s*$') (
         "$blocker public cleanup implementation scope drifted.")
+    Assert-Match $replacementScan (
+        '(?is)^\s*FUNCTION\s+' +
+        'LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement\s*' +
+        'VAR_INPUT\s*' +
+        'PreemptedAdmissionToken\s*:\s*UDINT\s*;\s*' +
+        'PreemptedOwnerGeneration\s*:\s*UDINT\s*;\s*' +
+        'OldCommand\s*:\s*DINT\s*;\s*' +
+        'OldOwnerKind\s*:\s*DINT\s*;\s*' +
+        'OldResourceKind\s*:\s*DINT\s*;\s*' +
+        'OldIdentitySize\s*:\s*UDINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*BOOL\s*;\s*END_VAR\s*;?\s*' +
+        'VAR\s*' +
+        'probeAxisIndex\s*:\s*DINT\s*;\s*' +
+        'probeAxisBit\s*:\s*UDINT\s*;\s*' +
+        'replacementRecordBase\s*:\s*DINT\s*;\s*' +
+        'replacementHeaderBase\s*:\s*DINT\s*;\s*' +
+        'singletonToken\s*:\s*UDINT\s*;\s*' +
+        'singletonGeneration\s*:\s*UDINT\s*;\s*' +
+        'singletonMask\s*:\s*UDINT\s*;\s*' +
+        'replacementIdentitySize\s*:\s*UDINT\s*;\s*' +
+        'replacementTailSize\s*:\s*UDINT\s*;\s*' +
+        'replacementTailOffset\s*:\s*UDINT\s*;\s*' +
+        'replacementPackedCommand\s*:\s*UDINT\s*;\s*' +
+        'replacementPackedOwner\s*:\s*UDINT\s*;\s*' +
+        'replacementFound\s*:\s*BOOL\s*;\s*' +
+        'replacementValid\s*:\s*BOOL\s*;\s*' +
+        'replacementStateValid\s*:\s*BOOL\s*;\s*' +
+        'END_VAR\b.*?END_FUNCTION\s*$') (
+        "$blocker replacement helper private ABI or exact local inventory drifted.")
+
+    $controlCleanupMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
+         'LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    $controlReplacementMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^\s*FUNCTION\s+' +
+         'LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    $broadReplacementHeaders = [regex]::Matches(
+        $controlScan,
+        ('(?im)^\s*FUNCTION\b[^\r\n]*' +
+         'LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement' +
+         '\s*\r?$'))
+    if (($controlCleanupMatches.Count -ne 1) -or
+        ($controlReplacementMatches.Count -ne 1) -or
+        ($broadReplacementHeaders.Count -ne 1) -or
+        ($controlCleanupMatches[0].Value.Trim() -cne $scan.Trim()) -or
+        ($controlReplacementMatches[0].Value.Trim() -cne
+            $replacementScan.Trim())) {
+        throw (
+            "$blocker composite parent/helper implementation scope or private " +
+            'identity drifted.')
+    }
+
+    $replacementLocals = @(
+        'probeAxisIndex',
+        'probeAxisBit',
+        'replacementRecordBase',
+        'replacementHeaderBase',
+        'singletonToken',
+        'singletonGeneration',
+        'singletonMask',
+        'replacementIdentitySize',
+        'replacementTailSize',
+        'replacementTailOffset',
+        'replacementPackedCommand',
+        'replacementPackedOwner',
+        'replacementFound',
+        'replacementValid',
+        'replacementStateValid')
+    foreach ($localName in $replacementLocals) {
+        if ([regex]::Matches(
+                $scan,
+                ('(?im)^\s*' + [regex]::Escape($localName) +
+                 '\s*:\s*[A-Za-z_][A-Za-z0-9_]*\s*;')).Count -ne 0) {
+            throw "$blocker helper local '$localName' remains declared in the public adapter."
+        }
+        if ([regex]::Matches(
+                $replacementScan,
+                ('(?im)^\s*' + [regex]::Escape($localName) +
+                 '\s*:\s*[A-Za-z_][A-Za-z0-9_]*\s*;')).Count -ne 1) {
+            throw "$blocker helper local '$localName' declaration count drifted."
+        }
+    }
 
     if ($scan -match '(?is)\b_mem(?:set|cpy)\s*\(') {
         throw "$blocker cleanup may not clear or copy a persistent bank."
@@ -150,6 +263,71 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
         '(?is)\bOwnership[A-Za-z0-9_]*State' +
         '\s*\[[^\]]+\]\s*(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
         '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;')
+    if ([regex]::Matches(
+            $replacementScan,
+            $persistentAssignmentPattern).Count -ne 0) {
+        throw "$blocker replacement helper must remain persistent-state read-only."
+    }
+    $replacementPersistentReferences = [regex]::Matches(
+        $replacementScan,
+        '(?i)\b(?<Name>Ownership[A-Za-z0-9_]*State)\s*\[')
+    $replacementBankHistogram = [ordered]@{
+        'ownershipstate' = 0
+        'ownershipidentitystate' = 0
+    }
+    foreach ($reference in $replacementPersistentReferences) {
+        $bankName = $reference.Groups['Name'].Value.ToLowerInvariant()
+        if (-not $replacementBankHistogram.Contains($bankName)) {
+            throw "$blocker replacement helper reads unsupported bank '$bankName'."
+        }
+        $replacementBankHistogram[$bankName]++
+    }
+    if (($replacementBankHistogram['ownershipstate'] -ne 41) -or
+        ($replacementBankHistogram['ownershipidentitystate'] -ne 12)) {
+        throw (
+            "$blocker replacement helper persistent read inventory is " +
+            "$($replacementBankHistogram['ownershipstate'])/" +
+            "$($replacementBankHistogram['ownershipidentitystate']), expected 41/12.")
+    }
+    foreach ($inputName in @(
+            'PreemptedAdmissionToken',
+            'PreemptedOwnerGeneration',
+            'OldCommand',
+            'OldOwnerKind',
+            'OldResourceKind',
+            'OldIdentitySize')) {
+        if ($replacementScan -match
+                ('(?i)(?<![A-Za-z0-9_])' + [regex]::Escape($inputName) +
+                 '\s*(?::|\+|-|\*|/|and|or|xor)\s*=')) {
+            throw "$blocker replacement helper assigns input '$inputName'."
+        }
+    }
+    if ($replacementScan -match '(?i)\^|#|\bRETURN\s*;' -or
+        $replacementScan -match '(?is)\b_mem(?:set|cpy|cmp)\s*\(' -or
+        $replacementScan -match
+            ('(?is)\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*' +
+             '[A-Za-z_][A-Za-z0-9_]*|\b_gettime\s*\(')) {
+        throw (
+            "$blocker replacement helper may not use pointers, RETURN, memory " +
+            'operations, clients, or clocks.')
+    }
+    $replacementCalls = @()
+    foreach ($callMatch in [regex]::Matches(
+            $replacementScan,
+            ('(?i)(?<![A-Za-z0-9_])' +
+             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
+        $callName = $callMatch.Groups['Name'].Value.ToLowerInvariant()
+        if (@('and', 'elsif', 'if', 'or') -contains $callName) {
+            continue
+        }
+        $replacementCalls += $callName
+    }
+    if (($replacementCalls.Count -ne 8) -or
+        (@($replacementCalls | Where-Object { $_ -cne 'to_udint' }).Count -ne 0)) {
+        throw (
+            "$blocker replacement helper call inventory is " +
+            "'$([string]::Join('|', $replacementCalls))', expected TO_UDINT x8 only.")
+    }
     $persistentAssignments =
         [regex]::Matches($scan, $persistentAssignmentPattern)
     $expectedPersistentAssignments = @(
@@ -294,8 +472,69 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
         '(?is)if\s+exactReplay\s+then\s*' +
         'Result\s*:=\s*1\s*;\s*RETURN\s*;\s*end_if\s*;') (
         "$blocker exact replay must remain mutation-free.")
+    Assert-Match $replacementScan (
+        '(?is)case\s+OldResourceKind\s+of\s*' +
+        'LMC_OWNER_RESOURCE_LMC_HOME_ENGINE\s*:\s*' +
+        'singletonToken\s*:=\s*OwnershipState\[7\]\$UDINT\s*;\s*' +
+        'singletonGeneration\s*:=\s*OwnershipState\[8\]\$UDINT\s*;\s*' +
+        'singletonMask\s*:=\s*OwnershipState\[9\]\$UDINT\s*;\s*' +
+        'LMC_OWNER_RESOURCE_DS402_HOME_ENGINE\s*:\s*' +
+        'singletonToken\s*:=\s*OwnershipState\[10\]\$UDINT\s*;\s*' +
+        'singletonGeneration\s*:=\s*OwnershipState\[11\]\$UDINT\s*;\s*' +
+        'singletonMask\s*:=\s*OwnershipState\[12\]\$UDINT\s*;\s*' +
+        'LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE\s*:\s*' +
+        'singletonToken\s*:=\s*OwnershipState\[13\]\$UDINT\s*;\s*' +
+        'singletonGeneration\s*:=\s*OwnershipState\[14\]\$UDINT\s*;\s*' +
+        'singletonMask\s*:=\s*OwnershipState\[15\]\$UDINT\s*;\s*' +
+        'else\s*end_case\s*;') (
+        "$blocker replacement singleton resource map drifted.")
+    Assert-Match $replacementScan (
+        '(?is)probeAxisIndex\s*:=\s*1\s*;\s*' +
+        'while\s+probeAxisIndex\s*<=\s*LMC_OWNER_AXIS_COUNT\s+do\s*' +
+        'case\s+probeAxisIndex\s+of\s*' +
+        '1\s*:\s*probeAxisBit\s*:=\s*0x00000001\s*;\s*' +
+        '2\s*:\s*probeAxisBit\s*:=\s*0x00000002\s*;\s*' +
+        '3\s*:\s*probeAxisBit\s*:=\s*0x00000004\s*;\s*' +
+        '4\s*:\s*probeAxisBit\s*:=\s*0x00000008\s*;\s*' +
+        '5\s*:\s*probeAxisBit\s*:=\s*0x00000010\s*;\s*' +
+        '6\s*:\s*probeAxisBit\s*:=\s*0x00000020\s*;\s*' +
+        '7\s*:\s*probeAxisBit\s*:=\s*0x00000040\s*;\s*' +
+        '8\s*:\s*probeAxisBit\s*:=\s*0x00000080\s*;\s*' +
+        '9\s*:\s*probeAxisBit\s*:=\s*0x00000100\s*;\s*' +
+        'else\s*probeAxisBit\s*:=\s*0\s*;\s*end_case\s*;\s*' +
+        'replacementRecordBase\s*:=\s*LMC_OWNER_GLOBAL_SLOTS\s*\+\s*' +
+        '\(\(probeAxisIndex\s*-\s*1\)\s*\*\s*LMC_OWNER_AXIS_STRIDE\)\s*;') (
+        "$blocker replacement axis-bit map or first-loop bound drifted.")
+    Assert-Match $replacementScan (
+        '(?is)case\s+OldOwnerKind\s+of\s*' +
+        'LMC_OWNER_KIND_LMC_HOME\s*:.*?' +
+        'LMC_OWNER_STATE_RESERVED.*?' +
+        'LMC_OWNER_STATE_LMC_HOME_ACTIVE.*?' +
+        'LMC_OWNER_STATE_QUARANTINED\s*\)\s*;\s*' +
+        'LMC_OWNER_KIND_DS402_HOME\s*:.*?' +
+        'LMC_OWNER_STATE_RESERVED.*?' +
+        'LMC_OWNER_STATE_DS402_HOME_ACTIVE.*?' +
+        'LMC_OWNER_STATE_QUARANTINED\s*\)\s*;\s*' +
+        'LMC_OWNER_KIND_ENCODER\s*:.*?' +
+        'LMC_OWNER_STATE_RESERVED.*?' +
+        'LMC_OWNER_STATE_TW20_QUEUED.*?' +
+        'LMC_OWNER_STATE_TW20_RUNNING.*?' +
+        'LMC_OWNER_STATE_TW20_DRAINING.*?' +
+        'LMC_OWNER_STATE_QUARANTINED\s*\)\s*;\s*' +
+        'else\s*end_case\s*;') (
+        "$blocker replacement owner/state acceptance map drifted.")
+    Assert-Match $replacementScan (
+        '(?is)replacementHeaderBase\s*:=\s*' +
+        'LMC_OWNER_IDENTITY_AXIS_HEADER_BASE\s*\+\s*' +
+        '\(\(probeAxisIndex\s*-\s*1\)\s*\*\s*' +
+        'LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE\)\s*;.*?' +
+        'OwnershipIdentityState\[replacementHeaderBase\]\$UDINT\s*=\s*' +
+        '\(LMC_OWNER_IDENTITY_AXIS_MAGIC\s*\+\s*TO_UDINT\(probeAxisIndex\)\)' +
+        '.*?OwnershipIdentityState\[replacementHeaderBase\s*\+\s*11\]' +
+        '\$UDINT\s*=\s*replacementTailSize\s*\)\s*;') (
+        "$blocker replacement identity-header proof drifted.")
     $replacementAbsenceMatches = [regex]::Matches(
-        $scan,
+        $replacementScan,
         ('(?is)replacementValid\s*:=\s*replacementValid\s*&\s*' +
          'replacementFound\s*;\s*end_if\s*;\s*' +
          'probeAxisIndex\s*:=\s*1\s*;\s*' +
@@ -308,9 +547,79 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
          'PreemptedOwnerGeneration\s*\)\s*then\s*' +
          'replacementValid\s*:=\s*FALSE\s*;\s*end_if\s*;\s*' +
          'probeAxisIndex\s*\+=\s*1\s*;\s*end_while\s*;\s*' +
-         'tupleValid\s*:=\s*replacementValid\s*;'))
+         'Result\s*:=\s*replacementValid\s*;\s*END_FUNCTION\s*$'))
     if ($replacementAbsenceMatches.Count -ne 1) {
-        throw "$blocker replacement old-token full-axis loop drifted."
+        throw "$blocker replacement old-token full-axis absence proof drifted."
+    }
+    if ([regex]::Matches(
+            $replacementScan,
+            '(?is)\bResult\s*:=\s*[^;]+;').Count -ne 1) {
+        throw "$blocker replacement helper Result assignment inventory drifted."
+    }
+
+    $replacementCallBody = (
+        'tupleValid\s*:=\s*' +
+        'ValidateAxisOwnershipPreemptionReplacement\s*\(\s*' +
+        'PreemptedAdmissionToken\s*:=\s*PreemptedAdmissionToken\s*,\s*' +
+        'PreemptedOwnerGeneration\s*:=\s*PreemptedOwnerGeneration\s*,\s*' +
+        'OldCommand\s*:=\s*oldCommand\s*,\s*' +
+        'OldOwnerKind\s*:=\s*oldOwnerKind\s*,\s*' +
+        'OldResourceKind\s*:=\s*oldResourceKind\s*,\s*' +
+        'OldIdentitySize\s*:=\s*oldIdentitySize\s*\)\s*;')
+    $replacementCallMatches = [regex]::Matches(
+        $scan,
+        '(?is)' + $replacementCallBody)
+    $allReplacementCalls = [regex]::Matches(
+        $controlScan,
+        '(?i)(?<![A-Za-z0-9_])' +
+        'ValidateAxisOwnershipPreemptionReplacement\s*\(')
+    if (($replacementCallMatches.Count -ne 1) -or
+        ($allReplacementCalls.Count -ne 1)) {
+        throw "$blocker replacement helper must have one exact Control invocation."
+    }
+    Assert-Match $scan (
+        ('(?is)if\s+publishedCleanupKind\s*=\s*' +
+         'LMC_OWNER_CLEANUP_INCOMPLETE_QUARANTINE\s+then\s*' +
+         'case\s+oldResourceKind\s+of.*?end_case\s*;\s*else\s*' +
+         $replacementCallBody + '\s*end_if\s*;\s*' +
+         'if\s+tupleValid\s*=\s*FALSE\s+then\s*' +
+         'publishedCleanupValid\s*:=\s*FALSE\s*;\s*end_if\s*;\s*' +
+         'end_if\s*;\s*if\s+cleanupAlreadyPublished\s*&\s*' +
+         '\(publishedCleanupValid\s*=\s*FALSE\)\s+then')) (
+        "$blocker replacement call left the published non-incomplete ELSE or " +
+        'lost its immediate tupleValid consumer.')
+    $rootClearMatches = [regex]::Matches(
+        $scan,
+        ('(?is)OwnershipPreemptedIdentityState\[\s*' +
+         'LMC_OWNER_PREEMPT_HEADER_BASE\s*\]\s*:=\s*0\s*;'))
+    if (($rootClearMatches.Count -ne 1) -or
+        ($replacementCallMatches[0].Index -ge $rootClearMatches[0].Index)) {
+        throw "$blocker replacement validation must finish before preemption-root clear."
+    }
+
+    $replacementSemanticTokens = [regex]::Replace(
+        $replacementScan,
+        '\s+',
+        '').ToLowerInvariant()
+    $replacementSemanticSha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $replacementSemanticBytes = [Text.Encoding]::UTF8.GetBytes(
+            $replacementSemanticTokens)
+        $replacementSemanticSha256 = (
+            [BitConverter]::ToString(
+                $replacementSemanticSha.ComputeHash($replacementSemanticBytes))
+        ).Replace('-', '')
+    }
+    finally {
+        $replacementSemanticSha.Dispose()
+    }
+    if (($replacementSemanticTokens.Length -ne 6434) -or
+        ($replacementSemanticSha256 -cne
+            '9EAAB21F2262DB9C206B0581CC21AD3451727F0257CB85D3416D4CDDA2B03612')) {
+        throw (
+            "$blocker replacement loop/map/state/header/absence semantic " +
+            "inventory drifted ($($replacementSemanticTokens.Length)/6434, " +
+            "$replacementSemanticSha256).")
     }
     Assert-Match $scan (
         '(?is)if\s+CleanupKind\s*<>\s*' +
@@ -353,9 +662,31 @@ function Assert-LasalAxisOwnershipPreemptionCleanupMutationFences {
     if ($actualQuarantineScope -cne $expectedQuarantineScope) {
         throw "$blocker quarantine observer publication body drifted."
     }
+    Assert-Match $scan (
+        '(?is)OwnershipPreemptedIdentityState\[\s*' +
+        'LMC_OWNER_PREEMPT_HEADER_BASE\s*\+\s*1\]\$UDINT\s*:=\s*' +
+        'preemptFlags\s*;\s*' +
+        'OwnershipPreemptedIdentityState\[\s*' +
+        'LMC_OWNER_PREEMPT_HEADER_BASE\s*\+\s*9\]\$UDINT\s*:=\s*' +
+        'cleanupCompleteMask\s*;\s*' +
+        'OwnershipState\[safetyRecordBase\s*\+\s*32\]\s*:=\s*' +
+        'TO_DINT\(CleanupKind\)\s*;\s*' +
+        'OwnershipState\[safetyRecordBase\s*\+\s*33\]\$UDINT\s*:=\s*' +
+        'ReportValue0\s*;\s*' +
+        'OwnershipState\[safetyRecordBase\s*\+\s*34\]\$UDINT\s*:=\s*' +
+        'ReportValue1\s*;\s*' +
+        'OwnershipObserverState\[evidenceObserverBase\s*\+\s*11\]\$UDINT\s*:=\s*' +
+        'ObservationCycle\s*;\s*' +
+        'OwnershipPreemptedIdentityState\[\s*' +
+        'LMC_OWNER_PREEMPT_HEADER_BASE\s*\]\$UDINT\s*:=\s*' +
+        'LMC_OWNER_PREEMPT_IDENTITY_MAGIC\s*;\s*' +
+        'Result\s*:=\s*0\s*;\s*END_FUNCTION\s*$') (
+        "$blocker evidence publication or root-magic commit-last tail drifted.")
 }
 
-function Assert-LasalAxisOwnershipRollbackMutationFences {
+# Evidence-only verifier for the pre-split DAA8 monolithic method. Current
+# source must use Assert-LasalAxisOwnershipRollbackSplitMutationFences.
+function Assert-LasalAxisOwnershipRollbackMonolithicEvidenceFences {
     param(
         [string]$RollbackBlock,
         [string]$ControlServiceText,
@@ -515,6 +846,19 @@ function Assert-LasalAxisOwnershipRollbackMutationFences {
         }
     }
 
+    $stage87AdapterCallPattern = (
+        'if\s+\(AdmissionToken\s*=\s*0\)\s*&\s*' +
+        '\(OwnerGeneration\s*=\s*0\)\s+then\s*' +
+        'Result\s*:=\s*' +
+        'HandleAxisOwnershipDs402ReceiptStage87Recovery\(\s*' +
+        'pState\s*:=\s*pState\s*,\s*' +
+        'activeIndex\s*:=\s*activeIndex\s*,\s*' +
+        'AxisMask\s*:=\s*AxisMask\s*,\s*' +
+        'ReportKind\s*:=\s*ReportKind\s*,\s*' +
+        'ReportValue0\s*:=\s*ReportValue0\s*,\s*' +
+        'ReportValue1\s*:=\s*ReportValue1\s*,\s*' +
+        'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;')
     Assert-Match $scan (
         '(?is)END_VAR\s*' +
         'Result\s*:=\s*-1\s*;\s*' +
@@ -752,7 +1096,7 @@ function Assert-LasalAxisOwnershipRollbackMutationFences {
     }
 }
 
-function Invoke-LasalAxisOwnershipRollbackVerifierSelfTest {
+function Invoke-LasalAxisOwnershipRollbackMonolithicEvidenceSelfTest {
     param(
         [string]$ControlServiceText,
         [string]$Owner
@@ -1134,7 +1478,7 @@ function Invoke-LasalAxisOwnershipRollbackVerifierSelfTest {
                     "$negativeOwner rollback implementation count is " +
                     "$($rollbackMatches.Count), expected one.")
             }
-            Assert-LasalAxisOwnershipRollbackMutationFences `
+            Assert-LasalAxisOwnershipRollbackMonolithicEvidenceFences `
                 -RollbackBlock $rollbackMatches[0].Value `
                 -ControlServiceText $negativeFixture.Value `
                 -Owner $negativeOwner
@@ -1180,7 +1524,7 @@ function Invoke-LasalAxisOwnershipRollbackVerifierSelfTest {
     if ($positiveRollbackMatches.Count -ne 1) {
         throw "$Owner rollback positive comment fixture lost its method."
     }
-    Assert-LasalAxisOwnershipRollbackMutationFences `
+    Assert-LasalAxisOwnershipRollbackMonolithicEvidenceFences `
         -RollbackBlock $positiveRollbackMatches[0].Value `
         -ControlServiceText $positiveFixture `
         -Owner "$Owner positive comment-only fixture"
@@ -1189,6 +1533,777 @@ function Invoke-LasalAxisOwnershipRollbackVerifierSelfTest {
         throw "$Owner rollback negative count is $negativeCount, expected 38."
     }
     return $negativeCount
+}
+
+function ConvertTo-LasalRollbackSplitLf {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
+function Get-LasalRollbackSplitTextSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $canonicalText = ConvertTo-LasalRollbackSplitLf -Text $Text
+        $bytes = [Text.Encoding]::UTF8.GetBytes($canonicalText)
+        return (
+            [BitConverter]::ToString($sha.ComputeHash($bytes))
+        ).Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-LasalRollbackSplitByteDimensions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    $lfText = ConvertTo-LasalRollbackSplitLf -Text $Text
+    $crlfText = $lfText.Replace("`n", "`r`n")
+    return [pscustomobject]@{
+        Raw = [Text.Encoding]::UTF8.GetByteCount($Text)
+        LF = [Text.Encoding]::UTF8.GetByteCount($lfText)
+        CRLF = [Text.Encoding]::UTF8.GetByteCount($crlfText)
+    }
+}
+
+function Get-LasalAxisOwnershipRollbackSplitFragments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ControlServiceText,
+        [Parameter(Mandatory = $true)]
+        [string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership rollback split blocker:"
+    $canonicalText = ConvertTo-LasalRollbackSplitLf -Text $ControlServiceText
+    $adapterMatches = [regex]::Matches(
+        $canonicalText,
+        ('(?ms)^FUNCTION GLOBAL ' +
+         'LMCControlCommandService::RollbackAxisOwnership\n' +
+         '.*?^END_FUNCTION\n'))
+    $helperMatches = [regex]::Matches(
+        $canonicalText,
+        ('(?ms)^FUNCTION (?:GLOBAL )?' +
+         'LMCControlCommandService::' +
+         'ValidateAxisOwnershipRollbackPreemptBank\n' +
+         '.*?^END_FUNCTION\n'))
+    $declarationMatches = [regex]::Matches(
+        $canonicalText,
+        ('(?ms)^\tFUNCTION(?: GLOBAL)? ' +
+         'ValidateAxisOwnershipRollbackPreemptBank\n' +
+         '.*?^\t\tEND_VAR;\n'))
+    if (($adapterMatches.Count -ne 1) -or
+        ($helperMatches.Count -ne 1) -or
+        ($declarationMatches.Count -ne 1)) {
+        throw (
+            "$blocker adapter/helper/declaration physical counts are " +
+            "$($adapterMatches.Count)/$($helperMatches.Count)/" +
+            "$($declarationMatches.Count), expected 1/1/1 after LF normalization.")
+    }
+    return [pscustomobject]@{
+        Adapter = $adapterMatches[0].Value
+        Helper = $helperMatches[0].Value
+        Declaration = $declarationMatches[0].Value
+    }
+}
+
+function Replace-LasalRollbackSplitExactOne {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [string]$Old,
+        [AllowEmptyString()]
+        [string]$New,
+        [Parameter(Mandatory = $true)]
+        [string]$Owner
+    )
+
+    $first = $Text.IndexOf($Old, [StringComparison]::Ordinal)
+    $last = $Text.LastIndexOf($Old, [StringComparison]::Ordinal)
+    if (($first -lt 0) -or ($first -ne $last)) {
+        throw "$Owner exact replacement count is not one."
+    }
+    return $Text.Substring(0, $first) + $New +
+        $Text.Substring($first + $Old.Length)
+}
+
+function Assert-LasalAxisOwnershipRollbackSplitMutationFences {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ControlServiceText,
+        [Parameter(Mandatory = $true)]
+        [string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership rollback split blocker:"
+    $ControlServiceText =
+        ConvertTo-LasalRollbackSplitLf -Text $ControlServiceText
+    $fragments = Get-LasalAxisOwnershipRollbackSplitFragments `
+        -ControlServiceText $ControlServiceText `
+        -Owner $Owner
+    $adapter = $fragments.Adapter
+    $helper = $fragments.Helper
+    $declaration = $fragments.Declaration
+    $controlScan = Get-LasalLexicalScanText $ControlServiceText
+    $adapterScan = Get-LasalLexicalScanText $adapter
+    $helperScan = Get-LasalLexicalScanText $helper
+
+    $publicAbiBody = (
+        'VAR_INPUT\s*' +
+        'AdmissionToken\s*:\s*UDINT\s*;\s*' +
+        'OwnerGeneration\s*:\s*UDINT\s*;\s*' +
+        'CallerSessionEpoch\s*:\s*UDINT\s*;\s*' +
+        'RequestSequence\s*:\s*UDINT\s*;\s*' +
+        'Reason\s*:\s*DINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*;?')
+    $publicDeclarationMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+GLOBAL\s+RollbackAxisOwnership\s*' +
+         $publicAbiBody + '\s*(?=FUNCTION\b)'))
+    $publicImplementationMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+GLOBAL\s+' +
+         'LMCControlCommandService::RollbackAxisOwnership\s*' +
+         $publicAbiBody + '\s*(?=VAR\b)'))
+    if (($publicDeclarationMatches.Count -ne 1) -or
+        ($publicImplementationMatches.Count -ne 1)) {
+        throw "$blocker public adapter ABI drifted."
+    }
+
+    $helperAbiBody = (
+        'VAR_INPUT\s*' +
+        'ExpectedAxisMask\s*:\s*UDINT\s*;\s*' +
+        'pRestoreContext\s*:\s*\^void\s*;\s*' +
+        'RestoreContextSize\s*:\s*UDINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*;?')
+    $helperDeclarationMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+' +
+         'ValidateAxisOwnershipRollbackPreemptBank\s*' +
+         $helperAbiBody + '\s*(?=FUNCTION\b)'))
+    $helperImplementationMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+' +
+         'LMCControlCommandService::' +
+         'ValidateAxisOwnershipRollbackPreemptBank\s*' +
+         $helperAbiBody + '\s*(?=VAR\b)'))
+    $helperAnyHeaders = [regex]::Matches(
+        $controlScan,
+        ('(?im)^\s*FUNCTION[^\r\n]*\b' +
+         'ValidateAxisOwnershipRollbackPreemptBank\s*$'))
+    $helperGlobalHeaders = [regex]::Matches(
+        $controlScan,
+        ('(?im)^\s*FUNCTION\s+(?:VIRTUAL\s+)?GLOBAL\b[^\r\n]*\b' +
+         'ValidateAxisOwnershipRollbackPreemptBank\s*$'))
+    if (($helperDeclarationMatches.Count -ne 1) -or
+        ($helperImplementationMatches.Count -ne 1) -or
+        ($helperAnyHeaders.Count -ne 2) -or
+        ($helperGlobalHeaders.Count -ne 0)) {
+        throw "$blocker helper must retain one exact private declaration and implementation ABI."
+    }
+
+    if ($controlScan -match
+            ('(?im)^[ \t]*#[ \t]*' +
+             '(?:if|ifdef|ifndef|elif|else|endif|undef|include)\b')) {
+        throw "$blocker conditional compilation and includes are forbidden."
+    }
+    $constantContracts = [ordered]@{
+        'LMC_OWNER_ADMISSION_LIFECYCLE' = '4'
+        'LMC_OWNER_ADMISSION_ORDINARY' = '1'
+        'LMC_OWNER_ADMISSION_SAFETY' = '2'
+        'LMC_OWNER_AXIS_COUNT' = '9'
+        'LMC_OWNER_AXIS_RECORD_MAGIC' = '0x4F574E00'
+        'LMC_OWNER_AXIS_STRIDE' = '36'
+        'LMC_OWNER_GLOBAL_SLOTS' = '28'
+        'LMC_OWNER_IDENTITY_AXIS_HEADER_BASE' = '314'
+        'LMC_OWNER_IDENTITY_AXIS_HEADER_STRIDE' = '12'
+        'LMC_OWNER_IDENTITY_AXIS_MAGIC' = '0x49444100'
+        'LMC_OWNER_IDENTITY_GROUP_HEADER_BASE' = '422'
+        'LMC_OWNER_IDENTITY_GROUP_MAGIC' = '0x49444752'
+        'LMC_OWNER_IDENTITY_PREFIX_BYTES' = '0x00000040'
+        'LMC_OWNER_IDENTITY_SUFFIX_BYTES' = '1256'
+        'LMC_OWNER_IDENTITY_SUFFIX_DINTS' = '314'
+        'LMC_OWNER_IDENTITY_VERSION' = '1'
+        'LMC_OWNER_KIND_DIRECT' = '1'
+        'LMC_OWNER_KIND_DS402_HOME' = '4'
+        'LMC_OWNER_KIND_ENCODER' = '5'
+        'LMC_OWNER_KIND_GROUP' = '2'
+        'LMC_OWNER_KIND_LMC_HOME' = '3'
+        'LMC_OWNER_LEASE_IDENTITY_HEADER_BASE' = '314'
+        'LMC_OWNER_LEASE_IDENTITY_MAGIC' = '0x49444C53'
+        'LMC_OWNER_OBSERVER_KNOWN_MASK' = '0x000001FF'
+        'LMC_OWNER_OBSERVER_MAGIC' = '0x4F425300'
+        'LMC_OWNER_OBSERVER_STRIDE' = '12'
+        'LMC_OWNER_PREEMPT_HEADER_BASE' = '422'
+        'LMC_OWNER_PREEMPT_IDENTITY_MAGIC' = '0x49445052'
+        'LMC_OWNER_PREEMPT_OBSERVER_BASE' = '314'
+        'LMC_OWNER_PROFILE_AXIS_MASK' = '0x0000000F'
+        'LMC_OWNER_REPORT_QUARANTINE' = '4'
+        'LMC_OWNER_RESOURCE_AXIS' = '1'
+        'LMC_OWNER_RESOURCE_DIAGNOSTICS_SDO_ENGINE' = '4'
+        'LMC_OWNER_RESOURCE_DS402_HOME_ENGINE' = '3'
+        'LMC_OWNER_RESOURCE_LMC_HOME_ENGINE' = '2'
+        'LMC_OWNER_ROBOT_AXIS_MASK' = '0x000001FF'
+        'LMC_OWNER_STATE_DIRECT_ACTIVE' = '2'
+        'LMC_OWNER_STATE_DS402_HOME_ACTIVE' = '6'
+        'LMC_OWNER_STATE_GROUP_ACTIVE' = '4'
+        'LMC_OWNER_STATE_GROUP_LEASE' = '3'
+        'LMC_OWNER_STATE_IDLE' = '0'
+        'LMC_OWNER_STATE_LMC_HOME_ACTIVE' = '5'
+        'LMC_OWNER_STATE_QUARANTINED' = '11'
+        'LMC_OWNER_STATE_RESERVED' = '1'
+        'LMC_OWNER_STATE_TW20_DRAINING' = '9'
+        'LMC_OWNER_STATE_TW20_QUEUED' = '7'
+        'LMC_OWNER_STATE_TW20_RUNNING' = '8'
+    }
+    foreach ($constant in $constantContracts.GetEnumerator()) {
+        $definitions = [regex]::Matches(
+            $controlScan,
+            ('(?im)^[ \t]*#[ \t]*define[ \t]+' +
+             [regex]::Escape($constant.Key) +
+             '[ \t]+(?<Value>[^\r\n]*?)\s*$'))
+        if (($definitions.Count -ne 1) -or
+            ($definitions[0].Groups['Value'].Value -cne $constant.Value)) {
+            throw "$blocker constant $($constant.Key) drifted or was redefined."
+        }
+    }
+
+    $callMap = [string]::Join("`n", @(
+            "`t`t`trollbackPreemptResult := ValidateAxisOwnershipRollbackPreemptBank(",
+            "`t`t`t`tExpectedAxisMask:=expectedAxisMask,",
+            "`t`t`t`tpRestoreContext:=(#restoreContext[0])`$^void,",
+            "`t`t`t`tRestoreContextSize:=40);",
+            "`t`t`tif rollbackPreemptResult <> 0 then",
+            "`t`t`t`tResult := -3;",
+            "`t`t`t`tRETURN;",
+            "`t`t`tend_if;",
+            "`t`t`trestoredGroupActive := restoreContext[0] <> 0;",
+            "`t`t`trestoredGroupMask := restoreContext[1];",
+            "`t`t`trestoredGroupToken := restoreContext[2];",
+            "`t`t`trestoredGroupGeneration := restoreContext[3];",
+            "`t`t`trestoredGroupSession := restoreContext[4];",
+            "`t`t`trestoredGroupSequence := restoreContext[5];",
+            "`t`t`trestoredGroupIdentitySize := restoreContext[6];",
+            "`t`t`trestoredGroupCommand := restoreContext[7]`$DINT;",
+            "`t`t`trestoredGroupReference := restoreContext[8]`$DINT;",
+            "`t`t`trestoredGroupAdmissionMode := restoreContext[9]`$DINT;"
+        )) + "`n"
+    $callMapIndex = $adapter.IndexOf($callMap, [StringComparison]::Ordinal)
+    if (($callMapIndex -lt 0) -or
+        ($adapter.LastIndexOf($callMap, [StringComparison]::Ordinal) -ne
+            $callMapIndex) -or
+        ((Get-LasalRollbackSplitTextSha256 -Text $callMap) -cne
+            '66E328773321E978F63BF13F3080E77193D27D69E704081A7205D366EC76FF55')) {
+        throw "$blocker exact adapter call, fail fence, or context slot map drifted."
+    }
+    $callMapDimensions = Get-LasalRollbackSplitByteDimensions -Text $callMap
+    if (($callMapDimensions.LF -ne 758) -or
+        ($callMapDimensions.CRLF -ne 776)) {
+        throw "$blocker call-map byte dimensions drifted."
+    }
+    if ([regex]::Matches($adapterScan, '\^').Count -ne 1) {
+        throw "$blocker adapter pointer surface drifted."
+    }
+    if ($adapterScan -match
+            ('(?is)\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*' +
+             '[A-Za-z_][A-Za-z0-9_]*\s*\(') -or
+        $adapterScan -match '(?i)\b_gettime\s*\(') {
+        throw "$blocker adapter may not resample a client or clock."
+    }
+
+    $ignoredCallNames = @(
+        'and', 'case', 'else', 'elsif', 'if', 'not', 'or', 'then', 'while')
+    $expectedAdapterCalls = [ordered]@{
+        '_memcmp' = 1
+        '_memcpy' = 7
+        '_memset' = 17
+        'sizeof' = 6
+        'to_dint' = 4
+        'to_udint' = 23
+        'validateaxisownershiprollbackpreemptbank' = 1
+    }
+    $actualAdapterCalls = @{}
+    foreach ($call in [regex]::Matches(
+            $adapterScan,
+            ('(?i)(?<![A-Za-z0-9_])' +
+             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
+        $callName = $call.Groups['Name'].Value.ToLowerInvariant()
+        if ($ignoredCallNames -contains $callName) {
+            continue
+        }
+        if (-not $expectedAdapterCalls.Contains($callName)) {
+            throw "$blocker unsupported adapter call '$callName'."
+        }
+        if (-not $actualAdapterCalls.ContainsKey($callName)) {
+            $actualAdapterCalls[$callName] = 0
+        }
+        $actualAdapterCalls[$callName]++
+    }
+    foreach ($callName in $expectedAdapterCalls.Keys) {
+        $actualCount = if ($actualAdapterCalls.ContainsKey($callName)) {
+            $actualAdapterCalls[$callName]
+        }
+        else {
+            0
+        }
+        if ($actualCount -ne $expectedAdapterCalls[$callName]) {
+            throw (
+                "$blocker adapter call '$callName' count is $actualCount, " +
+                "expected $($expectedAdapterCalls[$callName]).")
+        }
+    }
+
+    $persistentMutationPattern = (
+        '(?is)(?:' +
+        '\bOwnership[A-Za-z0-9_]*State\s*\[[^\]]+\]\s*' +
+        '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
+        '(?::|\+|-|\*|/|and|or|xor)\s*=\s*[^;]+;' +
+        '|' +
+        '\b_memset\s*\(\s*dest\s*:=\s*' +
+        '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+        '|' +
+        '\b_memcpy\s*\(\s*ptr1\s*:=\s*' +
+        '#Ownership[A-Za-z0-9_]*State\s*\[.*?\)\s*;' +
+        ')')
+    $adapterMutations = [regex]::Matches(
+        $adapterScan,
+        $persistentMutationPattern)
+    $helperMutations = [regex]::Matches(
+        $helperScan,
+        $persistentMutationPattern)
+    $normalizedMutations = @(
+        foreach ($mutation in $adapterMutations) {
+            [regex]::Replace(
+                $mutation.Value,
+                '\s+',
+                '').ToLowerInvariant()
+        })
+    $joinedMutations = [string]::Join('|', $normalizedMutations)
+    if (($adapterMutations.Count -ne 79) -or
+        ($joinedMutations.Length -ne 6251) -or
+        ((Get-LasalRollbackSplitTextSha256 -Text $joinedMutations) -cne
+            'FFA826951AFAD84F64A21788ED0590330D5FA6A92C22B89A0363E03F9CF3BB08') -or
+        ($helperMutations.Count -ne 0)) {
+        throw "$blocker persistent mutation inventory drifted."
+    }
+    if ($normalizedMutations[0] -cne 'ownershipstate[24]:=1;') {
+        throw "$blocker corrupt-bank latch is not the first persistent write."
+    }
+
+    $resultSequence = [string]::Join(
+        '|',
+        @([regex]::Matches(
+                $adapterScan,
+                '(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;') |
+            ForEach-Object {
+                [regex]::Replace(
+                    $_.Groups['Value'].Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            }))
+    if ($resultSequence -cne
+        '-1|-2|-2|-2|-2|-3|-2|-2|-2|-3|-3|-3|-3|-3|0') {
+        throw "$blocker adapter Result value/count/order inventory drifted."
+    }
+    $controlFlowTokens = @(
+        [regex]::Matches(
+            $adapterScan,
+            '(?is)\bResult\s*:=\s*[^;]+\s*;|\bRETURN\s*;') |
+            ForEach-Object {
+                [regex]::Replace(
+                    $_.Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            })
+    $controlFlowInventory = [string]::Join('|', $controlFlowTokens)
+    if (($controlFlowTokens.Count -ne 29) -or
+        ($controlFlowInventory.Length -ne 290) -or
+        ((Get-LasalRollbackSplitTextSha256 -Text $controlFlowInventory) -cne
+            'E03138AF05891034DAF1DFE79BAD9B3FB68B33E6D6730950068F622476E32A51')) {
+        throw "$blocker adapter Result/RETURN control-flow inventory drifted."
+    }
+
+    Assert-Match $adapterScan (
+        '(?is)if\s+\(leaseBankValid\s*=\s*FALSE\)\s*\|\s*' +
+        '\(firstRecordBase\s*<\s*0\)\s+then\s*' +
+        'OwnershipState\[24\]\s*:=\s*1\s*;\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;') (
+        "$blocker exact corrupt lease-bank failure latch drifted.")
+    Assert-Match $adapterScan (
+        '(?is)if\s+groupHeaderPublished\s+then\s*' +
+        'OwnershipIdentityState\[\s*' +
+        'LMC_OWNER_IDENTITY_GROUP_HEADER_BASE\]\$UDINT\s*:=\s*' +
+        'LMC_OWNER_IDENTITY_GROUP_MAGIC\s*;\s*end_if\s*;\s*' +
+        'if\s+restorePreempt\s+then\s*' +
+        'OwnershipPreemptedIdentityState\[\s*' +
+        'LMC_OWNER_PREEMPT_HEADER_BASE\]\s*:=\s*0\s*;\s*' +
+        '_memset\(dest:=#OwnershipPreemptedState\[0\].*?' +
+        '_memset\(dest:=#OwnershipPreemptedIdentityState\[0\]') (
+        "$blocker restored Group publication or preempt-bank destruction order drifted.")
+    Assert-Match $adapterScan (
+        '(?is)elsif\s+Reason\s*=\s*0\s+then.*?' +
+        'OwnershipIdentityState\[identityHeaderBase\]\s*:=\s*0\s*;\s*' +
+        '_memset\(dest:=#OwnershipState\[recordBase\].*?' +
+        'OwnershipState\[recordBase\]\s*:=\s*axisIndex\s*;\s*' +
+        'OwnershipState\[recordBase\s*\+\s*35\]\$UDINT\s*:=\s*' +
+        'LMC_OWNER_AXIS_RECORD_MAGIC\s*\+\s*TO_UDINT\(axisIndex\)\s*;') (
+        "$blocker plain rollback idle-record publication order drifted.")
+    Assert-Match $adapterScan (
+        '(?is)else\s*axisIndex\s*:=\s*1\s*;.*?' +
+        'OwnershipState\[recordBase\s*\+\s*1\]\s*:=\s*' +
+        'LMC_OWNER_STATE_QUARANTINED\s*;\s*' +
+        'OwnershipState\[recordBase\s*\+\s*32\]\s*:=\s*' +
+        'LMC_OWNER_REPORT_QUARANTINE\s*;\s*' +
+        'OwnershipState\[recordBase\s*\+\s*33\]\s*:=\s*Reason\s*;') (
+        "$blocker nonzero-reason quarantine evidence drifted.")
+    Assert-Match $adapterScan (
+        '(?is)if\s+\(Reason\s*=\s*0\)\s*&\s*' +
+        '\(OwnershipState\[7\]\$UDINT\s*=\s*AdmissionToken\)\s*&\s*' +
+        '\(OwnershipState\[8\]\$UDINT\s*=\s*OwnerGeneration\)\s+then\s*' +
+        'OwnershipState\[7\]\s*:=\s*0\s*;\s*' +
+        'OwnershipState\[8\]\s*:=\s*0\s*;\s*' +
+        'OwnershipState\[9\]\s*:=\s*0\s*;\s*end_if\s*;.*?' +
+        'OwnershipState\[10\]\s*:=\s*0\s*;.*?' +
+        'OwnershipState\[11\]\s*:=\s*0\s*;.*?' +
+        'OwnershipState\[12\]\s*:=\s*0\s*;.*?' +
+        'OwnershipState\[13\]\s*:=\s*0\s*;.*?' +
+        'OwnershipState\[14\]\s*:=\s*0\s*;.*?' +
+        'OwnershipState\[15\]\s*:=\s*0\s*;\s*end_if\s*;\s*' +
+        'Result\s*:=\s*0\s*;\s*END_FUNCTION\s*$') (
+        "$blocker singleton clear gates or final result drifted.")
+    $leaseBankGate = $adapterScan.LastIndexOf(
+        'if (leaseBankValid = FALSE) | (firstRecordBase < 0) then')
+    if (($callMapIndex -lt 0) -or ($leaseBankGate -lt 0) -or
+        ($callMapIndex -ge $adapterMutations[1].Index) -or
+        ($leaseBankGate -ge $adapterMutations[1].Index)) {
+        throw "$blocker helper and lease validation are not complete before live restore."
+    }
+
+    Assert-Match $helperScan (
+        '(?is)^\s*FUNCTION\s+' +
+        'LMCControlCommandService::' +
+        'ValidateAxisOwnershipRollbackPreemptBank\b.*?' +
+        'Result\s*:=\s*-1\s*;\s*' +
+        'if\s+\(pRestoreContext\s*=\s*NIL\)\s*\|\s*' +
+        '\(RestoreContextSize\s*<>\s*40\)\s*\|\s*' +
+        '\(ExpectedAxisMask\s*=\s*0\)\s*\|\s*' +
+        '\(ExpectedAxisMask\s*>\s*LMC_OWNER_ROBOT_AXIS_MASK\)\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;') (
+        "$blocker helper guard drifted.")
+    Assert-Match $helperScan (
+        '(?is)if\s+\(snapshotState\s*=\s*' +
+        'LMC_OWNER_STATE_GROUP_ACTIVE\)\s*&\s*' +
+        '\(snapshotOwnerKind\s*=\s*LMC_OWNER_KIND_GROUP\)\s+then\s*' +
+        'restoredGroupActive\s*:=\s*TRUE\s*;') (
+        "$blocker restored Group aggregation drifted.")
+    Assert-Match $helperScan (
+        '(?is)if\s+restoredGroupFound\s*&\s*' +
+        'restoredNonSafetyFound\s+then\s*' +
+        'preemptBankValid\s*:=\s*FALSE\s*;\s*end_if\s*;\s*' +
+        'if\s+preemptBankValid\s*=\s*FALSE\s+then\s*' +
+        'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;') (
+        "$blocker mixed Group/non-safety rejection or fail fence drifted.")
+    if (($helperScan -match '(?i)\b_memset\s*\(') -or
+        ($helperScan -match '(?i)\b_memcpy\s*\(') -or
+        ($helperScan -match
+            ('(?is)\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*' +
+             '[A-Za-z_][A-Za-z0-9_]*\s*\(')) -or
+        ($helperScan -match '(?i)\b_gettime\s*\(')) {
+        throw "$blocker helper read-only memory/client/clock contract drifted."
+    }
+    $expectedHelperCalls = [ordered]@{
+        '_memcmp' = 3
+        'to_udint' = 9
+    }
+    $actualHelperCalls = @{}
+    foreach ($call in [regex]::Matches(
+            $helperScan,
+            ('(?i)(?<![A-Za-z0-9_])' +
+             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
+        $callName = $call.Groups['Name'].Value.ToLowerInvariant()
+        if ($ignoredCallNames -contains $callName) {
+            continue
+        }
+        if (-not $expectedHelperCalls.Contains($callName)) {
+            throw "$blocker unsupported helper call '$callName'."
+        }
+        if (-not $actualHelperCalls.ContainsKey($callName)) {
+            $actualHelperCalls[$callName] = 0
+        }
+        $actualHelperCalls[$callName]++
+    }
+    foreach ($callName in $expectedHelperCalls.Keys) {
+        $actualCount = if ($actualHelperCalls.ContainsKey($callName)) {
+            $actualHelperCalls[$callName]
+        }
+        else {
+            0
+        }
+        if ($actualCount -ne $expectedHelperCalls[$callName]) {
+            throw (
+                "$blocker helper call '$callName' count is $actualCount, " +
+                "expected $($expectedHelperCalls[$callName]).")
+        }
+    }
+
+    $localBlocks = @{}
+    foreach ($localContract in @(
+            @{ Name = 'adapter'; Scan = $adapterScan; Count = 51; Length = 1198; Sha = '182017DC2D6F592D1D1CF096119F450C9A4436CAF10636321D10EA7FF736A00F' },
+            @{ Name = 'helper'; Scan = $helperScan; Count = 46; Length = 1073; Sha = '02B8889C8B4BD057EAA4D297EE7CF1F381A934EDC69211CB24F20E1EA4688DF2' })) {
+        $localBlockMatches = [regex]::Matches(
+            $localContract.Scan,
+            ('(?is)(?<![A-Za-z0-9_])VAR(?=[ \t\r\n])\s*' +
+             '(?<Body>.*?)\bEND_VAR\s*;?'))
+        if ($localBlockMatches.Count -ne 1) {
+            throw "$blocker $($localContract.Name) local VAR block count drifted."
+        }
+        $localDeclarations = [regex]::Matches(
+            $localBlockMatches[0].Groups['Body'].Value,
+            ('(?im)^\s*(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+             '(?<Type>[^;\r\n]+)\s*;'))
+        $localInventory = [string]::Join(
+            '|',
+            @($localDeclarations | ForEach-Object {
+                    ($_.Groups['Name'].Value + ':' +
+                     [regex]::Replace(
+                         $_.Groups['Type'].Value,
+                         '\s+',
+                         '')).ToLowerInvariant()
+                }))
+        if (($localDeclarations.Count -ne $localContract.Count) -or
+            ($localInventory.Length -ne $localContract.Length) -or
+            ((Get-LasalRollbackSplitTextSha256 -Text $localInventory) -cne
+                $localContract.Sha)) {
+            throw (
+                "$blocker $($localContract.Name) local name/type/order " +
+                'inventory drifted.')
+        }
+        $localBlocks[$localContract.Name] = $localBlockMatches[0]
+    }
+    $allowedTargets = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    foreach ($localDeclaration in [regex]::Matches(
+            $localBlocks['helper'].Groups['Body'].Value,
+            '(?im)^\s*(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:')) {
+        [void]$allowedTargets.Add(
+            $localDeclaration.Groups['Name'].Value)
+    }
+    foreach ($target in @('Result', 'ptr1', 'ptr2', 'cntr')) {
+        [void]$allowedTargets.Add($target)
+    }
+    foreach ($assignment in [regex]::Matches(
+            $helperScan,
+            ('(?m)^\s*(?<Target>[A-Za-z_][A-Za-z0-9_]*)\s*' +
+             '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
+             '(?::|\+|-|\*|/|and|or|xor)\s*='))) {
+        $target = $assignment.Groups['Target'].Value
+        if (-not $allowedTargets.Contains($target)) {
+            throw "$blocker helper assignment target '$target' is not local."
+        }
+    }
+    if ([regex]::Matches(
+            $helperScan,
+            ('(?m)^\s*[A-Za-z_][A-Za-z0-9_]*\s*' +
+             '(?:\[[^\r\n;]*\]|\.[A-Za-z_][A-Za-z0-9_]*)\s*' +
+             '(?:\$[A-Za-z_][A-Za-z0-9_]*\s*)?' +
+             '(?::|\+|-|\*|/|and|or|xor)\s*=')).Count -ne 0) {
+        throw "$blocker helper indexed/member assignment is forbidden."
+    }
+
+    $pointerWrites = [regex]::Matches(
+        $helperScan,
+        ('(?m)^\s*\(pContext\s*\+\s*(?<Offset>\d+)\)\^' +
+         '\$(?<Type>U?DINT)\s*:=\s*' +
+         '(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*;'))
+    $expectedContextWrites = @(
+        @{ Offset = 0; Type = 'UDINT'; Value = 'contextActive' },
+        @{ Offset = 4; Type = 'UDINT'; Value = 'restoredGroupMask' },
+        @{ Offset = 8; Type = 'UDINT'; Value = 'restoredGroupToken' },
+        @{ Offset = 12; Type = 'UDINT'; Value = 'restoredGroupGeneration' },
+        @{ Offset = 16; Type = 'UDINT'; Value = 'restoredGroupSession' },
+        @{ Offset = 20; Type = 'UDINT'; Value = 'restoredGroupSequence' },
+        @{ Offset = 24; Type = 'UDINT'; Value = 'restoredGroupIdentitySize' },
+        @{ Offset = 28; Type = 'DINT'; Value = 'restoredGroupCommand' },
+        @{ Offset = 32; Type = 'DINT'; Value = 'restoredGroupReference' },
+        @{ Offset = 36; Type = 'DINT'; Value = 'restoredGroupAdmissionMode' })
+    if ($pointerWrites.Count -ne $expectedContextWrites.Count) {
+        throw "$blocker helper context write count drifted."
+    }
+    for ($index = 0; $index -lt $expectedContextWrites.Count; $index++) {
+        $expectedWrite = $expectedContextWrites[$index]
+        if (([int]$pointerWrites[$index].Groups['Offset'].Value -ne
+                $expectedWrite.Offset) -or
+            ($pointerWrites[$index].Groups['Type'].Value -cne
+                $expectedWrite.Type) -or
+            ($pointerWrites[$index].Groups['Value'].Value -cne
+                $expectedWrite.Value)) {
+            throw "$blocker helper context offset/type/value order drifted."
+        }
+    }
+    $validationGateIndex = $helperScan.LastIndexOf(
+        'if preemptBankValid = FALSE then')
+    $contextAliasIndex = $helperScan.IndexOf(
+        'pContext := pRestoreContext$^USINT;',
+        [StringComparison]::Ordinal)
+    $firstContextWriteIndex = $pointerWrites[0].Index
+    if (($validationGateIndex -lt 0) -or ($contextAliasIndex -lt 0) -or
+        ($validationGateIndex -ge $contextAliasIndex) -or
+        ($contextAliasIndex -ge $firstContextWriteIndex) -or
+        ([regex]::Matches($helperScan, '\^').Count -ne 13)) {
+        throw "$blocker helper success-only context publication order drifted."
+    }
+    $helperResultSequence = [string]::Join(
+        '|',
+        @([regex]::Matches(
+                $helperScan,
+                '(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;') |
+            ForEach-Object {
+                [regex]::Replace(
+                    $_.Groups['Value'].Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            }))
+    if (($helperResultSequence -cne '-1|-3|0') -or
+        ([regex]::Matches($helperScan, '(?i)\bRETURN\s*;').Count -ne 2)) {
+        throw "$blocker helper Result/RETURN inventory drifted."
+    }
+
+    foreach ($methodContract in @(
+            @{ Name = 'adapter'; Fragment = $adapter; LF = 29124; CRLF = 29922; Sha = '8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC' },
+            @{ Name = 'helper'; Fragment = $helper; LF = 21451; CRLF = 22046; Sha = 'AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09' })) {
+        if (-not $methodContract.Fragment.EndsWith(
+                "`n",
+                [StringComparison]::Ordinal)) {
+            throw "$blocker $($methodContract.Name) canonical LF terminator drifted."
+        }
+        $dimensions =
+            Get-LasalRollbackSplitByteDimensions -Text $methodContract.Fragment
+        if (($dimensions.LF -ne $methodContract.LF) -or
+            ($dimensions.CRLF -ne $methodContract.CRLF) -or
+            ($dimensions.LF -ge 32768) -or
+            ($dimensions.CRLF -ge 32768) -or
+            ((Get-LasalRollbackSplitTextSha256 `
+                    -Text $methodContract.Fragment) -cne
+                $methodContract.Sha)) {
+            throw "$blocker $($methodContract.Name) byte/hash ratchet drifted."
+        }
+    }
+    $declarationDimensions =
+        Get-LasalRollbackSplitByteDimensions -Text $declaration
+    if (($declarationDimensions.LF -ne 207) -or
+        ($declarationDimensions.CRLF -ne 216) -or
+        ((Get-LasalRollbackSplitTextSha256 -Text $declaration) -cne
+            '4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4')) {
+        throw "$blocker generated private declaration byte/hash ratchet drifted."
+    }
+}
+
+function Invoke-LasalAxisOwnershipRollbackSplitVerifierSelfTest {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ControlServiceText,
+        [Parameter(Mandatory = $true)]
+        [string]$Owner
+    )
+
+    $lfControlServiceText =
+        ConvertTo-LasalRollbackSplitLf -Text $ControlServiceText
+    $crlfControlServiceText = $lfControlServiceText.Replace("`n", "`r`n")
+    Assert-LasalAxisOwnershipRollbackSplitMutationFences `
+        -ControlServiceText $ControlServiceText `
+        -Owner "$Owner positive current"
+    Assert-LasalAxisOwnershipRollbackSplitMutationFences `
+        -ControlServiceText $lfControlServiceText `
+        -Owner "$Owner positive LF checkout"
+    Assert-LasalAxisOwnershipRollbackSplitMutationFences `
+        -ControlServiceText $crlfControlServiceText `
+        -Owner "$Owner positive CRLF IDE"
+    $ControlServiceText = $lfControlServiceText
+    $fragments = Get-LasalAxisOwnershipRollbackSplitFragments `
+        -ControlServiceText $ControlServiceText `
+        -Owner $Owner
+    $fixtures = @(
+        @{ Name = 'DeclarationMadeGlobal'; Target = 'Declaration'; Old = "`tFUNCTION ValidateAxisOwnershipRollbackPreemptBank"; New = "`tFUNCTION GLOBAL ValidateAxisOwnershipRollbackPreemptBank"; Expected = 'helper must retain one exact private declaration and implementation ABI' },
+        @{ Name = 'HelperMadeGlobal'; Target = 'Helper'; Old = 'FUNCTION LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank'; New = 'FUNCTION GLOBAL LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank'; Expected = 'helper must retain one exact private declaration and implementation ABI' },
+        @{ Name = 'HelperPointerAbiChanged'; Target = 'Helper'; Old = "`t`tpRestoreContext `t: ^void;"; New = "`t`tpRestoreContext `t: ^UDINT;"; Expected = 'helper must retain one exact private declaration and implementation ABI' },
+        @{ Name = 'GuardNilInverted'; Target = 'Helper'; Old = 'pRestoreContext = NIL'; New = 'pRestoreContext <> NIL'; Expected = 'helper guard drifted' },
+        @{ Name = 'GuardSizeChanged'; Target = 'Helper'; Old = 'RestoreContextSize <> 40'; New = 'RestoreContextSize <> 44'; Expected = 'helper guard drifted' },
+        @{ Name = 'GuardMaskWeakened'; Target = 'Helper'; Old = 'ExpectedAxisMask > LMC_OWNER_ROBOT_AXIS_MASK'; New = 'ExpectedAxisMask > 0xFFFFFFFF'; Expected = 'helper guard drifted' },
+        @{ Name = 'HelperValidationBypassed'; Target = 'Helper'; Old = "`tif preemptBankValid = FALSE then`r`n`t`tResult := -3;"; New = "`tif preemptBankValid = TRUE then`r`n`t`tResult := -3;"; Expected = 'mixed Group/non-safety rejection or fail fence drifted' },
+        @{ Name = 'HelperMixedGroupAccepted'; Target = 'Helper'; Old = 'if restoredGroupFound & restoredNonSafetyFound then'; New = 'if restoredGroupFound & FALSE then'; Expected = 'mixed Group/non-safety rejection or fail fence drifted' },
+        @{ Name = 'HelperGroupAggregationSuppressed'; Target = 'Helper'; Old = "`t`t`t`trestoredGroupActive := TRUE;"; New = "`t`t`t`trestoredGroupActive := FALSE;"; Expected = 'restored Group aggregation drifted' },
+        @{ Name = 'HelperPersistentWriteAdded'; Target = 'Helper'; Old = "`tcontextActive := 0;"; New = "`tOwnershipState[0] := 1;`r`n`tcontextActive := 0;"; Expected = 'persistent mutation inventory drifted' },
+        @{ Name = 'ContextWriteDropped'; Target = 'Helper'; Old = "`t(pContext + 36)^`$DINT := restoredGroupAdmissionMode;`r`n"; New = ''; Expected = 'helper context write count drifted' },
+        @{ Name = 'ContextWriteReordered'; Target = 'Helper'; Old = "`t(pContext + 28)^`$DINT := restoredGroupCommand;`r`n`t(pContext + 32)^`$DINT := restoredGroupReference;`r`n"; New = "`t(pContext + 32)^`$DINT := restoredGroupReference;`r`n`t(pContext + 28)^`$DINT := restoredGroupCommand;`r`n"; Expected = 'helper context offset/type/value order drifted' },
+        @{ Name = 'HelperForeignClientCall'; Target = 'Helper'; Old = "`tcontextActive := 0;"; New = "`tInputLatch.Probe();`r`n`tcontextActive := 0;"; Expected = 'helper read-only memory/client/clock contract drifted' },
+        @{ Name = 'HelperFinalResultChanged'; Target = 'Helper'; Old = "`tResult := 0;`r`n`r`nEND_FUNCTION`r`n"; New = "`tResult := 1;`r`n`r`nEND_FUNCTION`r`n"; Expected = 'helper Result/RETURN inventory drifted' },
+        @{ Name = 'AdapterHelperCallRenamed'; Target = 'Adapter'; Old = 'rollbackPreemptResult := ValidateAxisOwnershipRollbackPreemptBank('; New = 'rollbackPreemptResult := ValidateAxisOwnershipRollbackPreemptBankShadow('; Expected = 'exact adapter call, fail fence, or context slot map drifted' },
+        @{ Name = 'AdapterContextSizeChanged'; Target = 'Adapter'; Old = 'RestoreContextSize:=40);'; New = 'RestoreContextSize:=36);'; Expected = 'exact adapter call, fail fence, or context slot map drifted' },
+        @{ Name = 'AdapterFailureFenceBypassed'; Target = 'Adapter'; Old = "`t`t`tif rollbackPreemptResult <> 0 then`r`n`t`t`t`tResult := -3;"; New = "`t`t`tif rollbackPreemptResult <> 0 then`r`n`t`t`t`tResult := rollbackPreemptResult;"; Expected = 'exact adapter call, fail fence, or context slot map drifted' },
+        @{ Name = 'AdapterSlotMapChanged'; Target = 'Adapter'; Old = 'restoredGroupAdmissionMode := restoreContext[9]$DINT;'; New = 'restoredGroupAdmissionMode := restoreContext[8]$DINT;'; Expected = 'exact adapter call, fail fence, or context slot map drifted' },
+        @{ Name = 'AdapterLocalTypeChanged'; Target = 'Adapter'; Old = 'restoreContext : ARRAY [0..9] OF UDINT;'; New = 'restoreContext : ARRAY [0..9] OF DINT;'; Expected = 'adapter local name/type/order inventory drifted' },
+        @{ Name = 'HelperLocalTypeChanged'; Target = 'Helper'; Old = 'pContext : ^USINT;'; New = 'pContext : ^DINT;'; Expected = 'helper local name/type/order inventory drifted' })
+    if (($fixtures.Count -ne 20) -or
+        (@($fixtures.Name | Select-Object -Unique).Count -ne 20)) {
+        throw "$Owner rollback split self-test fixture inventory drifted."
+    }
+
+    $rejected = 0
+    foreach ($fixture in $fixtures) {
+        $targetText = $fragments.($fixture.Target)
+        $fixtureOld = ConvertTo-LasalRollbackSplitLf -Text $fixture.Old
+        $fixtureNew = ConvertTo-LasalRollbackSplitLf -Text $fixture.New
+        $mutatedTarget = Replace-LasalRollbackSplitExactOne `
+            -Text $targetText `
+            -Old $fixtureOld `
+            -New $fixtureNew `
+            -Owner "$Owner fixture $($fixture.Name)"
+        $mutatedControl = Replace-LasalRollbackSplitExactOne `
+            -Text $ControlServiceText `
+            -Old $targetText `
+            -New $mutatedTarget `
+            -Owner "$Owner fixture source $($fixture.Name)"
+        $negativeOwner = "$Owner negative $($fixture.Name)"
+        $didReject = $false
+        try {
+            Assert-LasalAxisOwnershipRollbackSplitMutationFences `
+                -ControlServiceText $mutatedControl `
+                -Owner $negativeOwner
+        }
+        catch {
+            if (-not $_.Exception.Message.StartsWith(
+                    "$negativeOwner axis ownership rollback split blocker:",
+                    [StringComparison]::Ordinal) -or
+                ($_.Exception.Message.IndexOf(
+                    $fixture.Expected,
+                    [StringComparison]::Ordinal) -lt 0) -or
+                ($_.Exception.Message -match 'byte/hash ratchet drifted')) {
+                throw
+            }
+            $didReject = $true
+        }
+        if (-not $didReject) {
+            throw "$Owner rollback split negative fixture '$($fixture.Name)' was accepted."
+        }
+        $rejected++
+    }
+    return $rejected
 }
 
 function Assert-LasalAxisOwnershipPublishMutationFences {
@@ -1517,14 +2632,14 @@ function Assert-LasalAxisOwnershipPublishMutationFences {
     finally {
         $macroInventorySha.Dispose()
     }
-    if (($allMacroInventory.Count -ne 167) -or
-        ($joinedMacroInventory.Length -ne 6237) -or
+    if (($allMacroInventory.Count -ne 165) -or
+        ($joinedMacroInventory.Length -ne 6175) -or
         ($macroInventorySha256 -cne
-            '455C87BB8B4BEA396585B8EFD6A5D233FD7F5BB9A3B0870FAD8D3F7C62814B7F')) {
+            '67348A046E35A28C733ACB27B811B4C88EB6402BEC697CE22ADAF726EC6A2928')) {
         throw (
             "$blocker whole-control macro inventory drifted " +
-            "($($allMacroInventory.Count)/167, " +
-            "$($joinedMacroInventory.Length)/6237, $macroInventorySha256).")
+            "($($allMacroInventory.Count)/165, " +
+            "$($joinedMacroInventory.Length)/6175, $macroInventorySha256).")
     }
     if (($macroMatches.Count -eq 0) -or
         ($macroMatches[-1].Index -ge
@@ -2619,6 +3734,2728 @@ function Invoke-LasalAxisOwnershipPublishVerifierSelfTest {
     return $negativeCount
 }
 
+function Get-LasalAxisOwnershipPublishCallerMethodBlock {
+    param(
+        [string]$SourceText,
+        [string]$ClassName,
+        [string]$MethodName,
+        [string]$Owner
+    )
+
+    $scan = Get-LasalLexicalScanText $SourceText
+    $matches = [regex]::Matches(
+        $scan,
+        ('(?ims)^[ \t]*FUNCTION(?:\s+(?:VIRTUAL\s+GLOBAL|GLOBAL))?\s+' +
+         [regex]::Escape($ClassName + '::' + $MethodName) + '\s*$' +
+         '.*?^[ \t]*END_FUNCTION\s*$'))
+    if ($matches.Count -ne 1) {
+        throw (
+            "$Owner $ClassName.$MethodName implementation count is " +
+            "$($matches.Count), expected exactly one.")
+    }
+    return $matches[0].Value
+}
+
+function Get-LasalAxisOwnershipPublishCallerGroupRecords {
+    param(
+        [string]$MethodBlock,
+        [string]$ResultName,
+        [string]$Qualifier,
+        [string]$Owner,
+        [string]$PublishMethod = 'PublishAxisOwnership'
+    )
+
+    $qualifiedCall = if ([string]::IsNullOrWhiteSpace($Qualifier)) {
+        [regex]::Escape($PublishMethod)
+    }
+    else {
+        [regex]::Escape($Qualifier) + '\s*\.\s*' +
+            [regex]::Escape($PublishMethod)
+    }
+    $callStartPattern = (
+        '(?im)(?<![A-Za-z0-9_])' + [regex]::Escape($ResultName) +
+        '\s*:=\s*' + $qualifiedCall + '\s*\(')
+    $callStarts = [regex]::Matches($MethodBlock, $callStartPattern)
+    $records = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($callStart in $callStarts) {
+        $openIndex = $callStart.Index + $callStart.Length - 1
+        $depth = 0
+        $closeIndex = -1
+        for ($index = $openIndex; $index -lt $MethodBlock.Length; $index++) {
+            if ($MethodBlock[$index] -eq '(') {
+                $depth += 1
+            }
+            elseif ($MethodBlock[$index] -eq ')') {
+                $depth -= 1
+                if ($depth -eq 0) {
+                    $closeIndex = $index
+                    break
+                }
+            }
+        }
+        if ($closeIndex -lt 0) {
+            throw "$Owner $ResultName call has no balanced closing parenthesis."
+        }
+
+        $statementEnd = $closeIndex + 1
+        while (($statementEnd -lt $MethodBlock.Length) -and
+            [char]::IsWhiteSpace($MethodBlock[$statementEnd])) {
+            $statementEnd += 1
+        }
+        if (($statementEnd -ge $MethodBlock.Length) -or
+            ($MethodBlock[$statementEnd] -ne ';')) {
+            throw "$Owner $ResultName call is not terminated by a semicolon."
+        }
+        $statementEnd += 1
+
+        $nextAssignment = [regex]::Match(
+            $MethodBlock.Substring($statementEnd),
+            ('(?im)(?<![A-Za-z0-9_])' +
+             [regex]::Escape($ResultName) + '\s*:='))
+        $windowEnd = $MethodBlock.Length
+        if ($nextAssignment.Success) {
+            $windowEnd = $statementEnd + $nextAssignment.Index
+        }
+        $consumerWindow = $MethodBlock.Substring(
+            $statementEnd,
+            $windowEnd - $statementEnd)
+        $resultUseCount = [regex]::Matches(
+            $consumerWindow,
+            ('(?i)(?<![A-Za-z0-9_])' +
+             [regex]::Escape($ResultName) +
+             '(?![A-Za-z0-9_])')).Count
+        $records.Add([pscustomobject]@{
+                Statement = $MethodBlock.Substring(
+                    $callStart.Index,
+                    $statementEnd - $callStart.Index)
+                ConsumerWindow = $consumerWindow
+                CallStartIndex = $callStart.Index
+                StatementEndIndex = $statementEnd
+                ResultUseCount = $resultUseCount
+                Consumed = $resultUseCount -gt 0
+            })
+    }
+    return $records.ToArray()
+}
+
+function Assert-LasalAxisOwnershipPublishCallerInventory {
+    param(
+        [string]$TcpText,
+        [string]$ControlServiceText,
+        [string]$DiagnosticsText,
+        [string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership publish caller inventory blocker:"
+    $sources = [ordered]@{
+        Tcp = @{
+            Text = $TcpText
+            ClassName = 'TCPMotionInterface'
+        }
+        Control = @{
+            Text = $ControlServiceText
+            ClassName = 'LMCControlCommandService'
+        }
+        Diagnostics = @{
+            Text = $DiagnosticsText
+            ClassName = 'LMCDiagnosticsService'
+        }
+    }
+    $groups = @(
+        @{ Source = 'Tcp'; Method = 'CyWork'; Result = 'cleanupPublishResult'; Qualifier = 'ControlCommands'; Count = 1; Open = @(1); OpenReportKind = '4' },
+        @{ Source = 'Tcp'; Method = 'HandleControlSafetyDrainPending'; Result = 'pendingPublishResult'; Qualifier = 'ControlCommands'; Count = 3; Open = @(1, 2, 3); OpenReportKind = '4' },
+        @{ Source = 'Tcp'; Method = 'MsgPaser'; Result = 'diagnosticsPublishResult'; Qualifier = 'ControlCommands'; Count = 1; Open = @(1); OpenReportKind = '4' },
+        @{ Source = 'Tcp'; Method = 'MsgPaser'; Result = 'controlPublishResult'; Qualifier = 'ControlCommands'; Count = 2; Open = @(1, 2); OpenReportKind = '4' },
+        @{ Source = 'Control'; Method = 'HandleRequest'; Result = 'ownershipPublishResult'; Qualifier = ''; Count = 3; Open = @(1); OpenReportKind = 'LMC_OWNER_REPORT_QUARANTINE' },
+        @{ Source = 'Control'; Method = 'ProcessAxisOwnership'; Result = 'publishResult'; Qualifier = ''; Count = 2; Open = @(); OpenReportKind = '' },
+        @{ Source = 'Control'; Method = 'ProcessAxisZeroHome'; Result = 'homePublishResult'; Qualifier = ''; Count = 2; Open = @(); OpenReportKind = '' },
+        @{ Source = 'Diagnostics'; Method = 'ProcessEncoderMaintenance'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 4; Open = @(4); OpenReportKind = 'LMC_DIAG_OWNER_REPORT_QUARANTINE' },
+        @{ Source = 'Diagnostics'; Method = 'ProcessAxisDs402Home'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 1; Open = @(); OpenReportKind = '' },
+        @{ Source = 'Diagnostics'; Method = 'HandleAxisDs402HomeCleanupStages'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 2; Open = @(1, 2); OpenReportKind = 'LMC_DIAG_OWNER_REPORT_QUARANTINE' }
+    )
+
+    $broadCallCount = 0
+    $assignedCallCount = 0
+    foreach ($source in $sources.GetEnumerator()) {
+        $scan = Get-LasalLexicalScanText $source.Value.Text
+        $broadCallCount += [regex]::Matches(
+            $scan,
+            '(?i)(?<![A-Za-z0-9_])PublishAxisOwnership\s*\(').Count
+        $assignedCallCount += [regex]::Matches(
+            $scan,
+            ('(?i)(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*\s*:=\s*' +
+             '(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?' +
+             'PublishAxisOwnership\s*\(')).Count
+    }
+    if (($broadCallCount -ne 21) -or ($assignedCallCount -ne 21)) {
+        throw (
+            "$blocker production broad/assigned call counts are " +
+            "$broadCallCount/$assignedCallCount, expected 21/21.")
+    }
+
+    $total = 0
+    $consumed = 0
+    $open = 0
+    foreach ($group in $groups) {
+        $source = $sources[$group.Source]
+        $groupOwner = (
+            "$blocker $($source.ClassName).$($group.Method)." +
+            $group.Result)
+        $methodBlock = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+            -SourceText $source.Text `
+            -ClassName $source.ClassName `
+            -MethodName $group.Method `
+            -Owner $groupOwner
+        Assert-LasalExactDeclaredType `
+            -Text $methodBlock `
+            -Name $group.Result `
+            -ExpectedType 'DINT' `
+            -Owner "$groupOwner result receiver"
+        $records = @(
+            Get-LasalAxisOwnershipPublishCallerGroupRecords `
+                -MethodBlock $methodBlock `
+                -ResultName $group.Result `
+                -Qualifier $group.Qualifier `
+                -Owner $groupOwner)
+        if ($records.Count -ne $group.Count) {
+            throw (
+                "$groupOwner call count is $($records.Count), expected " +
+                "$($group.Count).")
+        }
+
+        for ($recordIndex = 0; $recordIndex -lt $records.Count; $recordIndex++) {
+            $ordinal = $recordIndex + 1
+            $record = $records[$recordIndex]
+            $expectedOpen = $group.Open -contains $ordinal
+            if ($record.Consumed -eq $expectedOpen) {
+                $expectedState = if ($expectedOpen) { 'unconsumed OPEN' } else { 'consumed' }
+                throw (
+                    "$groupOwner call $ordinal is consumed=$($record.Consumed), " +
+                    "expected $expectedState.")
+            }
+            if ($expectedOpen) {
+                $reportKindPattern = (
+                    '(?is)(?<![A-Za-z0-9_])ReportKind\s*:=\s*' +
+                    [regex]::Escape($group.OpenReportKind) + '\s*,')
+                if ([regex]::Matches(
+                        $record.Statement,
+                        $reportKindPattern).Count -ne 1) {
+                    throw (
+                        "$groupOwner OPEN call $ordinal ReportKind is not exact " +
+                        "$($group.OpenReportKind).")
+                }
+                $open += 1
+            }
+            else {
+                $consumed += 1
+            }
+            $total += 1
+        }
+    }
+    if (($total -ne 21) -or ($consumed -ne 10) -or ($open -ne 11)) {
+        throw (
+            "$blocker grouped total/consumed/OPEN counts are " +
+            "$total/$consumed/$open, expected 21/10/11.")
+    }
+    return [pscustomobject]@{
+        Total = $total
+        Consumed = $consumed
+        Open = $open
+    }
+}
+
+function Invoke-LasalAxisOwnershipPublishCallerInventoryVerifierSelfTest {
+    param(
+        [string]$TcpText,
+        [string]$ControlServiceText,
+        [string]$DiagnosticsText,
+        [string]$Owner
+    )
+
+    $cleanupCallPattern = (
+        '(?is)(cleanupPublishResult\s*:=\s*' +
+        'ControlCommands\.PublishAxisOwnership\(.*?\)\s*;)')
+    $fixtureSpecs = @(
+        @{ Name = 'CallerDuplicated'; Source = 'Tcp'; Pattern = $cleanupCallPattern; Replacement = '${1}' + [Environment]::NewLine + '${1}' },
+        @{ Name = 'CallerRemoved'; Source = 'Tcp'; Pattern = '(?is)(cleanupPublishResult\s*:=\s*ControlCommands\.)PublishAxisOwnership(?=\s*\()'; Replacement = '${1}PublishAxisOwnershipShadow' },
+        @{ Name = 'ResultAssignmentRemoved'; Source = 'Tcp'; Pattern = '(?is)cleanupPublishResult\s*:=\s*(?=ControlCommands\.PublishAxisOwnership\s*\()'; Replacement = '' },
+        @{ Name = 'ResultLocalChanged'; Source = 'Tcp'; Pattern = '(?is)cleanupPublishResult(?=\s*:=\s*ControlCommands\.PublishAxisOwnership\s*\()'; Replacement = 'cleanupRollbackResult' },
+        @{ Name = 'OpenResultConsumed'; Source = 'Tcp'; Pattern = $cleanupCallPattern; Replacement = '${1}' + [Environment]::NewLine + 'cleanupRollbackResult := cleanupPublishResult;' },
+        @{ Name = 'ConsumedResultCheckRemoved'; Source = 'Control'; Pattern = '(?is)(ownershipPublishResult\s*:=\s*PublishAxisOwnership\(\s*.*?ReportKind:=LMC_OWNER_REPORT_TERMINAL_SUCCESS\s*,.*?\)\s*;\s*if\s+)ownershipPublishResult(\s*<>\s*0\s+then)'; Replacement = '${1}ownershipRollbackResult${2}' },
+        @{ Name = 'OpenReportKindChanged'; Source = 'Tcp'; Pattern = '(?is)(cleanupPublishResult\s*:=\s*ControlCommands\.PublishAxisOwnership\(.*?ReportKind\s*:=\s*)4(\s*,)'; Replacement = '${1}3${2}' },
+        @{ Name = 'ResultReceiverTypeChanged'; Source = 'Tcp'; Pattern = '(?im)^([ \t]*)cleanupPublishResult\s*:\s*DINT\s*;'; Replacement = '${1}cleanupPublishResult : UDINT;' }
+    )
+    $negativeCount = 0
+    foreach ($fixtureSpec in $fixtureSpecs) {
+        $sourceText = switch ($fixtureSpec.Source) {
+            'Tcp' { $TcpText }
+            'Control' { $ControlServiceText }
+            'Diagnostics' { $DiagnosticsText }
+        }
+        $fixtureRegex = [regex]::new(
+            $fixtureSpec.Pattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline -bor
+            [Text.RegularExpressions.RegexOptions]::Multiline)
+        $fixtureMatches = $fixtureRegex.Matches($sourceText)
+        if ($fixtureMatches.Count -ne 1) {
+            throw (
+                "$Owner caller negative fixture '$($fixtureSpec.Name)' found " +
+                "$($fixtureMatches.Count) targets, expected one.")
+        }
+        $mutatedSource = $fixtureRegex.Replace(
+            $sourceText,
+            $fixtureSpec.Replacement,
+            1)
+        if ($mutatedSource -ceq $sourceText) {
+            throw (
+                "$Owner caller negative fixture '$($fixtureSpec.Name)' " +
+                'did not mutate its source.')
+        }
+        $fixtureTcp = if ($fixtureSpec.Source -eq 'Tcp') {
+            $mutatedSource
+        }
+        else {
+            $TcpText
+        }
+        $fixtureControl = if ($fixtureSpec.Source -eq 'Control') {
+            $mutatedSource
+        }
+        else {
+            $ControlServiceText
+        }
+        $fixtureDiagnostics = if ($fixtureSpec.Source -eq 'Diagnostics') {
+            $mutatedSource
+        }
+        else {
+            $DiagnosticsText
+        }
+        $negativeOwner = "$Owner caller negative $($fixtureSpec.Name)"
+        $negativeRejected = $false
+        try {
+            $null = Assert-LasalAxisOwnershipPublishCallerInventory `
+                -TcpText $fixtureTcp `
+                -ControlServiceText $fixtureControl `
+                -DiagnosticsText $fixtureDiagnostics `
+                -Owner $negativeOwner
+        }
+        catch {
+            if (-not $_.Exception.Message.StartsWith(
+                    $negativeOwner,
+                    [StringComparison]::Ordinal)) {
+                throw (
+                    "$Owner caller negative fixture '$($fixtureSpec.Name)' " +
+                    "failed outside its contract assertion: $($_.Exception.Message)")
+            }
+            $negativeRejected = $true
+        }
+        if (-not $negativeRejected) {
+            throw (
+                "$Owner caller inventory verifier accepted negative fixture " +
+                "'$($fixtureSpec.Name)'.")
+        }
+        $negativeCount += 1
+    }
+
+    $positivePattern = '(?im)^([ \t]*cleanupPublishResult\s*:\s*DINT\s*;)'
+    $positiveRegex = [regex]::new($positivePattern)
+    if ($positiveRegex.Matches($TcpText).Count -ne 1) {
+        throw "$Owner caller positive comment fixture target drifted."
+    }
+    $positiveTcp = $positiveRegex.Replace(
+        $TcpText,
+        ('${1} // fakeResult := ' +
+         'ControlCommands.PublishAxisOwnership(ReportKind:=3);'),
+        1)
+    $null = Assert-LasalAxisOwnershipPublishCallerInventory `
+        -TcpText $positiveTcp `
+        -ControlServiceText $ControlServiceText `
+        -DiagnosticsText $DiagnosticsText `
+        -Owner "$Owner caller positive comment-only fixture"
+
+    if ($negativeCount -ne 8) {
+        throw "$Owner caller negative count is $negativeCount, expected 8."
+    }
+    return $negativeCount
+}
+
+function Invoke-LasalAxisOwnershipPublishCallerLegacySyntheticSelfTest {
+    param(
+        [string]$Owner
+    )
+
+    $newLegacyCall = {
+        param(
+            [string]$ResultName,
+            [string]$Qualifier,
+            [string]$ReportKind,
+            [bool]$Consumed
+        )
+        $callName = if ([string]::IsNullOrWhiteSpace($Qualifier)) {
+            'PublishAxisOwnership'
+        }
+        else {
+            $Qualifier + '.PublishAxisOwnership'
+        }
+        $consumer = if ($Consumed) {
+@"
+if $ResultName <> 0 then
+    sink := 1;
+end_if;
+"@
+        }
+        else {
+            ''
+        }
+        return @"
+$ResultName := $callName(
+    AxisMask:=axisMask,
+    AdmissionToken:=admissionToken,
+    OwnerGeneration:=ownerGeneration,
+    ReportKind:=$ReportKind,
+    ReportValue0:=0,
+    ReportValue1:=0,
+    ObservationCycle:=currentCycle);
+$consumer
+"@
+    }
+
+    $legacyTcp = @"
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
+VAR
+    cleanupPublishResult : DINT;
+    cleanupRollbackResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'cleanupPublishResult' 'ControlCommands' '4' $false)
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
+VAR
+    pendingPublishResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'pendingPublishResult' 'ControlCommands' '4' $false)
+$(& $newLegacyCall 'pendingPublishResult' 'ControlCommands' '4' $false)
+$(& $newLegacyCall 'pendingPublishResult' 'ControlCommands' '4' $false)
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::MsgPaser
+VAR
+    diagnosticsPublishResult : DINT;
+    controlPublishResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'diagnosticsPublishResult' 'ControlCommands' '4' $false)
+$(& $newLegacyCall 'controlPublishResult' 'ControlCommands' '4' $false)
+$(& $newLegacyCall 'controlPublishResult' 'ControlCommands' '4' $false)
+END_FUNCTION
+"@
+
+    $legacyControl = @"
+FUNCTION LMCControlCommandService::HandleRequest
+VAR
+    ownershipPublishResult : DINT;
+    ownershipRollbackResult, sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'ownershipPublishResult' '' 'LMC_OWNER_REPORT_QUARANTINE' $false)
+$(& $newLegacyCall 'ownershipPublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS' $true)
+$(& $newLegacyCall 'ownershipPublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE' $true)
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::ProcessAxisOwnership
+VAR
+    publishResult, sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'publishResult' '' 'LMC_OWNER_REPORT_QUARANTINE' $true)
+$(& $newLegacyCall 'publishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS' $true)
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::ProcessAxisZeroHome
+VAR
+    homePublishResult, sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'homePublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS' $true)
+$(& $newLegacyCall 'homePublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE' $true)
+END_FUNCTION
+"@
+
+    $legacyDiagnostics = @"
+FUNCTION LMCDiagnosticsService::ProcessEncoderMaintenance
+VAR
+    ownerResult, sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_DISPATCH' $true)
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS' $true)
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE' $true)
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_QUARANTINE' $false)
+END_FUNCTION
+
+FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
+VAR
+    ownerResult, sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_DISPATCH' $true)
+END_FUNCTION
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
+VAR
+    ownerResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_QUARANTINE' $false)
+$(& $newLegacyCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_QUARANTINE' $false)
+END_FUNCTION
+"@
+
+    $baseline = Assert-LasalAxisOwnershipPublishCallerInventory `
+        -TcpText $legacyTcp `
+        -ControlServiceText $legacyControl `
+        -DiagnosticsText $legacyDiagnostics `
+        -Owner "$Owner legacy synthetic positive"
+    $negativeCount =
+        Invoke-LasalAxisOwnershipPublishCallerInventoryVerifierSelfTest `
+            -TcpText $legacyTcp `
+            -ControlServiceText $legacyControl `
+            -DiagnosticsText $legacyDiagnostics `
+            -Owner "$Owner legacy synthetic"
+    return [pscustomobject]@{
+        Baseline = $baseline
+        NegativeCount = $negativeCount
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishCallerExactPattern {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [int]$ExpectedCount,
+        [string]$Owner,
+        [string]$Description
+    )
+
+    $count = [regex]::Matches(
+        (Get-LasalScanText $Text),
+        $Pattern,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [Text.RegularExpressions.RegexOptions]::Singleline -bor
+        [Text.RegularExpressions.RegexOptions]::Multiline).Count
+    if ($count -ne $ExpectedCount) {
+        throw (
+            "$Owner $Description count is $count, expected $ExpectedCount.")
+    }
+}
+
+function Get-LasalAxisOwnershipPublishImmediateIfBranch {
+    param(
+        [string]$ConsumerWindow,
+        [string]$ConditionPattern,
+        [string]$Owner
+    )
+
+    $scan = Get-LasalScanText $ConsumerWindow
+    $start = [regex]::Match(
+        $scan,
+        ('\A\s*if\s+(?<Condition>.*?)\s+then\b'),
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $start.Success) {
+        throw "$Owner must check Result in the immediate next executable IF."
+    }
+    if ($start.Groups['Condition'].Value -notmatch
+        ('(?is)\A\s*(?:' + $ConditionPattern + ')\s*\z')) {
+        throw (
+            "$Owner immediate Result condition is not the required exact domain.")
+    }
+
+    $depth = 0
+    $endIndex = -1
+    foreach ($token in [regex]::Matches(
+            $scan.Substring($start.Index),
+            '(?i)\bif\b|\bend_if\s*;')) {
+        if ($token.Value -match '(?i)^if$') {
+            $depth += 1
+        }
+        else {
+            $depth -= 1
+            if ($depth -eq 0) {
+                $endIndex = $start.Index + $token.Index + $token.Length
+                break
+            }
+        }
+    }
+    if ($endIndex -lt 0) {
+        throw "$Owner immediate Result IF is unbalanced."
+    }
+    $block = $ConsumerWindow.Substring(
+        $start.Index,
+        $endIndex - $start.Index)
+    return [pscustomobject]@{
+        Block = $block
+        ThenArm = Get-LasalFirstThenArm $block
+    }
+}
+
+function Get-LasalAxisOwnershipPublishOuterElseArm {
+    param(
+        [string]$IfBlock,
+        [string]$Owner
+    )
+
+    $scan = Get-LasalScanText $IfBlock
+    $ifDepth = 0
+    $caseDepth = 0
+    $elseEnd = -1
+    $endStart = -1
+    foreach ($token in [regex]::Matches(
+            $scan,
+            ('(?i)\belsif\b|\belse\b|\bend_if\s*;|' +
+             '\bend_case\s*;|\bif\b|\bcase\b'))) {
+        if ($token.Value -match '(?i)^if$') {
+            $ifDepth += 1
+            continue
+        }
+        if ($token.Value -match '(?i)^end_if') {
+            if (($ifDepth -eq 1) -and ($caseDepth -eq 0)) {
+                $endStart = $token.Index
+                break
+            }
+            $ifDepth -= 1
+            continue
+        }
+        if ($token.Value -match '(?i)^case$') {
+            $caseDepth += 1
+            continue
+        }
+        if ($token.Value -match '(?i)^end_case') {
+            $caseDepth -= 1
+            continue
+        }
+        if (($ifDepth -eq 1) -and ($caseDepth -eq 0)) {
+            if ($token.Value -match '(?i)^elsif$') {
+                throw "$Owner must not encode the exact failure arm as ELSIF."
+            }
+            if ($elseEnd -ge 0) {
+                throw "$Owner has more than one outer ELSE token."
+            }
+            $elseEnd = $token.Index + $token.Length
+        }
+    }
+    if (($elseEnd -lt 0) -or ($endStart -le $elseEnd)) {
+        throw "$Owner exact success-domain IF must have one failure ELSE arm."
+    }
+    return $IfBlock.Substring($elseEnd, $endStart - $elseEnd)
+}
+
+function Get-LasalAxisOwnershipPublishAllowedDomainFailureArm {
+    param(
+        [string]$ConsumerWindow,
+        [string]$ResultName,
+        [string]$Owner
+    )
+
+    $result = [regex]::Escape($ResultName)
+    $failureCondition = (
+        '(?:' +
+        '\(\s*' + $result + '\s*<>\s*0\s*\)\s*&\s*' +
+        '\(\s*' + $result + '\s*<>\s*1\s*\)|' +
+        '\(\s*' + $result + '\s*<>\s*1\s*\)\s*&\s*' +
+        '\(\s*' + $result + '\s*<>\s*0\s*\)' +
+        ')')
+    $successCondition = (
+        '(?:' +
+        '\(\s*' + $result + '\s*=\s*0\s*\)\s*\|\s*' +
+        '\(\s*' + $result + '\s*=\s*1\s*\)|' +
+        '\(\s*' + $result + '\s*=\s*1\s*\)\s*\|\s*' +
+        '\(\s*' + $result + '\s*=\s*0\s*\)' +
+        ')')
+    $scan = Get-LasalScanText $ConsumerWindow
+    $start = [regex]::Match(
+        $scan,
+        '\A\s*if\s+(?<Condition>.*?)\s+then\b',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $start.Success) {
+        throw "$Owner must consume the preemption Result immediately."
+    }
+    $condition = $start.Groups['Condition'].Value
+    $failureForm = $condition -match
+        ('(?is)\A\s*(?:' + $failureCondition + ')\s*\z')
+    $successForm = $condition -match
+        ('(?is)\A\s*(?:' + $successCondition + ')\s*\z')
+    if ($failureForm -eq $successForm) {
+        throw (
+            "$Owner must encode exact preemption success domain {0,1} once.")
+    }
+    $selectedCondition = if ($failureForm) {
+        $failureCondition
+    }
+    else {
+        $successCondition
+    }
+    $branch = Get-LasalAxisOwnershipPublishImmediateIfBranch `
+        -ConsumerWindow $ConsumerWindow `
+        -ConditionPattern $selectedCondition `
+        -Owner $Owner
+    $failureArm = if ($failureForm) {
+        $branch.ThenArm
+    }
+    else {
+        Get-LasalAxisOwnershipPublishOuterElseArm `
+            -IfBlock $branch.Block `
+            -Owner $Owner
+    }
+    return [pscustomobject]@{
+        Block = $branch.Block
+        FailureArm = $failureArm
+        SuccessForm = $successForm
+        SuccessArm = if ($successForm) { $branch.ThenArm } else { '' }
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishDiagnosticsProviderGuard {
+    param(
+        [string]$MethodBlock,
+        [int]$CallStartIndex,
+        [ValidateSet('Encoder', 'Ds402')]
+        [string]$Kind,
+        [string]$Owner
+    )
+
+    $methodScan = Get-LasalScanText $MethodBlock
+    $providerBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $MethodBlock `
+        -ConditionPattern '(?s:.*?)\s+then' | Where-Object {
+            $blockScan = Get-LasalScanText $_
+            $blockIndex = $methodScan.IndexOf(
+                $blockScan,
+                [StringComparison]::OrdinalIgnoreCase)
+            $header = [regex]::Match(
+                $blockScan,
+                '(?is)\A\s*if\s+(?<Condition>.*?)\s+then')
+            ($blockIndex -ge 0) -and
+            ($blockIndex -lt $CallStartIndex) -and
+            (($blockIndex + $blockScan.Length) -gt $CallStartIndex) -and
+            ($header.Groups['Condition'].Value -match
+                ('(?i)IsClientConnected\s*\(\s*' +
+                 '#AxisOwnership\s*\)'))
+        } | Sort-Object Length)
+    if ($providerBlocks.Count -lt 1) {
+        throw "$Owner must be enclosed by an AxisOwnership provider guard."
+    }
+    $providerBlock = $providerBlocks[0]
+    $providerScan = Get-LasalScanText $providerBlock
+    $providerIndex = $methodScan.IndexOf(
+        $providerScan,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($providerIndex -lt 0) {
+        throw "$Owner provider-guard offset could not be resolved."
+    }
+    $providerPrefix = $methodScan.Substring(0, $providerIndex)
+    if ($providerPrefix -notmatch
+        '(?is)ownerResult\s*:=\s*-1\s*;\s*\z') {
+        throw "$Owner provider guard must be immediately preceded by -1 default."
+    }
+
+    $providerHeader = [regex]::Match(
+        $providerScan,
+        '(?is)\A\s*if\s+(?<Condition>.*?)\s+then')
+    $condition = $providerHeader.Groups['Condition'].Value
+    if ($Kind -eq 'Encoder') {
+        $encoderCondition = (
+            'IsClientConnected\s*\(\s*#AxisOwnership\s*\)\s*&\s*' +
+            '\(\s*admissionToken\s*<>\s*0\s*\)\s*&\s*' +
+            '\(\s*ownerGeneration\s*<>\s*0\s*\)')
+        if ($condition -notmatch
+            ('(?is)\A\s*(?:' + $encoderCondition + ')\s*\z')) {
+            throw "$Owner encoder provider/tuple guard condition drifted."
+        }
+    }
+    elseif ($condition -notmatch
+        '(?is)\A\s*IsClientConnected\s*\(\s*#AxisOwnership\s*\)\s*\z') {
+        throw "$Owner DS402 provider guard condition drifted."
+    }
+
+    $providerElse = Get-LasalAxisOwnershipPublishOuterElseArm `
+        -IfBlock $providerBlock `
+        -Owner "$Owner provider guard"
+    $providerElseScan = Get-LasalScanText $providerElse
+    $expectedElse = if ($Kind -eq 'Encoder') {
+        ('(?is)\A\s*' +
+         'EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*' +
+         'ownerResult\s*;\s*' +
+         'EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;\s*\z')
+    }
+    else {
+        ('(?is)\A\s*' +
+         'Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*ownerResult\s*;\s*' +
+         'Ds402HomeState\s*\[\s*118\s*\](?:\s*\$UDINT)?\s*:=\s*' +
+         'LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;\s*' +
+         'Ds402HomeState\s*\[\s*92\s*\]\s*:=\s*101\s*;\s*' +
+         'RETURN\s*;\s*\z')
+    }
+    if ($providerElseScan -notmatch $expectedElse) {
+        throw "$Owner provider-disconnected evidence arm drifted."
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishTcpFailureBranch {
+    param(
+        [string]$ConsumerWindow,
+        [string]$ResultName,
+        [string]$Owner,
+        [switch]$IsCyWork
+    )
+
+    $resultPattern = [regex]::Escape($ResultName)
+    $branch = Get-LasalAxisOwnershipPublishImmediateIfBranch `
+        -ConsumerWindow $ConsumerWindow `
+        -ConditionPattern ('\(?\s*' + $resultPattern +
+            '\s*<>\s*0\s*\)?') `
+        -Owner $Owner
+    $stateStatement = if ($IsCyWork) {
+        'state\s*:=\s*READY\s*;\s*'
+    }
+    else {
+        ''
+    }
+    $exactBranchPattern = (
+        '(?is)\A\s*if\s+\(?\s*' + $resultPattern +
+        '\s*<>\s*0\s*\)?\s+then\s*' +
+        'ActiveRequest\s*\.\s*Reserved\s*:=\s*2\s*;\s*' +
+        'ActiveRequestValid\s*:=\s*TRUE\s*;\s*' +
+        $stateStatement + 'RETURN\s*;\s*end_if\s*;\s*\z')
+    if ((Get-LasalScanText $branch.Block) -notmatch $exactBranchPattern) {
+        $expectedSuffix = if ($IsCyWork) {
+            'Reserved:=2; ActiveRequestValid:=TRUE; state:=READY; RETURN'
+        }
+        else {
+            'Reserved:=2; ActiveRequestValid:=TRUE; RETURN'
+        }
+        throw (
+            "$Owner failure branch must be the exact two-phase arm: " +
+            $expectedSuffix + '.')
+    }
+}
+function Assert-LasalAxisOwnershipPublishTcpFinalContract {
+    param(
+        [string]$TcpText,
+        [string]$Owner
+    )
+
+    $cyWork = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -MethodName 'CyWork' `
+        -Owner $Owner
+    $endVars = [regex]::Matches($cyWork, '(?im)^\s*END_VAR\s*$')
+    if ($endVars.Count -lt 1) {
+        throw "$Owner CyWork has no declaration terminator."
+    }
+    $cyBody = $cyWork.Substring(
+        $endVars[-1].Index + $endVars[-1].Length)
+    $phase2 = Get-LasalAxisOwnershipPublishImmediateIfBranch `
+        -ConsumerWindow $cyBody `
+        -ConditionPattern (
+            '\(?\s*ActiveRequest\s*\.\s*Reserved\s*=\s*2\s*\)?') `
+        -Owner "$Owner CyWork phase-2 evidence commit"
+    $phase2Arm = $phase2.ThenArm
+    $phase2Required = [ordered]@{
+        'active request preservation' =
+            'ActiveRequestValid\s*:=\s*TRUE\s*;'
+        'ingress block evidence' = 'IngressBlocked\s*:=\s*TRUE\s*;'
+        'pending-fault evidence' =
+            'IngressFaultPending\s*:=\s*FALSE\s*;'
+        'close-required evidence' =
+            'IngressFaultCloseRequired\s*:=\s*TRUE\s*;'
+        'failure-origin socket' =
+            ('IngressFaultSocket\s*:=\s*' +
+             'ActiveRequest\s*\.\s*Socket\s*;')
+        'failure-origin epoch' =
+            ('IngressFaultEpoch\s*:=\s*' +
+             'ActiveRequest\s*\.\s*SessionEpoch\s*;')
+        'deterministic internal error' =
+            'IngressFaultError\s*:=\s*-8\s*;'
+        'phase-3 close claim' =
+            'ActiveRequest\s*\.\s*Reserved\s*:=\s*3\s*;'
+    }
+    foreach ($required in $phase2Required.GetEnumerator()) {
+        Assert-LasalAxisOwnershipPublishCallerExactPattern `
+            -Text $phase2Arm `
+            -Pattern $required.Value `
+            -ExpectedCount 1 `
+            -Owner "$Owner CyWork phase-2 evidence commit" `
+            -Description $required.Key
+    }
+    foreach ($assignment in @(
+            @{ Name = 'ActiveRequest.Reserved assignment inventory'; Pattern = 'ActiveRequest\s*\.\s*Reserved\s*:=' },
+            @{ Name = 'ActiveRequestValid assignment inventory'; Pattern = 'ActiveRequestValid\s*:=' },
+            @{ Name = 'IngressBlocked assignment inventory'; Pattern = 'IngressBlocked\s*:=' },
+            @{ Name = 'IngressFaultPending assignment inventory'; Pattern = 'IngressFaultPending\s*:=' },
+            @{ Name = 'IngressFaultCloseRequired assignment inventory'; Pattern = 'IngressFaultCloseRequired\s*:=' },
+            @{ Name = 'IngressFaultSocket assignment inventory'; Pattern = 'IngressFaultSocket\s*:=' },
+            @{ Name = 'IngressFaultEpoch assignment inventory'; Pattern = 'IngressFaultEpoch\s*:=' },
+            @{ Name = 'IngressFaultError assignment inventory'; Pattern = 'IngressFaultError\s*:=' },
+            @{ Name = 'PendingClosedSessionEpoch assignment inventory'; Pattern = 'PendingClosedSessionEpoch\s*:=' })) {
+        Assert-LasalAxisOwnershipPublishCallerExactPattern `
+            -Text $phase2Arm `
+            -Pattern $assignment.Pattern `
+            -ExpectedCount 1 `
+            -Owner "$Owner CyWork phase-2 evidence commit" `
+            -Description $assignment.Name
+    }
+    $pendingEpochBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $phase2Arm `
+        -ConditionPattern (
+            '\(?\s*PendingClosedSessionEpoch\s*=\s*0\s*\)?\s+then'))
+    if (($pendingEpochBlocks.Count -ne 1) -or
+        ((Get-LasalFirstThenArm $pendingEpochBlocks[0]) -notmatch
+            ('(?is)PendingClosedSessionEpoch\s*:=\s*' +
+             'ActiveRequest\s*\.\s*SessionEpoch\s*;'))) {
+        throw (
+            "$Owner CyWork phase-2 evidence commit must preserve the exact " +
+            'request epoch only when the close epoch is zero.')
+    }
+    $snapshotMatches = [regex]::Matches(
+        (Get-LasalScanText $phase2Arm),
+        ('(?i)(?<![A-Za-z0-9_])' +
+         '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:=\s*CurrentSock\s*;'))
+    if ($snapshotMatches.Count -ne 1) {
+        throw (
+            "$Owner CyWork close-target snapshot count is " +
+            "$($snapshotMatches.Count), expected one.")
+    }
+    $snapshotName = $snapshotMatches[0].Groups['Name'].Value
+    Assert-LasalExactDeclaredType `
+        -Text $cyWork `
+        -Name $snapshotName `
+        -ExpectedType 'DINT' `
+        -Owner "$Owner CyWork close-target snapshot"
+    $closeBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $phase2Arm `
+        -ConditionPattern (
+            '\(?\s*' + [regex]::Escape($snapshotName) +
+            '\s*<>\s*0\s*\)?\s+then') | Where-Object {
+            $_ -match '(?i)_TCPIPServerInterface\s*::\s*SetSocketParameter'
+        })
+    if ($closeBlocks.Count -ne 1) {
+        throw (
+            "$Owner CyWork guarded close block count is " +
+            "$($closeBlocks.Count), expected one.")
+    }
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $closeBlocks[0] `
+        -Pattern ('_TCPIPServerInterface\s*::\s*SetSocketParameter\s*\(' +
+            '.*?dSock\s*:=\s*' + [regex]::Escape($snapshotName) +
+            '\s*,.*?Cmd\s*:=\s*100\s*,') `
+        -ExpectedCount 1 `
+        -Owner "$Owner CyWork phase-2 evidence commit" `
+        -Description 'guarded snapshot close'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $phase2Arm `
+        -Pattern '_TCPIPServerInterface\s*::\s*SetSocketParameter\s*\(' `
+        -ExpectedCount 1 `
+        -Owner "$Owner CyWork phase-2 evidence commit" `
+        -Description 'one-shot close side effect'
+
+    $phase2Scan = Get-LasalScanText $phase2Arm
+    $phase3ClaimMatch = [regex]::Match(
+        $phase2Scan,
+        '(?i)ActiveRequest\s*\.\s*Reserved\s*:=\s*3\s*;')
+    if (-not $phase3ClaimMatch.Success) {
+        throw "$Owner CyWork phase-3 claim offset could not be resolved."
+    }
+    $afterPhase3Claim = $phase2Scan.Substring(
+        $phase3ClaimMatch.Index + $phase3ClaimMatch.Length)
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $afterPhase3Claim `
+        -Pattern ('ActiveRequest\s*\.\s*Reserved\s*:=\s*[012]\s*;|' +
+            'ActiveRequestValid\s*:=\s*FALSE\s*;|' +
+            'IngressBlocked\s*:=\s*FALSE\s*;|' +
+            'IngressFaultCloseRequired\s*:=\s*FALSE\s*;|' +
+            'PendingClosedSessionEpoch\s*:=\s*0\s*;|' +
+            'IngressFault(?:Socket|Epoch|Error)\s*:=\s*0\s*;') `
+        -ExpectedCount 0 `
+        -Owner "$Owner CyWork phase-2 evidence commit" `
+        -Description 'post-claim latch/provenance undo'
+    $sequencePatterns = @(
+        'ActiveRequestValid\s*:=\s*TRUE\s*;',
+        'IngressBlocked\s*:=\s*TRUE\s*;',
+        'IngressFaultPending\s*:=\s*FALSE\s*;',
+        'IngressFaultCloseRequired\s*:=\s*TRUE\s*;',
+        'IngressFaultSocket\s*:=\s*ActiveRequest\s*\.\s*Socket\s*;',
+        'IngressFaultEpoch\s*:=\s*ActiveRequest\s*\.\s*SessionEpoch\s*;',
+        'IngressFaultError\s*:=\s*-8\s*;',
+        'PendingClosedSessionEpoch\s*:=\s*ActiveRequest\s*\.\s*SessionEpoch\s*;',
+        ([regex]::Escape($snapshotName) + '\s*:=\s*CurrentSock\s*;'),
+        'ActiveRequest\s*\.\s*Reserved\s*:=\s*3\s*;',
+        '_TCPIPServerInterface\s*::\s*SetSocketParameter\s*\('
+    )
+    $previousIndex = -1
+    foreach ($sequencePattern in $sequencePatterns) {
+        $sequenceMatch = [regex]::Match(
+            $phase2Scan,
+            $sequencePattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline)
+        if ((-not $sequenceMatch.Success) -or
+            ($sequenceMatch.Index -le $previousIndex)) {
+            throw (
+                "$Owner CyWork evidence/claim/close ordering drifted at " +
+                $sequencePattern + '.')
+        }
+        $previousIndex = $sequenceMatch.Index
+    }
+
+    $allCyIfBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $cyWork `
+        -ConditionPattern '(?s:(?<Condition>.*?))\s+then')
+    $sessionCloseBlocks = @($allCyIfBlocks | Where-Object {
+            $header = [regex]::Match(
+                (Get-LasalScanText $_),
+                '(?is)\A\s*if\s+(?<Condition>.*?)\s+then')
+            $condition = $header.Groups['Condition'].Value
+            ($condition -match
+                '(?i)ActiveRequest\s*\.\s*Reserved\s*<\s*2') -and
+            ($condition -match
+                '(?i)PendingClosedSessionEpoch\s*<>\s*0') -and
+            ($_ -match '(?i)NotifySessionClosed\s*\(')
+        })
+    if ($sessionCloseBlocks.Count -ne 1) {
+        throw (
+            "$Owner CyWork session-close block guarded by Reserved < 2 " +
+            "count is $($sessionCloseBlocks.Count), expected one.")
+    }
+
+    $cyScan = Get-LasalScanText $cyWork
+    $phase2Index = $cyScan.IndexOf(
+        (Get-LasalScanText $phase2.Block),
+        [StringComparison]::OrdinalIgnoreCase)
+    $sessionCloseIndex = $cyScan.IndexOf(
+        (Get-LasalScanText $sessionCloseBlocks[0]),
+        [StringComparison]::OrdinalIgnoreCase)
+    $pumpPatterns = @(
+        'ControlCommands\s*\.\s*ProcessAxisZeroHome\s*\(\s*\)\s*;',
+        'ControlCommands\s*\.\s*ProcessAxisOwnership\s*\(\s*\)\s*;',
+        'Diagnostics\s*\.\s*ProcessOperations\s*\(\s*\)\s*;'
+    )
+    $pumpIndices = @()
+    foreach ($pumpPattern in $pumpPatterns) {
+        $pumpMatches = [regex]::Matches(
+            $cyScan,
+            $pumpPattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($pumpMatches.Count -ne 1) {
+            throw (
+                "$Owner CyWork background pump '$pumpPattern' count is " +
+                "$($pumpMatches.Count), expected one.")
+        }
+        $pumpIndices += $pumpMatches[0].Index
+    }
+    if (($phase2Index -lt 0) -or
+        ($sessionCloseIndex -le $phase2Index) -or
+        ($pumpIndices[0] -le $sessionCloseIndex) -or
+        ($pumpIndices[1] -le $pumpIndices[0]) -or
+        ($pumpIndices[2] -le $pumpIndices[1])) {
+        throw (
+            "$Owner CyWork phase/session-close/background-pump order drifted.")
+    }
+
+    $finalLatchBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $cyWork `
+        -ConditionPattern (
+            '\(?\s*ActiveRequest\s*\.\s*Reserved\s*>=\s*2\s*\)?\s+then'))
+    if ($finalLatchBlocks.Count -ne 1) {
+        throw (
+            "$Owner CyWork final phase-2/3 latch count is " +
+            "$($finalLatchBlocks.Count), expected one.")
+    }
+    $finalLatchScan = Get-LasalScanText $finalLatchBlocks[0]
+    if ($finalLatchScan -notmatch
+        ('(?is)\A\s*if\s+' +
+         '\(?\s*ActiveRequest\s*\.\s*Reserved\s*>=\s*2\s*\)?' +
+         '\s+then\s*state\s*:=\s*READY\s*;\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*\z')) {
+        throw (
+            "$Owner CyWork final latch must contain only state READY and RETURN.")
+    }
+    $finalLatchIndex = $cyScan.IndexOf(
+        $finalLatchScan,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($finalLatchIndex -lt 0) {
+        throw "$Owner CyWork final latch offset could not be resolved."
+    }
+    $afterFinalLatch = $cyScan.Substring(
+        $finalLatchIndex + $finalLatchScan.Length)
+    $dequeueMatch = [regex]::Match(
+        $afterFinalLatch,
+        ('(?i)RequestQueue\s*\[\s*QueueReadIndex|' +
+         'ActiveRequestValid\s*:=\s*FALSE\s*;|' +
+         '(?<![A-Za-z0-9_])MsgPaser\s*\('))
+    if (($finalLatchIndex -le $pumpIndices[2]) -or
+        (-not $dequeueMatch.Success)) {
+        throw (
+            "$Owner CyWork final latch must dominate dequeue and dispatch.")
+    }
+
+    $response = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -MethodName 'Response' `
+        -Owner $Owner
+    $responseEndVars = [regex]::Matches(
+        $response,
+        '(?im)^\s*END_VAR\s*$')
+    if ($responseEndVars.Count -lt 1) {
+        throw "$Owner Response has no declaration terminator."
+    }
+    $responseBody = $response.Substring(
+        $responseEndVars[-1].Index + $responseEndVars[-1].Length)
+    $responseGuard = Get-LasalAxisOwnershipPublishImmediateIfBranch `
+        -ConsumerWindow $responseBody `
+        -ConditionPattern (
+            '\(?\s*ActiveRequest\s*\.\s*Reserved\s*>=\s*2\s*\)?') `
+        -Owner "$Owner Response restart-only latch"
+    if ((Get-LasalScanText $responseGuard.Block) -notmatch
+        ('(?is)\A\s*if\s+' +
+         '\(?\s*ActiveRequest\s*\.\s*Reserved\s*>=\s*2\s*\)?' +
+         '\s+then\s*RETURN\s*;\s*end_if\s*;\s*\z')) {
+        throw "$Owner Response latch must be an exact RETURN-only guard."
+    }
+
+    $conn = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -MethodName 'ConnSocketInfo' `
+        -Owner $Owner
+    $connScan = Get-LasalScanText $conn
+    $connectMatch = [regex]::Match(
+        $connScan,
+        ('(?is)TCP_SVR_SOCK_INFO_CONNECT\s*:\s*' +
+         '(?<Body>.*?)TCP_SVR_SOCK_INFO_DISCONNECT\s*:'))
+    $disconnectMatch = [regex]::Match(
+        $connScan,
+        ('(?is)TCP_SVR_SOCK_INFO_DISCONNECT\s*:\s*' +
+         '(?<Body>.*?)end_case\s*;'))
+    if ((-not $connectMatch.Success) -or (-not $disconnectMatch.Success)) {
+        throw "$Owner ConnSocketInfo connect/disconnect CASE arms drifted."
+    }
+    $connectBody = $connectMatch.Groups['Body'].Value
+    $connectLatchBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $connectBody `
+        -ConditionPattern (
+            '\(?\s*ActiveRequest\s*\.\s*Reserved\s*>=\s*2\s*\)?\s+then') |
+        Where-Object {
+            $_ -match '(?i)_TCPIPServerInterface\s*::\s*SetSocketParameter'
+        })
+    if ($connectLatchBlocks.Count -ne 1) {
+        throw (
+            "$Owner ConnSocketInfo candidate latch count is " +
+            "$($connectLatchBlocks.Count), expected one.")
+    }
+    $connectLatch = $connectLatchBlocks[0]
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $connectLatch `
+        -Pattern ('_TCPIPServerInterface\s*::\s*SetSocketParameter\s*\(' +
+            '.*?dSock\s*:=\s*dSock\s*,.*?Cmd\s*:=\s*100\s*,') `
+        -ExpectedCount 1 `
+        -Owner "$Owner ConnSocketInfo candidate latch" `
+        -Description 'candidate close'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $connectLatch `
+        -Pattern ('takeCandidate\s*:=\s*TRUE\s*;|' +
+            'takeover\s*:=\s*TRUE\s*;|CurrentSock\s*:=\s*dSock\s*;') `
+        -ExpectedCount 0 `
+        -Owner "$Owner ConnSocketInfo candidate latch" `
+        -Description 'candidate takeover'
+    if ((Get-LasalScanText (Get-LasalFirstThenArm $connectLatch)) -notmatch
+        '(?is)RETURN\s*;\s*\z') {
+        throw "$Owner ConnSocketInfo candidate latch must return after close."
+    }
+    $connectScan = Get-LasalScanText $connectBody
+    $connectLatchIndex = $connectScan.IndexOf(
+        (Get-LasalScanText $connectLatch),
+        [StringComparison]::OrdinalIgnoreCase)
+    $connectedCountMatches = [regex]::Matches(
+        $connectScan,
+        '(?i)ConnectedClients\s*\+=\s*1\s*;')
+    if ($connectedCountMatches.Count -ne 1) {
+        throw (
+            "$Owner ConnSocketInfo connect accounting count is " +
+            "$($connectedCountMatches.Count), expected one.")
+    }
+    $connectedCountIndex = $connectedCountMatches[0].Index
+    $connectLatchEnd = $connectLatchIndex +
+        (Get-LasalScanText $connectLatch).Length
+    if ($connectLatchIndex -le $connectedCountIndex) {
+        throw (
+            "$Owner ConnSocketInfo candidate latch must follow accounting " +
+            'and dominate takeover state.')
+    }
+    foreach ($dominated in @(
+            @{ Name = 'current socket adoption'; Pattern = 'CurrentSock\s*:=\s*dSock\s*;' },
+            @{ Name = 'takeover decision'; Pattern = 'takeover\s*:=\s*TRUE\s*;' },
+            @{ Name = 'candidate decision'; Pattern = 'takeCandidate\s*:=\s*TRUE\s*;' },
+            @{ Name = 'peer lookup'; Pattern = 'OS_CILGET\s*\(|OS_TCP_USER_GETPEERIP\s*\(' })) {
+        $dominatedMatches = [regex]::Matches(
+            $connectScan,
+            $dominated.Pattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($dominatedMatches.Count -lt 1) {
+            throw (
+                "$Owner ConnSocketInfo $($dominated.Name) is absent from " +
+                'the connect path.')
+        }
+        foreach ($dominatedMatch in $dominatedMatches) {
+            if ($dominatedMatch.Index -lt $connectLatchEnd) {
+                throw (
+                    "$Owner ConnSocketInfo candidate latch does not dominate " +
+                    "$($dominated.Name).")
+            }
+        }
+    }
+
+    $disconnectBody = $disconnectMatch.Groups['Body'].Value
+    $disconnectGuardBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $disconnectBody `
+        -ConditionPattern (
+            '\(?\s*ActiveRequest\s*\.\s*Reserved\s*<\s*2\s*\)?\s+then'))
+    if ($disconnectGuardBlocks.Count -ne 2) {
+        throw (
+            "$Owner ConnSocketInfo guarded disconnect clear block count is " +
+            "$($disconnectGuardBlocks.Count), expected two.")
+    }
+    foreach ($guardBlock in $disconnectGuardBlocks) {
+        $guardArm = Get-LasalFirstThenArm $guardBlock
+        foreach ($spec in @(
+                @{ Name = 'IngressBlocked clear'; Pattern = 'IngressBlocked\s*:=\s*FALSE\s*;' },
+                @{ Name = 'IngressFaultPending clear'; Pattern = 'IngressFaultPending\s*:=\s*FALSE\s*;' },
+                @{ Name = 'IngressFaultCloseRequired clear'; Pattern = 'IngressFaultCloseRequired\s*:=\s*FALSE\s*;' })) {
+            Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                -Text $guardArm `
+                -Pattern $spec.Pattern `
+                -ExpectedCount 1 `
+                -Owner "$Owner ConnSocketInfo disconnect latch" `
+                -Description $spec.Name
+        }
+    }
+    foreach ($spec in @(
+            @{ Name = 'IngressBlocked clear'; Pattern = 'IngressBlocked\s*:=\s*FALSE\s*;' },
+            @{ Name = 'IngressFaultPending clear'; Pattern = 'IngressFaultPending\s*:=\s*FALSE\s*;' },
+            @{ Name = 'IngressFaultCloseRequired clear'; Pattern = 'IngressFaultCloseRequired\s*:=\s*FALSE\s*;' })) {
+        Assert-LasalAxisOwnershipPublishCallerExactPattern `
+            -Text $disconnectBody `
+            -Pattern $spec.Pattern `
+            -ExpectedCount 2 `
+            -Owner "$Owner ConnSocketInfo disconnect latch" `
+            -Description $spec.Name
+    }
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $disconnectBody `
+        -Pattern 'PendingClosedSessionEpoch\s*:=\s*0\s*;' `
+        -ExpectedCount 0 `
+        -Owner "$Owner ConnSocketInfo disconnect latch" `
+        -Description 'restart-only close epoch clear'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $disconnectBody `
+        -Pattern ('ActiveRequest\s*\.\s*Reserved\s*:=|' +
+            'ActiveRequestValid\s*:=|' +
+            '_mem(?:set|cpy)\s*\(.*?(?:dest|ptr1)\s*:=\s*' +
+            '#?ActiveRequest\b|' +
+            'ActiveRequest\s*\.\s*(?:Socket|SessionEpoch|Sequence|' +
+            'CommandId|Reference|PayloadLength)\s*:=|' +
+            'IngressFault(?:Socket|Epoch|Error)\s*:=') `
+        -ExpectedCount 0 `
+        -Owner "$Owner ConnSocketInfo disconnect latch" `
+        -Description 'restart-only request/provenance clear'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $disconnectBody `
+        -Pattern ('ActiveRequest\s*\.\s*[A-Za-z_][A-Za-z0-9_]*' +
+            '(?:\s*\[[^\]]+\])?(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+            'ActiveRequestValid\s*:=|' +
+            '_mem(?:set|cpy)\s*\(.*?(?:dest|ptr1)\s*:=\s*' +
+            '#?ActiveRequest\b') `
+        -ExpectedCount 0 `
+        -Owner "$Owner ConnSocketInfo disconnect latch" `
+        -Description 'phase-2 ActiveRequest mutation'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $disconnectBody `
+        -Pattern '(?<![A-Za-z0-9_])Ingress[A-Za-z0-9_]*\s*:=' `
+        -ExpectedCount 6 `
+        -Owner "$Owner ConnSocketInfo disconnect latch" `
+        -Description 'guarded ingress mutation inventory'
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $disconnectBody `
+        -Pattern ('RequestQueue\s*\[|(?<![A-Za-z0-9_])QueueReadIndex' +
+            '(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])MsgPaser\s*\(|' +
+            'ControlCommands\s*\.\s*HandleRequest\s*\(') `
+        -ExpectedCount 0 `
+        -Owner "$Owner ConnSocketInfo disconnect latch" `
+        -Description 'disconnect dequeue/dispatch'
+    $disconnectCountMatches = [regex]::Matches(
+        (Get-LasalScanText $disconnectBody),
+        '(?i)ConnectedClients\s*-=\s*1\s*;')
+    if ($disconnectCountMatches.Count -ne 1) {
+        throw (
+            "$Owner ConnSocketInfo disconnect accounting count is " +
+            "$($disconnectCountMatches.Count), expected one.")
+    }
+    $disconnectCountIndex = $disconnectCountMatches[0].Index
+    $firstDisconnectGuardIndex = (Get-LasalScanText $disconnectBody).IndexOf(
+        (Get-LasalScanText $disconnectGuardBlocks[0]),
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($firstDisconnectGuardIndex -le $disconnectCountIndex) {
+        throw (
+            "$Owner ConnSocketInfo disconnect accounting must precede latch guards.")
+    }
+}
+
+function Assert-LasalAxisOwnershipPublishCallerContract {
+    param(
+        [string]$TcpText,
+        [string]$ControlServiceText,
+        [string]$DiagnosticsText,
+        [string]$Owner
+    )
+
+    $blocker = "$Owner axis ownership publish caller contract blocker:"
+    $sources = [ordered]@{
+        Tcp = @{ Text = $TcpText; ClassName = 'TCPMotionInterface' }
+        Control = @{
+            Text = $ControlServiceText
+            ClassName = 'LMCControlCommandService'
+        }
+        Diagnostics = @{
+            Text = $DiagnosticsText
+            ClassName = 'LMCDiagnosticsService'
+        }
+    }
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $DiagnosticsText `
+        -Pattern ('(?im)^\s*#define\s+' +
+            'LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s+' +
+            '0x50424631\s*$') `
+        -ExpectedCount 1 `
+        -Owner $blocker `
+        -Description 'DS402 publish-failure PBF1 magic'
+
+    $msgParser = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -MethodName 'MsgPaser' `
+        -Owner $blocker
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $msgParser `
+        -Pattern ('(?<![A-Za-z0-9_])control(?:Rollback|Publish)Result' +
+            '(?![A-Za-z0-9_])') `
+        -ExpectedCount 0 `
+        -Owner $blocker `
+        -Description 'TCP duplicate control rollback/publish Result symbol'
+    $msgParserScan = Get-LasalScanText $msgParser
+    $controlHandleRequestMatches = [regex]::Matches(
+        $msgParserScan,
+        ('(?is)controlResponseSize\s*:=\s*' +
+         'ControlCommands\s*\.\s*HandleRequest\s*\(.*?\)\s*;'))
+    if ($controlHandleRequestMatches.Count -ne 1) {
+        throw (
+            "$blocker TCP MsgPaser ControlCommands.HandleRequest count is " +
+            "$($controlHandleRequestMatches.Count), expected one.")
+    }
+    $controlHandleRequestEnd = $controlHandleRequestMatches[0].Index +
+        $controlHandleRequestMatches[0].Length
+    $controlSendMatch = [regex]::Match(
+        $msgParserScan.Substring($controlHandleRequestEnd),
+        '(?i)(?<![A-Za-z0-9_])SendData\s*\(')
+    if (-not $controlSendMatch.Success) {
+        throw (
+            "$blocker TCP MsgPaser has no response SendData after " +
+            'ControlCommands.HandleRequest.')
+    }
+    $controlAuthorityScope = $msgParserScan.Substring(
+        $controlHandleRequestEnd,
+        $controlSendMatch.Index)
+    $controlFinalizeMatch = [regex]::Match(
+        $controlAuthorityScope,
+        ('(?is)if\s+controlResponseSize\s*=\s*' +
+         'LMC_OWNER_SAFETY_DRAIN_PENDING\s+then' +
+         '(?<Scope>.*)'))
+    if (-not $controlFinalizeMatch.Success) {
+        throw (
+            "$blocker TCP MsgPaser control response-finalization scope " +
+            'could not be resolved.')
+    }
+    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+        -Text $controlAuthorityScope `
+        -Pattern ('ControlCommands\s*\.\s*' +
+            '(?:RollbackAxisOwnership|PublishAxisOwnership)\s*\(') `
+        -ExpectedCount 0 `
+        -Owner $blocker `
+        -Description 'TCP duplicate control rollback/publish authority'
+    foreach ($phase in @(
+            'LMC_OWNER_SAFETY_PHASE_RETAIN',
+            'LMC_OWNER_SAFETY_PHASE_TERMINAL')) {
+        $phasePattern = (
+            'controlPendingResult\s*:=\s*' +
+            'HandleControlSafetyDrainPending\s*\([^;]*?' +
+            'Phase\s*:=\s*' + $phase + '[^;]*\)\s*;\s*RETURN\s*;')
+        $phaseCount = [regex]::Matches(
+            $controlAuthorityScope,
+            $phasePattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline).Count
+        if ($phaseCount -ne 1) {
+            throw (
+                "$blocker TCP $phase pending helper/RETURN latch count is " +
+                "$phaseCount, expected one.")
+        }
+    }
+    $controlReservedMatch = [regex]::Match(
+        $controlFinalizeMatch.Groups['Scope'].Value,
+        ('(?is)elsif\s+controlReserved\s+then' +
+         '(?<Body>.*?)end_if\s*;\s*' +
+         'if\s+\(?\s*controlResponseSize'))
+    if (-not $controlReservedMatch.Success) {
+        throw (
+            "$blocker TCP MsgPaser controlReserved malformed-adapter " +
+            'scope could not be resolved.')
+    }
+    $controlReservedBody = $controlReservedMatch.Groups['Body'].Value
+    foreach ($classification in @(
+            'controlExactAccepted\s*:=',
+            'controlExactFailure\s*:=')) {
+        Assert-LasalAxisOwnershipPublishCallerExactPattern `
+            -Text $controlReservedBody `
+            -Pattern $classification `
+            -ExpectedCount 1 `
+            -Owner $blocker `
+            -Description 'TCP controlReserved exact classification'
+    }
+    $malformedAdapterBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $controlReservedBody `
+        -ConditionPattern (
+            '\(?\s*controlExactAccepted\s*=\s*FALSE\s*\)?\s*&\s*' +
+            '\(?\s*controlExactFailure\s*=\s*FALSE\s*\)?\s+then'))
+    if ($malformedAdapterBlocks.Count -ne 1) {
+        throw (
+            "$blocker TCP MsgPaser malformed-adapter block count is " +
+            "$($malformedAdapterBlocks.Count), expected one.")
+    }
+    $malformedAdapterArm = Get-LasalScanText (
+        Get-LasalFirstThenArm $malformedAdapterBlocks[0])
+    if ($malformedAdapterArm -notmatch
+        ('(?is)\A\s*if\s+' +
+         '\(?\s*controlExactAccepted\s*=\s*FALSE\s*\)?\s*&\s*' +
+         '\(?\s*controlExactFailure\s*=\s*FALSE\s*\)?\s+then\s*' +
+         '_memset\s*\(\s*dest\s*:=\s*#Sendbuf' +
+         '(?:\s*\[\s*0\s*\])?\s*,\s*usByte\s*:=\s*0\s*,\s*' +
+         'cntr\s*:=\s*24\s*\)\s*;\s*' +
+         'Sendbuf\s*\[\s*0\s*\](?:\s*\$UINT)?\s*:=\s*0\s*;\s*' +
+         'Sendbuf\s*\[\s*2\s*\](?:\s*\$UINT)?\s*:=\s*16\s*;\s*' +
+         'Sendbuf\s*\[\s*8\s*\](?:\s*\$UINT)?\s*:=\s*1\s*;\s*' +
+         'Sendbuf\s*\[\s*12\s*\](?:\s*\$UINT)?\s*:=\s*1\s*;\s*' +
+         'Sendbuf\s*\[\s*14\s*\](?:\s*\$INT)?\s*:=\s*-31000\s*;\s*' +
+         'Sendbuf\s*\[\s*16\s*\](?:\s*\$UDINT)?\s*:=\s*' +
+         'RequestBuf\s*\[\s*12\s*\](?:\s*\$UDINT)?\s*;\s*' +
+         'Sendbuf\s*\[\s*20\s*\](?:\s*\$UDINT)?\s*:=\s*42\s*;\s*' +
+         'controlResponseSize\s*:=\s*24\s*;\s*\z')) {
+        throw (
+            "$blocker TCP MsgPaser malformed adapter is not the exact " +
+            '24-byte internal-failure response.')
+    }
+
+    $handleRequest = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+        -SourceText $ControlServiceText `
+        -ClassName 'LMCControlCommandService' `
+        -MethodName 'HandleRequest' `
+        -Owner $blocker
+    $handleRequestIfBlocks = @(Get-LasalStructuredIfBlocks `
+        -Text $handleRequest `
+        -ConditionPattern '(?s:.*?)\s+then')
+    $safetyRejectedAuthority = @($handleRequestIfBlocks | Where-Object {
+            $arm = Get-LasalFirstThenArm $_
+            ($arm -match
+                '(?i)ownershipSafetyPumpRejected\s*:=\s*TRUE\s*;') -and
+            ($arm -match
+                '(?i)(?<![A-Za-z0-9_])RollbackAxisOwnership\s*\(') -and
+            ($arm -match
+                ('(?is)PublishAxisOwnership\s*\(.*?' +
+                 'ReportKind\s*:=\s*LMC_OWNER_REPORT_QUARANTINE'))
+        } | Sort-Object Length)
+    if ($safetyRejectedAuthority.Count -lt 1) {
+        throw (
+            "$blocker Control HandleRequest does not own the safety-rejected " +
+            'rollback/quarantine authority.')
+    }
+    $ordinaryFinalizeGates = @($handleRequestIfBlocks | Where-Object {
+            $header = [regex]::Match(
+                (Get-LasalScanText $_),
+                '(?is)\A\s*if\s+(?<Condition>.*?)\s+then')
+            ($header.Groups['Condition'].Value -match
+                ('(?is)\A\s*ownershipArmed\s*&\s*' +
+                 '\(\s*ownershipSafetyPumpRejected\s*=\s*FALSE\s*\)' +
+                 '\s*&\s*\(\s*ownershipValidationResult\s*=\s*0\s*\)' +
+                 '\s*\z')) -and
+            ((Get-LasalFirstThenArm $_) -match
+                '(?i)(?<![A-Za-z0-9_])RollbackAxisOwnership\s*\(')
+        })
+    if ($ordinaryFinalizeGates.Count -ne 1) {
+        throw (
+            "$blocker Control HandleRequest ordinary finalizer gate count is " +
+            "$($ordinaryFinalizeGates.Count), expected one.")
+    }
+    $handleRequestScan = Get-LasalScanText $handleRequest
+    $safetyRejectedIndex = $handleRequestScan.IndexOf(
+        (Get-LasalScanText $safetyRejectedAuthority[0]),
+        [StringComparison]::OrdinalIgnoreCase)
+    $ordinaryFinalizeIndex = $handleRequestScan.IndexOf(
+        (Get-LasalScanText $ordinaryFinalizeGates[0]),
+        [StringComparison]::OrdinalIgnoreCase)
+    if (($safetyRejectedIndex -lt 0) -or
+        ($ordinaryFinalizeIndex -le $safetyRejectedIndex)) {
+        throw (
+            "$blocker Control safety-rejected rollback must precede the " +
+            'ordinary finalizer gate.')
+    }
+    $groups = @(
+        @{ Source = 'Tcp'; Method = 'CyWork'; Result = 'cleanupPublishResult'; Qualifier = 'ControlCommands'; Count = 1; Target = @(1); ReportKind = '4' },
+        @{ Source = 'Tcp'; Method = 'HandleControlSafetyDrainPending'; Result = 'pendingPublishResult'; Qualifier = 'ControlCommands'; Count = 3; Target = @(1, 2, 3); ReportKind = '4' },
+        @{ Source = 'Tcp'; Method = 'MsgPaser'; Result = 'diagnosticsPublishResult'; Qualifier = 'ControlCommands'; Count = 1; Target = @(1); ReportKind = '4' },
+        @{ Source = 'Control'; Method = 'HandleRequest'; Result = 'ownershipPublishResult'; Qualifier = ''; Count = 3; Target = @(1); ReportKind = 'LMC_OWNER_REPORT_QUARANTINE' },
+        @{ Source = 'Control'; Method = 'ProcessAxisOwnership'; Result = 'publishResult'; Qualifier = ''; Count = 2; Target = @(); ReportKind = '' },
+        @{ Source = 'Control'; Method = 'ProcessAxisZeroHome'; Result = 'homePublishResult'; Qualifier = ''; Count = 2; Target = @(); ReportKind = '' },
+        @{ Source = 'Diagnostics'; Method = 'ProcessEncoderMaintenance'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 4; Target = @(4); ReportKind = 'LMC_DIAG_OWNER_REPORT_QUARANTINE' },
+        @{ Source = 'Diagnostics'; Method = 'ProcessAxisDs402Home'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 1; Target = @(); ReportKind = '' },
+        @{ Source = 'Diagnostics'; Method = 'HandleAxisDs402HomeCleanupStages'; Result = 'ownerResult'; Qualifier = 'AxisOwnership'; Count = 2; Target = @(1, 2); ReportKind = 'LMC_DIAG_OWNER_REPORT_QUARANTINE' }
+    )
+
+    $broadCallCount = 0
+    $assignedCallCount = 0
+    foreach ($source in $sources.GetEnumerator()) {
+        $scan = Get-LasalLexicalScanText $source.Value.Text
+        $broadCallCount += [regex]::Matches(
+            $scan,
+            '(?i)(?<![A-Za-z0-9_])PublishAxisOwnership\s*\(').Count
+        $assignedCallCount += [regex]::Matches(
+            $scan,
+            ('(?i)(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*\s*:=\s*' +
+             '(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?' +
+             'PublishAxisOwnership\s*\(')).Count
+    }
+    if (($broadCallCount -ne 19) -or ($assignedCallCount -ne 19)) {
+        throw (
+            "$blocker production broad/assigned call counts are " +
+            "$broadCallCount/$assignedCallCount, expected 19/19.")
+    }
+
+    $total = 0
+    $consumed = 0
+    $targetCount = 0
+    $sourceTotals = @{ Tcp = 0; Control = 0; Diagnostics = 0 }
+    foreach ($group in $groups) {
+        $source = $sources[$group.Source]
+        $groupOwner = (
+            "$blocker $($source.ClassName).$($group.Method)." +
+            $group.Result)
+        $methodBlock = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+            -SourceText $source.Text `
+            -ClassName $source.ClassName `
+            -MethodName $group.Method `
+            -Owner $groupOwner
+        Assert-LasalExactDeclaredType `
+            -Text $methodBlock `
+            -Name $group.Result `
+            -ExpectedType 'DINT' `
+            -Owner "$groupOwner result receiver"
+        $records = @(Get-LasalAxisOwnershipPublishCallerGroupRecords `
+            -MethodBlock $methodBlock `
+            -ResultName $group.Result `
+            -Qualifier $group.Qualifier `
+            -Owner $groupOwner)
+        if ($records.Count -ne $group.Count) {
+            throw (
+                "$groupOwner call count is $($records.Count), expected " +
+                "$($group.Count).")
+        }
+        if ($group.Method -eq 'HandleControlSafetyDrainPending') {
+            Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                -Text $methodBlock `
+                -Pattern 'pendingPublishResult\s*:=\s*-3\s*;' `
+                -ExpectedCount 3 `
+                -Owner $groupOwner `
+                -Description 'guarded provider-absence default'
+        }
+        $sourceTotals[$group.Source] += $records.Count
+        for ($recordIndex = 0; $recordIndex -lt $records.Count; $recordIndex++) {
+            $ordinal = $recordIndex + 1
+            $record = $records[$recordIndex]
+            if (-not $record.Consumed) {
+                throw "$groupOwner call $ordinal leaves Result unconsumed OPEN."
+            }
+            $consumed += 1
+            $total += 1
+            if ($group.Target -notcontains $ordinal) {
+                continue
+            }
+            $targetCount += 1
+            Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                -Text $record.Statement `
+                -Pattern ('(?<![A-Za-z0-9_])ReportKind\s*:=\s*' +
+                    [regex]::Escape($group.ReportKind) + '\s*,') `
+                -ExpectedCount 1 `
+                -Owner "$groupOwner call $ordinal" `
+                -Description 'exact QUARANTINE ReportKind'
+
+            if ($group.Source -eq 'Tcp') {
+                $tcpConsumerWindow = $record.ConsumerWindow
+                if ($group.Method -eq 'HandleControlSafetyDrainPending') {
+                    $callPrefix = Get-LasalScanText (
+                        $methodBlock.Substring(0, $record.CallStartIndex))
+                    if ($callPrefix -notmatch
+                        ('(?is)pendingPublishResult\s*:=\s*-3\s*;\s*' +
+                         'if\s+IsClientConnected\s*\(\s*' +
+                         '#ControlCommands\s*\)\s+then\s*\z')) {
+                        throw (
+                            "$groupOwner call $ordinal must be dominated by " +
+                            'the -3 default and ControlCommands guard.')
+                    }
+                    $consumerScan = Get-LasalScanText $record.ConsumerWindow
+                    $providerClose = [regex]::Match(
+                        $consumerScan,
+                        '(?is)\A\s*end_if\s*;')
+                    if (-not $providerClose.Success) {
+                        throw (
+                            "$groupOwner call $ordinal must close its provider " +
+                            'guard before consuming Result.')
+                    }
+                    $tcpConsumerWindow = $consumerScan.Substring(
+                        $providerClose.Index + $providerClose.Length)
+                    if ($tcpConsumerWindow -match '(?is)\A\s*end_if\s*;') {
+                        throw (
+                            "$groupOwner call $ordinal has more than one " +
+                            'leading provider-guard closure.')
+                    }
+                }
+                Assert-LasalAxisOwnershipPublishTcpFailureBranch `
+                    -ConsumerWindow $tcpConsumerWindow `
+                    -ResultName $group.Result `
+                    -Owner "$groupOwner call $ordinal" `
+                    -IsCyWork:($group.Method -eq 'CyWork')
+                continue
+            }
+
+            if ($group.Source -eq 'Diagnostics') {
+                $providerKind = if (
+                    $group.Method -eq 'ProcessEncoderMaintenance') {
+                    'Encoder'
+                }
+                else {
+                    'Ds402'
+                }
+                Assert-LasalAxisOwnershipPublishDiagnosticsProviderGuard `
+                    -MethodBlock $methodBlock `
+                    -CallStartIndex $record.CallStartIndex `
+                    -Kind $providerKind `
+                    -Owner "$groupOwner call $ordinal"
+            }
+
+            $resultPattern = [regex]::Escape($group.Result)
+            $branch = Get-LasalAxisOwnershipPublishImmediateIfBranch `
+                -ConsumerWindow $record.ConsumerWindow `
+                -ConditionPattern ('\(?\s*' + $resultPattern +
+                    '\s*<>\s*0\s*\)?') `
+                -Owner "$groupOwner call $ordinal"
+            if ($group.Source -eq 'Control') {
+                $recordStatementScan = Get-LasalScanText $record.Statement
+                $controlIfBlocks = @(Get-LasalStructuredIfBlocks `
+                    -Text $methodBlock `
+                    -ConditionPattern '(?s:.*?)\s+then')
+                $latchCandidates = @($controlIfBlocks | Where-Object {
+                        $candidateArm = Get-LasalFirstThenArm $_
+                        $candidateArmScan = Get-LasalScanText $candidateArm
+                        ($candidateArmScan.IndexOf(
+                            $recordStatementScan,
+                            [StringComparison]::OrdinalIgnoreCase) -ge 0) -and
+                        ($candidateArm -match
+                            ('(?i)OwnershipState\s*\[\s*24\s*\]' +
+                             '\s*:=\s*1\s*;')) -and
+                        ($candidateArm -match
+                            ('(?is)ownershipPublishResult\s*:=\s*' +
+                             'PublishAxisOwnership\s*\(.*?' +
+                             'ReportKind\s*:=\s*' +
+                             'LMC_OWNER_REPORT_QUARANTINE'))
+                    } | Sort-Object Length)
+                if ($latchCandidates.Count -lt 1) {
+                    throw (
+                        "$groupOwner call $ordinal is not dominated by the " +
+                        'global OwnershipState[24] corruption latch.')
+                }
+                $latchArmScan = Get-LasalScanText (
+                    Get-LasalFirstThenArm $latchCandidates[0])
+                $latchIndex = [regex]::Match(
+                    $latchArmScan,
+                    ('(?i)OwnershipState\s*\[\s*24\s*\]' +
+                     '\s*:=\s*1\s*;')).Index
+                $publishIndex = [regex]::Match(
+                    $latchArmScan,
+                    ('(?is)ownershipPublishResult\s*:=\s*' +
+                     'PublishAxisOwnership\s*\(.*?' +
+                     'ReportKind\s*:=\s*' +
+                     'LMC_OWNER_REPORT_QUARANTINE')).Index
+                if ($publishIndex -le $latchIndex) {
+                    throw (
+                        "$groupOwner call $ordinal global latch must precede " +
+                        'the quarantine publication.')
+                }
+                if ((Get-LasalScanText $branch.Block) -notmatch
+                    ('(?is)\A\s*if\s+\(?\s*ownershipPublishResult\s*' +
+                     '<>\s*0\s*\)?\s+then\s*' +
+                     'ownershipInternalFailure\s*:=\s*TRUE\s*;\s*' +
+                     'end_if\s*;\s*\z')) {
+                    throw (
+                        "$groupOwner call $ordinal nonzero arm must only " +
+                        'propagate ownershipInternalFailure.')
+                }
+                $controlBranchScan = Get-LasalScanText $branch.Block
+                $controlBranchIndex = $latchArmScan.IndexOf(
+                    $controlBranchScan,
+                    [StringComparison]::OrdinalIgnoreCase)
+                if ($controlBranchIndex -lt 0) {
+                    throw (
+                        "$groupOwner call $ordinal immediate Result branch " +
+                        'could not be resolved in the rollback-failure scope.')
+                }
+                $afterControlBranch = $latchArmScan.Substring(
+                    $controlBranchIndex + $controlBranchScan.Length)
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $afterControlBranch `
+                    -Pattern ('OwnershipState\s*\[[^\]]+\]' +
+                        '(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+                        '(?:ownershipAxisMask|AdmissionToken|OwnerGeneration|' +
+                        'CallerSessionEpoch|RequestSequence)\s*:=|' +
+                        '_mem(?:set|cpy)\s*\(.*?(?:dest|ptr1)\s*:=\s*' +
+                        '#?OwnershipState\b') `
+                    -ExpectedCount 0 `
+                    -Owner "$groupOwner call $ordinal" `
+                    -Description 'post-publication corruption-latch/tuple clear'
+            }
+            elseif ($group.Method -eq 'ProcessEncoderMaintenance') {
+                foreach ($spec in @(
+                        @{ Name = 'exact publish Result recovery'; Pattern = 'EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*ownerResult\s*;' },
+                        @{ Name = 'publish-failure marker'; Pattern = 'EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;' })) {
+                    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                        -Text $branch.ThenArm `
+                        -Pattern $spec.Pattern `
+                        -ExpectedCount 1 `
+                        -Owner "$groupOwner call $ordinal" `
+                        -Description $spec.Name
+                }
+                $encoderArmScan = Get-LasalScanText $branch.ThenArm
+                $encoderResultIndex = [regex]::Match(
+                    $encoderArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*190\s*\]' +
+                     '\s*:=\s*ownerResult\s*;')).Index
+                $encoderMarkerIndex = [regex]::Match(
+                    $encoderArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*191\s*\]' +
+                     '\s*:=\s*1\s*;')).Index
+                if ($encoderMarkerIndex -le $encoderResultIndex) {
+                    throw (
+                        "$groupOwner call $ordinal must write exact Result " +
+                        'before the encoder failure marker.')
+                }
+                if ($encoderArmScan -notmatch
+                    ('(?is)\A\s*if\s+\(?\s*ownerResult\s*<>\s*0\s*\)?' +
+                     '\s+then\s*' +
+                     'EncoderMaintenanceState\s*\[\s*190\s*\]' +
+                     '\s*:=\s*ownerResult\s*;\s*' +
+                     'EncoderMaintenanceState\s*\[\s*191\s*\]' +
+                     '\s*:=\s*1\s*;\s*\z')) {
+                    throw (
+                        "$groupOwner call $ordinal encoder generic failure " +
+                        'arm must contain only exact Result and marker writes.')
+                }
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $branch.ThenArm `
+                    -Pattern ('EncoderMaintenanceState\s*\[\s*' +
+                        '(?:153|160|161|162|163)\s*\]' +
+                        '(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+                        '(?:axisReference|axisMask|admissionToken|' +
+                        'ownerGeneration|callerSessionEpoch|' +
+                        'requestSequence)\s*:=|' +
+                        '_mem(?:set|cpy)\s*\(.*?(?:dest|ptr1)\s*:=\s*' +
+                        '#?EncoderMaintenanceState\b') `
+                    -ExpectedCount 0 `
+                    -Owner "$groupOwner call $ordinal" `
+                    -Description 'encoder exact retained tuple mutation'
+            }
+            else {
+                foreach ($spec in @(
+                        @{ Name = 'exact publish Result recovery'; Pattern = 'Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*ownerResult\s*;' },
+                        @{ Name = 'publish-failure PBF1 tag'; Pattern = 'Ds402HomeState\s*\[\s*118\s*\](?:\s*\$UDINT)?\s*:=\s*LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;' },
+                        @{ Name = 'restart-only stage'; Pattern = 'Ds402HomeState\s*\[\s*92\s*\]\s*:=\s*101\s*;' })) {
+                    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                        -Text $branch.ThenArm `
+                        -Pattern $spec.Pattern `
+                        -ExpectedCount 1 `
+                        -Owner "$groupOwner call $ordinal" `
+                        -Description $spec.Name
+                }
+                $ds402ArmScan = Get-LasalScanText $branch.ThenArm
+                $ds402ValueIndex = [regex]::Match(
+                    $ds402ArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*119\s*\]' +
+                     '\s*:=\s*ownerResult\s*;')).Index
+                $ds402TagIndex = [regex]::Match(
+                    $ds402ArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*118\s*\]' +
+                     '(?:\s*\$UDINT)?\s*:=\s*' +
+                     'LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;')).Index
+                $ds402StageIndex = [regex]::Match(
+                    $ds402ArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*92\s*\]' +
+                     '\s*:=\s*101\s*;')).Index
+                if (($ds402TagIndex -le $ds402ValueIndex) -or
+                    ($ds402StageIndex -le $ds402TagIndex) -or
+                    ($ds402ArmScan -notmatch
+                        ('(?is)Ds402HomeState\s*\[\s*92\s*\]' +
+                         '\s*:=\s*101\s*;\s*RETURN\s*;\s*\z'))) {
+                    throw (
+                        "$groupOwner call $ordinal must commit DS402 " +
+                        'value/tag/stage in exact order with stage 101 last.')
+                }
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $branch.ThenArm `
+                    -Pattern ('Ds402HomeState\s*\[\s*12[0-4]\s*\]' +
+                        '(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+                        '(?:axisMask|admissionToken|ownerGeneration|' +
+                        'safetyAdmissionToken|safetyOwnerGeneration)\s*:=|' +
+                        '_mem(?:set|cpy)\s*\(') `
+                    -ExpectedCount 0 `
+                    -Owner "$groupOwner call $ordinal" `
+                    -Description 'DS402 exact retained tuple mutation'
+            }
+        }
+    }
+    if (($total -ne 19) -or ($consumed -ne 19) -or
+        ($targetCount -ne 9)) {
+        throw (
+            "$blocker grouped total/consumed/target counts are " +
+            "$total/$consumed/$targetCount, expected 19/19/9.")
+    }
+    if (($sourceTotals.Tcp -ne 5) -or
+        ($sourceTotals.Control -ne 7) -or
+        ($sourceTotals.Diagnostics -ne 7)) {
+        throw (
+            "$blocker TCP/Control/Diagnostics totals are " +
+            "$($sourceTotals.Tcp)/$($sourceTotals.Control)/" +
+            "$($sourceTotals.Diagnostics), expected 5/7/7.")
+    }
+
+    Assert-LasalAxisOwnershipPublishTcpFinalContract `
+        -TcpText $TcpText `
+        -Owner $blocker
+
+    $preemptionGroups = @(
+        @{ Method = 'HandleEncoderMaintenancePreemption'; Count = 2; Ds402 = $false },
+        @{ Method = 'HandleAxisDs402HomeCleanupStages'; Count = 2; Ds402 = $true }
+    )
+    $preemptionBroadCount = [regex]::Matches(
+        (Get-LasalLexicalScanText $DiagnosticsText),
+        ('(?i)(?<![A-Za-z0-9_])' +
+         'PublishAxisOwnershipPreemptionCleanup\s*\(')).Count
+    if ($preemptionBroadCount -ne 4) {
+        throw (
+            "$blocker preemption-cleanup call count is " +
+            "$preemptionBroadCount, expected 4.")
+    }
+    $preemptionCount = 0
+    foreach ($preemptionGroup in $preemptionGroups) {
+        $methodOwner = (
+            "$blocker LMCDiagnosticsService.$($preemptionGroup.Method)")
+        $methodBlock = Get-LasalAxisOwnershipPublishCallerMethodBlock `
+            -SourceText $DiagnosticsText `
+            -ClassName 'LMCDiagnosticsService' `
+            -MethodName $preemptionGroup.Method `
+            -Owner $methodOwner
+        Assert-LasalExactDeclaredType `
+            -Text $methodBlock `
+            -Name 'ownerResult' `
+            -ExpectedType 'DINT' `
+            -Owner "$methodOwner result receiver"
+        $records = @(Get-LasalAxisOwnershipPublishCallerGroupRecords `
+            -MethodBlock $methodBlock `
+            -ResultName 'ownerResult' `
+            -Qualifier 'AxisOwnership' `
+            -PublishMethod 'PublishAxisOwnershipPreemptionCleanup' `
+            -Owner $methodOwner)
+        if ($records.Count -ne $preemptionGroup.Count) {
+            throw (
+                "$methodOwner call count is $($records.Count), expected " +
+                "$($preemptionGroup.Count).")
+        }
+        $preemptionOrdinal = 0
+        foreach ($record in $records) {
+            $preemptionOrdinal += 1
+            $preemptionCount += 1
+            if ($preemptionGroup.Ds402 -and ($preemptionOrdinal -eq 1)) {
+                Assert-LasalAxisOwnershipPublishDiagnosticsProviderGuard `
+                    -MethodBlock $methodBlock `
+                    -CallStartIndex $record.CallStartIndex `
+                    -Kind 'Ds402' `
+                    -Owner "$methodOwner call $preemptionCount"
+            }
+            $domain = Get-LasalAxisOwnershipPublishAllowedDomainFailureArm `
+                -ConsumerWindow $record.ConsumerWindow `
+                -ResultName 'ownerResult' `
+                -Owner "$methodOwner call $preemptionCount"
+            $failureArm = $domain.FailureArm
+            $failureArmScan = Get-LasalScanText $failureArm
+            if ((-not $domain.SuccessForm) -and
+                ($failureArmScan -notmatch '(?is)RETURN\s*;\s*\z')) {
+                throw (
+                    "$methodOwner call $preemptionCount failure-form " +
+                    'domain guard must terminate before allowed replay falls through.')
+            }
+            $consumerScan = Get-LasalScanText $record.ConsumerWindow
+            $domainScan = Get-LasalScanText $domain.Block
+            $domainIndex = $consumerScan.IndexOf(
+                $domainScan,
+                [StringComparison]::OrdinalIgnoreCase)
+            if ($domainIndex -lt 0) {
+                throw (
+                    "$methodOwner call $preemptionCount domain block offset " +
+                    'could not be resolved.')
+            }
+            $afterDomain = $consumerScan.Substring(
+                $domainIndex + $domainScan.Length)
+            Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                -Text $afterDomain `
+                -Pattern '(?<![A-Za-z0-9_])ownerResult(?![A-Za-z0-9_])' `
+                -ExpectedCount 0 `
+                -Owner "$methodOwner call $preemptionCount" `
+                -Description 'post-domain replay reclassification'
+            if ($domain.SuccessForm) {
+                $successArmScan = Get-LasalScanText $domain.SuccessArm
+                $successHeader = [regex]::Match(
+                    $successArmScan,
+                    '(?is)\A\s*if\s+.*?\s+then\b')
+                if (-not $successHeader.Success) {
+                    throw (
+                        "$methodOwner call $preemptionCount success-domain " +
+                        'header could not be resolved.')
+                }
+                $successBody = $successArmScan.Substring(
+                    $successHeader.Index + $successHeader.Length)
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $successBody `
+                    -Pattern '(?<![A-Za-z0-9_])ownerResult(?![A-Za-z0-9_])' `
+                    -ExpectedCount 0 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'allowed-domain Result reuse'
+            }
+            if ($preemptionGroup.Ds402) {
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $failureArm `
+                    -Pattern 'Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*ownerResult\s*;' `
+                    -ExpectedCount 1 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'preemption Result recovery'
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $failureArm `
+                    -Pattern ('Ds402HomeState\s*\[\s*118\s*\]' +
+                        '(?:\s*\$UDINT)?\s*:=\s*' +
+                        'LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;') `
+                    -ExpectedCount 1 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'preemption PBF1 tag'
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $failureArm `
+                    -Pattern 'Ds402HomeState\s*\[\s*92\s*\]\s*:=\s*101\s*;' `
+                    -ExpectedCount 1 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'preemption restart-only stage'
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $failureArm `
+                    -Pattern ('Ds402HomeState\s*\[\s*12[0-4]\s*\]' +
+                        '(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+                        '(?:axisMask|admissionToken|ownerGeneration|' +
+                        'safetyAdmissionToken|safetyOwnerGeneration)\s*:=|' +
+                        '_mem(?:set|cpy)\s*\(') `
+                    -ExpectedCount 0 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'preemption DS402 retained tuple mutation'
+                $preemptionArmScan = Get-LasalScanText $failureArm
+                $preemptionValueIndex = [regex]::Match(
+                    $preemptionArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*119\s*\]' +
+                     '\s*:=\s*ownerResult\s*;')).Index
+                $preemptionTagIndex = [regex]::Match(
+                    $preemptionArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*118\s*\]' +
+                     '(?:\s*\$UDINT)?\s*:=\s*' +
+                     'LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;')).Index
+                $preemptionStageIndex = [regex]::Match(
+                    $preemptionArmScan,
+                    ('(?i)Ds402HomeState\s*\[\s*92\s*\]' +
+                     '\s*:=\s*101\s*;')).Index
+                if (($preemptionTagIndex -le $preemptionValueIndex) -or
+                    ($preemptionStageIndex -le $preemptionTagIndex) -or
+                    ($preemptionArmScan -notmatch
+                        ('(?is)Ds402HomeState\s*\[\s*92\s*\]' +
+                         '\s*:=\s*101\s*;\s*RETURN\s*;\s*\z'))) {
+                    throw (
+                        "$methodOwner call $preemptionCount must commit " +
+                        'DS402 value/tag/stage in exact order with stage 101 last.')
+                }
+            }
+            else {
+                foreach ($spec in @(
+                        @{ Name = 'preemption exact Result recovery'; Pattern = 'EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*ownerResult\s*;' },
+                        @{ Name = 'preemption failure detail'; Pattern = 'EncoderMaintenanceState\s*\[\s*179\s*\](?:\s*\$[A-Za-z0-9_]+)?\s*:=\s*LMC_DIAG_ENCODER_DETAIL_ABORTED\s*;' },
+                        @{ Name = 'preemption failure native'; Pattern = 'EncoderMaintenanceState\s*\[\s*180\s*\](?:\s*\$[A-Za-z0-9_]+)?\s*:=\s*TO_DINT\s*\(\s*0\s*-\s*ownerResult\s*\)\s*;' },
+                        @{ Name = 'preemption publish-failure marker'; Pattern = 'EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;' },
+                        @{ Name = 'preemption restart-only stage'; Pattern = 'EncoderMaintenanceState\s*\[\s*152\s*\]\s*:=\s*LMC_DIAG_ENCODER_STAGE_QUARANTINED\s*;' })) {
+                    Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                        -Text $failureArm `
+                        -Pattern $spec.Pattern `
+                        -ExpectedCount 1 `
+                        -Owner "$methodOwner call $preemptionCount" `
+                        -Description $spec.Name
+                }
+                Assert-LasalAxisOwnershipPublishCallerExactPattern `
+                    -Text $failureArm `
+                    -Pattern ('EncoderMaintenanceState\s*\[\s*' +
+                        '(?:153|160|161|162|163)\s*\]' +
+                        '(?:\s*\$[A-Za-z0-9_]+)?\s*:=|' +
+                        '(?:axisReference|axisMask|admissionToken|' +
+                        'ownerGeneration|callerSessionEpoch|requestSequence|' +
+                        'safetyAdmissionToken|safetyOwnerGeneration)\s*:=|' +
+                        '_mem(?:set|cpy)\s*\(.*?(?:dest|ptr1)\s*:=\s*' +
+                        '#?EncoderMaintenanceState\b') `
+                    -ExpectedCount 0 `
+                    -Owner "$methodOwner call $preemptionCount" `
+                    -Description 'preemption encoder retained tuple mutation'
+                $encoderPreemptionResultIndex = [regex]::Match(
+                    $failureArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*190\s*\]' +
+                     '\s*:=\s*ownerResult\s*;')).Index
+                $encoderPreemptionMarkerIndex = [regex]::Match(
+                    $failureArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*191\s*\]' +
+                     '\s*:=\s*1\s*;')).Index
+                $encoderPreemptionDetailIndex = [regex]::Match(
+                    $failureArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*179\s*\]' +
+                     '(?:\s*\$[A-Za-z0-9_]+)?\s*:=' )).Index
+                $encoderPreemptionNativeIndex = [regex]::Match(
+                    $failureArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*180\s*\]' +
+                     '(?:\s*\$[A-Za-z0-9_]+)?\s*:=' )).Index
+                $encoderPreemptionStageIndex = [regex]::Match(
+                    $failureArmScan,
+                    ('(?i)EncoderMaintenanceState\s*\[\s*152\s*\]' +
+                     '\s*:=\s*LMC_DIAG_ENCODER_STAGE_QUARANTINED\s*;')).Index
+                $encoderFailureBody = $failureArmScan
+                if (-not $domain.SuccessForm) {
+                    $encoderFailureHeader = [regex]::Match(
+                        $encoderFailureBody,
+                        '(?is)\A\s*if\s+.*?\s+then\b')
+                    if (-not $encoderFailureHeader.Success) {
+                        throw (
+                            "$methodOwner call $preemptionCount encoder " +
+                            'failure-form header could not be resolved.')
+                    }
+                    $encoderFailureBody = $encoderFailureBody.Substring(
+                        $encoderFailureHeader.Index +
+                        $encoderFailureHeader.Length)
+                }
+                $encoderFailurePattern = (
+                    '(?is)\A\s*' +
+                    'EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*' +
+                    'ownerResult\s*;\s*' +
+                    'EncoderMaintenanceState\s*\[\s*179\s*\]' +
+                    '(?:\s*\$[A-Za-z0-9_]+)?\s*:=\s*' +
+                    'LMC_DIAG_ENCODER_DETAIL_ABORTED\s*;\s*' +
+                    'EncoderMaintenanceState\s*\[\s*180\s*\]' +
+                    '(?:\s*\$[A-Za-z0-9_]+)?\s*:=\s*' +
+                    'TO_DINT\s*\(\s*0\s*-\s*ownerResult\s*\)\s*;\s*' +
+                    'EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*' +
+                    '1\s*;\s*' +
+                    'EncoderMaintenanceState\s*\[\s*152\s*\]\s*:=\s*' +
+                    'LMC_DIAG_ENCODER_STAGE_QUARANTINED\s*;\s*' +
+                    'RETURN\s*;\s*\z')
+                if ($encoderFailureBody -notmatch $encoderFailurePattern) {
+                    throw (
+                        "$methodOwner call $preemptionCount must commit " +
+                        'the exact encoder Result/detail/native/marker/stage ' +
+                        'evidence once and in order.')
+                }
+            }
+        }
+    }
+    if ($preemptionCount -ne 4) {
+        throw "$blocker grouped preemption-cleanup count is not 4."
+    }
+
+    return [pscustomobject]@{
+        Total = $total
+        Consumed = $consumed
+        Open = $total - $consumed
+        QuarantineTarget = $targetCount
+        PreemptionCleanup = $preemptionCount
+    }
+}
+
+function Invoke-LasalAxisOwnershipPublishCallerContractVerifierSelfTest {
+    param(
+        [string]$Owner
+    )
+
+    $newSimpleCall = {
+        param(
+            [string]$ResultName,
+            [string]$Qualifier,
+            [string]$ReportKind
+        )
+        $callName = if ([string]::IsNullOrWhiteSpace($Qualifier)) {
+            'PublishAxisOwnership'
+        }
+        else {
+            $Qualifier + '.PublishAxisOwnership'
+        }
+        return @"
+$ResultName := $callName(
+    AxisMask:=axisMask,
+    AdmissionToken:=admissionToken,
+    OwnerGeneration:=ownerGeneration,
+    ReportKind:=$ReportKind,
+    ReportValue0:=0,
+    ReportValue1:=0,
+    ObservationCycle:=currentCycle);
+if $ResultName <> 0 then
+    sink := $ResultName;
+end_if;
+"@
+    }
+    $newTcpTargetCall = {
+        param(
+            [string]$ResultName,
+            [bool]$IsCyWork = $false
+        )
+        $stateReady = if ($IsCyWork) {
+            '    state := READY;' + [Environment]::NewLine
+        }
+        else {
+            ''
+        }
+        return @"
+$ResultName := ControlCommands.PublishAxisOwnership(
+    AxisMask:=axisMask,
+    AdmissionToken:=admissionToken,
+    OwnerGeneration:=ownerGeneration,
+    ReportKind:=4,
+    ReportValue0:=0,
+    ReportValue1:=42,
+    ObservationCycle:=currentCycle);
+if $ResultName <> 0 then
+    ActiveRequest.Reserved := 2;
+    ActiveRequestValid := TRUE;
+$stateReady    RETURN;
+end_if;
+"@
+    }
+    $newGuardedPendingTargetCall = {
+        return @"
+pendingPublishResult := -3;
+if IsClientConnected(#ControlCommands) then
+    pendingPublishResult := ControlCommands.PublishAxisOwnership(
+        AxisMask:=axisMask,
+        AdmissionToken:=admissionToken,
+        OwnerGeneration:=ownerGeneration,
+        ReportKind:=4,
+        ReportValue0:=0,
+        ReportValue1:=42,
+        ObservationCycle:=currentCycle);
+end_if;
+if pendingPublishResult <> 0 then
+    ActiveRequest.Reserved := 2;
+    ActiveRequestValid := TRUE;
+    RETURN;
+end_if;
+"@
+    }
+    $newDiagnosticsTargetCall = {
+        param(
+            [ValidateSet('Encoder', 'Ds402')]
+            [string]$Kind
+        )
+        $failureWrites = if ($Kind -eq 'Encoder') {
+@"
+    EncoderMaintenanceState[190] := ownerResult;
+    EncoderMaintenanceState[191] := 1;
+"@
+        }
+        else {
+@"
+    Ds402HomeState[119] := ownerResult;
+    Ds402HomeState[118] := LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+    Ds402HomeState[92] := 101;
+    RETURN;
+"@
+        }
+        return @"
+ownerResult := AxisOwnership.PublishAxisOwnership(
+    AxisMask:=axisMask,
+    AdmissionToken:=admissionToken,
+    OwnerGeneration:=ownerGeneration,
+    ReportKind:=LMC_DIAG_OWNER_REPORT_QUARANTINE,
+    ReportValue0:=0,
+    ReportValue1:=0,
+    ObservationCycle:=currentCycle);
+if ownerResult <> 0 then
+$failureWrites
+end_if;
+"@
+    }
+    $newGuardedEncoderTargetCall = {
+        return @"
+ownerResult := -1;
+if IsClientConnected(#AxisOwnership) &
+   (admissionToken <> 0) & (ownerGeneration <> 0) then
+$(& $newDiagnosticsTargetCall 'Encoder')
+else
+    EncoderMaintenanceState[190] := ownerResult;
+    EncoderMaintenanceState[191] := 1;
+end_if;
+"@
+    }
+    $newDs402ProviderFailureEvidence = @"
+    Ds402HomeState[119] := ownerResult;
+    Ds402HomeState[118]`$UDINT := LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+    Ds402HomeState[92] := 101;
+    RETURN;
+"@
+    $newGuardedDs402TargetCall = {
+        return @"
+ownerResult := -1;
+if IsClientConnected(#AxisOwnership) then
+$(& $newDiagnosticsTargetCall 'Ds402')
+else
+$newDs402ProviderFailureEvidence
+end_if;
+"@
+    }
+    $newPreemptionTargetCall = {
+        param(
+            [ValidateSet('Encoder', 'Ds402')]
+            [string]$Kind,
+            [bool]$SuccessForm = $false
+        )
+        $failureWrites = if ($Kind -eq 'Encoder') {
+@"
+    EncoderMaintenanceState[190] := ownerResult;
+    EncoderMaintenanceState[179] := LMC_DIAG_ENCODER_DETAIL_ABORTED;
+    EncoderMaintenanceState[180] := TO_DINT(0 - ownerResult);
+    EncoderMaintenanceState[191] := 1;
+    EncoderMaintenanceState[152] := LMC_DIAG_ENCODER_STAGE_QUARANTINED;
+    RETURN;
+"@
+        }
+        else {
+@"
+    Ds402HomeState[119] := ownerResult;
+    Ds402HomeState[118] := LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC;
+    Ds402HomeState[92] := 101;
+    RETURN;
+"@
+        }
+        $conditionAndFailure = if ($SuccessForm) {
+@"
+if (ownerResult = 0) | (ownerResult = 1) then
+    sink := 0;
+else
+$failureWrites
+end_if;
+"@
+        }
+        else {
+@"
+if (ownerResult <> 0) & (ownerResult <> 1) then
+$failureWrites
+end_if;
+"@
+        }
+        return @"
+ownerResult := AxisOwnership.PublishAxisOwnershipPreemptionCleanup(
+    ExpectedAxisMask:=axisMask,
+    PreemptedAdmissionToken:=admissionToken,
+    PreemptedOwnerGeneration:=ownerGeneration,
+    SafetyAdmissionToken:=safetyAdmissionToken,
+    SafetyOwnerGeneration:=safetyOwnerGeneration,
+    CleanupKind:=cleanupKind,
+    ReportValue0:=0,
+    ReportValue1:=0,
+    ObservationCycle:=currentCycle);
+$conditionAndFailure
+"@
+    }
+    $newGuardedDs402SharedTargetCalls = {
+        return @"
+ownerResult := -1;
+if IsClientConnected(#AxisOwnership) then
+    if preemptionCleanup then
+$(& $newPreemptionTargetCall 'Ds402')
+    else
+$(& $newDiagnosticsTargetCall 'Ds402')
+    end_if;
+else
+$newDs402ProviderFailureEvidence
+end_if;
+Ds402HomeState[92] := 101;
+RETURN;
+"@
+    }
+
+    $tcpFixture = @"
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
+VAR_OUTPUT
+    state : UDINT;
+END_VAR
+VAR
+    cleanupPublishResult : DINT;
+    cleanupRollbackResult : DINT;
+    publishFailureCloseSocket : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+if ActiveRequest.Reserved = 2 then
+    ActiveRequestValid := TRUE;
+    IngressBlocked := TRUE;
+    IngressFaultPending := FALSE;
+    IngressFaultCloseRequired := TRUE;
+    IngressFaultSocket := ActiveRequest.Socket;
+    IngressFaultEpoch := ActiveRequest.SessionEpoch;
+    IngressFaultError := -8;
+    if PendingClosedSessionEpoch = 0 then
+        PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;
+    end_if;
+    publishFailureCloseSocket := CurrentSock;
+    ActiveRequest.Reserved := 3;
+    if publishFailureCloseSocket <> 0 then
+        LastOwnerDisconnectRequestRet :=
+            _TCPIPServerInterface::SetSocketParameter(
+                dSock:=publishFailureCloseSocket,
+                Cmd:=100, SubCmd:=0, ParaValue:=0);
+    end_if;
+end_if;
+if (ActiveRequest.Reserved < 2) &
+   (PendingClosedSessionEpoch <> 0) then
+    if cleanupRollbackResult <> 0 then
+$(& $newTcpTargetCall 'cleanupPublishResult' $true)
+    end_if;
+    Diagnostics.NotifySessionClosed(SessionEpoch:=PendingClosedSessionEpoch);
+end_if;
+currentEpoch := SessionEpoch;
+ControlCommands.ProcessAxisZeroHome();
+ControlCommands.ProcessAxisOwnership();
+Diagnostics.ProcessOperations();
+if ActiveRequest.Reserved >= 2 then
+    state := READY;
+    RETURN;
+end_if;
+if ActiveRequestValid = FALSE then
+    sink := RequestQueue[QueueReadIndex].State;
+end_if;
+state := READY;
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
+VAR
+    pendingPublishResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newGuardedPendingTargetCall)
+$(& $newGuardedPendingTargetCall)
+$(& $newGuardedPendingTargetCall)
+END_FUNCTION
+
+FUNCTION TCPMotionInterface::MsgPaser
+VAR
+    diagnosticsPublishResult : DINT;
+    controlResponseSize, controlPendingResult : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+    controlPendingContinuation, controlReserved : BOOL;
+    controlExactAccepted, controlExactFailure : BOOL;
+END_VAR
+$(& $newTcpTargetCall 'diagnosticsPublishResult')
+controlResponseSize := ControlCommands.HandleRequest(
+    CommandId:=CommandID,
+    Reference:=AxisRef,
+    pRequestFrame:=#RequestBuf[0],
+    RequestFrameSize:=Payload,
+    pResponseFrame:=#Sendbuf[0],
+    ResponseCapacity:=256,
+    CallerSessionEpoch:=1,
+    RequestSequence:=1,
+    AdmissionToken:=admissionToken,
+    OwnerGeneration:=ownerGeneration);
+if controlResponseSize = LMC_OWNER_SAFETY_DRAIN_PENDING then
+    controlPendingResult := HandleControlSafetyDrainPending(
+        Phase:=LMC_OWNER_SAFETY_PHASE_RETAIN,
+        EffectiveAxisMask:=axisMask,
+        AdmissionToken:=admissionToken,
+        OwnerGeneration:=ownerGeneration);
+    RETURN;
+elsif controlPendingContinuation then
+    controlPendingResult := HandleControlSafetyDrainPending(
+        Phase:=LMC_OWNER_SAFETY_PHASE_TERMINAL,
+        EffectiveAxisMask:=axisMask,
+        AdmissionToken:=admissionToken,
+        OwnerGeneration:=ownerGeneration);
+    RETURN;
+elsif controlReserved then
+    controlExactAccepted := controlResponseSize = 32;
+    controlExactFailure := controlResponseSize = 24;
+    if (controlExactAccepted = FALSE) &
+       (controlExactFailure = FALSE) then
+        _memset(dest:=#Sendbuf, usByte:=0, cntr:=24);
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := 16;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[12]$UINT := 1;
+        Sendbuf[14]$INT := -31000;
+        Sendbuf[16]$UDINT := RequestBuf[12]$UDINT;
+        Sendbuf[20]$UDINT := 42;
+        controlResponseSize := 24;
+    end_if;
+end_if;
+if controlResponseSize <= 0 then
+    controlResponseSize := 12;
+end_if;
+SendData(
+    pData:=#Sendbuf[0], udSize:=controlResponseSize,
+    dSocket:=CurrentSock, bDirect:=FALSE);
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
+VAR_INPUT
+    dSock, InfoPara1 : DINT;
+END_VAR
+case InfoPara1 of
+TCP_SVR_SOCK_INFO_CONNECT:
+    if CurrentSock = dSock then
+        RETURN;
+    end_if;
+    ConnectedClients += 1;
+    takeCandidate := FALSE;
+    if ActiveRequest.Reserved >= 2 then
+        LastCandidateDisconnectRequestRet :=
+            _TCPIPServerInterface::SetSocketParameter(
+                dSock:=dSock, Cmd:=100, SubCmd:=0, ParaValue:=0);
+        RETURN;
+    end_if;
+    LastCilTcpUserRet := OS_CILGET('TCP_USER', #lsl_tcp_user);
+    LastCandidatePeerLookupRet :=
+        OS_TCP_USER_GETPEERIP(dSock, #candidatePeerIPv4);
+    takeover := TRUE;
+    takeCandidate := TRUE;
+    CurrentSock := dSock;
+TCP_SVR_SOCK_INFO_DISCONNECT:
+    ConnectedClients -= 1;
+    if ConnectedClients < 0 then
+        ConnectedClients := 0;
+    end_if;
+    if CurrentSock = dSock then
+        CurrentSock := 0;
+        if ActiveRequest.Reserved < 2 then
+            IngressBlocked := FALSE;
+            IngressFaultPending := FALSE;
+            IngressFaultCloseRequired := FALSE;
+        end_if;
+    end_if;
+    if IngressFaultSocket = dSock then
+        if ActiveRequest.Reserved < 2 then
+            IngressBlocked := FALSE;
+            IngressFaultPending := FALSE;
+            IngressFaultCloseRequired := FALSE;
+        end_if;
+    end_if;
+end_case;
+END_FUNCTION
+
+FUNCTION VIRTUAL GLOBAL TCPMotionInterface::Response
+VAR_INPUT
+    pData : ^void;
+    udSize : UDINT;
+    dSock : DINT;
+END_VAR
+if ActiveRequest.Reserved >= 2 then
+    RETURN;
+end_if;
+ReceiveFill := udSize;
+END_FUNCTION
+"@
+
+    $controlFixture = @"
+FUNCTION LMCControlCommandService::HandleRequest
+VAR
+    ownershipPublishResult : DINT;
+    ownershipRollbackResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+    ownershipDs402DrainReady, ownershipSafetyPumpRejected : BOOL;
+    ownershipAccepted, ownershipArmed : BOOL;
+    ownershipValidationResult : DINT;
+END_VAR
+if ownershipDs402DrainReady = FALSE then
+    ownershipSafetyPumpRejected := TRUE;
+    ownershipRollbackResult := RollbackAxisOwnership(
+        AdmissionToken:=admissionToken,
+        OwnerGeneration:=ownerGeneration,
+        CallerSessionEpoch:=1, RequestSequence:=2, Reason:=0);
+    if ownershipRollbackResult <> 0 then
+        OwnershipState[24] := 1;
+        ownershipPublishResult := PublishAxisOwnership(
+            AxisMask:=axisMask, AdmissionToken:=admissionToken,
+            OwnerGeneration:=ownerGeneration,
+            ReportKind:=LMC_OWNER_REPORT_QUARANTINE,
+            ReportValue0:=0, ReportValue1:=42,
+            ObservationCycle:=currentCycle);
+        if ownershipPublishResult <> 0 then
+            ownershipInternalFailure := TRUE;
+        end_if;
+    end_if;
+end_if;
+if ownershipArmed & (ownershipSafetyPumpRejected = FALSE) &
+   (ownershipValidationResult = 0) then
+    if ownershipAccepted = FALSE then
+        ownershipRollbackResult := RollbackAxisOwnership(
+            AdmissionToken:=admissionToken,
+            OwnerGeneration:=ownerGeneration,
+            CallerSessionEpoch:=1, RequestSequence:=2, Reason:=-21);
+    end_if;
+end_if;
+$(& $newSimpleCall 'ownershipPublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS')
+$(& $newSimpleCall 'ownershipPublishResult' '' 'LMC_OWNER_REPORT_QUARANTINE')
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::ProcessAxisOwnership
+VAR
+    publishResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newSimpleCall 'publishResult' '' 'LMC_OWNER_REPORT_QUARANTINE')
+$(& $newSimpleCall 'publishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS')
+END_FUNCTION
+
+FUNCTION LMCControlCommandService::ProcessAxisZeroHome
+VAR
+    homePublishResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newSimpleCall 'homePublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SUCCESS')
+$(& $newSimpleCall 'homePublishResult' '' 'LMC_OWNER_REPORT_TERMINAL_SAFE_FAILURE')
+END_FUNCTION
+"@
+
+    $diagnosticsFixture = @"
+#define LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC 0x50424631
+
+FUNCTION LMCDiagnosticsService::ProcessEncoderMaintenance
+VAR
+    ownerResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newSimpleCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_DISPATCH')
+$(& $newSimpleCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_TERMINAL_SUCCESS')
+$(& $newSimpleCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_TERMINAL_SAFE_FAILURE')
+$(& $newGuardedEncoderTargetCall)
+END_FUNCTION
+
+FUNCTION LMCDiagnosticsService::ProcessAxisDs402Home
+VAR
+    ownerResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+END_VAR
+$(& $newSimpleCall 'ownerResult' 'AxisOwnership' 'LMC_DIAG_OWNER_REPORT_DISPATCH')
+END_FUNCTION
+
+FUNCTION LMCDiagnosticsService::HandleEncoderMaintenancePreemption
+VAR
+    ownerResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+    safetyAdmissionToken, safetyOwnerGeneration : UDINT;
+END_VAR
+$(& $newPreemptionTargetCall 'Encoder')
+$(& $newPreemptionTargetCall 'Encoder' $true)
+END_FUNCTION
+
+FUNCTION LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages
+VAR
+    ownerResult : DINT;
+    sink : DINT;
+    axisMask, admissionToken, ownerGeneration, currentCycle : UDINT;
+    safetyAdmissionToken, safetyOwnerGeneration : UDINT;
+END_VAR
+$(& $newGuardedDs402SharedTargetCalls)
+$(& $newGuardedDs402TargetCall)
+$(& $newPreemptionTargetCall 'Ds402' $true)
+END_FUNCTION
+"@
+
+    $positiveResult = Assert-LasalAxisOwnershipPublishCallerContract `
+        -TcpText $tcpFixture `
+        -ControlServiceText $controlFixture `
+        -DiagnosticsText $diagnosticsFixture `
+        -Owner "$Owner positive target fixture"
+    if (($positiveResult.Total -ne 19) -or
+        ($positiveResult.Consumed -ne 19) -or
+        ($positiveResult.Open -ne 0) -or
+        ($positiveResult.QuarantineTarget -ne 9) -or
+        ($positiveResult.PreemptionCleanup -ne 4)) {
+        throw "$Owner positive target fixture summary drifted."
+    }
+
+    $fixtureSpecs = @(
+        @{ Name = 'ResultCheckDeleted'; Source = 'Tcp'; Pattern = '(?i)if\s+cleanupPublishResult\s*<>\s*0\s+then'; Replacement = 'if cleanupRollbackResult <> 0 then' },
+        @{ Name = 'ControlCheckInverted'; Source = 'Control'; Pattern = '(?is)(ReportValue1\s*:=\s*42\s*,\s*ObservationCycle\s*:=\s*currentCycle\s*\)\s*;\s*if\s+ownershipPublishResult\s*)<>(\s*0\s+then)'; Replacement = '${1}=${2}' },
+        @{ Name = 'ControlLatchRemoved'; Source = 'Control'; Pattern = '(?is)(if\s+ownershipRollbackResult\s*<>\s*0\s+then\s*)OwnershipState\s*\[\s*24\s*\]\s*:=\s*1\s*;'; Replacement = '${1}sink := 1;' },
+        @{ Name = 'ClearBeforeCheck'; Source = 'Tcp'; Pattern = '(?is)(cleanupPublishResult\s*:=\s*ControlCommands\.PublishAxisOwnership\(.*?\)\s*;)(\s*if\s+cleanupPublishResult\s*<>\s*0\s+then)'; Replacement = '${1}' + [Environment]::NewLine + 'ActiveRequest.Reserved := 0;${2}' },
+        @{ Name = 'ReservedLatchRemoved'; Source = 'Tcp'; Pattern = '(?is)(if\s+cleanupPublishResult\s*<>\s*0\s+then\s*ActiveRequest\.Reserved\s*:=\s*)2(\s*;)'; Replacement = '${1}1${2}' },
+        @{ Name = 'FailureBranchSendData'; Source = 'Tcp'; Pattern = '(?is)(if\s+cleanupPublishResult\s*<>\s*0\s+then.*?ActiveRequestValid\s*:=\s*TRUE\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'SendData(pData:=#Sendbuf[0], udSize:=0, dSocket:=CurrentSock, bDirect:=TRUE);' },
+        @{ Name = 'CyWorkCallerReadyRemoved'; Source = 'Tcp'; Pattern = '(?is)(if\s+cleanupPublishResult\s*<>\s*0\s+then\s*ActiveRequest\.Reserved\s*:=\s*2\s*;\s*ActiveRequestValid\s*:=\s*TRUE\s*;\s*)state\s*:=\s*READY\s*;'; Replacement = '${1}' },
+        @{ Name = 'CyWorkLatchRemoved'; Source = 'Tcp'; Pattern = '(?is)(FUNCTION\s+VIRTUAL\s+GLOBAL\s+TCPMotionInterface::CyWork.*?if\s+ActiveRequest\.Reserved\s*)>=(\s*2\s+then)'; Replacement = '${1}=${2}' },
+        @{ Name = 'CyWorkSessionFenceRemoved'; Source = 'Tcp'; Pattern = '(?is)(if\s+\(ActiveRequest\.Reserved\s*)<(\s*2\s*\)\s*&\s*\(PendingClosedSessionEpoch\s*<>\s*0\)\s+then)'; Replacement = '${1}>=${2}' },
+        @{ Name = 'CyWorkPhase3ClaimRemoved'; Source = 'Tcp'; Pattern = '(?is)(FUNCTION\s+VIRTUAL\s+GLOBAL\s+TCPMotionInterface::CyWork.*?publishFailureCloseSocket\s*:=\s*CurrentSock\s*;\s*ActiveRequest\.Reserved\s*:=\s*)3(\s*;)'; Replacement = '${1}2${2}' },
+        @{ Name = 'CyWorkBackgroundPumpRemoved'; Source = 'Tcp'; Pattern = '(?is)(FUNCTION\s+VIRTUAL\s+GLOBAL\s+TCPMotionInterface::CyWork.*?Diagnostics\s*\.\s*)ProcessOperations(\s*\(\s*\)\s*;)'; Replacement = '${1}ProcessOperationsShadow${2}' },
+        @{ Name = 'ResponseLatchRemoved'; Source = 'Tcp'; Pattern = '(?is)(FUNCTION\s+VIRTUAL\s+GLOBAL\s+TCPMotionInterface::Response.*?if\s+ActiveRequest\.Reserved\s*)>=(\s*2\s+then)'; Replacement = '${1}=${2}' },
+        @{ Name = 'DisconnectLatchCleared'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_DISCONNECT\s*:.*?if\s+ActiveRequest\.Reserved\s*)<(\s*2\s+then)'; Replacement = '${1}>=${2}' },
+        @{ Name = 'DisconnectClearBeforeLatch'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_DISCONNECT\s*:.*?if\s+CurrentSock\s*=\s*dSock\s+then.*?)(if\s+ActiveRequest\.Reserved\s*<\s*2\s+then)'; Replacement = '${1}IngressBlocked := FALSE;' + [Environment]::NewLine + '${2}' },
+        @{ Name = 'CandidateTakeoverAllowed'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_CONNECT\s*:.*?if\s+ActiveRequest\.Reserved\s*>=\s*2\s+then.*?)RETURN\s*;'; Replacement = '${1}takeCandidate := TRUE;' },
+        @{ Name = 'Ds402MagicChanged'; Source = 'Diagnostics'; Pattern = '(?im)(^\s*#define\s+LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s+)0x50424631(\s*$)'; Replacement = '${1}0x50424630${2}' },
+        @{ Name = 'TcpControlRollbackReintroduced'; Source = 'Tcp'; Pattern = '(?i)(elsif\s+controlReserved\s+then)'; Replacement = '${1}' + [Environment]::NewLine + 'sink := ControlCommands.RollbackAxisOwnership(AdmissionToken:=1, OwnerGeneration:=1, CallerSessionEpoch:=1, RequestSequence:=1, Reason:=0);' },
+        @{ Name = 'TcpControlPublishReintroduced'; Source = 'Tcp'; Pattern = '(?i)(elsif\s+controlReserved\s+then)'; Replacement = '${1}' + [Environment]::NewLine + 'sink := ControlCommands.PublishAxisOwnership(AxisMask:=1, AdmissionToken:=1, OwnerGeneration:=1, ReportKind:=4, ReportValue0:=0, ReportValue1:=0, ObservationCycle:=1);' },
+        @{ Name = 'TcpMalformedAdapterMutation'; Source = 'Tcp'; Pattern = '(?is)(elsif\s+controlReserved\s+then.*?if\s+\(controlExactAccepted\s*=\s*FALSE\)\s*&\s*\(controlExactFailure\s*=\s*FALSE\)\s+then.*?Sendbuf\s*\[\s*20\s*\](?:\s*\$UDINT)?\s*:=\s*)42(\s*;)'; Replacement = '${1}41${2}' },
+        @{ Name = 'PendingProviderDefaultMutation'; Source = 'Tcp'; Pattern = '(?is)(FUNCTION\s+TCPMotionInterface::HandleControlSafetyDrainPending.*?pendingPublishResult\s*:=\s*)-3(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'ControlOrdinaryGateRemoved'; Source = 'Control'; Pattern = '(?is)(if\s+ownershipArmed\s*&\s*\(\s*ownershipSafetyPumpRejected\s*=\s*)FALSE(\s*\)\s*&\s*\(\s*ownershipValidationResult\s*=\s*0\s*\)\s+then)'; Replacement = '${1}TRUE${2}' },
+        @{ Name = 'ControlRejectedRollbackRemoved'; Source = 'Control'; Pattern = '(?is)(if\s+ownershipDs402DrainReady\s*=\s*FALSE\s+then.*?ownershipRollbackResult\s*:=\s*)RollbackAxisOwnership(?=\s*\()'; Replacement = '${1}RollbackAxisOwnershipShadow' },
+        @{ Name = 'EncoderRecoveryWriteRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::ProcessEncoderMaintenance.*?EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*)ownerResult(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'EncoderRecoveryOrderInverted'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::ProcessEncoderMaintenance.*?)(EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*ownerResult\s*;)\s*(EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;)'; Replacement = '${1}${3}' + [Environment]::NewLine + '${2}' },
+        @{ Name = 'EncoderPreemptionResultRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?if\s+\(ownerResult\s*<>\s*0\)\s*&\s*\(ownerResult\s*<>\s*1\)\s+then\s*EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*)ownerResult(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'EncoderPreemptionDetailRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?EncoderMaintenanceState\s*\[\s*)179(\s*\]\s*:=\s*LMC_DIAG_ENCODER_DETAIL_ABORTED\s*;)'; Replacement = '${1}178${2}' },
+        @{ Name = 'EncoderPreemptionMarkerRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*)1(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'EncoderPreemptionStageOrderInverted'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?)(EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;)\s*(EncoderMaintenanceState\s*\[\s*152\s*\]\s*:=\s*LMC_DIAG_ENCODER_STAGE_QUARANTINED\s*;)'; Replacement = '${1}${3}' + [Environment]::NewLine + '${2}' },
+        @{ Name = 'Ds402RecoveryWriteRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?ownerResult\s*:=\s*AxisOwnership\.PublishAxisOwnership\(.*?ReportKind\s*:=\s*LMC_DIAG_OWNER_REPORT_QUARANTINE.*?if\s+ownerResult\s*<>\s*0\s+then\s*Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*)ownerResult(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'Ds402TagRemoved'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?if\s+ownerResult\s*<>\s*0\s+then.*?Ds402HomeState\s*\[\s*118\s*\](?:\s*\$UDINT)?\s*:=\s*)LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'Ds402StageCommittedEarly'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?Ds402HomeState\s*\[\s*118\s*\](?:\s*\$UDINT)?\s*:=\s*LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC\s*;)\s*(Ds402HomeState\s*\[\s*92\s*\]\s*:=\s*101\s*;)'; Replacement = '${2}' + [Environment]::NewLine + '${1}' },
+        @{ Name = 'Ds402TupleErased'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?ownerResult\s*:=\s*AxisOwnership\.PublishAxisOwnership\(.*?ReportKind\s*:=\s*LMC_DIAG_OWNER_REPORT_QUARANTINE.*?if\s+ownerResult\s*<>\s*0\s+then\s*Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*ownerResult\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'Ds402HomeState[120] := 0;' },
+        @{ Name = 'PreemptionReplayOneRejected'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?PublishAxisOwnershipPreemptionCleanup\(.*?if\s+\(ownerResult\s*<>\s*0\)\s*&\s*\(ownerResult\s*)<>(\s*1\s*\)\s+then)'; Replacement = '${1}=${2}' },
+        @{ Name = 'PreemptionSuccessReplayRejected'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?if\s+\(ownerResult\s*=\s*0\)\s*\|\s*\(ownerResult\s*)=(\s*1\s*\)\s+then)'; Replacement = '${1}<>${2}' },
+        @{ Name = 'TcpRollbackBetweenHandleAndPending'; Source = 'Tcp'; Pattern = '(?is)(OwnerGeneration\s*:=\s*ownerGeneration\s*\)\s*;)(\s*if\s+controlResponseSize\s*=\s*LMC_OWNER_SAFETY_DRAIN_PENDING)'; Replacement = '${1}' + [Environment]::NewLine + 'controlPendingResult := ControlCommands.RollbackAxisOwnership(AdmissionToken:=1, OwnerGeneration:=1, CallerSessionEpoch:=1, RequestSequence:=1, Reason:=0);${2}' },
+        @{ Name = 'PendingRetainReturnRemoved'; Source = 'Tcp'; Pattern = '(?is)(HandleControlSafetyDrainPending\s*\(\s*Phase\s*:=\s*LMC_OWNER_SAFETY_PHASE_RETAIN.*?\)\s*;)\s*RETURN\s*;'; Replacement = '${1}' + [Environment]::NewLine + 'controlPendingResult := 0;' },
+        @{ Name = 'DisconnectPayloadMutation'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_DISCONNECT\s*:\s*ConnectedClients\s*-=\s*1\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'ActiveRequest.PayloadData[0] := 0;' },
+        @{ Name = 'DisconnectQueueDequeue'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_DISCONNECT\s*:\s*ConnectedClients\s*-=\s*1\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'QueueReadIndex += 1;' },
+        @{ Name = 'DisconnectIngressMutation'; Source = 'Tcp'; Pattern = '(?is)(TCP_SVR_SOCK_INFO_DISCONNECT\s*:\s*ConnectedClients\s*-=\s*1\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'IngressDiscardRemaining := 0;' },
+        @{ Name = 'EncoderProviderDefaultChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::ProcessEncoderMaintenance.*?ownerResult\s*:=\s*)-1(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'EncoderProviderElseEvidenceChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::ProcessEncoderMaintenance.*?else\s*EncoderMaintenanceState\s*\[\s*190\s*\]\s*:=\s*)ownerResult(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'Ds402ProviderDefaultChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?ownerResult\s*:=\s*)-1(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'Ds402PostDispatchDefaultChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?Ds402HomeState\s*\[\s*92\s*\]\s*:=\s*101\s*;\s*RETURN\s*;.*?ownerResult\s*:=\s*)-1(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'Ds402ProviderElseEvidenceChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleAxisDs402HomeCleanupStages.*?else\s*Ds402HomeState\s*\[\s*119\s*\]\s*:=\s*)ownerResult(\s*;)'; Replacement = '${1}0${2}' },
+        @{ Name = 'PreemptionAllowedArmResultReused'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?if\s+\(ownerResult\s*=\s*0\)\s*\|\s*\(ownerResult\s*=\s*1\)\s+then\s*sink\s*:=\s*)0(\s*;)'; Replacement = '${1}ownerResult${2}' },
+        @{ Name = 'EncoderPreemptionNativeRhsChanged'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?EncoderMaintenanceState\s*\[\s*180\s*\]\s*:=\s*)TO_DINT\s*\(\s*0\s*-\s*ownerResult\s*\)(\s*;)'; Replacement = '${1}ownerResult${2}' },
+        @{ Name = 'EncoderPreemptionEvidenceDuplicated'; Source = 'Diagnostics'; Pattern = '(?is)(FUNCTION\s+LMCDiagnosticsService::HandleEncoderMaintenancePreemption.*?EncoderMaintenanceState\s*\[\s*191\s*\]\s*:=\s*1\s*;)'; Replacement = '${1}' + [Environment]::NewLine + 'EncoderMaintenanceState[191] := 1;' }
+    )
+    $negativeCount = 0
+    foreach ($fixtureSpec in $fixtureSpecs) {
+        $sourceText = switch ($fixtureSpec.Source) {
+            'Tcp' { $tcpFixture }
+            'Control' { $controlFixture }
+            'Diagnostics' { $diagnosticsFixture }
+        }
+        $fixtureRegex = [regex]::new(
+            $fixtureSpec.Pattern,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [Text.RegularExpressions.RegexOptions]::Singleline -bor
+            [Text.RegularExpressions.RegexOptions]::Multiline)
+        $fixtureMatches = $fixtureRegex.Matches($sourceText)
+        if ($fixtureMatches.Count -ne 1) {
+            throw (
+                "$Owner target caller negative fixture '$($fixtureSpec.Name)' " +
+                "found $($fixtureMatches.Count) targets, expected one.")
+        }
+        $mutatedSource = $fixtureRegex.Replace(
+            $sourceText,
+            $fixtureSpec.Replacement,
+            1)
+        if ($mutatedSource -ceq $sourceText) {
+            throw (
+                "$Owner target caller negative fixture '$($fixtureSpec.Name)' " +
+                'did not mutate its source.')
+        }
+        $fixtureTcp = if ($fixtureSpec.Source -eq 'Tcp') {
+            $mutatedSource
+        }
+        else {
+            $tcpFixture
+        }
+        $fixtureControl = if ($fixtureSpec.Source -eq 'Control') {
+            $mutatedSource
+        }
+        else {
+            $controlFixture
+        }
+        $fixtureDiagnostics = if ($fixtureSpec.Source -eq 'Diagnostics') {
+            $mutatedSource
+        }
+        else {
+            $diagnosticsFixture
+        }
+        $negativeOwner = "$Owner target caller negative $($fixtureSpec.Name)"
+        $negativeRejected = $false
+        try {
+            $null = Assert-LasalAxisOwnershipPublishCallerContract `
+                -TcpText $fixtureTcp `
+                -ControlServiceText $fixtureControl `
+                -DiagnosticsText $fixtureDiagnostics `
+                -Owner $negativeOwner
+        }
+        catch {
+            if (-not $_.Exception.Message.StartsWith(
+                    $negativeOwner,
+                    [StringComparison]::Ordinal)) {
+                throw (
+                    "$Owner target caller negative fixture " +
+                    "'$($fixtureSpec.Name)' failed outside its contract " +
+                    "assertion: $($_.Exception.Message)")
+            }
+            $negativeRejected = $true
+        }
+        if (-not $negativeRejected) {
+            throw (
+                "$Owner target caller contract accepted negative fixture " +
+                "'$($fixtureSpec.Name)'.")
+        }
+        $negativeCount += 1
+    }
+    if ($negativeCount -ne 47) {
+        throw "$Owner target caller negative count is not 47."
+    }
+    return [pscustomobject]@{
+        NegativeCount = $negativeCount
+        Target = $positiveResult
+    }
+}
+
 function Assert-LasalAxisOwnershipReserveMutationFences {
     param(
         [string]$ReserveBlock,
@@ -2777,7 +6614,10 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
         'validateaxisownershipidentity',
         'copyaxisownershippreemption',
         'publishaxisownershippreemptioncleanup',
-        'publishaxisownershipds402receipt')
+        'publishaxisownershipds402receipt',
+        'validateaxisownershippreemptionreplacement',
+        'handleaxisownershipds402receiptstage87recovery',
+        'validateaxisownershiprollbackpreemptbank')
     if ([string]::Join('|', $implementationHeaderInventory) -cne
         [string]::Join('|', $expectedImplementationHeaderInventory)) {
         throw "$blocker whole implementation header inventory/order drifted."
@@ -4195,11 +8035,32 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
     $validateIdentityBlock = $methodBlocks['ValidateAxisOwnershipIdentity']
     $copyBlock = $methodBlocks['CopyAxisOwnershipPreemption']
     $cleanupBlock = $methodBlocks['PublishAxisOwnershipPreemptionCleanup']
+    $replacementMatches = [regex]::Matches(
+        $scan,
+        ('(?is)FUNCTION\s+LMCControlCommandService::' +
+         'ValidateAxisOwnershipPreemptionReplacement\b.*?END_FUNCTION'))
+    if ($replacementMatches.Count -ne 1) {
+        throw (
+            "$blocker ValidateAxisOwnershipPreemptionReplacement private " +
+            "implementation count is $($replacementMatches.Count), expected one.")
+    }
+    $replacementBlock = $replacementMatches[0].Value
+    $rollbackHelperMatches = [regex]::Matches(
+        $scan,
+        ('(?is)FUNCTION\s+LMCControlCommandService::' +
+         'ValidateAxisOwnershipRollbackPreemptBank\b.*?END_FUNCTION'))
+    if ($rollbackHelperMatches.Count -ne 1) {
+        throw (
+            "$blocker ValidateAxisOwnershipRollbackPreemptBank private " +
+            "implementation count is $($rollbackHelperMatches.Count), expected one.")
+    }
+    $rollbackHelperBlock = $rollbackHelperMatches[0].Value
     Assert-LasalAxisOwnershipPreemptionCleanupMutationFences `
         -CleanupBlock $cleanupBlock `
+        -ReplacementBlock $replacementBlock `
+        -ControlServiceText $ControlServiceText `
         -Owner $Owner
-    Assert-LasalAxisOwnershipRollbackMutationFences `
-        -RollbackBlock $rollbackBlock `
+    Assert-LasalAxisOwnershipRollbackSplitMutationFences `
         -ControlServiceText $ControlServiceText `
         -Owner $Owner
     Assert-LasalAxisOwnershipPublishMutationFences `
@@ -4804,7 +8665,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
 
     # Rollback validates every captured bank before mutation, aggregates the
     # restored Group state globally, and publishes the shared Group magic last.
-    Assert-Match $rollbackBlock (
+    Assert-Match $rollbackHelperBlock (
         '(?s)restoredGroupActive\s*:=\s*FALSE\s*;.*?' +
         'restoredGroupFound\s*:=\s*FALSE\s*;.*?' +
         'restoredNonSafetyFound\s*:=\s*FALSE\s*;.*?' +
@@ -4841,12 +8702,16 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'OwnershipIdentityState\[\s*LMC_OWNER_IDENTITY_GROUP_HEADER_BASE\]\$UDINT\s*:=\s*' +
         'LMC_OWNER_IDENTITY_GROUP_MAGIC\s*;') (
         "$blocker rollback exact record restore, TailSize=0 guard, or Group-magic-last publication drifted.")
-    $rollbackBankGate = $rollbackBlock.LastIndexOf('if preemptBankValid = FALSE then')
+    $rollbackBankGate = $rollbackHelperBlock.LastIndexOf(
+        'if preemptBankValid = FALSE then')
+    $rollbackHelperCall = $rollbackBlock.IndexOf(
+        'rollbackPreemptResult := ValidateAxisOwnershipRollbackPreemptBank(')
     $rollbackLeaseGate = $rollbackBlock.LastIndexOf('if (leaseBankValid = FALSE) | (firstRecordBase < 0) then')
     $rollbackFirstMutation = $rollbackBlock.IndexOf('groupHeaderPublished := FALSE;')
     if ($rollbackBankGate -lt 0 -or $rollbackLeaseGate -lt 0 -or
+        $rollbackHelperCall -lt 0 -or
         $rollbackFirstMutation -lt 0 -or
-        $rollbackBankGate -ge $rollbackFirstMutation -or
+        $rollbackHelperCall -ge $rollbackFirstMutation -or
         $rollbackLeaseGate -ge $rollbackFirstMutation) {
         throw "$blocker rollback bank validation is not complete before live mutation."
     }
@@ -4934,9 +8799,8 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         '(?im)^\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*([A-Za-z][A-Za-z0-9_]*)\s*;\s*$') |
         ForEach-Object { $_.Groups[1].Value + ':' + $_.Groups[2].Value })
     $expectedCleanupLocals = @(
-        'axisIndex:DINT','axisBit:UDINT','probeAxisIndex:DINT','probeAxisBit:UDINT',
-        'identityIndex:DINT','oldRecordBase:DINT','safetyRecordBase:DINT',
-        'replacementRecordBase:DINT','replacementHeaderBase:DINT',
+        'axisIndex:DINT','axisBit:UDINT','identityIndex:DINT',
+        'oldRecordBase:DINT','safetyRecordBase:DINT',
         'firstSafetyRecordBase:DINT','evidenceRecordBase:DINT','observerBase:DINT',
         'evidenceObserverBase:DINT','preemptObserverBase:DINT','identityHeaderBase:DINT',
         'identityCompareResult:UDINT','preemptFlags:UDINT','cleanupRequiredMask:UDINT',
@@ -4948,10 +8812,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'oldIdentityExpectedSize:UDINT','oldIdentityPrefixSize:UDINT',
         'oldIdentityTailSize:UDINT','oldIdentityTailOffset:UDINT',
         'oldIdentityPackedCommand:UDINT','oldIdentityPackedOwner:UDINT',
-        'singletonToken:UDINT','singletonGeneration:UDINT','singletonMask:UDINT',
-        'replacementIdentitySize:UDINT','replacementTailSize:UDINT',
-        'replacementTailOffset:UDINT','replacementPackedCommand:UDINT',
-        'replacementPackedOwner:UDINT','oldCommand:DINT','oldReference:DINT',
+        'oldCommand:DINT','oldReference:DINT',
         'oldOwnerKind:DINT','oldResourceKind:DINT','oldAdmissionMode:DINT','oldState:DINT',
         'safetyCommand:DINT','safetyReference:DINT','safetyOwnerKind:DINT',
         'safetyResourceKind:DINT','safetyAdmissionMode:DINT','safetyState:DINT',
@@ -4960,8 +8821,7 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'publishedCleanupValid:BOOL','oldSpecialValid:BOOL','oldBankValid:BOOL',
         'rootValid:BOOL','safetyEscalated:BOOL','safetyForceQuarantine:BOOL',
         'safetyOverlayFound:BOOL','oldIdentityValid:BOOL','oldObserverValid:BOOL',
-        'safetyIdentityValid:BOOL','safetyObserverValid:BOOL','replacementFound:BOOL',
-        'replacementValid:BOOL','replacementStateValid:BOOL')
+        'safetyIdentityValid:BOOL','safetyObserverValid:BOOL')
     if ([string]::Join('|', $cleanupLocals) -cne
         [string]::Join('|', $expectedCleanupLocals)) {
         throw "$blocker cleanup local declaration inventory drifted."
@@ -4976,9 +8836,10 @@ function Assert-LasalAxisOwnershipIdentityPreemptionContract {
         'publishedCleanupValid\s*:=\s*TRUE\s*;\s*if\s+cleanupAlreadyPublished\s+then.*?' +
         'LMC_OWNER_CLEANUP_INCOMPLETE_QUARANTINE.*?' +
         'LMC_OWNER_PREEMPT_FLAG_FORCE_QUARANTINE.*?' +
-        '\(singletonToken\s*<>\s*PreemptedAdmissionToken\)\s*&\s*' +
-        '\(singletonGeneration\s*<>\s*PreemptedOwnerGeneration\).*?' +
-        'OwnershipIdentityState\[replacementHeaderBase\s*\+\s*11\].*?' +
+        'ValidateAxisOwnershipPreemptionReplacement\s*\(.*?' +
+        'OldIdentitySize\s*:=\s*oldIdentitySize\s*\)\s*;\s*' +
+        'end_if\s*;\s*if\s+tupleValid\s*=\s*FALSE\s+then\s*' +
+        'publishedCleanupValid\s*:=\s*FALSE\s*;.*?' +
         'if\s+cleanupAlreadyPublished\s*&\s*' +
         '\(publishedCleanupValid\s*=\s*FALSE\)\s+then.*?' +
         'Result\s*:=\s*-3\s*;\s*RETURN\s*;.*?' +
@@ -5008,9 +8869,22 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
             'Axis ownership preemption cleanup focused self-test found ' +
             "$($cleanupMatches.Count) implementations, expected one.")
     }
+    $replacementMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)FUNCTION\s+' +
+         'LMCControlCommandService::' +
+         'ValidateAxisOwnershipPreemptionReplacement\b.*?END_FUNCTION'))
+    if ($replacementMatches.Count -ne 1) {
+        throw (
+            'Axis ownership preemption replacement focused self-test found ' +
+            "$($replacementMatches.Count) private implementations, expected one.")
+    }
     $cleanupBlock = $cleanupMatches[0].Value
+    $replacementBlock = $replacementMatches[0].Value
     Assert-LasalAxisOwnershipPreemptionCleanupMutationFences `
         -CleanupBlock $cleanupBlock `
+        -ReplacementBlock $replacementBlock `
+        -ControlServiceText $controlScan `
         -Owner 'preemption cleanup focused self-test baseline'
 
     $negativeFixtures = @(
@@ -5103,6 +8977,7 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
         },
         @{
             Name = 'ReplacementAbsenceGenerationComparedToToken'
+            Target = 'Replacement'
             Pattern = ('OwnershipState\[' +
                 'replacementRecordBase\s*\+\s*5\]\$UDINT\s*=\s*' +
                 'PreemptedOwnerGeneration')
@@ -5112,6 +8987,7 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
         },
         @{
             Name = 'ReplacementAbsenceLoopDropsLastAxis'
+            Target = 'Replacement'
             Pattern = ('replacementValid\s*:=\s*replacementValid\s*&\s*' +
                 'replacementFound\s*;\s*end_if\s*;\s*' +
                 'probeAxisIndex\s*:=\s*1\s*;\s*' +
@@ -5189,6 +9065,103 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
                 'LMC_OWNER_CLEANUP_INCOMPLETE_QUARANTINE\s+then')
             Replacement = ('if CleanupKind = ' +
                 'LMC_OWNER_CLEANUP_INCOMPLETE_QUARANTINE then')
+        },
+        @{
+            Name = 'ReplacementHelperMadeGlobal'
+            Target = 'Replacement'
+            Pattern = ('FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'ValidateAxisOwnershipPreemptionReplacement')
+            Replacement = ('FUNCTION GLOBAL ' +
+                'LMCControlCommandService::' +
+                'ValidateAxisOwnershipPreemptionReplacement')
+        },
+        @{
+            Name = 'ReplacementLocalTypeChanged'
+            Target = 'Replacement'
+            Pattern = 'replacementHeaderBase\s*:\s*DINT\s*;'
+            Replacement = 'replacementHeaderBase : UDINT;'
+        },
+        @{
+            Name = 'ReplacementInputAssigned'
+            Target = 'Replacement'
+            Pattern = 'singletonToken\s*:=\s*0\s*;'
+            Replacement = (
+                'singletonToken := 0; ' +
+                'PreemptedAdmissionToken := singletonToken;')
+        },
+        @{
+            Name = 'ReplacementPersistentWrite'
+            Target = 'Replacement'
+            Pattern = 'singletonToken\s*:=\s*0\s*;'
+            Replacement = (
+                'singletonToken := 0; OwnershipState[7] := 0;')
+        },
+        @{
+            Name = 'ReplacementUnsupportedBankRead'
+            Target = 'Replacement'
+            Pattern = 'singletonToken\s*:=\s*OwnershipState\[7\]\$UDINT\s*;'
+            Replacement = (
+                'singletonToken := OwnershipLeaseState[7]$UDINT;')
+        },
+        @{
+            Name = 'ReplacementReturnAdded'
+            Target = 'Replacement'
+            Pattern = 'singletonToken\s*:=\s*0\s*;'
+            Replacement = 'singletonToken := 0; RETURN;'
+        },
+        @{
+            Name = 'ReplacementCustomCallAdded'
+            Target = 'Replacement'
+            Pattern = 'singletonToken\s*:=\s*0\s*;'
+            Replacement = 'singletonToken := 0; ProbeReplacement();'
+        },
+        @{
+            Name = 'ReplacementSingletonMapChanged'
+            Target = 'Replacement'
+            Pattern = ('singletonGeneration\s*:=\s*' +
+                'OwnershipState\[14\]\$UDINT\s*;')
+            Replacement = 'singletonGeneration := OwnershipState[13]$UDINT;'
+        },
+        @{
+            Name = 'ReplacementStateMapChanged'
+            Target = 'Replacement'
+            Pattern = 'LMC_OWNER_STATE_DS402_HOME_ACTIVE'
+            Replacement = 'LMC_OWNER_STATE_LMC_HOME_ACTIVE'
+        },
+        @{
+            Name = 'ReplacementHeaderSlotChanged'
+            Target = 'Replacement'
+            Pattern = ('OwnershipIdentityState\[' +
+                'replacementHeaderBase\s*\+\s*11\]\$UDINT\s*=\s*' +
+                'replacementTailSize')
+            Replacement = ('OwnershipIdentityState[' +
+                'replacementHeaderBase + 10]$UDINT = replacementTailSize')
+        },
+        @{
+            Name = 'ReplacementResultTailChanged'
+            Target = 'Replacement'
+            Pattern = 'Result\s*:=\s*replacementValid\s*;'
+            Replacement = 'Result := replacementFound;'
+        },
+        @{
+            Name = 'ReplacementCallOldIdentityArgumentChanged'
+            Pattern = 'OldIdentitySize\s*:=\s*oldIdentitySize'
+            Replacement = 'OldIdentitySize:=oldAxisMask'
+        },
+        @{
+            Name = 'ReplacementCallImmediateConsumerChanged'
+            Pattern = ('if\s+tupleValid\s*=\s*FALSE\s+then\s*' +
+                'publishedCleanupValid\s*:=\s*FALSE\s*;')
+            Replacement = (
+                'if exactReplay = FALSE then ' +
+                'publishedCleanupValid := FALSE;')
+        },
+        @{
+            Name = 'ReplacementCallDuplicated'
+            Pattern = ('(tupleValid\s*:=\s*' +
+                'ValidateAxisOwnershipPreemptionReplacement\s*\(.*?\)\s*;)')
+            Replacement = '${1} ${1}'
         }
     )
 
@@ -5231,29 +9204,66 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
 
     $rejected = 0
     foreach ($fixture in $negativeFixtures) {
+        $fixtureTarget = if ($fixture.ContainsKey('Target')) {
+            $fixture.Target
+        }
+        else {
+            'Cleanup'
+        }
+        $fixtureBlock = if ($fixtureTarget -ceq 'Replacement') {
+            $replacementBlock
+        }
+        elseif ($fixtureTarget -ceq 'Cleanup') {
+            $cleanupBlock
+        }
+        else {
+            throw (
+                "Preemption cleanup focused fixture '$($fixture.Name)' has " +
+                "unsupported target '$fixtureTarget'.")
+        }
         $fixtureRegex = [regex]::new(
             $fixture.Pattern,
             [Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
             [Text.RegularExpressions.RegexOptions]::Singleline)
-        $targets = $fixtureRegex.Matches($cleanupBlock)
+        $targets = $fixtureRegex.Matches($fixtureBlock)
         if ($targets.Count -ne 1) {
             throw (
                 "Preemption cleanup focused fixture '$($fixture.Name)' found " +
-                "$($targets.Count) targets, expected exactly one.")
+                "$($targets.Count) $fixtureTarget targets, expected exactly one.")
         }
         $target = $targets[0]
         $mutated =
-            $cleanupBlock.Substring(0, $target.Index) +
+            $fixtureBlock.Substring(0, $target.Index) +
             $fixture.Replacement +
-            $cleanupBlock.Substring($target.Index + $target.Length)
-        if ($mutated -ceq $cleanupBlock) {
+            $fixtureBlock.Substring($target.Index + $target.Length)
+        if ($mutated -ceq $fixtureBlock) {
             throw (
                 "Preemption cleanup focused fixture '$($fixture.Name)' " +
                 'did not mutate the baseline.')
         }
+        $mutatedCleanup = if ($fixtureTarget -ceq 'Cleanup') {
+            $mutated
+        }
+        else {
+            $cleanupBlock
+        }
+        $mutatedReplacement = if ($fixtureTarget -ceq 'Replacement') {
+            $mutated
+        }
+        else {
+            $replacementBlock
+        }
+        $mutatedControl = if ($fixtureTarget -ceq 'Cleanup') {
+            $controlScan.Replace($cleanupBlock, $mutatedCleanup)
+        }
+        else {
+            $controlScan.Replace($replacementBlock, $mutatedReplacement)
+        }
         try {
             Assert-LasalAxisOwnershipPreemptionCleanupMutationFences `
-                -CleanupBlock $mutated `
+                -CleanupBlock $mutatedCleanup `
+                -ReplacementBlock $mutatedReplacement `
+                -ControlServiceText $mutatedControl `
                 -Owner (
                     "preemption cleanup focused negative '$($fixture.Name)'")
         }
@@ -5274,6 +9284,21 @@ function Invoke-LasalAxisOwnershipPreemptionCleanupVerifierSelfTest {
             "Preemption cleanup focused verifier rejected $rejected/" +
             "$($negativeFixtures.Count) negative fixtures.")
     }
+
+    $positiveReplacement = $replacementBlock.Replace(
+        'singletonToken := 0;',
+        'singletonToken := 0; // focused comment-only fixture')
+    if ($positiveReplacement -ceq $replacementBlock) {
+        throw 'Preemption cleanup focused positive comment fixture did not mutate.'
+    }
+    $positiveControl = $controlScan.Replace(
+        $replacementBlock,
+        $positiveReplacement)
+    Assert-LasalAxisOwnershipPreemptionCleanupMutationFences `
+        -CleanupBlock $cleanupBlock `
+        -ReplacementBlock $positiveReplacement `
+        -ControlServiceText $positiveControl `
+        -Owner 'preemption cleanup focused positive comment-only fixture'
     return $rejected
 }
 
@@ -5347,8 +9372,8 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
         @{ Name = 'ReserveDirtyObserverAccepted'; Pattern = '(?is)(if\s+\(OwnerKind\s*=\s*LMC_OWNER_KIND_GROUP\).*?OwnershipObserverState\[observerBase\s*\+\s*observerIndex\]\s*)<>(\s*0)'; Replacement = '${1}=${2}' },
         @{ Name = 'ReserveSafetyTailAllowed'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::ReserveAxisOwnership.*?if\s+)safetyPreemption(\s*&\s*\(identityTailSize\s*>\s*0\)\s+then)'; Replacement = '${1}FALSE${2}' },
         @{ Name = 'ReserveLeaseIdentitySize'; Pattern = '(?is)(if\s+leaseAvailable\s+then\s*existingIdentityValid\s*:=.*?LMC_OWNER_LEASE_IDENTITY_HEADER_BASE\s*\+\s*2\]\$UDINT\s*=\s*)1(\))'; Replacement = '${1}4${2}' },
-        @{ Name = 'RollbackGroupAggregation'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?restoredGroupActive\s*:=\s*)TRUE(\s*;)'; Replacement = '${1}FALSE${2}' },
-        @{ Name = 'RollbackMixedGroupAccepted'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?if\s+restoredGroupFound\s*&\s*)restoredNonSafetyFound(\s+then)'; Replacement = '${1}FALSE${2}' },
+        @{ Name = 'RollbackGroupAggregation'; Pattern = '(?is)(FUNCTION\s+LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank.*?restoredGroupActive\s*:=\s*)TRUE(\s*;)'; Replacement = '${1}FALSE${2}' },
+        @{ Name = 'RollbackMixedGroupAccepted'; Pattern = '(?is)(FUNCTION\s+LMCControlCommandService::ValidateAxisOwnershipRollbackPreemptBank.*?if\s+restoredGroupFound\s*&\s*)restoredNonSafetyFound(\s+then)'; Replacement = '${1}FALSE${2}' },
         @{ Name = 'RollbackLeaseIdentitySize'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?if\s+restoreLease\s*\|\s*restoredGroupActive\s+then.*?LMC_OWNER_LEASE_IDENTITY_HEADER_BASE\s*\+\s*2\]\$UDINT\s*=\s*)1(\))'; Replacement = '${1}4${2}' },
         @{ Name = 'RollbackRecordRestoreLength'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?_memcpy\(ptr1:=#OwnershipState\[recordBase\],\s*ptr2:=#OwnershipPreemptedState\[clearIndex\],\s*cntr:=)LMC_OWNER_AXIS_STRIDE\s*\*\s*4(\))'; Replacement = '${1}140${2}' },
         @{ Name = 'RollbackTailZeroClear'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::RollbackAxisOwnership.*?if\s+restorePreempt\s+then\s*)if\s+identityTailSize\s*>\s*0\s+then'; Replacement = '${1}if TRUE then' },
@@ -5362,7 +9387,7 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
         @{ Name = 'CleanupOldBankStartsInvalid'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?oldBankValid\s*:=\s*)TRUE(\s*;)'; Replacement = '${1}FALSE${2}' },
         @{ Name = 'CleanupPublishedValidationBypass'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?if\s+cleanupAlreadyPublished\s*&\s*\(publishedCleanupValid\s*=\s*)FALSE(\)\s+then)'; Replacement = '${1}TRUE${2}' },
         @{ Name = 'CleanupPublishedCallerMismatch'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?if\s+cleanupAlreadyPublished\s+then\s*Result\s*:=\s*)-2(\s*;\s*RETURN)'; Replacement = '${1}-3${2}' },
-        @{ Name = 'CleanupReplacementOldToken'; Pattern = '(?is)(FUNCTION\s+GLOBAL\s+LMCControlCommandService::PublishAxisOwnershipPreemptionCleanup.*?singletonToken\s*)<>(\s*PreemptedAdmissionToken)'; Replacement = '${1}=${2}' })
+        @{ Name = 'CleanupReplacementOldToken'; Pattern = '(?is)(FUNCTION\s+LMCControlCommandService::ValidateAxisOwnershipPreemptionReplacement.*?singletonToken\s*)<>(\s*PreemptedAdmissionToken)'; Replacement = '${1}=${2}' })
 
     $rejected = 0
     foreach ($fixture in $negativeFixtures) {
@@ -5383,6 +9408,7 @@ function Invoke-LasalAxisOwnershipIdentityPreemptionVerifierSelfTest {
                     ('compact ownership identity/preemption blocker|' +
                      'axis ownership preemption cleanup blocker:|' +
                      'axis ownership rollback mutation blocker:|' +
+                     'axis ownership rollback split blocker:|' +
                      'axis ownership publish mutation blocker:|' +
                      'axis ownership reserve mutation blocker:')) {
                 throw
@@ -7942,6 +11968,46 @@ function Assert-LasalOrdinarySafetyRepeatContract {
         "$blocker controlReserved must remain exclusive to successful 0x7D13 reservation.")
 }
 
+function Assert-LasalTcpImplementationPrefix {
+    param(
+        [string]$TcpText,
+        [ValidateSet('TRUE', 'FALSE')]
+        [string]$ExpectedOrdinaryGate,
+        [string]$Owner,
+        [switch]$AllowMissingImplementationMarker
+    )
+
+    $blocker = "$Owner common axis ownership activation blocker:"
+    $markerMatches = [regex]::Matches(
+        $TcpText,
+        '(?m)^[ \t]*//\{\{LSL_IMPLEMENTATION[ \t]*\r?$')
+    if (($markerMatches.Count -eq 0) -and
+        $AllowMissingImplementationMarker) {
+        return
+    }
+    if ($markerMatches.Count -ne 1) {
+        throw (
+            "$blocker TCP implementation marker count is " +
+            "$($markerMatches.Count), expected exactly one.")
+    }
+
+    $implementationStart =
+        $markerMatches[0].Index + $markerMatches[0].Length
+    $implementationScan = Get-LasalScanText(
+        $TcpText.Substring($implementationStart))
+    $expectedPrefixPattern = (
+        '\A[ \t\r\n]*#define[ \t]+' +
+        'LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED[ \t]+' +
+        [regex]::Escape($ExpectedOrdinaryGate) +
+        '[ \t]*(?:\r?\n|\z)')
+    if ($implementationScan -notmatch $expectedPrefixPattern) {
+        throw (
+            "$blocker TCP implementation prefix first meaningful token must " +
+            'be the exact #define LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED ' +
+            "$ExpectedOrdinaryGate line.")
+    }
+}
+
 function Assert-LasalAxisOwnershipActivationGuard {
     param(
         [string]$TcpText,
@@ -7954,7 +12020,8 @@ function Assert-LasalAxisOwnershipActivationGuard {
         [string]$ExpectedTw20Gate = 'FALSE',
         [ValidateSet('TRUE', 'FALSE')]
         [string]$ExpectedTw19Gate = 'FALSE',
-        [string]$Owner
+        [string]$Owner,
+        [switch]$AllowLegacyTcpFinalizerFixture
     )
 
     $tcpScan = Get-LasalScanText $TcpText
@@ -8196,6 +12263,11 @@ function Assert-LasalAxisOwnershipActivationGuard {
             -SdkErrorCatalogText $SdkErrorCatalogText `
             -SdkAdminModelsText $SdkAdminModelsText `
             -Owner $Owner
+    Assert-LasalTcpImplementationPrefix `
+        -TcpText $TcpText `
+        -ExpectedOrdinaryGate $ordinaryActivationGate `
+        -Owner $Owner `
+        -AllowMissingImplementationMarker:$AllowLegacyTcpFinalizerFixture
     Assert-LasalOrdinaryAxisGroupOwnershipDormantContract `
         -TcpText $TcpText `
         -ControlServiceText $ControlServiceText `
@@ -8209,26 +12281,21 @@ function Assert-LasalAxisOwnershipActivationGuard {
         'pIdentity:=\(#RequestBuf\[8\]\)\$\^void.*?' +
         'IdentitySize:=Payload\$UDINT.*?' +
         'Sendbuf\[16\]\$UDINT\s*=\s*RequestBuf\[12\]\$UDINT.*?' +
-        'controlExactFailure.*?Reason:=0.*?' +
-        'controlExactAccepted\s*=\s*FALSE.*?Reason:=-21') (
+        'controlExactFailure.*?' +
+        'controlExactAccepted\s*=\s*FALSE') (
         "$blocker TCP Home admission lacks exact payload identity/correlation fencing.")
-    foreach ($rollbackReason in @('0', '-21')) {
+    if (-not $AllowLegacyTcpFinalizerFixture) {
         Assert-Match $tcpScan (
-            '(?s)controlRollbackResult\s*:=\s*' +
-            'ControlCommands\.RollbackAxisOwnership\(\s*' +
-            'AdmissionToken\s*:=\s*controlAdmissionToken\s*,\s*' +
-            'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*,\s*' +
-            'CallerSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*,\s*' +
-            'RequestSequence\s*:=\s*ActiveRequest\.Sequence\s*,\s*' +
-            'Reason\s*:=\s*' + [regex]::Escape($rollbackReason) +
-            '\s*\)\s*;\s*if\s+controlRollbackResult\s*<>\s*0\s+then\s*' +
-            'controlPublishResult\s*:=\s*' +
-            'ControlCommands\.PublishAxisOwnership\(\s*' +
-            'AxisMask\s*:=\s*controlEffectiveAxisMask\s*,\s*' +
-            'AdmissionToken\s*:=\s*controlAdmissionToken\s*,\s*' +
-            'OwnerGeneration\s*:=\s*controlOwnerGeneration\s*(?:,|\))') (
-            "$blocker TCP Home rollback reason $rollbackReason does not " +
-            'bind the exact tuple or quarantine a rollback failure.')
+            '(?s)controlExactAccepted\s*=\s*FALSE.*?' +
+            'Sendbuf\[20\]\$UDINT\s*:=\s*42') (
+            "$blocker TCP malformed response adapter detail drifted.")
+        if ($tcpScan -match
+            ('(?i)(?<![A-Za-z0-9_])control(?:Rollback|Publish)Result' +
+             '(?![A-Za-z0-9_])')) {
+            throw (
+                "$blocker TCP must not duplicate Control HandleRequest " +
+                'rollback/publish authority.')
+        }
     }
 
     foreach ($methodName in @(
@@ -8511,32 +12578,8 @@ ControlCommands.ReserveAxisOwnership(
     IdentitySize:=Payload$UDINT);
 controlExactAccepted := Sendbuf[16]$UDINT = RequestBuf[12]$UDINT;
 controlExactFailure := TRUE;
-if controlExactFailure then
-    controlRollbackResult := ControlCommands.RollbackAxisOwnership(
-        AdmissionToken:=controlAdmissionToken,
-        OwnerGeneration:=controlOwnerGeneration,
-        CallerSessionEpoch:=ActiveRequest.SessionEpoch,
-        RequestSequence:=ActiveRequest.Sequence,
-        Reason:=0);
-    if controlRollbackResult <> 0 then
-        controlPublishResult := ControlCommands.PublishAxisOwnership(
-            AxisMask:=controlEffectiveAxisMask,
-            AdmissionToken:=controlAdmissionToken,
-            OwnerGeneration:=controlOwnerGeneration);
-    end_if;
-elsif controlExactAccepted = FALSE then
-    controlRollbackResult := ControlCommands.RollbackAxisOwnership(
-        AdmissionToken:=controlAdmissionToken,
-        OwnerGeneration:=controlOwnerGeneration,
-        CallerSessionEpoch:=ActiveRequest.SessionEpoch,
-        RequestSequence:=ActiveRequest.Sequence,
-        Reason:=-21);
-    if controlRollbackResult <> 0 then
-        controlPublishResult := ControlCommands.PublishAxisOwnership(
-            AxisMask:=controlEffectiveAxisMask,
-            AdmissionToken:=controlAdmissionToken,
-            OwnerGeneration:=controlOwnerGeneration);
-    end_if;
+if (controlExactAccepted = FALSE) & (controlExactFailure = FALSE) then
+    Sendbuf[20]$UDINT := 42;
 end_if;
 END_FUNCTION
 '@
@@ -8581,7 +12624,9 @@ END_FUNCTION
     $control = $baselineFixture.Control
     $diagnostics = $baselineFixture.Diagnostics
     $inputLatch = $baselineFixture.InputLatch
-    $tcp = $baselineFixture.Tcp
+    $tcp =
+        '//{{LSL_IMPLEMENTATION' + [Environment]::NewLine +
+        $baselineFixture.Tcp
     $errorCatalog = $baselineFixture.ErrorCatalog
     $adminModels = $baselineFixture.AdminModels
 
@@ -8592,6 +12637,7 @@ END_FUNCTION
         -InputLatchText $inputLatch `
         -SdkErrorCatalogText $errorCatalog `
         -SdkAdminModelsText $adminModels `
+        -AllowLegacyTcpFinalizerFixture `
         -Owner 'ownership self-test'
     $activeControl = $control.
         Replace(
@@ -8616,6 +12662,7 @@ END_FUNCTION
         -InputLatchText $activeInputLatch `
         -SdkErrorCatalogText $errorCatalog `
         -SdkAdminModelsText $adminModels `
+        -AllowLegacyTcpFinalizerFixture `
         -Owner 'ownership active-endpoint self-test'
     $adminHomeValidateFixtureCall = [regex]::Match(
         $control,
@@ -8668,6 +12715,24 @@ END_FUNCTION
         $adminHomeValidateFixtureCall.Index,
         $adminHomeEquivalentCommitCall + [Environment]::NewLine)
     $negativeFixtures = @($baselineFixture.NegativeFixtures) + @(
+        @{
+            Name = 'TcpImplementationPrefixStrayU'
+            ExpectedMessage = 'implementation prefix first meaningful token'
+            Control = $control
+            Diagnostics = $diagnostics
+            Tcp = $tcp.Replace(
+                '//{{LSL_IMPLEMENTATION',
+                ('//{{LSL_IMPLEMENTATION' + [Environment]::NewLine + 'U'))
+        },
+        @{
+            Name = 'TcpImplementationPrefixStrayUdint'
+            ExpectedMessage = 'implementation prefix first meaningful token'
+            Control = $control
+            Diagnostics = $diagnostics
+            Tcp = $tcp.Replace(
+                '//{{LSL_IMPLEMENTATION',
+                ('//{{LSL_IMPLEMENTATION' + [Environment]::NewLine + 'UDINT'))
+        },
         @{ Control = $control + "`nLMCAxis1.MoveReference();"; Diagnostics = $diagnostics; Tcp = $tcp },
         @{ Control = $control.Replace('ExpectedActualPosition:=expected', 'ExpectedPosition:=expected'); Diagnostics = $diagnostics; Tcp = $tcp },
         @{ Control = ([regex]::new(
@@ -8725,35 +12790,57 @@ END_FUNCTION
     $fixtureIndex = 0
     foreach ($fixture in $negativeFixtures) {
         $fixtureIndex++
+        $fixtureInputLatchProperty =
+            $fixture.PSObject.Properties['InputLatch']
         $fixtureInputLatch = if (
-            [string]::IsNullOrWhiteSpace([string]$fixture.InputLatch)) {
+            $null -eq $fixtureInputLatchProperty -or
+            [string]::IsNullOrWhiteSpace(
+                [string]$fixtureInputLatchProperty.Value)) {
             $inputLatch
         }
         else {
-            [string]$fixture.InputLatch
+            [string]$fixtureInputLatchProperty.Value
         }
+        $fixtureErrorCatalogProperty =
+            $fixture.PSObject.Properties['ErrorCatalog']
         $fixtureErrorCatalog = if (
-            [string]::IsNullOrWhiteSpace([string]$fixture.ErrorCatalog)) {
+            $null -eq $fixtureErrorCatalogProperty -or
+            [string]::IsNullOrWhiteSpace(
+                [string]$fixtureErrorCatalogProperty.Value)) {
             $errorCatalog
         }
         else {
-            [string]$fixture.ErrorCatalog
+            [string]$fixtureErrorCatalogProperty.Value
         }
+        $fixtureAdminModelsProperty =
+            $fixture.PSObject.Properties['AdminModels']
         $fixtureAdminModels = if (
-            [string]::IsNullOrWhiteSpace([string]$fixture.AdminModels)) {
+            $null -eq $fixtureAdminModelsProperty -or
+            [string]::IsNullOrWhiteSpace(
+                [string]$fixtureAdminModelsProperty.Value)) {
             $adminModels
         }
         else {
-            [string]$fixture.AdminModels
+            [string]$fixtureAdminModelsProperty.Value
         }
+        $fixtureNameProperty = $fixture.PSObject.Properties['Name']
         $fixtureName = if (
-            [string]::IsNullOrWhiteSpace([string]$fixture.Name)) {
+            $null -eq $fixtureNameProperty -or
+            [string]::IsNullOrWhiteSpace([string]$fixtureNameProperty.Value)) {
             "index $fixtureIndex"
         }
         else {
-            [string]$fixture.Name
+            [string]$fixtureNameProperty.Value
         }
-        $fixtureExpectedMessage = [string]$fixture.ExpectedMessage
+        $fixtureExpectedMessageProperty =
+            $fixture.PSObject.Properties['ExpectedMessage']
+        $fixtureExpectedMessage = if (
+            $null -eq $fixtureExpectedMessageProperty) {
+            ''
+        }
+        else {
+            [string]$fixtureExpectedMessageProperty.Value
+        }
         if (($fixture.Control -ceq $control) -and
             ($fixture.Diagnostics -ceq $diagnostics) -and
             ($fixtureInputLatch -ceq $inputLatch) -and
@@ -8772,6 +12859,7 @@ END_FUNCTION
                 -InputLatchText $fixtureInputLatch `
                 -SdkErrorCatalogText $fixtureErrorCatalog `
                 -SdkAdminModelsText $fixtureAdminModels `
+                -AllowLegacyTcpFinalizerFixture `
                 -Owner "ownership negative self-test '$fixtureName'"
         }
         catch {
@@ -8886,21 +12974,69 @@ function Assert-LasalAxisRebaseBarrierContract {
     if ($null -eq $NetworkArtifacts -or $NetworkArtifacts.Count -eq 0) {
         throw "$blocker Network artifact inventory is empty."
     }
+    $endpoint = 'LMCControlCommandService1.AxisRebaseRequiredState'
+    $authoritativeNetworkCount = 0
+    $generatedNetworkCount = 0
+    $connectionViolations = [System.Collections.Generic.List[string]]::new()
     foreach ($networkArtifact in $NetworkArtifacts) {
         if ($null -eq $networkArtifact -or
             [string]::IsNullOrWhiteSpace([string]$networkArtifact.Name) -or
             $null -eq $networkArtifact.Text) {
             throw "$blocker Network artifact inventory contains an invalid entry."
         }
-        $networkTokenCount = [regex]::Matches(
-            [string]$networkArtifact.Text,
-            '(?i)(?<![A-Za-z0-9_])AxisRebaseRequiredState(?![A-Za-z0-9_])').Count
-        if ($networkTokenCount -ne 0) {
-            throw (
-                "$blocker $($networkArtifact.Name) contains " +
-                "$networkTokenCount AxisRebaseRequiredState Network token(s); " +
-                'the retained server must have no Network representation or connection.')
+        $artifactName = [string]$networkArtifact.Name
+        $artifactText = [string]$networkArtifact.Text
+        if ($artifactName -match '(?i)\.lcn$') {
+            $authoritativeNetworkCount++
+            try {
+                [xml]$networkXml = $artifactText
+            }
+            catch {
+                throw "$blocker $artifactName is not valid Network XML."
+            }
+            $endpointConnections = @($networkXml.SelectNodes(
+                "//Connection[@Source='$endpoint' or @Destination='$endpoint']"))
+            if ($endpointConnections.Count -ne 0) {
+                $connectionViolations.Add(
+                    "$artifactName has $($endpointConnections.Count) endpoint connection(s).")
+            }
         }
+        elseif ($artifactName -match
+                '(?i)(?:^|\\)ONE_[^\\]+_Table\.st$') {
+            $generatedNetworkCount++
+            $connectionBlocks = @(
+                [regex]::Match(
+                    $artifactText,
+                    '(?s)//Internal connections(?<Body>.*?)' +
+                    '//Initialization values'),
+                [regex]::Match(
+                    $artifactText,
+                    '(?s)//External connections(?<Body>.*?)' +
+                    '//Magic internal connections'))
+            if (@($connectionBlocks |
+                    Where-Object { -not $_.Success }).Count -ne 0) {
+                throw "$blocker $artifactName connection blocks were not found."
+            }
+            $generatedConnectionTokenCount = 0
+            foreach ($connectionBlock in $connectionBlocks) {
+                $generatedConnectionTokenCount += [regex]::Matches(
+                    $connectionBlock.Groups['Body'].Value,
+                    '(?i)"AxisRebaseRequiredState"').Count
+            }
+            if ($generatedConnectionTokenCount -ne 0) {
+                $connectionViolations.Add(
+                    "$artifactName has $generatedConnectionTokenCount " +
+                    'generated connection entry token(s).')
+            }
+        }
+    }
+    if ($authoritativeNetworkCount -eq 0 -or $generatedNetworkCount -eq 0) {
+        throw "$blocker authoritative or generated Network inventory is missing."
+    }
+    if ($connectionViolations.Count -ne 0) {
+        throw (
+            "$blocker the retained server must have zero Network connection " +
+            "endpoints: $($connectionViolations -join ' ')")
     }
     foreach ($define in @(
             @{ Name = 'LMC_OWNER_REBASE_PERSIST_RETRY'; Value = '-4' },
@@ -9333,12 +13469,15 @@ function Invoke-LasalAxisRebaseBarrierVerifierSelfTest {
             [string]::IsNullOrWhiteSpace($negativeFixture.Control)) {
             throw 'TW19 Home barrier negative fixture is incomplete or unchanged.'
         }
+        $negativeNetworkArtifactsProperty =
+            $negativeFixture.PSObject.Properties['NetworkArtifacts']
         $negativeNetworkArtifacts = if (
-            $null -eq $negativeFixture.NetworkArtifacts) {
+            $null -eq $negativeNetworkArtifactsProperty -or
+            $null -eq $negativeNetworkArtifactsProperty.Value) {
             @($fixture.NetworkArtifacts)
         }
         else {
-            @($negativeFixture.NetworkArtifacts)
+            @($negativeNetworkArtifactsProperty.Value)
         }
         if ($negativeNetworkArtifacts.Count -eq 0) {
             throw 'TW19 Home barrier negative fixture has no Network artifacts.'
@@ -10688,11 +14827,11 @@ function Assert-LasalAxisZeroHomeRtMailboxContract {
         LMC_ZERO_HOME_REQUIRED_STABLE = '3'
         LMC_ZERO_HOME_EVIDENCE_EXPECTED = '0x00000001'
         LMC_ZERO_HOME_EVIDENCE_STATE = '0x00000002'
-        LMC_ZERO_HOME_EVIDENCE_RAW = '0x00000004'
         LMC_ZERO_HOME_EVIDENCE_APP = '0x00000008'
         LMC_ZERO_HOME_EVIDENCE_INTERNAL = '0x00000010'
         LMC_ZERO_HOME_EVIDENCE_STABLE = '0x00000020'
-        LMC_ZERO_HOME_EVIDENCE_COMPLETE = '0x0000003F'
+        LMC_ZERO_HOME_EVIDENCE_VERIFIED = '0x0000001B'
+        LMC_ZERO_HOME_EVIDENCE_COMPLETE = '0x0000003B'
         LMC_ZERO_HOME_FAILURE_CANCELLED = '-10'
     }
     foreach ($constantName in $constantSpecifications.Keys) {
@@ -11197,27 +15336,13 @@ function Assert-LasalAxisZeroHomeRtMailboxContract {
         '(?is)AxisZeroHomeResult\s*\[\s*13\s*\]\s*:=\s*' +
         'zeroHomeRawDrivePosition\s*;.*?\.SetPosition\s*\(') (
         "$blocker RawDrivePositionBefore is not captured before the native call.")
-    Assert-Match $scan (
-        '(?im)^\s*#define\s+LMC_ZERO_HOME_RAW_WINDOW\s+2\s*$') (
-        "$blocker positive raw-drive feedback window must remain exactly two counts.")
-    Assert-Match $scan (
-        '(?im)^\s*#define\s+LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW\s+' +
-        '0xFFFFFFFE\s*$') (
-        "$blocker negative raw-drive feedback window must remain exactly two counts.")
-    Assert-Match $zeroHomeRtBlock (
-        '(?is)zeroHomeRawDelta\s*:=\s*' +
-        'zeroHomeRawDrivePosition\s*\$UDINT\s*-\s*' +
-        'AxisZeroHomeResult\s*\[\s*13\s*\]\s*\$UDINT\s*;.*?' +
-        'elsif\s*\(\s*zeroHomeRawDelta\s*>\s*' +
-        'LMC_ZERO_HOME_RAW_WINDOW\s*\)\s*&\s*' +
-        '\(\s*zeroHomeRawDelta\s*<\s*' +
-        'LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW\s*\)\s*then\s*' +
-        'zeroHomeFailure\s*:=\s*LMC_ZERO_HOME_FAILURE_VERIFY\s*;\s*' +
-        'zeroHomeTerminal\s*:=\s*TRUE\s*;\s*else\s*' +
-        'zeroHomeEvidence\s*:=\s*zeroHomeEvidence\s+or\s*' +
-        'LMC_ZERO_HOME_EVIDENCE_RAW') (
-        "$blocker wrap-safe symmetric two-count raw-drive window is not " +
-        'required before RAW evidence.')
+    if ($scan -match
+            '(?i)\b(?:zeroHomeRawDelta|LMC_ZERO_HOME_(?:RAW_WINDOW|' +
+            'RAW_NEGATIVE_WINDOW|EVIDENCE_RAW))\b') {
+        throw (
+            "$blocker temporary SetPosition-only Home must not gate success " +
+            'or publish evidence from the raw-drive delta.')
+    }
     Assert-Match $zeroHomeRtBlock (
         '(?is)\(\s*zeroHomeActualAppPosition\s*<>\s*0\s*\)\s*\|\s*' +
         '\(\s*zeroHomeSetAppPosition\s*<>\s*0\s*\).*?' +
@@ -11236,8 +15361,10 @@ function Assert-LasalAxisZeroHomeRtMailboxContract {
         'zeroHomeStableSampleCount\s*>=\s*' +
         'LMC_ZERO_HOME_REQUIRED_STABLE.*?' +
         'LMC_ZERO_HOME_EVIDENCE_STABLE.*?' +
-        'zeroHomeEvidence\s*<>\s*LMC_ZERO_HOME_EVIDENCE_COMPLETE') (
-        "$blocker three fresh verify-phase samples and exact 0x3F evidence are not enforced.")
+        'zeroHomeEvidence\s*<>\s*' +
+        'LMC_ZERO_HOME_EVIDENCE_COMPLETE') (
+        "$blocker three verify samples and exact 0x3B non-raw evidence are " +
+        'not enforced.')
     if ([regex]::Matches(
             $zeroHomeRtBlock,
             '(?is)zeroHomeStableSampleCount\s*\+=\s*1\s*;').Count -ne 1) {
@@ -11611,7 +15738,8 @@ function Assert-LasalDs402SafetyDrainRetryContract {
 
     $close = [regex]::Match(
         $cyclic,
-        '(?is)if\s*\(PendingClosedSessionEpoch\s*<>\s*0\).*?' +
+        '(?is)if\s*\(ActiveRequest\.Reserved\s*<\s*2\)\s*&\s*' +
+        '\(PendingClosedSessionEpoch\s*<>\s*0\).*?' +
         'PendingClosedSessionEpoch\s*:=\s*0\s*;\s*end_if\s*;').Value
     $cleanupAssignment = [regex]::Match(
         $close,
@@ -11664,7 +15792,7 @@ function Assert-LasalDs402SafetyDrainRetryContract {
     if ($closeEnd -lt 0 -or $staleGuard -le $closeEnd -or
         [regex]::Matches(
             $cyclic,
-            '(?i)PendingClosedSessionEpoch\s*=\s*0').Count -ne 3) {
+            '(?i)PendingClosedSessionEpoch\s*=\s*0').Count -ne 4) {
         throw "$blocker close-pending epoch does not fence stale/dequeue/dispatch admission."
     }
     Assert-Match $cyclic (
@@ -11756,23 +15884,28 @@ function Assert-LasalAdminLmcHomeContract {
             'ownership reserve/publish, or TCP parser is missing.')
     }
     Assert-Match $serviceScan (
-        '(?im)^\s*#define\s+LMC_HOME_RAW_WINDOW\s+2\s*$') (
-        "$Owner service positive raw-drive feedback window must remain exactly two counts.")
-    Assert-Match $serviceScan (
-        '(?im)^\s*#define\s+LMC_HOME_RAW_NEGATIVE_WINDOW\s+' +
-        '0xFFFFFFFE\s*$') (
-        "$Owner service negative raw-drive feedback window must remain exactly two counts.")
+        '(?im)^\s*#define\s+LMC_HOME_EVIDENCE_COMPLETE\s+' +
+        '0x0000003B\s*$') (
+        "$Owner SetPosition-only evidence mask must remain 0x3B.")
+    if ($serviceScan -match
+            '(?i)\b(?:homeRawDelta|LMC_HOME_RAW_(?:WINDOW|' +
+            'NEGATIVE_WINDOW))\b') {
+        throw (
+            "$Owner temporary SetPosition-only Home must not mirror a raw " +
+            'delta success gate.')
+    }
     Assert-Match $processBlock (
-        '(?is)homeRawDelta\s*:=\s*' +
-        'homeLatchResult\s*\[\s*14\s*\]\s*\$UDINT\s*-\s*' +
-        'homeLatchResult\s*\[\s*13\s*\]\s*\$UDINT\s*;.*?' +
-        '\(\s*homeLatchResult\s*\[\s*12\s*\]\s*=\s*0\s*\)\s*&\s*' +
-        '\(\s*\(\s*homeRawDelta\s*<=\s*LMC_HOME_RAW_WINDOW\s*\)\s*\|\s*' +
-        '\(\s*homeRawDelta\s*>=\s*' +
-        'LMC_HOME_RAW_NEGATIVE_WINDOW\s*\)\s*\)\s*&\s*' +
-        '\(\s*homeLatchResult\s*\[\s*15\s*\]\s*=\s*0\s*\)') (
-        "$Owner service does not mirror the wrap-safe symmetric two-count " +
-        'raw-drive success window.')
+        '(?is)\(\s*homeLatchResult\s*\[\s*6\s*\]\s*=\s*3\s*\)\s*&\s*' +
+        '\(\s*homeLatchResult\s*\[\s*7\s*\]\s*\$UDINT\s*=\s*' +
+        'LMC_HOME_EVIDENCE_COMPLETE\s*\)\s*&.*?' +
+        '\(\s*homeLatchResult\s*\[\s*15\s*\]\s*=\s*0\s*\).*?' +
+        '\(\s*homeLatchResult\s*\[\s*16\s*\]\s*=\s*0\s*\).*?' +
+        '\(\s*homeLatchResult\s*\[\s*17\s*\]\s*=\s*0\s*\).*?' +
+        '\(\s*homeLatchResult\s*\[\s*18\s*\]\s*=\s*0\s*\).*?' +
+        '\(\s*homeLatchResult\s*\[\s*19\s*\]\s*=\s*0\s*\).*?' +
+        '\(\s*homeLatchResult\s*\[\s*20\s*\]\s*=\s*0\s*\)') (
+        "$Owner service does not require three samples, exact 0x3B evidence, " +
+        'and six zero coordinates.')
     Assert-Match $zeroHomeHandlerBlock (
         '(?s)ResponseSize\s*:=\s*-1\s*;.*?' +
         'pRequest\s*:=\s*pRequestFrame\s*\+\s*8\s*;.*?' +
@@ -12693,6 +16826,26 @@ function Assert-LasalDs402HomeWarmReconcileContract {
         [string]$Owner
     )
 
+    $memcmpAssignments = @([regex]::Matches(
+        $StartBlock,
+        ('(?im)^[ \t]*(?<Receiver>[A-Za-z_][A-Za-z0-9_]*)[ \t]*' +
+         ':=[ \t]*_memcmp[ \t]*\(')))
+    if ($memcmpAssignments.Count -ne 4) {
+        throw (
+            "$Owner DS402 Start _memcmp assignment count is " +
+            "$($memcmpAssignments.Count), expected exactly four.")
+    }
+    $memcmpReceiverNames = @($memcmpAssignments |
+        ForEach-Object { $_.Groups['Receiver'].Value } |
+        Sort-Object -Unique)
+    foreach ($memcmpReceiverName in $memcmpReceiverNames) {
+        Assert-LasalExactDeclaredType `
+            -Text $StartBlock `
+            -Name $memcmpReceiverName `
+            -ExpectedType 'UDINT' `
+            -Owner "$Owner DS402 Start _memcmp receiver $memcmpReceiverName"
+    }
+
     $preparePhase = [regex]::Match(
         $StartBlock,
         ('(?i)Ds402HomeState\[125\]\s*:=\s*' +
@@ -13206,6 +17359,17 @@ function Invoke-LasalDs402HomeDurableReceiptVerifierSelfTest {
     )
 
     $negativeFixtures = [ordered]@{}
+    $negativeFixtures['MemcmpReceiverTypeChanged'] =
+        $DiagnosticsText.Replace(
+            'intentBodyCompareResult, intentTailCompareResult : UDINT;',
+            'intentBodyCompareResult, intentTailCompareResult : DINT;')
+    $negativeFixtures['MemcmpSignedReceiverReintroduced'] =
+        ([regex]::new(
+            ('(?im)^(?<Indent>[ \t]*)intentBodyCompareResult' +
+             '(?<Assign>[ \t]*:=[ \t]*_memcmp\()'))).Replace(
+                $DiagnosticsText,
+                '${Indent}copyResult${Assign}',
+                1)
     $negativeFixtures['RollbackOnlyStageRemoved'] =
         $DiagnosticsText.Replace(
             'Ds402HomeState[92] := LMC_DIAG_DS402_STAGE_ROLLBACK_PREPARED;',
@@ -13543,7 +17707,9 @@ function Assert-LasalDs402HomePendingFreezeCleanupContract {
 function Assert-LasalDs402HomeBoundedCleanupContract {
     param(
         [string]$ProcessBlock,
-        [string]$Owner
+        [string]$Owner,
+        [ValidateSet(1, 4)]
+        [int]$ExpectedExpiredFailClosedArmCount = 4
     )
 
     Assert-Match $ProcessBlock (
@@ -13626,13 +17792,18 @@ function Assert-LasalDs402HomeBoundedCleanupContract {
     $terminalWrites = [regex]::Matches(
         $body,
         '(?i)Ds402HomeState\[92\]\s*:=\s*101\s*;')
-    if ($terminalWrites.Count -ne 1) {
-        throw "$Owner expired cleanup must publish local stage 101 exactly once."
-    }
-    if ([regex]::Matches($body, '(?i)\bRETURN\s*;').Count -ne 1) {
+    if ($terminalWrites.Count -ne $ExpectedExpiredFailClosedArmCount) {
         throw (
-            "$Owner expired cleanup must have one final return and no " +
-            'early-return bypass.')
+            "$Owner expired cleanup stage 101 count is " +
+            "$($terminalWrites.Count), expected " +
+            "$ExpectedExpiredFailClosedArmCount fail-closed arm(s).")
+    }
+    $expiredReturnCount =
+        [regex]::Matches($body, '(?i)\bRETURN\s*;').Count
+    if ($expiredReturnCount -ne $ExpectedExpiredFailClosedArmCount) {
+        throw (
+            "$Owner expired cleanup RETURN count is $expiredReturnCount, " +
+            "expected $ExpectedExpiredFailClosedArmCount fail-closed arm(s).")
     }
 }
 
@@ -13704,6 +17875,7 @@ function Assert-LasalDs402HomeContract {
         -Owner $Owner
     Assert-LasalDs402HomeBoundedCleanupContract `
         -ProcessBlock $processAndCleanupBlock `
+        -ExpectedExpiredFailClosedArmCount $(if ($splitPresent) { 4 } else { 1 }) `
         -Owner $Owner
 
     Assert-Match $scan (
@@ -13894,11 +18066,13 @@ function Assert-LasalDs402HomeContract {
 function Assert-LasalDs402OwnerReceiptProviderMutationFences {
     param(
         [string]$ProviderBlock,
+        [string]$Stage87HelperBlock,
         [string]$ControlServiceText,
         [string]$Owner
     )
 
     $scan = Get-LasalScanText $ProviderBlock
+    $helperScan = Get-LasalScanText $Stage87HelperBlock
     $controlScan = Get-LasalScanText $ControlServiceText
     $blocker = "$Owner DS402 owner receipt mutation blocker:"
     Assert-Match $scan (
@@ -13906,6 +18080,12 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         'LMCControlCommandService::PublishAxisOwnershipDs402Receipt\b.*?' +
         'END_FUNCTION\s*$') (
         "$blocker provider implementation scope drifted.")
+    Assert-Match $helperScan (
+        '(?is)^\s*FUNCTION\s+' +
+        'LMCControlCommandService::' +
+        'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+        'END_FUNCTION\s*$') (
+        "$blocker stage87 helper implementation scope drifted.")
 
     $abiBodyPattern = (
         'VAR_INPUT\s*' +
@@ -13938,6 +18118,61 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
             'the exact closed nine-input/one-output ABI.')
     }
 
+    $stage87AbiBodyPattern = (
+        'VAR_INPUT\s*' +
+        'pState\s*:\s*\^USINT\s*;\s*' +
+        'activeIndex\s*:\s*DINT\s*;\s*' +
+        'AxisMask\s*:\s*UDINT\s*;\s*' +
+        'ReportKind\s*:\s*UINT\s*;\s*' +
+        'ReportValue0\s*:\s*UDINT\s*;\s*' +
+        'ReportValue1\s*:\s*UDINT\s*;\s*' +
+        'ObservationCycle\s*:\s*UDINT\s*;\s*' +
+        'END_VAR\s*;?\s*' +
+        'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*;?')
+    $stage87ClassAbiMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*' +
+         $stage87AbiBodyPattern + '\s*(?=FUNCTION\b)'))
+    $stage87ImplementationAbiMatches = [regex]::Matches(
+        $controlScan,
+        ('(?is)\bFUNCTION\s+' +
+         'LMCControlCommandService::' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*' +
+         $stage87AbiBodyPattern + '\s*(?=VAR\b)'))
+    $stage87BroadHeaders = [regex]::Matches(
+        $controlScan,
+        ('(?im)^\s*FUNCTION\b[^\r\n]*' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*$'))
+    if (($stage87ClassAbiMatches.Count -ne 1) -or
+        ($stage87ImplementationAbiMatches.Count -ne 1) -or
+        ($stage87BroadHeaders.Count -ne 2)) {
+        throw (
+            "$blocker stage87 helper declaration and implementation must " +
+            'remain private with the exact closed seven-input/one-output ABI.')
+    }
+
+    $controlProviderMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
+         'LMCControlCommandService::PublishAxisOwnershipDs402Receipt\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    $controlStage87HelperMatches = [regex]::Matches(
+        $controlScan,
+        ('(?ims)^\s*FUNCTION\s+' +
+         'LMCControlCommandService::' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*$' +
+         '.*?^\s*END_FUNCTION\s*$'))
+    if (($controlProviderMatches.Count -ne 1) -or
+        ($controlStage87HelperMatches.Count -ne 1) -or
+        ($controlProviderMatches[0].Value.Trim() -cne $scan.Trim()) -or
+        ($controlStage87HelperMatches[0].Value.Trim() -cne
+            $helperScan.Trim())) {
+        throw (
+            "$blocker composite adapter/helper implementation scope or " +
+            'private helper identity drifted.')
+    }
+
     Assert-Match $controlScan (
         '(?ims)^\s*#define\s+LMC_DS402_OWNER_RECEIPT_MAGIC\s+' +
         '0x44344850\s*$\s*' +
@@ -13954,10 +18189,10 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         '^\s*#define\s+LMC_DS402_OWNER_ADOPT_MAGIC\s+0x44344144\s*$') (
         "$blocker durable receipt/stage ABI constants drifted.")
 
-    if ($scan -match
+    if (($scan + $helperScan) -match
             ('(?is)\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*' +
              '[A-Za-z_][A-Za-z0-9_]*|\b_gettime\s*\(')) {
-        throw "$blocker provider may not resample a client or clock."
+        throw "$blocker adapter/helper may not resample a client or clock."
     }
 
     $localVarMatch = [regex]::Match(
@@ -13966,6 +18201,120 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
          'VAR\s*(?<Body>.*?)\s*END_VAR'))
     if (-not $localVarMatch.Success) {
         throw "$blocker local variable block is missing."
+    }
+    $stage87LocalVarMatch = [regex]::Match(
+        $helperScan,
+        ('(?is)VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*' +
+         'VAR\s*(?<Body>.*?)\s*END_VAR'))
+    if (-not $stage87LocalVarMatch.Success) {
+        throw "$blocker stage87 helper local variable block is missing."
+    }
+
+    $expectedAdapterLocalInventory = @(
+        'pstate:^usint',
+        'identity:array[0..71]ofusint',
+        'activeindex:dint',
+        'axisindex:dint',
+        'recordbase:dint',
+        'observerbase:dint',
+        'identityheaderbase:dint',
+        'identitytailbase:dint',
+        'receiptphase:dint',
+        'receiptkind:dint',
+        'expectedownerstate:dint',
+        'requiredphase:uint',
+        'clearindex:dint',
+        'recordbytebase:udint',
+        'recordgeneration:udint',
+        'callersessionepoch:udint',
+        'requestsequence:udint',
+        'receiptgeneration:udint',
+        'ownerresult:dint',
+        'identitycompareresult:udint',
+        'firstreceipt:bool',
+        'partialreceipt:bool',
+        'stagevalid:bool',
+        'identitypre:bool',
+        'identitypost:bool',
+        'observerpre:bool',
+        'observerpost:bool',
+        'recordpre:bool',
+        'recordbodypost:bool',
+        'recordpost:bool',
+        'singletonpre:bool',
+        'singletonpost:bool',
+        'preemptioncompatible:bool',
+        'sessionclosedrollback:bool',
+        'surfacevalid:bool')
+    $expectedStage87LocalInventory = @(
+        'identity:array[0..71]ofusint',
+        'axisindex:dint',
+        'recordbase:dint',
+        'identityheaderbase:dint',
+        'identitytailbase:dint',
+        'intentrecordstate:dint',
+        'intentrawstate:dint',
+        'intentscanindex:dint',
+        'requiredphase:uint',
+        'clearindex:dint',
+        'recordbytebase:udint',
+        'recordgeneration:udint',
+        'callersessionepoch:udint',
+        'requestsequence:udint',
+        'intentgenerationsnapshot:udint',
+        'intentobservationcycle:udint',
+        'candidateadmissiontoken:udint',
+        'candidateownergeneration:udint',
+        'candidateidentitysize:udint',
+        'candidateidentityprefixsize:udint',
+        'candidateidentitytailsize:udint',
+        'candidateownerkind:uint',
+        'candidatecommandid:uint',
+        'candidatereference:uint',
+        'candidateresourcekind:uint',
+        'candidateadmissionmode:uint',
+        'ownerresult:dint',
+        'adoptionprepared:bool',
+        'rawintentvalid:bool',
+        'bridgeintentvalid:bool',
+        'intentidentityvalid:bool',
+        'candidaterecordvalid:bool',
+        'candidateobservervalid:bool',
+        'candidatereserved:bool',
+        'candidatesessionclosed:bool',
+        'candidateactive:bool',
+        'canonicalidle:bool',
+        'idlesurfacevalid:bool',
+        'intenttupleelsewhere:bool',
+        'differentownervalid:bool',
+        'stagevalid:bool',
+        'preemptioncompatible:bool')
+    $adapterLocalInventory = @(
+        [regex]::Matches(
+            $localVarMatch.Groups['Body'].Value,
+            ('(?im)^\s*(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+             '(?<Type>[^;\r\n]+)\s*;')) |
+            ForEach-Object {
+                ($_.Groups['Name'].Value + ':' +
+                 $_.Groups['Type'].Value).ToLowerInvariant() -replace '\s+', ''
+            })
+    $stage87LocalInventory = @(
+        [regex]::Matches(
+            $stage87LocalVarMatch.Groups['Body'].Value,
+            ('(?im)^\s*(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*' +
+             '(?<Type>[^;\r\n]+)\s*;')) |
+            ForEach-Object {
+                ($_.Groups['Name'].Value + ':' +
+                 $_.Groups['Type'].Value).ToLowerInvariant() -replace '\s+', ''
+            })
+    if (([string]::Join('|', $adapterLocalInventory) -cne
+            [string]::Join('|', $expectedAdapterLocalInventory)) -or
+        ([string]::Join('|', $stage87LocalInventory) -cne
+            [string]::Join('|', $expectedStage87LocalInventory))) {
+        throw (
+            "$blocker exact adapter/helper local inventory drifted " +
+            "($($adapterLocalInventory.Count)/35, " +
+            "$($stage87LocalInventory.Count)/42).")
     }
     $localPointerDeclarations = [regex]::Matches(
         $localVarMatch.Groups['Body'].Value,
@@ -13980,7 +18329,7 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
     }
     $pStateAssignments = [regex]::Matches(
         $scan,
-        '(?is)\bpState\s*:=\s*(?<Value>[^;]+)\s*;')
+        '(?im)^\s*pState\s*:=\s*(?<Value>[^\r\n;,]+)\s*;')
     if (($pStateAssignments.Count -ne 1) -or
         ([regex]::Replace(
                 $pStateAssignments[0].Groups['Value'].Value,
@@ -14012,47 +18361,67 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         '\(activeIndex\s*\*\s*LMC_OWNER_AXIS_STRIDE\)\s*;\s*' +
         'recordByteBase\s*:=\s*TO_UDINT\(' +
         'activeIndex\s*\*\s*92\)\s*;\s*' +
-        'stage87Recovery\s*:=\s*\(AdmissionToken\s*=\s*0\)\s*&\s*' +
-        '\(OwnerGeneration\s*=\s*0\)\s*;\s*' +
-        'if\s+stage87Recovery\s+then') (
+        $stage87AdapterCallPattern) (
         "$blocker input guard or state-selection prefix drifted.")
 
     $ignoredCallNames = @('and', 'else', 'if', 'not', 'or', 'then')
-    $expectedCallHistogram = [ordered]@{
-        '_memcmp' = 1
-        '_memcpy' = 4
-        '_memset' = 11
-        'sizeof' = 6
-        'to_dint' = 2
-        'to_udint' = 22
-        'to_uint' = 7
-        'validateaxisownershipidentity' = 3
-    }
-    $actualCallHistogram = [ordered]@{}
-    foreach ($callMatch in [regex]::Matches(
-            $scan,
-            ('(?i)(?<![A-Za-z0-9_])' +
-             '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
-        $callName = $callMatch.Groups['Name'].Value.ToLowerInvariant()
-        if ($ignoredCallNames -contains $callName) {
-            continue
+    $callContracts = @(
+        [pscustomobject]@{
+            Label = 'adapter'
+            Text = $scan
+            Expected = [ordered]@{
+                '_memcmp' = 1
+                '_memset' = 5
+                'sizeof' = 2
+                'to_dint' = 1
+                'to_udint' = 15
+                'to_uint' = 1
+                'validateaxisownershipidentity' = 1
+                'handleaxisownershipds402receiptstage87recovery' = 1
+            }
+        },
+        [pscustomobject]@{
+            Label = 'stage87 helper'
+            Text = $helperScan
+            Expected = [ordered]@{
+                '_memcpy' = 4
+                '_memset' = 6
+                'sizeof' = 4
+                'to_dint' = 1
+                'to_udint' = 8
+                'to_uint' = 6
+                'validateaxisownershipidentity' = 2
+            }
+        })
+    foreach ($callContract in $callContracts) {
+        $actualCallHistogram = [ordered]@{}
+        foreach ($callMatch in [regex]::Matches(
+                $callContract.Text,
+                ('(?i)(?<![A-Za-z0-9_])' +
+                 '(?<Name>[A-Za-z_][A-Za-z0-9_]*)\s*\('))) {
+            $callName = $callMatch.Groups['Name'].Value.ToLowerInvariant()
+            if ($ignoredCallNames -contains $callName) {
+                continue
+            }
+            if (-not $callContract.Expected.Contains($callName)) {
+                throw (
+                    "$blocker $($callContract.Label) unsupported call " +
+                    "'$callName'.")
+            }
+            if (-not $actualCallHistogram.Contains($callName)) {
+                $actualCallHistogram[$callName] = 0
+            }
+            $actualCallHistogram[$callName]++
         }
-        if (-not $expectedCallHistogram.Contains($callName)) {
-            throw "$blocker unsupported call '$callName'."
-        }
-        if (-not $actualCallHistogram.Contains($callName)) {
-            $actualCallHistogram[$callName] = 0
-        }
-        $actualCallHistogram[$callName]++
-    }
-    foreach ($callName in $expectedCallHistogram.Keys) {
-        if ((-not $actualCallHistogram.Contains($callName)) -or
-            ($actualCallHistogram[$callName] -ne
-                $expectedCallHistogram[$callName])) {
-            throw (
-                "$blocker call '$callName' count is " +
-                "$($actualCallHistogram[$callName]), expected " +
-                "$($expectedCallHistogram[$callName]).")
+        foreach ($callName in $callContract.Expected.Keys) {
+            if ((-not $actualCallHistogram.Contains($callName)) -or
+                ($actualCallHistogram[$callName] -ne
+                    $callContract.Expected[$callName])) {
+                throw (
+                    "$blocker $($callContract.Label) call '$callName' count is " +
+                    "$($actualCallHistogram[$callName]), expected " +
+                    "$($callContract.Expected[$callName]).")
+            }
         }
     }
 
@@ -14077,16 +18446,75 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         '#Ownership[A-Za-z0-9_]*State\s*\[)' +
         '.*?\)\s*;' +
         ')')
-    $persistentMutations = [regex]::Matches(
-        $scan,
-        $persistentMutationPattern)
-    $normalizedMutations = @(
-        foreach ($mutation in $persistentMutations) {
-            [regex]::Replace(
-                $mutation.Value,
-                '\s+',
-                '').ToLowerInvariant()
+    $mutationContracts = @(
+        [pscustomobject]@{
+            Label = 'adapter'
+            Text = $scan
+            Count = 28
+            Length = 1321
+            Sha256 =
+                '91A354E4243C20A7EFD1FCF326B04CDDD99CE80BCAF9F3ED8F7D7B4F5C5EB0E4'
+        },
+        [pscustomobject]@{
+            Label = 'stage87 helper'
+            Text = $helperScan
+            Count = 49
+            Length = 2225
+            Sha256 =
+                '3E30219133119237C9115F267CDEA3CC186759E96DC7DBCD517305FB06AC2F17'
         })
+    $adapterPersistentMutations = @()
+    $adapterNormalizedMutations = @()
+    $stage87PersistentMutations = @()
+    $stage87NormalizedMutations = @()
+    foreach ($mutationContract in $mutationContracts) {
+        $scopeMutations = [regex]::Matches(
+            $mutationContract.Text,
+            $persistentMutationPattern)
+        $scopeNormalizedMutations = @(
+            foreach ($mutation in $scopeMutations) {
+                [regex]::Replace(
+                    $mutation.Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+            })
+        $scopeJoinedMutations =
+            [string]::Join('|', $scopeNormalizedMutations)
+        $scopeSha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $scopeJoinedBytes =
+                [Text.Encoding]::UTF8.GetBytes($scopeJoinedMutations)
+            $scopeJoinedSha256 = (
+                [BitConverter]::ToString(
+                    $scopeSha.ComputeHash($scopeJoinedBytes))
+            ).Replace('-', '')
+        }
+        finally {
+            $scopeSha.Dispose()
+        }
+        if (($scopeMutations.Count -ne $mutationContract.Count) -or
+            ($scopeJoinedMutations.Length -ne $mutationContract.Length) -or
+            ($scopeJoinedSha256 -cne $mutationContract.Sha256)) {
+            throw (
+                "$blocker $($mutationContract.Label) persistent mutation " +
+                "inventory/order drifted ($($scopeMutations.Count)/" +
+                "$($mutationContract.Count), $($scopeJoinedMutations.Length)/" +
+                "$($mutationContract.Length), $scopeJoinedSha256).")
+        }
+        if ($mutationContract.Label -ceq 'adapter') {
+            $adapterPersistentMutations = @($scopeMutations)
+            $adapterNormalizedMutations = @($scopeNormalizedMutations)
+        }
+        else {
+            $stage87PersistentMutations = @($scopeMutations)
+            $stage87NormalizedMutations = @($scopeNormalizedMutations)
+        }
+    }
+
+    $persistentMutations = @(
+        $stage87PersistentMutations + $adapterPersistentMutations)
+    $normalizedMutations = @(
+        $stage87NormalizedMutations + $adapterNormalizedMutations)
     $joinedMutations = [string]::Join('|', $normalizedMutations)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
@@ -14103,7 +18531,7 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         ($joinedSha256 -cne
             '95A9EAF512D0F4DCB5B406F2FB8B1B433A420A8C729C722AF3BC7C41B93388BA')) {
         throw (
-            "$blocker persistent mutation inventory/order drifted " +
+            "$blocker transitive persistent mutation inventory/order drifted " +
             "($($persistentMutations.Count)/77, " +
             "$($joinedMutations.Length)/3547, $joinedSha256).")
     }
@@ -14113,10 +18541,36 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         throw "$blocker COMPLETE is not the final persistent mutation."
     }
 
-    $resultSequence = [string]::Join(
+    $adapterResultValues = @(
+        [regex]::Matches(
+            $scan,
+            '(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;') |
+            ForEach-Object {
+                $value = [regex]::Replace(
+                    $_.Groups['Value'].Value,
+                    '\s+',
+                    '').ToLowerInvariant()
+                if ($value.StartsWith(
+                        'handleaxisownershipds402receiptstage87recovery(',
+                        [StringComparison]::Ordinal)) {
+                    'stage87helper'
+                }
+                else {
+                    $value
+                }
+            })
+    $adapterResultSequence = [string]::Join('|', $adapterResultValues)
+    $expectedAdapterResultSequence = (
+        '-1|stage87helper|-2|-2|-3|-3|-3|ownerresult|0|-3|0|1|' +
+        '-1|-3|-3|1')
+    if ($adapterResultSequence -cne $expectedAdapterResultSequence) {
+        throw "$blocker adapter Result value/count/order inventory drifted."
+    }
+
+    $stage87ResultSequence = [string]::Join(
         '|',
         @([regex]::Matches(
-                $scan,
+                $helperScan,
                 '(?is)\bResult\s*:=\s*(?<Value>[^;]+)\s*;') |
             ForEach-Object {
                 [regex]::Replace(
@@ -14124,15 +18578,14 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
                     '\s+',
                     '').ToLowerInvariant()
             }))
-    $expectedResultSequence = (
-        '-1|-2|-3|-2|-3|-1|-3|-3|-3|-3|-3|-3|0|2|2|-1|-3|' +
-        '-2|-2|-3|-3|-3|ownerresult|0|-3|0|1|-1|-3|-3|1')
-    if ($resultSequence -cne $expectedResultSequence) {
-        throw "$blocker Result value/count/order inventory drifted."
+    $expectedStage87ResultSequence = (
+        '-2|-3|-2|-3|-1|-3|-3|-3|-3|-3|-3|0|2|2|-1|-3')
+    if ($stage87ResultSequence -cne $expectedStage87ResultSequence) {
+        throw "$blocker stage87 helper Result value/count/order inventory drifted."
     }
-    $controlFlowTokens = @(
+    $stage87ControlFlowTokens = @(
         [regex]::Matches(
-            $scan,
+            $helperScan,
             '(?is)\bResult\s*:=\s*[^;]+\s*;|\bRETURN\s*;') |
             ForEach-Object {
                 [regex]::Replace(
@@ -14140,11 +18593,12 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
                     '\s+',
                     '').ToLowerInvariant()
             })
-    $controlFlowInventory = [string]::Join('|', $controlFlowTokens)
+    $stage87ControlFlowInventory =
+        [string]::Join('|', $stage87ControlFlowTokens)
     $controlFlowSha = [Security.Cryptography.SHA256]::Create()
     try {
         $controlFlowBytes = [Text.Encoding]::UTF8.GetBytes(
-            $controlFlowInventory)
+            $stage87ControlFlowInventory)
         $controlFlowSha256 = (
             [BitConverter]::ToString(
                 $controlFlowSha.ComputeHash($controlFlowBytes))
@@ -14153,14 +18607,15 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
     finally {
         $controlFlowSha.Dispose()
     }
-    if (($controlFlowTokens.Count -ne 62) -or
-        ($controlFlowInventory.Length -ne 621) -or
+    if (($stage87ControlFlowTokens.Count -ne 31) -or
+        ($stage87ControlFlowInventory.Length -ne 308) -or
         ($controlFlowSha256 -cne
-            'DD95D7B15C57C4E768882CDE310B69FF581EB54390DEB9D87B982E09DAD3AA59')) {
+            '3286789F5AC8DBED2E7CEF8757FD0E835F76BDEA0C7374FE39484F4188014153')) {
         throw (
-            "$blocker Result/RETURN control-flow inventory drifted " +
-            "($($controlFlowTokens.Count)/62, " +
-            "$($controlFlowInventory.Length)/621, $controlFlowSha256).")
+            "$blocker stage87 Result/RETURN control-flow inventory drifted " +
+            "($($stage87ControlFlowTokens.Count)/31, " +
+            "$($stage87ControlFlowInventory.Length)/308, " +
+            "$controlFlowSha256).")
     }
 
     Assert-Match $scan (
@@ -14202,7 +18657,7 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         "$blocker replay generation/kind comparison drifted.")
 
     $stage87Validation = [regex]::Match(
-        $scan,
+        $helperScan,
         ('(?is)ownerResult\s*:=\s*ValidateAxisOwnershipIdentity\(.*?' +
          'AdmissionToken\s*:=\s*candidateAdmissionToken.*?' +
          'OwnerGeneration\s*:=\s*candidateOwnerGeneration.*?' +
@@ -14211,7 +18666,7 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
          'if\s+ownerResult\s*<>\s*0\s+then\s*' +
          'Result\s*:=\s*-3\s*;\s*RETURN\s*;\s*end_if\s*;'))
     if (-not $stage87Validation.Success -or
-        $persistentMutations[0].Index -lt
+        $stage87PersistentMutations[0].Index -lt
             ($stage87Validation.Index + $stage87Validation.Length)) {
         throw (
             "$blocker stage87 persistent publication precedes exact " +
@@ -14292,31 +18747,6 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
         'Result\s*:=\s*1\s*;\s*END_FUNCTION\s*$') (
         "$blocker ordered destructive clear/COMPLETE sequence drifted.")
 
-    # Keep this final: focused semantic checks should explain known drift first.
-    # The token ratchet catches unmodeled branch/call/control-flow changes without
-    # making comments, case, indentation, or newline encoding contractual.
-    $semanticTokens = [regex]::Replace(
-        $scan,
-        '\s+',
-        '').ToLowerInvariant()
-    $semanticSha = [Security.Cryptography.SHA256]::Create()
-    try {
-        $semanticBytes = [Text.Encoding]::UTF8.GetBytes($semanticTokens)
-        $semanticSha256 = (
-            [BitConverter]::ToString(
-                $semanticSha.ComputeHash($semanticBytes))
-        ).Replace('-', '')
-    }
-    finally {
-        $semanticSha.Dispose()
-    }
-    if (($semanticTokens.Length -ne 35988) -or
-        ($semanticSha256 -cne
-            '3744AF0E5470B753EB12EAA3301FD7BB94F38350ED523B732F81827D8184D4E4')) {
-        throw (
-            "$blocker normalized semantic token inventory drifted " +
-            "($($semanticTokens.Length)/35988, $semanticSha256).")
-    }
 }
 
 function Assert-LasalDs402OwnerReceiptProviderContract {
@@ -14336,14 +18766,25 @@ function Assert-LasalDs402OwnerReceiptProviderContract {
         ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
          'LMCControlCommandService::PublishAxisOwnershipDs402Receipt\s*\r?$' +
          '.*?^\s*END_FUNCTION\s*\r?$'))
+    $stage87HelperMatches = [regex]::Matches(
+        $scan,
+        ('(?ims)^\s*FUNCTION\s+' +
+         'LMCControlCommandService::' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*\r?$' +
+         '.*?^\s*END_FUNCTION\s*\r?$'))
     if (($validateMatches.Count -ne 1) -or
-        ($providerMatches.Count -ne 1)) {
-        throw "$Owner validator or DS402 receipt provider is missing."
+        ($providerMatches.Count -ne 1) -or
+        ($stage87HelperMatches.Count -ne 1)) {
+        throw (
+            "$Owner validator, DS402 receipt adapter, or private stage87 " +
+            'helper is missing.')
     }
     $validateBlock = $validateMatches[0].Value
     $providerBlock = $providerMatches[0].Value
+    $stage87HelperBlock = $stage87HelperMatches[0].Value
     Assert-LasalDs402OwnerReceiptProviderMutationFences `
         -ProviderBlock $providerBlock `
+        -Stage87HelperBlock $stage87HelperBlock `
         -ControlServiceText $ControlServiceText `
         -Owner $Owner
 
@@ -14379,18 +18820,23 @@ function Assert-LasalDs402OwnerReceiptProviderContract {
     Assert-Match $scan (
         '(?im)^\s*#define\s+LMC_DS402_OWNER_ADOPT_MAGIC\s+0x44344144\s*$') (
         "$Owner DS402 tokenless recovery adoption magic is missing.")
-    $stage87Provider = [regex]::Match(
-        $providerBlock,
-        ('(?is)stage87Recovery\s*:=\s*' +
-         '\(AdmissionToken\s*=\s*0\)\s*&\s*' +
-         '\(OwnerGeneration\s*=\s*0\)\s*;\s*' +
-         'if\s+stage87Recovery\s+then\s*' +
-         '(?<Body>.*?)\s*if\s+\(AdmissionToken\s*=\s*0\)\s*\|\s*' +
-         '\(OwnerGeneration\s*=\s*0\)\s+then'))
-    if (-not $stage87Provider.Success) {
-        throw "$Owner DS402 provider lacks a bounded stage87 tokenless branch."
-    }
-    $stage87Body = $stage87Provider.Groups['Body'].Value
+    Assert-Match $providerBlock (
+        ('(?is)if\s+\(AdmissionToken\s*=\s*0\)\s*&\s*' +
+         '\(OwnerGeneration\s*=\s*0\)\s+then\s*' +
+         'Result\s*:=\s*' +
+         'HandleAxisOwnershipDs402ReceiptStage87Recovery\(\s*' +
+         'pState\s*:=\s*pState\s*,\s*' +
+         'activeIndex\s*:=\s*activeIndex\s*,\s*' +
+         'AxisMask\s*:=\s*AxisMask\s*,\s*' +
+         'ReportKind\s*:=\s*ReportKind\s*,\s*' +
+         'ReportValue0\s*:=\s*ReportValue0\s*,\s*' +
+         'ReportValue1\s*:=\s*ReportValue1\s*,\s*' +
+         'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
+         'RETURN\s*;\s*end_if\s*;\s*' +
+         'if\s+\(AdmissionToken\s*=\s*0\)\s*\|\s*' +
+         '\(OwnerGeneration\s*=\s*0\)\s+then')) (
+        "$Owner DS402 adapter lacks the exact closed stage87 helper branch.")
+    $stage87Body = $stage87HelperBlock
     Assert-Match $stage87Body (
         ('(?is)if\s+\(ReportKind\s*<>\s*' +
          'LMC_DS402_OWNER_RECEIPT_ROLLBACK\)\s*\|\s*' +
@@ -14645,8 +19091,10 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
                 1)
     $negativeFixtures['IntentTokenlessModeBroadened'] =
         ([regex]::new(
-            ('(?i)(stage87Recovery\s*:=\s*' +
-             '\(AdmissionToken\s*=\s*0\)\s*)&'))).Replace(
+            ('(?is)(FUNCTION\s+GLOBAL\s+' +
+             'LMCControlCommandService::' +
+             'PublishAxisOwnershipDs402Receipt\b.*?' +
+             'if\s+\(AdmissionToken\s*=\s*0\)\s*)&'))).Replace(
                 $ControlServiceText,
                 '${1}|',
                 1)
@@ -14672,18 +19120,24 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
                 1)
     $negativeFixtures['IntentStage88BeforeBridge'] =
         ([regex]::new(
-            ('(?is)(if\s+stage87Recovery\s+then.*?' +
-             '\(pState\s*\+\s*recordByteBase\)\^\$DINT\s*:=\s*1\s*;)'))).Replace(
+            ('(?is)(FUNCTION\s+' +
+             'LMCControlCommandService::' +
+             'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+             ')(\(pState\s*\+\s*recordByteBase\)\^\$DINT\s*:=\s*1\s*;)'))).Replace(
                 $ControlServiceText,
-                ('(pState + 368)^$DINT := ' +
+                ('${1}(pState + 368)^$DINT := ' +
                  'LMC_DS402_OWNER_STAGE_ROLLBACK_PREPARED;' +
-                 [Environment]::NewLine + '${1}'),
+                 [Environment]::NewLine + '${2}'),
                 1)
     $negativeFixtures['IntentTouchesMismatchedOwner'] =
         ([regex]::new(
-            '(?is)(if\s+stage87Recovery\s+then\s*)')).Replace(
+            ('(?is)(FUNCTION\s+' +
+             'LMCControlCommandService::' +
+             'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+             'END_VAR\s*)(axisIndex\s*:=\s*activeIndex\s*\+\s*1\s*;)'))).Replace(
                 $ControlServiceText,
-                '${1}OwnershipState[24] := 1;' + [Environment]::NewLine,
+                ('${1}OwnershipState[24] := 1;' +
+                 [Environment]::NewLine + '${2}'),
                 1)
     $negativeFixtures['IntentResult2Broadened'] =
         ([regex]::new(
@@ -14697,7 +19151,9 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
             '#define LMC_DS402_OWNER_ADOPT_MAGIC 0x44344145')
     $negativeFixtures['IntentAdoptMarkerAfterRecordClear'] =
         ([regex]::new(
-            ('(?is)(if\s+stage87Recovery\s+then.*?)' +
+            ('(?is)(FUNCTION\s+' +
+             'LMCControlCommandService::' +
+             'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?)' +
              '(\(pState\s*\+\s*476\)\^\$UDINT\s*:=\s*' +
              'LMC_DS402_OWNER_ADOPT_MAGIC\s*;)' +
              '(.*?)(_memset\(dest:=pState\s*\+\s*recordByteBase\s*\+\s*4\s*,\s*' +
@@ -14707,7 +19163,9 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
                 1)
     $negativeFixtures['IntentStateZeroAfterBodyClear'] =
         ([regex]::new(
-            ('(?is)(if\s+stage87Recovery\s+then.*?)' +
+            ('(?is)(FUNCTION\s+' +
+             'LMCControlCommandService::' +
+             'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?)' +
              '(\(pState\s*\+\s*recordByteBase\)\^\$DINT\s*:=\s*0\s*;)' +
              '(.*?)(_memset\(dest:=pState\s*\+\s*recordByteBase\s*\+\s*4\s*,\s*' +
              'usByte:=0\s*,\s*cntr:=88\s*\)\s*;)'))).Replace(
@@ -14970,9 +19428,9 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
         @{
             Name = 'Stage87ValidatorResultBypassed'
             Pattern = (
-                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                '(?is)(FUNCTION\s+' +
                 'LMCControlCommandService::' +
-                'PublishAxisOwnershipDs402Receipt\b.*?' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
                 'ownerResult\s*:=\s*ValidateAxisOwnershipIdentity\(.*?' +
                 'AdmissionToken\s*:=\s*candidateAdmissionToken.*?' +
                 'OwnerGeneration\s*:=\s*candidateOwnerGeneration.*?' +
@@ -15117,6 +19575,136 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
                 '(?im)^(\s*#define\s+' +
                 'LMC_DS402_OWNER_STAGE_ROLLBACK_PREPARED\s+)88\s*$')
             Replacement = '${1}89'
+        },
+        @{
+            Name = 'Stage87ClassAbiPromotedGlobal'
+            Pattern = (
+                '(?im)^(\s*FUNCTION\s+)' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery(\s*)$')
+            Replacement = (
+                '${1}GLOBAL ' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery${2}')
+        },
+        @{
+            Name = 'Stage87ImplementationPromotedGlobal'
+            Pattern = (
+                '(?im)^(\s*FUNCTION\s+)' +
+                '(LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*)$')
+            Replacement = '${1}GLOBAL ${2}'
+        },
+        @{
+            Name = 'Stage87ClassAbiTrailingInputAdded'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*' +
+                'VAR_INPUT.*?VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*' +
+                'END_VAR\s*;)')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                "`tVAR_INPUT" + [Environment]::NewLine +
+                "`t`tUnexpectedInput : UDINT;" + [Environment]::NewLine +
+                "`tEND_VAR;")
+        },
+        @{
+            Name = 'Stage87ImplementationAbiTrailingInputAdded'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\s*' +
+                'VAR_INPUT.*?VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*' +
+                'END_VAR)')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                "`tVAR_INPUT" + [Environment]::NewLine +
+                "`t`tUnexpectedInput : UDINT;" + [Environment]::NewLine +
+                "`tEND_VAR")
+        },
+        @{
+            Name = 'Stage87AdapterCallAxisMaskDrift'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::' +
+                'PublishAxisOwnershipDs402Receipt\b.*?' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\(.*?' +
+                'AxisMask\s*:=\s*)AxisMask')
+            Replacement = '${1}ReportValue0'
+        },
+        @{
+            Name = 'Stage87AdapterCallReturnRemoved'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::' +
+                'PublishAxisOwnershipDs402Receipt\b.*?' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\(.*?' +
+                'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;)' +
+                '\s*RETURN\s*;')
+            Replacement = '${1}'
+        },
+        @{
+            Name = 'Stage87AdapterCallDuplicated'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::' +
+                'PublishAxisOwnershipDs402Receipt\b.*?)' +
+                '(Result\s*:=\s*' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\(.*?' +
+                'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;)')
+            Replacement = (
+                '${1}${2}' + [Environment]::NewLine + '${2}')
+        },
+        @{
+            Name = 'Stage87LegacyLocalRetainedInAdapter'
+            Pattern = (
+                '(?is)(FUNCTION\s+GLOBAL\s+' +
+                'LMCControlCommandService::' +
+                'PublishAxisOwnershipDs402Receipt\b.*?' +
+                'VAR_OUTPUT\s*Result\s*:\s*DINT\s*;\s*END_VAR\s*' +
+                'VAR\s*pState\s*:\s*\^USINT\s*;)')
+            Replacement = (
+                '${1}' + [Environment]::NewLine +
+                "`t`tstage87Recovery : BOOL;")
+        },
+        @{
+            Name = 'Stage87HelperLocalTypeDrift'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+                'candidateOwnerKind\s*:\s*)UINT')
+            Replacement = '${1}UDINT'
+        },
+        @{
+            Name = 'Stage87HelperUnexpectedCall'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+                'END_VAR\s*)(axisIndex\s*:=\s*activeIndex\s*\+\s*1\s*;)')
+            Replacement = (
+                '${1}ownerResult := RollbackAxisOwnership();' +
+                [Environment]::NewLine + '${2}')
+        },
+        @{
+            Name = 'Stage87HelperEarlyReturn'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+                'END_VAR\s*)(axisIndex\s*:=\s*activeIndex\s*\+\s*1\s*;)')
+            Replacement = (
+                '${1}RETURN;' + [Environment]::NewLine + '${2}')
+        },
+        @{
+            Name = 'Stage87HelperEarlyPStateWrite'
+            Pattern = (
+                '(?is)(FUNCTION\s+' +
+                'LMCControlCommandService::' +
+                'HandleAxisOwnershipDs402ReceiptStage87Recovery\b.*?' +
+                'END_VAR\s*)(axisIndex\s*:=\s*activeIndex\s*\+\s*1\s*;)')
+            Replacement = (
+                '${1}(pState + 500)^$DINT := 99;' +
+                [Environment]::NewLine + '${2}')
         }
     )
     foreach ($fixture in $mutationFenceFixtures) {
@@ -15169,8 +19757,8 @@ function Invoke-LasalDs402OwnerReceiptProviderVerifierSelfTest {
         }
         $negativeCount += 1
     }
-    if ($negativeCount -ne 55) {
-        throw "$Owner provider negative count is $negativeCount, expected 55."
+    if ($negativeCount -ne 67) {
+        throw "$Owner provider negative count is $negativeCount, expected 67."
     }
     return $negativeCount
 }
@@ -16052,6 +20640,7 @@ function Assert-LasalDs402HomeRetirementContract {
         -Owner $Owner
     Assert-LasalDs402HomeBoundedCleanupContract `
         -ProcessBlock $processAndCleanupBlock `
+        -ExpectedExpiredFailClosedArmCount $(if ($splitPresent) { 4 } else { 1 }) `
         -Owner $Owner
 
     Assert-Match $blocks.Retire (
@@ -17313,10 +21902,10 @@ function Assert-TCPMotionInterfaceSamePeerTakeover {
         $connectBody,
         $candidateShutdownPattern)
     if ($ownerShutdownMatches.Count -ne 1 -or
-        $candidateShutdownMatches.Count -ne 1) {
+        $candidateShutdownMatches.Count -ne 2) {
         throw (
-            "$Owner must request exactly one old-owner and one rejected-candidate " +
-            'Cmd=100 controlled shutdown.')
+            "$Owner must request exactly one old-owner and two rejected-candidate " +
+            'Cmd=100 controlled shutdowns (Reserved>=2 latch plus ordinary rejection).')
     }
     Assert-Match $connectBody (
         '(?s)if\s+LastOwnerDisconnectRequestRet\s*=\s*TCP_SVR_NO_ERROR\s+then\s*' +
@@ -17383,9 +21972,12 @@ function Assert-TCPMotionInterfaceSamePeerTakeover {
         'end_if\s*;\s*RETURN\s*;') (
         "$Owner DataHandling does not drain non-owner sockets before owner state.")
     Assert-Match $responseBody (
-        '(?s)\A\s*if\s+udSize\s*=\s*0\s+then\s*RETURN\s*;\s*end_if\s*;\s*' +
+        '(?s)\A\s*if\s+ActiveRequest\.Reserved\s*>=\s*2\s+then\s*' +
+        'RETURN\s*;\s*end_if\s*;\s*' +
+        'if\s+udSize\s*=\s*0\s+then\s*RETURN\s*;\s*end_if\s*;\s*' +
         'if\s+dSock\s*<>\s*CurrentSock\s+then\s*RETURN\s*;\s*end_if\s*;') (
-        "$Owner Response does not isolate retiring/rejected non-owner data.")
+        "$Owner Response does not reject reserved ingress before isolating " +
+        'retiring/rejected non-owner data.')
 
     Assert-Match $disconnectBody (
         '(?s)if\s+RetiringSock\s*=\s*dSock\s+then\s*' +
@@ -20051,15 +24643,6 @@ function Invoke-LasalAxisZeroHomeRtMailboxVerifierSelfTest {
     $negativeFixtures['StableSampleIncrement'] = $fixture.Replace(
         'zeroHomeStableSampleCount += 1;',
         'zeroHomeStableSampleCount += 2;')
-    $negativeFixtures['RawWindow'] = $fixture.Replace(
-        '#define LMC_ZERO_HOME_RAW_WINDOW          2',
-        '#define LMC_ZERO_HOME_RAW_WINDOW          3')
-    $negativeFixtures['RawWindowBaselineSlot'] = $fixture.Replace(
-        'AxisZeroHomeResult[13]$UDINT;',
-        'AxisZeroHomeResult[14]$UDINT;')
-    $negativeFixtures['RawWindowNegativeBoundary'] = $fixture.Replace(
-        '#define LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFE',
-        '#define LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFD')
     $negativeFixtures['StaleActualPositionGuard'] = ([regex]::new(
         ('(?is)elsif\s+zeroHomeActualAppPosition\s*<>\s*' +
          'zeroHomeExpectedActualPosition\s+then'))).Replace(
@@ -20080,8 +24663,11 @@ function Invoke-LasalAxisZeroHomeRtMailboxVerifierSelfTest {
         'zeroHomeMasterPosition <> 0',
         'zeroHomeMasterPosition <> 1')
     $negativeFixtures['EvidenceCompleteMask'] = $fixture.Replace(
-        '#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003F',
+        '#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003B',
         '#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000001F')
+    $negativeFixtures['EvidenceVerifiedMask'] = $fixture.Replace(
+        '#define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001B',
+        '#define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001F')
     $negativeFixtures['ResultSlot15Mapping'] = $fixture.Replace(
         'AxisZeroHomeResult[15] := zeroHomeActualAppPosition;',
         'AxisZeroHomeResult[15] := zeroHomeSetAppPosition;')
@@ -21025,40 +25611,39 @@ if ($AxisOwnershipRollbackVerifierSelfTestOnly) {
     $rollbackControlPath = Join-Path $rollbackRoot (
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
         'LMCControlCommandService\LMCControlCommandService.st')
-    $rollbackControl = Get-Content -Raw -LiteralPath $rollbackControlPath
-    $rollbackScan = Get-LasalScanText $rollbackControl
-    $rollbackMatches = [regex]::Matches(
-        $rollbackScan,
-        ('(?ims)^\s*FUNCTION\s+GLOBAL\s+' +
-         'LMCControlCommandService::RollbackAxisOwnership\s*$' +
-         '.*?^\s*END_FUNCTION\s*$'))
-    if ($rollbackMatches.Count -ne 1) {
-        throw (
-            'Current LMCControlCommandService rollback implementation count ' +
-            "is $($rollbackMatches.Count), expected one.")
-    }
-    Assert-LasalAxisOwnershipRollbackMutationFences `
-        -RollbackBlock $rollbackMatches[0].Value `
+    $rollbackControl = [IO.File]::ReadAllText(
+        $rollbackControlPath,
+        [Text.UTF8Encoding]::new($false, $true))
+    Assert-LasalAxisOwnershipRollbackSplitMutationFences `
         -ControlServiceText $rollbackControl `
-        -Owner 'Current LMCControlCommandService rollback'
+        -Owner 'Current LMCControlCommandService rollback split'
     $rollbackNegativeFixtureCount =
-        Invoke-LasalAxisOwnershipRollbackVerifierSelfTest `
+        Invoke-LasalAxisOwnershipRollbackSplitVerifierSelfTest `
             -ControlServiceText $rollbackControl `
-            -Owner 'Current LMCControlCommandService rollback'
-    Write-Host (
-        'PASS LASAL.AxisOwnershipRollbackVerifier.SelfTest (' +
+            -Owner 'Current LMCControlCommandService rollback split'
+    Write-Output (
+        'PASS LASAL.AxisOwnershipRollbackSplitVerifier.SelfTest (' +
         "$rollbackNegativeFixtureCount/" +
         "$rollbackNegativeFixtureCount negative fixtures rejected; " +
-        'comment-only fixture accepted)')
+        'current adapter/helper accepted)')
     return
 }
 
 if ($AxisOwnershipPublishVerifierSelfTestOnly) {
     $publishRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    $publishTcpPath = Join-Path $publishRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'TCPMotionInterface\TCPMotionInterface.st')
     $publishControlPath = Join-Path $publishRoot (
         'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
         'LMCControlCommandService\LMCControlCommandService.st')
+    $publishDiagnosticsPath = Join-Path $publishRoot (
+        'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\' +
+        'LMCDiagnosticsService\LMCDiagnosticsService.st')
+    $publishTcp = Get-Content -Raw -LiteralPath $publishTcpPath
     $publishControl = Get-Content -Raw -LiteralPath $publishControlPath
+    $publishDiagnostics =
+        Get-Content -Raw -LiteralPath $publishDiagnosticsPath
     $publishScan = Get-LasalScanText $publishControl
     $publishMatches = [regex]::Matches(
         $publishScan,
@@ -21078,11 +25663,40 @@ if ($AxisOwnershipPublishVerifierSelfTestOnly) {
         Invoke-LasalAxisOwnershipPublishVerifierSelfTest `
             -ControlServiceText $publishControl `
             -Owner 'Current LMCControlCommandService publish'
+    $publishCallerContract =
+        Assert-LasalAxisOwnershipPublishCallerContract `
+            -TcpText $publishTcp `
+            -ControlServiceText $publishControl `
+            -DiagnosticsText $publishDiagnostics `
+            -Owner 'Current production source'
+    $publishCallerLegacySelfTest =
+        Invoke-LasalAxisOwnershipPublishCallerLegacySyntheticSelfTest `
+            -Owner 'Axis ownership publish caller inventory'
+    $publishCallerTargetSelfTest =
+        Invoke-LasalAxisOwnershipPublishCallerContractVerifierSelfTest `
+            -Owner 'Post-C78 target contract'
     Write-Host (
         'PASS LASAL.AxisOwnershipPublishVerifier.SelfTest (' +
         "$publishNegativeFixtureCount/" +
-        "$publishNegativeFixtureCount negative fixtures rejected; " +
-        'comment-only fixture accepted)')
+        "$publishNegativeFixtureCount provider negative fixtures rejected; " +
+        "$($publishCallerLegacySelfTest.NegativeCount)/" +
+        "$($publishCallerLegacySelfTest.NegativeCount) legacy inventory negative fixtures " +
+        'rejected; ' +
+        "$($publishCallerTargetSelfTest.NegativeCount)/" +
+        "$($publishCallerTargetSelfTest.NegativeCount) target caller negative " +
+        'fixtures rejected; synthetic target ' +
+        "$($publishCallerTargetSelfTest.Target.Total)/" +
+        "$($publishCallerTargetSelfTest.Target.Consumed)/" +
+        "$($publishCallerTargetSelfTest.Target.Open) total/consumed/OPEN; " +
+        "$($publishCallerTargetSelfTest.Target.PreemptionCleanup) " +
+        'preemption-cleanup callers accept exact {0,1}; comment-only fixtures ' +
+        'accepted; current production target ' +
+        "$($publishCallerContract.Total)/" +
+        "$($publishCallerContract.Consumed)/" +
+        "$($publishCallerContract.Open); legacy synthetic baseline " +
+        "$($publishCallerLegacySelfTest.Baseline.Total)/" +
+        "$($publishCallerLegacySelfTest.Baseline.Consumed)/" +
+        "$($publishCallerLegacySelfTest.Baseline.Open))")
     return
 }
 
@@ -21353,8 +25967,8 @@ if (-not $SourceOnly) {
 $tcpServer = Get-Content -Raw -LiteralPath $tcpServerPath
 $takeoverCommNetworkTable = Get-Content -Raw -LiteralPath $commNetworkTablePath
 $configObjects = Get-Content -Raw -LiteralPath $configObjectsPath
-$classDbText = [Text.Encoding]::ASCII.GetString(
-    [IO.File]::ReadAllBytes($classDbPath))
+$classDbBytes = [IO.File]::ReadAllBytes($classDbPath)
+$classDbText = [Text.Encoding]::ASCII.GetString($classDbBytes)
 $networkDbText = [Text.Encoding]::ASCII.GetString(
     [IO.File]::ReadAllBytes($networkDbPath))
 $axisRebaseNetworkArtifactText = [ordered]@{
@@ -21447,6 +26061,12 @@ foreach ($customMethodSizeBudgetLine in $customMethodSizeBudgetOutput) {
     Write-Host $customMethodSizeBudgetLine
 }
 
+$rollbackSplitVerifierOutput = @(
+    Invoke-LasalAxisOwnershipRollbackSplitVerifierGate -Root $root)
+foreach ($rollbackSplitVerifierLine in $rollbackSplitVerifierOutput) {
+    Write-Host $rollbackSplitVerifierLine
+}
+
 Assert-LMCDiagnosticsHomeMaintenanceIdeContract `
     -DiagnosticsText $diagnosticsService `
     -ClassDatabaseText $classDbText `
@@ -21466,6 +26086,17 @@ Assert-LasalAxisOwnershipActivationGuard `
     -ExpectedTw20Gate TRUE `
     -ExpectedTw19Gate TRUE `
     -Owner 'Current LASAL source'
+$publishCallerContract = Assert-LasalAxisOwnershipPublishCallerContract `
+    -TcpText $st `
+    -ControlServiceText $controlCommandService `
+    -DiagnosticsText $diagnosticsServiceRaw `
+    -Owner 'Current LASAL source'
+Write-Host (
+    'PASS LASAL.AxisOwnershipPublishCallerContract target (' +
+    "$($publishCallerContract.Total)/" +
+    "$($publishCallerContract.Consumed)/" +
+    "$($publishCallerContract.Open) total/consumed/OPEN; " +
+    "$($publishCallerContract.PreemptionCleanup) preemption-cleanup callers)")
 Assert-LasalAxisOwnershipIdentityPreemptionContract `
     -ControlServiceText $controlCommandService `
     -Owner 'Current LASAL source'
@@ -22157,6 +26788,189 @@ foreach ($axisRebasePrivateAbi in $axisRebasePrivateAbiContracts) {
         }
     }
 }
+$preemptionReplacementHelperName =
+    'ValidateAxisOwnershipPreemptionReplacement'
+$preemptionReplacementHelperInputs = @(
+    @{ Name = 'PreemptedAdmissionToken'; Type = 'UDINT' },
+    @{ Name = 'PreemptedOwnerGeneration'; Type = 'UDINT' },
+    @{ Name = 'OldCommand'; Type = 'DINT' },
+    @{ Name = 'OldOwnerKind'; Type = 'DINT' },
+    @{ Name = 'OldResourceKind'; Type = 'DINT' },
+    @{ Name = 'OldIdentitySize'; Type = 'UDINT' })
+Assert-ExactLasalFunctionAbi `
+    -ClassBlock $controlServiceClassBlock `
+    -FunctionName $preemptionReplacementHelperName `
+    -IsGlobal $false `
+    -Inputs $preemptionReplacementHelperInputs `
+    -Outputs @(@{ Name = 'Result'; Type = 'BOOL' }) `
+    -Owner 'LMCControlCommandService'
+if ($controlServiceClassDbRecord -notmatch
+        ('(?<![A-Za-z0-9_])' +
+         [regex]::Escape($preemptionReplacementHelperName) +
+         '(?![A-Za-z0-9_])')) {
+    throw (
+        'LASAL Classes.lcb LMCControlCommandService record is missing ' +
+        "$preemptionReplacementHelperName. Save the private function through " +
+        'LASAL IDE; no pending-declaration waiver is permitted.')
+}
+$ds402ReceiptStage87HelperName =
+    'HandleAxisOwnershipDs402ReceiptStage87Recovery'
+$ds402ReceiptStage87HelperInputs = @(
+    @{ Name = 'pState'; Type = '^USINT' },
+    @{ Name = 'activeIndex'; Type = 'DINT' },
+    @{ Name = 'AxisMask'; Type = 'UDINT' },
+    @{ Name = 'ReportKind'; Type = 'UINT' },
+    @{ Name = 'ReportValue0'; Type = 'UDINT' },
+    @{ Name = 'ReportValue1'; Type = 'UDINT' },
+    @{ Name = 'ObservationCycle'; Type = 'UDINT' })
+Assert-ExactLasalFunctionAbi `
+    -ClassBlock $controlServiceClassBlock `
+    -FunctionName $ds402ReceiptStage87HelperName `
+    -IsGlobal $false `
+    -Inputs $ds402ReceiptStage87HelperInputs `
+    -Outputs @(@{ Name = 'Result'; Type = 'DINT' }) `
+    -Owner 'LMCControlCommandService'
+if ($controlServiceClassDbRecord -notmatch
+        ('(?<![A-Za-z0-9_])' +
+         [regex]::Escape($ds402ReceiptStage87HelperName) +
+         '(?![A-Za-z0-9_])')) {
+    throw (
+        'LASAL Classes.lcb LMCControlCommandService record is missing ' +
+        "$ds402ReceiptStage87HelperName. Save the private function through " +
+        'LASAL IDE; no pending-declaration waiver is permitted.')
+}
+$rollbackPreemptHelperName =
+    'ValidateAxisOwnershipRollbackPreemptBank'
+$rollbackPreemptHelperInputs = @(
+    @{ Name = 'ExpectedAxisMask'; Type = 'UDINT' },
+    @{ Name = 'pRestoreContext'; Type = '^void' },
+    @{ Name = 'RestoreContextSize'; Type = 'UDINT' })
+Assert-ExactLasalFunctionAbi `
+    -ClassBlock $controlServiceClassBlock `
+    -FunctionName $rollbackPreemptHelperName `
+    -IsGlobal $false `
+    -Inputs $rollbackPreemptHelperInputs `
+    -Outputs @(@{ Name = 'Result'; Type = 'DINT' }) `
+    -Owner 'LMCControlCommandService'
+if ($controlServiceClassDbRecord -notmatch
+        ('(?<![A-Za-z0-9_])' +
+         [regex]::Escape($rollbackPreemptHelperName) +
+         '(?![A-Za-z0-9_])')) {
+    throw (
+        'LASAL Classes.lcb LMCControlCommandService record is missing ' +
+        "$rollbackPreemptHelperName. Save the private function through " +
+        'LASAL IDE; no pending-declaration waiver is permitted.')
+}
+$rollbackPreemptHeaderBytes = @(
+    0x0B, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x03, 0x00, 0x00, 0x00)
+$rollbackPreemptMetadataCandidates = @()
+$rollbackPreemptNameSearchStart = 0
+while ($rollbackPreemptNameSearchStart -lt $classDbText.Length) {
+    $rollbackPreemptNameStart = $classDbText.IndexOf(
+        $rollbackPreemptHelperName,
+        $rollbackPreemptNameSearchStart,
+        [StringComparison]::Ordinal)
+    if ($rollbackPreemptNameStart -lt 0) {
+        break
+    }
+
+    $rollbackPreemptCandidateHeaderStart =
+        $rollbackPreemptNameStart + $rollbackPreemptHelperName.Length
+    $rollbackPreemptCandidateMatches =
+        ($rollbackPreemptCandidateHeaderStart +
+            $rollbackPreemptHeaderBytes.Count) -le $classDbBytes.Length
+    if ($rollbackPreemptCandidateMatches) {
+        for ($byteIndex = 0;
+             $byteIndex -lt $rollbackPreemptHeaderBytes.Count;
+             $byteIndex++) {
+            if ($classDbBytes[
+                    $rollbackPreemptCandidateHeaderStart + $byteIndex] -ne
+                $rollbackPreemptHeaderBytes[$byteIndex]) {
+                $rollbackPreemptCandidateMatches = $false
+                break
+            }
+        }
+    }
+    if ($rollbackPreemptCandidateMatches) {
+        $rollbackPreemptMetadataCandidates += $rollbackPreemptNameStart
+    }
+    $rollbackPreemptNameSearchStart =
+        $rollbackPreemptNameStart + $rollbackPreemptHelperName.Length
+}
+if ($rollbackPreemptMetadataCandidates.Count -ne 1) {
+    throw (
+        'LASAL Classes.lcb rollback helper exact private ABI record count is ' +
+        "$($rollbackPreemptMetadataCandidates.Count), expected 1.")
+}
+$rollbackPreemptMetadataStart = $rollbackPreemptMetadataCandidates[0]
+$rollbackPreemptHeaderStart =
+    $rollbackPreemptMetadataStart + $rollbackPreemptHelperName.Length
+for ($byteIndex = 0;
+     $byteIndex -lt $rollbackPreemptHeaderBytes.Count;
+     $byteIndex++) {
+    if ($classDbBytes[$rollbackPreemptHeaderStart + $byteIndex] -ne
+        $rollbackPreemptHeaderBytes[$byteIndex]) {
+        throw (
+            'LASAL Classes.lcb rollback helper method tag, private flags, ' +
+            'or exact three-input count drifted.')
+    }
+}
+$rollbackPreemptResultMetadata = $classDbText.IndexOf(
+    'Result',
+    $rollbackPreemptHeaderStart,
+    [StringComparison]::Ordinal)
+$rollbackPreemptResultTypeMetadata = if (
+    $rollbackPreemptResultMetadata -ge 0) {
+    $classDbText.IndexOf(
+        'DINT',
+        $rollbackPreemptResultMetadata,
+        [StringComparison]::Ordinal)
+}
+else {
+    -1
+}
+$rollbackPreemptMetadataLength = if (
+    $rollbackPreemptResultTypeMetadata -ge 0) {
+    ($rollbackPreemptResultTypeMetadata + 4) -
+        $rollbackPreemptMetadataStart
+}
+else {
+    -1
+}
+if (($rollbackPreemptMetadataLength -ne 565) -or
+    ($rollbackPreemptResultMetadata -ge
+        ($rollbackPreemptMetadataStart + 565))) {
+    throw (
+        'LASAL Classes.lcb rollback helper ordered input/output metadata ' +
+        'boundary drifted.')
+}
+$rollbackPreemptMetadataBytes = [byte[]]::new(
+    $rollbackPreemptMetadataLength)
+[Array]::Copy(
+    $classDbBytes,
+    $rollbackPreemptMetadataStart,
+    $rollbackPreemptMetadataBytes,
+    0,
+    $rollbackPreemptMetadataLength)
+$rollbackPreemptMetadataSha = [Security.Cryptography.SHA256]::Create()
+try {
+    $rollbackPreemptMetadataSha256 = (
+        [BitConverter]::ToString(
+            $rollbackPreemptMetadataSha.ComputeHash(
+                $rollbackPreemptMetadataBytes))
+    ).Replace('-', '')
+}
+finally {
+    $rollbackPreemptMetadataSha.Dispose()
+}
+if ($rollbackPreemptMetadataSha256 -cne
+    '094573D70AC34005F1072D5FE88D705CD2D63BD8F4B3A16068228D97EFB4F337') {
+    throw (
+        'LASAL Classes.lcb rollback helper exact private ABI record ' +
+        "ratchet drifted ($rollbackPreemptMetadataSha256).")
+}
 foreach ($generatedMemberName in @(
         'HandleRequest',
         'HandleAdminCommands',
@@ -22175,7 +26989,10 @@ foreach ($generatedMemberName in @(
         'ReconcileAxisOwnershipStartup',
         'ValidateAxisOwnershipIdentity',
         'CopyAxisOwnershipPreemption',
-        'PublishAxisOwnershipPreemptionCleanup')) {
+        'PublishAxisOwnershipPreemptionCleanup',
+        'ValidateAxisOwnershipPreemptionReplacement',
+        'HandleAxisOwnershipDs402ReceiptStage87Recovery',
+        'ValidateAxisOwnershipRollbackPreemptBank')) {
     Assert-Match $controlServiceClassDbRecord (
         '(?<![A-Za-z0-9_])' + [regex]::Escape($generatedMemberName) +
         '(?![A-Za-z0-9_])') (
@@ -24247,8 +29064,6 @@ if ($transportClean) {
              'controlAdmissionResult',
              'controlIdentityIndex',
              'controlPendingResult',
-             'controlRollbackResult',
-            'controlPublishResult',
             'diagnosticsAdmissionResult',
             'diagnosticsRollbackResult',
             'diagnosticsPublishResult')
@@ -31545,9 +36360,11 @@ if ($diagnosticsServiceRouted) {
         64 = ('\(pResponse\s*\+\s*64\)\^\$UDINT\s*:=\s*' +
             'CurrentDiagnosticsBootId')
     }
-    foreach ($capabilityOffset in $capabilityOffsetContracts.Keys) {
+    foreach ($capabilityOffsetContract in
+        $capabilityOffsetContracts.GetEnumerator()) {
+        $capabilityOffset = $capabilityOffsetContract.Key
         Assert-Match $diagnosticsServiceCapabilitiesBlock `
-            $capabilityOffsetContracts[$capabilityOffset] (
+            $capabilityOffsetContract.Value (
             'Phase4DiagnosticsRouted 0x7E00 response field at inner offset ' +
             "$capabilityOffset is missing or has the wrong value.")
     }
@@ -35043,18 +39860,10 @@ $lmcHomeNegativeFixtures['StartOrRetireEngineGuardRemoved'] =
     $controlCommandService.Replace(
         'ZeroHomeState[39] <> LMC_HOME_ENGINE_TERMINAL',
         'ZeroHomeState[39] <> LMC_HOME_ENGINE_FINALIZE')
-$lmcHomeNegativeFixtures['ServiceRawWindow'] =
+$lmcHomeNegativeFixtures['EvidenceCompleteMask'] =
     $controlCommandService.Replace(
-        '#define LMC_HOME_RAW_WINDOW 2',
-        '#define LMC_HOME_RAW_WINDOW 3')
-$lmcHomeNegativeFixtures['ServiceRawWindowBaselineSlot'] =
-    $controlCommandService.Replace(
-        'homeLatchResult[13]$UDINT;',
-        'homeLatchResult[15]$UDINT;')
-$lmcHomeNegativeFixtures['ServiceRawWindowNegativeBoundary'] =
-    $controlCommandService.Replace(
-        '#define LMC_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFE',
-        '#define LMC_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFD')
+        '#define LMC_HOME_EVIDENCE_COMPLETE 0x0000003B',
+        '#define LMC_HOME_EVIDENCE_COMPLETE 0x0000003F')
 
 $lmcHomeNegativeFixtureCount = 0
 foreach ($fixtureName in $lmcHomeNegativeFixtures.Keys) {
@@ -35079,10 +39888,10 @@ foreach ($fixtureName in $lmcHomeNegativeFixtures.Keys) {
     }
     $lmcHomeNegativeFixtureCount++
 }
-if ($lmcHomeNegativeFixtureCount -ne 35) {
+if ($lmcHomeNegativeFixtureCount -ne 33) {
     throw (
         'LMC Home negative fixture count is ' +
-        "$lmcHomeNegativeFixtureCount, expected 35.")
+        "$lmcHomeNegativeFixtureCount, expected 33.")
 }
 
 $tcpServerTakeoverNegativeFixtures = [ordered]@{}

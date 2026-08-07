@@ -274,8 +274,6 @@ END_FUNCTION
 #define LMC_ZERO_HOME_STATE_FAILED        3
 #define LMC_ZERO_HOME_PHASE_VERIFY        1
 #define LMC_ZERO_HOME_REQUIRED_STABLE     3
-#define LMC_ZERO_HOME_RAW_WINDOW          2
-#define LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW 0xFFFFFFFE
 #define LMC_ZERO_HOME_FAILURE_INVALID    -1
 #define LMC_ZERO_HOME_FAILURE_BUSY       -2
 #define LMC_ZERO_HOME_FAILURE_CLIENT     -3
@@ -289,13 +287,12 @@ END_FUNCTION
 #define LMC_ZERO_HOME_STANDSTILL          0x02000000
 #define LMC_ZERO_HOME_EVIDENCE_EXPECTED   0x00000001
 #define LMC_ZERO_HOME_EVIDENCE_STATE      0x00000002
-#define LMC_ZERO_HOME_EVIDENCE_RAW        0x00000004
 #define LMC_ZERO_HOME_EVIDENCE_APP        0x00000008
 #define LMC_ZERO_HOME_EVIDENCE_INTERNAL   0x00000010
 #define LMC_ZERO_HOME_EVIDENCE_STABLE     0x00000020
 #define LMC_ZERO_HOME_EVIDENCE_DISPATCH   0x00000003
-#define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001F
-#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003F
+#define LMC_ZERO_HOME_EVIDENCE_VERIFIED   0x0000001B
+#define LMC_ZERO_HOME_EVIDENCE_COMPLETE   0x0000003B
 #define LMC_OWNER_STARTUP_SNAPSHOT_MAGIC  0x4C4D4353
 #define LMC_OWNER_STARTUP_LATCH_PHYSICAL  0x00000001
 #define LMC_OWNER_STARTUP_LATCH_ZERO_HOME 0x00000002
@@ -400,7 +397,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 		zeroHomeAxisStatus : _LMCAXIS_STATUS;
 		zeroHomeAxisError : _LMCAXIS_ERROR;
 		zeroHomeRawDrivePosition : DINT;
-		zeroHomeRawDelta : UDINT;
 		zeroHomeActualAppPosition : DINT;
 		zeroHomeSetAppPosition : DINT;
 		zeroHomeActualIntPosition : DINT;
@@ -800,9 +796,6 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 			end_if;
 			end_if;
 		elsif zeroHomePhase = LMC_ZERO_HOME_PHASE_VERIFY then
-			// Standstill raw feedback may dither by two encoder counts.
-			zeroHomeRawDelta := zeroHomeRawDrivePosition$UDINT -
-				AxisZeroHomeResult[13]$UDINT;
 			if (AxisZeroHomeResult[1] <> LMC_ZERO_HOME_STATE_RUNNING) |
 				(AxisZeroHomeResult[8] <> 1) |
 				(AxisZeroHomeMailbox[4]$UDINT <> zeroHomeRequestSequence) |
@@ -843,13 +836,7 @@ FUNCTION VIRTUAL GLOBAL LMCEcatInputLatch::RtWork
 				elsif zeroHomeNativeState$UDINT <> 0 then
 					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_NATIVE;
 					zeroHomeTerminal := TRUE;
-				elsif (zeroHomeRawDelta > LMC_ZERO_HOME_RAW_WINDOW) &
-					(zeroHomeRawDelta < LMC_ZERO_HOME_RAW_NEGATIVE_WINDOW) then
-					zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;
-					zeroHomeTerminal := TRUE;
 				else
-					zeroHomeEvidence := zeroHomeEvidence or
-						LMC_ZERO_HOME_EVIDENCE_RAW;
 					if (zeroHomeActualAppPosition <> 0) |
 						(zeroHomeSetAppPosition <> 0) then
 						zeroHomeFailure := LMC_ZERO_HOME_FAILURE_VERIFY;

@@ -20,7 +20,7 @@ namespace LasalApiWpfTestApp.SmokeTests
         private const uint Ds402RecordGeneration = 7U;
         private const int LmcHomeExpectedActualPosition = -123456;
         private const uint LmcHomeRecordGeneration = 17U;
-        private const uint LmcHomeRequiredEvidenceFlags = 0x0000003FU;
+        private const uint LmcHomeRequiredEvidenceFlags = 0x0000003BU;
         private const uint LmcHomeStandstillState = 0x02000000U;
 
         private enum Ds402RetirementScenario
@@ -561,7 +561,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                                     "Exact terminal 0x7D18 outcome and matching 0x7D19 retirement verified",
                                     window.TextHomeResult.Text);
                                 AssertEx.Contains(
-                                    "LMC Home outcome: RecordState=Succeeded; HomeSucceeded=True; OriginalStatus=0; OriginalErrorId=0; OriginalDetail=0 (None); AxisStatus=0x02000000; AxisError=0; RawDriveBefore=-123456; RawDriveAfter=-123456; ActualApplicationAfter=0; SetApplicationAfter=0; ActualInternalAfter=0; SetInternalAfter=0; DestinationInternalAfter=0; MasterInternalAfter=0; NativeCommandState=0; EvidenceFlags=0x0000003F; StopState=0x00000000 (0); RuntimePhase=7; RecordGeneration=17.",
+                                    "LMC Home outcome: RecordState=Succeeded; HomeSucceeded=True; OriginalStatus=0; OriginalErrorId=0; OriginalDetail=0 (None); AxisStatus=0x02000000; AxisError=0; RawDriveBefore=-123456; RawDriveAfter=-123456; ActualApplicationAfter=0; SetApplicationAfter=0; ActualInternalAfter=0; SetInternalAfter=0; DestinationInternalAfter=0; MasterInternalAfter=0; NativeCommandState=0; EvidenceFlags=0x0000003B; StopState=0x00000000 (0); RuntimePhase=7; RecordGeneration=17.",
                                     window.TextExecutionLog.Text);
 
                                 AssertLmcHomeWireSequence(server);

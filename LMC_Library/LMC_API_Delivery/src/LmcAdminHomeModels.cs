@@ -478,8 +478,7 @@ namespace LasalMotionControlLib
     internal static class LMCHomeOutcomeSemantics
     {
         internal const uint AxisStandstillMask = 0x02000000u;
-        internal const uint RequiredEvidenceFlags = 0x0000003Fu;
-        internal const uint RawDriveWindow = 2u;
+        internal const uint RequiredEvidenceFlags = 0x0000003Bu;
 
         // RuntimePhase is intentionally absent. Wire v1 exposes it only as an
         // opaque diagnostic value and defines no numeric terminal phase.
@@ -506,8 +505,6 @@ namespace LasalMotionControlLib
             uint stopState,
             uint recordGeneration)
         {
-            var rawDriveDelta = unchecked(
-                (uint)rawDrivePositionAfter - (uint)rawDrivePositionBefore);
             return responseSucceeded
                 && recordState == LMCHomeOutcomeRecordState.Succeeded
                 && originalCommandStatus == 0
@@ -515,8 +512,6 @@ namespace LasalMotionControlLib
                 && originalDetailCode == 0
                 && (axisStatus & AxisStandstillMask) != 0
                 && axisError == 0
-                && (rawDriveDelta <= RawDriveWindow
-                    || rawDriveDelta >= uint.MaxValue - RawDriveWindow + 1u)
                 && actualApplicationPositionAfter == 0
                 && setApplicationPositionAfter == 0
                 && actualInternalPositionAfter == 0
@@ -524,6 +519,8 @@ namespace LasalMotionControlLib
                 && destinationInternalPositionAfter == 0
                 && masterInternalPositionAfter == 0
                 && nativeCommandState == 0
+                // Raw snapshots remain diagnostic-only in the temporary
+                // SetPosition-only contract, so the RAW evidence bit is clear.
                 && evidenceFlags == RequiredEvidenceFlags
                 && startMilliseconds != 0
                 && completionMilliseconds != 0
