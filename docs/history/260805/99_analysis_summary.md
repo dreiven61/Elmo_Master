@@ -247,3 +247,204 @@ History 4의 “Home/TW19/TW20 미구현·비활성”은 당시 PLC/source snap
 ## 11. 한 줄 재개 상태
 
 현재 source-only 계약은 다섯 waiver로 PASS하지만 Section 17의 generated channel 1개와 private helper 8개가 없다. **다음 작업은 Section 17 exact declaration을 Save All한 뒤 Rebuild 없이 종료하고 외부 ABI 검사를 받는 것**이며, 그 전에는 C78, download와 실축 시험으로 넘어가지 않는다.
+
+## 12. 2026-08-05 후속 재개 상태
+
+이 절은 위 Section 4~6과 Section 11의 당시 재개점을 대체한다. 원래 기록은 chronology 보존을 위해
+수정하지 않았다.
+
+- Section 17 channel 1개와 private declaration 8개는 canonical project에 저장됐다.
+- generated declaration, `Classes.lcb`, channel property와 실제 Network connection 0개를 확인했다.
+- `Initialize=true` 때문에 Comm Network 생성물에 초기값 representation이 생기지만 connection은 아니다.
+- 다섯 pre-IDE waiver 없는 `-SourceOnly -ExpectedSdoWriteAxis 1`은 PASS했다.
+- 첫 C78 Rebuild는 `_memcmp` `UDINT -> DINT` 네 건으로 실패했고 비교 전용 `UDINT` local로 수정했다.
+- verifier는 모든 DS402 Start `_memcmp` receiver가 `UDINT`인지 검사하며 두 회귀 fixture를 포함한다.
+- 최종 정적 상태의 `LMCDiagnosticsService` SHA-256은
+  `AEA62BEDE0F4121278DFC893071A5045A7B82A5C1755ABC44ABAB606829D9FA7`이다.
+- 첫 로그의 55 warnings는 `W0069 35 + W0072 17 + W0073 3`이며 즉시 논리 결함 분류는 0건이다.
+
+현재 exact 재개점은 **추가 source feature를 넣지 않고 C78 Rebuild를 다시 실행해
+`0 errors / 55 warnings` 기준선을 닫는 것**이다. 그 뒤 `Find in Implementation`, 새
+`CInvalidArgException=0`을 확인하기 전에는 Link/download와 PLC 시험으로 넘어가지 않는다.
+
+## 13. 저장 후 정적 재확인과 ownership caller 감사
+
+사용자 저장 뒤 `LMCDiagnosticsService.st` SHA-256은 Section 12의
+`AEA62BEDE0F4121278DFC893071A5045A7B82A5C1755ABC44ABAB606829D9FA7`와 같았다. `_memcmp`
+네 곳은 모두 비교 전용 `UDINT` local을 유지한다. 다섯 pre-IDE waiver 없는 전체 SourceOnly 계약과
+AxisRebase barrier self-test `37/37`도 다시 PASS했다.
+
+이 저장 뒤 `%TEMP%\Lasal2.log`의 최종 시각은 여전히 `2026-08-05 11:33:37`이며 새 C78 Rebuild
+기록은 없다. 따라서 정적 저장 결과는 PASS지만 C78 `0 errors / 55 warnings` 기준선은 아직 미확인이다.
+
+동시에 current `PublishAxisOwnership` production caller를 전수 감사했다. exact `21`곳 중 결과를
+분기에서 소비하는 곳은 `10`, local에 대입만 하고 검사하지 않는 곳은 `11`이다. 미소비 caller는
+TCP 7곳, Control 1곳, Diagnostics 3곳이며 모두 `QUARANTINE` publication이다. 이 11곳에서 유일한
+완료 결과는 `0`이고, 특히 `-2`는 retained owner를 남길 수 있으므로 tuple clear나 terminal response로
+진행하면 안 된다. exact matrix와 caller-level verifier 계획은
+[performance/OOP design Section 8.5.1](../../architecture/LMC_TCP_MOTION_INTERFACE_PERFORMANCE_FIRST_OOP_REFACTOR_DESIGN_2026-07-23.md#851-production-caller-result-consumption-matrix)에 기록했다.
+
+caller fix는 provider size split과 별도 semantic tranche다. Section 17 C78와 implementation smoke가
+닫히기 전에는 어느 쪽도 source에 적용하지 않는다.
+
+pre-C78에서 가능한 test-only 선행 작업으로 caller inventory ratchet을 추가했다. current source의
+exact `21 total / 10 Result-consumed / 11 Result-unconsumed OPEN`과 모든 result receiver `DINT`를
+고정하며, 기존 publish focused self-test는 provider `69/69`와 caller inventory `8/8` negative
+fixture를 거부했다. 전체 `-SourceOnly -ExpectedSdoWriteAxis 1`도 PASS했다.
+
+이 PASS는 11곳의 fail-closed 처리가 끝났다는 뜻이 아니다. syntactic def-use baseline만 고정한 것이며,
+실제 caller fix 때는 result domain, clear/send/stage 전 check dominance와 retained tuple recovery를
+별도 semantic fixture로 함께 추가해야 한다. LASAL build input hash는 이 작업에서 변하지 않았다.
+
+## 14. 2026-08-05 C78, download와 BootId `0x1B` runtime 후속 상태
+
+이 절은 Section 12의 C78 대기 상태와 Section 3.4의 오래된 Home 실패 관찰을 현재 배포 증거로
+대체한다. 상세 근거는 [BootId 0x1B runtime evidence](04_runtime_evidence_boot_1b_home_group.md)에
+보존했다.
+
+- 14:24 C78/ARM Rebuild는 `0 errors / 55 warnings`로 끝났다. warning histogram은
+  `W0069=35`, `W0072=17`, `W0073=3`이다.
+- 14:22와 14:24 download는 `Timeout waiting CPU state`로 실패했고, 14:26 canonical download와
+  PLC link는 성공했다.
+- 새 runtime identity는 `BootId=0x1B`, `MapRevision=0x957F101E`, `DiagnosticsBuild=1`,
+  `DiagnosticsBits=0x000C633F`, `AdminFeatures=0x17`이다.
+- 같은 BootId에서 Axis1..4 LMC Home이 모두 exact terminal `Succeeded`, `HomeSucceeded=True`,
+  `AxisError=0`, 좌표 6개 `0`, evidence `0x3B`, retirement PASS로 끝났다.
+- generation `1 -> 4`, 다음 축 admission과 `Identity Home Check PASS: 4/4`가 확인되어 이전
+  detail `41` stale receipt/owner-release blocker는 이 checkpoint에서 해소됐다.
+- Group Power/Set Identity/Enable과 실제 non-Standstill 왕복 이동은 PASS했다.
+- 모든 Group move가 자연 완료됐으므로 실제 in-motion Group Stop은 아직 미검증이다.
+- 14:19 이후 `CInvalidArgException`은 0건이지만 `Searching implementation` 기록도 0건이다. 따라서
+  required three-class implementation smoke는 여전히 별도 gate다.
+
+현재 다음 source semantic tranche는 Section 13의 `PublishAxisOwnership` Result 미소비 11곳을
+fail-closed하는 것이다. DS402 Home gate와 ordinary ownership gate는 계속 `FALSE`로 유지한다.
+
+## 15. ownership caller 단일 rollback authority 정정
+
+Section 13의 `21/10/11`은 당시 source inventory로는 정확하지만, 후속 full-nesting 감사에서 TCP
+`MsgPaser`의 마지막 두 OPEN caller는 Result 소비를 추가할 정상 caller가 아니라 Control terminal
+response를 다시 rollback하는 이중 finalizer로 확인됐다.
+
+- `LMCControlCommandService.HandleRequest`는 exact failure를 반환하기 전에 이미 rollback하고 success는
+  commit한다.
+- safety-drain pending `Result=1`은 `ownershipSafetyPumpRejected=TRUE`라 일반 finalizer에 진입하지
+  않고 tuple을 보존하며 TCP RETAIN continuation으로 이어진다.
+- 따라서 Control이 request당 유일한 commit/rollback authority다.
+- TCP의 exact-failure/malformed rollback과 그 실패 publication 2곳은 제거 대상이다. malformed
+  response는 ownership mutation 없이 deterministic 24-byte detail `42`로만 정규화한다.
+- 제거 뒤 generic production inventory는 `19`, 기존 consumed `10`, 실제 caller-fix 대상 OPEN은 `9`,
+  최종 계약은 `19/19/0`이다. TCP restart-only publish-failure latch 대상도 `7`에서 `5`로 줄어든다.
+
+LASAL IDE가 열린 동안 production `.st`는 외부 수정하지 않는다. 현재는 Section 8.5.2 문서와 synthetic
+target verifier를 위 단일 authority 기준으로 먼저 교정하고, IDE 종료 후 같은 tranche에서 TCP source,
+Control/Diagnostics/TCP Result 소비, default production verifier 전환을 함께 적용한다.
+
+## 16. Test5 Group Stop, 안전 종료와 축 상태 증거
+
+이 절의 후속 실기 증거는 Section 14의 당시 결론인 "actual in-motion Group Stop 미검증"을 대체한다.
+
+상세 packet 근거는
+[Test5 runtime evidence](05_runtime_evidence_group_stop_safe_shutdown_and_axis_status.md)에 보존했다.
+
+- 같은 `BootId=0x1B`, `MapRevision=0x957F101E`에서 실제 non-standstill Group Stop 3회가
+  각각 `0x2085` 한 번만 송신된 뒤 status-only `0x2045`로 `0x40060000` 3연속에 도달했다.
+- 독립 `Stable=3_3` pcap도 정확히 세 번의 `0x2045`와 세 응답 `0x40060000`을 기록했다.
+- Group Disable 뒤 상태는 `0x40050000`, Power Off 뒤 상태는 `0x40010000`으로 각각 3회
+  연속 확인됐다. initial Power Off 뒤 Power On/Off 3회가 이어졌고 세 번째 Off가 최종 상태다.
+  모든 mutation은 replay 없이 통과했다.
+- 네 pcap 모두 retransmission, fast retransmission, lost/out-of-order segment, duplicate ACK와
+  TCP RST가 0건이다.
+- 축별 새 캡처는 Axis1..4의 `0x2028`이 모두 function/error/AxisError `0`으로 성공했음을
+  증명한다. 그러나 `0x7E50/0x7E03`이 한 건도 없어 실제 DS402 `0x6041`, `0x6061`, `0x603F`는
+  아직 읽지 않았다. 다음 실기 항목은 `Read Drive Status`와 `Get Drive Error Code`다.
+
+이 runtime PASS는 현재 진행 중인 `PublishAxisOwnership` caller fail-closed source tranche를
+대체하지 않는다. ordinary ownership과 DS402 Home gate는 계속 dormant로 유지한다.
+
+## 17. ownership publication fail-closed source와 verifier 전환 완료
+
+LASAL IDE가 종료된 상태에서 Section 15와 architecture Section 8.5.2의 source tranche를 canonical
+project에 적용했다. 이 절은 Section 13의 historical `21/10/11 OPEN` 상태와 Section 15의 적용 전
+계획을 현재 static checkpoint로 대체한다.
+
+- `TCPMotionInterface`는 generic publication caller 5곳의 nonzero Result를 request clear와 wire
+  response보다 먼저 `ActiveRequest.Reserved=2`로 arm한다. `CyWork`는 phase `2 -> 3` evidence/close
+  claim을 한 번만 수행하고 background pumps는 계속 진행하며 transport dequeue는 차단한다.
+- `Response`와 `ConnSocketInfo`는 phase 2/3 delayed callback, disconnect clear와 새 candidate takeover를
+  차단한다. ordinary disconnect의 stale discard state는 다음 accepted connection의 existing reset에서
+  정리한다.
+- Control은 request당 유일한 commit/rollback authority다. TCP의 중복 rollback/publication 두 곳은
+  제거했고 malformed Control response만 ownership mutation 없이 24-byte detail `42`로 정규화한다.
+- Diagnostics generic publication은 성공 domain `{0}`, preemption cleanup 4곳은 exact replay를 포함한
+  `{0,1}`을 성공으로 처리한다. 허용 domain 밖 Result는 Encoder `[190]/[191]` 또는 DS402
+  `[119]/[118]="PBF1"` evidence를 terminal stage보다 먼저 남긴다.
+
+현재 generic caller inventory는 TCP `5`, Control `7`, Diagnostics `7`, 합계 `19`다. production
+contract는 `19 total / 19 Result-consumed / 0 OPEN`이고, preemption-cleanup caller는 4곳이다.
+legacy `21/10/11`은 synthetic regression fixture에서만 유지한다.
+
+검증 결과:
+
+- focused publish verifier: provider negative `69/69`, legacy inventory negative `8/8`, target caller
+  negative `47/47`, current production `19/19/0`, exit `0`;
+- full `-SourceOnly -ExpectedSdoWriteAxis 1`: target `19/19/0`, preemption caller `4`,
+  `PASS LASAL.StaticContract.SourceOnly`, exit `0`;
+- PC library/test Debug build와 `RunPcTests`: `1082/1082 PASS`, exit `0`;
+- custom method-size budget: `93` methods, `86` under limit, existing baseline debt `7`, PASS. 변경된
+  `LMCControlCommandService.HandleRequest`는 all-CRLF `32672` bytes로 32 KiB 미만이며 margin은
+  `96` bytes다;
+- 전체 tracked/untracked 관련 diff check와 verifier diff check는 whitespace error 없이 PASS했다.
+
+현재 source SHA-256:
+
+| Source | SHA-256 |
+|---|---|
+| `TCPMotionInterface.st` | `98EE4A57A6E8EAE3AE6606F1DB892D30EA50B62D79C230AEA8B9FADD6348046F` |
+| `LMCControlCommandService.st` | `D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E` |
+| `LMCDiagnosticsService.st` | `097462D1751E4A6ED7466827B8F6E3EB2C2914D5EE0409AED3CD43BD1404FB54` |
+| `Verify-LasalContract.ps1` | `514A4B28CD94BD687EC45A246D50ACABEE64E69484347BB0092215385408293D` |
+
+이 checkpoint는 static source 완료다. 아직 새 source의 C78 Rebuild, canonical project Save All,
+세 class `Find in Implementation` smoke와 smoke 시작 뒤 `%TEMP%\Lasal2.log`의 새
+`CInvalidArgException=0`, PLC download/restart는 수행하지 않았다. 따라서 이번 PC `RunPcTests`와
+기존 PLC `BootId=0x1B` runtime은 이 source tranche가 배포됐다는 증거가 아니다. ordinary ownership과
+DS402 Home gate도 계속 dormant다.
+
+## 18. AxisRebase retained barrier 감사와 post-C78 순서
+
+현재 `AxisRebaseRequiredState`는 source/generated/static 수준에서 구현 완료다. hidden
+`SvrCh_UDINT`의 `Initialize=true`, `DefValue=16#5242530F`, `WriteProtected=false`,
+`Retentive=File`, `Visualized=false` 속성, private codec 두 개, Network endpoint 무연결,
+TW19 pre-dispatch arm, exact Home terminal-success clear와 persistence retry가 canonical project에
+존재한다. focused verifier self-test는 현재 worktree에서 `37/37` negative fixture reject로 PASS했고,
+custom method-size ratchet self-test도 `5/5` PASS했다.
+
+이 정적 PASS는 target file flush 또는 restart/power-loss durability 증거가 아니다. WPF는 TW19 terminal
+retirement 뒤 maintenance no-replay journal을 `Resolved`로 닫고 Home 필요 경고만 표시하며 별도 rebase
+journal/interlock을 유지하지 않는다. 다른 client가 Home을 수행했을 때 동기화할 public read API도 없으므로
+WPF에 별도 shadow interlock을 추가하지 않는다. 현재 설계에서는 PLC retained barrier가 유일한 authority다.
+
+target retention qualification의 exact expected sequence는 다음과 같다.
+
+| 단계 | effective mask | encoded word |
+|---|---:|---:|
+| 초기 | `0xF` | `0x5242530F` |
+| Axis1 exact Home 뒤 | `0xE` | `0x5242531E` |
+| Axis2 exact Home 뒤 | `0xC` | `0x5242533C` |
+| Axis3 exact Home 뒤 | `0x8` | `0x52425378` |
+| Axis4 exact Home 뒤 | `0x0` | `0x524253F0` |
+| empty에서 Axis2 TW19 arm | `0x2` | `0x524253D2` |
+| warm restart 및 실제 power-loss 뒤 | `0x2` | `0x524253D2` |
+| Axis2 exact Home 뒤 | `0x0` | `0x524253F0` |
+
+각 단계에서 다른 축 bit 보존, invalid magic/complement의 fail-closed effective `0xF`, blocked
+PowerOn/motion의 native/SDO call 0, failed/quarantined TW19 또는 Home 뒤 bit 유지도 함께 증명해야 한다.
+BootId `0x1B` Home/group capture는 이 retention gate를 닫지 않는다.
+
+새 production source tranche는 현재 ownership fail-closed source의 Save All, fresh C78, 세 class
+implementation smoke가 끝나기 전에 시작하지 않는다. 그 기준선 뒤 첫 별도 tranche는 설계 Section 8.2의
+`PublishAxisOwnershipPreemptionCleanup` read-only validator split이다. 현재 public method debt는
+raw/LF/all-CRLF `37128/36143/37129` bytes이고, 현재 whole Control source SHA-256은
+`D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E`다. Save All이 EOL 또는 hash를
+바꿀 수 있으므로 helper insertion plan과 reverse-inline hash는 C78 기준선 입력을 확정한 뒤 다시 계산한다.

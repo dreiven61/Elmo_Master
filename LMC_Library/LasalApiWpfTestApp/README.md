@@ -982,25 +982,31 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
   `RecordState`, `HomeSucceeded`, original status/error/detail, axis status/error,
   raw drive before/after, application/internal actual/set/destination/master,
   `NativeCommandState`, `EvidenceFlags`, `StopState`, `RuntimePhase`, `RecordGeneration`을
-  한 줄로 기록한다. 성공 raw feedback 창은 wrap-safe `-2/-1/0/+1/+2 count`이고 `+/-3 count`
-  이상은 fail-closed한다. `StopState`는 legacy wire 이름이며 이 경로에서는 retained failure
+  한 줄로 기록한다. current source의 임시 SetPosition-only mode는 실제 raw before/after를
+  그대로 기록하지만 delta를 성공 조건으로 사용하지 않으며 `EvidenceFlags=0x3B`로 이를
+  구분한다. 축별 native `SetPosition`은 정확히 한 번만 호출하고, Standstill/AxisError와
+  application/internal 좌표 6개의 zero 상태는 3회 확인한다. 기존 raw-qualified
+  `EvidenceFlags=0x3F`와 wrap-safe `+/-2 count` gate는 임시 source에서 제거됐으며 원복은
+  변경 이력으로 수행한다. `StopState`는 legacy wire 이름이며 이 경로에서는 retained failure
   code다. 별도 Stop 명령이 실행됐다는 뜻이 아니다.
 - 별도 `DS402 Home`은 `0x7D15/0x7D16/0x7D17`, method 37, Home offset 0의
   non-moving current-position-zero source가 있지만 `LMC_DIAG_DS402_HOME_ENABLED=FALSE`,
   Admin feature bit 6 OFF다. valid Start 전용 admission detail 41/42 분리와 owner release 뒤 fresh
-  terminal evidence와 prepared-stage warm reconcile은 source에 반영됐지만 durable
-  owner-release/rollback-complete receipt와 bit-4 safety drain이 남아 있다. cleanup stage
-  `90..99`는 1초 뒤 fail-closed quarantine로 제한한다. WPF control이 존재해도 current runtime
-  실행 가능을 뜻하지 않는다.
+  terminal evidence, stage 87/88/89 warm reconcile, rollback-complete receipt와 bit-4 safety drain은
+  source에 반영됐다. cleanup stage `90..99`는 1초 뒤 fail-closed quarantine로 제한한다. 다만
+  quarantine ownership publication 결과를 소비하지 않는 cleanup caller와 cold-restart/runtime matrix가
+  남아 있으므로 WPF control이 존재해도 current runtime 실행 가능을 뜻하지 않는다.
 - `TEST ONLY - Encoder Maintenance`의 `0x7E53/0x7E54/0x7E55` source는 활성이다.
   TW[20]은 `0x20FC:0x02 <- UInt16 1`, TW[19]는 `0x20FC:0x01 <- UInt16 1`로 고정된다.
   start ACK, terminal outcome과 retirement는 분리되며 terminal RPC 결과만으로 drive의 정확한
   error/warning 또는 multi-turn position 변화가 증명되지는 않는다.
-- Axis2 runtime의 raw `8382700 -> 8382701`과 Axis1 runtime의 `8027834 -> 8027836` 외 성공
-  조건이 모두 맞았지만 이전 raw gate가 각각 `-7` quarantine을 만들었다. raw 창 수정은 아직
-  C78 Rebuild/Download되지 않았다.
-  새 BootId를 확인한 뒤 한 축만 `LMC Home` 1회 실행하고 `LMC Home outcome:` 전체를 확보하기 전에는
-  다음 축 연속 시험이나 production 완료 판정을 하지 않는다.
+- 이전 BootId의 Axis1 raw `8028436 -> 8028440`은 downloaded raw gate에서 `-7` quarantine을
+  만들었고 후속 축 admission도 막았다. 그 checkpoint는 현재 runtime 판정으로 사용하지 않는다.
+  `0x3B` 임시 mode는 C78 `0 errors / 55 warnings`, canonical download와 새 BootId `0x1B`에서
+  Axis1..4 연속 terminal `Succeeded`, exact retirement, generation `1 -> 4`와 Group Identity Home
+  Check `4/4`까지 PASS했다. raw delta는 각각 `0/0/+1/+1`이며 성공 gate가 아니다. 이 결과는
+  temporary SetPosition-only Home의 runtime proof이지만 actual in-motion Stop, rebase word의
+  restart/power-loss retention 또는 DS402 Home/TW19/TW20 physical effect까지 증명하지 않는다.
 
 ## Read-only API 시험 순서
 

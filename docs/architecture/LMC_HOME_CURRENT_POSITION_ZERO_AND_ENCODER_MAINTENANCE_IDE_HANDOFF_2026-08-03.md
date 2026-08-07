@@ -1103,9 +1103,9 @@ implementation과 verifier를 맞춘 뒤 별도 요청에서 C78 Rebuild한다.
 `38`, `RecordState=Quarantined`로 끝났다. 후속 Axis2/3은 남은 owner 때문에 detail `41`로
 거부됐다. 따라서 그 PLC는 수정 완료본이 아니다.
 
-current source와 SDK parser는 raw feedback의 wrap-safe `-2/-1/0/+1/+2 count`만 허용하고
-`+/-3 count`부터 거부한다. C# contract test는 signed 경계와 `INT_MIN/INT_MAX` wrap의 `+/-2`
-허용, `+/-3` 거부를 포함한다. 이 변경은 아직 새 PLC runtime 성공 증거가 아니다.
+당시 source와 SDK parser는 raw feedback의 wrap-safe `-2/-1/0/+1/+2 count`만 허용하고
+`+/-3 count`부터 거부했다. 이 계약은 Section 19의 임시 SetPosition-only mode로 대체됐으며,
+raw-qualified legacy branch와 signed 경계 test 자체는 보존한다.
 
 ### 16.2 DS402 rollback-only journal and receipt
 
@@ -1505,3 +1505,253 @@ set하고, exact LMC Home terminal-success receipt COMPLETE만 Result `1` 직전
 MSBuild와 C# test `1082/1082`를 통과했다. PLC admin catalog version `5`와 SDK adapter catalog version
 `2`는 서로 다른 catalog이므로 숫자를 같게 맞추지 않는다. ordinary ownership, DS402 Home, startup
 bit-4 sweep과 Admin bit 6은 아직 all-dormant 상태이며 C78/download/runtime evidence 전에는 켜지 않는다.
+
+## 18. 2026-08-05 post-IDE C78 type-fix checkpoint
+
+Section 17의 hidden server channel 1개와 private function declaration 8개는 canonical LASAL
+project에 저장됐다. generated class declaration과 `Classes.lcb` metadata가 존재하며 다섯 pre-IDE
+waiver를 제거한 다음 계약은 PASS했다.
+
+```powershell
+& 'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1' `
+  -RepositoryRoot '.' -SourceOnly -ExpectedSdoWriteAxis 1
+```
+
+첫 C78 Rebuild는 `LMCDiagnosticsService::HandleAxisDs402HomeStart`의 `_memcmp` 네 곳에서
+`UDINT` 반환값을 `DINT` local에 대입한 `E0166` 네 건으로 실패했다. 기존 `copyResult`와
+`ownerResult`는 함수 후반의 signed API result와 `-1` sentinel을 받아야 하므로 타입을 바꾸지
+않았다. 대신 다음 비교 전용 local을 추가하고 네 `_memcmp` 결과와 zero 비교만 분리했다.
+
+```st
+intentBodyCompareResult, intentTailCompareResult : UDINT;
+```
+
+이 수정은 function ABI, channel, retained state, wire layout과 Network를 바꾸지 않는다. verifier는
+DS402 Start의 `_memcmp` assignment가 정확히 네 개이며 모든 receiver가 `UDINT`인지 확인한다.
+receiver type을 `DINT`로 되돌리거나 기존 signed local을 다시 사용하는 두 negative fixture도
+추가했다.
+
+Rebuild가 생성한 다음 항목은 `Initialize=true`의 instance initialization representation이다.
+
+- `Comm_Network.lcn`: `<Server Name="AxisRebaseRequiredState" Value="16#5242530F"/>`
+- `ONE_Comm_Network_Table.st`: initialization value `16#5242530F`
+- `Networks.lcb`: generated channel metadata
+
+실제 `.lcn` Source/Destination endpoint와 generated Internal/External connection entry는 모두 0개다.
+따라서 verifier는 initialization representation을 허용하고 actual connection만 거부한다.
+AxisRebase barrier self-test는 `37/37` negative fixture를 거부했다.
+
+첫 실패 로그의 `55 warnings`는 다음처럼 분류한다.
+
+- `W0069` 35건: compile-time feature gate 30건과 고정 `sizeof` invariant 5건
+- `W0072` 17건: helper extraction 뒤 남은 unused local
+- `W0073` 3건: write-protected channel setter가 의도적으로 무시하는 ABI parameter
+
+즉시 논리 결함으로 분류된 warning은 0건이다. 현재 최소 수정으로 다시 C78 Rebuild할 때 기준은
+`0 errors / 55 warnings`다. 이 기준선을 먼저 닫고, `W0072` local 17개 정리는 별도 warning-cleanup
+변경으로 수행한다. `W0069` 조건을 warning 회피 목적으로 재작성하거나 `W0073` parameter를 ABI에서
+제거하지 않는다.
+
+현재 남은 exact 순서는 다음과 같다.
+
+1. canonical project에서 C78 Rebuild만 실행해 `0 errors / 55 warnings`인지 확인한다.
+2. 변경 class `Find in Implementation` smoke와 smoke 이후 새 `CInvalidArgException=0`을 확인한다.
+3. 그 전에는 추가 feature, method split, Link/download와 PLC write/motion을 진행하지 않는다.
+4. 기준선 성공 뒤 warning cleanup과 post-C78 method split을 각각 독립 tranche로 진행한다.
+
+## 19. 2026-08-05 temporary SetPosition-only Home mode
+
+downloaded BootId `0x18`의 Axis1 LMC Home은 native `SetPosition` 반환과 application/internal
+좌표 6개가 모두 정상인데도 raw feedback `8028436 -> 8028440`의 `+4 count` 때문에
+`StopState=-7`, detail `38`, `RecordState=Quarantined`로 끝났다. 후속 축은 같은 owner quarantine
+때문에 detail `41`로 admission 거부됐다.
+
+축별 native 호출은 이미 `LMCEcatInputLatch::RtWork`에서 다음 형태로 정확히 한 번 수행된다.
+
+```st
+LMCAxis1..4.SetPosition(
+    Mode:=LMCAXIS_SET_ACTPOS_APPUNIT_DEST,
+    Position:=0)
+```
+
+임시 source 변경은 이 호출 위치, RT mailbox, cancellation fence, Standstill, AxisError, stale
+expected-position guard, native-call count, ownership lifecycle과 retained outcome을 유지한다. 실제
+raw before/after도 그대로 기록하지만 raw delta 계산과 성공 gate는 제거한다. 검증하지 않은 RAW
+bit는 세우지 않으므로 성공 evidence는 `0x3B`다.
+
+- expected request: `0x01`
+- Standstill/AxisError state: `0x02`
+- application coordinates zero: `0x08`
+- internal/destination/master coordinates zero: `0x10`
+- three stable post samples: `0x20`
+- raw delta qualified: 제외
+
+SDK parser는 `0x3B`일 때 raw delta와 무관하게 나머지 성공 조건을 적용한다. 기존 `0x3F`와 raw
+wrap-safe `+/-2 count` gate는 현재 source에서 제거됐으며 임시 변경을 revert해 원래 계약으로
+되돌릴 수 있다.
+이 source 변경은 정적/C# 검증 대상이며 아직 C78 Rebuild, Download 또는 새 BootId runtime 성공
+증거가 아니다. 현재 quarantined BootId는 source 변경만으로 복구되지 않으므로 새 build/download 뒤
+새 BootId에서 축 하나씩 다시 확인해야 한다.
+
+## 20. 2026-08-05 C78, download and BootId `0x1B` runtime checkpoint
+
+Section 19의 미검증 상태는 같은 날 후속 C78 build/download와 새 BootId runtime으로 대체됐다.
+세부 표와 supplied-log hash는
+[260805 runtime evidence](../history/260805/04_runtime_evidence_boot_1b_home_group.md)에 기록했다.
+
+- C78/ARM Rebuild: `0 errors / 55 warnings`, exact histogram
+  `W0069=35`, `W0072=17`, `W0073=3`
+- canonical download/link: 14:26 PASS; 직전 두 download는 `Timeout waiting CPU state`로 실패
+- runtime identity: `BootId=0x1B`, `MapRevision=0x957F101E`, `DiagnosticsBuild=1`,
+  `DiagnosticsBits=0x000C633F`, `AdminFeatures=0x17`
+- Axis1..4 Home: 모두 terminal `Succeeded`, `HomeSucceeded=True`, `AxisError=0`, 좌표 6개 `0`,
+  `EvidenceFlags=0x3B`, exact retirement PASS
+- raw before/after delta: Axis1 `0`, Axis2 `0`, Axis3 `+1`, Axis4 `+1`; raw delta는 성공 gate가 아님
+- record generation `1 -> 4`, 다음 축 admission과 Group Identity Home Check `4/4` PASS
+- Group Power/Set Identity/Enable과 실제 non-Standstill basic motion PASS
+
+따라서 temporary SetPosition-only Home mode는 이 downloaded checkpoint에서 4축 연속 runtime PASS다.
+다만 이 결론은 original raw-window `0x3F` 계약을 복구할 근거가 아니며, actual in-motion Stop,
+restart/power-loss rebase retention, TW19/TW20 physical effect와 DS402 Home을 증명하지 않는다.
+
+이 LASAL session에는 새 `CInvalidArgException`이 없지만 required three-class
+`Find in Implementation` 검색 기록도 없다. implementation smoke는 계속 열린 IDE gate다. 다음 source
+작업은 `PublishAxisOwnership` Result 미소비 production caller 11곳의 fail-closed semantic tranche이며,
+`LMC_DIAG_DS402_HOME_ENABLED`와 `LMC_AXIS_OWNERSHIP_ORDINARY_ENABLED`는 계속 `FALSE`로 둔다.
+
+## 21. 2026-08-06 DS402 receipt Stage-87 method-size split checkpoint
+
+Section 8.3의 `PublishAxisOwnershipDs402Receipt` oversized debt를 줄이기 위해 canonical
+`LMCControlCommandService`에 다음 private function declaration을 추가했다. Section 17의 기존 8개
+helper와 별도인 아홉 번째 helper다.
+
+```text
+HandleAxisOwnershipDs402ReceiptStage87Recovery
+  pState : ^USINT
+  activeIndex : DINT
+  AxisMask : UDINT
+  ReportKind : UINT
+  ReportValue0 : UDINT
+  ReportValue1 : UDINT
+  ObservationCycle : UDINT
+  Result : DINT
+```
+
+final generated declaration과 implementation header에는 `GLOBAL`/`VIRTUAL GLOBAL`이 없다.
+`Classes.lcb` record flags는 `0x00000000`, input count는 `7`이며 output은 exact `Result : DINT`다.
+`HandleRegistryCommands`는 원래 6-input ABI로 보존됐다. IDE Save All 뒤 implementation split 전
+Control snapshot은 `606170` bytes, SHA-256
+`BAB60FF1891F424B132C52EF3FBF5D099AB010BFF1D7E812648DFA7BF619BE7A`다. 같은 시점
+`Classes.lcb` SHA-256은
+`DC71B0F8B8A493B84D2BE0A294408E462FEF87D758F28F9AA8C50C1F32124B7B`다.
+
+Stage-87 tokenless always-return branch의 outer wrapper를 제외한 588줄을 helper로 옮겼다. adapter는
+tokenless 조건에서 helper를 한 번 호출하고 즉시 return한다. reverse-inline은 위 pre-split Control
+snapshot을 byte-exact 복원한다. current source와 method-size 결과는 다음과 같다.
+
+- `LMCControlCommandService.st`: `606348` bytes, SHA-256
+  `DA93EB01DBF7E842C36EE22E1ACBF6277D60C0E12C58B93A24BA870976321FCF`
+- public adapter raw/LF/all-CRLF `21836/21279/21837`
+- private helper raw/LF/all-CRLF `26182/25531/26183`
+- local inventory adapter/helper `35/42`
+- persistent mutation adapter/helper/transitive `28/49/77`
+- custom methods total/under-limit/debt `95/90/5`
+
+focused split-aware negative fixture는 `67/67`, method-size self-test는 `6/6`, waiver 없는
+`Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1`은 exit `0`으로 PASS했다. 독립 재실행과
+diff review에서도 actionable finding이 없었다. `Comm_Network.lcn`, `ONE_Comm_Network_Table.st`,
+`Networks.lcb` SHA-256은 이전 checkpoint와 같아 Network 연결 변경은 없다.
+
+2026-08-07 LASAL Class 2 `02.03.001`의 C78/ARM Rebuild는 `26318.1 ms`에 성공했고 IDE 결과는
+`0 errors / 55 warnings`다. WARN line `61`개 중 `55`개는 기존 source warning(`W 0069=35`,
+`W 0072=17`, `W 0073=3`), `6`개는 C78/C81 version warning이며 ERROR/FATAL은 0개다. 실제
+`Comm_Network.LMCControlCommandService1.LMCAxis1`에서 `Find in Implementation`을 실행해 `29` hits,
+`1` matched file / `3` searched files로 성공했고 smoke 이후 `CInvalidArgException=0`이다. Save All 뒤
+`Classes.lcb`는 SHA-256
+`9147D2185860FE2082777013FC944248196B686402FE88F7EF52FAB9875301E0`로 재기록됐으며 post-save
+SourceOnly 재실행도 exit `0`이다. IDE는 종료했고 Download는 수행하지 않았다. 따라서 Section 8.4
+rollback split의 current-source 재기준화는 진행할 수 있지만 PLC download/runtime 증거는 여전히
+남아 있다. 두 dormant gate와 Axis1 SDO Write 시험 gate 상태는 바꾸지 않는다.
+
+## 22. 2026-08-07 RollbackAxisOwnership post-IDE implementation checkpoint
+
+Section 8.4의 rollback helper declaration을 LASAL IDE로 저장했다. post-IDE/pre-implementation Control은
+`606820` bytes, SHA-256
+`DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0`이고 `Classes.lcb`는
+`8429648` bytes, SHA-256
+`2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5`다. 이 DAA8 snapshot에는
+exact private declaration과 empty implementation stub가 있으며 Network 연결은 바뀌지 않았다.
+
+실제 생성된 ABI는 다음과 같다.
+
+```text
+ValidateAxisOwnershipRollbackPreemptBank
+  ExpectedAxisMask : UDINT
+  pRestoreContext : ^void
+  RestoreContextSize : UDINT
+  Result : DINT
+```
+
+declaration과 implementation header에는 `GLOBAL`/`VIRTUAL GLOBAL`이 없다. generated declaration은
+canonical LF/all-CRLF `207/216`, canonical LF SHA-256
+`4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4`다.
+
+DAA8 monolithic method는 line `5032..6337`, byte0 `[180762,230865)`, raw/LF/all-CRLF
+`50103/48798/50104`, SHA-256
+`2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745`다. 안전한 extraction은 두 번째
+`preemptBankValid := TRUE;`인 line `5375..5879`, byte0 `[192424,212796)`, raw/LF/all-CRLF
+`20372/19867/20372`, SHA-256
+`9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C`다. 바깥
+`if restorePreempt then`/`end_if` line `5374`/`5880`은 adapter에 남겼다.
+
+DAA8에서 rebase한 candidate를 canonical source에 적용했다. current Control의 IDE CRLF checkpoint는
+`608436` bytes, SHA-256
+`A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`이고 Git canonical LF는
+`591670` bytes, SHA-256
+`7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE`다. planner의 whole-source
+결과는 두 projection 모두 exact다.
+
+- adapter canonical LF/all-CRLF `29124/29922`, canonical LF SHA-256
+  `8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC`
+- helper canonical LF/all-CRLF `21451/22046`, canonical LF SHA-256
+  `AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09`
+- call map canonical LF/all-CRLF `758/776`, canonical LF SHA-256
+  `66E328773321E978F63BF13F3080E77193D27D69E704081A7205D366EC76FF55`
+- reverse-inline은 DAA8 post-IDE source를 byte-exact 복원한다.
+
+helper는 NIL, exact 40-byte size와 mask 범위를 검사하고 full validation 성공 뒤에만 Group active,
+mask, token, generation, session, sequence, identity size, command/reference/admission bit pattern의 10개
+UDINT slot을 게시한다. persistent write, `_memset`, `_memcpy`, client/clock call은 없다. helper nonzero는
+public output으로 직접 흘리지 않고 adapter의 기존 위치에서 `Result := -3; RETURN;`으로 변환한다.
+
+현재 정적 검증 결과는 다음과 같다.
+
+1. current adapter/helper split verifier `20/20` expected semantic rejection PASS
+2. ownership aggregate `287/287` PASS
+3. method-size methods/under-limit/debt `96/92/4` PASS
+4. waiver 없는 `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1` exit `0` PASS
+5. pre-Rebuild `Classes.lcb`와 Network 세 파일 hash 불변
+
+DAA8 one-shot planner의 `18/18`은 candidate construction/reverse proof이고, current A51E의 CRLF와
+fresh-checkout LF 입력에서 모두 통과한다. A51E current acceptance는 main verifier의 adapter/helper
+composite fence가 담당한다. 두 gate를 같은 증거로 취급하지 않는다.
+
+A51E canonical project의 Save All과 C78/ARM Rebuild는 2026-08-07 11:39 KST 단일 LASAL 세션에서
+수행했다. baseline 입력 8개는 build 뒤 byte-exact이고 rebuild command window는 compiler error `0`, coded
+warning `55`개(`W0069=35`, `W0072=17`, `W0073=3`), result 뒤 C78/C81 compatibility warning `6`개,
+필수 custom ST 6개 각 1회 compile, Linker `Done`, command success다. append 전체에서
+`CInvalidArgException`과 download/online command는 `0`이다.
+
+post-C78 `Classes.lcb`는 `8430171` bytes, SHA-256
+`3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B`다. helper 이름의 두 번째
+출현은 compiler compact symbol entry이고 detailed private ABI record는 정확히 한 개다. 565-byte record
+SHA-256은 기존 값
+`094573D70AC34005F1072D5FE88D705CD2D63BD8F4B3A16068228D97EFB4F337`와 같다. whole-binary 이름
+유일성으로 이 정상 symbol entry를 거부하던 verifier를 exact method-header 후보 유일성으로 교정했고,
+그 뒤 waiver 없는 full `Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1`은 exit `0`으로 PASS했다.
+
+actual C78 build는 raw log로 확인됐지만 별도 GUI Build Output transcript가 없어 strict dual-evidence gate는
+미완료다. `RollbackAxisOwnership`과 `ValidateAxisOwnershipRollbackPreemptBank` 두 exact
+`Find in Implementation`도 현재 로그로 증명되지 않는다. download/restart와 PLC/실축 runtime은 아직
+수행하지 않았다. 이 split은 method-size debt만 줄였고 durable power-loss rollback recovery journal을
+추가하지 않았다.

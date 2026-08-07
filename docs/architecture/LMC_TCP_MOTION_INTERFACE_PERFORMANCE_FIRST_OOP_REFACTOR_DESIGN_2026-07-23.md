@@ -267,9 +267,10 @@ method registration을 확인해 PASS했다. LASAL IDE compiler의 실제 수용
 
 ### 8.1 2026-08-05 custom method-size debt ratchet
 
-현재 6개 custom service class의 qualified implementation `93`개를 raw/LF/all-CRLF UTF-8로
-전수 계산한다. vendor/framework class는 이 debt ledger에 섞지 않는다. 새 method는 세 크기 중
-하나라도 `32768` 이상이면 실패한다. 기존 초과 method는 아래 7개만 baseline debt로 인정하되,
+아래 표는 2026-08-05 pre-split 기준이다. 당시 6개 custom service class의 qualified
+implementation `93`개를 raw/LF/all-CRLF UTF-8로 전수 계산했다. vendor/framework class는
+이 debt ledger에 섞지 않는다. 새 method는 세 크기 중 하나라도 `32768` 이상이면 실패한다.
+pre-split 초과 method는 아래 7개만 baseline debt로 인정하되,
 어느 크기 차원도 현재 baseline보다 증가할 수 없다. 분할로 줄어들거나 사라지는 것은 허용한다.
 
 | Class | Method | raw | LF | all-CRLF |
@@ -289,9 +290,11 @@ method registration을 확인해 PASS했다. LASAL IDE compiler의 실제 수용
 검증기는
 `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalCustomMethodSizeBudget.ps1`이다.
 direct self-test는 baseline shrink/removal 허용과 exact-threshold 신규 debt/baseline growth 거부를
-포함해 `5/5`를 통과한다. current tree는 six classes, `93` methods, under-limit `86`, baseline debt
-`7`을 확인한다. 전체 `Verify-LasalContract.ps1`도 이 ratchet을 호출하므로 별도 실행 누락으로
-size gate를 우회할 수 없다.
+포함해 `5/5`를 통과한다. pre-split tree는 six classes, `93` methods, under-limit `86`,
+baseline debt `7`이었다. Section 8.2의 preemption-cleanup split 뒤 `94/88/6`, Section 8.3의
+DS402 receipt split 뒤 current inventory는 `95/90/5`가 됐다. retired receipt debt 재발 fixture를
+추가한 current self-test는 `6/6` PASS다. 전체 `Verify-LasalContract.ps1`도 이 ratchet을 호출하므로
+별도 실행 누락으로 size gate를 우회할 수 없다.
 
 2026-08-05 `ReserveAxisOwnership`의 미선언 `preemptRecordBase` 5곳을 같은 function에 이미 선언된
 `probeRecordBase`로 교정한 뒤 current `LMCControlCommandService.st` SHA-256은
@@ -302,20 +305,29 @@ local 수, 호출과 write 순서를 바꾸지 않고 debt baseline만 세 차�
 snapshot이다. 해당 split을 실제 적용할 때 current baseline으로 다시 계산해야 하며, current 승인값으로
 재사용하지 않는다. 8.6의 Reserve 계획은 교정 후 source를 기준으로 다시 계산했다.
 
-현재 pending Section 17 IDE handoff는 확장하지 않는다. 먼저 hidden channel 1개와 private helper
-8개의 generated declaration, default SourceOnly, C78 baseline을 고정한다. 다음 별도 분할은 초과 폭이
-가장 작은 `PublishAxisOwnershipPreemptionCleanup`부터 reverse-inline proof와 semantic negative
-fixture를 갖춰 진행한다. 그 뒤 DS402 receipt, rollback, general publication, reservation 순서로
-Control debt를 줄이고, RT `RtWork`와 Recorder `HandleRequest`는 독립 단계로 다룬다.
+아래 순서는 2026-08-05 pre-split 진행 계획이었다. hidden channel 1개와 private helper 8개의
+generated declaration, default SourceOnly, C78 baseline을 고정한 뒤 초과 폭이 가장 작은
+`PublishAxisOwnershipPreemptionCleanup`부터 reverse-inline proof와 semantic negative fixture를
+갖춰 분할한다. 이 첫 split은 Section 8.2와 같이 source에 적용됐고 source/build/IDE/PC 최종 검증도
+완료됐다.
+그 뒤 DS402 receipt, rollback, general publication, reservation 순서로 Control debt를 줄이고,
+RT `RtWork`와 Recorder `HandleRequest`는 독립 단계로 다룬다.
 
-### 8.2 post-C78 preemption-cleanup split plan
+2026-08-07 결정으로 Recorder 추가 개발은 중단했다. 기존 Recorder 구현과 시험 자산은 보존하지만
+`LMCRecorderStore.HandleRequest` size debt, 새 wire 기능, qualification 확대는 현재 backlog에서
+제외한다. SIGMATEK과 데이터 경로/대역폭을 협의하고 사용자가 명시적으로 재개할 때만 이 설계 문서를
+먼저 갱신한 뒤 별도 tranche로 개발한다.
 
-이 절은 **미적용 계획**이다. current LASAL source, generated declaration과 Section 17 handoff에는
-아래 helper가 아직 없다. Section 17 Save/inspection/default SourceOnly와 C78 baseline을 먼저 닫은 뒤
-별도 IDE batch로 진행한다.
+### 8.2 2026-08-06 preemption-cleanup split applied and statically verified
 
-`PublishAxisOwnershipPreemptionCleanup`의 replacement tuple read-only validator만 아래 private helper로
-분리한다. `GLOBAL` 또는 `VIRTUAL GLOBAL`로 만들지 않는다.
+이 절의 split은 current LASAL source와 generated declaration에 적용됐고, split-aware semantic
+verifier, generated ABI/private metadata, C78 Rebuild, implementation smoke와 PC/WPF regression까지
+완료됐다. 이 완료 판정은 source/build/IDE/PC 범위이며 PLC download와 실축 runtime 완료를 뜻하지
+않는다.
+
+`PublishAxisOwnershipPreemptionCleanup`에서 replacement tuple을 읽기만 하는 validator를 아래
+private helper로 분리했다. declaration과 implementation header 모두 `GLOBAL`/
+`VIRTUAL GLOBAL`이 없다. ABI의 인자, 타입과 순서는 다음과 같다.
 
 ```text
 ValidateAxisOwnershipPreemptionReplacement
@@ -328,49 +340,62 @@ ValidateAxisOwnershipPreemptionReplacement
   Result : BOOL
 ```
 
-추출 범위는 current source의 `singletonToken := 0;`부터
-`tupleValid := replacementValid;`까지다. adapter는 원 public input과 이미 한 번 검증·표본한 old tuple
-값만 by-value로 넘기고 `tupleValid`에 helper 결과를 대입한다. helper는 `OwnershipState`와
-`OwnershipIdentityState`를 기존 순서로 읽기만 하며 persistent write, clock/latch/client/SDO call과
-live tuple 재표본을 하지 않는다.
+원본 추출 범위는 pre-IDE source의 `singletonToken := 0;`부터
+`tupleValid := replacementValid;`까지였다. 7,678-byte 추출 block SHA-256은
+`95D07F6EDEC47747606F4A2DEBDF2AF240C2F872EA638C2B176B9203335C053E`다. parent에는 helper
+호출이 단 한 번 남아 원 public input과 이미 검증·표본한 old tuple만 by-value로
+넘기고 `tupleValid`에 결과를 대입한다.
 
-current CRLF source에서 계산한 예상 크기는 다음과 같다.
+다음 15개 local은 parent에서 helper로 이동했다.
 
-- existing GLOBAL adapter: raw/LF/all-CRLF `29300/28500/29301`
-- new private helper: raw/LF/all-CRLF `8486/8278/8487`
+`probeAxisIndex`, `probeAxisBit`, `replacementRecordBase`, `replacementHeaderBase`,
+`singletonToken`, `singletonGeneration`, `singletonMask`, `replacementIdentitySize`,
+`replacementTailSize`, `replacementTailOffset`, `replacementPackedCommand`,
+`replacementPackedOwner`, `replacementFound`, `replacementValid`, `replacementStateValid`
 
-adapter의 normal commit은 계속 preemption-root magic clear로 시작하고 singleton/overlay/evidence를 쓴 뒤
-root magic을 마지막에 복원한다. public Result `-3/-2/1/0` mapping도 adapter에 남긴다. in-memory
-reverse-inline은 whole source를 byte-exact 복원했고 reconstructed SHA-256은 current source와 같은
-`ACCDD97A171A5D054F1115A7CDFA0B0C83FCF165FF59ED75E5C180D448C64AD3`였다.
+helper는 기존 순서로 `OwnershipState`와 `OwnershipIdentityState`를 읽지만 persistent
+write를 하지 않는다. source-level reverse-inline 검토에서 parent의 persistent mutation 26개와
+순서, normal commit의 root-magic clear/commit-last, public Result domain은 변하지 않았다.
+current Result assignment histogram도 `-1 x1`, `-2 x5`, `-3 x8`, `0 x1`, `1 x1`로
+pre-split과 같다. reverse-inline byte proof와 focused negative fixture `38/38`이 이 경계를
+독립적으로 고정하며, post-build SourceOnly/full static도 모두 PASS했다.
 
-실제 적용 전에는 validation-prefix mutation 금지, safety/old/live tuple의 exact token-generation,
-replay zero-mutation, incomplete bank retention, quarantine observer publication, commit-last와 Result domain을
-focused negative fixture로 먼저 고정한다. 적용 후에는 size debt ledger에서 기존 GLOBAL debt를 제거하고
-adapter/helper 각각을 일반 `<32768` hard gate로 승격한다.
+current source에 size verifier와 동일 FUNCTION block 규칙을 적용한 실측값은 다음과 같다.
 
-2026-08-05 pre-split semantic fence는 적용 완료했다. verifier는 current public cleanup block의
-`Ownership*State` mutation 26개와 publication 순서를 exact inventory로 고정하고, `:=`뿐 아니라
-compound write도 검사한다. replacement old-token absence의 두 번째 9-axis loop와 quarantine observer
-publication loop는 각각 독립 scope의 init/body/increment를 고정하며, cleanup 내부의 bank copy/clear와
-clock/client 재표본도 거부한다.
+- existing GLOBAL adapter: raw/LF/all-CRLF `29277/28500/29301`
+- new private helper: raw/LF/all-CRLF `7933/7933/8142`
+- six custom classes total: methods `94`, under-limit `88`, baseline debt `6`
 
-- focused fixture `24/24` reject
-- ownership aggregate `271/271` reject
-- independent mutation review에서 처음 확인된 lease/startup state write, compound write, Axis 9 skip와
-  quarantine-loop early exit 우회를 보강한 뒤 동일 변이 재검토 PASS
-- custom method-size debt ratchet self-test `5/5` PASS
-- five-waiver full `-SourceOnly -ExpectedSdoWriteAxis 1` PASS; six classes / `93` methods /
-  under-limit `86` / unchanged baseline debt `7`
-- 이 단계는 LASAL source, generated declaration, Network와 Section 17 handoff를 변경하지 않았으며
-  위 private helper split도 여전히 미적용이다
+따라서 기존 cleanup method은 32 KiB debt에서 벗어났고 parent/helper 모두 일반
+`<32768` gate 대상이다. pre-split source SHA-256은
+`D044E29218255E5859FACB1831B5B33E6E3EAEF34AB9758E4B1EDDA9CEF6CF5E`, IDE declaration
+저장 후 implementation 적용 전 snapshot은
+`2F690EA15DEC5F5F3C93DE8A36D10AA47DEB70942CC4F97BDEC9D0EA184B7BA2`, current implementation source는
+`3BCA660E4569E8EA6222CD81EA683BF7D9BD2A007AB2464162DF5673FDB3EEBE`다.
+final C78 Rebuild가 생성한 current `Classes.lcb` SHA-256은
+`D82728DC9C2AC703BF7461E14709C98082A7F3436555A8DB58924D36149E1EDE`며,
+`Comm_Network.lcn`은
+`55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B`로 pre-split과 같다.
 
-### 8.3 post-C78 DS402 owner-receipt split plan
+첫 C78 Rebuild는 `TCPMotionInterface.st` implementation marker 직후의 독립 토큰 `U`/`UDINT` 때문에
+`E0016` 1건으로 실패했다. 두 stray line만 제거해 tracked prefix와 같게 복구했고, 같은 결함을 막는
+prefix negative fixture를 추가했다. ownership activation focused fixture는 `287/287` PASS했다.
+두 번째 Rebuild는 2026-08-06 17:16 KST에 C78/ARM, `0 errors / 55 coded warnings`, Linker Done으로
+완료됐다. warning histogram은 `W0069=35`, `W0072=17`, `W0073=3`이며 C78 project/C81 library
+호환 경고 6줄은 별도다. `TCPMotionInterface`, `LMCControlCommandService`, `LMCDiagnosticsService`는
+각각 한 번 compile됐고 Download/Connect 흔적은 없다.
 
-이 절도 **미적용 계획**이다. `PublishAxisOwnershipDs402Receipt`의 현재 public ABI와 mutation
-순서를 먼저 semantic fence로 고정했으며, LASAL source, generated declaration, Network와 Section 17
-handoff는 변경하지 않았다. Section 17 Save/inspection/default SourceOnly와 C78 baseline을 닫기 전에는
-아래 helper를 IDE에 선언하거나 source에 적용하지 않는다.
+smoke에서는 세 class가 각각 `Open Implementation Editor`로 열렸고 smoke 시작 이후
+`CInvalidArgException=0`이다. SDK Debug `1082/1082`, WPF Debug Rebuild와 smoke `330/330`, post-build
+SourceOnly/full static도 PASS했다. 남은 gate는 PLC download, restart 후 reconstruction,
+retained-state recovery와 실축 runtime 확인이다.
+
+### 8.3 2026-08-06 DS402 owner-receipt Stage-87 split applied and statically verified
+
+이 절의 split은 current LASAL source와 generated declaration에 적용됐다. split-aware semantic
+verifier, generated private ABI/`Classes.lcb`, method-size ratchet와 waiver 없는 full SourceOnly까지
+PASS했다. 다만 이 checkpoint 뒤 C78 Rebuild와 implementation smoke는 아직 실행하지 않았다.
+아래 public ABI와 pre-split fence 설명은 적용 전 기준을 기록하며, 뒤의 current 결과가 이를 대체한다.
 
 현재 public ABI는 다음 순서로 고정한다.
 
@@ -416,14 +441,15 @@ validation 전 magic과 validator-result 우회, pointer alias/reassignment, ear
 unexpected ownership call, trailing ABI input, replay mutation, clear/commit 역전, write-after-COMPLETE,
 함수명과 external receipt ABI constant drift 등 `38`개를 추가했다.
 
-- focused provider fixture `55/55` reject
-- ownership aggregate `271/271` reject
-- custom method-size debt ratchet self-test `5/5` PASS
-- five-waiver full `-SourceOnly -ExpectedSdoWriteAxis 1` PASS; six classes / `93` methods /
-  under-limit `86` / unchanged baseline debt `7`
+- pre-split focused provider fixture `55/55` reject
+- current split-aware focused provider fixture `67/67` reject
+- current method-size debt ratchet self-test `6/6` PASS
+- waiver 없는 full `-SourceOnly -ExpectedSdoWriteAxis 1` exit `0` PASS; six classes / `95` methods /
+  under-limit `90` / baseline debt `5`
 
-post-C78에는 current Stage-87 tokenless recovery의 닫힌 always-return 분기 전체만 아래 private helper로
-분리한다. `GLOBAL` 또는 `VIRTUAL GLOBAL`로 만들지 않는다.
+current split에서는 Stage-87 tokenless recovery의 닫힌 always-return 분기 전체만 아래 private
+helper로 분리했다. `GLOBAL` 또는 `VIRTUAL GLOBAL`이 없고, generated `Classes.lcb` flags는
+`0x00000000`이다.
 
 ```text
 HandleAxisOwnershipDs402ReceiptStage87Recovery
@@ -443,27 +469,56 @@ helper는 `activeIndex`에서 `axisIndex`, `recordBase`, `recordByteBase`만 다
 Stage-87 `pState` mutation 순서는 그대로 helper가 소유하며 common ownership surface는 읽기만 한다.
 normal durable receipt path는 adapter에 byte-unchanged로 남긴다.
 
-current source를 대상으로 한 in-memory 계획 크기는 다음과 같다.
+기존 outer wrapper를 제외한 branch 588줄은 한 tab만 deindent해 byte-preserving 이동했다. helper를
+제거하고 call을 원 branch로 reverse-inline하면 post-IDE/pre-split source SHA-256
+`BAB60FF1891F424B132C52EF3FBF5D099AB010BFF1D7E812648DFA7BF619BE7A`를 byte-exact 복원한다.
+split-aware fence는 adapter 감소만 보지 않고 다음 transitive inventory를 함께 검사한다.
 
-- public adapter raw/LF/all-CRLF `22783/22196/22784`
-- private helper raw/LF/all-CRLF `26174/25523/26175`
-- adapter replacement call block all-CRLF `299`
+- local inventory: adapter `35`, helper `42`
+- persistent mutation: adapter `28`, helper `49`, transitive `77`
+- adapter/helper/transitive mutation SHA-256:
+  `91A354E4243C20A7EFD1FCF326B04CDDD99CE80BCAF9F3ED8F7D7B4F5C5EB0E4`,
+  `3E30219133119237C9115F267CDEA3CC186759E96DC7DBCD517305FB06AC2F17`,
+  `95A9EAF512D0F4DCB5B406F2FB8B1B433A420A8C729C722AF3BC7C41B93388BA`
+- helper Result sequence
+  `-2|-3|-2|-3|-1|-3|-3|-3|-3|-3|-3|0|2|2|-1|-3`, explicit `RETURN` `15`
+- public adapter raw/LF/all-CRLF `21836/21279/21837`
+- private helper raw/LF/all-CRLF `26182/25531/26183`
 
-두 method 모두 `32768` 미만이다. helper를 public adapter 바로 앞에 삽입한 계획 source SHA-256은
-`B587606ABFFF236C118C7FC9A999B8C804EEFB2B396CC84A8064D85CBB8ADA93`이며, helper를 제거하고 call을
-원 Stage-87 branch로 reverse-inline하면 current Control source SHA-256
-`ACCDD97A171A5D054F1115A7CDFA0B0C83FCF165FF59ED75E5C180D448C64AD3`을 byte-exact 복원한다.
-실제 split 적용 시에는 parent와 helper의 transitive persistent-mutation inventory 및 call dominance로
-baseline을 다시 승인해야 하며, parent inventory 감소만으로 PASS 처리하지 않는다.
+두 method 모두 `32768` 미만이다. current `LMCControlCommandService.st`는 `606348` bytes,
+SHA-256 `DA93EB01DBF7E842C36EE22E1ACBF6277D60C0E12C58B93A24BA870976321FCF`다. declaration 입력 뒤
+pre-Rebuild `Classes.lcb` SHA-256은
+`DC71B0F8B8A493B84D2BE0A294408E462FEF87D758F28F9AA8C50C1F32124B7B`였다. C78 Rebuild와
+Save All이 generated database를 다시 기록한 뒤 current SHA-256은
+`9147D2185860FE2082777013FC944248196B686402FE88F7EF52FAB9875301E0`이며, post-save waiver 없는
+SourceOnly가 exit `0`으로 private helper ABI와 generated metadata를 다시 확인했다. Network는
+바뀌지 않았고 `Comm_Network.lcn` SHA-256은
+`55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B`다.
 
-### 8.4 post-C78 ownership rollback split plan
+2026-08-07 LASAL Class 2 `02.03.001`에서 C78/ARM Rebuild는 `26318.1 ms`에 성공했다. IDE 집계는
+`0 errors / 55 warnings`다. rebuild log의 WARN line은 source warning `55`개(`W 0069=35`,
+`W 0072=17`, `W 0073=3`)와 C78/C81 compiler/library version warning `6`개를 합쳐 `61`개이며
+ERROR/FATAL과 `CInvalidArgException`은 0개다. 실제
+`Comm_Network.LMCControlCommandService1.LMCAxis1` channel에서 `Find in Implementation`을 실행해
+`29` hits, `1` matched file / `3` searched files로 `302.2 ms`에 성공했고 smoke 시작 이후
+`CInvalidArgException=0`이다. Save All과 IDE 종료도 성공했고 Download는 수행하지 않았다. 따라서
+receipt split의 static/C78/IDE smoke gate는 닫혔으며 남은 증거는 PLC download/restart/runtime다.
 
-이 절도 **미적용 계획**이다. current `RollbackAxisOwnership` source와 public ABI를 먼저 전용
-semantic fence로 고정했다. LASAL source, generated declaration, Network와 Section 17 handoff는
-변경하지 않았다. Section 17 external inspection, default SourceOnly와 C78 baseline이 닫히기 전에는
-아래 private helper를 IDE에 선언하거나 source에 적용하지 않는다.
+### 8.4 post-C78 ownership rollback split implementation checkpoint
 
-current public ABI는 다음 exact order다.
+2026-08-07에 private declaration을 LASAL IDE로 저장한 뒤 implementation 적용 전 source를 별도
+baseline으로 고정했다. 이 post-IDE/pre-implementation snapshot은 `606820` bytes, SHA-256
+`DAA8E134CE6E67BA47D6B30530F0FB9DBEF041A1B355466472872975897C3DF0`이다. 같은 시점
+`Classes.lcb`는 `8429648` bytes, SHA-256
+`2AEFD0B004B9F0CE1688077FC5B842AB46B893C811A8951DF2E7F8CDF23406A5`이며 helper declaration과
+empty implementation stub가 존재한다. Network 세 파일은 변경되지 않았다.
+
+현재 implementation은 DAA8 baseline에서 만든 exact candidate를 적용한 상태다. current Control의
+LASAL IDE CRLF checkpoint는 `608436` bytes, SHA-256
+`A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`이고 Git canonical LF는
+`591670` bytes, SHA-256
+`7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE`다. planner의 whole-source
+결과는 두 projection 모두 exact다. public ABI는 다음 exact order로 유지된다.
 
 ```text
 RollbackAxisOwnership
@@ -475,32 +530,7 @@ RollbackAxisOwnership
   Result : DINT
 ```
 
-pre-split fence는 public declaration/implementation ABI, local pointer 부재, client/clock/custom helper
-call 부재와 current call histogram `_memcmp=4`, `_memcpy=7`, `_memset=17`, `sizeof=6`,
-`TO_DINT=4`, `TO_UDINT=32`를 고정한다. method가 사용하는 `47`개 `LMC_OWNER_*` define은 각각
-단일 canonical value만 허용한다. `#include`, `#undef`, conditional directive, 동일 이름 재정의와
-executable identifier macro alias도 금지해 source hash가 외부 또는 local preprocessor 주입으로
-우회되지 않게 했다.
-
-comment/string을 제거한 persistent destination write inventory는 정확히 `79`개다. whitespace 제거,
-invariant lowercase, `|` join 길이는 `6251`, SHA-256은
-`FFA826951AFAD84F64A21788ED0590330D5FA6A92C22B89A0363E03F9CF3BB08`이다. Result assignment와
-`RETURN;` token inventory는 `29`개, joined 길이 `290`, SHA-256
-`E03138AF05891034DAF1DFE79BAD9B3FB68B33E6D6730950068F622476E32A51`로 별도 고정한다. known
-assertion 뒤의 whole-method semantic token ratchet은 길이 `36717`, SHA-256
-`B997DB4BE547EF3EE07B4A2D2C8CAFC0588A1BACE65FF3A59D78C1F5E9AE2142`다.
-
-- focused rollback fixture `38/38` reject, comment-only positive fixture accept
-- ownership aggregate `271/271` reject
-- five-waiver full `-SourceOnly -ExpectedSdoWriteAxis 1` PASS; six classes / `93` methods /
-  under-limit `86` / unchanged baseline debt `7`
-- current method raw/LF/all-CRLF `50103/48798/50104`, raw block SHA-256
-  `2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745`
-- current Control source SHA-256
-  `ACCDD97A171A5D054F1115A7CDFA0B0C83FCF165FF59ED75E5C180D448C64AD3`
-
-post-C78에는 full preemption-bank read-only validation만 아래 private helper로 분리한다. `GLOBAL` 또는
-`VIRTUAL GLOBAL`로 만들지 않는다.
+LASAL IDE가 생성한 helper는 private이며 `GLOBAL`/`VIRTUAL GLOBAL`이 없다. exact ABI는 다음과 같다.
 
 ```text
 ValidateAxisOwnershipRollbackPreemptBank
@@ -510,10 +540,28 @@ ValidateAxisOwnershipRollbackPreemptBank
   Result : DINT
 ```
 
-추출 범위는 current source의 `preemptBankValid := TRUE;`부터 그 validation block의 마지막
-`if preemptBankValid = FALSE ... end_if;`까지다. 바깥 `if restorePreempt then`은 public adapter에
-남긴다. helper는 persistent write, `_memset`, `_memcpy`, client/clock call 없이 retained state를 기존
-순서로 읽고 `_memcmp` 세 번을 수행한다. 성공한 경우에만 adapter-local 40-byte context를 게시한다.
+generated class declaration은 canonical LF/all-CRLF `207/216`, canonical LF SHA-256
+`4BC23CE3F6FAC1F2E18CBC5D2AF7E2C27111834B8064E322AB5C6E66D0FD44E4`다. implementation 적용은
+이 declaration과 pre-Rebuild `Classes.lcb`를 바꾸지 않았고 Network hash도 다음과 같이 유지했다.
+
+- `Comm_Network.lcn`: `55284463115C04B3EDFA380C0CF3766F652C6E3D944F9582E692963C0575516B`
+- `ONE_Comm_Network_Table.st`: `18F8B7100E82A2DA9AE68831CA4AF1B53B5D5135DE45FF25879665059D75D04D`
+- `Networks.lcb`: `56537B95F8CA50245357C383BC4CAE1EC29AD32258368D2E450E1637128D2AFF`
+
+DAA8 monolithic baseline에서 `RollbackAxisOwnership`은 line `5032..6337`, byte0
+`[180762,230865)`, raw/LF/all-CRLF `50103/48798/50104`, SHA-256
+`2A88838417913B76449739447AAA8175157EAF8A370CC53F7FF916A3F25FF745`다. 안전한 extraction은
+두 번째 `preemptBankValid := TRUE;`인 line `5375..5879`, byte0 `[192424,212796)`,
+raw/LF/all-CRLF `20372/19867/20372`, SHA-256
+`9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C`다. 첫 번째 동일 block은
+empty-bank 검사이므로 이동하지 않았다. 바깥 `if restorePreempt then`/`end_if` line `5374`/`5880`은
+adapter에 남겼다. line `5375..6233`으로 넓힌 `34935/34076/34935` boundary는 hard limit을 넘고
+lease validation, live mutation과 destructive bank invalidation을 섞으므로 계속 금지한다.
+
+extraction은 local `45`개를 참조하고 그중 `23`개가 extraction-only다. helper는 persistent write,
+`_memset`, `_memcpy`, client/clock call 없이 retained state를 기존 순서로 읽고 `_memcmp` 세 번과
+`TO_UDINT` 아홉 번을 수행한다. `pRestoreContext <> NIL`, size exact `40`, `ExpectedAxisMask` 범위
+`1..0x1FF`를 검사하고 full validation 성공 뒤에만 다음 10개 UDINT slot을 게시한다.
 
 | UDINT slot | 의미 |
 |---:|---|
@@ -528,23 +576,62 @@ ValidateAxisOwnershipRollbackPreemptBank
 | 8 | reference bit pattern |
 | 9 | admission-mode bit pattern |
 
-current source를 대상으로 한 in-memory 계획 크기는 다음과 같다.
+적용된 exact candidate는 다음과 같다.
 
-- public adapter raw/LF/all-CRLF `30819/29996/30820`
-- private helper raw/LF/all-CRLF `21654/21072/21655`
-- extracted validation block raw/LF/all-CRLF `20372/19867/20372`, SHA-256
-  `9A6EFE09CBE17D062802245E06974BF80AA7268D95489DEB8C137A0E1F68A62C`
-- adapter call/map block all-CRLF `994` bytes
+- public adapter canonical LF/all-CRLF `29124/29922`, canonical LF SHA-256
+  `8855AEEAE9B617CEAC1D10C7CC4ADB7F4D0536D108592560CE0D39ACF344AFAC`
+- private helper canonical LF/all-CRLF `21451/22046`, canonical LF SHA-256
+  `AE6AD76007725544FBC57D8D60DF5C483CD3381149A1D14C424C96BCBEE0AF09`
+- adapter call/map canonical LF/all-CRLF `758/776`, canonical LF SHA-256
+  `66E328773321E978F63BF13F3080E77193D27D69E704081A7205D366EC76FF55`
+- helper context write는 validation 성공 뒤 offset `0,4,...,36`에 정확히 `10`개이고 persistent write는
+  `0`이다.
+- adapter의 persistent write `79`, public Result assignment `15`, `RETURN` `14`는 유지된다.
+- adapter/helper를 원 validation block과 empty stub로 reverse-inline하면 DAA8 source를 byte-exact
+  복원한다.
 
-계획 source SHA-256은
-`066335AF5FF84796B0888C08F46BAA932D7E6AAAB05275DF24F1C0B86353C1AD`다. helper/declaration/local과
-call/map을 제거하고 원 validation block을 reverse-inline하면 current Control source SHA-256을
-byte-exact 복원한다. 실제 split 때는 adapter와 helper의 합성 read/mutation/call/result contract를 새로
-승인하고 기존 monolithic hash를 split-aware ratchet으로 교체한다.
+DAA8 one-shot planner self-test는 expected rejection reason을 확인하는 `18/18` negative fixture와
+positive candidate를 통과했다. current A51E를 입력할 때는 byte-ratcheted monolith evidence에서 DAA8을
+메모리 역인라인하며, IDE CRLF와 fresh-checkout LF 입력 모두 같은 `18/18`을 통과한다. A51E 적용 뒤
+current composite verifier는 planner를 post-state gate로
+재사용하지 않고 adapter/helper exact ABI, read/mutation/call/result fence와 이동한 fixture scope를 직접
+검사한다. 현재 증거는 다음과 같다.
 
-이 분할은 size debt만 제거하며 새로운 durable rollback receipt를 추가하지 않는다. current rollback은
-mutation 시작 뒤 전원 차단을 재개하는 journal이 없으므로 static invalidate-before-write/magic-last ordering이
-crash recovery 증거는 아니다. 이 runtime 경계도 split 뒤 그대로 남으며 별도 설계 없이는 완료로 부르지 않는다.
+1. rollback split verifier: `20/20` expected semantic negative fixture reject, current adapter/helper accept
+2. ownership aggregate: `287/287` negative fixture reject
+3. method-size inventory: six classes / methods/under-limit/debt `96/92/4`
+4. waiver 없는 `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1`: exit `0` PASS
+
+2026-08-07 11:39 KST에 canonical project를 Save All한 뒤 C78/ARM Rebuild를 수행하고 LASAL을
+종료했다. baseline 이후 `Lasal2.log`의 단일 PID `36152` 세션에서 C78/ARM header, 필수 custom ST
+6개 각 1회 compile, Linker `Done`, command success를 확인했다. rebuild command window의 compiler
+error는 `0`, coded warning은 `55`개(`W0069=35`, `W0072=17`, `W0073=3`)이고 result 뒤 C78/C81
+compatibility warning은 `6`개다. capture한 입력 8개는 build 뒤에도 byte-exact이며 append 전체의
+`CInvalidArgException`과 download/online command는 `0`이다. project load 중 rebuild 전에 발생한
+MotionLib include `E0015` 한 건은 rebuild command window 밖이고 load와 rebuild는 모두 성공 종료했다.
+
+Rebuild가 생성한 `Classes.lcb`는 `8430171` bytes, SHA-256
+`3B5D814F566F20D49D8033CC6E6F735A1503D91B7A3D5F87D3E6339FECC3421B`이고 root project LCB는
+`634514` bytes, SHA-256
+`417B225C0003AB267C7A2E7D86B61832948AAB62DBF9963F228535E00DD9FA0E`다. helper 이름은 detailed ABI
+record와 compiler compact symbol entry에 각각 한 번 존재하지만, method tag `0x0B`, private flags
+`0`, input count `3`이 붙는 exact ABI record는 한 개뿐이다. 그 565-byte SHA-256은 기존 ratchet
+`094573D70AC34005F1072D5FE88D705CD2D63BD8F4B3A16068228D97EFB4F337`와 같다. verifier는 whole DB의
+단순 이름 유일성 대신 이 exact header-qualified record가 한 개인지 검사하도록 교정했다. 교정 뒤
+`Verify-LasalContract.ps1 -ExpectedSdoWriteAxis 1`은 waiver 없이 exit `0`으로 full static PASS했고
+verifier SHA-256은
+`D9C4AD42C27EFA8C40284623B28CDAE3C816AB9A72EFF25548C7E6102E1B3670`다.
+
+따라서 actual C78 build는 raw log로 확인됐다. 다만 별도 GUI Build Output transcript를 캡처하지 않아
+strict dual-evidence verifier는 아직 닫히지 않았다. 요청한 `RollbackAxisOwnership`과
+`ValidateAxisOwnershipRollbackPreemptBank` 두 exact `Find in Implementation`도 로그와 final OpenViews로
+증명되지 않는다. append 전체의 `CInvalidArgException=0`은 확인했지만 두 search action의 증거를
+대체하지 않는다. download/restart와 PLC/실축 runtime도 아직 수행하지 않았다. 상세 raw-log 증거는
+`test/Reports_Lasal/C78_20260807_rollback_split_rebaseline/postbuild_raw_log_audit.json`이다.
+
+이 분할은 size debt만 제거하며 durable rollback receipt를 추가하지 않는다. mutation 시작 뒤 전원 차단을
+재개하는 journal이 없으므로 static invalidate-before-write/magic-last ordering은 crash recovery 증거가
+아니다. durable power-loss recovery는 별도 설계와 runtime 검증 없이는 완료로 부르지 않는다.
 
 ### 8.5 post-C78 ownership publish split plan
 
@@ -617,6 +704,252 @@ same-name header 주입을 막는다. 한 번의 leftmost lexical scan으로 str
   consumption은 별도 semantic debt다.
 - `ReportKind=SAFETY_PREEMPT`는 current production caller가 `0`개다. `ObservationCycle=0`은 current
   production path에서 의도적으로 사용하므로 nonzero gate를 추가하지 않는다.
+
+### 8.5.1 production caller Result-consumption matrix
+
+2026-08-05 current source를 exact identifier로 전수 확인한 결과 `PublishAxisOwnership` production
+call site는 `21`개다. 모든 call은 local result에 대입하지만, 실제 분기에서 결과를 소비하는 곳은
+`10`개이고 대입 뒤 검사하지 않는 곳은 `11`개다. 별도 public API인
+`PublishAxisOwnershipPreemptionCleanup`과 `PublishAxisOwnershipDs402Receipt` caller는 이 수에 넣지
+않는다.
+
+| # | current caller | operation/context | ReportKind | current Result 처리 |
+|---:|---|---|---|---|
+| 1 | Control `HandleRequest:1965` | safety 관리 명령 DS402 drain과 rollback 실패 | `QUARANTINE` | **미소비** |
+| 2 | Control `HandleRequest:2311` | `0x20E7` commit 성공 | `TERMINAL_SUCCESS` | `<>0`이면 internal failure |
+| 3 | Control `HandleRequest:2344` | 관리 명령 비정상 결과와 rollback 실패 | `QUARANTINE` | `<>0`이면 global quarantine |
+| 4 | Control `ProcessAxisOwnership:8593` | unsupported retained ordinary axis | `QUARANTINE` | `<>0`이면 global quarantine |
+| 5 | Control `ProcessAxisOwnership:8883` | ordinary terminal/timeout | dynamic | `<>0`이면 global quarantine |
+| 6 | Control `ProcessAxisZeroHome:12153` | `0x7D13` FINALIZE first receipt | dynamic | PREPARED/result 분기 |
+| 7 | Control `ProcessAxisZeroHome:12190` | `0x7D13` receipt completion | dynamic | `-4` retry와 `1` COMPLETE 분기 |
+| 8 | Diagnostics `ProcessEncoderMaintenance:3558` | `0x7E53` SDO dispatch | `DISPATCH` | `<>0`이면 accepted-write drain |
+| 9 | Diagnostics `ProcessEncoderMaintenance:3728` | encoder verify success | `TERMINAL_SUCCESS` | `0`만 release, 나머지 quarantine |
+| 10 | Diagnostics `ProcessEncoderMaintenance:3768` | encoder abort/safe failure | `TERMINAL_SAFE_FAILURE` | `0`만 release, 나머지 quarantine |
+| 11 | Diagnostics `ProcessEncoderMaintenance:3873` | encoder local quarantine | `QUARANTINE` | **미소비** |
+| 12 | Diagnostics `ProcessAxisDs402Home:5746` | `0x7D15` first SDO dispatch | `DISPATCH` | `0`만 dispatch marker |
+| 13 | Diagnostics `HandleAxisDs402HomeCleanupStages:6554` | cleanup timeout | `QUARANTINE` | **미소비** |
+| 14 | Diagnostics `HandleAxisDs402HomeCleanupStages:7025` | post-dispatch non-success | `QUARANTINE` | **미소비** |
+| 15 | TCP `CyWork:455` | disconnect cleanup rollback 실패 | `QUARANTINE` | **미소비** |
+| 16 | TCP `HandleControlSafetyDrainPending:1375` | PREPARE invalid/timeout rollback 실패 | `QUARANTINE` | **미소비** |
+| 17 | TCP `HandleControlSafetyDrainPending:1485` | RETAIN invalid rollback 실패 | `QUARANTINE` | **미소비** |
+| 18 | TCP `HandleControlSafetyDrainPending:1518` | TERMINAL malformed response | `QUARANTINE` | **미소비** |
+| 19 | TCP `MsgPaser:1984` | diagnostics unexpected response rollback 실패 | `QUARANTINE` | **미소비** |
+| 20 | TCP `MsgPaser:2426` | ownership control exact-failure rollback 실패 | `QUARANTINE` | **미소비** |
+| 21 | TCP `MsgPaser:2452` | ownership control malformed response rollback 실패 | `QUARANTINE` | **미소비** |
+
+후속 full-nesting 감사에서 #20과 #21은 정상 caller debt가 아니라 **같은 reservation의 이중
+finalization**으로 판정됐다. `LMCControlCommandService.HandleRequest`는 exact failure를 반환하기 전에
+이미 해당 tuple을 rollback하고, success에서는 commit한다. 또한 safety-drain pending `Result=1`은
+`ownershipSafetyPumpRejected=TRUE` 때문에 일반 finalizer에 들어가지 않고 tuple을 보존한다. 따라서
+Control이 request당 유일한 commit/rollback authority이고, TCP는 Control terminal response 뒤
+`RollbackAxisOwnership` 또는 `PublishAxisOwnership`을 다시 호출하면 안 된다. 다음 source tranche에서
+#20/#21과 두 result local을 제거하면 generic production inventory는 `19`가 된다.
+
+provider의 current Result 의미는 다음과 같다.
+
+| Result | current 의미 | caller 계약 |
+|---:|---|---|
+| `-1` | invalid public input | programming/ABI failure로 fail closed |
+| `-2` | exact tuple 불일치 또는 대상 owner 없음 | retained owner가 남을 수 있으므로 완료/clear 금지 |
+| `-3` | identity, bank, receipt 또는 lease corruption | provider가 항상 global latch를 쓴다고 가정하지 않고 local tuple/terminal 진행을 보존 |
+| `-4` | exact Home cleanup 뒤 rebase retained word clear/readback retry 필요 | 동일 Home FINALIZE tuple만 retry; success나 quarantine으로 변환 금지 |
+| `0` | 일반 publish 완료 또는 Home PREPARED | ReportKind과 Home receipt phase를 함께 판정 |
+| `1` | exact Home receipt COMPLETE | Home terminal에서만 허용 |
+
+historical source의 미소비 `11`개는 모두 `QUARANTINE` publication이다. 그중 #20/#21은 소비 로직을
+추가할 대상이 아니라 제거할 이중 finalizer이고, 남는 9개의 정상 Result domain은 정확히 `{0}`이다.
+`-1/-2/-3/-4/+1`을 완료로 받아들이지 않는다. 특히 다음 dominance를 만족하기 전에는 caller debt가
+닫힌 것이 아니다.
+
+1. TCP #20/#21은 제거하고, 남는 TCP 5곳은 nonzero 결과에서 exact pending/active request tuple을
+   지우지 않고 close/failure fence를 유지한다. publication 성공 증거 없이 `Reserved` clear, terminal
+   처리 또는 정상 response 송신을 진행하지 않는다.
+2. Diagnostics 3곳은 stage `101`만으로 common owner quarantine 완료를 주장하지 않는다. nonzero
+   publication 결과와 exact owner tuple을 retained recovery surface에 보존하는 방식을 먼저 정한다.
+3. Control 1곳은 이미 global corruption latch를 설정하더라도 quarantine publication 결과를 즉시
+   검사한다. 실패 시 exact tuple 보존과 상위 결과 전달 위치를 구현 전에 고정한다.
+4. 어느 caller도 `-2` 뒤 request/owner tuple을 clear하거나 fresh admission을 허용하지 않는다.
+
+caller 계약은 provider method-size split과 별도 semantic tranche다. 별도
+`Assert-LasalAxisOwnershipPublishCallerContract`를 추가해 최종 call site `19`, 소비 `19`, context별 허용
+result domain과 result-check dominance를 고정한다. negative fixture는 최소한 result check 삭제,
+check-before-clear 순서 역전, nonzero 수용, tuple erase, premature terminal/`SendData`, Home `-4`
+quarantine 변환을 각각 거부해야 한다. Section 17 C78 `0 errors / 55 warnings`와 implementation smoke가
+닫히기 전에는 이 caller source 변경이나 아래 provider split을 시작하지 않는다.
+
+2026-08-05 pre-C78 단계에는 production source를 바꾸지 않고 선행 inventory ratchet만 추가했다.
+`Assert-LasalAxisOwnershipPublishCallerInventory`는 세 source를 lexical scan해 exact production call
+`21`, assigned result `21`, 이미 소비하는 caller `10`, 미소비 OPEN debt `11`과 각 receiver `DINT`를
+고정한다. 동일 local을 재사용하는 함수는 각 call 종료부터 같은 local의 다음 assignment 전까지만
+def-use window로 사용한다. 기존 publish focused self-test는 provider negative `69/69`와 caller inventory
+negative `8/8`을 거부하고 comment-only fake call을 허용하며, default SourceOnly도 같은
+`21/10/11 OPEN` 기준으로 PASS했다.
+
+이 ratchet은 **syntactic inventory evidence일 뿐 fail-closed 완료 증거가 아니다**. source tranche 전
+current `11` 감소는 baseline drift로 거부한다. post-C78 caller fix를 적용할 때는 숫자만 낮추지 않고 위의 최종
+`Assert-LasalAxisOwnershipPublishCallerContract`로 확장해 call별 Result domain, check dominance,
+retained tuple 보존과 terminal/response 금지를 함께 증명해야 한다.
+
+### 8.5.2 post-C78 caller fail-closed implementation contract
+
+2026-08-05 후속 C78 `0 errors / 55 warnings`, canonical download와 BootId `0x1B`의 4축 LMC Home
+연속 성공으로 Section 8.5.1의 pre-C78 대기는 끝났다. 다음 source tranche는 provider split보다 먼저
+TCP의 중복 finalizer 2곳을 제거하고, 남는 19개 caller 중 OPEN 9곳의 Result 소비를 닫는다. 이 tranche는
+기존 function body와 state storage만 사용하며 새 class function/channel/Network declaration을 추가하지
+않는다.
+
+#### TCP single rollback authority와 남는 5곳의 restart-only publish-failure latch
+
+먼저 `MsgPaser`의 `controlReserved` terminal 처리에서 `controlExactFailure`와 malformed response에
+대해 수행하던 두 rollback/publication block을 제거한다. exact accepted response와 exact failure
+response는 Control이 이미 commit/rollback을 끝냈으므로 그대로 전달한다. 둘 다 아닌 malformed
+response만 ownership mutation 없이 deterministic 24-byte, status `1`, error `-31000`, detail `42`로
+다시 만든다. `controlRollbackResult`와 `controlPublishResult` local 및 초기화도 함께 제거한다.
+
+그 뒤 TCP에 남는 다섯 호출은 모두 `QUARANTINE` publication이고 정상 Result domain은 `{0}`이다.
+`-1/-2/-3/-4/+1`은
+재시도 가능한 transient 결과로 해석하지 않는다. 특히 `-2` 뒤에는 exact retained owner가 남을 수
+있으므로 같은 cyclic scan 또는 다음 scan에서 native handler, rollback, publication을 다시 실행하지
+않는다.
+
+`ActiveRequest.Reserved`에 다음 새 internal state를 정의한다.
+
+```text
+0 = no pending transport ownership continuation
+1 = authenticated safety-drain continuation
+2 = ownership publication failed; callback fence armed, evidence commit pending
+3 = evidence committed and close claimed; restart-only transport latch
+```
+
+각 TCP caller는 `PublishAxisOwnership` 직후, request clear/response construction/`SendData`보다 먼저
+Result를 검사한다. Result가 0이 아니면 `ActiveRequest.Reserved := 2`를 먼저 쓰고
+`ActiveRequestValid := TRUE`로 exact request를 보존한 뒤 해당 function에서 즉시 반환한다. `CyWork`
+자체 caller는 반환 전에 output `state := READY`를 쓴다. 이 최소 arm sequence는 delayed callback을 즉시
+`Reserved >= 2` fence에 가두며 wire response, request clear와 native replay를 수행하지 않는다.
+
+`CyWork`는 session-close notify/rollback block보다 먼저 `Reserved = 2`를 검사한다. phase 2이면
+`ActiveRequestValid := TRUE`를 다시 보강하고 다음 순서로 중앙 evidence/close claim을 한 번 commit한다.
+
+1. `IngressBlocked := TRUE`, `IngressFaultPending := FALSE`,
+   `IngressFaultCloseRequired := TRUE`
+2. failure origin `IngressFaultSocket/Epoch/Error :=
+   ActiveRequest.Socket/ActiveRequest.SessionEpoch/-8`
+3. `PendingClosedSessionEpoch=0`일 때 active request session epoch 보존
+4. close target을 current `CurrentSock`에서 local snapshot
+5. `ActiveRequest.Reserved := 3`을 close API보다 먼저 commit
+6. snapshot이 0이 아닐 때만 asynchronous close를 최대 한 번 요청
+
+phase 3에서는 위 side effect를 반복하지 않는다. 기존 session-close block 조건에는
+`ActiveRequest.Reserved < 2`를 추가해 phase 2/3과 corrupt high value가 notify/transport rollback으로
+들어가지 못하게 한다. 그 뒤 기존 순서의 `ProcessAxisZeroHome`, `ProcessAxisOwnership`,
+`Diagnostics.ProcessOperations` background pump를 한 번씩 그대로 호출하고, dequeue보다 앞에서
+`Reserved >= 2`이면 `state := READY; RETURN`한다. transport dequeue와 `MsgPaser`만 실행하지 않는다.
+publication 실패 때문에 이미 dispatch된 Home/SDO/DS402 cleanup까지 멎어서는 안 된다.
+background service가 자기 retained state를 진행하는 것은 허용하지만 TCP transport가 동일 native
+handler/rollback/publication을 직접 재실행하거나 `ActiveRequest`를 지우는 것은 금지한다.
+
+failure origin은 retained `ActiveRequest.Socket/SessionEpoch`, close target은 latch commit 순간의
+`CurrentSock` snapshot으로 구분한다. takeover가 먼저 끝났더라도 transport 전체가 restart-only latch이므로
+그 시점의 current socket을 닫는다. socket이 0이면 already closed로 취급한다. close claim을 API보다 먼저
+commit하므로 task resume에서도 close를 반복하지 않는다. claim 직후 API 직전 중단은 socket이 남을 수
+있지만 ingress는 영구 차단되고 restart recovery만 허용되므로 fail-closed다.
+
+`ConnSocketInfo`는 `Reserved >= 2`일 때 새 connection candidate를 peer lookup,
+`takeCandidate/takeover` 결정과 `CurrentSock := dSock`보다 전에 즉시 close하고 session owner로 승격하지
+않는다. current socket의 disconnect callback은 기존 socket/client
+accounting과 `PendingClosedSessionEpoch` 보존을 수행하되, 두 ingress-clear block 모두
+`Reserved < 2` guard 아래에서만 실행한다. disconnect body는 latch 중
+`ActiveRequest.Reserved/ActiveRequestValid`, retained request tuple과
+`IngressFaultSocket/Epoch/Error` provenance를 clear하거나 `_memset`하지 않는다. 이 latch의 recovery는
+새 요청이나 cyclic retry가 아니라 PLC/project restart와 startup reconciliation이다.
+
+TCP class에 별도 constructor/reset implementation은 없으므로 project restart가 latch를 해제한다는 조건은
+LASAL object reconstruction의 ordinary variable zero-init에 의존한다. C78 Rebuild만으로 이를 runtime
+증명했다고 간주하지 않고, restart 뒤 `ActiveRequest.Reserved=0`, 새 연결/요청 성공을 activation gate에서
+확인한다.
+
+`Response`도 payload parse나 ingress fault field write보다 먼저 `Reserved >= 2`를 검사하고 반환한다.
+publication 실패 직전에 이미 예약된 delayed read callback이 `IngressFaultError=-8`, socket/epoch와
+close-required latch를 덮어쓰는 경로를 허용하지 않는다. `ConnSocketInfo` disconnect의 두 clear block과
+connect의 fresh-session reset도 모두 같은 latch guard 또는 candidate-reject branch의 지배를 받는다.
+
+#### Control 1곳과 request당 단일 rollback authority
+
+`HandleRequest`의 DS402 safety-drain rollback failure path는 이미 `OwnershipState[24]` global corruption
+latch를 publication 전에 설정하고 exact owner tuple을 보존한다. `ownershipPublishResult`를 immediate
+`<> 0` 분기에서 소비하고, nonzero이면 latch를 계속 유지한 채 기존 internal-failure response로 상위
+TCP에 전달한다. publication 결과 확인보다 앞서 handler/native call 또는 tuple clear로 진행하지 않는다.
+이 변경은 all-CRLF 32 KiB ceiling의 남은 공간 안에서 수행하며 새 helper를 추가하지 않는다.
+
+`ownershipSafetyPumpRejected=TRUE`인 safety-drain/Home-proof branch는
+`ownershipArmed & (ownershipSafetyPumpRejected = FALSE) & (ownershipValidationResult = 0)` finalizer
+gate를 통과하지 않는다. non-pending failure는 앞선 explicit rollback 하나만 수행하고, pending
+`Result=1`은 rollback 없이 TCP RETAIN continuation으로 넘어간다. TCP는 이 Control terminal 결과를
+다시 finalization하지 않는다.
+
+#### Diagnostics generic 3곳과 preemption-cleanup 4곳
+
+`ProcessEncoderMaintenance`의 quarantine publication은 정상 domain `{0}`이다. nonzero 결과는 이미
+보존된 axis reference, admission token, owner generation, session과 request sequence를 지우지 않고
+`EncoderMaintenanceState[190]`에 exact Result, `[191]`에 failure marker `1`을 기록한다. stage 101은
+restart-only quarantine로 유지한다. 두 slot은 current source에서 사용하지 않으며 새 Arm 시 기존
+`[188..191]` clear에 포함된다.
+
+`HandleEncoderMaintenancePreemption`의 두 cleanup publication도 허용 domain 밖 Result를 같은
+`[190]/[191]` exact Result/marker pair에 남긴다. `[190] := Result`를 먼저 쓰고 기존 failure
+detail/native를 쓴 뒤 `[191] := 1` marker를 commit하고
+`EncoderMaintenanceState[152] := LMC_DIAG_ENCODER_STAGE_QUARANTINED`를 마지막 terminal stage로 쓴다.
+`0` 또는 exact replay `1`에는 publish-failure marker를 만들지 않는다.
+
+`HandleAxisDs402HomeCleanupStages`에는 새 state slot을 추가하지 않는다. `[118]`은 service start,
+`[119]`는 adoption magic/cleanup start time으로 이미 쓰이므로 `[119]` 단독 값은 publication failure
+증거가 아니다. stage 101로 terminal commit할 때만 기존 두 slot을 tag/value pair로 재사용한다.
+`[119] := exact Result`를 먼저 쓰고
+`[118] := LMC_DIAG_DS402_PUBLISH_FAILURE_MAGIC(0x50424631, "PBF1")` tag를 쓴 뒤
+`[92] := 101`을 마지막에 commit한다. exact tuple은 `[120..124]`, failure detail/native는
+`[107..108]`에 계속 남긴다. publication 외 이유로 stage 101에 들어가면 failure magic을 쓰지 않는다.
+
+- generic `PublishAxisOwnership(QUARANTINE)` 정상 domain은 `{0}`이다.
+- `PublishAxisOwnershipPreemptionCleanup`은 네 production caller 모두 `{0,1}`을 성공으로 허용한다.
+  `1`은 exact replay이므로 failure detail이나 quarantine publication failure로 바꾸지 않는다.
+  `HandleEncoderMaintenancePreemption`의 두 caller는 각각 local terminal record와 quarantine detail을
+  `0`과 동일하게 처리하고, `HandleAxisDs402HomeCleanupStages`의 두 caller도 safe local terminal
+  record 또는 restart-only quarantine을 `0`과 동일하게 유지한다.
+- cleanup stage의 허용 domain 밖 Result만 `[119]/[118]` value/tag로 기록한 뒤 stage 101에서
+  restart-only로 고정한다.
+
+#### Verifier 전환 조건
+
+기존 `Assert-LasalAxisOwnershipPublishCallerInventory`의 `21/10/11 OPEN` baseline은 변경 전 historical
+source 증거로만 남긴다. source 변경과 같은
+tranche에서 `Assert-LasalAxisOwnershipPublishCallerContract`로 교체한다. 최종 PASS는 다음을 모두
+증명해야 한다.
+
+교체 대상은 default SourceOnly production invocation과
+`-AxisOwnershipPublishVerifierSelfTestOnly`의 current-production invocation 두 곳 모두다. legacy
+`21/10/11` inventory는 synthetic regression fixture에만 남기며 실제 source entry point가 target checker를
+우회해서는 안 된다.
+
+1. production call `19`, assigned Result `19`, consumed Result `19`, OPEN `0`
+2. 기존 OPEN에서 남은 9개 QUARANTINE call의 exact success domain `{0}`
+3. TCP Result check가 request clear, terminal response와 `SendData`를 지배함
+4. `Reserved>=2` fence와 `2 -> 3` close claim이 CyWork notify/dequeue, Response mutation과
+   ConnSocketInfo takeover/clear를 지배함
+5. Diagnostics nonzero Result가 tuple clear 전 value/tag/terminal 순서로 exact recovery slot에 기록됨
+6. preemption cleanup 네 caller가 replay success `1`을 허용하고 허용 domain 밖 값만 failure로 처리함
+7. Control nonzero branch가 global corruption latch와 exact tuple을 보존함
+8. Control terminal response 뒤 TCP `controlReserved` scope의 rollback/publication이 0회이고,
+   malformed response만 exact 24-byte detail `42`로 정규화됨
+
+negative fixture는 result check 삭제, `<> 0`을 반대로 변경, check-before-clear 순서 역전,
+`Reserved>=2` 제거, `Reserved:=3`을 close API 뒤로 이동, background pump freeze, latch 뒤 `SendData`,
+delayed Response의 latch overwrite,
+disconnect callback의 latch clear, candidate takeover 허용,
+Diagnostics recovery write 제거, DS402 tuple erase, 네 preemption caller 중 하나라도 replay `1`을
+failure로 변환하는 변경, Encoder preemption Result/marker/stage commit 삭제, TCP control rollback 또는
+publication 재삽입, malformed response를 success/pass-through로 바꾸는 변경을 각각 거부한다.
+이 contract와 full SourceOnly, C78 Rebuild, implementation smoke가 모두 PASS하기 전에는 ordinary
+ownership/DS402 Home atomic activation이나 provider method split으로 넘어가지 않는다.
 
 한 helper만으로는 current all-CRLF `65119` bytes를 안전하게 두 method ceiling 안에 분산할 여유가
 `415` bytes뿐이다. closed extraction의 ABI/call/local overhead를 넣을 수 없으므로 post-C78 minimum은
