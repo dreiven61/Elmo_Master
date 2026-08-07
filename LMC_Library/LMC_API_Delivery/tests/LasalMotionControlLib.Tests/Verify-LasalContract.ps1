@@ -60,10 +60,21 @@ param(
 
     [switch]$AxisZeroHomeRtMailboxVerifierSelfTestOnly,
 
-    [switch]$EncoderMaintenanceVerifierSelfTestOnly
+    [switch]$EncoderMaintenanceVerifierSelfTestOnly,
+
+    [switch]$AllowUdpCallbackPreImportAbsent,
+
+    [switch]$UdpCallbackVerifierSelfTestOnly
 )
 
 $ErrorActionPreference = 'Stop'
+
+$udpCallbackVerifierPath = Join-Path `
+    $PSScriptRoot 'Verify-LasalUdpCallbackContract.ps1'
+if ($UdpCallbackVerifierSelfTestOnly) {
+    & $udpCallbackVerifierPath -RunSelfTest
+    return
+}
 
 function Assert-Match {
     param(
@@ -27134,6 +27145,12 @@ if ($EncoderMaintenanceVerifierSelfTestOnly) {
         "$encoderMaintenanceVerifierNegativeFixtureCount negative fixtures rejected)")
     return
 }
+$udpCallbackVerifierArguments = @{
+    VerifyCurrent = $true
+    RepositoryRoot = $RepositoryRoot
+    AllowPreImportAbsent = $AllowUdpCallbackPreImportAbsent.IsPresent
+}
+& $udpCallbackVerifierPath @udpCallbackVerifierArguments
 $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $topologyIoIdeStructureReady =
     $TopologyIoCheckpoint -eq 'IdeStructureReady'
