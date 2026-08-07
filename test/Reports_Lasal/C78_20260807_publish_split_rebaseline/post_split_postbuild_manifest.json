@@ -1,0 +1,115 @@
+{
+  "schema": "LasalPublishSplitPostBuildManifest/v1",
+  "phase": "post_split_postbuild",
+  "observedAt": "2026-08-07T16:43:48.9254950+09:00",
+  "runtimeObserved": false,
+  "lasal": {
+    "processExited": true,
+    "processId": 24968,
+    "logPath": "%TEMP%/Lasal2.log",
+    "cInvalidArgExceptionCount": 0,
+    "finalRebuild": {
+      "start": "2026-08-07T16:31:49+09:00",
+      "end": "2026-08-07T16:32:12+09:00",
+      "compilerVersion": "C78",
+      "targetArchitecture": "ARM",
+      "compilerDoneCount": 2,
+      "linkerDoneCount": 1,
+      "commandSucceeded": true,
+      "elapsedMilliseconds": 23522.5,
+      "errorCount": 0,
+      "warningCount": 61,
+      "warningHistogram": {
+        "W0069": 35,
+        "W0072": 17,
+        "W0073": 3,
+        "oldCompilerVersion": 1,
+        "C78C82LibraryVersionMismatch": 5
+      }
+    },
+    "supersededEarlierEvents": [
+      {
+        "at": "2026-08-07T16:30:49+09:00",
+        "kind": "project-load compiler error",
+        "detail": "E0015 DriveComL2.h read failure before the final rebuild"
+      },
+      {
+        "at": "2026-08-07T16:31:35+09:00",
+        "kind": "first rebuild persistence failure",
+        "detail": "project LCB output write failed before the final successful rebuild"
+      }
+    ],
+    "findInImplementation": {
+      "changedClass": "LMCControlCommandService",
+      "loggedQueries": [
+        "InputLatch",
+        "LMCAxis1"
+      ],
+      "bothCommandsSucceeded": true,
+      "directNewHelperQueriesObserved": false,
+      "acceptedAsChangedClassSmoke": true,
+      "attachment": {
+        "sha256": "9869E27E1FA2BC7F307CA5CA31FF6D0704658100F9DE83DB1E09BE923BB5DA9F",
+        "bytes": 357750,
+        "lines": 10127,
+        "totalFound": 29,
+        "matchedFiles": 1,
+        "totalFilesSearched": 3
+      },
+      "evidenceBoundary": "The large result presentation is not evidence of source truncation; the post-build source hash and full static contract prove the saved source state."
+    }
+  },
+  "source": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "lineEnding": "LF",
+    "bytes": 594938,
+    "sha256": "8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65",
+    "unchangedFromPrebuild": true,
+    "asciiOnly": true,
+    "bom": false,
+    "methodInventory": {
+      "total": 98,
+      "underLimit": 95,
+      "baselineDebt": 3
+    }
+  },
+  "generatedPostbuild": {
+    "classesLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "bytes": 8434505,
+      "sha256": "CA5CE9AB4B6AFB498D55CF6E5D3460A2C35D54FF8E4FE9C9D3B59636C3603F78",
+      "homeRecordCount": 1,
+      "homeOrderedInputCount": 7,
+      "decisionRecordCount": 1,
+      "decisionOrderedInputCount": 10,
+      "eachOutput": "Result : DINT",
+      "exactPrivateAbiVerifier": "PASS"
+    },
+    "projectLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb",
+      "bytes": 634514,
+      "sha256": "438DE310CA23C672B52F57483159520887890C17A76B2AE288B7707F4549A919"
+    },
+    "network": {
+      "fileCount": 23,
+      "driftCountFromPostIdePreSplitManifest": 0,
+      "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759"
+    }
+  },
+  "staticVerification": {
+    "publishFocused": "PASS current Split; production callers 19/19/0; split structural negatives 8/8",
+    "full": {
+      "command": "Verify-LasalContract.ps1 -RepositoryRoot C:/work/Elmo/Elmo_Master -ExpectedSdoWriteAxis 1",
+      "exitCode": 0,
+      "elapsedSeconds": 236.9,
+      "generatedPublishContract": "PASS Split 1/1 exact private ABI records",
+      "terminal": "PASS LASAL.StaticContract"
+    }
+  },
+  "evidenceBoundary": {
+    "staticAndIdeBuildClosed": true,
+    "plcDownloadObserved": false,
+    "runtimeObserved": false,
+    "udpVendorImportStarted": false
+  }
+}
