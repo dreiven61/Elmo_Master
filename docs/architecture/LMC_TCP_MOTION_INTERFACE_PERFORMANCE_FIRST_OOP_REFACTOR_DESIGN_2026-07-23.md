@@ -680,14 +680,17 @@ same-name header 주입을 막는다. 한 번의 leftmost lexical scan으로 str
   `FB6B7BE724A2AA4091004890B40B2A11E9AF35471C23CCE9738CDABA9CDDDE16`
 - comment/format 변화는 허용하되 token 경계를 보존하는 lexical inventory `9672`개, joined length
   `59717`, SHA-256 `59B54CCFBA25322103DA85FDF0C92C9BC8EEAA28026A2935B35C989CABEF785A`
-- focused publish fixture `69/69` reject, comment-only positive fixture accept
-- ownership aggregate `271/271` reject, integrated five-waiver full
+- 2026-08-05 pre-split verifier baseline은 focused publish fixture `69/69` reject,
+  comment-only positive fixture accept
+- 같은 pre-split baseline의 ownership aggregate `271/271` reject, integrated five-waiver full
   `-SourceOnly -ExpectedSdoWriteAxis 1` PASS; six classes / `93` methods / under-limit `86` /
   unchanged baseline debt `7`
-- current method raw/LF/all-CRLF `65118/63444/65119`, raw block SHA-256
-  `A0B44A036D46B32D8B85E95180B6A310EABF973B18D13A837155EB4B2FBD2985`
-- current Control source SHA-256
-  `ACCDD97A171A5D054F1115A7CDFA0B0C83FCF165FF59ED75E5C180D448C64AD3`
+- current method canonical-LF/all-CRLF-with-terminal-EOL `63444/65119`, canonical-LF SHA-256
+  `688241F3FD3DE43DC9B95B7A4AB0E7160C2F31D7FCFD4529AC18E8946E034F18`
+- 2026-08-07 current Control source는 IDE CRLF `608436` bytes / SHA-256
+  `A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`, canonical LF
+  `591670` bytes / SHA-256
+  `7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE`다.
 
 이 fence는 current semantics를 보존하는 근거이지 self-contained authorization 또는 crash-atomicity
 증거가 아니다.
@@ -699,15 +702,16 @@ same-name header 주입을 막는다. 한 번의 leftmost lexical scan으로 str
 - 함수 진입 자체는 table magic, BootId/startup proof, global corruption latch를 재검증하지 않고,
   command/owner/resource/admission mapping과 허용 current phase를 완전히 재분류하지 않는다. 안전성은
   Reserve/Commit과 production caller sequencing/whitelist를 전제로 한다.
-- production call site는 `21`개이며 그중 `11`개는 `Result`를 소비하지 않는다. 특히 `-2` 뒤 retained
-  owner가 남을 수 있으므로 이 호출들은 publish 완료 증거로 취급하지 않는다. caller-level result
-  consumption은 별도 semantic debt다.
+- 2026-08-05 pre-fix production baseline은 call site `21`, Result 소비 `10`, OPEN `11`이었다. 특히
+  `-2` 뒤 retained owner가 남을 수 있어 당시 미소비 호출은 publish 완료 증거가 아니었다. 후속 caller
+  tranche 뒤 2026-08-07 current source는 call `19`, assigned `19`, consumed `19`, OPEN `0`이며
+  `21/10/11`은 synthetic regression fixture에만 남는다.
 - `ReportKind=SAFETY_PREEMPT`는 current production caller가 `0`개다. `ObservationCycle=0`은 current
   production path에서 의도적으로 사용하므로 nonzero gate를 추가하지 않는다.
 
 ### 8.5.1 production caller Result-consumption matrix
 
-2026-08-05 current source를 exact identifier로 전수 확인한 결과 `PublishAxisOwnership` production
+2026-08-05 pre-fix source를 exact identifier로 전수 확인한 결과 `PublishAxisOwnership` production
 call site는 `21`개다. 모든 call은 local result에 대입하지만, 실제 분기에서 결과를 소비하는 곳은
 `10`개이고 대입 뒤 검사하지 않는 곳은 `11`개다. 별도 public API인
 `PublishAxisOwnershipPreemptionCleanup`과 `PublishAxisOwnershipDs402Receipt` caller는 이 수에 넣지
@@ -991,19 +995,31 @@ general publish continue를 뜻한다. 기존 `-4/-3/0/1` 결과, Home state rea
 결과를 local에만 매핑한 뒤 `destroyBanks` 계산부터 계속하며 두 validator가 끝나기 전 persistent main
 commit을 시작하지 않는다.
 
-current source를 대상으로 한 in-memory 계획 크기는 다음과 같다.
+2026-08-07 A51E current source를 대상으로 한 read-only in-memory 계획 크기는 다음과 같다.
 
-- public adapter raw/LF/all-CRLF `26899/26168/26900`
-- Home helper raw/LF/all-CRLF `15395/15028/15396`
-- decision helper raw/LF/all-CRLF `25416/24743/25417`
-- Home extraction raw/LF/all-CRLF `14214/13892/14214`, SHA-256
+- terminal EOL을 제외한 public adapter canonical-LF/all-CRLF `26265/26996`, canonical-LF SHA-256
+  `355A0EA77E13D0CA612BDBD9FA0A55FCA5233B33D3C4DEAC91F5BAEED2B108BE`
+- terminal EOL을 제외한 Home helper canonical-LF/all-CRLF `15027/15394`, canonical-LF SHA-256
+  `AB18CA50D45748231E00DC9789981B3A69E76F45A2921B40369E0558CEEE5BBD`
+- terminal EOL을 제외한 decision helper canonical-LF/all-CRLF `24697/25369`, canonical-LF SHA-256
+  `098A25EE39ED51E37917547611CC53E41E49F1C151EB9BED9EEEC68BB82816B2`
+- terminal EOL을 제외한 Home extraction canonical-LF/all-CRLF `13892/14214`, canonical-LF/CRLF SHA-256
+  `84A8FE035018CC10F595EEF8024357E0EDD75035BAE9C51F11B85D49547FBFF1` /
   `3B9C74787829FDF51B1F7E3EF2F7DB4FE1519AC17A7C146C60B56E0785507E2D`
-- decision extraction raw/LF/all-CRLF `23361/22769/23361`, SHA-256
+- terminal EOL을 제외한 decision extraction canonical-LF/all-CRLF `22769/23361`, canonical-LF/CRLF SHA-256
+  `90B7E61AA6F4F85896835C7F0EE05855930FE73A891546E8832A46196213DB8E` /
   `E2E06E5ADBF2F526C765E893512D365C008A6AE9BA1C1494500BB1133D5D58A3`
 
-세 method 모두 `32768` 미만이다. 계획 source SHA-256은
-`B262BA287EDB31F9D88C421D4C2882E8FE69B52735E6410D81742251E5C88177`이다. 두 helper/declaration과
-call/map을 제거하고 원 두 block을 reverse-inline하면 current Control source SHA-256을 byte-exact
+세 method 모두 LF와 CRLF에서 `32768` 미만이다. 계획 whole source는 canonical LF `594900` bytes /
+SHA-256 `1378A9748F4598252990CA687D36425D0464C06C079386F12106B484E374B36D`, IDE CRLF
+`611799` bytes / SHA-256 `51CDC9D1EAC3D10311AF433F03A071FD7BAC563166DC1761648403A63E7BFEDC`다.
+전용 read-only planner는
+`test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`이며 기본 실행과
+`-RunSelfTest`의 negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. planner는 canonical
+source/generated file을 쓰지 않는다. 두 helper/declaration과 call/map을 제거하고 원 두 block을
+reverse-inline하면 canonical LF
+`7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE`와 IDE CRLF
+`A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`을 byte-exact
 복원한다. 실제 split 뒤에는 exact private ABI/one-call dominance, adapter+helper transitive
 read/write/call/Result inventory, Home `Result=2` containment, decision bit `0..2` domain, no input/live tuple
 재표본, first main commit dominance, reverse-inline proof와 size debt 제거를 다시 승인한다.

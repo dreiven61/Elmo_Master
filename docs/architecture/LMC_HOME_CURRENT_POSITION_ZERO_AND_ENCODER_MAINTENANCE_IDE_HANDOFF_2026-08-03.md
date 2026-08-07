@@ -1250,19 +1250,27 @@ verifier와 전체 정적 실행은 current split source에서 다시 완료했�
   `9672`개 SHA-256 `59B54CCFBA25322103DA85FDF0C92C9BC8EEAA28026A2935B35C989CABEF785A`를 고정
 - focused entrypoint
   `Verify-LasalAxisOwnershipPublish.Fixture.ps1 -RunSelfTest -RepositoryRoot <repo>` PASS
-- publish fence 최종 통합 뒤 ownership aggregate `271/271`, custom method-size `5/5`, integrated
+- 2026-08-05 publish fence 통합 당시 ownership aggregate `271/271`, custom method-size `5/5`, integrated
   five-waiver full `-SourceOnly -ExpectedSdoWriteAxis 1` 재실행 PASS; source hash와 baseline debt `7` 불변
 - publish Home receipt는 same-service-instance warm continuation일 뿐 cold-restart journal이 아니다.
   일반 multi-axis clear/restore/bank mutation도 단계 journal이 없어 crash-atomic 또는 replay-idempotent로
   간주하지 않음
 - publish는 table magic/BootId/startup proof/global latch와 command-phase authorization을 자체 완결형으로
-  재검증하지 않는다. production caller ordering/whitelist가 precondition이며, 생산 호출 `21`개 중
-  `11`개가 Result를 소비하지 않는 caller-level debt가 남음
+  재검증하지 않는다. production caller ordering/whitelist가 precondition이다. 2026-08-07 current source는
+  production call `19`, assigned Result `19`, consumed Result `19`, OPEN `0`이며 과거 `21/10/11`은
+  synthetic regression fixture에만 남음
 - publish의 post-C78 별도 split은 private
   `HandleAxisOwnershipPublishHomeReceipt(...)`와 `PrepareAxisOwnershipPublishDecision(...)` 두 helper가
-  minimum인 미적용 계획이다. 예상 all-CRLF는 adapter `26900`, Home helper `15396`, decision helper
-  `25417` bytes이고 reverse-inline은 current Control SHA-256을 byte-exact 복원한다. 두 helper 모두
-  현재 Section 17 선언 목록에 추가하지 않음
+  minimum인 미적용 계획이다. A51E rebaseline에서 terminal EOL을 제외한 canonical-LF/all-CRLF는
+  adapter `26265/26996`,
+  Home helper `15027/15394`, decision helper `24697/25369` bytes다. 계획 whole source SHA-256은
+  canonical LF `1378A9748F4598252990CA687D36425D0464C06C079386F12106B484E374B36D`, IDE CRLF
+  `51CDC9D1EAC3D10311AF433F03A071FD7BAC563166DC1761648403A63E7BFEDC`이고 reverse-inline은 current
+  canonical LF `7EAB9F0E71A85C1459FD01A381859D9EC5095949D536E78B056A67BE91C2D1BE` / IDE CRLF
+  `A51E716363E8DB38E7BE6D849BC2C29D4FE7B51E801D5704BA7F95D73CCC8753`을 byte-exact 복원한다.
+  read-only planner `test/Reports_Lasal/C78_20260807_publish_split_rebaseline/Plan-PublishSplit.ps1`는
+  AST, 기본 실행, negative fixture `19/19`, LF/CRLF positive fixture를 통과했다. 두 helper 모두 현재
+  Section 17 선언 목록에 추가하지 않음
 - `ReserveAxisOwnership` 안의 미선언 `preemptRecordBase` 5개 참조를 이미 선언된 동일 record-base local
   `probeRecordBase`로 교정했다. public/class ABI, local 수와 call/write/result 순서는 불변이다.
   교정 뒤 method raw/LF/all-CRLF는 `79880/77732/79881`, raw block SHA-256은
