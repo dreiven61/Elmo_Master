@@ -1,0 +1,95 @@
+{
+  "schema": "LasalUdpCallbackImportGateBaseline/v1",
+  "phase": "pre_udp_vendor_import",
+  "observedAt": "2026-08-07T16:46:32.7505990+09:00",
+  "gitHead": "3e78529",
+  "lasalProcessRunning": false,
+  "targetProject": {
+    "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis",
+    "compilerVersion": "C78",
+    "targetArchitecture": "ARM"
+  },
+  "sourceProject": {
+    "path": "Lasal_PRG/MotionTCPDemo",
+    "compilerVersion": "C80",
+    "targetArchitecture": "ARM"
+  },
+  "approvedImports": [
+    {
+      "class": "_UDPTransceiver",
+      "path": "Lasal_PRG/MotionTCPDemo/Class/_UDPTransceiver/_UDPTransceiver.st",
+      "bytes": 71940,
+      "sha256": "B3883DF82C942196EB2AA4313DEDBD7BE9430C850052140BAE323B35B272D95D",
+      "targetPresentBeforeImport": false
+    },
+    {
+      "class": "_UDPTransceiverInterface",
+      "path": "Lasal_PRG/MotionTCPDemo/Class/_UDPTransceiverInterface/_UDPTransceiverInterface.st",
+      "bytes": 27746,
+      "sha256": "6FC3C64D84DDE21EEA8ADC44E89CEF3966A2597D03CD87AB799B344935E7A505",
+      "targetPresentBeforeImport": false
+    }
+  ],
+  "protectedCanonicalDependencies": [
+    {
+      "class": "_StdLib",
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_StdLib/_StdLib.st",
+      "bytes": 10412,
+      "sha256": "53DA7E459AE214D28AB8D77CC2F1FDED9E2F7D8D552C91D71488D63DD22050EA",
+      "demoSha256": "5E729CED7A26204E2B5BA4F02E7063FEA1F5A98B15257DDB269763B6BC16F3AF"
+    },
+    {
+      "class": "CriticalSection",
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/CriticalSection/CriticalSection.st",
+      "bytes": 5215,
+      "sha256": "752ED61394D1B708176613DE8B002E197ED46D46EDB3C0BA497560D222A8B9EE",
+      "demoSha256": "AFA7E2C885FBB06F8F45BE9C01B0B2FF35D3FB930CF7F0E8B493B43767B42FE3"
+    },
+    {
+      "name": "lsl_st_tcp_user.h",
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Source/interfaces/lsl_st_tcp_user.h",
+      "bytes": 19972,
+      "sha256": "2DEC7C124CEC1B44766367188D5F00F6B2B812F372A3868EA1604F19C9621EDD"
+    }
+  ],
+  "canonicalPreImport": {
+    "classesLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "bytes": 8434505,
+      "sha256": "CA5CE9AB4B6AFB498D55CF6E5D3460A2C35D54FF8E4FE9C9D3B59636C3603F78"
+    },
+    "projectLcb": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcb",
+      "bytes": 634514,
+      "sha256": "438DE310CA23C672B52F57483159520887890C17A76B2AE288B7707F4549A919"
+    },
+    "tcpMotionInterface": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+      "bytes": 90592,
+      "sha256": "9210C199A02153FEE4110556C5396CD49C9AEAC7F22B1405AA20F00FC522A129"
+    },
+    "controlCommandService": {
+      "path": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "bytes": 594938,
+      "sha256": "8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65"
+    },
+    "network": {
+      "fileCount": 23,
+      "inventorySha256": "B80867C9A0E1EF8CBB380F118B92E4E0B54B9705AA676E955A6C1CCB7A74C759",
+      "referenceManifest": "test/Reports_Lasal/C78_20260807_publish_split_rebaseline/post_ide_pre_split_manifest.json"
+    }
+  },
+  "gateARestrictions": {
+    "importOnlyApprovedClasses": true,
+    "createNetworkObjects": false,
+    "createDerivedSender": false,
+    "modifyTcpMotionInterface": false,
+    "overwriteProtectedDependencies": false,
+    "requiredAfterImport": [
+      "Save All",
+      "C78 ARM Rebuild",
+      "open both imported implementations",
+      "exit LASAL"
+    ]
+  }
+}
