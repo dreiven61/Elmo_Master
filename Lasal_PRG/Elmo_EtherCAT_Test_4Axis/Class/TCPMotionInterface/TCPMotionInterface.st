@@ -647,6 +647,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		preservePendingActive : BOOL;
 		candidatePeerIPv4 	: UDINT;
 		activePeerIPv4 	: UDINT;
+		callbackDisarmResult : DINT;
 	END_VAR
 
   case InfoPara1 of
@@ -805,15 +806,8 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         ReceiveSocket := 0;
         _memset(dest:=#ReceiveBuf, usByte:=0, cntr:=sizeof(ReceiveBuf));
 
-        RpcSocket := 0;
-        RpcInitialized := FALSE;
-        RpcCallbackRegistered := FALSE;
-        RpcCallbackEventMask := 0;
-        RpcCallbackPort := 0;
-        RpcCallbackIPv4[0] := 0;
-        RpcCallbackIPv4[1] := 0;
-        RpcCallbackIPv4[2] := 0;
-        RpcCallbackIPv4[3] := 0;
+		RpcSocket := 0;
+		RpcInitialized := FALSE;
 
         IngressFaultPending := FALSE;
         IngressBlocked := FALSE;
@@ -824,8 +818,9 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         IngressDiscardRemaining := 0;
         IngressDiscardSocket := 0;
 
-        // Preserve PendingClosedSessionEpoch until CyWork notifies Diagnostics.
-        SessionEpoch += 1;
+		// Preserve PendingClosedSessionEpoch until CyWork notifies Diagnostics.
+		callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;
         end_if;
@@ -846,10 +841,11 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         CurrentSock := 0;
         CurrentPeerIPv4 := 0;
         CurrentPeerValid := FALSE;
-        if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
-          PendingClosedSessionEpoch := SessionEpoch;
-        end_if;
-        SessionEpoch += 1;
+		if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+		  PendingClosedSessionEpoch := SessionEpoch;
+		end_if;
+		callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;
         end_if;
@@ -859,17 +855,10 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
           IngressFaultCloseRequired := FALSE;
         end_if;
       end_if;
-      if RpcSocket = dSock then
-        RpcSocket := 0;
-        RpcInitialized := FALSE;
-        RpcCallbackRegistered := FALSE;
-        RpcCallbackEventMask := 0;
-        RpcCallbackPort := 0;
-        RpcCallbackIPv4[0] := 0;
-        RpcCallbackIPv4[1] := 0;
-        RpcCallbackIPv4[2] := 0;
-        RpcCallbackIPv4[3] := 0;
-      end_if;
+		if RpcSocket = dSock then
+		  RpcSocket := 0;
+		  RpcInitialized := FALSE;
+		end_if;
       if ReceiveSocket = dSock then
         ReceiveFill := 0;
         ReceiveSocket := 0;
@@ -943,6 +932,9 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::SendData
 	VAR_OUTPUT
 		dRetcode 	: DINT;
 	END_VAR
+	VAR
+		callbackDisarmResult : DINT;
+	END_VAR
 
   dRetcode := _TCPIPServerInterface::SendData(
     pData:=pData,
@@ -953,27 +945,21 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::SendData
 
   // A direct partial send cannot be retried without corrupting the stream.
   // Quarantine the session and require a clean TCP reconnect.
-  if dRetcode <> udSize$DINT then
-    if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
-      PendingClosedSessionEpoch := SessionEpoch;
-    end_if;
-    SessionEpoch += 1;
+	if dRetcode <> udSize$DINT then
+	  if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
+		PendingClosedSessionEpoch := SessionEpoch;
+	  end_if;
+	  callbackDisarmResult := DisarmRpcCallbackEndpoint();
+	  SessionEpoch += 1;
     if SessionEpoch = 0 then
       SessionEpoch := 1;
     end_if;
     IngressBlocked := TRUE;
     IngressFaultPending := FALSE;
-    IngressFaultCloseRequired := TRUE;
-    RpcSocket := 0;
-    RpcInitialized := FALSE;
-    RpcCallbackRegistered := FALSE;
-    RpcCallbackEventMask := 0;
-    RpcCallbackPort := 0;
-    RpcCallbackIPv4[0] := 0;
-    RpcCallbackIPv4[1] := 0;
-    RpcCallbackIPv4[2] := 0;
-    RpcCallbackIPv4[3] := 0;
-  end_if;
+	  IngressFaultCloseRequired := TRUE;
+	  RpcSocket := 0;
+	  RpcInitialized := FALSE;
+	end_if;
 
 END_FUNCTION
 
@@ -1209,6 +1195,7 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 		pendingSendResponse : BOOL;
 		pendingAccepted : BOOL;
 		pendingFailure : BOOL;
+		callbackDisarmResult : DINT;
 	END_VAR
 
 	Result := -1;
@@ -1634,6 +1621,7 @@ FUNCTION TCPMotionInterface::HandleControlSafetyDrainPending
 			if (ActiveRequest.SessionEpoch <> 0) &
 			   (PendingClosedSessionEpoch = 0) then
 				PendingClosedSessionEpoch := ActiveRequest.SessionEpoch;
+				callbackDisarmResult := DisarmRpcCallbackEndpoint();
 				SessionEpoch += 1;
 				if SessionEpoch = 0 then
 					SessionEpoch := 1;
@@ -1655,154 +1643,221 @@ FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
 		callbackEventMask : UDINT;
 		callbackPort : DINT;
 		callbackIPv4 : UDINT;
+		callbackProtocolVersion : UINT;
+		callbackAcceptedMaxDatagram : UINT;
+		callbackCookieLo : UDINT;
+		callbackCookieHi : UDINT;
+		callbackFlags : UDINT;
+		callbackReserved : UDINT;
+		callbackBootId : UDINT;
+		callbackArmResult : DINT;
+		callbackDisarmResult : DINT;
 	END_VAR
 
-  // Keep RPC lifecycle dispatch isolated from the aggregate message parser.
-  case CommandID of
+  CASE CommandID OF
   0x8080:
-
-    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-
-    if (Payload = 1) & (RequestBuf[8] = 0) &
-       ((RpcInitialized = FALSE) | (RpcSocket = CurrentSock)) then
-      RpcSocket := CurrentSock;
-      RpcInitialized := TRUE;
-      RpcCallbackRegistered := FALSE;
-      RpcCallbackEventMask := 0;
-      RpcCallbackPort := 0;
-      RpcCallbackIPv4[0] := 0;
-      RpcCallbackIPv4[1] := 0;
-      RpcCallbackIPv4[2] := 0;
-      RpcCallbackIPv4[3] := 0;
-
-      Sendbuf[0]$UINT := 0;
-      Sendbuf[2]$UINT := 24;
-      Sendbuf[4]$UDINT := 0;
-      Sendbuf[8]$UDINT := 64;  // Captured opaque value; meaning not confirmed.
-
-      SendData(
-        pData:=#Sendbuf[0],
-        udSize:=32,
-        dSocket:=CurrentSock,
-        bDirect:=TRUE
-      );
-    else
+    _memset(dest := #Sendbuf, usByte := 0, cntr := sizeof(Sendbuf));
+    IF (Payload = 1) AND (RequestBuf[8] = 0) AND
+       ((RpcInitialized = FALSE) OR (RpcSocket = CurrentSock)) THEN
+      callbackDisarmResult := DisarmRpcCallbackEndpoint();
+      IF callbackDisarmResult < 0 THEN
+        Sendbuf[0]$UINT := 1;
+        Sendbuf[2]$UINT := 4;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+        SendData(pData := #Sendbuf[0], udSize := 12,
+          dSocket := CurrentSock, bDirect := TRUE);
+      ELSE
+        RpcSocket := CurrentSock;
+        RpcInitialized := TRUE;
+        Sendbuf[0]$UINT := 0;
+        Sendbuf[2]$UINT := 24;
+        Sendbuf[4]$UDINT := 0;
+        Sendbuf[8]$UDINT := 64;
+        SendData(pData := #Sendbuf[0], udSize := 32,
+          dSocket := CurrentSock, bDirect := TRUE);
+      END_IF;
+    ELSE
       Sendbuf[0]$UINT := 1;
       Sendbuf[2]$UINT := 4;
       Sendbuf[4]$UDINT := 0;
       Sendbuf[8]$UINT := 1;
       Sendbuf[10]$INT := -1;
-
-      SendData(
-        pData:=#Sendbuf[0],
-        udSize:=12,
-        dSocket:=CurrentSock,
-        bDirect:=TRUE
-      );
-    end_if;
+      SendData(pData := #Sendbuf[0], udSize := 12,
+        dSocket := CurrentSock, bDirect := TRUE);
+    END_IF;
 
   0x405C:
-
-    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
-    Sendbuf[0]$UINT := 0;
-    Sendbuf[2]$UINT := 4;
-    Sendbuf[4]$UDINT := 0;
-
-    callbackEventMask := 0;
-    callbackPort := 0;
-    callbackIPv4 := 0;
-
-    if (Payload = 12) & (RpcInitialized = TRUE) &
-       (RpcSocket = CurrentSock) then
-      _StdLib.MemCpy(dest:=#callbackEventMask, source:=#RequestBuf[8], size:=4);
-      _StdLib.MemCpy(dest:=#callbackPort, source:=#RequestBuf[12], size:=4);
-      _StdLib.MemCpy(dest:=#callbackIPv4, source:=#RequestBuf[16], size:=4);
-
-      if (CurrentPeerValid = TRUE) &
-         (callbackIPv4 = CurrentPeerIPv4) &
-         (callbackPort > 0) & (callbackPort <= 65535) then
-        if RpcCallbackRegistered = FALSE then
-          RpcCallbackEventMask := callbackEventMask;
-          RpcCallbackPort := callbackPort;
-          _StdLib.MemCpy(dest:=#RpcCallbackIPv4[0], source:=#RequestBuf[16], size:=4);
-          RpcCallbackRegistered := TRUE;
-          Sendbuf[8]$UINT := 0;
-          Sendbuf[10]$INT := 0;
-        elsif (RpcCallbackEventMask = callbackEventMask) &
-              (RpcCallbackPort = callbackPort) &
-              (RpcCallbackIPv4[0] = RequestBuf[16]) &
-              (RpcCallbackIPv4[1] = RequestBuf[17]) &
-              (RpcCallbackIPv4[2] = RequestBuf[18]) &
-              (RpcCallbackIPv4[3] = RequestBuf[19]) then
-          Sendbuf[8]$UINT := 0;
-          Sendbuf[10]$INT := 0;
-        else
+    IF (Payload = 12) AND (RpcInitialized = TRUE) AND
+       (RpcSocket = CurrentSock) THEN
+      IF RpcCallbackProtocolVersion = 0 THEN
+        RpcCallbackProtocolVersion := 1;
+      END_IF;
+      _memset(dest := #Sendbuf, usByte := 0, cntr := sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 4;
+      Sendbuf[4]$UDINT := 0;
+      IF RpcCallbackProtocolVersion = 1 THEN
+        callbackEventMask := RequestBuf[8]$UDINT;
+        callbackPort := RequestBuf[12]$DINT;
+        callbackIPv4 := RequestBuf[16]$UDINT;
+        IF (RpcInitialized = TRUE) AND (RpcSocket = CurrentSock) AND
+           (CurrentPeerValid = TRUE) AND
+           (callbackIPv4 = CurrentPeerIPv4) AND
+           (callbackPort > 0) AND (callbackPort <= 65535) THEN
+          IF RpcCallbackRegistered = FALSE THEN
+            RpcCallbackEventMask := callbackEventMask;
+            RpcCallbackPort := callbackPort;
+            _StdLib.MemCpy(dest := #RpcCallbackIPv4[0],
+              source := #RequestBuf[16], size := 4);
+            RpcCallbackRegistered := TRUE;
+            Sendbuf[8]$UINT := 0;
+            Sendbuf[10]$INT := 0;
+          ELSIF (RpcCallbackEventMask = callbackEventMask) AND
+                (RpcCallbackPort = callbackPort) AND
+                (RpcCallbackIPv4[0] = RequestBuf[16]) AND
+                (RpcCallbackIPv4[1] = RequestBuf[17]) AND
+                (RpcCallbackIPv4[2] = RequestBuf[18]) AND
+                (RpcCallbackIPv4[3] = RequestBuf[19]) THEN
+            Sendbuf[8]$UINT := 0;
+            Sendbuf[10]$INT := 0;
+          ELSE
+            Sendbuf[8]$UINT := 1;
+            Sendbuf[10]$INT := -1;
+          END_IF;
+        ELSE
           Sendbuf[8]$UINT := 1;
           Sendbuf[10]$INT := -1;
-        end_if;
-      else
+        END_IF;
+      ELSE
         Sendbuf[8]$UINT := 1;
         Sendbuf[10]$INT := -1;
-      end_if;
-    else
+      END_IF;
+      SendData(pData := #Sendbuf[0], udSize := 12,
+        dSocket := CurrentSock, bDirect := TRUE);
+
+    ELSIF (Payload = 32) AND (RpcInitialized = TRUE) AND
+          (RpcSocket = CurrentSock) THEN
+      IF RpcCallbackProtocolVersion = 0 THEN
+        RpcCallbackProtocolVersion := 2;
+      END_IF;
+      _memset(dest := #Sendbuf, usByte := 0, cntr := sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 20;
+      Sendbuf[4]$UDINT := 0;
+      callbackEventMask := RequestBuf[8]$UDINT;
+      callbackPort := RequestBuf[12]$DINT;
+      callbackIPv4 := RequestBuf[16]$UDINT;
+      callbackProtocolVersion := RequestBuf[20]$UINT;
+      callbackAcceptedMaxDatagram := RequestBuf[22]$UINT;
+      callbackCookieLo := RequestBuf[24]$UDINT;
+      callbackCookieHi := RequestBuf[28]$UDINT;
+      callbackFlags := RequestBuf[32]$UDINT;
+      callbackReserved := RequestBuf[36]$UDINT;
+      callbackBootId := 0;
+      callbackArmResult := -9;
+      IF IsClientConnected(#Diagnostics) THEN
+        callbackBootId := Diagnostics.GetDiagnosticsBootId();
+      END_IF;
+      IF RpcCallbackProtocolVersion = 2 THEN
+        IF (callbackProtocolVersion = 2) AND
+           ((callbackEventMask AND 1) = 1) AND
+           (callbackPort > 0) AND (callbackPort <= 65535) AND
+           (callbackIPv4 = CurrentPeerIPv4) AND (CurrentPeerValid = TRUE) AND
+           (callbackAcceptedMaxDatagram >= 52) AND
+           (callbackAcceptedMaxDatagram <= 512) AND
+           ((callbackCookieLo OR callbackCookieHi) <> 0) AND
+           (callbackFlags = 0) AND (callbackReserved = 0) AND
+           (SessionEpoch <> 0) AND (callbackBootId <> 0) AND
+           (RpcInitialized = TRUE) AND (RpcSocket = CurrentSock) AND
+           IsClientConnected(#CallbackSender) THEN
+          callbackArmResult := CallbackSender.ArmEndpoint(
+            ProtocolVersion := callbackProtocolVersion,
+            EventMask := callbackEventMask,
+            CallbackIPv4 := callbackIPv4,
+            CallbackPort := callbackPort,
+            SessionEpoch := SessionEpoch,
+            BootId := callbackBootId,
+            CookieLo := callbackCookieLo,
+            CookieHi := callbackCookieHi,
+            MaxDatagramBytes := TO_UDINT(callbackAcceptedMaxDatagram)
+          );
+        END_IF;
+      END_IF;
+      IF (callbackArmResult = 0) OR (callbackArmResult = 1) THEN
+        RpcCallbackEventMask := callbackEventMask;
+        RpcCallbackPort := callbackPort;
+        _StdLib.MemCpy(dest := #RpcCallbackIPv4[0],
+          source := #RequestBuf[16], size := 4);
+        RpcCallbackProtocolVersion := callbackProtocolVersion;
+        RpcCallbackAcceptedMaxDatagram := callbackAcceptedMaxDatagram;
+        RpcCallbackSessionEpoch := SessionEpoch;
+        RpcCallbackBootId := callbackBootId;
+        RpcCallbackCookieLo := callbackCookieLo;
+        RpcCallbackCookieHi := callbackCookieHi;
+        RpcCallbackRegistered := TRUE;
+        Sendbuf[8]$UINT := 0;
+        Sendbuf[10]$INT := 0;
+        Sendbuf[12]$UINT := callbackProtocolVersion;
+        Sendbuf[14]$UINT := callbackAcceptedMaxDatagram;
+        Sendbuf[16]$UDINT := callbackBootId;
+        Sendbuf[20]$UDINT := SessionEpoch;
+        Sendbuf[24]$UDINT := 0;
+      ELSE
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+      END_IF;
+      SendData(pData := #Sendbuf[0], udSize := 28,
+        dSocket := CurrentSock, bDirect := TRUE);
+    ELSE
+      _memset(dest := #Sendbuf, usByte := 0, cntr := sizeof(Sendbuf));
+      Sendbuf[0]$UINT := 0;
+      Sendbuf[2]$UINT := 4;
+      Sendbuf[4]$UDINT := 0;
       Sendbuf[8]$UINT := 1;
       Sendbuf[10]$INT := -1;
-    end_if;
-
-    SendData(
-      pData:=#Sendbuf[0],
-      udSize:=12,
-      dSocket:=CurrentSock,
-      bDirect:=TRUE
-    );
+      SendData(pData := #Sendbuf[0], udSize := 12,
+        dSocket := CurrentSock, bDirect := TRUE);
+    END_IF;
 
   0x405D:
-
-    _memset(dest:=#Sendbuf, usByte:=0, cntr:=sizeof(Sendbuf));
+    _memset(dest := #Sendbuf, usByte := 0, cntr := sizeof(Sendbuf));
     Sendbuf[0]$UINT := 0;
     Sendbuf[2]$UINT := 4;
     Sendbuf[4]$UDINT := 0;
-
-    if (Payload = 1) & (RpcInitialized = TRUE) &
-       (RpcSocket = CurrentSock) then
-      Sendbuf[8]$UINT := 0;
-      Sendbuf[10]$INT := 0;
-
-      SendData(
-        pData:=#Sendbuf[0],
-        udSize:=12,
-        dSocket:=CurrentSock,
-        bDirect:=TRUE
-      );
-
-      RpcSocket := 0;
-      RpcInitialized := FALSE;
-      RpcCallbackRegistered := FALSE;
-      RpcCallbackEventMask := 0;
-      RpcCallbackPort := 0;
-      RpcCallbackIPv4[0] := 0;
-      RpcCallbackIPv4[1] := 0;
-      RpcCallbackIPv4[2] := 0;
-      RpcCallbackIPv4[3] := 0;
-      if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
-        PendingClosedSessionEpoch := SessionEpoch;
-      end_if;
-      SessionEpoch += 1;
-      if SessionEpoch = 0 then
-        SessionEpoch := 1;
-      end_if;
-    else
+    IF (Payload = 1) AND (RpcInitialized = TRUE) AND
+       (RpcSocket = CurrentSock) THEN
+      callbackDisarmResult := DisarmRpcCallbackEndpoint();
+      IF callbackDisarmResult < 0 THEN
+        Sendbuf[8]$UINT := 1;
+        Sendbuf[10]$INT := -1;
+        SendData(pData := #Sendbuf[0], udSize := 12,
+          dSocket := CurrentSock, bDirect := TRUE);
+      ELSE
+        Sendbuf[8]$UINT := 0;
+        Sendbuf[10]$INT := 0;
+        IF (SessionEpoch <> 0) AND (PendingClosedSessionEpoch = 0) THEN
+          PendingClosedSessionEpoch := SessionEpoch;
+        END_IF;
+        SendData(pData := #Sendbuf[0], udSize := 12,
+          dSocket := CurrentSock, bDirect := TRUE);
+        IF (RpcInitialized = TRUE) AND (RpcSocket = CurrentSock) THEN
+          RpcSocket := 0;
+          RpcInitialized := FALSE;
+          SessionEpoch += 1;
+          IF SessionEpoch = 0 THEN
+            SessionEpoch := 1;
+          END_IF;
+        END_IF;
+      END_IF;
+    ELSE
       Sendbuf[8]$UINT := 1;
       Sendbuf[10]$INT := -1;
-
-      SendData(
-        pData:=#Sendbuf[0],
-        udSize:=12,
-        dSocket:=CurrentSock,
-        bDirect:=TRUE
-      );
-    end_if;
-  end_case;
+      SendData(pData := #Sendbuf[0], udSize := 12,
+        dSocket := CurrentSock, bDirect := TRUE);
+    END_IF;
+  END_CASE;
 
 END_FUNCTION
 
@@ -2555,4 +2610,33 @@ FUNCTION TCPMotionInterface::DisarmRpcCallbackEndpoint
 		Result 	: DINT;
 	END_VAR
 
+	Result := 1;
+	IF (RpcCallbackProtocolVersion <> 2) OR
+	   (RpcCallbackRegistered = FALSE) THEN
+		Result := 1;
+	ELSIF NOT IsClientConnected(#CallbackSender) THEN
+		Result := -9;
+	ELSE
+		Result := CallbackSender.DisarmEndpoint(
+			ExpectedSessionEpoch := RpcCallbackSessionEpoch,
+			ExpectedCookieLo := RpcCallbackCookieLo,
+			ExpectedCookieHi := RpcCallbackCookieHi
+		);
+	END_IF;
+	RpcCallbackLastDisarmResult := Result;
+	IF (Result = 0) OR (Result = 1) THEN
+		RpcCallbackRegistered := FALSE;
+		RpcCallbackEventMask := 0;
+		RpcCallbackPort := 0;
+		RpcCallbackIPv4[0] := 0;
+		RpcCallbackIPv4[1] := 0;
+		RpcCallbackIPv4[2] := 0;
+		RpcCallbackIPv4[3] := 0;
+		RpcCallbackProtocolVersion := 0;
+		RpcCallbackAcceptedMaxDatagram := 0;
+		RpcCallbackSessionEpoch := 0;
+		RpcCallbackBootId := 0;
+		RpcCallbackCookieLo := 0;
+		RpcCallbackCookieHi := 0;
+	END_IF;
 END_FUNCTION

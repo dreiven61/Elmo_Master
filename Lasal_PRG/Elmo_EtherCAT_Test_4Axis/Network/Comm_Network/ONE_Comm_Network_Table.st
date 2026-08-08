@@ -95,6 +95,10 @@
 #define UDP_CLT_INFO_ADDED          0
 #define UDP_CLT_INFO_BOUND          1
 #define UDP_CLT_INFO_CLOSED         2
+//Define part of class LMCUdpCallbackSender
+#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE
+#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0
+#endif
 #include <.\lsl_st_mt.h>
 
 
