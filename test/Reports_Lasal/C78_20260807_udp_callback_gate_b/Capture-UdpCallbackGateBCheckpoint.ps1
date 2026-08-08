@@ -31,9 +31,9 @@ $VerifierRelativePath =
     'Verify-LasalUdpCallbackContract.ps1'
 $AllowedAmbientNonIgnoredTargetPaths = @(
     "$TargetRelativeRoot/Class/TestClass/TestClass.st")
-$ExpectedVerifierCanonicalLfBytes = 409934
+$ExpectedVerifierCanonicalLfBytes = 446686
 $ExpectedVerifierCanonicalLfSha256 =
-    'E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC'
+    'D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788'
 $script:ContainedProcessNativeType = $null
 
 $PhaseContracts = [ordered]@{

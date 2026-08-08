@@ -487,7 +487,11 @@ $PrivateFunctionSpecs = @(
 )
 
 $PrivateFunctionNames = @($PrivateFunctionSpecs | ForEach-Object { $_.Name })
-$AllFunctionNames = @($CyWorkSpec.Name) +
+$DeclarationFunctionNames = @($CyWorkSpec.Name) +
+    @($ErrorCallbackSpec.Name) +
+    @($PublicFunctionSpecs | ForEach-Object { $_.Name }) +
+    @($PrivateFunctionNames)
+$ImplementationFunctionNames = @($CyWorkSpec.Name) +
     @($PublicFunctionSpecs | ForEach-Object { $_.Name }) +
     @($ErrorCallbackSpec.Name) +
     @($PrivateFunctionNames)
@@ -576,6 +580,17 @@ $ExpectedDerivedServers = @(
     'DisarmClearedCount:SvrCh_UDINT',
     'TransportErrorCount:SvrCh_UDINT',
     'LastAdmissionResult:SvrCh_DINT')
+
+$ExpectedDerivedMetadataServerNames = @(
+    'AdmissionErrorDropCount',
+    'AdmissionRetryCount',
+    'DisarmClearedCount',
+    'LastAdmissionResult',
+    'QueuedCount',
+    'QueueDepth',
+    'QueueFullDropCount',
+    'RingAcceptedCount',
+    'TransportErrorCount')
 
 $ExpectedDerivedVariables = @(
     'ActiveEndpoint:_LMC_UDP_ACTIVE_ENDPOINT',
@@ -1186,7 +1201,7 @@ function Get-DerivedImplementationDisposition {
             -Kind Implementation)
     Assert-ExactInventory `
         -Actual @($records.Name) `
-        -Expected $AllFunctionNames `
+        -Expected $ImplementationFunctionNames `
         -InventoryOwner 'derived implementation state function order'
     $emptyCount = 0
     foreach ($record in $records) {
@@ -1578,9 +1593,7 @@ function Assert-DerivedStorageContract {
     $servers = @($channels[0].SelectNodes('./Server'))
     Assert-ExactInventory `
         -Actual @($servers | ForEach-Object { $_.GetAttribute('Name') }) `
-        -Expected @($ExpectedDerivedServers | ForEach-Object {
-                $_.Split(':', 2)[0]
-            }) `
+        -Expected $ExpectedDerivedMetadataServerNames `
         -InventoryOwner 'derived metadata server order'
     foreach ($server in $servers) {
         foreach ($attribute in @(
@@ -1682,7 +1695,7 @@ function Assert-DerivedCandidateExactFunctionContract {
             -Kind Implementation)
     Assert-ExactInventory `
         -Actual @($expectedRecords.Name) `
-        -Expected $AllFunctionNames `
+        -Expected $ImplementationFunctionNames `
         -InventoryOwner 'synthetic derived exact-function baseline'
     $actualByName = @{}
     foreach ($record in $Implementations) {
@@ -1692,7 +1705,7 @@ function Assert-DerivedCandidateExactFunctionContract {
     foreach ($record in $expectedRecords) {
         $expectedByName[$record.Name] = $record.Block
     }
-    foreach ($name in $AllFunctionNames) {
+    foreach ($name in $ImplementationFunctionNames) {
         $actual = Get-CommentInsensitiveTokenStream -Text $actualByName[$name]
         $expected = Get-CommentInsensitiveTokenStream -Text $expectedByName[$name]
         if (-not [string]::Equals(
@@ -2412,13 +2425,13 @@ function Assert-DerivedStandardTableContract {
 
     if ([regex]::Matches(
             $canonical,
-            '(?m)^#define[ \t]+USER_CNT_LMCUdpCallbackSender[ \t]+17[ \t]*$').Count -ne 1 -or
+            '(?m)^#define[ \t]+USER_CNT_LMCUdpCallbackSender[ \t]+14[ \t]*$').Count -ne 1 -or
         [regex]::Matches(
             $canonical,
             '(?m)UserFcts[ \t]*:[ \t]*ARRAY\[0\.\.USER_CNT_' +
                 'LMCUdpCallbackSender\][ \t]+OF[ \t]+\^Void[ \t]*;').Count -ne 1) {
         Throw-UdpCallbackBlocker (
-            'derived generated command table size is not exact 17.')
+            'derived generated command table size is not exact 14.')
     }
     $standardFunctions = @([regex]::Matches(
             $canonical,
@@ -2429,6 +2442,35 @@ function Assert-DerivedStandardTableContract {
             'derived generated @STD implementation count is not 1.')
     }
     $standard = $standardFunctions[0].Value
+    $warningDisableLine =
+        '^[ \t]*#pragma[ \t]+warning[ \t]*\([ \t]*disable[ \t]*:[ \t]*' +
+            '74[ \t]*\)[ \t]*$'
+    $warningDefaultLine =
+        '^[ \t]*#pragma[ \t]+warning[ \t]*\([ \t]*default[ \t]*:[ \t]*' +
+            '74[ \t]*\)[ \t]*$'
+    if (([regex]::Matches(
+                $standard,
+                $warningDisableLine,
+                [Text.RegularExpressions.RegexOptions]::Multiline).Count -ne 1) -or
+        ([regex]::Matches(
+                $standard,
+                $warningDefaultLine,
+                [Text.RegularExpressions.RegexOptions]::Multiline).Count -ne 1)) {
+        Throw-UdpCallbackBlocker (
+            'derived generated @STD warning 74 scope directives are not exact.')
+    }
+    $warningScopedSlotPattern =
+        '(?m)' + $warningDisableLine + '\n(?:[ \t]*\n)*' +
+        '^[ \t]*vmt\.UserFcts\[12\][ \t]*:=[ \t]*#ErrorCallback' +
+            '\([ \t]*\)[ \t]*;[ \t]*$\n(?:[ \t]*\n)*' +
+        $warningDefaultLine
+    if ([regex]::Matches(
+            $standard,
+            $warningScopedSlotPattern).Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'derived generated @STD warning 74 scope does not exactly bracket ' +
+                'the ErrorCallback slot.')
+    }
     $compact = [regex]::Replace($standard, '\s+', '')
     Assert-OrderedTokens `
         -Text $compact `
@@ -2440,9 +2482,6 @@ function Assert-DerivedStandardTableContract {
             'vmt.CmdTable.nCmds:=nSTDCMD+USER_CNT_LMCUdpCallbackSender;',
             'vmt.CmdTable.CyWork:=#CyWork();',
             'vmt.UserFcts[12]:=#ErrorCallback();',
-            'vmt.UserFcts[14]:=#ArmEndpoint();',
-            'vmt.UserFcts[15]:=#DisarmEndpoint();',
-            'vmt.UserFcts[16]:=#PublishEvent();',
             '_UDPTransceiverInterface::ClassSvr.pMeth:=StoreCmd(pCmd:=#vmt.CmdTable,SHARED);',
             'IF_UDPTransceiverInterface::ClassSvr.pMethTHENret_code:=C_OK;ELSEret_code:=C_OUTOF_NEAR;RETURN;END_IF;') `
         -TokenOwner 'derived generated @STD lifecycle'
@@ -2454,11 +2493,7 @@ function Assert-DerivedStandardTableContract {
             })
     Assert-ExactInventory `
         -Actual $userAssignments `
-        -Expected @(
-            '12:ErrorCallback',
-            '14:ArmEndpoint',
-            '15:DisarmEndpoint',
-            '16:PublishEvent') `
+        -Expected @('12:ErrorCallback') `
         -InventoryOwner 'derived generated @STD user method slots'
     foreach ($token in @(
             '_UDPTransceiverInterface::@STD()',
@@ -2537,16 +2572,17 @@ function Assert-DerivedSourceContract {
         -Text $SourceText `
         -ArtifactOwner 'LMCUdpCallbackSender source' `
         -ExpectedDirectiveCount $(if ($ImplementationMode -ceq 'Complete') {
-                5
-            } else { 2 }) `
+                7
+            } else { 4 }) `
         -ExpectedDirectiveSha256 $(if ($ImplementationMode -ceq 'Complete') {
-                '6B0CA74EB78EA7DB4211CA20E286B71ED95602D376D59AE11906837F2AEA6A6E'
+                '3ECF2C6CE0DD0C76B1199B3D357888FA8D09EF642D73F74D2E6850616C7D7DEE'
             } else {
-                '2C745E6585BB5601811885DB4E2F9C2F6E5B13A7A82118A577293DBB211EF5DE'
+                'F0079C95875D9EB1D10ADE1EC54DBEB08F0E923E793C75FFF0F268C55032FFF7'
             })
     Assert-DeclaredSpanInventory `
         -Text $SourceText `
-        -ExpectedFunctionNames (@('@CT_', '@STD') + @($AllFunctionNames)) `
+        -ExpectedFunctionNames (@('@CT_', '@STD') +
+            @($DeclarationFunctionNames)) `
         -ExpectedTypeSpanCount 2 `
         -ExpectedClassName 'LMCUdpCallbackSender' `
         -ArtifactOwner 'LMCUdpCallbackSender source'
@@ -2590,11 +2626,11 @@ function Assert-DerivedSourceContract {
             -Text $scan -Kind Implementation)
     Assert-ExactInventory `
         -Actual @($declarations.Name) `
-        -Expected $AllFunctionNames `
+        -Expected $DeclarationFunctionNames `
         -InventoryOwner 'derived declaration function order'
     Assert-ExactInventory `
         -Actual @($implementations.Name) `
-        -Expected $AllFunctionNames `
+        -Expected $ImplementationFunctionNames `
         -InventoryOwner 'derived implementation function order'
 
     $sourceSpecs = [Collections.Generic.List[object]]::new()
@@ -3861,37 +3897,41 @@ function Assert-VendorGeneratedAbiContract {
     }
 }
 
-function Assert-ClassDatabaseFunctionAbiRecord {
+function Get-ClassDatabaseFunctionHeaderBytes {
+    param(
+        [Parameter(Mandatory = $true)][byte]$MethodKind,
+        [Parameter(Mandatory = $true)][bool]$IsVirtual,
+        [Parameter(Mandatory = $true)][bool]$IsGlobal,
+        [Parameter(Mandatory = $true)][uint32]$InputCount
+    )
+
+    return ,([byte[]]@(
+            $MethodKind, 0x00, 0x00, 0x00,
+            [byte]$(if ($IsVirtual) { 1 } else { 0 }),
+            [byte]$(if ($IsGlobal) { 1 } else { 0 }), 0x00, 0x00,
+            [byte]($InputCount -band 0xFF),
+            [byte](($InputCount -shr 8) -band 0xFF),
+            [byte](($InputCount -shr 16) -band 0xFF),
+            [byte](($InputCount -shr 24) -band 0xFF)))
+}
+
+function Get-ClassDatabaseFunctionAbiStart {
     param(
         [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
         [Parameter(Mandatory = $true)][string]$RecordText,
         [Parameter(Mandatory = $true)][string]$FunctionName,
-        [bool]$IsVirtual = $false,
+        [Parameter(Mandatory = $true)][byte]$MethodKind,
+        [Parameter(Mandatory = $true)][bool]$IsVirtual,
         [Parameter(Mandatory = $true)][bool]$IsGlobal,
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyCollection()]
-        [string[]]$Inputs,
-        [AllowEmptyCollection()]
-        [string[]]$Outputs = @(),
+        [Parameter(Mandatory = $true)][uint32]$InputCount,
         [Parameter(Mandatory = $true)][string]$RecordOwner
     )
 
-    if ($RecordBytes.Count -ne $RecordText.Length) {
-        Throw-UdpCallbackBlocker "$RecordOwner byte/text offsets diverged."
-    }
-    if ($Outputs.Count -gt 1) {
-        Throw-UdpCallbackBlocker "$RecordOwner verifier supports at most one output."
-    }
-    $inputCount = [uint32]$Inputs.Count
-    $virtual = if ($IsVirtual) { 1 } else { 0 }
-    $scope = if ($IsGlobal) { 1 } else { 0 }
-    $header = [byte[]]@(
-        0x0B, 0x00, 0x00, 0x00,
-        [byte]$virtual, [byte]$scope, 0x00, 0x00,
-        [byte]($inputCount -band 0xFF),
-        [byte](($inputCount -shr 8) -band 0xFF),
-        [byte](($inputCount -shr 16) -band 0xFF),
-        [byte](($inputCount -shr 24) -band 0xFF))
+    $header = Get-ClassDatabaseFunctionHeaderBytes `
+        -MethodKind $MethodKind `
+        -IsVirtual $IsVirtual `
+        -IsGlobal $IsGlobal `
+        -InputCount $InputCount
     $candidates = [Collections.Generic.List[int]]::new()
     $searchStart = 0
     while ($searchStart -lt $RecordText.Length) {
@@ -3902,204 +3942,397 @@ function Assert-ClassDatabaseFunctionAbiRecord {
         if ($nameStart -lt 0) {
             break
         }
-        if (Test-ClassDatabaseByteSequence `
-                -DatabaseBytes $RecordBytes `
-                -Start ($nameStart + $FunctionName.Length) `
-                -ExpectedBytes $header) {
-            $candidates.Add($nameStart)
-        }
-        $searchStart = $nameStart + $FunctionName.Length
-    }
-    if ($candidates.Count -ne 1) {
-        Throw-UdpCallbackBlocker (
-            "$RecordOwner exact generated ABI record count is " +
-            "$($candidates.Count), expected 1.")
-    }
-
-    $headerEnd = $candidates[0] + $FunctionName.Length + $header.Count
-    $exactMetadata = [Collections.Generic.List[byte]]::new()
-    foreach ($entry in $Inputs) {
-        $separator = $entry.IndexOf(':', [StringComparison]::Ordinal)
-        if ($separator -lt 1) {
-            Throw-UdpCallbackBlocker "$RecordOwner has an invalid verifier input spec."
-        }
-        $name = $entry.Substring(0, $separator)
-        $type = $entry.Substring($separator + 1)
-        $nameLength = [uint32]$name.Length
-        Add-BytesToList -List $exactMetadata -Bytes ([byte[]]@(
-                0x00, 0x01,
-                [byte]($nameLength -band 0xFF),
-                [byte](($nameLength -shr 8) -band 0xFF),
-                [byte](($nameLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $exactMetadata -Text $name
-        $typeLength = [uint32]$type.Length
-        Add-BytesToList -List $exactMetadata -Bytes ([byte[]]@(
-                [byte]($typeLength -band 0xFF),
-                [byte](($typeLength -shr 8) -band 0xFF),
-                [byte](($typeLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $exactMetadata -Text $type
-    }
-    if ($Outputs.Count -eq 0) {
-        Add-BytesToList `
-            -List $exactMetadata -Bytes ([byte[]]@(0x00, 0x00, 0x00, 0x00))
-    }
-    else {
-        $entry = $Outputs[0]
-        $separator = $entry.IndexOf(':', [StringComparison]::Ordinal)
-        if ($separator -lt 1) {
-            Throw-UdpCallbackBlocker "$RecordOwner has an invalid verifier output spec."
-        }
-        $name = $entry.Substring(0, $separator)
-        $type = $entry.Substring($separator + 1)
-        $nameLength = [uint32]$name.Length
-        Add-BytesToList -List $exactMetadata -Bytes ([byte[]]@(
-                0x01, 0x00, 0x00, 0x00,
-                0x00, 0x01,
-                [byte]($nameLength -band 0xFF),
-                [byte](($nameLength -shr 8) -band 0xFF),
-                [byte](($nameLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $exactMetadata -Text $name
-        $typeLength = [uint32]$type.Length
-        Add-BytesToList -List $exactMetadata -Bytes ([byte[]]@(
-                [byte]($typeLength -band 0xFF),
-                [byte](($typeLength -shr 8) -band 0xFF),
-                [byte](($typeLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $exactMetadata -Text $type
-    }
-    if (-not (Test-ClassDatabaseByteSequence `
-                -DatabaseBytes $RecordBytes `
-                -Start $headerEnd `
-                -ExpectedBytes $exactMetadata.ToArray())) {
-        Throw-UdpCallbackBlocker "$RecordOwner exact parameter metadata drifted."
-    }
-    $cursor = $headerEnd
-    $expectedTokens = [Collections.Generic.List[string]]::new()
-    foreach ($entry in $Inputs) {
-        $separator = $entry.IndexOf(':', [StringComparison]::Ordinal)
-        if ($separator -lt 1) {
-            Throw-UdpCallbackBlocker "$RecordOwner has an invalid verifier input spec."
-        }
-        $name = $entry.Substring(0, $separator)
-        $type = $entry.Substring($separator + 1)
-        $nameStart = $RecordText.IndexOf(
-            $name,
-            $cursor,
-            [StringComparison]::Ordinal)
-        if ($nameStart -lt 0) {
-            Throw-UdpCallbackBlocker "$RecordOwner input $name is missing."
-        }
-        $nameLength = [uint32]$name.Length
+        $nameLength = [uint32]$FunctionName.Length
         $namePrefix = [byte[]]@(
             0x00, 0x01,
             [byte]($nameLength -band 0xFF),
             [byte](($nameLength -shr 8) -band 0xFF),
             [byte](($nameLength -shr 16) -band 0xFF),
             0xAA)
-        if (-not (Test-ClassDatabaseByteSequence `
-                    -DatabaseBytes $RecordBytes `
-                    -Start ($nameStart - $namePrefix.Count) `
-                    -ExpectedBytes $namePrefix)) {
-            Throw-UdpCallbackBlocker "$RecordOwner input $name metadata drifted."
+        if ((Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $RecordBytes `
+                -Start ($nameStart - $namePrefix.Count) `
+                -ExpectedBytes $namePrefix) -and
+            (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $RecordBytes `
+                -Start ($nameStart + $FunctionName.Length) `
+                -ExpectedBytes $header)) {
+            $candidates.Add($nameStart)
         }
-        $typeStart = $RecordText.IndexOf(
-            $type,
-            $nameStart + $name.Length,
-            [StringComparison]::Ordinal)
-        if ($typeStart -lt 0) {
-            Throw-UdpCallbackBlocker "$RecordOwner input $name type $type is missing."
-        }
-        $typeLength = [uint32]$type.Length
-        $typePrefix = [byte[]]@(
-            [byte]($typeLength -band 0xFF),
-            [byte](($typeLength -shr 8) -band 0xFF),
-            [byte](($typeLength -shr 16) -band 0xFF),
-            0xAA)
-        if (-not (Test-ClassDatabaseByteSequence `
-                    -DatabaseBytes $RecordBytes `
-                    -Start ($typeStart - $typePrefix.Count) `
-                    -ExpectedBytes $typePrefix)) {
-            Throw-UdpCallbackBlocker "$RecordOwner input $name type metadata drifted."
-        }
-        $expectedTokens.Add($name)
-        $expectedTokens.Add($type)
-        $cursor = $typeStart + $type.Length
+        $searchStart = $nameStart + $FunctionName.Length
     }
+    if ($candidates.Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            "$RecordOwner exact method-kind/header record count is " +
+            "$($candidates.Count), expected 1.")
+    }
+    return $candidates[0]
+}
 
-    if ($Outputs.Count -eq 0) {
-        if (-not (Test-ClassDatabaseByteSequence `
-                    -DatabaseBytes $RecordBytes `
-                    -Start $cursor `
-                    -ExpectedBytes ([byte[]]@(0x00, 0x00, 0x00, 0x00)))) {
-            Throw-UdpCallbackBlocker "$RecordOwner generated output count is not zero."
-        }
-        return
-    }
+function Get-ClassDatabaseMethodAbiInventory {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
+        [Parameter(Mandatory = $true)][string]$RecordOwner
+    )
 
-    $outputEntry = $Outputs[0]
-    $outputSeparator = $outputEntry.IndexOf(':', [StringComparison]::Ordinal)
-    if ($outputSeparator -lt 1) {
-        Throw-UdpCallbackBlocker "$RecordOwner has an invalid verifier output spec."
+    $inventory = [Collections.Generic.List[object]]::new()
+    for ($prefixStart = 0;
+         $prefixStart -le ($RecordBytes.Count - 18);
+         $prefixStart++) {
+        if (($RecordBytes[$prefixStart] -ne 0) -or
+            ($RecordBytes[$prefixStart + 1] -ne 1) -or
+            ($RecordBytes[$prefixStart + 5] -ne 0xAA)) {
+            continue
+        }
+        $nameLength = [int]$RecordBytes[$prefixStart + 2] -bor
+            ([int]$RecordBytes[$prefixStart + 3] -shl 8) -bor
+            ([int]$RecordBytes[$prefixStart + 4] -shl 16)
+        if (($nameLength -lt 1) -or ($nameLength -gt 128)) {
+            continue
+        }
+        $nameStart = $prefixStart + 6
+        $headerStart = $nameStart + $nameLength
+        if (($headerStart + 12) -gt $RecordBytes.Count) {
+            continue
+        }
+        $name = [Text.Encoding]::ASCII.GetString(
+            $RecordBytes,
+            $nameStart,
+            $nameLength)
+        if ($name -cnotmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            continue
+        }
+        $methodKind = $RecordBytes[$headerStart]
+        if (($methodKind -notin @([byte]0x05, [byte]0x0B)) -or
+            ($RecordBytes[$headerStart + 1] -ne 0) -or
+            ($RecordBytes[$headerStart + 2] -ne 0) -or
+            ($RecordBytes[$headerStart + 3] -ne 0) -or
+            ($RecordBytes[$headerStart + 4] -gt 1) -or
+            ($RecordBytes[$headerStart + 5] -gt 1) -or
+            ($RecordBytes[$headerStart + 6] -ne 0) -or
+            ($RecordBytes[$headerStart + 7] -ne 0)) {
+            continue
+        }
+        $inputCount = [BitConverter]::ToUInt32(
+            $RecordBytes,
+            $headerStart + 8)
+        if ($inputCount -gt 64) {
+            continue
+        }
+        $inventory.Add([pscustomobject]@{
+                Name = $name
+                NameStart = $nameStart
+                MethodKind = [byte]$methodKind
+                IsVirtual = $RecordBytes[$headerStart + 4] -eq 1
+                IsGlobal = $RecordBytes[$headerStart + 5] -eq 1
+                InputCount = [uint32]$inputCount
+            })
     }
-    $outputName = $outputEntry.Substring(0, $outputSeparator)
-    $outputType = $outputEntry.Substring($outputSeparator + 1)
-    $outputNameStart = $RecordText.IndexOf(
-        $outputName,
-        $cursor,
-        [StringComparison]::Ordinal)
-    if ($outputNameStart -lt 0) {
-        Throw-UdpCallbackBlocker "$RecordOwner output $outputName is missing."
+    if ($inventory.Count -eq 0) {
+        Throw-UdpCallbackBlocker "$RecordOwner contains no bounded method ABI record."
     }
-    $outputNameLength = [uint32]$outputName.Length
-    $outputPrefix = [byte[]]@(
-        0x01, 0x00, 0x00, 0x00,
+    return $inventory.ToArray()
+}
+
+function Read-ClassDatabaseAaString {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
+        [Parameter(Mandatory = $true)][int]$Cursor,
+        [Parameter(Mandatory = $true)][int]$RecordEnd,
+        [Parameter(Mandatory = $true)][int]$MaximumLength,
+        [Parameter(Mandatory = $true)][string]$FieldOwner
+    )
+
+    if (($Cursor -lt 0) -or (($Cursor + 4) -gt $RecordEnd) -or
+        ($RecordEnd -gt $RecordBytes.Count)) {
+        Throw-UdpCallbackBlocker "$FieldOwner length prefix crosses its method record."
+    }
+    if ($RecordBytes[$Cursor + 3] -ne 0xAA) {
+        Throw-UdpCallbackBlocker "$FieldOwner length prefix sentinel drifted."
+    }
+    $length = [int]$RecordBytes[$Cursor] -bor
+        ([int]$RecordBytes[$Cursor + 1] -shl 8) -bor
+        ([int]$RecordBytes[$Cursor + 2] -shl 16)
+    if (($length -lt 0) -or ($length -gt $MaximumLength) -or
+        (($Cursor + 4 + $length) -gt $RecordEnd)) {
+        Throw-UdpCallbackBlocker "$FieldOwner length is outside its bounded record."
+    }
+    return [pscustomobject]@{
+        Text = [Text.Encoding]::ASCII.GetString(
+            $RecordBytes,
+            $Cursor + 4,
+            $length)
+        Next = $Cursor + 4 + $length
+    }
+}
+
+function Get-ClassDatabaseParameterTypeContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$Type,
+        [Parameter(Mandatory = $true)][string]$RecordOwner
+    )
+
+    $pointer = $Type.StartsWith('^', [StringComparison]::Ordinal)
+    $value = if ($pointer) { $Type.Substring(1) } else { $Type }
+    if (($value.Length -lt 1) -or
+        $value.StartsWith('^', [StringComparison]::Ordinal)) {
+        Throw-UdpCallbackBlocker "$RecordOwner has an unsupported verifier type."
+    }
+    $separator = $value.LastIndexOf('::', [StringComparison]::Ordinal)
+    $owner = ''
+    $base = $value
+    if ($separator -ge 0) {
+        $owner = $value.Substring(0, $separator)
+        $base = $value.Substring($separator + 2)
+        if (($owner.Length -lt 1) -or ($base.Length -lt 1) -or
+            ($owner.IndexOf('::', [StringComparison]::Ordinal) -ge 0)) {
+            Throw-UdpCallbackBlocker "$RecordOwner has an unsupported qualified type."
+        }
+    }
+    return [pscustomobject]@{
+        Pointer = $pointer
+        Base = $base
+        Owner = $owner
+    }
+}
+
+function Assert-ClassDatabaseParameterRecord {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
+        [Parameter(Mandatory = $true)][int]$Cursor,
+        [Parameter(Mandatory = $true)][int]$RecordEnd,
+        [Parameter(Mandatory = $true)][string]$Entry,
+        [Parameter(Mandatory = $true)][bool]$IsOutput,
+        [bool]$EaxBoundInput = $false,
+        [bool]$EaxBoundOutput = $false,
+        [Parameter(Mandatory = $true)][string]$RecordOwner
+    )
+
+    $separator = $Entry.IndexOf(':', [StringComparison]::Ordinal)
+    if ($separator -lt 1) {
+        Throw-UdpCallbackBlocker "$RecordOwner has an invalid verifier parameter spec."
+    }
+    $name = $Entry.Substring(0, $separator)
+    $type = Get-ClassDatabaseParameterTypeContract `
+        -Type $Entry.Substring($separator + 1) `
+        -RecordOwner "$RecordOwner $name"
+    $nameLength = [uint32]$name.Length
+    $namePrefix = [byte[]]@(
         0x00, 0x01,
-        [byte]($outputNameLength -band 0xFF),
-        [byte](($outputNameLength -shr 8) -band 0xFF),
-        [byte](($outputNameLength -shr 16) -band 0xFF),
+        [byte]($nameLength -band 0xFF),
+        [byte](($nameLength -shr 8) -band 0xFF),
+        [byte](($nameLength -shr 16) -band 0xFF),
         0xAA)
     if (-not (Test-ClassDatabaseByteSequence `
                 -DatabaseBytes $RecordBytes `
-                -Start ($outputNameStart - $outputPrefix.Count) `
-                -ExpectedBytes $outputPrefix)) {
-        Throw-UdpCallbackBlocker "$RecordOwner output $outputName metadata drifted."
+                -Start $Cursor `
+                -ExpectedBytes $namePrefix)) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name prefix drifted."
     }
-    $outputTypeStart = $RecordText.IndexOf(
-        $outputType,
-        $outputNameStart + $outputName.Length,
-        [StringComparison]::Ordinal)
-    if ($outputTypeStart -lt 0) {
-        Throw-UdpCallbackBlocker "$RecordOwner output type $outputType is missing."
+    $cursorAfterName = $Cursor + $namePrefix.Count
+    if (($cursorAfterName + $name.Length) -gt $RecordEnd) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name crosses its method record."
     }
-    $outputTypeLength = [uint32]$outputType.Length
-    $outputTypePrefix = [byte[]]@(
-        [byte]($outputTypeLength -band 0xFF),
-        [byte](($outputTypeLength -shr 8) -band 0xFF),
-        [byte](($outputTypeLength -shr 16) -band 0xFF),
-        0xAA)
+    $actualName = [Text.Encoding]::ASCII.GetString(
+        $RecordBytes,
+        $cursorAfterName,
+        $name.Length)
+    if ($actualName -cne $name) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name name drifted."
+    }
+    $cursorAfterName += $name.Length
+
+    $comment = Read-ClassDatabaseAaString `
+        -RecordBytes $RecordBytes `
+        -Cursor $cursorAfterName `
+        -RecordEnd $RecordEnd `
+        -MaximumLength 4096 `
+        -FieldOwner "$RecordOwner parameter $name comment"
+    $cursorAfterComment = $comment.Next
+    $descriptor = [byte[]]@(
+        0x01, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+    if ($type.Pointer) {
+        $descriptor[54] = 1
+    }
     if (-not (Test-ClassDatabaseByteSequence `
                 -DatabaseBytes $RecordBytes `
-                -Start ($outputTypeStart - $outputTypePrefix.Count) `
-                -ExpectedBytes $outputTypePrefix)) {
-        Throw-UdpCallbackBlocker "$RecordOwner output type metadata drifted."
+                -Start $cursorAfterComment `
+                -ExpectedBytes $descriptor)) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name descriptor drifted."
     }
-    $expectedTokens.Add($outputName)
-    $expectedTokens.Add($outputType)
-    $segment = $RecordText.Substring(
-        $headerEnd,
-        ($outputTypeStart + $outputType.Length) - $headerEnd)
-    $actualTokens = @(
-        [regex]::Matches(
-            $segment,
-            '(?<![A-Za-z0-9_])(?<Token>\^?[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_])') |
-            ForEach-Object { $_.Groups['Token'].Value })
-    Assert-ExactInventory `
-        -Actual $actualTokens `
-        -Expected $expectedTokens.ToArray() `
-        -InventoryOwner "$RecordOwner generated parameter token inventory"
+    $cursorAfterDescriptor = $cursorAfterComment + $descriptor.Count
+    $actualBase = Read-ClassDatabaseAaString `
+        -RecordBytes $RecordBytes `
+        -Cursor $cursorAfterDescriptor `
+        -RecordEnd $RecordEnd `
+        -MaximumLength 255 `
+        -FieldOwner "$RecordOwner parameter $name base type"
+    if ($actualBase.Text -cne $type.Base) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name base type drifted."
+    }
+    $actualOwner = Read-ClassDatabaseAaString `
+        -RecordBytes $RecordBytes `
+        -Cursor $actualBase.Next `
+        -RecordEnd $RecordEnd `
+        -MaximumLength 255 `
+        -FieldOwner "$RecordOwner parameter $name type owner"
+    if ($actualOwner.Text -cne $type.Owner) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name type owner drifted."
+    }
+
+    $tail = [Collections.Generic.List[byte]]::new()
+    foreach ($unused in 1..5) {
+        foreach ($value in [byte[]]@(0x00, 0x00, 0x00, 0xAA)) {
+            $tail.Add($value)
+        }
+    }
+    foreach ($value in [byte[]]@(0x01, 0x00, 0x00, 0x00)) {
+        $tail.Add($value)
+    }
+    foreach ($unused in 1..18) {
+        $tail.Add(0)
+    }
+    $tail.Add(0xAA)
+    $tailEnd = if ($EaxBoundInput) {
+        [byte[]]@(0x10, 0x00, 0x00, 0x00, 0x01)
+    }
+    elseif (-not $IsOutput) {
+        [byte[]]@(0xFF, 0xFF, 0xFF, 0xFF, 0x01)
+    }
+    elseif ($EaxBoundOutput) {
+        [byte[]]@(0x10, 0x00, 0x00, 0x00, 0x00)
+    }
+    else {
+        [byte[]]@(0xFF, 0xFF, 0xFF, 0xFF, 0x00)
+    }
+    foreach ($value in $tailEnd) {
+        $tail.Add($value)
+    }
+    if (-not (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $RecordBytes `
+                -Start $actualOwner.Next `
+                -ExpectedBytes $tail.ToArray())) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name tail drifted."
+    }
+    $next = $actualOwner.Next + $tail.Count
+    if ($next -gt $RecordEnd) {
+        Throw-UdpCallbackBlocker "$RecordOwner parameter $name exceeds its method record."
+    }
+    return $next
+}
+
+function Assert-ClassDatabaseFunctionAbiRecord {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$RecordBytes,
+        [Parameter(Mandatory = $true)][string]$RecordText,
+        [Parameter(Mandatory = $true)][string]$FunctionName,
+        [Parameter(Mandatory = $true)][byte]$MethodKind,
+        [bool]$IsVirtual = $false,
+        [Parameter(Mandatory = $true)][bool]$IsGlobal,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Inputs,
+        [AllowEmptyCollection()]
+        [string[]]$Outputs = @(),
+        [Parameter(Mandatory = $true)][int]$ExpectedStart,
+        [Parameter(Mandatory = $true)][int]$RecordEnd,
+        [bool]$RequireExactEnd = $false,
+        [Parameter(Mandatory = $true)][string]$RecordOwner
+    )
+
+    if ($RecordBytes.Count -ne $RecordText.Length) {
+        Throw-UdpCallbackBlocker "$RecordOwner byte/text offsets diverged."
+    }
+    if ($Outputs.Count -gt 1) {
+        Throw-UdpCallbackBlocker "$RecordOwner verifier supports at most one output."
+    }
+    if (($ExpectedStart -lt 0) -or ($RecordEnd -le $ExpectedStart) -or
+        ($RecordEnd -gt $RecordBytes.Count)) {
+        Throw-UdpCallbackBlocker "$RecordOwner method record bounds drifted."
+    }
+    $actualStart = Get-ClassDatabaseFunctionAbiStart `
+        -RecordBytes $RecordBytes `
+        -RecordText $RecordText `
+        -FunctionName $FunctionName `
+        -MethodKind $MethodKind `
+        -IsVirtual $IsVirtual `
+        -IsGlobal $IsGlobal `
+        -InputCount ([uint32]$Inputs.Count) `
+        -RecordOwner $RecordOwner
+    if ($actualStart -ne $ExpectedStart) {
+        Throw-UdpCallbackBlocker "$RecordOwner method record start drifted."
+    }
+    $header = Get-ClassDatabaseFunctionHeaderBytes `
+        -MethodKind $MethodKind `
+        -IsVirtual $IsVirtual `
+        -IsGlobal $IsGlobal `
+        -InputCount ([uint32]$Inputs.Count)
+    $cursor = $ExpectedStart + $FunctionName.Length + $header.Count
+    for ($inputIndex = 0; $inputIndex -lt $Inputs.Count; $inputIndex++) {
+        $entry = $Inputs[$inputIndex]
+        $cursor = Assert-ClassDatabaseParameterRecord `
+            -RecordBytes $RecordBytes `
+            -Cursor $cursor `
+            -RecordEnd $RecordEnd `
+            -Entry $entry `
+            -IsOutput $false `
+            -EaxBoundInput (
+                ($FunctionName -ceq 'CyWork') -and ($inputIndex -eq 0)) `
+            -RecordOwner $RecordOwner
+    }
+
+    $outputCount = [uint32]$Outputs.Count
+    $outputCountBytes = [byte[]]@(
+        [byte]($outputCount -band 0xFF),
+        [byte](($outputCount -shr 8) -band 0xFF),
+        [byte](($outputCount -shr 16) -band 0xFF),
+        [byte](($outputCount -shr 24) -band 0xFF))
+    if (-not (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $RecordBytes `
+                -Start $cursor `
+                -ExpectedBytes $outputCountBytes)) {
+        Throw-UdpCallbackBlocker "$RecordOwner generated output count drifted."
+    }
+    $cursor += $outputCountBytes.Count
+    if ($Outputs.Count -eq 1) {
+        $cursor = Assert-ClassDatabaseParameterRecord `
+            -RecordBytes $RecordBytes `
+            -Cursor $cursor `
+            -RecordEnd $RecordEnd `
+            -Entry $Outputs[0] `
+            -IsOutput $true `
+            -EaxBoundOutput ($FunctionName -ceq 'CyWork') `
+            -RecordOwner $RecordOwner
+    }
+    $methodComment = Read-ClassDatabaseAaString `
+        -RecordBytes $RecordBytes `
+        -Cursor $cursor `
+        -RecordEnd $RecordEnd `
+        -MaximumLength 4096 `
+        -FieldOwner "$RecordOwner method comment"
+    $cursor = $methodComment.Next
+    $trailer = [byte[]]@(0, 0, 0, 0, 0, 0)
+    if (-not (Test-ClassDatabaseByteSequence `
+                -DatabaseBytes $RecordBytes `
+                -Start $cursor `
+                -ExpectedBytes $trailer)) {
+        Throw-UdpCallbackBlocker "$RecordOwner method trailer drifted."
+    }
+    $cursor += $trailer.Count
+    if ($RequireExactEnd -and ($cursor -ne $RecordEnd)) {
+        Throw-UdpCallbackBlocker "$RecordOwner method parser did not consume its chunk."
+    }
+    if ($cursor -gt $RecordEnd) {
+        Throw-UdpCallbackBlocker "$RecordOwner method parser crossed method bounds."
+    }
 }
 
 function Assert-GeneratedDerivedMetadata {
@@ -4124,78 +4357,115 @@ function Assert-GeneratedDerivedMetadata {
         $recordBytes,
         0,
         $record.Length)
-    $positions = [Collections.Generic.List[int]]::new()
-    foreach ($name in $AllFunctionNames) {
-        $count = Get-OrdinalCount -Text $record -Needle $name
-        if ($count -ne 1) {
-            Throw-UdpCallbackBlocker (
-                "Classes.lcb $name count is $count, expected 1.")
-        }
-        $positions.Add(
-            $record.IndexOf($name, [StringComparison]::Ordinal))
-    }
-    for ($index = 1; $index -lt $positions.Count; $index++) {
-        if ($positions[$index] -le $positions[$index - 1]) {
-            Throw-UdpCallbackBlocker (
-                'Classes.lcb sender function order drifted.')
-        }
-    }
     $generatedSpecs = @(
         [pscustomobject]@{
             Spec = $CyWorkSpec
+            MethodKind = [byte]0x05
+            Virtual = $true
+            Global = $true
+        }
+        [pscustomobject]@{
+            Spec = $ErrorCallbackSpec
+            MethodKind = [byte]0x0B
             Virtual = $true
             Global = $true
         }
         foreach ($spec in $PublicFunctionSpecs) {
             [pscustomobject]@{
                 Spec = $spec
+                MethodKind = [byte]0x0B
                 Virtual = $false
                 Global = $true
             }
         }
-        [pscustomobject]@{
-            Spec = $ErrorCallbackSpec
-            Virtual = $true
-            Global = $true
-        }
         foreach ($spec in $PrivateFunctionSpecs) {
             [pscustomobject]@{
                 Spec = $spec
+                MethodKind = [byte]0x0B
                 Virtual = $false
                 Global = $false
             }
         })
-    foreach ($generated in $generatedSpecs) {
+    Assert-ExactInventory `
+        -Actual @($generatedSpecs | ForEach-Object { $_.Spec.Name }) `
+        -Expected $DeclarationFunctionNames `
+        -InventoryOwner 'Classes.lcb sender verifier ABI order'
+    $methodInventory = @(Get-ClassDatabaseMethodAbiInventory `
+            -RecordBytes $recordBytes `
+            -RecordOwner 'LMCUdpCallbackSender Classes.lcb')
+    Assert-ExactInventory `
+        -Actual @($methodInventory | ForEach-Object { $_.Name }) `
+        -Expected $DeclarationFunctionNames `
+        -InventoryOwner 'Classes.lcb bounded method ABI inventory'
+    $positions = [Collections.Generic.List[int]]::new()
+    $positionByName = @{}
+    for ($inventoryIndex = 0;
+         $inventoryIndex -lt $generatedSpecs.Count;
+         $inventoryIndex++) {
+        $generated = $generatedSpecs[$inventoryIndex]
+        $actual = $methodInventory[$inventoryIndex]
         $spec = $generated.Spec
-        $start = $record.IndexOf($spec.Name, [StringComparison]::Ordinal)
-        $nextPositions = @($positions | Where-Object { $_ -gt $start })
-        $end = if ($nextPositions.Count -gt 0) {
-            ($nextPositions | Measure-Object -Minimum).Minimum
+        if (($actual.MethodKind -ne $generated.MethodKind) -or
+            ($actual.IsVirtual -ne $generated.Virtual) -or
+            ($actual.IsGlobal -ne $generated.Global) -or
+            ($actual.InputCount -ne [uint32]$spec.Inputs.Count)) {
+            Throw-UdpCallbackBlocker (
+                "Classes.lcb $($spec.Name) bounded method header drifted.")
+        }
+        $start = $actual.NameStart
+        $positions.Add($start)
+        $positionByName[$spec.Name] = $start
+    }
+    for ($index = 1; $index -lt $positions.Count; $index++) {
+        if ($positions[$index] -le $positions[$index - 1]) {
+            Throw-UdpCallbackBlocker (
+                'Classes.lcb sender declaration ABI order drifted.')
+        }
+    }
+    for ($generatedIndex = 0;
+         $generatedIndex -lt $generatedSpecs.Count;
+         $generatedIndex++) {
+        $generated = $generatedSpecs[$generatedIndex]
+        $spec = $generated.Spec
+        $start = [int]$positionByName[$spec.Name]
+        $hasNextMethod = ($generatedIndex + 1) -lt $positions.Count
+        $end = if ($hasNextMethod) {
+            $positions[$generatedIndex + 1] - 6
         }
         else {
             $record.Length
         }
+        Assert-ClassDatabaseFunctionAbiRecord `
+            -RecordBytes $recordBytes `
+            -RecordText $record `
+            -FunctionName $spec.Name `
+            -MethodKind $generated.MethodKind `
+            -IsVirtual $generated.Virtual `
+            -IsGlobal $generated.Global `
+            -Inputs @($spec.Inputs) `
+            -Outputs @($spec.Outputs) `
+            -ExpectedStart $start `
+            -RecordEnd $end `
+            -RequireExactEnd $hasNextMethod `
+            -RecordOwner "Classes.lcb $($spec.Name)"
         $methodRecord = $record.Substring($start, $end - $start)
         $tokens = [Collections.Generic.List[string]]::new()
         $tokens.Add($spec.Name)
         foreach ($entry in @($spec.Inputs + $spec.Outputs)) {
             $parts = $entry.Split(':', 2)
             $tokens.Add($parts[0])
-            $tokens.Add($parts[1])
+            $type = Get-ClassDatabaseParameterTypeContract `
+                -Type $parts[1] `
+                -RecordOwner "Classes.lcb $($spec.Name)"
+            $tokens.Add($type.Base)
+            if ($type.Owner.Length -gt 0) {
+                $tokens.Add($type.Owner)
+            }
         }
         Assert-OrderedTokens `
             -Text $methodRecord `
             -Tokens $tokens.ToArray() `
             -TokenOwner "Classes.lcb $($spec.Name) ABI"
-        Assert-ClassDatabaseFunctionAbiRecord `
-            -RecordBytes $recordBytes `
-            -RecordText $record `
-            -FunctionName $spec.Name `
-            -IsVirtual $generated.Virtual `
-            -IsGlobal $generated.Global `
-            -Inputs @($spec.Inputs) `
-            -Outputs @($spec.Outputs) `
-            -RecordOwner "Classes.lcb $($spec.Name)"
     }
 
     $storageTokens = @(
@@ -4270,14 +4540,26 @@ function Assert-GeneratedDerivedMetadata {
             -Text $tcpRecord `
             -Tokens $fenceTokens.ToArray() `
             -TokenOwner 'Classes.lcb TCP callback fence storage ABI'
+        $tcpDisarmStart = Get-ClassDatabaseFunctionAbiStart `
+            -RecordBytes $tcpRecordBytes `
+            -RecordText $tcpRecord `
+            -FunctionName $TcpDisarmHelperSpec.Name `
+            -MethodKind 0x0B `
+            -IsVirtual $false `
+            -IsGlobal $false `
+            -InputCount ([uint32]$TcpDisarmHelperSpec.Inputs.Count) `
+            -RecordOwner 'Classes.lcb TCP DisarmRpcCallbackEndpoint'
         Assert-ClassDatabaseFunctionAbiRecord `
             -RecordBytes $tcpRecordBytes `
             -RecordText $tcpRecord `
             -FunctionName $TcpDisarmHelperSpec.Name `
+            -MethodKind 0x0B `
             -IsVirtual $false `
             -IsGlobal $false `
             -Inputs @($TcpDisarmHelperSpec.Inputs) `
             -Outputs @($TcpDisarmHelperSpec.Outputs) `
+            -ExpectedStart $tcpDisarmStart `
+            -RecordEnd $tcpRecord.Length `
             -RecordOwner 'Classes.lcb TCP DisarmRpcCallbackEndpoint'
     }
     elseif ($tcpClientCount -ne 0) {
@@ -4408,7 +4690,7 @@ function Assert-GeneratedIncludeRepresentation {
                 "$($Observed.Name) physical evidence does not match its text.")
         }
     }
-    if ($State -in @('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')) {
+    if ($State -in @('DerivedWired', 'DerivedCandidate')) {
         return
     }
 
@@ -4427,7 +4709,7 @@ function Assert-GeneratedIncludeRepresentation {
         ($Observed.RawBytes -eq $canonicalBytes) -and
             ($Observed.RawSha256 -ceq $canonicalSha256)
     }
-    elseif (($State -ceq 'VendorImported') -and
+    elseif (($State -in @('VendorImported', 'DerivedDeclaration')) -and
         ($Observed.EolStyle -ceq 'CRLF')) {
         ($Observed.RawBytes -eq $Expected.VendorCrLfBytes) -and
             ($Observed.RawSha256 -ceq $Expected.VendorCrLfSha256)
@@ -4592,8 +4874,7 @@ function Assert-GeneratedDerivedClientIncludeAbiContract {
     $stHeader = @($Observed | Where-Object { $_.Name -ceq 'channels.h' })[0]
     $publicHeader = @(
         $Observed | Where-Object { $_.Name -ceq 'lslpublictypes.h' })[0]
-    $derivedPresent =
-        $State -in @('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')
+    $derivedPresent = $State -in @('DerivedWired', 'DerivedCandidate')
     if (-not $derivedPresent) {
         foreach ($header in @($cHeader, $stHeader, $publicHeader)) {
             if ($header.Text.IndexOf(
@@ -5146,16 +5427,24 @@ function Assert-ProjectDefinitionRegistrations {
                 $derivedPath,
                 [StringComparison]::Ordinal)
         })
-    $derivedClasses = @($xml.SelectNodes(
-            "/Project/SigmatekFolders/Folder[@Name='Tools']/" +
-            "Folder[@Name='Communication']/" +
-            "Class[@Name='LMCUdpCallbackSender']"))
+    $derivedClasses = @($classNodes | Where-Object {
+            $_.GetAttribute('Name').Equals(
+                'LMCUdpCallbackSender',
+                [StringComparison]::Ordinal)
+        })
     $derivedFileCount = $derivedFiles.Count
     $derivedClassCount = $derivedClasses.Count
+    $derivedClassCountValid = if ($DerivedCount -eq 1) {
+        $derivedClassCount -in @(0, 1)
+    }
+    else {
+        $derivedClassCount -eq 0
+    }
     if (($derivedFileCount -ne $DerivedCount) -or
-        ($derivedClassCount -ne $DerivedCount)) {
+        (-not $derivedClassCountValid)) {
         Throw-UdpCallbackBlocker (
-            'project definition derived file/class registration count drifted.')
+            'project definition derived File registration or optional global ' +
+            'Class registration count drifted.')
     }
     foreach ($node in @($derivedFiles + $derivedClasses)) {
         if ($node.Attributes.Count -ne 1) {
@@ -5165,21 +5454,31 @@ function Assert-ProjectDefinitionRegistrations {
     }
     $canonical = ConvertTo-CanonicalLf -Text $ProjectDefinitionText
     if ($DerivedCount -eq 1) {
-        $linePatterns = @(
-            ('(?m)^[ \t]*<File Path="\.\\Class\\LMCUdpCallbackSender\\' +
-                'LMCUdpCallbackSender\.st"/>[ \t]*\n'),
-            '(?m)^[ \t]*<Class Name="LMCUdpCallbackSender"/>[ \t]*\n'
-        )
-        foreach ($linePattern in $linePatterns) {
-            $matches = @([regex]::Matches($canonical, $linePattern))
-            if ($matches.Count -ne 1) {
-                Throw-UdpCallbackBlocker (
-                    'project definition derived reverse-delta line count is ' +
-                    "$($matches.Count): $linePattern")
-            }
+        $fileLinePattern =
+            '(?m)^[ \t]*<File Path="\.\\Class\\LMCUdpCallbackSender\\' +
+            'LMCUdpCallbackSender\.st"/>[ \t]*(?:\n|\z)'
+        $fileMatches = @([regex]::Matches($canonical, $fileLinePattern))
+        if ($fileMatches.Count -ne 1) {
+            Throw-UdpCallbackBlocker (
+                'project definition derived reverse-delta File line count is ' +
+                "$($fileMatches.Count).")
+        }
+        $canonical = $canonical.Remove(
+            $fileMatches[0].Index,
+            $fileMatches[0].Length)
+
+        $classLinePattern =
+            '(?m)^[ \t]*<Class Name="LMCUdpCallbackSender"/>[ \t]*(?:\n|\z)'
+        $classMatches = @([regex]::Matches($canonical, $classLinePattern))
+        if ($classMatches.Count -gt 1) {
+            Throw-UdpCallbackBlocker (
+                'project definition derived reverse-delta optional Class line ' +
+                "count is $($classMatches.Count).")
+        }
+        if ($classMatches.Count -eq 1) {
             $canonical = $canonical.Remove(
-                $matches[0].Index,
-                $matches[0].Length)
+                $classMatches[0].Index,
+                $classMatches[0].Length)
         }
     }
     $canonicalBytes = $Utf8.GetBytes($canonical)
@@ -6030,15 +6329,103 @@ function Add-AsciiTextToList {
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
         [Collections.Generic.List[byte]]$List,
-        [Parameter(Mandatory = $true)][string]$Text
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
     )
 
-    Add-BytesToList -List $List -Bytes ([Text.Encoding]::ASCII.GetBytes($Text))
+    if ($Text.Length -gt 0) {
+        Add-BytesToList -List $List -Bytes ([Text.Encoding]::ASCII.GetBytes($Text))
+    }
+}
+
+function Add-SyntheticAaStringToList {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [Collections.Generic.List[byte]]$List,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    $length = [uint32]$Text.Length
+    Add-BytesToList -List $List -Bytes ([byte[]]@(
+            [byte]($length -band 0xFF),
+            [byte](($length -shr 8) -band 0xFF),
+            [byte](($length -shr 16) -band 0xFF),
+            0xAA))
+    Add-AsciiTextToList -List $List -Text $Text
+}
+
+function Add-SyntheticFunctionParameterMetadata {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [Collections.Generic.List[byte]]$List,
+        [Parameter(Mandatory = $true)][string]$Entry,
+        [Parameter(Mandatory = $true)][bool]$IsOutput,
+        [bool]$EaxBoundInput = $false,
+        [bool]$EaxBoundOutput = $false
+    )
+
+    $separator = $Entry.IndexOf(':', [StringComparison]::Ordinal)
+    $name = $Entry.Substring(0, $separator)
+    $type = Get-ClassDatabaseParameterTypeContract `
+        -Type ($Entry.Substring($separator + 1)) `
+        -RecordOwner 'synthetic Classes.lcb parameter'
+    $nameLength = [uint32]$name.Length
+    Add-BytesToList -List $List -Bytes ([byte[]]@(
+            0x00, 0x01,
+            [byte]($nameLength -band 0xFF),
+            [byte](($nameLength -shr 8) -band 0xFF),
+            [byte](($nameLength -shr 16) -band 0xFF),
+            0xAA))
+    Add-AsciiTextToList -List $List -Text $name
+    Add-SyntheticAaStringToList -List $List -Text ''
+    $descriptor = [byte[]]@(
+        0x01, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0xAA,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+    if ($type.Pointer) {
+        $descriptor[54] = 1
+    }
+    Add-BytesToList -List $List -Bytes $descriptor
+    Add-SyntheticAaStringToList -List $List -Text $type.Base
+    Add-SyntheticAaStringToList -List $List -Text $type.Owner
+
+    foreach ($unused in 1..5) {
+        Add-SyntheticAaStringToList -List $List -Text ''
+    }
+    Add-BytesToList -List $List -Bytes ([byte[]]@(
+            0x01, 0x00, 0x00, 0x00))
+    Add-BytesToList -List $List -Bytes ([byte[]]::new(18))
+    $List.Add(0xAA)
+    $tailEnd = if ($EaxBoundInput) {
+        [byte[]]@(0x10, 0x00, 0x00, 0x00, 0x01)
+    }
+    elseif (-not $IsOutput) {
+        [byte[]]@(0xFF, 0xFF, 0xFF, 0xFF, 0x01)
+    }
+    elseif ($EaxBoundOutput) {
+        [byte[]]@(0x10, 0x00, 0x00, 0x00, 0x00)
+    }
+    else {
+        [byte[]]@(0xFF, 0xFF, 0xFF, 0xFF, 0x00)
+    }
+    Add-BytesToList -List $List -Bytes $tailEnd
 }
 
 function New-SyntheticFunctionMetadataBytes {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
+        [byte]$MethodKind = 0x0B,
         [bool]$IsVirtual = $false,
         [Parameter(Mandatory = $true)][bool]$IsGlobal,
         [Parameter(Mandatory = $true)]
@@ -6049,62 +6436,44 @@ function New-SyntheticFunctionMetadataBytes {
     )
 
     $bytes = [Collections.Generic.List[byte]]::new()
+    $methodNameLength = [uint32]$Name.Length
+    Add-BytesToList -List $bytes -Bytes ([byte[]]@(
+            0x00, 0x01,
+            [byte]($methodNameLength -band 0xFF),
+            [byte](($methodNameLength -shr 8) -band 0xFF),
+            [byte](($methodNameLength -shr 16) -band 0xFF),
+            0xAA))
     Add-AsciiTextToList -List $bytes -Text $Name
     $inputCount = [uint32]$Inputs.Count
+    Add-BytesToList -List $bytes -Bytes (
+        Get-ClassDatabaseFunctionHeaderBytes `
+            -MethodKind $MethodKind `
+            -IsVirtual $IsVirtual `
+            -IsGlobal $IsGlobal `
+            -InputCount $inputCount)
+    for ($inputIndex = 0; $inputIndex -lt $Inputs.Count; $inputIndex++) {
+        $entry = $Inputs[$inputIndex]
+        Add-SyntheticFunctionParameterMetadata `
+            -List $bytes `
+            -Entry $entry `
+            -IsOutput $false `
+            -EaxBoundInput (($Name -ceq 'CyWork') -and ($inputIndex -eq 0))
+    }
+    $outputCount = [uint32]$Outputs.Count
     Add-BytesToList -List $bytes -Bytes ([byte[]]@(
-            0x0B, 0x00, 0x00, 0x00,
-            [byte]$(if ($IsVirtual) { 1 } else { 0 }),
-            [byte]$(if ($IsGlobal) { 1 } else { 0 }), 0x00, 0x00,
-            [byte]($inputCount -band 0xFF),
-            [byte](($inputCount -shr 8) -band 0xFF),
-            [byte](($inputCount -shr 16) -band 0xFF),
-            [byte](($inputCount -shr 24) -band 0xFF)))
-    foreach ($entry in $Inputs) {
-        $separator = $entry.IndexOf(':', [StringComparison]::Ordinal)
-        $name = $entry.Substring(0, $separator)
-        $type = $entry.Substring($separator + 1)
-        $nameLength = [uint32]$name.Length
-        Add-BytesToList -List $bytes -Bytes ([byte[]]@(
-                0x00, 0x01,
-                [byte]($nameLength -band 0xFF),
-                [byte](($nameLength -shr 8) -band 0xFF),
-                [byte](($nameLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $bytes -Text $name
-        $typeLength = [uint32]$type.Length
-        Add-BytesToList -List $bytes -Bytes ([byte[]]@(
-                [byte]($typeLength -band 0xFF),
-                [byte](($typeLength -shr 8) -band 0xFF),
-                [byte](($typeLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $bytes -Text $type
-    }
-    if ($Outputs.Count -eq 0) {
-        Add-BytesToList -List $bytes -Bytes ([byte[]]@(0, 0, 0, 0))
-    }
-    else {
-        $entry = $Outputs[0]
-        $separator = $entry.IndexOf(':', [StringComparison]::Ordinal)
-        $name = $entry.Substring(0, $separator)
-        $type = $entry.Substring($separator + 1)
-        $nameLength = [uint32]$name.Length
-        Add-BytesToList -List $bytes -Bytes ([byte[]]@(
-                0x01, 0x00, 0x00, 0x00,
-                0x00, 0x01,
-                [byte]($nameLength -band 0xFF),
-                [byte](($nameLength -shr 8) -band 0xFF),
-                [byte](($nameLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $bytes -Text $name
-        $typeLength = [uint32]$type.Length
-        Add-BytesToList -List $bytes -Bytes ([byte[]]@(
-                [byte]($typeLength -band 0xFF),
-                [byte](($typeLength -shr 8) -band 0xFF),
-                [byte](($typeLength -shr 16) -band 0xFF),
-                0xAA))
-        Add-AsciiTextToList -List $bytes -Text $type
+            [byte]($outputCount -band 0xFF),
+            [byte](($outputCount -shr 8) -band 0xFF),
+            [byte](($outputCount -shr 16) -band 0xFF),
+            [byte](($outputCount -shr 24) -band 0xFF)))
+    if ($Outputs.Count -eq 1) {
+        Add-SyntheticFunctionParameterMetadata `
+            -List $bytes `
+            -Entry $Outputs[0] `
+            -IsOutput $true `
+            -EaxBoundOutput ($Name -ceq 'CyWork')
     }
     Add-BytesToList -List $bytes -Bytes ([byte[]]@(0, 0, 0, 0xAA))
+    Add-BytesToList -List $bytes -Bytes ([byte[]]@(0, 0, 0, 0, 0, 0))
     return ,$bytes.ToArray()
 }
 
@@ -6247,10 +6616,18 @@ function New-SyntheticClassesDatabase {
         Add-BytesToList -List $bytes -Bytes (
             New-SyntheticFunctionMetadataBytes `
                 -Name $CyWorkSpec.Name `
+                -MethodKind 0x05 `
                 -IsVirtual $true `
                 -IsGlobal $true `
                 -Inputs @($CyWorkSpec.Inputs) `
                 -Outputs @($CyWorkSpec.Outputs))
+        Add-BytesToList -List $bytes -Bytes (
+            New-SyntheticFunctionMetadataBytes `
+                -Name $ErrorCallbackSpec.Name `
+                -IsVirtual $true `
+                -IsGlobal $true `
+                -Inputs @($ErrorCallbackSpec.Inputs) `
+                -Outputs @($ErrorCallbackSpec.Outputs))
         foreach ($spec in $PublicFunctionSpecs) {
             Add-BytesToList -List $bytes -Bytes (
                 New-SyntheticFunctionMetadataBytes `
@@ -6259,13 +6636,6 @@ function New-SyntheticClassesDatabase {
                     -Inputs @($spec.Inputs) `
                     -Outputs @($spec.Outputs))
         }
-        Add-BytesToList -List $bytes -Bytes (
-            New-SyntheticFunctionMetadataBytes `
-                -Name $ErrorCallbackSpec.Name `
-                -IsVirtual $true `
-                -IsGlobal $true `
-                -Inputs @($ErrorCallbackSpec.Inputs) `
-                -Outputs @($ErrorCallbackSpec.Outputs))
         foreach ($spec in $PrivateFunctionSpecs) {
             Add-BytesToList -List $bytes -Bytes (
                 New-SyntheticFunctionMetadataBytes `
@@ -6321,15 +6691,15 @@ function New-SyntheticDerivedSource {
 (*!
 <Class Name="LMCUdpCallbackSender" RealtimeTask="false" CyclicTask="true" DefCyclictime="10 ms" BackgroundTask="false" Sigmatek="false">
   <Channels>
-    <Server Name="QueueDepth" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
-    <Server Name="QueuedCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
-    <Server Name="RingAcceptedCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
-    <Server Name="AdmissionRetryCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
-    <Server Name="QueueFullDropCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
     <Server Name="AdmissionErrorDropCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="AdmissionRetryCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
     <Server Name="DisarmClearedCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
-    <Server Name="TransportErrorCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
     <Server Name="LastAdmissionResult" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="QueuedCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="QueueDepth" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="QueueFullDropCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="RingAcceptedCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
+    <Server Name="TransportErrorCount" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
   </Channels>
   <Network Name="LMCUdpCallbackSender">
     <Components>
@@ -6415,6 +6785,12 @@ LMCUdpCallbackSender : CLASS
         VAR_OUTPUT
             state (EAX) : UDINT;
         END_VAR;
+    FUNCTION VIRTUAL GLOBAL ErrorCallback
+        VAR_INPUT
+            FSM_UDP : _UDPTransceiver::_FSM_UDP_USER;
+            UdpError : _UDPTransceiver::_UDP_ERROR;
+            ErrCode : DINT;
+        END_VAR;
     FUNCTION GLOBAL ArmEndpoint
         VAR_INPUT
             ProtocolVersion : UINT;
@@ -6451,12 +6827,6 @@ LMCUdpCallbackSender : CLASS
         END_VAR
         VAR_OUTPUT
             Result : DINT;
-        END_VAR;
-    FUNCTION VIRTUAL GLOBAL ErrorCallback
-        VAR_INPUT
-            FSM_UDP : _UDPTransceiver::_FSM_UDP_USER;
-            UdpError : _UDPTransceiver::_UDP_ERROR;
-            ErrCode : DINT;
         END_VAR;
     FUNCTION EnsureSocketReady
         VAR_OUTPUT
@@ -6543,7 +6913,7 @@ TO_UDINT(0), "_UDPTransceiverInterface", 1$UINT, 3$UINT,
 (::LMCUdpCallbackSender.LastAdmissionResult.pMeth)$UINT, _CH_SVR$UINT, 0$UINT, TO_UDINT(0), "LastAdmissionResult",
 END_FUNCTION
 
-#define USER_CNT_LMCUdpCallbackSender 17
+#define USER_CNT_LMCUdpCallbackSender 14
 
 TYPE
     _LSL_STD_VMETH : STRUCT
@@ -6568,10 +6938,9 @@ FUNCTION LMCUdpCallbackSender::@STD
     _memcpy((#vmt.CmdTable)$^USINT, _UDPTransceiverInterface::ClassSvr.pMeth, nCmdSize);
     vmt.CmdTable.nCmds := nSTDCMD + USER_CNT_LMCUdpCallbackSender;
     vmt.CmdTable.CyWork := #CyWork();
+#pragma warning (disable : 74)
     vmt.UserFcts[12] := #ErrorCallback();
-    vmt.UserFcts[14] := #ArmEndpoint();
-    vmt.UserFcts[15] := #DisarmEndpoint();
-    vmt.UserFcts[16] := #PublishEvent();
+#pragma warning (default : 74)
     _UDPTransceiverInterface::ClassSvr.pMeth := StoreCmd(pCmd := #vmt.CmdTable, SHARED);
     IF _UDPTransceiverInterface::ClassSvr.pMeth THEN
         ret_code := C_OK;
@@ -7526,6 +7895,40 @@ function New-SyntheticProjectDefinition {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
     $path = Join-Path $root $ProjectDefinitionRelativePath.Replace('/', '\')
     $source = ConvertTo-CanonicalLf -Text ([IO.File]::ReadAllText($path, $Utf8))
+    $sourceBytes = $Utf8.GetBytes($source)
+    if (($sourceBytes.Count -ne
+            $ExpectedVendorImportedProjectDefinitionCanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $sourceBytes) -cne
+            $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256)) {
+        $filePattern =
+            '(?m)^[ \t]*<File Path="\.\\Class\\LMCUdpCallbackSender\\' +
+            'LMCUdpCallbackSender\.st"/>[ \t]*(?:\n|\z)'
+        $fileMatches = @([regex]::Matches($source, $filePattern))
+        if ($fileMatches.Count -ne 1) {
+            throw 'synthetic lcp cannot recover one derived File registration.'
+        }
+        $source = $source.Remove(
+            $fileMatches[0].Index,
+            $fileMatches[0].Length)
+        $classPattern =
+            '(?m)^[ \t]*<Class Name="LMCUdpCallbackSender"/>[ \t]*(?:\n|\z)'
+        $classMatches = @([regex]::Matches($source, $classPattern))
+        if ($classMatches.Count -gt 1) {
+            throw 'synthetic lcp has duplicate derived Class registrations.'
+        }
+        if ($classMatches.Count -eq 1) {
+            $source = $source.Remove(
+                $classMatches[0].Index,
+                $classMatches[0].Length)
+        }
+        $sourceBytes = $Utf8.GetBytes($source)
+        if (($sourceBytes.Count -ne
+                $ExpectedVendorImportedProjectDefinitionCanonicalLfBytes) -or
+            ((Get-BytesSha256 -Bytes $sourceBytes) -cne
+                $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256)) {
+            throw 'synthetic lcp does not reverse exactly to Gate A.'
+        }
+    }
     if ($State -ceq 'VendorImported') {
         return $source
     }
@@ -7538,13 +7941,6 @@ function New-SyntheticProjectDefinition {
     $source = $source.Replace(
         $vendorFile,
         $vendorFile + "`n" + $derivedFile)
-    $vendorClass = "`t`t`t`t" +
-        '<Class Name="_UDPTransceiverInterface"/>'
-    $derivedClass = "`t`t`t`t" +
-        '<Class Name="LMCUdpCallbackSender"/>'
-    $source = $source.Replace(
-        $vendorClass,
-        $vendorClass + "`n" + $derivedClass)
     return $source
 }
 
@@ -7642,20 +8038,23 @@ function New-SyntheticConfigObjects {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
     $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
     $source = [IO.File]::ReadAllText($path, $Utf8)
+    $canonical = ConvertTo-CanonicalLf -Text $source
+    $senderRowPattern =
+        '(?m)^0\$UINT, 0, 0, "LMCUDPCALLBACKSENDER",[ \t]*\n'
+    $senderRows = @([regex]::Matches($canonical, $senderRowPattern))
+    if (($senderRows.Count -ne 1) -or
+        ((Get-OrdinalCount `
+                -Text $canonical `
+                -Needle "FUNCTION GLOBAL TAB CONFIG_TABLES`n00120`$UINT,") -ne 1)) {
+        throw 'synthetic ConfigObjects B1 registry baseline drifted.'
+    }
     if ($State -ceq 'VendorImported') {
-        return $source
+        $rawRowPattern =
+            '(?m)^0\$UINT, 0, 0, "LMCUDPCALLBACKSENDER",[ \t]*(?:\r?\n)'
+        $source = [regex]::Replace($source, $rawRowPattern, '', 1)
+        return $source.Replace('00120$UINT', '00119$UINT')
     }
-    $source = ConvertTo-CanonicalLf -Text $source
-    $source = $source.Replace(
-        "FUNCTION GLOBAL TAB CONFIG_TABLES`n00119`$UINT,",
-        "FUNCTION GLOBAL TAB CONFIG_TABLES`n00120`$UINT,")
-    $anchor = 'ONE_CFG$UINT, 0, 0, "ONE_Comm_Network",'
-    if ((Get-OrdinalCount -Text $source -Needle $anchor) -ne 1) {
-        throw 'synthetic ConfigObjects ONE_CFG anchor drifted.'
-    }
-    return $source.Replace(
-        $anchor,
-        '0$UINT, 0, 0, "LMCUDPCALLBACKSENDER",' + "`n" + $anchor)
+    return $source
 }
 
 function New-SyntheticGeneratedIncludes {
@@ -7666,8 +8065,7 @@ function New-SyntheticGeneratedIncludes {
     )
 
     $vendorPresent = $State -cne 'Absent'
-    $derivedPresent =
-        $State -in @('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')
+    $derivedPresent = $State -in @('DerivedWired', 'DerivedCandidate')
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
     $textByName = @{}
     if ($vendorPresent) {
@@ -7911,12 +8309,89 @@ function Set-SyntheticGeneratedHeaderByte {
         throw "self-test fixture method is missing: $FunctionName"
     }
     $headerStart = $nameStart + $FunctionName.Length
-    if ($bytes[$headerStart] -ne 0x0B) {
+    $expectedKind = if ($FunctionName -ceq 'CyWork') { 0x05 } else { 0x0B }
+    if ($bytes[$headerStart] -ne $expectedKind) {
         throw "self-test fixture method header is malformed: $FunctionName"
     }
     $bytes[$headerStart + $HeaderOffset] = $Value
     $Snapshot.ClassesDatabaseBytes = $bytes
     $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($bytes)
+    Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
+}
+
+function Set-SyntheticClassesByteAt {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
+        [Parameter(Mandatory = $true)][int]$Index,
+        [Parameter(Mandatory = $true)][byte]$Value
+    )
+
+    if (($Index -lt 0) -or ($Index -ge $Snapshot.ClassesDatabaseBytes.Count)) {
+        throw 'synthetic Classes byte mutation index is out of range.'
+    }
+    $Snapshot.ClassesDatabaseBytes[$Index] = $Value
+    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString(
+        $Snapshot.ClassesDatabaseBytes)
+    Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
+}
+
+function Insert-SyntheticClassesByteAt {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
+        [Parameter(Mandatory = $true)][int]$Index,
+        [Parameter(Mandatory = $true)][byte]$Value
+    )
+
+    if (($Index -lt 0) -or ($Index -gt $Snapshot.ClassesDatabaseBytes.Count)) {
+        throw 'synthetic Classes byte insertion index is out of range.'
+    }
+    $updated = [byte[]]::new($Snapshot.ClassesDatabaseBytes.Count + 1)
+    [Array]::Copy(
+        $Snapshot.ClassesDatabaseBytes,
+        0,
+        $updated,
+        0,
+        $Index)
+    $updated[$Index] = $Value
+    [Array]::Copy(
+        $Snapshot.ClassesDatabaseBytes,
+        $Index,
+        $updated,
+        $Index + 1,
+        $Snapshot.ClassesDatabaseBytes.Count - $Index)
+    $Snapshot.ClassesDatabaseBytes = $updated
+    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
+    Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
+}
+
+function Insert-SyntheticClassesBytesAt {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
+        [Parameter(Mandatory = $true)][int]$Index,
+        [Parameter(Mandatory = $true)][byte[]]$Values
+    )
+
+    if (($Index -lt 0) -or ($Index -gt $Snapshot.ClassesDatabaseBytes.Count) -or
+        ($Values.Count -eq 0)) {
+        throw 'synthetic Classes byte-array insertion is invalid.'
+    }
+    $updated = [byte[]]::new(
+        $Snapshot.ClassesDatabaseBytes.Count + $Values.Count)
+    [Array]::Copy(
+        $Snapshot.ClassesDatabaseBytes,
+        0,
+        $updated,
+        0,
+        $Index)
+    [Array]::Copy($Values, 0, $updated, $Index, $Values.Count)
+    [Array]::Copy(
+        $Snapshot.ClassesDatabaseBytes,
+        $Index,
+        $updated,
+        $Index + $Values.Count,
+        $Snapshot.ClassesDatabaseBytes.Count - $Index)
+    $Snapshot.ClassesDatabaseBytes = $updated
+    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
 
@@ -8052,11 +8527,21 @@ function Set-SyntheticCallbackOutputCount {
             ($Snapshot.ClassesDatabaseBytes[$cursor + 3] -shl 8) -bor
             ($Snapshot.ClassesDatabaseBytes[$cursor + 4] -shl 16))
         $cursor += 6 + $nameLength
-        $typeLength = [uint32](
+        $commentLength = [uint32](
             $Snapshot.ClassesDatabaseBytes[$cursor] -bor
             ($Snapshot.ClassesDatabaseBytes[$cursor + 1] -shl 8) -bor
             ($Snapshot.ClassesDatabaseBytes[$cursor + 2] -shl 16))
-        $cursor += 4 + $typeLength
+        $cursor += 4 + $commentLength + 56
+        $baseTypeLength = [uint32](
+            $Snapshot.ClassesDatabaseBytes[$cursor] -bor
+            ($Snapshot.ClassesDatabaseBytes[$cursor + 1] -shl 8) -bor
+            ($Snapshot.ClassesDatabaseBytes[$cursor + 2] -shl 16))
+        $cursor += 4 + $baseTypeLength
+        $ownerLength = [uint32](
+            $Snapshot.ClassesDatabaseBytes[$cursor] -bor
+            ($Snapshot.ClassesDatabaseBytes[$cursor + 1] -shl 8) -bor
+            ($Snapshot.ClassesDatabaseBytes[$cursor + 2] -shl 16))
+        $cursor += 4 + $ownerLength + 48
     }
     $Snapshot.ClassesDatabaseBytes[$cursor] = $Value
     $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString(
@@ -8216,6 +8701,79 @@ function Invoke-UdpCallbackVerifierSelfTest {
         }
     }
 
+    $optionalClassPositive =
+        New-UdpCallbackTestSnapshot -State DerivedDeclaration
+    $vendorClass = "`t`t`t`t" +
+        '<Class Name="_UDPTransceiverInterface"/>'
+    $derivedClass = "`t`t`t`t" +
+        '<Class Name="LMCUdpCallbackSender"/>'
+    if ((Get-OrdinalCount `
+            -Text $optionalClassPositive.ProjectDefinitionText `
+            -Needle $vendorClass) -ne 1) {
+        throw 'synthetic optional derived Class anchor drifted.'
+    }
+    $optionalClassPositive.ProjectDefinitionText =
+        $optionalClassPositive.ProjectDefinitionText.Replace(
+            $vendorClass,
+            $vendorClass + "`n" + $derivedClass)
+    Update-SyntheticAsciiSnapshotEvidence `
+        -Snapshot $optionalClassPositive `
+        -TextProperty ProjectDefinitionText `
+        -BytesProperty ProjectDefinitionBytes `
+        -ShaProperty ProjectDefinitionSha256
+    $optionalClassResult = Assert-LasalUdpCallbackStateContract `
+        -Snapshot $optionalClassPositive `
+        -PermitAbsent $false `
+        -RequiredState DerivedDeclaration
+    if ($optionalClassResult.State -cne 'DerivedDeclaration') {
+        throw 'optional derived project Class positive fixture drifted.'
+    }
+
+    $recordBoundPositive =
+        New-UdpCallbackTestSnapshot -State DerivedDeclaration
+    $nextClassPath = '.\Class\TCPMotionInterface\TCPMotionInterface.st'
+    $nextClassIndex = $recordBoundPositive.ClassesDatabaseText.IndexOf(
+        $nextClassPath,
+        [StringComparison]::Ordinal)
+    if ($nextClassIndex -lt 0) {
+        throw 'synthetic sender record boundary drifted.'
+    }
+    $methodNameDecoy = [Text.Encoding]::ASCII.GetBytes('ArmEndpoint')
+    $recordBoundBytes = [byte[]]::new(
+        $recordBoundPositive.ClassesDatabaseBytes.Count +
+        $methodNameDecoy.Count)
+    [Array]::Copy(
+        $recordBoundPositive.ClassesDatabaseBytes,
+        0,
+        $recordBoundBytes,
+        0,
+        $nextClassIndex)
+    [Array]::Copy(
+        $methodNameDecoy,
+        0,
+        $recordBoundBytes,
+        $nextClassIndex,
+        $methodNameDecoy.Count)
+    [Array]::Copy(
+        $recordBoundPositive.ClassesDatabaseBytes,
+        $nextClassIndex,
+        $recordBoundBytes,
+        $nextClassIndex + $methodNameDecoy.Count,
+        $recordBoundPositive.ClassesDatabaseBytes.Count - $nextClassIndex)
+    $recordBoundPositive.ClassesDatabaseBytes = $recordBoundBytes
+    $recordBoundPositive.ClassesDatabaseText =
+        [Text.Encoding]::Latin1.GetString($recordBoundBytes)
+    $recordBoundPositive.ClassesBytes = $recordBoundBytes.Count
+    $recordBoundPositive.ClassesSha256 =
+        Get-BytesSha256 -Bytes $recordBoundBytes
+    $recordBoundResult = Assert-LasalUdpCallbackStateContract `
+        -Snapshot $recordBoundPositive `
+        -PermitAbsent $false `
+        -RequiredState DerivedDeclaration
+    if ($recordBoundResult.State -cne 'DerivedDeclaration') {
+        throw 'record-bound sender method positive fixture drifted.'
+    }
+
     $commentPositive = New-UdpCallbackTestSnapshot -State DerivedCandidate
     $commentBlock = Get-TcpFunctionBlock `
         -TcpSource $commentPositive.TcpSource -FunctionName ConnSocketInfo
@@ -8283,7 +8841,7 @@ function Invoke-UdpCallbackVerifierSelfTest {
         throw 'derived CRLF Include reverse-delta positive fixture drifted.'
     }
 
-    $multilineDerived = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+    $multilineDerived = New-UdpCallbackTestSnapshot -State DerivedWired
     $multilineCBlock = @'
 typedef struct CltChCmd_LMCUdpCallbackSender {
     struct SvrChCmd_DINT *pCh;
@@ -8313,8 +8871,8 @@ END_STRUCT;
     $multilineResult = Assert-LasalUdpCallbackStateContract `
         -Snapshot $multilineDerived `
         -PermitAbsent $false `
-        -RequiredState DerivedDeclaration
-    if ($multilineResult.State -cne 'DerivedDeclaration') {
+        -RequiredState DerivedWired
+    if ($multilineResult.State -cne 'DerivedWired') {
         throw 'derived multiline Include reverse-delta positive fixture drifted.'
     }
 
@@ -8439,39 +8997,40 @@ END_STRUCT;
                 -Snapshot $s -PermitAbsent $false
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
-        -Name 'premature derived generated client ABI' -Action {
-            $s = New-UdpCallbackTestSnapshot -State VendorImported
+        -Name 'DerivedDeclaration premature generated client ABI' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
             $s.GeneratedIncludes[0].Text +=
                 "`n$ExpectedDerivedCClientStructBlock"
             $null = Assert-LasalUdpCallbackStateContract `
-                -Snapshot $s -PermitAbsent $false -RequiredState VendorImported
+                -Snapshot $s -PermitAbsent $false `
+                -RequiredState DerivedDeclaration
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
-        -Name 'derived generated C client missing' -Action {
-            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+        -Name 'DerivedWired generated C client missing' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedWired
             $s.GeneratedIncludes[0].Text =
                 $s.GeneratedIncludes[0].Text.Replace(
                     $ExpectedDerivedCClientStructBlock, '')
             $null = Assert-LasalUdpCallbackStateContract `
-                -Snapshot $s -PermitAbsent $false -RequiredState DerivedDeclaration
+                -Snapshot $s -PermitAbsent $false -RequiredState DerivedWired
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'derived generated ST client pCmd drift' -Action {
-            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $s = New-UdpCallbackTestSnapshot -State DerivedWired
             $s.GeneratedIncludes[1].Text =
                 $s.GeneratedIncludes[1].Text.Replace(
                     'pCmd : ^LMCUdpCallbackSender;',
                     'pCmd : ^LMCUdpCallbackSenderDrift;')
             $null = Assert-LasalUdpCallbackStateContract `
-                -Snapshot $s -PermitAbsent $false -RequiredState DerivedDeclaration
+                -Snapshot $s -PermitAbsent $false -RequiredState DerivedWired
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'derived generated client duplicate' -Action {
-            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $s = New-UdpCallbackTestSnapshot -State DerivedWired
             $s.GeneratedIncludes[0].Text +=
                 "`n$ExpectedDerivedCClientStructBlock"
             $null = Assert-LasalUdpCallbackStateContract `
-                -Snapshot $s -PermitAbsent $false -RequiredState DerivedDeclaration
+                -Snapshot $s -PermitAbsent $false -RequiredState DerivedWired
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'vendor sError promoted to command server' -Action {
@@ -8653,6 +9212,78 @@ END_STRUCT;
             $s.NetworksDatabaseSha256 = 'DRIFT'
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'derived lcp File registration missing' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $derivedFile = "`t`t" +
+                '<File Path=".\Class\LMCUdpCallbackSender\' +
+                'LMCUdpCallbackSender.st"/>'
+            if ((Get-OrdinalCount `
+                    -Text $s.ProjectDefinitionText `
+                    -Needle $derivedFile) -ne 1) {
+                throw 'synthetic derived File anchor drifted.'
+            }
+            $s.ProjectDefinitionText =
+                $s.ProjectDefinitionText.Replace($derivedFile, '')
+            Update-SyntheticAsciiSnapshotEvidence `
+                -Snapshot $s `
+                -TextProperty ProjectDefinitionText `
+                -BytesProperty ProjectDefinitionBytes `
+                -ShaProperty ProjectDefinitionSha256
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false `
+                -RequiredState DerivedDeclaration
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'derived lcp File registration duplicate' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $derivedFile = "`t`t" +
+                '<File Path=".\Class\LMCUdpCallbackSender\' +
+                'LMCUdpCallbackSender.st"/>'
+            if ((Get-OrdinalCount `
+                    -Text $s.ProjectDefinitionText `
+                    -Needle $derivedFile) -ne 1) {
+                throw 'synthetic derived File anchor drifted.'
+            }
+            $s.ProjectDefinitionText =
+                $s.ProjectDefinitionText.Replace(
+                    $derivedFile,
+                    $derivedFile + "`n" + $derivedFile)
+            Update-SyntheticAsciiSnapshotEvidence `
+                -Snapshot $s `
+                -TextProperty ProjectDefinitionText `
+                -BytesProperty ProjectDefinitionBytes `
+                -ShaProperty ProjectDefinitionSha256
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false `
+                -RequiredState DerivedDeclaration
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'derived lcp optional Class registration duplicate' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $vendorClass = "`t`t`t`t" +
+                '<Class Name="_UDPTransceiverInterface"/>'
+            $derivedClass = "`t`t`t`t" +
+                '<Class Name="LMCUdpCallbackSender"/>'
+            if ((Get-OrdinalCount `
+                    -Text $s.ProjectDefinitionText `
+                    -Needle $vendorClass) -ne 1) {
+                throw 'synthetic optional derived Class anchor drifted.'
+            }
+            $s.ProjectDefinitionText =
+                $s.ProjectDefinitionText.Replace(
+                    $vendorClass,
+                    $vendorClass + "`n" + $derivedClass + "`n" +
+                    $derivedClass)
+            Update-SyntheticAsciiSnapshotEvidence `
+                -Snapshot $s `
+                -TextProperty ProjectDefinitionText `
+                -BytesProperty ProjectDefinitionBytes `
+                -ShaProperty ProjectDefinitionSha256
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false `
+                -RequiredState DerivedDeclaration
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'derived lcp unrelated valid registration drift' -Action {
@@ -9065,7 +9696,13 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             @('CyWork EAX output binding removed', 'state (EAX) : UDINT;', 'state : UDINT;'),
             @('CyWork command table removed', 'vmt.CmdTable.CyWork := #CyWork();', 'vmt.CmdTable.Init := #CyWork();'),
             @('standard base initialization removed', 'ret_code := _UDPTransceiverInterface::@STD();', 'ret_code := C_OK;'),
+            @('standard user count drift', '#define USER_CNT_LMCUdpCallbackSender 14', '#define USER_CNT_LMCUdpCallbackSender 17'),
+            @('standard warning disable missing', "#pragma warning (disable : 74)`n", ''),
+            @('standard warning default number drift', '#pragma warning (default : 74)', '#pragma warning (default : 75)'),
+            @('standard warning disable duplicate', '#pragma warning (disable : 74)', "#pragma warning (disable : 74)`n#pragma warning (disable : 74)"),
+            @('standard warning default precedes callback slot', "#pragma warning (disable : 74)`n    vmt.UserFcts[12] := #ErrorCallback();`n#pragma warning (default : 74)", "#pragma warning (disable : 74)`n#pragma warning (default : 74)`n    vmt.UserFcts[12] := #ErrorCallback();"),
             @('standard ErrorCallback slot drift', 'vmt.UserFcts[12] := #ErrorCallback();', 'vmt.UserFcts[11] := #ErrorCallback();'),
+            @('standard nonvirtual public slot leaked', 'vmt.UserFcts[12] := #ErrorCallback();', "vmt.UserFcts[12] := #ErrorCallback();`n    vmt.UserFcts[14] := #ArmEndpoint();"),
             @('standard StoreCmd removed', '_UDPTransceiverInterface::ClassSvr.pMeth := StoreCmd(pCmd := #vmt.CmdTable, SHARED);', '_UDPTransceiverInterface::ClassSvr.pMeth := #vmt.CmdTable;'),
             @('class table server count drift', '9$UINT, 0$UINT, 0$UINT,', '8$UINT, 0$UINT, 0$UINT,'),
             @('public function made private', 'FUNCTION GLOBAL ArmEndpoint', 'FUNCTION ArmEndpoint'),
@@ -9139,6 +9776,36 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
         $negativeCount += Assert-DerivedSourceReplacementNegativeFixture `
             -Name $mutation[0] -Old $mutation[1] -New $mutation[2]
     }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'DerivedDeclaration warning pair relocated before standard TYPE' `
+        -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
+            $scopedWarningBlock =
+                "#pragma warning (disable : 74)`n" +
+                "    vmt.UserFcts[12] := #ErrorCallback();`n" +
+                '#pragma warning (default : 74)'
+            $standardTypeAnchor = "TYPE`n    _LSL_STD_VMETH"
+            if ((Get-OrdinalCount `
+                        -Text $s.DerivedSource `
+                        -Needle $scopedWarningBlock) -ne 1 -or
+                (Get-OrdinalCount `
+                        -Text $s.DerivedSource `
+                        -Needle $standardTypeAnchor) -ne 1) {
+                throw 'synthetic warning relocation anchors drifted.'
+            }
+            $s.DerivedSource = $s.DerivedSource.Replace(
+                $scopedWarningBlock,
+                '    vmt.UserFcts[12] := #ErrorCallback();')
+            $s.DerivedSource = $s.DerivedSource.Replace(
+                $standardTypeAnchor,
+                "#pragma warning (disable : 74)`n" +
+                    "#pragma warning (default : 74)`n`n" +
+                    $standardTypeAnchor)
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s `
+                -PermitAbsent $false `
+                -RequiredState DerivedDeclaration
+        }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'DerivedDeclaration partial body' -Action {
             $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
@@ -9750,6 +10417,222 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
             Set-SyntheticGeneratedHeaderByte `
                 -Snapshot $s -FunctionName EnsureSocketReady -HeaderOffset 5 -Value 1
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork method kind drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            Set-SyntheticGeneratedHeaderByte `
+                -Snapshot $s -FunctionName CyWork -HeaderOffset 0 -Value 0x0B
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork outer name prefix drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $cyWork = $s.ClassesDatabaseText.IndexOf(
+                'CyWork',
+                [StringComparison]::Ordinal)
+            if (($cyWork -lt 6) -or
+                ($s.ClassesDatabaseBytes[$cyWork - 4] -ne 6)) {
+                throw 'synthetic CyWork outer prefix anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index ($cyWork - 4) -Value 7
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork input EAX register binding drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $cyWork = $s.ClassesDatabaseText.IndexOf(
+                'CyWork',
+                [StringComparison]::Ordinal)
+            $eax = $s.ClassesDatabaseText.IndexOf(
+                'EAX',
+                $cyWork,
+                [StringComparison]::Ordinal)
+            $type = $s.ClassesDatabaseText.IndexOf(
+                'UDINT',
+                $eax + 3,
+                [StringComparison]::Ordinal)
+            $register = $type + 5 + 4 + 43
+            if (($type -lt 0) -or
+                ($s.ClassesDatabaseBytes[$register] -ne 0x10)) {
+                throw 'synthetic CyWork input register anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index $register -Value 0xFF
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork output EAX register binding drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $cyWork = $s.ClassesDatabaseText.IndexOf(
+                'CyWork',
+                [StringComparison]::Ordinal)
+            $state = $s.ClassesDatabaseText.IndexOf(
+                'state',
+                $cyWork,
+                [StringComparison]::Ordinal)
+            $type = $s.ClassesDatabaseText.IndexOf(
+                'UDINT',
+                $state + 5,
+                [StringComparison]::Ordinal)
+            $register = $type + 5 + 4 + 43
+            if (($type -lt 0) -or
+                ($s.ClassesDatabaseBytes[$register] -ne 0x10)) {
+                throw 'synthetic CyWork output register anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index $register -Value 0xFF
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated PublishEvent pointer descriptor drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $publish = $s.ClassesDatabaseText.IndexOf(
+                'PublishEvent',
+                [StringComparison]::Ordinal)
+            $payload = $s.ClassesDatabaseText.IndexOf(
+                'pPayload',
+                $publish,
+                [StringComparison]::Ordinal)
+            $pointerFlag = $payload + 'pPayload'.Length + 4 + 54
+            if (($payload -lt 0) -or
+                ($s.ClassesDatabaseBytes[$pointerFlag] -ne 1)) {
+                throw 'synthetic pPayload pointer anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index $pointerFlag -Value 0
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated parameter descriptor prefix drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $arm = $s.ClassesDatabaseText.IndexOf(
+                'ArmEndpoint',
+                [StringComparison]::Ordinal)
+            $parameter = $s.ClassesDatabaseText.IndexOf(
+                'ProtocolVersion',
+                $arm,
+                [StringComparison]::Ordinal)
+            $descriptor = $parameter + 'ProtocolVersion'.Length + 4
+            if (($parameter -lt 0) -or
+                ($s.ClassesDatabaseBytes[$descriptor] -ne 1)) {
+                throw 'synthetic parameter descriptor anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index $descriptor -Value 2
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated qualified type owner drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $senderPath = $s.ClassesDatabaseText.IndexOf(
+                '.\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st',
+                [StringComparison]::Ordinal)
+            $errorCallback = $s.ClassesDatabaseText.IndexOf(
+                'ErrorCallback',
+                $senderPath,
+                [StringComparison]::Ordinal)
+            $baseType = $s.ClassesDatabaseText.IndexOf(
+                '_FSM_UDP_USER',
+                $errorCallback,
+                [StringComparison]::Ordinal)
+            $typeOwner = $s.ClassesDatabaseText.IndexOf(
+                '_UDPTransceiver',
+                $baseType + '_FSM_UDP_USER'.Length,
+                [StringComparison]::Ordinal)
+            if (($senderPath -lt 0) -or ($errorCallback -lt 0) -or
+                ($baseType -lt 0) -or ($typeOwner -lt 0)) {
+                throw 'synthetic sender qualified type owner anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s `
+                -Index ($typeOwner + '_UDPTransceiver'.Length - 1) `
+                -Value ([byte][char]'X')
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated output parameter prefix drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $arm = $s.ClassesDatabaseText.IndexOf(
+                'ArmEndpoint',
+                [StringComparison]::Ordinal)
+            $result = $s.ClassesDatabaseText.IndexOf(
+                'Result',
+                $arm,
+                [StringComparison]::Ordinal)
+            if (($result -lt 6) -or
+                ($s.ClassesDatabaseBytes[$result - 5] -ne 1)) {
+                throw 'synthetic output parameter prefix anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index ($result - 5) -Value 0
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork method trailer drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $cyWork = $s.ClassesDatabaseText.IndexOf(
+                'CyWork',
+                [StringComparison]::Ordinal)
+            $errorCallback = $s.ClassesDatabaseText.IndexOf(
+                'ErrorCallback',
+                $cyWork + 'CyWork'.Length,
+                [StringComparison]::Ordinal)
+            $nextMethodPrefix = $errorCallback - 6
+            if (($errorCallback -lt 6) -or
+                ($s.ClassesDatabaseBytes[$nextMethodPrefix - 1] -ne 0)) {
+                throw 'synthetic CyWork trailer anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index ($nextMethodPrefix - 1) -Value 1
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated CyWork method cursor gap' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $cyWork = $s.ClassesDatabaseText.IndexOf(
+                'CyWork',
+                [StringComparison]::Ordinal)
+            $errorCallback = $s.ClassesDatabaseText.IndexOf(
+                'ErrorCallback',
+                $cyWork + 'CyWork'.Length,
+                [StringComparison]::Ordinal)
+            if ($errorCallback -lt 6) {
+                throw 'synthetic CyWork cursor-gap anchor drifted.'
+            }
+            Insert-SyntheticClassesByteAt `
+                -Snapshot $s -Index ($errorCallback - 6) -Value 0
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'generated unexpected method after FenceMatches' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $tcpPath = $s.ClassesDatabaseText.IndexOf(
+                '.\Class\TCPMotionInterface\TCPMotionInterface.st',
+                [StringComparison]::Ordinal)
+            if ($tcpPath -lt 0) {
+                throw 'synthetic post-Fence method insertion anchor drifted.'
+            }
+            $unexpected = New-SyntheticFunctionMetadataBytes `
+                -Name UnexpectedSenderMethod `
+                -IsGlobal $false `
+                -Inputs @() `
+                -Outputs @()
+            Insert-SyntheticClassesBytesAt `
+                -Snapshot $s -Index $tcpPath -Values $unexpected
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
         }
