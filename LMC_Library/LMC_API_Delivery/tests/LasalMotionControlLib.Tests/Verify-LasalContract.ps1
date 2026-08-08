@@ -64,6 +64,17 @@ param(
 
     [switch]$AllowUdpCallbackPreImportAbsent,
 
+    [ValidateSet(
+        'Auto',
+        'Absent',
+        'VendorImported',
+        'DerivedDeclaration',
+        'DerivedWired',
+        'DerivedCandidate')]
+    [string]$UdpCallbackExpectedState = 'Auto',
+
+    [switch]$AllowUdpCallbackDerivedCapture,
+
     [switch]$UdpCallbackVerifierSelfTestOnly
 )
 
@@ -27149,6 +27160,8 @@ $udpCallbackVerifierArguments = @{
     VerifyCurrent = $true
     RepositoryRoot = $RepositoryRoot
     AllowPreImportAbsent = $AllowUdpCallbackPreImportAbsent.IsPresent
+    ExpectedState = $UdpCallbackExpectedState
+    AllowDerivedCapture = $AllowUdpCallbackDerivedCapture.IsPresent
 }
 & $udpCallbackVerifierPath @udpCallbackVerifierArguments
 $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
