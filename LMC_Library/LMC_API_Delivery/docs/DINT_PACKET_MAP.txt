@@ -1797,6 +1797,21 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   and records an actual-tree DerivedCandidate PASS. Gate B1, B2, and C remain
   capture-only with ProductionApproved=false and NeedsRebaseline=true; these
   manifests and synthetic verifier fixtures are not production evidence.
+- Main-wrapper parameter wiring began in a3a419e and was finalized in a6b5d5f.
+  The committed wrapper explicitly supports
+  -UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture.
+  Its current physical identity is 2061458 bytes with SHA-256
+  DC9E0B02851E73265A75F2F90F1B9BA385A2E571B010BD1D8EDC4F06F36E306F.
+  The full Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1
+  -UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture
+  run passed in 233.562 s with that wrapper hash unchanged before and after.
+  This is full SourceOnly consumer evidence only and does not change the
+  capture-only/nonproduction decision.
+- A VS2019 MSBuild Release build of LasalMotionControlLib.Tests succeeded. The
+  custom runner reported TOTAL 1100, PASSED 1100, FAILED 0, including callback
+  codec, InitialV2WakeHint, and session-fencing coverage. This is static PC
+  evidence, not live LmcConnection version-2 negotiation, UDP receive, or
+  dispatch proof.
 - The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker
   completion, zero errors, and a UI summary of 76 warnings. The relevant log
   contained no ERROR, FATAL, CInvalidArgException, or failed record. The 21 new

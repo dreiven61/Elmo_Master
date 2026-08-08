@@ -339,6 +339,21 @@ cancelled rather than resolved by copying a demo dependency.
   Gate A -> B1 -> B2 -> C lineage. Commit `70c08ea` records that candidate and
   manifest. The decision remains `ProductionApproved=false` and
   `NeedsRebaseline=true`; this is not production or PLC-runtime approval.
+- Main-wrapper parameter wiring began in `a3a419e` and was finalized in
+  `a6b5d5f`. The committed wrapper explicitly supports
+  `-UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture`.
+  Its current physical identity is `2061458` bytes with SHA-256
+  `DC9E0B02851E73265A75F2F90F1B9BA385A2E571B010BD1D8EDC4F06F36E306F`.
+  The full
+  `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1 -UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture`
+  run passed in `233.562 s`, with that wrapper hash unchanged before and after.
+  This proves full SourceOnly wrapper consumption of the candidate only; it does
+  not change the capture-only/nonproduction decision above.
+- A VS2019 MSBuild Release build of `LasalMotionControlLib.Tests` succeeded, and
+  the custom test runner reported `TOTAL 1100, PASSED 1100, FAILED 0`. This set
+  includes callback codec, `InitialV2WakeHint`, and session-fencing coverage. It
+  is static PC evidence, not proof of live `LmcConnection` version-2 negotiation,
+  UDP receive, or dispatch.
 
 ## Derived sender class contract
 
