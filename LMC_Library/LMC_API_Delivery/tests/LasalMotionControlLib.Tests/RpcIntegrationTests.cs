@@ -214,7 +214,13 @@ namespace LasalMotionControlLib.Tests
                     var mutableCopy = e.Payload;
                     mutableCopy[0] = 0;
                     receivedPayload = e.Payload;
+                    var mutableRemoteEndPoint = e.RemoteEndPoint;
+                    var receivedPort = mutableRemoteEndPoint.Port;
+                    mutableRemoteEndPoint.Port = receivedPort == 1 ? 2 : 1;
                     callbackRemoteEndPoint = e.RemoteEndPoint;
+                    AssertEx.Equal(
+                        receivedPort,
+                        callbackRemoteEndPoint.Port);
                     callbackSignal.Set();
                 };
 

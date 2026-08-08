@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,15 +86,21 @@ namespace LasalMotionControlLib
         private TcpClient client;
         private UdpClient callbackListener;
         private Thread callbackThread;
+        private ManualResetEventSlim callbackReceiveStartGate;
         private IPAddress expectedCallbackAddress;
+        private IPEndPoint callbackLocalEndPoint;
         private volatile bool callbackListenerRunning;
         private int connectionState;
         private long rejectedCallbackCount;
+        private long acceptedCallbackWakeHintCount;
+        private long duplicateCallbackWakeHintCount;
+        private long outOfOrderCallbackWakeHintCount;
         private long sessionGeneration;
         private long connectionLifetimeGeneration;
         private long clientLifetimeGeneration;
         private long clientSessionGeneration;
         private long callbackListenerLifetimeGeneration;
+        private LMCCallbackReceiverFence callbackReceiverFence;
         private long groupEnableWaitRegistryGeneration = long.MinValue;
         private long axisPowerOnWaitRegistryGeneration = long.MinValue;
 
@@ -157,9 +164,20 @@ namespace LasalMotionControlLib
 
         public int CallbackPort { get; private set; }
         public uint EventMask { get; private set; }
-        public IPEndPoint CallbackLocalEndPoint { get; private set; }
+        public IPEndPoint CallbackLocalEndPoint
+        {
+            get
+            {
+                lock (callbackSync)
+                {
+                    return CloneEndPoint(callbackLocalEndPoint);
+                }
+            }
+        }
         public LMC_Response RpcSessionInitResponse { get; private set; }
         public LMC_Response RpcCallbackRegistrationResponse { get; private set; }
+        public LMCCallbackRegistrationV2Response
+            RpcCallbackRegistrationV2Response { get; private set; }
         public LMC_Response RpcCloseResponse { get; private set; }
         public Exception LastTransportException { get; private set; }
         public Exception LastInitializationException { get; private set; }
@@ -170,8 +188,31 @@ namespace LasalMotionControlLib
         {
             get { return Interlocked.Read(ref rejectedCallbackCount); }
         }
+        public long AcceptedCallbackWakeHintCount
+        {
+            get
+            {
+                return Interlocked.Read(ref acceptedCallbackWakeHintCount);
+            }
+        }
+        public long DuplicateCallbackWakeHintCount
+        {
+            get
+            {
+                return Interlocked.Read(ref duplicateCallbackWakeHintCount);
+            }
+        }
+        public long OutOfOrderCallbackWakeHintCount
+        {
+            get
+            {
+                return Interlocked.Read(ref outOfOrderCallbackWakeHintCount);
+            }
+        }
 
         public event EventHandler<LMCCallbackEventArgs> CallbackReceived;
+        public event EventHandler<LMCCallbackWakeHintEventArgs>
+            CallbackWakeHintReceived;
         public event EventHandler<LMCCallbackErrorEventArgs> CallbackListenerError;
         public event EventHandler<LMCConnectionStateChangedEventArgs>
             ConnectionStateChanged;
@@ -386,6 +427,13 @@ namespace LasalMotionControlLib
                 clientSessionGeneration = 0;
             }
 
+            var detachedObserver = options
+                .SafetyPreemptionClientDetachedObserver;
+            if (detachedObserver != null)
+            {
+                detachedObserver();
+            }
+
             var abortiveLingerApplied =
                 TryApplyAbortiveLinger(currentClient);
             var exception =
@@ -480,6 +528,20 @@ namespace LasalMotionControlLib
 
             var parsedRemoteAddress = ParseIPv4Address(remoteAddress, "remoteAddress");
             var parsedLocalAddress = ParseIPv4Address(localAddress, "localAddress");
+            var openingCallbackCookie = 0UL;
+            if (options.CallbackRegistrationMode
+                == LMCCallbackRegistrationMode.Version2WakeHint)
+            {
+                if (!LMCCallbackProtocolPolicy.InitialV2WakeHint
+                    .ApprovesRegistrationMask(eventMask))
+                {
+                    throw new ArgumentException(
+                        "Version-2 wake-hint registration requires event-mask bit 1.",
+                        "eventMask");
+                }
+
+                openingCallbackCookie = CreateCallbackCookie();
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             // Reserve the new session before the previous transport is closed.
@@ -504,6 +566,9 @@ namespace LasalMotionControlLib
             LastInitializationException = null;
             LastCloseException = null;
             Interlocked.Exchange(ref rejectedCallbackCount, 0);
+            Interlocked.Exchange(ref acceptedCallbackWakeHintCount, 0);
+            Interlocked.Exchange(ref duplicateCallbackWakeHintCount, 0);
+            Interlocked.Exchange(ref outOfOrderCallbackWakeHintCount, 0);
             var localEndPoint = new IPEndPoint(parsedLocalAddress, 0);
             expectedCallbackAddress = parsedRemoteAddress;
             SetConnectionState(LMCConnectionState.Connecting, null);
@@ -518,6 +583,7 @@ namespace LasalMotionControlLib
                 openingClient,
                 openingLifetimeGeneration,
                 openingSessionGeneration);
+            var activateV2CallbackListener = false;
 
             try
             {
@@ -542,27 +608,91 @@ namespace LasalMotionControlLib
                         "RPC session init");
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    StartCallbackListener(
-                        parsedLocalAddress,
-                        callbackPort,
-                        openingLifetimeGeneration,
-                        openingSessionGeneration);
-                    var registeredCallbackPort = CallbackLocalEndPoint.Port;
+                    int registeredCallbackPort;
+                    if (options.CallbackRegistrationMode
+                        == LMCCallbackRegistrationMode.LegacyRaw)
+                    {
+                        registeredCallbackPort = StartCallbackListener(
+                            parsedLocalAddress,
+                            callbackPort,
+                            openingLifetimeGeneration,
+                            openingSessionGeneration);
 
-                    RpcCallbackRegistrationResponse = ParseShortAcknowledgement(
-                        ExchangeCore(
-                            LMC_Frame.RpcCallbackRegistration(
+                        RpcCallbackRegistrationResponse =
+                            ParseShortAcknowledgement(
+                                ExchangeCore(
+                                    LMC_Frame.RpcCallbackRegistration(
+                                        eventMask,
+                                        registeredCallbackPort,
+                                        parsedLocalAddress.GetAddressBytes()),
+                                    openingClient,
+                                    true,
+                                    cancellationToken,
+                                    AnySessionGeneration),
+                                "RPC callback registration");
+                        EnsureSuccess(
+                            "RPC callback registration",
+                            RpcCallbackRegistrationResponse);
+                    }
+                    else
+                    {
+                        IPEndPoint boundCallbackEndPoint;
+                        BindCallbackListener(
+                            parsedLocalAddress,
+                            callbackPort,
+                            openingLifetimeGeneration,
+                            out boundCallbackEndPoint);
+                        registeredCallbackPort = boundCallbackEndPoint.Port;
+                        var registration =
+                            new LMCCallbackRegistrationV2Request(
                                 eventMask,
                                 registeredCallbackPort,
-                                parsedLocalAddress.GetAddressBytes()),
-                            openingClient,
-                            true,
-                            cancellationToken,
-                            AnySessionGeneration),
-                        "RPC callback registration");
-                    EnsureSuccess(
-                        "RPC callback registration",
-                        RpcCallbackRegistrationResponse);
+                                parsedLocalAddress.GetAddressBytes(),
+                                options.CallbackRequestedMaxDatagramBytes,
+                                (uint)(openingCallbackCookie & uint.MaxValue),
+                                (uint)(openingCallbackCookie >> 32));
+                        RpcCallbackRegistrationResponse =
+                            ParseCallbackRegistrationV2Envelope(
+                            ExchangeCore(
+                                LMCCallbackProtocol
+                                    .CreateRegistrationV2Request(
+                                        registration,
+                                        LMCCallbackProtocolPolicy
+                                            .InitialV2WakeHint),
+                                openingClient,
+                                true,
+                                cancellationToken,
+                                AnySessionGeneration));
+                        EnsureSuccess(
+                            "RPC callback version-2 registration",
+                            RpcCallbackRegistrationResponse);
+                        var parsedRegistration = LMCCallbackProtocol
+                            .ParseRegistrationV2Response(
+                                RpcCallbackRegistrationResponse.Payload,
+                                registration,
+                                parsedRemoteAddress.GetAddressBytes(),
+                                openingLifetimeGeneration,
+                                LMCCallbackProtocolPolicy.InitialV2WakeHint);
+                        if (!parsedRegistration.IsAccepted)
+                        {
+                            throw new InvalidDataException(
+                                "RPC callback version-2 registration response "
+                                + "failed validation: "
+                                + parsedRegistration.Error
+                                + ".");
+                        }
+
+                        RpcCallbackRegistrationV2Response =
+                            parsedRegistration.Value;
+                        PrepareBoundV2CallbackListener(
+                            parsedRemoteAddress,
+                            openingLifetimeGeneration,
+                            openingSessionGeneration,
+                            new LMCCallbackReceiverFence(
+                                parsedRegistration.Value.SessionFence,
+                                LMCCallbackProtocolPolicy.InitialV2WakeHint));
+                        activateV2CallbackListener = true;
+                    }
                     cancellationToken.ThrowIfCancellationRequested();
 
                     CallbackPort = registeredCallbackPort;
@@ -572,6 +702,11 @@ namespace LasalMotionControlLib
                 cancellationToken.ThrowIfCancellationRequested();
                 IsRpcInitialized = true;
                 SetConnectionState(LMCConnectionState.Connected, null);
+                if (activateV2CallbackListener)
+                {
+                    ActivatePreparedV2CallbackListener(
+                        openingLifetimeGeneration);
+                }
             }
             catch (Exception ex)
             {
@@ -1872,22 +2007,38 @@ namespace LasalMotionControlLib
             return address;
         }
 
-        private void StartCallbackListener(
+        private static IPEndPoint CloneEndPoint(IPEndPoint value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            return new IPEndPoint(
+                new IPAddress(value.Address.GetAddressBytes()),
+                value.Port);
+        }
+
+        private int StartCallbackListener(
             IPAddress localAddress,
             int callbackPort,
             long lifetimeGeneration,
             long openingSessionGeneration)
         {
-            StopCallbackListener();
-
-            var listener = new UdpClient(new IPEndPoint(localAddress, callbackPort));
+            IPEndPoint boundEndPoint;
+            var listener = BindCallbackListener(
+                localAddress,
+                callbackPort,
+                lifetimeGeneration,
+                out boundEndPoint);
             var callbackSourceAddress = expectedCallbackAddress;
             var thread = new Thread(
                 () => ReceiveCallbackLoop(
                     listener,
                     callbackSourceAddress,
                     lifetimeGeneration,
-                    openingSessionGeneration))
+                    openingSessionGeneration,
+                    null))
             {
                 IsBackground = true,
                 Name = "LMC RPC callback listener"
@@ -1895,14 +2046,187 @@ namespace LasalMotionControlLib
 
             lock (callbackSync)
             {
-                callbackListener = listener;
-                CallbackLocalEndPoint = (IPEndPoint)listener.Client.LocalEndPoint;
+                if (!ReferenceEquals(callbackListener, listener)
+                    || callbackListenerLifetimeGeneration
+                        != lifetimeGeneration)
+                {
+                    throw new InvalidOperationException(
+                        "The callback listener binding is no longer current.");
+                }
+
                 callbackListenerRunning = true;
                 callbackThread = thread;
-                callbackListenerLifetimeGeneration = lifetimeGeneration;
             }
 
             thread.Start();
+            return boundEndPoint.Port;
+        }
+
+        private UdpClient BindCallbackListener(
+            IPAddress localAddress,
+            int callbackPort,
+            long lifetimeGeneration,
+            out IPEndPoint boundEndPoint)
+        {
+            StopCallbackListener();
+
+            var listener = new UdpClient(
+                new IPEndPoint(localAddress, callbackPort));
+            boundEndPoint = CloneEndPoint(
+                (IPEndPoint)listener.Client.LocalEndPoint);
+            lock (callbackSync)
+            {
+                callbackListener = listener;
+                callbackLocalEndPoint = CloneEndPoint(boundEndPoint);
+                callbackListenerRunning = false;
+                callbackThread = null;
+                callbackReceiveStartGate = null;
+                callbackReceiverFence = null;
+                callbackListenerLifetimeGeneration = lifetimeGeneration;
+            }
+
+            return listener;
+        }
+
+        private void PrepareBoundV2CallbackListener(
+            IPAddress sourceAddress,
+            long lifetimeGeneration,
+            long openingSessionGeneration,
+            LMCCallbackReceiverFence receiverFence)
+        {
+            if (receiverFence == null)
+            {
+                throw new ArgumentNullException("receiverFence");
+            }
+
+            UdpClient listener;
+            lock (callbackSync)
+            {
+                listener = callbackListener;
+                if (listener == null
+                    || callbackListenerLifetimeGeneration
+                        != lifetimeGeneration
+                    || callbackThread != null
+                    || callbackListenerRunning)
+                {
+                    throw new InvalidOperationException(
+                        "The version-2 callback listener binding is not ready.");
+                }
+            }
+
+            var startGate = new ManualResetEventSlim(false);
+            var thread = new Thread(
+                () =>
+                {
+                    try
+                    {
+                        ReceiveCallbackLoop(
+                            listener,
+                            sourceAddress,
+                            lifetimeGeneration,
+                            openingSessionGeneration,
+                            receiverFence);
+                    }
+                    finally
+                    {
+                        startGate.Dispose();
+                    }
+                })
+            {
+                IsBackground = true,
+                Name = "LMC RPC version-2 callback listener"
+            };
+            var threadStarted = false;
+
+            try
+            {
+                lock (callbackSync)
+                {
+                    if (!ReferenceEquals(callbackListener, listener)
+                        || callbackListenerLifetimeGeneration
+                            != lifetimeGeneration
+                        || callbackThread != null
+                        || callbackListenerRunning)
+                    {
+                        throw new InvalidOperationException(
+                            "The version-2 callback listener binding is no longer current.");
+                    }
+
+                    callbackReceiverFence = receiverFence;
+                    callbackThread = thread;
+                    callbackReceiveStartGate = startGate;
+                    callbackListenerRunning = true;
+                }
+
+                thread.Start();
+                threadStarted = true;
+                lock (callbackSync)
+                {
+                    if (!callbackListenerRunning
+                        || !ReferenceEquals(callbackListener, listener)
+                        || !ReferenceEquals(callbackThread, thread)
+                        || callbackListenerLifetimeGeneration
+                            != lifetimeGeneration)
+                    {
+                        throw new InvalidOperationException(
+                            "The version-2 callback listener was invalidated during start.");
+                    }
+                }
+            }
+            catch
+            {
+                lock (callbackSync)
+                {
+                    if (ReferenceEquals(callbackThread, thread)
+                        && callbackListenerLifetimeGeneration
+                            == lifetimeGeneration)
+                    {
+                        callbackThread = null;
+                        callbackReceiveStartGate = null;
+                        callbackReceiverFence = null;
+                        callbackListenerRunning = false;
+                    }
+                }
+                if (threadStarted)
+                {
+                    try
+                    {
+                        startGate.Set();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                }
+                else
+                {
+                    startGate.Dispose();
+                }
+                throw;
+            }
+        }
+
+        private void ActivatePreparedV2CallbackListener(
+            long lifetimeGeneration)
+        {
+            ManualResetEventSlim startGate;
+            lock (callbackSync)
+            {
+                if (callbackListener == null
+                    || callbackListenerLifetimeGeneration
+                        != lifetimeGeneration
+                    || callbackReceiverFence == null
+                    || callbackThread == null
+                    || callbackReceiveStartGate == null
+                    || !callbackListenerRunning)
+                {
+                    throw new InvalidOperationException(
+                        "The version-2 callback listener is not prepared.");
+                }
+
+                startGate = callbackReceiveStartGate;
+            }
+
+            startGate.Set();
         }
 
         private void StopCallbackListener()
@@ -1914,6 +2238,7 @@ namespace LasalMotionControlLib
         {
             UdpClient listener;
             Thread thread;
+            ManualResetEventSlim startGate;
 
             lock (callbackSync)
             {
@@ -1928,9 +2253,12 @@ namespace LasalMotionControlLib
                 callbackListenerRunning = false;
                 listener = callbackListener;
                 thread = callbackThread;
+                startGate = callbackReceiveStartGate;
                 callbackListener = null;
                 callbackThread = null;
-                CallbackLocalEndPoint = null;
+                callbackReceiveStartGate = null;
+                callbackReceiverFence = null;
+                callbackLocalEndPoint = null;
                 callbackListenerLifetimeGeneration = 0;
             }
 
@@ -1939,34 +2267,159 @@ namespace LasalMotionControlLib
                 listener.Close();
             }
 
+            if (startGate != null)
+            {
+                try
+                {
+                    startGate.Set();
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
+
             if (thread != null
                 && thread.IsAlive
                 && Thread.CurrentThread.ManagedThreadId != thread.ManagedThreadId)
             {
                 thread.Join(options.CallbackThreadJoinTimeoutMilliseconds);
             }
+
         }
 
         private void ReceiveCallbackLoop(
             UdpClient ownedListener,
             IPAddress ownedSourceAddress,
             long ownedLifetimeGeneration,
-            long openingSessionGeneration)
+            long openingSessionGeneration,
+            LMCCallbackReceiverFence ownedReceiverFence)
         {
+            ManualResetEventSlim startGate = null;
+            if (ownedReceiverFence != null)
+            {
+                lock (callbackSync)
+                {
+                    if (ReferenceEquals(callbackListener, ownedListener)
+                        && callbackListenerLifetimeGeneration
+                            == ownedLifetimeGeneration)
+                    {
+                        startGate = callbackReceiveStartGate;
+                    }
+                }
+                if (startGate == null)
+                {
+                    return;
+                }
+
+                var observer = options
+                    .CallbackThreadReadyBeforeGateWaitObserver;
+                if (observer != null)
+                {
+                    observer();
+                }
+                startGate.Wait();
+            }
+
+            var v2ReceiveBuffer = ownedReceiverFence == null
+                ? null
+                : new byte[
+                    ownedReceiverFence.SessionFence.MaxDatagramBytes];
+
             while (IsCurrentCallbackListener(
                 ownedListener,
                 ownedLifetimeGeneration))
             {
                 try
                 {
-                    var remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                    var payload = ownedListener.Receive(ref remoteEndPoint);
+                    IPEndPoint remoteEndPoint;
+                    byte[] payload;
+                    if (ownedReceiverFence == null)
+                    {
+                        remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                        payload = ownedListener.Receive(ref remoteEndPoint);
+                    }
+                    else
+                    {
+                        EndPoint sourceEndPoint =
+                            new IPEndPoint(IPAddress.Any, 0);
+                        int receivedBytes;
+                        try
+                        {
+                            receivedBytes = ownedListener.Client.ReceiveFrom(
+                                v2ReceiveBuffer,
+                                0,
+                                v2ReceiveBuffer.Length,
+                                SocketFlags.None,
+                                ref sourceEndPoint);
+                        }
+                        catch (SocketException ex)
+                        {
+                            if (ex.SocketErrorCode != SocketError.MessageSize)
+                            {
+                                throw;
+                            }
+
+                            TryIncrementRejectedV2CallbackCount(
+                                ownedListener,
+                                ownedLifetimeGeneration,
+                                openingSessionGeneration);
+                            continue;
+                        }
+
+                        remoteEndPoint = (IPEndPoint)sourceEndPoint;
+                        payload = new byte[receivedBytes];
+                        if (receivedBytes != 0)
+                        {
+                            Buffer.BlockCopy(
+                                v2ReceiveBuffer,
+                                0,
+                                payload,
+                                0,
+                                receivedBytes);
+                        }
+                    }
 
                     if (!IsCurrentCallbackListener(
                         ownedListener,
                         ownedLifetimeGeneration))
                     {
                         break;
+                    }
+
+                    if (ownedReceiverFence != null)
+                    {
+                        var decision = ownedReceiverFence.Evaluate(
+                            payload,
+                            ownedLifetimeGeneration,
+                            remoteEndPoint.Address.GetAddressBytes());
+                        var decisionRecorded = TryRecordV2CallbackDecision(
+                            ownedListener,
+                            ownedLifetimeGeneration,
+                            openingSessionGeneration,
+                            decision);
+                        if (!decisionRecorded)
+                        {
+                            NotifyCallbackV2DatagramProcessed();
+                            continue;
+                        }
+                        if (!decision.IsAccepted)
+                        {
+                            NotifyCallbackV2DatagramProcessed();
+                            continue;
+                        }
+
+                        OnCallbackWakeHintReceived(
+                            ownedListener,
+                            ownedLifetimeGeneration,
+                            new LMCCallbackWakeHintEventArgs(
+                                decision.WakeHint,
+                                remoteEndPoint,
+                                DateTime.UtcNow,
+                                this,
+                                ownedLifetimeGeneration,
+                                openingSessionGeneration));
+                        NotifyCallbackV2DatagramProcessed();
+                        continue;
                     }
 
                     if (options.ValidateCallbackSourceAddress
@@ -2024,6 +2477,39 @@ namespace LasalMotionControlLib
             }
 
             var handler = CallbackReceived;
+            if (handler != null)
+            {
+                try
+                {
+                    handler(this, e);
+                }
+                catch (Exception ex)
+                {
+                    OnCallbackListenerError(
+                        ownedListener,
+                        ownedLifetimeGeneration,
+                        new LMCCallbackErrorEventArgs(ex));
+                }
+            }
+        }
+
+        private void OnCallbackWakeHintReceived(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            LMCCallbackWakeHintEventArgs e)
+        {
+            if (!IsCurrentCallbackListener(
+                ownedListener,
+                ownedLifetimeGeneration))
+            {
+                return;
+            }
+            if (!e.BelongsToCurrentSession(this))
+            {
+                return;
+            }
+
+            var handler = CallbackWakeHintReceived;
             if (handler != null)
             {
                 try
@@ -2211,6 +2697,25 @@ namespace LasalMotionControlLib
             }
         }
 
+        internal bool IsCurrentCallbackV2Session(
+            long expectedLifetimeGeneration,
+            long expectedSessionGeneration)
+        {
+            lock (lifecycleStateSync)
+            {
+                lock (callbackSync)
+                {
+                    return IsPublishedCallbackSessionLocked(
+                            expectedLifetimeGeneration,
+                            expectedSessionGeneration)
+                        && callbackListenerRunning
+                        && callbackListener != null
+                        && callbackListenerLifetimeGeneration
+                            == expectedLifetimeGeneration;
+                }
+            }
+        }
+
         private void TryIncrementRejectedCallbackCount(
             UdpClient ownedListener,
             long ownedLifetimeGeneration)
@@ -2229,6 +2734,144 @@ namespace LasalMotionControlLib
             }
         }
 
+        private void TryIncrementRejectedV2CallbackCount(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            long ownedSessionGeneration)
+        {
+            lock (lifecycleStateSync)
+            {
+                lock (callbackSync)
+                {
+                    if (!IsPublishedCallbackSessionLocked(
+                            ownedLifetimeGeneration,
+                            ownedSessionGeneration)
+                        || !callbackListenerRunning
+                        || !ReferenceEquals(callbackListener, ownedListener)
+                        || callbackListenerLifetimeGeneration
+                            != ownedLifetimeGeneration)
+                    {
+                        return;
+                    }
+
+                    Interlocked.Increment(ref rejectedCallbackCount);
+                }
+            }
+        }
+
+        private bool TryRecordV2CallbackDecision(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            long ownedSessionGeneration,
+            LMCCallbackFenceDecision decision)
+        {
+            if (decision == null)
+            {
+                throw new ArgumentNullException("decision");
+            }
+
+            lock (lifecycleStateSync)
+            {
+                lock (callbackSync)
+                {
+                    if (!IsPublishedCallbackSessionLocked(
+                            ownedLifetimeGeneration,
+                            ownedSessionGeneration)
+                        || !callbackListenerRunning
+                        || !ReferenceEquals(callbackListener, ownedListener)
+                        || callbackListenerLifetimeGeneration
+                            != ownedLifetimeGeneration)
+                    {
+                        return false;
+                    }
+
+                    if (decision.IsAccepted)
+                    {
+                        Interlocked.Increment(
+                            ref acceptedCallbackWakeHintCount);
+                        return true;
+                    }
+
+                    Interlocked.Increment(ref rejectedCallbackCount);
+                    if (decision.Kind
+                        == LMCCallbackFenceDecisionKind.DuplicateSequence)
+                    {
+                        Interlocked.Increment(
+                            ref duplicateCallbackWakeHintCount);
+                    }
+                    else if (decision.Kind
+                        == LMCCallbackFenceDecisionKind.OutOfOrderSequence)
+                    {
+                        Interlocked.Increment(
+                            ref outOfOrderCallbackWakeHintCount);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        private bool IsPublishedCallbackSessionLocked(
+            long expectedLifetimeGeneration,
+            long expectedSessionGeneration)
+        {
+            return expectedLifetimeGeneration > 0
+                && expectedSessionGeneration > 0
+                && State == LMCConnectionState.Connected
+                && client != null
+                && connectionLifetimeGeneration
+                    == expectedLifetimeGeneration
+                && clientLifetimeGeneration
+                    == expectedLifetimeGeneration
+                && sessionGeneration == expectedSessionGeneration
+                && clientSessionGeneration == expectedSessionGeneration;
+        }
+
+        private void NotifyCallbackV2DatagramProcessed()
+        {
+            var observer = options.CallbackV2DatagramProcessedObserver;
+            if (observer != null)
+            {
+                observer();
+            }
+        }
+
+        private ulong CreateCallbackCookie()
+        {
+            var factory = options.CallbackCookieFactory;
+            if (factory != null)
+            {
+                var deterministicCookie = factory();
+                if (deterministicCookie == 0)
+                {
+                    throw new InvalidOperationException(
+                        "The callback cookie factory returned zero.");
+                }
+
+                return deterministicCookie;
+            }
+
+            var bytes = new byte[8];
+            using (var random = RandomNumberGenerator.Create())
+            {
+                while (true)
+                {
+                    random.GetBytes(bytes);
+                    var cookie = ((ulong)bytes[0])
+                        | ((ulong)bytes[1] << 8)
+                        | ((ulong)bytes[2] << 16)
+                        | ((ulong)bytes[3] << 24)
+                        | ((ulong)bytes[4] << 32)
+                        | ((ulong)bytes[5] << 40)
+                        | ((ulong)bytes[6] << 48)
+                        | ((ulong)bytes[7] << 56);
+                    if (cookie != 0)
+                    {
+                        return cookie;
+                    }
+                }
+            }
+        }
+
         internal static LMC_Response ParseShortAcknowledgement(
             byte[] raw,
             string operation)
@@ -2244,6 +2887,51 @@ namespace LasalMotionControlLib
             }
 
             return response;
+        }
+
+        internal static LMC_Response ParseCallbackRegistrationV2Envelope(
+            byte[] raw)
+        {
+            var response = Parse(raw);
+            EnsureExactPayloadLength(
+                response,
+                LMCCallbackProtocol.RegistrationV2ResponsePayloadBytes,
+                "RPC callback version-2 registration");
+
+            var payload = response.Payload;
+            response.HasCommandResult = true;
+            response.CommandStatus = LMC_Frame.ReadUInt16(payload, 0);
+            response.ErrorId = ReadInt16(payload, 2);
+
+            if (response.HeaderStatus != 0)
+            {
+                throw new InvalidDataException(
+                    "RPC callback version-2 response outer status must be zero.");
+            }
+
+            if (response.CommandStatus == 0 && response.ErrorId == 0)
+            {
+                return response;
+            }
+
+            if (response.CommandStatus == 1 && response.ErrorId == -1)
+            {
+                for (var index = 4; index < payload.Length; index++)
+                {
+                    if (payload[index] != 0)
+                    {
+                        throw new InvalidDataException(
+                            "RPC callback version-2 failure response must "
+                            + "zero every accepted-fence field.");
+                    }
+                }
+
+                return response;
+            }
+
+            throw new InvalidDataException(
+                "RPC callback version-2 response must contain either "
+                + "Status=0/ErrorId=0 or Status=1/ErrorId=-1.");
         }
 
         private static void SetFunctionResult(
@@ -2491,6 +3179,7 @@ namespace LasalMotionControlLib
             expectedCallbackAddress = null;
             RpcSessionInitResponse = null;
             RpcCallbackRegistrationResponse = null;
+            RpcCallbackRegistrationV2Response = null;
         }
 
         private static void CloseClientQuietly(TcpClient targetClient)

@@ -52,8 +52,8 @@ The captured `0x405C` frame confirms that the controller receives a PC IPv4
 address and UDP port. No actual Maestro callback datagram has been captured.
 The existing listener therefore continues to expose legacy payloads as raw
 bytes. The `LMC2` format below is an explicitly approved project-local version-2
-schema, not a reverse-engineered Maestro payload, and is not active on the live
-connection path yet.
+schema, not a reverse-engineered Maestro payload. It is available only through
+an explicit PC opt-in; it is not the default and has no production PLC publisher.
 
 The active/default legacy `0x405C` wire shape is unchanged: its payload remains
 exactly 12 bytes (`event mask UDINT + callback port DINT + IPv4 BYTE[4]`) and the
@@ -99,11 +99,24 @@ prove the comparison on the target runtime.
 - `LMCCallbackEventArgs.SessionGeneration`
 - `LMCCallbackEventArgs.BelongsTo(connection)`
 - `LMCCallbackEventArgs.BelongsToCurrentSession(connection)`
+- `LMCConnectionOptions.CallbackRegistrationMode` (default `LegacyRaw`)
+- `LMCConnectionOptions.CallbackRequestedMaxDatagramBytes` (default `512`)
+- `CallbackWakeHintReceived`: typed version-2 wake-hint event
+- `RpcCallbackRegistrationV2Response`: immutable accepted registration data
+- `RejectedCallbackCount` (shared raw/version-2 total),
+  `AcceptedCallbackWakeHintCount`, `DuplicateCallbackWakeHintCount`, and
+  `OutOfOrderCallbackWakeHintCount`
+- `LMCCallbackWakeHintEventArgs.WakeHint`, `RemoteEndPoint`, `ReceivedAtUtc`, and
+  `SessionGeneration`
+- `LMCCallbackWakeHintEventArgs.BelongsTo(connection)` and
+  `BelongsToCurrentSession(connection)`
 
 The payload is intentionally raw bytes. `LMCCallbackEventArgs.Payload` returns
 a defensive copy, and the default listener accepts datagrams only from the
 configured controller IPv4. Do not parse the bytes until real callback captures
-exist.
+exist. `CallbackReceived` is a `LegacyRaw` event only and is never raised by the
+version-2 path. Both raw and typed event endpoint properties, and
+`CallbackLocalEndPoint`, return defensive endpoint copies.
 
 Each raw callback event also carries the RPC session generation captured by its
 owning listener. `BelongsTo` checks the owning `LMCConnection` instance;
@@ -122,11 +135,17 @@ raw bytes only and do not assign those bytes a typed meaning.
 2. Close any previous command socket and callback listener.
 3. Open command TCP socket.
 4. Send `0x8080`.
-5. Start callback UDP listener on `localAddress:callbackPort`.
+5. Bind callback UDP on `localAddress:callbackPort`.
 6. Read the listener's actual bound port. This differs when the caller requested
    port `0` and the OS selected an ephemeral port.
-7. Send `0x405C` with the same local address and actual bound port.
-8. Mark the connection as RPC-initialized.
+7. In `LegacyRaw` mode, start the existing receive thread and exchange the exact
+   12-byte `0x405C` request and 4-byte ACK.
+8. In `Version2WakeHint` mode, exchange the exact 32-byte request and 20-byte
+   response, validate and install the accepted fence, then start a receive thread
+   behind a closed gate. UDP sent before the TCP response stays kernel-queued.
+9. Mark the connection RPC-initialized and `Connected`.
+10. Release the version-2 receive gate. No typed callback dispatch occurs while
+    the connection is still `Connecting`.
 
 After session replacement begins, any initialization failure closes the new
 command socket and callback listener and records `LastInitializationException`.
@@ -158,6 +177,11 @@ listener object and connection-lifetime generation. A late exception from an
 old handler is therefore suppressed after a replacement session starts and
 cannot contaminate that session's error event or rejected count.
 
+Typed provenance and version-2 counter recording additionally require a
+`Connected` state and the exact published TCP client lifetime/session tuple. A
+safety-preemption detach therefore invalidates wake hints before its later UDP
+listener stop, even during that deliberate detach-to-stop window.
+
 The example WPF application repeats the provenance check after its dispatcher
 queue is reached. It drops a callback unless the sender is still the active
 connection and `BelongsToCurrentSession` is true. An event accepted by an old
@@ -177,12 +201,16 @@ resolves the actual tree as `DerivedCandidate`, with
 The Gate C sender code can build and queue the bounded version-2 datagram, but
 there are zero production `PublishEvent(...)` call sites. This is dormant
 candidate code, not proof that the PLC emits a callback. The PC delivery source
-contains the bounded version-2 codec, callback models, the named
-`LMCCallbackProtocolPolicy.InitialV2WakeHint` policy, and static
-codec/fence/production-policy tests. `LmcConnection` still sends the legacy
-12-byte `0x405C` registration, expects its 4-byte response, and uses the raw
-listener path. Version-2 negotiation, live receive fencing, typed dispatch, and
-authoritative TCP follow-up are not wired or qualified.
+now keeps `LMCCallbackRegistrationMode.LegacyRaw` as the default and provides an
+explicit `Version2WakeHint` opt-in. The opt-in path sends the exact 32-byte
+request, parses the exact 20-byte response, installs the accepted
+source/BootId/session/cookie/length/policy/sequence fence, and dispatches only
+`LMCCallbackWakeHintEventArgs`; it never raises the raw `CallbackReceived` event.
+Its fixed receive buffer is bounded by the accepted maximum, and an oversized
+UDP datagram is rejected without an attacker-sized allocation. The connection
+layer deliberately performs no authoritative state mutation or automatic TCP
+query. Authoritative TCP follow-up and a production PLC publisher remain
+unwired and unqualified.
 
 No PLC runtime result is claimed by this document. PLC download, a live UDP
 datagram and receiver/dispatch capture, exact duplicate/mismatch registration
@@ -208,8 +236,8 @@ Wire activation is split into two independently qualified phases.
    the `LMC2` datagram envelope. Only Phase 2 provides PLC BootId, PLC session
    epoch, 64-bit client cookie, and 64-bit datagram sequence fencing. Its initial
    production policy permits only event type 1, event-mask bit 1, delivery class
-   0, and a zero-byte payload. It remains inactive until the PC receiver enforces
-   the complete fence and wake-hint policy.
+   0, and a zero-byte payload. The opt-in PC receiver now enforces the complete
+   fence and wake-hint policy; PLC production publication remains inactive.
 
 Phase 1 must not be described as same-IP/same-port stale-datagram safe. The
 current C# listener object/lifetime checks stop an old receive thread from
@@ -349,11 +377,12 @@ cancelled rather than resolved by copying a demo dependency.
   run passed in `233.562 s`, with that wrapper hash unchanged before and after.
   This proves full SourceOnly wrapper consumption of the candidate only; it does
   not change the capture-only/nonproduction decision above.
-- A VS2019 MSBuild Release build of `LasalMotionControlLib.Tests` succeeded, and
-  the custom test runner reported `TOTAL 1100, PASSED 1100, FAILED 0`. This set
-  includes callback codec, `InitialV2WakeHint`, and session-fencing coverage. It
-  is static PC evidence, not proof of live `LmcConnection` version-2 negotiation,
-  UDP receive, or dispatch.
+- A .NET SDK MSBuild Release build of `LasalMotionControlLib.Tests` succeeded,
+  and
+  the custom test runner reported `TOTAL 1110, PASSED 1110, FAILED 0`. This set
+  includes callback codec, `InitialV2WakeHint`, session fencing, and opt-in
+  `LmcConnection` TCP/UDP fake-peer integration coverage. It is PC-side evidence,
+  not proof of a downloaded PLC publisher or live machine packet path.
 
 ## Derived sender class contract
 
@@ -829,14 +858,16 @@ length. A 12-byte request receives the legacy 4-byte ACK. A 32-byte request is
 version 2 and receives a 20-byte response. Any other length is rejected without
 mutating the active endpoint.
 
-Legacy remains the PC default. Although the bounded version-2 codec and golden
-tests exist, version-2 registration stays inactive until `LmcConnection` wires
-the accepted BootId/session/cookie fence, strict parser, sequence policy, and TCP
-wake-hint follow-up. A connection chooses one registration shape before endpoint
-commit; it does not downgrade inside the same TCP session after a version-2
-rejection. This prevents an ambiguous partial v2/legacy endpoint. A fallback
-attempt, if approved later, starts a new RPC session and a new listener
-generation.
+Legacy remains the PC default. `LMCConnectionOptions.CallbackRegistrationMode`
+must be set explicitly to `Version2WakeHint` to select version 2; the requested
+maximum defaults to 512 bytes and is constrained to `52..512`. The opt-in path
+generates a nonzero cryptographic cookie before replacing an existing session,
+binds UDP before registration, installs the accepted fence, starts a gated
+receiver, and releases that gate only after `Connected` publication completes.
+A connection chooses one registration shape before endpoint commit; it does not
+downgrade inside the same TCP session after a version-2 rejection. This prevents
+an ambiguous partial v2/legacy endpoint. A fallback attempt, if approved later,
+starts a new RPC session and a new listener generation.
 
 All multi-byte fields are little-endian. The exact 32-byte request payload is:
 
@@ -906,30 +937,36 @@ field in version 2.
 | 50 | 1 | DeliveryClass `BYTE` | initial production value `0` only |
 | 51 | 1 | Flags `BYTE` | `0` in version 2 |
 
-The implemented receiver-fence codec validates source IPv4, exact datagram
-length, all fixed header fields, BootId, PLC session epoch, cookie, event-mask
-bit, payload length, and sequence when it is invoked. Its direct tests prove
-rejection results and counters for duplicate, stale, malformed, wrong-cookie,
-wrong-session, wrong-boot, and unknown-class datagrams. `LmcConnection` does not
-invoke that codec or dispatch typed v2 application handlers yet. Local
-`LMCCallbackEventArgs.SessionGeneration`
-remains a separate PC-side listener provenance fence. The sender assigns `1` to
-the first enqueue, but the receiver accepts its first valid datagram as the
-baseline because earlier UDP datagrams may be lost. Thereafter unsigned delta
-`0` is duplicate, delta `>= 0x8000000000000000` is out of order, and a delta in
-`1..0x7FFFFFFFFFFFFFFF` is a forward sequence, including a loss gap.
+The version-2 `LmcConnection` receive path invokes the receiver-fence codec and
+validates source IPv4, exact datagram length, all fixed header fields, BootId,
+PLC session epoch, cookie, event-mask bit, payload length, and sequence. Source
+validation remains mandatory even when the legacy
+`ValidateCallbackSourceAddress` option is false. The live receiver object stays
+private so application code cannot advance its sequence. Public scalar counters
+report accepted wake hints, total rejections, duplicates, and out-of-order
+packets. `LMCCallbackWakeHintEventArgs.SessionGeneration` and
+`BelongsToCurrentSession` provide the separate PC-side provenance fence. The
+sender assigns `1` to the first enqueue, but the receiver accepts its first valid
+datagram as the baseline because earlier UDP datagrams may be lost. Thereafter
+unsigned delta `0` is duplicate, delta `>= 0x8000000000000000` is out of order,
+and a delta in `1..0x7FFFFFFFFFFFFFFF` is a forward sequence, including a loss
+gap.
 
 The named `LMCCallbackProtocolPolicy.InitialV2WakeHint` policy and its targeted
 tests require registration mask bit 1, `EventMaskBit=1`, `EventType=1`,
 `DeliveryClass=0`, zero payload, and registration `Status=0/ErrorId=0`, while
-accepting every `EventId : UDINT`. These static tests do not prove live
-`LmcConnection` negotiation, receiver dispatch, or TCP follow-up.
+accepting every `EventId : UDINT`. Socket integration tests now prove opt-in PC
+negotiation, strict receive rejection, typed dispatch, handler-failure
+continuation, and reconnect invalidation against a fake TCP/UDP peer. They do
+not prove a PLC publisher, a real packet path, or authoritative TCP follow-up.
 
-When the live version-2 path is wired, its handler treats even a valid envelope
-as a wake hint. It uses the TCP API to read the referenced status/outcome and
-uses only that TCP response to update command completion or safety state. UDP
-loss, duplication, or reordering therefore changes notification latency and
-counters, not command truth.
+The connection handler treats even a valid envelope only as a wake hint. It does
+not infer a TCP command from opaque `EventId` and does not query automatically,
+because a reconnect between event receipt and a query would create a stale-wake
+TOCTOU hazard. The next application tranche must bind an approved event meaning
+to a generation-pinned authoritative TCP query and use only that TCP response to
+update command completion or safety state. UDP loss, duplication, or reordering
+therefore changes notification latency and counters, not command truth.
 
 ## Exact IDE and Network handoff
 
@@ -1094,13 +1131,21 @@ passes as `DerivedCandidate`; its manifest and verifier identities are recorded
 above. It remains capture-only with `ProductionApproved=false` and
 `NeedsRebaseline=true`, not a production approval.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
-`CallbackProtocolTests.cs`, and `CallbackSessionFencingTests.cs` are implemented.
-The initial policy and its codec tests are implemented. `LmcConnection` still
-uses the legacy `12/4` registration path, and no production `PublishEvent(...)`
-caller exists. Live wiring still requires targeted additions to
-`RequestGoldenTests.cs`, `ResponseParserTests.cs`, `RpcIntegrationTests.cs`,
-`RpcLifecycleConcurrencyTests.cs`, and `FakeRpcServer.cs`, followed by PLC
-download and live UDP receiver/dispatch packet proof.
+`CallbackProtocolTests.cs`, `CallbackSessionFencingTests.cs`,
+`CallbackV2ConnectionTests.cs`, the response-envelope tests in
+`ResponseParserTests.cs`, the 20-byte transport ceiling in
+`ResponsePayloadLimitTests.cs`, the raw endpoint-copy regression in
+`RpcIntegrationTests.cs`, and the opt-in `LmcConnection` negotiation/receive
+path are implemented. The default remains legacy `12/4`; version 2 is selected
+only by
+`LMCCallbackRegistrationMode.Version2WakeHint`.
+`CallbackV2ConnectionTests.cs` owns nine focused connection tests covering the
+exact request/response, typed dispatch, strict rejection matrix, bounded
+oversized receive, gate ordering and ownership, handler failure, reentrant
+close, safety-detach provenance, no downgrade, and reconnect invalidation. No
+production `PublishEvent(...)` caller or approved event-to-authoritative-query
+mapping exists. PLC download and live UDP receiver/dispatch packet proof remain
+required.
 
 Minimum acceptance matrix:
 

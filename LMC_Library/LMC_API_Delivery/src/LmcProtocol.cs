@@ -79,6 +79,7 @@ namespace LasalMotionControlLib
     {
         private readonly byte[] payload;
         private readonly LMCConnection ownerConnection;
+        private readonly IPEndPoint remoteEndPoint;
         private readonly long connectionLifetimeGeneration;
         private readonly long sessionGeneration;
 
@@ -97,7 +98,7 @@ namespace LasalMotionControlLib
             this.connectionLifetimeGeneration =
                 connectionLifetimeGeneration;
             this.sessionGeneration = sessionGeneration;
-            RemoteEndPoint = remoteEndPoint;
+            this.remoteEndPoint = CloneEndPoint(remoteEndPoint);
             ReceivedAtUtc = receivedAtUtc;
         }
 
@@ -106,7 +107,10 @@ namespace LasalMotionControlLib
             get { return (byte[])payload.Clone(); }
         }
 
-        public IPEndPoint RemoteEndPoint { get; private set; }
+        public IPEndPoint RemoteEndPoint
+        {
+            get { return CloneEndPoint(remoteEndPoint); }
+        }
         public DateTime ReceivedAtUtc { get; private set; }
 
         public long SessionGeneration
@@ -126,6 +130,18 @@ namespace LasalMotionControlLib
                 && connection.IsCurrentCallbackSession(
                     connectionLifetimeGeneration,
                     sessionGeneration);
+        }
+
+        private static IPEndPoint CloneEndPoint(IPEndPoint value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            return new IPEndPoint(
+                new IPAddress(value.Address.GetAddressBytes()),
+                value.Port);
         }
     }
 

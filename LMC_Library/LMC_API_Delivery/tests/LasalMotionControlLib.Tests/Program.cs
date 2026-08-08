@@ -58,6 +58,7 @@ namespace LasalMotionControlLib.Tests
             RequestGoldenTests.Register(tests);
             CallbackProtocolTests.Register(tests);
             CallbackSessionFencingTests.Register(tests);
+            CallbackV2ConnectionTests.Register(tests);
             ResponseParserTests.Register(tests);
             NegativeWireToolTests.Register(tests);
             TopologyIoQualificationToolTests.Register(tests);

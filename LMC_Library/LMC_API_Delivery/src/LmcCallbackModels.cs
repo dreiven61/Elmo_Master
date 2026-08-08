@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 
 namespace LasalMotionControlLib
 {
@@ -475,6 +476,73 @@ namespace LasalMotionControlLib
         public bool RequiresAuthoritativeTcpQuery
         {
             get { return true; }
+        }
+    }
+
+    public sealed class LMCCallbackWakeHintEventArgs : EventArgs
+    {
+        private readonly LMCConnection ownerConnection;
+        private readonly IPEndPoint remoteEndPoint;
+        private readonly long connectionLifetimeGeneration;
+        private readonly long sessionGeneration;
+
+        internal LMCCallbackWakeHintEventArgs(
+            LMCCallbackWakeHint wakeHint,
+            IPEndPoint remoteEndPoint,
+            DateTime receivedAtUtc,
+            LMCConnection ownerConnection,
+            long connectionLifetimeGeneration,
+            long sessionGeneration)
+        {
+            if (wakeHint == null)
+            {
+                throw new ArgumentNullException("wakeHint");
+            }
+
+            WakeHint = wakeHint;
+            this.remoteEndPoint = CloneEndPoint(remoteEndPoint);
+            ReceivedAtUtc = receivedAtUtc;
+            this.ownerConnection = ownerConnection;
+            this.connectionLifetimeGeneration =
+                connectionLifetimeGeneration;
+            this.sessionGeneration = sessionGeneration;
+        }
+
+        public LMCCallbackWakeHint WakeHint { get; private set; }
+        public IPEndPoint RemoteEndPoint
+        {
+            get { return CloneEndPoint(remoteEndPoint); }
+        }
+        public DateTime ReceivedAtUtc { get; private set; }
+        public long SessionGeneration
+        {
+            get { return sessionGeneration; }
+        }
+
+        public bool BelongsTo(LMCConnection connection)
+        {
+            return connection != null
+                && ReferenceEquals(ownerConnection, connection);
+        }
+
+        public bool BelongsToCurrentSession(LMCConnection connection)
+        {
+            return BelongsTo(connection)
+                && connection.IsCurrentCallbackV2Session(
+                    connectionLifetimeGeneration,
+                    sessionGeneration);
+        }
+
+        private static IPEndPoint CloneEndPoint(IPEndPoint value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            return new IPEndPoint(
+                new IPAddress(value.Address.GetAddressBytes()),
+                value.Port);
         }
     }
 

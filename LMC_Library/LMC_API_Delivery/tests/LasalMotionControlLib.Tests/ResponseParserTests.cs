@@ -13,6 +13,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Response.Envelope.Valid", EnvelopeValid);
             tests.Add("Response.Envelope.Malformed", EnvelopeMalformed);
             tests.Add("Response.Acknowledgement.FourAndEightBytes", AcknowledgementFourAndEightBytes);
+            tests.Add(
+                "Response.CallbackV2.ExactSuccessAndCanonicalFailure",
+                CallbackV2ExactSuccessAndCanonicalFailure);
             tests.Add("Response.Lookup.Reference", LookupReference);
             tests.Add("Response.LegacyPrimitive.ValueAndFailure", LegacyPrimitiveValueAndFailure);
             tests.Add("Response.Typed.ReadStatus", TypedReadStatus);
@@ -135,6 +138,52 @@ namespace LasalMotionControlLib.Tests
                 () => LMCConnection.ParseShortAcknowledgement(
                     TestFrame.Response(0, new byte[8]),
                     "captured-short"));
+        }
+
+        private static void CallbackV2ExactSuccessAndCanonicalFailure()
+        {
+            var successPayload = new byte[20];
+            TestFrame.WriteUInt16(successPayload, 4, 2);
+            TestFrame.WriteUInt16(successPayload, 6, 512);
+            TestFrame.WriteUInt32(successPayload, 8, 0x11223344u);
+            TestFrame.WriteUInt32(successPayload, 12, 0x55667788u);
+            var success = LMCConnection
+                .ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(0, successPayload));
+            AssertEx.True(success.IsSuccess);
+            AssertEx.True(success.HasCommandResult);
+            AssertEx.Equal((ushort)0, success.CommandStatus);
+            AssertEx.Equal((short)0, success.ErrorId);
+            AssertEx.Equal((ushort)20, success.PayloadLength);
+
+            var failurePayload = new byte[20];
+            TestFrame.WriteUInt16(failurePayload, 0, 1);
+            TestFrame.WriteInt16(failurePayload, 2, -1);
+            var failure = LMCConnection
+                .ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(0, failurePayload));
+            AssertEx.False(failure.IsSuccess);
+            AssertEx.True(failure.HasCommandResult);
+            AssertEx.Equal((ushort)1, failure.CommandStatus);
+            AssertEx.Equal((short)-1, failure.ErrorId);
+
+            failurePayload[4] = 1;
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(0, failurePayload)));
+
+            var nonCanonicalFailure = new byte[20];
+            TestFrame.WriteUInt16(nonCanonicalFailure, 0, 2);
+            TestFrame.WriteInt16(nonCanonicalFailure, 2, -1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(0, nonCanonicalFailure)));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(0, new byte[4])));
+            AssertEx.Throws<InvalidDataException>(
+                () => LMCConnection.ParseCallbackRegistrationV2Envelope(
+                    TestFrame.Response(1, successPayload)));
         }
 
         private static void LookupReference()

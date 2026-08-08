@@ -35,6 +35,7 @@
     <Compile Include="FakeRpcServer.cs" />
     <Compile Include="CallbackProtocolTests.cs" />
     <Compile Include="CallbackSessionFencingTests.cs" />
+    <Compile Include="CallbackV2ConnectionTests.cs" />
     <Compile Include="AdminContractTests.cs" />
     <Compile Include="AdminMotionContractTests.cs" />
     <Compile Include="AdminSetAxisPositionContractTests.cs" />

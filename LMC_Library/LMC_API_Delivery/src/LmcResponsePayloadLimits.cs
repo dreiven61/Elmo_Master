@@ -11,6 +11,7 @@ namespace LasalMotionControlLib
         private const int GroupMembersPayloadLength = 1350;
         private const int GroupPositionPayloadLength = 68;
         private const int RpcSessionInitPayloadLength = 24;
+        private const int CallbackRegistrationV2PayloadLength = 20;
         private const int EtherCATSlaveCount = 4;
 
         internal static int GetMaximumPayloadLength(ushort command)
@@ -21,6 +22,8 @@ namespace LasalMotionControlLib
                     return RpcSessionInitPayloadLength;
 
                 case LMC_CommandId.RpcCallbackRegistration:
+                    return CallbackRegistrationV2PayloadLength;
+
                 case LMC_CommandId.CloseConnection:
                 case LMC_CommandId.SetKinTransformEx:
                     return ShortAcknowledgementPayloadLength;

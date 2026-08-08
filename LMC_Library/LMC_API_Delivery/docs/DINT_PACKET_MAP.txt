@@ -1405,15 +1405,13 @@ Callback and ownership:
   belongs to the active connection and current session, so a queued old-session
   event is not logged after reconnect.
 
-Dormant project-local 0x405C version 2:
+Opt-in PC / dormant PLC project-local 0x405C version 2:
 - The delivery source contains the bounded version-2 codec, callback models, and
-  static codec/fence tests. The named
-  LMCCallbackProtocolPolicy.InitialV2WakeHint policy and its targeted tests are
-  implemented. Live-wiring tests remain pending; LmcConnection does not
-  negotiate or receive version 2 yet. Legacy remains the PC default. PLC
-  activation is forbidden until the PC wires exact source, BootId, SessionEpoch,
-  cookie, length, policy, and sequence fences plus authoritative TCP wake-hint
-  follow-up.
+  codec/fence/socket tests. LegacyRaw remains the PC default. Explicit
+  Version2WakeHint mode sends 32/20, installs the exact source, BootId,
+  SessionEpoch, cookie, length, policy, and sequence fences, and emits only a
+  typed non-authoritative wake hint. The live receiver fence is private.
+  Automatic TCP follow-up and the PLC production publisher remain absent.
 - Dispatch is by exact request payload length. A 12-byte request uses legacy
   12/4. A 32-byte request uses version-2 32/20. Every other length rejects without
   endpoint mutation. There is no same-session downgrade after a v2 rejection.
@@ -1443,7 +1441,7 @@ Dormant project-local 0x405C version 2:
   BootId, not values supplied over UDP. An exact duplicate is idempotent. Any
   different tuple preserves the old endpoint and pending FIFO.
 
-Dormant LMC2 UDP datagram:
+Opt-in PC receive / dormant PLC LMC2 UDP datagram:
 - The exact fixed header is 52 bytes and has no CRC field:
     P0  Magic BYTE[4] = 4C 4D 43 32 (ASCII LMC2)
     P4  ProtocolVersion UINT = 2
@@ -1476,8 +1474,11 @@ Dormant LMC2 UDP datagram:
 - Initial production policy requires registration mask bit 1, EventType 1,
   EventMaskBit 1, DeliveryClass 0, PayloadBytes 0, and registration
   Status=0/ErrorId=0. Every EventId UDINT is accepted as opaque correlation.
-  LMCCallbackProtocolPolicy.InitialV2WakeHint and its targeted codec tests prove
-  this static policy. They do not prove live LmcConnection behavior.
+  LMCCallbackProtocolPolicy.InitialV2WakeHint and targeted socket tests prove
+  opt-in LmcConnection negotiation/fencing/typed dispatch against a fake peer.
+  The v2 path receives into one fixed accepted-maximum buffer (52..512 bytes);
+  WSAEMSGSIZE is one rejection and never reaches user dispatch. This does not
+  prove live PLC traffic or authoritative TCP follow-up.
 
 Dormant LMCUdpCallbackSender verifier state ladder:
 - The exact monotonic states are VendorImported -> DerivedDeclaration ->
@@ -1807,11 +1808,15 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   run passed in 233.562 s with that wrapper hash unchanged before and after.
   This is full SourceOnly consumer evidence only and does not change the
   capture-only/nonproduction decision.
-- A VS2019 MSBuild Release build of LasalMotionControlLib.Tests succeeded. The
-  custom runner reported TOTAL 1100, PASSED 1100, FAILED 0, including callback
-  codec, InitialV2WakeHint, and session-fencing coverage. This is static PC
-  evidence, not live LmcConnection version-2 negotiation, UDP receive, or
-  dispatch proof.
+- A .NET SDK MSBuild Release build of LasalMotionControlLib.Tests succeeded. The
+  custom runner reported TOTAL 1110, PASSED 1110, FAILED 0. Callback coverage now
+  includes the codec, InitialV2WakeHint, session fencing, exact opt-in 32/20
+  negotiation, gated early-datagram delivery, strict source/provenance/policy/
+  sequence rejection, fixed-buffer oversized rejection, typed-only dispatch,
+  endpoint evidence immutability, join-timeout gate ownership, handler-failure
+  continuation, reentrant-close invalidation, safety-detach provenance, no
+  downgrade, and reconnect invalidation. This
+  is PC fake-peer evidence, not PLC runtime or packet-capture proof.
 - The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker
   completion, zero errors, and a UI summary of 76 warnings. The relevant log
   contained no ERROR, FATAL, CInvalidArgException, or failed record. The 21 new
@@ -1847,11 +1852,11 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   release, IDE build, PLC download, and concurrent-request proof are complete.
 - The project-local LMC2 schema is approved only in its dormant, fenced form
   above. The sender class/Network and TCP lifecycle candidate now exist, but
-  production PublishEvent call sites remain zero and LmcConnection still uses
-  the legacy 12-byte request / 4-byte response path. Live version-2 PC receive
-  activation, PLC download, and UDP receiver/dispatch packet proof are absent.
-  Gate A/B/C static/build evidence and the existing PC codec tests are not PLC
-  runtime proof.
+  production PublishEvent call sites remain zero. LmcConnection keeps legacy
+  12/4 as its default and now has an explicit opt-in 32/20 typed wake-hint path.
+  An approved event-to-authoritative-TCP-query mapping, PLC download, and live
+  UDP receiver/dispatch packet proof are absent. Gate A/B/C static/build evidence
+  and PC fake-peer tests are not PLC runtime proof.
 
 MoveCircle scope:
 - The current public C# API has no MoveCircle method.

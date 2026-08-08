@@ -18,7 +18,7 @@ namespace LasalMotionControlLib.Tests
             var expected = new Dictionary<ushort, int>
             {
                 { LMC_CommandId.RpcSessionInit, 24 },
-                { LMC_CommandId.RpcCallbackRegistration, 4 },
+                { LMC_CommandId.RpcCallbackRegistration, 20 },
                 { LMC_CommandId.CloseConnection, 4 },
                 { LMC_CommandId.GetAxisByName, 6 },
                 { LMC_CommandId.GetGroupByName, 6 },

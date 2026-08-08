@@ -117,6 +117,12 @@ namespace LasalMotionControlLib
         Faulted = 4
     }
 
+    public enum LMCCallbackRegistrationMode
+    {
+        LegacyRaw = 0,
+        Version2WakeHint = 1
+    }
+
     /// <summary>
     /// Evidence produced when a caller deliberately invalidates the current
     /// RPC transport so a safety command can be issued in a fresh session.
@@ -255,6 +261,9 @@ namespace LasalMotionControlLib
             SendTimeoutMilliseconds = 3000;
             CallbackThreadJoinTimeoutMilliseconds = 500;
             ValidateCallbackSourceAddress = true;
+            CallbackRegistrationMode =
+                LMCCallbackRegistrationMode.LegacyRaw;
+            CallbackRequestedMaxDatagramBytes = 512;
         }
 
         public int ConnectTimeoutMilliseconds { get; set; }
@@ -262,6 +271,12 @@ namespace LasalMotionControlLib
         public int SendTimeoutMilliseconds { get; set; }
         public int CallbackThreadJoinTimeoutMilliseconds { get; set; }
         public bool ValidateCallbackSourceAddress { get; set; }
+        public LMCCallbackRegistrationMode CallbackRegistrationMode
+        {
+            get;
+            set;
+        }
+        public ushort CallbackRequestedMaxDatagramBytes { get; set; }
         public LMCSendPriorityCoordinator SendPriorityCoordinator
         {
             get;
@@ -275,6 +290,30 @@ namespace LasalMotionControlLib
         }
 
         internal Action ClientPublishedBeforeSessionBindObserver
+        {
+            get;
+            set;
+        }
+
+        internal Func<ulong> CallbackCookieFactory
+        {
+            get;
+            set;
+        }
+
+        internal Action CallbackThreadReadyBeforeGateWaitObserver
+        {
+            get;
+            set;
+        }
+
+        internal Action SafetyPreemptionClientDetachedObserver
+        {
+            get;
+            set;
+        }
+
+        internal Action CallbackV2DatagramProcessedObserver
         {
             get;
             set;
@@ -294,6 +333,24 @@ namespace LasalMotionControlLib
             ValidatePositiveTimeout(
                 CallbackThreadJoinTimeoutMilliseconds,
                 "CallbackThreadJoinTimeoutMilliseconds");
+            if (CallbackRegistrationMode
+                    != LMCCallbackRegistrationMode.LegacyRaw
+                && CallbackRegistrationMode
+                    != LMCCallbackRegistrationMode.Version2WakeHint)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "CallbackRegistrationMode",
+                    "The callback registration mode must be LegacyRaw or Version2WakeHint.");
+            }
+            if (CallbackRequestedMaxDatagramBytes
+                    < LMCCallbackProtocol.DatagramHeaderBytes
+                || CallbackRequestedMaxDatagramBytes
+                    > LMCCallbackProtocol.MaxDatagramBytes)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "CallbackRequestedMaxDatagramBytes",
+                    "The callback maximum datagram must be between 52 and 512 bytes.");
+            }
 
             return new LMCConnectionOptions
             {
@@ -303,11 +360,21 @@ namespace LasalMotionControlLib
                 CallbackThreadJoinTimeoutMilliseconds =
                     CallbackThreadJoinTimeoutMilliseconds,
                 ValidateCallbackSourceAddress = ValidateCallbackSourceAddress,
+                CallbackRegistrationMode = CallbackRegistrationMode,
+                CallbackRequestedMaxDatagramBytes =
+                    CallbackRequestedMaxDatagramBytes,
                 SendPriorityCoordinator = SendPriorityCoordinator,
                 SessionReservedBeforeClientPublishObserver =
                     SessionReservedBeforeClientPublishObserver,
                 ClientPublishedBeforeSessionBindObserver =
-                    ClientPublishedBeforeSessionBindObserver
+                    ClientPublishedBeforeSessionBindObserver,
+                CallbackCookieFactory = CallbackCookieFactory,
+                CallbackThreadReadyBeforeGateWaitObserver =
+                    CallbackThreadReadyBeforeGateWaitObserver,
+                SafetyPreemptionClientDetachedObserver =
+                    SafetyPreemptionClientDetachedObserver,
+                CallbackV2DatagramProcessedObserver =
+                    CallbackV2DatagramProcessedObserver
             };
         }
 
