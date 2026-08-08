@@ -76,6 +76,25 @@
   #endif
 #include "..\..\Class\_TCPIPServer\_TCPIPServer.h"
 #include "..\..\Class\_TCPIPServer\SalamanderDelay.h"
+//Define part of class _UDPTransceiver
+#define UDP_MAX_SOCKETS               6                             // Max number of socket
+
+#define UDP_CLT_SEND_OK               0                             // Send ok
+#define UDP_CLT_INVALID_HANDLE        -1                            // Invalid handle
+#define UDP_CLT_NOT_OPEN              -2                            // Socket is not open
+#define UDP_CLT_SEND_FAILED           -3                            // Send failed
+#define UDP_CLT_SEND_BUFFER_FULL      -4                            // Send buffer is full
+#define UDP_CLT_DATA_TO_BIG           -5                            // Data to big
+#define UDP_CLT_INVALID_DATA          -6
+
+#define UDP_MAXIMUM_SEGMENT_SIZE      1452                          //
+
+#define MAX_MSG_CYC_SEND                5
+#define MAX_MSG_CYC_RECV                5
+
+#define UDP_CLT_INFO_ADDED          0
+#define UDP_CLT_INFO_BOUND          1
+#define UDP_CLT_INFO_CLOSED         2
 #include <.\lsl_st_mt.h>
 
 
@@ -83,12 +102,16 @@ FUNCTION GLOBAL TAB ONE_Comm_Network
 -1$UINT, 0$UINT, 
 0$UINT, 0$UINT,
 
-11$UDINT,
+15$UDINT,
 TO_UDINT(916194998), "_CheckSum", 1$UINT, 0$UINT, 1$UINT,
 TO_UDINT(4107457475), "_TCPIPServer", 1$UINT, 2$UINT, 0$UINT,
 TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, 0$UINT,
+TO_UDINT(3808005437), "_UDPTransceiver", 1$UINT, 2$UINT, 1$UINT,
+TO_UDINT(3441197119), "_UDPTransceiverInterface", 1$UINT, 3$UINT, 0$UINT,
+TO_UDINT(794617671), "CriticalSection", 0$UINT, 4$UINT, 2$UINT,
 TO_UDINT(4292381624), "LMCControlCommandService", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(1037074496), "LMCDiagnosticsService", 0$UINT, 0$UINT, 1$UINT,
+TO_UDINT(287734476), "LMCUdpCallbackSender", 0$UINT, 0$UINT, 1$UINT,
 TO_UDINT(2225119864), "MerkerEx", 1$UINT, 22$UINT, 3$UINT,
 TO_UDINT(1850111279), "String", 1$UINT, 11$UINT, 3$UINT,
 TO_UDINT(2898603620), "StringInternal", 1$UINT, 86$UINT, 0$UINT,
@@ -100,9 +123,17 @@ TO_UDINT(3232495061), "VirtualBaseInit", 1$UINT, 3$UINT, 0$UINT,
 
 
 
+_NO_ATTR, TO_UDINT(4169137385), "LMCUDPTRANSCEIVER1", 
+
+
+1$UINT, TO_UDINT(857947721), "LMCUDPCALLBACKSENDER1\_BASE\CRITICALSECTION_UDP", 
+1$UINT, TO_UDINT(1512526909), "LMCUDPTRANSCEIVER1\CRITICALSECTION_UDP", 
+
 _NO_ATTR, TO_UDINT(1184435330), "LMCCONTROLCOMMANDSERVICE1", 
 
 _NO_ATTR, TO_UDINT(4114448039), "LMCDIAGNOSTICSSERVICE1", 
+
+_NO_ATTR, TO_UDINT(287262550), "LMCUDPCALLBACKSENDER1", 
 
 1$UINT, TO_UDINT(2143358748), "TCPIPSERVER1\_BASE\STRSEMANAME01\MERKEREX0", 
 1$UINT, TO_UDINT(3861080349), "TCPIPSERVER1\_BASE\STRSEMANAME02\MERKEREX0", 
@@ -120,39 +151,54 @@ _NO_ATTR, TO_UDINT(2767612793), "TCPMOTIONINTERFACE1",
 
 //Internal connections
 0$UDINT,
-7$UDINT,
-TO_UDINT(6), "MerkerEx0", TO_UDINT(3),
-TO_UDINT(7), "MerkerEx0", TO_UDINT(4),
-TO_UDINT(8), "MerkerEx0", TO_UDINT(5),
-TO_UDINT(9), "CheckSum", TO_UDINT(0),
-TO_UDINT(9), "StrTaskName", TO_UDINT(8),
-TO_UDINT(9), "StrSemaName01", TO_UDINT(6),
-TO_UDINT(9), "StrSemaName02", TO_UDINT(7),
+9$UDINT,
+TO_UDINT(1), "CriticalSection_UDP", TO_UDINT(3),
+TO_UDINT(6), "CriticalSection_UDP", TO_UDINT(2),
+TO_UDINT(10), "MerkerEx0", TO_UDINT(7),
+TO_UDINT(11), "MerkerEx0", TO_UDINT(8),
+TO_UDINT(12), "MerkerEx0", TO_UDINT(9),
+TO_UDINT(13), "CheckSum", TO_UDINT(0),
+TO_UDINT(13), "StrTaskName", TO_UDINT(12),
+TO_UDINT(13), "StrSemaName01", TO_UDINT(10),
+TO_UDINT(13), "StrSemaName02", TO_UDINT(11),
 0$UDINT,
-7$UDINT,
-TO_UDINT(2), "AxisOwnership", TO_UDINT(1), "ClassSvr",
-TO_UDINT(6), "DataBuffer", TO_UDINT(3), "m_udLength",
-TO_UDINT(7), "DataBuffer", TO_UDINT(4), "m_udLength",
-TO_UDINT(8), "DataBuffer", TO_UDINT(5), "m_udLength",
-TO_UDINT(10), "_TCPIPServer", TO_UDINT(9), "Control",
-TO_UDINT(10), "Diagnostics", TO_UDINT(2), "ClassSvr",
-TO_UDINT(10), "ControlCommands", TO_UDINT(1), "ClassSvr",
+9$UDINT,
+TO_UDINT(5), "AxisOwnership", TO_UDINT(4), "ClassSvr",
+TO_UDINT(6), "_UDPTransceiver", TO_UDINT(1), "sControl",
+TO_UDINT(10), "DataBuffer", TO_UDINT(7), "m_udLength",
+TO_UDINT(11), "DataBuffer", TO_UDINT(8), "m_udLength",
+TO_UDINT(12), "DataBuffer", TO_UDINT(9), "m_udLength",
+TO_UDINT(14), "_TCPIPServer", TO_UDINT(13), "Control",
+TO_UDINT(14), "Diagnostics", TO_UDINT(5), "ClassSvr",
+TO_UDINT(14), "ControlCommands", TO_UDINT(4), "ClassSvr",
+TO_UDINT(14), "CallbackSender", TO_UDINT(6), "ClassSvr",
 
 //Initialization values
 0$UDINT,
-12$UDINT,
-TO_UDINT(1), "AxisRebaseRequiredState", TO_UDINT(16#5242530F),//|Comm_Network.LMCControlCommandService1.AxisRebaseRequiredState;
-TO_UDINT(2), "DiagnosticsBootCounter", TO_UDINT(0),//|Comm_Network.LMCDiagnosticsService1.DiagnosticsBootCounter;
-TO_UDINT(3), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName01\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
-TO_UDINT(4), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName02\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
-TO_UDINT(5), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrTaskName\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
-TO_UDINT(6), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrSemaName01.SingleRealloc;
-TO_UDINT(7), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrSemaName02.SingleRealloc;
-TO_UDINT(8), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrTaskName.SingleRealloc;
-TO_UDINT(9), "Port", TO_UDINT(4000),//|Comm_Network.TCPIPServer1.Port;
-TO_UDINT(9), "MaxConnections", TO_UDINT(2),//|Comm_Network.TCPIPServer1.MaxConnections;
-TO_UDINT(9), "ConnectionsPerRun", TO_UDINT(1),//|Comm_Network.TCPIPServer1.ConnectionsPerRun;
-TO_UDINT(9), "Config", TO_UDINT(0),//|Comm_Network.TCPIPServer1.Config;
+23$UDINT,
+TO_UDINT(1), "cSizeOfTXBuffer", TO_UDINT(8 kb),//|Comm_Network.LMCUdpTransceiver1.cSizeOfTXBuffer;
+TO_UDINT(1), "cSizeOfRXBuffer", TO_UDINT(512),//|Comm_Network.LMCUdpTransceiver1.cSizeOfRXBuffer;
+TO_UDINT(4), "AxisRebaseRequiredState", TO_UDINT(16#5242530F),//|Comm_Network.LMCControlCommandService1.AxisRebaseRequiredState;
+TO_UDINT(5), "DiagnosticsBootCounter", TO_UDINT(0),//|Comm_Network.LMCDiagnosticsService1.DiagnosticsBootCounter;
+TO_UDINT(6), "QueueDepth", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.QueueDepth;
+TO_UDINT(6), "QueuedCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.QueuedCount;
+TO_UDINT(6), "RingAcceptedCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.RingAcceptedCount;
+TO_UDINT(6), "AdmissionRetryCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.AdmissionRetryCount;
+TO_UDINT(6), "QueueFullDropCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.QueueFullDropCount;
+TO_UDINT(6), "AdmissionErrorDropCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.AdmissionErrorDropCount;
+TO_UDINT(6), "DisarmClearedCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.DisarmClearedCount;
+TO_UDINT(6), "TransportErrorCount", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.TransportErrorCount;
+TO_UDINT(6), "LastAdmissionResult", TO_UDINT(0),//|Comm_Network.LMCUdpCallbackSender1.LastAdmissionResult;
+TO_UDINT(7), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName01\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
+TO_UDINT(8), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrSemaName02\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
+TO_UDINT(9), "ThreadSafe", TO_UDINT(0),//|Comm_Network.StrTaskName\_base\TCPIPServer1\MerkerEx0.ThreadSafe;
+TO_UDINT(10), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrSemaName01.SingleRealloc;
+TO_UDINT(11), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrSemaName02.SingleRealloc;
+TO_UDINT(12), "SingleRealloc", TO_UDINT(1),//|Comm_Network._base\TCPIPServer1\StrTaskName.SingleRealloc;
+TO_UDINT(13), "Port", TO_UDINT(4000),//|Comm_Network.TCPIPServer1.Port;
+TO_UDINT(13), "MaxConnections", TO_UDINT(2),//|Comm_Network.TCPIPServer1.MaxConnections;
+TO_UDINT(13), "ConnectionsPerRun", TO_UDINT(1),//|Comm_Network.TCPIPServer1.ConnectionsPerRun;
+TO_UDINT(13), "Config", TO_UDINT(0),//|Comm_Network.TCPIPServer1.Config;
 
 //Symbolic initialization values
 0$UDINT,
@@ -167,9 +213,11 @@ TO_UDINT(9), "Config", TO_UDINT(0),//|Comm_Network.TCPIPServer1.Config;
 0$UDINT,
 
 0$UDINT,
-2$UDINT,
-TO_UDINT(9), (1)$UDINT, 4194303$DINT, 	//TCPIPSERVER1
-TO_UDINT(10), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
+4$UDINT,
+TO_UDINT(1), (10)$UDINT, 4194303$DINT, 	//LMCUDPTRANSCEIVER1
+TO_UDINT(6), (10)$UDINT, 4194303$DINT, 	//LMCUDPCALLBACKSENDER1
+TO_UDINT(13), (1)$UDINT, 4194303$DINT, 	//TCPIPSERVER1
+TO_UDINT(14), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
 
 0$UDINT,
 0$UDINT,
@@ -177,23 +225,23 @@ TO_UDINT(10), (1)$UDINT, 4194303$DINT, 	//TCPMOTIONINTERFACE1
 //External connections
 0$UDINT,
 17$UDINT,
-TO_UDINT(1), "InputLatch", C_DIR, TO_UDINT(3311388916), "LMCEcatInputLatch1","ClassSvr",
-TO_UDINT(1), "LMCAxis1", C_DIR, TO_UDINT(1307168646), "_LMCAxis1","Control",
-TO_UDINT(1), "LMCAxis2", C_DIR, TO_UDINT(3571490364), "_LMCAxis2","Control",
-TO_UDINT(1), "LMCAxis3", C_DIR, TO_UDINT(2749869738), "_LMCAxis3","Control",
-TO_UDINT(1), "LMCAxis4", C_DIR, TO_UDINT(1032010505), "_LMCAxis4","Control",
-TO_UDINT(1), "LMCAxis5", C_DIR, TO_UDINT(1250167711), "_LMCAxis5","Control",
-TO_UDINT(1), "LMCAxis6", C_DIR, TO_UDINT(3549256229), "_LMCAxis6","Control",
-TO_UDINT(1), "LMCAxis7", C_DIR, TO_UDINT(2760534707), "_LMCAxis7","Control",
-TO_UDINT(1), "LMCAxis8", C_DIR, TO_UDINT(875919138), "_LMCAxis8","Control",
-TO_UDINT(1), "LMCAxis9", C_DIR, TO_UDINT(1127368628), "_LMCAxis9","Control",
-TO_UDINT(1), "LMCRobot", C_DIR, TO_UDINT(669706412), "_LMCRobotBase1","Control",
-TO_UDINT(2), "InputLatch", C_DIR, TO_UDINT(3311388916), "LMCEcatInputLatch1","ClassSvr",
-TO_UDINT(2), "RecorderStore", C_DIR, TO_UDINT(1161287402), "LMCRecorderStore1","ClassSvr",
-TO_UDINT(2), "SdoAxis1", C_DIR, TO_UDINT(1999418485), "LMCSdoExecutor1","ClassState",
-TO_UDINT(2), "SdoAxis2", C_DIR, TO_UDINT(3995461071), "LMCSdoExecutor2","ClassState",
-TO_UDINT(2), "SdoAxis3", C_DIR, TO_UDINT(2569196889), "LMCSdoExecutor3","ClassState",
-TO_UDINT(2), "SdoAxis4", C_DIR, TO_UDINT(122044666), "LMCSdoExecutor4","ClassState",
+TO_UDINT(4), "InputLatch", C_DIR, TO_UDINT(3311388916), "LMCEcatInputLatch1","ClassSvr",
+TO_UDINT(4), "LMCAxis1", C_DIR, TO_UDINT(1307168646), "_LMCAxis1","Control",
+TO_UDINT(4), "LMCAxis2", C_DIR, TO_UDINT(3571490364), "_LMCAxis2","Control",
+TO_UDINT(4), "LMCAxis3", C_DIR, TO_UDINT(2749869738), "_LMCAxis3","Control",
+TO_UDINT(4), "LMCAxis4", C_DIR, TO_UDINT(1032010505), "_LMCAxis4","Control",
+TO_UDINT(4), "LMCAxis5", C_DIR, TO_UDINT(1250167711), "_LMCAxis5","Control",
+TO_UDINT(4), "LMCAxis6", C_DIR, TO_UDINT(3549256229), "_LMCAxis6","Control",
+TO_UDINT(4), "LMCAxis7", C_DIR, TO_UDINT(2760534707), "_LMCAxis7","Control",
+TO_UDINT(4), "LMCAxis8", C_DIR, TO_UDINT(875919138), "_LMCAxis8","Control",
+TO_UDINT(4), "LMCAxis9", C_DIR, TO_UDINT(1127368628), "_LMCAxis9","Control",
+TO_UDINT(4), "LMCRobot", C_DIR, TO_UDINT(669706412), "_LMCRobotBase1","Control",
+TO_UDINT(5), "InputLatch", C_DIR, TO_UDINT(3311388916), "LMCEcatInputLatch1","ClassSvr",
+TO_UDINT(5), "RecorderStore", C_DIR, TO_UDINT(1161287402), "LMCRecorderStore1","ClassSvr",
+TO_UDINT(5), "SdoAxis1", C_DIR, TO_UDINT(1999418485), "LMCSdoExecutor1","ClassState",
+TO_UDINT(5), "SdoAxis2", C_DIR, TO_UDINT(3995461071), "LMCSdoExecutor2","ClassState",
+TO_UDINT(5), "SdoAxis3", C_DIR, TO_UDINT(2569196889), "LMCSdoExecutor3","ClassState",
+TO_UDINT(5), "SdoAxis4", C_DIR, TO_UDINT(122044666), "LMCSdoExecutor4","ClassState",
 
 //Magic internal connections
 0$UDINT,
@@ -222,7 +270,9 @@ TO_UDINT(2), "SdoAxis4", C_DIR, TO_UDINT(122044666), "LMCSdoExecutor4","ClassSta
 0$UDINT,
 
 0$UDINT,
-2$UDINT,
+4$UDINT,
+(0)$UDINT, 	//LMCUDPTRANSCEIVER1
+(0)$UDINT, 	//LMCUDPCALLBACKSENDER1
 (0)$UDINT, 	//TCPIPSERVER1
 (0)$UDINT, 	//TCPMOTIONINTERFACE1
 

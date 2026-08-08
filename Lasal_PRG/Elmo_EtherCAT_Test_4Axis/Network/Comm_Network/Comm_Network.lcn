@@ -43,6 +43,101 @@
 			</Channels>
 		</Object>
 		<Object
+			Name       = "LMCUdpCallbackSender1"
+			GUID       = "{A69F7A12-C10E-45B9-B953-4C05659ACD25}"
+			Class      = "LMCUdpCallbackSender"
+			Position   = "(120,900)"
+			Visualized = "false"
+			Remotely   = "true"
+			CyclicTime = "10 ms">
+			<Channels>
+				<Server Name="AdmissionErrorDropCount" Value="0"/>
+				<Server Name="AdmissionRetryCount" Value="0"/>
+				<Server Name="ClassSvr"/>
+				<Server Name="DisarmClearedCount" Value="0"/>
+				<Server Name="ErrorCode"/>
+				<Server Name="ErrorMessage"/>
+				<Server Name="ErrorState"/>
+				<Server Name="LastAdmissionResult" Value="0"/>
+				<Server Name="QueuedCount" Value="0"/>
+				<Server Name="QueueDepth" Value="0"/>
+				<Server Name="QueueFullDropCount" Value="0"/>
+				<Server Name="RingAcceptedCount" Value="0"/>
+				<Server Name="State"/>
+				<Server Name="TransportErrorCount" Value="0"/>
+				<Client Name="_UDPTransceiver"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="_base" GUID="{DFCB852C-2788-47BE-8A43-26C202DF0BC4}" Class="_UDPTransceiverInterface">
+							<Channels>
+								<Server Name="ClassSvr"/>
+								<Server Name="ErrorCode"/>
+								<Server Name="ErrorMessage"/>
+								<Server Name="ErrorState"/>
+								<Server Name="State"/>
+								<Client Name="_UDPTransceiver"/>
+							</Channels>
+							<!-- List of Networks in this component -->
+							<Networks>
+								<Network>
+									<!-- List of Components in this network -->
+									<Components>
+										<Object Name="CriticalSection_UDP" GUID="{B1B566A0-B518-4936-A317-15F2BC3FB4A2}" Class="CriticalSection">
+											<Channels>
+												<Server Name="ClassSvr"/>
+											</Channels>
+										</Object>
+									</Components>
+									<Connections>
+									</Connections>
+								</Network>
+							</Networks>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
+			Name           = "LMCUdpTransceiver1"
+			GUID           = "{E5034F9F-7068-448C-9C69-E0202D7AE10C}"
+			Class          = "_UDPTransceiver"
+			Position       = "(120,180)"
+			Visualized     = "false"
+			Remotely       = "true"
+			CyclicTime     = "10 ms"
+			BackgroundTime = "always">
+			<Channels>
+				<Server Name="sControl"/>
+				<Server Name="sError"/>
+				<Server Name="sErrorMessage"/>
+				<Server Name="sErrorNoOS"/>
+				<Client Name="coStdLib"/>
+				<Client Name="cSizeOfRXBuffer" Value="512"/>
+				<Client Name="cSizeOfTXBuffer" Value="8 kb"/>
+			</Channels>
+			<!-- List of Networks in this component -->
+			<Networks>
+				<Network>
+					<!-- List of Components in this network -->
+					<Components>
+						<Object Name="CriticalSection_UDP" GUID="{D8DDA55A-6280-48B7-8480-F4EE0A40AF15}" Class="CriticalSection">
+							<Channels>
+								<Server Name="ClassSvr"/>
+							</Channels>
+						</Object>
+					</Components>
+					<Connections>
+					</Connections>
+				</Network>
+			</Networks>
+		</Object>
+		<Object
 			Name           = "TCPIPServer1"
 			GUID           = "{42E82217-EDCD-47A0-BF97-FCBD9C009436}"
 			Class          = "TCPIPServer"
@@ -266,6 +361,7 @@
 				<Server Name="State"/>
 				<Client Name="_StdLib"/>
 				<Client Name="_TCPIPServer"/>
+				<Client Name="CallbackSender"/>
 				<Client Name="ControlCommands"/>
 				<Client Name="Diagnostics"/>
 			</Channels>
@@ -318,6 +414,8 @@
 		<Connection Source="LMCControlCommandService1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
 		<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr" Vertices="(870,1050),(1488,1530),"/>
 		<Connection Source="LMCControlCommandService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
+		<Connection Source="LMCUdpCallbackSender1._UDPTransceiver" Destination="LMCUdpTransceiver1.sControl" Vertices="(120,990),(616,270),"/>
+		<Connection Source="TCPMotionInterface1.CallbackSender" Destination="LMCUdpCallbackSender1.ClassSvr" Vertices="(2220,510),(420,990),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

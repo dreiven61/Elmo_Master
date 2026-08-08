@@ -24,6 +24,7 @@
 		<Server Name="CurrentSock" GUID="{1F419127-A1E0-44AA-AC32-A2CDCE9841DF}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Server Name="Payload" GUID="{722817E8-BD3B-4762-B3E4-AD743AEBA249}" Visualized="false" Initialize="false" WriteProtected="true" Retentive="false"/>
 		<Client Name="_StdLib" Required="false" Internal="false"/>
+		<Client Name="CallbackSender" Required="false" Internal="false"/>
 		<Client Name="ControlCommands" Required="true" Internal="false"/>
 		<Client Name="Diagnostics" Required="true" Internal="false"/>
 	</Channels>
@@ -100,6 +101,7 @@ TCPMotionInterface : CLASS
 	_StdLib 	: CltChCmd__StdLib;
 	Diagnostics 	: CltChCmd_LMCDiagnosticsService;
 	ControlCommands 	: CltChCmd_LMCControlCommandService;
+	CallbackSender 	: CltChCmd_LMCUdpCallbackSender;
   //Variables:
 		ReceiveBuf : ARRAY [0..2047] OF BYTE;
 
@@ -133,6 +135,13 @@ TCPMotionInterface : CLASS
 		RpcCallbackPort 	: DINT;
 		RpcCallbackIPv4 : ARRAY [0..3] OF BYTE;
 
+		RpcCallbackProtocolVersion 	: UINT;
+		RpcCallbackAcceptedMaxDatagram 	: UINT;
+		RpcCallbackSessionEpoch 	: UDINT;
+		RpcCallbackBootId 	: UDINT;
+		RpcCallbackCookieLo 	: UDINT;
+		RpcCallbackCookieHi 	: UDINT;
+		RpcCallbackLastDisarmResult 	: DINT;
 		lsl_tcp_user 	: ^LSL_TCP_USER;
 		CurrentPeerIPv4 	: UDINT;
 		CurrentPeerValid 	: BOOL;
@@ -205,6 +214,11 @@ TCPMotionInterface : CLASS
 		END_VAR;
 	
 	FUNCTION HandleRpcLifecycleCommands;
+	
+	FUNCTION DisarmRpcCallbackEndpoint
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -216,6 +230,7 @@ END_CLASS;
 #pragma usingLtd _StdLib
 #pragma usingLtd LMCControlCommandService
 #pragma usingLtd LMCDiagnosticsService
+#pragma usingLtd LMCUdpCallbackSender
 
 
 //}}LSL_DECLARATION
@@ -225,7 +240,7 @@ FUNCTION GLOBAL TAB TCPMotionInterface::@CT_
 0$UINT,
 2#0100000000000010$UINT, //TY_TCPMOTIONINTERFACE
 0$UINT, 0$UINT, (SIZEOF(::TCPMotionInterface))$UINT, 
-4$UINT, 3$UINT, 0$UINT, 
+4$UINT, 4$UINT, 0$UINT, 
 TO_UDINT(684024945), "TCPMotionInterface", //Class
 TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, //Baseclass
 //Servers:
@@ -237,6 +252,7 @@ TO_UDINT(3417437475), "_TCPIPServerInterface", 1$UINT, 1$UINT, //Baseclass
 (::TCPMotionInterface._StdLib.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(3689364044), "_StdLib", TO_UDINT(3689364044), "_StdLib", 2$UINT, 0$UINT, 
 (::TCPMotionInterface.Diagnostics.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(43195119), "Diagnostics", TO_UDINT(1037074496), "LMCDiagnosticsService", 0$UINT, 0$UINT, 
 (::TCPMotionInterface.ControlCommands.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000010$UINT, TO_UDINT(763639134), "ControlCommands", TO_UDINT(4292381624), "LMCControlCommandService", 0$UINT, 0$UINT, 
+(::TCPMotionInterface.CallbackSender.pCh)$UINT, _CH_CLT_OBJ$UINT, 2#0000000000000000$UINT, TO_UDINT(3384908324), "CallbackSender", TO_UDINT(287734476), "LMCUdpCallbackSender", 0$UINT, 0$UINT, 
 END_FUNCTION
 
 
@@ -2532,3 +2548,11 @@ end_case;
 
 END_FUNCTION
 
+
+
+FUNCTION TCPMotionInterface::DisarmRpcCallbackEndpoint
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+
+END_FUNCTION
