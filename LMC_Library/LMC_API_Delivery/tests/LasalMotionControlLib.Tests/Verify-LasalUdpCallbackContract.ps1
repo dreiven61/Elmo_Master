@@ -193,12 +193,36 @@ $ExpectedGateB2CommNetworkSha256 =
 $ExpectedGateB2CommNetworkCanonicalLfBytes = 15964
 $ExpectedGateB2CommNetworkCanonicalLfSha256 =
     'FCD0940498CB70F6B8C4F3AFB30850AAE224E380E17E4A79015BCCD973587078'
+$ExpectedGateB2CommTableBytes = 11677
+$ExpectedGateB2CommTableSha256 =
+    '2B2F29FC2F11A93FE0B827D5415C6AAFEB800725B0C2D65F752158AA5C90BEE9'
+$ExpectedGateB2CommTableCanonicalLfBytes = 11394
+$ExpectedGateB2CommTableCanonicalLfSha256 =
+    'D1D6E1ADFF3D60C9AC9A2A6ADB47687E254C5D93796B92E44202BDF0D3CAB288'
+$ExpectedGateB2CommTableDirectiveCount = 69
+$ExpectedGateB2CommTableDirectiveSha256 =
+    '62CEEC91E8F77566537D3AABED8BA1B034E2E4DFD55643237AED273D5A531333'
 $ExpectedGateB2FullNetworkCount = 23
 $ExpectedGateB2FullNetworkSha256 =
     '246FEBD3BD55BB1F8BCAF84839835E3B4836A3831A70EFC278E7D6024DDC7E5D'
 $ExpectedGateB2TrackedNetworkCount = 15
 $ExpectedGateB2TrackedNetworkSha256 =
     '19422EE85FF909C80862440D08EB6FA156801618329559267B6EC88BF070BC5D'
+$ExpectedDerivedCandidateCommTableBytes = 11828
+$ExpectedDerivedCandidateCommTableSha256 =
+    '752C2873FBE8D1470A82E4E4A651DEC298567B42625EA69EE8F2F2C85514E373'
+$ExpectedDerivedCandidateCommTableCanonicalLfBytes = 11541
+$ExpectedDerivedCandidateCommTableCanonicalLfSha256 =
+    '8078EF17A9DB5E15D55199E9754F417B4424B524E2ECE30D8F1514BB7CC02E10'
+$ExpectedDerivedCandidateCommTableDirectiveCount = 72
+$ExpectedDerivedCandidateCommTableDirectiveSha256 =
+    '3E8700672C5E60BF5362FE31B5AF510DBA1994AFD7582064825AB8644976A3E0'
+$ExpectedDerivedCandidateFullNetworkCount = 23
+$ExpectedDerivedCandidateFullNetworkSha256 =
+    '530E284743E4F6405BB90695EC31D0C5CAB4F94F6B9B16A4D67D983687AEB9EA'
+$ExpectedDerivedCandidateTrackedNetworkCount = 15
+$ExpectedDerivedCandidateTrackedNetworkSha256 =
+    '6F5575791A0FF10E77A411A05896453C57F9661C54461DB038F166323C7AF16B'
 $ExpectedBaselineTrackedNetworkCount = 15
 $ExpectedBaselineTrackedNetworkSha256 =
     '3118354B56EB68369999D96C53603083F562E4610995BFA935D483BD2BC01CCA'
@@ -528,6 +552,60 @@ $ExpectedTcpCallbackFenceVariables = @(
     'RpcCallbackCookieLo:UDINT',
     'RpcCallbackCookieHi:UDINT',
     'RpcCallbackLastDisarmResult:DINT')
+$ExpectedGateB2GeneratedTcpCallbackVariables = @(
+    'RpcCallbackRegistered',
+    'RpcCallbackEventMask',
+    'RpcCallbackPort',
+    'RpcCallbackIPv4',
+    'RpcCallbackIPv4',
+    'RpcCallbackProtocolVersion',
+    'RpcCallbackProtocolVersion',
+    'RpcCallbackAcceptedMaxDatagram',
+    'RpcCallbackAcceptedMaxDatagram',
+    'RpcCallbackSessionEpoch',
+    'RpcCallbackSessionEpoch',
+    'RpcCallbackBootId',
+    'RpcCallbackBootId',
+    'RpcCallbackCookieLo',
+    'RpcCallbackCookieLo',
+    'RpcCallbackCookieHi',
+    'RpcCallbackCookieHi',
+    'RpcCallbackLastDisarmResult',
+    'RpcCallbackRegistered',
+    'RpcCallbackEventMask',
+    'RpcCallbackPort',
+    'RpcCallbackIPv4',
+    'RpcCallbackProtocolVersion',
+    'RpcCallbackAcceptedMaxDatagram',
+    'RpcCallbackSessionEpoch',
+    'RpcCallbackBootId',
+    'RpcCallbackCookieLo',
+    'RpcCallbackCookieHi',
+    'RpcCallbackLastDisarmResult')
+$ExpectedDerivedCandidateGeneratedTcpCallbackVariables = @(
+    'RpcCallbackRegistered',
+    'RpcCallbackEventMask',
+    'RpcCallbackPort',
+    'RpcCallbackIPv4',
+    'RpcCallbackIPv4',
+    'RpcCallbackProtocolVersion',
+    'RpcCallbackAcceptedMaxDatagram',
+    'RpcCallbackSessionEpoch',
+    'RpcCallbackBootId',
+    'RpcCallbackCookieLo',
+    'RpcCallbackCookieHi',
+    'RpcCallbackLastDisarmResult',
+    'RpcCallbackRegistered',
+    'RpcCallbackEventMask',
+    'RpcCallbackPort',
+    'RpcCallbackIPv4',
+    'RpcCallbackProtocolVersion',
+    'RpcCallbackAcceptedMaxDatagram',
+    'RpcCallbackSessionEpoch',
+    'RpcCallbackBootId',
+    'RpcCallbackCookieLo',
+    'RpcCallbackCookieHi',
+    'RpcCallbackLastDisarmResult')
 $TcpDisarmHelperSpec = [ordered]@{
     Name = 'DisarmRpcCallbackEndpoint'
     Inputs = @()
@@ -2893,6 +2971,23 @@ function Assert-TcpGateCContract {
         $blocks[$name] = Get-TcpFunctionBlock `
             -TcpSource $TcpSource -FunctionName $name
     }
+    $expectedLocalVariableSections = [ordered]@{
+        ConnSocketInfo = 1
+        SendData = 1
+        HandleControlSafetyDrainPending = 1
+        HandleRpcLifecycleCommands = 1
+        DisarmRpcCallbackEndpoint = 0
+    }
+    foreach ($entry in $expectedLocalVariableSections.GetEnumerator()) {
+        $localVariableSectionCount = [regex]::Matches(
+            (Get-LexicalScanText -Text $blocks[$entry.Key]),
+            '(?im)^[ \t]*VAR[ \t]*(?:\r?\n|$)').Count
+        if ($localVariableSectionCount -ne $entry.Value) {
+            Throw-UdpCallbackBlocker (
+                "Gate C $($entry.Key) local VAR section count is " +
+                    "$localVariableSectionCount, expected $($entry.Value).")
+        }
+    }
     $expectedTcp = New-SyntheticTcpSource -Phase DerivedCandidate
     foreach ($name in $ExpectedGateCTcpFunctionNames) {
         $expectedBlock = Get-TcpFunctionBlock `
@@ -3241,6 +3336,9 @@ function Assert-TcpDerivedClientContract {
 
 function Assert-DerivedNetworkContract {
     param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('DerivedWired', 'DerivedCandidate')]
+        [string]$State,
         [Parameter(Mandatory = $true)][string]$CommNetworkText,
         [Parameter(Mandatory = $true)][int]$CommNetworkBytes,
         [Parameter(Mandatory = $true)][string]$CommNetworkSha256,
@@ -3423,6 +3521,34 @@ function Assert-DerivedNetworkContract {
         -ByteCount $CommTableBytes `
         -Sha256 $CommTableSha256 `
         -ArtifactOwner 'ONE_Comm_Network_Table.st'
+    if (-not $SyntheticFixture) {
+        $tableCanonical = ConvertTo-CanonicalLf -Text $CommTableText
+        $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
+        if ($State -ceq 'DerivedCandidate') {
+            $expectedTableBytes = $ExpectedDerivedCandidateCommTableBytes
+            $expectedTableSha256 = $ExpectedDerivedCandidateCommTableSha256
+            $expectedTableCanonicalLfBytes =
+                $ExpectedDerivedCandidateCommTableCanonicalLfBytes
+            $expectedTableCanonicalLfSha256 =
+                $ExpectedDerivedCandidateCommTableCanonicalLfSha256
+        }
+        else {
+            $expectedTableBytes = $ExpectedGateB2CommTableBytes
+            $expectedTableSha256 = $ExpectedGateB2CommTableSha256
+            $expectedTableCanonicalLfBytes =
+                $ExpectedGateB2CommTableCanonicalLfBytes
+            $expectedTableCanonicalLfSha256 =
+                $ExpectedGateB2CommTableCanonicalLfSha256
+        }
+        if (($CommTableBytes -ne $expectedTableBytes) -or
+            ($CommTableSha256 -cne $expectedTableSha256) -or
+            ($tableCanonicalBytes.Count -ne $expectedTableCanonicalLfBytes) -or
+            ((Get-BytesSha256 -Bytes $tableCanonicalBytes) -cne
+                $expectedTableCanonicalLfSha256)) {
+            Throw-UdpCallbackBlocker (
+                "ONE_Comm_Network_Table.st $State snapshot drifted.")
+        }
+    }
     Assert-NoDisabledPreprocessorEnvelope `
         -Text $CommTableText -ArtifactOwner 'ONE_Comm_Network_Table.st'
     $tableScan = ConvertTo-CanonicalLf -Text (
@@ -3442,12 +3568,28 @@ function Assert-DerivedNetworkContract {
         })
     $tableDirectiveBytes = $Utf8.GetBytes(
         [string]::Join("`n", $tableDirectives))
-    $expectedTableDirectiveCount = if ($SyntheticFixture) { 1 } else { 69 }
-    $expectedTableDirectiveSha256 = if ($SyntheticFixture) {
-        '46777DD0C3C52765A15174D2C3CE35BB24826A2274806E063F5E6CC07512D350'
+    $expectedTableDirectiveCount = if ($SyntheticFixture) {
+        if ($State -ceq 'DerivedCandidate') { 4 } else { 1 }
+    }
+    elseif ($State -ceq 'DerivedCandidate') {
+        $ExpectedDerivedCandidateCommTableDirectiveCount
     }
     else {
-        '62CEEC91E8F77566537D3AABED8BA1B034E2E4DFD55643237AED273D5A531333'
+        $ExpectedGateB2CommTableDirectiveCount
+    }
+    $expectedTableDirectiveSha256 = if ($SyntheticFixture) {
+        if ($State -ceq 'DerivedCandidate') {
+            '20F0F5EA021A6B09A0B1467AC0AF3742894E191CC5900E1CF878DF4DD4345833'
+        }
+        else {
+            '46777DD0C3C52765A15174D2C3CE35BB24826A2274806E063F5E6CC07512D350'
+        }
+    }
+    elseif ($State -ceq 'DerivedCandidate') {
+        $ExpectedDerivedCandidateCommTableDirectiveSha256
+    }
+    else {
+        $ExpectedGateB2CommTableDirectiveSha256
     }
     if (($tableDirectives.Count -ne $expectedTableDirectiveCount) -or
         ((Get-BytesSha256 -Bytes $tableDirectiveBytes) -cne
@@ -4513,6 +4655,9 @@ function Assert-ClassDatabaseFunctionAbiRecord {
 
 function Assert-GeneratedDerivedMetadata {
     param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [string]$State,
         [Parameter(Mandatory = $true)][byte[]]$ClassesDatabaseBytes,
         [Parameter(Mandatory = $true)][string]$ClassesDatabaseText,
         [Parameter(Mandatory = $true)][bool]$ExpectTcpClient,
@@ -4689,7 +4834,8 @@ function Assert-GeneratedDerivedMetadata {
             -Text $tcpRecord `
             -Tokens @('CallbackSender', 'LMCUdpCallbackSender') `
             -TokenOwner 'Classes.lcb TCPMotionInterface CallbackSender ABI'
-        $expectedGeneratedCallbackVariables = if ($SyntheticFixture) {
+        $expectedGeneratedCallbackVariables = if (
+            $SyntheticFixture -and ($State -ceq 'DerivedWired')) {
             @(
                 'RpcCallbackRegistered',
                 'RpcCallbackEventMask',
@@ -4698,37 +4844,11 @@ function Assert-GeneratedDerivedMetadata {
                 $ExpectedTcpCallbackFenceVariables |
                     ForEach-Object { $_.Split(':', 2)[0] })
         }
+        elseif ($State -ceq 'DerivedCandidate') {
+            $ExpectedDerivedCandidateGeneratedTcpCallbackVariables
+        }
         else {
-            @(
-                'RpcCallbackRegistered',
-                'RpcCallbackEventMask',
-                'RpcCallbackPort',
-                'RpcCallbackIPv4',
-                'RpcCallbackIPv4',
-                'RpcCallbackProtocolVersion',
-                'RpcCallbackProtocolVersion',
-                'RpcCallbackAcceptedMaxDatagram',
-                'RpcCallbackAcceptedMaxDatagram',
-                'RpcCallbackSessionEpoch',
-                'RpcCallbackSessionEpoch',
-                'RpcCallbackBootId',
-                'RpcCallbackBootId',
-                'RpcCallbackCookieLo',
-                'RpcCallbackCookieLo',
-                'RpcCallbackCookieHi',
-                'RpcCallbackCookieHi',
-                'RpcCallbackLastDisarmResult',
-                'RpcCallbackRegistered',
-                'RpcCallbackEventMask',
-                'RpcCallbackPort',
-                'RpcCallbackIPv4',
-                'RpcCallbackProtocolVersion',
-                'RpcCallbackAcceptedMaxDatagram',
-                'RpcCallbackSessionEpoch',
-                'RpcCallbackBootId',
-                'RpcCallbackCookieLo',
-                'RpcCallbackCookieHi',
-                'RpcCallbackLastDisarmResult')
+            $ExpectedGateB2GeneratedTcpCallbackVariables
         }
         $actualGeneratedCallbackVariables = @([regex]::Matches(
                 $tcpRecord,
@@ -4743,7 +4863,10 @@ function Assert-GeneratedDerivedMetadata {
         foreach ($entry in $ExpectedTcpCallbackFenceVariables) {
             $parts = $entry.Split(':', 2)
             $expectedCount = if ($SyntheticFixture) {
-                1
+                if ($State -ceq 'DerivedCandidate') { 2 } else { 1 }
+            }
+            elseif ($State -ceq 'DerivedCandidate') {
+                2
             }
             elseif ($parts[0] -ceq 'RpcCallbackLastDisarmResult') {
                 2
@@ -6010,17 +6133,37 @@ function Assert-LasalUdpCallbackStateContract {
             }
             $wiredState = $state -in @('DerivedWired', 'DerivedCandidate')
             if ($wiredState) {
-                if ((-not $syntheticFixture) -and
-                    (($Snapshot.FullNetworkCount -ne
-                            $ExpectedGateB2FullNetworkCount) -or
+                if (-not $syntheticFixture) {
+                    if ($state -ceq 'DerivedCandidate') {
+                        $expectedFullNetworkCount =
+                            $ExpectedDerivedCandidateFullNetworkCount
+                        $expectedFullNetworkSha256 =
+                            $ExpectedDerivedCandidateFullNetworkSha256
+                        $expectedTrackedNetworkCount =
+                            $ExpectedDerivedCandidateTrackedNetworkCount
+                        $expectedTrackedNetworkSha256 =
+                            $ExpectedDerivedCandidateTrackedNetworkSha256
+                    }
+                    else {
+                        $expectedFullNetworkCount = $ExpectedGateB2FullNetworkCount
+                        $expectedFullNetworkSha256 =
+                            $ExpectedGateB2FullNetworkSha256
+                        $expectedTrackedNetworkCount =
+                            $ExpectedGateB2TrackedNetworkCount
+                        $expectedTrackedNetworkSha256 =
+                            $ExpectedGateB2TrackedNetworkSha256
+                    }
+                    if (($Snapshot.FullNetworkCount -ne
+                            $expectedFullNetworkCount) -or
                         ($Snapshot.FullNetworkSha256 -cne
-                            $ExpectedGateB2FullNetworkSha256) -or
+                            $expectedFullNetworkSha256) -or
                         ($Snapshot.TrackedNetworkCount -ne
-                            $ExpectedGateB2TrackedNetworkCount) -or
+                            $expectedTrackedNetworkCount) -or
                         ($Snapshot.TrackedNetworkSha256 -cne
-                            $ExpectedGateB2TrackedNetworkSha256))) {
-                    Throw-UdpCallbackBlocker (
-                        'Gate B2 canonical Network aggregate drifted.')
+                            $expectedTrackedNetworkSha256)) {
+                        Throw-UdpCallbackBlocker (
+                            "$state canonical Network aggregate drifted.")
+                    }
                 }
                 Assert-TcpDerivedClientContract `
                     -TcpSource $Snapshot.TcpSource -State $state
@@ -6035,6 +6178,7 @@ function Assert-LasalUdpCallbackStateContract {
                         -ArtifactOwner 'TCPMotionInterface'
                 }
                 Assert-DerivedNetworkContract `
+                    -State $state `
                     -CommNetworkText $Snapshot.CommNetworkText `
                     -CommNetworkBytes $Snapshot.CommNetworkBytes `
                     -CommNetworkSha256 $Snapshot.CommNetworkSha256 `
@@ -6089,6 +6233,7 @@ function Assert-LasalUdpCallbackStateContract {
                 }
             }
             Assert-GeneratedDerivedMetadata `
+                -State $state `
                 -ClassesDatabaseBytes $Snapshot.ClassesDatabaseBytes `
                 -ClassesDatabaseText $Snapshot.ClassesDatabaseText `
                 -ExpectTcpClient $wiredState `
@@ -6893,19 +7038,35 @@ function New-SyntheticClassesDatabase {
     if ($State -in @('DerivedWired', 'DerivedCandidate')) {
         Add-AsciiTextToList -List $bytes -Text (
             'CallbackSender' + [char]0 + 'LMCUdpCallbackSender' + [char]0)
-        foreach ($entry in @(
-                'RpcCallbackRegistered:BOOL',
-                'RpcCallbackEventMask:UDINT',
-                'RpcCallbackPort:DINT',
-                'RpcCallbackIPv4:ARRAY[0..3]OFBYTE')) {
-            $parts = $entry.Split(':', 2)
-            Add-AsciiTextToList -List $bytes -Text (
-                $parts[0] + [char]0 + $parts[1] + [char]0)
+        $syntheticTcpCallbackTypes = [ordered]@{
+            RpcCallbackRegistered = 'BOOL'
+            RpcCallbackEventMask = 'UDINT'
+            RpcCallbackPort = 'DINT'
+            RpcCallbackIPv4 = 'ARRAY[0..3]OFBYTE'
+            RpcCallbackProtocolVersion = 'UINT'
+            RpcCallbackAcceptedMaxDatagram = 'UINT'
+            RpcCallbackSessionEpoch = 'UDINT'
+            RpcCallbackBootId = 'UDINT'
+            RpcCallbackCookieLo = 'UDINT'
+            RpcCallbackCookieHi = 'UDINT'
+            RpcCallbackLastDisarmResult = 'DINT'
         }
-        foreach ($entry in $ExpectedTcpCallbackFenceVariables) {
-            $parts = $entry.Split(':', 2)
+        $syntheticTcpCallbackInventory = if ($State -ceq 'DerivedCandidate') {
+            $ExpectedDerivedCandidateGeneratedTcpCallbackVariables
+        }
+        else {
+            @(
+                'RpcCallbackRegistered',
+                'RpcCallbackEventMask',
+                'RpcCallbackPort',
+                'RpcCallbackIPv4') + @(
+                $ExpectedTcpCallbackFenceVariables |
+                    ForEach-Object { $_.Split(':', 2)[0] })
+        }
+        foreach ($name in $syntheticTcpCallbackInventory) {
             Add-AsciiTextToList -List $bytes -Text (
-                $parts[0] + [char]0 + $parts[1] + [char]0)
+                $name + [char]0 +
+                $syntheticTcpCallbackTypes[$name] + [char]0)
         }
         Add-BytesToList -List $bytes -Bytes (
             New-SyntheticFunctionMetadataBytes `
@@ -7655,9 +7816,40 @@ function Add-SyntheticTcpDisarmFenceToFunction {
     if ($executableIndex -lt 0) {
         throw 'synthetic TCP executable insertion anchor drifted.'
     }
-    $block = $block.Insert(
-        $executableIndex,
-        "`tVAR`n`t`tcallbackDisarmResult : DINT;`n`tEND_VAR`n`n")
+    $header = $block.Substring(0, $executableIndex)
+    if ([regex]::Matches(
+            $header,
+            '(?im)^[ \t]*callbackDisarmResult[ \t]*:').Count -ne 0) {
+        throw 'synthetic TCP callbackDisarmResult declaration already exists.'
+    }
+    $localVariableSections = @([regex]::Matches(
+            $header,
+            '(?ims)^[ \t]*VAR[ \t]*\n.*?' +
+                '^[ \t]*END_VAR[ \t]*;?[ \t]*(?:\n|\z)'))
+    if ($localVariableSections.Count -gt 1) {
+        throw 'synthetic TCP base function has multiple local VAR sections.'
+    }
+    if ($localVariableSections.Count -eq 1) {
+        $localVariableSection = $localVariableSections[0]
+        $localEnd = [regex]::Match(
+            $localVariableSection.Value,
+            '(?im)^[ \t]*END_VAR[ \t]*;?[ \t]*(?=\n|\z)')
+        if (-not $localEnd.Success) {
+            throw 'synthetic TCP local VAR terminator anchor drifted.'
+        }
+        $block = $block.Insert(
+            $localVariableSection.Index + $localEnd.Index,
+            "`t`tcallbackDisarmResult : DINT;`n")
+    }
+    else {
+        $executableLineStart = $block.LastIndexOf(
+            "`n",
+            $executableIndex - 1,
+            [StringComparison]::Ordinal) + 1
+        $block = $block.Insert(
+            $executableLineStart,
+            "`tVAR`n`t`tcallbackDisarmResult : DINT;`n`tEND_VAR`n`n")
+    }
     foreach ($clear in $ExpectedTcpCallbackTupleClearStatements[0..6]) {
         $pattern = '(?m)^[ \t]*' + [regex]::Escape($clear) + '[ \t]*(?:\n|$)'
         $block = [regex]::Replace($block, $pattern, '')
@@ -8111,6 +8303,12 @@ function New-SyntheticLasalBinaryText {
 }
 
 function New-SyntheticDerivedNetwork {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [string]$State
+    )
+
     $xml = @'
 <Network Name="Comm_Network">
   <Components>
@@ -8170,6 +8368,14 @@ TO_UDINT(6), (10)$UDINT, 4194303$DINT, //LMCUDPCALLBACKSENDER1
 (0)$UDINT, //LMCUDPCALLBACKSENDER1
 END_FUNCTION
 '@
+    if ($State -ceq 'DerivedCandidate') {
+        $table = $table.Replace(
+            "#define OBJECTS_CONFIG`n",
+            "#define OBJECTS_CONFIG`n" +
+                "#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE`n" +
+                "#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0`n" +
+                "#endif`n")
+    }
     $database = New-SyntheticLasalBinaryText -Records @(
         'Comm_Network',
         'LMCUdpTransceiver1',
@@ -8486,7 +8692,7 @@ function New-UdpCallbackTestSnapshot {
     )
 
     $classes = New-SyntheticClassesDatabase -State $State
-    $derivedNetwork = New-SyntheticDerivedNetwork
+    $derivedNetwork = New-SyntheticDerivedNetwork -State $State
     $configObjects = New-SyntheticConfigObjects -State $State
     $vendorPresent = $State -cne 'Absent'
     $derivedPresent =
@@ -9106,9 +9312,21 @@ function Invoke-UdpCallbackVerifierSelfTest {
     }
     $advancedLiveCandidate =
         New-UdpCallbackTestSnapshot -State DerivedWired
-    $advancedLiveCandidate.DerivedSource = New-SyntheticDerivedSource
-    $advancedLiveCandidate.TcpSource =
-        New-SyntheticTcpSource -Phase DerivedCandidate
+    $advancedCandidateGenerated =
+        New-UdpCallbackTestSnapshot -State DerivedCandidate
+    foreach ($property in @(
+            'DerivedSource',
+            'TcpSource',
+            'ClassesDatabaseBytes',
+            'ClassesDatabaseText',
+            'ClassesBytes',
+            'ClassesSha256',
+            'CommTableText',
+            'CommTableBytes',
+            'CommTableSha256')) {
+        $advancedLiveCandidate.$property =
+            $advancedCandidateGenerated.$property
+    }
     $advancedLiveResult = Assert-LasalUdpCallbackStateContract `
         -Snapshot $advancedLiveCandidate `
         -PermitAbsent $false `
@@ -10098,8 +10316,8 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             @('sender error directive enclosure', '//{{LSL_DEFINES', "#error CORRUPT`n//{{LSL_DEFINES"),
             @('sender literal disabled enclosure', '//{{LSL_DEFINES', "#if 0`n//{{LSL_DEFINES`n#endif"),
             @('sender symbolic disabled enclosure', '//{{LSL_DEFINES', "#define OFF 0`n#if OFF`n//{{LSL_DEFINES`n#endif"),
-            @('sender legacy guard missing ifndef', "#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE`n", ''),
-            @('sender extra define in LSL_DEFINES', '#endif' + "`n//}}LSL_DEFINES", "#endif`n#define EXTRA 1`n//}}LSL_DEFINES"),
+            @('Gate C sender macro missing', "#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE`n#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0`n#endif`n", ''),
+            @('Gate C sender macro extra', '#endif' + "`n//}}LSL_DEFINES", "#endif`n#define EXTRA 1`n//}}LSL_DEFINES"),
             @('sender legacy undef residue', '//}}LSL_DEFINES', "//}}LSL_DEFINES`n#undef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE"),
             @('derived cyclic metadata drift', 'CyclicTask="true"', 'CyclicTask="false"'),
             @('derived 10 ms metadata drift', 'DefCyclictime="10 ms"', 'DefCyclictime="20 ms"'),
@@ -10164,7 +10382,7 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             @('BYTE conversion uses unproven TO_BYTE', 'TO_USINT(DeliveryClass)', 'TO_BYTE(DeliveryClass)'),
             @('BuildDatagram retains rejected payload pointer', 'TxSlots[SlotIndex].Data[51] := 0;', "TxSlots[SlotIndex].Data[51] := 0;`n        pPayload := pPayload;"),
             @('sequence high wrap drift', 'NextSequenceHi = 16#FFFFFFFF', 'NextSequenceHi = 16#FFFFFFFE'),
-            @('legacy fixture default enabled', '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0', '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 1'),
+            @('Gate C sender macro value drift', '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0', '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 1'),
             @('legacy fixture code prematurely enabled', '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0', "#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0`n#if LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE`n#endif"),
             @('packed storage pragma', '#pragma using _UDPTransceiverInterface', "#pragma pack(1)`n#pragma using _UDPTransceiverInterface"),
             @('production EventMaskBit policy drift', 'EventMaskBit <> 1', 'EventMaskBit <> 2'),
@@ -10253,7 +10471,7 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'DerivedDeclaration premature Network only' -Action {
             $s = New-UdpCallbackTestSnapshot -State DerivedDeclaration
-            $network = New-SyntheticDerivedNetwork
+            $network = New-SyntheticDerivedNetwork -State DerivedWired
             $s.CommNetworkText = $network.Xml
             $s.CommTableText = $network.Table
             $s.NetworksDatabaseText = $network.Database
@@ -10410,6 +10628,17 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false -RequiredState DerivedWired
         }
+    $negativeCount += Assert-TcpSourceReplacementNegativeFixture `
+        -Name 'Gate C duplicate local VAR section' `
+        -State DerivedCandidate `
+        -Old ("`t`tactivePeerIPv4 `t: UDINT;`n" +
+            "`t`tcallbackDisarmResult : DINT;`n" +
+            "`tEND_VAR") `
+        -New ("`t`tactivePeerIPv4 `t: UDINT;`n" +
+            "`tEND_VAR`n" +
+            "`tVAR`n" +
+            "`t`tcallbackDisarmResult : DINT;`n" +
+            "`tEND_VAR")
     $tcpGateCMutations = @(
         @(
             'Gate C command hex literal split by whitespace',
@@ -11064,6 +11293,20 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
                 -Snapshot $s -PermitAbsent $false
         }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Candidate generated TCP RpcCallback inventory drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $rpcIndex = $s.ClassesDatabaseText.IndexOf(
+                'RpcCallbackAcceptedMaxDatagram',
+                [StringComparison]::Ordinal)
+            if ($rpcIndex -lt 0) {
+                throw 'synthetic Candidate RpcCallback inventory anchor drifted.'
+            }
+            Set-SyntheticClassesByteAt `
+                -Snapshot $s -Index $rpcIndex -Value ([byte][char]'X')
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'generated TCP client ABI missing' -Action {
             $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
             $s.ClassesDatabaseText = $s.ClassesDatabaseText.Replace(
@@ -11076,6 +11319,20 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
             $s.CommTableText = $s.CommTableText.Replace(
                 'LMCUdpCallbackSender1', 'WrongSender')
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Candidate ONE compiled macro output drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $s.CommTableText = $s.CommTableText.Replace(
+                '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0',
+                '#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 1')
+            Update-SyntheticAsciiSnapshotEvidence `
+                -Snapshot $s `
+                -TextProperty CommTableText `
+                -BytesProperty CommTableBytes `
+                -ShaProperty CommTableSha256
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
         }
