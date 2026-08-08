@@ -1499,18 +1499,26 @@ Dormant LMCUdpCallbackSender verifier state ladder:
   exactly LMCUdpTransceiver1 and LMCUdpCallbackSender1 plus exactly the two
   specified callback links. No other topology delta is permitted.
 - DerivedCandidate is Gate C: declarations and wiring remain exact to B2 and all
-  approved sender/TCP lifecycle bodies are complete.
-- Production approval at each transition requires exact hashes captured from the
+  contract-scoped sender/TCP lifecycle bodies are complete. The exact permitted custom
+  source surface is the top-level LSL_DEFINES macro region plus 14 sender bodies
+  and five TCP bodies. The macro is the sole non-implementation custom region.
+  LASAL Save propagates exactly these four generated lines into
+  Network/Comm_Network/ONE_Comm_Network_Table.st:
+    //Define part of class LMCUdpCallbackSender
+    #ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE
+    #define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0
+    #endif
+- State acceptance at each transition requires exact hashes captured from the
   actual canonical project after its LASAL Save All/exit checkpoint. B1 ratchets
   sender source raw/LF, Classes/include/project registries; B2 ratchets TCP,
   Network, and affected generated files; Gate C ratchets complete source and
   canonical-LF per-function bodies. Synthetic generated fixtures are planning
   and verifier-self-test inputs only, never production evidence.
-- The current tree still resolves to the approved VendorImported state.
-  DerivedDeclaration, DerivedWired, and DerivedCandidate are capture-only with
-  ProductionApproved=false and NeedsRebaseline=true until their real post-IDE
-  ratchets are recorded. Gate B1 has not started. The pending Gate B capture tool
-  remains untrusted, and no accepted Gate B checkpoint manifest exists.
+- The actual current tree resolves to DerivedCandidate. Gate B1, Gate B2, and
+  Gate C each have a committed physical checkpoint manifest and a validated
+  A -> B1 -> B2 -> C lineage. Every derived checkpoint is capture-only with
+  ProductionApproved=false and NeedsRebaseline=true. None is production or PLC
+  runtime approval.
 
 TCP v2 fence storage/lifecycle declaration contract:
 - Gate B2 adds these private variables after the existing legacy callback tuple,
@@ -1525,7 +1533,8 @@ TCP v2 fence storage/lifecycle declaration contract:
     RpcCallbackLastDisarmResult DINT
 - Gate B2 adds private non-virtual/non-global DisarmRpcCallbackEndpoint with no
   inputs and Result DINT output immediately after HandleRpcLifecycleCommands;
-  its implementation remains an empty generated stub until Gate C.
+  its implementation was an empty generated stub at B2 and is one of the five
+  completed TCP bodies in the current Gate C candidate.
 - RpcCallbackProtocolVersion is the per-RPC-session shape lock. Inside an
   initialized owning RPC session, the first exact 12/32-byte registration
   attempt sets 1/2 before semantic validation, and a
@@ -1744,27 +1753,57 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   exception. Qualified Init/AddSocket methods opened directly with no post-smoke
   CInvalidArgException. Gate A has no UDP objects/links, so class-definition
   client/server menus have no Find in Implementation. Gate B2 makes that smoke
-  possible and Gate C executes it after Rebuild, so it is not a Gate A blocker.
+  possible. The later Gate C smoke opened the sender and TCP implementation
+  editors directly because the high-level computer-use operation failed; it did
+  not execute a client/server Find in Implementation search. This does not alter
+  the historical Gate A acceptance.
   The e287d07 61-fixture snapshot proves VendorImported and its then-existing
-  higher-state rejection only; the later DerivedDeclaration and DerivedWired
-  modes require their own frozen verifier evidence before Gate B1 begins.
+  higher-state rejection only. At that historical checkpoint, the later
+  DerivedDeclaration and DerivedWired modes still required their own frozen
+  verifier evidence before Gate B1 could begin; the completed records follow.
 - The committed e287d07 / F020F310... / 61/61 / 250.494 s values above remain
   the historical Gate A snapshot. Later state-ladder hardening produced a
   focused verifier of 409934 bytes and 9859 lines with exact SHA-256
   E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC.
   Its direct self-test and the main Verify-LasalContract.ps1
-  -UdpCallbackVerifierSelfTestOnly wiring each passed 249/249. The current
-  VendorImported check passed with ProductionApproved=true and
-  NeedsRebaseline=false. A later full Verify-LasalContract.ps1 -SourceOnly
+  -UdpCallbackVerifierSelfTestOnly wiring each passed 249/249. In that historical
+  snapshot, the then-current VendorImported check passed with
+  ProductionApproved=true and NeedsRebaseline=false. A later full
+  Verify-LasalContract.ps1 -SourceOnly
   -ExpectedSdoWriteAxis 1 run passed in 242.1 s with Axis1 PASS and the same
   E5211F3D...E6FC verifier hash before and after; independent read-only review
   returned GO for that exact snapshot.
-- DerivedDeclaration, DerivedWired, and DerivedCandidate remain capture-only
-  with ProductionApproved=false and NeedsRebaseline=true. Gate B1 has not
-  started. The pending
-  test/Reports_Lasal/C78_20260807_udp_callback_gate_b/Capture-UdpCallbackGateBCheckpoint.ps1
-  tool remains untrusted and there is no Gate B checkpoint manifest. Neither
-  its planned output nor a synthetic verifier fixture is production evidence.
+- Gate B1 DerivedDeclaration was recorded by commit 95c76fe. Its
+  gate_b1_derived_declaration_checkpoint.json is 3117351 bytes with SHA-256
+  F0A7DD7D192F5DE6E23F2CA921F6C0145249DE06A1F8D7B333C0FE49C7B2BFA2. It
+  records the 446686-byte D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788
+  verifier and a 259/259 self-test.
+- Gate B2 tooling commit 85e9592 froze its verifier/capture contract; commit
+  cc83311 recorded the wired source and manifest. The B2 manifest is 3122685
+  bytes with SHA-256
+  96DA05F0E45E3129E27C082FADE7C4C8EF48D9AFF06E0ED058803BC1C0BCC39F. It
+  records the 467485-byte F553EE5D986272A9460FB6C5DB2CE18D3491FD34922EE2F1C83A1CC3665B9600
+  verifier and a 262/262 self-test.
+- Gate C tooling commit 9d0b8c9 freezes the 478281-byte verifier
+  C0B95B5D6A6220C701C30B7EB379473C4BA43761F70D2DD5DB280AFA40FDCF12
+  and the 401786-byte capture tool
+  34ED0649382A4006830B714C8F57915BED786E7A22068BBFE5CC41EE3E0CB8DA.
+  The verifier self-test passed 263/263; the capture-tool self-test passed 38
+  positive and 64 negative cases. Trusted ValidateOnly passed in 762.1 s with
+  outputCreated=false, and trusted Capture passed in 912.0 s.
+- Gate C candidate commit 70c08ea records the candidate and
+  gate_c_derived_candidate_checkpoint.json. That manifest is 3121423 bytes with
+  SHA-256 94632D03946F337F0925D0D873A47E09162E606835DDB726F5EB1644AF407366
+  and records an actual-tree DerivedCandidate PASS. Gate B1, B2, and C remain
+  capture-only with ProductionApproved=false and NeedsRebaseline=true; these
+  manifests and synthetic verifier fixtures are not production evidence.
+- The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker
+  completion, zero errors, and a UI summary of 76 warnings. The relevant log
+  contained no ERROR, FATAL, CInvalidArgException, or failed record. The 21 new
+  W0070 diagnostics remain nonblocking warning debt after a precedence/truth-table
+  audit; this is not a warning-clean build. Direct implementation editor opens
+  for TCPMotionInterface and LMCUdpCallbackSender produced no new IDE exception,
+  and Lasal2 exited with code 0.
 - Recorder development remains frozen. Existing Recorder code and packet map
   remain, but no Recorder sample, block, completion, object, or client link may
   use this callback sender without a prior design update and explicit restart of
@@ -1792,9 +1831,12 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   OFF until the bidirectional interlock, atomic Group acquisition, terminal
   release, IDE build, PLC download, and concurrent-request proof are complete.
 - The project-local LMC2 schema is approved only in its dormant, fenced form
-  above. Sender class/Network, TCP lifecycle wiring, live PC receive activation,
-  PLC download, and packet proof are still absent. Gate A and the existing PC
-  codec tests are static/build evidence, not PLC runtime proof.
+  above. The sender class/Network and TCP lifecycle candidate now exist, but
+  production PublishEvent call sites remain zero and LmcConnection still uses
+  the legacy 12-byte request / 4-byte response path. Live version-2 PC receive
+  activation, PLC download, and UDP receiver/dispatch packet proof are absent.
+  Gate A/B/C static/build evidence and the existing PC codec tests are not PLC
+  runtime proof.
 
 MoveCircle scope:
 - The current public C# API has no MoveCircle method.

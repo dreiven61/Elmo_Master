@@ -8,6 +8,8 @@ UDP sender implementation handoff: 2026-08-07
 
 Gate A import/build evidence: 2026-08-07
 
+Gate B1/B2 and Gate C candidate evidence: 2026-08-08
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -164,32 +166,29 @@ because it was already queued for the UI thread.
 
 ## Current implemented baseline and limitation
 
-The listener does not interpret legacy callback payloads. The tracked LASAL
-handler validates and owns event mask, UDP port, and PC IPv4 but does not send
-event datagrams. The PC delivery source now contains the bounded version-2
-codec, callback models, the named
+The canonical LASAL project contains the two exact vendor UDP classes, the
+derived `LMCUdpCallbackSender`, both callback Network objects and links, and the
+five contract-scoped `TCPMotionInterface` lifecycle bodies. Gate B1
+`DerivedDeclaration`, Gate B2 `DerivedWired`, and Gate C `DerivedCandidate` have
+their own committed physical checkpoint manifests. The current static verifier
+resolves the actual tree as `DerivedCandidate`, with
+`ProductionApproved=false` and `NeedsRebaseline=true`.
+
+The Gate C sender code can build and queue the bounded version-2 datagram, but
+there are zero production `PublishEvent(...)` call sites. This is dormant
+candidate code, not proof that the PLC emits a callback. The PC delivery source
+contains the bounded version-2 codec, callback models, the named
 `LMCCallbackProtocolPolicy.InitialV2WakeHint` policy, and static
-codec/fence/production-policy tests. `LmcConnection` still uses the legacy
-registration and raw-listener path. Version-2 negotiation, live receive
-fencing, typed dispatch, and authoritative TCP follow-up are not wired or
-qualified yet.
+codec/fence/production-policy tests. `LmcConnection` still sends the legacy
+12-byte `0x405C` registration, expects its 4-byte response, and uses the raw
+listener path. Version-2 negotiation, live receive fencing, typed dispatch, and
+authoritative TCP follow-up are not wired or qualified.
 
-The canonical LASAL project now contains the two exact vendor UDP classes and
-has passed the Gate A C78/ARM import build and focused/full static contract
-checks.
-`LMCUdpCallbackSender`, its Network objects, TCP lifecycle integration, and PLC
-datagram production do not exist yet. Gate A has no imported UDP objects or
-links, so the imported class-definition client/server menus do not offer
-`Find in Implementation`. That is not a Gate A blocker. Qualified method
-direct-open smoke is complete. Client/server `Find in Implementation` becomes
-possible after Gate B2 creates the objects and links, but it is executed after
-the Gate C Rebuild.
-
-No PLC runtime result is claimed by this document. PLC download, exact
-duplicate/mismatch registration capture, real callback datagram capture, and
-loss/duplicate/reorder qualification remain pending. The sections below are the
-approved Gate B/C implementation contract unless they explicitly record Gate A
-evidence.
+No PLC runtime result is claimed by this document. PLC download, a live UDP
+datagram and receiver/dispatch capture, exact duplicate/mismatch registration
+capture, and loss/duplicate/reorder qualification remain pending. The sections
+below preserve the approved contract and historical Gate A/B evidence; the
+recorded Gate C result is static/build candidate evidence only.
 
 ## 2026-08-07 implementation decision
 
@@ -278,17 +277,19 @@ cancelled rather than resolved by copying a demo dependency.
   was recorded after that smoke. This is complete Gate A method direct-open
   evidence. With no UDP object/link in Gate A, the class-definition client/server
   menus have no `Find in Implementation`. That channel smoke becomes possible
-  after Gate B2 wiring and is executed after the Gate C Rebuild.
+  after Gate B2 wiring. The later Gate C smoke used direct implementation editor
+  opens instead because the high-level computer-use operation failed; it did not
+  execute a client/server `Find in Implementation` search.
 - `ConfigObjects.st` and `Networks.lcb` changed only in the IDE-generated class
   registry needed to register the two imported classes. All Network topology
   files and links remained unchanged; no UDP object was added in Gate A.
 - The verifier snapshot committed in `e287d07` proves only the Gate A
   `VendorImported` boundary and rejects its then-existing higher-state mode.
-  `DerivedDeclaration` and `DerivedWired` are later verifier work and are not
-  attributed to that 61-fixture snapshot; their own frozen hash and tests must
-  be recorded before Gate B1 starts.
+  At that checkpoint, `DerivedDeclaration` and `DerivedWired` were later
+  verifier work and were not attributable to the 61-fixture snapshot; their own
+  frozen hashes and tests still had to be recorded before Gate B1 could start.
 
-### Expanded verifier hardening evidence
+### Expanded verifier hardening and completed-gate evidence
 
 - The committed `e287d07` / `F020F310...` / `61/61` / `250.494 s` evidence
   above remains the historical Gate A snapshot. It is not replaced or
@@ -298,22 +299,46 @@ cancelled rather than resolved by copying a demo dependency.
   `E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC`.
   Its direct self-test and the main
   `Verify-LasalContract.ps1 -UdpCallbackVerifierSelfTestOnly` wiring each passed
-  `249/249`. The current canonical `VendorImported` check also passed with
-  `ProductionApproved=true` and `NeedsRebaseline=false`.
+  `249/249`. In that historical snapshot, the then-current canonical
+  `VendorImported` check also passed with `ProductionApproved=true` and
+  `NeedsRebaseline=false`.
 - A later full
   `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1` run passed in
   `242.1 s` with `Axis1 PASS`; the expanded focused verifier SHA-256 was exactly
   `E5211F3D...E6FC` before and after the run. An independent read-only review of
   that exact snapshot returned GO.
 - These later tests validate the state resolver and fail-closed capture
-  boundaries; they do not approve a synthetic higher state. `DerivedDeclaration`,
-  `DerivedWired`, and `DerivedCandidate` remain capture-only with
-  `ProductionApproved=false` and `NeedsRebaseline=true`. Gate B1 has not started.
-  The pending
-  `test/Reports_Lasal/C78_20260807_udp_callback_gate_b/Capture-UdpCallbackGateBCheckpoint.ps1`
-  tool is still untrusted and has produced no Gate B checkpoint manifest. Its
-  output cannot become production evidence until the tool is independently
-  reviewed and the actual post-IDE checkpoint is captured.
+  boundaries; they did not approve a synthetic higher state. The later physical
+  gate records are distinct snapshots and do not rewrite the historical Gate A
+  evidence above.
+- Gate B1 `DerivedDeclaration` was recorded by commit `95c76fe`. Its
+  `gate_b1_derived_declaration_checkpoint.json` is `3117351` bytes with SHA-256
+  `F0A7DD7D192F5DE6E23F2CA921F6C0145249DE06A1F8D7B333C0FE49C7B2BFA2`.
+  The manifest records the `446686`-byte verifier
+  `D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788`
+  and its `259/259` self-test. It is capture-only:
+  `ProductionApproved=false`, `NeedsRebaseline=true`.
+- Gate B2 tooling was frozen by `85e9592`, and the wired source plus manifest
+  were committed by `cc83311`. The B2 manifest is `3122685` bytes with SHA-256
+  `96DA05F0E45E3129E27C082FADE7C4C8EF48D9AFF06E0ED058803BC1C0BCC39F`.
+  It records the `467485`-byte verifier
+  `F553EE5D986272A9460FB6C5DB2CE18D3491FD34922EE2F1C83A1CC3665B9600`
+  and its `262/262` self-test. Its state is `DerivedWired`, also with
+  `ProductionApproved=false` and `NeedsRebaseline=true`.
+- Gate C tooling commit `9d0b8c9` freezes the `478281`-byte verifier
+  `C0B95B5D6A6220C701C30B7EB379473C4BA43761F70D2DD5DB280AFA40FDCF12`
+  and the `401786`-byte capture tool
+  `34ED0649382A4006830B714C8F57915BED786E7A22068BBFE5CC41EE3E0CB8DA`.
+  Their self-tests passed `263/263` and `38` positive / `64` negative cases.
+  Trusted `ValidateOnly` passed in `762.1 s` with `outputCreated=false`; trusted
+  `Capture` passed in `912.0 s`.
+- The resulting `gate_c_derived_candidate_checkpoint.json` is `3121423` bytes
+  with SHA-256
+  `94632D03946F337F0925D0D873A47E09162E606835DDB726F5EB1644AF407366`.
+  It records an actual-tree `DerivedCandidate` PASS and the complete
+  Gate A -> B1 -> B2 -> C lineage. Commit `70c08ea` records that candidate and
+  manifest. The decision remains `ProductionApproved=false` and
+  `NeedsRebaseline=true`; this is not production or PLC-runtime approval.
 
 ## Derived sender class contract
 
@@ -914,8 +939,11 @@ evidence.
    topology is unchanged. No UDP object or link exists in this gate.
 4. Qualified method direct-open smoke is complete. Class-definition
     client/server menus cannot run `Find in Implementation` without object/link
-    instances. Gate B2 makes that channel-index smoke possible, and Gate C runs
-    it after Rebuild; the missing Gate A smoke does not keep Gate A open.
+    instances. Gate B2 later made that channel-index smoke possible, but the
+    completed Gate C run did not execute a `Find in Implementation` search. It
+    directly opened the `TCPMotionInterface` and `LMCUdpCallbackSender`
+    implementation editors after Rebuild, with no post-smoke
+    `CInvalidArgException`; the missing Gate A search does not keep Gate A open.
 
 ### Gate B1: `DerivedDeclaration`
 
@@ -969,8 +997,22 @@ Network wiring listed below.
 
 ### Gate C: `DerivedCandidate`
 
-Keep the exact B2 declarations and wiring, then implement every sender and TCP
-lifecycle body only in tracked custom implementation regions outside the IDE.
+Keep the exact B2 declarations and wiring. The permitted candidate source
+surface is the exact top-level `//{{LSL_DEFINES` macro region plus 14 sender
+implementation bodies, and five TCP implementation bodies. The macro region is
+the sole custom-source exception to the implementation-region-only rule. LASAL
+Save propagates exactly these four generated lines to
+`Network/Comm_Network/ONE_Comm_Network_Table.st`:
+
+```text
+//Define part of class LMCUdpCallbackSender
+#ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE
+#define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0
+#endif
+```
+
+Implement the sender and TCP lifecycle bodies in tracked custom implementation
+regions outside the IDE.
 The exact TCP implementation set is `ConnSocketInfo`, `SendData`,
 `HandleControlSafetyDrainPending`, `HandleRpcLifecycleCommands`, and the new
 `DisarmRpcCallbackEndpoint`; no other TCP method belongs to this Gate C delta.
@@ -991,14 +1033,23 @@ the ACK and performs at most one epoch advance even when that send itself
 enters the partial-send quarantine path.
 Capture the complete source hash plus canonical-LF per-function hashes and make
 the verifier reject partial, mixed-phase, or unknown bodies. Run SourceOnly
-validation. Then reopen LASAL once, Save All, C78 Rebuild, directly open the
-sender and lifecycle implementations, run the client/server
-`Find in Implementation` smoke, and exit. PLC download and packet proof are
-separate final gates.
+validation. Then reopen LASAL once, Save All, C78 Rebuild, inspect the sender and
+lifecycle implementations, and exit. The completed run reported 128 compile
+lines, zero errors, Compiler/Linker completion, and UI summary
+`0 error(s), 76 warning(s)`. The log delta contained no `ERROR`, `FATAL`,
+`CInvalidArgException`, or `failed` record. The 21 new `W0070` diagnostics were
+retained as nonblocking warning debt after a precedence/truth-table audit; this
+is not a warning-clean build.
 
-## Planned files and tests
+Because the high-level computer-use operation failed, the smoke opened the
+`TCPMotionInterface` and `LMCUdpCallbackSender` implementation editors directly;
+it did not run a client/server `Find in Implementation` search. No new IDE
+exception followed those opens, and `Lasal2` exited with code 0. PLC download
+and packet proof remain separate final gates.
 
-The implementation tranche is limited to these production surfaces:
+## Files and test status
+
+The candidate tranche is limited to these production surfaces:
 
 - LASAL imports:
   `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_UDPTransceiver/_UDPTransceiver.st`,
@@ -1022,19 +1073,19 @@ The implementation tranche is limited to these production surfaces:
 
 The focused LASAL verifier
 `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1`
-now exists and is wired into the adjacent `Verify-LasalContract.ps1`. The
-expanded verifier implements the complete state ladder, and the current tree
-still resolves to the approved `VendorImported` state. `DerivedDeclaration`,
-`DerivedWired`, and `DerivedCandidate` are capture-only states with
-`ProductionApproved=false` and `NeedsRebaseline=true` until their actual
-post-IDE ratchets are recorded; they are not current production approvals.
-Gate B1 has not started.
+is wired into the adjacent `Verify-LasalContract.ps1`. The Gate C tooling and
+candidate are committed in `9d0b8c9` and `70c08ea`. The current actual tree
+passes as `DerivedCandidate`; its manifest and verifier identities are recorded
+above. It remains capture-only with `ProductionApproved=false` and
+`NeedsRebaseline=true`, not a production approval.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
 `CallbackProtocolTests.cs`, and `CallbackSessionFencingTests.cs` are implemented.
-The initial production policy and its codec tests are implemented. Live wiring
-still requires targeted additions to `RequestGoldenTests.cs`, `ResponseParserTests.cs`,
-`RpcIntegrationTests.cs`, `RpcLifecycleConcurrencyTests.cs`, and
-`FakeRpcServer.cs`.
+The initial policy and its codec tests are implemented. `LmcConnection` still
+uses the legacy `12/4` registration path, and no production `PublishEvent(...)`
+caller exists. Live wiring still requires targeted additions to
+`RequestGoldenTests.cs`, `ResponseParserTests.cs`, `RpcIntegrationTests.cs`,
+`RpcLifecycleConcurrencyTests.cs`, and `FakeRpcServer.cs`, followed by PLC
+download and live UDP receiver/dispatch packet proof.
 
 Minimum acceptance matrix:
 
