@@ -34,6 +34,9 @@ $AllowedAmbientNonIgnoredTargetPaths = @(
 $ExpectedVerifierCanonicalLfBytes = 446686
 $ExpectedVerifierCanonicalLfSha256 =
     'D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788'
+$HistoricalGateAVerifierCanonicalLfBytes = 409934
+$HistoricalGateAVerifierCanonicalLfSha256 =
+    'E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC'
 $script:ContainedProcessNativeType = $null
 
 $PhaseContracts = [ordered]@{
@@ -3264,6 +3267,42 @@ function Assert-ArtifactEvidenceContract {
         -Owner $Owner
 }
 
+function Get-ReviewedVerifierManifestPin {
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedPhase,
+        [Parameter(Mandatory = $true)][long]$CanonicalLfBytes,
+        [Parameter(Mandatory = $true)][string]$CanonicalLfSha256,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    if (-not $PhaseContracts.Contains($ExpectedPhase)) {
+        throw "$Owner verifier pin phase is unknown: $ExpectedPhase"
+    }
+    $allowedPins = @(
+        [ordered]@{
+            canonicalLfBytes = [long]$ExpectedVerifierCanonicalLfBytes
+            canonicalLfSha256 = $ExpectedVerifierCanonicalLfSha256
+        })
+    if ($ExpectedPhase -ceq 'GateA_VendorImported') {
+        $allowedPins += [ordered]@{
+            canonicalLfBytes =
+                [long]$HistoricalGateAVerifierCanonicalLfBytes
+            canonicalLfSha256 =
+                $HistoricalGateAVerifierCanonicalLfSha256
+        }
+    }
+    $matches = @($allowedPins | Where-Object {
+            ([long]$_.canonicalLfBytes -eq $CanonicalLfBytes) -and
+            ($_.canonicalLfSha256 -ceq $CanonicalLfSha256)
+        })
+    if ($matches.Count -ne 1) {
+        throw (
+            "$Owner verifier canonical pin is not reviewed for phase " +
+            "$ExpectedPhase.")
+    }
+    return $matches[0]
+}
+
 function Assert-ToolingEvidenceContract {
     param(
         [Parameter(Mandatory = $true)]
@@ -3274,6 +3313,7 @@ function Assert-ToolingEvidenceContract {
         [Collections.IDictionary]$Decision,
         [Parameter(Mandatory = $true)]
         [Collections.IDictionary]$Artifacts,
+        [Parameter(Mandatory = $true)][string]$ExpectedPhase,
         [Parameter(Mandatory = $true)][string]$Root,
         [Parameter(Mandatory = $true)][string]$GitPath,
         [Parameter(Mandatory = $true)][string]$Owner
@@ -3326,11 +3366,15 @@ function Assert-ToolingEvidenceContract {
             'strict ASCII; no BOM; one uniform LF or CRLF; canonicalize to LF') -or
         ($pin.physicalEolStyle -notin @('LF', 'CRLF')) -or
         (-not (Test-IsJsonInteger -Value $pin.canonicalLfBytes)) -or
-        ([long]$pin.canonicalLfBytes -ne $ExpectedVerifierCanonicalLfBytes) -or
-        ($pin.canonicalLfSha256 -cne $ExpectedVerifierCanonicalLfSha256) -or
+        ($pin.canonicalLfSha256 -notmatch '^[A-F0-9]{64}$') -or
         ($pin.pinSource -cne 'committed-reviewed-pin')) {
-        throw "$Owner verifier canonical pin differs from the reviewed final pin."
+        throw "$Owner verifier canonical pin is malformed or unreviewed."
     }
+    $reviewedVerifierPin = Get-ReviewedVerifierManifestPin `
+        -ExpectedPhase $ExpectedPhase `
+        -CanonicalLfBytes ([long]$pin.canonicalLfBytes) `
+        -CanonicalLfSha256 $pin.canonicalLfSha256 `
+        -Owner $Owner
 
     $trust = $Tooling.trust
     if ($trust -isnot [Collections.IDictionary]) {
@@ -3460,10 +3504,10 @@ function Assert-ToolingEvidenceContract {
     }
     $verifierIdentity = $identityByPath[$VerifierRelativePath]
     if (([long]$verifierIdentity.canonicalLfBytes -ne
-            $ExpectedVerifierCanonicalLfBytes) -or
+            [long]$reviewedVerifierPin.canonicalLfBytes) -or
         ($verifierIdentity.canonicalLfSha256 -cne
-            $ExpectedVerifierCanonicalLfSha256)) {
-        throw "$Owner verifier tool identity differs from the final pin."
+            $reviewedVerifierPin.canonicalLfSha256)) {
+        throw "$Owner verifier tool identity differs from its reviewed phase pin."
     }
 
     $pinSelfTest = $Tooling.canonicalPinSelfTest
@@ -4507,6 +4551,7 @@ function Assert-CheckpointManifestContract {
         -RecordedGit $recordedGit `
         -Decision $decision `
         -Artifacts $artifacts `
+        -ExpectedPhase $ExpectedPhase `
         -Root $RepositoryRoot `
         -GitPath $GitPath `
         -Owner $owner
@@ -6874,6 +6919,65 @@ function Invoke-CaptureToolSelfTest {
     $pin = Invoke-CanonicalAsciiPinSelfTest
     $positive += $pin.acceptedPositiveCount
     $negative += $pin.rejectedNegativeCount
+
+    $historicalTransitionPin = Get-ReviewedVerifierManifestPin `
+        -ExpectedPhase 'GateA_VendorImported' `
+        -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
+        -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
+        -Owner 'synthetic historical Gate A to Gate B1 transition'
+    if (([long]$historicalTransitionPin.canonicalLfBytes -ne
+            [long]$HistoricalGateAVerifierCanonicalLfBytes) -or
+        ($historicalTransitionPin.canonicalLfSha256 -cne
+            $HistoricalGateAVerifierCanonicalLfSha256)) {
+        throw 'Synthetic historical Gate A pin selection drifted.'
+    }
+    $positive++
+    try {
+        $null = Get-ReviewedVerifierManifestPin `
+            -ExpectedPhase 'GateB1_DerivedDeclaration' `
+            -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
+            -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
+            -Owner 'synthetic wrong-phase historical pin'
+        throw 'Synthetic historical Gate A pin was accepted for Gate B1.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic historical Gate A pin was accepted for Gate B1.') {
+            throw
+        }
+        $negative++
+    }
+    try {
+        $null = Get-ReviewedVerifierManifestPin `
+            -ExpectedPhase 'GateA_VendorImported' `
+            -CanonicalLfBytes ($HistoricalGateAVerifierCanonicalLfBytes + 1) `
+            -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
+            -Owner 'synthetic mutated historical pin bytes'
+        throw 'Synthetic mutated historical Gate A pin bytes were accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic mutated historical Gate A pin bytes were accepted.') {
+            throw
+        }
+        $negative++
+    }
+    try {
+        $null = Get-ReviewedVerifierManifestPin `
+            -ExpectedPhase 'GateA_VendorImported' `
+            -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
+            -CanonicalLfSha256 (
+                $HistoricalGateAVerifierCanonicalLfSha256.Substring(0, 63) + 'D') `
+            -Owner 'synthetic mutated historical pin SHA-256'
+        throw 'Synthetic mutated historical Gate A pin SHA-256 was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic mutated historical Gate A pin SHA-256 was accepted.') {
+            throw
+        }
+        $negative++
+    }
 
     if ($null -eq ('ElmoUdpCheckpoint.NativeContainedProcess' -as [type])) {
         $null = Add-Type -TypeDefinition @'
