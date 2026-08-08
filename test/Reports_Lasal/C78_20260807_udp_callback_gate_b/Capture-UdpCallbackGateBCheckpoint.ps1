@@ -31,12 +31,15 @@ $VerifierRelativePath =
     'Verify-LasalUdpCallbackContract.ps1'
 $AllowedAmbientNonIgnoredTargetPaths = @(
     "$TargetRelativeRoot/Class/TestClass/TestClass.st")
-$ExpectedVerifierCanonicalLfBytes = 446686
+$ExpectedVerifierCanonicalLfBytes = 467485
 $ExpectedVerifierCanonicalLfSha256 =
-    'D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788'
+    'F553EE5D986272A9460FB6C5DB2CE18D3491FD34922EE2F1C83A1CC3665B9600'
 $HistoricalGateAVerifierCanonicalLfBytes = 409934
 $HistoricalGateAVerifierCanonicalLfSha256 =
     'E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC'
+$HistoricalGateB1VerifierCanonicalLfBytes = 446686
+$HistoricalGateB1VerifierCanonicalLfSha256 =
+    'D126AC214DE701754CEF862167887EC0A8405BBCB6FDF59B607639DA75E00788'
 $script:ContainedProcessNativeType = $null
 
 $PhaseContracts = [ordered]@{
@@ -3278,18 +3281,33 @@ function Get-ReviewedVerifierManifestPin {
     if (-not $PhaseContracts.Contains($ExpectedPhase)) {
         throw "$Owner verifier pin phase is unknown: $ExpectedPhase"
     }
-    $allowedPins = @(
-        [ordered]@{
+    $allowedPins = @([ordered]@{
             canonicalLfBytes = [long]$ExpectedVerifierCanonicalLfBytes
             canonicalLfSha256 = $ExpectedVerifierCanonicalLfSha256
         })
+    $historicalPin = $null
     if ($ExpectedPhase -ceq 'GateA_VendorImported') {
-        $allowedPins += [ordered]@{
+        $historicalPin = [ordered]@{
             canonicalLfBytes =
                 [long]$HistoricalGateAVerifierCanonicalLfBytes
             canonicalLfSha256 =
                 $HistoricalGateAVerifierCanonicalLfSha256
         }
+    }
+    elseif ($ExpectedPhase -ceq 'GateB1_DerivedDeclaration') {
+        $historicalPin = [ordered]@{
+            canonicalLfBytes =
+                [long]$HistoricalGateB1VerifierCanonicalLfBytes
+            canonicalLfSha256 =
+                $HistoricalGateB1VerifierCanonicalLfSha256
+        }
+    }
+    if (($null -ne $historicalPin) -and
+        (([long]$historicalPin.canonicalLfBytes -ne
+                [long]$ExpectedVerifierCanonicalLfBytes) -or
+            ($historicalPin.canonicalLfSha256 -cne
+                $ExpectedVerifierCanonicalLfSha256))) {
+        $allowedPins += $historicalPin
     }
     $matches = @($allowedPins | Where-Object {
             ([long]$_.canonicalLfBytes -eq $CanonicalLfBytes) -and
@@ -6920,63 +6938,172 @@ function Invoke-CaptureToolSelfTest {
     $positive += $pin.acceptedPositiveCount
     $negative += $pin.rejectedNegativeCount
 
-    $historicalTransitionPin = Get-ReviewedVerifierManifestPin `
-        -ExpectedPhase 'GateA_VendorImported' `
-        -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
-        -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
-        -Owner 'synthetic historical Gate A to Gate B1 transition'
-    if (([long]$historicalTransitionPin.canonicalLfBytes -ne
+    $syntheticCurrentCanonicalBytes = $Utf8NoBom.GetBytes(
+        "synthetic reviewed current verifier`n")
+    $syntheticCurrentVerifierCanonicalLfBytes =
+        [long]$syntheticCurrentCanonicalBytes.Length
+    $syntheticCurrentVerifierCanonicalLfSha256 =
+        Get-BytesSha256 -Bytes $syntheticCurrentCanonicalBytes
+    if (($syntheticCurrentVerifierCanonicalLfBytes -eq
             [long]$HistoricalGateAVerifierCanonicalLfBytes) -or
-        ($historicalTransitionPin.canonicalLfSha256 -cne
-            $HistoricalGateAVerifierCanonicalLfSha256)) {
-        throw 'Synthetic historical Gate A pin selection drifted.'
+        ($syntheticCurrentVerifierCanonicalLfBytes -eq
+            [long]$HistoricalGateB1VerifierCanonicalLfBytes) -or
+        ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
+            $HistoricalGateAVerifierCanonicalLfSha256) -or
+        ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
+            $HistoricalGateB1VerifierCanonicalLfSha256)) {
+        throw 'Synthetic current verifier tuple is not distinct.'
     }
-    $positive++
+    $mutatedCurrentVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
+        $Utf8NoBom.GetBytes("mutated synthetic current verifier`n"))
+    $mutatedGateAVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
+        $Utf8NoBom.GetBytes("mutated historical Gate A verifier`n"))
+    $mutatedGateB1VerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
+        $Utf8NoBom.GetBytes("mutated historical Gate B1 verifier`n"))
+
+    $savedExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+    $savedExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
     try {
-        $null = Get-ReviewedVerifierManifestPin `
-            -ExpectedPhase 'GateB1_DerivedDeclaration' `
-            -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
-            -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
-            -Owner 'synthetic wrong-phase historical pin'
-        throw 'Synthetic historical Gate A pin was accepted for Gate B1.'
-    }
-    catch {
-        if ($_.Exception.Message -ceq
-            'Synthetic historical Gate A pin was accepted for Gate B1.') {
-            throw
+        $script:ExpectedVerifierCanonicalLfBytes =
+            $syntheticCurrentVerifierCanonicalLfBytes
+        $script:ExpectedVerifierCanonicalLfSha256 =
+            $syntheticCurrentVerifierCanonicalLfSha256
+
+        $positivePinCases = @(
+            [ordered]@{
+                phase = 'GateA_VendorImported'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes
+                sha256 = $syntheticCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic current Gate A pin'
+            },
+            [ordered]@{
+                phase = 'GateB1_DerivedDeclaration'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes
+                sha256 = $syntheticCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic current Gate B1 pin'
+            },
+            [ordered]@{
+                phase = 'GateB2_DerivedWired'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes
+                sha256 = $syntheticCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic current Gate B2 pin'
+            },
+            [ordered]@{
+                phase = 'GateA_VendorImported'
+                bytes = [long]$HistoricalGateAVerifierCanonicalLfBytes
+                sha256 = $HistoricalGateAVerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate A pin'
+            },
+            [ordered]@{
+                phase = 'GateB1_DerivedDeclaration'
+                bytes = [long]$HistoricalGateB1VerifierCanonicalLfBytes
+                sha256 = $HistoricalGateB1VerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate B1 pin'
+            })
+        foreach ($pinCase in $positivePinCases) {
+            $reviewedPin = Get-ReviewedVerifierManifestPin `
+                -ExpectedPhase $pinCase.phase `
+                -CanonicalLfBytes ([long]$pinCase.bytes) `
+                -CanonicalLfSha256 $pinCase.sha256 `
+                -Owner $pinCase.owner
+            if (([long]$reviewedPin.canonicalLfBytes -ne
+                    [long]$pinCase.bytes) -or
+                ($reviewedPin.canonicalLfSha256 -cne $pinCase.sha256)) {
+                throw "$($pinCase.owner) selection drifted."
+            }
+            $positive++
         }
-        $negative++
-    }
-    try {
-        $null = Get-ReviewedVerifierManifestPin `
-            -ExpectedPhase 'GateA_VendorImported' `
-            -CanonicalLfBytes ($HistoricalGateAVerifierCanonicalLfBytes + 1) `
-            -CanonicalLfSha256 $HistoricalGateAVerifierCanonicalLfSha256 `
-            -Owner 'synthetic mutated historical pin bytes'
-        throw 'Synthetic mutated historical Gate A pin bytes were accepted.'
-    }
-    catch {
-        if ($_.Exception.Message -ceq
-            'Synthetic mutated historical Gate A pin bytes were accepted.') {
-            throw
+
+        $negativePinCases = @(
+            [ordered]@{
+                phase = 'GateB1_DerivedDeclaration'
+                bytes = [long]$HistoricalGateAVerifierCanonicalLfBytes
+                sha256 = $HistoricalGateAVerifierCanonicalLfSha256
+                owner = 'synthetic Gate A pin in wrong Gate B1 phase'
+                accepted = 'Synthetic Gate A pin was accepted for Gate B1.'
+            },
+            [ordered]@{
+                phase = 'GateA_VendorImported'
+                bytes = [long]$HistoricalGateB1VerifierCanonicalLfBytes
+                sha256 = $HistoricalGateB1VerifierCanonicalLfSha256
+                owner = 'synthetic Gate B1 pin in wrong Gate A phase'
+                accepted = 'Synthetic Gate B1 pin was accepted for Gate A.'
+            },
+            [ordered]@{
+                phase = 'GateB2_DerivedWired'
+                bytes = [long]$HistoricalGateB1VerifierCanonicalLfBytes
+                sha256 = $HistoricalGateB1VerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate B1 pin in Gate B2 phase'
+                accepted = 'Synthetic historical Gate B1 pin was accepted for Gate B2.'
+            },
+            [ordered]@{
+                phase = 'GateA_VendorImported'
+                bytes = [long]$HistoricalGateAVerifierCanonicalLfBytes + 1
+                sha256 = $HistoricalGateAVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate A pin bytes'
+                accepted = 'Synthetic mutated Gate A pin bytes were accepted.'
+            },
+            [ordered]@{
+                phase = 'GateA_VendorImported'
+                bytes = [long]$HistoricalGateAVerifierCanonicalLfBytes
+                sha256 = $mutatedGateAVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate A pin SHA-256'
+                accepted = 'Synthetic mutated Gate A pin SHA-256 was accepted.'
+            },
+            [ordered]@{
+                phase = 'GateB1_DerivedDeclaration'
+                bytes = [long]$HistoricalGateB1VerifierCanonicalLfBytes + 1
+                sha256 = $HistoricalGateB1VerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate B1 pin bytes'
+                accepted = 'Synthetic mutated Gate B1 pin bytes were accepted.'
+            },
+            [ordered]@{
+                phase = 'GateB1_DerivedDeclaration'
+                bytes = [long]$HistoricalGateB1VerifierCanonicalLfBytes
+                sha256 = $mutatedGateB1VerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate B1 pin SHA-256'
+                accepted = 'Synthetic mutated Gate B1 pin SHA-256 was accepted.'
+            },
+            [ordered]@{
+                phase = 'GateB2_DerivedWired'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes + 1
+                sha256 = $syntheticCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic mutated current Gate B2 pin bytes'
+                accepted = 'Synthetic mutated current pin bytes were accepted for Gate B2.'
+            },
+            [ordered]@{
+                phase = 'GateB2_DerivedWired'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes
+                sha256 = $mutatedCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic mutated current Gate B2 pin SHA-256'
+                accepted = 'Synthetic mutated current pin SHA-256 was accepted for Gate B2.'
+            })
+        foreach ($pinCase in $negativePinCases) {
+            try {
+                $null = Get-ReviewedVerifierManifestPin `
+                    -ExpectedPhase $pinCase.phase `
+                    -CanonicalLfBytes ([long]$pinCase.bytes) `
+                    -CanonicalLfSha256 $pinCase.sha256 `
+                    -Owner $pinCase.owner
+                throw $pinCase.accepted
+            }
+            catch {
+                if ($_.Exception.Message -ceq $pinCase.accepted) {
+                    throw
+                }
+                $expectedRejection =
+                    "$($pinCase.owner) verifier canonical pin is not reviewed " +
+                    "for phase $($pinCase.phase)."
+                if ($_.Exception.Message -cne $expectedRejection) {
+                    throw
+                }
+                $negative++
+            }
         }
-        $negative++
     }
-    try {
-        $null = Get-ReviewedVerifierManifestPin `
-            -ExpectedPhase 'GateA_VendorImported' `
-            -CanonicalLfBytes $HistoricalGateAVerifierCanonicalLfBytes `
-            -CanonicalLfSha256 (
-                $HistoricalGateAVerifierCanonicalLfSha256.Substring(0, 63) + 'D') `
-            -Owner 'synthetic mutated historical pin SHA-256'
-        throw 'Synthetic mutated historical Gate A pin SHA-256 was accepted.'
-    }
-    catch {
-        if ($_.Exception.Message -ceq
-            'Synthetic mutated historical Gate A pin SHA-256 was accepted.') {
-            throw
-        }
-        $negative++
+    finally {
+        $script:ExpectedVerifierCanonicalLfBytes = $savedExpectedBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $savedExpectedSha256
     }
 
     if ($null -eq ('ElmoUdpCheckpoint.NativeContainedProcess' -as [type])) {
