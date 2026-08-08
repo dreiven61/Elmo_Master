@@ -2751,8 +2751,38 @@ namespace LasalMotionControlApiExample
                     == ticket.DiagnosticsBootId;
         }
 
+        private bool HasCurrentDigitalOutputWriteReadbackContinuation(
+            LMCConnection expectedConnection,
+            LMCDigitalOutputWriteRequest request,
+            LMCEtherCATTopologyEntry entry,
+            LMCDigitalIOValue originalShadow,
+            LMCOperationTicket ticket,
+            LMCOperationTicket pendingTicket)
+        {
+            return ReferenceEquals(connection, expectedConnection)
+                && expectedConnection != null
+                && expectedConnection.IsConnected
+                && ticket != null
+                && ReferenceEquals(diagnosticOperationTicket, ticket)
+                && ticket.BelongsToCurrentSession(expectedConnection)
+                && ReferenceEquals(
+                    pendingDigitalOutputWriteRequest,
+                    request)
+                && ReferenceEquals(
+                    pendingDigitalOutputWriteEntry,
+                    entry)
+                && ReferenceEquals(
+                    pendingDigitalOutputWriteOriginalShadow,
+                    originalShadow)
+                && ReferenceEquals(
+                    pendingDigitalOutputWriteTicket,
+                    pendingTicket)
+                && IsSameDigitalOutputWriteTicket(ticket, pendingTicket);
+        }
+
         private async System.Threading.Tasks.Task<string>
             VerifyDigitalOutputWriteReadbackAsync(
+                LMCConnection expectedConnection,
                 LMCOperationTicket ticket,
                 LMCOperationStatus status,
                 CancellationToken cancellationToken)
@@ -2760,7 +2790,11 @@ namespace LasalMotionControlApiExample
             if (ticket == null
                 || status == null
                 || ticket.OperationKind != LMCOperationKind.DigitalOutputWrite
-                || !status.IsTerminal)
+                || !status.IsTerminal
+                || !ReferenceEquals(connection, expectedConnection)
+                || expectedConnection == null
+                || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                || !ticket.BelongsToCurrentSession(expectedConnection))
             {
                 return string.Empty;
             }
@@ -2814,6 +2848,7 @@ namespace LasalMotionControlApiExample
             var request = pendingDigitalOutputWriteRequest;
             var entry = pendingDigitalOutputWriteEntry;
             var originalShadow = pendingDigitalOutputWriteOriginalShadow;
+            var pendingTicket = pendingDigitalOutputWriteTicket;
             if (request == null || entry == null || originalShadow == null)
             {
                 const string missing =
@@ -2826,7 +2861,7 @@ namespace LasalMotionControlApiExample
 
             try
             {
-                var currentConnection = RequireConnection();
+                var currentConnection = expectedConnection;
                 var topology = RequireEtherCATTopology();
                 if (!ReferenceEquals(currentConnection, connection)
                     || !HasExactDigitalOutputWriteSessionIdentity(
@@ -2850,6 +2885,17 @@ namespace LasalMotionControlApiExample
                         topology,
                         readRequest,
                         cancellationToken);
+                if (!HasCurrentDigitalOutputWriteReadbackContinuation(
+                        expectedConnection,
+                        request,
+                        entry,
+                        originalShadow,
+                        ticket,
+                        pendingTicket))
+                {
+                    return string.Empty;
+                }
+
                 selectedDigitalOutputShadow = readback;
                 TextDigitalOutputExpectedRevision.Text =
                     readback.OutputRevision == 0
@@ -2922,6 +2968,17 @@ namespace LasalMotionControlApiExample
             }
             catch (Exception error)
             {
+                if (!HasCurrentDigitalOutputWriteReadbackContinuation(
+                        expectedConnection,
+                        request,
+                        entry,
+                        originalShadow,
+                        ticket,
+                        pendingTicket))
+                {
+                    return string.Empty;
+                }
+
                 SetDigitalOutputWriteOutcomeUncertain(true);
                 Exception journalError = null;
                 try

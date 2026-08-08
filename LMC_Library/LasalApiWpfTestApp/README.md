@@ -44,16 +44,20 @@ UI localization coverage 시험이 실패한다. 동적 안전/복구 action과 
 
 ## Callback endpoint와 session 귀속
 
-`Connect`의 `0x405C` packet shape는 기존과 같다. PLC source는 callback IPv4가 현재
-valid TCP peer와 exact match하고 UDP port가 `1..65535`일 때만 최초
-`(event mask, port, IPv4)` tuple을 저장한다. 같은 tuple의 재등록은 성공하지만 하나라도
-다른 re-registration은 실패하고 이전 tuple을 그대로 보존한다.
+SDK library의 `0x405C` 기본은 기존 legacy raw 12-byte request/4-byte ACK다. 이 WPF
+example은 명시적으로 `Version2WakeHint`의 32-byte request/20-byte response와 maximum
+52-byte datagram을 선택한다. PLC source는 callback IPv4가 현재 valid TCP peer와 exact
+match하고 UDP port가 `1..65535`일 때만 최초 tuple을 저장한다. 같은 tuple의 재등록은
+성공하지만 하나라도 다른 re-registration은 실패하고 이전 tuple을 그대로 보존한다.
 
-raw `LMCCallbackEventArgs`에는 `SessionGeneration`, `BelongsTo`와
-`BelongsToCurrentSession`이 있다. WPF는 UI dispatcher에서 현재 connection/session을 다시
-검증하고 reconnect 전 queue에 들어간 stale callback은 log 또는 화면 상태에 반영하지 않는다.
-callback payload는 여전히 raw diagnostics다. 실제 payload capture가 없으므로 typed motion
-event, LASAL UDP sender와 typed parser는 구현 범위가 아니다.
+`LMCCallbackWakeHintEventArgs`에는 typed non-authoritative wake와 session provenance가
+있다. EventType 1은 `DiagnosticsOperationTerminalAvailable`, EventId는 nonzero D5
+TicketId다. WPF는 UI dispatcher에서 callback event와 retained
+`LMCOperationTicket`이 동일 active connection/local session/DiagnosticsBootId/TicketId에
+속하는지 다시 검증한다. exact match일 때만 ticket별 single-flight
+`GetOperationStatusAsync` (`0x7E03`)를 실행하고, 성공한 TCP response만 기존
+terminal/journal UI path에 반영한다. UDP로 ticket 또는 state를 만들지 않는다.
+unknown/stale/busy wake는 버리며 manual refresh/polling fallback은 유지한다.
 
 설치된 SIGMATEK `GetBroadCastData.st`가 IPv4 UDINT를 LSB-first octet 순서로 변환하는
 source는 peer 비교 byte order의 정적 근거다. 현재 PLC compile/download, registration
@@ -67,8 +71,9 @@ duplicate/mismatch packet과 실제 UDP callback capture는 아직 없으므로 
 MSBuild.exe .\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests /p:Configuration=Debug /p:Platform=AnyCPU
 ```
 
-2026-08-04 current revision 기준 VS2019 MSBuild Debug/Release build와
-smoke는 각각 330/330 PASS다.
+2026-08-08 current revision 기준 VS2019 MSBuild Release rebuild는 경고 0,
+오류 0이고 smoke는 332/332 PASS다. 이번 tranche에서는 Debug build/smoke를
+다시 실행하지 않았다.
 Connect 뒤 bit 14만 광고된 7-node
 topology가 자동으로 7행/CREVIS 3행을 표시하고 bit 15~17 live 버튼은 비활성인 경로,
 초기 bit 14 OFF에서 자동 topology 요청 없이 실패 상태를 표시한 뒤 수동 Load가 capability를
@@ -575,8 +580,9 @@ Off는 monitor 중 다음 generation을 예약할 수 있고 이전 proof는 다
 Reset, Axis Reset, Admin `GroupMoveLinearRelative`와 D5
 `SubmitSdo`/`CancelOperation`의 지연 ACK도 exact connection session과 priority generation에
   bind되어 drain 뒤 `ResultDiscarded`된다. accepted Submit은 exact ticket/BootId/MapRevision
-  evidence를 보존하고 Cancel ACK는 stale success로 적용하지 않는다. current SDK Debug/Release는
-  각각 1082/1082 PASS다. fake-RPC는 외부 Power Off 선점에서
+  evidence를 보존하고 Cancel ACK는 stale success로 적용하지 않는다. current SDK
+  Release runner는 1111/1111 PASS했고 이번 tranche에서는 Debug runner를 다시
+  실행하지 않았다. fake-RPC는 외부 Power Off 선점에서
   `0x2085=1`, `0x204B=1`, `0x2045=4`, accepted status failure 뒤 cleanup에서
   `0x2085=1`, `0x2045=4`를 확인했다. 이는 PLC 정지 완료나 장비 안전 성능 증거가 아니다.
 
@@ -599,7 +605,8 @@ journal을 arm한다. 성공 결과와 accepted-result preemption의 exact lease
 유실은 자동 재전송하지 않는다. config-only exact Release는 full qualification gate가 아닌 manual
 route와 같이 열리도록 분리했다. 현재 네 proof/route gate는 모두 `false`다.
 
-현행 WPF actual-control smoke는 VS2019 MSBuild current Debug/Release 각각 330/330 PASS다. Admin capability/axis/group과
+현행 WPF actual-control smoke는 VS2019 MSBuild current Release에서 332/332
+PASS다. 이번 tranche에서는 Debug smoke를 다시 실행하지 않았다. Admin capability/axis/group과
 Drive mode/non-atomic status의 exact fake-RPC, non-default axis lookup/AxisInfo payload 및 typed 표시,
 CREVIS 자동 7행/3행 표시,
 초기 bit 14 OFF 뒤 수동 Load CREVIS 복구, live capability-off 버튼 차단과 capability downgrade
@@ -1247,9 +1254,10 @@ dispatcher는 대소문자를 구분하지 않으므로 `_LMCAxis1`과 `_LMCAXIS
 - motion/제어 command의 실행 중 Cancel 기능은 제공하지 않는다. API timeout은 기본
   3초다. Recorder의 `Cancel Download`는 이미 frozen된 데이터를 PC로 복사하는 작업만
   취소하며 PLC recording이나 motion을 정지시키지 않는다.
-- callback log는 current connection/session provenance를 통과한 raw UDP diagnostic data이며
-  motion 완료 판정이 아니다. stale queued callback은 표시하지 않지만 typed event 의미나 PLC
-  callback sender 동작을 증명하지도 않는다.
+- callback version 2는 D5 terminal query를 깨우는 hint일 뿐 완료 판정이 아니다. exact
+  retained ticket과 current-session provenance가 없는 wake는 폐기하고, authoritative
+  `0x7E03` TCP response만 UI/journal 상태를 바꾼다. current source에는 production PLC
+  publisher가 없고 live UDP packet 증거도 없으므로 runtime callback PASS가 아니다.
 
 활성 command mapping은 `API_MAPPING.md`, 구현 판단과 안전 설계는 `DESIGN.md`를
 참조한다.

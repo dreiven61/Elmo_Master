@@ -481,7 +481,7 @@ namespace LasalMotionControlApiExample
                     remotePort,
                     localAddress,
                     callbackPort,
-                    LMCConnection.DefaultEventMask,
+                    1u,
                     cancellationToken);
                 return recoveryConnection;
             }

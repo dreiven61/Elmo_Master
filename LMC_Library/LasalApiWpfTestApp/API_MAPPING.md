@@ -7,9 +7,9 @@
 | 화면 | Command ID | 실제 API |
 |---|---:|---|
 | Runtime Language (`English`/`한국어`) | local only, wire 없음 | `UiLocalizationService`가 정적 UI chrome과 동적 Power/Reset/Stop/Group 복구 action·안전 guidance를 전환하고 기존 WPF binding을 유지한다. startup/safety confirmation과 save dialog도 선택 언어를 사용한다. raw log/result/evidence 및 입력값은 English/protocol-stable로 유지하고 culture와 숫자 parsing은 변경하지 않는다. `UiLanguagePreferenceStore`는 `%LOCALAPPDATA%\Elmo\LasalMotionControlApiExample\ui-language.txt`를 사용하며 시험은 주입된 임시 경로로 격리한다. |
-| Connect | `0x8080`, `0x405C` | `LMCConnection.RpcInitConnectionAsync`; unchanged 12-byte registration payload, PLC exact-peer/port ownership validation |
+| Connect | `0x8080`, `0x405C` | `LMCConnection.RpcInitConnectionAsync`; this example explicitly selects version-2 32-byte registration/20-byte response while the library default remains legacy 12/4; PLC exact-peer/port ownership validation |
 | Close | `0x405D` | `LMCConnection.CloseConnectionAsync` |
-| Raw Callback log | UDP datagram, command ID 없음 | `LMCCallbackEventArgs`; `SessionGeneration`, `BelongsTo`, `BelongsToCurrentSession` 확인 뒤에만 current-session raw bytes를 log한다. typed parser는 없음 |
+| D5 terminal wake | UDP `LMC2`, then TCP `0x7E03` | `LMCCallbackWakeHintEventArgs`; EventType 1/nonzero EventId를 retained current-session `LMCOperationTicket`의 BootId/TicketId와 exact match한 뒤 single-flight `GetOperationStatusAsync`를 실행한다. UDP는 state를 바꾸지 않고 only TCP response가 기존 D5 completion/journal 경로를 갱신한다. unknown/stale/busy wake는 drop하고 manual/poll fallback을 유지한다. |
 | Load Axis | `0x103C`, `0x202B` | `LMCSingleAxis.CreateAsync`; `LookupResult`와 별도 `AxisInfoResponse` |
 | Power On + stable verification | `0x2023` once, then `0x2028` | `PowerOnAndWaitForStableStateAsync`; accepted continuation은 `ResumePowerOnWaitForStableStateAsync`, reconnect/restart는 read-only `WaitForPowerStateAsync(true)`로 status-only resume |
 | Power Off + stable verification | Begin `0x2023` once, Resume `0x2028` | `BeginPowerOffWaitForStableStateAsync`, then `ResumePowerOffWaitForStableStateAsync`; ACK+mutation generation+continuation atomic publication, priority send/preemptible monitor, later same-axis mutation typed interference/no replay |
@@ -69,18 +69,20 @@
 | Diagnostics ticket status / cancel | `0x7E03`, `0x7E04` | `GetOperationStatusAsync`, `CancelOperationAsync` |
 
 `Connect`는 TCP 연결, RPC session 초기화, UDP callback listener 개방과 callback
-등록을 한 번에 수행한다. callback은 typed motion event가 아니라 raw diagnostic
-payload로만 표시한다. `0x405C` wire shape는 바꾸지 않았다. PLC는
-`CurrentPeerValid`, requested IPv4와 TCP peer의 exact match, port `1..65535`를
-검증한 뒤 최초 valid `(event mask, port, IPv4)` tuple만 commit한다. exact duplicate는
-idempotent이고 다른 re-registration은 기존 tuple을 보존한 채 실패한다.
+등록을 한 번에 수행한다. 이 예제는 명시적으로 `Version2WakeHint`와 maximum 52 bytes를
+선택한다. SDK library의 기본은 계속 legacy raw 12/4다. PLC는 `CurrentPeerValid`,
+requested IPv4와 TCP peer의 exact match, port `1..65535`를 검증한 뒤 최초 valid tuple만
+commit한다. exact duplicate는 idempotent이고 다른 re-registration은 기존 tuple을 보존한
+채 실패한다.
 
-SDK raw event는 listener가 소유한 connection과 positive session generation에 귀속된다.
-WPF는 dispatcher queue에서 active connection identity와
-`BelongsToCurrentSession(connection)`을 다시 확인하고 stale queued callback은 raw log/UI
-반영 전에 폐기한다. 이는 reconnect 뒤 예전 UDP event의 UI 오귀속을 막는
-PC 경계일 뿐 event 의미를 해석하지 않는다. LASAL sender, typed payload/parser와 실제 PLC
-callback capture는 아직 없다.
+Typed wake는 listener가 소유한 connection과 positive session generation에 귀속된다. WPF는
+dispatcher queue에서 active connection identity와 `BelongsToCurrentSession(connection)`,
+retained ticket의 `BelongsToCurrentSession(connection)`, exact DiagnosticsBootId와 nonzero
+TicketId를 다시 확인한다. EventType 1은 `DiagnosticsOperationTerminalAvailable`만 뜻한다.
+조건이 맞을 때만 retained ticket으로 generation-pinned `0x7E03`을 조회하고, 성공한 TCP
+response만 기존 terminal/journal UI path에 반영한다. UDP에서 ticket을 합성하거나
+OperationKind/state를 추론하지 않는다. PLC production publisher와 실제 callback capture는
+아직 없다.
 
 이 WPF가 생성하거나 reconnect하는 모든 `LMCConnection`에는 하나의
 `LMCSendPriorityCoordinator`를 주입한다. Axis/Group Stop과 Power Off는 app send gate를
@@ -217,8 +219,9 @@ process restart는 `RecoveryRequired`로 승격한다. exact reconnect와 Load G
 `0x20D2`를 1회 검증하고 Resume은 `0x2045`/`0x2028`만 보낸다. mismatch는 record를 유지한 채
 fail-closed하고 Reset을 자동 replay하지 않는다.
 
-current 통합 변경의 Debug/Release build/test는 SDK 각각 1082/1082, WPF 각각
-330/330 PASS이며 PLC/runtime 완료 증거는 별도다.
+current 통합 변경의 Release build/test는 SDK 1111/1111, WPF 332/332 PASS다.
+이번 tranche에서는 Debug build/test를 다시 실행하지 않았으며 PLC/runtime 완료
+증거는 별도다.
 
 Axis Reset UI는 Begin에서 `0x2024` ACK와 accepted continuation을 live-command gate 반환 전에
 저장한다. Resume은 gate 밖에서 `0x2028`의 successful `AxisErrorId == 0`을 기본 3회 연속

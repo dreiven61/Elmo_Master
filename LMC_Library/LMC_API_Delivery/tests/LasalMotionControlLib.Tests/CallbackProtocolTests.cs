@@ -694,11 +694,11 @@ namespace LasalMotionControlLib.Tests
         {
             var policy = LMCCallbackProtocolPolicy.InitialV2WakeHint;
 
-            AssertEx.True(policy.ApprovesEventIdentifier(1, 0u));
+            AssertEx.False(policy.ApprovesEventIdentifier(1, 0u));
             AssertEx.True(
                 policy.ApprovesEventIdentifier(1, uint.MaxValue));
-            AssertEx.False(policy.ApprovesEventIdentifier(0, 0u));
-            AssertEx.False(policy.ApprovesEventIdentifier(2, 0u));
+            AssertEx.False(policy.ApprovesEventIdentifier(0, 1u));
+            AssertEx.False(policy.ApprovesEventIdentifier(2, 1u));
             AssertEx.False(
                 policy.ApprovesEventIdentifier(
                     ushort.MaxValue,
@@ -706,6 +706,33 @@ namespace LasalMotionControlLib.Tests
             AssertEx.True(policy.ApprovesDeliveryClass(0));
             AssertEx.False(policy.ApprovesDeliveryClass(1));
             AssertEx.False(policy.ApprovesDeliveryClass(byte.MaxValue));
+
+            var structuralPolicy = InitialV2WakeHintStructuralPolicy();
+            var fence = InitialV2WakeHintFence(structuralPolicy, 1u);
+            var zeroIdentifierWrite = new LMCCallbackDatagramWrite(
+                (ushort)LMCCallbackWakeHintEventType
+                    .DiagnosticsOperationTerminalAvailable,
+                1,
+                1,
+                0u,
+                0u,
+                0,
+                new byte[0]);
+            var zeroIdentifierDatagram = LMCCallbackProtocol.EncodeDatagram(
+                zeroIdentifierWrite,
+                fence,
+                structuralPolicy);
+
+            AssertEx.Throws<ArgumentException>(
+                () => LMCCallbackProtocol.EncodeDatagram(
+                    zeroIdentifierWrite,
+                    fence,
+                    policy));
+            AssertDatagramError(
+                zeroIdentifierDatagram,
+                fence,
+                policy,
+                LMCCallbackProtocolError.EventIdentifierNotApproved);
         }
 
         private static void InitialV2WakeHintExactSuccessResponse()
@@ -803,7 +830,7 @@ namespace LasalMotionControlLib.Tests
                 1,
                 1,
                 2,
-                0u,
+                1u,
                 0x01020305u,
                 0,
                 new byte[] { 0xA5 });

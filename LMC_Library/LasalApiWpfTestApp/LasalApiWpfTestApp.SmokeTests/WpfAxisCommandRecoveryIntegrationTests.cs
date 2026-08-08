@@ -873,7 +873,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                                         record.EndpointPort,
                                         "127.0.0.1",
                                         0,
-                                        LMCConnection.DefaultEventMask,
+                                        1u,
                                         CancellationToken.None);
                             };
                         Click(window.ButtonStop);

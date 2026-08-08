@@ -1411,7 +1411,10 @@ Opt-in PC / dormant PLC project-local 0x405C version 2:
   Version2WakeHint mode sends 32/20, installs the exact source, BootId,
   SessionEpoch, cookie, length, policy, and sequence fences, and emits only a
   typed non-authoritative wake hint. The live receiver fence is private.
-  Automatic TCP follow-up and the PLC production publisher remain absent.
+  The delivery library still emits only a typed wake hint. The opt-in WPF
+  consumer now correlates an exact retained current-session D5 ticket and
+  performs a single-flight authoritative 0x7E03 TCP follow-up; the PLC
+  production publisher remains absent.
 - Dispatch is by exact request payload length. A 12-byte request uses legacy
   12/4. A 32-byte request uses version-2 32/20. Every other length rejects without
   endpoint mutation. There is no same-session downgrade after a v2 rejection.
@@ -1455,7 +1458,7 @@ Opt-in PC receive / dormant PLC LMC2 UDP datagram:
     P28 CookieHi UDINT = request cookie
     P32 SequenceLo UDINT
     P36 SequenceHi UDINT
-    P40 EventId UDINT; any value including zero, producer correlation only
+    P40 EventId UDINT; exact nonzero D5 TicketId, producer correlation only
     P44 PlcTimeMs UDINT; ops.tAbsolute enqueue snapshot, never command authority
     P48 PayloadBytes UINT; format range 0..460, initial policy exactly 0
     P50 DeliveryClass BYTE = 0 for the initial production policy
@@ -1471,14 +1474,38 @@ Opt-in PC receive / dormant PLC LMC2 UDP datagram:
 - Even a fully valid datagram is only a wake hint. UDP cannot complete a motion
   command, clear ownership, acknowledge safety, or establish a terminal result.
   Only the subsequent TCP query response can update authoritative state.
-- Initial production policy requires registration mask bit 1, EventType 1,
-  EventMaskBit 1, DeliveryClass 0, PayloadBytes 0, and registration
-  Status=0/ErrorId=0. Every EventId UDINT is accepted as opaque correlation.
+- Initial production policy requires registration mask bit 1, EventType 1
+  (DiagnosticsOperationTerminalAvailable), EventMaskBit 1, a nonzero D5
+  TicketId in EventId, DeliveryClass 0, PayloadBytes 0, and registration
+  Status=0/ErrorId=0.
   LMCCallbackProtocolPolicy.InitialV2WakeHint and targeted socket tests prove
   opt-in LmcConnection negotiation/fencing/typed dispatch against a fake peer.
   The v2 path receives into one fixed accepted-maximum buffer (52..512 bytes);
   WSAEMSGSIZE is one rejection and never reaches user dispatch. This does not
   prove live PLC traffic or authoritative TCP follow-up.
+
+First production producer contract (D5 terminal availability):
+- EventType 1 is reserved for DiagnosticsOperationTerminalAvailable. EventId is
+  the exact nonzero D5 TicketId, ProducerSessionEpoch is OwnerSessionEpoch, the
+  envelope BootId is the armed DiagnosticsBootId/TicketBootId, DeliveryClass is
+  0, pPayload is NIL, and PayloadBytes is 0.
+- The PC must already own the Submit response's LMCOperationTicket. The exact
+  LMCConnection identity, local SessionGeneration, ticket ownership,
+  DiagnosticsBootId, and TicketId must all match before the retained ticket is
+  passed to GetOperationStatusAsync. UDP never supplies OperationKind,
+  QueuedCycle, result bytes, or completion authority.
+- LMCDiagnosticsService owns a one-attempt terminal receipt for Completed,
+  Failed, Cancelled, and Expired. TCPMotionInterface pulls it immediately after
+  ProcessOperations and again after a diagnostics TCP response, verifies the
+  active callback session/BootId tuple, and invokes PublishEvent exactly once.
+  No direct Diagnostics-to-sender Network link is added.
+- PublishEvent result 0 means FIFO enqueue. Results -2, -4, -5, -6, -7, -8,
+  and -9 end that producer attempt without retry and without changing D5 truth,
+  next-ticket admission, or the TCP response. Sender slot retry remains bounded
+  transport retry. Polling/manual refresh remains the loss fallback.
+- A wake whose terminal slot was replaced before 0x7E03 may return the existing
+  TicketNotFound detail. That is stale-hint handling, not a connection fault or
+  a new operation outcome.
 
 Dormant LMCUdpCallbackSender verifier state ladder:
 - The exact monotonic states are VendorImported -> DerivedDeclaration ->
@@ -1678,9 +1705,12 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
 - The initial sender rejects version 1 with -6 regardless of the reserved
   fixture macro. Version 2 requires (CookieLo OR CookieHi) <> 0 and
   MaxDatagramBytes 52..512, nonzero SessionEpoch/BootId, valid IPv4/port, and
-  EventMask bit 1. Initial version-2
-  PublishEvent accepts only EventMaskBit 1, EventType 1, DeliveryClass 0, and
-  PayloadBytes 0, while EventId may be any UDINT including zero.
+  EventMask bit 1. The Gate D production target for PublishEvent accepts only
+  EventMaskBit 1, EventType 1, a nonzero EventId, DeliveryClass 0, and
+  PayloadBytes 0. Current Gate C already enforces every item except the nonzero
+  EventId check; Gate D must add that rejection before publisher activation.
+  Event type 1 means
+  DiagnosticsOperationTerminalAvailable and EventId is the exact D5 TicketId.
 - The application queue is exact FIFO 8 x 512 bytes with ReadIndex, WriteIndex,
   and Depth. Full depth drops only the new event and preserves queued slots.
   FindFreeSlot returns WriteIndex only when Depth<8 and
@@ -1850,13 +1880,18 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   Admin bits 4/6, Diagnostics bits 18/19, and the corresponding feature gates remain
   OFF until the bidirectional interlock, atomic Group acquisition, terminal
   release, IDE build, PLC download, and concurrent-request proof are complete.
-- The project-local LMC2 schema is approved only in its dormant, fenced form
-  above. The sender class/Network and TCP lifecycle candidate now exist, but
-  production PublishEvent call sites remain zero. LmcConnection keeps legacy
-  12/4 as its default and now has an explicit opt-in 32/20 typed wake-hint path.
-  An approved event-to-authoritative-TCP-query mapping, PLC download, and live
-  UDP receiver/dispatch packet proof are absent. Gate A/B/C static/build evidence
-  and PC fake-peer tests are not PLC runtime proof.
+- The project-local LMC2 schema is approved only in its fenced form above.
+  Event type 1 is reserved for a completed D5 terminal record. A PC consumer may
+  use it only when an already-retained current-session LMCOperationTicket has
+  the exact EventId/TicketId and BootId/DiagnosticsBootId; it then invokes only
+  the generation-pinned GetOperationStatusAsync 0x7E03 path. Unknown, zero,
+  foreign, or stale hints are ignored and cannot synthesize tickets or state.
+  The sender class/Network and TCP lifecycle candidate exist, but production
+  PublishEvent call sites remain zero until the separate PLC broker tranche.
+  LmcConnection keeps legacy 12/4 as its library default and provides explicit
+  opt-in 32/20 typed wake hints. PLC download and live UDP-to-TCP causal packet
+  proof remain absent. Gate A/B/C static/build evidence and PC fake-peer tests
+  are not PLC runtime proof.
 
 MoveCircle scope:
 - The current public C# API has no MoveCircle method.

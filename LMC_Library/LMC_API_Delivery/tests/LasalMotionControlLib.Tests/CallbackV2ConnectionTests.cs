@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using LasalMotionControlLib;
 
@@ -21,6 +22,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add(
                 "Rpc.CallbackV2.NegotiationEarlyTypedDispatch",
                 NegotiationEarlyTypedDispatch);
+            tests.Add(
+                "Rpc.CallbackV2.D5TerminalTicketCorrelation",
+                D5TerminalTicketCorrelation);
             tests.Add(
                 "Rpc.CallbackV2.StrictFenceAndBoundedReceive",
                 StrictFenceAndBoundedReceive);
@@ -399,6 +403,161 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(connection.IsCallbackListenerRunning);
 
                 connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void D5TerminalTicketCorrelation()
+        {
+            const uint bootId = 0x11224488u;
+            const uint sessionEpoch = 0x55667788u;
+            const uint ticketId = 0xA1B2C3D4u;
+            LMCCallbackWakeHintEventArgs received = null;
+
+            using (var signal = new ManualResetEventSlim(false))
+            using (var server = new FakeRpcServer(
+                InitStep(),
+                V2Step(bootId, sessionEpoch),
+                CloseStep()))
+            using (var connection = new LMCConnection(
+                V2Options(() => FirstCookie)))
+            using (var otherConnection = new LMCConnection())
+            {
+                connection.CallbackWakeHintReceived += delegate(
+                    object sender,
+                    LMCCallbackWakeHintEventArgs e)
+                {
+                    received = e;
+                    signal.Set();
+                };
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    1u);
+                Send(connection, EncodeWake(connection, 1UL));
+                AssertEx.True(signal.Wait(2000));
+                AssertEx.NotNull(received);
+
+                AssertEx.Equal(
+                    (ushort)1,
+                    (ushort)LMCCallbackWakeHintEventType
+                        .DiagnosticsOperationTerminalAvailable);
+                var ticket = D5WriteTicket(
+                    connection.Diagnostics,
+                    connection.SessionGeneration,
+                    ticketId,
+                    bootId);
+                AssertEx.True(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        ticket));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(null, ticket));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        null));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        D5WriteTicket(
+                            otherConnection.Diagnostics,
+                            connection.SessionGeneration,
+                            ticketId,
+                            bootId)));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        D5WriteTicket(
+                            connection.Diagnostics,
+                            connection.SessionGeneration + 1,
+                            ticketId,
+                            bootId)));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        D5WriteTicket(
+                            connection.Diagnostics,
+                            connection.SessionGeneration,
+                            ticketId + 1,
+                            bootId)));
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        D5WriteTicket(
+                            connection.Diagnostics,
+                            connection.SessionGeneration,
+                            ticketId,
+                            bootId + 1)));
+
+                AssertEx.False(
+                    WithWakeHint(
+                        received,
+                        connection,
+                        2,
+                        1u,
+                        ticketId,
+                        0,
+                        new byte[0])
+                        .MatchesD5OperationTerminalTicket(
+                            connection,
+                            ticket));
+                AssertEx.False(
+                    WithWakeHint(
+                        received,
+                        connection,
+                        1,
+                        2u,
+                        ticketId,
+                        0,
+                        new byte[0])
+                        .MatchesD5OperationTerminalTicket(
+                            connection,
+                            ticket));
+                AssertEx.False(
+                    WithWakeHint(
+                        received,
+                        connection,
+                        1,
+                        1u,
+                        0u,
+                        0,
+                        new byte[0])
+                        .MatchesD5OperationTerminalTicket(
+                            connection,
+                            ticket));
+                AssertEx.False(
+                    WithWakeHint(
+                        received,
+                        connection,
+                        1,
+                        1u,
+                        ticketId,
+                        1,
+                        new byte[0])
+                        .MatchesD5OperationTerminalTicket(
+                            connection,
+                            ticket));
+                AssertEx.False(
+                    WithWakeHint(
+                        received,
+                        connection,
+                        1,
+                        1u,
+                        ticketId,
+                        0,
+                        new byte[] { 1 })
+                        .MatchesD5OperationTerminalTicket(
+                            connection,
+                            ticket));
+
+                connection.CloseConnection();
+                AssertEx.False(
+                    received.MatchesD5OperationTerminalTicket(
+                        connection,
+                        ticket));
                 server.Verify();
             }
         }
@@ -963,6 +1122,62 @@ namespace LasalMotionControlLib.Tests
         private static byte[] Clone(byte[] value)
         {
             return (byte[])value.Clone();
+        }
+
+        private static LMCOperationTicket D5WriteTicket(
+            LMCDiagnostics owner,
+            long sessionGeneration,
+            uint ticketId,
+            uint bootId)
+        {
+            return new LMCOperationTicket(
+                ticketId,
+                LMCOperationKind.SDOWrite,
+                0x01020304u,
+                bootId,
+                1u,
+                sessionGeneration,
+                owner,
+                false,
+                0,
+                LMCSignalValueType.Invalid);
+        }
+
+        private static LMCCallbackWakeHintEventArgs WithWakeHint(
+            LMCCallbackWakeHintEventArgs source,
+            LMCConnection connection,
+            ushort eventType,
+            uint eventMaskBit,
+            uint eventId,
+            byte deliveryClass,
+            byte[] payload)
+        {
+            var lifetimeField = typeof(LMCCallbackWakeHintEventArgs).GetField(
+                "connectionLifetimeGeneration",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            AssertEx.NotNull(lifetimeField);
+            var lifetimeGeneration = (long)lifetimeField.GetValue(source);
+            var fence = connection.RpcCallbackRegistrationV2Response
+                .SessionFence;
+            var datagram = new LMCCallbackDatagram(
+                eventType,
+                eventMaskBit,
+                fence.BootId,
+                fence.SessionEpoch,
+                fence.CookieLo,
+                fence.CookieHi,
+                source.WakeHint.Sequence,
+                eventId,
+                source.WakeHint.PlcTimeMs,
+                deliveryClass,
+                payload);
+            return new LMCCallbackWakeHintEventArgs(
+                new LMCCallbackWakeHint(datagram),
+                source.RemoteEndPoint,
+                source.ReceivedAtUtc,
+                connection,
+                lifetimeGeneration,
+                source.SessionGeneration);
         }
     }
 }

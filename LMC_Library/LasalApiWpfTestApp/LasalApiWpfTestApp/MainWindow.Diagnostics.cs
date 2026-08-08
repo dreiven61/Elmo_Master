@@ -49,6 +49,7 @@ namespace LasalMotionControlApiExample
         private LMCRecorderData recorderData;
         private CancellationTokenSource recorderDownloadCancellation;
         private LMCOperationTicket diagnosticOperationTicket;
+        private LMCOperationTicket callbackDiagnosticRefreshTicket;
         private LMCOperationStatus diagnosticOperationStatus;
         private byte[] diagnosticOperationResult;
         private bool diagnosticOperationCancelAccepted;
@@ -1878,108 +1879,149 @@ namespace LasalMotionControlApiExample
                 {
                     var ticket = RequireDiagnosticOperationTicket();
                     var currentConnection = RequireConnection();
-                    var pendingWriteReadback =
-                        d5SdoPendingWriteReadback;
-                    if (pendingWriteReadback != null
-                        && ticket.OperationKind
-                            == LMCOperationKind.SDORead
-                        && !pendingWriteReadback
-                            .MatchesOwnerCurrentSession(
-                                currentConnection))
-                    {
-                        throw new InvalidOperationException(
-                            "The pending SDO Write readback belongs to another or stale connection session. Its ticket was not queried and the interlock remains active.");
-                    }
-
-                    diagnosticOperationStatus =
-                        await currentConnection.Diagnostics
-                            .GetOperationStatusAsync(
-                                ticket,
-                                CancellationToken.None);
-                    LMCDiagnosticCapabilities
-                        readbackTerminalCapabilities = null;
-                    if (pendingWriteReadback != null
-                        && ticket.OperationKind
-                            == LMCOperationKind.SDORead
-                        && diagnosticOperationStatus.IsTerminal)
-                    {
-                        readbackTerminalCapabilities =
-                            await ReadExternalD5TrackingCapabilitiesAsync(
-                                currentConnection,
-                                "manual-sdo-write-readback-terminal",
-                                pendingWriteReadback.DataLength,
-                                true);
-                    }
-
-                    var completedWriteRequest = ticket.OperationKind
-                            == LMCOperationKind.SDOWrite
-                        ? d5SdoQualificationActiveRequest
-                        : null;
-                    var hadPendingWriteReadback =
-                        HasPendingD5SdoWriteReadback;
-                    CompleteExternalD5TicketIfTerminal(
-                        ticket,
-                        diagnosticOperationStatus,
-                        "manual-sdo-status",
+                    await RefreshDiagnosticOperationCoreAsync(
                         currentConnection,
-                        readbackTerminalCapabilities);
-                    var digitalOutputWriteReadbackSummary =
-                        await VerifyDigitalOutputWriteReadbackAsync(
-                            ticket,
-                            diagnosticOperationStatus,
-                            CancellationToken.None);
-                    if (!IsSameDiagnosticOperationTicket(
-                            ticket,
-                            diagnosticOperationTicket))
-                    {
-                        return;
-                    }
-
-                    if (diagnosticOperationStatus.IsSuccessful
-                        && ticket.OperationKind == LMCOperationKind.SDORead)
-                    {
-                        if (!ticket.UsesExtendedResultChunks)
-                        {
-                            diagnosticOperationResult =
-                                diagnosticOperationStatus.ResultData;
-                        }
-                    }
-                    else
-                    {
-                        diagnosticOperationResult = null;
-                    }
-                    TextDiagnosticOperationSummary.Text = FormatOperationStatus(
-                        diagnosticOperationStatus)
-                        + (diagnosticOperationStatus.IsSuccessful
-                            && ticket.OperationKind
-                                == LMCOperationKind.SDOWrite
-                            ? FormatSdoWriteManualReadbackWarning(
-                                completedWriteRequest)
-                            : string.Empty)
-                        + digitalOutputWriteReadbackSummary
-                        + (hadPendingWriteReadback
-                            && ticket.OperationKind
-                                == LMCOperationKind.SDORead
-                            && diagnosticOperationStatus.IsTerminal
-                            ? HasPendingD5SdoWriteReadback
-                                ? Environment.NewLine
-                                    + "Exact SDO Write readback NOT VERIFIED; the mutation/Close interlock remains active. Retry only the auto-filled exact Read."
-                                : Environment.NewLine
-                                    + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared."
-                            : string.Empty)
-                        + (diagnosticOperationStatus.IsSuccessful
-                            && ticket.UsesExtendedResultChunks
-                            ? Environment.NewLine
-                                + (diagnosticOperationResult == null
-                                    ? "Extended result is ready. Click Download Result to read validated 0x7E51 chunks."
-                                    : "Extended result remains downloaded: "
-                                        + diagnosticOperationResult.Length
-                                        + " bytes, preview="
-                                        + FormatBytePreview(
-                                            diagnosticOperationResult,
-                                            128))
-                            : string.Empty);
+                        ticket,
+                        CancellationToken.None,
+                        "manual-sdo-status");
                 });
+        }
+
+        private async Task<bool> RefreshDiagnosticOperationCoreAsync(
+            LMCConnection currentConnection,
+            LMCOperationTicket ticket,
+            CancellationToken cancellationToken,
+            string source)
+        {
+            if (currentConnection == null)
+            {
+                throw new ArgumentNullException(nameof(currentConnection));
+            }
+
+            if (ticket == null)
+            {
+                throw new ArgumentNullException(nameof(ticket));
+            }
+
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                throw new InvalidOperationException(
+                    "The retained D5 operation ticket does not belong to the current connection session.");
+            }
+
+            var pendingWriteReadback = d5SdoPendingWriteReadback;
+            if (pendingWriteReadback != null
+                && ticket.OperationKind == LMCOperationKind.SDORead
+                && !pendingWriteReadback.MatchesOwnerCurrentSession(
+                    currentConnection))
+            {
+                throw new InvalidOperationException(
+                    "The pending SDO Write readback belongs to another or stale connection session. Its ticket was not queried and the interlock remains active.");
+            }
+
+            var operationStatus = await currentConnection.Diagnostics
+                .GetOperationStatusAsync(ticket, cancellationToken);
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                return false;
+            }
+
+            LMCDiagnosticCapabilities readbackTerminalCapabilities = null;
+            if (pendingWriteReadback != null
+                && ticket.OperationKind == LMCOperationKind.SDORead
+                && operationStatus.IsTerminal)
+            {
+                readbackTerminalCapabilities =
+                    await ReadExternalD5TrackingCapabilitiesAsync(
+                        currentConnection,
+                        source + "-write-readback-terminal",
+                        pendingWriteReadback.DataLength,
+                        true,
+                        ticket);
+                if (!ReferenceEquals(connection, currentConnection)
+                    || !ReferenceEquals(diagnosticOperationTicket, ticket)
+                    || !ticket.BelongsToCurrentSession(currentConnection))
+                {
+                    return false;
+                }
+            }
+
+            diagnosticOperationStatus = operationStatus;
+            var completedWriteRequest = ticket.OperationKind
+                    == LMCOperationKind.SDOWrite
+                ? d5SdoQualificationActiveRequest
+                : null;
+            var hadPendingWriteReadback = HasPendingD5SdoWriteReadback;
+            CompleteExternalD5TicketIfTerminal(
+                ticket,
+                operationStatus,
+                source,
+                currentConnection,
+                readbackTerminalCapabilities);
+            var digitalOutputWriteReadbackSummary =
+                await VerifyDigitalOutputWriteReadbackAsync(
+                    currentConnection,
+                    ticket,
+                    operationStatus,
+                    cancellationToken);
+            if (!ReferenceEquals(connection, currentConnection)
+                || !ticket.BelongsToCurrentSession(currentConnection))
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(ticket, diagnosticOperationTicket))
+            {
+                return true;
+            }
+
+            if (operationStatus.IsSuccessful
+                && ticket.OperationKind == LMCOperationKind.SDORead)
+            {
+                if (!ticket.UsesExtendedResultChunks)
+                {
+                    diagnosticOperationResult = operationStatus.ResultData;
+                }
+            }
+            else
+            {
+                diagnosticOperationResult = null;
+            }
+
+            TextDiagnosticOperationSummary.Text = FormatOperationStatus(
+                operationStatus)
+                + (operationStatus.IsSuccessful
+                    && ticket.OperationKind == LMCOperationKind.SDOWrite
+                    ? FormatSdoWriteManualReadbackWarning(
+                        completedWriteRequest)
+                    : string.Empty)
+                + digitalOutputWriteReadbackSummary
+                + (hadPendingWriteReadback
+                    && ticket.OperationKind == LMCOperationKind.SDORead
+                    && operationStatus.IsTerminal
+                    ? HasPendingD5SdoWriteReadback
+                        ? Environment.NewLine
+                            + "Exact SDO Write readback NOT VERIFIED; the mutation/Close interlock remains active. Retry only the auto-filled exact Read."
+                        : Environment.NewLine
+                            + "Exact SDO Write target readback VERIFIED; the mutation/Close interlock is cleared."
+                    : string.Empty)
+                + (operationStatus.IsSuccessful
+                    && ticket.UsesExtendedResultChunks
+                    ? Environment.NewLine
+                        + (diagnosticOperationResult == null
+                            ? "Extended result is ready. Click Download Result to read validated 0x7E51 chunks."
+                            : "Extended result remains downloaded: "
+                                + diagnosticOperationResult.Length
+                                + " bytes, preview="
+                                + FormatBytePreview(
+                                    diagnosticOperationResult,
+                                    128))
+                    : string.Empty);
+            return true;
         }
 
         private async void ButtonDownloadSdoResult_Click(
@@ -2633,6 +2675,12 @@ namespace LasalMotionControlApiExample
             recorderHeader = null;
             recorderData = null;
             diagnosticOperationTicket = null;
+            if (callbackDiagnosticRefreshTicket != null)
+            {
+                operationRunning = false;
+            }
+
+            callbackDiagnosticRefreshTicket = null;
             diagnosticOperationStatus = null;
             diagnosticOperationResult = null;
             diagnosticOperationCancelAccepted = false;

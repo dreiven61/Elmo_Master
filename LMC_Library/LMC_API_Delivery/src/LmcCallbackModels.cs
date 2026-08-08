@@ -3,6 +3,14 @@ using System.Net;
 
 namespace LasalMotionControlLib
 {
+    /// <summary>
+    /// Identifies the production meaning of a version-2 callback wake hint.
+    /// </summary>
+    public enum LMCCallbackWakeHintEventType : ushort
+    {
+        DiagnosticsOperationTerminalAvailable = 1
+    }
+
     public sealed class LMCCallbackProtocolPolicy
     {
         private readonly Func<uint, bool> registrationMaskPredicate;
@@ -82,7 +90,10 @@ namespace LasalMotionControlLib
             {
                 return new LMCCallbackProtocolPolicy(
                     eventMask => (eventMask & 1u) == 1u,
-                    (eventType, eventId) => eventType == 1,
+                    (eventType, eventId) =>
+                        eventType == (ushort)LMCCallbackWakeHintEventType
+                            .DiagnosticsOperationTerminalAvailable
+                        && eventId != 0,
                     deliveryClass => deliveryClass == 0,
                     (status, errorId) => status == 0 && errorId == 0,
                     payloadBytes => payloadBytes == 0,
@@ -531,6 +542,39 @@ namespace LasalMotionControlLib
                 && connection.IsCurrentCallbackV2Session(
                     connectionLifetimeGeneration,
                     sessionGeneration);
+        }
+
+        /// <summary>
+        /// Returns true only when this wake hint exactly correlates to a
+        /// retained D5 operation ticket on the current RPC session.
+        /// </summary>
+        public bool MatchesD5OperationTerminalTicket(
+            LMCConnection connection,
+            LMCOperationTicket ticket)
+        {
+            if (connection == null || ticket == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return BelongsToCurrentSession(connection)
+                    && ticket.BelongsToCurrentSession(connection)
+                    && WakeHint.EventType
+                        == (ushort)LMCCallbackWakeHintEventType
+                            .DiagnosticsOperationTerminalAvailable
+                    && WakeHint.EventMaskBit == 1u
+                    && WakeHint.DeliveryClass == 0
+                    && WakeHint.Payload.Length == 0
+                    && WakeHint.EventId != 0
+                    && WakeHint.EventId == ticket.TicketId
+                    && WakeHint.BootId == ticket.DiagnosticsBootId;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static IPEndPoint CloneEndPoint(IPEndPoint value)

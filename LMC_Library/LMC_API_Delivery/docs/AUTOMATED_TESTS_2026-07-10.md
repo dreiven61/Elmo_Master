@@ -291,8 +291,14 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   recipe 1/2, capability bit 4 OFF, valid request `InvalidState/detail 10`, physical reference
   input source 부재와 native `MoveReference` call 0을 검사 대상으로 추가했고 current
   SourceOnly/full이 PASS했다.
-- `RunPcTests`: current Debug/Release build/test 각각 1042/1042 PASS. 추가 Debug 반복도
-  1042/1042 PASS했다. fake-RPC request/session을 한 lock에서 기록하고 stable snapshot으로
+- `RunPcTests` 대상의 2026-08-08 current Release PC suite는 .NET SDK 6.0.428
+  (`dotnet build`, MSBuild 17.3.4+a400405ba)에서 warning 0/error 0이고 standalone
+  runner `1111/1111` PASS다. callback tranche A는
+  `CallbackProtocol.InitialV2WakeHint.EventAndDeliveryPolicy`의 D5 terminal EventId
+  zero/nonzero 경계와 `Rpc.CallbackV2.D5TerminalTicketCorrelation`의 exact
+  owner/session/BootId/ticket/type/mask/delivery/payload fail-closed matcher를 포함한다.
+  이 결과는 PC fake-RPC/UDP 계약 검증이며 PLC callback publisher, PLC download/runtime 또는
+  live packet capture 증거가 아니다. fake-RPC request/session을 한 lock에서 기록하고 stable snapshot으로
   관측하는 신규 회귀 1개, Reference 16개와 SetPosition 18개, Recorder accepted-result 6경로의
   sync/async 지연 ACK 12개는 exact typed resource/context, recovery-only normal-use 차단,
   configuration/lease의 Release-only cleanup, identity의 Status -> 필요 시 Stop ->
@@ -378,9 +384,18 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `LMCRecorderStore` constructor exact 초기화/publish-last negative fixture,
   `Classes.lcb` general `TryStartRead` declaration,
   4축 executor network와 generated metadata 포함
-- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp` current Debug/Release
-  VS2019 MSBuild build와 actual-control smoke 각각 297/297 PASS. 추가 Debug 반복도 297/297
-  PASS했다. 신규 smoke는 UI English/Korean 언어 전환·저장과 Axis Reset
+- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp`의 2026-08-08
+  current Release는 VS2019 MSBuild 16.11.6.22506 Rebuild warning 0/error 0이고 full
+  smoke runner `332/332` PASS다. 신규
+  `Wpf.CallbackV2.D5TerminalWakeSingleFlightUsesAuthoritativeStatus`는 WPF가 callback v2
+  `eventMask=1`/max datagram 52로 등록하고, exact retained D5 ticket wake만 UI에 queue한 뒤
+  authoritative TCP `0x7E03`을 single-flight로 1회 조회하며 UDP hint 자체는 operation status를
+  변경하지 않는 causal 경계를 고정한다.
+  `Wpf.CallbackV2.StaleD5StatusCompletionPreservesNewerOwnership`은 old callback-triggered
+  `0x7E03` 응답을 보류한 동안 retained ticket/callback token을 newer current-session token으로
+  교체하고, old 응답 해제 뒤 stale continuation/finally가 newer token, operation-running gate,
+  operation UI와 status를 덮어쓰지 못함을 고정한다. 이는 fake PC peer 검증이며 PLC callback publisher나
+  PLC live/runtime 증거가 아니다. 그 밖의 smoke는 UI English/Korean 언어 전환·저장과 Axis Reset
   Begin `0x2024` 1회/Resume `0x2028`-only, failure 뒤 no-replay 재개, confirmed interference 뒤에만
   explicit new Reset을 허용하는 completion UI에 더해 status-only Resume의 PowerOff 선점 pending
   보존, accepted ACK 뒤 outer-safety preemption에서도 pending publication, safety preemption 뒤

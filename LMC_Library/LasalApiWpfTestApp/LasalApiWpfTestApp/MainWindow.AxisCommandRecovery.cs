@@ -614,7 +614,7 @@ namespace LasalMotionControlApiExample
                         TextCallbackPort.Text,
                         "Callback UDP port",
                         true),
-                    LMCConnection.DefaultEventMask,
+                    1u,
                     System.Threading.CancellationToken.None);
                 RememberConnectedRemoteEndpoint(
                     preparation.Record.EndpointIp,

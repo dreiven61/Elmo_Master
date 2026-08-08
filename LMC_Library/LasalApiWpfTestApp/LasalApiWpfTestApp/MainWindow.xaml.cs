@@ -569,7 +569,7 @@ namespace LasalMotionControlApiExample
                             remotePort,
                             localIp,
                             callbackPort,
-                            LMCConnection.DefaultEventMask,
+                            1u,
                             CancellationToken.None);
                         RememberConnectedRemoteEndpoint(
                             remoteIp,
@@ -5412,14 +5412,18 @@ namespace LasalMotionControlApiExample
             return new LMCConnection(
                 new LMCConnectionOptions
                 {
-                    SendPriorityCoordinator = sendPriorityCoordinator
+                    SendPriorityCoordinator = sendPriorityCoordinator,
+                    CallbackRegistrationMode =
+                        LMCCallbackRegistrationMode.Version2WakeHint,
+                    CallbackRequestedMaxDatagramBytes = 52
                 });
         }
 
         private void AttachConnection(LMCConnection newConnection)
         {
             newConnection.ConnectionStateChanged += Connection_StateChanged;
-            newConnection.CallbackReceived += Connection_CallbackReceived;
+            newConnection.CallbackWakeHintReceived +=
+                Connection_CallbackWakeHintReceived;
             newConnection.CallbackListenerError +=
                 Connection_CallbackListenerError;
         }
@@ -5427,7 +5431,8 @@ namespace LasalMotionControlApiExample
         private void DetachConnection(LMCConnection oldConnection)
         {
             oldConnection.ConnectionStateChanged -= Connection_StateChanged;
-            oldConnection.CallbackReceived -= Connection_CallbackReceived;
+            oldConnection.CallbackWakeHintReceived -=
+                Connection_CallbackWakeHintReceived;
             oldConnection.CallbackListenerError -=
                 Connection_CallbackListenerError;
         }
@@ -5586,44 +5591,147 @@ namespace LasalMotionControlApiExample
                 });
         }
 
-        private void Connection_CallbackReceived(
+        private void Connection_CallbackWakeHintReceived(
             object sender,
-            LMCCallbackEventArgs e)
+            LMCCallbackWakeHintEventArgs e)
         {
-            var payload = e.Payload;
-            var previewLength = Math.Min(payload.Length, 48);
-            var preview = previewLength == 0
-                ? "<empty>"
-                : BitConverter.ToString(payload, 0, previewLength);
-            if (payload.Length > previewLength)
+            RunOnUi(
+                () => HandleCallbackWakeHintOnUi(sender, e));
+        }
+
+        private void HandleCallbackWakeHintOnUi(
+            object sender,
+            LMCCallbackWakeHintEventArgs e)
+        {
+            var currentConnection = connection;
+            var wakeHint = e.WakeHint;
+            if (!ReferenceEquals(sender, currentConnection))
             {
-                preview += "-...";
+                WriteLog(
+                    "D5 terminal wake ignored: stale connection owner, EventId=0x"
+                    + wakeHint.EventId.ToString("X8"));
+                return;
             }
 
-            RunOnUi(
-                () =>
-                {
-                    var currentConnection = connection;
-                    if (!ReferenceEquals(sender, currentConnection)
-                        || !e.BelongsToCurrentSession(currentConnection))
-                    {
-                        return;
-                    }
+            var ticket = diagnosticOperationTicket;
+            if (ticket == null
+                || !e.MatchesD5OperationTerminalTicket(
+                    currentConnection,
+                    ticket))
+            {
+                WriteLog(
+                    "D5 terminal wake ignored: no exact current retained ticket, EventId=0x"
+                    + wakeHint.EventId.ToString("X8")
+                    + ", BootId=0x"
+                    + wakeHint.BootId.ToString("X8"));
+                return;
+            }
 
+            if (operationRunning
+                || safetyCommandRunning
+                || safetyMonitorCount > 0
+                || qualificationRunning
+                || callbackDiagnosticRefreshTicket != null)
+            {
+                WriteLog(
+                    "D5 terminal wake skipped while busy; manual/poll refresh remains available. TicketId=0x"
+                    + ticket.TicketId.ToString("X8"));
+                return;
+            }
+
+            var operationSafetyGeneration = safetyRequestGeneration;
+            callbackDiagnosticRefreshTicket = ticket;
+            operationRunning = true;
+            TextOperationState.Text = "Callback D5 status refresh running";
+            UpdateUiState();
+            _ = RefreshDiagnosticOperationFromWakeAsync(
+                currentConnection,
+                ticket,
+                operationSafetyGeneration);
+        }
+
+        private async Task RefreshDiagnosticOperationFromWakeAsync(
+            LMCConnection currentConnection,
+            LMCOperationTicket ticket,
+            long operationSafetyGeneration)
+        {
+            try
+            {
+                WriteLog(
+                    "D5 terminal wake matched retained ticket; authoritative TCP status query started. TicketId=0x"
+                    + ticket.TicketId.ToString("X8"));
+                bool applied;
+                using (sendPriorityCoordinator.BeginPreemptibleScope(
+                    operationSafetyGeneration,
+                    "Callback D5 status refresh"))
+                {
+                    applied = await RefreshDiagnosticOperationCoreAsync(
+                        currentConnection,
+                        ticket,
+                        CancellationToken.None,
+                        "callback-d5-terminal-wake");
+                }
+
+                if (!ReferenceEquals(connection, currentConnection)
+                    || !ReferenceEquals(
+                        callbackDiagnosticRefreshTicket,
+                        ticket))
+                {
                     WriteLog(
-                        "Raw callback UTC="
-                        + e.ReceivedAtUtc.ToString("O")
-                        + ", Remote="
-                        + e.RemoteEndPoint
-                        + ", SessionGeneration="
-                        + e.SessionGeneration.ToString(
-                            CultureInfo.InvariantCulture)
-                        + ", Bytes="
-                        + payload.Length
-                        + ", Data="
-                        + preview);
+                        "Ignored stale callback D5 status continuation after the connection or retained ticket changed. TicketId=0x"
+                        + ticket.TicketId.ToString("X8"));
+                    return;
+                }
+
+                if (applied)
+                {
+                    WriteLog(
+                        "Callback D5 authoritative TCP status processed. TicketId=0x"
+                        + ticket.TicketId.ToString("X8"));
+                    TextOperationState.Text =
+                        "Callback D5 status refresh completed";
+                }
+                else
+                {
+                    WriteLog(
+                        "Callback D5 status ignored after TCP query because the retained ticket/session changed. TicketId=0x"
+                        + ticket.TicketId.ToString("X8"));
+                }
+            }
+            catch (Exception error)
+            {
+                if (ReferenceEquals(connection, currentConnection)
+                    && ReferenceEquals(
+                        callbackDiagnosticRefreshTicket,
+                        ticket))
+                {
+                    WriteLog(
+                        "Callback D5 authoritative TCP status query failed: "
+                        + error.Message);
+                    TextOperationState.Text =
+                        "Callback D5 status refresh failed; use manual refresh";
+                }
+                else
+                {
+                    WriteLog(
+                        "Ignored stale callback D5 status failure after the connection or retained ticket changed. TicketId=0x"
+                        + ticket.TicketId.ToString("X8")
+                        + ", Error="
+                        + error.Message);
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(connection, currentConnection)
+                    && ReferenceEquals(
+                        callbackDiagnosticRefreshTicket,
+                        ticket))
+                {
+                    callbackDiagnosticRefreshTicket = null;
+                    operationRunning = false;
                     UpdateUiState();
-                });
+                }
+            }
         }
 
         private void Connection_CallbackListenerError(

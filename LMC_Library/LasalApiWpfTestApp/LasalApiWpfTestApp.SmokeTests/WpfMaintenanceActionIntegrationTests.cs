@@ -1686,11 +1686,37 @@ namespace LasalApiWpfTestApp.SmokeTests
 
         private static FakeRpcStep CallbackStep()
         {
-            return new FakeRpcStep(
-                0x405C,
-                TestFrame.Response(
-                    0,
-                    TestFrame.Hex("00 00 00 00")));
+            var step = new FakeRpcStep(0x405C, null);
+            step.ResponseFactory = request => TestFrame.Response(
+                0,
+                CallbackResponsePayload(request));
+            return step;
+        }
+
+        private static byte[] CallbackResponsePayload(byte[] request)
+        {
+            if (request.Length == 20)
+            {
+                AssertEx.Equal((ushort)12, TestFrame.ReadUInt16(request, 4));
+                return new byte[4];
+            }
+
+            AssertEx.Equal(40, request.Length);
+            AssertEx.Equal((ushort)32, TestFrame.ReadUInt16(request, 4));
+            AssertEx.Equal(1u, TestFrame.ReadUInt32(request, 8));
+            AssertEx.Equal((ushort)2, TestFrame.ReadUInt16(request, 20));
+            AssertEx.Equal((ushort)52, TestFrame.ReadUInt16(request, 22));
+            AssertEx.True(
+                TestFrame.ReadUInt32(request, 24) != 0
+                || TestFrame.ReadUInt32(request, 28) != 0,
+                "The WPF version-2 callback registration cookie was zero.");
+
+            var payload = new byte[20];
+            TestFrame.WriteUInt16(payload, 4, 2);
+            TestFrame.WriteUInt16(payload, 6, 52);
+            TestFrame.WriteUInt32(payload, 8, Ds402DiagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 12, 1);
+            return payload;
         }
 
         private static FakeRpcStep CloseStep()

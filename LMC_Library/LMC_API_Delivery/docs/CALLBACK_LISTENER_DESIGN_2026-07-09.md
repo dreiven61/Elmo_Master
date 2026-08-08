@@ -209,8 +209,9 @@ source/BootId/session/cookie/length/policy/sequence fence, and dispatches only
 Its fixed receive buffer is bounded by the accepted maximum, and an oversized
 UDP datagram is rejected without an attacker-sized allocation. The connection
 layer deliberately performs no authoritative state mutation or automatic TCP
-query. Authoritative TCP follow-up and a production PLC publisher remain
-unwired and unqualified.
+query. The opt-in WPF consumer now performs the separately fenced single-flight
+`0x7E03` follow-up for an exact retained D5 ticket. A production PLC publisher
+remains unwired and unqualified.
 
 No PLC runtime result is claimed by this document. PLC download, a live UDP
 datagram and receiver/dispatch capture, exact duplicate/mismatch registration
@@ -628,12 +629,14 @@ duplicate comparison covers all nine `ArmEndpoint` inputs.
 `TCPMotionInterface` state, never from a UDP payload. `PublishEvent` requires a
 subscribed `EventMaskBit`, a `ProducerSessionEpoch` equal to the armed epoch, a
 valid pointer for nonzero payload, and a payload within the protocol limit. The
-initial production version-2 policy accepts only `EventMaskBit=1`,
-`EventType=1`, `DeliveryClass=0`, and `PayloadBytes=0`. A structurally invalid
-pointer/length returns `-7`; an otherwise valid but unapproved event/payload
-policy returns `-6`. Under that type-1 policy, every `EventId` value in the full
-`UDINT` domain, including zero, is valid opaque producer correlation. The sender
-does not generate it, and it never becomes completion authority.
+Gate D production target accepts only `EventMaskBit=1`, `EventType=1`, nonzero
+`EventId`, `DeliveryClass=0`, and `PayloadBytes=0`. The current Gate C sender
+already enforces every item except the nonzero `EventId` check; Gate D must add
+that rejection before a publisher is enabled or captured. Event
+type `1` means `DiagnosticsOperationTerminalAvailable`; its `EventId` is the
+exact D5 `TicketId`. A structurally invalid pointer/length returns `-7`; an
+otherwise valid but unapproved event/payload policy returns `-6`. The sender
+does not generate the ticket and it never becomes completion authority.
 `DisarmEndpoint` clears an endpoint and its pending slots only when all three
 supplied fence values match; a stale caller cannot disarm a newer endpoint.
 
@@ -923,7 +926,7 @@ field in version 2.
 | 4 | 2 | ProtocolVersion `UINT` | `2` |
 | 6 | 2 | HeaderBytes `UINT` | `52` |
 | 8 | 2 | DatagramBytes `UINT` | `52 + PayloadBytes`, max `512` |
-| 10 | 2 | EventType `UINT` | initial production value `1` only |
+| 10 | 2 | EventType `UINT` | `1 = DiagnosticsOperationTerminalAvailable` |
 | 12 | 4 | EventMaskBit `UDINT` | initial production value `1` only |
 | 16 | 4 | BootId `UDINT` | exact accepted response value |
 | 20 | 4 | SessionEpoch `UDINT` | exact accepted response value |
@@ -931,7 +934,7 @@ field in version 2.
 | 28 | 4 | CookieHi `UDINT` | exact client cookie |
 | 32 | 4 | SequenceLo `UDINT` | low word of monotonic 64-bit sequence |
 | 36 | 4 | SequenceHi `UDINT` | high word of monotonic 64-bit sequence |
-| 40 | 4 | EventId `UDINT` | any value, including zero; producer correlation only |
+| 40 | 4 | EventId `UDINT` | exact nonzero D5 `TicketId`; correlation only |
 | 44 | 4 | PlcTimeMs `UDINT` | PLC timestamp, not PC authority |
 | 48 | 2 | PayloadBytes `UINT` | format permits `0..460`; initial policy requires `0` |
 | 50 | 1 | DeliveryClass `BYTE` | initial production value `0` only |
@@ -954,19 +957,54 @@ gap.
 
 The named `LMCCallbackProtocolPolicy.InitialV2WakeHint` policy and its targeted
 tests require registration mask bit 1, `EventMaskBit=1`, `EventType=1`,
-`DeliveryClass=0`, zero payload, and registration `Status=0/ErrorId=0`, while
-accepting every `EventId : UDINT`. Socket integration tests now prove opt-in PC
+nonzero `EventId`, `DeliveryClass=0`, zero payload, and registration
+`Status=0/ErrorId=0`. Socket integration tests now prove opt-in PC
 negotiation, strict receive rejection, typed dispatch, handler-failure
 continuation, and reconnect invalidation against a fake TCP/UDP peer. They do
 not prove a PLC publisher, a real packet path, or authoritative TCP follow-up.
 
 The connection handler treats even a valid envelope only as a wake hint. It does
-not infer a TCP command from opaque `EventId` and does not query automatically,
-because a reconnect between event receipt and a query would create a stale-wake
-TOCTOU hazard. The next application tranche must bind an approved event meaning
-to a generation-pinned authoritative TCP query and use only that TCP response to
-update command completion or safety state. UDP loss, duplication, or reordering
-therefore changes notification latency and counters, not command truth.
+not synthesize a ticket or infer operation state from `EventId`. The opt-in WPF
+consumer owns the separate exact-ticket single-flight TCP follow-up. Event type `1`
+is reserved for `DiagnosticsOperationTerminalAvailable`, and its `EventId` is
+the exact nonzero D5 `TicketId`. The application may query only when it already
+holds the submission response's `LMCOperationTicket` and the callback event,
+ticket, active `LMCConnection`, local session generation, `DiagnosticsBootId`,
+and `TicketId` all match. That retained ticket is passed to the existing
+generation-pinned `GetOperationStatusAsync` (`0x7E03`) path. Unknown, zero,
+early, foreign, or stale hints are ignored; a reconnect can never cause a ticket
+to be reconstructed for the replacement session. Only the parsed TCP response
+may update command completion or recovery state. UDP loss, duplication, or
+reordering therefore changes notification latency and counters, not command
+truth.
+
+## 2026-08-08 first producer decision
+
+D5 operation terminal availability is the uniquely lowest-risk first callback
+producer in the current source tree. It has a nonzero monotonic `TicketId`, a
+retained `OwnerSessionEpoch` and `TicketBootId`, a complete terminal record, the
+strict read-only `0x7E03` query, and an existing polling fallback. This does not
+make UDP authoritative and does not make D5 the only possible future producer.
+
+The activation is split deliberately.
+
+1. The PC consumer tranche reserves event type `1`, rejects `EventId=0`, and
+   correlates a wake only to a retained current-session ticket before issuing
+   the generation-pinned `0x7E03` query. Library default registration remains
+   legacy raw; the example application opts in explicitly.
+2. The PLC producer tranche adds a one-attempt terminal receipt owned by
+   `LMCDiagnosticsService` and a `TCPMotionInterface` broker. The broker pulls
+   after `ProcessOperations` and again after a diagnostics response, checks the
+   exact callback session/BootId tuple, and invokes `PublishEvent` once. No
+   direct Diagnostics-to-sender Network link is added.
+
+Completed, Failed, Cancelled, and Expired are terminal producer states. The
+producer records the attempt before calling the sender. Result `0` means FIFO
+enqueue; `-2/-4/-5/-6/-7/-8/-9` end that producer attempt without retry and
+without changing the D5 record, next-submit admission, or TCP response. Sender
+slot retry remains a separate bounded transport concern. Until the PLC tranche,
+IDE rebuild, verifier/checkpoint ratchet, download, and packet tests pass, the
+production `PublishEvent(...)` caller remains absent.
 
 ## Exact IDE and Network handoff
 
@@ -1099,6 +1137,34 @@ it did not run a client/server `Find in Implementation` search. No new IDE
 exception followed those opens, and `Lasal2` exited with code 0. PLC download
 and packet proof remain separate final gates.
 
+### Pending Gate D declaration handoff
+
+Gate D is not implemented or captured yet. Its first checkpoint is an
+IDE-declaration-only Save All/exit with no Build, Rebuild, Link, Download,
+Network edit, or implementation statement:
+
+1. In `LMCDiagnosticsService`, immediately after `BootIdFault`, add private
+   `UDINT` variables `D5TerminalWakeLastAttemptTicketId`,
+   `D5TerminalWakeLastAttemptTicketBootId`, and
+   `D5TerminalWakeLastAttemptOwnerSessionEpoch`. Immediately after the GLOBAL
+   `ProcessOperations` method add GLOBAL, non-VIRTUAL
+   `TryTakeD5TerminalWake(pTicketId:^UDINT, pTicketBootId:^UDINT,
+   pOwnerSessionEpoch:^UDINT) -> Result:DINT`. In the IDE each pointer input is
+   entered as `Type=UDINT` plus `Pointer=true`.
+2. In `TCPMotionInterface`, immediately after `RpcCallbackLastDisarmResult`, add
+   private `UDINT` variables `D5TerminalWakeAttemptCount`,
+   `D5TerminalWakeEnqueuedCount`, and `D5TerminalWakeRejectedCount`. Immediately
+   after `DisarmRpcCallbackEndpoint` add the private non-VIRTUAL, no-I/O method
+   `PublishD5TerminalWake`.
+3. Both generated method stubs stay empty at this checkpoint. Expected tracked
+   drift is limited to the two class sources, `Class/Classes.lcb`, and the root
+   project `.lcb`; `.lcp`, sender, Network, generated Includes, and
+   `ConfigObjects.st` must remain byte-exact.
+4. Only after that actual IDE output is audited may the implementation bodies,
+   focused/general verifier state, sequence-4 manifest lineage, C78 Rebuild,
+   download, and live packet gates advance. Direct Diagnostics-to-sender wiring
+   and a retrying pending outbox remain forbidden.
+
 ## Files and test status
 
 The candidate tranche is limited to these production surfaces:
@@ -1139,13 +1205,13 @@ above. It remains capture-only with `ProductionApproved=false` and
 path are implemented. The default remains legacy `12/4`; version 2 is selected
 only by
 `LMCCallbackRegistrationMode.Version2WakeHint`.
-`CallbackV2ConnectionTests.cs` owns nine focused connection tests covering the
+`CallbackV2ConnectionTests.cs` owns ten focused connection tests covering the
 exact request/response, typed dispatch, strict rejection matrix, bounded
 oversized receive, gate ordering and ownership, handler failure, reentrant
-close, safety-detach provenance, no downgrade, and reconnect invalidation. No
-production `PublishEvent(...)` caller or approved event-to-authoritative-query
-mapping exists. PLC download and live UDP receiver/dispatch packet proof remain
-required.
+close, safety-detach provenance, exact D5 ticket correlation, no downgrade, and
+reconnect invalidation. The D5 event-to-authoritative-query mapping and opt-in WPF
+consumer now exist, but no production `PublishEvent(...)` caller exists. PLC
+download and live UDP receiver/dispatch packet proof remain required.
 
 Minimum acceptance matrix:
 
@@ -1179,12 +1245,12 @@ Minimum acceptance matrix:
    `ops.tAbsolute=16#FFFFFFFF` writes that exact value to `PlcTimeMs`; a
    460-byte generic PC codec payload passes and 461 bytes fail encoding, while
    the initial PLC sender rejects every nonzero payload before enqueue.
-9. Production-policy tests accept every `EventId : UDINT` for `EventType=1` and
-   reject a different type, nonzero delivery class, or nonzero production
-   payload. UDP loss, duplication, and reordering cannot mark an operation
-   complete. A
-   valid wake hint causes an authoritative TCP query, and only the TCP response
-   changes application state.
+9. Production-policy tests require a nonzero D5 `TicketId` for `EventType=1`
+   and reject zero, a different type, nonzero delivery class, or nonzero
+   production payload. UDP loss, duplication, and reordering cannot mark an
+   operation complete. Only a wake mapped to an already-retained exact
+   current-session ticket causes an authoritative `0x7E03` query, and only the
+   TCP response changes application state.
 10. C78 Rebuild, implementation smoke, PLC download, source/destination packet
    capture, reconnect/takeover capture, and a bounded loss/duplicate/reorder
    test all pass before activation.

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -101,6 +103,12 @@ namespace LasalApiWpfTestApp.SmokeTests
             tests.Add(
                 "Wpf.Sdo.D5DisconnectFullHandlerTwoSessionApplicationRecovery",
                 D5DisconnectFullHandlerTwoSessionApplicationRecovery);
+            tests.Add(
+                "Wpf.CallbackV2.D5TerminalWakeSingleFlightUsesAuthoritativeStatus",
+                CallbackV2D5TerminalWakeSingleFlightUsesAuthoritativeStatus);
+            tests.Add(
+                "Wpf.CallbackV2.StaleD5StatusCompletionPreservesNewerOwnership",
+                CallbackV2StaleD5StatusCompletionPreservesNewerOwnership);
             tests.Add(
                 "Wpf.Diagnostics.InvalidPiAndBulkRowsHideStaleRaw",
                 InvalidPiAndBulkRowsHideStaleRaw);
@@ -2897,6 +2905,354 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
+            CallbackV2D5TerminalWakeSingleFlightUsesAuthoritativeStatus()
+        {
+            const uint ticketId = 0x0D500001u;
+            const uint queuedCycle = 3101u;
+            const LMCDiagnosticCapability capabilities =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOReadGeneralInline;
+            var statusRequestReached = new ManualResetEventSlim(false);
+            var releaseStatusResponse = new ManualResetEventSlim(false);
+            var statusStep = D5SdoOperationStatusStep(
+                4,
+                ticketId,
+                queuedCycle,
+                3102,
+                LMCOperationState.Completed,
+                LMCOperationOutcome.Success,
+                LMCSignalValueType.UInt16,
+                new byte[] { 0x34, 0x12 });
+            var inspectStatusRequest = statusStep.InspectRequest;
+            statusStep.InspectRequest = request =>
+            {
+                inspectStatusRequest(request);
+                statusRequestReached.Set();
+                if (!releaseStatusResponse.Wait(WaitTimeoutMilliseconds))
+                {
+                    throw new TimeoutException(
+                        "The callback-v2 D5 smoke did not release the authoritative status response.");
+                }
+            };
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (statusRequestReached)
+                using (releaseStatusResponse)
+                using (var server = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CapabilitiesStep(1, capabilities),
+                    CapabilitiesStep(2, capabilities),
+                    D5SdoSubmitStep(
+                        3,
+                        ticketId,
+                        queuedCycle,
+                        1,
+                        0x6064,
+                        LMCSignalValueType.UInt16,
+                        2,
+                        1000),
+                    statusStep,
+                    CloseStep()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextConnectionState.Text,
+                                "Connected",
+                                StringComparison.Ordinal)
+                            && CountRequestCommand(
+                                server.ReceivedRequests,
+                                0x7E00) == 1,
+                        "Callback-v2 D5 smoke did not complete connection setup.");
+
+                    var currentConnection =
+                        (LMCConnection)GetPrivateField(window, "connection");
+                    var ticket = currentConnection.Diagnostics.SubmitSdo(
+                        LMCSdoRequest.CreateRead(
+                            1,
+                            0x6064,
+                            0,
+                            LMCSignalValueType.UInt16,
+                            2,
+                            1000));
+                    AssertEx.Equal(ticketId, ticket.TicketId);
+                    InvokePrivate(
+                        window,
+                        "AdoptDiagnosticOperationTicket",
+                        ticket);
+                    InvokePrivate(window, "UpdateUiState");
+
+                    SendD5TerminalWake(currentConnection, ticketId, 1UL);
+                    WaitUntil(
+                        () => statusRequestReached.IsSet
+                            || window.TextExecutionLog.Text.IndexOf(
+                                "D5 terminal wake ignored",
+                                StringComparison.Ordinal) >= 0
+                            || currentConnection.RejectedCallbackCount > 0,
+                        "The matching D5 wake was not processed by the callback listener.");
+                    AssertEx.True(
+                        statusRequestReached.IsSet,
+                        "The matching D5 wake did not cause an authoritative 0x7E03 query. Log="
+                            + window.TextExecutionLog.Text
+                            + ", Accepted="
+                            + currentConnection.AcceptedCallbackWakeHintCount
+                                .ToString(CultureInfo.InvariantCulture)
+                            + ", Rejected="
+                            + currentConnection.RejectedCallbackCount.ToString(
+                                CultureInfo.InvariantCulture));
+
+                    AssertEx.True(
+                        GetPrivateField(window, "diagnosticOperationStatus")
+                            == null,
+                        "UDP wake data mutated the operation status before the TCP response.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    SendD5TerminalWake(currentConnection, ticketId, 2UL);
+                    WaitUntil(
+                        () => window.TextExecutionLog.Text.IndexOf(
+                            "D5 terminal wake skipped while busy",
+                            StringComparison.Ordinal) >= 0,
+                        "A second current-ticket wake was not rejected by the single-flight gate.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03),
+                        "The second wake issued another 0x7E03 query while the first was in flight.");
+                    AssertEx.True(
+                        GetPrivateField(window, "diagnosticOperationStatus")
+                            == null,
+                        "The second UDP wake mutated operation state while TCP was gated.");
+
+                    releaseStatusResponse.Set();
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                "Callback D5 status refresh completed",
+                                StringComparison.Ordinal)
+                            && GetPrivateField(
+                                window,
+                                "diagnosticOperationStatus") != null,
+                        "The authoritative 0x7E03 response was not applied by the callback refresh core.");
+
+                    AssertEx.Contains(
+                        "TicketId=" + ticketId.ToString(
+                            CultureInfo.InvariantCulture),
+                        window.TextDiagnosticOperationSummary.Text);
+                    AssertEx.Contains(
+                        "State=Completed, Outcome=Success",
+                        window.TextDiagnosticOperationSummary.Text);
+                    AssertEx.Contains(
+                        "Data=34 12",
+                        window.TextDiagnosticOperationSummary.Text);
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertRequestCommandSequence(
+                        server.ReceivedRequests,
+                        0x8080,
+                        0x405C,
+                        0x7E00,
+                        0x7E00,
+                        0x7E50,
+                        0x7E03,
+                        0x405D);
+                }
+            }
+            finally
+            {
+                releaseStatusResponse.Set();
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2StaleD5StatusCompletionPreservesNewerOwnership()
+        {
+            const uint oldTicketId = 0x0D500011u;
+            const uint newerTicketId = 0x0D500012u;
+            const uint queuedCycle = 3201u;
+            const string newerOperationState =
+                "Newer callback flight remains active";
+            const string newerSummary =
+                "Newer diagnostic summary remains authoritative";
+            const LMCDiagnosticCapability capabilities =
+                LMCDiagnosticCapability.SDORead
+                | LMCDiagnosticCapability.SDOReadGeneralInline;
+            var statusRequestReached = new ManualResetEventSlim(false);
+            var releaseStatusResponse = new ManualResetEventSlim(false);
+            var statusStep = D5SdoOperationStatusStep(
+                4,
+                oldTicketId,
+                queuedCycle,
+                3202,
+                LMCOperationState.Completed,
+                LMCOperationOutcome.Success,
+                LMCSignalValueType.UInt16,
+                new byte[] { 0x78, 0x56 });
+            var inspectStatusRequest = statusStep.InspectRequest;
+            statusStep.InspectRequest = request =>
+            {
+                inspectStatusRequest(request);
+                statusRequestReached.Set();
+                if (!releaseStatusResponse.Wait(WaitTimeoutMilliseconds))
+                {
+                    throw new TimeoutException(
+                        "The stale callback-v2 D5 smoke did not release the old status response.");
+                }
+            };
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (statusRequestReached)
+                using (releaseStatusResponse)
+                using (var server = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CapabilitiesStep(1, capabilities),
+                    CapabilitiesStep(2, capabilities),
+                    D5SdoSubmitStep(
+                        3,
+                        oldTicketId,
+                        queuedCycle,
+                        1,
+                        0x6064,
+                        LMCSignalValueType.UInt16,
+                        2,
+                        1000),
+                    statusStep,
+                    CloseStep()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextConnectionState.Text,
+                                "Connected",
+                                StringComparison.Ordinal)
+                            && CountRequestCommand(
+                                server.ReceivedRequests,
+                                0x7E00) == 1,
+                        "Stale callback-v2 D5 smoke did not complete connection setup.");
+
+                    var currentConnection =
+                        (LMCConnection)GetPrivateField(window, "connection");
+                    var oldTicket = currentConnection.Diagnostics.SubmitSdo(
+                        LMCSdoRequest.CreateRead(
+                            1,
+                            0x6064,
+                            0,
+                            LMCSignalValueType.UInt16,
+                            2,
+                            1000));
+                    AssertEx.Equal(oldTicketId, oldTicket.TicketId);
+                    InvokePrivate(
+                        window,
+                        "AdoptDiagnosticOperationTicket",
+                        oldTicket);
+                    InvokePrivate(window, "UpdateUiState");
+
+                    SendD5TerminalWake(currentConnection, oldTicketId, 1UL);
+                    WaitUntil(
+                        () => statusRequestReached.IsSet,
+                        "The old callback wake did not reach the gated 0x7E03 request.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    InvokePrivate(window, "ClearLoadedObjects");
+                    var newerTicket = CreateCurrentSdoReadTicket(
+                        currentConnection,
+                        newerTicketId,
+                        queuedCycle + 100u);
+                    SetPrivateField(
+                        window,
+                        "diagnosticOperationTicket",
+                        newerTicket);
+                    SetPrivateField(
+                        window,
+                        "callbackDiagnosticRefreshTicket",
+                        newerTicket);
+                    SetPrivateField(window, "operationRunning", true);
+                    InvokePrivate(window, "UpdateUiState");
+                    window.TextOperationState.Text = newerOperationState;
+                    window.TextDiagnosticOperationSummary.Text = newerSummary;
+
+                    releaseStatusResponse.Set();
+                    WaitUntil(
+                        () => window.TextExecutionLog.Text.IndexOf(
+                            "Ignored stale callback D5 status continuation",
+                            StringComparison.Ordinal) >= 0,
+                        "The old 0x7E03 completion was not rejected as a stale callback continuation.");
+
+                    AssertEx.True(
+                        ReferenceEquals(
+                            newerTicket,
+                            GetPrivateField(
+                                window,
+                                "diagnosticOperationTicket")),
+                        "The old 0x7E03 completion replaced the newer retained ticket.");
+                    AssertEx.True(
+                        ReferenceEquals(
+                            newerTicket,
+                            GetPrivateField(
+                                window,
+                                "callbackDiagnosticRefreshTicket")),
+                        "The old callback finally cleared the newer callback flight token.");
+                    AssertEx.True(
+                        (bool)GetPrivateField(window, "operationRunning"),
+                        "The old callback finally cleared the newer operation-running gate.");
+                    AssertEx.Equal(
+                        newerOperationState,
+                        window.TextOperationState.Text);
+                    AssertEx.Equal(
+                        newerSummary,
+                        window.TextDiagnosticOperationSummary.Text);
+                    AssertEx.True(
+                        GetPrivateField(window, "diagnosticOperationStatus")
+                            == null,
+                        "The old 0x7E03 response overwrote the newer operation status.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    InvokePrivate(window, "ClearLoadedObjects");
+                    InvokePrivate(window, "UpdateUiState");
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertRequestCommandSequence(
+                        server.ReceivedRequests,
+                        0x8080,
+                        0x405C,
+                        0x7E00,
+                        0x7E00,
+                        0x7E50,
+                        0x7E03,
+                        0x405D);
+                }
+            }
+            finally
+            {
+                releaseStatusResponse.Set();
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
             InlineReadAcceptedTimeoutPreservesTicketForManualCleanup()
         {
             var capabilities = LMCDiagnosticCapability.SDORead
@@ -4823,6 +5179,41 @@ namespace LasalApiWpfTestApp.SmokeTests
                 CultureInfo.InvariantCulture);
         }
 
+        private static LMCOperationTicket CreateCurrentSdoReadTicket(
+            LMCConnection currentConnection,
+            uint ticketId,
+            uint queuedCycle)
+        {
+            var readRequest = LMCSdoRequest.CreateRead(
+                1,
+                0x6064,
+                0,
+                LMCSignalValueType.UInt16,
+                2,
+                1000);
+            return (LMCOperationTicket)Activator.CreateInstance(
+                typeof(LMCOperationTicket),
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                new object[]
+                {
+                    ticketId,
+                    LMCOperationKind.SDORead,
+                    queuedCycle,
+                    DiagnosticsBootId,
+                    DiagnosticMapRevision,
+                    GetConnectionSessionGeneration(currentConnection),
+                    currentConnection.Diagnostics,
+                    true,
+                    (ushort)2,
+                    LMCSignalValueType.UInt16,
+                    false,
+                    (ushort)0,
+                    readRequest
+                },
+                CultureInfo.InvariantCulture);
+        }
+
         private static long GetConnectionSessionGeneration(
             LMCConnection currentConnection)
         {
@@ -4834,6 +5225,49 @@ namespace LasalApiWpfTestApp.SmokeTests
             return (long)sessionGenerationProperty.GetValue(
                 currentConnection,
                 null);
+        }
+
+        private static void SendD5TerminalWake(
+            LMCConnection currentConnection,
+            uint ticketId,
+            ulong sequence)
+        {
+            AssertEx.NotNull(currentConnection);
+            var registration =
+                currentConnection.RpcCallbackRegistrationV2Response;
+            AssertEx.NotNull(registration);
+            var fence = registration.SessionFence;
+            var datagram = new byte[52];
+            datagram[0] = 0x4C;
+            datagram[1] = 0x4D;
+            datagram[2] = 0x43;
+            datagram[3] = 0x32;
+            TestFrame.WriteUInt16(datagram, 4, 2);
+            TestFrame.WriteUInt16(datagram, 6, 52);
+            TestFrame.WriteUInt16(datagram, 8, 52);
+            TestFrame.WriteUInt16(
+                datagram,
+                10,
+                (ushort)LMCCallbackWakeHintEventType
+                    .DiagnosticsOperationTerminalAvailable);
+            TestFrame.WriteUInt32(datagram, 12, 1);
+            TestFrame.WriteUInt32(datagram, 16, fence.BootId);
+            TestFrame.WriteUInt32(datagram, 20, fence.SessionEpoch);
+            TestFrame.WriteUInt32(datagram, 24, fence.CookieLo);
+            TestFrame.WriteUInt32(datagram, 28, fence.CookieHi);
+            TestFrame.WriteUInt32(datagram, 32, (uint)sequence);
+            TestFrame.WriteUInt32(datagram, 36, (uint)(sequence >> 32));
+            TestFrame.WriteUInt32(datagram, 40, ticketId);
+            TestFrame.WriteUInt32(datagram, 44, 0);
+            TestFrame.WriteUInt16(datagram, 48, 0);
+            using (var sender = new UdpClient(
+                new IPEndPoint(IPAddress.Loopback, 0)))
+            {
+                sender.Send(
+                    datagram,
+                    datagram.Length,
+                    currentConnection.CallbackLocalEndPoint);
+            }
         }
 
         private static LMCOperationStatus BindOperationStatus(
@@ -5646,9 +6080,39 @@ namespace LasalApiWpfTestApp.SmokeTests
 
         private static FakeRpcStep CallbackStep()
         {
-            return new FakeRpcStep(
-                0x405C,
-                TestFrame.Response(0, TestFrame.Hex("00 00 00 00")));
+            var step = new FakeRpcStep(0x405C, null);
+            step.ResponseFactory = request => TestFrame.Response(
+                0,
+                CallbackResponsePayload(request, DiagnosticsBootId));
+            return step;
+        }
+
+        private static byte[] CallbackResponsePayload(
+            byte[] request,
+            uint diagnosticsBootId)
+        {
+            if (request.Length == 20)
+            {
+                AssertEx.Equal((ushort)12, TestFrame.ReadUInt16(request, 4));
+                return new byte[4];
+            }
+
+            AssertEx.Equal(40, request.Length);
+            AssertEx.Equal((ushort)32, TestFrame.ReadUInt16(request, 4));
+            AssertEx.Equal(1u, TestFrame.ReadUInt32(request, 8));
+            AssertEx.Equal((ushort)2, TestFrame.ReadUInt16(request, 20));
+            AssertEx.Equal((ushort)52, TestFrame.ReadUInt16(request, 22));
+            AssertEx.True(
+                TestFrame.ReadUInt32(request, 24) != 0
+                || TestFrame.ReadUInt32(request, 28) != 0,
+                "The WPF version-2 callback registration cookie was zero.");
+
+            var payload = new byte[20];
+            TestFrame.WriteUInt16(payload, 4, 2);
+            TestFrame.WriteUInt16(payload, 6, 52);
+            TestFrame.WriteUInt32(payload, 8, diagnosticsBootId);
+            TestFrame.WriteUInt32(payload, 12, 1);
+            return payload;
         }
 
         private static FakeRpcStep CloseStep()

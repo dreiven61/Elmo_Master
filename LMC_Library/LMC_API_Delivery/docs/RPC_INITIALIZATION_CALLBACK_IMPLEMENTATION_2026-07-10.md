@@ -4,6 +4,8 @@
 
 P0 endpoint ownership/session provenance 갱신: 2026-07-31
 
+Version 2 wake-hint transport 및 D5 의미 계약 갱신: 2026-08-08
+
 ## 결론
 
 RPC 연결은 단순 TCP connect가 아니다. 현재 사용 순서는 아래와 같다.
@@ -23,9 +25,12 @@ PC                                      LASAL PLC TCP :4000
 ```
 
 Callback transport는 UDP다. Maestro 매뉴얼은 connection parameter의
-`uiCbUdpPort`와 callback function을 UDP로 명시한다. 다만 현재 저장소의
-패킷에는 실제 callback UDP datagram이 없으므로 event payload 구조는 아직
-정의하지 않는다.
+`uiCbUdpPort`와 callback function을 UDP로 명시한다. 현재 PC library는
+기본값인 legacy 12-byte registration/raw delivery와 명시적 opt-in인 version 2
+32-byte registration/strict typed wake delivery를 분리한다. Version 2 UDP
+datagram은 52-byte `LMC2` envelope로 고정돼 있다. 다만 target PLC에서 생산
+publisher를 실행한 packet capture는 아직 없으므로 이 문서는 static/build
+계약을 live wire 증거로 취급하지 않는다.
 
 ## 패킷 계약
 
@@ -52,7 +57,7 @@ payload 첫 DWORD `64`는 캡처에서 확인된 값이지만 의미는 확정�
 
 ### `0x405C` UDP Callback 등록
 
-payload는 12 bytes다.
+Legacy payload는 12 bytes다.
 
 | Payload offset | Type | 의미 |
 |---:|---|---|
@@ -70,19 +75,28 @@ INT16  ErrorId
 2026-07-31 P0 변경에서도 이 wire shape는 그대로다. command ID, request 12-byte
 payload와 response 4-byte ACK에 새 필드를 추가하지 않았다.
 
-LASAL handler는 request 값을 바로 persistent state에 쓰지 않고 임시
-`callbackEventMask`, `callbackPort`, `callbackIPv4`에 먼저 읽는다. 아래 조건을 모두
-통과할 때 최초 tuple만 commit한다.
+Version 2는 같은 command ID의 별도 exact shape다. 32-byte 요청 payload에는
+event mask, port, IPv4, protocol version, requested maximum datagram, 64-bit cookie,
+flags와 reserved가 들어간다. `SessionEpoch`와 `DiagnosticsBootId`는 PC 요청값이
+아니며, PLC가 현재 신뢰 상태에서 취득해 20-byte response payload로 반환하는
+fence다. PC는 `Version2WakeHint`를 명시한 경우에만 이 shape를 사용한다. Outer
+response status는 항상 zero여야 하고, success 또는 canonical negative response만
+허용한다. Exact offsets는 `DINT_PACKET_MAP.txt`가 기준이다.
 
-1. payload가 정확히 12 bytes이고 현재 socket이 초기화된 RPC owner다.
-2. `CurrentPeerValid = TRUE`다.
-3. 요청 IPv4가 `CurrentPeerIPv4`와 exact match한다.
-4. port가 `1..65535`다.
+LASAL handler는 request payload length로 두 shape를 분리하고 request 값을 바로
+persistent state에 쓰지 않는다.
 
-이미 tuple이 등록된 경우에는 event mask, port, IPv4가 모두 같은 exact duplicate만
-멱등 성공한다. 하나라도 다른 re-registration은 실패 ACK를 반환하고 기존 tuple은
-변경하지 않는다. malformed/peer mismatch 요청도 기존 등록을 지우지 않는다. endpoint
-변경은 새 RPC session에서만 가능하다.
+1. 12-byte legacy branch는 event mask, port와 IPv4를 임시값으로 읽고 현재 RPC
+   owner, valid peer, exact peer IPv4와 port `1..65535`를 검증한다. 이미 등록됐다면
+   이 세 필드의 exact duplicate만 멱등 성공한다.
+2. 32-byte v2 branch는 아홉 request 필드를 임시값으로 읽고 protocol 2, mask bit
+   1, peer/port, datagram `52..512`, nonzero cookie, zero flags/reserved를 검증한다.
+   현재 `SessionEpoch`와 `Diagnostics.GetDiagnosticsBootId()`를 신뢰 fence로 사용해
+   `CallbackSender.ArmEndpoint`를 호출하고, result `0` 또는 exact-duplicate result
+   `1`일 때만 accepted tuple을 commit한다.
+3. 다른 payload length, malformed request, peer mismatch 또는 다른
+   re-registration은 실패 ACK를 반환하고 기존 tuple와 sender FIFO를 보존한다.
+   endpoint 변경은 새 RPC session에서만 가능하다.
 
 IPv4 raw value 비교의 정적 근거는 설치된 SIGMATEK 예제
 `GetBroadCastData\GetBroadCastData.st`다. 이 예제는 `UDINT`를
@@ -122,6 +136,15 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - callback remote source-address 기본 검증, rejected count와 payload 방어 복사
 - raw `LMCCallbackEventArgs`에 listener가 소유한 positive `SessionGeneration`과
   `BelongsTo`/`BelongsToCurrentSession` provenance 제공
+- legacy raw mode는 기본값으로 유지하고, 명시적 `Version2WakeHint`에서만
+  32/20-byte registration, nonzero CSPRNG cookie, strict 52-byte `LMC2` parser,
+  bounded receive와 typed-only `CallbackWakeHintReceived`를 활성화
+- version 2 listener는 bind-before-register 후 `Connected` publication까지 receive
+  dispatch를 gate한다. typed provenance와 decision counters는 exact published TCP
+  lifetime/session에 귀속하며 close/reconnect/safety detach 뒤 stale hint를 거부
+- `EventType=1`은 `DiagnosticsOperationTerminalAvailable`로 고정하고 nonzero
+  `EventId`는 이미 보존 중인 D5 `TicketId`와만 대조. UDP로 ticket을 합성하지 않으며
+  `MatchesD5OperationTerminalTicket`가 owner/session/BootId/TicketId를 모두 확인
 - 취소 가능한 init/close/axis/group async API
 - timeout/전송 오류와 in-flight 취소는 해당 transport generation을 폐기하고
   `Faulted`로 전환. queue 대기 중 취소는 active request를 닫지 않음
@@ -130,8 +153,9 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - UDP callback receive/error/rejected-count 경로를 listener 객체와 connection
   lifetime generation에 귀속해 bounded join 뒤 늦게 끝난 이전 handler가 replacement
   session의 error event나 rejected count를 오염시키지 않음
-- WPF dispatcher queue에 들어온 raw callback도 active connection identity와
-  `BelongsToCurrentSession`을 다시 확인하고 stale session이면 log/UI 반영 없이 폐기
+- WPF sample은 shared connection factory에서 version 2를 명시하고 typed wake만
+  구독한다. 이미 보존한 current D5 ticket과 exact match한 hint만 single-flight
+  `0x7E03 GetOperationStatus`로 조회하며 UDP 자체로 상태를 변경하지 않는다
 
 ### Tracked LASAL
 
@@ -163,19 +187,25 @@ session table과 socket별 receive accumulator로 확장해야 한다.
 같은 변수를 등록하고 재생성해야 한다. IDE model을 동기화하지 않으면 다음
 CodeGenerator 실행에서 declaration이 사라지고 구현부 compile이 깨진다.
 
-## 아직 구현하지 않은 부분
+## 아직 구현하거나 검증하지 않은 부분
 
-`0x405C`는 callback endpoint 등록까지다. 다음은 아직 완료되지 않았다.
+Version 2 등록, strict typed parser/fence, D5 retained-ticket matcher와 WPF의
+authoritative TCP query 경로는 구현됐다. 다음은 아직 완료되지 않았다.
 
-- LASAL 일반 event용 UDP sender object/network 연결
-- motion complete, error, emergency 등 event 정의
-- event mask bit와 event 종류 매핑
-- UDP callback datagram payload 구조
-- C# typed callback parser
-- 실제 PLC callback capture와 재전송/유실 정책 검증
+- PLC의 D5 terminal transition을 exactly-once-attempt wake로 broker하는 production
+  `PublishEvent` call site와 그 LASAL IDE declaration/generated metadata
+- `Completed/Failed/Cancelled/Expired` 전체 terminal 경로 및 sender result별
+  no-retry/operation-truth 불변 정적 계약
+- 새 declaration에 대한 LASAL IDE Save/Rebuild/Link, implementation smoke,
+  verifier/checkpoint rebaseline
+- PLC download 뒤 exact 32/20-byte registration과 52-byte UDP capture
+- UDP wake와 authoritative `0x7E03` TCP response의 causal capture, disconnect,
+  takeover, stale cookie/session/BootId, loss/duplicate/reorder 검증
 
-근거 없이 callback payload를 만들면 PMAS 형식과 LASAL local 형식이 다시
-섞이므로 실제 callback 캡처 또는 승인된 local protocol 명세 후 진행한다.
+초기 production 의미는 D5 operation terminal availability다. Event mask bit 1,
+`EventType=1`, delivery class 0, payload 0, nonzero `EventId=TicketId`이며
+`ProducerSessionEpoch=OwnerSessionEpoch`다. UDP는 polling latency를 줄이는 hint일
+뿐이고, operation truth는 generation-pinned `0x7E03` response만 변경할 수 있다.
 
 ## 검증 항목
 
@@ -198,11 +228,25 @@ CodeGenerator 실행에서 declaration이 사라지고 구현부 compile이 깨�
     다른 re-registration은 실패하면서 최초 tuple을 보존하는지 확인
 13. reconnect 직전 UI dispatcher에 queued된 raw callback이 새 session log에 나타나지
     않는지 확인
+14. opt-in version 2의 32-byte request와 exact 20-byte success/canonical negative
+    response, malformed outer status 거부를 확인
+15. TCP response 전에 도착한 UDP가 `Connected` publication까지 dispatch되지 않고
+    kernel queue에 보존되는지 확인
+16. wrong source/cookie/session/BootId, zero/unknown EventId, oversized/truncated datagram,
+    duplicate/out-of-order/forward-gap을 typed event 전에 거부하는지 확인
+17. safety detach, close와 reconnect의 stale listener가 typed event 또는 version 2
+    counters를 새 published session에 귀속시키지 않는지 확인
+18. D5 wake가 exact retained ticket과 일치할 때만 한 개의 generation-pinned
+    `0x7E03` query를 만들고 TCP response 전에는 UI/operation truth를 바꾸지 않는지 확인
+19. unknown/stale/wrong BootId ticket, busy duplicate와 query failure는 drop/log하고
+    manual polling fallback을 보존하는지 확인
+20. legacy default mode의 12/4-byte request/ACK와 raw callback 동작이 그대로인지 확인
 
-LASAL IDE compile, PLC download와 실제 PLC 재캡처는 아직 수행하지 않았으므로
-E2E 완료로 표시하지 않는다. 특히 endpoint ownership은 tracked source/PC 계약이며
-target의 `OS_TCP_USER_GETPEERIP` byte order와 duplicate/mismatch ACK는 live capture가
-필요하다.
+Version 2 sender Candidate의 IDE Rebuild/Link는 완료됐지만 production D5 broker
+declaration과 call site는 아직 반영 전이다. 새 broker를 포함한 IDE compile, PLC
+download와 실제 PLC 재캡처를 수행하기 전에는 E2E 완료로 표시하지 않는다. 특히
+endpoint ownership, D5 wake causal query와 loss/duplicate/reorder는 static source/PC
+계약만으로 runtime 승인할 수 없다.
 
 ## PC 로컬 검증 결과
 
