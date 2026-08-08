@@ -14958,7 +14958,8 @@ function Assert-DiagnosticsCapabilityWriteInventory {
 function Assert-TCPMotionInterfaceFreshOwnerReset {
     param(
         [string]$TcpText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$UdpCallbackCandidate
     )
 
     $scanText = Get-LasalScanText $TcpText
@@ -15079,6 +15080,30 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
              '\s*(?<![A-Za-z0-9_])end_if\s*;')
         CurrentSocketPublish =
             '(?i)(?<![A-Za-z0-9_])CurrentSock\s*:=\s*dSock\s*;'
+    }
+    if ($UdpCallbackCandidate) {
+        foreach ($legacyCallbackReset in @(
+                'RpcCallbackRegisteredFalse',
+                'RpcCallbackEventMaskZero',
+                'RpcCallbackPortZero',
+                'RpcCallbackIPv4_0',
+                'RpcCallbackIPv4_1',
+                'RpcCallbackIPv4_2',
+                'RpcCallbackIPv4_3')) {
+            $orderedStatements.Remove($legacyCallbackReset)
+        }
+        $sessionEpochIndex = 0
+        foreach ($statementName in $orderedStatements.Keys) {
+            if ($statementName -ceq 'SessionEpochAdvanceAndWrap') {
+                break
+            }
+            $sessionEpochIndex++
+        }
+        $orderedStatements.Insert(
+            $sessionEpochIndex,
+            'RpcCallbackDisarm',
+            ('(?i)(?<![A-Za-z0-9_])callbackDisarmResult\s*:=\s*' +
+             'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;'))
     }
 
     $lastStatementIndex = -1
@@ -16389,7 +16414,8 @@ function Assert-LasalDs402SafetyDrainRetryContract {
     param(
         [string]$ControlServiceText,
         [string]$TcpText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$UdpCallbackCandidate
     )
 
     $controlScan = Get-LasalScanText $ControlServiceText
@@ -16591,6 +16617,13 @@ function Assert-LasalDs402SafetyDrainRetryContract {
             '(?i)RollbackAxisOwnership|CommitAxisOwnership|ReserveAxisOwnership') {
         throw "$blocker TERMINAL duplicates service ownership finalization."
     }
+    $pendingCloseCallbackFence = if ($UdpCallbackCandidate) {
+        ('callbackDisarmResult\s*:=\s*' +
+         'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;\s*')
+    }
+    else {
+        ''
+    }
     Assert-Match $helper (
         '(?is)if\s+pendingSendResponse\s+then.*?' +
         'SendData\(\s*pData:=#Sendbuf\[0\]\s*,\s*udSize:=16\s*,.*?' +
@@ -16598,6 +16631,7 @@ function Assert-LasalDs402SafetyDrainRetryContract {
         'if\s*\(ActiveRequest\.SessionEpoch\s*<>\s*0\)\s*&\s*' +
         '\(PendingClosedSessionEpoch\s*=\s*0\)\s+then\s*' +
         'PendingClosedSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*;\s*' +
+        $pendingCloseCallbackFence +
         'SessionEpoch\s*\+=\s*1\s*;\s*' +
         'if\s+SessionEpoch\s*=\s*0\s+then\s*' +
         'SessionEpoch\s*:=\s*1\s*;\s*end_if\s*;\s*end_if\s*;.*?' +
@@ -22768,7 +22802,8 @@ function Assert-TCPIPServerControlledShutdownContract {
 function Assert-TCPMotionInterfaceSamePeerTakeover {
     param(
         [string]$TcpText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$UdpCallbackCandidate
     )
 
     $scanText = Get-LasalScanText $TcpText
@@ -22971,10 +23006,14 @@ function Assert-TCPMotionInterfaceSamePeerTakeover {
             "socket=$currentSocketClearCount, peer=$currentPeerClearCount, " +
             "peer-valid=$currentPeerInvalidCount; expected one each.")
     }
-    Assert-Match $disconnectBody (
+    $rpcDisconnectResetPattern = (
         '(?s)if\s+RpcSocket\s*=\s*dSock\s+then\s*' +
-        'RpcSocket\s*:=\s*0\s*;\s*RpcInitialized\s*:=\s*FALSE\s*;\s*' +
-        'RpcCallbackRegistered\s*:=\s*FALSE\s*;') (
+        'RpcSocket\s*:=\s*0\s*;\s*RpcInitialized\s*:=\s*FALSE\s*;')
+    if (-not $UdpCallbackCandidate) {
+        $rpcDisconnectResetPattern +=
+            '\s*RpcCallbackRegistered\s*:=\s*FALSE\s*;'
+    }
+    Assert-Match $disconnectBody $rpcDisconnectResetPattern (
         "$Owner late non-owner DISCONNECT can clear the new RPC owner.")
 
     if ($scanText -match
@@ -28856,14 +28895,53 @@ if ([string]::IsNullOrWhiteSpace($tcpMetadataChannelsBlock)) {
     throw 'TCPMotionInterface top-level generated channel metadata was not found.'
 }
 
+Set-Variable `
+    -Name 'WrapperUdpCallbackExpectedState' `
+    -Value ([string]$UdpCallbackExpectedState) `
+    -Option ReadOnly `
+    -Scope Script
+Set-Variable `
+    -Name 'WrapperUdpCallbackWiringExpected' `
+    -Value ($script:WrapperUdpCallbackExpectedState -in @(
+        'DerivedWired',
+        'DerivedCandidate')) `
+    -Option ReadOnly `
+    -Scope Script
+Set-Variable `
+    -Name 'WrapperUdpCallbackCandidateExpected' `
+    -Value (
+        $script:WrapperUdpCallbackExpectedState -eq 'DerivedCandidate') `
+    -Option ReadOnly `
+    -Scope Script
+if (($script:WrapperUdpCallbackExpectedState -eq 'DerivedCandidate') -ne
+        $script:WrapperUdpCallbackCandidateExpected -or
+    ($script:WrapperUdpCallbackCandidateExpected -and
+        -not $script:WrapperUdpCallbackWiringExpected)) {
+    throw (
+        'UDP callback wrapper state derivation is inconsistent for ' +
+        "ExpectedState=$script:WrapperUdpCallbackExpectedState.")
+}
 if ($transportClean) {
+    $phase5ExpectedTcpClients = @(
+        '_StdLib',
+        'Diagnostics',
+        'ControlCommands')
+    if ($script:WrapperUdpCallbackWiringExpected) {
+        $phase5ExpectedTcpClients += 'CallbackSender'
+    }
+    $phase5ExpectedTcpClientCount = $phase5ExpectedTcpClients.Count
     $phase5DeclaredFunctionPattern =
         '(?m)^\s*FUNCTION(?:\s+VIRTUAL)?(?:\s+GLOBAL)?(?:\s+TAB)?\s+' +
         '(?<Value>[A-Za-z_@][A-Za-z0-9_@]*)\b'
     $phase5ImplementedFunctionPattern =
         '(?m)^\s*FUNCTION(?:\s+VIRTUAL)?(?:\s+GLOBAL)?(?:\s+TAB)?\s+' +
         'TCPMotionInterface::(?<Value>[A-Za-z_@][A-Za-z0-9_@]*)\b'
-    Assert-Match $tcpCommandTableBlock '(?m)^\s*4\$UINT,\s*3\$UINT,\s*0\$UINT,\s*$' 'Phase5TransportClean TCPMotionInterface generated server/client/data counts are not 4/3/0.'
+    Assert-Match $tcpCommandTableBlock (
+        '(?m)^\s*4\$UINT,\s*' + $phase5ExpectedTcpClientCount +
+        '\$UINT,\s*0\$UINT,\s*$') (
+        'Phase5TransportClean TCPMotionInterface generated ' +
+        'server/client/data counts are not 4/' +
+        "$phase5ExpectedTcpClientCount/0.")
     Assert-ExactRegexValueSet `
         -Text $tcpCommandTableBlock `
         -Pattern '\(::TCPMotionInterface\.(?<Value>[A-Za-z_][A-Za-z0-9_]*)\.pMeth\)\$UINT,\s*_CH_SVR\$UINT' `
@@ -28873,7 +28951,7 @@ if ($transportClean) {
         -Text $tcpCommandTableBlock `
         -Pattern '\(::TCPMotionInterface\.(?<Value>[A-Za-z_][A-Za-z0-9_]*)\.pCh\)\$UINT,\s*_CH_CLT_OBJ\$UINT' `
         -Owner 'Phase5TransportClean TCPMotionInterface generated clients' `
-        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+        -ExpectedValues $phase5ExpectedTcpClients
     Assert-ExactRegexValueSet `
         -Text $tcpMetadataChannelsBlock `
         -Pattern '<Server\s+Name="(?<Value>[^"]+)"' `
@@ -28883,9 +28961,33 @@ if ($transportClean) {
         -Text $tcpMetadataChannelsBlock `
         -Pattern '<Client\s+Name="(?<Value>[^"]+)"' `
         -Owner 'Phase5TransportClean TCPMotionInterface metadata clients' `
-        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+        -ExpectedValues $phase5ExpectedTcpClients
     if ($tcpMetadataChannelsBlock -match '<Data\s+Name=') {
         throw 'Phase5TransportClean TCPMotionInterface metadata still declares a data channel.'
+    }
+    if ($script:WrapperUdpCallbackWiringExpected) {
+        Assert-Match $st (
+            '(?m)^\s*CallbackSender\s*:\s*' +
+            'CltChCmd_LMCUdpCallbackSender\s*;\s*$') (
+            'Phase5TransportClean TCPMotionInterface.CallbackSender exact ' +
+            'client declaration is missing.')
+        Assert-Match $tcpMetadataChannelsBlock (
+            '<Client\s+Name="CallbackSender"\s+Required="false"\s+' +
+            'Internal="false"\s*/>') (
+            'Phase5TransportClean TCPMotionInterface.CallbackSender exact ' +
+            'channel metadata is missing.')
+        Assert-Match $tcpCommandTableBlock (
+            '\(::TCPMotionInterface\.CallbackSender\.pCh\)\$UINT,\s*' +
+            '_CH_CLT_OBJ\$UINT,\s*2#0000000000000000\$UINT,\s*' +
+            'TO_UDINT\(3384908324\),\s*"CallbackSender",\s*' +
+            'TO_UDINT\(287734476\),\s*"LMCUdpCallbackSender",\s*' +
+            '0\$UINT,\s*0\$UINT,') (
+            'Phase5TransportClean TCPMotionInterface.CallbackSender exact ' +
+            'generated command-table metadata is missing.')
+        Assert-Match $st (
+            '(?m)^\s*#pragma usingLtd LMCUdpCallbackSender\s*$') (
+            'Phase5TransportClean TCPMotionInterface ' +
+            'LMCUdpCallbackSender limited-using pragma is missing.')
     }
 }
 else {
@@ -28944,10 +29046,16 @@ else {
         'TCPMotionInterface1.Diagnostics' = 'LMCDiagnosticsService1.ClassSvr'
         'TCPMotionInterface1.ControlCommands' = 'LMCControlCommandService1.ClassSvr'
     }
+    if ($script:WrapperUdpCallbackWiringExpected) {
+        $phase5ExpectedTcpConnections[
+            'TCPMotionInterface1.CallbackSender'] =
+            'LMCUdpCallbackSender1.ClassSvr'
+    }
     if ($phase5TcpConnections.Count -ne $phase5ExpectedTcpConnections.Count) {
         throw (
             'Phase5TransportClean TCPMotionInterface outgoing network ' +
-            "connection count is $($phase5TcpConnections.Count), expected exactly three.")
+            "connection count is $($phase5TcpConnections.Count), expected " +
+            "exactly $($phase5ExpectedTcpConnections.Count).")
     }
     foreach ($phase5Connection in $phase5ExpectedTcpConnections.GetEnumerator()) {
         $connectionCount = @(
@@ -29010,9 +29118,14 @@ else {
         $tcpObjectDbRecord = $commNetworkDbRecord.Substring(
             $tcpObjectRecordStart,
             $tcpObjectRecordEnd - $tcpObjectRecordStart)
-        foreach ($retainedTcpObjectMember in @(
-                'CurrentSock', 'CommandID', 'AxisRef', 'Payload',
-                '_StdLib', 'Diagnostics', 'ControlCommands')) {
+        $phase5RetainedTcpObjectMembers = @(
+            'CurrentSock', 'CommandID', 'AxisRef', 'Payload',
+            '_StdLib', 'Diagnostics', 'ControlCommands')
+        if ($script:WrapperUdpCallbackWiringExpected) {
+            $phase5RetainedTcpObjectMembers += 'CallbackSender'
+        }
+        foreach ($retainedTcpObjectMember in
+                $phase5RetainedTcpObjectMembers) {
             Assert-Match $tcpObjectDbRecord (
                 '(?<![A-Za-z0-9_])' +
                 [regex]::Escape($retainedTcpObjectMember) +
@@ -29021,12 +29134,17 @@ else {
                 "object record is missing $retainedTcpObjectMember.")
         }
         $staleTcpObjectMembers = @()
-        foreach ($removedTcpObjectMember in @(
-                'Power', 'pos', 'velo', 'acc', 'dec', 'jer', 'dir',
-                'bufMode', 'Exec', 'Reserved', 'ReadPos', 'RetCode',
-                'RobotPowerOn', 'RobotPowerOff', 'RobotLock', 'RobotUnLock',
-                'LMCAxis1', 'LMCAxis2', 'LMCAxis3', 'LMCAxis4', 'LMCAxis5',
-                'LMCAxis6', 'LMCAxis7', 'LMCAxis8', 'LMCAxis9', 'LMCRobot')) {
+        $phase5RemovedTcpObjectMembers = @(
+            'Power', 'pos', 'velo', 'acc', 'dec', 'jer', 'dir',
+            'bufMode', 'Exec', 'Reserved', 'ReadPos', 'RetCode',
+            'RobotPowerOn', 'RobotPowerOff', 'RobotLock', 'RobotUnLock',
+            'LMCAxis1', 'LMCAxis2', 'LMCAxis3', 'LMCAxis4', 'LMCAxis5',
+            'LMCAxis6', 'LMCAxis7', 'LMCAxis8', 'LMCAxis9', 'LMCRobot')
+        if (-not $script:WrapperUdpCallbackWiringExpected) {
+            $phase5RemovedTcpObjectMembers += 'CallbackSender'
+        }
+        foreach ($removedTcpObjectMember in
+                $phase5RemovedTcpObjectMembers) {
             if ($tcpObjectDbRecord -match (
                     '(?<![A-Za-z0-9_])' +
                     [regex]::Escape($removedTcpObjectMember) +
@@ -29080,15 +29198,24 @@ else {
                 'TCPMotionInterface1 axis/robot connection tuple IDs: ' +
                 $staleTcpDirectConnectionIds + '.')
         }
-        if ($tcpSourceConnectionRecords.Count -ne 3) {
+        $phase5ExpectedTcpTuples = @(
+            @('LMCDiagnosticsService1', 'Diagnostics', 'ClassSvr'),
+            @('TCPIPServer1', '_TCPIPServer', 'Control'),
+            @('LMCControlCommandService1', 'ControlCommands', 'ClassSvr'))
+        if ($script:WrapperUdpCallbackWiringExpected) {
+            $phase5ExpectedTcpTuples += , @(
+                'LMCUdpCallbackSender1',
+                'CallbackSender',
+                'ClassSvr')
+        }
+        if ($tcpSourceConnectionRecords.Count -ne
+            $phase5ExpectedTcpTuples.Count) {
             throw (
                 'Phase5TransportClean Networks.lcb TCPMotionInterface1 source ' +
-                "tuple count is $($tcpSourceConnectionRecords.Count), expected three.")
+                "tuple count is $($tcpSourceConnectionRecords.Count), expected " +
+                "$($phase5ExpectedTcpTuples.Count).")
         }
-        foreach ($expectedTcpTuple in @(
-                @('LMCDiagnosticsService1', 'Diagnostics', 'ClassSvr'),
-                @('TCPIPServer1', '_TCPIPServer', 'Control'),
-                @('LMCControlCommandService1', 'ControlCommands', 'ClassSvr'))) {
+        foreach ($expectedTcpTuple in $phase5ExpectedTcpTuples) {
             $tuplePattern = (
                 '(?s)(?<![A-Za-z0-9_])TCPMotionInterface1' +
                 '(?![A-Za-z0-9_]).*?' +
@@ -29742,6 +29869,27 @@ if ($transportClean) {
                 'pre-IDE source staging.')
         }
     }
+    $phase5ExpectedImplementedFunctions = @(
+        '@CT_', '@STD', 'CyWork', 'ConnSocketInfo', 'DataHandling',
+        'SendData', 'Response', 'MsgPaser',
+        'HandleControlSafetyDrainPending',
+        'HandleRpcLifecycleCommands')
+    if ($script:WrapperUdpCallbackWiringExpected) {
+        $phase5ExpectedDeclaredFunctions += 'DisarmRpcCallbackEndpoint'
+        $phase5ExpectedImplementedFunctions += 'DisarmRpcCallbackEndpoint'
+        Assert-ExactLasalFunctionAbi `
+            -ClassBlock $classDeclarationBlock `
+            -FunctionName 'DisarmRpcCallbackEndpoint' `
+            -IsGlobal $false `
+            -Inputs @() `
+            -Outputs @(@{ Name = 'Result'; Type = 'DINT' }) `
+            -Owner 'TCPMotionInterface'
+        Assert-Match $tcpClassDbRecord (
+            '(?<![A-Za-z0-9_])DisarmRpcCallbackEndpoint' +
+            '(?![A-Za-z0-9_])') (
+            'Classes.lcb metadata is missing DisarmRpcCallbackEndpoint. ' +
+            'Save TCPMotionInterface through LASAL IDE.')
+    }
     Assert-ExactRegexValueSet `
         -Text $classDeclarationBlock `
         -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*SvrCh_[A-Za-z0-9_]+' `
@@ -29751,7 +29899,7 @@ if ($transportClean) {
         -Text $classDeclarationBlock `
         -Pattern '(?m)^\s*(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*CltChCmd_[A-Za-z0-9_]+' `
         -Owner 'Phase5TransportClean TCPMotionInterface declared clients' `
-        -ExpectedValues @('_StdLib', 'Diagnostics', 'ControlCommands')
+        -ExpectedValues $phase5ExpectedTcpClients
     Assert-ExactRegexValueSet `
         -Text $classDeclarationBlock `
         -Pattern $phase5DeclaredFunctionPattern `
@@ -29761,11 +29909,7 @@ if ($transportClean) {
         -Text $st `
         -Pattern $phase5ImplementedFunctionPattern `
         -Owner 'Phase5TransportClean TCPMotionInterface implemented functions' `
-        -ExpectedValues @(
-            '@CT_', '@STD', 'CyWork', 'ConnSocketInfo', 'DataHandling',
-            'SendData', 'Response', 'MsgPaser',
-            'HandleControlSafetyDrainPending',
-            'HandleRpcLifecycleCommands')
+        -ExpectedValues $phase5ExpectedImplementedFunctions
     $phase5DeclaredFunctionCount = [regex]::Matches(
         $classDeclarationBlock,
         $phase5DeclaredFunctionPattern).Count
@@ -29773,17 +29917,26 @@ if ($transportClean) {
         $st,
         $phase5ImplementedFunctionPattern).Count
     if ($phase5DeclaredFunctionCount -ne $phase5ExpectedDeclaredFunctions.Count -or
-        $phase5ImplementedFunctionCount -ne 10) {
+        $phase5ImplementedFunctionCount -ne
+            $phase5ExpectedImplementedFunctions.Count) {
         throw (
             'Phase5TransportClean TCPMotionInterface function count is ' +
             "declared=$phase5DeclaredFunctionCount implemented=$phase5ImplementedFunctionCount, " +
-            "expected exactly $($phase5ExpectedDeclaredFunctions.Count)/10 functions.")
+            "expected exactly $($phase5ExpectedDeclaredFunctions.Count)/" +
+            "$($phase5ExpectedImplementedFunctions.Count) functions.")
+    }
+    $phase5ExpectedTcpLimitedDependencies = @(
+        '_StdLib',
+        'LMCControlCommandService',
+        'LMCDiagnosticsService')
+    if ($script:WrapperUdpCallbackWiringExpected) {
+        $phase5ExpectedTcpLimitedDependencies += 'LMCUdpCallbackSender'
     }
     Assert-ExactRegexValueSet `
         -Text $st `
         -Pattern '(?m)^\s*#pragma\s+usingLtd\s+(?<Value>[A-Za-z_][A-Za-z0-9_]*)\s*$' `
         -Owner 'Phase5TransportClean TCPMotionInterface limited dependencies' `
-        -ExpectedValues @('_StdLib', 'LMCControlCommandService', 'LMCDiagnosticsService')
+        -ExpectedValues $phase5ExpectedTcpLimitedDependencies
 
     foreach ($removedMethodName in $removedTcpMethodNames) {
         if ($classDeclarationBlock -match (
@@ -40724,15 +40877,19 @@ if ($motionCyWorkBlock -match '_GetObjName|_strlen|_stricmp|_strcmp') {
 
 Assert-TCPMotionInterfaceSamePeerTakeover `
     -TcpText $st `
-    -Owner 'TCPMotionInterface same-peer takeover'
+    -Owner 'TCPMotionInterface same-peer takeover' `
+    -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
 
 Assert-TCPMotionInterfaceFreshOwnerReset `
     -TcpText $st `
-    -Owner 'TCPMotionInterface'
+    -Owner 'TCPMotionInterface' `
+    -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
 
-Assert-TCPMotionInterfaceCallbackEndpointOwnership `
-    -TcpText $st `
-    -Owner 'TCPMotionInterface callback endpoint ownership'
+if (-not $script:WrapperUdpCallbackCandidateExpected) {
+    Assert-TCPMotionInterfaceCallbackEndpointOwnership `
+        -TcpText $st `
+        -Owner 'TCPMotionInterface callback endpoint ownership'
+}
 
 Assert-LasalAdminSetAxisPositionContract `
     -ControlServiceText $controlCommandService `
@@ -40748,7 +40905,8 @@ Assert-LasalAdminLmcHomeContract `
 Assert-LasalDs402SafetyDrainRetryContract `
     -ControlServiceText $controlCommandService `
     -TcpText $st `
-    -Owner 'DS402 safety drain ordered continuation'
+    -Owner 'DS402 safety drain ordered continuation' `
+    -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
 
 $ds402SafetyDrainRetryNegativeFixtures = [ordered]@{}
 $ds402SafetyDrainRetryNegativeFixtures['PendingResultMisclassified'] = @{
@@ -40876,12 +41034,23 @@ $ds402SafetyDrainRetryNegativeFixtures['HelperChannelGuardRemoved'] = @{
         '(?=pendingRollbackResult\s*:=)')).Replace(
              $st, 'if TRUE then ', 1)
 }
+$helperCloseEpochFencePattern = if (
+    $script:WrapperUdpCallbackCandidateExpected) {
+    ('(?is)(if\s+pendingCloseRequired\s+then.*?' +
+     'PendingClosedSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*;\s*' +
+     'callbackDisarmResult\s*:=\s*' +
+     'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;\s*)' +
+     'SessionEpoch\s*\+=\s*1\s*;')
+}
+else {
+    ('(?is)(if\s+pendingCloseRequired\s+then.*?' +
+     'PendingClosedSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*;\s*)' +
+     'SessionEpoch\s*\+=\s*1\s*;')
+}
 $ds402SafetyDrainRetryNegativeFixtures['HelperCloseEpochFenceRemoved'] = @{
     Control = $controlCommandService
     Tcp = ([regex]::new(
-        '(?is)(if\s+pendingCloseRequired\s+then.*?' +
-        'PendingClosedSessionEpoch\s*:=\s*ActiveRequest\.SessionEpoch\s*;\s*)' +
-        'SessionEpoch\s*\+=\s*1\s*;')).Replace(
+        $helperCloseEpochFencePattern)).Replace(
             $st, '${1}SessionEpoch += 2;', 1)
 }
 $ds402SafetyDrainRetryNegativeFixtures['MarkerRecoveryClassifierRemoved'] = @{
@@ -40921,7 +41090,11 @@ foreach ($fixtureName in $ds402SafetyDrainRetryNegativeFixtures.Keys) {
     }
     $negativeRejected = $false
     try {
-        Assert-LasalDs402SafetyDrainRetryContract -ControlServiceText $fixture.Control -TcpText $fixture.Tcp -Owner "DS402 safety-drain retry negative fixture '$fixtureName'"
+        Assert-LasalDs402SafetyDrainRetryContract `
+            -ControlServiceText $fixture.Control `
+            -TcpText $fixture.Tcp `
+            -Owner "DS402 safety-drain retry negative fixture '$fixtureName'" `
+            -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
     }
     catch {
         $negativeRejected = $true
@@ -41402,7 +41575,8 @@ foreach ($negativeFixture in $tcpTakeoverNegativeFixtures.GetEnumerator()) {
             -TcpText ([string]$negativeFixture.Value) `
             -Owner (
                 'TCPMotionInterface takeover negative fixture ' +
-                $negativeFixture.Key)
+                $negativeFixture.Key) `
+            -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
     }
     catch {
         $negativeRejected = $true
@@ -41545,7 +41719,8 @@ foreach ($negativeFixture in
             -TcpText $negativeSource `
             -Owner (
                 'TCPMotionInterface fresh-owner negative fixture ' +
-                $negativeFixture.Key)
+                $negativeFixture.Key) `
+            -UdpCallbackCandidate:$script:WrapperUdpCallbackCandidateExpected
     }
     catch {
         $negativeRejected = $true
@@ -41563,6 +41738,7 @@ if ($tcpFreshOwnerNegativeFixtureCount -ne 11) {
         "$tcpFreshOwnerNegativeFixtureCount, expected 11.")
 }
 
+if (-not $script:WrapperUdpCallbackCandidateExpected) {
 $tcpCallbackOwnershipFixtureBlock = [regex]::Match(
     $st,
     ('(?ims)^[ \t]*0x405C[ \t]*:[ \t]*\r?$' +
@@ -41841,6 +42017,7 @@ if ($tcpRpcLifecycleNegativeFixtureCount -ne 7) {
     throw (
         'TCPMotionInterface RPC lifecycle negative fixture count is ' +
         "$tcpRpcLifecycleNegativeFixtureCount, expected seven.")
+}
 }
 
 $setPositionFixtureBlock = [regex]::Match(
@@ -42148,11 +42325,24 @@ if ($setPositionNegativeFixtureCount -ne 31) {
 
 Assert-Match $st 'PendingClosedSessionEpoch\s*:\s*UDINT' 'TCPMotionInterface pending closed-session epoch storage is missing.'
 Assert-Match $motionCyWorkBlock '(?s)PendingClosedSessionEpoch <> 0.*?IsClientConnected\(#Diagnostics\).*?Diagnostics\.NotifySessionClosed\(\s*SessionEpoch:=PendingClosedSessionEpoch\).*?PendingClosedSessionEpoch := 0.*?currentEpoch := SessionEpoch' 'TCPMotionInterface.CyWork does not flush the pending closed epoch to LMCDiagnosticsService before processing requests.'
-$closedEpochCaptureCount = [regex]::Matches(
-    $st,
-    '(?s)if \(SessionEpoch <> 0\)\s*&\s*\(PendingClosedSessionEpoch = 0\) then\s*PendingClosedSessionEpoch := SessionEpoch;\s*end_if;\s*SessionEpoch \+= 1').Count
-if ($closedEpochCaptureCount -ne 3) {
-    throw "TCPMotionInterface first-wins closed-session capture count is $closedEpochCaptureCount, expected three disconnect/send/close paths."
+if ($script:WrapperUdpCallbackCandidateExpected) {
+    $callbackDisarmCallCount = [regex]::Matches(
+        $st,
+        ('(?i)callbackDisarmResult\s*:=\s*' +
+         'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;')).Count
+    if ($callbackDisarmCallCount -ne 6) {
+        throw (
+            'TCPMotionInterface callback disarm call count is ' +
+            "$callbackDisarmCallCount, expected six Candidate lifecycle paths.")
+    }
+}
+else {
+    $closedEpochCaptureCount = [regex]::Matches(
+        $st,
+        '(?s)if \(SessionEpoch <> 0\)\s*&\s*\(PendingClosedSessionEpoch = 0\) then\s*PendingClosedSessionEpoch := SessionEpoch;\s*end_if;\s*SessionEpoch \+= 1').Count
+    if ($closedEpochCaptureCount -ne 3) {
+        throw "TCPMotionInterface first-wins closed-session capture count is $closedEpochCaptureCount, expected three disconnect/send/close paths."
+    }
 }
 Assert-Match $motionCyWorkBlock '(?s)RequestQueue\[QueueReadIndex\$DINT\]\.State\s*=\s*TCPMI_QUEUE_READY.*?State\s*:=\s*TCPMI_QUEUE_ACTIVE.*?MemCpy.*?State\s*:=\s*TCPMI_QUEUE_FREE' 'CyWork queue READY/ACTIVE/FREE transition is missing.'
 Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one active request.'
