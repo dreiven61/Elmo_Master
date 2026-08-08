@@ -264,6 +264,7 @@
 		<File Path=".\Class\GL_9086_1_Slot01\GL_9086_1_Slot01.st"/>
 		<File Path=".\Class\_UDPTransceiver\_UDPTransceiver.st"/>
 		<File Path=".\Class\_UDPTransceiverInterface\_UDPTransceiverInterface.st"/>
+		<File Path=".\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"/>
 	</ClassFiles>
 	<NetworkFiles>
 		<File Path=".\Network\HW_Network\HW_Network.lcn"/>
