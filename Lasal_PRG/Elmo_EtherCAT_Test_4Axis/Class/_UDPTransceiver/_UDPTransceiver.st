@@ -41,7 +41,7 @@
 	Automatic          = "false"
 	UpdateMode         = "Prescan"
 	SharedCommandTable = "true"
-	Objectsize         = "(480,300)"
+	Objectsize         = "(522,120)"
 	Comment            = "UDP communication">
 	<Channels>
 		<Server Name="sControl" GUID="{EC8E176D-59FF-4FBB-9FC3-3761C0306EB6}" Visualized="true" Initialize="false" WriteProtected="true" Retentive="false" Comment="Object Channel&#13;&#10;-) use the channel to call global functions from external&#13;&#10;-) this server shows the UDP state"/>

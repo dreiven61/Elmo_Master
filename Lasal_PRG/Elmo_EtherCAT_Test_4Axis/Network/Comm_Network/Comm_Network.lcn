@@ -6,7 +6,7 @@
 			Name       = "LMCControlCommandService1"
 			GUID       = "{5E164D6C-7E45-4BA4-B0F7-F9DBCCE8C71B}"
 			Class      = "LMCControlCommandService"
-			Position   = "(930,1440)"
+			Position   = "(1410,1890)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="AxisRebaseRequiredState" Value="16#5242530F"/>
@@ -28,7 +28,7 @@
 			Name       = "LMCDiagnosticsService1"
 			GUID       = "{F42F0DD4-D9CC-4E5B-B073-F88FACAD14A8}"
 			Class      = "LMCDiagnosticsService"
-			Position   = "(870,900)"
+			Position   = "(1350,1350)"
 			Visualized = "false">
 			<Channels>
 				<Server Name="ClassSvr"/>
@@ -46,7 +46,7 @@
 			Name       = "LMCUdpCallbackSender1"
 			GUID       = "{A69F7A12-C10E-45B9-B953-4C05659ACD25}"
 			Class      = "LMCUdpCallbackSender"
-			Position   = "(120,900)"
+			Position   = "(2610,990)"
 			Visualized = "false"
 			Remotely   = "true"
 			CyclicTime = "10 ms">
@@ -107,7 +107,7 @@
 			Name           = "LMCUdpTransceiver1"
 			GUID           = "{E5034F9F-7068-448C-9C69-E0202D7AE10C}"
 			Class          = "_UDPTransceiver"
-			Position       = "(120,180)"
+			Position       = "(1410,990)"
 			Visualized     = "false"
 			Remotely       = "true"
 			CyclicTime     = "10 ms"
@@ -141,7 +141,7 @@
 			Name           = "TCPIPServer1"
 			GUID           = "{42E82217-EDCD-47A0-BF97-FCBD9C009436}"
 			Class          = "TCPIPServer"
-			Position       = "(870,180)"
+			Position       = "(1320,180)"
 			Visualized     = "true"
 			Remotely       = "true"
 			CyclicTime     = "1 ms"
@@ -344,7 +344,7 @@
 			Name       = "TCPMotionInterface1"
 			GUID       = "{24D754E7-92FE-441C-AB95-543E8132A88F}"
 			Class      = "TCPMotionInterface"
-			Position   = "(2220,180)"
+			Position   = "(2670,180)"
 			Visualized = "false"
 			CyclicTime = "1 ms">
 			<Channels>
@@ -393,15 +393,15 @@
 	</Comments>
 	<!-- List of Connections in this network -->
 	<Connections>
-		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2220,390),(1486,990),"/>
+		<Connection Source="TCPMotionInterface1.Diagnostics" Destination="LMCDiagnosticsService1.ClassSvr" Vertices="(2670,390),(2430,390),(2430,1440),(1966,1440),"/>
 		<Connection Source="LMCDiagnosticsService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
 		<Connection Source="LMCDiagnosticsService1.RecorderStore" Destination="LMCRecorderStore1.ClassSvr"/>
-		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="TCPIPServer1.Control" Vertices="(2220,270),(1492,270),"/>
+		<Connection Source="TCPMotionInterface1._TCPIPServer" Destination="TCPIPServer1.Control" Vertices="(2670,270),(1942,270),"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis1" Destination="LMCSdoExecutor1.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis2" Destination="LMCSdoExecutor2.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis3" Destination="LMCSdoExecutor3.ClassState"/>
 		<Connection Source="LMCDiagnosticsService1.SdoAxis4" Destination="LMCSdoExecutor4.ClassState"/>
-		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2220,450),(1488,1530),"/>
+		<Connection Source="TCPMotionInterface1.ControlCommands" Destination="LMCControlCommandService1.ClassSvr" Vertices="(2670,450),(2520,450),(2520,1980),(1968,1980),"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis1" Destination="_LMCAxis1.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis2" Destination="_LMCAxis2.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis3" Destination="_LMCAxis3.Control"/>
@@ -412,10 +412,10 @@
 		<Connection Source="LMCControlCommandService1.LMCAxis8" Destination="_LMCAxis8.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCAxis9" Destination="_LMCAxis9.Control"/>
 		<Connection Source="LMCControlCommandService1.LMCRobot" Destination="_LMCRobotBase1.Control"/>
-		<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr" Vertices="(870,1050),(1488,1530),"/>
+		<Connection Source="LMCDiagnosticsService1.AxisOwnership" Destination="LMCControlCommandService1.ClassSvr" Vertices="(1350,1500),(1260,1500),(1260,1860),(2040,1860),(2040,1950),(1968,1980),"/>
 		<Connection Source="LMCControlCommandService1.InputLatch" Destination="LMCEcatInputLatch1.ClassSvr"/>
-		<Connection Source="LMCUdpCallbackSender1._UDPTransceiver" Destination="LMCUdpTransceiver1.sControl" Vertices="(120,990),(616,270),"/>
-		<Connection Source="TCPMotionInterface1.CallbackSender" Destination="LMCUdpCallbackSender1.ClassSvr" Vertices="(2220,510),(420,990),"/>
+		<Connection Source="LMCUdpCallbackSender1._UDPTransceiver" Destination="LMCUdpTransceiver1.sControl" Vertices="(2610,1080),(1948,1080),"/>
+		<Connection Source="TCPMotionInterface1.CallbackSender" Destination="LMCUdpCallbackSender1.ClassSvr" Vertices="(2670,510),(2610,510),(2610,960),(3480,960),(3480,1080),(3404,1080),"/>
 	</Connections>
 	<!-- Headerfiles -->
 	<Options>

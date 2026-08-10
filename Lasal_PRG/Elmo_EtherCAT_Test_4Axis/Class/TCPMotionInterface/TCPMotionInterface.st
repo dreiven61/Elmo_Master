@@ -142,6 +142,9 @@ TCPMotionInterface : CLASS
 		RpcCallbackCookieLo 	: UDINT;
 		RpcCallbackCookieHi 	: UDINT;
 		RpcCallbackLastDisarmResult 	: DINT;
+		D5TerminalWakeAttemptCount 	: UDINT;
+		D5TerminalWakeEnqueuedCount 	: UDINT;
+		D5TerminalWakeRejectedCount 	: UDINT;
 		lsl_tcp_user 	: ^LSL_TCP_USER;
 		CurrentPeerIPv4 	: UDINT;
 		CurrentPeerValid 	: BOOL;
@@ -219,6 +222,8 @@ TCPMotionInterface : CLASS
 		VAR_OUTPUT
 			Result 	: DINT;
 		END_VAR;
+	
+	FUNCTION PublishD5TerminalWake;
   //Tables:
 	FUNCTION @STD
 		VAR_OUTPUT
@@ -534,6 +539,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::CyWork
   // could legally acquire the same axis after the old common owner is cleared.
   if IsClientConnected(#Diagnostics) then
     Diagnostics.ProcessOperations();
+    PublishD5TerminalWake();
   end_if;
 
   if ActiveRequest.Reserved >= 2 then
@@ -2157,6 +2163,7 @@ case CommandID of
       dSocket:=CurrentSock,
       bDirect:=TRUE
     );
+    PublishD5TerminalWake();
 
   0x8080, 0x405C, 0x405D: HandleRpcLifecycleCommands();
 
@@ -2639,4 +2646,61 @@ FUNCTION TCPMotionInterface::DisarmRpcCallbackEndpoint
 		RpcCallbackCookieLo := 0;
 		RpcCallbackCookieHi := 0;
 	END_IF;
+END_FUNCTION
+
+
+FUNCTION TCPMotionInterface::PublishD5TerminalWake
+	VAR
+		ticketId : UDINT;
+		ticketBootId : UDINT;
+		ownerSessionEpoch : UDINT;
+		takeResult : DINT;
+		publishResult : DINT;
+	END_VAR
+
+	ticketId := 0;
+	ticketBootId := 0;
+	ownerSessionEpoch := 0;
+	if IsClientConnected(#Diagnostics) = FALSE then
+		RETURN;
+	end_if;
+	takeResult := Diagnostics.TryTakeD5TerminalWake(
+		pTicketId:=#ticketId,
+		pTicketBootId:=#ticketBootId,
+		pOwnerSessionEpoch:=#ownerSessionEpoch);
+	if takeResult <> 1 then
+		RETURN;
+	end_if;
+
+	if D5TerminalWakeAttemptCount <> 16#FFFFFFFF then
+		D5TerminalWakeAttemptCount += 1;
+	end_if;
+	publishResult := -9;
+	if RpcInitialized & (CurrentSock <> 0) & (RpcSocket = CurrentSock) &
+		(PendingClosedSessionEpoch = 0) &
+		RpcCallbackRegistered & (RpcCallbackProtocolVersion = 2) &
+		((RpcCallbackEventMask AND 1) = 1) &
+		(RpcCallbackSessionEpoch = SessionEpoch) &
+		(ownerSessionEpoch = RpcCallbackSessionEpoch) &
+		(ticketBootId = RpcCallbackBootId) &
+		IsClientConnected(#CallbackSender) then
+		publishResult := CallbackSender.PublishEvent(
+			EventMaskBit:=1,
+			EventType:=1,
+			DeliveryClass:=0,
+			EventId:=ticketId,
+			ProducerSessionEpoch:=ownerSessionEpoch,
+			pPayload:=NIL,
+			PayloadBytes:=0);
+	end_if;
+	if publishResult = 0 then
+		if D5TerminalWakeEnqueuedCount <> 16#FFFFFFFF then
+			D5TerminalWakeEnqueuedCount += 1;
+		end_if;
+	else
+		if D5TerminalWakeRejectedCount <> 16#FFFFFFFF then
+			D5TerminalWakeRejectedCount += 1;
+		end_if;
+	end_if;
+
 END_FUNCTION

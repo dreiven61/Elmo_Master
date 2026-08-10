@@ -24,7 +24,7 @@
 	Automatic          = "false"
 	UpdateMode         = "Prescan"
 	SharedCommandTable = "true"
-	Objectsize         = "(284,120)">
+	Objectsize         = "(778,120)">
 	<Channels>
 		<Server Name="AdmissionErrorDropCount" GUID="{49BCA9EC-6D9E-44A8-8DA6-E814659573C0}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
 		<Server Name="AdmissionRetryCount" GUID="{20966513-5089-41A8-A512-F8D409DFBA10}" Visualized="false" Initialize="true" DefValue="0" WriteProtected="true" Retentive="false"/>
@@ -468,7 +468,7 @@ FUNCTION GLOBAL LMCUdpCallbackSender::PublishEvent
 		Result := -8;
 	ELSIF ((PayloadBytes > 0) AND (pPayload = NIL)) OR (PayloadBytes > 460) OR ((PayloadBytes + 52) > ActiveEndpoint.MaxDatagramBytes) THEN
 		Result := -7;
-	ELSIF (EventMaskBit <> 1) OR (EventType <> 1) OR (DeliveryClass <> 0) OR (PayloadBytes <> 0) OR ((ActiveEndpoint.EventMask AND EventMaskBit) = 0) THEN
+	ELSIF (EventMaskBit <> 1) OR (EventType <> 1) OR (EventId = 0) OR (DeliveryClass <> 0) OR (PayloadBytes <> 0) OR ((ActiveEndpoint.EventMask AND EventMaskBit) = 0) THEN
 		Result := -6;
 	ELSE
 		socketResult := EnsureSocketReady();

@@ -82,6 +82,9 @@ LMCDiagnosticsService : CLASS
 		DiagnosticsBootId 	: UDINT;
 		BootIdInitialized 	: BOOL;
 		BootIdFault 	: BOOL;
+		D5TerminalWakeLastAttemptTicketId 	: UDINT;
+		D5TerminalWakeLastAttemptTicketBootId 	: UDINT;
+		D5TerminalWakeLastAttemptOwnerSessionEpoch 	: UDINT;
 		Ds402HomeState : ARRAY [0..127] OF DINT;
 
 		EncoderMaintenanceState : ARRAY [0..191] OF DINT;
@@ -120,6 +123,16 @@ LMCDiagnosticsService : CLASS
 		END_VAR;
 	
 	FUNCTION GLOBAL ProcessOperations;
+	
+	FUNCTION GLOBAL TryTakeD5TerminalWake
+		VAR_INPUT
+			pTicketId 	: ^UDINT;
+			pTicketBootId 	: ^UDINT;
+			pOwnerSessionEpoch 	: ^UDINT;
+		END_VAR
+		VAR_OUTPUT
+			Result 	: DINT;
+		END_VAR;
 	
 	FUNCTION IsSdoReadReady
 		VAR_INPUT
@@ -2206,6 +2219,9 @@ FUNCTION LMCDiagnosticsService::LMCDiagnosticsService
 	DiagnosticsBootId := 0;
 	BootIdInitialized := FALSE;
 	BootIdFault := FALSE;
+	D5TerminalWakeLastAttemptTicketId := 0;
+	D5TerminalWakeLastAttemptTicketBootId := 0;
+	D5TerminalWakeLastAttemptOwnerSessionEpoch := 0;
 	EncoderMaintenanceServiceMilliseconds := 0;
 	EncoderMaintenanceObservedLatchCycle := 0;
 	EncoderMaintenanceLatchAdvanceServiceMilliseconds := 0;
@@ -7591,5 +7607,53 @@ FUNCTION LMCDiagnosticsService::ProcessAxisOwnershipStartup
 		ObservationCycle:=startupSnapshot[1],
 		ReportCycle:=reportCycle,
 		DiagnosticsDrainFlags:=drainFlags);
+
+END_FUNCTION
+
+
+FUNCTION GLOBAL LMCDiagnosticsService::TryTakeD5TerminalWake
+	VAR_INPUT
+		pTicketId 	: ^UDINT;
+		pTicketBootId 	: ^UDINT;
+		pOwnerSessionEpoch 	: ^UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+
+	Result := -1;
+	if (pTicketId = NIL) | (pTicketBootId = NIL) |
+		(pOwnerSessionEpoch = NIL) then
+		RETURN;
+	end_if;
+
+	pTicketId^$UDINT := 0;
+	pTicketBootId^$UDINT := 0;
+	pOwnerSessionEpoch^$UDINT := 0;
+	Result := 0;
+
+	if (TicketId = 0) | (TicketBootId = 0) |
+		(OwnerSessionEpoch = 0) then
+		RETURN;
+	end_if;
+	if (OperationState <> LMC_DIAG_SDO_STATE_COMPLETED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_FAILED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_CANCELLED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_EXPIRED) then
+		RETURN;
+	end_if;
+	if (D5TerminalWakeLastAttemptTicketId = TicketId) &
+		(D5TerminalWakeLastAttemptTicketBootId = TicketBootId) &
+		(D5TerminalWakeLastAttemptOwnerSessionEpoch = OwnerSessionEpoch) then
+		RETURN;
+	end_if;
+
+	D5TerminalWakeLastAttemptTicketId := TicketId;
+	D5TerminalWakeLastAttemptTicketBootId := TicketBootId;
+	D5TerminalWakeLastAttemptOwnerSessionEpoch := OwnerSessionEpoch;
+	pTicketId^$UDINT := TicketId;
+	pTicketBootId^$UDINT := TicketBootId;
+	pOwnerSessionEpoch^$UDINT := OwnerSessionEpoch;
+	Result := 1;
 
 END_FUNCTION
