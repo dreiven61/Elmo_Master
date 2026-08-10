@@ -1883,10 +1883,11 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   run passed in 233.562 s with that wrapper hash unchanged before and after.
   This is full SourceOnly consumer evidence only and does not change the
   capture-only/nonproduction decision.
-- PC reconnect correction commit 66b5cf2 and observability commit f337fec are
+- PC reconnect correction commit 66b5cf2, observability commit f337fec, display
+  correction af4ab63, and PC-only callback ownership harness bff3bc7 are
   covered by Visual Studio 2019 MSBuild 16.11.6 Debug and Release builds of
-  LasalMotionControlLib.Tests. Each current custom runner reported SDK 1117/1117
-  PASS (TOTAL 1117, PASSED 1117, FAILED 0). Callback coverage now
+  LasalMotionControlLib.Tests. Each current custom runner reported SDK 1133/1133
+  PASS (TOTAL 1133, PASSED 1133, FAILED 0). Callback coverage now
   includes the codec, InitialV2WakeHint, session fencing, exact opt-in 32/20
   negotiation, gated early-datagram delivery, strict source/provenance/policy/
   sequence rejection, fixed-buffer oversized rejection, typed-only dispatch,
@@ -1907,9 +1908,12 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   four counters for the current session. The current WPF Release smoke runner
   reports 335/335 PASS at af4ab63, including canonical persistent-init-failure
   cleanup, ErrorId=0 non-canonical zero-retry cleanup, manual reconnect on a new
-  session, and stale queued event fencing after UI dispatch.
-  This is PC
-  fake-peer evidence, not PLC runtime or packet-capture proof.
+  session, and stale queued event fencing after UI dispatch. The 16 ownership
+  harness regressions constrain GD-N10A/N13/N14 to exact 0x8080, version-2
+  0x405C, and authoritative-owner 0x405D flows with zero retry and fail-closed
+  peer-retirement/close classification. The harness defaults to zero-network
+  dry-run; its live mode has not been executed against the PLC. This is PC
+  fake-peer/raw-wire evidence, not PLC runtime or packet-capture proof.
 - The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker
   completion, zero errors, and a UI summary of 76 warnings. The relevant log
   contained no ERROR, FATAL, CInvalidArgException, or failed record. The 21 new

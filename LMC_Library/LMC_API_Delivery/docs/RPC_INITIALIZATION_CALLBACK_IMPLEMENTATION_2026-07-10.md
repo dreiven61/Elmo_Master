@@ -235,10 +235,16 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - `0x405D` ACK 후 session/callback state 정리
 - socket disconnect 시 해당 RPC state 정리
 
-현재 구현은 한 개의 활성 RPC session만 허용하는 1단계 구현이다. 다른
-socket이 이미 초기화된 상태에서 `0x8080`을 보내면 오류를 반환한다.
-수신 누적 버퍼도 한 socket만 소유한다. 다중 PC 지원은 `dSock` key 기반
-session table과 socket별 receive accumulator로 확장해야 한다.
+현재 구현은 한 개의 stable active RPC owner만 허용한다. `MaxConnections=2`의
+두 번째 slot은 일반 다중-client 공유가 아니라 reconnect candidate용이다. 기존 owner가
+있을 때 candidate와 active owner의 TCP peer IPv4가 모두 확인되고 서로 같으면 old socket에
+custom command `100` shutdown을 요청한다. 그 요청이 성공하면 candidate를 즉시 새
+owner/SessionEpoch로 게시해 `0x8080` 초기화를 진행할 수 있다. peer lookup이 실패하거나
+IPv4가 다르거나 old-owner shutdown 요청이 실패하면 candidate에도 command `100` close를
+요청하고 기존 owner를 보존한다. 이 source 경로가 확인하는 것은 각 shutdown/close 요청의
+return value이며 실제 peer close 완료 자체는 아니다. 수신 누적 버퍼도 현재 owner 한 socket만
+소유한다. 여러 PC의 동시 RPC 공유를 지원하려면 `dSock` key 기반 session table과 socket별
+receive accumulator로 별도 확장해야 한다.
 
 주의: 이 `.st` 파일은 LASAL CodeGenerator export다. 이번 변경의 class
 변수는 생성 declaration 영역에 들어가 있으므로 LASAL IDE의 class model에도
