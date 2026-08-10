@@ -45,10 +45,10 @@ $KnownNetworksSha256 =
 $KnownBaselinePrefixBytes = 8788633L
 $KnownBaselinePrefixSha256 =
     '03F222F7F02E1466F86FDD6D91BB76DAC860CDC4E36674F42CF8A6A314B9AD56'
-$KnownFinalizerBytes = 183049L
+$KnownFinalizerBytes = 187443L
 $KnownFinalizerSha256 =
-    '076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C'
-$KnownFinalizerBlobOid = 'db47c5489c5eab5585f350573284ee5f30ffba15'
+    '1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5'
+$KnownFinalizerBlobOid = '5495e5636462d8aa67e13abb70c310a1ee8f9e67'
 $ClassesRelativePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb'
 $NetworksRelativePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb'
 $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)

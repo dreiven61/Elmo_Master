@@ -2281,6 +2281,34 @@ function Assert-ArtifactReportSequencesEqual {
     }
 }
 
+function Get-ExactNamedIdentityReportValue {
+    param(
+        [Parameter(Mandatory = $true)]$Item,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$SequenceOwner,
+        [Parameter(Mandatory = $true)][int]$Index
+    )
+    if ($Item -is [Collections.IDictionary]) {
+        $matchingKeys = @($Item.Keys | Where-Object {
+                $_ -is [string] -and ([string]$_ -ceq $Name)
+            })
+        if ($matchingKeys.Count -ne 1) {
+            Throw-FinalizerBlocker (
+                "$SequenceOwner item $Index lacks exact field '$Name'.")
+        }
+        return $Item[$matchingKeys[0]]
+    }
+
+    $matchingProperties = @($Item.PSObject.Properties | Where-Object {
+            $_.Name -ceq $Name
+        })
+    if ($matchingProperties.Count -ne 1) {
+        Throw-FinalizerBlocker (
+            "$SequenceOwner item $Index lacks exact field '$Name'.")
+    }
+    return $matchingProperties[0].Value
+}
+
 function Assert-NamedIdentityReportSequencesEqual {
     param(
         [Parameter(Mandatory = $true)][object[]]$Expected,
@@ -2292,12 +2320,39 @@ function Assert-NamedIdentityReportSequencesEqual {
         Throw-FinalizerBlocker "$SequenceOwner count changed."
     }
     for ($index = 0; $index -lt $Expected.Count; $index++) {
-        $expectedName = $Expected[$index].PSObject.Properties[$NameProperty].Value
-        $actualName = $Actual[$index].PSObject.Properties[$NameProperty].Value
+        $expectedName = Get-ExactNamedIdentityReportValue `
+            -Item $Expected[$index] `
+            -Name $NameProperty `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
+        $actualName = Get-ExactNamedIdentityReportValue `
+            -Item $Actual[$index] `
+            -Name $NameProperty `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
+        $expectedBytes = Get-ExactNamedIdentityReportValue `
+            -Item $Expected[$index] `
+            -Name 'bytes' `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
+        $actualBytes = Get-ExactNamedIdentityReportValue `
+            -Item $Actual[$index] `
+            -Name 'bytes' `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
+        $expectedSha256 = Get-ExactNamedIdentityReportValue `
+            -Item $Expected[$index] `
+            -Name 'sha256' `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
+        $actualSha256 = Get-ExactNamedIdentityReportValue `
+            -Item $Actual[$index] `
+            -Name 'sha256' `
+            -SequenceOwner $SequenceOwner `
+            -Index $index
         if (([string]$expectedName -cne [string]$actualName) -or
-            ([long]$Expected[$index].bytes -ne [long]$Actual[$index].bytes) -or
-            ([string]$Expected[$index].sha256 -cne
-                [string]$Actual[$index].sha256)) {
+            ([long]$expectedBytes -ne [long]$actualBytes) -or
+            ([string]$expectedSha256 -cne [string]$actualSha256)) {
             Throw-FinalizerBlocker "$SequenceOwner differs at index $index."
         }
     }
@@ -4194,6 +4249,66 @@ function Invoke-FinalizerSelfTest {
                     -Expected $reports `
                     -Actual $mutatedReport `
                     -SequenceOwner 'self-test mutated artifact report'
+            }
+
+        $namedOrderedExpected = @([ordered]@{
+                relativePath = 'fixture/report.bin'
+                bytes = 3L
+                sha256 = ('A' * 64)
+            })
+        $namedOrderedActual = @([ordered]@{
+                relativePath = 'fixture/report.bin'
+                bytes = 3L
+                sha256 = ('A' * 64)
+            })
+        Assert-NamedIdentityReportSequencesEqual `
+            -Expected $namedOrderedExpected `
+            -Actual $namedOrderedActual `
+            -NameProperty 'relativePath' `
+            -SequenceOwner 'self-test ordered identity report'
+        Assert-SelfTestTrue `
+            -Condition $true `
+            -Message 'ordered identity report exact sequence'
+        $namedOrderedValueMismatch = @([ordered]@{
+                relativePath = 'fixture/report.bin'
+                bytes = 4L
+                sha256 = ('A' * 64)
+            })
+        Assert-SelfTestThrows `
+            -Message 'ordered identity report value mismatch' `
+            -Action {
+                Assert-NamedIdentityReportSequencesEqual `
+                    -Expected $namedOrderedExpected `
+                    -Actual $namedOrderedValueMismatch `
+                    -NameProperty 'relativePath' `
+                    -SequenceOwner 'self-test ordered value mismatch'
+            }
+        $namedOrderedMissing = @([ordered]@{
+                bytes = 3L
+                sha256 = ('A' * 64)
+            })
+        Assert-SelfTestThrows `
+            -Message 'ordered identity report missing field' `
+            -Action {
+                Assert-NamedIdentityReportSequencesEqual `
+                    -Expected $namedOrderedExpected `
+                    -Actual $namedOrderedMissing `
+                    -NameProperty 'relativePath' `
+                    -SequenceOwner 'self-test ordered missing field'
+            }
+        $namedOrderedWrongCase = @([ordered]@{
+                RelativePath = 'fixture/report.bin'
+                bytes = 3L
+                sha256 = ('A' * 64)
+            })
+        Assert-SelfTestThrows `
+            -Message 'ordered identity report wrong-case field' `
+            -Action {
+                Assert-NamedIdentityReportSequencesEqual `
+                    -Expected $namedOrderedExpected `
+                    -Actual $namedOrderedWrongCase `
+                    -NameProperty 'relativePath' `
+                    -SequenceOwner 'self-test ordered wrong-case field'
             }
 
         $junctionTarget = Join-Path $tempRoot 'junction-target'
