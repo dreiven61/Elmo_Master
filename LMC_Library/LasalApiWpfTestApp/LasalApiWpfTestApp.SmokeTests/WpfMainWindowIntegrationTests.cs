@@ -113,6 +113,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession",
                 CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession);
             tests.Add(
+                "Wpf.CallbackV2.ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession",
+                CallbackV2ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession);
+            tests.Add(
                 "Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi",
                 CallbackV2QueuedOldSessionStatisticsCannotMutateReplacementUi);
             tests.Add(
@@ -152,16 +155,41 @@ namespace LasalApiWpfTestApp.SmokeTests
         private static void
             CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession()
         {
-            var steps = new List<FakeRpcStep>
-            {
-                SessionInitShortFailureStep(),
-                SessionInitShortFailureStep(),
+            VerifyCallbackV2InitFailureCleanupAndManualReconnect(
+                new[]
+                {
+                    SessionInitShortFailureStep(-1),
+                    SessionInitShortFailureStep(-1)
+                },
+                2,
+                true,
+                -1);
+        }
+
+        private static void
+            CallbackV2ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession()
+        {
+            VerifyCallbackV2InitFailureCleanupAndManualReconnect(
+                new[] { SessionInitShortFailureStep(0) },
+                1,
+                false,
+                0);
+        }
+
+        private static void
+            VerifyCallbackV2InitFailureCleanupAndManualReconnect(
+            IEnumerable<FakeRpcStep> failedInitializationSteps,
+            int expectedFirstSessionInitAttempts,
+            bool expectedCanonicalRetry,
+            short expectedErrorId)
+        {
+            var steps = new List<FakeRpcStep>(failedInitializationSteps);
+            steps.Add(
                 new FakeRpcStep(0, null)
                 {
                     RequireClientDisconnectBeforeRequest = true,
                     ContinueWithNextClientAfterDisconnect = true
-                }
-            };
+                });
             steps.AddRange(CreateConnectAndTopologySteps(
                 LMCDiagnosticCapability.EtherCATTopology));
             steps.Add(CloseStep());
@@ -192,25 +220,60 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "The WPF first connection failure did not return to a clean reconnectable state.");
 
                     AssertEx.Contains(
-                        "RPC session init failed. Status=1, ErrorId=-1.",
+                        "RPC session init failed. Status=1, ErrorId="
+                            + expectedErrorId.ToString(
+                                CultureInfo.InvariantCulture)
+                            + ".",
                         window.TextExecutionLog.Text);
                     var retiredInitialization =
                         window.TextRpcInitialization.Text;
                     AssertEx.Contains("Attempt=1, Outcome=Failed", retiredInitialization);
-                    AssertEx.Contains("0x8080Attempts=2", retiredInitialization);
-                    AssertEx.Contains("Retry=True", retiredInitialization);
+                    AssertEx.Contains(
+                        "RequestedCallback=127.0.0.1:0",
+                        retiredInitialization);
+                    AssertEx.Contains(
+                        "BoundCallback=not-bound",
+                        retiredInitialization);
+                    AssertEx.Contains(
+                        "0x8080Attempts="
+                            + expectedFirstSessionInitAttempts.ToString(
+                                CultureInfo.InvariantCulture),
+                        retiredInitialization);
+                    AssertEx.Contains(
+                        "Retry=" + expectedCanonicalRetry,
+                        retiredInitialization);
                     AssertEx.Contains("InitOutcome=Failed", retiredInitialization);
                     AssertEx.Contains("HeaderStatus=1", retiredInitialization);
                     AssertEx.Contains("HeaderReserved=0", retiredInitialization);
                     AssertEx.Contains("PayloadLength=4", retiredInitialization);
                     AssertEx.Contains("CommandStatus=1", retiredInitialization);
-                    AssertEx.Contains("ErrorId=-1", retiredInitialization);
+                    AssertEx.Contains(
+                        "ErrorId="
+                            + expectedErrorId.ToString(
+                                CultureInfo.InvariantCulture),
+                        retiredInitialization);
+                    if (expectedCanonicalRetry)
+                    {
+                        AssertEx.Contains(
+                            "FirstFailure={",
+                            retiredInitialization);
+                    }
+                    else
+                    {
+                        AssertEx.False(
+                            retiredInitialization.IndexOf(
+                                "FirstFailure={",
+                                StringComparison.Ordinal) >= 0,
+                            "A non-canonical session-init failure was recorded as a retry trigger.");
+                    }
                     AssertEx.Contains("Current=Retired", retiredInitialization);
                     AssertEx.Equal(1, server.AcceptedClientCount);
-                    AssertEx.Equal(2, CountCommandInSession(
-                        server,
-                        1,
-                        0x8080));
+                    AssertEx.Equal(
+                        expectedFirstSessionInitAttempts,
+                        CountCommandInSession(
+                            server,
+                            1,
+                            0x8080));
                     AssertEx.Equal(0, CountCommandInSession(
                         server,
                         1,
@@ -243,8 +306,19 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.True(reconnected.IsConnected);
                     AssertEx.True(reconnected.IsRpcInitialized);
                     AssertEx.True(reconnected.IsCallbackListenerRunning);
+                    var boundCallback = reconnected.CallbackLocalEndPoint;
+                    AssertEx.NotNull(boundCallback);
+                    AssertEx.True(
+                        boundCallback.Port > 0,
+                        "The successful reconnect retained an invalid ephemeral callback port.");
                     AssertEx.Contains(
                         "Attempt=2, Outcome=Connected",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "RequestedCallback=127.0.0.1:0",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "BoundCallback=" + boundCallback,
                         window.TextRpcInitialization.Text);
                     AssertEx.Contains(
                         "0x8080Attempts=1",
@@ -6475,13 +6549,14 @@ namespace LasalApiWpfTestApp.SmokeTests
             return new FakeRpcStep(0x8080, TestFrame.Response(0, payload));
         }
 
-        private static FakeRpcStep SessionInitShortFailureStep()
+        private static FakeRpcStep SessionInitShortFailureStep(short errorId)
         {
+            var payload = new byte[4];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteInt16(payload, 2, errorId);
             return new FakeRpcStep(
                 0x8080,
-                TestFrame.Response(
-                    1,
-                    TestFrame.Hex("01 00 FF FF")));
+                TestFrame.Response(1, payload));
         }
 
         private static FakeRpcStep CallbackStep()

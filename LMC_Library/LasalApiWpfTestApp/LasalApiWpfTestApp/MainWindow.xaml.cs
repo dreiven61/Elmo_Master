@@ -9071,7 +9071,7 @@ namespace LasalMotionControlApiExample
                 + remotePort.ToString(CultureInfo.InvariantCulture)
                 + ", Local="
                 + localIp
-                + ", Callback="
+                + ", RequestedCallback="
                 + localIp
                 + ":"
                 + callbackPort.ToString(CultureInfo.InvariantCulture)
@@ -9079,6 +9079,11 @@ namespace LasalMotionControlApiExample
 
             if (observedConnection != null)
             {
+                var boundCallback = observedConnection.CallbackLocalEndPoint;
+                evidence += ", BoundCallback="
+                    + (boundCallback == null
+                        ? "not-bound"
+                        : boundCallback.ToString());
                 var initialization = observedConnection
                     .LastRpcSessionInitializationEvidence;
                 if (initialization == null)
