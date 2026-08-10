@@ -1,0 +1,63 @@
+{
+  "Schema": "LasalClassesBinaryDelta/v1",
+  "Purpose": "forensic-preservation-before-reviewed-rebaseline",
+  "CapturedAtUtc": "2026-08-10T12:03:56.8823780Z",
+  "CaptureHead": "f352476fd6f93061b105d2e3663414cc6c24669c",
+  "ProductionApproved": false,
+  "SemanticEquivalenceProven": false,
+  "NeedsReviewedRebaseline": true,
+  "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+  "Baseline": {
+    "Commit": "55435791f6e91c9dcb4e06dcd25a11d77b382da7",
+    "GitBlobSha1": "7b0faebb1450ff67b7dad44f081ad5c4ac141ee2",
+    "RawBytes": 8549773,
+    "Sha256": "24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861"
+  },
+  "Captured": {
+    "GitBlobSha1": "bd47dd96f0df4be54c898e9bc18e70ebfd439e95",
+    "RawBytes": 8549773,
+    "Sha256": "6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712"
+  },
+  "ObservedDelta": {
+    "ChangedBytes": 99,
+    "ContiguousRuns": 58,
+    "OpaqueVendorOwnerSegments": 36
+  },
+  "Patch": {
+    "RelativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/classes_lcb_gate_d_rebuild_24402bfa_to_6e115876.binary.patch",
+    "Format": "git binary patch",
+    "RawBytes": 2553,
+    "Sha256": "AF9A4D32B6F568036E4200BD3F47C9CD63ABB4027D37A1F60BEDB7287731A160",
+    "GitVersion": "2.52.0.windows.1",
+    "GeneratorArguments": [
+      "diff",
+      "--binary",
+      "--full-index",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--no-renames",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--output=<PatchOutputPath>",
+      "5543579",
+      "--",
+      "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb"
+    ]
+  },
+  "RebuildBaseline": {
+    "RelativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/build_baseline_gate_d_rebaseline_6e115876.json",
+    "RawBytes": 6887,
+    "Sha256": "BF55B202377C52D0880A7D1E1B7C5B719B3060F2E17BECF4A895820F13AC29C3",
+    "LogPrefixBytes": 8788633,
+    "LogPrefixSha256": "03F222F7F02E1466F86FDD6D91BB76DAC860CDC4E36674F42CF8A6A314B9AD56"
+  },
+  "Validation": {
+    "ForwardApplyCheckAgainstBaselineIndex": true,
+    "ReverseApplyCheckAgainstCapturedWorktree": true,
+    "DetachedWorktreeReconstruction": true,
+    "ReconstructedRawBytes": 8549773,
+    "ReconstructedSha256": "6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712",
+    "ReconstructedGitBlobSha1": "bd47dd96f0df4be54c898e9bc18e70ebfd439e95"
+  }
+}
