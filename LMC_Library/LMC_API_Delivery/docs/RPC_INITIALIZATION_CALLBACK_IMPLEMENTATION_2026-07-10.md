@@ -341,6 +341,39 @@ command success를 기록했다. Download는 `Download Ok`, `Project successfull
 바꿔 manifest의 `24402BFA...`와 불일치한다. focused `VerifyCurrent`와 C78
 input-equivalence는 현재 실패하며, rebaseline 전 runtime 결과는 exploratory다.
 
+Commit `111a773` finalizer의 isolated classification이 exit `0`/`2`/`3`으로
+`candidate_finalization_gate_d_rebaseline_6e115876`를 publish하면 그 directory를
+delete/overwrite하거나 finalizer를 재실행하지 않는다. finalizer가 허용할 수 있는 build
+error는 exact load-only `DriveComL2.h` `E0015` 최대 1개뿐이고 다른 또는 추가 error는
+중지다. bundle exact 8개는 `.finalizer-owner.json`,
+`Classes.post-rebuild.snapshot.lcb`, `Networks.post-rebuild.snapshot.lcb`,
+`derived_build_transcript_gate_d_rebaseline_6e115876.txt`,
+`bounded_lasal2_delta_gate_d_rebaseline_6e115876.raw.txt`,
+`bounded_lasal2_delta_gate_d_rebaseline_6e115876.manifest.json`,
+`classes_lcb_gate_d_rebuild_candidate.comparison.json`,
+`classes_lcb_gate_d_rebuild_candidate.finalization.json`이다.
+
+Commit `531abdd`의 bundle validator는
+`test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
+physical 180,538 bytes / SHA-256
+`C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`다.
+PowerShell 7 AST/self-test positive `1` / negative `27`, Windows PowerShell 5.1
+AST가 PASS한다. PS5 production은 bundle evidence read 전에 exit `4`이므로 production
+검증은 PowerShell 7-only다. canonical repository root에서 exact command는 다음과 같다.
+
+```powershell
+& pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
+$LASTEXITCODE
+```
+
+validator exit `0`은 현재 8-file bundle integrity/cross-file contract만 증명하고 과거
+atomic move, complete manifest written-last ordering, PLC/runtime 또는 approval은 증명하지
+않는다. PASS 뒤에만 directory 전체를 한 Git commit으로 원자 commit한다. failure면 bundle을
+그대로 보존하고 중지한다. finalizer exit `0`은 exact static replay와 별도 review, exit
+`2`는 vendor semantics 보존/review이며 hash-only rebaseline은 금지다. exit `3`/`4`는
+중지다. 전부 no-Download, `ProductionApproved=false`,
+`onlineRuntimeQualificationPermitted=false`다.
+
 초기 production 의미는 D5 operation terminal availability다. Event mask bit 1,
 `EventType=1`, delivery class 0, payload 0, nonzero `EventId=TicketId`이며
 `ProducerSessionEpoch=OwnerSessionEpoch`다. UDP는 polling latency를 줄이는 hint일

@@ -473,7 +473,38 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   known `6E115876...` reproducibility/review만 뜻한다. Exit `3`은 제3 hash의 unstable
   generator이므로 중지하고, exit `4`는 blocked/no accepted publication이다. 모든 exit에서
   `ProductionApproved=false`, `onlineRuntimeQualificationPermitted=false`이며 Download하지
-  않는다.
+  않는다. finalizer가 허용할 수 있는 build error는 exact load-only
+  `DriveComL2.h` `E0015` 최대 1개뿐이다. 다른 error 또는 추가 error record는 중지다.
+- commit `531abdd`의 read-only bundle validator는
+  `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
+  physical 180,538 bytes / SHA-256
+  `C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`다.
+  PowerShell 7 AST/self-test positive `1` / negative `27`, Windows PowerShell 5.1
+  AST가 PASS한다. PS5 production은 bundle evidence를 읽기 전에 exit `4`이므로 production
+  `-VerifyBundle`은 PowerShell 7-only다. finalizer exit `0`/`2`/`3`이
+  `candidate_finalization_gate_d_rebaseline_6e115876`를 publish한 뒤 그 directory를
+  delete/overwrite하지 않고 finalizer를 다시 실행하지 않는다. exact inventory는
+  `.finalizer-owner.json`, `Classes.post-rebuild.snapshot.lcb`,
+  `Networks.post-rebuild.snapshot.lcb`,
+  `derived_build_transcript_gate_d_rebaseline_6e115876.txt`,
+  `bounded_lasal2_delta_gate_d_rebaseline_6e115876.raw.txt`,
+  `bounded_lasal2_delta_gate_d_rebaseline_6e115876.manifest.json`,
+  `classes_lcb_gate_d_rebuild_candidate.comparison.json`,
+  `classes_lcb_gate_d_rebuild_candidate.finalization.json` exact 8개다. canonical repository
+  root에서 exact command는 다음과 같다.
+
+  ```powershell
+  & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
+  $LASTEXITCODE
+  ```
+
+  validator exit `0`은 현재 bundle integrity/cross-file contract만 증명한다. 과거 atomic
+  move, complete manifest written-last ordering, PLC/runtime 또는 approval을 증명하지 않는다.
+  validator PASS 뒤에만 exact 8-file directory 전체를 한 Git commit으로 원자 commit한다.
+  failure면 bundle을 그대로 보존하고 중지한다. finalizer exit `0`은 static exact replay와
+  별도 review만, exit `2`는 vendor semantics 보존/review만 허용하며 hash-only rebaseline은
+  금지한다. exit `3`/`4`는 중지다. 모든 경우 Download 금지,
+  `ProductionApproved=false`, `onlineRuntimeQualificationPermitted=false`다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
   current Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각

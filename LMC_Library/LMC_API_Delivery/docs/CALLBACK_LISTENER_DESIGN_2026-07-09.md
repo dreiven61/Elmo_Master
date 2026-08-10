@@ -437,6 +437,43 @@ publication. All outcomes remain `ProductionApproved=false` and
 `onlineRuntimeQualificationPermitted=false`; no Download is permitted from this
 classification.
 
+The finalizer may accept at most one exact load-only `DriveComL2.h` `E0015`
+record. Any different or additional error stops classification. If finalizer exit
+`0`, `2`, or `3` publishes
+`candidate_finalization_gate_d_rebaseline_6e115876`, do not delete or overwrite
+the directory and do not rerun the finalizer. Its exact inventory is
+`.finalizer-owner.json`, `Classes.post-rebuild.snapshot.lcb`,
+`Networks.post-rebuild.snapshot.lcb`,
+`derived_build_transcript_gate_d_rebaseline_6e115876.txt`,
+`bounded_lasal2_delta_gate_d_rebaseline_6e115876.raw.txt`,
+`bounded_lasal2_delta_gate_d_rebaseline_6e115876.manifest.json`,
+`classes_lcb_gate_d_rebuild_candidate.comparison.json`, and
+`classes_lcb_gate_d_rebuild_candidate.finalization.json`.
+
+Commit `531abdd` supplies the read-only bundle validator at
+`test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
+physical 180,538 bytes / SHA-256
+`C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`.
+PowerShell 7 AST/self-test passes positive `1` / negative `27`; Windows PowerShell
+5.1 AST passes, while PS5 production exits `4` before any bundle evidence read.
+Production verification is PowerShell 7-only. Run exactly from the canonical
+repository root before any Git commit:
+
+```powershell
+& pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
+$LASTEXITCODE
+```
+
+Validator exit `0` proves current bundle integrity only. It neither approves the
+candidate nor proves a past atomic move, complete-manifest written-last ordering,
+or PLC/runtime behavior. Preserve a failed bundle unchanged and stop. Only after
+validator PASS may the exact eight-file directory be committed atomically as one
+whole-bundle Git change. Finalizer exit `0` still means exact static replay plus
+separate review before any future approval; exit `2` means preserve/review vendor
+semantics and forbids hash-only rebaseline; exit `3`/`4` means stop. Every branch
+remains no-Download, `ProductionApproved=false`, and
+`onlineRuntimeQualificationPermitted=false`.
+
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
 to Object Network Server/Client rows and is not applicable to these class method

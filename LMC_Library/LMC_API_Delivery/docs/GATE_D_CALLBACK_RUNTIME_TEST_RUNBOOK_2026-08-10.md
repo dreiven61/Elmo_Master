@@ -255,6 +255,54 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    `ProductionApproved=false` and
    `onlineRuntimeQualificationPermitted=false`; perform no Download from this
    classification.
+   The finalizer may accept at most one exact load-only `E0015` record for
+   `DriveComL2.h`. Any other error, or an additional error record, stops
+   classification; do not reinterpret it as warning debt.
+7. When finalizer exit `0`, `2`, or `3` has published
+   `candidate_finalization_gate_d_rebaseline_6e115876`, freeze that directory.
+   Do not delete or overwrite any member and do not rerun the finalizer. The exact
+   eight-file inventory is:
+
+   - `.finalizer-owner.json`
+   - `Classes.post-rebuild.snapshot.lcb`
+   - `Networks.post-rebuild.snapshot.lcb`
+   - `derived_build_transcript_gate_d_rebaseline_6e115876.txt`
+   - `bounded_lasal2_delta_gate_d_rebaseline_6e115876.raw.txt`
+   - `bounded_lasal2_delta_gate_d_rebaseline_6e115876.manifest.json`
+   - `classes_lcb_gate_d_rebuild_candidate.comparison.json`
+   - `classes_lcb_gate_d_rebuild_candidate.finalization.json`
+
+8. Before committing that directory, run the fail-closed bundle validator from
+   commit `531abdd`:
+   `Verify-LasalClassesRebuildFinalizationBundle.ps1`, physical 180,538 bytes,
+   SHA-256
+   `C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`.
+   PowerShell 7 AST and self-test pass positive `1` / negative `27`.
+   Windows PowerShell 5.1 AST passes, but production verification exits `4`
+   before reading any bundle evidence. Production verification is PowerShell
+   7-only. From the canonical repository root, run exactly:
+
+   ```powershell
+   & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
+   $LASTEXITCODE
+   ```
+
+   Validator exit `0` proves only the current eight-file bundle integrity and
+   cross-file contract. It does not approve production, prove a past atomic move
+   or written-last ordering, or prove PLC/runtime behavior. On validator failure,
+   preserve the bundle unchanged and stop. Only after validator exit `0` may the
+   exact whole bundle be staged and committed atomically in one Git commit.
+
+   | Finalizer result | Required decision after bundle-integrity PASS |
+   | --- | --- |
+   | `0` | Exact static replay only; complete a separate review before any future approval. |
+   | `2` | Preserve and review vendor semantics; hash-only rebaseline is forbidden. |
+   | `3` | Stop: unstable third hash. |
+   | `4` | Stop: blocked/no accepted publication, so there is no new bundle to commit. |
+
+   Every row remains no-Download, `ProductionApproved=false`, and
+   `onlineRuntimeQualificationPermitted=false`. Validator exit `0` never changes
+   the finalizer classification or these decision flags.
 
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:
