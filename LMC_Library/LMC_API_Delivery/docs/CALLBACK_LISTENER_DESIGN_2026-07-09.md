@@ -251,11 +251,16 @@ failure as outer `Status=1`, command `Status=1`, and `ErrorId=-1`. Only explicit
 socket after a 20 ms cancellation-aware delay; legacy, malformed, nonzero
 reserved, and other-error responses do not retry. Commit `f337fec` adds the
 retained `LMCRpcSessionInitializationEvidence`, the public current session
-generation, and the same-session `CallbackV2StatisticsChanged` snapshot event.
-The WPF displays that evidence with the accepted version-2 registration fence
-and receiver decision counters. The current Release SDK suite passes
-`1117/1117`. The current WPF Release smoke suite passes `334/334`, including the
-deterministic stale-dispatcher replacement-session regression.
+generation, and the same-session `CallbackV2StatisticsChanged` snapshot event;
+`ad7c8b1` fences queued old-session WPF actions. Commit `af4ab63` proves that a
+non-canonical short ACK with `ErrorId=0` retries zero times, performs full
+listener/TCP/WPF cleanup, and that the next manual Connect uses a fresh socket.
+The WPF displays the requested tuple as `RequestedCallback` and the actual UDP
+endpoint as `BoundCallback`, or `not-bound` when init failed before bind, together
+with the accepted version-2 registration fence and receiver decision counters.
+The current Release SDK suite passes `1117/1117`. The current WPF Release smoke
+suite passes `335/335`, including the deterministic stale-dispatcher
+replacement-session and non-canonical failure recovery regressions.
 This is bounded PC recovery/observability evidence, not a PLC disarm fix or
 callback runtime proof.
 
@@ -1523,9 +1528,11 @@ reconnect invalidation. The bounded session-init recovery additionally preserves
 the canonical short-failure `ErrorId=-1` and allows only one same-socket v2
 retry. The retained initialization evidence and immutable v2 statistics event
 also preserve the exact attempt/ACK/outcome and same-session receiver decision
-after cleanup/UI dispatch. Current Release SDK result is `1117/1117`; the
-current WPF Release result is `334/334`, including the deterministic
-stale-dispatcher replacement-session regression. The D5
+after cleanup/UI dispatch. `af4ab63` additionally preserves the requested and
+actual/not-bound callback endpoints and proves zero retry/full cleanup/fresh
+manual socket for a non-canonical `ErrorId=0` short ACK. Current Release SDK
+result is `1117/1117`; the current WPF Release result is `335/335`, including the
+deterministic stale-dispatcher replacement-session regression. The D5
 event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
 D source now contains the one-attempt broker
 and one production-path candidate `PublishEvent(...)` call. Static focused/general

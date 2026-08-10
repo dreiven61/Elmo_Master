@@ -578,13 +578,20 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `LMCRecorderStore` constructor exact 초기화/publish-last negative fixture,
   `Classes.lcb` general `TryStartRead` declaration,
   4축 executor network와 generated metadata 포함
-- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp`의 2026-08-10
-  current Release는 VS2019 MSBuild 16.11.6.22506 Rebuild warning 0/error 0이고 full
-  smoke runner `334/334` PASS다. 신규
+- `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp`의
+  `f337fec`/`ad7c8b1` 2026-08-10 Release 스냅샷은 `334/334` PASS였다.
+  2026-08-11 `af4ab63` current Release는 VS2019 MSBuild 16.11.6.22506 Rebuild
+  warning 0/error 0이고 full smoke runner `335/335` PASS다.
   `Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession`은 첫
   Connect의 exact short failure 2회 뒤 `Disconnected`/`Stopped`, Connect 재활성,
   내부 connection 제거와 session-1의 `0x405C`/`0x405D` zero-wire를 확인하고, 다음 수동
   Connect가 새 TCP session에서 `0x8080 -> 0x405C`로 성공하는 것을 고정한다.
+  신규 `Wpf.CallbackV2.ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession`은
+  같은 short ACK에서 `ErrorId=0`이면 `0x8080`을 정확히 1회만 보내고 canonical retry를
+  사용하지 않으며, full cleanup 뒤 다음 수동 Connect가 새 TCP socket/session을 쓰는 것을
+  고정한다. 두 회귀 모두 요청값 `RequestedCallback=127.0.0.1:0`을 보존한다. 실패
+  evidence는 `BoundCallback=not-bound`, 성공 evidence는 실제 양수 ephemeral endpoint를
+  `BoundCallback`으로 보존한다.
   `Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi`는 old-session
   statistics action을 Dispatcher에 먼저 queue한 뒤 connection을 교체하고, action 처리 후에도
   replacement의 네 counter가 0, last decision이 `None`, summary가 `rejected=0`, active owner가

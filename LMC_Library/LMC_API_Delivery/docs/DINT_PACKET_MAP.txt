@@ -1896,12 +1896,18 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   the one permitted same-socket v2 session-init retry. Only the exact outer
   Status=1/HeaderReserved=0/payload=4/command Status=1/ErrorId=-1 envelope in
   explicit Version2WakeHint waits 20 ms and retries once; legacy and all other
-  envelopes retry zero times. The retained initialization evidence preserves the
+  envelopes retry zero times. In particular, the otherwise same short ACK with
+  ErrorId=0 is non-canonical: it sends one 0x8080, performs full cleanup, and a
+  later manual Connect uses a fresh TCP socket/session. The retained
+  initialization evidence preserves the
   attempt count, retry decision, first/final ACK, and outcome after cleanup. The
+  WPF evidence labels the configured tuple RequestedCallback and the actual UDP
+  endpoint BoundCallback; a failure before bind records BoundCallback=not-bound.
   immutable v2 statistics event preserves the matching receiver decision and all
   four counters for the current session. The current WPF Release smoke runner
-  reports 334/334 PASS, including persistent-init-failure cleanup, manual
-  reconnect on a new session, and stale queued event fencing after UI dispatch.
+  reports 335/335 PASS at af4ab63, including canonical persistent-init-failure
+  cleanup, ErrorId=0 non-canonical zero-retry cleanup, manual reconnect on a new
+  session, and stale queued event fencing after UI dispatch.
   This is PC
   fake-peer evidence, not PLC runtime or packet-capture proof.
 - The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker

@@ -163,10 +163,14 @@ nor a formal checkpoint, transition, or approval.
 PC reconnect correction commit `66b5cf2` preserves the exact short-failure
 `ErrorId=-1` and only for the canonical v2 failure envelope waits 20 ms and
 retries `0x8080` once
-on the same socket. Legacy and other failures do not retry. Current Release PC
-evidence is SDK `1117/1117` and WPF `334/334`. The GUI retains the RPC-init
+on the same socket. Legacy and other failures do not retry. Commit `af4ab63`
+also fixes the non-canonical short-ACK `ErrorId=0` case at one `0x8080`, full
+listener/TCP/WPF cleanup, and a fresh socket for the next manual Connect. Current
+Release PC evidence is SDK `1117/1117` and WPF `335/335`. The GUI retains the RPC-init
 attempt count, canonical-retry decision, and final ACK evidence after cleanup,
-and displays the accepted version-2 BootId, SessionEpoch, cookie, listener
+labels the configured tuple `RequestedCallback`, records the actual UDP endpoint
+as `BoundCallback` or `not-bound`, and displays the accepted version-2 BootId,
+SessionEpoch, cookie, listener
 generation, expected source, event mask, PC receiver counters, and last receiver
 decision. The WPF total includes a deterministic old-session statistics action
 queued across connection replacement; it cannot alter the replacement owner,

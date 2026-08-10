@@ -57,17 +57,24 @@ session init `0x8080`의 exact short failure
 `HeaderReserved=0`, payload 4 bytes, command `Status=1`, `ErrorId=-1`이 모두 맞을
 때만 20 ms cancellation-aware 대기 뒤 같은 TCP socket으로 session init을 한 번 더
 시도한다. persistent second failure는 `Faulted`와 TCP/UDP cleanup으로 끝나고, 다른
-ErrorId, nonzero reserved, malformed response는 재시도하지 않는다. 이 동작은 PLC의
+ErrorId, nonzero reserved, malformed response는 재시도하지 않는다. 따라서
+`ErrorId=0`인 non-canonical short ACK도 재시도 0회이며 TCP/UDP/listener와 WPF
+connection을 정리한다. 이 동작은 PLC의
 지속적인 callback disarm result `-8`/`-9`를 수정하는 것이 아니다.
-WPF 회귀는 첫 Connect의 두 init 시도가 모두 실패한 뒤
+WPF 회귀는 첫 Connect의 canonical 두 init 시도가 모두 실패한 경우와
+non-canonical `ErrorId=0`이 첫 init에서 실패한 경우 모두
 `Disconnected`/`Stopped`, Connect 재활성, 내부 connection 제거를 확인하고, 다음 수동
 Connect가 새 TCP session에서 `0x8080 -> 0x405C`로 성공하는 것을 고정한다.
 
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
-ACK를 Active/Retired evidence로 보존한다. 성공한 version-2 등록에서는 BootId,
+ACK를 Active/Retired evidence로 보존한다. `af4ab63`부터 입력 tuple은
+`RequestedCallback`, 실제 UDP endpoint는 `BoundCallback`으로 표시한다. init 실패 전
+bind가 없으면 `BoundCallback=not-bound`이고, callback port `0`으로 성공하면
+`RequestedCallback`의 `:0`과 별도로 실제 양수 ephemeral port를 표시한다. 성공한
+version-2 등록에서는 BootId,
 SessionEpoch, cookie, listener generation, expected source와 event mask를 표시하고, PC
 receiver의 accepted/rejected/duplicate/out-of-order 누계와 마지막 decision/protocol error를
-표시한다. 현 시점 PC 회귀는 SDK `1117/1117`, WPF `334/334` PASS다. 이 표시는 PC측
+표시한다. `af4ab63` 현 시점 PC 회귀는 SDK `1117/1117`, WPF `335/335` PASS다. 이 표시는 PC측
 관측 증거이며 pcap, PLC `RpcCallbackLastDisarmResult`, PLC producer/sender counter를
 대체하지 않는다. `0x8080` 응답만으로 PLC의 `-8`/`-9` disarm 원인을 판별할 수도 없다.
 
@@ -173,9 +180,9 @@ reviewed rebaseline 전 runtime 테스트는 exploratory이며, 추가 Download�
 MSBuild.exe .\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests /p:Configuration=Debug /p:Platform=AnyCPU
 ```
 
-2026-08-10 current Release 기준 VS2019 MSBuild Release rebuild는 경고 0,
-오류 0이고 smoke는 334/334 PASS다. 이번 tranche에서는 Debug build/smoke를
-다시 실행하지 않았다.
+2026-08-10 `f337fec`/`ad7c8b1` Release 스냅샷은 smoke `334/334` PASS였다.
+2026-08-11 `af4ab63` 기준 VS2019 MSBuild Release rebuild는 경고 0, 오류 0이고
+smoke는 `335/335` PASS다. 이번 tranche에서는 Debug build/smoke를 다시 실행하지 않았다.
 Connect 뒤 bit 14만 광고된 7-node
 topology가 자동으로 7행/CREVIS 3행을 표시하고 bit 15~17 live 버튼은 비활성인 경로,
 초기 bit 14 OFF에서 자동 topology 요청 없이 실패 상태를 표시한 뒤 수동 Load가 capability를
@@ -706,7 +713,7 @@ journal을 arm한다. 성공 결과와 accepted-result preemption의 exact lease
 유실은 자동 재전송하지 않는다. config-only exact Release는 full qualification gate가 아닌 manual
 route와 같이 열리도록 분리했다. 현재 네 proof/route gate는 모두 `false`다.
 
-현행 WPF actual-control smoke는 VS2019 MSBuild current Release에서 334/334
+`af4ab63` 현행 WPF actual-control smoke는 VS2019 MSBuild current Release에서 335/335
 PASS다. 이번 tranche에서는 Debug smoke를 다시 실행하지 않았다. Admin capability/axis/group과
 Drive mode/non-atomic status의 exact fake-RPC, non-default axis lookup/AxisInfo payload 및 typed 표시,
 CREVIS 자동 7행/3행 표시,

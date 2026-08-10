@@ -80,13 +80,18 @@ commit한다. exact duplicate는 idempotent이고 다른 re-registration은 기�
 `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞을 때 20 ms
 cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. 두 번째도
 실패하면 `Faulted`와 TCP/UDP cleanup으로 끝나며, 다른 ErrorId/nonzero
-reserved/malformed response는 zero-retry다. 이 bounded retry는 PLC의 persistent
+reserved/malformed response는 zero-retry다. `af4ab63`은 같은 short ACK의
+`ErrorId=0`이 `0x8080` 1회, full cleanup으로 끝나고 다음 수동 Connect가 새 TCP
+socket/session을 쓰는 것을 고정한다. 이 bounded retry는 PLC의 persistent
 callback disarm `-8`/`-9` root fix가 아니다.
-WPF 회귀는 첫 Connect 실패가 `Disconnected`/`Stopped`, Connect 재활성, 내부 connection
-제거로 끝나고 다음 수동 Connect가 새 TCP session에서 성공하는 것을 검증한다.
+WPF 회귀는 canonical persistent failure와 non-canonical `ErrorId=0` 첫 failure가 모두
+`Disconnected`/`Stopped`, Connect 재활성, 내부 connection 제거로 끝나고 다음 수동
+Connect가 새 TCP session에서 성공하는 것을 검증한다.
 
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
-ACK를 Active/Retired evidence로 보존한다. 성공한 version-2 등록의 BootId, SessionEpoch,
+ACK를 Active/Retired evidence로 보존한다. 입력 tuple은 `RequestedCallback`, 실제 UDP
+endpoint는 `BoundCallback` 또는 init 전 bind 실패를 뜻하는 `not-bound`로 구분한다.
+성공한 version-2 등록의 BootId, SessionEpoch,
 cookie, listener generation, expected source, event mask와 PC receiver의
 accepted/rejected/duplicate/out-of-order 누계, 마지막 decision/protocol error도 표시한다.
 이는 PC측 관측 증거이며 pcap, PLC `RpcCallbackLastDisarmResult`, PLC producer/sender
@@ -237,8 +242,8 @@ process restart는 `RecoveryRequired`로 승격한다. exact reconnect와 Load G
 `0x20D2`를 1회 검증하고 Resume은 `0x2045`/`0x2028`만 보낸다. mismatch는 record를 유지한 채
 fail-closed하고 Reset을 자동 replay하지 않는다.
 
-current 통합 변경은 SDK Debug/Release runner가 각각 1117/1117, WPF Release smoke가
-334/334 PASS다. WPF Debug smoke는 다시 실행하지 않았으며 PLC/runtime 완료 증거는
+`af4ab63` current 통합 변경은 SDK Debug/Release runner가 각각 1117/1117, WPF Release
+smoke가 335/335 PASS다. WPF Debug smoke는 다시 실행하지 않았으며 PLC/runtime 완료 증거는
 별도다.
 
 Axis Reset UI는 Begin에서 `0x2024` ACK와 accepted continuation을 live-command gate 반환 전에

@@ -80,6 +80,12 @@ envelope에 한해 20 ms cancellation-aware 대기 뒤 같은 TCP socket으로 `
 다음 init이 같은 fence를 재시도하게 하는 PLC 계약은 의도된 fail-closed 동작이다.
 PLC force-clear로 우회하지 않는다.
 
+Commit `af4ab63`의 WPF 회귀는 나머지 필드는 같고 `ErrorId=0`인 non-canonical
+short ACK가 canonical retry를 사용하지 않고 `0x8080` 1회에서 끝나는 것을 고정한다.
+실패 뒤 listener/TCP/WPF connection은 모두 정리되고 UI는
+`Disconnected`/`Stopped`와 재활성 Connect를 표시한다. 다음 수동 Connect는 새 TCP
+socket/session에서 `0x8080 -> 0x405C`로 성공해야 한다.
+
 Commit `f337fec`은 각 init 시도의 immutable
 `LMCRpcSessionInitializationEvidence`를 `LastRpcSessionInitializationEvidence`에
 보존한다. 여기에는 local `SessionGeneration`, 시작/완료 UTC, 정확한 `0x8080`
@@ -87,6 +93,10 @@ attempt count, canonical retry 사용 여부, 첫 failure ACK, 마지막 수신 
 `Succeeded`/`Failed`/`Cancelled` outcome과 failure type/message가 포함된다. 실패한
 transport가 정리된 뒤에도 이 evidence는 남는다. `CurrentSessionGeneration`은 같은
 local generation의 public read-only view다.
+
+WPF의 RPC init evidence는 입력 tuple을 `RequestedCallback`, 실제 UDP bind 결과를
+`BoundCallback`으로 구분한다. init 실패 전 bind가 없으면 `not-bound`를 기록하고,
+요청 port가 0인 성공 경로는 실제 양수 ephemeral port를 별도로 기록한다.
 
 같은 commit의 `CallbackV2StatisticsChanged` event는 current published session에서
 한 datagram decision이 counter에 반영된 직후 immutable
@@ -401,13 +411,16 @@ query와 loss/duplicate/reorder는 static source/PC 계약으로 runtime 승인�
 - PC runner 46/46 PASS (2026-07-15 재검증)
 - Debug/Release library와 WPF test app build 성공
 
-2026-08-10 current Release PC suite는 1117/1117 PASS했다. 추가 회귀는 exact short
+2026-08-10 Release SDK suite는 1117/1117 PASS했고 이 current 결과는 유지된다. 추가
+회귀는 exact short
 failure의 `ErrorId=-1` 보존과 legacy zero-retry, v2 same-socket
 `0x8080 -> 0x8080 -> 0x405C` 성공, 지속 실패의 추가 1회 제한과 `Faulted` cleanup,
 다른 ErrorId 및 nonzero reserved의 zero-retry를 고정한다. `f337fec` 회귀는 cleanup 뒤
 init evidence 보존, cancellation의 두 번째 `0x8080` 차단, current-session v2 decision
 snapshot과 dispatcher 뒤 stale-event 거부를 고정한다. 이는 fake TCP server 기반 PC
 계약이며 PLC의 persistent disarm `-8`/`-9` 원인이나 live reconnect 성공 증거가 아니다.
-현행 WPF Release smoke runner는 `334/334` PASS다. 이 run은 persistent init
-failure cleanup 뒤 수동 Connect가 새 session/socket을 사용하는 회귀, 새 evidence panel,
-old-session 통계 Dispatcher action이 replacement UI를 바꾸지 못하는 회귀를 포함한다.
+`af4ab63` 기준 현행 WPF Release smoke runner는 `335/335` PASS다. 이 run은 canonical
+persistent init failure cleanup, non-canonical `ErrorId=0`의 zero-retry/full cleanup,
+cleanup 뒤 수동 Connect가 새 session/socket을 사용하는 회귀, `RequestedCallback`과
+actual `BoundCallback`/`not-bound` evidence panel, old-session 통계 Dispatcher action이
+replacement UI를 바꾸지 못하는 회귀를 포함한다.
