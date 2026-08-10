@@ -101,8 +101,9 @@ The checkpoint capture tool retains the historical sequence-4 tuple as
 passes positive `50` and negative `99`, and an actual sequence-4 manifest
 revalidation passes. These support-tool and retained-evidence changes are kept
 as a separate tooling/evidence changeset; they do not change production source
-or approval. The current main worktree still fails the formal current gate only
-because `Classes.lcb` is `6E115876...` instead of checkpoint `24402BFA...`.
+or approval. At that post-commit checkpoint the main worktree failed the formal
+current gate because `Classes.lcb` was `6E115876...` instead of checkpoint
+`24402BFA...`.
 
 Trust-anchor commit `bb5fd93` was followed by commit `5543579`, which atomically
 committed the sequence-4 physical manifest plus the exact seven production paths
@@ -116,7 +117,7 @@ reported `Download Ok` and `Project successfully loaded`. A later Reset/Restart
 also succeeded and loaded the project again. These are IDE/online-operation facts,
 not callback causal proof.
 
-That Rebuild regenerated current `Classes.lcb` as 8,549,773 bytes with SHA-256
+That Rebuild regenerated the then-current `Classes.lcb` as 8,549,773 bytes with SHA-256
 `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`,
 which differs from the sequence-4 checkpoint `24402BFA...`. Current focused
 `VerifyCurrent` and C78 input-equivalence checks therefore fail. The exact diff
@@ -138,7 +139,7 @@ The script is 79,592 physical bytes with SHA-256
 `B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`;
 Windows PowerShell 5.1 and PowerShell 7 AST checks pass, and its self-test passes
 positive `6` / negative `14`. Real Windows PowerShell 5.1 and PowerShell 7 runs
-against checkpoint commit `5543579` and the current candidate produced identical
+against checkpoint commit `5543579` and the then-current `6E115876...` candidate produced identical
 51,102-byte stdout with SHA-256
 `9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`.
 Commit `2e8ca8a84a141390424ce859ac8c315a90ec3430` preserves that exact CreateNew
@@ -224,21 +225,25 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    identity or complete a separate reviewed strict-evidence transition; then
    collect fresh BootId, counter deltas, WPF log, and packet trace for formal
    qualification.
-5. Run one new isolated artifact-classification session from a new LASAL process
-   and the canonical `.lcp`. Execute `Rebuild project` exactly once, wait for its
-   successful completion, then close the project and LASAL normally. If it does
-   not complete successfully, stop classification and still close/exit. Do not
-   manually Save, Build, issue another Rebuild, Connect, Download, Reset, Restart,
-   use Find/Edit, or open a method or Network editor in this session. A load-time
-   automatic restore is acceptable only when the finalizer proves its bounded
-   ordering; its operator origin remains unproven. Do not repeat the already
-   completed manual exact-method smoke. This run classifies generator output only;
-   it does not repeat or replace PID 480 and it is not PLC runtime proof.
-6. After normal LASAL exit, run the fail-closed finalizer committed in `111a773`:
-   `Finalize-LasalClassesRebuildCandidate.ps1`, physical 183,049 bytes, SHA-256
-   `076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`.
-   PowerShell 7 self-test passes positive `25` / negative `73`; Windows
-   PowerShell 5.1 AST/self-test passes positive `23` / negative `71`, but
+5. The required new isolated artifact-classification session has completed from
+   a new LASAL process and the canonical `.lcp`. Its bounded log contains one
+   successful `Rebuild project`, normal close/exit, and no Connect or Download.
+   The frozen inputs are `Lasal2.log` 9,554,717 bytes / SHA-256
+   `25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`,
+   `Classes.lcb` 8,549,773 bytes / SHA-256
+   `99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`, and
+   `Networks.lcb` 242,363 bytes / SHA-256
+   `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`;
+   LASAL process count was zero before finalization. This is a third Classes hash.
+   Do not repeat this Rebuild or the already completed manual exact-method smoke.
+   The run classifies generator output only; it does not replace PID 480 and is
+   not PLC runtime proof.
+6. After normal LASAL exit, run the current fail-closed finalizer fixed in
+   `fa2a456` (initial finalizer commit `111a773`):
+   `Finalize-LasalClassesRebuildCandidate.ps1`, physical 187,443 bytes, SHA-256
+   `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`.
+   PowerShell 7 self-test passes positive `26` / negative `76`; Windows
+   PowerShell 5.1 AST/self-test passes positive `24` / negative `74`, but
    production `-FinalizeCandidate` execution is PowerShell 7-only because the
    publication contract includes directory ADS evidence. From the canonical
    repository root, run exactly:
@@ -258,6 +263,17 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    The finalizer may accept at most one exact load-only `E0015` record for
    `DriveComL2.h`. Any other error, or an additional error record, stops
    classification; do not reinterpret it as warning debt.
+   The first real third-hash production invocation used the pre-`fa2a456`
+   finalizer and reached the atomic-publish named-identity recheck, then exited
+   `4` with `The property 'Value' cannot be found on this object.` The cause was
+   the finalizer reading an `OrderedDictionary` key through
+   `PSObject.Properties[...].Value`. It published no bundle and its exact-owned
+   staging directory was cleaned. Commit `fa2a456` adds exact-case
+   `IDictionary`/`PSCustomObject` access and production-shape regression tests.
+   This failed attempt is not an accepted exit `3` result. Because the frozen log
+   and generated outputs are unchanged, rerun only the fixed finalizer; do not
+   repeat the isolated Rebuild. Until publication there is no bundle to validate,
+   stage, commit, Download, or use as runtime evidence.
 7. When finalizer exit `0`, `2`, or `3` has published
    `candidate_finalization_gate_d_rebaseline_6e115876`, freeze that directory.
    Do not delete or overwrite any member and do not rerun the finalizer. The exact
@@ -272,11 +288,11 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    - `classes_lcb_gate_d_rebuild_candidate.comparison.json`
    - `classes_lcb_gate_d_rebuild_candidate.finalization.json`
 
-8. Before committing that directory, run the fail-closed bundle validator from
-   commit `531abdd`:
+8. Before committing that directory, run the current fail-closed bundle validator
+   pinned in `fa2a456` (initial validator commit `531abdd`):
    `Verify-LasalClassesRebuildFinalizationBundle.ps1`, physical 180,538 bytes,
    SHA-256
-   `C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`.
+   `A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`.
    PowerShell 7 AST and self-test pass positive `1` / negative `27`.
    Windows PowerShell 5.1 AST passes, but production verification exits `4`
    before reading any bundle evidence. Production verification is PowerShell

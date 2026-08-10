@@ -435,7 +435,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   physical 79,592 bytes / SHA-256
   `B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`다.
   Windows PowerShell 5.1/PowerShell 7 AST가 PASS했고 self-test는 positive `6` /
-  negative `14`를 PASS했다. checkpoint commit `5543579`와 current candidate의 실제
+  negative `14`를 PASS했다. checkpoint commit `5543579`와 당시 `6E115876...` candidate의 실제
   PS5/PS7 비교 stdout은 각각 51,102 bytes / SHA-256
   `9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`로
   byte-identical하다. commit `2e8ca8a84a141390424ce859ac8c315a90ec3430`은 이 exact
@@ -447,20 +447,22 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   record 2개는 exact이며 unmapped run은 `0`이다. 이 bounded equality는 artifact
   전체를 승인하지 않는다. 판정은 `ProductionApproved=false`,
   `SemanticEquivalenceProven=false`로 고정된다.
-- retained PID 480/TID 3396 checkpoint를 다시 실행하지 않는다. 다음 단계는 별도
-  classification 1회다. 새 LASAL process에서 canonical `.lcp`를 열고 `Rebuild project`를
-  정확히 1회 실행해 성공 완료를 기다린 뒤 project와 LASAL을 정상 종료한다. 성공하지
-  않으면 classification을 중지하고 그대로 종료한다. 그 사이 작업자가 Save, Build, 추가
-  Rebuild, Connect, Download, Reset, Restart, Find/Edit, method 또는 Network editor open을
-  하지 않는다. load-time automatic restore는 finalizer가 bounded ordering을 입증할 때만
-  허용할 수 있고 operator origin은 미입증으로 기록한다. 이미 완료한 manual exact-method
-  smoke는 반복하지 않는다.
-- commit `111a773`의 production finalizer는
+- retained PID 480/TID 3396 checkpoint를 다시 실행하지 않는다. 별도 isolated
+  classification은 새 LASAL process와 canonical `.lcp`에서 `Rebuild project` 정확히 1회,
+  정상 close/exit, Connect/Download 0회로 완료됐다. frozen `Lasal2.log`는 9,554,717 bytes /
+  SHA-256 `25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`,
+  current `Classes.lcb`는 8,549,773 bytes /
+  `99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`,
+  `Networks.lcb`는 242,363 bytes /
+  `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`이고
+  finalization 전 LASAL process는 0개였다. 이는 제3 Classes hash 분류 입력이며
+  Rebuild와 이미 완료한 manual exact-method smoke를 반복하지 않는다.
+- current fix commit `fa2a456`의 production finalizer는
   `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
-  physical 183,049 bytes / SHA-256
-  `076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`다.
-  PowerShell 7 self-test positive `25` / negative `73`, Windows PowerShell 5.1
-  AST/self-test positive `23` / negative `71`가 PASS한다. 다만 directory ADS evidence를
+  physical 187,443 bytes / SHA-256
+  `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`다.
+  PowerShell 7 self-test positive `26` / negative `76`, Windows PowerShell 5.1
+  AST/self-test positive `24` / negative `74`가 PASS한다. 다만 directory ADS evidence를
   publication contract에 포함하므로 production `-FinalizeCandidate`는 PowerShell 7에서만
   실행한다. canonical repository root에서 exact command는 다음과 같다.
 
@@ -475,10 +477,18 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `ProductionApproved=false`, `onlineRuntimeQualificationPermitted=false`이며 Download하지
   않는다. finalizer가 허용할 수 있는 build error는 exact load-only
   `DriveComL2.h` `E0015` 최대 1개뿐이다. 다른 error 또는 추가 error record는 중지다.
-- commit `531abdd`의 read-only bundle validator는
+  첫 real third-hash production run은 pre-`fa2a456` finalizer로 atomic-publish
+  named-identity recheck까지 진행한 뒤 `OrderedDictionary` key를
+  `PSObject.Properties[...].Value`로 읽은 버그 때문에 exit `4`로 중단됐다. bundle은
+  publish되지 않았고 exact-owned stage cleanup은 완료됐다. `fa2a456`은 exact-case
+  `IDictionary`/`PSCustomObject` accessor와 production-shape ordered-report 회귀를
+  추가했다. 이 exit `4`는 accepted exit `3` 판정이 아니다. frozen log와 outputs가
+  그대로이므로 Rebuild가 아니라 fixed finalizer만 다시 실행한다. publish 전에는
+  validator 입력, Download, approval 또는 runtime evidence가 없다.
+- initial `531abdd` validator의 current `fa2a456` pin은
   `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
   physical 180,538 bytes / SHA-256
-  `C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`다.
+  `A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`다.
   PowerShell 7 AST/self-test positive `1` / negative `27`, Windows PowerShell 5.1
   AST가 PASS한다. PS5 production은 bundle evidence를 읽기 전에 exit `4`이므로 production
   `-VerifyBundle`은 PowerShell 7-only다. finalizer exit `0`/`2`/`3`이

@@ -341,13 +341,29 @@ artifact는 별도 pending/nonblocking이며 log delta는 session 경계,
 production transition path와 manifest를 원자적으로 포함한다. 그 뒤 PID 34656이
 C78/ARM Rebuild를 수행해 세 변경 class를 compile하고 `Compiler Done`, `Linker Done`,
 command success를 기록했다. Download는 `Download Ok`, `Project successfully loaded`를
-기록했고 이후 Reset/Restart와 project loaded도 성공했다. 그러나 이 Rebuild가 현재
+기록했고 이후 Reset/Restart와 project loaded도 성공했다. 그러나 이 Rebuild가 그 시점
 `Classes.lcb`를 8,549,773 bytes / SHA-256
 `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`로
 바꿔 manifest의 `24402BFA...`와 불일치한다. focused `VerifyCurrent`와 C78
 input-equivalence는 현재 실패하며, rebaseline 전 runtime 결과는 exploratory다.
 
-Commit `111a773` finalizer의 isolated classification이 exit `0`/`2`/`3`으로
+별도 isolated classification은 새 LASAL process와 canonical `.lcp`에서 Rebuild 정확히
+1회, 정상 close/exit, Connect/Download 0회로 완료됐다. frozen `Lasal2.log`는
+9,554,717 bytes / SHA-256
+`25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`, current
+`Classes.lcb`는 8,549,773 bytes /
+`99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`,
+`Networks.lcb`는 242,363 bytes /
+`C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`이며
+finalization 전 LASAL process는 0개였다. 이 제3 Classes hash를 얻은 Rebuild는 반복하지
+않는다.
+
+Current fix commit `fa2a456`의 finalizer는
+`Finalize-LasalClassesRebuildCandidate.ps1`, physical 187,443 bytes / SHA-256
+`1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`다.
+PowerShell 7 self-test positive `26` / negative `76`, Windows PowerShell 5.1
+AST/self-test positive `24` / negative `74`가 PASS한다. production은 PowerShell 7-only다.
+이 finalizer의 isolated classification이 exit `0`/`2`/`3`으로
 `candidate_finalization_gate_d_rebaseline_6e115876`를 publish하면 그 directory를
 delete/overwrite하거나 finalizer를 재실행하지 않는다. finalizer가 허용할 수 있는 build
 error는 exact load-only `DriveComL2.h` `E0015` 최대 1개뿐이고 다른 또는 추가 error는
@@ -359,10 +375,19 @@ error는 exact load-only `DriveComL2.h` `E0015` 최대 1개뿐이고 다른 또�
 `classes_lcb_gate_d_rebuild_candidate.comparison.json`,
 `classes_lcb_gate_d_rebuild_candidate.finalization.json`이다.
 
-Commit `531abdd`의 bundle validator는
+첫 real third-hash production run은 pre-`fa2a456` finalizer로 atomic-publish
+named-identity recheck까지 진행한 뒤 `OrderedDictionary` key를
+`PSObject.Properties[...].Value`로 읽은 버그 때문에 exit `4`로 중단됐다. bundle은
+publish되지 않았고 exact-owned stage cleanup은 완료됐다. `fa2a456`은 exact-case
+`IDictionary`/`PSCustomObject` accessor와 production-shape 회귀를 추가했다. 이 exit `4`는
+accepted exit `3` 판정이 아니다. frozen log와 generated outputs가 그대로이므로 Rebuild가
+아니라 fixed finalizer만 다시 실행한다. publish 전에는 validator 입력, Download, approval
+또는 runtime evidence가 없다.
+
+Initial commit `531abdd`에서 시작해 `fa2a456`이 current finalizer pin을 갱신한 bundle validator는
 `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
 physical 180,538 bytes / SHA-256
-`C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`다.
+`A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`다.
 PowerShell 7 AST/self-test positive `1` / negative `27`, Windows PowerShell 5.1
 AST가 PASS한다. PS5 production은 bundle evidence read 전에 exit `4`이므로 production
 검증은 PowerShell 7-only다. canonical repository root에서 exact command는 다음과 같다.

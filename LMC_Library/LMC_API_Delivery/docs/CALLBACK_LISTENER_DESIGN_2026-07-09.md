@@ -411,7 +411,7 @@ Download reported `Download Ok` and `Project successfully loaded`; later Reset
 and Restart also succeeded and the project loaded again. This proves those IDE
 and online operations occurred, not a qualified callback transaction.
 
-That post-commit Rebuild regenerated current `Classes.lcb` as 8,549,773 bytes /
+That post-commit Rebuild regenerated the then-current `Classes.lcb` as 8,549,773 bytes /
 `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`,
 which differs from the sequence-4 checkpoint identity `24402BFA...`. The current
 focused `VerifyCurrent` and C78 input-equivalence verification therefore fail.
@@ -433,7 +433,7 @@ Its physical identity is 79,592 bytes / SHA-256
 `B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`;
 Windows PowerShell 5.1 and PowerShell 7 AST checks pass, and self-test is positive
 `6` / negative `14`. Real PS5/PS7 comparisons of checkpoint commit `5543579`
-against the current candidate produced identical 51,102-byte stdout / SHA-256
+against the then-current `6E115876...` candidate produced identical 51,102-byte stdout / SHA-256
 `9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`.
 Commit `2e8ca8a84a141390424ce859ac8c315a90ec3430` preserves that exact CreateNew
 comparison JSON as
@@ -448,22 +448,23 @@ decision is therefore `ProductionApproved=false` and
 `SemanticEquivalenceProven=false`.
 
 Do not rerun or alter the retained historical PID 480/TID 3396 checkpoint. The
-next artifact-classification action is one separate isolated Rebuild: start a
-new LASAL process, open the canonical `.lcp`, execute `Rebuild project` exactly
-once, wait for successful completion, and close the project and LASAL normally.
-If it does not complete successfully, stop classification and still close/exit.
-Do not manually Save, Build, issue another Rebuild, Connect, Download, Reset,
-Restart, use Find/Edit, or open a method or Network editor in that session. A
-load-time automatic restore may be accepted only when its bounded ordering is
-proved; its operator origin remains unproven. Do not repeat the completed manual
-exact-method smoke.
+separate isolated classification has completed from a new LASAL process and the
+canonical `.lcp`: one successful `Rebuild project`, normal close/exit, and no
+Connect or Download. The frozen `Lasal2.log` is 9,554,717 bytes / SHA-256
+`25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`;
+current `Classes.lcb` is 8,549,773 bytes /
+`99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`,
+and `Networks.lcb` is 242,363 bytes /
+`C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`.
+LASAL process count was zero before finalization. This is a third Classes hash;
+do not repeat the Rebuild or completed manual exact-method smoke.
 
-Commit `111a773` supplies the fail-closed production finalizer at
+Current fix commit `fa2a456` supplies the fail-closed production finalizer at
 `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
-physical 183,049 bytes / SHA-256
-`076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`.
-PowerShell 7 self-test passes positive `25` / negative `73`; Windows PowerShell
-5.1 AST/self-test passes positive `23` / negative `71`. Production
+physical 187,443 bytes / SHA-256
+`1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`.
+PowerShell 7 self-test passes positive `26` / negative `76`; Windows PowerShell
+5.1 AST/self-test passes positive `24` / negative `74`. Production
 `-FinalizeCandidate` remains PowerShell 7-only because the atomic publication
 contract includes directory ADS evidence. Run this exact command from the
 canonical repository root after normal LASAL exit:
@@ -480,6 +481,17 @@ publication. All outcomes remain `ProductionApproved=false` and
 `onlineRuntimeQualificationPermitted=false`; no Download is permitted from this
 classification.
 
+The first real third-hash production invocation used the pre-`fa2a456`
+finalizer and reached its atomic-publish named-identity recheck. It then exited
+`4` because an `OrderedDictionary` key was read through
+`PSObject.Properties[...].Value`. No bundle was published and the exact-owned
+stage was cleaned. Commit `fa2a456` replaces that lookup with exact-case
+`IDictionary`/`PSCustomObject` access and adds production-shape ordered-report
+tests. This is a tooling failure, not an accepted exit `3` result. The frozen log
+and generated outputs remain the classification inputs, so rerun only the fixed
+finalizer; do not repeat the Rebuild. Until a bundle is published there is
+nothing to validate, stage, Download, approve, or use as runtime evidence.
+
 The finalizer may accept at most one exact load-only `DriveComL2.h` `E0015`
 record. Any different or additional error stops classification. If finalizer exit
 `0`, `2`, or `3` publishes
@@ -493,10 +505,11 @@ the directory and do not rerun the finalizer. Its exact inventory is
 `classes_lcb_gate_d_rebuild_candidate.comparison.json`, and
 `classes_lcb_gate_d_rebuild_candidate.finalization.json`.
 
-Commit `531abdd` supplies the read-only bundle validator at
+Initial commit `531abdd`, with its current finalizer pin updated by `fa2a456`,
+supplies the read-only bundle validator at
 `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
 physical 180,538 bytes / SHA-256
-`C44EF3B431D054C2C76847CF3F038792A195E8677C770590AA926A873A36B2B3`.
+`A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`.
 PowerShell 7 AST/self-test passes positive `1` / negative `27`; Windows PowerShell
 5.1 AST passes, while PS5 production exits `4` before any bundle evidence read.
 Production verification is PowerShell 7-only. Run exactly from the canonical
@@ -1589,7 +1602,7 @@ candidate are committed in `9d0b8c9` and `70c08ea`. Trust-anchor commit
 physical manifest and the exact seven production paths listed above. The
 manifest records `TerminalWakeBrokerCandidate`, `ProductionApproved=false`, and
 `NeedsRebaseline=true`; it is not production approval. The current generated
-`Classes.lcb` is `6E115876...`, so it no longer matches the manifest-bound
+`Classes.lcb` is `99014DD9...`, so it no longer matches the manifest-bound
 `24402BFA...` and current focused/C78 verification fails.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
 `CallbackProtocolTests.cs`, `CallbackSessionFencingTests.cs`,
