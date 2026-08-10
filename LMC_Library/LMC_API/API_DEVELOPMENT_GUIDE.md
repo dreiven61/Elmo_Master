@@ -1111,8 +1111,9 @@ EtherCAT PDO update
 8. request golden, malformed/short error parser와 fake RPC lifecycle test를 추가한다.
 9. LASAL source-only/full-network static contract를 갱신한다.
 10. C# DLL, 개발 WPF와 binary-reference 배포 예제를 빌드한다.
-11. LASAL IDE Rebuild/Link, `Find in Implementation` smoke와 새 `CInvalidArgException` 부재를
-    확인한다.
+11. LASAL IDE Rebuild/Link 뒤 Object Network Server/Client는 `Find in Implementation`을
+    실행하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header를
+    직접 연다. smoke 시작 이후 새 `CInvalidArgException` 부재는 IDE log로 확인한다.
 12. PLC E2E, response 상태와 packet recapture를 정적 시험과 별도로 기록한다.
 
 PI, Bulk 또는 Recorder처럼 대용량/연속 데이터를 추가할 경우 현재 command queue에 전체

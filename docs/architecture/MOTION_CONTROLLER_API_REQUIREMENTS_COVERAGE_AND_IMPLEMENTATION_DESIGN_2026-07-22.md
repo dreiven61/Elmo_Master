@@ -518,7 +518,8 @@ v1은 `SetVelocityOverridePermille(0..1000)` 하나만 제공한다. LASAL `Over
 ### 7.3 LASAL IDE
 
 - Reload/Rebuild/Link
-- 변경 class `Find in Implementation` smoke
+- Object Network Server/Client `Find in Implementation` smoke
+- 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open
 - smoke 기준시각 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 없음
 - Network/object/channel 변경이 필요한 경우 사용자가 LASAL에서 배치/저장 후 외부 implementation 편집
 

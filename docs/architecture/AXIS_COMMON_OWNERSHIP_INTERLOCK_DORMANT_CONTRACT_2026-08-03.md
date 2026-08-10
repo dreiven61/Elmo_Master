@@ -493,8 +493,10 @@ coherent InputLatch observer와 handler native-call marker의 과거 source/C78 
    owner observation 게시를 구현한다.
 6. same-axis 양방향 conflict, different-axis 허용, read 허용, zero-native-call rejection,
    group 부분 획득 금지, safety preemption, session loss quarantine를 음성 fixture로 검증한다.
-7. LASAL F9 build 뒤 변경 class의 `Find in Implementation` smoke와 smoke 시작 이후
-   `%TEMP%\Lasal2.log` 신규 `CInvalidArgException=0`을 확인한다.
+7. LASAL F9 build 뒤 Object Network Server/Client는 `Find in Implementation`으로 class-index
+   연결을 확인하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 직접 열어 exact
+   Implementation header를 확인한다. smoke 시작 이후 `%TEMP%\Lasal2.log` 신규
+   `CInvalidArgException=0`을 확인한다.
 8. PLC download 뒤 pcap과 status polling으로 동시 요청 및 terminal release를 검증한다.
 9. 모든 activation 조건을 만족한 paired PLC/SDK build에서만 capability와 error catalog를
    갱신한다.
@@ -656,7 +658,10 @@ waiver를 하나씩 제외한 세 실행은 각각 대응하는 private declarat
 1. 세 private helper ABI를 한 번의 LASAL IDE 작업으로 추가한다.
 2. Save All 뒤 Rebuild하지 않고 IDE를 종료한다.
 3. generated declaration/metadata, actual/LF/all-CRLF method size와 source hash를 외부 검사한다.
-4. 세 waiver 없는 default SourceOnly PASS 뒤에만 C78 Rebuild와 Find-in-Implementation smoke를 한다.
+4. 세 waiver 없는 default SourceOnly PASS 뒤에만 C78 Rebuild를 수행한다. Object Network
+   Server/Client는 `Find in Implementation`으로 class-index/source 연결을 확인하고, 변경
+   function/method는 `Edit Method` 또는 `Enter`로 직접 열어 exact Implementation header를
+   확인한다.
 5. cold download와 single-axis/연속-axis/runtime safety 검증 전에는 ordinary gate, Admin bit 6 또는
    capability/catalog를 활성화하지 않는다.
 

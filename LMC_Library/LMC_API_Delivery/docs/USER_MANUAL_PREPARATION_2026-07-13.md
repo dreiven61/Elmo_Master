@@ -243,7 +243,8 @@ PC가 확정할 수 없으므로, motion은 별도 `Stop`/`PowerOff`와 상태 �
 - [x] 현재 LASAL static/strict contract 통과
 - [x] WPF example VS2019 MSBuild Debug 통과
 - [ ] 현재 group/9-axis source 반영 뒤 LASAL IDE Rebuild/Link
-- [ ] group method의 Find in Implementation smoke와 이후 `%TEMP%/Lasal2.log` 확인
+- [ ] group method를 `Edit Method` 또는 `Enter`로 직접 열어 exact Implementation header를
+      확인하고, 이후 `%TEMP%/Lasal2.log`의 신규 `CInvalidArgException` 확인
 - [ ] `TCPMotionInterface`와 axis RT thread의 CPU core/priority 조건 확인
 - [ ] RPC init/callback/close 실제 PLC 왕복 확인
 - [ ] `_LMCAxis1..9`와 group 실제 object name, physical 1..4/simulated 5..9 구분 확정

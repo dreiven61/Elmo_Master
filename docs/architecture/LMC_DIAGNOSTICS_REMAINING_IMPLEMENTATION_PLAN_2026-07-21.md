@@ -800,7 +800,7 @@ stale handle, dispose와 concurrent call을 독립 검증한다.
 | LASAL full static contract | `Verify-LasalContract.ps1 -RepositoryRoot <repo> -ControlServiceCheckpoint Phase5TransportClean -TopologyIoCheckpoint IntegratedReadOwnerDormant -ExpectedSdoWriteAxis 1` | PASS | source, generated metadata, same-peer `TCPIPServer`, executor declaration/network, Axis 1 exact allowlist와 CREVIS coupler/input/output network wiring이 current tracked project와 일치한다. |
 | executor initialization | LASAL IDE의 `LMCSdoExecutor` constructor state/buffer 명시 초기화 | declaration, generated `@STD` call, implementation 및 정적 assertion 일치 | PASS; constructor implementation SHA256 `DA7FD8454F16D24B1696579A54A9807F27B14D06535AEB4AA0000B5B9BB89254`, `ActiveToken := 0;` 8건을 build 전후 확인했다. |
 | LASAL IDE compile | 대상 tracked project Rebuild 후 Link | compile/link error 0 | current integrated read-owner/Axis 1 gate-on source Rebuild/Link `0 errors / 20 warnings`, Linker Done. 설치 library/project version warning은 남아 있고 PLC download는 미실시다. |
-| LASAL implementation smoke | 변경 class마다 IDE `Find in Implementation` 또는 implementation tab 직접 open | 변경 implementation이 정상 로드되고 IDE 예외가 없음 | PASS; 기존 executor/service 검색과 latest 변경 implementation 직접 open 성공 |
+| LASAL implementation smoke | Object Network Server/Client는 IDE `Find in Implementation`; 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open | applicable index와 변경 implementation이 정상 로드되고 IDE 예외가 없음 | historical class-level smoke PASS; 기존 executor/service 검색과 latest 변경 implementation open은 성공했지만 exact method header 증거는 기록되지 않았다. 현재 기준으로 재사용할 때는 exact method direct-open을 별도 확인한다. |
 | LASAL IDE log | 현재 IDE PID의 `%TEMP%\Lasal2.log` 검색 | `CInvalidArgException` 0건 | PASS; current IDE PID `CInvalidArgException` 0건 |
 | CREVIS configured topology | current project Rebuild/Link, download 후 EtherCAT diagnostics | GL=physical index 0, Elmo=1..4인 5-slave configured order와 Vendor/Product/slot/PDO exact | ENI/network/serializer/generated-table drift static gate와 9개 negative fixture PASS. 사용자 LASAL build PASS 보고; `Test2`에서 GL + Elmo 4 + slot 2의 static 7-entry 응답 확인 |
 | topology inventory raw qualifier | `topology-io-qualify --scope topology-inventory --execute-live --confirm PLC-RAW-TOPOLOGY-INVENTORY-READ ...` | bit 14와 nonzero BootId, pre/post capability identity 동일, `0x15867EEC` 7-entry order/identity/CRC exact; raw request는 `0x7E11/12` 8개뿐이고 `0x7E13/22/23` 없음; durable report 완결 | `Test2` raw pcap의 static sequence/response PASS, qualifier durable report 대기; static configured inventory만 입증 |
@@ -826,8 +826,9 @@ EtherCAT fault 전이, RAM 여유, 실제 RT jitter, drive mailbox 응답을 대
 
 LASAL class implementation은 tracked `.st`를 외부 편집기로 수정한다. IDE가 열린 상태에서
 수정했다면 저장 전에 `Reload Class`를 실행한다. 권장 순서는 `IDE 저장/종료`, 외부 편집,
-IDE 재열기 또는 `Reload Class`, Rebuild, `Find in Implementation` smoke다. stale IDE
-model을 저장해 외부 implementation을 덮어쓰지 않는다.
+IDE 재열기 또는 `Reload Class`, Rebuild, item 종류별 smoke다. Object Network Server/Client는
+`Find in Implementation`을 실행하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 exact
+Implementation header를 직접 연다. stale IDE model을 저장해 외부 implementation을 덮어쓰지 않는다.
 
 ## 10. 작업 종료 기준
 

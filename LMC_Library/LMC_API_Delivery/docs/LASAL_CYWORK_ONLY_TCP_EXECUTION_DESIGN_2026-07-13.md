@@ -232,7 +232,8 @@ RT Task를 제거했다고 해서 task/core 제약이 사라지는 것은 아니
     확인한다.
 11. external implementation이 stale IDE model로 덮어써지지 않았는지 확인한 뒤
     Build/Rebuild/Link를 수행한다.
-12. 변경 class 각각 앞/중간/뒤 symbol을 Find in Implementation하고 smoke 시작 이후
+12. Object Network Server/Client는 `Find in Implementation`을 실행하고, 변경 function/method는
+    `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다. smoke 시작 이후
     `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
 13. IDE 종료 후 `Phase5TransportClean` SourceOnly/full과 PC/WPF Debug/Release를 재실행한다.
 14. 그 뒤에만 PLC cold download를 수행하고 새 session에서 packet regression을 시작한다.

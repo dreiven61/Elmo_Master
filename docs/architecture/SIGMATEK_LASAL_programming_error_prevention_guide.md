@@ -225,7 +225,9 @@ IDE Rebuild 증거는 없다.
    priority인지 확인한다.
 3. 설치된 MotionLib가 요구하는 `_DriveMngBase/DriveComL2.h` 누락 `E0015`와
    C78/C81 library version mismatch를 해결한 뒤 Rebuild/Link 0 error를 확인한다.
-4. `Find in Implementation` smoke test와 새 `CInvalidArgException` 부재를
+4. Object Network Server/Client는 `Find in Implementation`으로 class-index/source 연결을
+   확인하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 직접 열어 exact
+   Implementation header를 확인한다. smoke 시작 이후 새 `CInvalidArgException`이 없는지
    확인한다.
 
 이 gate를 통과하기 전에는 수동 선언을 완성된 IDE model로 보거나 production
@@ -448,16 +450,20 @@ close 때 session, callback, receive accumulator 상태를 함께 정리한다.
 ### 수정 후
 
 1. Save 후 Build/Rebuild/Link 결과가 0 error인지 확인한다.
-2. 변경 클래스의 앞, 중간, 뒤에 위치한 Client/Server 이름으로
+2. Object Network의 앞, 중간, 뒤에 위치한 Server/Client 이름으로
    `Find in Implementation`을 실행한다.
-3. `Find Results`가 비어 있거나 메뉴가 조용히 닫히면 정상으로 간주하지 않는다.
-4. `Lasal2.log`에서 검색 명령 뒤 예외가 없는지 확인한다.
-5. 새 비ASCII diff를 검사한다.
-6. C# 송신 frame과 LASAL parser를 byte offset 단위로 대조한다.
-7. Network 변경이면 실제 축 연결과 생성 테이블을 확인한다.
-8. `git diff --check`와 `git diff --cached --check`를 통과시킨다.
+3. 변경 function/method는 method 목록에서 `Edit Method` 또는 `Enter`로 직접 열고,
+   Implementation 탭의 exact method header를 확인한다. 이 행에는
+   `Find in Implementation`을 요구하지 않는다.
+4. Server/Client의 `Find Results`가 비어 있거나 메뉴가 조용히 닫히면 정상으로
+   간주하지 않는다.
+5. `Lasal2.log`에서 smoke 시작 이후 새 예외가 없는지 확인한다.
+6. 새 비ASCII diff를 검사한다.
+7. C# 송신 frame과 LASAL parser를 byte offset 단위로 대조한다.
+8. Network 변경이면 실제 축 연결과 생성 테이블을 확인한다.
+9. `git diff --check`와 `git diff --cached --check`를 통과시킨다.
 
-## 9. Find in Implementation smoke test
+## 9. 대상별 IDE smoke: Object Network Find와 function direct-open
 
 기준 프로젝트에서 실제 성공이 확인된 아래 검색어는
 `TCPMotionInterface` 전용 smoke 항목이다.
@@ -470,8 +476,9 @@ close 때 session, callback, receive accumulator 상태를 함께 정리한다.
 두 프로젝트에 실제로 존재하는 동일 검색어를 양쪽에 사용해야 한다. 검색어가
 다르면 프로젝트 간 성공/실패 비교 근거로 사용하지 않는다.
 
-다른 class를 변경했으면 그 class에 실제로 존재하고 변경 지점의 앞, 중간, 뒤에서
-각각 hit가 나오는 Client/Server 또는 symbol 세 개를 별도로 선택한다.
+다른 class를 변경했으면 Object Network에서 그 class에 실제로 연결되고 변경 지점의
+앞, 중간, 뒤를 대표하는 Client/Server 세 개를 별도로 선택한다. 일반 source symbol이나
+function/method 행을 `Find in Implementation` 대상으로 사용하지 않는다.
 
 Client 또는 Server 이름을 우클릭하고 `Find in Implementation`을 실행한다.
 정상 조건은 다음과 같다.
@@ -568,7 +575,8 @@ $newLog | rg 'Searching implementation|CInvalidArgException|Last command succeed
 - 새 custom source와 IDE metadata 입력이 ASCII다.
 - CodeGenerator 선언과 구현 구조가 일치한다.
 - Build/Rebuild/Link가 0 error다.
-- 변경 클래스의 `Find in Implementation` smoke test가 정상이다.
+- Object Network Server/Client의 `Find in Implementation` class-index smoke와 변경
+  function/method의 `Edit Method` 또는 `Enter` direct-open smoke가 각각 정상이다.
 - `Lasal2.log`에 새 `CInvalidArgException`이 없다.
 - TCP/parser를 변경했다면 packet의 command ID, endian, length, offset이 PC와
   일치한다.
@@ -588,7 +596,8 @@ $newLog | rg 'Searching implementation|CInvalidArgException|Last command succeed
 1. 기준 project/source가 명확하다.
 2. IDE 생성 영역이 손상되지 않았다.
 3. Build/Rebuild/Link가 정상이다.
-4. `Find in Implementation`과 IDE 로그가 정상이다.
+4. Object Network Server/Client의 `Find in Implementation`, 변경 function/method의
+   direct-open Implementation 확인, IDE 로그가 각각 정상이다.
 5. PC API frame과 LASAL parser가 일치한다.
 6. Network, Axis, DS402 연결이 일치한다.
 7. Git diff에 의도하지 않은 IDE/cache 변경이 없다.

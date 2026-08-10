@@ -50,8 +50,9 @@
 3. Rebuild와 Link가 0 error다.
 4. `LMCDiagnosticsService` tree에 hidden retentive `DiagnosticsBootCounter` server와
    `GetDiagnosticsBootId` method가 보인다.
-5. `Find in Implementation` smoke가 정상이고 smoke 시작 이후 `Lasal2.log`에 새
-   `CInvalidArgException`이 없다.
+5. Object Network Server/Client는 `Find in Implementation`을 실행하고, 변경 function/method는
+   `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다. smoke 시작 이후
+   `Lasal2.log`에 새 `CInvalidArgException`이 없다.
 6. PC test와 LASAL SourceOnly verifier가 통과한다. full verifier는 LASAL IDE에서
    declaration을 저장하고 Rebuild한 뒤 반드시 다시 통과시킨다.
 
@@ -324,8 +325,9 @@ contention은 여전히 별도로 시험한다.
 2. LASAL IDE에서 `LMCSdoExecutor` constructor declaration과 generated `@STD` call,
    `TryStartWrite` declaration을 동기화한다. constructor implementation은 Active state와
    Read/Write buffer, PublishedResult, PublishSequence를 먼저 초기화하고 마지막에 atomic
-   `AdapterState=Idle`, `ret_code=C_OK` 순서로 공개한다. 저장·Rebuild/Link 뒤 변경 class의
-   앞/중간/뒤 `Find in Implementation`과 smoke 시작 이후 `%TEMP%\Lasal2.log`의 신규
+   `AdapterState=Idle`, `ret_code=C_OK` 순서로 공개한다. 저장·Rebuild/Link 뒤 Object Network
+   Server/Client는 `Find in Implementation`을 실행하고, 변경 function/method는 `Edit Method` 또는
+   `Enter`로 exact Implementation header를 직접 연다. smoke 시작 이후 `%TEMP%\Lasal2.log`의 신규
    `CInvalidArgException=0`을 확인한다.
 3. PC API/WPF Debug/Release와 source-only/full static 계약을 다시 실행한다. capability는 bit 8,
    bit 9, bit 13, MaxSDO=4와 nonzero BootId를 광고해야 하며 GUI target 목록에는 승인한 축

@@ -624,8 +624,9 @@ verifier SHA-256은
 
 따라서 actual C78 build는 raw log로 확인됐다. 다만 별도 GUI Build Output transcript를 캡처하지 않아
 strict dual-evidence verifier는 아직 닫히지 않았다. 요청한 `RollbackAxisOwnership`과
-`ValidateAxisOwnershipRollbackPreemptBank` 두 exact `Find in Implementation`도 로그와 final OpenViews로
-증명되지 않는다. append 전체의 `CInvalidArgException=0`은 확인했지만 두 search action의 증거를
+`ValidateAxisOwnershipRollbackPreemptBank` 두 exact method의 `Edit Method`/`Enter` direct-open도
+로그와 final OpenViews로 증명되지 않는다. append 전체의 `CInvalidArgException=0`은 확인했지만
+두 direct-open action의 증거를
 대체하지 않는다. download/restart와 PLC/실축 runtime도 아직 수행하지 않았다. 상세 raw-log 증거는
 `test/Reports_Lasal/C78_20260807_rollback_split_rebaseline/postbuild_raw_log_audit.json`이다.
 
@@ -1602,8 +1603,10 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
 4. 저장 후 `.st` implementation이 이전 내용으로 덮어써지지 않았는지 확인하고 generated
    server/client/data `4/3/0`, 함수 8개, network external connection 16개를 다시 센다.
 5. Rebuild/Link error 0건을 확인한다.
-6. 변경 class 각각 앞/중간/뒤 implementation symbol을 `Find in Implementation`하고 smoke
-   시작 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 0건을 확인한다.
+6. Object Network Server/Client는 `Find in Implementation`으로 class-index/source 연결을
+   확인하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 직접 열어 exact
+   Implementation header를 확인한다. smoke 시작 이후 `%TEMP%\Lasal2.log` 신규
+   `CInvalidArgException` 0건을 확인한다.
 7. 그 뒤에만 PLC download/cold restart를 수행하고 새 session에서 `0x20E7`부터 packet
    regression을 시작한다.
 

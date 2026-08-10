@@ -499,9 +499,10 @@ mailbox, ControlWord bit 4 write/readback, command 5 SetPosition/alignment와 �
 실제 body를 포함한다. 다만 현재 열려 있을 수 있는 LASAL IDE가 다시 덮어쓸 수 있으므로 사용자
 확인 전에는 working file에 복원하지 않았다.
 
-복원 뒤 SourceOnly, LASAL F9, 변경 class `Find in Implementation`, smoke 시작 이후 신규
-`CInvalidArgException=0`을 다시 확인해야 한다. 이 재검증 전에는 3.8을 current activation
-근거로 사용하지 않는다.
+복원 뒤 SourceOnly와 LASAL F9를 다시 확인한다. Object Network Server/Client는
+`Find in Implementation`을 실행하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 exact
+Implementation header를 직접 연다. smoke 시작 이후 신규 `CInvalidArgException=0`도 확인해야 한다.
+이 재검증 전에는 3.8을 current activation 근거로 사용하지 않는다.
 
 ## 4. TEST ONLY Elmo 엔코더 유지보수
 

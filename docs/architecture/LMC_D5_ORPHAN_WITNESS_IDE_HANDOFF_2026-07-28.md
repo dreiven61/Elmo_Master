@@ -142,11 +142,12 @@ quarantine한다.
 1. `TCPMotionInterface`, `LMCDiagnosticsService`와 필요 시 `LMCSdoExecutor` declaration/method를
    LASAL IDE에서 생성한다.
 2. class/include/generated metadata를 저장하고 Rebuild/Link error 0을 확인한다.
-3. 변경 class마다 `Find in Implementation` smoke test를 수행한다.
-4. smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
-5. 외부 편집 단계에서 implementation, TCP route, C# parser/tests를 완성한다.
-6. capability bit 18은 source/static/PC tests가 모두 통과한 뒤에도 dormant로 둔다.
-7. target download 뒤 live PLC/pcap matrix가 위 판정 조건을 만족할 때만 bit를 활성화한다.
+3. Object Network Server/Client는 `Find in Implementation` smoke test를 수행한다.
+4. 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다.
+5. smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
+6. 외부 편집 단계에서 implementation, TCP route, C# parser/tests를 완성한다.
+7. capability bit 18은 source/static/PC tests가 모두 통과한 뒤에도 dormant로 둔다.
+8. target download 뒤 live PLC/pcap matrix가 위 판정 조건을 만족할 때만 bit를 활성화한다.
 
 사용자에게 요청할 다음 작업은 위 declaration 생성과 IDE Rebuild/Link 결과 전달이다. 그 전에는
 기존 LASAL implementation을 외부에서 변경하지 않는다.

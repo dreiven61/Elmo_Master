@@ -647,14 +647,16 @@ Codex가 source, SDK, WPF, protocol map 및 static tests를 맞춘 뒤 사용자
 요청한다.
 
 1. F9 incremental build.
-2. 변경 class의 `Find in Implementation` smoke.
+2. Object Network Server/Client는 `Find in Implementation`으로 확인하고, 변경
+   function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다.
 3. smoke 시작 시점 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 0건 확인.
 4. PLC download.
 5. 축별 no-motion Home 및 maintenance live test.
 
-`Find in Implementation`이 큰 implementation block 전체를 출력하는 것은 class 크기 때문에
-결과가 길어진 것이며, hit count와 `Last command succeeded` 및 신규 exception 유무로 성공을
-판정한다.
+Object Network Server/Client의 `Find in Implementation`이 큰 implementation block 전체를
+출력하는 것은 class 크기 때문에 결과가 길어진 것이며, hit count와 `Last command succeeded`
+및 신규 exception 유무로 성공을 판정한다. 이 판정은 function/method direct-open 증거를
+대신하지 않는다.
 
 ## 7. 아직 필요한 실기 정보
 
@@ -1510,8 +1512,9 @@ cleanup function은 output 행을 만들지 않는다. `InitialCurrentCycle`을 
 8. default `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1`이 다섯 pre-IDE waiver switch 없이
    PASS한 뒤에만
    별도 요청으로 C78 Rebuild한다.
-9. Rebuild 뒤 변경 class의 `Find in Implementation` smoke와 smoke 시작 이후 `%TEMP%\Lasal2.log`의
-   새 `CInvalidArgException=0`을 확인한다.
+9. Rebuild 뒤 Object Network Server/Client는 `Find in Implementation`으로 확인하고, 변경
+   function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다.
+   smoke 시작 이후 `%TEMP%\Lasal2.log`의 새 `CInvalidArgException=0`도 확인한다.
 
 retained word는 상위 magic `0x524253`, 하위 mask와 inverse nibble을 사용한다. 초기
 `0x5242530F`는 4축 모두 Home 필요, empty `0x524253F0`는 4축 모두 완료를 뜻한다. 형식이 틀린
@@ -1574,7 +1577,9 @@ AxisRebase barrier self-test는 `37/37` negative fixture를 거부했다.
 현재 남은 exact 순서는 다음과 같다.
 
 1. canonical project에서 C78 Rebuild만 실행해 `0 errors / 55 warnings`인지 확인한다.
-2. 변경 class `Find in Implementation` smoke와 smoke 이후 새 `CInvalidArgException=0`을 확인한다.
+2. Object Network Server/Client는 `Find in Implementation`으로 확인하고, 변경 function/method는
+   `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다. smoke 이후 새
+   `CInvalidArgException=0`도 확인한다.
 3. 그 전에는 추가 feature, method split, Link/download와 PLC write/motion을 진행하지 않는다.
 4. 기준선 성공 뒤 warning cleanup과 post-C78 method split을 각각 독립 tranche로 진행한다.
 

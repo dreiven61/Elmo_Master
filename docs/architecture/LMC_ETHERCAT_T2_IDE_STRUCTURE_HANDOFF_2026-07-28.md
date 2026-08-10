@@ -113,9 +113,10 @@ method implementation은 비워 둬도 된다. IDE 저장 뒤 외부 편집 단�
 
 1. 두 class와 `Motion_Network`를 저장한다.
 2. Reload/Rebuild/Link를 실행한다.
-3. 변경한 두 class에서 `Find in Implementation` smoke test를 수행한다.
-4. smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
-5. 생성된 `.st`, `.lcb`, `.lcn`, `ONE_Motion_Network_Table.st`, channel header와 `.lcp` 변경을
+3. Object Network Server/Client에서 `Find in Implementation` smoke test를 수행한다.
+4. 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header를 직접 연다.
+5. smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
+6. 생성된 `.st`, `.lcb`, `.lcn`, `ONE_Motion_Network_Table.st`, channel header와 `.lcp` 변경을
    그대로 master working tree에 남긴다.
 
 외부 편집기로 generated declaration/table/binary를 보정하거나 이름을 바꾸지 않는다. 빌드 오류가

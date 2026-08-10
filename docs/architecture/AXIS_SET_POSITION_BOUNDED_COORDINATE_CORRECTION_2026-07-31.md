@@ -313,7 +313,8 @@ exact terminal query 후 durable Resolve, 자동 replay 0회를 강제한다. ol
 활성화 전에는 SourceOnly/static 검증만 완료로 기록한다. 활성화는 다음 증거가 모두 있어야 한다.
 
 - LASAL Reload/Rebuild/Link 성공
-- 변경 class `Find in Implementation` smoke
+- Object Network Server/Client `Find in Implementation` smoke
+- 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open
 - smoke 시작 이후 `%TEMP%\Lasal2.log` 신규 `CInvalidArgException` 없음
 - task/core/priority 확인 화면 또는 runtime trace
 - axis 1..4 각각 invalid-state, stale-CAS, jump-limit, software-limit negative capture

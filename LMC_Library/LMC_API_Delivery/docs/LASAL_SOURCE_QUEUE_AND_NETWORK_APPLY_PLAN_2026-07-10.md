@@ -261,7 +261,8 @@ PASS해야 한다.
 - `LMCAxis1 -> _LMCAxis1.Control` link 확인
 - CyclicTime/RealTime `1 ms`, server/interface 동일 CyWork task/core, RT core,
   Config `0`, MaxConnections `1` 확인
-- 변경 class에서 `Find in Implementation` smoke test 수행
+- Object Network Server/Client에서 `Find in Implementation` smoke test 수행
+- 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open
 - smoke 시작 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인
 
 ### Gate C: PLC read-only 시험

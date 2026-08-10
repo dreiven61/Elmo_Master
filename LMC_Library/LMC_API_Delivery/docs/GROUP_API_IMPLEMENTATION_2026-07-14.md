@@ -193,7 +193,8 @@ wire 계약이 없다. vendor `_LMCRobotBase.MoveCircleCoord` method가 존재�
 ## 남은 검증
 
 1. canonical LASAL 프로젝트 Rebuild/Link
-2. 변경 method의 Find in Implementation smoke와 이후 `Lasal2.log` 확인
+2. 변경 method를 `Edit Method` 또는 `Enter`로 직접 열어 exact Implementation header를
+   확인하고, 이후 `Lasal2.log`의 신규 `CInvalidArgException`을 확인
 3. `TCPIPServer1`/`TCPMotionInterface1` CyWork와 motion RT thread의 core/priority 확인
 4. read-only group lookup/member/status/actual-position PLC smoke와 packet 재캡처
 5. Reset을 실제 axis error와 profile error 상태에서 각각 검증하고, Reset이

@@ -506,8 +506,9 @@ active record는 Group Reset/Set Identity와 clean Close를 차단하며 자동 
   payload를 1,320 bytes로 확장해 exact `0x20E7` frame을 같은 queue에 담는다.
 - C# 자동 테스트 46/46, LASAL source-only/full-network static contract와 WPF
   VS2019 MSBuild Debug는 통과했다.
-- 현재 group source 반영 뒤 LASAL IDE Rebuild/Link, Find in Implementation,
-  CPU core/priority와 PLC E2E는 아직 검증하지 않았다.
+- 현재 group source 반영 뒤 LASAL IDE Rebuild/Link, Object Network Server/Client의
+  `Find in Implementation`, 변경 function/method의 `Edit Method` 또는 `Enter` exact-header
+  direct-open, CPU core/priority와 PLC E2E는 아직 검증하지 않았다.
 - `MoveCircle`은 공개 API와 승인된 wire contract가 없어 이번 범위에서 제외했다.
 
 ## 분석 기준
@@ -851,8 +852,10 @@ manifest와 별도 승인 기록을 함께 보존해야 한다.
 ## 권장 실행 순서
 
 1. `LMCAxis1..9`, depth-8 queue와 CyWork-only 활성 18개 control/read/motion command 정적 검증 유지
-2. current callback+`0x7D12` source를 LASAL IDE에서 Rebuild/Link하고
-   `TCPMotionInterface`/`LMCControlCommandService` Find in Implementation smoke 수행
+2. current callback+`0x7D12` source를 LASAL IDE에서 Rebuild/Link하고, Object Network
+   Server/Client는 `Find in Implementation`으로 확인하며 `TCPMotionInterface`와
+   `LMCControlCommandService`의 변경 function/method는 `Edit Method` 또는 `Enter`로 exact
+   Implementation header를 직접 확인
 3. `TCPIPServer1 : TCPIPServer` link, CyclicTime 1 ms, RealTime assignment 부재,
    same-core, `Config=0`, `MaxConnections=2`, `ConnectionsPerRun=1`과 single-owner
    same-peer takeover를 strict contract로 확인

@@ -565,8 +565,9 @@ channel에서 함께 반영한다.
 - compile error 0, 기존 warning 분류 완료, 새 warning 0
 - AP task 생성, `_MultiTask`/semaphore, task priority와 RtWork core assignment 확인
 - queue/mailbox variable online watch 가능 여부 확인
-- 변경 class의 `Find in Implementation` smoke test와 smoke 시작 이후
-  `Lasal2.log`의 새 `CInvalidArgException` 부재 확인
+- Object Network Server/Client의 `Find in Implementation` smoke test
+- 변경 function/method는 `Edit Method` 또는 `Enter`로 exact Implementation header 직접 open
+- smoke 시작 이후 `Lasal2.log`의 새 `CInvalidArgException` 부재 확인
 
 ### PLC 단계 시험
 

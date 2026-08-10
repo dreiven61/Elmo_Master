@@ -4,8 +4,9 @@
 > `TCPIPServer`, `TCPMotionInterface`, `Comm_Network.lcn`, 프로젝트 등록 경로와
 > 사람이 검토하는 생성 테이블을 `Elmo_Master` 개발 소스에 선별 반영했다. 테스트
 > 프로젝트 전체나 `.lba/.lob/.ldi/ProjectInternal`은 복사하지 않았다. 마스터
-> 프로젝트에서 LASAL Save/Rebuild/Link 및 `Find in Implementation`을 다시 수행해야
-> IDE database와 build 산출물까지 현재 소스와 일치한다.
+> 프로젝트에서 LASAL Save/Rebuild/Link 뒤 Object Network Server/Client는
+> `Find in Implementation`을 다시 실행하고, 변경 function/method는 `Edit Method` 또는 `Enter`로
+> exact Implementation header를 직접 열어야 IDE database와 build 산출물까지 현재 소스와 일치한다.
 
 ## 1. 목적
 

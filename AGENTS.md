@@ -54,7 +54,12 @@
   - `docs/architecture/SIGMATEK_LASAL_programming_error_prevention_guide.md`
 - 개발 대상은 Git 추적 프로젝트 `Lasal_PRG/Elmo_EtherCAT_Test_4Axis`다. 미추적 `_Edit` 복제본은 사용자가 명시적으로 지정하지 않는 한 수정하지 않는다.
 - 새로 작성하는 LASAL custom source의 선언/구현, 식별자, 주석, 문자열과 IDE에 입력하는 class/object/channel/network 이름 및 comment는 7-bit ASCII만 사용한다. 한국어 설명은 `docs/**/*.md`에 기록하고 기존 vendor source를 일괄 재인코딩하지 않는다.
-- LASAL IDE 저장/빌드 후 변경 클래스의 `Find in Implementation` smoke test를 수행하고, smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
+- LASAL IDE 저장/빌드 후 smoke는 대상 종류에 맞춰 수행한다.
+  - Object Network의 Server/Client 행은 `Find in Implementation`으로 class-index/source 연결을 확인한다.
+  - 일반 class의 function/method 행은 `Find in Implementation` 대상이 아니다. method 목록에서
+    `Edit Method` 또는 `Enter`로 직접 열고, Implementation 탭과 exact method header를 확인한다.
+  - function/method 검증에 `Find in Implementation`을 요구하거나 PASS 조건으로 사용하지 않는다.
+  - smoke 시작 시점 이후 `%TEMP%\Lasal2.log`에 새 `CInvalidArgException`이 없는지 확인한다.
 - `TCPMotionInterface.st` 또는 TCP 프레임을 바꾸면
   `LMC_Library/LMC_API_Delivery/src/LmcProtocol.cs`,
   `LMC_Library/LMC_API_Delivery/docs/DINT_PACKET_MAP.txt`와 바이트 offset 단위로

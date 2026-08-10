@@ -728,7 +728,9 @@ class 생성, base class 지정, channel declaration과 network connection은 LA
 상태에서 외부 수정했다면 implementation editor를 저장하기 전에 `Reload Class`로 디스크
 source를 다시 읽는다. stale IDE model을 저장하면 외부 수정 implementation을 덮어쓸 수
 있으므로, 안전한 순서는 `IDE 저장/종료` -> `외부 편집` -> `IDE 재열기 또는 Reload
-Class` -> `Rebuild` -> `Find in Implementation smoke`다.
+Class` -> `Rebuild` -> item 종류별 smoke다. Object Network Server/Client는
+`Find in Implementation`을 실행하고, 변경 function/method는 `Edit Method` 또는 `Enter`로 exact
+Implementation header를 직접 연다.
 
 ## 11. capability gate
 

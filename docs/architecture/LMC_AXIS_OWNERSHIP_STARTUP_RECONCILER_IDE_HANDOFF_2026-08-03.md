@@ -178,10 +178,11 @@ the owner table.
 3. Negative fixtures cover partial proof, same-cycle replay, unstable axis/group state, mailbox
    busy, diagnostics busy and executor non-reusable cases.
 4. LASAL C78 ARM Rebuild must finish with zero errors.
-5. `Find in Implementation` smoke:
-   - `CopyAxisOwnershipStartupSnapshot`
-   - `ReconcileAxisOwnershipStartup`
-   - `ProcessAxisOwnershipStartup`
+5. IDE smoke:
+   - Object Network Server/Client items: run `Find in Implementation`.
+   - Function/method rows: use `Edit Method` or `Enter` and confirm the exact Implementation
+     header for `CopyAxisOwnershipStartupSnapshot`, `ReconcileAxisOwnershipStartup` and
+     `ProcessAxisOwnershipStartup`.
 6. No new `%TEMP%\Lasal2.log` `CInvalidArgException` after smoke start.
 7. PLC runtime proof remains separate and is not claimed by a source/build PASS.
 
@@ -191,6 +192,9 @@ the owner table.
 - The warnings are the existing C78 project versus C81 library-version family; no new compiler
   error was accepted.
 - `Find in Implementation` opened all three replacement methods listed above.
+- The preceding sentence preserves the original checkpoint wording; it is not a current UI test
+  rule. `Find in Implementation` applies only to Object Network Server/Client items and does not
+  prove that a function/method row was direct-opened.
 - Smoke start: `2026-08-03T22:24:15.6494204+09:00`.
 - New `%TEMP%\Lasal2.log` `CInvalidArgException` after the smoke start: `0`.
 - `Verify-LasalContract.ps1 -SourceOnly -ControlServiceCheckpoint Phase5TransportClean

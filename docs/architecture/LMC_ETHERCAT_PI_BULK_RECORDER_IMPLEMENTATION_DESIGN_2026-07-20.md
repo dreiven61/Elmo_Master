@@ -2375,7 +2375,9 @@ callback/release state machine을 수정했다. 수정 source의 general-inline 
 
 - Class 생성, declaration 구조 변경과 Network 편집만 LASAL IDE에서 수행
 - 기존 class implementation은 외부 편집기에서 수정하고 정적 계약으로 우선 검증
-- PLC 통합/download gate에서 Rebuild/Link와 `Find in Implementation` smoke 수행
+- PLC 통합/download gate에서 Rebuild/Link 후 Object Network Server/Client는
+  `Find in Implementation`으로 확인하고, 변경 function/method는 `Edit Method` 또는 `Enter`로
+  exact Implementation header를 직접 확인
 - channel declaration/member/`@CT_`/`@STD`/network 일치 확인
 - actual RT order 확인
 

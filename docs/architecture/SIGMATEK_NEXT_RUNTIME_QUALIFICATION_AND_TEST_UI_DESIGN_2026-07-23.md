@@ -741,9 +741,10 @@ SDK public API 변경은 첫 qualification slice에 필요하지 않다. 구현 
 ### 13.2 LASAL 변경
 
 LASAL IDE를 종료한 상태에서 tracked `.st` implementation을 외부 편집한다. 이후 사용자가
-IDE에서 Reload/Reopen, Rebuild/Link, download를 수행한다. 변경 class의
-`Find in Implementation` smoke와 smoke 시작 이후 `%TEMP%/Lasal2.log`의 신규
-`CInvalidArgException` 0건을 보존한다.
+IDE에서 Reload/Reopen, Rebuild/Link, download를 수행한다. Object Network Server/Client는
+`Find in Implementation`으로 class-index/source 연결을 확인하고, 변경 function/method는
+`Edit Method` 또는 `Enter`로 직접 열어 exact Implementation header를 확인한다. smoke 시작
+이후 `%TEMP%/Lasal2.log`의 신규 `CInvalidArgException` 0건을 보존한다.
 
 ### 13.3 live packet
 
