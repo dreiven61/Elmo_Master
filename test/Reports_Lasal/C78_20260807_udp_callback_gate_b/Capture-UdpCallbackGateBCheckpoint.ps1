@@ -4,7 +4,8 @@ param(
         'GateA_VendorImported',
         'GateB1_DerivedDeclaration',
         'GateB2_DerivedWired',
-        'GateC_DerivedCandidate')]
+        'GateC_DerivedCandidate',
+        'GateD_TerminalWakeBrokerCandidate')]
     [string]$Phase,
 
     [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..\..\..'),
@@ -37,6 +38,15 @@ $GateCCurrentVerifierPinFrozen = $true
 $ExpectedVerifierCanonicalLfBytes = 478281
 $ExpectedVerifierCanonicalLfSha256 =
     'C0B95B5D6A6220C701C30B7EB379473C4BA43761F70D2DD5DB280AFA40FDCF12'
+$HistoricalGateCVerifierCanonicalLfBytes = 478281
+$HistoricalGateCVerifierCanonicalLfSha256 =
+    'C0B95B5D6A6220C701C30B7EB379473C4BA43761F70D2DD5DB280AFA40FDCF12'
+# Gate D reviewed current verifier pin. The phase remains capture-only and
+# cannot imply production approval or PLC runtime evidence.
+$GateDCurrentVerifierPinFrozen = $true
+$GateDExpectedVerifierCanonicalLfBytes = 545566
+$GateDExpectedVerifierCanonicalLfSha256 =
+    'FBF1A8582E85039377AC39F26D8BBA64C0EB62665424DE150083CFC412CC7CA3'
 $HistoricalGateAVerifierCanonicalLfBytes = 409934
 $HistoricalGateAVerifierCanonicalLfSha256 =
     'E5211F3D44712ADE1B4CDE5F6AB72729993AEF530152BC36BDD695C81CDFE6FC'
@@ -74,6 +84,41 @@ Assert-GateCCurrentVerifierPinFreezeInvariant `
     -CurrentCanonicalLfSha256 $ExpectedVerifierCanonicalLfSha256 `
     -HistoricalCanonicalLfBytes $HistoricalGateB2VerifierCanonicalLfBytes `
     -HistoricalCanonicalLfSha256 $HistoricalGateB2VerifierCanonicalLfSha256
+
+function Assert-GateDCurrentVerifierPinFreezeInvariant {
+    param(
+        [Parameter(Mandatory = $true)][bool]$Frozen,
+        [Parameter(Mandatory = $true)][long]$CurrentCanonicalLfBytes,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$CurrentCanonicalLfSha256,
+        [Parameter(Mandatory = $true)][long]$HistoricalCanonicalLfBytes,
+        [Parameter(Mandatory = $true)][string]$HistoricalCanonicalLfSha256
+    )
+
+    if (-not $Frozen) {
+        if (($CurrentCanonicalLfBytes -ne 0) -or
+            (-not [string]::IsNullOrEmpty($CurrentCanonicalLfSha256))) {
+            throw 'Unfrozen Gate D current verifier pin must remain unset.'
+        }
+        return
+    }
+    if (($CurrentCanonicalLfBytes -le 0) -or
+        ($CurrentCanonicalLfSha256 -notmatch '^[A-F0-9]{64}$')) {
+        throw 'Frozen Gate D current verifier pin is incomplete.'
+    }
+    if (($CurrentCanonicalLfBytes -eq $HistoricalCanonicalLfBytes) -or
+        ($CurrentCanonicalLfSha256 -ceq $HistoricalCanonicalLfSha256)) {
+        throw (
+            'Frozen Gate D current verifier pin is not separated from the ' +
+            'historical Gate C verifier pin.')
+    }
+}
+
+Assert-GateDCurrentVerifierPinFreezeInvariant `
+    -Frozen $GateDCurrentVerifierPinFrozen `
+    -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
+    -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
+    -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
+    -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
 
 $PhaseContracts = [ordered]@{
     GateA_VendorImported = [ordered]@{
@@ -116,7 +161,29 @@ $PhaseContracts = [ordered]@{
         ProductionApproved = $false
         NeedsRebaseline = $true
     }
+    GateD_TerminalWakeBrokerCandidate = [ordered]@{
+        Sequence = 4
+        ExpectedState = 'TerminalWakeBrokerCandidate'
+        OutputFile = 'gate_d_terminal_wake_broker_candidate_checkpoint.json'
+        ParentPhase = 'GateC_DerivedCandidate'
+        ParentState = 'DerivedCandidate'
+        ParentFile = 'gate_c_derived_candidate_checkpoint.json'
+        ProductionApproved = $false
+        NeedsRebaseline = $true
+    }
 }
+
+$GateDExpectedTrackedTransitionPaths = @(
+    "$TargetRelativeRoot/Class/Classes.lcb",
+    ("$TargetRelativeRoot/Class/LMCDiagnosticsService/" +
+        'LMCDiagnosticsService.st'),
+    ("$TargetRelativeRoot/Class/LMCUdpCallbackSender/" +
+        'LMCUdpCallbackSender.st'),
+    "$TargetRelativeRoot/Class/TCPMotionInterface/TCPMotionInterface.st",
+    "$TargetRelativeRoot/Class/_UDPTransceiver/_UDPTransceiver.st",
+    "$TargetRelativeRoot/Network/Comm_Network/Comm_Network.lcn",
+    "$TargetRelativeRoot/Network/Networks.lcb" |
+        Sort-Object -CaseSensitive)
 
 function Get-RequiredPredecessorCheckpointPaths {
     param([Parameter(Mandatory = $true)][string]$Phase)
@@ -1464,6 +1531,29 @@ function Assert-AsciiNoBomText {
     }
 }
 
+function New-CanonicalAsciiArtifactEvidence {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$File,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    Assert-AsciiNoBomText `
+        -File $File `
+        -Owner $Owner `
+        -RequireUniformEol
+    $physicalText = [Text.Encoding]::ASCII.GetString($File.RawBytes)
+    $canonicalText =
+        $physicalText.Replace("`r`n", "`n").Replace("`r", "`n")
+    $canonicalBytes = $Utf8NoBom.GetBytes($canonicalText)
+    $evidence = [ordered]@{}
+    foreach ($key in $File.Public.Keys) {
+        $evidence[$key] = $File.Public[$key]
+    }
+    $evidence.canonicalLfBytes = $canonicalBytes.Length
+    $evidence.canonicalLfSha256 = Get-BytesSha256 -Bytes $canonicalBytes
+    return $evidence
+}
+
 function Get-AsciiText {
     param(
         [Parameter(Mandatory = $true)][pscustomobject]$File,
@@ -2171,17 +2261,22 @@ function Assert-PublicFileEvidence {
         [Parameter(Mandatory = $true)]
         [Collections.IDictionary]$File,
         [Parameter(Mandatory = $true)][string]$Owner,
-        [AllowNull()][string]$ExpectedPath
+        [AllowNull()][string]$ExpectedPath,
+        [switch]$RequireCanonicalLfIdentity
     )
 
     $expectedPathProvided = $PSBoundParameters.ContainsKey('ExpectedPath')
+    $expectedKeys = @(
+        'path', 'gitTracked', 'gitIgnored', 'nonIgnoredUntracked',
+        'available', 'bytes', 'sha256',
+        'commitBlobPolicy', 'canonicalGitBlobOid',
+        'lastWriteTimeUtc', 'text')
+    if ($RequireCanonicalLfIdentity) {
+        $expectedKeys += @('canonicalLfBytes', 'canonicalLfSha256')
+    }
     Assert-ExactMapKeys `
         -Map $File `
-        -Keys @(
-            'path', 'gitTracked', 'gitIgnored', 'nonIgnoredUntracked',
-            'available', 'bytes', 'sha256',
-            'commitBlobPolicy', 'canonicalGitBlobOid',
-            'lastWriteTimeUtc', 'text') `
+        -Keys $expectedKeys `
         -Owner $Owner
     if (($File.path -isnot [string]) -or
         [string]::IsNullOrWhiteSpace([string]$File.path) -or
@@ -2234,6 +2329,19 @@ function Assert-PublicFileEvidence {
             throw "$Owner text traits are missing."
         }
         Assert-TextTraitsEvidence -Traits $File.text -Owner "$Owner text"
+        if ($RequireCanonicalLfIdentity) {
+            if ((-not [bool]$File.text.is7BitAscii) -or
+                ($File.text.bom -cne 'None') -or
+                ($File.text.eolStyle -notin @('LF', 'CRLF')) -or
+                (-not (Test-IsJsonInteger -Value $File.canonicalLfBytes)) -or
+                ([long]$File.canonicalLfBytes -ne
+                    ([long]$File.bytes - [long]$File.text.crlfCount))) {
+                throw "$Owner canonical-LF byte identity is malformed."
+            }
+            Assert-UpperSha256 `
+                -Value $File.canonicalLfSha256 `
+                -Owner "$Owner canonical-LF sha256"
+        }
     }
     elseif (($null -ne $File.bytes) -or ($null -ne $File.sha256) -or
         ($null -ne $File.canonicalGitBlobOid) -or
@@ -2869,6 +2977,43 @@ function Assert-BytesHashTuple {
     Assert-UpperSha256 -Value $Tuple.sha256 -Owner "$Owner sha256"
 }
 
+function Assert-DiagnosticsIdentityMatchesArtifact {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Identity,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Artifact,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    Assert-ExactMapKeys `
+        -Map $Identity `
+        -Keys @(
+            'rawBytes', 'rawSha256',
+            'canonicalLfBytes', 'canonicalLfSha256') `
+        -Owner $Owner
+    foreach ($name in @('rawBytes', 'canonicalLfBytes')) {
+        if ((-not (Test-IsJsonInteger -Value $Identity[$name])) -or
+            ([long]$Identity[$name] -lt 0)) {
+            throw "$Owner $name is malformed."
+        }
+    }
+    Assert-UpperSha256 `
+        -Value $Identity.rawSha256 `
+        -Owner "$Owner rawSha256"
+    Assert-UpperSha256 `
+        -Value $Identity.canonicalLfSha256 `
+        -Owner "$Owner canonicalLfSha256"
+    if (([long]$Identity.rawBytes -ne [long]$Artifact.bytes) -or
+        ($Identity.rawSha256 -cne $Artifact.sha256) -or
+        ([long]$Identity.canonicalLfBytes -ne
+            [long]$Artifact.canonicalLfBytes) -or
+        ($Identity.canonicalLfSha256 -cne
+            $Artifact.canonicalLfSha256)) {
+        throw "$Owner verifier/capture raw or canonical identity differs."
+    }
+}
+
 function Get-InventoryFileEvidenceByPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -2921,6 +3066,7 @@ function Assert-RecordedVerifierEvidence {
         [Collections.IDictionary]$Decision,
         [Parameter(Mandatory = $true)]
         [Collections.IDictionary]$Artifacts,
+        [Parameter(Mandatory = $true)][string]$ExpectedState,
         [Parameter(Mandatory = $true)][string]$Owner
     )
 
@@ -2929,12 +3075,16 @@ function Assert-RecordedVerifierEvidence {
     if ($evidence -isnot [Collections.IDictionary]) {
         throw "$Owner verifier structuredEvidence is not an object."
     }
+    $expectedEvidenceKeys = @(
+        'vendor', 'classes', 'project', 'projectDefinition',
+        'generatedIncludes', 'tcpSha256', 'network',
+        'protectedDependencies')
+    if ($ExpectedState -ceq 'TerminalWakeBrokerCandidate') {
+        $expectedEvidenceKeys += @('sender', 'diagnostics')
+    }
     Assert-ExactMapKeys `
         -Map $evidence `
-        -Keys @(
-            'vendor', 'classes', 'project', 'projectDefinition',
-            'generatedIncludes', 'tcpSha256', 'network',
-            'protectedDependencies') `
+        -Keys $expectedEvidenceKeys `
         -Owner "$Owner verifier structuredEvidence"
     if (($evidence.vendor -isnot [Collections.IList]) -or
         (@($evidence.vendor).Count -ne 2)) {
@@ -2969,6 +3119,16 @@ function Assert-RecordedVerifierEvidence {
         -Owner "$Owner verifier TCP SHA-256"
     if ($evidence.tcpSha256 -cne $Artifacts.tcpMotionInterface.sha256) {
         throw "$Owner verifier TCP evidence differs from artifacts."
+    }
+    if ($ExpectedState -ceq 'TerminalWakeBrokerCandidate') {
+        Assert-DiagnosticsIdentityMatchesArtifact `
+            -Identity $evidence.sender `
+            -Artifact $Artifacts.derivedSender `
+            -Owner "$Owner verifier Sender"
+        Assert-DiagnosticsIdentityMatchesArtifact `
+            -Identity $evidence.diagnostics `
+            -Artifact $Artifacts.diagnosticsService `
+            -Owner "$Owner verifier Diagnostics"
     }
 
     $expectedIncludePaths = [ordered]@{
@@ -3107,14 +3267,18 @@ function Assert-ArtifactEvidenceContract {
         [Parameter(Mandatory = $true)][string]$Owner
     )
 
+    $expectedArtifactKeys = @(
+        'classesDatabase', 'projectDatabase', 'projectDefinition',
+        'generatedIncludes', 'vendorSources', 'protectedDependencies',
+        'tcpMotionInterface', 'derivedSender', 'configObjects',
+        'networksDatabase', 'commNetwork', 'commNetworkTable',
+        'fullNetwork')
+    if ($ExpectedState -ceq 'TerminalWakeBrokerCandidate') {
+        $expectedArtifactKeys += 'diagnosticsService'
+    }
     Assert-ExactMapKeys `
         -Map $Artifacts `
-        -Keys @(
-            'classesDatabase', 'projectDatabase', 'projectDefinition',
-            'generatedIncludes', 'vendorSources', 'protectedDependencies',
-            'tcpMotionInterface', 'derivedSender', 'configObjects',
-            'networksDatabase', 'commNetwork', 'commNetworkTable',
-            'fullNetwork') `
+        -Keys $expectedArtifactKeys `
         -Owner "$Owner artifacts"
 
     $fixedPaths = [ordered]@{
@@ -3132,20 +3296,35 @@ function Assert-ArtifactEvidenceContract {
         commNetworkTable =
             "$TargetRelativeRoot/Network/Comm_Network/ONE_Comm_Network_Table.st"
     }
+    if ($ExpectedState -ceq 'TerminalWakeBrokerCandidate') {
+        $fixedPaths.diagnosticsService =
+            "$TargetRelativeRoot/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
+    }
     foreach ($name in $fixedPaths.Keys) {
         $file = $Artifacts[$name]
         if ($file -isnot [Collections.IDictionary]) {
             throw "$Owner artifact $name is not an object."
         }
-        Assert-PublicFileEvidence `
-            -File $file `
-            -ExpectedPath $fixedPaths[$name] `
-            -Owner "$Owner artifact $name"
+        $publicFileParameters = @{
+            File = $file
+            ExpectedPath = $fixedPaths[$name]
+            Owner = "$Owner artifact $name"
+        }
+        if (($name -ceq 'diagnosticsService') -or
+            (($name -ceq 'derivedSender') -and
+                ($ExpectedState -ceq 'TerminalWakeBrokerCandidate'))) {
+            $publicFileParameters.RequireCanonicalLfIdentity = $true
+        }
+        Assert-PublicFileEvidence @publicFileParameters
     }
-    foreach ($name in @(
-            'classesDatabase', 'projectDatabase', 'projectDefinition',
-            'tcpMotionInterface', 'configObjects', 'networksDatabase',
-            'commNetwork', 'commNetworkTable')) {
+    $requiredFixedNames = @(
+        'classesDatabase', 'projectDatabase', 'projectDefinition',
+        'tcpMotionInterface', 'configObjects', 'networksDatabase',
+        'commNetwork', 'commNetworkTable')
+    if ($ExpectedState -ceq 'TerminalWakeBrokerCandidate') {
+        $requiredFixedNames += 'diagnosticsService'
+    }
+    foreach ($name in $requiredFixedNames) {
         if (-not [bool]$Artifacts[$name].available) {
             throw "$Owner required artifact is unavailable: $name"
         }
@@ -3326,6 +3505,7 @@ function Assert-ArtifactEvidenceContract {
     Assert-RecordedVerifierEvidence `
         -Decision $Decision `
         -Artifacts $Artifacts `
+        -ExpectedState $ExpectedState `
         -Owner $Owner
 }
 
@@ -3340,10 +3520,23 @@ function Get-ReviewedVerifierManifestPin {
     if (-not $PhaseContracts.Contains($ExpectedPhase)) {
         throw "$Owner verifier pin phase is unknown: $ExpectedPhase"
     }
-    $allowedPins = @([ordered]@{
+    $allowedPins = @()
+    if ($ExpectedPhase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+        if ($GateDCurrentVerifierPinFrozen) {
+            $allowedPins += [ordered]@{
+                canonicalLfBytes =
+                    [long]$GateDExpectedVerifierCanonicalLfBytes
+                canonicalLfSha256 =
+                    $GateDExpectedVerifierCanonicalLfSha256
+            }
+        }
+    }
+    else {
+        $allowedPins += [ordered]@{
             canonicalLfBytes = [long]$ExpectedVerifierCanonicalLfBytes
             canonicalLfSha256 = $ExpectedVerifierCanonicalLfSha256
-        })
+        }
+    }
     $historicalPin = $null
     if ($ExpectedPhase -ceq 'GateA_VendorImported') {
         $historicalPin = [ordered]@{
@@ -3369,11 +3562,21 @@ function Get-ReviewedVerifierManifestPin {
                 $HistoricalGateB2VerifierCanonicalLfSha256
         }
     }
+    elseif ($ExpectedPhase -ceq 'GateC_DerivedCandidate') {
+        $historicalPin = [ordered]@{
+            canonicalLfBytes =
+                [long]$HistoricalGateCVerifierCanonicalLfBytes
+            canonicalLfSha256 =
+                $HistoricalGateCVerifierCanonicalLfSha256
+        }
+    }
     if (($null -ne $historicalPin) -and
-        (([long]$historicalPin.canonicalLfBytes -ne
-                [long]$ExpectedVerifierCanonicalLfBytes) -or
-            ($historicalPin.canonicalLfSha256 -cne
-                $ExpectedVerifierCanonicalLfSha256))) {
+        (@($allowedPins | Where-Object {
+                    ([long]$_.canonicalLfBytes -eq
+                        [long]$historicalPin.canonicalLfBytes) -and
+                    ($_.canonicalLfSha256 -ceq
+                        $historicalPin.canonicalLfSha256)
+                }).Count -eq 0)) {
         $allowedPins += $historicalPin
     }
     $matches = @($allowedPins | Where-Object {
@@ -3664,13 +3867,20 @@ function Assert-ToolingEvidenceContract {
         throw "$Owner verifier command output differs from parsed decision."
     }
     $crossCheck = $Tooling.verifierCrossCheck
+    $expectedCrossCheckKeys = @(
+        'exactRawEvidenceCrossChecked', 'vendorCount',
+        'generatedIncludeCount', 'protectedDependencyCount',
+        'networkUnionCount', 'note')
+    $isGateD = $ExpectedPhase -ceq 'GateD_TerminalWakeBrokerCandidate'
+    if ($isGateD) {
+        $expectedCrossCheckKeys += @(
+            'senderIdentityCrossChecked',
+            'diagnosticsIdentityCrossChecked')
+    }
     if ($crossCheck -is [Collections.IDictionary]) {
         Assert-ExactMapKeys `
             -Map $crossCheck `
-            -Keys @(
-                'exactRawEvidenceCrossChecked', 'vendorCount',
-                'generatedIncludeCount', 'protectedDependencyCount',
-                'networkUnionCount', 'note') `
+            -Keys $expectedCrossCheckKeys `
             -Owner "$Owner verifierCrossCheck"
     }
     if (($crossCheck -isnot [Collections.IDictionary]) -or
@@ -3685,7 +3895,15 @@ function Assert-ToolingEvidenceContract {
                 "$Owner verifierCrossCheck")) -ne 3) -or
         ([long](Get-RequiredMapValue $crossCheck networkUnionCount (
                 "$Owner verifierCrossCheck")) -ne
-            [long]$Artifacts.fullNetwork.unionCount)) {
+            [long]$Artifacts.fullNetwork.unionCount) -or
+        ($isGateD -and
+            (((Get-RequiredMapValue $crossCheck senderIdentityCrossChecked (
+                        "$Owner verifierCrossCheck")) -isnot [bool]) -or
+                (-not [bool]$crossCheck.senderIdentityCrossChecked))) -or
+        ($isGateD -and
+            (((Get-RequiredMapValue $crossCheck diagnosticsIdentityCrossChecked (
+                        "$Owner verifierCrossCheck")) -isnot [bool]) -or
+                (-not [bool]$crossCheck.diagnosticsIdentityCrossChecked)))) {
         throw "$Owner verifier/capture cross-check evidence drifted."
     }
 }
@@ -3704,18 +3922,204 @@ function Assert-JsonStructuralEquality {
     }
 }
 
+function Get-GateDTrackedBlobTransitionRecords {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$PredecessorTargetWorktree,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$CurrentTargetWorktree
+    )
+
+    $maps = @()
+    foreach ($input in @(
+            [ordered]@{
+                Name = 'Gate C predecessor'
+                Inventory = $PredecessorTargetWorktree
+            },
+            [ordered]@{
+                Name = 'Gate D current'
+                Inventory = $CurrentTargetWorktree
+            })) {
+        $map = [ordered]@{}
+        $files = Get-RequiredMapValue `
+            $input.Inventory files "$($input.Name) targetWorktree"
+        if ($files -isnot [Collections.IList]) {
+            throw "$($input.Name) targetWorktree files is not an array."
+        }
+        foreach ($file in @($files | Where-Object { $_.gitTracked })) {
+            if ($file -isnot [Collections.IDictionary]) {
+                throw "$($input.Name) tracked target record is not an object."
+            }
+            $path = Get-RequiredMapValue `
+                $file path "$($input.Name) tracked target record"
+            $oid = Get-RequiredMapValue `
+                $file canonicalGitBlobOid "$($input.Name) tracked target record"
+            if (($path -isnot [string]) -or
+                (-not ([string]$path).StartsWith(
+                        $TargetRelativeRoot + '/',
+                        [StringComparison]::Ordinal)) -or
+                (-not [bool](Get-RequiredMapValue `
+                        $file available "$($input.Name) tracked target record"))) {
+                throw "$($input.Name) tracked target record is unavailable or malformed."
+            }
+            Assert-GitObjectId `
+                -Value $oid `
+                -Owner "$($input.Name) tracked target blob $path"
+            if ($map.Contains([string]$path)) {
+                throw "$($input.Name) tracked target path is duplicated: $path"
+            }
+            $map[[string]$path] = [string]$oid
+        }
+        $maps += ,$map
+    }
+
+    $predecessor = $maps[0]
+    $current = $maps[1]
+    $predecessorPaths = @($predecessor.Keys | Sort-Object -CaseSensitive)
+    $currentPaths = @($current.Keys | Sort-Object -CaseSensitive)
+    if ([string]::Join("`n", $predecessorPaths) -cne
+        [string]::Join("`n", $currentPaths)) {
+        throw 'Gate D tracked target path membership differs from Gate C.'
+    }
+
+    $records = @(
+        foreach ($path in $currentPaths) {
+            if ($predecessor[$path] -cne $current[$path]) {
+                [ordered]@{
+                    path = $path
+                    predecessorCanonicalGitBlobOid = $predecessor[$path]
+                    currentCanonicalGitBlobOid = $current[$path]
+                }
+            }
+        })
+    $changedPaths = @($records | ForEach-Object { [string]$_.path })
+    if ([string]::Join("`n", $changedPaths) -cne
+        [string]::Join("`n", $GateDExpectedTrackedTransitionPaths)) {
+        throw (
+            'Gate D tracked target changed-set is not the exact seven-path ' +
+            'transition; observed=' + [string]::Join(',', $changedPaths))
+    }
+    return $records
+}
+
+function New-GateDTransitionEvidence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$PredecessorTargetWorktree,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$CurrentTargetWorktree
+    )
+
+    $records = @(Get-GateDTrackedBlobTransitionRecords `
+            -PredecessorTargetWorktree $PredecessorTargetWorktree `
+            -CurrentTargetWorktree $CurrentTargetWorktree)
+    $paths = @($records | ForEach-Object { [string]$_.path })
+    $blobIdentity = [string]::Join("`n", @(
+            $records | ForEach-Object {
+                "$($_.path)|$($_.predecessorCanonicalGitBlobOid)|" +
+                $_.currentCanonicalGitBlobOid
+            }))
+    return [ordered]@{
+        schema = 'LasalUdpCallbackGateDTrackedTransition/v1'
+        predecessorPhase = 'GateC_DerivedCandidate'
+        currentPhase = 'GateD_TerminalWakeBrokerCandidate'
+        comparisonRule = (
+            'compare canonicalGitBlobOid for the identical Git-tracked target ' +
+            'path set; exclude nonignored untracked ambient files')
+        ambientNonIgnoredUntrackedExcluded = $true
+        changedPathCount = $records.Count
+        changedPathSha256 =
+            Get-TextSha256 -Text ([string]::Join("`n", $paths))
+        changedBlobIdentitySha256 = Get-TextSha256 -Text $blobIdentity
+        changedPaths = $records
+    }
+}
+
+function Assert-GateDTransitionEvidence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Evidence,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$PredecessorTargetWorktree,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$CurrentTargetWorktree,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    Assert-ExactMapKeys `
+        -Map $Evidence `
+        -Keys @(
+            'schema', 'predecessorPhase', 'currentPhase', 'comparisonRule',
+            'ambientNonIgnoredUntrackedExcluded', 'changedPathCount',
+            'changedPathSha256', 'changedBlobIdentitySha256', 'changedPaths') `
+        -Owner $Owner
+    if (($Evidence.schema -cne
+            'LasalUdpCallbackGateDTrackedTransition/v1') -or
+        ($Evidence.predecessorPhase -cne 'GateC_DerivedCandidate') -or
+        ($Evidence.currentPhase -cne 'GateD_TerminalWakeBrokerCandidate') -or
+        ($Evidence.comparisonRule -cne
+            ('compare canonicalGitBlobOid for the identical Git-tracked target ' +
+                'path set; exclude nonignored untracked ambient files')) -or
+        ($Evidence.ambientNonIgnoredUntrackedExcluded -isnot [bool]) -or
+        (-not [bool]$Evidence.ambientNonIgnoredUntrackedExcluded) -or
+        (-not (Test-IsJsonInteger -Value $Evidence.changedPathCount)) -or
+        ([long]$Evidence.changedPathCount -ne 7) -or
+        ($Evidence.changedPaths -isnot [Collections.IList])) {
+        throw "$Owner header or count drifted."
+    }
+    Assert-UpperSha256 `
+        -Value $Evidence.changedPathSha256 `
+        -Owner "$Owner changed path digest"
+    Assert-UpperSha256 `
+        -Value $Evidence.changedBlobIdentitySha256 `
+        -Owner "$Owner changed blob identity digest"
+    foreach ($record in @($Evidence.changedPaths)) {
+        if ($record -isnot [Collections.IDictionary]) {
+            throw "$Owner changed path record is not an object."
+        }
+        Assert-ExactMapKeys `
+            -Map $record `
+            -Keys @(
+                'path', 'predecessorCanonicalGitBlobOid',
+                'currentCanonicalGitBlobOid') `
+            -Owner "$Owner changed path record"
+        Assert-GitObjectId `
+            -Value $record.predecessorCanonicalGitBlobOid `
+            -Owner "$Owner predecessor blob $($record.path)"
+        Assert-GitObjectId `
+            -Value $record.currentCanonicalGitBlobOid `
+            -Owner "$Owner current blob $($record.path)"
+        if ($record.predecessorCanonicalGitBlobOid -ceq
+            $record.currentCanonicalGitBlobOid) {
+            throw "$Owner changed path has identical predecessor/current blobs."
+        }
+    }
+    $expected = New-GateDTransitionEvidence `
+        -PredecessorTargetWorktree $PredecessorTargetWorktree `
+        -CurrentTargetWorktree $CurrentTargetWorktree
+    Assert-JsonStructuralEquality `
+        -Expected $expected `
+        -Observed $Evidence `
+        -Owner $Owner
+}
+
 function Get-ArtifactFileRecords {
     param(
         [Parameter(Mandatory = $true)]
         [Collections.IDictionary]$Artifacts
     )
 
+    $gateDSpecificFiles = @()
+    if ($Artifacts.Contains('diagnosticsService')) {
+        $gateDSpecificFiles += $Artifacts.diagnosticsService
+    }
     return @(
         @(
             'classesDatabase', 'projectDatabase', 'projectDefinition',
             'tcpMotionInterface', 'derivedSender', 'configObjects',
             'networksDatabase', 'commNetwork', 'commNetworkTable' |
                 ForEach-Object { $Artifacts[$_] }) +
+        @($gateDSpecificFiles) +
         @($Artifacts.vendorSources) +
         @($Artifacts.protectedDependencies) +
         @($Artifacts.generatedIncludes.files) +
@@ -4164,6 +4568,24 @@ function Assert-ArtifactFilesBoundToCommit {
             if ($historical.blobOid -cne $file.canonicalGitBlobOid) {
                 throw "$Owner binding-commit artifact blob differs: $path"
             }
+            if ($file.Contains('canonicalLfBytes')) {
+                $traits = Get-RawTextTraits -Bytes $historical.rawBytes
+                if (($traits.bom -cne 'None') -or
+                    (-not [bool]$traits.is7BitAscii) -or
+                    ($traits.eolStyle -notin @('LF', 'CRLF'))) {
+                    throw "$Owner canonical artifact blob is not uniform ASCII: $path"
+                }
+                $historicalText = [Text.Encoding]::ASCII.GetString(
+                    $historical.rawBytes)
+                $canonicalBytes = $Utf8NoBom.GetBytes(
+                    $historicalText.Replace("`r`n", "`n").Replace("`r", "`n"))
+                if (($canonicalBytes.Length -ne
+                        [long]$file.canonicalLfBytes) -or
+                    ((Get-BytesSha256 -Bytes $canonicalBytes) -cne
+                        $file.canonicalLfSha256)) {
+                    throw "$Owner binding-commit canonical identity differs: $path"
+                }
+            }
         }
         elseif ($isRequiredAbsent) {
             if ([bool]$file.available -or [bool]$file.gitTracked -or
@@ -4307,12 +4729,16 @@ function Assert-CheckpointManifestContract {
         ($SealEvidence.sealSha256 -notmatch '^[A-F0-9]{64}$')) {
         throw "$owner does not have a validated raw manifest seal."
     }
+    $expectedDataKeys = @(
+        'schema', 'phase', 'observedAt', 'lineage', 'targetProject',
+        'verifierDecision', 'approvalRatchet', 'captureSafety', 'git',
+        'tooling', 'artifacts', 'integrity')
+    if ($ExpectedPhase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+        $expectedDataKeys += 'gateDTrackedTransition'
+    }
     Assert-ExactMapKeys `
         -Map $Data `
-        -Keys @(
-            'schema', 'phase', 'observedAt', 'lineage', 'targetProject',
-            'verifierDecision', 'approvalRatchet', 'captureSafety', 'git',
-            'tooling', 'artifacts', 'integrity') `
+        -Keys $expectedDataKeys `
         -Owner $owner
     $integrity = Get-RequiredMapValue $Data integrity $owner
     if ($integrity -isnot [Collections.IDictionary]) {
@@ -4628,6 +5054,31 @@ function Assert-CheckpointManifestContract {
         -Expected $expectedTargetCommitBinding `
         -Observed $targetCommitBinding `
         -Owner "$owner recomputed target commit binding"
+    if ($ExpectedPhase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+        if ($ExpectedParentData -isnot [Collections.IDictionary]) {
+            throw "$owner requires Gate C parent data for transition evidence."
+        }
+        $parentGit = Get-RequiredMapValue `
+            $ExpectedParentData git "$owner Gate C parent"
+        if ($parentGit -isnot [Collections.IDictionary]) {
+            throw "$owner Gate C parent Git evidence is not an object."
+        }
+        $parentStart = Get-RequiredMapValue `
+            $parentGit start "$owner Gate C parent git"
+        if ($parentStart -isnot [Collections.IDictionary]) {
+            throw "$owner Gate C parent start snapshot is not an object."
+        }
+        $transition = Get-RequiredMapValue `
+            $Data gateDTrackedTransition $owner
+        if ($transition -isnot [Collections.IDictionary]) {
+            throw "$owner Gate D tracked transition is not an object."
+        }
+        Assert-GateDTransitionEvidence `
+            -Evidence $transition `
+            -PredecessorTargetWorktree $parentStart.targetWorktree `
+            -CurrentTargetWorktree $recordedGit.start.targetWorktree `
+            -Owner "$owner Gate D tracked transition"
+    }
     Assert-ToolingEvidenceContract `
         -Tooling $tooling `
         -RecordedGit $recordedGit `
@@ -4841,8 +5292,12 @@ function Get-ValidatedLineageEvidence {
         [Parameter(Mandatory = $true)][string]$StartHead
     )
 
+    if (-not $PhaseContracts.Contains($CurrentPhase)) {
+        throw "Lineage phase is unknown: $CurrentPhase"
+    }
     $contract = $PhaseContracts[$CurrentPhase]
-    if ([int]$contract.Sequence -eq 0) {
+    $currentSequence = [int]$contract.Sequence
+    if ($currentSequence -eq 0) {
         return [ordered]@{
             sequence = 0
             parent = $null
@@ -4850,164 +5305,146 @@ function Get-ValidatedLineageEvidence {
             validatedAncestorCount = 0
         }
     }
-    $gateAContract = $PhaseContracts.GateA_VendorImported
-    $gateAPath = "$EvidenceRelativeRoot/$($gateAContract.OutputFile)"
-    $gateAFile = $ReadFiles[$gateAPath]
-    if ($null -eq $gateAFile) {
-        throw "Required Gate A checkpoint evidence is missing: $gateAPath"
-    }
-    $gateAIdentity = Get-CommittedPathIdentity `
-        -Root $Root `
-        -GitPath $GitPath `
-        -Path $gateAPath `
-        -StartHead $StartHead `
-        -RequireAsciiCanonical
-    if (([long]$gateAIdentity.physicalBytes -ne
-            [long]$gateAFile.Public.bytes) -or
-        ($gateAIdentity.physicalSha256 -cne $gateAFile.Public.sha256) -or
-        ($gateAIdentity.commitBlobPolicy -cne
-            $gateAFile.Public.commitBlobPolicy) -or
-        ($gateAIdentity.canonicalWorktreeBlobOid -cne
-            $gateAFile.Public.canonicalGitBlobOid)) {
-        throw 'Gate A parent manifest differs from its committed-path identity.'
-    }
-    $gateAParsed = ConvertFrom-StrictCheckpointJson `
-        -File $gateAFile `
-        -Owner 'Gate A parent manifest'
-    $gateAData = $gateAParsed.Data
+    $ancestors = [Collections.Generic.List[object]]::new()
+    for ($sequence = 0; $sequence -lt $currentSequence; $sequence++) {
+        $phaseMatches = @(
+            $PhaseContracts.GetEnumerator() |
+                Where-Object { [int]$_.Value.Sequence -eq $sequence })
+        if ($phaseMatches.Count -ne 1) {
+            throw "Lineage sequence $sequence does not map to one phase."
+        }
+        $phase = [string]$phaseMatches[0].Key
+        $phaseContract = $phaseMatches[0].Value
+        if ($sequence -eq 0) {
+            if (($phase -cne 'GateA_VendorImported') -or
+                ($null -ne $phaseContract.ParentPhase) -or
+                ($null -ne $phaseContract.ParentState) -or
+                ($null -ne $phaseContract.ParentFile)) {
+                throw 'Lineage sequence 0 is not the Gate A root contract.'
+            }
+        }
+        else {
+            $previous = $ancestors[$sequence - 1]
+            if (($phaseContract.ParentPhase -cne $previous.Phase) -or
+                ($phaseContract.ParentState -cne
+                    $previous.Contract.ExpectedState) -or
+                ($phaseContract.ParentFile -cne
+                    $previous.Contract.OutputFile)) {
+                throw "Lineage phase topology drifted at $phase."
+            }
+        }
 
-    $parentContract = $PhaseContracts[$contract.ParentPhase]
-    $parentPath = "$EvidenceRelativeRoot/$($parentContract.OutputFile)"
-    $parentFile = $ReadFiles[$parentPath]
-    if ($null -eq $parentFile) {
-        throw "Required parent checkpoint evidence is missing: $parentPath"
-    }
-    $parentIdentity = if ($parentPath -ceq $gateAPath) {
-        $gateAIdentity
-    }
-    else {
-        Get-CommittedPathIdentity `
+        $path = "$EvidenceRelativeRoot/$($phaseContract.OutputFile)"
+        $file = $ReadFiles[$path]
+        if ($null -eq $file) {
+            if ($sequence -eq 0) {
+                throw "Required Gate A checkpoint evidence is missing: $path"
+            }
+            if ($sequence -eq ($currentSequence - 1)) {
+                throw "Required parent checkpoint evidence is missing: $path"
+            }
+            throw "Required $phase ancestor checkpoint evidence is missing: $path"
+        }
+        $identity = Get-CommittedPathIdentity `
             -Root $Root `
             -GitPath $GitPath `
-            -Path $parentPath `
+            -Path $path `
             -StartHead $StartHead `
             -RequireAsciiCanonical
-    }
-    if (([long]$parentIdentity.physicalBytes -ne
-            [long]$parentFile.Public.bytes) -or
-        ($parentIdentity.physicalSha256 -cne $parentFile.Public.sha256) -or
-        ($parentIdentity.commitBlobPolicy -cne
-            $parentFile.Public.commitBlobPolicy) -or
-        ($parentIdentity.canonicalWorktreeBlobOid -cne
-            $parentFile.Public.canonicalGitBlobOid)) {
-        throw 'Parent manifest differs from its committed-path identity.'
-    }
-    $parentParsed = if ($contract.ParentPhase -ceq 'GateA_VendorImported') {
-        $gateAParsed
-    }
-    else {
-        ConvertFrom-StrictCheckpointJson `
-            -File $parentFile `
-            -Owner "$($contract.ParentPhase) parent manifest"
-    }
-    $parentData = if ($contract.ParentPhase -ceq 'GateA_VendorImported') {
-        $gateAData
-    }
-    else {
-        $parentParsed.Data
+        if (([long]$identity.physicalBytes -ne
+                [long]$file.Public.bytes) -or
+            ($identity.physicalSha256 -cne $file.Public.sha256) -or
+            ($identity.commitBlobPolicy -cne
+                $file.Public.commitBlobPolicy) -or
+            ($identity.canonicalWorktreeBlobOid -cne
+                $file.Public.canonicalGitBlobOid)) {
+            $identityOwner = if ($sequence -eq 0) {
+                'Gate A parent manifest'
+            }
+            elseif ($sequence -eq ($currentSequence - 1)) {
+                'Parent manifest'
+            }
+            else {
+                "$phase ancestor manifest"
+            }
+            throw "$identityOwner differs from its committed-path identity."
+        }
+        $parsed = ConvertFrom-StrictCheckpointJson `
+            -File $file `
+            -Owner "$phase lineage manifest"
+        $ancestors.Add([pscustomobject]@{
+                Sequence = $sequence
+                Phase = $phase
+                Contract = $phaseContract
+                Path = $path
+                File = $file
+                Identity = $identity
+                Parsed = $parsed
+                Data = $parsed.Data
+            })
     }
 
-    $parentAncestorFile = $gateAFile
-    $parentAncestorData = $gateAData
-    if ([int]$contract.Sequence -ge 3) {
-        if ([int]$contract.Sequence -ne 3) {
-            throw "Lineage validation is undefined for phase: $CurrentPhase"
+    $immediateParent = $ancestors[$currentSequence - 1]
+    if (($contract.ParentPhase -cne $immediateParent.Phase) -or
+        ($contract.ParentState -cne
+            $immediateParent.Contract.ExpectedState) -or
+        ($contract.ParentFile -cne $immediateParent.Contract.OutputFile)) {
+        throw "$CurrentPhase immediate-parent contract drifted."
+    }
+    $gateA = $ancestors[0]
+
+    # Validate every non-root predecessor from the immediate parent down to
+    # Gate B1. Each manifest is bound to the next child's capture HEAD; the
+    # immediate parent is bound to the current capture start HEAD.
+    for ($sequence = $currentSequence - 1; $sequence -ge 1; $sequence--) {
+        $entry = $ancestors[$sequence]
+        $entryParent = $ancestors[$sequence - 1]
+        $repositoryBindingHead = if ($sequence -eq
+            ($currentSequence - 1)) {
+            $StartHead
         }
-        $parentAncestorContract =
-            $PhaseContracts[[string]$parentContract.ParentPhase]
-        if (($null -eq $parentAncestorContract) -or
-            ([int]$parentAncestorContract.Sequence -ne 1) -or
-            ($parentAncestorContract.ParentPhase -cne
-                'GateA_VendorImported')) {
-            throw 'Gate C requires the Gate A -> Gate B1 -> Gate B2 lineage.'
+        else {
+            $childEntry = $ancestors[$sequence + 1]
+            $childGit = Get-RequiredMapValue `
+                $childEntry.Data git "$($childEntry.Phase) child manifest"
+            Get-RequiredMapValue `
+                $childGit head "$($childEntry.Phase) child manifest git"
         }
-        $parentAncestorPath =
-            "$EvidenceRelativeRoot/$($parentAncestorContract.OutputFile)"
-        $parentAncestorFile = $ReadFiles[$parentAncestorPath]
-        if ($null -eq $parentAncestorFile) {
-            throw (
-                'Required Gate B1 ancestor checkpoint evidence is missing: ' +
-                $parentAncestorPath)
-        }
-        $parentAncestorIdentity = Get-CommittedPathIdentity `
-            -Root $Root `
-            -GitPath $GitPath `
-            -Path $parentAncestorPath `
-            -StartHead $StartHead `
-            -RequireAsciiCanonical
-        if (([long]$parentAncestorIdentity.physicalBytes -ne
-                [long]$parentAncestorFile.Public.bytes) -or
-            ($parentAncestorIdentity.physicalSha256 -cne
-                $parentAncestorFile.Public.sha256) -or
-            ($parentAncestorIdentity.commitBlobPolicy -cne
-                $parentAncestorFile.Public.commitBlobPolicy) -or
-            ($parentAncestorIdentity.canonicalWorktreeBlobOid -cne
-                $parentAncestorFile.Public.canonicalGitBlobOid)) {
-            throw 'Gate B1 manifest differs from its committed-path identity.'
-        }
-        $parentAncestorParsed = ConvertFrom-StrictCheckpointJson `
-            -File $parentAncestorFile `
-            -Owner 'Gate B1 ancestor manifest'
-        $parentAncestorData = $parentAncestorParsed.Data
-        $parentGit = Get-RequiredMapValue $parentData git (
-            'Gate B2 parent manifest')
-        $parentCaptureHead = Get-RequiredMapValue $parentGit head (
-            'Gate B2 parent manifest git')
         Assert-GitObjectId `
-            -Value $parentCaptureHead `
-            -Owner 'Gate B2 capture HEAD'
+            -Value $repositoryBindingHead `
+            -Owner "$($entry.Phase) descendant binding HEAD"
         Assert-CheckpointManifestContract `
-            -Data $parentAncestorData `
-            -ExpectedPhase $parentContract.ParentPhase `
-            -ExpectedContract $parentAncestorContract `
-            -SealEvidence $parentAncestorParsed.Seal `
+            -Data $entry.Data `
+            -ExpectedPhase $entry.Phase `
+            -ExpectedContract $entry.Contract `
+            -SealEvidence $entry.Parsed.Seal `
             -RepositoryRoot $Root `
             -GitPath $GitPath `
-            -RepositoryBindingHead $parentCaptureHead `
-            -ExpectedParentFile $gateAFile `
-            -ExpectedParentData $gateAData `
-            -ExpectedRootFile $gateAFile
+            -RepositoryBindingHead $repositoryBindingHead `
+            -ExpectedParentFile $entryParent.File `
+            -ExpectedParentData $entryParent.Data `
+            -ExpectedRootFile $gateA.File
     }
 
-    $gateAArtifactBindingHead = $StartHead
-    if ($contract.ParentPhase -cne 'GateA_VendorImported') {
-        Assert-CheckpointManifestContract `
-            -Data $parentData `
-            -ExpectedPhase $contract.ParentPhase `
-            -ExpectedContract $parentContract `
-            -SealEvidence $parentParsed.Seal `
-            -RepositoryRoot $Root `
+    $gateAArtifactBindingHead = if ($currentSequence -eq 1) {
+        $StartHead
+    }
+    else {
+        Get-GateAArtifactBindingHeadForPhase `
+            -CurrentPhase $CurrentPhase `
+            -StartHead $StartHead `
+            -Root $Root `
             -GitPath $GitPath `
-            -RepositoryBindingHead $StartHead `
-            -ExpectedParentFile $parentAncestorFile `
-            -ExpectedParentData $parentAncestorData `
-            -ExpectedRootFile $gateAFile
-        $gateAArtifactBindingHead =
-            Get-GateAArtifactBindingHeadForPhase `
-                -CurrentPhase $CurrentPhase `
-                -StartHead $StartHead `
-                -Root $Root `
-                -GitPath $GitPath `
-                -ImmediateParentData $parentData
+            -ImmediateParentData $immediateParent.Data
     }
     Assert-GitObjectId `
         -Value $gateAArtifactBindingHead `
         -Owner 'Gate A artifact binding HEAD'
     Assert-CheckpointManifestContract `
-        -Data $gateAData `
+        -Data $gateA.Data `
         -ExpectedPhase 'GateA_VendorImported' `
-        -ExpectedContract $gateAContract `
-        -SealEvidence $gateAParsed.Seal `
+        -ExpectedContract $gateA.Contract `
+        -SealEvidence $gateA.Parsed.Seal `
         -RepositoryRoot $Root `
         -GitPath $GitPath `
         -RepositoryBindingHead $gateAArtifactBindingHead `
@@ -5015,41 +5452,45 @@ function Get-ValidatedLineageEvidence {
         -ExpectedParentData $null `
         -ExpectedRootFile $null
 
-    $parentGit = Get-RequiredMapValue $parentData git 'parent manifest'
-    $parentTooling = Get-RequiredMapValue $parentData tooling 'parent manifest'
+    $parentGit = Get-RequiredMapValue `
+        $immediateParent.Data git 'parent manifest'
+    $parentTooling = Get-RequiredMapValue `
+        $immediateParent.Data tooling 'parent manifest'
     $parentPin = Get-RequiredMapValue $parentTooling verifierCanonicalPin (
         'parent manifest tooling')
     return [ordered]@{
-        sequence = [int]$contract.Sequence
+        sequence = $currentSequence
         parent = [ordered]@{
-            path = $parentPath
-            bytes = $parentFile.Public.bytes
-            sha256 = $parentFile.Public.sha256
-            commitBlobPolicy = $parentFile.Public.commitBlobPolicy
-            canonicalGitBlobOid = $parentFile.Public.canonicalGitBlobOid
+            path = $immediateParent.Path
+            bytes = $immediateParent.File.Public.bytes
+            sha256 = $immediateParent.File.Public.sha256
+            commitBlobPolicy =
+                $immediateParent.File.Public.commitBlobPolicy
+            canonicalGitBlobOid =
+                $immediateParent.File.Public.canonicalGitBlobOid
             schema = 'LasalUdpCallbackGateBCheckpoint/v2'
             phase = $contract.ParentPhase
             state = $contract.ParentState
-            observedAt = Get-RequiredMapValue $parentData observedAt (
+            observedAt = Get-RequiredMapValue $immediateParent.Data observedAt (
                 'parent manifest')
             gitHead = Get-RequiredMapValue $parentGit head 'parent manifest git'
             verifierCanonicalLfSha256 = Get-RequiredMapValue `
                 $parentPin canonicalLfSha256 'parent verifier pin'
             artifactBindingHead = $StartHead
             manifestCommittedAtChildStartHead = $StartHead
-            manifestCommittedBlobOid = $parentIdentity.headBlobOid
+            manifestCommittedBlobOid = $immediateParent.Identity.headBlobOid
         }
         rootGateA = [ordered]@{
-            path = $gateAPath
-            bytes = $gateAFile.Public.bytes
-            sha256 = $gateAFile.Public.sha256
-            commitBlobPolicy = $gateAFile.Public.commitBlobPolicy
-            canonicalGitBlobOid = $gateAFile.Public.canonicalGitBlobOid
+            path = $gateA.Path
+            bytes = $gateA.File.Public.bytes
+            sha256 = $gateA.File.Public.sha256
+            commitBlobPolicy = $gateA.File.Public.commitBlobPolicy
+            canonicalGitBlobOid = $gateA.File.Public.canonicalGitBlobOid
             artifactBindingHead = $gateAArtifactBindingHead
             manifestCommittedAtChildStartHead = $StartHead
-            manifestCommittedBlobOid = $gateAIdentity.headBlobOid
+            manifestCommittedBlobOid = $gateA.Identity.headBlobOid
         }
-        validatedAncestorCount = [int]$contract.Sequence
+        validatedAncestorCount = $currentSequence
     }
 }
 
@@ -5651,6 +6092,14 @@ function Get-CurrentDecisionFromVerifierOutput {
         'lcp=(?<LcpBytes>\d+)/(?<LcpSha>[A-F0-9]{64}); ' +
         'Includes=(?<Includes>.*?); ' +
         'TCP=(?<TcpSha>[A-F0-9]{64}); ' +
+        '(?:Sender=(?<SenderRawBytes>\d+)/' +
+        '(?<SenderRawSha>[A-F0-9]{64}),' +
+        '(?<SenderCanonicalBytes>\d+)/' +
+        '(?<SenderCanonicalSha>[A-F0-9]{64}); )?' +
+        '(?:Diagnostics=(?<DiagnosticsRawBytes>\d+)/' +
+        '(?<DiagnosticsRawSha>[A-F0-9]{64}),' +
+        '(?<DiagnosticsCanonicalBytes>\d+)/' +
+        '(?<DiagnosticsCanonicalSha>[A-F0-9]{64}); )?' +
         'Network=(?<NetworkCount>\d+)/(?<NetworkSha>[A-F0-9]{64}),' +
         'tracked=(?<TrackedNetworkCount>\d+)/' +
         '(?<TrackedNetworkSha>[A-F0-9]{64}); ' +
@@ -5675,47 +6124,79 @@ function Get-CurrentDecisionFromVerifierOutput {
             'Verifier decision does not match the requested phase ratchet: ' +
             $lines[0])
     }
+    $isGateD = $ExpectedState -ceq 'TerminalWakeBrokerCandidate'
+    $hasSender = $match.Groups['SenderRawBytes'].Success
+    if ($isGateD -and (-not $hasSender)) {
+        throw 'Gate D verifier current-state line lacks Sender identity.'
+    }
+    if ((-not $isGateD) -and $hasSender) {
+        throw 'Historical verifier current-state line contains Gate D Sender identity.'
+    }
+    $hasDiagnostics = $match.Groups['DiagnosticsRawBytes'].Success
+    if ($isGateD -and (-not $hasDiagnostics)) {
+        throw 'Gate D verifier current-state line lacks Diagnostics identity.'
+    }
+    $structuredEvidence = [ordered]@{
+        vendor = @(
+            [ordered]@{
+                bytes = [long]$match.Groups['Vendor1Bytes'].Value
+                sha256 = $match.Groups['Vendor1Sha'].Value
+            },
+            [ordered]@{
+                bytes = [long]$match.Groups['Vendor2Bytes'].Value
+                sha256 = $match.Groups['Vendor2Sha'].Value
+            })
+        classes = [ordered]@{
+            bytes = [long]$match.Groups['ClassesBytes'].Value
+            sha256 = $match.Groups['ClassesSha'].Value
+        }
+        project = [ordered]@{
+            bytes = [long]$match.Groups['ProjectBytes'].Value
+            sha256 = $match.Groups['ProjectSha'].Value
+        }
+        projectDefinition = [ordered]@{
+            bytes = [long]$match.Groups['LcpBytes'].Value
+            sha256 = $match.Groups['LcpSha'].Value
+        }
+        generatedIncludes = ConvertFrom-NamedFileEvidenceList `
+            -Text $match.Groups['Includes'].Value `
+            -Owner 'verifier generated Includes'
+        tcpSha256 = $match.Groups['TcpSha'].Value
+    }
+    if ($isGateD) {
+        $structuredEvidence.sender = [ordered]@{
+            rawBytes = [long]$match.Groups['SenderRawBytes'].Value
+            rawSha256 = $match.Groups['SenderRawSha'].Value
+            canonicalLfBytes =
+                [long]$match.Groups['SenderCanonicalBytes'].Value
+            canonicalLfSha256 =
+                $match.Groups['SenderCanonicalSha'].Value
+        }
+        $structuredEvidence.diagnostics = [ordered]@{
+            rawBytes = [long]$match.Groups['DiagnosticsRawBytes'].Value
+            rawSha256 = $match.Groups['DiagnosticsRawSha'].Value
+            canonicalLfBytes =
+                [long]$match.Groups['DiagnosticsCanonicalBytes'].Value
+            canonicalLfSha256 =
+                $match.Groups['DiagnosticsCanonicalSha'].Value
+        }
+    }
+    $structuredEvidence.network = [ordered]@{
+        fullCount = [int]$match.Groups['NetworkCount'].Value
+        fullSha256 = $match.Groups['NetworkSha'].Value
+        trackedCount = [int]$match.Groups['TrackedNetworkCount'].Value
+        trackedSha256 = $match.Groups['TrackedNetworkSha'].Value
+    }
+    $structuredEvidence.protectedDependencies =
+        ConvertFrom-NamedFileEvidenceList `
+            -Text $match.Groups['Protected'].Value `
+            -Owner 'verifier protected dependencies'
     return [ordered]@{
         authoritativeLine = $lines[0]
         state = $state
         productionApproved = $approved
         needsRebaseline = $needsRebaseline
-        structuredEvidence = [ordered]@{
-            vendor = @(
-                [ordered]@{
-                    bytes = [long]$match.Groups['Vendor1Bytes'].Value
-                    sha256 = $match.Groups['Vendor1Sha'].Value
-                },
-                [ordered]@{
-                    bytes = [long]$match.Groups['Vendor2Bytes'].Value
-                    sha256 = $match.Groups['Vendor2Sha'].Value
-                })
-            classes = [ordered]@{
-                bytes = [long]$match.Groups['ClassesBytes'].Value
-                sha256 = $match.Groups['ClassesSha'].Value
-            }
-            project = [ordered]@{
-                bytes = [long]$match.Groups['ProjectBytes'].Value
-                sha256 = $match.Groups['ProjectSha'].Value
-            }
-            projectDefinition = [ordered]@{
-                bytes = [long]$match.Groups['LcpBytes'].Value
-                sha256 = $match.Groups['LcpSha'].Value
-            }
-            generatedIncludes = ConvertFrom-NamedFileEvidenceList `
-                -Text $match.Groups['Includes'].Value `
-                -Owner 'verifier generated Includes'
-            tcpSha256 = $match.Groups['TcpSha'].Value
-            network = [ordered]@{
-                fullCount = [int]$match.Groups['NetworkCount'].Value
-                fullSha256 = $match.Groups['NetworkSha'].Value
-                trackedCount = [int]$match.Groups['TrackedNetworkCount'].Value
-                trackedSha256 = $match.Groups['TrackedNetworkSha'].Value
-            }
-            protectedDependencies = ConvertFrom-NamedFileEvidenceList `
-                -Text $match.Groups['Protected'].Value `
-                -Owner 'verifier protected dependencies'
-        }
+        structuredEvidence = $structuredEvidence
     }
 }
 
@@ -5791,6 +6272,8 @@ function Assert-VerifierEvidenceMatchesCapture {
         [Parameter(Mandatory = $true)][string]$ProjectDatabasePath,
         [Parameter(Mandatory = $true)][string]$ProjectDefinitionPath,
         [Parameter(Mandatory = $true)][string]$TcpPath,
+        [AllowNull()][Collections.IDictionary]$SenderArtifact,
+        [AllowNull()][Collections.IDictionary]$DiagnosticsArtifact,
         [Parameter(Mandatory = $true)]
         [Collections.IDictionary]$NetworkInventory,
         [Parameter(Mandatory = $true)]
@@ -5822,6 +6305,23 @@ function Assert-VerifierEvidenceMatchesCapture {
         -Owner 'project lcp'
     if ($evidence.tcpSha256 -cne $ReadFiles[$TcpPath].Public.sha256) {
         throw 'TCP verifier/capture raw SHA-256 differs.'
+    }
+    $isGateD = $Decision.state -ceq 'TerminalWakeBrokerCandidate'
+    if ($isGateD) {
+        if ($null -eq $SenderArtifact) {
+            throw 'Gate D Sender capture artifact is missing.'
+        }
+        Assert-DiagnosticsIdentityMatchesArtifact `
+            -Identity $evidence.sender `
+            -Artifact $SenderArtifact `
+            -Owner 'LMCUdpCallbackSender'
+        if ($null -eq $DiagnosticsArtifact) {
+            throw 'Gate D Diagnostics capture artifact is missing.'
+        }
+        Assert-DiagnosticsIdentityMatchesArtifact `
+            -Identity $evidence.diagnostics `
+            -Artifact $DiagnosticsArtifact `
+            -Owner 'LMCDiagnosticsService'
     }
 
     $includeExpectedNames = @($IncludeNameToPath.Keys | Sort-Object)
@@ -5869,7 +6369,7 @@ function Assert-VerifierEvidenceMatchesCapture {
             $verifierCompatibleNetwork.trackedSha256)) {
         throw 'Network verifier/capture inventory evidence differs.'
     }
-    return [ordered]@{
+    $result = [ordered]@{
         exactRawEvidenceCrossChecked = $true
         vendorCount = 2
         generatedIncludeCount = $includeObservedNames.Count
@@ -5879,6 +6379,11 @@ function Assert-VerifierEvidenceMatchesCapture {
             'Verifier structured stdout evidence was parsed and matched to ' +
             'the independently captured raw artifact hashes and inventories.')
     }
+    if ($isGateD) {
+        $result.senderIdentityCrossChecked = $true
+        $result.diagnosticsIdentityCrossChecked = $true
+    }
+    return $result
 }
 
 function Assert-VerifiedJsonFile {
@@ -6129,6 +6634,8 @@ function Invoke-SyntheticFullManifestContractSelfTest {
     $projectDatabasePath = "$TargetRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcb"
     $projectDefinitionPath = "$TargetRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcp"
     $tcpPath = "$TargetRelativeRoot/Class/TCPMotionInterface/TCPMotionInterface.st"
+    $diagnosticsPath =
+        "$TargetRelativeRoot/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
     $configObjectsPath = "$TargetRelativeRoot/Network/ConfigObjects.st"
     $networksDatabasePath = "$TargetRelativeRoot/Network/Networks.lcb"
     $commNetworkPath =
@@ -6159,7 +6666,7 @@ function Invoke-SyntheticFullManifestContractSelfTest {
         $commTablePath)
     $criticalArtifactPaths = @(
         @($fixedArtifactPaths) + @($vendorPaths) + @($protectedPaths) +
-        @($includePaths))
+        @($includePaths) + $diagnosticsPath)
     $toolPaths = @($capturePath, $VerifierRelativePath)
 
     foreach ($setup in @(
@@ -6170,6 +6677,7 @@ function Invoke-SyntheticFullManifestContractSelfTest {
         $null = & $invokeGit $setup 'synthetic full-manifest Git setup'
     }
     & $writeAscii '.gitignore' "*.lba`n*.ldi`n*.lob`n"
+    & $writeAscii '.gitattributes' "*.st text eol=lf`n"
     & $writeAscii $capturePath "Write-Output 'synthetic capture'`n"
     & $writeAscii $VerifierRelativePath "Write-Output 'synthetic verifier'`n"
     $ordinal = 0
@@ -7059,6 +7567,12 @@ function Invoke-SyntheticFullManifestContractSelfTest {
     $gateCManifest.tooling = $gateCTooling
     $gateCManifest.artifacts = $b2Artifacts
     $gateCSealed = ConvertTo-SealedManifestBytes -Manifest $gateCManifest
+    $gateCManifestPath =
+        "$EvidenceRelativeRoot/$($PhaseContracts.GateC_DerivedCandidate.OutputFile)"
+    $gateCManifestFullPath = Join-Path `
+        $repositoryRoot `
+        $gateCManifestPath.Replace('/', '\')
+    [IO.File]::WriteAllBytes($gateCManifestFullPath, $gateCSealed.Bytes)
     $gateCManifestFile = [pscustomobject]@{
         RawBytes = $gateCSealed.Bytes
         Public = [ordered]@{
@@ -7070,7 +7584,8 @@ function Invoke-SyntheticFullManifestContractSelfTest {
         -Owner 'synthetic production-sized Gate C manifest'
     & $writeAscii 'binding/gate-c.txt' "Gate C binding marker`n"
     $null = & $invokeGit `
-        @('-C', $repositoryRoot, 'add', '--', 'binding/gate-c.txt') `
+        @('-C', $repositoryRoot, 'add', '--', $gateCManifestPath,
+            'binding/gate-c.txt') `
         'synthetic Gate C binding add'
     $null = & $invokeGit `
         @('-C', $repositoryRoot, 'commit', '--quiet', '-m', 'bind-gate-c') `
@@ -7101,6 +7616,914 @@ function Invoke-SyntheticFullManifestContractSelfTest {
         $script:ExpectedVerifierCanonicalLfSha256 = $savedLineageExpectedSha256
     }
     $positive++
+
+    $gateDOriginalReadFiles =
+        [Collections.Generic.Dictionary[string, object]]::new(
+            [StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in $GateDExpectedTrackedTransitionPaths) {
+        $gateDOriginalReadFiles.Add($path, $readFiles[$path])
+    }
+    $gateDMutationOrdinal = 0
+    foreach ($path in $GateDExpectedTrackedTransitionPaths) {
+        $gateDMutationOrdinal++
+        $gateDMutationText =
+            "synthetic Gate D changed artifact $gateDMutationOrdinal`n"
+        if ($path -ceq $derivedPath) {
+            $gateDMutationText = $gateDMutationText.Replace("`n", "`r`n")
+        }
+        & $writeAscii `
+            $path `
+            $gateDMutationText
+    }
+    $gateDGatedPathspec = @(
+        $TargetRelativeRoot,
+        $VerifierRelativePath,
+        $capturePath,
+        $gateAManifestPath,
+        $b1ManifestPath,
+        $b2ManifestPath,
+        $gateCManifestPath |
+            Sort-Object -Unique)
+    $gateDSnapshot = Get-GitStateSnapshot `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -GatedPathspec $gateDGatedPathspec
+    $gateDTrackedSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]@($gateDSnapshot.trackedPaths),
+        [StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in $GateDExpectedTrackedTransitionPaths) {
+        $readFiles[$path] = Read-SingleFileEvidence `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -RelativePath $path `
+            -TrackedPaths $gateDTrackedSet
+    }
+    $gateDNetworkInventory = Get-InventoryEvidence `
+        -TrackedPaths $networkTrackedPaths `
+        -AvailablePaths $networkAvailablePaths `
+        -ReadFiles $readFiles `
+        -Owner 'synthetic Gate D full Network'
+    $readFiles[$gateCManifestPath] = Read-SingleFileEvidence `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -RelativePath $gateCManifestPath `
+        -TrackedPaths $gateDTrackedSet
+    $savedLineageExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+    $savedLineageExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
+    try {
+        $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+        $gateDLineage = Get-ValidatedLineageEvidence `
+            -CurrentPhase 'GateD_TerminalWakeBrokerCandidate' `
+            -ReadFiles $readFiles `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -StartHead $gateDSnapshot.head
+    }
+    finally {
+        $script:ExpectedVerifierCanonicalLfBytes = $savedLineageExpectedBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $savedLineageExpectedSha256
+    }
+    if (($gateDLineage.sequence -ne 4) -or
+        ($gateDLineage.validatedAncestorCount -ne 4) -or
+        ($gateDLineage.parent.phase -cne 'GateC_DerivedCandidate') -or
+        ($gateDLineage.parent.state -cne 'DerivedCandidate') -or
+        ($gateDLineage.parent.path -cne $gateCManifestPath) -or
+        ($gateDLineage.parent.artifactBindingHead -cne
+            $gateDSnapshot.head) -or
+        ($gateDLineage.rootGateA.path -cne $gateAManifestPath) -or
+        ($gateDLineage.rootGateA.artifactBindingHead -cne $b1Snapshot.head)) {
+        throw 'Synthetic Gate D sequence-4 lineage evidence drifted.'
+    }
+    $positive++
+
+    $gateDTrackedTransition = New-GateDTransitionEvidence `
+        -PredecessorTargetWorktree $gateCManifest.git.start.targetWorktree `
+        -CurrentTargetWorktree $gateDSnapshot.targetWorktree
+    Assert-GateDTransitionEvidence `
+        -Evidence $gateDTrackedTransition `
+        -PredecessorTargetWorktree $gateCManifest.git.start.targetWorktree `
+        -CurrentTargetWorktree $gateDSnapshot.targetWorktree `
+        -Owner 'synthetic Gate D tracked transition'
+    $positive++
+
+    $missingTransitionCurrent = $gateDSnapshot.targetWorktree |
+        ConvertTo-Json -Depth 30 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 30 `
+            -DateKind String `
+            -NoEnumerate
+    $missingTransitionPath = $GateDExpectedTrackedTransitionPaths[0]
+    $missingCurrentRecord = @(
+        $missingTransitionCurrent.files | Where-Object {
+            $_.path -ceq $missingTransitionPath
+        })[0]
+    $missingParentRecord = @(
+        $gateCManifest.git.start.targetWorktree.files | Where-Object {
+            $_.path -ceq $missingTransitionPath
+        })[0]
+    $missingCurrentRecord.canonicalGitBlobOid =
+        $missingParentRecord.canonicalGitBlobOid
+    try {
+        $null = New-GateDTransitionEvidence `
+            -PredecessorTargetWorktree $gateCManifest.git.start.targetWorktree `
+            -CurrentTargetWorktree $missingTransitionCurrent
+        throw 'Synthetic Gate D transition missing one required path was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D transition missing one required path was accepted.') {
+            throw
+        }
+        if (-not $_.Exception.Message.StartsWith(
+                'Gate D tracked target changed-set is not the exact seven-path ',
+                [StringComparison]::Ordinal)) {
+            throw
+        }
+        $negative++
+    }
+
+    $extraTransitionCurrent = $gateDSnapshot.targetWorktree |
+        ConvertTo-Json -Depth 30 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 30 `
+            -DateKind String `
+            -NoEnumerate
+    $extraCurrentRecord = @(
+        $extraTransitionCurrent.files | Where-Object {
+            $_.path -ceq $nonArtifactTrackedPath
+        })[0]
+    $extraCurrentRecord.canonicalGitBlobOid = (('F' * 40) -join '')
+    try {
+        $null = New-GateDTransitionEvidence `
+            -PredecessorTargetWorktree $gateCManifest.git.start.targetWorktree `
+            -CurrentTargetWorktree $extraTransitionCurrent
+        throw 'Synthetic Gate D transition with an eighth path was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D transition with an eighth path was accepted.') {
+            throw
+        }
+        if (-not $_.Exception.Message.StartsWith(
+                'Gate D tracked target changed-set is not the exact seven-path ',
+                [StringComparison]::Ordinal)) {
+            throw
+        }
+        $negative++
+    }
+
+    $senderArtifact = New-CanonicalAsciiArtifactEvidence `
+        -File $readFiles[$derivedPath] `
+        -Owner 'synthetic Gate D Sender source'
+    $diagnosticsArtifact = New-CanonicalAsciiArtifactEvidence `
+        -File $readFiles[$diagnosticsPath] `
+        -Owner 'synthetic Gate D Diagnostics source'
+    $gateDArtifacts = [ordered]@{
+        classesDatabase = $readFiles[$classesPath].Public
+        projectDatabase = $b2Artifacts.projectDatabase
+        projectDefinition = $b2Artifacts.projectDefinition
+        generatedIncludes = $b2Artifacts.generatedIncludes
+        vendorSources = @(
+            $readFiles[$vendorPaths[0]].Public,
+            $b2Artifacts.vendorSources[1])
+        protectedDependencies = $b2Artifacts.protectedDependencies
+        tcpMotionInterface = $readFiles[$tcpPath].Public
+        diagnosticsService = $diagnosticsArtifact
+        derivedSender = $senderArtifact
+        configObjects = $b2Artifacts.configObjects
+        networksDatabase = $readFiles[$networksDatabasePath].Public
+        commNetwork = $readFiles[$commNetworkPath].Public
+        commNetworkTable = $b2Artifacts.commNetworkTable
+        fullNetwork = $gateDNetworkInventory
+    }
+    $gateDVendor = @($gateDArtifacts.vendorSources)
+    $gateDVerifierNetwork = Get-VerifierCompatibleNetworkProjection `
+        -Inventory $gateDNetworkInventory
+    $senderToken =
+        "Sender=$($senderArtifact.bytes)/$($senderArtifact.sha256)," +
+        "$($senderArtifact.canonicalLfBytes)/" +
+        "$($senderArtifact.canonicalLfSha256); "
+    $diagnosticsToken =
+        "Diagnostics=$($diagnosticsArtifact.bytes)/" +
+        "$($diagnosticsArtifact.sha256)," +
+        "$($diagnosticsArtifact.canonicalLfBytes)/" +
+        "$($diagnosticsArtifact.canonicalLfSha256); "
+    $gateDAuthoritativeLine =
+        'CAPTURE LASAL.UdpCallbackContract.Current ' +
+        '(state=TerminalWakeBrokerCandidate; IDEClosed=true; ' +
+        'productionApproved=False; needsRebaseline=True; ' +
+        "vendor=$($gateDVendor[0].bytes)/$($gateDVendor[0].sha256)," +
+        "$($gateDVendor[1].bytes)/$($gateDVendor[1].sha256); " +
+        "Classes=$($gateDArtifacts.classesDatabase.bytes)/" +
+        "$($gateDArtifacts.classesDatabase.sha256); " +
+        "project=$($gateDArtifacts.projectDatabase.bytes)/" +
+        "$($gateDArtifacts.projectDatabase.sha256); " +
+        "lcp=$($gateDArtifacts.projectDefinition.bytes)/" +
+        "$($gateDArtifacts.projectDefinition.sha256); " +
+        "Includes=$includeEvidenceText; " +
+        "TCP=$($gateDArtifacts.tcpMotionInterface.sha256); " +
+        $senderToken +
+        $diagnosticsToken +
+        "Network=$($gateDVerifierNetwork.fullCount)/" +
+        "$($gateDVerifierNetwork.fullSha256)," +
+        "tracked=$($gateDVerifierNetwork.trackedCount)/" +
+        "$($gateDVerifierNetwork.trackedSha256); " +
+        "protected=$protectedEvidenceText)"
+    $gateDDecision = Get-CurrentDecisionFromVerifierOutput `
+        -Output $gateDAuthoritativeLine `
+        -ExpectedState 'TerminalWakeBrokerCandidate' `
+        -ExpectedProductionApproved $false `
+        -ExpectedNeedsRebaseline $true
+    Assert-ArtifactEvidenceContract `
+        -Artifacts $gateDArtifacts `
+        -Decision $gateDDecision `
+        -TargetWorktree $gateDSnapshot.targetWorktree `
+        -ExpectedState 'TerminalWakeBrokerCandidate' `
+        -Owner 'synthetic Gate D producer'
+    $includeNameToPath = [ordered]@{
+        'C_channels.h' = $includePaths[0]
+        'channels.h' = $includePaths[1]
+        'lslpublictypes.h' = $includePaths[2]
+    }
+    $protectedNameToPath = [ordered]@{
+        '_StdLib' = $protectedPaths[0]
+        'CriticalSection' = $protectedPaths[1]
+        'lsl_st_tcp_user.h' = $protectedPaths[2]
+    }
+    $gateDCrossCheck = Assert-VerifierEvidenceMatchesCapture `
+        -Decision $gateDDecision `
+        -ReadFiles $readFiles `
+        -VendorPaths $vendorPaths `
+        -ClassesPath $classesPath `
+        -ProjectDatabasePath $projectDatabasePath `
+        -ProjectDefinitionPath $projectDefinitionPath `
+        -TcpPath $tcpPath `
+        -SenderArtifact $senderArtifact `
+        -DiagnosticsArtifact $diagnosticsArtifact `
+        -NetworkInventory $gateDNetworkInventory `
+        -IncludeNameToPath $includeNameToPath `
+        -ProtectedNameToPath $protectedNameToPath
+    if ((-not [bool]$gateDCrossCheck.senderIdentityCrossChecked) -or
+        (-not [bool]$gateDCrossCheck.diagnosticsIdentityCrossChecked) -or
+        ([long]$gateDDecision.structuredEvidence.sender.rawBytes -ne
+            [long]$senderArtifact.bytes) -or
+        ($gateDDecision.structuredEvidence.sender.canonicalLfSha256 -cne
+            $senderArtifact.canonicalLfSha256) -or
+        ([long]$gateDDecision.structuredEvidence.diagnostics.rawBytes -ne
+            [long]$diagnosticsArtifact.bytes) -or
+        ($gateDDecision.structuredEvidence.diagnostics.canonicalLfSha256 -cne
+            $diagnosticsArtifact.canonicalLfSha256)) {
+        throw 'Synthetic Gate D Diagnostics identity did not cross-check.'
+    }
+    $positive++
+
+    $gateDPolicy = New-TargetCommitBindingPolicy `
+        -Phase 'GateD_TerminalWakeBrokerCandidate' `
+        -TargetWorktree $gateDSnapshot.targetWorktree `
+        -Artifacts $gateDArtifacts
+    $gateDBindingHead = $null
+    try {
+        $gateDAddArguments =
+            @('-C', $repositoryRoot, 'add', '--') +
+            @($GateDExpectedTrackedTransitionPaths)
+        $null = & $invokeGit `
+            $gateDAddArguments `
+            'synthetic Gate D normalized binding add'
+        $gateDTreeResult = & $invokeGit `
+            @('-C', $repositoryRoot, 'write-tree') `
+            'synthetic Gate D binding tree'
+        $gateDCommitResult = & $invokeGit `
+            @(
+                '-C', $repositoryRoot, 'commit-tree',
+                $gateDTreeResult.Stdout.Trim(),
+                '-p', $gateDSnapshot.head,
+                '-m', 'synthetic Gate D normalized binding') `
+            'synthetic Gate D detached binding commit'
+        $gateDBindingHead =
+            $gateDCommitResult.Stdout.Trim().ToUpperInvariant()
+    }
+    finally {
+        $null = & $invokeGit `
+            @('-C', $repositoryRoot, 'read-tree', 'HEAD') `
+            'synthetic Gate D binding index restore'
+    }
+    $gateDCommittedSender = Get-GitBlobEvidence `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -Commit $gateDBindingHead `
+        -Path $derivedPath `
+        -Owner 'synthetic Gate D committed Sender'
+    $gateDCommittedSenderTraits = Get-RawTextTraits `
+        -Bytes $gateDCommittedSender.rawBytes
+    $gateDCommittedSenderCanonical = $Utf8NoBom.GetBytes(
+        ([Text.Encoding]::ASCII.GetString(
+            $gateDCommittedSender.rawBytes)).Replace("`r`n", "`n").Replace(
+            "`r", "`n"))
+    $gateDCurrentSenderRecord = @(
+        $gateDSnapshot.targetWorktree.files | Where-Object {
+            $_.path -ceq $derivedPath
+        })[0]
+    if (($readFiles[$derivedPath].Public.text.eolStyle -cne 'CRLF') -or
+        ($gateDCommittedSenderTraits.eolStyle -cne 'LF') -or
+        ($senderArtifact.sha256 -ceq
+            (Get-BytesSha256 -Bytes $gateDCommittedSender.rawBytes)) -or
+        ($gateDCommittedSenderCanonical.Length -ne
+            [long]$senderArtifact.canonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $gateDCommittedSenderCanonical) -cne
+            $senderArtifact.canonicalLfSha256) -or
+        ($gateDCommittedSender.blobOid -cne
+            $gateDCurrentSenderRecord.canonicalGitBlobOid)) {
+        throw (
+            'Synthetic Gate D Sender CRLF capture did not bind to the ' +
+            'normalized LF commit identity.')
+    }
+    Assert-TargetInventoryBoundToCommit `
+        -TargetWorktree $gateDSnapshot.targetWorktree `
+        -Policy $gateDPolicy `
+        -ExpectedPhase 'GateD_TerminalWakeBrokerCandidate' `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -Commit $gateDBindingHead `
+        -Owner 'synthetic Gate D normalized binding'
+    Assert-ArtifactFilesBoundToCommit `
+        -Artifacts $gateDArtifacts `
+        -Policy $gateDPolicy `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -Commit $gateDBindingHead `
+        -Owner 'synthetic Gate D normalized binding'
+    $positive++
+
+    $gateDToolTrust = Get-ToolTrustEvidence `
+        -Root $repositoryRoot `
+        -GitPath 'git' `
+        -ToolPaths $toolPaths `
+        -StartHead $gateDSnapshot.head
+    $gateDTooling = $gateCTooling | ConvertTo-Json -Depth 50 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
+    $gateDTooling.trust = $gateDToolTrust
+    $gateDTooling.verifierCurrent.stdout = $gateDAuthoritativeLine
+    $gateDTooling.verifierCrossCheck = $gateDCrossCheck
+    $gateDManifest = $gateCManifest | ConvertTo-Json -Depth 50 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
+    $null = $gateDManifest.Remove('integrity')
+    $gateDManifest.phase = 'GateD_TerminalWakeBrokerCandidate'
+    $gateDManifest.observedAt = '2026-08-08T00:04:00.0000000+09:00'
+    $gateDManifest.lineage = $gateDLineage
+    $gateDManifest.verifierDecision = $gateDDecision
+    $gateDManifest.approvalRatchet = [ordered]@{
+        productionApproved = $false
+        needsRebaseline = $true
+        note = 'Synthetic Gate D capture.'
+    }
+    $gateDManifest.captureSafety.outputFile =
+        $PhaseContracts.GateD_TerminalWakeBrokerCandidate.OutputFile
+    $gateDManifest.captureSafety.derivedSenderExpectedPresent = $true
+    $gateDTrackedPaths = @($gateDSnapshot.trackedPaths)
+    $gateDManifest.git = [ordered]@{
+        head = $gateDSnapshot.head
+        gatedPathspec = $gateDGatedPathspec
+        start = $gateDSnapshot
+        prePublish = $gateDSnapshot
+        finalCommitGuard = $gateDSnapshot
+        stageGuardRevalidationRequired = $true
+        fullRepositoryTrackedPathCount = $gateDTrackedPaths.Count
+        fullRepositoryTrackedPathInventorySha256 = Get-TextSha256 -Text (
+            [string]::Join("`n", $gateDTrackedPaths))
+        fullRepositoryTrackedPaths = $gateDTrackedPaths
+        targetCommitBinding = $gateDPolicy
+    }
+    $gateDManifest.tooling = $gateDTooling
+    $gateDManifest.artifacts = $gateDArtifacts
+    $gateDManifest.gateDTrackedTransition = $gateDTrackedTransition
+    $gateDSealed = ConvertTo-SealedManifestBytes -Manifest $gateDManifest
+    $gateDParsed = ConvertFrom-StrictCheckpointJson `
+        -File ([pscustomobject]@{
+            RawBytes = $gateDSealed.Bytes
+            Public = [ordered]@{
+                text = Get-RawTextTraits -Bytes $gateDSealed.Bytes
+            }
+        }) `
+        -Owner 'synthetic production-sized Gate D manifest'
+    $savedLineageExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+    $savedLineageExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
+    $savedGateDPinFrozen = $script:GateDCurrentVerifierPinFrozen
+    $savedGateDPinBytes = $script:GateDExpectedVerifierCanonicalLfBytes
+    $savedGateDPinSha256 = $script:GateDExpectedVerifierCanonicalLfSha256
+    try {
+        $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+        $script:GateDCurrentVerifierPinFrozen = $true
+        $script:GateDExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+        $script:GateDExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+        Assert-CheckpointManifestContract `
+            -Data $gateDParsed.Data `
+            -ExpectedPhase 'GateD_TerminalWakeBrokerCandidate' `
+            -ExpectedContract $PhaseContracts.GateD_TerminalWakeBrokerCandidate `
+            -SealEvidence $gateDParsed.Seal `
+            -RepositoryRoot $repositoryRoot `
+            -GitPath 'git' `
+            -RepositoryBindingHead $gateDBindingHead `
+            -ExpectedParentFile $readFiles[$gateCManifestPath] `
+            -ExpectedParentData $gateCParsed.Data `
+            -ExpectedRootFile $readFiles[$gateAManifestPath]
+    }
+    finally {
+        $script:ExpectedVerifierCanonicalLfBytes = $savedLineageExpectedBytes
+        $script:ExpectedVerifierCanonicalLfSha256 = $savedLineageExpectedSha256
+        $script:GateDCurrentVerifierPinFrozen = $savedGateDPinFrozen
+        $script:GateDExpectedVerifierCanonicalLfBytes = $savedGateDPinBytes
+        $script:GateDExpectedVerifierCanonicalLfSha256 = $savedGateDPinSha256
+    }
+    $positive++
+
+    $gateDWithoutSender = $gateDAuthoritativeLine.Replace($senderToken, '')
+    try {
+        $null = Get-CurrentDecisionFromVerifierOutput `
+            -Output $gateDWithoutSender `
+            -ExpectedState 'TerminalWakeBrokerCandidate' `
+            -ExpectedProductionApproved $false `
+            -ExpectedNeedsRebaseline $true
+        throw 'Synthetic Gate D output without Sender was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D output without Sender was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    $gateDWithoutDiagnostics =
+        $gateDAuthoritativeLine.Replace($diagnosticsToken, '')
+    try {
+        $null = Get-CurrentDecisionFromVerifierOutput `
+            -Output $gateDWithoutDiagnostics `
+            -ExpectedState 'TerminalWakeBrokerCandidate' `
+            -ExpectedProductionApproved $false `
+            -ExpectedNeedsRebaseline $true
+        throw 'Synthetic Gate D output without Diagnostics was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D output without Diagnostics was accepted.') {
+            throw
+        }
+        $negative++
+    }
+    foreach ($senderForgery in @(
+            [ordered]@{
+                label = 'raw'
+                token =
+                    "Sender=$($senderArtifact.bytes)/" +
+                    "$(('F' * 64) -join '')," +
+                    "$($senderArtifact.canonicalLfBytes)/" +
+                    "$($senderArtifact.canonicalLfSha256); "
+            },
+            [ordered]@{
+                label = 'canonical'
+                token =
+                    "Sender=$($senderArtifact.bytes)/$($senderArtifact.sha256)," +
+                    "$($senderArtifact.canonicalLfBytes)/" +
+                    "$(('F' * 64) -join ''); "
+            })) {
+        $forgedSenderLine = $gateDAuthoritativeLine.Replace(
+            $senderToken,
+            $senderForgery.token)
+        $forgedSenderDecision = Get-CurrentDecisionFromVerifierOutput `
+            -Output $forgedSenderLine `
+            -ExpectedState 'TerminalWakeBrokerCandidate' `
+            -ExpectedProductionApproved $false `
+            -ExpectedNeedsRebaseline $true
+        try {
+            $null = Assert-VerifierEvidenceMatchesCapture `
+                -Decision $forgedSenderDecision `
+                -ReadFiles $readFiles `
+                -VendorPaths $vendorPaths `
+                -ClassesPath $classesPath `
+                -ProjectDatabasePath $projectDatabasePath `
+                -ProjectDefinitionPath $projectDefinitionPath `
+                -TcpPath $tcpPath `
+                -SenderArtifact $senderArtifact `
+                -DiagnosticsArtifact $diagnosticsArtifact `
+                -NetworkInventory $gateDNetworkInventory `
+                -IncludeNameToPath $includeNameToPath `
+                -ProtectedNameToPath $protectedNameToPath
+            throw (
+                "Synthetic forged Gate D Sender $($senderForgery.label) " +
+                'identity was accepted.')
+        }
+        catch {
+            $acceptedForgery =
+                "Synthetic forged Gate D Sender $($senderForgery.label) " +
+                'identity was accepted.'
+            if ($_.Exception.Message -ceq $acceptedForgery) {
+                throw
+            }
+            $negative++
+        }
+    }
+    $forgedDiagnosticsArtifact = $diagnosticsArtifact |
+        ConvertTo-Json -Depth 20 |
+        ConvertFrom-Json -AsHashtable -Depth 20 -DateKind String -NoEnumerate
+    $forgedDiagnosticsArtifact.canonicalLfSha256 = 'F' * 64
+    try {
+        Assert-DiagnosticsIdentityMatchesArtifact `
+            -Identity $gateDDecision.structuredEvidence.diagnostics `
+            -Artifact $forgedDiagnosticsArtifact `
+            -Owner 'synthetic forged Gate D Diagnostics'
+        throw 'Synthetic forged Gate D Diagnostics identity was accepted.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic forged Gate D Diagnostics identity was accepted.') {
+            throw
+        }
+        $negative++
+    }
+
+    foreach ($historicalCase in @(
+            [ordered]@{
+                state = 'VendorImported'
+                decision = $decision
+                artifacts = $artifacts
+            },
+            [ordered]@{
+                state = 'DerivedDeclaration'
+                decision = $b1Decision
+                artifacts = $b1Artifacts
+            },
+            [ordered]@{
+                state = 'DerivedWired'
+                decision = $b2Decision
+                artifacts = $b2Artifacts
+            },
+            [ordered]@{
+                state = 'DerivedCandidate'
+                decision = $gateCDecision
+                artifacts = $b2Artifacts
+            })) {
+        $historicalTcpToken =
+            "TCP=$($historicalCase.decision.structuredEvidence.tcpSha256); "
+        $historicalSenderLine =
+            $historicalCase.decision.authoritativeLine.Replace(
+                $historicalTcpToken,
+                $historicalTcpToken + $senderToken)
+        try {
+            $null = Get-CurrentDecisionFromVerifierOutput `
+                -Output $historicalSenderLine `
+                -ExpectedState $historicalCase.state `
+                -ExpectedProductionApproved (
+                    [bool]$historicalCase.decision.productionApproved) `
+                -ExpectedNeedsRebaseline (
+                    [bool]$historicalCase.decision.needsRebaseline)
+            throw (
+                "Synthetic historical $($historicalCase.state) output " +
+                'accepted Gate D Sender evidence.')
+        }
+        catch {
+            $acceptedHistoricalOutput =
+                "Synthetic historical $($historicalCase.state) output " +
+                'accepted Gate D Sender evidence.'
+            if ($_.Exception.Message -ceq $acceptedHistoricalOutput) {
+                throw
+            }
+            $negative++
+        }
+        $historicalWithSender = $historicalCase.decision |
+            ConvertTo-Json -Depth 30 |
+            ConvertFrom-Json `
+                -AsHashtable `
+                -Depth 30 `
+                -DateKind String `
+                -NoEnumerate
+        $historicalWithSender.structuredEvidence.sender =
+            $gateDDecision.structuredEvidence.sender
+        try {
+            Assert-RecordedVerifierEvidence `
+                -Decision $historicalWithSender `
+                -Artifacts $historicalCase.artifacts `
+                -ExpectedState $historicalCase.state `
+                -Owner "synthetic historical $($historicalCase.state)"
+            throw (
+                "Synthetic historical $($historicalCase.state) accepted " +
+                'Gate D Sender evidence.')
+        }
+        catch {
+            $acceptedHistorical =
+                "Synthetic historical $($historicalCase.state) accepted " +
+                'Gate D Sender evidence.'
+            if ($_.Exception.Message -ceq $acceptedHistorical) {
+                throw
+            }
+            $negative++
+        }
+    }
+
+    try {
+        $null = Get-GateAArtifactBindingHeadForPhase `
+            -CurrentPhase 'GateD_TerminalWakeBrokerCandidate' `
+            -StartHead $gateDSnapshot.head `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -ImmediateParentData $b2ParsedForLineage.Data
+        throw 'Synthetic Gate D accepted Gate B2 as its immediate parent.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D accepted Gate B2 as its immediate parent.') {
+            throw
+        }
+        if (-not $_.Exception.Message.StartsWith(
+                ('GateD_TerminalWakeBrokerCandidate requires its validated ' +
+                    'immediate parent.'),
+                [StringComparison]::Ordinal)) {
+            throw
+        }
+        $negative++
+    }
+
+    $badGateCState = $gateCParsed.Data | ConvertTo-Json -Depth 50 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
+    $badGateCState.verifierDecision.state = 'DerivedWired'
+    try {
+        $savedLineageExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+        $savedLineageExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
+        try {
+            $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+            $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+            Assert-CheckpointManifestContract `
+                -Data $badGateCState `
+                -ExpectedPhase 'GateC_DerivedCandidate' `
+                -ExpectedContract $PhaseContracts.GateC_DerivedCandidate `
+                -SealEvidence $gateCParsed.Seal `
+                -RepositoryRoot $repositoryRoot `
+                -GitPath 'git' `
+                -RepositoryBindingHead $gateDSnapshot.head `
+                -ExpectedParentFile $readFiles[$b2ManifestPath] `
+                -ExpectedParentData $b2ParsedForLineage.Data `
+                -ExpectedRootFile $readFiles[$gateAManifestPath]
+        }
+        finally {
+            $script:ExpectedVerifierCanonicalLfBytes =
+                $savedLineageExpectedBytes
+            $script:ExpectedVerifierCanonicalLfSha256 =
+                $savedLineageExpectedSha256
+        }
+        throw 'Synthetic Gate D accepted a wrong Gate C state.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D accepted a wrong Gate C state.') {
+            throw
+        }
+        if ($_.Exception.Message -cne
+            ('Checkpoint GateC_DerivedCandidate verifier decision contract ' +
+                'drifted.')) {
+            throw
+        }
+        $negative++
+    }
+
+    $badGateCSequence = $gateCParsed.Data | ConvertTo-Json -Depth 50 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
+    $badGateCSequence.lineage.sequence = 2
+    try {
+        $null = Get-GateAArtifactBindingHeadForPhase `
+            -CurrentPhase 'GateD_TerminalWakeBrokerCandidate' `
+            -StartHead $gateDSnapshot.head `
+            -Root $repositoryRoot `
+            -GitPath 'git' `
+            -ImmediateParentData $badGateCSequence
+        throw 'Synthetic Gate D accepted a wrong Gate C lineage sequence.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D accepted a wrong Gate C lineage sequence.') {
+            throw
+        }
+        if ($_.Exception.Message -cne
+            'GateC_DerivedCandidate parent lineage sequence is invalid.') {
+            throw
+        }
+        $negative++
+    }
+
+    $badGateCAncestorCount = $gateCParsed.Data | ConvertTo-Json -Depth 50 |
+        ConvertFrom-Json `
+            -AsHashtable `
+            -Depth 50 `
+            -DateKind String `
+            -NoEnumerate
+    $badGateCAncestorCount.lineage.validatedAncestorCount = 2
+    try {
+        $savedLineageExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
+        $savedLineageExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
+        try {
+            $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
+            $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
+            Assert-CheckpointManifestContract `
+                -Data $badGateCAncestorCount `
+                -ExpectedPhase 'GateC_DerivedCandidate' `
+                -ExpectedContract $PhaseContracts.GateC_DerivedCandidate `
+                -SealEvidence $gateCParsed.Seal `
+                -RepositoryRoot $repositoryRoot `
+                -GitPath 'git' `
+                -RepositoryBindingHead $gateDSnapshot.head `
+                -ExpectedParentFile $readFiles[$b2ManifestPath] `
+                -ExpectedParentData $b2ParsedForLineage.Data `
+                -ExpectedRootFile $readFiles[$gateAManifestPath]
+        }
+        finally {
+            $script:ExpectedVerifierCanonicalLfBytes =
+                $savedLineageExpectedBytes
+            $script:ExpectedVerifierCanonicalLfSha256 =
+                $savedLineageExpectedSha256
+        }
+        throw 'Synthetic Gate D accepted a wrong Gate C ancestor count.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic Gate D accepted a wrong Gate C ancestor count.') {
+            throw
+        }
+        if ($_.Exception.Message -cne
+            'Checkpoint GateC_DerivedCandidate lineage sequence drifted.') {
+            throw
+        }
+        $negative++
+    }
+
+    foreach ($missing in @(
+            [ordered]@{
+                path = $gateCManifestPath
+                label = 'Gate C'
+                expected =
+                    "Required parent checkpoint evidence is missing: $gateCManifestPath"
+            },
+            [ordered]@{
+                path = $b2ManifestPath
+                label = 'Gate B2'
+                expected =
+                    "Required GateB2_DerivedWired ancestor checkpoint evidence is missing: $b2ManifestPath"
+            },
+            [ordered]@{
+                path = $b1ManifestPath
+                label = 'Gate B1'
+                expected =
+                    "Required GateB1_DerivedDeclaration ancestor checkpoint evidence is missing: $b1ManifestPath"
+            })) {
+        $missingReadFiles =
+            [Collections.Generic.Dictionary[string, object]]::new(
+                [StringComparer]::OrdinalIgnoreCase)
+        foreach ($entry in $readFiles.GetEnumerator()) {
+            if ($entry.Key -cne $missing.path) {
+                $missingReadFiles.Add($entry.Key, $entry.Value)
+            }
+        }
+        try {
+            $savedLineageExpectedBytes =
+                $script:ExpectedVerifierCanonicalLfBytes
+            $savedLineageExpectedSha256 =
+                $script:ExpectedVerifierCanonicalLfSha256
+            try {
+                $script:ExpectedVerifierCanonicalLfBytes =
+                    $syntheticVerifierBytes
+                $script:ExpectedVerifierCanonicalLfSha256 =
+                    $syntheticVerifierSha256
+                $null = Get-ValidatedLineageEvidence `
+                    -CurrentPhase 'GateD_TerminalWakeBrokerCandidate' `
+                    -ReadFiles $missingReadFiles `
+                    -Root $repositoryRoot `
+                    -GitPath 'git' `
+                    -StartHead $gateDSnapshot.head
+            }
+            finally {
+                $script:ExpectedVerifierCanonicalLfBytes =
+                    $savedLineageExpectedBytes
+                $script:ExpectedVerifierCanonicalLfSha256 =
+                    $savedLineageExpectedSha256
+            }
+            throw (
+                "Synthetic Gate D accepted a missing $($missing.label) " +
+                'manifest.')
+        }
+        catch {
+            $acceptedMissing =
+                "Synthetic Gate D accepted a missing $($missing.label) " +
+                'manifest.'
+            if ($_.Exception.Message -ceq $acceptedMissing) {
+                throw
+            }
+            if (-not $_.Exception.Message.StartsWith(
+                    $missing.expected,
+                    [StringComparison]::Ordinal)) {
+                throw
+            }
+            $negative++
+        }
+    }
+
+    foreach ($mutation in @(
+            [ordered]@{
+                path = $gateCManifestPath
+                fullPath = $gateCManifestFullPath
+                label = 'Gate C'
+            },
+            [ordered]@{
+                path = $b2ManifestPath
+                fullPath = $b2ManifestFullPath
+                label = 'Gate B2'
+            },
+            [ordered]@{
+                path = $b1ManifestPath
+                fullPath = $b1ManifestFullPath
+                label = 'Gate B1'
+            })) {
+        $committedBytes = [IO.File]::ReadAllBytes($mutation.fullPath)
+        $mutatedBytes = [byte[]]::new($committedBytes.Length + 1)
+        [Array]::Copy(
+            $committedBytes,
+            0,
+            $mutatedBytes,
+            0,
+            $committedBytes.Length)
+        $mutatedBytes[$mutatedBytes.Length - 1] = [byte][char]' '
+        try {
+            [IO.File]::WriteAllBytes($mutation.fullPath, $mutatedBytes)
+            try {
+                $savedLineageExpectedBytes =
+                    $script:ExpectedVerifierCanonicalLfBytes
+                $savedLineageExpectedSha256 =
+                    $script:ExpectedVerifierCanonicalLfSha256
+                try {
+                    $script:ExpectedVerifierCanonicalLfBytes =
+                        $syntheticVerifierBytes
+                    $script:ExpectedVerifierCanonicalLfSha256 =
+                        $syntheticVerifierSha256
+                    $null = Get-ValidatedLineageEvidence `
+                        -CurrentPhase 'GateD_TerminalWakeBrokerCandidate' `
+                        -ReadFiles $readFiles `
+                        -Root $repositoryRoot `
+                        -GitPath 'git' `
+                        -StartHead $gateDSnapshot.head
+                }
+                finally {
+                    $script:ExpectedVerifierCanonicalLfBytes =
+                        $savedLineageExpectedBytes
+                    $script:ExpectedVerifierCanonicalLfSha256 =
+                        $savedLineageExpectedSha256
+                }
+                throw (
+                    "Synthetic Gate D accepted mutated $($mutation.label) " +
+                    'manifest bytes.')
+            }
+            catch {
+                $acceptedMutation =
+                    "Synthetic Gate D accepted mutated $($mutation.label) " +
+                    'manifest bytes.'
+                if ($_.Exception.Message -ceq $acceptedMutation) {
+                    throw
+                }
+                $expectedMutationPrefix =
+                    "Committed-path identity mismatch: $($mutation.path);"
+                if (-not $_.Exception.Message.StartsWith(
+                        $expectedMutationPrefix,
+                        [StringComparison]::Ordinal)) {
+                    throw
+                }
+                $negative++
+            }
+        }
+        finally {
+            [IO.File]::WriteAllBytes($mutation.fullPath, $committedBytes)
+        }
+    }
+    foreach ($path in $GateDExpectedTrackedTransitionPaths) {
+        $originalFile = $gateDOriginalReadFiles[$path]
+        [IO.File]::WriteAllBytes(
+            (Join-Path $repositoryRoot $path.Replace('/', '\')),
+            $originalFile.RawBytes)
+        $readFiles[$path] = $originalFile
+    }
 
     try {
         $null = Get-GateAArtifactBindingHeadForPhase `
@@ -7705,8 +9128,10 @@ function Invoke-CaptureToolSelfTest {
         'GateA_VendorImported',
         'GateB1_DerivedDeclaration',
         'GateB2_DerivedWired',
-        'GateC_DerivedCandidate')
+        'GateC_DerivedCandidate',
+        'GateD_TerminalWakeBrokerCandidate')
     $gateCContract = $PhaseContracts.GateC_DerivedCandidate
+    $gateDContract = $PhaseContracts.GateD_TerminalWakeBrokerCandidate
     if (([string]::Join("`n", @($PhaseContracts.Keys)) -cne
             [string]::Join("`n", $expectedPhaseOrder)) -or
         ([int]$gateCContract.Sequence -ne 3) -or
@@ -7721,11 +9146,25 @@ function Invoke-CaptureToolSelfTest {
         (-not [bool]$gateCContract.NeedsRebaseline)) {
         throw 'Synthetic Gate C phase topology drifted.'
     }
+    if (([int]$gateDContract.Sequence -ne 4) -or
+        ($gateDContract.ExpectedState -cne
+            'TerminalWakeBrokerCandidate') -or
+        ($gateDContract.OutputFile -cne
+            'gate_d_terminal_wake_broker_candidate_checkpoint.json') -or
+        ($gateDContract.ParentPhase -cne 'GateC_DerivedCandidate') -or
+        ($gateDContract.ParentState -cne 'DerivedCandidate') -or
+        ($gateDContract.ParentFile -cne
+            'gate_c_derived_candidate_checkpoint.json') -or
+        ([bool]$gateDContract.ProductionApproved) -or
+        (-not [bool]$gateDContract.NeedsRebaseline)) {
+        throw 'Synthetic Gate D phase topology drifted.'
+    }
     $positive++
     $allCheckpointPaths = @(
         "$EvidenceRelativeRoot/$($PhaseContracts.GateA_VendorImported.OutputFile)",
         "$EvidenceRelativeRoot/$($PhaseContracts.GateB1_DerivedDeclaration.OutputFile)",
-        "$EvidenceRelativeRoot/$($PhaseContracts.GateB2_DerivedWired.OutputFile)")
+        "$EvidenceRelativeRoot/$($PhaseContracts.GateB2_DerivedWired.OutputFile)",
+        "$EvidenceRelativeRoot/$($PhaseContracts.GateC_DerivedCandidate.OutputFile)")
     for ($phaseIndex = 0; $phaseIndex -lt $expectedPhaseOrder.Count;
         $phaseIndex++) {
         $observedPaths = @(
@@ -7741,7 +9180,7 @@ function Invoke-CaptureToolSelfTest {
         $positive++
     }
     try {
-        $null = Get-RequiredPredecessorCheckpointPaths -Phase 'GateD_Unknown'
+        $null = Get-RequiredPredecessorCheckpointPaths -Phase 'GateE_Unknown'
         throw 'Synthetic unknown predecessor checkpoint phase was accepted.'
     }
     catch {
@@ -7750,7 +9189,7 @@ function Invoke-CaptureToolSelfTest {
             throw
         }
         if ($_.Exception.Message -cne
-            'Predecessor checkpoint phase is unknown: GateD_Unknown') {
+            'Predecessor checkpoint phase is unknown: GateE_Unknown') {
             throw
         }
         $negative++
@@ -7785,6 +9224,34 @@ function Invoke-CaptureToolSelfTest {
         $negative++
     }
 
+    Assert-GateDCurrentVerifierPinFreezeInvariant `
+        -Frozen $GateDCurrentVerifierPinFrozen `
+        -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
+        -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
+        -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
+        -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
+    $positive++
+    try {
+        Assert-GateDCurrentVerifierPinFreezeInvariant `
+            -Frozen $false `
+            -CurrentCanonicalLfBytes 1 `
+            -CurrentCanonicalLfSha256 ('A' * 64) `
+            -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
+            -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
+        throw 'Synthetic unfrozen Gate D verifier pin was accepted as set.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Synthetic unfrozen Gate D verifier pin was accepted as set.') {
+            throw
+        }
+        if ($_.Exception.Message -cne
+            'Unfrozen Gate D current verifier pin must remain unset.') {
+            throw
+        }
+        $negative++
+    }
+
     $syntheticCurrentCanonicalBytes = $Utf8NoBom.GetBytes(
         "synthetic reviewed current verifier`n")
     $syntheticCurrentVerifierCanonicalLfBytes =
@@ -7797,12 +9264,16 @@ function Invoke-CaptureToolSelfTest {
             [long]$HistoricalGateB1VerifierCanonicalLfBytes) -or
         ($syntheticCurrentVerifierCanonicalLfBytes -eq
             [long]$HistoricalGateB2VerifierCanonicalLfBytes) -or
+        ($syntheticCurrentVerifierCanonicalLfBytes -eq
+            [long]$HistoricalGateCVerifierCanonicalLfBytes) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
             $HistoricalGateAVerifierCanonicalLfSha256) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
             $HistoricalGateB1VerifierCanonicalLfSha256) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
-            $HistoricalGateB2VerifierCanonicalLfSha256)) {
+            $HistoricalGateB2VerifierCanonicalLfSha256) -or
+        ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
+            $HistoricalGateCVerifierCanonicalLfSha256)) {
         throw 'Synthetic current verifier tuple is not distinct.'
     }
     $mutatedCurrentVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
@@ -7813,6 +9284,8 @@ function Invoke-CaptureToolSelfTest {
         $Utf8NoBom.GetBytes("mutated historical Gate B1 verifier`n"))
     $mutatedGateB2VerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
         $Utf8NoBom.GetBytes("mutated historical Gate B2 verifier`n"))
+    $mutatedGateCVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
+        $Utf8NoBom.GetBytes("mutated historical Gate C verifier`n"))
 
     $savedExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
     $savedExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
@@ -7864,6 +9337,12 @@ function Invoke-CaptureToolSelfTest {
                 bytes = [long]$HistoricalGateB2VerifierCanonicalLfBytes
                 sha256 = $HistoricalGateB2VerifierCanonicalLfSha256
                 owner = 'synthetic historical Gate B2 pin'
+            },
+            [ordered]@{
+                phase = 'GateC_DerivedCandidate'
+                bytes = [long]$HistoricalGateCVerifierCanonicalLfBytes
+                sha256 = $HistoricalGateCVerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate C pin'
             })
         foreach ($pinCase in $positivePinCases) {
             $reviewedPin = Get-ReviewedVerifierManifestPin `
@@ -7916,6 +9395,13 @@ function Invoke-CaptureToolSelfTest {
                 accepted = 'Synthetic historical Gate B2 pin was accepted for Gate C.'
             },
             [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$HistoricalGateCVerifierCanonicalLfBytes
+                sha256 = $HistoricalGateCVerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate C pin in WIP Gate D phase'
+                accepted = 'Synthetic historical Gate C pin was accepted for Gate D.'
+            },
+            [ordered]@{
                 phase = 'GateA_VendorImported'
                 bytes = [long]$HistoricalGateAVerifierCanonicalLfBytes + 1
                 sha256 = $HistoricalGateAVerifierCanonicalLfSha256
@@ -7958,6 +9444,20 @@ function Invoke-CaptureToolSelfTest {
                 accepted = 'Synthetic mutated Gate B2 pin SHA-256 was accepted.'
             },
             [ordered]@{
+                phase = 'GateC_DerivedCandidate'
+                bytes = [long]$HistoricalGateCVerifierCanonicalLfBytes + 1
+                sha256 = $HistoricalGateCVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate C pin bytes'
+                accepted = 'Synthetic mutated Gate C pin bytes were accepted.'
+            },
+            [ordered]@{
+                phase = 'GateC_DerivedCandidate'
+                bytes = [long]$HistoricalGateCVerifierCanonicalLfBytes
+                sha256 = $mutatedGateCVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate C pin SHA-256'
+                accepted = 'Synthetic mutated Gate C pin SHA-256 was accepted.'
+            },
+            [ordered]@{
                 phase = 'GateB2_DerivedWired'
                 bytes = $syntheticCurrentVerifierCanonicalLfBytes + 1
                 sha256 = $syntheticCurrentVerifierCanonicalLfSha256
@@ -7984,6 +9484,13 @@ function Invoke-CaptureToolSelfTest {
                 sha256 = $mutatedCurrentVerifierCanonicalLfSha256
                 owner = 'synthetic mutated current Gate C pin SHA-256'
                 accepted = 'Synthetic mutated current pin SHA-256 was accepted for Gate C.'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = $syntheticCurrentVerifierCanonicalLfBytes
+                sha256 = $syntheticCurrentVerifierCanonicalLfSha256
+                owner = 'synthetic unfrozen current Gate D pin'
+                accepted = 'Synthetic unfrozen current pin was accepted for Gate D.'
             })
         foreach ($pinCase in $negativePinCases) {
             try {
@@ -9366,6 +10873,12 @@ if (($Phase -ceq 'GateC_DerivedCandidate') -and
         'Gate C capture/validation is disabled until the reviewed current ' +
         'verifier canonical pin is frozen.')
 }
+if (($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') -and
+    (-not $GateDCurrentVerifierPinFrozen)) {
+    throw (
+        'Gate D validation/capture is WIP-disabled until the reviewed current ' +
+        'verifier canonical pin is frozen. No repository inputs were read.')
+}
 $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $null = Assert-PathComponentsNoReparse -Root $root -Path $root
 $evidenceDirectory = Resolve-ExactEvidenceDirectory `
@@ -9398,6 +10911,8 @@ $protectedPaths = @(
     "$TargetRelativeRoot/Class/CriticalSection/CriticalSection.st",
     "$TargetRelativeRoot/Source/interfaces/lsl_st_tcp_user.h")
 $tcpPath = "$TargetRelativeRoot/Class/TCPMotionInterface/TCPMotionInterface.st"
+$diagnosticsPath =
+    "$TargetRelativeRoot/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
 $derivedPath =
     "$TargetRelativeRoot/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st"
 $configObjectsPath = "$TargetRelativeRoot/Network/ConfigObjects.st"
@@ -9487,6 +11002,9 @@ $requiredFixedPaths = @(
     $tcpPath,
     $VerifierRelativePath,
     $scriptRelativePath) + $vendorPaths + $protectedPaths + $lineageRelativePaths
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $requiredFixedPaths += $diagnosticsPath
+}
 $availableFixedPaths = @($requiredFixedPaths)
 $derivedFullPath = Join-Path $root $derivedPath.Replace('/', '\')
 $initialDerivedPresent = [IO.File]::Exists($derivedFullPath)
@@ -9526,6 +11044,12 @@ foreach ($sourcePath in @($vendorPaths + $protectedPaths)) {
 Assert-AsciiNoBomText `
     -File $readFiles[$tcpPath] `
     -Owner 'existing TCPMotionInterface source'
+$diagnosticsArtifact = $null
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $diagnosticsArtifact = New-CanonicalAsciiArtifactEvidence `
+        -File $readFiles[$diagnosticsPath] `
+        -Owner 'LMCDiagnosticsService source'
+}
 if ($readFiles.ContainsKey($derivedPath)) {
     Assert-AsciiNoBomText `
         -File $readFiles[$derivedPath] `
@@ -9574,14 +11098,28 @@ if ($AllowUncommittedToolBootstrap) {
     $pinSource = 'observed-untrusted-bootstrap'
 }
 else {
-    if (($ExpectedVerifierCanonicalLfBytes -le 0) -or
-        ($ExpectedVerifierCanonicalLfSha256 -notmatch '^[A-F0-9]{64}$')) {
+    $reviewedCurrentPinBytes = if ($Phase -ceq
+        'GateD_TerminalWakeBrokerCandidate') {
+        $GateDExpectedVerifierCanonicalLfBytes
+    }
+    else {
+        $ExpectedVerifierCanonicalLfBytes
+    }
+    $reviewedCurrentPinSha256 = if ($Phase -ceq
+        'GateD_TerminalWakeBrokerCandidate') {
+        $GateDExpectedVerifierCanonicalLfSha256
+    }
+    else {
+        $ExpectedVerifierCanonicalLfSha256
+    }
+    if (($reviewedCurrentPinBytes -le 0) -or
+        ($reviewedCurrentPinSha256 -notmatch '^[A-F0-9]{64}$')) {
         throw (
             'Final reviewed verifier canonical identity is not pinned. ' +
             'Capture and trusted ValidateOnly are disabled.')
     }
-    $pinBytes = $ExpectedVerifierCanonicalLfBytes
-    $pinSha256 = $ExpectedVerifierCanonicalLfSha256
+    $pinBytes = $reviewedCurrentPinBytes
+    $pinSha256 = $reviewedCurrentPinSha256
     $pinSource = 'committed-reviewed-pin'
 }
 $verifierCanonicalPin = Get-CanonicalAsciiPinEvidence `
@@ -9607,10 +11145,18 @@ $networkInventory = Get-InventoryEvidence `
     -AvailablePaths $networkAvailablePaths `
     -ReadFiles $readFiles `
     -Owner 'Full Network'
-$derivedSenderEvidence = Get-PresenceEvidence `
-    -RelativePath $derivedPath `
-    -TrackedPaths $trackedPathSet `
-    -ReadFiles $readFiles
+$derivedSenderEvidence = if ($Phase -ceq
+    'GateD_TerminalWakeBrokerCandidate') {
+    New-CanonicalAsciiArtifactEvidence `
+        -File $readFiles[$derivedPath] `
+        -Owner 'LMCUdpCallbackSender source'
+}
+else {
+    Get-PresenceEvidence `
+        -RelativePath $derivedPath `
+        -TrackedPaths $trackedPathSet `
+        -ReadFiles $readFiles
+}
 $artifacts = [ordered]@{
     classesDatabase = $readFiles[$classesPath].Public
     projectDatabase = $readFiles[$projectDatabasePath].Public
@@ -9621,15 +11167,18 @@ $artifacts = [ordered]@{
         })
     protectedDependencies = @($protectedPaths | ForEach-Object {
             $readFiles[$_].Public
-        })
+    })
     tcpMotionInterface = $readFiles[$tcpPath].Public
-    derivedSender = $derivedSenderEvidence
-    configObjects = $readFiles[$configObjectsPath].Public
-    networksDatabase = $readFiles[$networksDatabasePath].Public
-    commNetwork = $readFiles[$commNetworkPath].Public
-    commNetworkTable = $readFiles[$commTablePath].Public
-    fullNetwork = $networkInventory
 }
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $artifacts.diagnosticsService = $diagnosticsArtifact
+}
+$artifacts.derivedSender = $derivedSenderEvidence
+$artifacts.configObjects = $readFiles[$configObjectsPath].Public
+$artifacts.networksDatabase = $readFiles[$networksDatabasePath].Public
+$artifacts.commNetwork = $readFiles[$commNetworkPath].Public
+$artifacts.commNetworkTable = $readFiles[$commTablePath].Public
+$artifacts.fullNetwork = $networkInventory
 $targetCommitBinding = New-TargetCommitBindingPolicy `
     -Phase $Phase `
     -TargetWorktree $gitStart.targetWorktree `
@@ -9644,6 +11193,26 @@ $lineageEvidence = Get-ValidatedLineageEvidence `
     -Root $root `
     -GitPath $gitPath `
     -StartHead $startHead
+$gateDTrackedTransition = $null
+$gateCParentData = $null
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $gateCParentPath =
+        "$EvidenceRelativeRoot/$($PhaseContracts.GateC_DerivedCandidate.OutputFile)"
+    $gateCParentParsed = ConvertFrom-StrictCheckpointJson `
+        -File $readFiles[$gateCParentPath] `
+        -Owner 'Gate D immediate Gate C parent manifest'
+    $gateCParentData = $gateCParentParsed.Data
+    $gateCParentGit = Get-RequiredMapValue `
+        $gateCParentData git 'Gate D immediate Gate C parent manifest'
+    $gateDTrackedTransition = New-GateDTransitionEvidence `
+        -PredecessorTargetWorktree $gateCParentGit.start.targetWorktree `
+        -CurrentTargetWorktree $gitStart.targetWorktree
+    Assert-GateDTransitionEvidence `
+        -Evidence $gateDTrackedTransition `
+        -PredecessorTargetWorktree $gateCParentGit.start.targetWorktree `
+        -CurrentTargetWorktree $gitStart.targetWorktree `
+        -Owner 'current Gate D tracked transition'
+}
 
 $verifierFullPath = Join-Path $root $VerifierRelativePath.Replace('/', '\')
 $verifierLock = [IO.File]::Open(
@@ -9725,6 +11294,8 @@ $verifierCrossCheck = Assert-VerifierEvidenceMatchesCapture `
     -ProjectDatabasePath $projectDatabasePath `
     -ProjectDefinitionPath $projectDefinitionPath `
     -TcpPath $tcpPath `
+    -SenderArtifact $derivedSenderEvidence `
+    -DiagnosticsArtifact $diagnosticsArtifact `
     -NetworkInventory $networkInventory `
     -IncludeNameToPath $includeNameToPath `
     -ProtectedNameToPath $protectedNameToPath
@@ -9788,6 +11359,15 @@ Assert-JsonStructuralEquality `
     -Expected $targetCommitBinding `
     -Observed $publishGuardTargetCommitBinding `
     -Owner 'start/publish-guard target commit binding policy'
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $publishGuardTransition = New-GateDTransitionEvidence `
+        -PredecessorTargetWorktree $gateCParentGit.start.targetWorktree `
+        -CurrentTargetWorktree $gitPublishGuard.targetWorktree
+    Assert-JsonStructuralEquality `
+        -Expected $gateDTrackedTransition `
+        -Observed $publishGuardTransition `
+        -Owner 'start/publish-guard Gate D tracked transition'
+}
 $null = Resolve-ExactEvidenceDirectory `
     -Root $root `
     -RequestedPath $OutputPath
@@ -9886,6 +11466,9 @@ $manifest = [ordered]@{
     }
     artifacts = $artifacts
 }
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $manifest.gateDTrackedTransition = $gateDTrackedTransition
+}
 
 $sealedManifest = ConvertTo-SealedManifestBytes -Manifest $manifest
 $manifestBytes = $sealedManifest.Bytes
@@ -9944,6 +11527,15 @@ Assert-JsonStructuralEquality `
     -Expected $targetCommitBinding `
     -Observed $stageTargetCommitBinding `
     -Owner 'start/post-stage target commit binding policy'
+if ($Phase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+    $stageTransition = New-GateDTransitionEvidence `
+        -PredecessorTargetWorktree $gateCParentGit.start.targetWorktree `
+        -CurrentTargetWorktree $stageGitGuard.targetWorktree
+    Assert-JsonStructuralEquality `
+        -Expected $gateDTrackedTransition `
+        -Observed $stageTransition `
+        -Owner 'start/post-stage Gate D tracked transition'
+}
 $stageToolTrust = Get-ToolTrustEvidence `
     -Root $root `
     -GitPath $gitPath `

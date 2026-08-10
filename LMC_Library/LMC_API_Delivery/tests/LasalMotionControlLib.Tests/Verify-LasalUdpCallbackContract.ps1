@@ -7,7 +7,7 @@ param(
     [switch]$RunSelfTest,
 
     [Parameter(ParameterSetName = 'Current')]
-    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..\..\..\..'),
+    [string]$RepositoryRoot = '',
 
     [Parameter(ParameterSetName = 'Current')]
     [switch]$AllowPreImportAbsent,
@@ -16,15 +16,27 @@ param(
     [switch]$AllowDerivedCapture,
 
     [Parameter(ParameterSetName = 'Current')]
-    [ValidateSet('Auto', 'Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+    [ValidateSet(
+        'Auto',
+        'Absent',
+        'VendorImported',
+        'DerivedDeclaration',
+        'DerivedWired',
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')]
     [string]$ExpectedState = 'Auto'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+if ($VerifyCurrent -and [string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = Join-Path $PSScriptRoot '..\..\..\..'
+}
+
 $Owner = 'LASAL.UdpCallbackContract'
 $Utf8 = [Text.UTF8Encoding]::new($false, $true)
+$Latin1 = [Text.Encoding]::GetEncoding(28591)
 $DerivedCandidateApproved = $true
 
 $TargetRootRelativePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
@@ -36,6 +48,8 @@ $DerivedRelativePath =
     "$TargetRootRelativePath/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st"
 $TcpRelativePath =
     "$TargetRootRelativePath/Class/TCPMotionInterface/TCPMotionInterface.st"
+$DiagnosticsRelativePath =
+    "$TargetRootRelativePath/Class/LMCDiagnosticsService/LMCDiagnosticsService.st"
 $ClassesRelativePath = "$TargetRootRelativePath/Class/Classes.lcb"
 $ProjectRelativePath = "$TargetRootRelativePath/Elmo_EtherCAT_Test_4Axis.lcb"
 $ProjectDefinitionRelativePath =
@@ -135,6 +149,8 @@ $VendorGeneratedRecordContracts = @(
             '958A2EC0945A01878261A7B055A25EBB5A44AFCADDD3BE7A2309744B69F90FAB'
         WiredSha256 =
             'A261DD6045085695A92EFA69FC02E5343BFFA3C8BB115547C5DD831743E10526'
+        TerminalWakeSha256 =
+            'ABC81CB06DB50FFE34F6F663BB2B3CF1B73396335CFAFE53CE8A0659B48854EA'
     },
     [ordered]@{
         Name = '_UDPTransceiverInterface'
@@ -223,6 +239,114 @@ $ExpectedDerivedCandidateFullNetworkSha256 =
 $ExpectedDerivedCandidateTrackedNetworkCount = 15
 $ExpectedDerivedCandidateTrackedNetworkSha256 =
     '6F5575791A0FF10E77A411A05896453C57F9661C54461DB038F166323C7AF16B'
+$ExpectedTerminalWakeLayout = [ordered]@{
+    Transceiver = [ordered]@{
+        Name = '_UDPTransceiver'
+        CanonicalLfBytes = 71787
+        CanonicalLfSha256 =
+            '5EF05C7A018E75DD40160828F5C39D474C2191F0E42D97A7E5D19064CF2ACC13'
+        CodeGeneratorCrLfBytes = 73380
+        CodeGeneratorCrLfSha256 =
+            'F19273F83337E2B1C2AB510A7DDD49138EB28480649835D4E3C571B34D8269C4'
+        LineBreakCount = 1593
+        Objectsize = '(522,120)'
+    }
+    Sender = [ordered]@{
+        Name = 'LMCUdpCallbackSender'
+        CanonicalLfBytes = 22727
+        CanonicalLfSha256 =
+            'A0AAA3451F9160B45FDE81E9B337EA9D55DCDCB366AA7504DA57C650EC060D89'
+        CodeGeneratorCrLfBytes = 23469
+        CodeGeneratorCrLfSha256 =
+            'C334A6C6960BA61529369D29C6DDA757A77AC809A6858661B8FEB6476F5CAE8F'
+        LineBreakCount = 742
+        Objectsize = '(778,120)'
+    }
+    Classes = [ordered]@{
+        Bytes = 8549773
+        Sha256 =
+            '24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861'
+    }
+    CommNetwork = [ordered]@{
+        Bytes = 16540
+        Sha256 =
+            'FD632C27E2619E907097F599A4CEA1D6AA83E4D41F214E73A91E1C4127F1A1B7'
+        CanonicalLfBytes = 16117
+        CanonicalLfSha256 =
+            '06425749250E03BEF3548C40F6515E66DB953E3067D3C724353A92C6B35860FF'
+        TransceiverPosition = '(1410,990)'
+        SenderPosition = '(2610,990)'
+    }
+    NetworksDatabase = [ordered]@{
+        Bytes = 242363
+        Sha256 =
+            'C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F'
+    }
+    FullNetwork = [ordered]@{
+        Count = 23
+        Sha256 =
+            '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
+    }
+    TrackedNetwork = [ordered]@{
+        Count = 15
+        Sha256 =
+            '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
+    }
+}
+$TerminalWakeLayoutSelfTestOracle = [ordered]@{
+    Transceiver = [ordered]@{
+        Name = '_UDPTransceiver'
+        CanonicalLfBytes = 71787
+        CanonicalLfSha256 =
+            '5EF05C7A018E75DD40160828F5C39D474C2191F0E42D97A7E5D19064CF2ACC13'
+        CodeGeneratorCrLfBytes = 73380
+        CodeGeneratorCrLfSha256 =
+            'F19273F83337E2B1C2AB510A7DDD49138EB28480649835D4E3C571B34D8269C4'
+        LineBreakCount = 1593
+        Objectsize = '(522,120)'
+    }
+    Sender = [ordered]@{
+        Name = 'LMCUdpCallbackSender'
+        CanonicalLfBytes = 22727
+        CanonicalLfSha256 =
+            'A0AAA3451F9160B45FDE81E9B337EA9D55DCDCB366AA7504DA57C650EC060D89'
+        CodeGeneratorCrLfBytes = 23469
+        CodeGeneratorCrLfSha256 =
+            'C334A6C6960BA61529369D29C6DDA757A77AC809A6858661B8FEB6476F5CAE8F'
+        LineBreakCount = 742
+        Objectsize = '(778,120)'
+    }
+    Classes = [ordered]@{
+        Bytes = 8549773
+        Sha256 =
+            '24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861'
+    }
+    CommNetwork = [ordered]@{
+        Bytes = 16540
+        Sha256 =
+            'FD632C27E2619E907097F599A4CEA1D6AA83E4D41F214E73A91E1C4127F1A1B7'
+        CanonicalLfBytes = 16117
+        CanonicalLfSha256 =
+            '06425749250E03BEF3548C40F6515E66DB953E3067D3C724353A92C6B35860FF'
+        TransceiverPosition = '(1410,990)'
+        SenderPosition = '(2610,990)'
+    }
+    NetworksDatabase = [ordered]@{
+        Bytes = 242363
+        Sha256 =
+            'C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F'
+    }
+    FullNetwork = [ordered]@{
+        Count = 23
+        Sha256 =
+            '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
+    }
+    TrackedNetwork = [ordered]@{
+        Count = 15
+        Sha256 =
+            '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
+    }
+}
 $ExpectedBaselineTrackedNetworkCount = 15
 $ExpectedBaselineTrackedNetworkSha256 =
     '3118354B56EB68369999D96C53603083F562E4610995BFA935D483BD2BC01CCA'
@@ -644,6 +768,28 @@ $ExpectedGateCTcpFunctionNames = @(
     'HandleRpcLifecycleCommands',
     'DisarmRpcCallbackEndpoint')
 
+$TerminalWakeTryTakeSpec = [ordered]@{
+    Name = 'TryTakeD5TerminalWake'
+    Inputs = @(
+        'pTicketId:^UDINT',
+        'pTicketBootId:^UDINT',
+        'pOwnerSessionEpoch:^UDINT')
+    Outputs = @('Result:DINT')
+}
+$TerminalWakePublishSpec = [ordered]@{
+    Name = 'PublishD5TerminalWake'
+    Inputs = @()
+    Outputs = @()
+}
+$ExpectedDiagnosticsTerminalWakeVariables = @(
+    'D5TerminalWakeLastAttemptTicketId:UDINT',
+    'D5TerminalWakeLastAttemptTicketBootId:UDINT',
+    'D5TerminalWakeLastAttemptOwnerSessionEpoch:UDINT')
+$ExpectedTcpTerminalWakeVariables = @(
+    'D5TerminalWakeAttemptCount:UDINT',
+    'D5TerminalWakeEnqueuedCount:UDINT',
+    'D5TerminalWakeRejectedCount:UDINT')
+
 $ExpectedActiveEndpointFields = @(
     'Armed:BOOL',
     'ProtocolVersion:UINT',
@@ -722,8 +868,14 @@ function Get-BytesSha256 {
         [byte[]]$Bytes
     )
 
-    return [Convert]::ToHexString(
-        [Security.Cryptography.SHA256]::HashData($Bytes))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+                $algorithm.ComputeHash($Bytes))).Replace('-', '')
+    }
+    finally {
+        $algorithm.Dispose()
+    }
 }
 
 function Get-TextSha256 {
@@ -1054,7 +1206,7 @@ function Assert-Latin1BinaryEvidence {
         [Parameter(Mandatory = $true)][string]$ArtifactOwner
     )
 
-    $bytes = [Text.Encoding]::Latin1.GetBytes($Text)
+    $bytes = $Latin1.GetBytes($Text)
     if (($bytes.Count -ne $ByteCount) -or
         ((Get-BytesSha256 -Bytes $bytes) -cne $Sha256)) {
         Throw-UdpCallbackBlocker (
@@ -1790,10 +1942,17 @@ function Assert-DisarmClearedSaturatingAddPattern {
 }
 
 function Assert-DerivedCandidateExactFunctionContract {
-    param([Parameter(Mandatory = $true)][object[]]$Implementations)
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Implementations,
+        [switch]$TerminalWakeBroker
+    )
 
     $expectedRecords = @(Get-FunctionRecords `
-            -Text (New-SyntheticDerivedSource) `
+            -Text $(if ($TerminalWakeBroker) {
+                    New-SyntheticTerminalWakeDerivedSource
+                } else {
+                    New-SyntheticDerivedSource
+                }) `
             -Kind Implementation)
     Assert-ExactInventory `
         -Actual @($expectedRecords.Name) `
@@ -1815,13 +1974,21 @@ function Assert-DerivedCandidateExactFunctionContract {
                 $expected,
                 [StringComparison]::Ordinal)) {
             Throw-UdpCallbackBlocker (
-                "DerivedCandidate $name complete function token stream drifted.")
+                $(if ($TerminalWakeBroker) {
+                        "TerminalWakeBrokerCandidate $name complete function " +
+                            'token stream drifted.'
+                    } else {
+                        "DerivedCandidate $name complete function token stream drifted."
+                    }))
         }
     }
 }
 
 function Assert-DerivedImplementationContract {
-    param([Parameter(Mandatory = $true)][object[]]$Implementations)
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Implementations,
+        [switch]$RequireNonzeroEventId
+    )
 
     $byName = @{}
     foreach ($record in $Implementations) {
@@ -2291,10 +2458,30 @@ function Assert-DerivedImplementationContract {
                 "PublishEvent production v2 policy lacks $($validation.Pattern)")
         }
     }
-    if ($byName.PublishEvent -match
-        '(?i)EventId[ \t]*(?:=|<>|<|>)') {
+    $eventIdZeroPattern =
+        '(?i)\([ \t]*EventId[ \t]*=[ \t]*0[ \t]*\)'
+    $eventIdComparisonCount = [regex]::Matches(
+        $byName.PublishEvent,
+        '(?i)EventId[ \t]*(?:=|<>|<|>)').Count
+    if ($RequireNonzeroEventId) {
+        if (($eventIdComparisonCount -ne 1) -or
+            ([regex]::Matches(
+                    $byName.PublishEvent,
+                    $eventIdZeroPattern).Count -ne 1)) {
+            Throw-UdpCallbackBlocker (
+                'Gate D PublishEvent must reject exactly EventId=0.')
+        }
+        if ($byName.PublishEvent -notmatch
+            ('(?is)ELSIF[ \t]+(?:(?!\bTHEN\b).)*' +
+                $eventIdZeroPattern + '(?:(?!\bTHEN\b).)*\bTHEN\b' +
+                '[ \t\r\n]*Result[ \t]*:=[ \t]*-6[ \t]*;')) {
+            Throw-UdpCallbackBlocker (
+                'Gate D EventId=0 is not mapped to PublishEvent Result=-6.')
+        }
+    }
+    elseif ($eventIdComparisonCount -ne 0) {
         Throw-UdpCallbackBlocker (
-            'PublishEvent must accept every EventId value, including zero.')
+            'Gate C PublishEvent must accept every EventId value, including zero.')
     }
     foreach ($payloadPattern in @(
             ('(?i)\([ \t]*PayloadBytes[ \t]*>[ \t]*0[ \t]*\)[ \t]*AND' +
@@ -2615,7 +2802,8 @@ function Assert-DerivedSourceContract {
         [Parameter(Mandatory = $true)][string]$SourceText,
         [Parameter(Mandatory = $true)]
         [ValidateSet('Empty', 'Complete')]
-        [string]$ImplementationMode
+        [string]$ImplementationMode,
+        [switch]$TerminalWakeBroker
     )
 
     $canonicalSource = ConvertTo-CanonicalLf -Text $SourceText
@@ -2804,8 +2992,11 @@ function Assert-DerivedSourceContract {
     }
     else {
         Assert-DerivedCandidateExactFunctionContract `
-            -Implementations $implementations
-        Assert-DerivedImplementationContract -Implementations $implementations
+            -Implementations $implementations `
+            -TerminalWakeBroker:$TerminalWakeBroker
+        Assert-DerivedImplementationContract `
+            -Implementations $implementations `
+            -RequireNonzeroEventId:$TerminalWakeBroker
     }
 }
 
@@ -2826,6 +3017,355 @@ function Get-TcpFunctionBlock {
             "$($matches.Count), expected 1.")
     }
     return $matches[0].Value
+}
+
+function Get-LasalClassFunctionBlock {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceText,
+        [Parameter(Mandatory = $true)][string]$ClassName,
+        [Parameter(Mandatory = $true)][string]$FunctionName
+    )
+
+    $matches = @([regex]::Matches(
+            (ConvertTo-CanonicalLf -Text $SourceText),
+            '(?ms)^FUNCTION[ \t]+(?:(?:VIRTUAL|GLOBAL)[ \t]+)*' +
+                [regex]::Escape($ClassName) + '::' +
+                [regex]::Escape($FunctionName) +
+                '\b.*?^END_FUNCTION[ \t]*$'))
+    if ($matches.Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            "$ClassName $FunctionName implementation count is " +
+            "$($matches.Count), expected 1.")
+    }
+    return $matches[0].Value
+}
+
+function Get-ExpectedTerminalWakeTryTakeBlock {
+    return @'
+FUNCTION GLOBAL LMCDiagnosticsService::TryTakeD5TerminalWake
+	VAR_INPUT
+		pTicketId 	: ^UDINT;
+		pTicketBootId 	: ^UDINT;
+		pOwnerSessionEpoch 	: ^UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+
+	Result := -1;
+	if (pTicketId = NIL) | (pTicketBootId = NIL) |
+		(pOwnerSessionEpoch = NIL) then
+		RETURN;
+	end_if;
+
+	pTicketId^$UDINT := 0;
+	pTicketBootId^$UDINT := 0;
+	pOwnerSessionEpoch^$UDINT := 0;
+	Result := 0;
+
+	if (TicketId = 0) | (TicketBootId = 0) |
+		(OwnerSessionEpoch = 0) then
+		RETURN;
+	end_if;
+	if (OperationState <> LMC_DIAG_SDO_STATE_COMPLETED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_FAILED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_CANCELLED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_EXPIRED) then
+		RETURN;
+	end_if;
+	if (D5TerminalWakeLastAttemptTicketId = TicketId) &
+		(D5TerminalWakeLastAttemptTicketBootId = TicketBootId) &
+		(D5TerminalWakeLastAttemptOwnerSessionEpoch = OwnerSessionEpoch) then
+		RETURN;
+	end_if;
+
+	D5TerminalWakeLastAttemptTicketId := TicketId;
+	D5TerminalWakeLastAttemptTicketBootId := TicketBootId;
+	D5TerminalWakeLastAttemptOwnerSessionEpoch := OwnerSessionEpoch;
+	pTicketId^$UDINT := TicketId;
+	pTicketBootId^$UDINT := TicketBootId;
+	pOwnerSessionEpoch^$UDINT := OwnerSessionEpoch;
+	Result := 1;
+
+END_FUNCTION
+'@
+}
+
+function Get-ExpectedTerminalWakePublishBlock {
+    return @'
+FUNCTION TCPMotionInterface::PublishD5TerminalWake
+	VAR
+		ticketId : UDINT;
+		ticketBootId : UDINT;
+		ownerSessionEpoch : UDINT;
+		takeResult : DINT;
+		publishResult : DINT;
+	END_VAR
+
+	ticketId := 0;
+	ticketBootId := 0;
+	ownerSessionEpoch := 0;
+	if IsClientConnected(#Diagnostics) = FALSE then
+		RETURN;
+	end_if;
+	takeResult := Diagnostics.TryTakeD5TerminalWake(
+		pTicketId:=#ticketId,
+		pTicketBootId:=#ticketBootId,
+		pOwnerSessionEpoch:=#ownerSessionEpoch);
+	if takeResult <> 1 then
+		RETURN;
+	end_if;
+
+	if D5TerminalWakeAttemptCount <> 16#FFFFFFFF then
+		D5TerminalWakeAttemptCount += 1;
+	end_if;
+	publishResult := -9;
+	if RpcInitialized & (CurrentSock <> 0) & (RpcSocket = CurrentSock) &
+		(PendingClosedSessionEpoch = 0) &
+		RpcCallbackRegistered & (RpcCallbackProtocolVersion = 2) &
+		((RpcCallbackEventMask AND 1) = 1) &
+		(RpcCallbackSessionEpoch = SessionEpoch) &
+		(ownerSessionEpoch = RpcCallbackSessionEpoch) &
+		(ticketBootId = RpcCallbackBootId) &
+		IsClientConnected(#CallbackSender) then
+		publishResult := CallbackSender.PublishEvent(
+			EventMaskBit:=1,
+			EventType:=1,
+			DeliveryClass:=0,
+			EventId:=ticketId,
+			ProducerSessionEpoch:=ownerSessionEpoch,
+			pPayload:=NIL,
+			PayloadBytes:=0);
+	end_if;
+	if publishResult = 0 then
+		if D5TerminalWakeEnqueuedCount <> 16#FFFFFFFF then
+			D5TerminalWakeEnqueuedCount += 1;
+		end_if;
+	else
+		if D5TerminalWakeRejectedCount <> 16#FFFFFFFF then
+			D5TerminalWakeRejectedCount += 1;
+		end_if;
+	end_if;
+
+END_FUNCTION
+'@
+}
+
+function Assert-ExactTerminalWakeFunctionBlock {
+    param(
+        [Parameter(Mandatory = $true)][string]$Actual,
+        [Parameter(Mandatory = $true)][string]$Expected,
+        [Parameter(Mandatory = $true)][string]$FunctionOwner
+    )
+
+    if (-not [string]::Equals(
+            (Get-CommentInsensitiveTokenStream -Text $Actual),
+            (Get-CommentInsensitiveTokenStream -Text $Expected),
+            [StringComparison]::Ordinal)) {
+        Throw-UdpCallbackBlocker (
+            "$FunctionOwner exact Gate D token stream drifted.")
+    }
+}
+
+function Assert-TerminalWakeDiagnosticsSourceContract {
+    param([Parameter(Mandatory = $true)][string]$DiagnosticsSource)
+
+    $scan = Get-LexicalScanText -Text $DiagnosticsSource
+    $classMatch = [regex]::Match(
+        $scan,
+        '(?ims)^[ \t]*LMCDiagnosticsService[ \t]*:[ \t]*CLASS[ \t]*$' +
+            '(?<Body>.*?)^[ \t]*END_CLASS[ \t]*;[ \t]*$')
+    if (-not $classMatch.Success) {
+        Throw-UdpCallbackBlocker (
+            'LMCDiagnosticsService declaration block is missing.')
+    }
+    $classBody = $classMatch.Groups['Body'].Value
+    $variableInventory = @([regex]::Matches(
+            $classBody,
+            '(?im)^[ \t]*(?<Name>D5TerminalWake[A-Za-z0-9_]*)[ \t]*:' ) |
+        ForEach-Object { $_.Groups['Name'].Value })
+    Assert-ExactInventory `
+        -Actual $variableInventory `
+        -Expected @($ExpectedDiagnosticsTerminalWakeVariables |
+            ForEach-Object { $_.Split(':', 2)[0] }) `
+        -InventoryOwner 'LMCDiagnosticsService Gate D variable declaration inventory'
+    $declarationSequence =
+        '(?is)BootIdFault[ \t]*:[ \t]*BOOL[ \t]*;[ \t\r\n]*' +
+        'D5TerminalWakeLastAttemptTicketId[ \t]*:[ \t]*UDINT[ \t]*;' +
+        '[ \t\r\n]*D5TerminalWakeLastAttemptTicketBootId[ \t]*:[ \t]*' +
+        'UDINT[ \t]*;[ \t\r\n]*' +
+        'D5TerminalWakeLastAttemptOwnerSessionEpoch[ \t]*:[ \t]*UDINT[ \t]*;'
+    if ([regex]::Matches($classBody, $declarationSequence).Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'LMCDiagnosticsService Gate D variables are not the exact three ' +
+            'private UDINTs immediately after BootIdFault.')
+    }
+    if ([regex]::Matches(
+            $classBody,
+            '(?is)FUNCTION[ \t]+GLOBAL[ \t]+ProcessOperations[ \t]*;' +
+                '[ \t\r\n]*FUNCTION[ \t]+GLOBAL[ \t]+' +
+                'TryTakeD5TerminalWake\b').Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'TryTakeD5TerminalWake is not immediately after ProcessOperations.')
+    }
+
+    $declarations = @(Get-FunctionRecords `
+            -Text $classMatch.Value -Kind Declaration | Where-Object {
+                $_.Name -ceq $TerminalWakeTryTakeSpec.Name
+            })
+    if ($declarations.Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'TryTakeD5TerminalWake declaration count is not 1.')
+    }
+    Assert-FunctionSourceAbi `
+        -Record $declarations[0] `
+        -Spec $TerminalWakeTryTakeSpec `
+        -ExpectedModifiers 'GLOBAL' `
+        -UseSourceOutputs:$false
+
+    $tryTake = Get-LasalClassFunctionBlock `
+        -SourceText $DiagnosticsSource `
+        -ClassName LMCDiagnosticsService `
+        -FunctionName $TerminalWakeTryTakeSpec.Name
+    $implementationRecord = [pscustomobject]@{
+        Name = $TerminalWakeTryTakeSpec.Name
+        Modifiers = 'GLOBAL'
+        Block = $tryTake
+    }
+    Assert-FunctionSourceAbi `
+        -Record $implementationRecord `
+        -Spec $TerminalWakeTryTakeSpec `
+        -ExpectedModifiers 'GLOBAL' `
+        -UseSourceOutputs:$false
+    Assert-ExactTerminalWakeFunctionBlock `
+        -Actual $tryTake `
+        -Expected (Get-ExpectedTerminalWakeTryTakeBlock) `
+        -FunctionOwner 'TryTakeD5TerminalWake'
+
+    $constructor = Get-LasalClassFunctionBlock `
+        -SourceText $DiagnosticsSource `
+        -ClassName LMCDiagnosticsService `
+        -FunctionName LMCDiagnosticsService
+    foreach ($entry in $ExpectedDiagnosticsTerminalWakeVariables) {
+        $name = $entry.Split(':', 2)[0]
+        if ([regex]::Matches(
+                $constructor,
+                '(?im)^[ \t]*' + [regex]::Escape($name) +
+                    '[ \t]*:=[ \t]*0[ \t]*;[ \t]*$').Count -ne 1) {
+            Throw-UdpCallbackBlocker (
+                "LMCDiagnosticsService initialization does not clear $name once.")
+        }
+    }
+}
+
+function Assert-TerminalWakeTcpSourceContract {
+    param([Parameter(Mandatory = $true)][string]$TcpSource)
+
+    $scan = Get-LexicalScanText -Text $TcpSource
+    $classMatch = [regex]::Match(
+        $scan,
+        '(?ims)^[ \t]*TCPMotionInterface[ \t]*:[ \t]*CLASS[ \t]*$' +
+            '(?<Body>.*?)^[ \t]*END_CLASS[ \t]*;[ \t]*$')
+    if (-not $classMatch.Success) {
+        Throw-UdpCallbackBlocker (
+            'TCPMotionInterface declaration block is missing for Gate D.')
+    }
+    $classBody = $classMatch.Groups['Body'].Value
+    $variableInventory = @([regex]::Matches(
+            $classBody,
+            '(?im)^[ \t]*(?<Name>D5TerminalWake[A-Za-z0-9_]*)[ \t]*:' ) |
+        ForEach-Object { $_.Groups['Name'].Value })
+    Assert-ExactInventory `
+        -Actual $variableInventory `
+        -Expected @($ExpectedTcpTerminalWakeVariables |
+            ForEach-Object { $_.Split(':', 2)[0] }) `
+        -InventoryOwner 'TCPMotionInterface Gate D variable declaration inventory'
+    $declarationSequence =
+        '(?is)RpcCallbackLastDisarmResult[ \t]*:[ \t]*DINT[ \t]*;' +
+        '[ \t\r\n]*D5TerminalWakeAttemptCount[ \t]*:[ \t]*UDINT[ \t]*;' +
+        '[ \t\r\n]*D5TerminalWakeEnqueuedCount[ \t]*:[ \t]*UDINT[ \t]*;' +
+        '[ \t\r\n]*D5TerminalWakeRejectedCount[ \t]*:[ \t]*UDINT[ \t]*;'
+    if ([regex]::Matches($classBody, $declarationSequence).Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'TCPMotionInterface Gate D counters are not the exact three ' +
+            'private UDINTs immediately after RpcCallbackLastDisarmResult.')
+    }
+    if ([regex]::Matches(
+            $classBody,
+            '(?is)FUNCTION[ \t]+DisarmRpcCallbackEndpoint\b.*?' +
+                'END_VAR[ \t]*;?[ \t\r\n]*FUNCTION[ \t]+' +
+                'PublishD5TerminalWake[ \t]*;').Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'PublishD5TerminalWake is not immediately after ' +
+            'DisarmRpcCallbackEndpoint.')
+    }
+    $declarations = @(Get-FunctionRecords `
+            -Text $classMatch.Value -Kind Declaration | Where-Object {
+                $_.Name -ceq $TerminalWakePublishSpec.Name
+            })
+    if ($declarations.Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'PublishD5TerminalWake declaration count is not 1.')
+    }
+    Assert-FunctionSourceAbi `
+        -Record $declarations[0] `
+        -Spec $TerminalWakePublishSpec `
+        -ExpectedModifiers '' `
+        -UseSourceOutputs:$false
+
+    $publish = Get-TcpFunctionBlock `
+        -TcpSource $TcpSource -FunctionName $TerminalWakePublishSpec.Name
+    Assert-ExactTerminalWakeFunctionBlock `
+        -Actual $publish `
+        -Expected (Get-ExpectedTerminalWakePublishBlock) `
+        -FunctionOwner 'PublishD5TerminalWake'
+
+    $callOwners = [Collections.Generic.List[string]]::new()
+    foreach ($functionName in @(
+            $ExpectedTcpFunctionNames + $TerminalWakePublishSpec.Name |
+                Where-Object { -not $_.StartsWith('@') })) {
+        $functionBlock = Get-TcpFunctionBlock `
+            -TcpSource $TcpSource -FunctionName $functionName
+        $count = [regex]::Matches(
+            $functionBlock,
+            '(?i)(?<!::)(?<![A-Za-z0-9_])PublishD5TerminalWake[ \t]*\(').Count
+        for ($index = 0; $index -lt $count; $index++) {
+            $callOwners.Add($functionName)
+        }
+    }
+    Assert-ExactInventory `
+        -Actual $callOwners.ToArray() `
+        -Expected @('CyWork', 'MsgPaser') `
+        -InventoryOwner 'Gate D broker call-site inventory'
+
+    $cyWork = Get-TcpFunctionBlock `
+        -TcpSource $TcpSource -FunctionName CyWork
+    if ([regex]::Matches(
+            $cyWork,
+            '(?is)IF[ \t]+IsClientConnected[ \t]*\([ \t]*#Diagnostics' +
+                '[ \t]*\)[ \t]+THEN[ \t\r\n]*' +
+                'Diagnostics\.ProcessOperations[ \t]*\([ \t]*\)[ \t]*;' +
+                '[ \t\r\n]*PublishD5TerminalWake[ \t]*\([ \t]*\)' +
+                '[ \t]*;[ \t\r\n]*END_IF[ \t]*;').Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'CyWork does not call the Gate D broker immediately after ' +
+            'Diagnostics.ProcessOperations.')
+    }
+    $parser = Get-TcpFunctionBlock `
+        -TcpSource $TcpSource -FunctionName MsgPaser
+    if ([regex]::Matches(
+            $parser,
+            '(?is)SendData[ \t]*\([ \t\r\n]*' +
+                'pData[ \t]*:=[ \t]*#Sendbuf\[0\][ \t]*,[ \t\r\n]*' +
+                'udSize[ \t]*:=[ \t]*diagnosticsResponseSize\$UDINT' +
+                '[ \t]*,[ \t\r\n]*dSocket[ \t]*:=[ \t]*CurrentSock' +
+                '[ \t]*,[ \t\r\n]*bDirect[ \t]*:=[ \t]*TRUE' +
+                '[ \t\r\n]*\)[ \t]*;[ \t\r\n]*' +
+                'PublishD5TerminalWake[ \t]*\([ \t]*\)[ \t]*;').Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'MsgPaser does not call the Gate D broker immediately after ' +
+            'the diagnostics TCP response SendData.')
+    }
 }
 
 function Assert-TcpCallbackFenceDeclarationContract {
@@ -3203,7 +3743,10 @@ function Assert-TcpDerivedClientContract {
     param(
         [Parameter(Mandatory = $true)][string]$TcpSource,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State
     )
 
@@ -3217,7 +3760,13 @@ function Assert-TcpDerivedClientContract {
             'ECDB540F59D96F94B741BA69842D52F74F4BEF74E3B442F64F449C7F9F824BC2'
     Assert-DeclaredSpanInventory `
         -Text $TcpSource `
-        -ExpectedFunctionNames $ExpectedTcpFunctionNames `
+        -ExpectedFunctionNames $(if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                @($ExpectedTcpFunctionNames +
+                    $TerminalWakePublishSpec.Name)
+            } else {
+                $ExpectedTcpFunctionNames
+            }) `
         -ExpectedTypeSpanCount 2 `
         -ExpectedClassName 'TCPMotionInterface' `
         -ArtifactOwner 'TCPMotionInterface source'
@@ -3331,13 +3880,19 @@ function Assert-TcpDerivedClientContract {
                 'DerivedCandidate TCP disarm helper remains empty.')
         }
         Assert-TcpGateCContract -TcpSource $TcpSource
+        if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            Assert-TerminalWakeTcpSourceContract -TcpSource $TcpSource
+        }
     }
 }
 
 function Assert-DerivedNetworkContract {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State,
         [Parameter(Mandatory = $true)][string]$CommNetworkText,
         [Parameter(Mandatory = $true)][int]$CommNetworkBytes,
@@ -3359,13 +3914,28 @@ function Assert-DerivedNetworkContract {
     if (-not $SyntheticFixture) {
         $commCanonical = ConvertTo-CanonicalLf -Text $CommNetworkText
         $commCanonicalBytes = $Utf8.GetBytes($commCanonical)
-        if (($CommNetworkBytes -ne $ExpectedGateB2CommNetworkBytes) -or
-            ($CommNetworkSha256 -cne $ExpectedGateB2CommNetworkSha256) -or
+        $expectedCommNetwork = if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                $ExpectedTerminalWakeLayout.CommNetwork
+            }
+            else {
+                [ordered]@{
+                    Bytes = $ExpectedGateB2CommNetworkBytes
+                    Sha256 = $ExpectedGateB2CommNetworkSha256
+                    CanonicalLfBytes =
+                        $ExpectedGateB2CommNetworkCanonicalLfBytes
+                    CanonicalLfSha256 =
+                        $ExpectedGateB2CommNetworkCanonicalLfSha256
+                }
+            }
+        if (($CommNetworkBytes -ne $expectedCommNetwork.Bytes) -or
+            ($CommNetworkSha256 -cne $expectedCommNetwork.Sha256) -or
             ($commCanonicalBytes.Count -ne
-                $ExpectedGateB2CommNetworkCanonicalLfBytes) -or
+                $expectedCommNetwork.CanonicalLfBytes) -or
             ((Get-BytesSha256 -Bytes $commCanonicalBytes) -cne
-                $ExpectedGateB2CommNetworkCanonicalLfSha256)) {
-            Throw-UdpCallbackBlocker 'Comm_Network.lcn Gate B2 snapshot drifted.'
+                $expectedCommNetwork.CanonicalLfSha256)) {
+            Throw-UdpCallbackBlocker (
+                "Comm_Network.lcn $State snapshot drifted.")
         }
     }
 
@@ -3412,11 +3982,23 @@ function Assert-DerivedNetworkContract {
                 "$($object.GetAttribute('Name')) must execute at exact 10 ms cyclic time.")
         }
     }
-    if (($transceivers[0].GetAttribute('Position') -cne '(120,180)') -or
+    $expectedTransceiverPosition = if (
+        $State -ceq 'TerminalWakeBrokerCandidate') {
+            $ExpectedTerminalWakeLayout.CommNetwork.TransceiverPosition
+        }
+        else { '(120,180)' }
+    $expectedSenderPosition = if (
+        $State -ceq 'TerminalWakeBrokerCandidate') {
+            $ExpectedTerminalWakeLayout.CommNetwork.SenderPosition
+        }
+        else { '(120,900)' }
+    if (($transceivers[0].GetAttribute('Position') -cne
+            $expectedTransceiverPosition) -or
         ($transceivers[0].GetAttribute('Visualized') -cne 'false') -or
         ($transceivers[0].GetAttribute('Remotely') -cne 'true') -or
         ($transceivers[0].GetAttribute('BackgroundTime') -cne 'always') -or
-        ($senders[0].GetAttribute('Position') -cne '(120,900)') -or
+        ($senders[0].GetAttribute('Position') -cne
+            $expectedSenderPosition) -or
         ($senders[0].GetAttribute('Visualized') -cne 'false') -or
         ($senders[0].GetAttribute('Remotely') -cne 'true') -or
         $senders[0].HasAttribute('BackgroundTime')) {
@@ -3524,7 +4106,9 @@ function Assert-DerivedNetworkContract {
     if (-not $SyntheticFixture) {
         $tableCanonical = ConvertTo-CanonicalLf -Text $CommTableText
         $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
-        if ($State -ceq 'DerivedCandidate') {
+        if ($State -in @(
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')) {
             $expectedTableBytes = $ExpectedDerivedCandidateCommTableBytes
             $expectedTableSha256 = $ExpectedDerivedCandidateCommTableSha256
             $expectedTableCanonicalLfBytes =
@@ -3569,23 +4153,31 @@ function Assert-DerivedNetworkContract {
     $tableDirectiveBytes = $Utf8.GetBytes(
         [string]::Join("`n", $tableDirectives))
     $expectedTableDirectiveCount = if ($SyntheticFixture) {
-        if ($State -ceq 'DerivedCandidate') { 4 } else { 1 }
+        if ($State -in @(
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')) { 4 } else { 1 }
     }
-    elseif ($State -ceq 'DerivedCandidate') {
+    elseif ($State -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
         $ExpectedDerivedCandidateCommTableDirectiveCount
     }
     else {
         $ExpectedGateB2CommTableDirectiveCount
     }
     $expectedTableDirectiveSha256 = if ($SyntheticFixture) {
-        if ($State -ceq 'DerivedCandidate') {
+        if ($State -in @(
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')) {
             '20F0F5EA021A6B09A0B1467AC0AF3742894E191CC5900E1CF878DF4DD4345833'
         }
         else {
             '46777DD0C3C52765A15174D2C3CE35BB24826A2274806E063F5E6CC07512D350'
         }
     }
-    elseif ($State -ceq 'DerivedCandidate') {
+    elseif ($State -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
         $ExpectedDerivedCandidateCommTableDirectiveSha256
     }
     else {
@@ -4101,7 +4693,12 @@ function Assert-VendorGeneratedRecordContract {
     param(
         [Parameter(Mandatory = $true)][object[]]$Observed,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'VendorImported',
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State
     )
 
@@ -4110,11 +4707,19 @@ function Assert-VendorGeneratedRecordContract {
             'vendor generated Classes.lcb record inventory count drifted.')
     }
     foreach ($expected in $VendorGeneratedRecordContracts) {
-        $expectedSha256 = if ($State -in @('DerivedWired', 'DerivedCandidate')) {
-            $expected.WiredSha256
-        }
-        else {
-            $expected.Sha256
+        $expectedSha256 = if (
+            ($State -ceq 'TerminalWakeBrokerCandidate') -and
+            $expected.Contains('TerminalWakeSha256')) {
+                $expected.TerminalWakeSha256
+            }
+            elseif ($State -in @(
+                    'DerivedWired',
+                    'DerivedCandidate',
+                    'TerminalWakeBrokerCandidate')) {
+                $expected.WiredSha256
+            }
+            else {
+                $expected.Sha256
         }
         $matches = @($Observed | Where-Object { $_.Name -ceq $expected.Name })
         if (($matches.Count -ne 1) -or
@@ -4656,7 +5261,11 @@ function Assert-ClassDatabaseFunctionAbiRecord {
 function Assert-GeneratedDerivedMetadata {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State,
         [Parameter(Mandatory = $true)][byte[]]$ClassesDatabaseBytes,
         [Parameter(Mandatory = $true)][string]$ClassesDatabaseText,
@@ -4844,7 +5453,9 @@ function Assert-GeneratedDerivedMetadata {
                 $ExpectedTcpCallbackFenceVariables |
                     ForEach-Object { $_.Split(':', 2)[0] })
         }
-        elseif ($State -ceq 'DerivedCandidate') {
+        elseif ($State -in @(
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')) {
             $ExpectedDerivedCandidateGeneratedTcpCallbackVariables
         }
         else {
@@ -4863,9 +5474,13 @@ function Assert-GeneratedDerivedMetadata {
         foreach ($entry in $ExpectedTcpCallbackFenceVariables) {
             $parts = $entry.Split(':', 2)
             $expectedCount = if ($SyntheticFixture) {
-                if ($State -ceq 'DerivedCandidate') { 2 } else { 1 }
+                if ($State -in @(
+                        'DerivedCandidate',
+                        'TerminalWakeBrokerCandidate')) { 2 } else { 1 }
             }
-            elseif ($State -ceq 'DerivedCandidate') {
+            elseif ($State -in @(
+                    'DerivedCandidate',
+                    'TerminalWakeBrokerCandidate')) {
                 2
             }
             elseif ($parts[0] -ceq 'RpcCallbackLastDisarmResult') {
@@ -4895,6 +5510,21 @@ function Assert-GeneratedDerivedMetadata {
             -IsGlobal $false `
             -InputCount ([uint32]$TcpDisarmHelperSpec.Inputs.Count) `
             -RecordOwner 'Classes.lcb TCP DisarmRpcCallbackEndpoint'
+        $tcpDisarmEnd = $tcpRecord.Length
+        $tcpDisarmExactEnd = $false
+        if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            $tcpDisarmEnd = Get-ClassDatabaseFunctionAbiStart `
+                -RecordBytes $tcpRecordBytes `
+                -RecordText $tcpRecord `
+                -FunctionName $TerminalWakePublishSpec.Name `
+                -MethodKind 0x0B `
+                -IsVirtual $false `
+                -IsGlobal $false `
+                -InputCount 0 `
+                -RecordOwner 'Classes.lcb TCP PublishD5TerminalWake'
+            $tcpDisarmEnd -= 6
+            $tcpDisarmExactEnd = $true
+        }
         Assert-ClassDatabaseFunctionAbiRecord `
             -RecordBytes $tcpRecordBytes `
             -RecordText $tcpRecord `
@@ -4905,12 +5535,92 @@ function Assert-GeneratedDerivedMetadata {
             -Inputs @($TcpDisarmHelperSpec.Inputs) `
             -Outputs @($TcpDisarmHelperSpec.Outputs) `
             -ExpectedStart $tcpDisarmStart `
-            -RecordEnd $tcpRecord.Length `
+            -RecordEnd $tcpDisarmEnd `
+            -RequireExactEnd:$tcpDisarmExactEnd `
             -RecordOwner 'Classes.lcb TCP DisarmRpcCallbackEndpoint'
     }
     elseif ($tcpClientCount -ne 0) {
         Throw-UdpCallbackBlocker (
             'declaration-only Classes.lcb contains premature TCP CallbackSender.')
+    }
+}
+
+function Assert-TerminalWakeGeneratedMetadata {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$ClassesDatabaseBytes,
+        [Parameter(Mandatory = $true)][string]$ClassesDatabaseText,
+        [switch]$SyntheticFixture
+    )
+
+    $contracts = @(
+        [pscustomobject]@{
+            Path = '.\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'
+            Owner = 'LMCDiagnosticsService Gate D Classes.lcb'
+            Variables = $ExpectedDiagnosticsTerminalWakeVariables
+            Method = $TerminalWakeTryTakeSpec
+            IsGlobal = $true
+        },
+        [pscustomobject]@{
+            Path = '.\Class\TCPMotionInterface\TCPMotionInterface.st'
+            Owner = 'TCPMotionInterface Gate D Classes.lcb'
+            Variables = $ExpectedTcpTerminalWakeVariables
+            Method = $TerminalWakePublishSpec
+            IsGlobal = $false
+        })
+    foreach ($contract in $contracts) {
+        $record = Get-ClassDatabaseRecord `
+            -DatabaseText $ClassesDatabaseText `
+            -SourcePath $contract.Path `
+            -RecordOwner $contract.Owner
+        $recordStart = $ClassesDatabaseText.IndexOf(
+            $contract.Path,
+            [StringComparison]::OrdinalIgnoreCase)
+        $recordBytes = [byte[]]::new($record.Length)
+        [Array]::Copy(
+            $ClassesDatabaseBytes,
+            $recordStart,
+            $recordBytes,
+            0,
+            $record.Length)
+        $orderedVariableTokens = [Collections.Generic.List[string]]::new()
+        foreach ($entry in $contract.Variables) {
+            $parts = $entry.Split(':', 2)
+            $expectedVariableCount = if ($SyntheticFixture) { 1 } else { 2 }
+            if ((Get-OrdinalCount -Text $record -Needle $parts[0]) -ne
+                $expectedVariableCount) {
+                Throw-UdpCallbackBlocker (
+                    "$($contract.Owner) variable $($parts[0]) count drifted.")
+            }
+            $orderedVariableTokens.Add($parts[0])
+            $orderedVariableTokens.Add($parts[1])
+        }
+        Assert-OrderedTokens `
+            -Text $record `
+            -Tokens $orderedVariableTokens.ToArray() `
+            -TokenOwner "$($contract.Owner) variable order/type"
+
+        $spec = $contract.Method
+        $methodStart = Get-ClassDatabaseFunctionAbiStart `
+            -RecordBytes $recordBytes `
+            -RecordText $record `
+            -FunctionName $spec.Name `
+            -MethodKind 0x0B `
+            -IsVirtual $false `
+            -IsGlobal $contract.IsGlobal `
+            -InputCount ([uint32]$spec.Inputs.Count) `
+            -RecordOwner "$($contract.Owner) $($spec.Name)"
+        Assert-ClassDatabaseFunctionAbiRecord `
+            -RecordBytes $recordBytes `
+            -RecordText $record `
+            -FunctionName $spec.Name `
+            -MethodKind 0x0B `
+            -IsVirtual $false `
+            -IsGlobal $contract.IsGlobal `
+            -Inputs @($spec.Inputs) `
+            -Outputs @($spec.Outputs) `
+            -ExpectedStart $methodStart `
+            -RecordEnd $record.Length `
+            -RecordOwner "$($contract.Owner) $($spec.Name)"
     }
 }
 
@@ -4948,6 +5658,199 @@ function Assert-VendorGeneratedRepresentation {
     if (-not $physicalExact) {
         Throw-UdpCallbackBlocker (
             "$VendorOwner physical source is not an approved exact LF or CRLF form.")
+    }
+}
+
+function Assert-ExactClassObjectsizeMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceText,
+        [Parameter(Mandatory = $true)][string]$ClassName,
+        [Parameter(Mandatory = $true)][string]$ExpectedObjectsize
+    )
+
+    $classTags = @([regex]::Matches(
+            (ConvertTo-CanonicalLf -Text $SourceText),
+            '(?is)<Class\b(?=[^>]*\bName[ \t]*=[ \t]*"' +
+                [regex]::Escape($ClassName) + '")[^>]*>'))
+    if ($classTags.Count -ne 1) {
+        Throw-UdpCallbackBlocker (
+            "$ClassName class metadata tag count is $($classTags.Count), expected 1.")
+    }
+    $objectsizeMatches = @([regex]::Matches(
+            $classTags[0].Value,
+            '(?i)\bObjectsize[ \t]*=[ \t]*"(?<Value>\([0-9]+,[0-9]+\))"'))
+    if (($objectsizeMatches.Count -ne 1) -or
+        ($objectsizeMatches[0].Groups['Value'].Value -cne
+            $ExpectedObjectsize)) {
+        Throw-UdpCallbackBlocker (
+            "$ClassName Objectsize is not exact $ExpectedObjectsize.")
+    }
+}
+
+function Get-TerminalWakeLayoutProjection {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Layout,
+        [Parameter(Mandatory = $true)][string]$LayoutOwner
+    )
+
+    $schema = [ordered]@{
+        Transceiver = @(
+            'Name',
+            'CanonicalLfBytes',
+            'CanonicalLfSha256',
+            'CodeGeneratorCrLfBytes',
+            'CodeGeneratorCrLfSha256',
+            'LineBreakCount',
+            'Objectsize')
+        Sender = @(
+            'Name',
+            'CanonicalLfBytes',
+            'CanonicalLfSha256',
+            'CodeGeneratorCrLfBytes',
+            'CodeGeneratorCrLfSha256',
+            'LineBreakCount',
+            'Objectsize')
+        Classes = @('Bytes', 'Sha256')
+        CommNetwork = @(
+            'Bytes',
+            'Sha256',
+            'CanonicalLfBytes',
+            'CanonicalLfSha256',
+            'TransceiverPosition',
+            'SenderPosition')
+        NetworksDatabase = @('Bytes', 'Sha256')
+        FullNetwork = @('Count', 'Sha256')
+        TrackedNetwork = @('Count', 'Sha256')
+    }
+    Assert-ExactInventory `
+        -Actual @($Layout.Keys | ForEach-Object { [string]$_ }) `
+        -Expected @($schema.Keys | ForEach-Object { [string]$_ }) `
+        -InventoryOwner "$LayoutOwner section order"
+
+    $projection = [Collections.Generic.List[string]]::new()
+    foreach ($sectionName in $schema.Keys) {
+        $section = $Layout[$sectionName]
+        if ($section -isnot [Collections.IDictionary]) {
+            Throw-UdpCallbackBlocker (
+                "$LayoutOwner $sectionName section is not an ordered map.")
+        }
+        Assert-ExactInventory `
+            -Actual @($section.Keys | ForEach-Object { [string]$_ }) `
+            -Expected @($schema[$sectionName]) `
+            -InventoryOwner "$LayoutOwner $sectionName field order"
+        foreach ($fieldName in $schema[$sectionName]) {
+            $projection.Add(
+                "$sectionName.$fieldName=$([string]$section[$fieldName])")
+        }
+    }
+    return [string]::Join("`n", $projection.ToArray())
+}
+
+function Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle {
+    $expectedProjection = Get-TerminalWakeLayoutProjection `
+        -Layout $ExpectedTerminalWakeLayout `
+        -LayoutOwner 'Gate D expected layout'
+    $oracleProjection = Get-TerminalWakeLayoutProjection `
+        -Layout $TerminalWakeLayoutSelfTestOracle `
+        -LayoutOwner 'Gate D self-test oracle'
+    if ($expectedProjection -cne $oracleProjection) {
+        Throw-UdpCallbackBlocker (
+            'Gate D expected layout constants drifted from the independent ' +
+            'self-test oracle.')
+    }
+}
+
+function Assert-TerminalWakeLayoutContract {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
+        [switch]$SyntheticFixture
+    )
+
+    Assert-ExactClassObjectsizeMetadata `
+        -SourceText $Snapshot.TransceiverSource `
+        -ClassName '_UDPTransceiver' `
+        -ExpectedObjectsize $ExpectedTerminalWakeLayout.Transceiver.Objectsize
+    Assert-ExactClassObjectsizeMetadata `
+        -SourceText $Snapshot.DerivedSource `
+        -ClassName 'LMCUdpCallbackSender' `
+        -ExpectedObjectsize $ExpectedTerminalWakeLayout.Sender.Objectsize
+    Assert-VendorGeneratedRepresentation `
+        -CanonicalLfSha256 $Snapshot.DerivedCanonicalLfSha256 `
+        -RawSha256 $Snapshot.DerivedRawSha256 `
+        -RawBytes $Snapshot.DerivedRawBytes `
+        -EolStyle $Snapshot.DerivedEolStyle `
+        -LineBreakCount $Snapshot.DerivedLineBreakCount `
+        -Expected $ExpectedTerminalWakeLayout.Sender `
+        -VendorOwner 'LMCUdpCallbackSender'
+
+    if ($SyntheticFixture) {
+        return
+    }
+
+    $identityChecks = @(
+        [pscustomobject]@{
+            Owner = '_UDPTransceiver canonical LF'
+            ActualBytes = [long]$Snapshot.TransceiverCanonicalLfBytes
+            ExpectedBytes =
+                [long]$ExpectedTerminalWakeLayout.Transceiver.CanonicalLfBytes
+            ActualSha256 = $Snapshot.TransceiverCanonicalLfSha256
+            ExpectedSha256 =
+                $ExpectedTerminalWakeLayout.Transceiver.CanonicalLfSha256
+        },
+        [pscustomobject]@{
+            Owner = 'LMCUdpCallbackSender canonical LF'
+            ActualBytes = [long]$Snapshot.DerivedCanonicalLfBytes
+            ExpectedBytes =
+                [long]$ExpectedTerminalWakeLayout.Sender.CanonicalLfBytes
+            ActualSha256 = $Snapshot.DerivedCanonicalLfSha256
+            ExpectedSha256 =
+                $ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256
+        },
+        [pscustomobject]@{
+            Owner = 'Classes.lcb'
+            ActualBytes = [long]$Snapshot.ClassesBytes
+            ExpectedBytes = [long]$ExpectedTerminalWakeLayout.Classes.Bytes
+            ActualSha256 = $Snapshot.ClassesSha256
+            ExpectedSha256 = $ExpectedTerminalWakeLayout.Classes.Sha256
+        },
+        [pscustomobject]@{
+            Owner = 'Comm_Network.lcn'
+            ActualBytes = [long]$Snapshot.CommNetworkBytes
+            ExpectedBytes = [long]$ExpectedTerminalWakeLayout.CommNetwork.Bytes
+            ActualSha256 = $Snapshot.CommNetworkSha256
+            ExpectedSha256 = $ExpectedTerminalWakeLayout.CommNetwork.Sha256
+        },
+        [pscustomobject]@{
+            Owner = 'Networks.lcb'
+            ActualBytes = [long]$Snapshot.NetworksDatabaseBytes
+            ExpectedBytes =
+                [long]$ExpectedTerminalWakeLayout.NetworksDatabase.Bytes
+            ActualSha256 = $Snapshot.NetworksDatabaseSha256
+            ExpectedSha256 =
+                $ExpectedTerminalWakeLayout.NetworksDatabase.Sha256
+        },
+        [pscustomobject]@{
+            Owner = 'full Network aggregate'
+            ActualBytes = [long]$Snapshot.FullNetworkCount
+            ExpectedBytes = [long]$ExpectedTerminalWakeLayout.FullNetwork.Count
+            ActualSha256 = $Snapshot.FullNetworkSha256
+            ExpectedSha256 = $ExpectedTerminalWakeLayout.FullNetwork.Sha256
+        },
+        [pscustomobject]@{
+            Owner = 'tracked Network aggregate'
+            ActualBytes = [long]$Snapshot.TrackedNetworkCount
+            ExpectedBytes =
+                [long]$ExpectedTerminalWakeLayout.TrackedNetwork.Count
+            ActualSha256 = $Snapshot.TrackedNetworkSha256
+            ExpectedSha256 = $ExpectedTerminalWakeLayout.TrackedNetwork.Sha256
+        })
+    foreach ($check in $identityChecks) {
+        if (($check.ActualBytes -ne $check.ExpectedBytes) -or
+            ($check.ActualSha256 -cne $check.ExpectedSha256)) {
+            Throw-UdpCallbackBlocker (
+                "$($check.Owner) sanctioned Gate D identity drifted.")
+        }
     }
 }
 
@@ -5898,7 +6801,14 @@ function Assert-LasalUdpCallbackStateContract {
     param(
         [Parameter(Mandatory = $true)][pscustomobject]$Snapshot,
         [Parameter(Mandatory = $true)][bool]$PermitAbsent,
-        [ValidateSet('Auto', 'Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'Auto',
+            'Absent',
+            'VendorImported',
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$RequiredState = 'Auto'
     )
 
@@ -5956,27 +6866,60 @@ function Assert-LasalUdpCallbackStateContract {
             'DerivedWired'
         }
         else {
-            'DerivedCandidate'
+            $diagnosticsSource = if (
+                $Snapshot.PSObject.Properties.Name -contains
+                    'DiagnosticsSource') {
+                [string]$Snapshot.DiagnosticsSource
+            } else { '' }
+            $diagnosticsScan = Get-LexicalScanText -Text $diagnosticsSource
+            $tcpScan = Get-LexicalScanText -Text ([string]$Snapshot.TcpSource)
+            $derivedScan = Get-LexicalScanText `
+                -Text ([string]$Snapshot.DerivedSource)
+            $terminalWakeSignal =
+                ([regex]::IsMatch(
+                        $diagnosticsScan,
+                        '(?i)(?<![A-Za-z0-9_])TryTakeD5TerminalWake' +
+                            '(?![A-Za-z0-9_])')) -or
+                ([regex]::IsMatch(
+                        $tcpScan,
+                        '(?i)(?<![A-Za-z0-9_])PublishD5TerminalWake' +
+                            '(?![A-Za-z0-9_])')) -or
+                ([regex]::IsMatch(
+                        $derivedScan,
+                        '(?i)(?<![A-Za-z0-9_])EventId[ \t]*=[ \t]*0' +
+                            '(?![0-9])'))
+            if ($terminalWakeSignal) {
+                'TerminalWakeBrokerCandidate'
+            }
+            else {
+                'DerivedCandidate'
+            }
         }
     }
     if (($RequiredState -cne 'Auto') -and ($state -cne $RequiredState)) {
         Throw-UdpCallbackBlocker (
             "resolved state is $state, required state is $RequiredState.")
     }
-    if (($state -ceq 'DerivedCandidate') -and
+    if (($state -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) -and
         (-not $DerivedCandidateApproved)) {
         Throw-UdpCallbackBlocker (
             'DerivedCandidate is fail-closed until the corrected Gate B ' +
             'ABI, scheduler, queue, socket, wire, and result-domain contract ' +
             'is frozen and re-enabled.')
     }
+    $historicalState = if ($state -ceq 'TerminalWakeBrokerCandidate') {
+        'DerivedCandidate'
+    } else { $state }
     Assert-VendorGeneratedDependencyContract `
         -ClassesDatabaseText $Snapshot.ClassesDatabaseText `
         -VendorPresent ($state -cne 'Absent')
     $derivedState = $state -in @(
         'DerivedDeclaration',
         'DerivedWired',
-        'DerivedCandidate')
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')
     $syntheticFixture =
         ($Snapshot.PSObject.Properties.Name -contains 'SyntheticFixture') -and
         [bool]$Snapshot.SyntheticFixture
@@ -5990,11 +6933,11 @@ function Assert-LasalUdpCallbackStateContract {
         -ProjectDatabaseText $Snapshot.ProjectDatabaseText `
         -ProjectBytes $Snapshot.ProjectBytes `
         -ProjectSha256 $Snapshot.ProjectSha256 `
-        -State $state `
+        -State $historicalState `
         -SyntheticFixture:$syntheticFixture
     Assert-GeneratedIncludeContract `
         -Observed @($Snapshot.GeneratedIncludes) `
-        -State $state
+        -State $historicalState
 
     if ($state -ceq 'Absent') {
         if (-not $PermitAbsent) {
@@ -6027,13 +6970,18 @@ function Assert-LasalUdpCallbackStateContract {
         }
     }
     else {
+        $expectedTransceiverRepresentation = if (
+            $state -ceq 'TerminalWakeBrokerCandidate') {
+                $ExpectedTerminalWakeLayout.Transceiver
+            }
+            else { $ExpectedVendor.Transceiver }
         Assert-VendorGeneratedRepresentation `
             -CanonicalLfSha256 $Snapshot.TransceiverCanonicalLfSha256 `
             -RawSha256 $Snapshot.TransceiverRawSha256 `
             -RawBytes $Snapshot.TransceiverRawBytes `
             -EolStyle $Snapshot.TransceiverEolStyle `
             -LineBreakCount $Snapshot.TransceiverLineBreakCount `
-            -Expected $ExpectedVendor.Transceiver `
+            -Expected $expectedTransceiverRepresentation `
             -VendorOwner '_UDPTransceiver'
         Assert-VendorGeneratedRepresentation `
             -CanonicalLfSha256 $Snapshot.InterfaceCanonicalLfSha256 `
@@ -6050,7 +6998,8 @@ function Assert-LasalUdpCallbackStateContract {
             -ClassesDatabaseBytes $Snapshot.ClassesDatabaseBytes `
             -ClassesDatabaseText $Snapshot.ClassesDatabaseText
         Assert-VendorGeneratedRecordContract `
-            -Observed @($Snapshot.VendorGeneratedRecords) -State $state
+            -Observed @($Snapshot.VendorGeneratedRecords) `
+            -State $state
 
         if ($state -ceq 'VendorImported') {
             if (($Snapshot.ClassesBytes -ne $ExpectedVendorImportedClassesBytes) -or
@@ -6118,10 +7067,15 @@ function Assert-LasalUdpCallbackStateContract {
                         'Empty'
                     } else {
                         'Complete'
-                    })
+                    }) `
+                -TerminalWakeBroker:(
+                    $state -ceq 'TerminalWakeBrokerCandidate')
             if ($syntheticFixture) {
                 $expectedSenderSource = if ($emptyImplementations) {
                     New-SyntheticDerivedEmptyStubSource
+                }
+                elseif ($state -ceq 'TerminalWakeBrokerCandidate') {
+                    New-SyntheticTerminalWakeDerivedSource
                 }
                 else {
                     New-SyntheticDerivedSource
@@ -6131,10 +7085,23 @@ function Assert-LasalUdpCallbackStateContract {
                     -Expected $expectedSenderSource `
                     -ArtifactOwner 'LMCUdpCallbackSender'
             }
-            $wiredState = $state -in @('DerivedWired', 'DerivedCandidate')
+            $wiredState = $state -in @(
+                'DerivedWired',
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')
             if ($wiredState) {
                 if (-not $syntheticFixture) {
-                    if ($state -ceq 'DerivedCandidate') {
+                    if ($state -ceq 'TerminalWakeBrokerCandidate') {
+                        $expectedFullNetworkCount =
+                            $ExpectedTerminalWakeLayout.FullNetwork.Count
+                        $expectedFullNetworkSha256 =
+                            $ExpectedTerminalWakeLayout.FullNetwork.Sha256
+                        $expectedTrackedNetworkCount =
+                            $ExpectedTerminalWakeLayout.TrackedNetwork.Count
+                        $expectedTrackedNetworkSha256 =
+                            $ExpectedTerminalWakeLayout.TrackedNetwork.Sha256
+                    }
+                    elseif ($state -ceq 'DerivedCandidate') {
                         $expectedFullNetworkCount =
                             $ExpectedDerivedCandidateFullNetworkCount
                         $expectedFullNetworkSha256 =
@@ -6169,7 +7136,10 @@ function Assert-LasalUdpCallbackStateContract {
                     -TcpSource $Snapshot.TcpSource -State $state
                 if ($syntheticFixture) {
                     $expectedTcpSource = New-SyntheticTcpSource `
-                        -Phase $(if ($state -ceq 'DerivedCandidate') {
+                        -Phase $(if (
+                            $state -ceq 'TerminalWakeBrokerCandidate') {
+                                'TerminalWakeBrokerCandidate'
+                            } elseif ($state -ceq 'DerivedCandidate') {
                                 'DerivedCandidate'
                             } else { 'DerivedWired' })
                     Assert-ExactSyntheticSourceTokenContract `
@@ -6238,6 +7208,17 @@ function Assert-LasalUdpCallbackStateContract {
                 -ClassesDatabaseText $Snapshot.ClassesDatabaseText `
                 -ExpectTcpClient $wiredState `
                 -SyntheticFixture:$syntheticFixture
+            if ($state -ceq 'TerminalWakeBrokerCandidate') {
+                Assert-TerminalWakeDiagnosticsSourceContract `
+                    -DiagnosticsSource $Snapshot.DiagnosticsSource
+                Assert-TerminalWakeGeneratedMetadata `
+                    -ClassesDatabaseBytes $Snapshot.ClassesDatabaseBytes `
+                    -ClassesDatabaseText $Snapshot.ClassesDatabaseText `
+                    -SyntheticFixture:$syntheticFixture
+                Assert-TerminalWakeLayoutContract `
+                    -Snapshot $Snapshot `
+                    -SyntheticFixture:$syntheticFixture
+            }
         }
     }
 
@@ -6250,7 +7231,8 @@ function Assert-LasalUdpCallbackStateContract {
         DerivedContractChecked = ($state -in @(
                 'DerivedDeclaration',
                 'DerivedWired',
-                'DerivedCandidate'))
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate'))
     }
 }
 
@@ -6463,7 +7445,7 @@ function Get-NetworkFileText {
     $file = Get-NetworkFileEvidence `
         -NetworkEvidence $NetworkEvidence `
         -RelativePath $RelativePath
-    return [Text.Encoding]::Latin1.GetString($file.Bytes)
+    return $Latin1.GetString($file.Bytes)
 }
 
 function Get-ForbiddenImportPaths {
@@ -6571,6 +7553,12 @@ function Get-CurrentRepositorySnapshot {
         -RelativePath $DerivedRelativePath `
         -SourceOwner 'LMCUdpCallbackSender source'
 
+    $diagnosticsBytes = Get-RequiredFileBytes `
+        -Root $resolvedRoot -RelativePath $DiagnosticsRelativePath `
+        -FileOwner 'LMCDiagnosticsService source'
+    $diagnostics = Get-AsciiTextEvidence `
+        -Bytes $diagnosticsBytes -SourceOwner 'LMCDiagnosticsService source'
+
     $tcpBytes = Get-RequiredFileBytes `
         -Root $resolvedRoot -RelativePath $TcpRelativePath `
         -FileOwner 'TCPMotionInterface source'
@@ -6610,13 +7598,13 @@ function Get-CurrentRepositorySnapshot {
             Get-ProtectedGeneratedRecordEvidence `
                 -ClassesDatabaseBytes $classesBytes `
                 -ClassesDatabaseText (
-                    [Text.Encoding]::Latin1.GetString($classesBytes)))
+                    $Latin1.GetString($classesBytes)))
         VendorGeneratedRecords = if (($null -ne $transceiver) -and
             ($null -ne $interface)) {
             @(Get-VendorGeneratedRecordEvidence `
                     -ClassesDatabaseBytes $classesBytes `
                     -ClassesDatabaseText (
-                        [Text.Encoding]::Latin1.GetString($classesBytes)))
+                        $Latin1.GetString($classesBytes)))
         }
         else {
             @()
@@ -6634,6 +7622,9 @@ function Get-CurrentRepositorySnapshot {
         TransceiverCanonicalLfSha256 = if ($null -ne $transceiver) {
             $transceiver.CanonicalLfSha256
         } else { '' }
+        TransceiverCanonicalLfBytes = if ($null -ne $transceiver) {
+            $transceiver.CanonicalLfBytes
+        } else { 0 }
         TransceiverRawSha256 = if ($null -ne $transceiver) {
             $transceiver.RawSha256
         } else { '' }
@@ -6662,15 +7653,38 @@ function Get-CurrentRepositorySnapshot {
             $interface.LineBreakCount
         } else { 0 }
         DerivedSource = if ($null -ne $derived) { $derived.Text } else { '' }
+        DerivedRawBytes = if ($null -ne $derived) {
+            $derived.ByteCount
+        } else { 0 }
+        DerivedRawSha256 = if ($null -ne $derived) {
+            $derived.RawSha256
+        } else { '' }
+        DerivedCanonicalLfBytes = if ($null -ne $derived) {
+            $derived.CanonicalLfBytes
+        } else { 0 }
+        DerivedCanonicalLfSha256 = if ($null -ne $derived) {
+            $derived.CanonicalLfSha256
+        } else { '' }
+        DerivedEolStyle = if ($null -ne $derived) {
+            $derived.EolStyle
+        } else { 'Absent' }
+        DerivedLineBreakCount = if ($null -ne $derived) {
+            $derived.LineBreakCount
+        } else { 0 }
+        DiagnosticsSource = $diagnostics.Text
+        DiagnosticsRawBytes = $diagnostics.ByteCount
+        DiagnosticsRawSha256 = $diagnostics.RawSha256
+        DiagnosticsCanonicalLfBytes = $diagnostics.CanonicalLfBytes
+        DiagnosticsCanonicalLfSha256 = $diagnostics.CanonicalLfSha256
         TcpSource = $tcp.Text
         TcpSha256 = $tcp.RawSha256
         ClassesDatabaseBytes = $classesBytes
-        ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($classesBytes)
+        ClassesDatabaseText = $Latin1.GetString($classesBytes)
         ClassesBytes = $classesBytes.Count
         ClassesSha256 = Get-BytesSha256 -Bytes $classesBytes
         ProjectBytes = $projectBytes.Count
         ProjectSha256 = Get-BytesSha256 -Bytes $projectBytes
-        ProjectDatabaseText = [Text.Encoding]::Latin1.GetString($projectBytes)
+        ProjectDatabaseText = $Latin1.GetString($projectBytes)
         ProjectDefinitionBytes = $projectDefinitionBytes.Count
         ProjectDefinitionSha256 = Get-BytesSha256 -Bytes $projectDefinitionBytes
         ProjectDefinitionText = $projectDefinition.Text
@@ -6680,7 +7694,7 @@ function Get-CurrentRepositorySnapshot {
         TrackedNetworkSha256 = $network.TrackedSha256
         ProtectedTrackedNetworkCount = $network.ProtectedTrackedCount
         ProtectedTrackedNetworkSha256 = $network.ProtectedTrackedSha256
-        ConfigObjectsText = [Text.Encoding]::Latin1.GetString(
+        ConfigObjectsText = $Latin1.GetString(
             $configObjectsNetworkFile.Bytes)
         ConfigObjectsBytes = $configObjectsNetworkFile.ByteCount
         ConfigObjectsSha256 = $configObjectsNetworkFile.Sha256
@@ -6887,7 +7901,13 @@ function New-SyntheticVendorMethodHeaderBytes {
 function New-SyntheticClassesDatabase {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'Absent',
+            'VendorImported',
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State
     )
 
@@ -6987,7 +8007,27 @@ function New-SyntheticClassesDatabase {
             'ASCII_BIN' + [char]0 + '<Unknown>' + [char]0 +
             '.\Class\ASCII_BIN\ASCII_BIN.st' + [char]0)
     }
-    if ($State -in @('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')) {
+    if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        Add-AsciiTextToList -List $bytes -Text (
+            '.\Class\LMCDiagnosticsService\LMCDiagnosticsService.st' +
+            [char]0)
+        foreach ($entry in $ExpectedDiagnosticsTerminalWakeVariables) {
+            $parts = $entry.Split(':', 2)
+            Add-AsciiTextToList -List $bytes -Text (
+                $parts[0] + [char]0 + $parts[1] + [char]0)
+        }
+        Add-BytesToList -List $bytes -Bytes (
+            New-SyntheticFunctionMetadataBytes `
+                -Name $TerminalWakeTryTakeSpec.Name `
+                -IsGlobal $true `
+                -Inputs @($TerminalWakeTryTakeSpec.Inputs) `
+                -Outputs @($TerminalWakeTryTakeSpec.Outputs))
+    }
+    if ($State -in @(
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
         Add-AsciiTextToList -List $bytes -Text (
             '.\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st' + [char]0)
         Add-AsciiTextToList -List $bytes -Text (
@@ -7035,7 +8075,10 @@ function New-SyntheticClassesDatabase {
     }
     Add-AsciiTextToList -List $bytes -Text (
         '.\Class\TCPMotionInterface\TCPMotionInterface.st' + [char]0)
-    if ($State -in @('DerivedWired', 'DerivedCandidate')) {
+    if ($State -in @(
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
         Add-AsciiTextToList -List $bytes -Text (
             'CallbackSender' + [char]0 + 'LMCUdpCallbackSender' + [char]0)
         $syntheticTcpCallbackTypes = [ordered]@{
@@ -7051,7 +8094,9 @@ function New-SyntheticClassesDatabase {
             RpcCallbackCookieHi = 'UDINT'
             RpcCallbackLastDisarmResult = 'DINT'
         }
-        $syntheticTcpCallbackInventory = if ($State -ceq 'DerivedCandidate') {
+        $syntheticTcpCallbackInventory = if ($State -in @(
+                'DerivedCandidate',
+                'TerminalWakeBrokerCandidate')) {
             $ExpectedDerivedCandidateGeneratedTcpCallbackVariables
         }
         else {
@@ -7068,19 +8113,34 @@ function New-SyntheticClassesDatabase {
                 $name + [char]0 +
                 $syntheticTcpCallbackTypes[$name] + [char]0)
         }
+        if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            foreach ($entry in $ExpectedTcpTerminalWakeVariables) {
+                $parts = $entry.Split(':', 2)
+                Add-AsciiTextToList -List $bytes -Text (
+                    $parts[0] + [char]0 + $parts[1] + [char]0)
+            }
+        }
         Add-BytesToList -List $bytes -Bytes (
             New-SyntheticFunctionMetadataBytes `
                 -Name $TcpDisarmHelperSpec.Name `
                 -IsGlobal $false `
                 -Inputs @($TcpDisarmHelperSpec.Inputs) `
                 -Outputs @($TcpDisarmHelperSpec.Outputs))
+        if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            Add-BytesToList -List $bytes -Bytes (
+                New-SyntheticFunctionMetadataBytes `
+                    -Name $TerminalWakePublishSpec.Name `
+                    -IsGlobal $false `
+                    -Inputs @($TerminalWakePublishSpec.Inputs) `
+                    -Outputs @($TerminalWakePublishSpec.Outputs))
+        }
     }
     Add-AsciiTextToList -List $bytes -Text (
         '.\Class\ZZFixtureBoundary\ZZFixtureBoundary.st' + [char]0)
     $array = $bytes.ToArray()
     return [pscustomobject]@{
         Bytes = $array
-        Text = [Text.Encoding]::Latin1.GetString($array)
+        Text = $Latin1.GetString($array)
     }
 }
 
@@ -7754,6 +8814,34 @@ END_FUNCTION
 '@
 }
 
+function New-SyntheticTerminalWakeDerivedSource {
+    $source = New-SyntheticDerivedSource
+    $gateCClassMetadata =
+        '<Class Name="LMCUdpCallbackSender" RealtimeTask="false" ' +
+        'CyclicTask="true" DefCyclictime="10 ms" BackgroundTask="false" ' +
+        'Sigmatek="false">'
+    $gateDClassMetadata =
+        '<Class Name="LMCUdpCallbackSender" RealtimeTask="false" ' +
+        'CyclicTask="true" DefCyclictime="10 ms" BackgroundTask="false" ' +
+        'Sigmatek="false" Objectsize="(778,120)">'
+    if ((Get-OrdinalCount -Text $source -Needle $gateCClassMetadata) -ne 1) {
+        throw 'synthetic Gate D sender Objectsize anchor drifted.'
+    }
+    $source = $source.Replace($gateCClassMetadata, $gateDClassMetadata)
+    $gateCPolicy =
+        'ELSIF (EventMaskBit <> 1) OR (EventType <> 1) OR ' +
+        '(DeliveryClass <> 0) OR (PayloadBytes <> 0) OR ' +
+        '((ActiveEndpoint.EventMask AND EventMaskBit) = 0) THEN'
+    $gateDPolicy =
+        'ELSIF (EventMaskBit <> 1) OR (EventType <> 1) OR ' +
+        '(EventId = 0) OR (DeliveryClass <> 0) OR (PayloadBytes <> 0) OR ' +
+        '((ActiveEndpoint.EventMask AND EventMaskBit) = 0) THEN'
+    if ((Get-OrdinalCount -Text $source -Needle $gateCPolicy) -ne 1) {
+        throw 'synthetic Gate C PublishEvent policy anchor drifted.'
+    }
+    return $source.Replace($gateCPolicy, $gateDPolicy)
+}
+
 function New-SyntheticDerivedEmptyStubSource {
     $source = New-SyntheticDerivedSource
     $source = [regex]::Replace(
@@ -8133,9 +9221,70 @@ function New-SyntheticGateCTcpSource {
         -Replacement $completeHelper
 }
 
+function New-SyntheticTerminalWakeTcpSource {
+    param([Parameter(Mandatory = $true)][string]$TcpSource)
+
+    $source = ConvertTo-CanonicalLf -Text $TcpSource
+    $counterAnchor = "`t`tRpcCallbackLastDisarmResult `t: DINT;`n"
+    $counterDeclarations =
+        "`t`tD5TerminalWakeAttemptCount `t: UDINT;`n" +
+        "`t`tD5TerminalWakeEnqueuedCount `t: UDINT;`n" +
+        "`t`tD5TerminalWakeRejectedCount `t: UDINT;`n"
+    if ((Get-OrdinalCount -Text $source -Needle $counterAnchor) -ne 1) {
+        throw 'synthetic Gate D TCP counter declaration anchor drifted.'
+    }
+    $source = $source.Replace(
+        $counterAnchor,
+        $counterAnchor + $counterDeclarations)
+
+    $methodAnchor =
+        "`tFUNCTION DisarmRpcCallbackEndpoint`n" +
+        "`t`tVAR_OUTPUT`n" +
+        "`t`t`tResult `t: DINT;`n" +
+        "`t`tEND_VAR;`n"
+    if ((Get-OrdinalCount -Text $source -Needle $methodAnchor) -ne 1) {
+        throw 'synthetic Gate D TCP method declaration anchor drifted.'
+    }
+    $source = $source.Replace(
+        $methodAnchor,
+        $methodAnchor + "`t`n`tFUNCTION PublishD5TerminalWake;`n")
+
+    $cyWorkAnchor =
+        "    Diagnostics.ProcessOperations();`n" +
+        "  end_if;"
+    if ((Get-OrdinalCount -Text $source -Needle $cyWorkAnchor) -ne 1) {
+        throw 'synthetic Gate D CyWork broker anchor drifted.'
+    }
+    $source = $source.Replace(
+        $cyWorkAnchor,
+        "    Diagnostics.ProcessOperations();`n" +
+            "    PublishD5TerminalWake();`n" +
+            "  end_if;")
+
+    $parserAnchor =
+        "    SendData(`n" +
+        "      pData:=#Sendbuf[0],`n" +
+        "      udSize:=diagnosticsResponseSize`$UDINT,`n" +
+        "      dSocket:=CurrentSock,`n" +
+        "      bDirect:=TRUE`n" +
+        "    );"
+    if ((Get-OrdinalCount -Text $source -Needle $parserAnchor) -ne 1) {
+        throw 'synthetic Gate D diagnostics response broker anchor drifted.'
+    }
+    $source = $source.Replace(
+        $parserAnchor,
+        $parserAnchor + "`n    PublishD5TerminalWake();")
+    return $source.TrimEnd() + "`n`n`n" +
+        (Get-ExpectedTerminalWakePublishBlock).Trim() + "`n"
+}
+
 function New-SyntheticTcpSource {
     param(
-        [ValidateSet('Baseline', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'Baseline',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$Phase = 'Baseline'
     )
 
@@ -8232,8 +9381,14 @@ function New-SyntheticTcpSource {
             $ExpectedGateB2TcpCanonicalLfSha256)) {
         throw 'synthetic TCP forward delta does not reconstruct exact Gate B2.'
     }
-    if ($Phase -ceq 'DerivedCandidate') {
-        return New-SyntheticGateCTcpSource -TcpSource $source
+    if ($Phase -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
+        $source = New-SyntheticGateCTcpSource -TcpSource $source
+        if ($Phase -ceq 'TerminalWakeBrokerCandidate') {
+            return New-SyntheticTerminalWakeTcpSource -TcpSource $source
+        }
+        return $source
     }
     return $source
 }
@@ -8250,11 +9405,12 @@ function Get-SyntheticGitBlobBytes {
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
-    [void]$start.ArgumentList.Add('-C')
-    [void]$start.ArgumentList.Add($RepositoryRoot)
-    [void]$start.ArgumentList.Add('cat-file')
-    [void]$start.ArgumentList.Add('blob')
-    [void]$start.ArgumentList.Add($ObjectId)
+    if (($ObjectId -notmatch '^[0-9a-f]{40,64}$') -or
+        $RepositoryRoot.Contains('"')) {
+        throw 'synthetic Git blob arguments are unsafe.'
+    }
+    $start.Arguments =
+        '-C "' + $RepositoryRoot + '" cat-file blob ' + $ObjectId
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     if (-not $process.Start()) {
@@ -8299,7 +9455,7 @@ function New-SyntheticLasalBinaryText {
         $bytes.AddRange($recordBytes)
     }
     $bytes.AddRange([byte[]](0, 0, 0, 0))
-    return [Text.Encoding]::Latin1.GetString($bytes.ToArray())
+    return $Latin1.GetString($bytes.ToArray())
 }
 
 function New-SyntheticDerivedNetwork {
@@ -8482,6 +9638,16 @@ _UDPTransceiver : CLASS
 END_CLASS;
 (::_UDPTransceiver.sError.pMeth)$UINT, _CH_SVR$UINT, 0$UINT, "sError",
 '@
+}
+
+function New-SyntheticTerminalWakeTransceiverSource {
+    $source = New-SyntheticVendorTransceiverSource
+    if ((Get-OrdinalCount -Text $source -Needle '<Class>') -ne 1) {
+        throw 'synthetic Gate D transceiver Objectsize anchor drifted.'
+    }
+    return $source.Replace(
+        '<Class>',
+        '<Class Name="_UDPTransceiver" Objectsize="(522,120)">')
 }
 
 function New-SyntheticVendorInterfaceSource {
@@ -8684,21 +9850,129 @@ function New-SyntheticGeneratedIncludes {
         })
 }
 
+function New-SyntheticTerminalWakeDiagnosticsSource {
+    return @'
+LMCDiagnosticsService : CLASS
+    VAR
+        BootIdFault : BOOL;
+        D5TerminalWakeLastAttemptTicketId : UDINT;
+        D5TerminalWakeLastAttemptTicketBootId : UDINT;
+        D5TerminalWakeLastAttemptOwnerSessionEpoch : UDINT;
+    END_VAR
+
+    FUNCTION GLOBAL ProcessOperations;
+
+    FUNCTION GLOBAL TryTakeD5TerminalWake
+        VAR_INPUT
+            pTicketId : ^UDINT;
+            pTicketBootId : ^UDINT;
+            pOwnerSessionEpoch : ^UDINT;
+        END_VAR
+        VAR_OUTPUT
+            Result : DINT;
+        END_VAR;
+
+    FUNCTION IsSdoReadReady;
+END_CLASS;
+
+FUNCTION LMCDiagnosticsService::LMCDiagnosticsService
+    D5TerminalWakeLastAttemptTicketId := 0;
+    D5TerminalWakeLastAttemptTicketBootId := 0;
+    D5TerminalWakeLastAttemptOwnerSessionEpoch := 0;
+END_FUNCTION
+
+FUNCTION GLOBAL LMCDiagnosticsService::TryTakeD5TerminalWake
+    VAR_INPUT
+        pTicketId : ^UDINT;
+        pTicketBootId : ^UDINT;
+        pOwnerSessionEpoch : ^UDINT;
+    END_VAR
+    VAR_OUTPUT
+        Result : DINT;
+    END_VAR
+
+    Result := -1;
+    if (pTicketId = NIL) | (pTicketBootId = NIL) |
+        (pOwnerSessionEpoch = NIL) then
+        RETURN;
+    end_if;
+
+    pTicketId^$UDINT := 0;
+    pTicketBootId^$UDINT := 0;
+    pOwnerSessionEpoch^$UDINT := 0;
+    Result := 0;
+
+    if (TicketId = 0) | (TicketBootId = 0) |
+        (OwnerSessionEpoch = 0) then
+        RETURN;
+    end_if;
+    if (OperationState <> LMC_DIAG_SDO_STATE_COMPLETED) &
+        (OperationState <> LMC_DIAG_SDO_STATE_FAILED) &
+        (OperationState <> LMC_DIAG_SDO_STATE_CANCELLED) &
+        (OperationState <> LMC_DIAG_SDO_STATE_EXPIRED) then
+        RETURN;
+    end_if;
+    if (D5TerminalWakeLastAttemptTicketId = TicketId) &
+        (D5TerminalWakeLastAttemptTicketBootId = TicketBootId) &
+        (D5TerminalWakeLastAttemptOwnerSessionEpoch = OwnerSessionEpoch) then
+        RETURN;
+    end_if;
+
+    D5TerminalWakeLastAttemptTicketId := TicketId;
+    D5TerminalWakeLastAttemptTicketBootId := TicketBootId;
+    D5TerminalWakeLastAttemptOwnerSessionEpoch := OwnerSessionEpoch;
+    pTicketId^$UDINT := TicketId;
+    pTicketBootId^$UDINT := TicketBootId;
+    pOwnerSessionEpoch^$UDINT := OwnerSessionEpoch;
+    Result := 1;
+
+END_FUNCTION
+'@
+}
+
 function New-UdpCallbackTestSnapshot {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'Absent',
+            'VendorImported',
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State
     )
 
+    $historicalState = if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        'DerivedCandidate'
+    } else { $State }
     $classes = New-SyntheticClassesDatabase -State $State
-    $derivedNetwork = New-SyntheticDerivedNetwork -State $State
-    $configObjects = New-SyntheticConfigObjects -State $State
+    $derivedNetwork = New-SyntheticDerivedNetwork -State $historicalState
+    if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        foreach ($position in @(
+                @{ Old = '(120,180)'; New = '(1410,990)' },
+                @{ Old = '(120,900)'; New = '(2610,990)' })) {
+            if ((Get-OrdinalCount -Text $derivedNetwork.Xml `
+                    -Needle $position.Old) -ne 1) {
+                throw 'synthetic Gate D Network position anchor drifted.'
+            }
+            $derivedNetwork.Xml = $derivedNetwork.Xml.Replace(
+                $position.Old, $position.New)
+        }
+    }
+    $configObjects = New-SyntheticConfigObjects -State $historicalState
     $vendorPresent = $State -cne 'Absent'
     $derivedPresent =
-        $State -in @('DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')
-    $wiredPresent = $State -in @('DerivedWired', 'DerivedCandidate')
-    $projectDefinition = New-SyntheticProjectDefinition -State $State
+        $State -in @(
+            'DerivedDeclaration',
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')
+    $wiredPresent = $State -in @(
+        'DerivedWired',
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')
+    $projectDefinition = New-SyntheticProjectDefinition -State $historicalState
     $projectDefinitionRaw = [Text.Encoding]::ASCII.GetBytes($projectDefinition)
     $configObjectsRaw = [Text.Encoding]::ASCII.GetBytes($configObjects)
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
@@ -8707,12 +9981,12 @@ function New-UdpCallbackTestSnapshot {
     }
     else {
         $projectPath = Join-Path $root $ProjectRelativePath.Replace('/', '\')
-        [Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes($projectPath))
+        $Latin1.GetString([IO.File]::ReadAllBytes($projectPath))
     }
-    $projectDatabaseRaw = [Text.Encoding]::Latin1.GetBytes($projectDatabaseText)
+    $projectDatabaseRaw = $Latin1.GetBytes($projectDatabaseText)
     if ($wiredPresent) {
         $networksDatabaseText = $derivedNetwork.Database
-        $networksDatabaseRaw = [Text.Encoding]::Latin1.GetBytes(
+        $networksDatabaseRaw = $Latin1.GetBytes(
             $networksDatabaseText)
         $commTableText = $derivedNetwork.Table
         $commTableRaw = [Text.Encoding]::ASCII.GetBytes($commTableText)
@@ -8727,7 +10001,7 @@ function New-UdpCallbackTestSnapshot {
                 $ExpectedVendorImportedNetworksDatabaseSha256)) {
             throw 'synthetic Gate A Networks.lcb Git blob drifted.'
         }
-        $networksDatabaseText = [Text.Encoding]::Latin1.GetString(
+        $networksDatabaseText = $Latin1.GetString(
             $networksDatabaseRaw)
         $commTableRaw = Get-SyntheticGitBlobBytes `
             -RepositoryRoot $root `
@@ -8744,6 +10018,28 @@ function New-UdpCallbackTestSnapshot {
     }
     $commNetworkText = if ($wiredPresent) { $derivedNetwork.Xml } else { '' }
     $commNetworkRaw = [Text.Encoding]::ASCII.GetBytes($commNetworkText)
+    $transceiverSource = if ($vendorPresent) {
+        if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            New-SyntheticTerminalWakeTransceiverSource
+        }
+        else { New-SyntheticVendorTransceiverSource }
+    }
+    else { '' }
+    $transceiverExpected = if (
+        $State -ceq 'TerminalWakeBrokerCandidate') {
+            $ExpectedTerminalWakeLayout.Transceiver
+        }
+        else { $ExpectedVendor.Transceiver }
+    $derivedSource = if ($State -ceq 'TerminalWakeBrokerCandidate') {
+        New-SyntheticTerminalWakeDerivedSource
+    } elseif ($State -ceq 'DerivedCandidate') {
+        New-SyntheticDerivedSource
+    } elseif ($derivedPresent) {
+        New-SyntheticDerivedEmptyStubSource
+    } else { '' }
+    $derivedCanonical = ConvertTo-CanonicalLf -Text $derivedSource
+    $derivedCanonicalBytes = $Utf8.GetByteCount($derivedCanonical)
+    $derivedCanonicalSha256 = Get-TextSha256 -Text $derivedCanonical
     $protected = @(
         foreach ($expected in $ProtectedDependencies) {
             [pscustomobject]@{
@@ -8755,7 +10051,8 @@ function New-UdpCallbackTestSnapshot {
     return [pscustomobject]@{
         SyntheticFixture = $true
         ProtectedDependencies = $protected
-        GeneratedIncludes = @(New-SyntheticGeneratedIncludes -State $State)
+        GeneratedIncludes = @(
+            New-SyntheticGeneratedIncludes -State $historicalState)
         ProtectedGeneratedRecords = @(
             foreach ($expected in $ProtectedGeneratedRecordContracts) {
                 [pscustomobject]@{
@@ -8770,7 +10067,11 @@ function New-UdpCallbackTestSnapshot {
                     [pscustomobject]@{
                         Name = $expected.Name
                         Bytes = $expected.Bytes
-                        Sha256 = if ($wiredPresent) {
+                        Sha256 = if (
+                            ($State -ceq 'TerminalWakeBrokerCandidate') -and
+                            $expected.Contains('TerminalWakeSha256')) {
+                            $expected.TerminalWakeSha256
+                        } elseif ($wiredPresent) {
                             $expected.WiredSha256
                         } else { $expected.Sha256 }
                     }
@@ -8780,24 +10081,25 @@ function New-UdpCallbackTestSnapshot {
         TransceiverPresent = $vendorPresent
         InterfacePresent = $vendorPresent
         DerivedPresent = $derivedPresent
-        TransceiverSource = if ($vendorPresent) {
-            New-SyntheticVendorTransceiverSource
-        } else { '' }
+        TransceiverSource = $transceiverSource
         InterfaceSource = if ($vendorPresent) {
             New-SyntheticVendorInterfaceSource
         } else { '' }
         TransceiverCanonicalLfSha256 = if ($vendorPresent) {
-            $ExpectedVendor.Transceiver.CanonicalLfSha256
+            $transceiverExpected.CanonicalLfSha256
         } else { '' }
+        TransceiverCanonicalLfBytes = if ($vendorPresent) {
+            $transceiverExpected.CanonicalLfBytes
+        } else { 0 }
         TransceiverRawSha256 = if ($vendorPresent) {
-            $ExpectedVendor.Transceiver.CanonicalLfSha256
+            $transceiverExpected.CanonicalLfSha256
         } else { '' }
         TransceiverRawBytes = if ($vendorPresent) {
-            $ExpectedVendor.Transceiver.CanonicalLfBytes
+            $transceiverExpected.CanonicalLfBytes
         } else { 0 }
         TransceiverEolStyle = if ($vendorPresent) { 'LF' } else { 'Absent' }
         TransceiverLineBreakCount = if ($vendorPresent) {
-            $ExpectedVendor.Transceiver.LineBreakCount
+            $transceiverExpected.LineBreakCount
         } else { 0 }
         InterfaceCanonicalLfSha256 = if ($vendorPresent) {
             $ExpectedVendor.Interface.CanonicalLfSha256
@@ -8812,12 +10114,35 @@ function New-UdpCallbackTestSnapshot {
         InterfaceLineBreakCount = if ($vendorPresent) {
             $ExpectedVendor.Interface.LineBreakCount
         } else { 0 }
-        DerivedSource = if ($State -ceq 'DerivedCandidate') {
-            New-SyntheticDerivedSource
-        } elseif ($derivedPresent) {
-            New-SyntheticDerivedEmptyStubSource
+        DerivedSource = $derivedSource
+        DerivedRawBytes = if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            $ExpectedTerminalWakeLayout.Sender.CanonicalLfBytes
+        } else { $derivedCanonicalBytes }
+        DerivedRawSha256 = if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            $ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256
+        } else { $derivedCanonicalSha256 }
+        DerivedCanonicalLfBytes = if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                $ExpectedTerminalWakeLayout.Sender.CanonicalLfBytes
+            } else { $derivedCanonicalBytes }
+        DerivedCanonicalLfSha256 = if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                $ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256
+            } else { $derivedCanonicalSha256 }
+        DerivedEolStyle = if ($derivedPresent) { 'LF' } else { 'Absent' }
+        DerivedLineBreakCount = if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                $ExpectedTerminalWakeLayout.Sender.LineBreakCount
+            } elseif ($derivedPresent) {
+                ([regex]::Matches($derivedCanonical, "`n")).Count
+            } else { 0 }
+        DiagnosticsSource = if ($State -ceq 'TerminalWakeBrokerCandidate') {
+            New-SyntheticTerminalWakeDiagnosticsSource
         } else { '' }
-        TcpSource = New-SyntheticTcpSource -Phase $(if ($State -ceq 'DerivedCandidate') {
+        TcpSource = New-SyntheticTcpSource -Phase $(if (
+            $State -ceq 'TerminalWakeBrokerCandidate') {
+                'TerminalWakeBrokerCandidate'
+            } elseif ($State -ceq 'DerivedCandidate') {
                 'DerivedCandidate'
             } elseif ($wiredPresent) {
                 'DerivedWired'
@@ -8888,7 +10213,7 @@ function Set-SyntheticGeneratedHeaderByte {
         $Snapshot.ClassesDatabaseBytes,
         $bytes,
         $Snapshot.ClassesDatabaseBytes.Count)
-    $text = [Text.Encoding]::Latin1.GetString($bytes)
+    $text = $Latin1.GetString($bytes)
     $nameStart = $text.IndexOf($FunctionName, [StringComparison]::Ordinal)
     if ($nameStart -lt 0) {
         throw "self-test fixture method is missing: $FunctionName"
@@ -8900,7 +10225,7 @@ function Set-SyntheticGeneratedHeaderByte {
     }
     $bytes[$headerStart + $HeaderOffset] = $Value
     $Snapshot.ClassesDatabaseBytes = $bytes
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($bytes)
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString($bytes)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
 
@@ -8915,7 +10240,7 @@ function Set-SyntheticClassesByteAt {
         throw 'synthetic Classes byte mutation index is out of range.'
     }
     $Snapshot.ClassesDatabaseBytes[$Index] = $Value
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString(
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString(
         $Snapshot.ClassesDatabaseBytes)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
@@ -8945,7 +10270,7 @@ function Insert-SyntheticClassesByteAt {
         $Index + 1,
         $Snapshot.ClassesDatabaseBytes.Count - $Index)
     $Snapshot.ClassesDatabaseBytes = $updated
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString($updated)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
 
@@ -8976,7 +10301,7 @@ function Insert-SyntheticClassesBytesAt {
         $Index + $Values.Count,
         $Snapshot.ClassesDatabaseBytes.Count - $Index)
     $Snapshot.ClassesDatabaseBytes = $updated
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString($updated)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
 
@@ -9044,7 +10369,7 @@ function Replace-SyntheticClassesToken {
         $before.Count + $replacement.Count,
         $afterBytes.Count)
     $Snapshot.ClassesDatabaseBytes = $updated
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString($updated)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
 
@@ -9087,7 +10412,7 @@ function Swap-SyntheticClassesTokens {
         $Snapshot.ClassesDatabaseBytes,
         $secondIndex,
         $firstBytes.Count)
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString(
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString(
         $Snapshot.ClassesDatabaseBytes)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
@@ -9129,7 +10454,7 @@ function Set-SyntheticCallbackOutputCount {
         $cursor += 4 + $ownerLength + 48
     }
     $Snapshot.ClassesDatabaseBytes[$cursor] = $Value
-    $Snapshot.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString(
+    $Snapshot.ClassesDatabaseText = $Latin1.GetString(
         $Snapshot.ClassesDatabaseBytes)
     Invalidate-SyntheticClassesEvidence -Snapshot $Snapshot
 }
@@ -9181,7 +10506,7 @@ function Update-SyntheticLatin1SnapshotEvidence {
         [Parameter(Mandatory = $true)][string]$ShaProperty
     )
 
-    $bytes = [Text.Encoding]::Latin1.GetBytes([string]$Snapshot.$TextProperty)
+    $bytes = $Latin1.GetBytes([string]$Snapshot.$TextProperty)
     $Snapshot.$BytesProperty = $bytes.Count
     $Snapshot.$ShaProperty = Get-BytesSha256 -Bytes $bytes
 }
@@ -9238,7 +10563,10 @@ function Assert-TcpSourceReplacementNegativeFixture {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('DerivedWired', 'DerivedCandidate')]
+        [ValidateSet(
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
         [string]$State,
         [Parameter(Mandatory = $true)][string]$Old,
         [Parameter(Mandatory = $true)]
@@ -9261,13 +10589,179 @@ function Assert-TcpSourceReplacementNegativeFixture {
     }
 }
 
+function Assert-TerminalWakeSourceReplacementNegativeFixture {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('DiagnosticsSource', 'DerivedSource')]
+        [string]$Property,
+        [Parameter(Mandatory = $true)][string]$Old,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$New
+    )
+
+    return Assert-UdpCallbackNegativeFixture -Name $Name -Action {
+        $snapshot = New-UdpCallbackTestSnapshot `
+            -State TerminalWakeBrokerCandidate
+        if ($snapshot.$Property.IndexOf(
+                $Old,
+                [StringComparison]::Ordinal) -lt 0) {
+            throw "Gate D source mutation anchor is missing: $Name"
+        }
+        $snapshot.$Property = $snapshot.$Property.Replace($Old, $New)
+        if ($Property -ceq 'DiagnosticsSource') {
+            Assert-TerminalWakeDiagnosticsSourceContract `
+                -DiagnosticsSource $snapshot.DiagnosticsSource
+        }
+        else {
+            Assert-DerivedSourceContract `
+                -SourceText $snapshot.DerivedSource `
+                -ImplementationMode Complete `
+                -TerminalWakeBroker
+        }
+    }
+}
+
+function Assert-TerminalWakeTcpReplacementNegativeFixture {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Old,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$New
+    )
+
+    return Assert-UdpCallbackNegativeFixture -Name $Name -Action {
+        $snapshot = New-UdpCallbackTestSnapshot `
+            -State TerminalWakeBrokerCandidate
+        if ($snapshot.TcpSource.IndexOf(
+                $Old,
+                [StringComparison]::Ordinal) -lt 0) {
+            throw "Gate D TCP mutation anchor is missing: $Name"
+        }
+        $snapshot.TcpSource = $snapshot.TcpSource.Replace($Old, $New)
+        Assert-TerminalWakeTcpSourceContract `
+            -TcpSource $snapshot.TcpSource
+    }
+}
+
+function New-TerminalWakePhysicalLayoutFixture {
+    param(
+        [ValidateSet('LF', 'CRLF')]
+        [string]$SenderEolStyle = 'LF'
+    )
+
+    $snapshot = New-UdpCallbackTestSnapshot `
+        -State TerminalWakeBrokerCandidate
+    $snapshot.TransceiverCanonicalLfBytes =
+        $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfBytes
+    $snapshot.TransceiverCanonicalLfSha256 =
+        $TerminalWakeLayoutSelfTestOracle.Transceiver.CanonicalLfSha256
+    if ($SenderEolStyle -ceq 'LF') {
+        $snapshot.DerivedRawBytes =
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
+        $snapshot.DerivedRawSha256 =
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256
+    }
+    else {
+        $snapshot.DerivedRawBytes =
+            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfBytes
+        $snapshot.DerivedRawSha256 =
+            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfSha256
+    }
+    $snapshot.DerivedCanonicalLfBytes =
+        $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
+    $snapshot.DerivedCanonicalLfSha256 =
+        $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256
+    $snapshot.DerivedEolStyle = $SenderEolStyle
+    $snapshot.DerivedLineBreakCount =
+        $TerminalWakeLayoutSelfTestOracle.Sender.LineBreakCount
+    $snapshot.ClassesBytes = $TerminalWakeLayoutSelfTestOracle.Classes.Bytes
+    $snapshot.ClassesSha256 = $TerminalWakeLayoutSelfTestOracle.Classes.Sha256
+    $snapshot.CommNetworkBytes =
+        $TerminalWakeLayoutSelfTestOracle.CommNetwork.Bytes
+    $snapshot.CommNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.CommNetwork.Sha256
+    $snapshot.NetworksDatabaseBytes =
+        $TerminalWakeLayoutSelfTestOracle.NetworksDatabase.Bytes
+    $snapshot.NetworksDatabaseSha256 =
+        $TerminalWakeLayoutSelfTestOracle.NetworksDatabase.Sha256
+    $snapshot.FullNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.Count
+    $snapshot.FullNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.Sha256
+    $snapshot.TrackedNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.Count
+    $snapshot.TrackedNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.Sha256
+    return $snapshot
+}
+
+function Assert-TerminalWakeLayoutIdentityNegativeFixture {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Property
+    )
+
+    return Assert-UdpCallbackNegativeFixture -Name $Name -Action {
+        $snapshot = New-TerminalWakePhysicalLayoutFixture
+        $snapshot.$Property = if ($Property.EndsWith('Bytes') -or
+            $Property.EndsWith('Count')) {
+                [long]$snapshot.$Property + 1
+            }
+            else { 'DRIFT' }
+        Assert-TerminalWakeLayoutContract -Snapshot $snapshot
+    }
+}
+
+function Get-UdpCallbackSenderEvidenceToken {
+    param(
+        [Parameter(Mandatory = $true)][string]$State,
+        [Parameter(Mandatory = $true)][pscustomobject]$Snapshot
+    )
+
+    if ($State -cne 'TerminalWakeBrokerCandidate') {
+        return ''
+    }
+    foreach ($byteProperty in @(
+            'DerivedRawBytes',
+            'DerivedCanonicalLfBytes')) {
+        if ([long]$Snapshot.$byteProperty -le 0) {
+            Throw-UdpCallbackBlocker (
+                "Gate D Sender evidence $byteProperty is not positive.")
+        }
+    }
+    foreach ($shaProperty in @(
+            'DerivedRawSha256',
+            'DerivedCanonicalLfSha256')) {
+        if (-not [regex]::IsMatch(
+                [string]$Snapshot.$shaProperty,
+                '\A[0-9A-F]{64}\z')) {
+            Throw-UdpCallbackBlocker (
+                "Gate D Sender evidence $shaProperty is not exact SHA-256.")
+        }
+    }
+    return (
+        "Sender=$($Snapshot.DerivedRawBytes)/" +
+        "$($Snapshot.DerivedRawSha256)," +
+        "$($Snapshot.DerivedCanonicalLfBytes)/" +
+        "$($Snapshot.DerivedCanonicalLfSha256); ")
+}
+
 function Invoke-UdpCallbackVerifierSelfTest {
+    Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
+
     foreach ($positive in @(
             @{ State = 'Absent'; PermitAbsent = $true },
             @{ State = 'VendorImported'; PermitAbsent = $false },
             @{ State = 'DerivedDeclaration'; PermitAbsent = $false },
             @{ State = 'DerivedWired'; PermitAbsent = $false },
-            @{ State = 'DerivedCandidate'; PermitAbsent = $false })) {
+            @{ State = 'DerivedCandidate'; PermitAbsent = $false },
+            @{
+                State = 'TerminalWakeBrokerCandidate'
+                PermitAbsent = $false
+            })) {
         $snapshot = New-UdpCallbackTestSnapshot -State $positive.State
         $result = Assert-LasalUdpCallbackStateContract `
             -Snapshot $snapshot `
@@ -9284,6 +10778,66 @@ function Invoke-UdpCallbackVerifierSelfTest {
                 "UDP callback positive approval boundary drifted: " +
                 $positive.State)
         }
+    }
+
+    foreach ($senderEolStyle in @('LF', 'CRLF')) {
+        $layoutPositive = New-TerminalWakePhysicalLayoutFixture `
+            -SenderEolStyle $senderEolStyle
+        Assert-TerminalWakeLayoutContract -Snapshot $layoutPositive
+        $expectedRawBytes = if ($senderEolStyle -ceq 'LF') {
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes
+        }
+        else {
+            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfBytes
+        }
+        $expectedRawSha256 = if ($senderEolStyle -ceq 'LF') {
+            $TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256
+        }
+        else {
+            $TerminalWakeLayoutSelfTestOracle.Sender.CodeGeneratorCrLfSha256
+        }
+        $expectedSenderToken =
+            "Sender=$expectedRawBytes/$expectedRawSha256," +
+            "$($TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfBytes)/" +
+            "$($TerminalWakeLayoutSelfTestOracle.Sender.CanonicalLfSha256); "
+        $senderToken = Get-UdpCallbackSenderEvidenceToken `
+            -State TerminalWakeBrokerCandidate `
+            -Snapshot $layoutPositive
+        if ($senderToken -cne $expectedSenderToken) {
+            throw "Gate D $senderEolStyle Sender stdout token drifted."
+        }
+    }
+
+    $gateCSenderToken = Get-UdpCallbackSenderEvidenceToken `
+        -State DerivedCandidate `
+        -Snapshot (New-UdpCallbackTestSnapshot -State DerivedCandidate)
+    if ($gateCSenderToken -cne '') {
+        throw 'Gate C stdout unexpectedly contains a Gate D Sender token.'
+    }
+
+    $commentOnlyGateC = New-UdpCallbackTestSnapshot -State DerivedCandidate
+    $commentOnlyGateC.DiagnosticsSource =
+        '(* TryTakeD5TerminalWake is documentation only. *)'
+    $commentOnlyGateC.TcpSource +=
+        "`n(* PublishD5TerminalWake is documentation only. *)`n"
+    $commentOnlyGateC.DerivedSource +=
+        "`n(* EventId = 0 is documentation only. *)`n"
+    $commentOnlyGateCResult = Assert-LasalUdpCallbackStateContract `
+        -Snapshot $commentOnlyGateC `
+        -PermitAbsent $false `
+        -RequiredState DerivedCandidate
+    if ($commentOnlyGateCResult.State -cne 'DerivedCandidate') {
+        throw 'comment-only Gate D signals changed the Gate C state classifier.'
+    }
+
+    $terminalWakePositive = New-UdpCallbackTestSnapshot `
+        -State TerminalWakeBrokerCandidate
+    $terminalWakePositiveResult = Assert-LasalUdpCallbackStateContract `
+        -Snapshot $terminalWakePositive `
+        -PermitAbsent $false `
+        -RequiredState TerminalWakeBrokerCandidate
+    if ($terminalWakePositiveResult.State -cne 'TerminalWakeBrokerCandidate') {
+        throw 'executable Gate D signals did not select TerminalWakeBrokerCandidate.'
     }
 
     $tcpOracleDefinition =
@@ -9396,7 +10950,7 @@ function Invoke-UdpCallbackVerifierSelfTest {
         $recordBoundPositive.ClassesDatabaseBytes.Count - $nextClassIndex)
     $recordBoundPositive.ClassesDatabaseBytes = $recordBoundBytes
     $recordBoundPositive.ClassesDatabaseText =
-        [Text.Encoding]::Latin1.GetString($recordBoundBytes)
+        $Latin1.GetString($recordBoundBytes)
     $recordBoundPositive.ClassesBytes = $recordBoundBytes.Count
     $recordBoundPositive.ClassesSha256 =
         Get-BytesSha256 -Bytes $recordBoundBytes
@@ -9511,6 +11065,170 @@ END_STRUCT;
     }
 
     $negativeCount = 0
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D expected layout single-sided pin drift' -Action {
+            $savedExpectedSenderCanonicalSha256 =
+                $script:ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256
+            try {
+                $script:ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256 =
+                    'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+                Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
+            }
+            finally {
+                $script:ExpectedTerminalWakeLayout.Sender.CanonicalLfSha256 =
+                    $savedExpectedSenderCanonicalSha256
+            }
+        }
+    foreach ($layoutIdentity in @(
+            @{
+                Name = 'Gate D transceiver canonical layout identity drift'
+                Property = 'TransceiverCanonicalLfSha256'
+            },
+            @{
+                Name = 'Gate D Classes layout identity drift'
+                Property = 'ClassesSha256'
+            },
+            @{
+                Name = 'Gate D Comm Network layout identity drift'
+                Property = 'CommNetworkSha256'
+            },
+            @{
+                Name = 'Gate D Networks database layout identity drift'
+                Property = 'NetworksDatabaseSha256'
+            },
+            @{
+                Name = 'Gate D tracked Network aggregate layout drift'
+                Property = 'TrackedNetworkSha256'
+            })) {
+        $negativeCount += Assert-TerminalWakeLayoutIdentityNegativeFixture `
+            -Name $layoutIdentity.Name `
+            -Property $layoutIdentity.Property
+    }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sender mixed EOL rejected' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.DerivedEolStyle = 'Mixed'
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sender wrong exact LF rejected' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.DerivedRawSha256 = 'DRIFT'
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sender wrong exact CRLF rejected' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle CRLF
+            $s.DerivedRawSha256 = 'DRIFT'
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D transceiver Objectsize metadata drift' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture
+            $s.TransceiverSource = $s.TransceiverSource.Replace(
+                'Objectsize="(522,120)"',
+                'Objectsize="(523,120)"')
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sender Objectsize metadata drift' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture
+            $s.DerivedSource = $s.DerivedSource.Replace(
+                'Objectsize="(778,120)"',
+                'Objectsize="(777,120)"')
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D sanctioned sender position drift' -Action {
+            $s = New-UdpCallbackTestSnapshot `
+                -State TerminalWakeBrokerCandidate
+            $s.CommNetworkText = $s.CommNetworkText.Replace(
+                'Position="(2610,990)"',
+                'Position="(2610,900)"')
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s `
+                -PermitAbsent $false `
+                -RequiredState TerminalWakeBrokerCandidate
+        }
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D sender accepts zero EventId' `
+        -Property DerivedSource `
+        -Old '(EventId = 0) OR ' `
+        -New ''
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D TryTake NIL pointer domain drift' `
+        -Property DiagnosticsSource `
+        -Old '(pOwnerSessionEpoch = NIL)' `
+        -New '(pOwnerSessionEpoch <> NIL)'
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D TryTake output zeroing removed' `
+        -Property DiagnosticsSource `
+        -Old 'pTicketBootId^$UDINT := 0;' `
+        -New 'pTicketBootId^$UDINT := 1;'
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D terminal state set drift' `
+        -Property DiagnosticsSource `
+        -Old 'OperationState <> LMC_DIAG_SDO_STATE_EXPIRED' `
+        -New 'OperationState = LMC_DIAG_SDO_STATE_EXPIRED'
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D once-only tuple loses owner epoch' `
+        -Property DiagnosticsSource `
+        -Old '(D5TerminalWakeLastAttemptOwnerSessionEpoch = OwnerSessionEpoch)' `
+        -New '(D5TerminalWakeLastAttemptOwnerSessionEpoch = 0)'
+    $negativeCount += Assert-TerminalWakeSourceReplacementNegativeFixture `
+        -Name 'Gate D last-attempt initialization removed' `
+        -Property DiagnosticsSource `
+        -Old 'D5TerminalWakeLastAttemptTicketBootId := 0;' `
+        -New 'D5TerminalWakeLastAttemptTicketBootId := 1;'
+    $negativeCount += Assert-TerminalWakeTcpReplacementNegativeFixture `
+        -Name 'Gate D CyWork broker call removed' `
+        -Old ("    Diagnostics.ProcessOperations();`n" +
+            '    PublishD5TerminalWake();') `
+        -New '    Diagnostics.ProcessOperations();'
+    $negativeCount += Assert-TerminalWakeTcpReplacementNegativeFixture `
+        -Name 'Gate D no-pending-close predicate inverted' `
+        -Old '(PendingClosedSessionEpoch = 0)' `
+        -New '(PendingClosedSessionEpoch <> 0)'
+    $negativeCount += Assert-TerminalWakeTcpReplacementNegativeFixture `
+        -Name 'Gate D PublishEvent ticket correlation removed' `
+        -Old 'EventId:=ticketId' `
+        -New 'EventId:=0'
+    $negativeCount += Assert-TerminalWakeTcpReplacementNegativeFixture `
+        -Name 'Gate D saturating counter ceiling drift' `
+        -Old 'D5TerminalWakeAttemptCount <> 16#FFFFFFFF' `
+        -New 'D5TerminalWakeAttemptCount <> 16#FFFFFFFE'
+    $negativeCount += Assert-TerminalWakeTcpReplacementNegativeFixture `
+        -Name 'Gate D producer retry outbox introduced' `
+        -Old 'publishResult := -9;' `
+        -New "publishResult := -9;`n`tterminalWakeRetryPending := TRUE;"
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D generated TCP counter ABI drift' -Action {
+            $s = New-UdpCallbackTestSnapshot `
+                -State TerminalWakeBrokerCandidate
+            Replace-SyntheticClassesToken `
+                -Snapshot $s `
+                -Old 'D5TerminalWakeAttemptCount' `
+                -New 'D5TerminalWakeAttemptCounX' `
+                -After '.\Class\TCPMotionInterface\TCPMotionInterface.st'
+            Assert-TerminalWakeGeneratedMetadata `
+                -ClassesDatabaseBytes $s.ClassesDatabaseBytes `
+                -ClassesDatabaseText $s.ClassesDatabaseText `
+                -SyntheticFixture
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D generated TryTake pointer ABI drift' -Action {
+            $s = New-UdpCallbackTestSnapshot `
+                -State TerminalWakeBrokerCandidate
+            Replace-SyntheticClassesToken `
+                -Snapshot $s `
+                -Old 'pTicketId' `
+                -New 'pTicketIx' `
+                -After 'TryTakeD5TerminalWake'
+            Assert-TerminalWakeGeneratedMetadata `
+                -ClassesDatabaseBytes $s.ClassesDatabaseBytes `
+                -ClassesDatabaseText $s.ClassesDatabaseText `
+                -SyntheticFixture
+        }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'Absent without explicit pre-import mode' -Action {
             $s = New-UdpCallbackTestSnapshot -State Absent
@@ -10900,7 +12618,7 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             [Array]::Copy(
                 $extra, 0, $updated, $s.ClassesDatabaseBytes.Count, $extra.Count)
             $s.ClassesDatabaseBytes = $updated
-            $s.ClassesDatabaseText = [Text.Encoding]::Latin1.GetString($updated)
+            $s.ClassesDatabaseText = $Latin1.GetString($updated)
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
         }
@@ -11399,7 +13117,8 @@ if ($RunSelfTest) {
         'PASS LASAL.UdpCallbackContract.SelfTest ' +
         "($negativeCount/$negativeCount negative fixtures rejected; " +
         'Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, ' +
-        'and corrected DerivedCandidate positives accepted)')
+        'corrected DerivedCandidate, and TerminalWakeBrokerCandidate ' +
+        'positives accepted)')
     return
 }
 
@@ -11430,6 +13149,9 @@ if ($VerifyCurrent) {
                     "$($_.Name)=$($_.RawBytes)/$($_.RawSha256)"
                 }))
     $resultPrefix = if ($result.ProductionApproved) { 'PASS' } else { 'CAPTURE' }
+    $senderEvidence = Get-UdpCallbackSenderEvidenceToken `
+        -State $result.State `
+        -Snapshot $snapshot
     Write-Output (
         "$resultPrefix LASAL.UdpCallbackContract.Current " +
         "(state=$($result.State); IDEClosed=true; " +
@@ -11444,6 +13166,11 @@ if ($VerifyCurrent) {
         "$($snapshot.ProjectDefinitionSha256); " +
         "Includes=$includeEvidence; " +
         "TCP=$($snapshot.TcpSha256); " +
+        $senderEvidence +
+        "Diagnostics=$($snapshot.DiagnosticsRawBytes)/" +
+        "$($snapshot.DiagnosticsRawSha256)," +
+        "$($snapshot.DiagnosticsCanonicalLfBytes)/" +
+        "$($snapshot.DiagnosticsCanonicalLfSha256); " +
         "Network=$($snapshot.FullNetworkCount)/" +
         "$($snapshot.FullNetworkSha256),tracked=" +
         "$($snapshot.TrackedNetworkCount)/$($snapshot.TrackedNetworkSha256); " +
