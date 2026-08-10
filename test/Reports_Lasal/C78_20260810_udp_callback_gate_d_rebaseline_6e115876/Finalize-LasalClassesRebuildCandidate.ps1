@@ -222,6 +222,22 @@ function Throw-FinalizerBlocker {
     throw "$Owner blocker: $Message"
 }
 
+function Get-ExactFinalizerProcessExitCode {
+    param(
+        [AllowNull()]$Value,
+        [Parameter(Mandatory = $true)][string]$ValueOwner
+    )
+    if ($Value -isnot [int]) {
+        Throw-FinalizerBlocker (
+            "$ValueOwner must be exactly one System.Int32 process exit code.")
+    }
+    if ([int]$Value -notin @(0, 2, 3)) {
+        Throw-FinalizerBlocker (
+            "$ValueOwner is outside the exact finalizer exit-code set 0, 2, 3.")
+    }
+    return [int]$Value
+}
+
 function Get-FinalizationEngineIdentity {
     return [pscustomobject][ordered]@{
         psEdition = [string]$PSVersionTable.PSEdition
@@ -2986,7 +3002,7 @@ function Invoke-CandidateFinalization {
         [IO.Directory]::Move($stage.path, $finalDirectory)
         $published = $true
         $stage = $null
-        Write-Output (
+        [Console]::Out.WriteLine(
             "$($decision.disposition) exit=$($decision.exitCode) " +
             "ProductionApproved=false bundle=$finalDirectory")
         return [int]$decision.exitCode
@@ -3259,6 +3275,20 @@ function Invoke-FinalizerSelfTest {
                 'production finalization requires PowerShell Core 7 or newer' -and
             $ps5ProductionText -notmatch 'tracked-path check') `
         -Message 'PS5 top-level production finalization rejects before evidence work'
+
+    $exitThree = Get-ExactFinalizerProcessExitCode `
+        -Value ([int]3) `
+        -ValueOwner 'self-test scalar exit three'
+    Assert-SelfTestTrue `
+        -Condition ($exitThree -is [int] -and $exitThree -eq 3) `
+        -Message 'exact scalar process exit three is preserved'
+    Assert-SelfTestThrows `
+        -Message 'pipeline output array is rejected as a process exit code' `
+        -Action {
+            [void](Get-ExactFinalizerProcessExitCode `
+                    -Value ([object[]]@('status output', [int]3)) `
+                    -ValueOwner 'self-test pipeline array')
+        }
 
     $selfTestVolumeRoot = [IO.Path]::GetPathRoot($selfTestScriptPath)
     Assert-SelfTestTrue `
@@ -4409,10 +4439,13 @@ try {
     }
     $productionEngine = Assert-PowerShell7FinalizationEngine `
         -Phase 'top-level production entry'
-    $finalExitCode = Invoke-CandidateFinalization `
+    $finalizationResult = Invoke-CandidateFinalization `
         -RequestedRepositoryRoot $RepositoryRoot `
         -RequestedLasalLogPath $LasalLogPath `
         -ProductionEngine $productionEngine
+    $finalExitCode = Get-ExactFinalizerProcessExitCode `
+        -Value $finalizationResult `
+        -ValueOwner 'candidate finalization result'
     exit $finalExitCode
 }
 catch {

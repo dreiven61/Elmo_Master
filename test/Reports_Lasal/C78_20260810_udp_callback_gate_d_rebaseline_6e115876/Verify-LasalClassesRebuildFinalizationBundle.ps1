@@ -2153,6 +2153,18 @@ function Assert-RawLineProcessIdentity {
     }
 }
 
+function Add-ExactRestorationCommandLineIndex {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()]
+        [Collections.Generic.HashSet[int]]$CommandLineIndexes,
+        [Parameter(Mandatory = $true)][int]$CommandLineIndex
+    )
+    if (-not $CommandLineIndexes.Add($CommandLineIndex)) {
+        Throw-BundleBlocker (
+            "load restoration report reuses commandLineIndex $CommandLineIndex.")
+    }
+}
+
 function Get-ReplayedCommandTerminalLedger {
     param([Parameter(Mandatory = $true)][object[]]$Lines)
     $commands = New-Object Collections.Generic.List[object]
@@ -2485,8 +2497,8 @@ function Assert-RawSessionReplayContract {
         -Line $startLine -ExpectedPid ([int]$Session.sessionPid) -ExpectedTid 1 `
         -IgnoreTid -LineOwner 'Start Application'
 
-    $restorationCommands = [Collections.Generic.HashSet[string]]::new(
-        [StringComparer]::Ordinal)
+    $restorationCommandLineIndexes =
+        [Collections.Generic.HashSet[int]]::new()
     $restorationReports = @($Session.loadRestorationCommands)
     foreach ($report in $restorationReports) {
         Assert-ExactObjectKeys `
@@ -2522,10 +2534,12 @@ function Assert-RawSessionReplayContract {
             (-not $isAllowedRestoration) -or
             ([int]$report.commandLineIndex -le [int]$Session.loadLineIndex) -or
             ([int]$report.commandLineIndex -ge [int]$Session.loadResultLineIndex) -or
-            ([int]$report.successLineIndex -ge [int]$Session.loadResultLineIndex) -or
-            (-not $restorationCommands.Add([string]$report.command))) {
+            ([int]$report.successLineIndex -ge [int]$Session.loadResultLineIndex)) {
             Throw-BundleBlocker 'load restoration report differs from its raw line.'
         }
+        Add-ExactRestorationCommandLineIndex `
+            -CommandLineIndexes $restorationCommandLineIndexes `
+            -CommandLineIndex ([int]$report.commandLineIndex)
     }
 
     $ledger = @($Session.commandTerminalLedger)
@@ -2594,7 +2608,8 @@ function Assert-RawSessionReplayContract {
         elseif ([string]$report.command -ceq 'Close Project') {
             $closeEntries.Add($report)
         }
-        elseif (-not $restorationCommands.Contains([string]$report.command)) {
+        elseif (-not $restorationCommandLineIndexes.Contains(
+                [int]$report.commandLineIndex)) {
             Throw-BundleBlocker 'raw ledger contains an unapproved command.'
         }
     }
@@ -3619,6 +3634,32 @@ function Invoke-BundleVerifierSelfTest {
                 -not $validResult.productionApproved -and
                 -not $validResult.onlineRuntimeQualificationPermitted) `
             -Message 'valid nonapproval bundle'
+
+        $repeatedRestorationIndexes =
+            [Collections.Generic.HashSet[int]]::new()
+        Add-ExactRestorationCommandLineIndex `
+            -CommandLineIndexes $repeatedRestorationIndexes `
+            -CommandLineIndex 8
+        Add-ExactRestorationCommandLineIndex `
+            -CommandLineIndexes $repeatedRestorationIndexes `
+            -CommandLineIndex 10
+        Assert-SelfTestTrue `
+            -Condition (
+                $repeatedRestorationIndexes.Count -eq 2 -and
+                $repeatedRestorationIndexes.Contains(8) -and
+                $repeatedRestorationIndexes.Contains(10)) `
+            -Message 'same restoration command at distinct line indexes is accepted'
+        Assert-SelfTestTrue `
+            -Condition (-not $repeatedRestorationIndexes.Contains(12)) `
+            -Message 'unreported restoration occurrence is not registered'
+        Assert-SelfTestThrows `
+            -Message 'duplicate restoration commandLineIndex' `
+            -ExpectedText 'load restoration report reuses commandLineIndex 8' `
+            -Action {
+            Add-ExactRestorationCommandLineIndex `
+                -CommandLineIndexes $repeatedRestorationIndexes `
+                -CommandLineIndex 8
+        }
 
         $validRawText = $Utf8Strict.GetString([IO.File]::ReadAllBytes(
                 (Join-Path $valid.bundle $RawDeltaName)))
