@@ -10,6 +10,8 @@ Gate A import/build evidence: 2026-08-07
 
 Gate B1/B2 and Gate C candidate evidence: 2026-08-08
 
+Gate D broker and PC reconnect observability evidence: 2026-08-10
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -53,7 +55,10 @@ address and UDP port. No actual Maestro callback datagram has been captured.
 The existing listener therefore continues to expose legacy payloads as raw
 bytes. The `LMC2` format below is an explicitly approved project-local version-2
 schema, not a reverse-engineered Maestro payload. It is available only through
-an explicit PC opt-in; it is not the default and has no production PLC publisher.
+an explicit PC opt-in and is not the default. The current Gate D source contains
+a `TerminalWakeBrokerCandidate` producer candidate. It is executable behind the
+documented session/BootId fences when the PC explicitly opts into version 2; it
+is runtime-unqualified and not production-approved.
 
 The active/default legacy `0x405C` wire shape is unchanged: its payload remains
 exactly 12 bytes (`event mask UDINT + callback port DINT + IPv4 BYTE[4]`) and the
@@ -101,11 +106,24 @@ prove the comparison on the target runtime.
 - `LMCCallbackEventArgs.BelongsToCurrentSession(connection)`
 - `LMCConnectionOptions.CallbackRegistrationMode` (default `LegacyRaw`)
 - `LMCConnectionOptions.CallbackRequestedMaxDatagramBytes` (default `512`)
+- `CurrentSessionGeneration`: public current RPC session-generation evidence
+- `LastRpcSessionInitializationEvidence`: immutable evidence retained after
+  initialization cleanup
+- `LMCRpcSessionInitializationEvidence.SessionGeneration`, `StartedAtUtc`,
+  `CompletedAtUtc`, `AttemptCount`, `CanonicalRetryUsed`,
+  `FirstFailureResponse`, `LastReceivedResponse`, `Outcome`, `FailureType`, and
+  `FailureMessage`
 - `CallbackWakeHintReceived`: typed version-2 wake-hint event
+- `CallbackV2StatisticsChanged`: immutable per-datagram decision/counter event
 - `RpcCallbackRegistrationV2Response`: immutable accepted registration data
 - `RejectedCallbackCount` (shared raw/version-2 total),
   `AcceptedCallbackWakeHintCount`, `DuplicateCallbackWakeHintCount`, and
   `OutOfOrderCallbackWakeHintCount`
+- `LMCCallbackV2StatisticsChangedEventArgs.DecisionKind`, `ProtocolError`,
+  `AcceptedWakeHintCount`, `RejectedCount`, `DuplicateWakeHintCount`,
+  `OutOfOrderWakeHintCount`, and `SessionGeneration`
+- `LMCCallbackV2StatisticsChangedEventArgs.BelongsTo(connection)` and
+  `BelongsToCurrentSession(connection)`
 - `LMCCallbackWakeHintEventArgs.WakeHint`, `RemoteEndPoint`, `ReceivedAtUtc`, and
   `SessionGeneration`
 - `LMCCallbackWakeHintEventArgs.BelongsTo(connection)` and
@@ -123,6 +141,13 @@ owning listener. `BelongsTo` checks the owning `LMCConnection` instance;
 `BelongsToCurrentSession` additionally requires that the captured generation is
 still the connection's current session. These members establish provenance for
 raw bytes only and do not assign those bytes a typed meaning.
+
+`LastRpcSessionInitializationEvidence` records the exact `0x8080` attempt count,
+the bounded canonical-retry decision, the first failure ACK, the final received
+ACK, and the final success/failure/cancellation outcome. It remains available
+after the failed transport has been retired. `CallbackV2StatisticsChanged`
+publishes one same-session immutable snapshot after each accepted or rejected
+version-2 receiver decision, including duplicate and out-of-order decisions.
 
 ## Lifecycle
 
@@ -183,9 +208,12 @@ safety-preemption detach therefore invalidates wake hints before its later UDP
 listener stop, even during that deliberate detach-to-stop window.
 
 The example WPF application repeats the provenance check after its dispatcher
-queue is reached. It drops a callback unless the sender is still the active
-connection and `BelongsToCurrentSession` is true. An event accepted by an old
-listener therefore cannot become a raw log entry after Close/reconnect merely
+queue is reached. Unless the sender is still the active connection and
+`BelongsToCurrentSession` is true, a version-2 wake cannot change the retained
+ticket, operation summary/state, callback counters, or send `0x7E03`. The WPF may
+append a diagnostic `ignored` execution-log line for that stale/old wake; that
+line is not authoritative UI mutation. A legacy raw event accepted by an old
+listener cannot become a normal raw-payload entry after Close/reconnect merely
 because it was already queued for the UI thread.
 
 ## Current implemented baseline and limitation
@@ -194,30 +222,164 @@ The canonical LASAL project contains the two exact vendor UDP classes, the
 derived `LMCUdpCallbackSender`, both callback Network objects and links, and the
 five contract-scoped `TCPMotionInterface` lifecycle bodies. Gate B1
 `DerivedDeclaration`, Gate B2 `DerivedWired`, and Gate C `DerivedCandidate` have
-their own committed physical checkpoint manifests. The current static verifier
-resolves the actual tree as `DerivedCandidate`, with
-`ProductionApproved=false` and `NeedsRebaseline=true`.
+their own committed physical checkpoint manifests. The sequence-4 manifest
+captured `TerminalWakeBrokerCandidate` with `ProductionApproved=false` and
+`NeedsRebaseline=true`; the current generated `Classes.lcb` has since drifted and
+does not pass focused/C78 current-tree verification.
 
-The Gate C sender code can build and queue the bounded version-2 datagram, but
-there are zero production `PublishEvent(...)` call sites. This is dormant
-candidate code, not proof that the PLC emits a callback. The PC delivery source
-now keeps `LMCCallbackRegistrationMode.LegacyRaw` as the default and provides an
-explicit `Version2WakeHint` opt-in. The opt-in path sends the exact 32-byte
-request, parses the exact 20-byte response, installs the accepted
+The Gate D source contains the four-state one-attempt Diagnostics receipt, two
+ordered `TCPMotionInterface` broker invocations, one exact production-path
+candidate `PublishEvent(...)` call, and the `EventId=0` rejection. This remains
+unqualified candidate code, not proof that the PLC emits a callback. There is no
+separate feature flag that disables the broker. The PC delivery
+source now keeps `LMCCallbackRegistrationMode.LegacyRaw` as the default and
+provides an explicit `Version2WakeHint` opt-in. The opt-in path sends the exact
+32-byte request, parses the exact 20-byte response, installs the accepted
 source/BootId/session/cookie/length/policy/sequence fence, and dispatches only
 `LMCCallbackWakeHintEventArgs`; it never raises the raw `CallbackReceived` event.
 Its fixed receive buffer is bounded by the accepted maximum, and an oversized
 UDP datagram is rejected without an attacker-sized allocation. The connection
 layer deliberately performs no authoritative state mutation or automatic TCP
 query. The opt-in WPF consumer now performs the separately fenced single-flight
-`0x7E03` follow-up for an exact retained D5 ticket. A production PLC publisher
-remains unwired and unqualified.
+`0x7E03` follow-up for an exact retained D5 ticket. The source producer candidate
+is wired through the existing `TCPMotionInterface` clients without a direct
+Diagnostics-to-sender Network link, but remains unqualified.
 
-No PLC runtime result is claimed by this document. PLC download, a live UDP
-datagram and receiver/dispatch capture, exact duplicate/mismatch registration
-capture, and loss/duplicate/reorder qualification remain pending. The sections
-below preserve the approved contract and historical Gate A/B evidence; the
-recorded Gate C result is static/build candidate evidence only.
+PC reconnect correction commit `66b5cf2` parses the exact 12-byte `0x8080` short
+failure as outer `Status=1`, command `Status=1`, and `ErrorId=-1`. Only explicit
+`Version2WakeHint` retries that exact canonical envelope once on the same TCP
+socket after a 20 ms cancellation-aware delay; legacy, malformed, nonzero
+reserved, and other-error responses do not retry. Commit `f337fec` adds the
+retained `LMCRpcSessionInitializationEvidence`, the public current session
+generation, and the same-session `CallbackV2StatisticsChanged` snapshot event.
+The WPF displays that evidence with the accepted version-2 registration fence
+and receiver decision counters. The current Release SDK suite passes
+`1117/1117`. The current WPF Release smoke suite passes `334/334`, including the
+deterministic stale-dispatcher replacement-session regression.
+This is bounded PC recovery/observability evidence, not a PLC disarm fix or
+callback runtime proof.
+
+On 2026-08-10 at 10:35, a C78/ARM incremental `Build project` compiled the three
+changed classes `LMCDiagnosticsService`, `LMCUdpCallbackSender`, and
+`TCPMotionInterface` with 60 source warnings (`W0069=28`, `W0070=21`,
+`W0072=11`), zero compiler errors, and `Linker Done`. The first Download and PLC
+link succeeded with `Download Ok`; the second Download aborted after a CPU-state
+timeout. Reconnect succeeded and the PLC trace reported
+`Project successfully loaded`. This was not a strict C78 Rebuild.
+
+Later on 2026-08-10, LASAL PID 4832 issued two `Rebuild project` commands. The
+first is invalid because its transcript contains two `Classes.lcb` persistence
+error records: an `ios_base::failure` and a write-failed record. The bounded
+second Rebuild window is a clean C78/ARM source build: 76 coded warnings
+(`W0069=35`, `W0070=21`, `W0072=17`, `W0073=3`), zero source errors,
+`Compiler Done`, `Linker Done`, and zero `CInvalidArgException`. Its generated
+`Classes.lcb` is 8,549,773 bytes with SHA-256
+`3AC3D938DC1520FAEA6C3693161ABDB280CC873A97C60CF79B3F716C7F064C22`.
+The focused `VerifyCurrent` check exits zero and reports that tree as a
+`CAPTURE TerminalWakeBrokerCandidate` static state. Bootstrap `ValidateOnly`
+completed at that time as `UNTRUSTED` with `outputCreated=false`; it did not
+create the sequence-4 physical checkpoint in that historical PID 4832 stage.
+
+PID 4832 is not an admissible isolated strict-build evidence session. It
+contains the earlier failed Rebuild and later Connect, Reset, and Restart
+actions. There was no post-build `Find in Implementation` action and no Download
+in that session. Find applies only to Object Network Server/Client rows and is
+not applicable to ordinary class method rows, so its absence is not an
+incomplete-method gate for the three Gate D methods. Reset/Restart only ran the
+pre-existing PLC image. Therefore that session supplies no PLC callback runtime
+result. The isolated one-Rebuild candidate is verified, and the later
+three-method exact Implementation UI check is manual-attested. The sections below
+preserve the approved contract and historical Gate A/B/C evidence.
+
+The retained pre-commit strict evidence is the `GateDVisualLayout` PID 480 / Rebuild TID
+3396 session. It records one canonical project load, exactly one C78/ARM
+`Rebuild project`, no Connect or Download, and normal close/IDE exit. The command
+window has 76 coded warnings (`W0069=35`, `W0070=21`, `W0072=17`, `W0073=3`),
+zero errors, `Compiler Done=2`, `Linker Done=1`, six post-result C82
+compatibility warnings, and `CInvalidArgException=0`. At that checkpoint identity,
+`VerifyBuild` passed with
+`profile=GateDVisualLayout`, `inputsEquivalent=true`,
+`rawInputsUnchanged=10/10`, `regeneratedOutputsBound=2`, and
+`evidenceSource=bounded-repository`.
+
+The exact evidence identities are baseline 6,887 bytes /
+`247E41E7ABBD5E59681BC65CBB03F465050146C1FE246B3DE23B200E5903ABFE`,
+raw range `[6532176,7298848)` at 766,672 bytes /
+`B918E51279360E27780D212650361AF361FFFC391C5F24854447BE0F3F9ABD17`,
+manifest 1,574 bytes /
+`7928BC0D641FEA79444EDE8AD49FC10C15C28D453DB75DAF82C21B9D303D1DFC`,
+and transcript 30,111 bytes /
+`F32122D318DBFD8F53BC9E5AD0FF693F9B6F05368D40FC64138A010A1BC810AF`.
+The Rebuild/checkpoint-bound 8,549,773-byte `Classes.lcb` is
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`.
+PID 7288 and D71E... are retained only as superseded historical evidence.
+
+The checkpoint-focused verifier pin is 545,566 canonical-LF bytes /
+`FBF1A8582E85039377AC39F26D8BBA64C0EB62665424DE150083CFC412CC7CA3`;
+capture self-test is positive `46` / negative `94`. The historical bootstrap
+`ValidateOnly` planned
+`gate_d_terminal_wake_broker_candidate_checkpoint.json` at 3,225,878 bytes /
+`E0490DC348B861FBE47AB4C2E9C558BE679E865787A014860EBA45B3E0E508E4`,
+but was `UNTRUSTED` with `outputCreated=false`; that bootstrap run created no
+manifest.
+
+The trust-anchor tools were then committed at `bb5fd93`. Commit `5543579`
+atomically committed the sequence-4 manifest
+`gate_d_terminal_wake_broker_candidate_checkpoint.json` with the exact seven
+production transition paths listed below. The manifest binds `Classes.lcb` to
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+and explicitly records `ProductionApproved=false` and `NeedsRebaseline=true`.
+
+After `5543579`, LASAL PID 34656 ran a C78/ARM `Rebuild project`. It compiled
+`LMCDiagnosticsService`, `LMCUdpCallbackSender`, and `TCPMotionInterface`, then
+reported `Compiler Done`, `Linker Done`, and command success. The subsequent
+Download reported `Download Ok` and `Project successfully loaded`; later Reset
+and Restart also succeeded and the project loaded again. This proves those IDE
+and online operations occurred, not a qualified callback transaction.
+
+That post-commit Rebuild regenerated current `Classes.lcb` as 8,549,773 bytes /
+`6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`,
+which differs from the sequence-4 checkpoint identity `24402BFA...`. The current
+focused `VerifyCurrent` and C78 input-equivalence verification therefore fail.
+A byte-level comparison found 99 changed bytes in 58 contiguous runs across 36
+opaque vendor class records. The four Gate D class records and the protected
+dependency records are byte-exact, but the changed vendor fields and any
+generator checksum semantics are not defined by the current verifier. This is
+not proof that the regenerated database is semantically equivalent. Do not
+allowlist or pin `6E115876...` from that observation alone. Until the checkpoint
+identity is reproduced or the regenerated artifact passes a separate reviewed
+strict-evidence transition, current PLC callback results are exploratory only;
+Gate D remains `ProductionApproved=false` and `NeedsRebaseline=true`.
+
+PID 480 contains no method-specific UI proof; that remains a fact about the
+isolated Rebuild session. `Find in Implementation` applies only
+to Object Network Server/Client rows and is not applicable to these class method
+rows. The user separately attested that the row-level Find action works normally;
+that does not prove a selected method. A method row is opened with `Edit Method`,
+Enter, or a direct open, followed by confirmation of the exact Implementation
+tab/header. The user later directly
+confirmed the normal Implementation display for
+`LMCDiagnosticsService::TryTakeD5TerminalWake`,
+`LMCUdpCallbackSender::PublishEvent`, and
+`TCPMotionInterface::PublishD5TerminalWake`, and confirmed LASAL exit. Record the
+UI evidence as `exactMethodOpen=manual-attested`; do not request the same UI
+operation again. The earlier build session's zero Find count remains a separate
+historical fact.
+`Lasal2.log` provides only a class-level Open Implementation token, which
+automatic session restore can also produce, and cannot prove the selected
+method. A separate automated method-smoke JSON/log artifact remains pending and
+nonblocking; use
+that log only for session bounds, `CInvalidArgException`, and recorded prohibited
+commands. The committed sequence-4 checkpoint contains exactly seven production
+transition paths: `Class/Classes.lcb`,
+`Class/LMCDiagnosticsService/LMCDiagnosticsService.st`,
+`Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st`,
+`Class/TCPMotionInterface/TCPMotionInterface.st`,
+`Class/_UDPTransceiver/_UDPTransceiver.st`,
+`Network/Comm_Network/Comm_Network.lcn`, and `Network/Networks.lcb`. Because the
+post-commit Rebuild changed `Classes.lcb`, formal runtime qualification now
+requires a reviewed rebaseline that binds the exact downloaded artifact; do not
+reuse `24402BFA...` as the current-tree identity.
 
 ## 2026-08-07 implementation decision
 
@@ -238,7 +400,9 @@ Wire activation is split into two independently qualified phases.
    epoch, 64-bit client cookie, and 64-bit datagram sequence fencing. Its initial
    production policy permits only event type 1, event-mask bit 1, delivery class
    0, and a zero-byte payload. The opt-in PC receiver now enforces the complete
-   fence and wake-hint policy; PLC production publication remains inactive.
+   fence and wake-hint policy. The Gate D PLC publication path is present and
+   executable behind its fences, but remains runtime-unqualified and not
+   production-approved.
 
 Phase 1 must not be described as same-IP/same-port stale-datagram safe. The
 current C# listener object/lifetime checks stop an old receive thread from
@@ -304,11 +468,12 @@ cancelled rather than resolved by copying a demo dependency.
 - `_UDPTransceiver::Init` and `_UDPTransceiverInterface::AddSocket` opened
   directly in their qualified implementations. No new `CInvalidArgException`
   was recorded after that smoke. This is complete Gate A method direct-open
-  evidence. With no UDP object/link in Gate A, the class-definition client/server
-  menus have no `Find in Implementation`. That channel smoke becomes possible
-  after Gate B2 wiring. The later Gate C smoke used direct implementation editor
-  opens instead because the high-level computer-use operation failed; it did not
-  execute a client/server `Find in Implementation` search.
+  evidence. `Find in Implementation` exists only on Object Network Server/Client
+  rows. With no UDP object/link in Gate A, there was no applicable row; this was
+  never a method-row requirement. Gate B2 wiring later created that channel
+  lookup path. The later Gate C smoke used direct implementation editor opens
+  instead because the high-level computer-use operation failed; it did not
+  execute an Object Network Server/Client `Find in Implementation` search.
 - `ConfigObjects.st` and `Networks.lcb` changed only in the IDE-generated class
   registry needed to register the two imported classes. All Network topology
   files and links remained unchanged; no UDP object was added in Gate A.
@@ -371,16 +536,16 @@ cancelled rather than resolved by copying a demo dependency.
 - Main-wrapper parameter wiring began in `a3a419e` and was finalized in
   `a6b5d5f`. The committed wrapper explicitly supports
   `-UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture`.
-  Its current physical identity is `2061458` bytes with SHA-256
+  At that historical Gate C run, its physical identity was `2061458` bytes with SHA-256
   `DC9E0B02851E73265A75F2F90F1B9BA385A2E571B010BD1D8EDC4F06F36E306F`.
   The full
   `Verify-LasalContract.ps1 -SourceOnly -ExpectedSdoWriteAxis 1 -UdpCallbackExpectedState DerivedCandidate -AllowUdpCallbackDerivedCapture`
   run passed in `233.562 s`, with that wrapper hash unchanged before and after.
   This proves full SourceOnly wrapper consumption of the candidate only; it does
   not change the capture-only/nonproduction decision above.
-- A .NET SDK MSBuild Release build of `LasalMotionControlLib.Tests` succeeded,
-  and
-  the custom test runner reported `TOTAL 1110, PASSED 1110, FAILED 0`. This set
+- At that historical Gate C checkpoint, a .NET SDK MSBuild Release build of
+  `LasalMotionControlLib.Tests` succeeded, and the custom test runner reported
+  `TOTAL 1110, PASSED 1110, FAILED 0`. This set
   includes callback codec, `InitialV2WakeHint`, session fencing, and opt-in
   `LmcConnection` TCP/UDP fake-peer integration coverage. It is PC-side evidence,
   not proof of a downloaded PLC publisher or live machine packet path.
@@ -630,9 +795,11 @@ duplicate comparison covers all nine `ArmEndpoint` inputs.
 subscribed `EventMaskBit`, a `ProducerSessionEpoch` equal to the armed epoch, a
 valid pointer for nonzero payload, and a payload within the protocol limit. The
 Gate D production target accepts only `EventMaskBit=1`, `EventType=1`, nonzero
-`EventId`, `DeliveryClass=0`, and `PayloadBytes=0`. The current Gate C sender
-already enforces every item except the nonzero `EventId` check; Gate D must add
-that rejection before a publisher is enabled or captured. Event
+`EventId`, `DeliveryClass=0`, and `PayloadBytes=0`. Historical Gate C evidence
+accepted zero `EventId`; for an armed endpoint, matching producer epoch, and
+valid payload tuple, the current Gate D source rejects `EventId=0` with `-6`
+before socket creation or FIFO mutation. Unarmed, stale-epoch, and invalid-payload
+checks return their earlier `-4`, `-8`, and `-7` results. Event
 type `1` means `DiagnosticsOperationTerminalAvailable`; its `EventId` is the
 exact D5 `TicketId`. A structurally invalid pointer/length returns `-7`; an
 otherwise valid but unapproved event/payload policy returns `-6`. The sender
@@ -830,7 +997,8 @@ permits clearing the complete legacy and v2 TCP tuple; a negative result
 preserves the complete v2 tuple so a later initialization retries the same
 disarm and remains fail-closed. A repeated `0x8080` initialization does not
 report success when that retry fails. `RpcCallbackLastDisarmResult` is the
-diagnostic latch and is never part of the cleared tuple.
+diagnostic latch and is never part of the cleared tuple. This negative-disarm
+preservation is intentional. Do not add a PLC force-clear path to bypass it.
 
 `0x8080` validates its one-byte initialization shape and socket ownership
 before calling the disarm helper. The validation rejection itself does not
@@ -1002,21 +1170,51 @@ Completed, Failed, Cancelled, and Expired are terminal producer states. The
 producer records the attempt before calling the sender. Result `0` means FIFO
 enqueue; `-2/-4/-5/-6/-7/-8/-9` end that producer attempt without retry and
 without changing the D5 record, next-submit admission, or TCP response. Sender
-slot retry remains a separate bounded transport concern. Until the PLC tranche,
-IDE rebuild, verifier/checkpoint ratchet, download, and packet tests pass, the
-production `PublishEvent(...)` caller remains absent.
+slot retry remains a separate bounded transport concern. The Gate D source
+tranche now contains the candidate `PublishEvent(...)` caller. It is not a
+production-qualified or production-approved publisher until the
+verifier/checkpoint ratchet, IDE rebuild, download, and packet tests pass; if the
+artifact is downloaded, the fenced call path is executable.
+
+The Gate D broker contract freezes the previously unspecified local result and
+counter semantics as follows:
+
+- `TryTakeD5TerminalWake` returns `-1` for a NIL output pointer, `0` when no
+  terminal tuple is claimable, and `1` when it claims one tuple. After all three
+  pointers are validated, their targets are cleared before the no-item checks.
+- A claim requires nonzero `TicketId`, `TicketBootId`, and `OwnerSessionEpoch`
+  and one of the four terminal states. The exact three-word tuple is suppressed
+  after its first claim. The last-attempt tuple is committed before the claimed
+  values and result are returned, and all three last-attempt words are cleared
+  during `LMCDiagnosticsService` initialization.
+- `TCPMotionInterface` calls the broker immediately after `ProcessOperations`
+  and after the diagnostics response `SendData` call completes. Every claim
+  increments `D5TerminalWakeAttemptCount`. It invokes `PublishEvent` exactly
+  once only when the nonzero active socket has no pending close and the RPC
+  connection,
+  callback registration, protocol version, event mask, session epoch, ticket
+  owner epoch, callback BootId, and sender client form the exact current tuple.
+- A sender result of `0` increments `D5TerminalWakeEnqueuedCount`; every claimed
+  tuple that is not enqueued, including a local tuple mismatch, increments
+  `D5TerminalWakeRejectedCount`. All three counters saturate at `0xFFFFFFFF`.
+  Before saturation, `AttemptCount = EnqueuedCount + RejectedCount`.
+- For an armed endpoint, matching producer epoch, and valid payload tuple, the
+  sender rejects `EventId=0` with `-6`. Earlier unarmed, stale-epoch, or
+  invalid-payload failures retain `-4`, `-8`, or `-7`. Neither a local rejection
+  nor any negative sender result creates an outbox or retries the producer
+  attempt.
 
 ## Exact IDE and Network handoff
 
 The verifier state ladder is exact and monotonic:
 
-`VendorImported -> DerivedDeclaration -> DerivedWired -> DerivedCandidate`.
+`VendorImported -> DerivedDeclaration -> DerivedWired -> DerivedCandidate -> TerminalWakeBrokerCandidate`.
 
-No state may be skipped or inferred from a synthetic fixture. Production
-approval at every transition requires hashes captured from the actual canonical
-project after the stated LASAL Save All/exit checkpoint. Synthetic generated
-text is planning and verifier-self-test input only; it is never production
-evidence.
+No state may be skipped or inferred from a synthetic fixture. State acceptance
+at every transition requires hashes captured from the actual canonical project
+after the stated LASAL Save All/exit checkpoint. A derived-state checkpoint does
+not grant production approval. Synthetic generated text is planning and
+verifier-self-test input only; it is never production evidence.
 
 ### Gate A: import compatibility
 
@@ -1027,9 +1225,9 @@ evidence.
    appeared.
 3. The source/generated/protected-boundary focused verifier passes and Network
    topology is unchanged. No UDP object or link exists in this gate.
-4. Qualified method direct-open smoke is complete. Class-definition
-    client/server menus cannot run `Find in Implementation` without object/link
-    instances. Gate B2 later made that channel-index smoke possible, but the
+4. Qualified method direct-open smoke is complete. `Find in Implementation` is
+    an Object Network Server/Client-row action and is not applicable to method
+    rows. Gate B2 later made that channel-index lookup possible, but the
     completed Gate C run did not execute a `Find in Implementation` search. It
     directly opened the `TCPMotionInterface` and `LMCUdpCallbackSender`
     implementation editors after Rebuild, with no post-smoke
@@ -1115,6 +1313,8 @@ callback tuple or advance the session. Forced owner loss/takeover, direct-send
 failure, and safety-drain close still retire the TCP transport after calling the
 helper, but a negative result preserves the complete callback tuple so the next
 initialization must retry and cannot arm a different endpoint.
+This fail-closed preservation is intentional; PLC force-clear is not an allowed
+recovery action.
 Malformed or non-owner `0x8080` requests fail before the helper, so validation
 alone does not mutate callback state. If sending that failure frame itself
 fails, the normal forced partial-send quarantine still applies. A successful
@@ -1133,15 +1333,15 @@ is not a warning-clean build.
 
 Because the high-level computer-use operation failed, the smoke opened the
 `TCPMotionInterface` and `LMCUdpCallbackSender` implementation editors directly;
-it did not run a client/server `Find in Implementation` search. No new IDE
+it did not run an Object Network Server/Client-row `Find in Implementation`
+search. No new IDE
 exception followed those opens, and `Lasal2` exited with code 0. PLC download
 and packet proof remain separate final gates.
 
-### Pending Gate D declaration handoff
+### Gate D declaration checkpoint
 
-Gate D is not implemented or captured yet. Its first checkpoint is an
-IDE-declaration-only Save All/exit with no Build, Rebuild, Link, Download,
-Network edit, or implementation statement:
+Gate D began with an IDE-declaration-only Save All/exit with no Build, Rebuild,
+Link, Download, Network edit, or implementation statement:
 
 1. In `LMCDiagnosticsService`, immediately after `BootIdFault`, add private
    `UDINT` variables `D5TerminalWakeLastAttemptTicketId`,
@@ -1164,6 +1364,32 @@ Network edit, or implementation statement:
    focused/general verifier state, sequence-4 manifest lineage, C78 Rebuild,
    download, and live packet gates advance. Direct Diagnostics-to-sender wiring
    and a retrying pending outbox remain forbidden.
+
+The 2026-08-10 output audit confirmed the exact active names, order, types, and
+method ABI and kept the protected topology unchanged. Rename-history and zero
+pre-build storage fields in `Classes.lcb` are non-ABI metadata and are not a
+reason to recreate the declarations. The source implementation tranche is now
+present. The focused verifier self-test passed `288/288`, and the actual tree
+was accepted with an exit-zero `CAPTURE TerminalWakeBrokerCandidate` result,
+`ProductionApproved=false`, and `NeedsRebaseline=true`. Its reviewed focused
+verifier pin is 545,566 canonical-LF bytes /
+`FBF1A8582E85039377AC39F26D8BBA64C0EB62665424DE150083CFC412CC7CA3`,
+and capture self-test is positive `46` / negative `94`. The earlier bootstrap `ValidateOnly`
+planned 3,225,878 bytes /
+`E0490DC348B861FBE47AB4C2E9C558BE679E865787A014860EBA45B3E0E508E4`
+but was `UNTRUSTED` with `outputCreated=false`. Trust-anchor commit `bb5fd93` and
+the later `5543579` commit then froze the physical sequence-4 manifest plus the
+seven production paths. That manifest remains capture-only with
+`ProductionApproved=false` and `NeedsRebaseline=true`. PID 4832 remains the
+historical mixed two-Rebuild/online attempt. The retained `GateDVisualLayout`
+PID 480/TID 3396 isolated one-Rebuild derived
+transcript passes `VerifyBuild`; PID 7288 remains historical only. The later
+three-method exact Implementation UI check is
+`manual-attested`. Its separate automated method-smoke JSON/log artifact is still
+pending and nonblocking. PID 34656 subsequently rebuilt and downloaded after
+`5543579`, but its regenerated `Classes.lcb` hash is `6E115876...`, not the
+manifest's `24402BFA...`; current focused/C78 verification fails and any runtime
+result is exploratory until rebaseline.
 
 ## Files and test status
 
@@ -1192,10 +1418,13 @@ The candidate tranche is limited to these production surfaces:
 The focused LASAL verifier
 `LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalUdpCallbackContract.ps1`
 is wired into the adjacent `Verify-LasalContract.ps1`. The Gate C tooling and
-candidate are committed in `9d0b8c9` and `70c08ea`. The current actual tree
-passes as `DerivedCandidate`; its manifest and verifier identities are recorded
-above. It remains capture-only with `ProductionApproved=false` and
-`NeedsRebaseline=true`, not a production approval.
+candidate are committed in `9d0b8c9` and `70c08ea`. Trust-anchor commit
+`bb5fd93` precedes sequence-4 commit `5543579`, which atomically contains the
+physical manifest and the exact seven production paths listed above. The
+manifest records `TerminalWakeBrokerCandidate`, `ProductionApproved=false`, and
+`NeedsRebaseline=true`; it is not production approval. The current generated
+`Classes.lcb` is `6E115876...`, so it no longer matches the manifest-bound
+`24402BFA...` and current focused/C78 verification fails.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
 `CallbackProtocolTests.cs`, `CallbackSessionFencingTests.cs`,
 `CallbackV2ConnectionTests.cs`, the response-envelope tests in
@@ -1205,13 +1434,32 @@ above. It remains capture-only with `ProductionApproved=false` and
 path are implemented. The default remains legacy `12/4`; version 2 is selected
 only by
 `LMCCallbackRegistrationMode.Version2WakeHint`.
-`CallbackV2ConnectionTests.cs` owns ten focused connection tests covering the
+`CallbackV2ConnectionTests.cs` owns focused connection tests covering the
 exact request/response, typed dispatch, strict rejection matrix, bounded
 oversized receive, gate ordering and ownership, handler failure, reentrant
 close, safety-detach provenance, exact D5 ticket correlation, no downgrade, and
-reconnect invalidation. The D5 event-to-authoritative-query mapping and opt-in WPF
-consumer now exist, but no production `PublishEvent(...)` caller exists. PLC
-download and live UDP receiver/dispatch packet proof remain required.
+reconnect invalidation. The bounded session-init recovery additionally preserves
+the canonical short-failure `ErrorId=-1` and allows only one same-socket v2
+retry. The retained initialization evidence and immutable v2 statistics event
+also preserve the exact attempt/ACK/outcome and same-session receiver decision
+after cleanup/UI dispatch. Current Release SDK result is `1117/1117`; the
+current WPF Release result is `334/334`, including the deterministic
+stale-dispatcher replacement-session regression. The D5
+event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
+D source now contains the one-attempt broker
+and one production-path candidate `PublishEvent(...)` call. Static focused/general
+verification was complete for the manifest-bound tree, and the incremental Build
+plus first Download recorded above succeeded. A later second Rebuild command had a clean 76-warning/zero-error
+body, but the enclosing PID 4832 session is not isolated strict evidence and did
+not itself record an exact-method UI open or Download the new artifact. The
+retained `GateDVisualLayout` PID 480/TID 3396 supplies an isolated one-Rebuild raw
+log with no online action, and its derived transcript
+passes `VerifyBuild`. The later three-method Implementation UI check is
+`manual-attested`; its separate automated JSON/log artifact remains pending. The
+physical sequence-4 checkpoint and post-commit PID 34656 Rebuild/Download now
+exist, but current `Classes.lcb` drift invalidates focused/C78 equivalence. A
+reviewed rebaseline plus live UDP receiver/dispatch and causal packet proof remain
+required; pre-rebaseline runtime evidence is exploratory.
 
 Minimum acceptance matrix:
 
@@ -1251,9 +1499,10 @@ Minimum acceptance matrix:
    operation complete. Only a wake mapped to an already-retained exact
    current-session ticket causes an authoritative `0x7E03` query, and only the
    TCP response changes application state.
-10. C78 Rebuild, implementation smoke, PLC download, source/destination packet
-   capture, reconnect/takeover capture, and a bounded loss/duplicate/reorder
-   test all pass before activation.
+10. C78 Rebuild, the manual-attested exact-method Implementation-tab/header UI
+    check, any separately required automated method-smoke artifact, PLC download,
+    source/destination packet capture, reconnect/takeover capture, and a bounded
+    loss/duplicate/reorder test all pass before activation.
 
 ## Recorder exclusion
 

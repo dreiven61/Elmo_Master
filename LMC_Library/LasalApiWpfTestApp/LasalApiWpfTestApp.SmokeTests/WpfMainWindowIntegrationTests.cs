@@ -113,6 +113,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession",
                 CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession);
             tests.Add(
+                "Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi",
+                CallbackV2QueuedOldSessionStatisticsCannotMutateReplacementUi);
+            tests.Add(
                 "Wpf.Diagnostics.InvalidPiAndBulkRowsHideStaleRaw",
                 InvalidPiAndBulkRowsHideStaleRaw);
             tests.Add(
@@ -302,6 +305,157 @@ namespace LasalApiWpfTestApp.SmokeTests
             finally
             {
                 CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2QueuedOldSessionStatisticsCannotMutateReplacementUi()
+        {
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            LMCConnection oldConnection = null;
+            LMCConnection replacementConnection = null;
+            try
+            {
+                using (var statisticsPublished = new ManualResetEventSlim(false))
+                using (var oldServer = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CloseStep()))
+                using (var replacementServer = new FakeRpcServer(
+                    InitStep(),
+                    CallbackStep(),
+                    CloseStep()))
+                {
+                    window = CreateWindow(journalDirectory, oldServer.Port);
+                    oldConnection = (LMCConnection)InvokePrivate(
+                        window,
+                        "CreateCoordinatedConnection");
+                    InvokePrivate(window, "AttachConnection", oldConnection);
+                    SetPrivateField(window, "connection", oldConnection);
+                    oldConnection.RpcInitConnection(
+                        "127.0.0.1",
+                        oldServer.Port,
+                        "127.0.0.1",
+                        0,
+                        1u);
+                    InvokePrivate(window, "UpdateUiState");
+
+                    AssertEx.Equal(
+                        "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0",
+                        window.TextCallbackCounters.Text);
+                    AssertEx.Equal(
+                        "Last decision=None",
+                        window.TextCallbackLastDecision.Text);
+
+                    oldConnection.CallbackV2StatisticsChanged += delegate
+                    {
+                        // MainWindow subscribed first. Reaching this handler
+                        // proves its Dispatcher action was already enqueued.
+                        statisticsPublished.Set();
+                    };
+                    using (var sender = new UdpClient(
+                        new IPEndPoint(IPAddress.Loopback, 0)))
+                    {
+                        var malformed = new byte[] { 1, 2, 3, 4 };
+                        sender.Send(
+                            malformed,
+                            malformed.Length,
+                            oldConnection.CallbackLocalEndPoint);
+                    }
+
+                    AssertEx.True(
+                        statisticsPublished.Wait(2000),
+                        "The old-session statistics event was not queued for the WPF Dispatcher.");
+                    AssertEx.Equal(1L, oldConnection.RejectedCallbackCount);
+                    AssertEx.Equal(
+                        "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0",
+                        window.TextCallbackCounters.Text,
+                        "The queued old-session statistics action ran before the replacement boundary was established.");
+                    AssertEx.Equal(
+                        "Last decision=None",
+                        window.TextCallbackLastDecision.Text);
+
+                    oldConnection.CloseConnection();
+                    SetPrivateField(window, "connection", null);
+                    InvokePrivate(window, "DetachConnection", oldConnection);
+                    oldConnection.Dispose();
+                    oldConnection = null;
+
+                    replacementConnection = (LMCConnection)InvokePrivate(
+                        window,
+                        "CreateCoordinatedConnection");
+                    InvokePrivate(
+                        window,
+                        "AttachConnection",
+                        replacementConnection);
+                    SetPrivateField(
+                        window,
+                        "connection",
+                        replacementConnection);
+                    replacementConnection.RpcInitConnection(
+                        "127.0.0.1",
+                        replacementServer.Port,
+                        "127.0.0.1",
+                        0,
+                        1u);
+                    InvokePrivate(window, "UpdateUiState");
+
+                    AssertEx.Equal(0L, replacementConnection.RejectedCallbackCount);
+                    AssertEx.Equal(
+                        "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0",
+                        window.TextCallbackCounters.Text);
+                    AssertEx.Equal(
+                        "Last decision=None",
+                        window.TextCallbackLastDecision.Text);
+                    AssertEx.True(
+                        GetPrivateField(window, "lastCallbackV2Statistics")
+                            == null,
+                        "The replacement connection inherited old callback statistics before Dispatcher processing.");
+
+                    PumpDispatcherOnce();
+
+                    AssertEx.True(
+                        ReferenceEquals(
+                            replacementConnection,
+                            GetPrivateField(window, "connection")),
+                        "The queued old-session statistics action changed the active connection owner.");
+                    AssertEx.Equal(0L, replacementConnection.RejectedCallbackCount);
+                    AssertEx.Equal(
+                        "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0",
+                        window.TextCallbackCounters.Text,
+                        "The queued old-session statistics action overwrote the replacement counters.");
+                    AssertEx.Equal(
+                        "Last decision=None",
+                        window.TextCallbackLastDecision.Text,
+                        "The queued old-session statistics action overwrote the replacement last decision.");
+                    AssertEx.Contains(
+                        "rejected=0",
+                        window.TextCallbackState.Text);
+                    AssertEx.True(
+                        GetPrivateField(window, "lastCallbackV2Statistics")
+                            == null,
+                        "The queued old-session statistics snapshot was retained by the replacement UI.");
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    replacementConnection = null;
+                    oldServer.Verify();
+                    replacementServer.Verify();
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                if (oldConnection != null)
+                {
+                    oldConnection.Dispose();
+                }
+                if (replacementConnection != null && window == null)
+                {
+                    replacementConnection.Dispose();
+                }
                 DeleteJournalDirectory(journalDirectory);
             }
         }

@@ -120,8 +120,7 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner current Release 검증: 1111/1111 PASS. 이번 callback
-  consumer tranche에서는 Debug runner를 다시 실행하지 않았다. fake-RPC request/session
+- C# 자동 테스트 runner current Debug/Release 검증: 각각 1117/1117 PASS. fake-RPC request/session
   atomic append와 stable snapshot 회귀, Axis/Group sync/async typed lookup의
   exact 6-byte/nonzero descriptor, structured failure와 raw 방어 복사 회귀에 더해 topology/I/O read-only raw qualifier의
   옵션/allowlist/mutation 차단/dormant capability/dry-run/fake 17-request sequence와
@@ -175,7 +174,7 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `LMCDiagnosticsService`의 `0x7E13/0x7E22` handler를 external source implementation으로 완성했다.
   default checkpoint는 read-owner 구현과 bit 15~17 OFF, `0x7E23` 부재를 함께 검증한다.
 - 개발 WPF example current Release rebuild: 경고 0, 오류 0. actual-control startup
-  smoke는 VS2019 MSBuild Release에서 332/332 PASS다. 이번 tranche에서는 Debug
+  smoke는 VS2019 MSBuild Release에서 334/334 PASS다. 이번 tranche에서는 Debug
   build/smoke를 다시 실행하지 않았다. Admin capability/axis/group와 Drive mode/non-atomic status를
   exact fake-RPC 및 non-default axis lookup/AxisInfo payload로 검증한다. D5
   abort/contention/timeout/queued-cancel/abrupt-disconnect 버튼의 capability/idle/interlock gate, typed v2 SDO
@@ -820,8 +819,8 @@ request를 failure context로 보존하고, `CancelOperation`은 실행됐을 �
   accepted Resume 실패의 cleanup은 exact pending continuation만 재사용하며 새 `0x2085`를 자동
   전송하지 않는다. fake-RPC는 외부 Power Off 선점에서 Stop 1회/Power Off 1회/status 4회, accepted
   status failure 뒤 cleanup에서 Stop 1회/status 4회를 확인했다. 이는 PLC packet 또는 정지 성능
-  proof가 아니다. current SDK Release runner는 callback-v2 회귀를 포함해
-  1111/1111 PASS했다. 이번 tranche에서는 Debug runner를 다시 실행하지 않았고,
+  proof가 아니다. current SDK Debug/Release runner는 callback-v2 회귀를 포함해
+  각각 1117/1117 PASS했고,
   이 값을 PLC runtime proof로 확대하지 않는다.
 
 public `GroupEnableAndWaitForLockedStandbyAsync`는 동일 connection session과 group
@@ -936,6 +935,16 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
   전달한다. LASAL은 callback IPv4가 current valid TCP peer와 exact match하고 port가
   `1..65535`일 때만 최초 tuple을 validate-then-commit한다. exact duplicate는
   idempotent, mismatch retry는 이전 tuple을 보존한 채 실패한다.
+- `0x8080` short failure는 `ParseAcknowledgement`로 파싱해 outer `Status=1`, command
+  `Status=1`, `ErrorId=-1`을 보존한다. `Version2WakeHint`에서만 frame valid,
+  `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞으면 20 ms
+  cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. persistent
+  second failure는 `Faulted` cleanup, 다른 ErrorId/nonzero reserved/malformed response와
+  legacy mode는 zero-retry다. 이는 PLC의 persistent disarm result `-8`/`-9` root fix가
+  아니다.
+- WPF 회귀는 첫 Connect의 두 init 시도가 모두 실패하면 `Disconnected`/`Stopped`,
+  Connect 재활성, 내부 connection 제거 상태로 복귀하고, 다음 수동 Connect가 새 TCP
+  session에서 `0x8080 -> 0x405C`로 성공하는 것을 검증한다.
 - `LMCCallbackEventArgs`는 legacy raw provenance를 제공한다.
   `LMCCallbackWakeHintEventArgs`는 version-2 typed wake provenance와
   `MatchesD5OperationTerminalTicket`을 제공한다. 이 matcher는 retained ticket과 exact
@@ -1042,7 +1051,7 @@ Home/encoder-maintenance 계약 포함), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
 분리돼 있다. 개발 WPF의 실제 컨트롤/fake RPC 회귀는 별도
 `LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests` target이며 current Release는
-VS2019 MSBuild 332/332 PASS다. 이번 tranche에서는 Debug smoke를 다시 실행하지
+VS2019 MSBuild 334/334 PASS다. 이번 tranche에서는 Debug smoke를 다시 실행하지
 않았다. Admin/Drive read-only 탭의 exact request/typed UI와 one-click bounded SDO Read의 typed/raw terminal 표시, accepted-timeout/cancel
 ticket과 last-status 보존/수동 Refresh 복구, pre-accept cancel 및 capability-off zero-wire,
   terminal failure guard 해제, SDO Write의 current-session same-value proof 선행 gate와
