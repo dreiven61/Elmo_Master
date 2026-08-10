@@ -44,8 +44,13 @@ $HistoricalGateCVerifierCanonicalLfSha256 =
 # Gate D reviewed current verifier pin. The phase remains capture-only and
 # cannot imply production approval or PLC runtime evidence.
 $GateDCurrentVerifierPinFrozen = $true
-$GateDExpectedVerifierCanonicalLfBytes = 545566
+$GateDExpectedVerifierCanonicalLfBytes = 564360
 $GateDExpectedVerifierCanonicalLfSha256 =
+    '20BDC1E49B3ED329143F0C36576F118F369383B3DA922069FDD2DD8B1909CC90'
+# Historical Gate D sequence-4 verifier pin. Retain this exact tuple so the
+# committed physical checkpoint remains verifiable after the current ratchet.
+$HistoricalGateDVerifierCanonicalLfBytes = 545566
+$HistoricalGateDVerifierCanonicalLfSha256 =
     'FBF1A8582E85039377AC39F26D8BBA64C0EB62665424DE150083CFC412CC7CA3'
 $HistoricalGateAVerifierCanonicalLfBytes = 409934
 $HistoricalGateAVerifierCanonicalLfSha256 =
@@ -91,7 +96,8 @@ function Assert-GateDCurrentVerifierPinFreezeInvariant {
         [Parameter(Mandatory = $true)][long]$CurrentCanonicalLfBytes,
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$CurrentCanonicalLfSha256,
         [Parameter(Mandatory = $true)][long]$HistoricalCanonicalLfBytes,
-        [Parameter(Mandatory = $true)][string]$HistoricalCanonicalLfSha256
+        [Parameter(Mandatory = $true)][string]$HistoricalCanonicalLfSha256,
+        [Parameter(Mandatory = $true)][string]$HistoricalPinName
     )
 
     if (-not $Frozen) {
@@ -109,7 +115,7 @@ function Assert-GateDCurrentVerifierPinFreezeInvariant {
         ($CurrentCanonicalLfSha256 -ceq $HistoricalCanonicalLfSha256)) {
         throw (
             'Frozen Gate D current verifier pin is not separated from the ' +
-            'historical Gate C verifier pin.')
+            "historical $HistoricalPinName verifier pin.")
     }
 }
 
@@ -118,7 +124,15 @@ Assert-GateDCurrentVerifierPinFreezeInvariant `
     -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
     -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
     -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
-    -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
+    -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256 `
+    -HistoricalPinName 'Gate C'
+Assert-GateDCurrentVerifierPinFreezeInvariant `
+    -Frozen $GateDCurrentVerifierPinFrozen `
+    -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
+    -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
+    -HistoricalCanonicalLfBytes $HistoricalGateDVerifierCanonicalLfBytes `
+    -HistoricalCanonicalLfSha256 $HistoricalGateDVerifierCanonicalLfSha256 `
+    -HistoricalPinName 'Gate D sequence-4'
 
 $PhaseContracts = [ordered]@{
     GateA_VendorImported = [ordered]@{
@@ -3568,6 +3582,14 @@ function Get-ReviewedVerifierManifestPin {
                 [long]$HistoricalGateCVerifierCanonicalLfBytes
             canonicalLfSha256 =
                 $HistoricalGateCVerifierCanonicalLfSha256
+        }
+    }
+    elseif ($ExpectedPhase -ceq 'GateD_TerminalWakeBrokerCandidate') {
+        $historicalPin = [ordered]@{
+            canonicalLfBytes =
+                [long]$HistoricalGateDVerifierCanonicalLfBytes
+            canonicalLfSha256 =
+                $HistoricalGateDVerifierCanonicalLfSha256
         }
     }
     if (($null -ne $historicalPin) -and
@@ -8021,6 +8043,10 @@ function Invoke-SyntheticFullManifestContractSelfTest {
     $savedGateDPinFrozen = $script:GateDCurrentVerifierPinFrozen
     $savedGateDPinBytes = $script:GateDExpectedVerifierCanonicalLfBytes
     $savedGateDPinSha256 = $script:GateDExpectedVerifierCanonicalLfSha256
+    $savedHistoricalGateDPinBytes =
+        $script:HistoricalGateDVerifierCanonicalLfBytes
+    $savedHistoricalGateDPinSha256 =
+        $script:HistoricalGateDVerifierCanonicalLfSha256
     try {
         $script:ExpectedVerifierCanonicalLfBytes = $syntheticVerifierBytes
         $script:ExpectedVerifierCanonicalLfSha256 = $syntheticVerifierSha256
@@ -8038,6 +8064,29 @@ function Invoke-SyntheticFullManifestContractSelfTest {
             -ExpectedParentFile $readFiles[$gateCManifestPath] `
             -ExpectedParentData $gateCParsed.Data `
             -ExpectedRootFile $readFiles[$gateAManifestPath]
+
+        $ratchetedGateDVerifierBytes = $Utf8NoBom.GetBytes(
+            "synthetic ratcheted Gate D verifier`n")
+        $script:HistoricalGateDVerifierCanonicalLfBytes =
+            $syntheticVerifierBytes
+        $script:HistoricalGateDVerifierCanonicalLfSha256 =
+            $syntheticVerifierSha256
+        $script:GateDExpectedVerifierCanonicalLfBytes =
+            [long]$ratchetedGateDVerifierBytes.Length
+        $script:GateDExpectedVerifierCanonicalLfSha256 =
+            Get-BytesSha256 -Bytes $ratchetedGateDVerifierBytes
+        Assert-CheckpointManifestContract `
+            -Data $gateDParsed.Data `
+            -ExpectedPhase 'GateD_TerminalWakeBrokerCandidate' `
+            -ExpectedContract $PhaseContracts.GateD_TerminalWakeBrokerCandidate `
+            -SealEvidence $gateDParsed.Seal `
+            -RepositoryRoot $repositoryRoot `
+            -GitPath 'git' `
+            -RepositoryBindingHead $gateDBindingHead `
+            -ExpectedParentFile $readFiles[$gateCManifestPath] `
+            -ExpectedParentData $gateCParsed.Data `
+            -ExpectedRootFile $readFiles[$gateAManifestPath]
+        $positive++
     }
     finally {
         $script:ExpectedVerifierCanonicalLfBytes = $savedLineageExpectedBytes
@@ -8045,6 +8094,10 @@ function Invoke-SyntheticFullManifestContractSelfTest {
         $script:GateDCurrentVerifierPinFrozen = $savedGateDPinFrozen
         $script:GateDExpectedVerifierCanonicalLfBytes = $savedGateDPinBytes
         $script:GateDExpectedVerifierCanonicalLfSha256 = $savedGateDPinSha256
+        $script:HistoricalGateDVerifierCanonicalLfBytes =
+            $savedHistoricalGateDPinBytes
+        $script:HistoricalGateDVerifierCanonicalLfSha256 =
+            $savedHistoricalGateDPinSha256
     }
     $positive++
 
@@ -9229,7 +9282,16 @@ function Invoke-CaptureToolSelfTest {
         -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
         -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
         -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
-        -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
+        -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256 `
+        -HistoricalPinName 'Gate C'
+    $positive++
+    Assert-GateDCurrentVerifierPinFreezeInvariant `
+        -Frozen $GateDCurrentVerifierPinFrozen `
+        -CurrentCanonicalLfBytes $GateDExpectedVerifierCanonicalLfBytes `
+        -CurrentCanonicalLfSha256 $GateDExpectedVerifierCanonicalLfSha256 `
+        -HistoricalCanonicalLfBytes $HistoricalGateDVerifierCanonicalLfBytes `
+        -HistoricalCanonicalLfSha256 $HistoricalGateDVerifierCanonicalLfSha256 `
+        -HistoricalPinName 'Gate D sequence-4'
     $positive++
     try {
         Assert-GateDCurrentVerifierPinFreezeInvariant `
@@ -9237,7 +9299,8 @@ function Invoke-CaptureToolSelfTest {
             -CurrentCanonicalLfBytes 1 `
             -CurrentCanonicalLfSha256 ('A' * 64) `
             -HistoricalCanonicalLfBytes $HistoricalGateCVerifierCanonicalLfBytes `
-            -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256
+            -HistoricalCanonicalLfSha256 $HistoricalGateCVerifierCanonicalLfSha256 `
+            -HistoricalPinName 'Gate C'
         throw 'Synthetic unfrozen Gate D verifier pin was accepted as set.'
     }
     catch {
@@ -9247,6 +9310,28 @@ function Invoke-CaptureToolSelfTest {
         }
         if ($_.Exception.Message -cne
             'Unfrozen Gate D current verifier pin must remain unset.') {
+            throw
+        }
+        $negative++
+    }
+    try {
+        Assert-GateDCurrentVerifierPinFreezeInvariant `
+            -Frozen $true `
+            -CurrentCanonicalLfBytes $HistoricalGateDVerifierCanonicalLfBytes `
+            -CurrentCanonicalLfSha256 $HistoricalGateDVerifierCanonicalLfSha256 `
+            -HistoricalCanonicalLfBytes $HistoricalGateDVerifierCanonicalLfBytes `
+            -HistoricalCanonicalLfSha256 $HistoricalGateDVerifierCanonicalLfSha256 `
+            -HistoricalPinName 'Gate D sequence-4'
+        throw 'Historical Gate D sequence-4 pin was accepted as current.'
+    }
+    catch {
+        if ($_.Exception.Message -ceq
+            'Historical Gate D sequence-4 pin was accepted as current.') {
+            throw
+        }
+        if ($_.Exception.Message -cne
+            ('Frozen Gate D current verifier pin is not separated from the ' +
+                'historical Gate D sequence-4 verifier pin.')) {
             throw
         }
         $negative++
@@ -9266,6 +9351,10 @@ function Invoke-CaptureToolSelfTest {
             [long]$HistoricalGateB2VerifierCanonicalLfBytes) -or
         ($syntheticCurrentVerifierCanonicalLfBytes -eq
             [long]$HistoricalGateCVerifierCanonicalLfBytes) -or
+        ($syntheticCurrentVerifierCanonicalLfBytes -eq
+            [long]$HistoricalGateDVerifierCanonicalLfBytes) -or
+        ($syntheticCurrentVerifierCanonicalLfBytes -eq
+            [long]$GateDExpectedVerifierCanonicalLfBytes) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
             $HistoricalGateAVerifierCanonicalLfSha256) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
@@ -9273,7 +9362,11 @@ function Invoke-CaptureToolSelfTest {
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
             $HistoricalGateB2VerifierCanonicalLfSha256) -or
         ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
-            $HistoricalGateCVerifierCanonicalLfSha256)) {
+            $HistoricalGateCVerifierCanonicalLfSha256) -or
+        ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
+            $HistoricalGateDVerifierCanonicalLfSha256) -or
+        ($syntheticCurrentVerifierCanonicalLfSha256 -ceq
+            $GateDExpectedVerifierCanonicalLfSha256)) {
         throw 'Synthetic current verifier tuple is not distinct.'
     }
     $mutatedCurrentVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
@@ -9286,6 +9379,8 @@ function Invoke-CaptureToolSelfTest {
         $Utf8NoBom.GetBytes("mutated historical Gate B2 verifier`n"))
     $mutatedGateCVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
         $Utf8NoBom.GetBytes("mutated historical Gate C verifier`n"))
+    $mutatedGateDVerifierCanonicalLfSha256 = Get-BytesSha256 -Bytes (
+        $Utf8NoBom.GetBytes("mutated historical Gate D verifier`n"))
 
     $savedExpectedBytes = $script:ExpectedVerifierCanonicalLfBytes
     $savedExpectedSha256 = $script:ExpectedVerifierCanonicalLfSha256
@@ -9343,6 +9438,18 @@ function Invoke-CaptureToolSelfTest {
                 bytes = [long]$HistoricalGateCVerifierCanonicalLfBytes
                 sha256 = $HistoricalGateCVerifierCanonicalLfSha256
                 owner = 'synthetic historical Gate C pin'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$GateDExpectedVerifierCanonicalLfBytes
+                sha256 = $GateDExpectedVerifierCanonicalLfSha256
+                owner = 'synthetic current Gate D pin'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$HistoricalGateDVerifierCanonicalLfBytes
+                sha256 = $HistoricalGateDVerifierCanonicalLfSha256
+                owner = 'synthetic historical Gate D sequence-4 pin'
             })
         foreach ($pinCase in $positivePinCases) {
             $reviewedPin = Get-ReviewedVerifierManifestPin `
@@ -9456,6 +9563,34 @@ function Invoke-CaptureToolSelfTest {
                 sha256 = $mutatedGateCVerifierCanonicalLfSha256
                 owner = 'synthetic mutated historical Gate C pin SHA-256'
                 accepted = 'Synthetic mutated Gate C pin SHA-256 was accepted.'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$HistoricalGateDVerifierCanonicalLfBytes + 1
+                sha256 = $HistoricalGateDVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate D pin bytes'
+                accepted = 'Synthetic mutated Gate D pin bytes were accepted.'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$HistoricalGateDVerifierCanonicalLfBytes
+                sha256 = $mutatedGateDVerifierCanonicalLfSha256
+                owner = 'synthetic mutated historical Gate D pin SHA-256'
+                accepted = 'Synthetic mutated Gate D pin SHA-256 was accepted.'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$GateDExpectedVerifierCanonicalLfBytes + 1
+                sha256 = $GateDExpectedVerifierCanonicalLfSha256
+                owner = 'synthetic mutated current Gate D pin bytes'
+                accepted = 'Synthetic mutated current Gate D pin bytes were accepted.'
+            },
+            [ordered]@{
+                phase = 'GateD_TerminalWakeBrokerCandidate'
+                bytes = [long]$GateDExpectedVerifierCanonicalLfBytes
+                sha256 = $mutatedGateDVerifierCanonicalLfSha256
+                owner = 'synthetic mutated current Gate D pin SHA-256'
+                accepted = 'Synthetic mutated current Gate D pin SHA-256 was accepted.'
             },
             [ordered]@{
                 phase = 'GateB2_DerivedWired'

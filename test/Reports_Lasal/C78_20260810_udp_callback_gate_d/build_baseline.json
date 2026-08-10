@@ -1,0 +1,47 @@
+{
+  "Schema": "LasalC78RebuildEvidence/v1",
+  "CapturedAtUtc": "2026-08-10T02:45:00.0970157Z",
+  "RepositoryRoot": "C:\\work\\Elmo\\Elmo_Master",
+  "CanonicalProjectPath": "C:\\work\\Elmo\\Elmo_Master\\Lasal_PRG\\Elmo_EtherCAT_Test_4Axis\\Elmo_EtherCAT_Test_4Axis.lcp",
+  "LasalLogPath": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+  "LogPrefixLength": 4962208,
+  "LogPrefixSha256": "ae0d7904bfcf86603b5c9ca2fdd5e1f736f8fce126d3bb545e6e48d792ebf2a7",
+  "Files": [
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+      "Sha256": "dd0b5ed307e7dc1969579f00fb5178e570c1a658c70b5f1928c6a65f57d43c84"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "Sha256": "8715896406d3b99185c40fbe9c2f0e29170c2d57e1e58792515172ebddc81e65"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st",
+      "Sha256": "7084062685543aa59f0a0bc458692a97b677644d01b2211914333c52f25395bb"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st",
+      "Sha256": "9e41fdcd63693d19b348f43cbfe3463b7dd8dbb2fafd1463124cce0f8d965a19"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st",
+      "Sha256": "c63039654a724b6d0cbe4743befe34f77eb8902251f3a1cef25a0a176bf17b3d"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCRecorderStore/LMCRecorderStore.st",
+      "Sha256": "0a256e2c1d4c0ec6479387c322006a5b638427f75e627697ecb252b1b0d25c11"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSdoExecutor/LMCSdoExecutor.st",
+      "Sha256": "a91a4177f26486fedce50f8c4fec72fa8a61a3b34d5939df08bee2d09055cbd4"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcp",
+      "Sha256": "c84de0051f579aedeeb203ab1491eb989dc8c14beb9d722f0e8002865c957648"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn",
+      "Sha256": "4efa35899443d8dfe10d3f9974493056cae6e103751af6b9a408338077a8c0da"
+    }
+  ]
+}

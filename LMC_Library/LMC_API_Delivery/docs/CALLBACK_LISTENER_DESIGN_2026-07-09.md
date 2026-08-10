@@ -323,6 +323,32 @@ capture self-test is positive `46` / negative `94`. The historical bootstrap
 but was `UNTRUSTED` with `outputCreated=false`; that bootstrap run created no
 manifest.
 
+Those values are the historical sequence-4 checkpoint identities, not the
+current portability-tool pin. The current focused verifier is 564,360
+canonical-LF bytes /
+`20BDC1E49B3ED329143F0C36576F118F369383B3DA922069FDD2DD8B1909CC90`;
+its Windows PowerShell 5.1 self-test rejects all `290/290` negative fixtures. A
+clean detached `5543579` worktree populated with exactly the eight generated,
+ignored Network artifacts reproduced the expected `CAPTURE` state with exit
+`0`, and the general `Verify-LasalContract.ps1` SourceOnly contract passed in
+249.3 seconds. The portability allowance is deliberately narrow: generated
+source/include and the derived Comm table accept only their exact pinned LF or
+CRLF physical forms. The six protected Network text artifacts are the sole
+exception: bare CR is rejected, while LF, CRLF, or a mixture of the two is
+compared through byte-level canonical LF. Canonicalization removes only the
+`0x0D` byte from each `0x0D 0x0A` pair, preserves every high byte, and still
+requires the exact canonical byte count and SHA-256. All other Network binary
+identities, topology, path inventory, and counts remain strict. Gate D full and
+tracked raw Network aggregates still accept only the pinned IDE-layout or
+clean-checkout count/SHA tuple. The checkpoint
+capture tool separately retains the old `HistoricalGateD` pin while freezing
+the new current pin; its self-test passes positive `50` / negative `99`, and
+revalidation of the actual sequence-4 manifest passes. These support-tool and
+retained-evidence changes are kept in a separate tooling/evidence changeset and
+do not approve production use. On the current main worktree, the formal current
+gate still fails only because `Classes.lcb` is `6E115876...` rather than the
+checkpoint `24402BFA...`.
+
 The trust-anchor tools were then committed at `bb5fd93`. Commit `5543579`
 atomically committed the sequence-4 manifest
 `gate_d_terminal_wake_broker_candidate_checkpoint.json` with the exact seven

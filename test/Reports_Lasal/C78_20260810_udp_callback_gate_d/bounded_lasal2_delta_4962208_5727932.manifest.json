@@ -1,0 +1,22 @@
+{
+  "Schema": "LasalC78BoundedLogDelta/v1",
+  "Provenance": "Exact byte slice from prefix-validated Lasal2.log",
+  "CapturedAtUtc": "2026-08-10T03:38:36.8543465Z",
+  "BaselineFileName": "build_baseline.json",
+  "BaselineByteCount": 2332,
+  "BaselineSha256": "2dbbe2133eb39692d40c07301cd41fc409bd6d3951b27e2b51ec9b57c213e2b9",
+  "BaselinePrefixLength": 4962208,
+  "BaselinePrefixSha256": "ae0d7904bfcf86603b5c9ca2fdd5e1f736f8fce126d3bb545e6e48d792ebf2a7",
+  "SourceLogPath": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+  "SourceStartOffset": 4962208,
+  "SourceEndOffset": 5727932,
+  "RawDeltaFileName": "bounded_lasal2_delta_4962208_5727932.raw.txt",
+  "RawDeltaByteCount": 765724,
+  "RawDeltaSha256": "e786adb33c44cd6308e02c6fe9351bba858569cdb3e8e097db9489079380fd2a",
+  "Encoding": "UTF-8",
+  "SessionPid": 7288,
+  "RebuildTid": 31624,
+  "TranscriptFileName": "derived_build_transcript_from_lasal2_log.txt",
+  "TranscriptByteCount": 30111,
+  "TranscriptSha256": "f32122d318dbfd8f53bc9e5ad0ff693f9b6f05368d40fc64138a010a1bc810af"
+}

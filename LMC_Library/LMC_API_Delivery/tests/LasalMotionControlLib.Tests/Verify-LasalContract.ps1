@@ -70,7 +70,8 @@ param(
         'VendorImported',
         'DerivedDeclaration',
         'DerivedWired',
-        'DerivedCandidate')]
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')]
     [string]$UdpCallbackExpectedState = 'Auto',
 
     [switch]$AllowUdpCallbackDerivedCapture,
@@ -868,19 +869,6 @@ function Assert-LasalAxisOwnershipRollbackMonolithicEvidenceFences {
         }
     }
 
-    $stage87AdapterCallPattern = (
-        'if\s+\(AdmissionToken\s*=\s*0\)\s*&\s*' +
-        '\(OwnerGeneration\s*=\s*0\)\s+then\s*' +
-        'Result\s*:=\s*' +
-        'HandleAxisOwnershipDs402ReceiptStage87Recovery\(\s*' +
-        'pState\s*:=\s*pState\s*,\s*' +
-        'activeIndex\s*:=\s*activeIndex\s*,\s*' +
-        'AxisMask\s*:=\s*AxisMask\s*,\s*' +
-        'ReportKind\s*:=\s*ReportKind\s*,\s*' +
-        'ReportValue0\s*:=\s*ReportValue0\s*,\s*' +
-        'ReportValue1\s*:=\s*ReportValue1\s*,\s*' +
-        'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
-        'RETURN\s*;\s*end_if\s*;')
     Assert-Match $scan (
         '(?is)END_VAR\s*' +
         'Result\s*:=\s*-1\s*;\s*' +
@@ -19077,6 +19065,19 @@ function Assert-LasalDs402OwnerReceiptProviderMutationFences {
     $helperScan = Get-LasalScanText $Stage87HelperBlock
     $controlScan = Get-LasalScanText $ControlServiceText
     $blocker = "$Owner DS402 owner receipt mutation blocker:"
+    $stage87AdapterCallPattern = (
+        'if\s+\(AdmissionToken\s*=\s*0\)\s*&\s*' +
+        '\(OwnerGeneration\s*=\s*0\)\s+then\s*' +
+        'Result\s*:=\s*' +
+        'HandleAxisOwnershipDs402ReceiptStage87Recovery\(\s*' +
+        'pState\s*:=\s*pState\s*,\s*' +
+        'activeIndex\s*:=\s*activeIndex\s*,\s*' +
+        'AxisMask\s*:=\s*AxisMask\s*,\s*' +
+        'ReportKind\s*:=\s*ReportKind\s*,\s*' +
+        'ReportValue0\s*:=\s*ReportValue0\s*,\s*' +
+        'ReportValue1\s*:=\s*ReportValue1\s*,\s*' +
+        'ObservationCycle\s*:=\s*ObservationCycle\s*\)\s*;\s*' +
+        'RETURN\s*;\s*end_if\s*;')
     Assert-Match $scan (
         '(?is)^\s*FUNCTION\s+GLOBAL\s+' +
         'LMCControlCommandService::PublishAxisOwnershipDs402Receipt\b.*?' +
@@ -23443,7 +23444,8 @@ function Assert-LMCSdoExecutorConstructorReady {
 function Assert-LMCDiagnosticsServiceConstructorReady {
     param(
         [string]$DiagnosticsServiceText,
-        [string]$Owner
+        [string]$Owner,
+        [switch]$TerminalWakeBroker
     )
 
     $scanText = Get-LasalScanText $DiagnosticsServiceText
@@ -23498,6 +23500,12 @@ function Assert-LMCDiagnosticsServiceConstructorReady {
         EncoderMaintenanceLatchAdvanceServiceMilliseconds = '0'
         EncoderMaintenanceLatchFreshSampleCount = '0'
     }
+    if ($TerminalWakeBroker) {
+        $scalarInitializers['D5TerminalWakeLastAttemptTicketId'] = '0'
+        $scalarInitializers['D5TerminalWakeLastAttemptTicketBootId'] = '0'
+        $scalarInitializers[
+            'D5TerminalWakeLastAttemptOwnerSessionEpoch'] = '0'
+    }
     $expectedClassStateTypes = [ordered]@{
         NextBulkId = 'UDINT'
         NextBulkConfigRevision = 'UDINT'
@@ -23543,6 +23551,14 @@ function Assert-LMCDiagnosticsServiceConstructorReady {
         EncoderMaintenanceObservedLatchCycle = 'UDINT'
         EncoderMaintenanceLatchAdvanceServiceMilliseconds = 'UDINT'
         EncoderMaintenanceLatchFreshSampleCount = 'UINT'
+    }
+    if ($TerminalWakeBroker) {
+        $expectedClassStateTypes[
+            'D5TerminalWakeLastAttemptTicketId'] = 'UDINT'
+        $expectedClassStateTypes[
+            'D5TerminalWakeLastAttemptTicketBootId'] = 'UDINT'
+        $expectedClassStateTypes[
+            'D5TerminalWakeLastAttemptOwnerSessionEpoch'] = 'UDINT'
     }
     $expectedClassStateNames = @($expectedClassStateTypes.Keys)
     $firstClassFunction = [regex]::Match(
@@ -25398,6 +25414,434 @@ function Assert-ExactLasalFunctionAbi {
         throw ("$Owner.$FunctionName declaration does not " +
             'match the exact ordered input/output ABI.')
     }
+}
+
+function ConvertTo-LasalExactContractTokenStream {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    return ([regex]::Replace(
+            (Get-LasalScanText $Text),
+            '\s+',
+            '')).ToLowerInvariant()
+}
+
+function Get-LasalExactFunctionImplementationBlock {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceText,
+        [Parameter(Mandatory = $true)][string]$ClassName,
+        [Parameter(Mandatory = $true)][string]$FunctionName,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $matches = [regex]::Matches(
+        $SourceText,
+        ('(?ims)^[ \t]*FUNCTION(?:[ \t]+(?:VIRTUAL|GLOBAL))*[ \t]+' +
+         [regex]::Escape($ClassName) + '::' +
+         [regex]::Escape($FunctionName) + '[ \t]*\r?$' +
+         '.*?^[ \t]*END_FUNCTION[ \t]*;?[ \t]*\r?$'))
+    if ($matches.Count -ne 1) {
+        throw (
+            "$Owner implementation count is $($matches.Count), expected one.")
+    }
+    return $matches[0].Value
+}
+
+function Assert-LasalTerminalWakeBrokerWrapperContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$DiagnosticsText,
+        [Parameter(Mandatory = $true)][string]$TcpText,
+        [Parameter(Mandatory = $true)][string]$Owner
+    )
+
+    $diagnosticsClass = [regex]::Match(
+        $DiagnosticsText,
+        ('(?is)(?<![A-Za-z0-9_])LMCDiagnosticsService\s*:\s*CLASS\b' +
+         '.*?\bEND_CLASS\s*;')).Value
+    $tcpClass = [regex]::Match(
+        $TcpText,
+        ('(?is)(?<![A-Za-z0-9_])TCPMotionInterface\s*:\s*CLASS\b' +
+         '.*?\bEND_CLASS\s*;')).Value
+    if ([string]::IsNullOrWhiteSpace($diagnosticsClass) -or
+        [string]::IsNullOrWhiteSpace($tcpClass)) {
+        throw "$Owner class declaration block is missing."
+    }
+
+    $diagnosticsVariables = @(
+        [regex]::Matches(
+            $diagnosticsClass,
+            ('(?im)^[ \t]*(?<Name>D5TerminalWake[A-Za-z0-9_]*)' +
+             '[ \t]*:')) |
+            ForEach-Object { $_.Groups['Name'].Value })
+    $expectedDiagnosticsVariables = @(
+        'D5TerminalWakeLastAttemptTicketId',
+        'D5TerminalWakeLastAttemptTicketBootId',
+        'D5TerminalWakeLastAttemptOwnerSessionEpoch')
+    if ([string]::Join('|', $diagnosticsVariables) -cne
+        [string]::Join('|', $expectedDiagnosticsVariables)) {
+        throw "$Owner Diagnostics private variable inventory/order drifted."
+    }
+    Assert-Match $diagnosticsClass (
+        '(?is)BootIdFault\s*:\s*BOOL\s*;\s*' +
+        'D5TerminalWakeLastAttemptTicketId\s*:\s*UDINT\s*;\s*' +
+        'D5TerminalWakeLastAttemptTicketBootId\s*:\s*UDINT\s*;\s*' +
+        'D5TerminalWakeLastAttemptOwnerSessionEpoch\s*:\s*UDINT\s*;') (
+        "$Owner Diagnostics private variable type/placement drifted.")
+    Assert-Match $diagnosticsClass (
+        '(?is)FUNCTION\s+GLOBAL\s+ProcessOperations\s*;\s*' +
+        'FUNCTION\s+GLOBAL\s+TryTakeD5TerminalWake\b') (
+        "$Owner TryTakeD5TerminalWake declaration placement drifted.")
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $diagnosticsClass `
+        -FunctionName 'TryTakeD5TerminalWake' `
+        -IsGlobal $true `
+        -Inputs @(
+            @{ Name = 'pTicketId'; Type = '^UDINT' },
+            @{ Name = 'pTicketBootId'; Type = '^UDINT' },
+            @{ Name = 'pOwnerSessionEpoch'; Type = '^UDINT' }) `
+        -Outputs @(@{ Name = 'Result'; Type = 'DINT' }) `
+        -Owner "$Owner Diagnostics"
+
+    $tryTakeBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $DiagnosticsText `
+        -ClassName 'LMCDiagnosticsService' `
+        -FunctionName 'TryTakeD5TerminalWake' `
+        -Owner "$Owner TryTakeD5TerminalWake"
+    $expectedTryTakeBlock = @'
+FUNCTION GLOBAL LMCDiagnosticsService::TryTakeD5TerminalWake
+	VAR_INPUT
+		pTicketId 	: ^UDINT;
+		pTicketBootId 	: ^UDINT;
+		pOwnerSessionEpoch 	: ^UDINT;
+	END_VAR
+	VAR_OUTPUT
+		Result 	: DINT;
+	END_VAR
+
+	Result := -1;
+	if (pTicketId = NIL) | (pTicketBootId = NIL) |
+		(pOwnerSessionEpoch = NIL) then
+		RETURN;
+	end_if;
+
+	pTicketId^$UDINT := 0;
+	pTicketBootId^$UDINT := 0;
+	pOwnerSessionEpoch^$UDINT := 0;
+	Result := 0;
+
+	if (TicketId = 0) | (TicketBootId = 0) |
+		(OwnerSessionEpoch = 0) then
+		RETURN;
+	end_if;
+	if (OperationState <> LMC_DIAG_SDO_STATE_COMPLETED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_FAILED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_CANCELLED) &
+		(OperationState <> LMC_DIAG_SDO_STATE_EXPIRED) then
+		RETURN;
+	end_if;
+	if (D5TerminalWakeLastAttemptTicketId = TicketId) &
+		(D5TerminalWakeLastAttemptTicketBootId = TicketBootId) &
+		(D5TerminalWakeLastAttemptOwnerSessionEpoch = OwnerSessionEpoch) then
+		RETURN;
+	end_if;
+
+	D5TerminalWakeLastAttemptTicketId := TicketId;
+	D5TerminalWakeLastAttemptTicketBootId := TicketBootId;
+	D5TerminalWakeLastAttemptOwnerSessionEpoch := OwnerSessionEpoch;
+	pTicketId^$UDINT := TicketId;
+	pTicketBootId^$UDINT := TicketBootId;
+	pOwnerSessionEpoch^$UDINT := OwnerSessionEpoch;
+	Result := 1;
+
+END_FUNCTION
+'@
+    if ((ConvertTo-LasalExactContractTokenStream $tryTakeBlock) -cne
+        (ConvertTo-LasalExactContractTokenStream $expectedTryTakeBlock)) {
+        throw "$Owner TryTakeD5TerminalWake exact body/ABI drifted."
+    }
+
+    $diagnosticsConstructor = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $DiagnosticsText `
+        -ClassName 'LMCDiagnosticsService' `
+        -FunctionName 'LMCDiagnosticsService' `
+        -Owner "$Owner Diagnostics constructor"
+    foreach ($diagnosticsVariable in $expectedDiagnosticsVariables) {
+        if ([regex]::Matches(
+                $diagnosticsConstructor,
+                ('(?im)^[ \t]*' + [regex]::Escape($diagnosticsVariable) +
+                 '[ \t]*:=[ \t]*0[ \t]*;[ \t]*\r?$')).Count -ne 1) {
+            throw (
+                "$Owner Diagnostics constructor must clear " +
+                "$diagnosticsVariable exactly once.")
+        }
+    }
+
+    $tcpVariables = @(
+        [regex]::Matches(
+            $tcpClass,
+            ('(?im)^[ \t]*(?<Name>D5TerminalWake[A-Za-z0-9_]*)' +
+             '[ \t]*:')) |
+            ForEach-Object { $_.Groups['Name'].Value })
+    $expectedTcpVariables = @(
+        'D5TerminalWakeAttemptCount',
+        'D5TerminalWakeEnqueuedCount',
+        'D5TerminalWakeRejectedCount')
+    if ([string]::Join('|', $tcpVariables) -cne
+        [string]::Join('|', $expectedTcpVariables)) {
+        throw "$Owner TCP private counter inventory/order drifted."
+    }
+    Assert-Match $tcpClass (
+        '(?is)RpcCallbackLastDisarmResult\s*:\s*DINT\s*;\s*' +
+        'D5TerminalWakeAttemptCount\s*:\s*UDINT\s*;\s*' +
+        'D5TerminalWakeEnqueuedCount\s*:\s*UDINT\s*;\s*' +
+        'D5TerminalWakeRejectedCount\s*:\s*UDINT\s*;') (
+        "$Owner TCP private counter type/placement drifted.")
+    Assert-Match $tcpClass (
+        '(?is)FUNCTION\s+DisarmRpcCallbackEndpoint\b.*?' +
+        'END_VAR\s*;?\s*FUNCTION\s+PublishD5TerminalWake\s*;') (
+        "$Owner PublishD5TerminalWake declaration placement drifted.")
+    Assert-ExactLasalFunctionAbi `
+        -ClassBlock $tcpClass `
+        -FunctionName 'PublishD5TerminalWake' `
+        -IsGlobal $false `
+        -Inputs @() `
+        -Outputs @() `
+        -Owner "$Owner TCP"
+
+    $publishBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'PublishD5TerminalWake' `
+        -Owner "$Owner PublishD5TerminalWake"
+    $expectedPublishBlock = @'
+FUNCTION TCPMotionInterface::PublishD5TerminalWake
+	VAR
+		ticketId : UDINT;
+		ticketBootId : UDINT;
+		ownerSessionEpoch : UDINT;
+		takeResult : DINT;
+		publishResult : DINT;
+	END_VAR
+
+	ticketId := 0;
+	ticketBootId := 0;
+	ownerSessionEpoch := 0;
+	if IsClientConnected(#Diagnostics) = FALSE then
+		RETURN;
+	end_if;
+	takeResult := Diagnostics.TryTakeD5TerminalWake(
+		pTicketId:=#ticketId,
+		pTicketBootId:=#ticketBootId,
+		pOwnerSessionEpoch:=#ownerSessionEpoch);
+	if takeResult <> 1 then
+		RETURN;
+	end_if;
+
+	if D5TerminalWakeAttemptCount <> 16#FFFFFFFF then
+		D5TerminalWakeAttemptCount += 1;
+	end_if;
+	publishResult := -9;
+	if RpcInitialized & (CurrentSock <> 0) & (RpcSocket = CurrentSock) &
+		(PendingClosedSessionEpoch = 0) &
+		RpcCallbackRegistered & (RpcCallbackProtocolVersion = 2) &
+		((RpcCallbackEventMask AND 1) = 1) &
+		(RpcCallbackSessionEpoch = SessionEpoch) &
+		(ownerSessionEpoch = RpcCallbackSessionEpoch) &
+		(ticketBootId = RpcCallbackBootId) &
+		IsClientConnected(#CallbackSender) then
+		publishResult := CallbackSender.PublishEvent(
+			EventMaskBit:=1,
+			EventType:=1,
+			DeliveryClass:=0,
+			EventId:=ticketId,
+			ProducerSessionEpoch:=ownerSessionEpoch,
+			pPayload:=NIL,
+			PayloadBytes:=0);
+	end_if;
+	if publishResult = 0 then
+		if D5TerminalWakeEnqueuedCount <> 16#FFFFFFFF then
+			D5TerminalWakeEnqueuedCount += 1;
+		end_if;
+	else
+		if D5TerminalWakeRejectedCount <> 16#FFFFFFFF then
+			D5TerminalWakeRejectedCount += 1;
+		end_if;
+	end_if;
+
+END_FUNCTION
+'@
+    if ((ConvertTo-LasalExactContractTokenStream $publishBlock) -cne
+        (ConvertTo-LasalExactContractTokenStream $expectedPublishBlock)) {
+        throw "$Owner PublishD5TerminalWake exact body/ABI drifted."
+    }
+
+    $publishCallCount = [regex]::Matches(
+        (Get-LasalScanText $TcpText),
+        ('(?i)(?<!::)(?<![A-Za-z0-9_])PublishD5TerminalWake\s*\(')).Count
+    if ($publishCallCount -ne 2) {
+        throw "$Owner PublishD5TerminalWake call count is $publishCallCount, expected two."
+    }
+    $cyWorkBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'CyWork' `
+        -Owner "$Owner CyWork"
+    Assert-Match (Get-LasalScanText $cyWorkBlock) (
+        '(?is)if\s+IsClientConnected\s*\(\s*#Diagnostics\s*\)\s+then\s*' +
+        'Diagnostics\.ProcessOperations\s*\(\s*\)\s*;\s*' +
+        'PublishD5TerminalWake\s*\(\s*\)\s*;\s*end_if\s*;') (
+        "$Owner CyWork broker ordering drifted.")
+    $parserBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'MsgPaser' `
+        -Owner "$Owner MsgPaser"
+    Assert-Match (Get-LasalScanText $parserBlock) (
+        '(?is)SendData\s*\(\s*pData\s*:=\s*#Sendbuf\[0\]\s*,\s*' +
+        'udSize\s*:=\s*diagnosticsResponseSize\$UDINT\s*,\s*' +
+        'dSocket\s*:=\s*CurrentSock\s*,\s*bDirect\s*:=\s*TRUE\s*' +
+        '\)\s*;\s*PublishD5TerminalWake\s*\(\s*\)\s*;') (
+        "$Owner MsgPaser diagnostics-response broker ordering drifted.")
+}
+
+function Invoke-LasalTerminalWakeBrokerWrapperSelfTest {
+    param(
+        [Parameter(Mandatory = $true)][string]$DiagnosticsText,
+        [Parameter(Mandatory = $true)][string]$TcpText
+    )
+
+    $tryTakeBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $DiagnosticsText `
+        -ClassName 'LMCDiagnosticsService' `
+        -FunctionName 'TryTakeD5TerminalWake' `
+        -Owner 'Gate D self-test TryTakeD5TerminalWake'
+    $publishBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'PublishD5TerminalWake' `
+        -Owner 'Gate D self-test PublishD5TerminalWake'
+    $cyWorkBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'CyWork' `
+        -Owner 'Gate D self-test CyWork'
+    $parserBlock = Get-LasalExactFunctionImplementationBlock `
+        -SourceText $TcpText `
+        -ClassName 'TCPMotionInterface' `
+        -FunctionName 'MsgPaser' `
+        -Owner 'Gate D self-test MsgPaser'
+
+    $negativeDiagnosticsVariable = ([regex]::new(
+        ('(?im)^(?<Prefix>[ \t]*' +
+         'D5TerminalWakeLastAttemptTicketId[ \t]*:[ \t]*)' +
+         'UDINT(?<Suffix>[ \t]*;[ \t]*)(?<Eol>\r?)$'))).Replace(
+            $DiagnosticsText,
+            { param($match)
+                $match.Groups['Prefix'].Value + 'UINT' +
+                    $match.Groups['Suffix'].Value +
+                    $match.Groups['Eol'].Value
+            },
+            1)
+    $negativeTcpVariable = ([regex]::new(
+        ('(?im)^(?<Prefix>[ \t]*D5TerminalWakeAttemptCount[ \t]*:[ \t]*)' +
+         'UDINT(?<Suffix>[ \t]*;[ \t]*)(?<Eol>\r?)$'))).Replace(
+            $TcpText,
+            { param($match)
+                $match.Groups['Prefix'].Value + 'UINT' +
+                    $match.Groups['Suffix'].Value +
+                    $match.Groups['Eol'].Value
+            },
+            1)
+    $negativeInitialization = ([regex]::new(
+        ('(?im)^(?<Prefix>[ \t]*' +
+         'D5TerminalWakeLastAttemptTicketId[ \t]*:=[ \t]*)' +
+         '0(?<Suffix>[ \t]*;[ \t]*)(?<Eol>\r?)$'))).Replace(
+            $DiagnosticsText,
+            { param($match)
+                $match.Groups['Prefix'].Value + '1' +
+                    $match.Groups['Suffix'].Value +
+                    $match.Groups['Eol'].Value
+            },
+            1)
+    $negativeTryTakeBlock = $tryTakeBlock.Replace(
+        'Result := -1;',
+        'Result := -2;')
+    $negativePublishBlock = $publishBlock.Replace(
+        'EventId:=ticketId,',
+        'EventId:=0,')
+    $negativeCyWorkBlock = ([regex]::new(
+        '(?im)^[ \t]*PublishD5TerminalWake\s*\(\s*\)\s*;[ \t]*\r?$')).Replace(
+            $cyWorkBlock,
+            '',
+            1)
+    $negativeParserBlock = ([regex]::new(
+        '(?im)^[ \t]*PublishD5TerminalWake\s*\(\s*\)\s*;[ \t]*\r?$')).Replace(
+            $parserBlock,
+            '',
+            1)
+
+    $fixtures = [ordered]@{
+        DiagnosticsVariableType = [pscustomobject]@{
+            Diagnostics = $negativeDiagnosticsVariable
+            Tcp = $TcpText
+        }
+        TcpVariableType = [pscustomobject]@{
+            Diagnostics = $DiagnosticsText
+            Tcp = $negativeTcpVariable
+        }
+        DiagnosticsInitialization = [pscustomobject]@{
+            Diagnostics = $negativeInitialization
+            Tcp = $TcpText
+        }
+        TryTakeBody = [pscustomobject]@{
+            Diagnostics = $DiagnosticsText.Replace(
+                $tryTakeBlock,
+                $negativeTryTakeBlock)
+            Tcp = $TcpText
+        }
+        PublishBody = [pscustomobject]@{
+            Diagnostics = $DiagnosticsText
+            Tcp = $TcpText.Replace($publishBlock, $negativePublishBlock)
+        }
+        CyWorkCall = [pscustomobject]@{
+            Diagnostics = $DiagnosticsText
+            Tcp = $TcpText.Replace($cyWorkBlock, $negativeCyWorkBlock)
+        }
+        MsgPaserCall = [pscustomobject]@{
+            Diagnostics = $DiagnosticsText
+            Tcp = $TcpText.Replace($parserBlock, $negativeParserBlock)
+        }
+    }
+
+    $negativeCount = 0
+    foreach ($fixture in $fixtures.GetEnumerator()) {
+        if (($fixture.Value.Diagnostics -ceq $DiagnosticsText) -and
+            ($fixture.Value.Tcp -ceq $TcpText)) {
+            throw (
+                "Gate D wrapper negative fixture '$($fixture.Key)' " +
+                'did not mutate either source.')
+        }
+        $negativeRejected = $false
+        try {
+            Assert-LasalTerminalWakeBrokerWrapperContract `
+                -DiagnosticsText $fixture.Value.Diagnostics `
+                -TcpText $fixture.Value.Tcp `
+                -Owner "Gate D wrapper negative fixture '$($fixture.Key)'"
+        }
+        catch {
+            $negativeRejected = $true
+        }
+        if (-not $negativeRejected) {
+            throw (
+                'Gate D wrapper verifier accepted negative fixture ' +
+                "'$($fixture.Key)'.")
+        }
+        $negativeCount++
+    }
+    if ($negativeCount -ne 7) {
+        throw (
+            "Gate D wrapper negative fixture count is $negativeCount, expected seven.")
+    }
+    return $negativeCount
 }
 
 function Assert-NoCaseInsensitiveMemberShadowing {
@@ -28904,22 +29348,49 @@ Set-Variable `
     -Name 'WrapperUdpCallbackWiringExpected' `
     -Value ($script:WrapperUdpCallbackExpectedState -in @(
         'DerivedWired',
-        'DerivedCandidate')) `
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')) `
     -Option ReadOnly `
     -Scope Script
 Set-Variable `
     -Name 'WrapperUdpCallbackCandidateExpected' `
     -Value (
-        $script:WrapperUdpCallbackExpectedState -eq 'DerivedCandidate') `
+        $script:WrapperUdpCallbackExpectedState -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) `
     -Option ReadOnly `
     -Scope Script
-if (($script:WrapperUdpCallbackExpectedState -eq 'DerivedCandidate') -ne
+Set-Variable `
+    -Name 'WrapperUdpTerminalWakeExpected' `
+    -Value (
+        $script:WrapperUdpCallbackExpectedState -eq
+            'TerminalWakeBrokerCandidate') `
+    -Option ReadOnly `
+    -Scope Script
+if (($script:WrapperUdpCallbackExpectedState -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) -ne
         $script:WrapperUdpCallbackCandidateExpected -or
     ($script:WrapperUdpCallbackCandidateExpected -and
-        -not $script:WrapperUdpCallbackWiringExpected)) {
+        -not $script:WrapperUdpCallbackWiringExpected) -or
+    (($script:WrapperUdpCallbackExpectedState -eq
+            'TerminalWakeBrokerCandidate') -ne
+        $script:WrapperUdpTerminalWakeExpected) -or
+    ($script:WrapperUdpTerminalWakeExpected -and
+        -not $script:WrapperUdpCallbackCandidateExpected)) {
     throw (
         'UDP callback wrapper state derivation is inconsistent for ' +
         "ExpectedState=$script:WrapperUdpCallbackExpectedState.")
+}
+if ($script:WrapperUdpTerminalWakeExpected) {
+    Assert-LasalTerminalWakeBrokerWrapperContract `
+        -DiagnosticsText $diagnosticsService `
+        -TcpText $st `
+        -Owner 'LASAL Gate D terminal wake broker'
+    $terminalWakeBrokerNegativeFixtureCount =
+        Invoke-LasalTerminalWakeBrokerWrapperSelfTest `
+            -DiagnosticsText $diagnosticsService `
+            -TcpText $st
 }
 if ($transportClean) {
     $phase5ExpectedTcpClients = @(
@@ -29888,6 +30359,22 @@ if ($transportClean) {
             '(?<![A-Za-z0-9_])DisarmRpcCallbackEndpoint' +
             '(?![A-Za-z0-9_])') (
             'Classes.lcb metadata is missing DisarmRpcCallbackEndpoint. ' +
+                'Save TCPMotionInterface through LASAL IDE.')
+    }
+    if ($script:WrapperUdpTerminalWakeExpected) {
+        $phase5ExpectedDeclaredFunctions += 'PublishD5TerminalWake'
+        $phase5ExpectedImplementedFunctions += 'PublishD5TerminalWake'
+        Assert-ExactLasalFunctionAbi `
+            -ClassBlock $classDeclarationBlock `
+            -FunctionName 'PublishD5TerminalWake' `
+            -IsGlobal $false `
+            -Inputs @() `
+            -Outputs @() `
+            -Owner 'TCPMotionInterface'
+        Assert-Match $tcpClassDbRecord (
+            '(?<![A-Za-z0-9_])PublishD5TerminalWake' +
+            '(?![A-Za-z0-9_])') (
+            'Classes.lcb metadata is missing PublishD5TerminalWake. ' +
             'Save TCPMotionInterface through LASAL IDE.')
     }
     Assert-ExactRegexValueSet `
@@ -38694,7 +39181,8 @@ if ($topologyIoOutputIntegrated) {
 Assert-Match $diagnosticsService '(?s)FUNCTION LMCDiagnosticsService::@STD.*?ret_code\s*:=\s*LMCDiagnosticsService\(\).*?END_FUNCTION' 'LMCDiagnosticsService @STD does not invoke its constructor.'
 Assert-LMCDiagnosticsServiceConstructorReady `
     -DiagnosticsServiceText $diagnosticsService `
-    -Owner 'LMCDiagnosticsService'
+    -Owner 'LMCDiagnosticsService' `
+    -TerminalWakeBroker:$script:WrapperUdpTerminalWakeExpected
 
 $diagnosticsServiceConstructorFixtureBlock = [regex]::Match(
     $diagnosticsService,
@@ -38824,7 +39312,8 @@ foreach ($negativeFixture in
             -DiagnosticsServiceText $negativeDiagnosticsService `
             -Owner (
                 'LMCDiagnosticsService constructor negative fixture ' +
-                $negativeFixture.Key)
+                $negativeFixture.Key) `
+            -TerminalWakeBroker:$script:WrapperUdpTerminalWakeExpected
     }
     catch {
         $negativeRejected = $true
@@ -38849,7 +39338,8 @@ $diagnosticsServiceInventoryRejected = $false
 try {
     Assert-LMCDiagnosticsServiceConstructorReady `
         -DiagnosticsServiceText $diagnosticsServiceInventoryNegative `
-        -Owner 'LMCDiagnosticsService state-inventory negative fixture'
+        -Owner 'LMCDiagnosticsService state-inventory negative fixture' `
+        -TerminalWakeBroker:$script:WrapperUdpTerminalWakeExpected
 }
 catch {
     $diagnosticsServiceInventoryRejected = $true
@@ -38875,7 +39365,8 @@ $diagnosticsServiceArrayShapeRejected = $false
 try {
     Assert-LMCDiagnosticsServiceConstructorReady `
         -DiagnosticsServiceText $diagnosticsServiceArrayShapeNegative `
-        -Owner 'LMCDiagnosticsService array-shape negative fixture'
+        -Owner 'LMCDiagnosticsService array-shape negative fixture' `
+        -TerminalWakeBroker:$script:WrapperUdpTerminalWakeExpected
 }
 catch {
     $diagnosticsServiceArrayShapeRejected = $true
@@ -38918,7 +39409,8 @@ foreach ($typeNegativeFixture in
             -DiagnosticsServiceText ([string]$typeNegativeFixture.Value) `
             -Owner (
                 'LMCDiagnosticsService type negative fixture ' +
-                $typeNegativeFixture.Key)
+                $typeNegativeFixture.Key) `
+            -TerminalWakeBroker:$script:WrapperUdpTerminalWakeExpected
     }
     catch {
         $typeNegativeRejected = $true
@@ -42346,7 +42838,25 @@ else {
 }
 Assert-Match $motionCyWorkBlock '(?s)RequestQueue\[QueueReadIndex\$DINT\]\.State\s*=\s*TCPMI_QUEUE_READY.*?State\s*:=\s*TCPMI_QUEUE_ACTIVE.*?MemCpy.*?State\s*:=\s*TCPMI_QUEUE_FREE' 'CyWork queue READY/ACTIVE/FREE transition is missing.'
 Assert-Match $motionCyWorkBlock '(?s)CommandID\s*:=\s*TO_DINT\(ActiveRequest\.CommandId\);.*?AxisRef\s*:=\s*TO_DINT\(ActiveRequest\.Reference\);.*?Payload\s*:=\s*TO_DINT\(ActiveRequest\.PayloadLength\);.*?MsgPaser\(\);.*?ActiveRequestValid\s*:=\s*FALSE' 'CyWork does not numerically widen, execute, and release one active request.'
-Assert-Match $motionCyWorkBlock '(?s)ControlCommands\.ProcessAxisOwnership\(\);.*?if IsClientConnected\(#Diagnostics\) then\s*Diagnostics\.ProcessOperations\(\);\s*end_if.*?if \(PendingClosedSessionEpoch = 0\) & \(ActiveRequestValid = FALSE\) then.*?MsgPaser\(\);' 'TCPMotionInterface.CyWork must finish retained diagnostics receipts before admitting and dispatching a new request.'
+$cyWorkDiagnosticsProcessingPattern = if (
+    $script:WrapperUdpTerminalWakeExpected) {
+    ('(?s)ControlCommands\.ProcessAxisOwnership\(\);.*?' +
+     'if IsClientConnected\(#Diagnostics\) then\s*' +
+     'Diagnostics\.ProcessOperations\(\);\s*' +
+     'PublishD5TerminalWake\(\);\s*end_if.*?' +
+     'if \(PendingClosedSessionEpoch = 0\) & ' +
+     '\(ActiveRequestValid = FALSE\) then.*?MsgPaser\(\);')
+}
+else {
+    ('(?s)ControlCommands\.ProcessAxisOwnership\(\);.*?' +
+     'if IsClientConnected\(#Diagnostics\) then\s*' +
+     'Diagnostics\.ProcessOperations\(\);\s*end_if.*?' +
+     'if \(PendingClosedSessionEpoch = 0\) & ' +
+     '\(ActiveRequestValid = FALSE\) then.*?MsgPaser\(\);')
+}
+Assert-Match $motionCyWorkBlock $cyWorkDiagnosticsProcessingPattern (
+    'TCPMotionInterface.CyWork must finish retained diagnostics receipts ' +
+    'before admitting and dispatching a new request.')
 if ([regex]::Matches(
         $motionCyWorkBlock,
         '(?i)Diagnostics\.ProcessOperations\(\)').Count -ne 1) {

@@ -110,6 +110,9 @@ $ProtectedDependencies = @(
         Bytes = 19972
         Sha256 =
             '2DEC7C124CEC1B44766367188D5F00F6B2B812F372A3868EA1604F19C9621EDD'
+        GitCheckoutLfBytes = 19369
+        GitCheckoutLfSha256 =
+            'CB94BD6EA6CC323EC9D6FFB524DE7333102B1FB68EBF37F122529B9CB356F1DB'
     }
 )
 
@@ -286,11 +289,17 @@ $ExpectedTerminalWakeLayout = [ordered]@{
         Count = 23
         Sha256 =
             '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
+        CleanCheckoutCount = 23
+        CleanCheckoutSha256 =
+            '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
         Sha256 =
             '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
+        CleanCheckoutCount = 15
+        CleanCheckoutSha256 =
+            '6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38'
     }
 }
 $TerminalWakeLayoutSelfTestOracle = [ordered]@{
@@ -340,11 +349,17 @@ $TerminalWakeLayoutSelfTestOracle = [ordered]@{
         Count = 23
         Sha256 =
             '2AC04B56D1305FB2F894268598199136E406D3AFF04AF49B505055373547B621'
+        CleanCheckoutCount = 23
+        CleanCheckoutSha256 =
+            '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
         Sha256 =
             '2BBE21AE738AA99F2EB4CDD66CF865441AF3BB587FB1DB7478777082C395C153'
+        CleanCheckoutCount = 15
+        CleanCheckoutSha256 =
+            '6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38'
     }
 }
 $ExpectedBaselineTrackedNetworkCount = 15
@@ -378,7 +393,7 @@ $ExpectedVendorImportedProjectDefinitionCanonicalLfSha256 =
     'B79502ADF5B27408112B0B70C441F9A4252609D149F1B393F6F8DE5F739550C3'
 $ExpectedProtectedTrackedNetworkCount = 11
 $ExpectedProtectedTrackedNetworkSha256 =
-    'FE60FAA30C61E1CFF545E257C5581A77EF43DD6164940B4B18E4593F9A31B4E0'
+    'B2A4543FF2D900CC31C214EF73C99024B92C9E881A9AFF089AA36C3959841745'
 
 $GeneratedIncludeContracts = @(
     [ordered]@{
@@ -518,6 +533,17 @@ $AllowedDerivedNetworkPaths = @(
     $CommTableRelativePath,
     $ConfigObjectsRelativePath,
     $NetworksDatabaseRelativePath
+)
+
+$CanonicalLfProtectedNetworkTextPaths = @(
+    "$TargetRootRelativePath/Network/Eni.xml",
+    ("$TargetRootRelativePath/Network/EtherCAT_Network/" +
+        'ONE_EtherCAT_Network_Table.st'),
+    "$TargetRootRelativePath/Network/HW_Network/ONE_HW_Network_Table.st",
+    "$TargetRootRelativePath/Network/HwVisualConfigMngr.xml",
+    "$TargetRootRelativePath/Network/IOConnectionManager.xml",
+    ("$TargetRootRelativePath/Network/Motion_Network/" +
+        'ONE_Motion_Network_Table.st')
 )
 
 $ForbiddenDemoClassNames = @(
@@ -3886,6 +3912,63 @@ function Assert-TcpDerivedClientContract {
     }
 }
 
+function Assert-DerivedCommTablePhysicalContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet(
+            'DerivedWired',
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')]
+        [string]$State,
+        [Parameter(Mandatory = $true)][string]$CommTableText,
+        [Parameter(Mandatory = $true)][long]$CommTableBytes,
+        [Parameter(Mandatory = $true)][string]$CommTableSha256,
+        [switch]$SyntheticFixture
+    )
+
+    Assert-AsciiTextEvidence `
+        -Text $CommTableText `
+        -ByteCount $CommTableBytes `
+        -Sha256 $CommTableSha256 `
+        -ArtifactOwner 'ONE_Comm_Network_Table.st'
+    if ($SyntheticFixture) {
+        return
+    }
+
+    $tableCanonical = ConvertTo-CanonicalLf -Text $CommTableText
+    $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
+    if ($State -in @(
+            'DerivedCandidate',
+            'TerminalWakeBrokerCandidate')) {
+        $expectedTableBytes = $ExpectedDerivedCandidateCommTableBytes
+        $expectedTableSha256 = $ExpectedDerivedCandidateCommTableSha256
+        $expectedTableCanonicalLfBytes =
+            $ExpectedDerivedCandidateCommTableCanonicalLfBytes
+        $expectedTableCanonicalLfSha256 =
+            $ExpectedDerivedCandidateCommTableCanonicalLfSha256
+    }
+    else {
+        $expectedTableBytes = $ExpectedGateB2CommTableBytes
+        $expectedTableSha256 = $ExpectedGateB2CommTableSha256
+        $expectedTableCanonicalLfBytes =
+            $ExpectedGateB2CommTableCanonicalLfBytes
+        $expectedTableCanonicalLfSha256 =
+            $ExpectedGateB2CommTableCanonicalLfSha256
+    }
+    $rawIdentityExact =
+        (($CommTableBytes -eq $expectedTableBytes) -and
+         ($CommTableSha256 -ceq $expectedTableSha256)) -or
+        (($CommTableBytes -eq $expectedTableCanonicalLfBytes) -and
+         ($CommTableSha256 -ceq $expectedTableCanonicalLfSha256))
+    if ((-not $rawIdentityExact) -or
+        ($tableCanonicalBytes.Count -ne $expectedTableCanonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $tableCanonicalBytes) -cne
+            $expectedTableCanonicalLfSha256)) {
+        Throw-UdpCallbackBlocker (
+            "ONE_Comm_Network_Table.st $State snapshot drifted.")
+    }
+}
+
 function Assert-DerivedNetworkContract {
     param(
         [Parameter(Mandatory = $true)]
@@ -4098,41 +4181,12 @@ function Assert-DerivedNetworkContract {
         -Expected @($allowedConnections | Sort-Object) `
         -InventoryOwner 'UDP callback Network connection inventory'
 
-    Assert-AsciiTextEvidence `
-        -Text $CommTableText `
-        -ByteCount $CommTableBytes `
-        -Sha256 $CommTableSha256 `
-        -ArtifactOwner 'ONE_Comm_Network_Table.st'
-    if (-not $SyntheticFixture) {
-        $tableCanonical = ConvertTo-CanonicalLf -Text $CommTableText
-        $tableCanonicalBytes = $Utf8.GetBytes($tableCanonical)
-        if ($State -in @(
-                'DerivedCandidate',
-                'TerminalWakeBrokerCandidate')) {
-            $expectedTableBytes = $ExpectedDerivedCandidateCommTableBytes
-            $expectedTableSha256 = $ExpectedDerivedCandidateCommTableSha256
-            $expectedTableCanonicalLfBytes =
-                $ExpectedDerivedCandidateCommTableCanonicalLfBytes
-            $expectedTableCanonicalLfSha256 =
-                $ExpectedDerivedCandidateCommTableCanonicalLfSha256
-        }
-        else {
-            $expectedTableBytes = $ExpectedGateB2CommTableBytes
-            $expectedTableSha256 = $ExpectedGateB2CommTableSha256
-            $expectedTableCanonicalLfBytes =
-                $ExpectedGateB2CommTableCanonicalLfBytes
-            $expectedTableCanonicalLfSha256 =
-                $ExpectedGateB2CommTableCanonicalLfSha256
-        }
-        if (($CommTableBytes -ne $expectedTableBytes) -or
-            ($CommTableSha256 -cne $expectedTableSha256) -or
-            ($tableCanonicalBytes.Count -ne $expectedTableCanonicalLfBytes) -or
-            ((Get-BytesSha256 -Bytes $tableCanonicalBytes) -cne
-                $expectedTableCanonicalLfSha256)) {
-            Throw-UdpCallbackBlocker (
-                "ONE_Comm_Network_Table.st $State snapshot drifted.")
-        }
-    }
+    Assert-DerivedCommTablePhysicalContract `
+        -State $State `
+        -CommTableText $CommTableText `
+        -CommTableBytes $CommTableBytes `
+        -CommTableSha256 $CommTableSha256 `
+        -SyntheticFixture:$SyntheticFixture
     Assert-NoDisabledPreprocessorEnvelope `
         -Text $CommTableText -ArtifactOwner 'ONE_Comm_Network_Table.st'
     $tableScan = ConvertTo-CanonicalLf -Text (
@@ -5720,8 +5774,16 @@ function Get-TerminalWakeLayoutProjection {
             'TransceiverPosition',
             'SenderPosition')
         NetworksDatabase = @('Bytes', 'Sha256')
-        FullNetwork = @('Count', 'Sha256')
-        TrackedNetwork = @('Count', 'Sha256')
+        FullNetwork = @(
+            'Count',
+            'Sha256',
+            'CleanCheckoutCount',
+            'CleanCheckoutSha256')
+        TrackedNetwork = @(
+            'Count',
+            'Sha256',
+            'CleanCheckoutCount',
+            'CleanCheckoutSha256')
     }
     Assert-ExactInventory `
         -Actual @($Layout.Keys | ForEach-Object { [string]$_ }) `
@@ -5759,6 +5821,30 @@ function Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle {
             'Gate D expected layout constants drifted from the independent ' +
             'self-test oracle.')
     }
+}
+
+function Test-TerminalWakeNetworkAggregateIdentity {
+    param(
+        [Parameter(Mandatory = $true)][long]$ActualCount,
+        [Parameter(Mandatory = $true)][string]$ActualSha256,
+        [Parameter(Mandatory = $true)]
+        [Collections.IDictionary]$Expected
+    )
+
+    $matches = @(
+        @(
+            [pscustomobject]@{
+                Count = [long]$Expected.Count
+                Sha256 = [string]$Expected.Sha256
+            },
+            [pscustomobject]@{
+                Count = [long]$Expected.CleanCheckoutCount
+                Sha256 = [string]$Expected.CleanCheckoutSha256
+            }) | Where-Object {
+                ($ActualCount -eq $_.Count) -and
+                ($ActualSha256 -ceq $_.Sha256)
+            })
+    return $matches.Count -eq 1
 }
 
 function Assert-TerminalWakeLayoutContract {
@@ -5829,27 +5915,33 @@ function Assert-TerminalWakeLayoutContract {
             ActualSha256 = $Snapshot.NetworksDatabaseSha256
             ExpectedSha256 =
                 $ExpectedTerminalWakeLayout.NetworksDatabase.Sha256
-        },
-        [pscustomobject]@{
-            Owner = 'full Network aggregate'
-            ActualBytes = [long]$Snapshot.FullNetworkCount
-            ExpectedBytes = [long]$ExpectedTerminalWakeLayout.FullNetwork.Count
-            ActualSha256 = $Snapshot.FullNetworkSha256
-            ExpectedSha256 = $ExpectedTerminalWakeLayout.FullNetwork.Sha256
-        },
-        [pscustomobject]@{
-            Owner = 'tracked Network aggregate'
-            ActualBytes = [long]$Snapshot.TrackedNetworkCount
-            ExpectedBytes =
-                [long]$ExpectedTerminalWakeLayout.TrackedNetwork.Count
-            ActualSha256 = $Snapshot.TrackedNetworkSha256
-            ExpectedSha256 = $ExpectedTerminalWakeLayout.TrackedNetwork.Sha256
         })
     foreach ($check in $identityChecks) {
         if (($check.ActualBytes -ne $check.ExpectedBytes) -or
             ($check.ActualSha256 -cne $check.ExpectedSha256)) {
             Throw-UdpCallbackBlocker (
                 "$($check.Owner) sanctioned Gate D identity drifted.")
+        }
+    }
+    foreach ($aggregate in @(
+            [pscustomobject]@{
+                Owner = 'full Network aggregate'
+                ActualCount = [long]$Snapshot.FullNetworkCount
+                ActualSha256 = $Snapshot.FullNetworkSha256
+                Expected = $ExpectedTerminalWakeLayout.FullNetwork
+            },
+            [pscustomobject]@{
+                Owner = 'tracked Network aggregate'
+                ActualCount = [long]$Snapshot.TrackedNetworkCount
+                ActualSha256 = $Snapshot.TrackedNetworkSha256
+                Expected = $ExpectedTerminalWakeLayout.TrackedNetwork
+            })) {
+        if (-not (Test-TerminalWakeNetworkAggregateIdentity `
+                -ActualCount $aggregate.ActualCount `
+                -ActualSha256 $aggregate.ActualSha256 `
+                -Expected $aggregate.Expected)) {
+            Throw-UdpCallbackBlocker (
+                "$($aggregate.Owner) sanctioned Gate D identity drifted.")
         }
     }
 }
@@ -6468,9 +6560,25 @@ function Assert-ProtectedDependencies {
     }
     foreach ($expected in $ProtectedDependencies) {
         $matches = @($Observed | Where-Object { $_.Name -ceq $expected.Name })
-        if (($matches.Count -ne 1) -or
-            ($matches[0].Bytes -ne $expected.Bytes) -or
-            ($matches[0].Sha256 -cne $expected.Sha256)) {
+        $allowedPhysicalIdentities = @(
+            [pscustomobject]@{
+                Bytes = $expected.Bytes
+                Sha256 = $expected.Sha256
+            }
+            if ($expected.Contains('GitCheckoutLfBytes')) {
+                [pscustomobject]@{
+                    Bytes = $expected.GitCheckoutLfBytes
+                    Sha256 = $expected.GitCheckoutLfSha256
+                }
+            })
+        $identityMatches = if ($matches.Count -eq 1) {
+            @($allowedPhysicalIdentities | Where-Object {
+                    ($matches[0].Bytes -eq $_.Bytes) -and
+                    ($matches[0].Sha256 -ceq $_.Sha256)
+                }).Count
+        }
+        else { 0 }
+        if (($matches.Count -ne 1) -or ($identityMatches -ne 1)) {
             Throw-UdpCallbackBlocker (
                 "protected dependency $($expected.Name) was overwritten or drifted.")
         }
@@ -7120,14 +7228,28 @@ function Assert-LasalUdpCallbackStateContract {
                         $expectedTrackedNetworkSha256 =
                             $ExpectedGateB2TrackedNetworkSha256
                     }
-                    if (($Snapshot.FullNetworkCount -ne
-                            $expectedFullNetworkCount) -or
-                        ($Snapshot.FullNetworkSha256 -cne
-                            $expectedFullNetworkSha256) -or
-                        ($Snapshot.TrackedNetworkCount -ne
-                            $expectedTrackedNetworkCount) -or
-                        ($Snapshot.TrackedNetworkSha256 -cne
-                            $expectedTrackedNetworkSha256)) {
+                    $networkAggregateExact = if ($state -ceq
+                        'TerminalWakeBrokerCandidate') {
+                        (Test-TerminalWakeNetworkAggregateIdentity `
+                            -ActualCount $Snapshot.FullNetworkCount `
+                            -ActualSha256 $Snapshot.FullNetworkSha256 `
+                            -Expected $ExpectedTerminalWakeLayout.FullNetwork) -and
+                        (Test-TerminalWakeNetworkAggregateIdentity `
+                            -ActualCount $Snapshot.TrackedNetworkCount `
+                            -ActualSha256 $Snapshot.TrackedNetworkSha256 `
+                            -Expected $ExpectedTerminalWakeLayout.TrackedNetwork)
+                    }
+                    else {
+                        ($Snapshot.FullNetworkCount -eq
+                            $expectedFullNetworkCount) -and
+                        ($Snapshot.FullNetworkSha256 -ceq
+                            $expectedFullNetworkSha256) -and
+                        ($Snapshot.TrackedNetworkCount -eq
+                            $expectedTrackedNetworkCount) -and
+                        ($Snapshot.TrackedNetworkSha256 -ceq
+                            $expectedTrackedNetworkSha256)
+                    }
+                    if (-not $networkAggregateExact) {
                         Throw-UdpCallbackBlocker (
                             "$state canonical Network aggregate drifted.")
                     }
@@ -7325,6 +7447,102 @@ function Get-RepositoryRelativePath {
     return $Path.Substring($rootPrefix.Length).Replace('\', '/')
 }
 
+function Get-CanonicalLfByteEvidence {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][string]$ArtifactOwner
+    )
+
+    $canonical = [Collections.Generic.List[byte]]::new()
+    $crLfCount = 0
+    $bareLfCount = 0
+    $index = 0
+    while ($index -lt $Bytes.Count) {
+        $value = $Bytes[$index]
+        if ($value -eq 0x0D) {
+            if ((($index + 1) -ge $Bytes.Count) -or
+                ($Bytes[$index + 1] -ne 0x0A)) {
+                Throw-UdpCallbackBlocker (
+                    "$ArtifactOwner contains a bare-CR line ending.")
+            }
+            $canonical.Add(0x0A)
+            $crLfCount++
+            $index += 2
+            continue
+        }
+        $canonical.Add($value)
+        if ($value -eq 0x0A) {
+            $bareLfCount++
+        }
+        $index++
+    }
+    $canonicalBytes = $canonical.ToArray()
+    $eolStyle = if (($crLfCount -ne 0) -and ($bareLfCount -ne 0)) {
+        'Mixed'
+    }
+    elseif ($crLfCount -ne 0) { 'CRLF' }
+    elseif ($bareLfCount -ne 0) { 'LF' }
+    else { 'None' }
+    return [pscustomobject]@{
+        Bytes = $canonicalBytes
+        ByteCount = $canonicalBytes.Count
+        Sha256 = Get-BytesSha256 -Bytes $canonicalBytes
+        EolStyle = $eolStyle
+        LineBreakCount = $crLfCount + $bareLfCount
+    }
+}
+
+function Get-ProtectedTrackedNetworkIdentityEvidence {
+    param([Parameter(Mandatory = $true)][object[]]$Files)
+
+    $protectedTrackedFiles = @($Files | Where-Object {
+            $_.Tracked -and
+            ($AllowedDerivedNetworkPaths -cnotcontains $_.Path)
+        } | Sort-Object Path)
+    $identityFiles = [Collections.Generic.List[object]]::new()
+    foreach ($file in $protectedTrackedFiles) {
+        if (-not $file.Available) {
+            Throw-UdpCallbackBlocker (
+                "protected tracked Network file is unavailable: $($file.Path)")
+        }
+        $rawBytes = [byte[]]$file.Bytes
+        if ($CanonicalLfProtectedNetworkTextPaths -ccontains $file.Path) {
+            $text = Get-CanonicalLfByteEvidence `
+                -Bytes $rawBytes `
+                -ArtifactOwner "protected Network text $($file.Path)"
+            if ($text.EolStyle -notin @('LF', 'CRLF', 'Mixed')) {
+                Throw-UdpCallbackBlocker (
+                    "protected Network text has an unsupported EOL style: " +
+                    "$($file.Path)=$($text.EolStyle)")
+            }
+            $identityFiles.Add([pscustomobject]@{
+                    Path = $file.Path
+                    Policy = 'CanonicalLf'
+                    ByteCount = $text.ByteCount
+                    Sha256 = $text.Sha256
+                })
+        }
+        else {
+            $identityFiles.Add([pscustomobject]@{
+                    Path = $file.Path
+                    Policy = 'Raw'
+                    ByteCount = $rawBytes.Count
+                    Sha256 = Get-BytesSha256 -Bytes $rawBytes
+                })
+        }
+    }
+    $identity = [string]::Join("`n", @(
+            $identityFiles |
+                ForEach-Object {
+                    "$($_.Path)|$($_.ByteCount)|$($_.Sha256)"
+                }))
+    return [pscustomobject]@{
+        Count = $identityFiles.Count
+        Sha256 = Get-TextSha256 -Text $identity
+        Files = $identityFiles.ToArray()
+    }
+}
+
 function Get-NetworkSnapshotEvidence {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -7401,24 +7619,56 @@ function Get-NetworkSnapshotEvidence {
                 ForEach-Object {
                     "$($_.Path)|$($_.ByteCount)|$($_.Sha256)"
                 }))
-    $protectedTrackedFiles = @($trackedFiles | Where-Object {
-            $AllowedDerivedNetworkPaths -cnotcontains $_.Path
-        })
-    $protectedIdentity = [string]::Join("`n", @(
-            $protectedTrackedFiles |
-                Sort-Object Path |
-                ForEach-Object {
-                    "$($_.Path)|$($_.ByteCount)|$($_.Sha256)"
-                }))
+    $protectedIdentity = Get-ProtectedTrackedNetworkIdentityEvidence `
+        -Files $files.ToArray()
     return [pscustomobject]@{
         Files = $files.ToArray()
         FullCount = $files.Count
         FullSha256 = Get-TextSha256 -Text $fullIdentity
         TrackedCount = $trackedFiles.Count
         TrackedSha256 = Get-TextSha256 -Text $trackedIdentity
-        ProtectedTrackedCount = $protectedTrackedFiles.Count
-        ProtectedTrackedSha256 = Get-TextSha256 -Text $protectedIdentity
+        ProtectedTrackedCount = $protectedIdentity.Count
+        ProtectedTrackedSha256 = $protectedIdentity.Sha256
     }
+}
+
+function New-ProtectedNetworkEolSelfTestFixture {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$SourceFiles,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('LF', 'CRLF')]
+        [string]$EolStyle
+    )
+
+    $fixtures = [Collections.Generic.List[object]]::new()
+    foreach ($source in $SourceFiles) {
+        $bytes = [byte[]]$source.Bytes.Clone()
+        if ($CanonicalLfProtectedNetworkTextPaths -ccontains $source.Path) {
+            $canonical = Get-CanonicalLfByteEvidence `
+                -Bytes $bytes `
+                -ArtifactOwner "protected Network $EolStyle self-test source"
+            if ($EolStyle -ceq 'CRLF') {
+                $physical = [Collections.Generic.List[byte]]::new()
+                foreach ($value in $canonical.Bytes) {
+                    if ($value -eq 0x0A) {
+                        $physical.Add(0x0D)
+                    }
+                    $physical.Add($value)
+                }
+                $bytes = $physical.ToArray()
+            }
+            else { $bytes = $canonical.Bytes }
+        }
+        $fixtures.Add([pscustomobject]@{
+                Path = $source.Path
+                Tracked = $source.Tracked
+                Available = $source.Available
+                Bytes = $bytes
+                ByteCount = $bytes.Count
+                Sha256 = Get-BytesSha256 -Bytes $bytes
+            })
+    }
+    return $fixtures.ToArray()
 }
 
 function Get-NetworkFileEvidence {
@@ -10752,6 +11002,134 @@ function Get-UdpCallbackSenderEvidenceToken {
 function Invoke-UdpCallbackVerifierSelfTest {
     Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
 
+    $selfTestRoot = [IO.Path]::GetFullPath(
+        (Join-Path $PSScriptRoot '..\..\..\..'))
+    $currentNetwork = Get-NetworkSnapshotEvidence -Root $selfTestRoot
+    $currentProtectedNetwork =
+        Get-ProtectedTrackedNetworkIdentityEvidence `
+            -Files $currentNetwork.Files
+    Assert-ExactInventory `
+        -Actual @($currentProtectedNetwork.Files | Where-Object {
+                $_.Policy -ceq 'CanonicalLf'
+            } | ForEach-Object { $_.Path }) `
+        -Expected $CanonicalLfProtectedNetworkTextPaths `
+        -InventoryOwner 'protected Network canonical-LF path set'
+    if (($currentProtectedNetwork.Count -ne
+            $ExpectedProtectedTrackedNetworkCount) -or
+        ($currentProtectedNetwork.Sha256 -cne
+            $ExpectedProtectedTrackedNetworkSha256)) {
+        throw 'current protected Network canonical identity drifted.'
+    }
+
+    foreach ($protectedNetworkEolStyle in @('CRLF', 'LF')) {
+        $physicalFiles = @(
+            New-ProtectedNetworkEolSelfTestFixture `
+                -SourceFiles $currentNetwork.Files `
+                -EolStyle $protectedNetworkEolStyle)
+        $physicalIdentity =
+            Get-ProtectedTrackedNetworkIdentityEvidence -Files $physicalFiles
+        if (($physicalIdentity.Count -ne
+                $ExpectedProtectedTrackedNetworkCount) -or
+            ($physicalIdentity.Sha256 -cne
+                $ExpectedProtectedTrackedNetworkSha256)) {
+            throw (
+                "protected Network $protectedNetworkEolStyle positive " +
+                'fixture identity drifted.')
+        }
+    }
+
+    $currentCommTable = Get-NetworkFileEvidence `
+        -NetworkEvidence $currentNetwork `
+        -RelativePath $CommTableRelativePath
+    $currentCommTableText = $Utf8.GetString($currentCommTable.Bytes)
+    $currentCommTableCanonical =
+        ConvertTo-CanonicalLf -Text $currentCommTableText
+    foreach ($commTableEolStyle in @('CRLF', 'LF')) {
+        $commTablePhysicalText = if ($commTableEolStyle -ceq 'CRLF') {
+            $currentCommTableCanonical.Replace("`n", "`r`n")
+        }
+        else { $currentCommTableCanonical }
+        $commTablePhysicalBytes = $Utf8.GetBytes($commTablePhysicalText)
+        Assert-DerivedCommTablePhysicalContract `
+            -State TerminalWakeBrokerCandidate `
+            -CommTableText $commTablePhysicalText `
+            -CommTableBytes $commTablePhysicalBytes.Count `
+            -CommTableSha256 (
+                Get-BytesSha256 -Bytes $commTablePhysicalBytes)
+    }
+    if ((Get-OrdinalCount `
+            -Text $currentCommTableCanonical `
+            -Needle '#define OBJECTS_CONFIG') -ne 1) {
+        throw 'protected Comm table semantic drift anchor is not unique.'
+    }
+    $commTableSemanticDriftText = $currentCommTableCanonical.Replace(
+        '#define OBJECTS_CONFIG',
+        '#define OBJECTS_CONFIF')
+    $commTableSemanticDriftBytes = $Utf8.GetBytes(
+        $commTableSemanticDriftText)
+    $commTableSemanticDriftSha256 =
+        Get-BytesSha256 -Bytes $commTableSemanticDriftBytes
+
+    $protectedNetworkTextDriftFiles = @(
+        New-ProtectedNetworkEolSelfTestFixture `
+            -SourceFiles $currentNetwork.Files `
+            -EolStyle LF)
+    $protectedNetworkTextDriftTarget = @(
+        $protectedNetworkTextDriftFiles | Where-Object {
+            $_.Path -ceq "$TargetRootRelativePath/Network/Eni.xml"
+        })
+    if ($protectedNetworkTextDriftTarget.Count -ne 1) {
+        throw 'protected Network text drift target is not unique.'
+    }
+    $protectedNetworkTextDriftBytes = [byte[]](
+        $protectedNetworkTextDriftTarget[0].Bytes.Clone())
+    $protectedNetworkTextDriftBytes[0] =
+        $protectedNetworkTextDriftBytes[0] -bxor 1
+    $protectedNetworkTextDriftTarget[0].Bytes =
+        $protectedNetworkTextDriftBytes
+    $protectedNetworkTextDriftTarget[0].ByteCount =
+        $protectedNetworkTextDriftBytes.Count
+    $protectedNetworkTextDriftTarget[0].Sha256 =
+        Get-BytesSha256 -Bytes $protectedNetworkTextDriftBytes
+    $protectedNetworkTextDriftIdentity =
+        Get-ProtectedTrackedNetworkIdentityEvidence `
+            -Files $protectedNetworkTextDriftFiles
+    if ($protectedNetworkTextDriftIdentity.Sha256 -ceq
+        $ExpectedProtectedTrackedNetworkSha256) {
+        throw 'protected Network text semantic drift was canonicalized away.'
+    }
+
+    $protectedNetworkBinaryDriftFiles = @(
+        New-ProtectedNetworkEolSelfTestFixture `
+            -SourceFiles $currentNetwork.Files `
+            -EolStyle LF)
+    $protectedNetworkBinaryDriftTarget = @(
+        $protectedNetworkBinaryDriftFiles | Where-Object {
+            $_.Path -ceq (
+                "$TargetRootRelativePath/Network/EtherCAT_Network/" +
+                'EtherCAT_Network.lcn')
+        })
+    if ($protectedNetworkBinaryDriftTarget.Count -ne 1) {
+        throw 'protected Network binary drift target is not unique.'
+    }
+    $protectedNetworkBinaryDriftBytes = [byte[]](
+        $protectedNetworkBinaryDriftTarget[0].Bytes.Clone())
+    $protectedNetworkBinaryDriftBytes[0] =
+        $protectedNetworkBinaryDriftBytes[0] -bxor 1
+    $protectedNetworkBinaryDriftTarget[0].Bytes =
+        $protectedNetworkBinaryDriftBytes
+    $protectedNetworkBinaryDriftTarget[0].ByteCount =
+        $protectedNetworkBinaryDriftBytes.Count
+    $protectedNetworkBinaryDriftTarget[0].Sha256 =
+        Get-BytesSha256 -Bytes $protectedNetworkBinaryDriftBytes
+    $protectedNetworkBinaryDriftIdentity =
+        Get-ProtectedTrackedNetworkIdentityEvidence `
+            -Files $protectedNetworkBinaryDriftFiles
+    if ($protectedNetworkBinaryDriftIdentity.Sha256 -ceq
+        $ExpectedProtectedTrackedNetworkSha256) {
+        throw 'protected Network binary drift was canonicalized away.'
+    }
+
     foreach ($positive in @(
             @{ State = 'Absent'; PermitAbsent = $true },
             @{ State = 'VendorImported'; PermitAbsent = $false },
@@ -10777,6 +11155,37 @@ function Invoke-UdpCallbackVerifierSelfTest {
             throw (
                 "UDP callback positive approval boundary drifted: " +
                 $positive.State)
+        }
+    }
+
+    $protectedHeaderContract = @($ProtectedDependencies | Where-Object {
+            $_.Name -ceq 'lsl_st_tcp_user.h'
+        })[0]
+    foreach ($headerPhysicalIdentity in @(
+            [pscustomobject]@{
+                Name = 'LF'
+                Bytes = $protectedHeaderContract.GitCheckoutLfBytes
+                Sha256 = $protectedHeaderContract.GitCheckoutLfSha256
+            },
+            [pscustomobject]@{
+                Name = 'CRLF'
+                Bytes = $protectedHeaderContract.Bytes
+                Sha256 = $protectedHeaderContract.Sha256
+            })) {
+        $snapshot = New-UdpCallbackTestSnapshot -State VendorImported
+        $header = @($snapshot.ProtectedDependencies | Where-Object {
+                $_.Name -ceq 'lsl_st_tcp_user.h'
+            })[0]
+        $header.Bytes = $headerPhysicalIdentity.Bytes
+        $header.Sha256 = $headerPhysicalIdentity.Sha256
+        $result = Assert-LasalUdpCallbackStateContract `
+            -Snapshot $snapshot `
+            -PermitAbsent $false `
+            -RequiredState VendorImported
+        if ($result.State -cne 'VendorImported') {
+            throw (
+                "protected header $($headerPhysicalIdentity.Name) positive " +
+                'fixture state drifted.')
         }
     }
 
@@ -10807,6 +11216,18 @@ function Invoke-UdpCallbackVerifierSelfTest {
             throw "Gate D $senderEolStyle Sender stdout token drifted."
         }
     }
+
+    $cleanCheckoutNetworkPositive =
+        New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+    $cleanCheckoutNetworkPositive.FullNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.CleanCheckoutCount
+    $cleanCheckoutNetworkPositive.FullNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.CleanCheckoutSha256
+    $cleanCheckoutNetworkPositive.TrackedNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutCount
+    $cleanCheckoutNetworkPositive.TrackedNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutSha256
+    Assert-TerminalWakeLayoutContract -Snapshot $cleanCheckoutNetworkPositive
 
     $gateCSenderToken = Get-UdpCallbackSenderEvidenceToken `
         -State DerivedCandidate `
@@ -11095,6 +11516,10 @@ END_STRUCT;
             @{
                 Name = 'Gate D Networks database layout identity drift'
                 Property = 'NetworksDatabaseSha256'
+            },
+            @{
+                Name = 'Gate D full Network aggregate layout drift'
+                Property = 'FullNetworkCount'
             },
             @{
                 Name = 'Gate D tracked Network aggregate layout drift'
@@ -11482,6 +11907,17 @@ END_STRUCT;
         -Name 'protected dependency missing' -Action {
             $s = New-UdpCallbackTestSnapshot -State VendorImported
             $s.ProtectedDependencies = @($s.ProtectedDependencies | Select-Object -Skip 1)
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'protected header same-length semantic drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State VendorImported
+            $header = @($s.ProtectedDependencies | Where-Object {
+                    $_.Name -ceq 'lsl_st_tcp_user.h'
+                })[0]
+            $header.Bytes = $protectedHeaderContract.GitCheckoutLfBytes
+            $header.Sha256 = '0' * 64
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
         }
@@ -12760,6 +13196,30 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
                 'Destination="LMCControlCommandService1.ClassSvr"/>'
             $s.CommNetworkText = $s.CommNetworkText.Replace(
                 '</Connections>', "$extra</Connections>")
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Comm table canonical text semantic drift' -Action {
+            Assert-DerivedCommTablePhysicalContract `
+                -State TerminalWakeBrokerCandidate `
+                -CommTableText $commTableSemanticDriftText `
+                -CommTableBytes $commTableSemanticDriftBytes.Count `
+                -CommTableSha256 $commTableSemanticDriftSha256
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'protected Network canonical text semantic drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $s.ProtectedTrackedNetworkSha256 =
+                $protectedNetworkTextDriftIdentity.Sha256
+            $null = Assert-LasalUdpCallbackStateContract `
+                -Snapshot $s -PermitAbsent $false
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'protected Network binary identity drift' -Action {
+            $s = New-UdpCallbackTestSnapshot -State DerivedCandidate
+            $s.ProtectedTrackedNetworkSha256 =
+                $protectedNetworkBinaryDriftIdentity.Sha256
             $null = Assert-LasalUdpCallbackStateContract `
                 -Snapshot $s -PermitAbsent $false
         }

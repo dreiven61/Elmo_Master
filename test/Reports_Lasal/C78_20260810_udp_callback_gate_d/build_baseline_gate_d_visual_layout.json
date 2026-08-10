@@ -1,0 +1,151 @@
+{
+  "Schema": "LasalC78RebuildEvidence/v1",
+  "EvidenceProfile": "GateDVisualLayout",
+  "CapturedAtUtc": "2026-08-10T05:15:18.4310798Z",
+  "RepositoryRoot": "C:\\work\\Elmo\\Elmo_Master",
+  "CanonicalProjectPath": "C:\\work\\Elmo\\Elmo_Master\\Lasal_PRG\\Elmo_EtherCAT_Test_4Axis\\Elmo_EtherCAT_Test_4Axis.lcp",
+  "LasalLogPath": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+  "LogPrefixLength": 6532176,
+  "LogPrefixSha256": "f531bc0d36aea3c9d120c9a9bc0095d087dc904d86fbf6bd74a5cb3249c125eb",
+  "RequiredCompileRelativePaths": [
+    "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+    "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+    "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st",
+    "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st",
+    "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_UDPTransceiver/_UDPTransceiver.st"
+  ],
+  "Files": [
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+      "Role": "inputIdentity",
+      "Sha256": "dd0b5ed307e7dc1969579f00fb5178e570c1a658c70b5f1928c6a65f57d43c84",
+      "RawBytes": 97846,
+      "RawSha256": "dd0b5ed307e7dc1969579f00fb5178e570c1a658c70b5f1928c6a65f57d43c84",
+      "CanonicalLfBytes": 95140,
+      "CanonicalLfSha256": "95ac2ba20fdfa44e64c40000d9e3c8490c91533af87caa48ab8cc46f31c5625e",
+      "EolStyle": "CRLF",
+      "CrLfCount": 2706,
+      "LfOnlyCount": 0,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 2706
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+      "Role": "inputIdentity",
+      "Sha256": "8715896406d3b99185c40fbe9c2f0e29170c2d57e1e58792515172ebddc81e65",
+      "RawBytes": 594938,
+      "RawSha256": "8715896406d3b99185c40fbe9c2f0e29170c2d57e1e58792515172ebddc81e65",
+      "CanonicalLfBytes": 594938,
+      "CanonicalLfSha256": "8715896406d3b99185c40fbe9c2f0e29170c2d57e1e58792515172ebddc81e65",
+      "EolStyle": "LF",
+      "CrLfCount": 0,
+      "LfOnlyCount": 16899,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 16899
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st",
+      "Role": "inputIdentity",
+      "Sha256": "7084062685543aa59f0a0bc458692a97b677644d01b2211914333c52f25395bb",
+      "RawBytes": 271051,
+      "RawSha256": "7084062685543aa59f0a0bc458692a97b677644d01b2211914333c52f25395bb",
+      "CanonicalLfBytes": 263392,
+      "CanonicalLfSha256": "bfec8a040a2618f250d337020c6c6ff2a7b2e3f4f8faa54ad257b4ee06e3d88d",
+      "EolStyle": "CRLF",
+      "CrLfCount": 7659,
+      "LfOnlyCount": 0,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 7659
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st",
+      "Role": "inputIdentity",
+      "Sha256": "c334a6c6960ba61529369d29c6dda757a77ac809a6858661b8feb6476f5cae8f",
+      "RawBytes": 23469,
+      "RawSha256": "c334a6c6960ba61529369d29c6dda757a77ac809a6858661b8feb6476f5cae8f",
+      "CanonicalLfBytes": 22727,
+      "CanonicalLfSha256": "a0aaa3451f9160b45fde81e9b337ea9d55dcdcb366aa7504da57c650ec060d89",
+      "EolStyle": "CRLF",
+      "CrLfCount": 742,
+      "LfOnlyCount": 0,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 742
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st",
+      "Role": "inputIdentity",
+      "Sha256": "c63039654a724b6d0cbe4743befe34f77eb8902251f3a1cef25a0a176bf17b3d",
+      "RawBytes": 109426,
+      "RawSha256": "c63039654a724b6d0cbe4743befe34f77eb8902251f3a1cef25a0a176bf17b3d",
+      "CanonicalLfBytes": 107073,
+      "CanonicalLfSha256": "59a3b4072bba1b04ec1b7ffc19300726b3def73097c0b1963a3696c0126b7c5c",
+      "EolStyle": "Mixed",
+      "CrLfCount": 2353,
+      "LfOnlyCount": 697,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 3050
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCRecorderStore/LMCRecorderStore.st",
+      "Role": "inputIdentity",
+      "Sha256": "0a256e2c1d4c0ec6479387c322006a5b638427f75e627697ecb252b1b0d25c11",
+      "RawBytes": 100839,
+      "RawSha256": "0a256e2c1d4c0ec6479387c322006a5b638427f75e627697ecb252b1b0d25c11",
+      "CanonicalLfBytes": 99688,
+      "CanonicalLfSha256": "cd06761f00fe4d494af4456abf41345b9dbe57cb489d92e50221f059b98f5b98",
+      "EolStyle": "Mixed",
+      "CrLfCount": 1151,
+      "LfOnlyCount": 1579,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 2730
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSdoExecutor/LMCSdoExecutor.st",
+      "Role": "inputIdentity",
+      "Sha256": "a91a4177f26486fedce50f8c4fec72fa8a61a3b34d5939df08bee2d09055cbd4",
+      "RawBytes": 27527,
+      "RawSha256": "a91a4177f26486fedce50f8c4fec72fa8a61a3b34d5939df08bee2d09055cbd4",
+      "CanonicalLfBytes": 26595,
+      "CanonicalLfSha256": "4d7a1e2e0b3d00173407fdd63826e7dd360c30cfcf60306b51df48ba5b238d1a",
+      "EolStyle": "Mixed",
+      "CrLfCount": 932,
+      "LfOnlyCount": 33,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 965
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcp",
+      "Role": "inputIdentity",
+      "Sha256": "c84de0051f579aedeeb203ab1491eb989dc8c14beb9d722f0e8002865c957648"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn",
+      "Role": "inputIdentity",
+      "Sha256": "fd632c27e2619e907097f599a4cea1d6aa83e4d41f214e73a91e1c4127f1a1b7"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "Role": "expectedRegeneratedOutput",
+      "Sha256": "2faeaa3cd86c22898d2e82fb47c6d1c5894cd1c4b6af01a52d872db3452aa2ac"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_UDPTransceiver/_UDPTransceiver.st",
+      "Role": "inputIdentity",
+      "Sha256": "f19273f83337e2b1c2ab510a7ddd49138eb28480649835d4e3c571b34d8269c4",
+      "RawBytes": 73380,
+      "RawSha256": "f19273f83337e2b1c2ab510a7ddd49138eb28480649835d4e3c571b34d8269c4",
+      "CanonicalLfBytes": 71787,
+      "CanonicalLfSha256": "5ef05c7a018e75dd40160828f5c39d474c2191f0e42d97a7e5d19064cf2acc13",
+      "EolStyle": "CRLF",
+      "CrLfCount": 1593,
+      "LfOnlyCount": 0,
+      "CrOnlyCount": 0,
+      "LineBreakCount": 1593
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb",
+      "Role": "expectedRegeneratedOutput",
+      "Sha256": "c307547e097655aae75bf1e8505b2a0c9dbfc998b3af5bdd391bd8109604c23f"
+    }
+  ]
+}

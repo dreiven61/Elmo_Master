@@ -78,6 +78,32 @@ SHA-256
 `E0490DC348B861FBE47AB4C2E9C558BE679E865787A014860EBA45B3E0E508E4`.
 That bootstrap run created no physical manifest.
 
+The preceding verifier identity and the source-verifier `288/288` result are
+historical sequence-4 checkpoint facts. The current portability ratchet pins the
+focused verifier at 564,360 canonical-LF bytes and SHA-256
+`20BDC1E49B3ED329143F0C36576F118F369383B3DA922069FDD2DD8B1909CC90`;
+its Windows PowerShell 5.1 self-test rejects all `290/290` negative fixtures. A
+clean detached worktree at `5543579`, populated with exactly the eight generated,
+ignored Network artifacts, reproduced the focused `CAPTURE` state with exit `0`.
+The general SourceOnly contract also passed there in 249.3 seconds. Generated
+source/include and the derived Comm table remain limited to their exact pinned
+LF or CRLF physical forms. The six protected Network text artifacts are the
+only exception: bare CR is rejected, while LF, CRLF, or a mixture of the two is
+compared through byte-level canonical LF. The verifier removes only `0x0D` from
+`0x0D 0x0A`, preserves every high byte, and still requires the exact canonical
+byte count and SHA-256. Other Network binary identities, topology, path
+inventory, and counts stay strict. Gate D full and tracked raw Network
+aggregates still accept only the pinned IDE-layout or clean-checkout count/SHA
+tuple.
+
+The checkpoint capture tool retains the historical sequence-4 tuple as
+`HistoricalGateD` and freezes the distinct current pin. Its current self-test
+passes positive `50` and negative `99`, and an actual sequence-4 manifest
+revalidation passes. These support-tool and retained-evidence changes are kept
+as a separate tooling/evidence changeset; they do not change production source
+or approval. The current main worktree still fails the formal current gate only
+because `Classes.lcb` is `6E115876...` instead of checkpoint `24402BFA...`.
+
 Trust-anchor commit `bb5fd93` was followed by commit `5543579`, which atomically
 committed the sequence-4 physical manifest plus the exact seven production paths
 listed below. The manifest binds `Classes.lcb` to `24402BFA...` and records

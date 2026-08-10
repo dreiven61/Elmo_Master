@@ -314,6 +314,26 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `Classes.lcb`는 checkpoint identity에서 drift해 focused/C78 current verification도
   실패한다. 이 결과는 source/generated ABI 정적 증거이며 Gate D C78 Rebuild,
   PLC download/runtime 또는 live packet 증거가 아니다.
+- 위 `288/288`, canonical-LF 545,566 bytes / `FBF1A858...`는 sequence-4 당시의
+  historical checkpoint 결과다. 현재 portability ratchet의 focused verifier는
+  canonical-LF 564,360 bytes / SHA-256
+  `20BDC1E49B3ED329143F0C36576F118F369383B3DA922069FDD2DD8B1909CC90`이며 Windows
+  PowerShell 5.1 self-test의 negative fixture `290/290`을 모두 거부했다. exact generated
+  Network artifact 8개만 채운 clean detached `5543579` worktree에서 focused `CAPTURE`가
+  exit `0`으로 재현됐고, 일반 `Verify-LasalContract.ps1` SourceOnly도 249.3초에 PASS했다.
+  generated source/include와 derived Comm table은 pinned exact LF/CRLF physical
+  representation 두 종류만 허용한다. 보호된 Network text 6개만 예외적으로 bare CR을
+  거부한 뒤 LF, CRLF 또는 둘의 혼합을 byte 수준 canonical-LF로 비교한다. 이때
+  `0x0D 0x0A`의 `0x0D`만 제거하고 high byte를 그대로 보존하며 canonical byte count와
+  SHA-256이 exact해야 한다. 나머지 Network binary identity, topology, path inventory와
+  count는 strict하고, Gate D full/tracked raw Network aggregate도 pinned IDE-layout 또는
+  clean-checkout count/SHA tuple만 허용한다.
+  checkpoint capture tool은 기존 `HistoricalGateD` pin을 보존하면서 current pin을 별도로
+  고정했고 self-test positive `50` / negative `99`, actual sequence-4 manifest revalidation이
+  PASS했다. 이 support-tool/evidence 변경은 production 변경과 분리된 tooling/evidence
+  changeset이며 production approval을 의미하지 않는다. 현재 main worktree의 formal current
+  gate는 `Classes.lcb=6E115876...` 대 checkpoint `24402BFA...` 차이 하나 때문에 계속
+  실패한다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와

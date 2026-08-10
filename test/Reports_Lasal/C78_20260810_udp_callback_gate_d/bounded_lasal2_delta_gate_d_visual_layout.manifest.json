@@ -1,0 +1,35 @@
+{
+  "Schema": "LasalC78BoundedLogDelta/v1",
+  "EvidenceProfile": "GateDVisualLayout",
+  "Provenance": "Exact byte slice from prefix-validated Lasal2.log",
+  "CapturedAtUtc": "2026-08-10T05:40:38.9962517Z",
+  "BaselineFileName": "build_baseline_gate_d_visual_layout.json",
+  "BaselineByteCount": 6887,
+  "BaselineSha256": "247e41e7abbd5e59681bc65cbb03f465050146c1fe246b3de23b200e5903abfe",
+  "BaselinePrefixLength": 6532176,
+  "BaselinePrefixSha256": "f531bc0d36aea3c9d120c9a9bc0095d087dc904d86fbf6bd74a5cb3249c125eb",
+  "SourceLogPath": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+  "SourceStartOffset": 6532176,
+  "SourceEndOffset": 7298848,
+  "RawDeltaFileName": "bounded_lasal2_delta_gate_d_visual_layout.raw.txt",
+  "RawDeltaByteCount": 766672,
+  "RawDeltaSha256": "b918e51279360e27780d212650361af361fffc391c5f24854447be0f3f9abd17",
+  "Encoding": "UTF-8",
+  "SessionPid": 480,
+  "RebuildTid": 3396,
+  "TranscriptFileName": "derived_build_transcript_gate_d_visual_layout.txt",
+  "TranscriptByteCount": 30111,
+  "TranscriptSha256": "f32122d318dbfd8f53bc9e5ad0ff693f9b6f05368d40fc64138a010a1bc810af",
+  "RegeneratedOutputs": [
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "Bytes": 8549773,
+      "Sha256": "24402bfa76f1989319381388d4354e1528052078ba08504cc5c967a6de1aa861"
+    },
+    {
+      "RelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb",
+      "Bytes": 242363,
+      "Sha256": "c307547e097655aae75bf1e8505b2a0c9dbfc998b3af5bdd391bd8109604c23f"
+    }
+  ]
+}
