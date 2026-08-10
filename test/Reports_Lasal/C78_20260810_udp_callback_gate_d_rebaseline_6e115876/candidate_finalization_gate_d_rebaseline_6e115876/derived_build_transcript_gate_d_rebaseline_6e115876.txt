@@ -1,0 +1,213 @@
+Compiler: [INFO] Rebuild project with compiler version C78 (target architecture: ARM)
+OutputCommand: [INFO] Save project 'C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Elmo_EtherCAT_Test_4Axis.lcp'.
+OutputCommand: [INFO] Writing binary files!
+OutputCommand: [INFO] Done.
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Include\global.h"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_AxisBase\_AxisBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Source\code\OsiBaseNew.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_Can\_Can.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_CanLib\_CanLib.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_CheckSum\_CheckSum.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_FileSys\_FileSys.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_Linker\_Linker.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCABSEncoder\_LMCABSEncoder.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCModuleBase\_LMCModuleBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCRefBase\_LMCRefBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisBase\_LMCAxisBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisRef\_LMCAxisRef.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVisInt\_LMCAxisVisInt.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVisLogHandle\_LMCAxisVisLogHandle.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVisLogViewer\_LMCAxisVisLogViewer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVisPara\_LMCAxisVisPara.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVOVMonitoring\_LMCAxisVOVMonitoring.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxisVis\_LMCAxisVis.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCMathFunctions\_LMCMathFunctions.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCPublisher\_LMCPublisher.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCSafety\_LMCSafety.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCAxis\_LMCAxis.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCMath_SO3\_LMCMath_SO3.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCBaseCoord\_LMCBaseCoord.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCBeltAxis\_LMCBeltAxis.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Controller\Controller.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCCalcModelController\_LMCCalcModelController.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\MoveSplineTable\MoveSplineTable.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileLog\_LMCProfileLog.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCSplineBuffer\_LMCSplineBuffer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCTableBuffer\_LMCTableBuffer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileBase\_LMCProfileBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileBuffer\_LMCProfileBuffer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileVisAxis\_LMCProfileVisAxis.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileVisInt\_LMCProfileVisInt.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileVisMovePara\_LMCProfileVisMovePara.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfileVis\_LMCProfileVis.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCProfile\_LMCProfile.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCRobotLog\_LMCRobotLog.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCRobotBase\_LMCRobotBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Merker\Merker.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCCalcModelBase\_LMCCalcModelBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_LMCTool\_LMCTool.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_MultiTask\_MultiTask.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_OSKernel\_OSKernel.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_SerLib\_SerLib.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_StdLib\_StdLib.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\GetCILInterface\GetCILInterface.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_SyncMeasure\_SyncMeasure.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_SyncMeasureECAT\_SyncMeasureECAT.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TaskObjectControl\_TaskObjectControl.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\MerkerEx\MerkerEx.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\VirtualBaseInit\VirtualBaseInit.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\StringInternal\StringInternal.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\String\String.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TCPIPServerInterface\_TCPIPServerInterface.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_TCPIPServer\_TCPIPServer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\CriticalSection\CriticalSection.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_UDPTransceiver\_UDPTransceiver.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\_UDPTransceiverInterface\_UDPTransceiverInterface.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ASCII_BIN\ASCII_BIN.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\BusInterfaceSDIASInternal\BusInterfaceSDIASInternal.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HwcLogging\HwcLogging.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\XXXBase_IOs\XXXBase_IOs.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\CP313_IOs\CP313_IOs.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\CP733_IOs\CP733_IOs.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HwBase\HwBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\DiasMaster\DiasMaster.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\DiasMasterMain\DiasMasterMain.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\DiasMasterPostScan\DiasMasterPostScan.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\EEPROM\EEPROM.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HwBaseCDIAS\HwBaseCDIAS.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\I2CCDIAS\I2CCDIAS.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SyncCall\SyncCall.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\WatchdogDias\WatchdogDias.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\DiasMasterC\DiasMasterC.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SigCLib\SigCLib.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ECAT_Slave_Base\ECAT_Slave_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ECAT_DS402Base\ECAT_DS402Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ECAT_Master_Base\ECAT_Master_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ECAT_SlotBase\ECAT_SlotBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\EtherCATSlot_Hub_Base\EtherCATSlot_Hub_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\ECAT_SlotMng\ECAT_SlotMng.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\EtherCAT_Hub_Base\EtherCAT_Hub_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Elmo_1\Elmo_1.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Elmo_2\Elmo_2.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Elmo_3\Elmo_3.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Elmo_4\Elmo_4.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\EtherCAT_PLC\EtherCAT_PLC.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\EtherCAT_SDOBase\EtherCAT_SDOBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\GL_9086_1\GL_9086_1.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\GL_9086_1_Slot00\GL_9086_1_Slot00.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\GL_9086_1_Slot01\GL_9086_1_Slot01.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\VaranManager_Base\VaranManager_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Hub_Base\Hub_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Hub_Base_Root\Hub_Base_Root.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\RamFile\RamFile.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\Varan_Base\Varan_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\VaranManager\VaranManager.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HwControlBase\HwControlBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HWRtPostScan\HWRtPostScan.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SafetyUDP\SafetyUDP.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SafetyRoutingTables\SafetyRoutingTables.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SafetyManager\SafetyManager.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SafetyCDIAS_Base\SafetyCDIAS_Base.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\HwControl\HwControl.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(857) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(1707) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(2749) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(2838) Condition is always TRUE
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(4921) 'probeAxisBit' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(5091) 'observerFlags' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(5092) 'preemptedToken' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(5093) 'preemptedGeneration' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(5894) 'observerFlags' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(5911) 'groupHeaderPublished' declared but never used
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(7028) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCControlCommandService\LMCControlCommandService.st"(10330) Condition is always FALSE
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(819) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(875) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(887) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(892) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(897) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(902) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(965) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1428) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1626) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1631) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1633) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1635) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1891) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(1934) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(2026) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(2648) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(2655) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3433) Condition is always TRUE
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3259) 'preemptionCleanupKind' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3264) 'safetyAdmissionToken' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3264) 'safetyOwnerGeneration' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3274) 'preemptionSnapshotValid' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3275) 'dispatchDefinitelyAbsent' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(3275) 'publishPreemptionCleanup' declared but never used
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5249) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5418) Condition is always TRUE
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5188) 'preemptionCleanupKind' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5203) 'receiptKind' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5204) 'receiptPhase' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5205) 'receiptGeneration' declared but never used
+Compiler: [WARN] W 0072 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(5206) 'terminalRecordState' declared but never used
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(6083) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(6098) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(6155) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(6328) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(7183) Condition is always FALSE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(7187) Condition is always TRUE
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st"(7191) Condition is always TRUE
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st"
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCEcatInputLatch\LMCEcatInputLatch.st"(1136) Condition is always FALSE
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCRecorderStore\LMCRecorderStore.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st"
+Compiler: [WARN] W 0073 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st"(323) Parameter 'input' is never used
+Compiler: [WARN] W 0073 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st"(337) Parameter 'input' is never used
+Compiler: [WARN] W 0073 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st"(350) Parameter 'input' is never used
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(344) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(383) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(469) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(471) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(475) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(567) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(569) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCUdpCallbackSender\LMCUdpCallbackSender.st"(641) Possibly mixing of '|' and 'OR'
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\PosController\PosController.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SdiasBase\SdiasBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SdiasHubBase\SdiasHubBase.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SdiasManager\SdiasManager.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\SdiasPLC\SdiasPLC.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPIPServer\TCPIPServer.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1666) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1667) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1698) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1711) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1723) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1746) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1770) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1794) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1835) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1846) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(1851) Possibly mixing of '&' and 'AND'
+Compiler: [WARN] W 0069 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(2270) Condition is always FALSE
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(2621) Possibly mixing of '|' and 'OR'
+Compiler: [WARN] W 0070 "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st"(2634) Possibly mixing of '|' and 'OR'
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\VaranManager_1\VaranManager_1.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\VaranManager_2\VaranManager_2.st"
+Compiler: [INFO] Done
+OutputCommand: [INFO] Checking objects of singleton classes
+OutputCommand: [INFO] Done
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Include\global.h"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Comm_Network\ONE_Comm_Network_Table.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\EtherCAT_Network\ONE_EtherCAT_Network_Table.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\HW_Network\ONE_HW_Network_Table.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\Motion_Network\ONE_Motion_Network_Table.st"
+Compiler: [INFO] Compiling "C:\work\Elmo\Elmo_Master\Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\ConfigObjects.st"
+Compiler: [INFO] Done
+Done - 0 error(s), 76 warning(s).

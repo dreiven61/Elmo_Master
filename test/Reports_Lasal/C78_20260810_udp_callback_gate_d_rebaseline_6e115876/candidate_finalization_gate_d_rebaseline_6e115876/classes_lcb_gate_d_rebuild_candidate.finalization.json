@@ -1,0 +1,404 @@
+{
+  "schema": "LasalClassesRebuildCandidateFinalization/v1",
+  "complete": true,
+  "capturedAtUtc": "2026-08-10T23:34:15.6044687Z",
+  "repository": {
+    "root": "C:\\work\\Elmo\\Elmo_Master",
+    "headObserved": "e2dd560fe008cbe62cd7cebe56583cd0102a7cb5",
+    "headPinnedForDecision": false,
+    "checkpointCommit": "55435791f6e91c9dcb4e06dcd25a11d77b382da7"
+  },
+  "powershellEngine": {
+    "psEdition": "Core",
+    "major": 7,
+    "version": "7.6.4",
+    "minimumSupportedMajor": 7,
+    "directoryNtfsStreamEnumerationRequired": true,
+    "productionFinalizationSupported": true
+  },
+  "trustedArtifacts": [
+    {
+      "owner": "rebuild baseline",
+      "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/build_baseline_gate_d_rebaseline_6e115876.json",
+      "bytes": 6887,
+      "sha256": "BF55B202377C52D0880A7D1E1B7C5B719B3060F2E17BECF4A895820F13AC29C3",
+      "gitTrackedAndHeadClean": true
+    },
+    {
+      "owner": "log converter",
+      "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d/Convert-Lasal2LogToBuildTranscript.ps1",
+      "bytes": 32701,
+      "sha256": "1A92CDE9AA7D45F6A2A250068A8A940ADAA46F856099E2D0174CC9CA09E61CEF",
+      "gitTrackedAndHeadClean": true
+    },
+    {
+      "owner": "C78 verifier",
+      "relativePath": "LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalC78RebuildEvidence.ps1",
+      "bytes": 137844,
+      "sha256": "7AE60A0BBD1356797E6431D29D3F6D0E39270D56C20B59AD835A3E8F0391A6E0",
+      "gitTrackedAndHeadClean": true
+    },
+    {
+      "owner": "Classes comparator",
+      "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesArtifact.ps1",
+      "bytes": 79592,
+      "sha256": "B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4",
+      "gitTrackedAndHeadClean": true
+    },
+    {
+      "owner": "known 6E comparison oracle",
+      "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/classes_lcb_gate_d_rebuild_24402bfa_to_6e115876.comparison.json",
+      "bytes": 51102,
+      "sha256": "9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639",
+      "gitTrackedAndHeadClean": true
+    }
+  ],
+  "finalizer": {
+    "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1",
+    "bytes": 187443,
+    "sha256": "1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5",
+    "headBlobOid": "5495e5636462d8aa67e13abb70c310a1ee8f9e67",
+    "gitTrackedAndHeadClean": true
+  },
+  "baseline": {
+    "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/build_baseline_gate_d_rebaseline_6e115876.json",
+    "inputIdentityCount": 10,
+    "currentInputs": [
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/TCPMotionInterface/TCPMotionInterface.st",
+        "bytes": 97846,
+        "sha256": "DD0B5ED307E7DC1969579F00FB5178E570C1A658C70B5F1928C6A65F57D43C84",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCControlCommandService/LMCControlCommandService.st",
+        "bytes": 594938,
+        "sha256": "8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCDiagnosticsService/LMCDiagnosticsService.st",
+        "bytes": 271051,
+        "sha256": "7084062685543AA59F0A0BC458692A97B677644D01B2211914333C52F25395BB",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCUdpCallbackSender/LMCUdpCallbackSender.st",
+        "bytes": 23469,
+        "sha256": "C334A6C6960BA61529369D29C6DDA757A77AC809A6858661B8FEB6476F5CAE8F",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCEcatInputLatch/LMCEcatInputLatch.st",
+        "bytes": 109426,
+        "sha256": "C63039654A724B6D0CBE4743BEFE34F77EB8902251F3A1CEF25A0A176BF17B3D",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCRecorderStore/LMCRecorderStore.st",
+        "bytes": 100839,
+        "sha256": "0A256E2C1D4C0EC6479387C322006A5B638427F75E627697ECB252B1B0D25C11",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/LMCSdoExecutor/LMCSdoExecutor.st",
+        "bytes": 27527,
+        "sha256": "A91A4177F26486FEDCE50F8C4FEC72FA8A61A3B34D5939DF08BEE2D09055CBD4",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Elmo_EtherCAT_Test_4Axis.lcp",
+        "bytes": 25188,
+        "sha256": "C84DE0051F579AEDEEB203AB1491EB989DC8C14BEB9D722F0E8002865C957648",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Comm_Network/Comm_Network.lcn",
+        "bytes": 16540,
+        "sha256": "FD632C27E2619E907097F599A4CEA1D6AA83E4D41F214E73A91E1C4127F1A1B7",
+        "exactBaselineInputIdentity": true
+      },
+      {
+        "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/_UDPTransceiver/_UDPTransceiver.st",
+        "bytes": 73380,
+        "sha256": "F19273F83337E2B1C2AB510A7DDD49138EB28480649835D4E3C571B34D8269C4",
+        "exactBaselineInputIdentity": true
+      }
+    ]
+  },
+  "log": {
+    "path": "C:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+    "baselinePrefixBytes": 8788633,
+    "baselinePrefixSha256": "03F222F7F02E1466F86FDD6D91BB76DAC860CDC4E36674F42CF8A6A314B9AD56",
+    "frozenEndOffset": 9554717,
+    "frozenFullSha256": "25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C",
+    "tailAppendPolicy": "forbidden-until-atomic-publish-full-length-and-sha-must-remain-exact"
+  },
+  "isolatedSession": {
+    "sessionPid": 31664,
+    "loadTid": 17348,
+    "rebuildTid": 32644,
+    "closeTid": 30012,
+    "startLineIndex": 6,
+    "preStartPrologue": [
+      {
+        "source": "Application",
+        "body": "Log File is ok",
+        "raw": "[08:09:30 (INFO) Application] Log File is ok",
+        "lineIndex": 0,
+        "acceptedAsStartupOnlyPrologue": true
+      },
+      {
+        "source": "OutputSkripting",
+        "body": "Run Scriptfile 'C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\Lasal2.py'.",
+        "raw": "[08:09:30 P:31664 T:30012 (INFO) OutputSkripting] Run Scriptfile 'C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\Lasal2.py'.",
+        "lineIndex": 1,
+        "acceptedAsStartupOnlyPrologue": true
+      },
+      {
+        "source": "OutputSkripting",
+        "body": "Total Script need 97.297 ms",
+        "raw": "[08:09:30 P:31664 T:30012 (INFO) OutputSkripting] Total Script need 97.297 ms",
+        "lineIndex": 2,
+        "acceptedAsStartupOnlyPrologue": true
+      },
+      {
+        "source": "OutputDataAnalyzer",
+        "body": "Loading DataAnalyzer configuration file \"C:\\ProgramData\\Sigmatek\\Drive(C)\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Config\\DataAnalyser.lcc\".",
+        "raw": "[08:09:31 P:31664 T:30012 (INFO) OutputDataAnalyzer] Loading DataAnalyzer configuration file \"C:\\ProgramData\\Sigmatek\\Drive(C)\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Config\\DataAnalyser.lcc\".",
+        "lineIndex": 3,
+        "acceptedAsStartupOnlyPrologue": true
+      },
+      {
+        "source": "OutputDataAnalyzer",
+        "body": "Loading DataAnalyzer configuration file \"C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\DataAnalyserSDD.lcc\".",
+        "raw": "[08:09:31 P:31664 T:30012 (INFO) OutputDataAnalyzer] Loading DataAnalyzer configuration file \"C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\DataAnalyserSDD.lcc\".",
+        "lineIndex": 4,
+        "acceptedAsStartupOnlyPrologue": true
+      },
+      {
+        "source": "OutputDataAnalyzer",
+        "body": "Cannot find configuration file: \"C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\DataAnalyserSDD.lcc\"",
+        "raw": "[08:09:31 P:31664 T:30012 (INFO) OutputDataAnalyzer] Cannot find configuration file: \"C:\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Bin\\DataAnalyserSDD.lcc\"",
+        "lineIndex": 5,
+        "acceptedAsStartupOnlyPrologue": true
+      }
+    ],
+    "loadLineIndex": 16,
+    "loadResultLineIndex": 7869,
+    "loadTerminalLineIndex": 7870,
+    "rebuildLineIndex": 7872,
+    "rebuildResultLineIndex": 8728,
+    "rebuildTerminalLineIndex": 8735,
+    "doExitLineIndex": 8736,
+    "closeLineIndex": 8737,
+    "closeTerminalLineIndex": 8739,
+    "exitDoneLineIndex": 8741,
+    "exactSessionCount": 1,
+    "exactRebuildCount": 1,
+    "loadRestorationCommands": [
+      {
+        "command": "Open Network Editor for 'Comm_Network'",
+        "raw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Executing command 'Open Network Editor for 'Comm_Network''",
+        "commandLineIndex": 7860,
+        "successLineIndex": 7861,
+        "acceptedAsLoadRestorationByBoundedOrdering": true,
+        "operatorOriginProven": false
+      },
+      {
+        "command": "Open Network Editor for 'Comm_Network'",
+        "raw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Executing command 'Open Network Editor for 'Comm_Network''",
+        "commandLineIndex": 7862,
+        "successLineIndex": 7863,
+        "acceptedAsLoadRestorationByBoundedOrdering": true,
+        "operatorOriginProven": false
+      }
+    ],
+    "commandTerminalLedger": [
+      {
+        "command": "Load Project \"C:\\work\\Elmo\\Elmo_Master\\Lasal_PRG\\Elmo_EtherCAT_Test_4Axis\\Elmo_EtherCAT_Test_4Axis.lcp\"",
+        "pid": 31664,
+        "tid": 17348,
+        "commandLineIndex": 16,
+        "terminalLineIndex": 7870,
+        "commandRaw": "[08:09:35 P:31664 T:17348 (INFO) CmdProc] Executing command 'Load Project \"C:\\work\\Elmo\\Elmo_Master\\Lasal_PRG\\Elmo_EtherCAT_Test_4Axis\\Elmo_EtherCAT_Test_4Axis.lcp\"'",
+        "terminalRaw": "[08:10:08 P:31664 T:17348 (INFO) CmdProc] Last command succeeded. (33098.7ms)",
+        "uniqueNextSameThreadSuccess": true
+      },
+      {
+        "command": "Open Network Editor for 'Comm_Network'",
+        "pid": 31664,
+        "tid": 30012,
+        "commandLineIndex": 7860,
+        "terminalLineIndex": 7861,
+        "commandRaw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Executing command 'Open Network Editor for 'Comm_Network''",
+        "terminalRaw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Last command succeeded. (145.9ms)",
+        "uniqueNextSameThreadSuccess": true
+      },
+      {
+        "command": "Open Network Editor for 'Comm_Network'",
+        "pid": 31664,
+        "tid": 30012,
+        "commandLineIndex": 7862,
+        "terminalLineIndex": 7863,
+        "commandRaw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Executing command 'Open Network Editor for 'Comm_Network''",
+        "terminalRaw": "[08:10:08 P:31664 T:30012 (INFO) CmdProc] Last command succeeded. (0.3ms)",
+        "uniqueNextSameThreadSuccess": true
+      },
+      {
+        "command": "Rebuild project",
+        "pid": 31664,
+        "tid": 32644,
+        "commandLineIndex": 7872,
+        "terminalLineIndex": 8735,
+        "commandRaw": "[08:10:20 P:31664 T:32644 (INFO) CmdProc] Executing command 'Rebuild project'",
+        "terminalRaw": "[08:10:42 P:31664 T:32644 (INFO) CmdProc] Last command succeeded. (22370.1ms)",
+        "uniqueNextSameThreadSuccess": true
+      },
+      {
+        "command": "Close Project",
+        "pid": 31664,
+        "tid": 30012,
+        "commandLineIndex": 8737,
+        "terminalLineIndex": 8739,
+        "commandRaw": "[08:12:11 P:31664 T:30012 (INFO) CmdProc] Executing command 'Close Project'",
+        "terminalRaw": "[08:12:12 P:31664 T:30012 (INFO) CmdProc] Last command succeeded. (394.3ms)",
+        "uniqueNextSameThreadSuccess": true
+      }
+    ],
+    "knownLoadErrors": [
+      {
+        "raw": "[08:09:57 P:31664 T:17348 (ERROR) Compiler] E 0015 \"C:\\ProgramData\\Sigmatek\\Drive(C)\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Runtime\\Library\\Motion\\MotionLib\\Include\\global.h\"(15) Error reading file 'C:\\ProgramData\\Sigmatek\\Drive(C)\\Program Files (x86)\\Sigmatek\\Lasal\\Class2\\Runtime\\Library\\Hardware\\.\\Class\\_DriveMngBase\\DriveComL2.h'|*000000*|15|11015||",
+        "acceptedAsKnownVendorLoadError": true,
+        "rebuildError": false
+      }
+    ],
+    "prohibitedCommandCount": 0,
+    "cInvalidArgExceptionCount": 0,
+    "rebuildErrorCount": 0
+  },
+  "tools": {
+    "converter": {
+      "exitCode": 0,
+      "outputLines": [
+        "",
+        "\u001b[32;1mProvenance                    : \u001b[0mDerived from validated appended Lasal2.log rebuild output",
+        "\u001b[32;1mEvidenceProfile               : \u001b[0mGateDVisualLayout",
+        "\u001b[32;1mBaselinePath                  : \u001b[0mC:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260810_udp_callback_gate_d_rebaseline",
+        "                                _6e115876\\build_baseline_gate_d_rebaseline_6e115876.json",
+        "\u001b[32;1mLasalLogPath                  : \u001b[0mC:\\Users\\dreiv\\AppData\\Local\\Temp\\Lasal2.log",
+        "\u001b[32;1mOutputPath                    : \u001b[0mC:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260810_udp_callback_gate_d_rebaseline",
+        "                                _6e115876\\.finalize-stage-2035c5772f75412cb039f11e733de713\\derived_build_transcript_gat",
+        "                                e_d_rebaseline_6e115876.txt",
+        "\u001b[32;1mBaselinePrefixLength          : \u001b[0m8788633",
+        "\u001b[32;1mBaselinePrefixSha256          : \u001b[0m03f222f7f02e1466f86fdd6d91bb76dac860cdc4e36674f42cf8a6a314b9ad56",
+        "\u001b[32;1mLogEndOffset                  : \u001b[0m9554717",
+        "\u001b[32;1mAppendedByteCount             : \u001b[0m766084",
+        "\u001b[32;1mAppendedSha256                : \u001b[0m109a9a0bdd9690818841eb21d043883eeb10278c6ca28737d398483dbf374140",
+        "\u001b[32;1mSessionPid                    : \u001b[0m31664",
+        "\u001b[32;1mRebuildTid                    : \u001b[0m32644",
+        "\u001b[32;1mConvertedLineCount            : \u001b[0m212",
+        "\u001b[32;1mErrorCount                    : \u001b[0m0",
+        "\u001b[32;1mWarningCount                  : \u001b[0m76",
+        "\u001b[32;1mStrippedDiagnosticSuffixCount : \u001b[0m76",
+        "\u001b[32;1mOutputByteCount               : \u001b[0m30111",
+        "\u001b[32;1mOutputSha256                  : \u001b[0mf32122d318dbfd8f53bc9e5ad0ff693f9b6f05368d40fc64138a010a1bc810af",
+        "\u001b[32;1mTranscriptCreated             : \u001b[0mTrue",
+        "\u001b[32;1mRawDeltaOutputPath            : \u001b[0mC:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260810_udp_callback_gate_d_rebaseline",
+        "                                _6e115876\\.finalize-stage-2035c5772f75412cb039f11e733de713\\bounded_lasal2_delta_gate_d_",
+        "                                rebaseline_6e115876.raw.txt",
+        "\u001b[32;1mRawDeltaManifestPath          : \u001b[0mC:\\work\\Elmo\\Elmo_Master\\test\\Reports_Lasal\\C78_20260810_udp_callback_gate_d_rebaseline",
+        "                                _6e115876\\.finalize-stage-2035c5772f75412cb039f11e733de713\\bounded_lasal2_delta_gate_d_",
+        "                                rebaseline_6e115876.manifest.json",
+        "\u001b[32;1mRegeneratedOutputsBound       : \u001b[0m2",
+        ""
+      ]
+    },
+    "c78VerifyBuild": {
+      "exitCode": 0,
+      "runFullStatic": false,
+      "outputLines": [
+        "PASS LASAL.C78RebuildEvidence.Verify C78/ARM errors=0 warnings=76 compilerDone=2 linkerDone=1 postResultCompatibilityWarnings=6/C82 profile=GateDVisualLayout inputsEquivalent=true; rawInputsUnchanged=10/10 replayEquivalentSt=0 regeneratedOutputsBound=2 evidenceSource=bounded-repository"
+      ]
+    },
+    "comparator": {
+      "exitCode": 2,
+      "disposition": "REVIEW_REQUIRED_OPAQUE_VENDOR_DRIFT",
+      "outputFileName": "classes_lcb_gate_d_rebuild_candidate.comparison.json"
+    }
+  },
+  "regeneratedOutputs": {
+    "classes": {
+      "sourceRelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "snapshotFileName": "Classes.post-rebuild.snapshot.lcb",
+      "bytes": 8549773,
+      "sha256": "99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD"
+    },
+    "networks": {
+      "sourceRelativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb",
+      "snapshotFileName": "Networks.post-rebuild.snapshot.lcb",
+      "bytes": 242363,
+      "sha256": "C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F"
+    },
+    "converterManifestMatchedSnapshots": true,
+    "c78VerifierAcceptedManifestAndCurrentOutputs": true,
+    "comparatorMatchedClassesSnapshot": true,
+    "finalProductionRehashMatchedSnapshots": true
+  },
+  "artifactsWrittenBeforeCompleteManifest": [
+    {
+      "fileName": ".finalizer-owner.json",
+      "bytes": 252,
+      "sha256": "D39106A360775B2A289A2774CE0667FE81187CD5C9BC96F0172E93C652835878"
+    },
+    {
+      "fileName": "Classes.post-rebuild.snapshot.lcb",
+      "bytes": 8549773,
+      "sha256": "99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD"
+    },
+    {
+      "fileName": "Networks.post-rebuild.snapshot.lcb",
+      "bytes": 242363,
+      "sha256": "C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F"
+    },
+    {
+      "fileName": "derived_build_transcript_gate_d_rebaseline_6e115876.txt",
+      "bytes": 30111,
+      "sha256": "F32122D318DBFD8F53BC9E5AD0FF693F9B6F05368D40FC64138A010A1BC810AF"
+    },
+    {
+      "fileName": "bounded_lasal2_delta_gate_d_rebaseline_6e115876.raw.txt",
+      "bytes": 766084,
+      "sha256": "109A9A0BDD9690818841EB21D043883EEB10278C6CA28737D398483DBF374140"
+    },
+    {
+      "fileName": "bounded_lasal2_delta_gate_d_rebaseline_6e115876.manifest.json",
+      "bytes": 1595,
+      "sha256": "E098903979766B118F3E8AA95E7781BBACABA077474A6A146CCC765CD905AF73"
+    },
+    {
+      "fileName": "classes_lcb_gate_d_rebuild_candidate.comparison.json",
+      "bytes": 46891,
+      "sha256": "40B2879ED307C17774F823EC4B3AF0A7457B06B4007D71452C1A8BBE0E8550E6"
+    }
+  ],
+  "publication": {
+    "stagingDirectoryName": ".finalize-stage-2035c5772f75412cb039f11e733de713",
+    "finalDirectoryName": "candidate_finalization_gate_d_rebaseline_6e115876",
+    "finalDirectoryAtomicMoveRequired": true,
+    "existingOutputOverwriteAllowed": false,
+    "retryPolicy": "failed exact-owned current stage is removed; stale/ambiguous/final bundles require manual review",
+    "completeManifestWrittenLast": true
+  },
+  "decision": {
+    "disposition": "UNSTABLE_THIRD_CLASSES_HASH_STOP",
+    "exitCode": 3,
+    "checkpointReproduced": false,
+    "known6EReproduced": false,
+    "productionApproved": false,
+    "semanticEquivalenceClaimedForOpaqueDrift": false,
+    "staticReplayPermitted": false,
+    "onlineRuntimeQualificationPermitted": false
+  },
+  "productionApproved": false
+}
