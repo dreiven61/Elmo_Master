@@ -703,4 +703,64 @@ namespace LasalMotionControlLib
             get { return Kind == LMCCallbackFenceDecisionKind.AcceptedWakeHint; }
         }
     }
+
+    /// <summary>
+    /// Immutable receiver-side version-2 callback counter evidence captured
+    /// immediately after one datagram decision is committed to the current
+    /// connection session.
+    /// </summary>
+    public sealed class LMCCallbackV2StatisticsChangedEventArgs : EventArgs
+    {
+        internal LMCCallbackV2StatisticsChangedEventArgs(
+            LMCCallbackFenceDecisionKind decisionKind,
+            LMCCallbackProtocolError protocolError,
+            long acceptedWakeHintCount,
+            long rejectedCount,
+            long duplicateWakeHintCount,
+            long outOfOrderWakeHintCount,
+            LMCConnection ownerConnection,
+            long connectionLifetimeGeneration,
+            long sessionGeneration)
+        {
+            DecisionKind = decisionKind;
+            ProtocolError = protocolError;
+            AcceptedWakeHintCount = acceptedWakeHintCount;
+            RejectedCount = rejectedCount;
+            DuplicateWakeHintCount = duplicateWakeHintCount;
+            OutOfOrderWakeHintCount = outOfOrderWakeHintCount;
+            this.ownerConnection = ownerConnection;
+            this.connectionLifetimeGeneration =
+                connectionLifetimeGeneration;
+            this.sessionGeneration = sessionGeneration;
+        }
+
+        private readonly LMCConnection ownerConnection;
+        private readonly long connectionLifetimeGeneration;
+        private readonly long sessionGeneration;
+
+        public LMCCallbackFenceDecisionKind DecisionKind { get; private set; }
+        public LMCCallbackProtocolError ProtocolError { get; private set; }
+        public long AcceptedWakeHintCount { get; private set; }
+        public long RejectedCount { get; private set; }
+        public long DuplicateWakeHintCount { get; private set; }
+        public long OutOfOrderWakeHintCount { get; private set; }
+        public long SessionGeneration
+        {
+            get { return sessionGeneration; }
+        }
+
+        public bool BelongsTo(LMCConnection connection)
+        {
+            return connection != null
+                && ReferenceEquals(ownerConnection, connection);
+        }
+
+        public bool BelongsToCurrentSession(LMCConnection connection)
+        {
+            return BelongsTo(connection)
+                && connection.IsCurrentCallbackV2Session(
+                    connectionLifetimeGeneration,
+                    sessionGeneration);
+        }
+    }
 }

@@ -191,6 +191,18 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.Contains(
                         "RPC session init failed. Status=1, ErrorId=-1.",
                         window.TextExecutionLog.Text);
+                    var retiredInitialization =
+                        window.TextRpcInitialization.Text;
+                    AssertEx.Contains("Attempt=1, Outcome=Failed", retiredInitialization);
+                    AssertEx.Contains("0x8080Attempts=2", retiredInitialization);
+                    AssertEx.Contains("Retry=True", retiredInitialization);
+                    AssertEx.Contains("InitOutcome=Failed", retiredInitialization);
+                    AssertEx.Contains("HeaderStatus=1", retiredInitialization);
+                    AssertEx.Contains("HeaderReserved=0", retiredInitialization);
+                    AssertEx.Contains("PayloadLength=4", retiredInitialization);
+                    AssertEx.Contains("CommandStatus=1", retiredInitialization);
+                    AssertEx.Contains("ErrorId=-1", retiredInitialization);
+                    AssertEx.Contains("Current=Retired", retiredInitialization);
                     AssertEx.Equal(1, server.AcceptedClientCount);
                     AssertEx.Equal(2, CountCommandInSession(
                         server,
@@ -228,6 +240,46 @@ namespace LasalApiWpfTestApp.SmokeTests
                     AssertEx.True(reconnected.IsConnected);
                     AssertEx.True(reconnected.IsRpcInitialized);
                     AssertEx.True(reconnected.IsCallbackListenerRunning);
+                    AssertEx.Contains(
+                        "Attempt=2, Outcome=Connected",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "0x8080Attempts=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Retry=False",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "InitOutcome=Succeeded",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "PayloadLength=24",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Current=Active",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.False(string.Equals(
+                        retiredInitialization,
+                        window.TextRpcInitialization.Text,
+                        StringComparison.Ordinal));
+                    AssertEx.Contains(
+                        "Status=0, ErrorId=0, Version=2, MaxDatagram=52",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "Cookie=0x",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "ListenerGeneration=",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "Source=127.0.0.1",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "EventMask=0x00000001",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "LocalSessionGeneration=",
+                        window.TextCallbackRegistration.Text);
                     AssertEx.Equal(2, server.AcceptedClientCount);
                     AssertEx.Equal(1, CountCommandInSession(
                         server,
@@ -3081,6 +3133,37 @@ namespace LasalApiWpfTestApp.SmokeTests
                                 0x7E00) == 1,
                         "Callback-v2 D5 smoke did not complete connection setup.");
 
+                    AssertEx.Contains(
+                        "Status=0, ErrorId=0, Version=2, MaxDatagram=52",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "BootId=0x" + DiagnosticsBootId.ToString("X8"),
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "SessionEpoch=1, Flags=0x00000000",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "Cookie=0x",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "ListenerGeneration=",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "Source=127.0.0.1",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "EventMask=0x00000001",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Contains(
+                        "LocalSessionGeneration=",
+                        window.TextCallbackRegistration.Text);
+                    AssertEx.Equal(
+                        "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0",
+                        window.TextCallbackCounters.Text);
+                    AssertEx.Equal(
+                        "Last decision=None",
+                        window.TextCallbackLastDecision.Text);
+
                     var currentConnection =
                         (LMCConnection)GetPrivateField(window, "connection");
                     var ticket = currentConnection.Diagnostics.SubmitSdo(
@@ -3116,11 +3199,51 @@ namespace LasalApiWpfTestApp.SmokeTests
                             + ", Rejected="
                             + currentConnection.RejectedCallbackCount.ToString(
                                 CultureInfo.InvariantCulture));
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextCallbackCounters.Text,
+                                "Accepted=1, Rejected=0, Duplicate=0, OutOfOrder=0",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextCallbackLastDecision.Text,
+                                "Last decision=AcceptedWakeHint, ProtocolError=None",
+                                StringComparison.Ordinal),
+                        "The WPF callback evidence did not publish the accepted wake decision.");
 
                     AssertEx.True(
                         GetPrivateField(window, "diagnosticOperationStatus")
                             == null,
                         "UDP wake data mutated the operation status before the TCP response.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    SendD5TerminalWake(currentConnection, ticketId, 1UL);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextCallbackCounters.Text,
+                                "Accepted=1, Rejected=1, Duplicate=1, OutOfOrder=0",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextCallbackLastDecision.Text,
+                                "Last decision=DuplicateSequence, ProtocolError=None",
+                                StringComparison.Ordinal),
+                        "The WPF callback evidence did not publish the duplicate rejection.");
+                    AssertEx.Equal(
+                        1,
+                        CountRequestCommand(server.ReceivedRequests, 0x7E03));
+
+                    SendD5TerminalWake(currentConnection, ticketId, 0UL);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextCallbackCounters.Text,
+                                "Accepted=1, Rejected=2, Duplicate=1, OutOfOrder=1",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextCallbackLastDecision.Text,
+                                "Last decision=OutOfOrderSequence, ProtocolError=None",
+                                StringComparison.Ordinal),
+                        "The WPF callback evidence did not publish the out-of-order rejection.");
                     AssertEx.Equal(
                         1,
                         CountRequestCommand(server.ReceivedRequests, 0x7E03));
@@ -3135,6 +3258,15 @@ namespace LasalApiWpfTestApp.SmokeTests
                         1,
                         CountRequestCommand(server.ReceivedRequests, 0x7E03),
                         "The second wake issued another 0x7E03 query while the first was in flight.");
+                    AssertEx.Equal(
+                        "Accepted=2, Rejected=2, Duplicate=1, OutOfOrder=1",
+                        window.TextCallbackCounters.Text);
+                    AssertEx.Contains(
+                        "rejected=2",
+                        window.TextCallbackState.Text);
+                    AssertEx.Equal(
+                        "Last decision=AcceptedWakeHint, ProtocolError=None",
+                        window.TextCallbackLastDecision.Text);
                     AssertEx.True(
                         GetPrivateField(window, "diagnosticOperationStatus")
                             == null,

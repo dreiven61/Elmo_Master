@@ -102,6 +102,11 @@ namespace LasalMotionControlLib
         private long clientSessionGeneration;
         private long callbackListenerLifetimeGeneration;
         private LMCCallbackReceiverFence callbackReceiverFence;
+        private int rpcSessionInitAttemptCount;
+        private bool rpcSessionInitRetryUsed;
+        private DateTime rpcSessionInitStartedAtUtc;
+        private LMC_Response rpcSessionInitFirstFailureResponse;
+        private LMC_Response rpcSessionInitLastReceivedResponse;
         private long groupEnableWaitRegistryGeneration = long.MinValue;
         private long axisPowerOnWaitRegistryGeneration = long.MinValue;
 
@@ -176,6 +181,12 @@ namespace LasalMotionControlLib
             }
         }
         public LMC_Response RpcSessionInitResponse { get; private set; }
+        public LMCRpcSessionInitializationEvidence
+            LastRpcSessionInitializationEvidence
+        {
+            get;
+            private set;
+        }
         public LMC_Response RpcCallbackRegistrationResponse { get; private set; }
         public LMCCallbackRegistrationV2Response
             RpcCallbackRegistrationV2Response { get; private set; }
@@ -214,6 +225,8 @@ namespace LasalMotionControlLib
         public event EventHandler<LMCCallbackEventArgs> CallbackReceived;
         public event EventHandler<LMCCallbackWakeHintEventArgs>
             CallbackWakeHintReceived;
+        public event EventHandler<LMCCallbackV2StatisticsChangedEventArgs>
+            CallbackV2StatisticsChanged;
         public event EventHandler<LMCCallbackErrorEventArgs> CallbackListenerError;
         public event EventHandler<LMCConnectionStateChangedEventArgs>
             ConnectionStateChanged;
@@ -221,6 +234,11 @@ namespace LasalMotionControlLib
         internal long SessionGeneration
         {
             get { return Interlocked.Read(ref sessionGeneration); }
+        }
+
+        public long CurrentSessionGeneration
+        {
+            get { return SessionGeneration; }
         }
 
         public void RpcInitConnection(
@@ -566,6 +584,12 @@ namespace LasalMotionControlLib
             LastTransportException = null;
             LastInitializationException = null;
             LastCloseException = null;
+            LastRpcSessionInitializationEvidence = null;
+            rpcSessionInitAttemptCount = 0;
+            rpcSessionInitRetryUsed = false;
+            rpcSessionInitStartedAtUtc = DateTime.UtcNow;
+            rpcSessionInitFirstFailureResponse = null;
+            rpcSessionInitLastReceivedResponse = null;
             Interlocked.Exchange(ref rejectedCallbackCount, 0);
             Interlocked.Exchange(ref acceptedCallbackWakeHintCount, 0);
             Interlocked.Exchange(ref duplicateCallbackWakeHintCount, 0);
@@ -603,6 +627,10 @@ namespace LasalMotionControlLib
                         RpcSessionInitResponse,
                         RpcSessionInitPayloadLength,
                         "RPC session init");
+                    CompleteRpcSessionInitializationEvidence(
+                        openingSessionGeneration,
+                        LMCRpcSessionInitializationOutcome.Succeeded,
+                        null);
                     cancellationToken.ThrowIfCancellationRequested();
 
                     int registeredCallbackPort;
@@ -712,6 +740,12 @@ namespace LasalMotionControlLib
                     : ex;
 
                 LastInitializationException = failure;
+                CompleteRpcSessionInitializationEvidence(
+                    openingSessionGeneration,
+                    cancellationToken.IsCancellationRequested
+                        ? LMCRpcSessionInitializationOutcome.Cancelled
+                        : LMCRpcSessionInitializationOutcome.Failed,
+                    failure);
                 if (!cancellationToken.IsCancellationRequested
                     && IsTransportException(ex))
                 {
@@ -1450,6 +1484,7 @@ namespace LasalMotionControlLib
             TcpClient openingClient,
             CancellationToken cancellationToken)
         {
+            rpcSessionInitAttemptCount = 1;
             var response = ParseAcknowledgement(
                 ExchangeCore(
                     LMC_Frame.RpcSessionInit(),
@@ -1457,10 +1492,20 @@ namespace LasalMotionControlLib
                     true,
                     cancellationToken,
                     AnySessionGeneration));
+            rpcSessionInitLastReceivedResponse = response;
 
             if (!ShouldRetryRpcSessionInit(response))
             {
                 return response;
+            }
+
+            rpcSessionInitRetryUsed = true;
+            rpcSessionInitFirstFailureResponse = response;
+            var retryScheduledObserver = options
+                .RpcSessionInitRetryScheduledObserver;
+            if (retryScheduledObserver != null)
+            {
+                retryScheduledObserver();
             }
 
             if (cancellationToken.WaitHandle.WaitOne(
@@ -1470,13 +1515,39 @@ namespace LasalMotionControlLib
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            return ParseAcknowledgement(
+            rpcSessionInitAttemptCount = 2;
+            var retryResponse = ParseAcknowledgement(
                 ExchangeCore(
                     LMC_Frame.RpcSessionInit(),
                     openingClient,
                     true,
                     cancellationToken,
                     AnySessionGeneration));
+            rpcSessionInitLastReceivedResponse = retryResponse;
+            return retryResponse;
+        }
+
+        private void CompleteRpcSessionInitializationEvidence(
+            long openingSessionGeneration,
+            LMCRpcSessionInitializationOutcome outcome,
+            Exception failure)
+        {
+            if (LastRpcSessionInitializationEvidence != null)
+            {
+                return;
+            }
+
+            LastRpcSessionInitializationEvidence =
+                new LMCRpcSessionInitializationEvidence(
+                    openingSessionGeneration,
+                    rpcSessionInitStartedAtUtc,
+                    DateTime.UtcNow,
+                    rpcSessionInitAttemptCount,
+                    rpcSessionInitRetryUsed,
+                    rpcSessionInitFirstFailureResponse,
+                    rpcSessionInitLastReceivedResponse,
+                    outcome,
+                    failure);
         }
 
         private bool ShouldRetryRpcSessionInit(LMC_Response response)
@@ -2403,10 +2474,25 @@ namespace LasalMotionControlLib
                                 throw;
                             }
 
-                            TryIncrementRejectedV2CallbackCount(
+                            LMCCallbackV2StatisticsChangedEventArgs
+                                oversizedStatistics;
+                            var oversizedRecorded =
+                                TryRecordV2CallbackDecision(
                                 ownedListener,
                                 ownedLifetimeGeneration,
-                                openingSessionGeneration);
+                                openingSessionGeneration,
+                                new LMCCallbackFenceDecision(
+                                    LMCCallbackFenceDecisionKind.Malformed,
+                                    LMCCallbackProtocolError.DatagramTooLarge,
+                                    null),
+                                out oversizedStatistics);
+                            if (oversizedRecorded)
+                            {
+                                OnCallbackV2StatisticsChanged(
+                                    ownedListener,
+                                    ownedLifetimeGeneration,
+                                    oversizedStatistics);
+                            }
                             continue;
                         }
 
@@ -2436,16 +2522,22 @@ namespace LasalMotionControlLib
                             payload,
                             ownedLifetimeGeneration,
                             remoteEndPoint.Address.GetAddressBytes());
+                        LMCCallbackV2StatisticsChangedEventArgs statistics;
                         var decisionRecorded = TryRecordV2CallbackDecision(
                             ownedListener,
                             ownedLifetimeGeneration,
                             openingSessionGeneration,
-                            decision);
+                            decision,
+                            out statistics);
                         if (!decisionRecorded)
                         {
                             NotifyCallbackV2DatagramProcessed();
                             continue;
                         }
+                        OnCallbackV2StatisticsChanged(
+                            ownedListener,
+                            ownedLifetimeGeneration,
+                            statistics);
                         if (!decision.IsAccepted)
                         {
                             NotifyCallbackV2DatagramProcessed();
@@ -2567,6 +2659,44 @@ namespace LasalMotionControlLib
                         ownedLifetimeGeneration,
                         new LMCCallbackErrorEventArgs(ex));
                 }
+            }
+        }
+
+        private void OnCallbackV2StatisticsChanged(
+            UdpClient ownedListener,
+            long ownedLifetimeGeneration,
+            LMCCallbackV2StatisticsChangedEventArgs statistics)
+        {
+            if (statistics == null)
+            {
+                throw new ArgumentNullException("statistics");
+            }
+            if (!IsCurrentCallbackListener(
+                    ownedListener,
+                    ownedLifetimeGeneration)
+                || !statistics.BelongsToCurrentSession(this))
+            {
+                return;
+            }
+
+            var handler = CallbackV2StatisticsChanged;
+            if (handler == null)
+            {
+                return;
+            }
+
+            try
+            {
+                handler(
+                    this,
+                    statistics);
+            }
+            catch (Exception ex)
+            {
+                OnCallbackListenerError(
+                    ownedListener,
+                    ownedLifetimeGeneration,
+                    new LMCCallbackErrorEventArgs(ex));
             }
         }
 
@@ -2778,37 +2908,14 @@ namespace LasalMotionControlLib
             }
         }
 
-        private void TryIncrementRejectedV2CallbackCount(
-            UdpClient ownedListener,
-            long ownedLifetimeGeneration,
-            long ownedSessionGeneration)
-        {
-            lock (lifecycleStateSync)
-            {
-                lock (callbackSync)
-                {
-                    if (!IsPublishedCallbackSessionLocked(
-                            ownedLifetimeGeneration,
-                            ownedSessionGeneration)
-                        || !callbackListenerRunning
-                        || !ReferenceEquals(callbackListener, ownedListener)
-                        || callbackListenerLifetimeGeneration
-                            != ownedLifetimeGeneration)
-                    {
-                        return;
-                    }
-
-                    Interlocked.Increment(ref rejectedCallbackCount);
-                }
-            }
-        }
-
         private bool TryRecordV2CallbackDecision(
             UdpClient ownedListener,
             long ownedLifetimeGeneration,
             long ownedSessionGeneration,
-            LMCCallbackFenceDecision decision)
+            LMCCallbackFenceDecision decision,
+            out LMCCallbackV2StatisticsChangedEventArgs statistics)
         {
+            statistics = null;
             if (decision == null)
             {
                 throw new ArgumentNullException("decision");
@@ -2833,22 +2940,38 @@ namespace LasalMotionControlLib
                     {
                         Interlocked.Increment(
                             ref acceptedCallbackWakeHintCount);
-                        return true;
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref rejectedCallbackCount);
+                        if (decision.Kind
+                            == LMCCallbackFenceDecisionKind.DuplicateSequence)
+                        {
+                            Interlocked.Increment(
+                                ref duplicateCallbackWakeHintCount);
+                        }
+                        else if (decision.Kind
+                            == LMCCallbackFenceDecisionKind.OutOfOrderSequence)
+                        {
+                            Interlocked.Increment(
+                                ref outOfOrderCallbackWakeHintCount);
+                        }
                     }
 
-                    Interlocked.Increment(ref rejectedCallbackCount);
-                    if (decision.Kind
-                        == LMCCallbackFenceDecisionKind.DuplicateSequence)
-                    {
-                        Interlocked.Increment(
-                            ref duplicateCallbackWakeHintCount);
-                    }
-                    else if (decision.Kind
-                        == LMCCallbackFenceDecisionKind.OutOfOrderSequence)
-                    {
-                        Interlocked.Increment(
-                            ref outOfOrderCallbackWakeHintCount);
-                    }
+                    statistics =
+                        new LMCCallbackV2StatisticsChangedEventArgs(
+                            decision.Kind,
+                            decision.ProtocolError,
+                            Interlocked.Read(
+                                ref acceptedCallbackWakeHintCount),
+                            Interlocked.Read(ref rejectedCallbackCount),
+                            Interlocked.Read(
+                                ref duplicateCallbackWakeHintCount),
+                            Interlocked.Read(
+                                ref outOfOrderCallbackWakeHintCount),
+                            this,
+                            ownedLifetimeGeneration,
+                            ownedSessionGeneration);
                     return true;
                 }
             }

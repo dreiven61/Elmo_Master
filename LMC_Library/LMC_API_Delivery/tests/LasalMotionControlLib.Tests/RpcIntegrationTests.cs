@@ -584,6 +584,16 @@ namespace LasalMotionControlLib.Tests
 
                 AssertEx.Contains("Status=7", exception.Message);
                 AssertConnectionClosed(connection);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(1, evidence.AttemptCount);
+                AssertEx.False(evidence.CanonicalRetryUsed);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.Equal((ushort)7, evidence.LastReceivedResponse.HeaderStatus);
                 server.Verify();
             }
         }
@@ -611,6 +621,16 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(1, server.AcceptedClientCount);
                 AssertEx.Equal(1, server.ReceivedRequests.Count);
                 AssertConnectionClosed(connection);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(1, evidence.AttemptCount);
+                AssertEx.False(evidence.CanonicalRetryUsed);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.Equal((short)-1, evidence.LastReceivedResponse.ErrorId);
                 server.Verify();
             }
         }
@@ -638,6 +658,16 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Contains("Status=16", exception.Message);
                 AssertEx.Contains("ErrorId=-8", exception.Message);
                 AssertConnectionClosed(connection);
+                var initializationEvidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(initializationEvidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Succeeded,
+                    initializationEvidence.Outcome);
+                AssertEx.Equal(1, initializationEvidence.AttemptCount);
+                AssertEx.False(initializationEvidence.CanonicalRetryUsed);
+                AssertEx.True(
+                    initializationEvidence.LastReceivedResponse.IsSuccess);
                 server.Verify();
             }
         }
@@ -648,7 +678,7 @@ namespace LasalMotionControlLib.Tests
                 new FakeRpcStep(0x8080, TestFrame.Response(0, new byte[23]))))
             using (var connection = new LMCConnection())
             {
-                AssertEx.Throws<InvalidDataException>(
+                var exception = AssertEx.Throws<InvalidDataException>(
                     () => connection.RpcInitConnection(
                         "127.0.0.1",
                         server.Port,
@@ -657,6 +687,21 @@ namespace LasalMotionControlLib.Tests
                         LMCConnection.DefaultEventMask));
 
                 AssertConnectionClosed(connection);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(1, evidence.AttemptCount);
+                AssertEx.False(evidence.CanonicalRetryUsed);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.True(evidence.LastReceivedResponse.IsSuccess);
+                AssertEx.Equal((ushort)23, evidence.LastReceivedResponse.PayloadLength);
+                AssertEx.Equal(
+                    typeof(InvalidDataException).FullName,
+                    evidence.FailureType);
+                AssertEx.Contains("exactly 24", exception.Message);
                 server.Verify();
             }
         }

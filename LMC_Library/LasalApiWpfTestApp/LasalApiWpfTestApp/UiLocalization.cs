@@ -434,8 +434,13 @@ namespace LasalMotionControlApiExample
             values["Disconnected"] = "연결 끊김";
             values["Connected"] = "연결됨";
             values["Stopped"] = "중지됨";
+            values["RPC initialization evidence"] = "RPC 초기화 증거";
+            values["Callback v2 registration"] = "콜백 v2 등록";
+            values["PC callback receiver evidence"] = "PC 콜백 수신 증거";
             values["Connect performs RPC session initialization and callback registration automatically. Callback payloads are logged as raw diagnostic data."] =
                 "연결 시 RPC 세션 초기화와 콜백 등록을 자동으로 수행합니다. 콜백 payload는 raw 진단 데이터로 로그에 기록됩니다.";
+            values["Connect performs RPC session initialization and callback registration automatically. UDP wake hints are non-authoritative; operation state changes only after the matching TCP status response."] =
+                "연결 시 RPC 세션 초기화와 콜백 등록을 자동으로 수행합니다. UDP wake hint는 상태 판단 근거가 아니며, 동작 상태는 일치하는 TCP status 응답을 받은 뒤에만 변경됩니다.";
             values["Power On, Reset, motion, and group preparation commands are sent immediately without a confirmation dialog. Stop and axis Power Off remain available while connected. Closing the connection does not stop motion."] =
                 "Power On, Reset, motion, group 준비 명령은 확인 창 없이 즉시 전송됩니다. 연결 중에는 Stop과 축 Power Off를 사용할 수 있습니다. 연결을 닫아도 motion은 정지하지 않습니다.";
             values["Stop, PowerOff, and Group Stop remain available while connected. Closing the connection does not stop motion."] =
@@ -641,6 +646,8 @@ namespace LasalMotionControlApiExample
             values["Clear Log"] = "로그 지우기";
             values["Execution log / raw callback diagnostics"] =
                 "실행 로그 / raw callback 진단";
+            values["Execution log / callback diagnostics"] =
+                "실행 로그 / 콜백 진단";
             values["Save Result"] = "결과 저장";
             values["Download Result"] = "결과 다운로드";
             values["Save RPC CSV"] = "RPC CSV 저장";

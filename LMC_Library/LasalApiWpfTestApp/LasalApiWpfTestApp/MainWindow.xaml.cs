@@ -31,6 +31,13 @@ namespace LasalMotionControlApiExample
         private readonly LMCSendPriorityCoordinator sendPriorityCoordinator =
             new LMCSendPriorityCoordinator();
         private LMCConnection connection;
+        private LMCCallbackV2StatisticsChangedEventArgs
+            lastCallbackV2Statistics;
+        private int rpcConnectionAttemptSerial;
+        private string lastRpcInitializationEvidence =
+            "No RPC initialization attempt";
+        private bool lastRpcInitializationRetired = true;
+        private string lastCallbackListenerError;
         private LMCConnection recoveryIdentityReadOnlyConnection;
         private string recoveryIdentityReadOnlyReason;
         private LMCSingleAxis axis;
@@ -556,6 +563,18 @@ namespace LasalMotionControlApiExample
                         await CloseCurrentConnectionAsync(false);
                     }
 
+                    var connectionAttempt = ++rpcConnectionAttemptSerial;
+                    lastRpcInitializationRetired = false;
+                    lastRpcInitializationEvidence =
+                        FormatRpcInitializationEvidence(
+                            connectionAttempt,
+                            "Connecting",
+                            remoteIp,
+                            remotePort,
+                            localIp,
+                            callbackPort,
+                            null,
+                            null);
                     var newConnection = CreateCoordinatedConnection();
                     AttachConnection(newConnection);
                     connection = newConnection;
@@ -571,12 +590,34 @@ namespace LasalMotionControlApiExample
                             callbackPort,
                             1u,
                             CancellationToken.None);
+                        lastRpcInitializationEvidence =
+                            FormatRpcInitializationEvidence(
+                                connectionAttempt,
+                                "Connected",
+                                remoteIp,
+                                remotePort,
+                                localIp,
+                                callbackPort,
+                                newConnection,
+                                null);
+                        lastRpcInitializationRetired = false;
                         RememberConnectedRemoteEndpoint(
                             remoteIp,
                             remotePort);
                     }
-                    catch
+                    catch (Exception error)
                     {
+                        lastRpcInitializationEvidence =
+                            FormatRpcInitializationEvidence(
+                                connectionAttempt,
+                                "Failed",
+                                remoteIp,
+                                remotePort,
+                                localIp,
+                                callbackPort,
+                                newConnection,
+                                error);
+                        lastRpcInitializationRetired = true;
                         if (ReferenceEquals(connection, newConnection))
                         {
                             connection = null;
@@ -5421,9 +5462,13 @@ namespace LasalMotionControlApiExample
 
         private void AttachConnection(LMCConnection newConnection)
         {
+            lastCallbackV2Statistics = null;
+            lastCallbackListenerError = null;
             newConnection.ConnectionStateChanged += Connection_StateChanged;
             newConnection.CallbackWakeHintReceived +=
                 Connection_CallbackWakeHintReceived;
+            newConnection.CallbackV2StatisticsChanged +=
+                Connection_CallbackV2StatisticsChanged;
             newConnection.CallbackListenerError +=
                 Connection_CallbackListenerError;
         }
@@ -5433,6 +5478,8 @@ namespace LasalMotionControlApiExample
             oldConnection.ConnectionStateChanged -= Connection_StateChanged;
             oldConnection.CallbackWakeHintReceived -=
                 Connection_CallbackWakeHintReceived;
+            oldConnection.CallbackV2StatisticsChanged -=
+                Connection_CallbackV2StatisticsChanged;
             oldConnection.CallbackListenerError -=
                 Connection_CallbackListenerError;
         }
@@ -5459,6 +5506,13 @@ namespace LasalMotionControlApiExample
                             + e.CurrentState
                             + " from an older transport session.");
                         return;
+                    }
+
+                    if (e.CurrentState == LMCConnectionState.Closing
+                        || e.CurrentState == LMCConnectionState.Disconnected
+                        || e.CurrentState == LMCConnectionState.Faulted)
+                    {
+                        lastRpcInitializationRetired = true;
                     }
 
                     WriteLog(
@@ -5597,6 +5651,28 @@ namespace LasalMotionControlApiExample
         {
             RunOnUi(
                 () => HandleCallbackWakeHintOnUi(sender, e));
+        }
+
+        private void Connection_CallbackV2StatisticsChanged(
+            object sender,
+            LMCCallbackV2StatisticsChangedEventArgs e)
+        {
+            RunOnUi(
+                () =>
+                {
+                    var currentConnection = connection;
+                    if (!ReferenceEquals(sender, currentConnection))
+                    {
+                        return;
+                    }
+                    if (!e.BelongsToCurrentSession(currentConnection))
+                    {
+                        return;
+                    }
+
+                    lastCallbackV2Statistics = e;
+                    UpdateCallbackDiagnosticsUiState(currentConnection);
+                });
         }
 
         private void HandleCallbackWakeHintOnUi(
@@ -5751,6 +5827,11 @@ namespace LasalMotionControlApiExample
                         + (e.Exception == null
                             ? "unknown error"
                             : e.Exception.Message));
+                    lastCallbackListenerError = e.Exception == null
+                        ? "unknown error"
+                        : e.Exception.GetType().Name
+                            + ": "
+                            + e.Exception.Message;
                     UpdateUiState();
                 });
         }
@@ -8783,15 +8864,8 @@ namespace LasalMotionControlApiExample
             TextConnectionState.Text = currentConnection == null
                 ? LMCConnectionState.Disconnected.ToString()
                 : currentConnection.State.ToString();
-            TextCallbackState.Text = currentConnection == null
-                ? "Stopped"
-                : (currentConnection.IsCallbackListenerRunning
-                    ? "Listening "
-                        + currentConnection.CallbackLocalEndPoint
-                        + ", rejected="
-                        + currentConnection.RejectedCallbackCount
-                    : "Stopped, rejected="
-                        + currentConnection.RejectedCallbackCount);
+            UpdateCallbackListenerSummaryUiState(currentConnection);
+            UpdateCallbackDiagnosticsUiState(currentConnection);
 
             UpdateDiagnosticsUiState(currentConnection, connected, idle);
             UpdateReadOnlyApiUiState(connected, idle);
@@ -8849,6 +8923,247 @@ namespace LasalMotionControlApiExample
             {
                 ApplyUiLanguage();
             }
+        }
+
+        private void UpdateCallbackDiagnosticsUiState(
+            LMCConnection currentConnection)
+        {
+            var statistics = lastCallbackV2Statistics;
+            UpdateCallbackListenerSummaryUiState(
+                currentConnection,
+                statistics == null
+                    ? (long?)null
+                    : statistics.RejectedCount);
+            TextRpcInitialization.Text = lastRpcInitializationEvidence
+                + (string.Equals(
+                        lastRpcInitializationEvidence,
+                        "No RPC initialization attempt",
+                        StringComparison.Ordinal)
+                    ? string.Empty
+                    : ", Current="
+                        + (lastRpcInitializationRetired
+                            ? "Retired"
+                            : "Active"));
+
+            if (currentConnection == null)
+            {
+                TextCallbackRegistration.Text = "Not registered";
+                TextCallbackCounters.Text =
+                    "Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0";
+                TextCallbackLastDecision.Text = "Last decision=None";
+                return;
+            }
+
+            var registration =
+                currentConnection.RpcCallbackRegistrationV2Response;
+            var fence = registration == null
+                ? null
+                : registration.SessionFence;
+            TextCallbackRegistration.Text = registration == null
+                ? "Not registered"
+                : "Status="
+                    + registration.Status.ToString(CultureInfo.InvariantCulture)
+                    + ", ErrorId="
+                    + registration.ErrorId.ToString(CultureInfo.InvariantCulture)
+                    + ", Version="
+                    + registration.AcceptedVersion.ToString(
+                        CultureInfo.InvariantCulture)
+                    + ", MaxDatagram="
+                    + registration.AcceptedMaxDatagram.ToString(
+                        CultureInfo.InvariantCulture)
+                    + ", BootId=0x"
+                    + registration.DiagnosticsBootId.ToString("X8")
+                    + ", SessionEpoch="
+                    + registration.SessionEpoch.ToString(
+                        CultureInfo.InvariantCulture)
+                    + ", Flags=0x"
+                    + registration.AcceptedFlags.ToString("X8")
+                    + (fence == null
+                        ? ", Fence=missing"
+                        : ", Cookie=0x"
+                            + fence.Cookie.ToString("X16")
+                            + ", ListenerGeneration="
+                            + fence.ListenerGeneration.ToString(
+                                CultureInfo.InvariantCulture)
+                            + ", Source="
+                            + new System.Net.IPAddress(
+                                fence.ExpectedSourceIPv4).ToString()
+                            + ", EventMask=0x"
+                            + fence.RegisteredEventMask.ToString("X8")
+                            + ", LocalSessionGeneration="
+                            + currentConnection.CurrentSessionGeneration.ToString(
+                                CultureInfo.InvariantCulture));
+
+            var acceptedCount = statistics == null
+                ? currentConnection.AcceptedCallbackWakeHintCount
+                : statistics.AcceptedWakeHintCount;
+            var rejectedCount = statistics == null
+                ? currentConnection.RejectedCallbackCount
+                : statistics.RejectedCount;
+            var duplicateCount = statistics == null
+                ? currentConnection.DuplicateCallbackWakeHintCount
+                : statistics.DuplicateWakeHintCount;
+            var outOfOrderCount = statistics == null
+                ? currentConnection.OutOfOrderCallbackWakeHintCount
+                : statistics.OutOfOrderWakeHintCount;
+            TextCallbackCounters.Text = "Accepted="
+                + acceptedCount.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", Rejected="
+                + rejectedCount.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", Duplicate="
+                + duplicateCount.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", OutOfOrder="
+                + outOfOrderCount.ToString(
+                    CultureInfo.InvariantCulture);
+
+            TextCallbackLastDecision.Text = statistics == null
+                ? "Last decision=None"
+                : "Last decision="
+                    + statistics.DecisionKind
+                    + ", ProtocolError="
+                    + statistics.ProtocolError;
+            if (!string.IsNullOrEmpty(lastCallbackListenerError))
+            {
+                TextCallbackLastDecision.Text += ", ListenerError="
+                    + lastCallbackListenerError;
+            }
+        }
+
+        private void UpdateCallbackListenerSummaryUiState(
+            LMCConnection currentConnection,
+            long? rejectedCount = null)
+        {
+            var currentRejectedCount = rejectedCount
+                ?? (currentConnection == null
+                    ? 0
+                    : currentConnection.RejectedCallbackCount);
+            TextCallbackState.Text = currentConnection == null
+                ? "Stopped"
+                : (currentConnection.IsCallbackListenerRunning
+                    ? "Listening "
+                        + currentConnection.CallbackLocalEndPoint
+                        + ", rejected="
+                        + currentRejectedCount
+                    : "Stopped, rejected="
+                        + currentRejectedCount);
+        }
+
+        private static string FormatRpcInitializationEvidence(
+            int connectionAttempt,
+            string outcome,
+            string remoteIp,
+            int remotePort,
+            string localIp,
+            int callbackPort,
+            LMCConnection observedConnection,
+            Exception failure)
+        {
+            var evidence = "Attempt="
+                + connectionAttempt.ToString(CultureInfo.InvariantCulture)
+                + ", Outcome="
+                + outcome
+                + ", Remote="
+                + remoteIp
+                + ":"
+                + remotePort.ToString(CultureInfo.InvariantCulture)
+                + ", Local="
+                + localIp
+                + ", Callback="
+                + localIp
+                + ":"
+                + callbackPort.ToString(CultureInfo.InvariantCulture)
+                + ", Mode=Version2WakeHint";
+
+            if (observedConnection != null)
+            {
+                var initialization = observedConnection
+                    .LastRpcSessionInitializationEvidence;
+                if (initialization == null)
+                {
+                    evidence += ", LocalSessionGeneration="
+                        + observedConnection.CurrentSessionGeneration.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ", RPCInit=pending";
+                }
+                else
+                {
+                    evidence += ", LocalSessionGeneration="
+                        + initialization.SessionGeneration.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ", 0x8080Attempts="
+                        + initialization.AttemptCount.ToString(
+                            CultureInfo.InvariantCulture)
+                        + ", Retry="
+                        + initialization.CanonicalRetryUsed
+                        + ", InitOutcome="
+                        + initialization.Outcome
+                        + ", StartedUtc="
+                        + initialization.StartedAtUtc.ToString(
+                            "O",
+                            CultureInfo.InvariantCulture)
+                        + ", CompletedUtc="
+                        + initialization.CompletedAtUtc.ToString(
+                            "O",
+                            CultureInfo.InvariantCulture)
+                        + ", LastACK={"
+                        + FormatRpcSessionInitResponse(
+                            initialization.LastReceivedResponse)
+                        + "}";
+
+                    if (initialization.FirstFailureResponse != null)
+                    {
+                        evidence += ", FirstFailure={"
+                            + FormatRpcSessionInitResponse(
+                                initialization.FirstFailureResponse)
+                            + "}";
+                    }
+
+                    if (!string.IsNullOrEmpty(initialization.FailureType))
+                    {
+                        evidence += ", InitFailure="
+                            + initialization.FailureType
+                            + ": "
+                            + initialization.FailureMessage;
+                    }
+                }
+            }
+
+            if (failure != null)
+            {
+                evidence += ", Failure="
+                    + failure.GetType().Name
+                    + ": "
+                    + failure.Message;
+            }
+
+            return evidence;
+        }
+
+        private static string FormatRpcSessionInitResponse(
+            LMC_Response response)
+        {
+            if (response == null)
+            {
+                return "none";
+            }
+
+            return "FrameValid="
+                + response.IsFrameValid
+                + ", HeaderStatus="
+                + response.HeaderStatus.ToString(CultureInfo.InvariantCulture)
+                + ", HeaderReserved="
+                + response.HeaderReserved.ToString(CultureInfo.InvariantCulture)
+                + ", PayloadLength="
+                + response.PayloadLength.ToString(CultureInfo.InvariantCulture)
+                + ", HasCommandResult="
+                + response.HasCommandResult
+                + ", CommandStatus="
+                + response.CommandStatus.ToString(CultureInfo.InvariantCulture)
+                + ", ErrorId="
+                + response.ErrorId.ToString(CultureInfo.InvariantCulture);
         }
 
         private string GetGroupPreparationStateText(bool groupReady)

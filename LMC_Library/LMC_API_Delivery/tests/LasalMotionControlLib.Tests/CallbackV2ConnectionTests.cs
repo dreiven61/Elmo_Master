@@ -32,6 +32,9 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.CallbackV2.SessionInitReservedFailureDoesNotRetry",
                 SessionInitReservedFailureDoesNotRetry);
             tests.Add(
+                "Rpc.CallbackV2.SessionInitRetryCancellationStopsBeforeSecondRequest",
+                SessionInitRetryCancellationStopsBeforeSecondRequest);
+            tests.Add(
                 "Rpc.CallbackV2.NegotiationEarlyTypedDispatch",
                 NegotiationEarlyTypedDispatch);
             tests.Add(
@@ -207,7 +210,28 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[1]);
                 AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[2]);
 
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Succeeded,
+                    evidence.Outcome);
+                AssertEx.Equal(2, evidence.AttemptCount);
+                AssertEx.True(evidence.CanonicalRetryUsed);
+                AssertEx.Equal(
+                    connection.CurrentSessionGeneration,
+                    evidence.SessionGeneration);
+                AssertEx.NotNull(evidence.FirstFailureResponse);
+                AssertEx.Equal((short)-1, evidence.FirstFailureResponse.ErrorId);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.True(evidence.LastReceivedResponse.IsSuccess);
+                AssertEx.Equal<string>(null, evidence.FailureType);
+                AssertEx.Equal<string>(null, evidence.FailureMessage);
+
                 connection.CloseConnection();
+                AssertEx.True(ReferenceEquals(
+                    evidence,
+                    connection.LastRpcSessionInitializationEvidence));
                 server.Verify();
             }
         }
@@ -237,6 +261,23 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(2, server.ReceivedRequests.Count);
                 AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[0]);
                 AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[1]);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(2, evidence.AttemptCount);
+                AssertEx.True(evidence.CanonicalRetryUsed);
+                AssertEx.NotNull(evidence.FirstFailureResponse);
+                AssertEx.Equal((short)-1, evidence.FirstFailureResponse.ErrorId);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.Equal((short)-1, evidence.LastReceivedResponse.ErrorId);
+                AssertEx.Equal(
+                    typeof(InvalidOperationException).FullName,
+                    evidence.FailureType);
+                AssertEx.Contains("Status=1", evidence.FailureMessage);
+                AssertEx.Contains("ErrorId=-1", evidence.FailureMessage);
                 server.Verify();
             }
         }
@@ -263,6 +304,19 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.False(connection.IsCallbackListenerRunning);
                 AssertEx.Equal(1, server.AcceptedClientCount);
                 AssertEx.Equal(1, server.ReceivedRequests.Count);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(1, evidence.AttemptCount);
+                AssertEx.False(evidence.CanonicalRetryUsed);
+                AssertEx.Equal<LMC_Response>(
+                    null,
+                    evidence.FirstFailureResponse);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.Equal((short)-4, evidence.LastReceivedResponse.ErrorId);
                 server.Verify();
             }
         }
@@ -294,7 +348,75 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.False(connection.IsCallbackListenerRunning);
                 AssertEx.Equal(1, server.AcceptedClientCount);
                 AssertEx.Equal(1, server.ReceivedRequests.Count);
+                var evidence = connection
+                    .LastRpcSessionInitializationEvidence;
+                AssertEx.NotNull(evidence);
+                AssertEx.Equal(
+                    LMCRpcSessionInitializationOutcome.Failed,
+                    evidence.Outcome);
+                AssertEx.Equal(1, evidence.AttemptCount);
+                AssertEx.False(evidence.CanonicalRetryUsed);
+                AssertEx.Equal<LMC_Response>(
+                    null,
+                    evidence.FirstFailureResponse);
+                AssertEx.NotNull(evidence.LastReceivedResponse);
+                AssertEx.Equal((uint)1, evidence.LastReceivedResponse.HeaderReserved);
+                AssertEx.Equal((short)-1, evidence.LastReceivedResponse.ErrorId);
                 server.Verify();
+            }
+        }
+
+        private static void
+            SessionInitRetryCancellationStopsBeforeSecondRequest()
+        {
+            using (var cancellation = new CancellationTokenSource())
+            using (var server = new FakeRpcServer(
+                InitShortFailureStep(-1)))
+            {
+                var options = V2Options(() => FirstCookie);
+                options.RpcSessionInitRetryScheduledObserver =
+                    cancellation.Cancel;
+                using (var connection = new LMCConnection(options))
+                {
+                    AssertEx.Throws<OperationCanceledException>(
+                        () => connection.RpcInitConnectionAsync(
+                                "127.0.0.1",
+                                server.Port,
+                                "127.0.0.1",
+                                0,
+                                1u,
+                                cancellation.Token)
+                            .GetAwaiter()
+                            .GetResult());
+
+                    AssertEx.Equal(
+                        LMCConnectionState.Disconnected,
+                        connection.State);
+                    AssertEx.False(connection.IsConnected);
+                    AssertEx.False(connection.IsCallbackListenerRunning);
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+                    AssertEx.Equal(1, server.ReceivedRequests.Count);
+                    var evidence = connection
+                        .LastRpcSessionInitializationEvidence;
+                    AssertEx.NotNull(evidence);
+                    AssertEx.Equal(
+                        LMCRpcSessionInitializationOutcome.Cancelled,
+                        evidence.Outcome);
+                    AssertEx.Equal(1, evidence.AttemptCount);
+                    AssertEx.True(evidence.CanonicalRetryUsed);
+                    AssertEx.NotNull(evidence.FirstFailureResponse);
+                    AssertEx.Equal(
+                        (short)-1,
+                        evidence.FirstFailureResponse.ErrorId);
+                    AssertEx.NotNull(evidence.LastReceivedResponse);
+                    AssertEx.Equal(
+                        (short)-1,
+                        evidence.LastReceivedResponse.ErrorId);
+                    AssertEx.Equal(
+                        typeof(OperationCanceledException).FullName,
+                        evidence.FailureType);
+                    server.Verify();
+                }
             }
         }
 
@@ -463,6 +585,10 @@ namespace LasalMotionControlLib.Tests
             var typedCount = 0;
             var rawCount = 0;
             var errorCount = 0;
+            var statisticsCount = 0;
+            var acceptedStatisticsCount = 0;
+            LMCCallbackV2StatisticsChangedEventArgs lastStatistics = null;
+            LMCCallbackV2StatisticsChangedEventArgs lastAcceptedStatistics = null;
 
             using (var server = new FakeRpcServer(
                 InitStep(),
@@ -478,6 +604,17 @@ namespace LasalMotionControlLib.Tests
                 connection.CallbackWakeHintReceived += delegate
                 {
                     Interlocked.Increment(ref typedCount);
+                };
+                connection.CallbackV2StatisticsChanged += (sender, e) =>
+                {
+                    lastStatistics = e;
+                    if (e.DecisionKind
+                        == LMCCallbackFenceDecisionKind.AcceptedWakeHint)
+                    {
+                        lastAcceptedStatistics = e;
+                        Interlocked.Increment(ref acceptedStatisticsCount);
+                    }
+                    Interlocked.Increment(ref statisticsCount);
                 };
                 connection.CallbackListenerError += delegate
                 {
@@ -528,14 +665,29 @@ namespace LasalMotionControlLib.Tests
                     SpinWait.SpinUntil(
                         () => connection.AcceptedCallbackWakeHintCount == 2
                             && connection.RejectedCallbackCount == 9
-                            && Volatile.Read(ref typedCount) == 2,
+                            && Volatile.Read(ref typedCount) == 2
+                            && Volatile.Read(ref statisticsCount) == 11,
                         3000),
                     "The version-2 rejection matrix did not settle.");
                 AssertEx.Equal(2, typedCount);
                 AssertEx.Equal(0, rawCount);
                 AssertEx.Equal(0, errorCount);
+                AssertEx.Equal(11, statisticsCount);
+                AssertEx.Equal(2, acceptedStatisticsCount);
                 AssertEx.Equal(1L, connection.DuplicateCallbackWakeHintCount);
                 AssertEx.Equal(1L, connection.OutOfOrderCallbackWakeHintCount);
+                AssertEx.NotNull(lastStatistics);
+                AssertEx.NotNull(lastAcceptedStatistics);
+                AssertEx.Equal(
+                    LMCCallbackFenceDecisionKind.AcceptedWakeHint,
+                    lastAcceptedStatistics.DecisionKind);
+                AssertEx.Equal(
+                    LMCCallbackProtocolError.None,
+                    lastAcceptedStatistics.ProtocolError);
+                AssertEx.Equal(2L, lastStatistics.AcceptedWakeHintCount);
+                AssertEx.Equal(9L, lastStatistics.RejectedCount);
+                AssertEx.Equal(1L, lastStatistics.DuplicateWakeHintCount);
+                AssertEx.Equal(1L, lastStatistics.OutOfOrderWakeHintCount);
                 AssertEx.True(connection.IsCallbackListenerRunning);
 
                 connection.CloseConnection();
@@ -954,7 +1106,9 @@ namespace LasalMotionControlLib.Tests
                     ? FirstCookie
                     : SecondCookie);
             LMCCallbackWakeHintEventArgs firstEvent = null;
+            LMCCallbackV2StatisticsChangedEventArgs firstStatistics = null;
             var typedCount = 0;
+            var statisticsCount = 0;
 
             using (var firstSignal = new ManualResetEventSlim(false))
             using (var secondSignal = new ManualResetEventSlim(false))
@@ -982,6 +1136,15 @@ namespace LasalMotionControlLib.Tests
                         secondSignal.Set();
                     }
                 };
+                connection.CallbackV2StatisticsChanged += delegate(
+                    object sender,
+                    LMCCallbackV2StatisticsChangedEventArgs e)
+                {
+                    if (Interlocked.Increment(ref statisticsCount) == 1)
+                    {
+                        firstStatistics = e;
+                    }
+                };
                 connection.RpcInitConnection(
                     "127.0.0.1",
                     firstServer.Port,
@@ -993,6 +1156,9 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.True(firstSignal.Wait(2000));
                 AssertEx.NotNull(firstEvent);
                 AssertEx.True(firstEvent.BelongsToCurrentSession(connection));
+                AssertEx.NotNull(firstStatistics);
+                AssertEx.True(
+                    firstStatistics.BelongsToCurrentSession(connection));
 
                 connection.RpcInitConnection(
                     "127.0.0.1",
@@ -1001,6 +1167,8 @@ namespace LasalMotionControlLib.Tests
                     0,
                     1u);
                 AssertEx.False(firstEvent.BelongsToCurrentSession(connection));
+                AssertEx.False(
+                    firstStatistics.BelongsToCurrentSession(connection));
                 AssertEx.Equal(
                     SecondCookie,
                     connection.RpcCallbackRegistrationV2Response

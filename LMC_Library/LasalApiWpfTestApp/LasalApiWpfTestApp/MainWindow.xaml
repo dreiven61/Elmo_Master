@@ -93,6 +93,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0">
@@ -145,11 +146,53 @@
                         TextWrapping="Wrap" />
                 </StackPanel>
 
-                <TextBlock
+                <StackPanel
                     Grid.Row="1"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4"
+                    Margin="0,8,12,0">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="RPC initialization evidence" />
+                    <TextBlock
+                        x:Name="TextRpcInitialization"
+                        Style="{StaticResource ValueText}"
+                        Tag="UiLocalization.Preserve"
+                        Text="No RPC initialization attempt"
+                        TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Callback v2 registration" />
+                    <TextBlock
+                        x:Name="TextCallbackRegistration"
+                        Style="{StaticResource ValueText}"
+                        Tag="UiLocalization.Preserve"
+                        Text="Not registered"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Row="1"
+                    Grid.Column="4"
+                    Grid.ColumnSpan="4"
+                    Margin="0,8,0,0">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="PC callback receiver evidence" />
+                    <TextBlock
+                        x:Name="TextCallbackCounters"
+                        Style="{StaticResource ValueText}"
+                        Tag="UiLocalization.Preserve"
+                        Text="Accepted=0, Rejected=0, Duplicate=0, OutOfOrder=0"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="TextCallbackLastDecision"
+                        Foreground="#5F6B7A"
+                        Tag="UiLocalization.Preserve"
+                        Text="Last decision=None"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBlock
+                    Grid.Row="2"
                     Grid.ColumnSpan="8"
+                    Margin="0,8,0,0"
                     Foreground="#5F6B7A"
-                    Text="Connect performs RPC session initialization and callback registration automatically. Callback payloads are logged as raw diagnostic data." />
+                    Text="Connect performs RPC session initialization and callback registration automatically. UDP wake hints are non-authoritative; operation state changes only after the matching TCP status response." />
             </Grid>
         </GroupBox>
 
@@ -2473,7 +2516,7 @@
         <Expander
             Grid.Row="4"
             Margin="0,2,0,4"
-            Header="Execution log / raw callback diagnostics"
+            Header="Execution log / callback diagnostics"
             IsExpanded="False">
             <Border
                 Padding="8"

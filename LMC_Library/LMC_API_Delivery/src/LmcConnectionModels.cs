@@ -252,6 +252,58 @@ namespace LasalMotionControlLib
         public Exception Exception { get; private set; }
     }
 
+    public enum LMCRpcSessionInitializationOutcome
+    {
+        Succeeded = 1,
+        Failed = 2,
+        Cancelled = 3
+    }
+
+    /// <summary>
+    /// Immutable evidence for the most recently completed RPC session
+    /// initialization attempt. It remains available after transport cleanup so
+    /// a caller can diagnose a failed or retired connection without parsing an
+    /// exception message.
+    /// </summary>
+    public sealed class LMCRpcSessionInitializationEvidence
+    {
+        internal LMCRpcSessionInitializationEvidence(
+            long sessionGeneration,
+            DateTime startedAtUtc,
+            DateTime completedAtUtc,
+            int attemptCount,
+            bool canonicalRetryUsed,
+            LMC_Response firstFailureResponse,
+            LMC_Response lastReceivedResponse,
+            LMCRpcSessionInitializationOutcome outcome,
+            Exception failure)
+        {
+            SessionGeneration = sessionGeneration;
+            StartedAtUtc = startedAtUtc;
+            CompletedAtUtc = completedAtUtc;
+            AttemptCount = attemptCount;
+            CanonicalRetryUsed = canonicalRetryUsed;
+            FirstFailureResponse = firstFailureResponse;
+            LastReceivedResponse = lastReceivedResponse;
+            Outcome = outcome;
+            FailureType = failure == null
+                ? null
+                : failure.GetType().FullName;
+            FailureMessage = failure == null ? null : failure.Message;
+        }
+
+        public long SessionGeneration { get; private set; }
+        public DateTime StartedAtUtc { get; private set; }
+        public DateTime CompletedAtUtc { get; private set; }
+        public int AttemptCount { get; private set; }
+        public bool CanonicalRetryUsed { get; private set; }
+        public LMC_Response FirstFailureResponse { get; private set; }
+        public LMC_Response LastReceivedResponse { get; private set; }
+        public LMCRpcSessionInitializationOutcome Outcome { get; private set; }
+        public string FailureType { get; private set; }
+        public string FailureMessage { get; private set; }
+    }
+
     public sealed class LMCConnectionOptions
     {
         public LMCConnectionOptions()
@@ -290,6 +342,12 @@ namespace LasalMotionControlLib
         }
 
         internal Action ClientPublishedBeforeSessionBindObserver
+        {
+            get;
+            set;
+        }
+
+        internal Action RpcSessionInitRetryScheduledObserver
         {
             get;
             set;
@@ -368,6 +426,8 @@ namespace LasalMotionControlLib
                     SessionReservedBeforeClientPublishObserver,
                 ClientPublishedBeforeSessionBindObserver =
                     ClientPublishedBeforeSessionBindObserver,
+                RpcSessionInitRetryScheduledObserver =
+                    RpcSessionInitRetryScheduledObserver,
                 CallbackCookieFactory = CallbackCookieFactory,
                 CallbackThreadReadyBeforeGateWaitObserver =
                     CallbackThreadReadyBeforeGateWaitObserver,
