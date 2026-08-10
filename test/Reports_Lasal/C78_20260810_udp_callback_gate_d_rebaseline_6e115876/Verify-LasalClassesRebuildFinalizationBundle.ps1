@@ -100,6 +100,31 @@ $PinnedTrustedArtifacts = @(
         bytes = 51102L
         sha256 = '9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639'
     })
+$HistoricalTextIdentityBridges = @(
+    [ordered]@{
+        relativePath =
+            'test/Reports_Lasal/C78_20260810_udp_callback_gate_d/' +
+            'Convert-Lasal2LogToBuildTranscript.ps1'
+        physicalBytes = 32701L
+        physicalSha256 =
+            '1A92CDE9AA7D45F6A2A250068A8A940ADAA46F856099E2D0174CC9CA09E61CEF'
+        gitBlobOid = '9a74e8744e5e4d6ada8700c5ada52372429d048f'
+        canonicalLfBytes = 31837L
+        canonicalLfSha256 =
+            'D97E6939A0CB3C9E01D062DB455C9A6085C34BDF50DEF890B137DCA5F340FD9E'
+    },
+    [ordered]@{
+        relativePath =
+            'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/' +
+            'Verify-LasalC78RebuildEvidence.ps1'
+        physicalBytes = 137844L
+        physicalSha256 =
+            '7AE60A0BBD1356797E6431D29D3F6D0E39270D56C20B59AD835A3E8F0391A6E0'
+        gitBlobOid = 'ea31780f5cbc2cb9b23f6d4e92a7bde5233b49f0'
+        canonicalLfBytes = 134998L
+        canonicalLfSha256 =
+            '63E32F77F33A8F84F8519A23FDD65FF40E0D0715D817C9098AB94583323FF5A6'
+    })
 
 function Throw-BundleBlocker {
     param([Parameter(Mandatory = $true)][string]$Message)
@@ -564,6 +589,41 @@ function ConvertTo-CanonicalLfTextBytes {
     }
     $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
     return ,$Utf8NoBom.GetBytes($text)
+}
+
+function Assert-HistoricalManifestIdentityMatchesGitBlob {
+    param(
+        [Parameter(Mandatory = $true)]$Report,
+        [Parameter(Mandatory = $true)]$Blob,
+        [Parameter(Mandatory = $true)][string]$BlobOid,
+        $TextIdentityBridge
+    )
+    if (($Blob.bytes -eq $Report.bytes) -and
+        ($Blob.sha256 -ceq $Report.sha256)) {
+        return
+    }
+    if ($null -eq $TextIdentityBridge) {
+        Throw-BundleBlocker (
+            "$($Report.owner) bytes/SHA differ from the Git blob and no " +
+            'reviewed historical text identity bridge is allowed.')
+    }
+    [byte[]]$canonical = ConvertTo-CanonicalLfTextBytes `
+        -Bytes $Blob.content `
+        -TextOwner "$($Report.owner) historical Git blob"
+    if (([string]$Report.relativePath -cne
+            [string]$TextIdentityBridge.relativePath) -or
+        ([long]$Report.bytes -ne [long]$TextIdentityBridge.physicalBytes) -or
+        ([string]$Report.sha256 -cne
+            [string]$TextIdentityBridge.physicalSha256) -or
+        ($BlobOid -cne [string]$TextIdentityBridge.gitBlobOid) -or
+        ($canonical.LongLength -ne
+            [long]$TextIdentityBridge.canonicalLfBytes) -or
+        ((Get-BytesSha256 -Bytes $canonical) -cne
+            [string]$TextIdentityBridge.canonicalLfSha256)) {
+        Throw-BundleBlocker (
+            "$($Report.owner) differs from its exact reviewed physical/Git " +
+            'text identity bridge.')
+    }
 }
 
 function ConvertTo-ComparatorCanonicalJsonBytes {
@@ -2770,10 +2830,24 @@ function Assert-HistoricalGitObjects {
         }
         $blob = Read-GitBlobArtifact `
             -Root $RepositoryRoot -BlobOid $blobOid -BlobOwner $report.owner
-        if (($blob.bytes -ne $report.bytes) -or
-            ($blob.sha256 -cne $report.sha256)) {
-            Throw-BundleBlocker "$($report.owner) bytes/SHA differ from the Git blob."
+        $textIdentityBridges =
+            @($HistoricalTextIdentityBridges | Where-Object {
+                    [string]$_.relativePath -ceq [string]$report.relativePath
+                })
+        if ($textIdentityBridges.Count -gt 1) {
+            Throw-BundleBlocker (
+                "$($report.owner) selects multiple historical text identity bridges.")
         }
+        $textIdentityBridge = if ($textIdentityBridges.Count -eq 1) {
+            $textIdentityBridges[0]
+        } else {
+            $null
+        }
+        Assert-HistoricalManifestIdentityMatchesGitBlob `
+            -Report $report `
+            -Blob $blob `
+            -BlobOid $blobOid `
+            -TextIdentityBridge $textIdentityBridge
         if ($report.relativePath -ceq $BaselineRelativePath) {
             $historicalBaseline = Read-StrictJsonArtifact `
                 -Artifact $blob -JsonOwner 'historical pinned rebuild baseline'
@@ -3659,6 +3733,101 @@ function Invoke-BundleVerifierSelfTest {
             Add-ExactRestorationCommandLineIndex `
                 -CommandLineIndexes $repeatedRestorationIndexes `
                 -CommandLineIndex 8
+        }
+
+        [byte[]]$historicalLfBytes = $Utf8NoBom.GetBytes("alpha`nbeta`n")
+        [byte[]]$historicalMixedBytes = $Utf8NoBom.GetBytes("alpha`r`nbeta`n")
+        $historicalBlobOid = 'a' * 40
+        $historicalLfBlob = [pscustomobject]@{
+            bytes = [long]$historicalLfBytes.LongLength
+            sha256 = Get-BytesSha256 -Bytes $historicalLfBytes
+            content = $historicalLfBytes
+        }
+        $historicalLfReport = [pscustomobject]@{
+            owner = 'self-test historical LF artifact'
+            relativePath = 'self-test/exact.ps1'
+            bytes = [long]$historicalLfBytes.LongLength
+            sha256 = Get-BytesSha256 -Bytes $historicalLfBytes
+        }
+        Assert-HistoricalManifestIdentityMatchesGitBlob `
+            -Report $historicalLfReport `
+            -Blob $historicalLfBlob `
+            -BlobOid $historicalBlobOid
+        Assert-SelfTestTrue `
+            -Condition $true `
+            -Message 'historical raw Git identity is accepted exactly'
+        $historicalMixedReport = [pscustomobject]@{
+            owner = 'self-test historical mixed-EOL physical artifact'
+            relativePath = 'self-test/bridged.ps1'
+            bytes = [long]$historicalMixedBytes.LongLength
+            sha256 = Get-BytesSha256 -Bytes $historicalMixedBytes
+        }
+        $historicalMixedBridge = [ordered]@{
+            relativePath = 'self-test/bridged.ps1'
+            physicalBytes = [long]$historicalMixedBytes.LongLength
+            physicalSha256 = Get-BytesSha256 -Bytes $historicalMixedBytes
+            gitBlobOid = $historicalBlobOid
+            canonicalLfBytes = [long]$historicalLfBytes.LongLength
+            canonicalLfSha256 = Get-BytesSha256 -Bytes $historicalLfBytes
+        }
+        Assert-HistoricalManifestIdentityMatchesGitBlob `
+            -Report $historicalMixedReport `
+            -Blob $historicalLfBlob `
+            -BlobOid $historicalBlobOid `
+            -TextIdentityBridge $historicalMixedBridge
+        Assert-SelfTestTrue `
+            -Condition $true `
+            -Message 'historical mixed-EOL physical/Git bridge is accepted exactly'
+        Assert-SelfTestThrows `
+            -Message 'historical EOL bridge requires an exact allowlist' `
+            -ExpectedText 'no reviewed historical text identity bridge is allowed' `
+            -Action {
+            Assert-HistoricalManifestIdentityMatchesGitBlob `
+                -Report $historicalMixedReport `
+                -Blob $historicalLfBlob `
+                -BlobOid $historicalBlobOid
+        }
+        $historicalMutatedReport = [pscustomobject]@{
+            owner = 'self-test historical physical tuple mutation'
+            relativePath = 'self-test/bridged.ps1'
+            bytes = [long]$historicalMixedBytes.LongLength
+            sha256 = 'B' * 64
+        }
+        Assert-SelfTestThrows `
+            -Message 'historical physical tuple mutation' `
+            -ExpectedText 'exact reviewed physical/Git text identity bridge' `
+            -Action {
+            Assert-HistoricalManifestIdentityMatchesGitBlob `
+                -Report $historicalMutatedReport `
+                -Blob $historicalLfBlob `
+                -BlobOid $historicalBlobOid `
+                -TextIdentityBridge $historicalMixedBridge
+        }
+        Assert-SelfTestThrows `
+            -Message 'historical Git blob oid mutation' `
+            -ExpectedText 'exact reviewed physical/Git text identity bridge' `
+            -Action {
+            Assert-HistoricalManifestIdentityMatchesGitBlob `
+                -Report $historicalMixedReport `
+                -Blob $historicalLfBlob `
+                -BlobOid ('c' * 40) `
+                -TextIdentityBridge $historicalMixedBridge
+        }
+        [byte[]]$historicalMutatedLfBytes = $Utf8NoBom.GetBytes("alpha`nbetb`n")
+        $historicalMutatedBlob = [pscustomobject]@{
+            bytes = [long]$historicalMutatedLfBytes.LongLength
+            sha256 = Get-BytesSha256 -Bytes $historicalMutatedLfBytes
+            content = $historicalMutatedLfBytes
+        }
+        Assert-SelfTestThrows `
+            -Message 'historical canonical content mutation' `
+            -ExpectedText 'exact reviewed physical/Git text identity bridge' `
+            -Action {
+            Assert-HistoricalManifestIdentityMatchesGitBlob `
+                -Report $historicalMixedReport `
+                -Blob $historicalMutatedBlob `
+                -BlobOid $historicalBlobOid `
+                -TextIdentityBridge $historicalMixedBridge
         }
 
         $validRawText = $Utf8Strict.GetString([IO.File]::ReadAllBytes(
