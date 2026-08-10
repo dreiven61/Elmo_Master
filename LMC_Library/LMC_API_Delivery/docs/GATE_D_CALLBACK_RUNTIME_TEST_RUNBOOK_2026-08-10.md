@@ -129,6 +129,37 @@ exploratory until the checkpoint identity is reproduced or a separate reviewed
 strict-evidence transition accepts the regenerated artifact; the decision
 remains `ProductionApproved=false` and `NeedsRebaseline=true`.
 
+Commit `7038445` preserves the `6E115876...`-start build baseline and the exact
+reversible `24402BFA...` to `6E115876...` binary patch without changing
+production source. Commit `79f03d36f89c34b26325666a4a3eddb9306c4674` adds the
+fail-closed comparator at
+`test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesArtifact.ps1`.
+The script is 79,592 physical bytes with SHA-256
+`B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`;
+Windows PowerShell 5.1 and PowerShell 7 AST checks pass, and its self-test passes
+positive `6` / negative `14`. Real Windows PowerShell 5.1 and PowerShell 7 runs
+against checkpoint commit `5543579` and the current candidate produced identical
+51,102-byte stdout with SHA-256
+`9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`.
+Commit `2e8ca8a84a141390424ce859ac8c315a90ec3430` preserves that exact CreateNew
+comparison JSON as
+`classes_lcb_gate_d_rebuild_24402bfa_to_6e115876.comparison.json`.
+
+The comparator exits `2` with
+`REVIEW_REQUIRED_OPAQUE_VENDOR_DRIFT`: 99 changed bytes, 58 contiguous runs,
+and 36 changed opaque vendor owners. The 120-record inventory, all four Gate D
+target records, and both protected dependency records are byte-exact, with zero
+unmapped runs. These bounded equalities do not approve the whole artifact. The
+recorded decision remains `ProductionApproved=false` and
+`SemanticEquivalenceProven=false`.
+
+Local refs
+`refs/codex/evidence/gate-d-classes-2fae-20260810`,
+`refs/codex/evidence/gate-d-classes-d71e-20260810`, and
+`refs/codex/evidence/gate-d-classes-6e115876-20260810` only protect recovered
+Git objects from local garbage collection. They are neither repository evidence
+nor a formal checkpoint, transition, or approval.
+
 PC reconnect correction commit `66b5cf2` preserves the exact short-failure
 `ErrorId=-1` and only for the canonical v2 failure envelope waits 20 ms and
 retries `0x8080` once
@@ -151,7 +182,9 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    and the exact
    bounded delta retained in the repository has passed `VerifyBuild`. The
    mutable local log is no longer required to replay this build evidence. Do not
-   rerun Rebuild.
+   rerun or alter this historical PID 480 checkpoint. This restriction does not
+   prohibit the separate, new isolated artifact-classification Rebuild in item
+   5.
 2. PID 480 contains no method-specific UI proof; that remains a fact about the
    isolated Rebuild session. `Find in Implementation` applies
    only to Object Network Server/Client rows and is not applicable to these class
@@ -187,6 +220,19 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    identity or complete a separate reviewed strict-evidence transition; then
    collect fresh BootId, counter deltas, WPF log, and packet trace for formal
    qualification.
+5. Run one new isolated artifact-classification session from a new LASAL process
+   and the canonical `.lcp`. Execute `Rebuild project` exactly once, wait for its
+   successful completion, then close the project and exit LASAL. If it does not
+   complete successfully, stop classification and still close/exit. Between open
+   and exit, do not Connect, Download, Reset, Restart, issue any additional
+   Build/Rebuild, or open a method. This run classifies generator output only; it
+   does not repeat or replace PID 480 and it is not PLC runtime proof.
+6. Compare the new `Classes.lcb` fail-closed. An exact `24402BFA...` result permits
+   static checkpoint replay, but does not set `ProductionApproved=true`. An exact
+   `6E115876...` repeat proves only reproducibility of the opaque drift; it does
+   not prove semantic equivalence or approve production use. Any third hash is an
+   unstable generator result: stop the transition and perform no online/runtime
+   qualification from it.
 
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:

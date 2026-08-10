@@ -377,6 +377,40 @@ identity is reproduced or the regenerated artifact passes a separate reviewed
 strict-evidence transition, current PLC callback results are exploratory only;
 Gate D remains `ProductionApproved=false` and `NeedsRebaseline=true`.
 
+Commit `7038445` preserves the `6E115876...`-start baseline and exact reversible
+`24402BFA...` to `6E115876...` binary patch as forensic evidence. Commit
+`79f03d36f89c34b26325666a4a3eddb9306c4674` adds the fail-closed comparator at
+`test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesArtifact.ps1`.
+Its physical identity is 79,592 bytes / SHA-256
+`B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`;
+Windows PowerShell 5.1 and PowerShell 7 AST checks pass, and self-test is positive
+`6` / negative `14`. Real PS5/PS7 comparisons of checkpoint commit `5543579`
+against the current candidate produced identical 51,102-byte stdout / SHA-256
+`9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`.
+Commit `2e8ca8a84a141390424ce859ac8c315a90ec3430` preserves that exact CreateNew
+comparison JSON as
+`classes_lcb_gate_d_rebuild_24402bfa_to_6e115876.comparison.json`.
+
+The actual `24402BFA...` to `6E115876...` comparison exits `2` with
+`REVIEW_REQUIRED_OPAQUE_VENDOR_DRIFT`. It records 99 changed bytes, 58 runs,
+36 changed opaque vendor owners, an exact 120-record inventory, exact equality
+for all four Gate D target records and both protected dependency records, and
+zero unmapped runs. Record equality cannot approve a non-exact artifact. The
+decision is therefore `ProductionApproved=false` and
+`SemanticEquivalenceProven=false`.
+
+Do not rerun or alter the retained historical PID 480/TID 3396 checkpoint. The
+next artifact-classification action is one separate isolated Rebuild: start a
+new LASAL process, open the canonical `.lcp`, execute `Rebuild project` exactly
+once, wait for successful completion, and close the project and LASAL. If it does
+not complete successfully, stop classification and still close/exit. Do not
+Connect, Download, Reset, Restart, issue another Build/Rebuild, or open a method
+in that session. Exact `24402BFA...` permits static checkpoint replay but does
+not grant production approval. Exact `6E115876...` proves only reproducibility
+of opaque drift, not semantic equivalence or production approval. A third hash
+means unstable generator output; stop the transition and do not proceed to
+online or runtime qualification.
+
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
 to Object Network Server/Client rows and is not applicable to these class method

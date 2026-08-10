@@ -428,6 +428,34 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   manifest의 `24402BFA...`와 다르다. focused `VerifyCurrent`와 C78 input-equivalence는
   현재 실패한다. Rebaseline 전 runtime 관측은 exploratory이며 production approval이
   아니다.
+- commit `7038445`는 `6E115876...`-start baseline과 exact reversible
+  `24402BFA... -> 6E115876...` binary patch를 production source 변경 없이 보존한다.
+  commit `79f03d36f89c34b26325666a4a3eddb9306c4674`의 fail-closed 비교기는
+  `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesArtifact.ps1`이며,
+  physical 79,592 bytes / SHA-256
+  `B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4`다.
+  Windows PowerShell 5.1/PowerShell 7 AST가 PASS했고 self-test는 positive `6` /
+  negative `14`를 PASS했다. checkpoint commit `5543579`와 current candidate의 실제
+  PS5/PS7 비교 stdout은 각각 51,102 bytes / SHA-256
+  `9E5EAC6B45840468E61B501D48FD6B58ADA42E3D1113EB10F1FC85B1D807A639`로
+  byte-identical하다. commit `2e8ca8a84a141390424ce859ac8c315a90ec3430`은 이 exact
+  CreateNew JSON
+  `classes_lcb_gate_d_rebuild_24402bfa_to_6e115876.comparison.json`을 보존한다.
+- 실제 `24402BFA... -> 6E115876...` 판정은 exit `2`,
+  `REVIEW_REQUIRED_OPAQUE_VENDOR_DRIFT`다. changed byte/run/owner는 각각
+  `99/58/36`이고, 120-record inventory, Gate D target 4개, protected dependency
+  record 2개는 exact이며 unmapped run은 `0`이다. 이 bounded equality는 artifact
+  전체를 승인하지 않는다. 판정은 `ProductionApproved=false`,
+  `SemanticEquivalenceProven=false`로 고정된다.
+- retained PID 480/TID 3396 checkpoint를 다시 실행하지 않는다. 다음 단계는 별도
+  classification 1회다. 새 LASAL process에서 canonical `.lcp`를 열고 `Rebuild project`를
+  정확히 1회 실행해 성공 완료를 기다린 뒤 project와 LASAL을 종료한다. 성공하지 않으면
+  classification을 중지하고 그대로 종료한다. 그 사이 Connect, Download, Reset, Restart,
+  추가 Build/Rebuild, method open을 하지 않는다.
+  결과가 exact `24402BFA...`면 static checkpoint replay만 허용하며 production 승인은
+  아니다. exact `6E115876...` 반복이면 opaque drift의 reproducibility만 입증하고 semantic
+  equivalence나 production approval은 입증하지 않는다. 제3의 hash면 generator output이
+  unstable하므로 transition과 online/runtime qualification을 중지한다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
   current Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각
