@@ -444,7 +444,7 @@ query와 loss/duplicate/reorder는 static source/PC 계약으로 runtime 승인�
 - PC runner 46/46 PASS (2026-07-15 재검증)
 - Debug/Release library와 WPF test app build 성공
 
-2026-08-10 Release SDK suite는 1117/1117 PASS했고 이 current 결과는 유지된다. 추가
+2026-08-10 Release SDK suite는 1117/1117 PASS했고 이 당시 결과는 historical evidence로 유지된다. 추가
 회귀는 exact short
 failure의 `ErrorId=-1` 보존과 legacy zero-retry, v2 same-socket
 `0x8080 -> 0x8080 -> 0x405C` 성공, 지속 실패의 추가 1회 제한과 `Faulted` cleanup,
@@ -457,3 +457,38 @@ persistent init failure cleanup, non-canonical `ErrorId=0`의 zero-retry/full cl
 cleanup 뒤 수동 Connect가 새 session/socket을 사용하는 회귀, `RequestedCallback`과
 actual `BoundCallback`/`not-bound` evidence panel, old-session 통계 Dispatcher action이
 replacement UI를 바꾸지 못하는 회귀를 포함한다.
+
+commit `bff3bc7`의 PC-only raw-wire harness 16개가 추가된 current Release SDK suite는
+`1133/1133` PASS했고 독립 reviewer 재실행도 `1133/1133` PASS다. WPF code/test는 이
+commit에서 바뀌지 않았으며 독립 reviewer의 Release `RunWpfSmokeTests` 재실행도
+`335/335` PASS다. exact runner mode
+`callback-ownership-wire`는 인자가 없거나 `--dry-run`이면 network에 연결하지 않고
+`all` 또는 `gd-n10a`/`gd-n13-candidate`/`gd-n14-candidate` 계획만 출력한다.
+
+live parser는 실행 승인이 아니라 fail-closed guard다. exact `--execute-live`,
+case-sensitive `--confirm PLC-CALLBACK-OWNERSHIP`, concrete `--scenario`(`all` 금지), PLC host와
+owner/candidate local IPv4를 지정하는 `--host`/`--owner-local`/`--candidate-local`,
+세 40/64-hex Git object로 구성한 declared
+`--source-fingerprint HEAD/TRACKED/UNTRACKED`, 기존에 없는 `--output` 파일을 모두 요구한다.
+unspecified/broadcast IPv4는 금지하고, N13 source IPv4는 동일, N10A/N14는 서로 달라야
+한다. N10A candidate callback port는 `0`이어야 accepted A의 actual owner UDP port를
+재사용해 advertised callback IPv4만 B로 바꾼다. output/fingerprint 형식 preflight는
+network access보다 먼저 수행하고 기존 파일은 덮어쓰지 않는다. fingerprint는 선언값을
+report에 남기지만 tool 자체가 current worktree나 downloaded PLC image와의 일치를
+증명하지 않는다.
+
+wire allowlist는 exact `0x8080`, version-2 mask `1`/max `52`/nonzero cookie/zero
+flags-reserved `0x405C`, current authoritative owner의 `0x405D`뿐이며 retry는 0회다.
+N10A는 same session A success -> IPv4-only B failure -> byte-identical A duplicate/same
+fence, N13은 same-IP replacement와 BootId 보존/SessionEpoch advance/old-owner retire 뒤
+candidate duplicate, N14는 different-IP candidate의 `0x8080` 뒤 clean peer close와
+candidate `0x405C`/`0x405D` zero-wire, retained-owner duplicate를 검사한다. N13 retirement
+부재나 N14 timeout/aborted/shutdown은 INCONCLUSIVE다.
+
+report는 `LMC_CALLBACK_OWNERSHIP_WIRE_V1`, PC raw-wire evidence class, executable와
+Git HEAD/checkpoint/declared fingerprint, endpoint/timeout, request/response bytes/SHA-256/
+hex, PASS/FAIL/INCONCLUSIVE와 exception을 보존한다. 동시에 peer identity unverified,
+pcap/PLC Watch not captured, qualification false/incomplete를 명시한다. 따라서 tool PASS는
+PLC qualification이 아니다. reviewed rebaseline, exact downloaded checkpoint, site-approved
+maintenance, pcap 및 PLC Watch counter가 여전히 필요하며 그 전에는 실제 live command를
+제공하거나 실행하지 않는다.

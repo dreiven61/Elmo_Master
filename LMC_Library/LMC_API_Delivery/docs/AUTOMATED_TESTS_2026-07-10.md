@@ -506,7 +506,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   금지한다. exit `3`/`4`는 중지다. 모든 경우 Download 금지,
   `ProductionApproved=false`, `onlineRuntimeQualificationPermitted=false`다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
-  current Debug/Release PC suite는 Visual Studio 2019
+  당시 Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각
   `1117/1117` PASS다. `0x8080` short failure 회귀 6개는
   `ParseAcknowledgement`가 outer `Status=1`, command `Status=1`, `ErrorId=-1`을
@@ -598,6 +598,39 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   gate 및 failure context를 포함한다.
   2026-07-27의 269-test checkpoint는 이전 revision의 역사적 결과이며
   current total로 사용하지 않는다.
+- commit `bff3bc7`은 standalone runner에 exact mode `callback-ownership-wire`와
+  전용 회귀 16개를 추가했다. 기본 호출과 `--dry-run`은 network access 없이
+  `all` 또는 지정한 `gd-n10a`, `gd-n13-candidate`, `gd-n14-candidate` 계획만 출력한다.
+  current VS2019 Release `RunPcTests`는 `1133/1133` PASS했고 독립 reviewer 재실행도
+  `1133/1133` PASS다. WPF production/test source는 이 commit에서 바뀌지 않았으며,
+  독립 reviewer의 Release `RunWpfSmokeTests` 재실행도 `335/335` PASS다.
+  live parser는 `--execute-live`, exact case-sensitive
+  `--confirm PLC-CALLBACK-OWNERSHIP`, concrete `--scenario`(`all` 금지), explicit
+  `--host`/`--owner-local`/`--candidate-local` IPv4, 세 40/64-hex Git object로 구성한 declared
+  `--source-fingerprint HEAD/TRACKED/UNTRACKED`, 존재하지 않는 `--output`을 모두
+  요구한다. unspecified/broadcast IPv4는 거부하며, N13은 owner/candidate source IPv4
+  동일, N10A/N14는 서로 다름을 요구한다. N10A candidate callback port는 `0`이어야
+  actual owner UDP endpoint를 재사용한 advertised-IPv4-only mismatch가 된다. output
+  예약과 fingerprint 형식 preflight는 network보다 먼저 실행되고 기존 output은 덮어쓰지
+  않는다. fingerprint는 선언값을 기록하는 guard이며 tool이 worktree 또는 downloaded PLC
+  identity와 일치함을 독립 증명하지는 않는다.
+  allowlist는 byte-exact `0x8080`, mask `1`/max `52`/nonzero cookie/zero
+  flags-reserved인 version-2 `0x405C`, authoritative owner의 `0x405D`뿐이고 retry는
+  0회다. arbitrary command/payload/retry/downgrade/write/motion/reset/Download option은
+  없다. N10A는 same-socket A success -> callback IPv4 only B failure -> byte-identical A
+  duplicate/same fence, N13은 same-IP owner -> candidate takeover/epoch advance -> old-owner
+  retirement -> candidate duplicate/same fence, N14는 different-IP candidate가 `0x8080`
+  뒤 clean peer close되고 candidate `0x405C/0x405D` zero-wire -> owner duplicate/same
+  fence를 검사한다. timeout/aborted/shutdown 또는 N13 old-owner retirement 부재는
+  INCONCLUSIVE다.
+  report는 `LMC_CALLBACK_OWNERSHIP_WIRE_V1`, mode/scenario, executable SHA-256,
+  Git HEAD/checkpoint, declared fingerprint, endpoint/timeout, request/response bytes/SHA-256/
+  hex, `RETRY_COUNT=0`, PASS/FAIL/INCONCLUSIVE와 exception을 보존한다. 동시에
+  `EVIDENCE_CLASS=PC_RAW_WIRE_HARNESS`, `PEER_IDENTITY=UNVERIFIED`, pcap/PLC Watch
+  not captured, `QUALIFICATION_COMPLETE=FALSE`,
+  `INCOMPLETE_WITHOUT_PCAP_AND_PLC_WATCH`를 고정한다. 따라서 16 tests와 tool PASS는
+  PC-only wire 계약이다. reviewed rebaseline, exact downloaded checkpoint, site maintenance,
+  correlated pcap과 PLC Watch 없이는 PLC qualification 또는 runtime PASS가 아니다.
 - `RunLasalContract`:
   current `PASS LASAL.StaticContract.SourceOnly` (Admin read, `0x7D22`와 dormant
   `0x7D12/0x7D13`, 9축, CyWork-only, D1~D3와 D4

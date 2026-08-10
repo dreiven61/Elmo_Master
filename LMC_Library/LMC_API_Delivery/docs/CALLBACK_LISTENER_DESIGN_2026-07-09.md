@@ -258,11 +258,54 @@ listener/TCP/WPF cleanup, and that the next manual Connect uses a fresh socket.
 The WPF displays the requested tuple as `RequestedCallback` and the actual UDP
 endpoint as `BoundCallback`, or `not-bound` when init failed before bind, together
 with the accepted version-2 registration fence and receiver decision counters.
-The current Release SDK suite passes `1117/1117`. The current WPF Release smoke
+The current Release SDK suite passes `1133/1133`. The current WPF Release smoke
 suite passes `335/335`, including the deterministic stale-dispatcher
 replacement-session and non-canonical failure recovery regressions.
 This is bounded PC recovery/observability evidence, not a PLC disarm fix or
 callback runtime proof.
+
+Commit `bff3bc7` accounts for the 16-test SDK increase with the exact standalone
+runner mode `callback-ownership-wire`. The mode defaults to a zero-network
+dry-run and can print plans for `gd-n10a`, `gd-n13-candidate`, and
+`gd-n14-candidate`. An independent reviewer repeated the current Release
+`RunPcTests` target at `1133/1133` and Release `RunWpfSmokeTests` at `335/335`.
+The tool is deliberately
+limited to byte-exact `0x8080`, fixed version-2 `0x405C` (mask `1`, maximum `52`,
+nonzero cookie, zero flags/reserved), and authoritative-owner `0x405D`, with
+`RETRY_COUNT=0`. There is no arbitrary command/payload, retry, downgrade, write,
+motion, reset, or Download option.
+
+Live parsing is fail-closed but is not authorization to run it. It requires
+exact `--execute-live`, exact case-sensitive confirmation
+`--confirm PLC-CALLBACK-OWNERSHIP`, one concrete `--scenario` (`all` is dry-run-only), explicit
+`--host`/`--owner-local`/`--candidate-local` IPv4 values, a declared
+`--source-fingerprint HEAD/TRACKED/UNTRACKED` with three 40/64-character
+hexadecimal Git object hashes, and a new `--output` file. Unspecified/broadcast IPv4
+is rejected. N13 requires equal owner/candidate source IPv4; N10A and N14 require
+different source IPv4, while N10A also requires candidate callback port `0` so
+the mismatch reuses the actual owner UDP endpoint. Output reservation and source
+fingerprint syntax checks occur before network access, and an existing output is
+never overwritten. The declared fingerprint is recorded but is not an
+independent worktree/download attestation.
+
+GD-N10A performs accepted A registration, changes only callback IPv4 for the B
+failure, then repeats A byte-for-byte and requires the same accepted fence.
+GD-N13 registers two concurrent same-source-IP sessions, requires replacement
+BootId stability/SessionEpoch advance and old-owner retirement, then repeats the
+candidate fence; missing retirement is INCONCLUSIVE. GD-N14 requires a
+different-IP candidate to end with clean EOF/reset after only `0x8080`, with no
+candidate `0x405C`/`0x405D`, then proves the original owner's duplicate fence;
+timeout/aborted/shutdown is INCONCLUSIVE.
+
+Every report identifies itself as `LMC_CALLBACK_OWNERSHIP_WIRE_V1` and
+`PC_RAW_WIRE_HARNESS`, records executable and request/response bytes/SHA-256/hex,
+Git HEAD/checkpoint, declared fingerprint, endpoint/timeout, and final
+PASS/FAIL/INCONCLUSIVE. It also fixes `PEER_IDENTITY=UNVERIFIED`, pcap and PLC
+Watch as not captured, `QUALIFICATION_COMPLETE=FALSE`, and
+`INCOMPLETE_WITHOUT_PCAP_AND_PLC_WATCH`. Therefore tool success is PC-only wire
+evidence, never PLC callback ownership qualification. Reviewed rebaseline, the
+exact downloaded checkpoint, a site-approved maintenance window, correlated
+pcap, and PLC Watch counters remain required before any live conclusion.
 
 On 2026-08-10 at 10:35, a C78/ARM incremental `Build project` compiled the three
 changed classes `LMCDiagnosticsService`, `LMCUdpCallbackSender`, and
@@ -1568,7 +1611,7 @@ also preserve the exact attempt/ACK/outcome and same-session receiver decision
 after cleanup/UI dispatch. `af4ab63` additionally preserves the requested and
 actual/not-bound callback endpoints and proves zero retry/full cleanup/fresh
 manual socket for a non-canonical `ErrorId=0` short ACK. Current Release SDK
-result is `1117/1117`; the current WPF Release result is `335/335`, including the
+result is `1133/1133`; the current WPF Release result is `335/335`, including the
 deterministic stale-dispatcher replacement-session regression. The D5
 event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
 D source now contains the one-attempt broker

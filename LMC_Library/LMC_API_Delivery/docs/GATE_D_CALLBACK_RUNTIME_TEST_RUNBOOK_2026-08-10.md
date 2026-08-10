@@ -166,7 +166,7 @@ retries `0x8080` once
 on the same socket. Legacy and other failures do not retry. Commit `af4ab63`
 also fixes the non-canonical short-ACK `ErrorId=0` case at one `0x8080`, full
 listener/TCP/WPF cleanup, and a fresh socket for the next manual Connect. Current
-Release PC evidence is SDK `1117/1117` and WPF `335/335`. The GUI retains the RPC-init
+Release PC evidence is SDK `1133/1133` and WPF `335/335`. The GUI retains the RPC-init
 attempt count, canonical-retry decision, and final ACK evidence after cleanup,
 labels the configured tuple `RequestedCallback`, records the actual UDP endpoint
 as `BoundCallback` or `not-bound`, and displays the accepted version-2 BootId,
@@ -354,6 +354,66 @@ Keep these evidence classes separate:
 
 The repository has PC fake-peer tests. It does not provide a production-network
 packet injector. Do not describe fake-peer results as PLC runtime proof.
+
+### PC-only callback ownership wire harness
+
+Commit `bff3bc7` adds the exact test-runner mode `callback-ownership-wire`. It is
+a PC raw-wire harness, defaults to dry-run, retries zero times, and has no input
+surface for arbitrary commands or payloads, downgrade, write, motion, reset, or
+Download. Its request allowlist is only exact `0x8080`, fixed version-2 `0x405C`
+(mask `1`, maximum `52`, nonzero cookie, flags/reserved zero), and `0x405D` from
+the current authoritative owner. The 16 new harness tests bring the current
+Release SDK result to `1133/1133`; an independent reviewer repeated the Release
+`RunPcTests` target with the same result and repeated Release `RunWpfSmokeTests`
+at `335/335`.
+
+Before reviewed rebaseline, the following are the only authorized harness
+commands. They are exact **DRY-RUN** examples and open no network connection:
+
+```powershell
+& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe' callback-ownership-wire
+& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe' callback-ownership-wire --dry-run --scenario gd-n10a
+& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe' callback-ownership-wire --dry-run --scenario gd-n13-candidate
+& '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\bin\Release\LasalMotionControlLib.Tests.exe' callback-ownership-wire --dry-run --scenario gd-n14-candidate
+```
+
+No actual live command is provided or authorized here. A future reviewed live
+invocation must abstractly satisfy all of these fail-closed guards before any
+network access: exact `--execute-live`; exact case-sensitive confirmation
+`--confirm PLC-CALLBACK-OWNERSHIP`; one concrete `--scenario` (never `all`); explicit PLC,
+owner-local, and candidate-local IPv4 values through `--host`, `--owner-local`,
+and `--candidate-local`; a required declared `--source-fingerprint`
+`HEAD/TRACKED/UNTRACKED` whose three Git object hashes are each 40 or 64
+hexadecimal characters; and a new `--output` path that does not
+already exist. Unspecified/broadcast IPv4 is prohibited. `gd-n13-candidate`
+requires identical owner/candidate source IPv4; `gd-n10a` and
+`gd-n14-candidate` require different source IPv4, and GD-N10A requires candidate
+`--candidate-callback-port 0` because its mismatch reuses the actual owner UDP endpoint.
+The optional `--port` defaults to `4000`, `--owner-callback-port` and
+`--candidate-callback-port` to `0`, and `--timeout-ms` to `3000` with an allowed
+range of `250..10000` ms. The tool syntax-validates
+and records the declared source fingerprint; it does not independently prove
+the worktree identity, downloaded PLC image, or peer identity.
+
+The report starts with `FORMAT=LMC_CALLBACK_OWNERSHIP_WIRE_V1`, mode/scenario,
+`EVIDENCE_CLASS=PC_RAW_WIRE_HARNESS`, `PEER_IDENTITY=UNVERIFIED`, executable
+path/SHA-256, Git HEAD/checkpoint identity, declared source fingerprint,
+endpoints, timeout, and `RETRY_COUNT=0`. Each request/response records byte
+length, SHA-256, and hex. It explicitly records
+`PCAP_EVIDENCE=NOT_CAPTURED_BY_TOOL`,
+`PLC_WATCH_EVIDENCE=NOT_CAPTURED_BY_TOOL`,
+`QUALIFICATION_COMPLETE=FALSE`, and
+`QUALIFICATION_RESULT=INCOMPLETE_WITHOUT_PCAP_AND_PLC_WATCH`, followed by the
+scenario result and any exception. A new `.inprogress-<GUID>.tmp` report is
+reserved before network access and moved to the requested new file at the end;
+an existing target is never overwritten, and FAIL/INCONCLUSIVE evidence is
+preserved when finalization succeeds.
+
+Tool PASS proves only that this PC client observed the expected raw exchange. It
+never equals PLC qualification. Reviewed rebaseline and an exact downloaded
+checkpoint, a site-approved maintenance window, correlated pcapng, PLC Online
+Watch counters, and the remaining case evidence in this runbook are still
+required before any PLC-runtime conclusion.
 
 ## Safe test setup
 
@@ -600,12 +660,12 @@ PLC words in the production project.
 | GD-N07 | PC fake or approved proxy | Old SessionEpoch or cookie | Aggregate Rejected increases before application dispatch; no TCP query or UI mutation. |
 | GD-N08 | PC fake or approved proxy | Foreign source IPv4 | Aggregate Rejected increases with unexpected-source decision even if the envelope is otherwise valid; no application dispatch. |
 | GD-N09 | PC fake | Wrong event type, mask, delivery class, payload length, or flags | Parser/policy rejection; no authoritative query or UI mutation. |
-| GD-N10A | PC fake, or a separately approved raw-registration harness against the actual PLC | Registration uses TCP source IPv4 A but advertises different valid callback IPv4 B | First prove both addresses in the capture. `0x405C` then returns failure and does not arm the new tuple. Any previously armed different tuple/FIFO is preserved, but proving preservation requires a harness that can re-register on the same session. The current WPF cannot create this mismatch because its selected local address binds both the TCP source and advertised callback address; changing that field is not this test. |
+| GD-N10A | PC fake, or commit `bff3bc7` mode `callback-ownership-wire` scenario `gd-n10a` against the actual PLC only after reviewed rebaseline and separate live approval | On one owner TCP session, registration A advertises owner IPv4 A; mismatch B reuses the same actual owner callback port/cookie/frame and changes only advertised callback IPv4 to different B; then A is duplicated byte-for-byte | First use the DRY-RUN command above. In an approved live capture, A succeeds, B returns failure without changing the accepted fence, and the duplicate A preserves BootId, SessionEpoch, and accepted maximum before the authoritative owner sends `0x405D`. First prove both addresses and the exact only-IPv4 byte difference in pcap. The current WPF cannot create this mismatch. Tool PASS alone does not prove retained PLC tuple/FIFO state; correlate PLC Watch. |
 | GD-N10B | Separately approved PLC test harness | Claimed terminal tuple while CallbackSender is unavailable or the local RPC/session/owner/BootId tuple mismatches | Broker Attempt `+1`, Rejected `+1`, Enqueued `+0`; sender queue and wire unchanged; no retry of that tuple after recovery. This condition is not safely operator-generated by the current WPF. |
 | GD-N11 | Actual PLC race, exploratory | Terminal tuple during pending close | No enqueue to the retiring session. If close notification clears/orphans before claim, all three producer deltas may be zero. If the broker already claims behind a closed local fence, Attempt `+1`, Rejected `+1`, Enqueued `+0`. Ordinary WPF controls may not create this timing deterministically; never force private words or require the latter branch unconditionally. |
 | GD-N12 | Actual PLC | Clean WPF Close/disarm | Use GD-06. Old-session callback state is cleared and no late packet may update the new/current UI. Do not claim that an old ticket remains queryable after reconnect. |
-| GD-N13 | Actual PLC with a same-host approved second raw client or separate Windows session; a site-approved NAT setup is allowed only when callback UDP routability is also proved | Concurrent same-IP takeover under the system-wide maintenance prerequisite above | The WPF process mutex prevents two ordinary instances in one Windows session, so that is not a valid setup. Never assign a duplicate static IP to two hosts. Prove in the capture that both concurrent TCP clients present the exact same source IPv4 and that the registered callback path remains routable. With valid peer lookup, `TakeoverCount +1` and `LastTakeoverResult=2`; old callback is disarmed, SessionEpoch advances, and only a freshly initialized/registered new owner may wake. A late old-socket disconnect must not clear the new owner. |
-| GD-N14 | Actual PLC with an approved second raw client, two Windows sessions, or two hosts that present genuinely different TCP source IPv4 addresses | Concurrent different-IP takeover attempt under the system-wide maintenance prerequisite above | The WPF process mutex prevents two ordinary instances in one Windows session. Prove both concurrent source IPv4 addresses in the capture. With both peer lookups valid, `TakeoverRejectCount +1` and `LastTakeoverResult=-4`; candidate closes and active owner/callback tuple remains unchanged. Editing only the WPF local-IP text or reconnecting one client is not a concurrent different-peer takeover test. |
+| GD-N13 | Actual PLC with commit `bff3bc7` mode `callback-ownership-wire` scenario `gd-n13-candidate`, only after reviewed rebaseline and separate live approval | Two concurrent sessions bind the exact same source IPv4: owner initializes/registers, candidate initializes/registers as replacement, the old-owner peer-retirement barrier is observed, then candidate repeats its registration | First use the DRY-RUN command above. Never assign a duplicate static IP to two hosts. Approved live evidence requires same BootId, advanced nonzero SessionEpoch/max `52`, old owner disconnect without non-owner `0x405D`, byte/fence-stable candidate duplicate, and candidate-owner `0x405D`. Missing clean old-owner retirement is INCONCLUSIVE. Pcap must prove equal source IPv4 and UDP routability; PLC Watch must show `TakeoverCount +1`, `LastTakeoverResult=2`, and that a late old-socket disconnect does not clear the new owner. |
+| GD-N14 | Actual PLC with commit `bff3bc7` mode `callback-ownership-wire` scenario `gd-n14-candidate`, only after reviewed rebaseline and separate live approval | Owner is initialized/registered; a concurrent candidate with a genuinely different source IPv4 attempts `0x8080`; after candidate rejection the owner duplicates its registration | First use the DRY-RUN command above. Approved live PASS requires candidate clean EOF/connection reset, no candidate `0x405C` or `0x405D`, unchanged owner BootId/SessionEpoch/max on duplicate, and only the authoritative owner sending `0x405D`. Timeout, ConnectionAborted, or Shutdown is INCONCLUSIVE, not rejection proof. Pcap must prove both source IPv4 values; PLC Watch must show `TakeoverRejectCount +1`, `LastTakeoverResult=-4`, and unchanged active owner/callback tuple. |
 
 The PLC sender's `QueuedCount` and `RingAcceptedCount` are unrelated to PC
 duplicate/reorder counters. Likewise, a wrong-ticket WPF semantic drop is not a
