@@ -21,6 +21,11 @@ namespace LasalMotionControlLib.Tests
                     return NegativeWireTool.Run(args);
                 }
 
+                if (CallbackOwnershipWireTool.IsInvocation(args))
+                {
+                    return CallbackOwnershipWireTool.Run(args);
+                }
+
                 if (TopologyIoQualificationTool.IsInvocation(args))
                 {
                     return TopologyIoQualificationTool.Run(args);
@@ -34,6 +39,7 @@ namespace LasalMotionControlLib.Tests
                 Console.Error.WriteLine(
                     "ERROR arguments are accepted only for an exact internal tool mode.");
                 NegativeWireTool.WriteUsage(Console.Error);
+                CallbackOwnershipWireTool.WriteUsage(Console.Error);
                 TopologyIoQualificationTool.WriteUsage(Console.Error);
                 DiagnosticsParserStressTool.WriteUsage(Console.Error);
                 return NegativeWireTool.UsageExitCode;
@@ -61,6 +67,7 @@ namespace LasalMotionControlLib.Tests
             CallbackV2ConnectionTests.Register(tests);
             ResponseParserTests.Register(tests);
             NegativeWireToolTests.Register(tests);
+            CallbackOwnershipWireToolTests.Register(tests);
             TopologyIoQualificationToolTests.Register(tests);
             ResponsePayloadLimitTests.Register(tests);
             TransportQualificationAnalysisTests.Register(tests);

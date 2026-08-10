@@ -28,6 +28,9 @@
     <Compile Include="Program.cs" />
     <Compile Include="NegativeWireTool.cs" />
     <Compile Include="NegativeWireToolTests.cs" />
+    <Compile Include="CallbackOwnershipWireTool.cs" />
+    <Compile Include="CallbackOwnershipWireToolTests.cs" />
+    <Compile Include="FakeCallbackOwnershipServer.cs" />
     <Compile Include="TopologyIoQualificationTool.cs" />
     <Compile Include="TopologyIoQualificationToolTests.cs" />
     <Compile Include="AssertEx.cs" />
