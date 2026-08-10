@@ -449,13 +449,31 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `SemanticEquivalenceProven=false`로 고정된다.
 - retained PID 480/TID 3396 checkpoint를 다시 실행하지 않는다. 다음 단계는 별도
   classification 1회다. 새 LASAL process에서 canonical `.lcp`를 열고 `Rebuild project`를
-  정확히 1회 실행해 성공 완료를 기다린 뒤 project와 LASAL을 종료한다. 성공하지 않으면
-  classification을 중지하고 그대로 종료한다. 그 사이 Connect, Download, Reset, Restart,
-  추가 Build/Rebuild, method open을 하지 않는다.
-  결과가 exact `24402BFA...`면 static checkpoint replay만 허용하며 production 승인은
-  아니다. exact `6E115876...` 반복이면 opaque drift의 reproducibility만 입증하고 semantic
-  equivalence나 production approval은 입증하지 않는다. 제3의 hash면 generator output이
-  unstable하므로 transition과 online/runtime qualification을 중지한다.
+  정확히 1회 실행해 성공 완료를 기다린 뒤 project와 LASAL을 정상 종료한다. 성공하지
+  않으면 classification을 중지하고 그대로 종료한다. 그 사이 작업자가 Save, Build, 추가
+  Rebuild, Connect, Download, Reset, Restart, Find/Edit, method 또는 Network editor open을
+  하지 않는다. load-time automatic restore는 finalizer가 bounded ordering을 입증할 때만
+  허용할 수 있고 operator origin은 미입증으로 기록한다. 이미 완료한 manual exact-method
+  smoke는 반복하지 않는다.
+- commit `111a773`의 production finalizer는
+  `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
+  physical 183,049 bytes / SHA-256
+  `076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`다.
+  PowerShell 7 self-test positive `25` / negative `73`, Windows PowerShell 5.1
+  AST/self-test positive `23` / negative `71`가 PASS한다. 다만 directory ADS evidence를
+  publication contract에 포함하므로 production `-FinalizeCandidate`는 PowerShell 7에서만
+  실행한다. canonical repository root에서 exact command는 다음과 같다.
+
+  ```powershell
+  & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
+  $LASTEXITCODE
+  ```
+
+  Exit `0`은 exact checkpoint `24402BFA...`의 static replay만 허용한다. Exit `2`는
+  known `6E115876...` reproducibility/review만 뜻한다. Exit `3`은 제3 hash의 unstable
+  generator이므로 중지하고, exit `4`는 blocked/no accepted publication이다. 모든 exit에서
+  `ProductionApproved=false`, `onlineRuntimeQualificationPermitted=false`이며 Download하지
+  않는다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
   current Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각

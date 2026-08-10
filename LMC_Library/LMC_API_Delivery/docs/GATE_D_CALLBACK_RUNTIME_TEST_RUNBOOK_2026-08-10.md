@@ -222,17 +222,35 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    qualification.
 5. Run one new isolated artifact-classification session from a new LASAL process
    and the canonical `.lcp`. Execute `Rebuild project` exactly once, wait for its
-   successful completion, then close the project and exit LASAL. If it does not
-   complete successfully, stop classification and still close/exit. Between open
-   and exit, do not Connect, Download, Reset, Restart, issue any additional
-   Build/Rebuild, or open a method. This run classifies generator output only; it
-   does not repeat or replace PID 480 and it is not PLC runtime proof.
-6. Compare the new `Classes.lcb` fail-closed. An exact `24402BFA...` result permits
-   static checkpoint replay, but does not set `ProductionApproved=true`. An exact
-   `6E115876...` repeat proves only reproducibility of the opaque drift; it does
-   not prove semantic equivalence or approve production use. Any third hash is an
-   unstable generator result: stop the transition and perform no online/runtime
-   qualification from it.
+   successful completion, then close the project and LASAL normally. If it does
+   not complete successfully, stop classification and still close/exit. Do not
+   manually Save, Build, issue another Rebuild, Connect, Download, Reset, Restart,
+   use Find/Edit, or open a method or Network editor in this session. A load-time
+   automatic restore is acceptable only when the finalizer proves its bounded
+   ordering; its operator origin remains unproven. Do not repeat the already
+   completed manual exact-method smoke. This run classifies generator output only;
+   it does not repeat or replace PID 480 and it is not PLC runtime proof.
+6. After normal LASAL exit, run the fail-closed finalizer committed in `111a773`:
+   `Finalize-LasalClassesRebuildCandidate.ps1`, physical 183,049 bytes, SHA-256
+   `076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`.
+   PowerShell 7 self-test passes positive `25` / negative `73`; Windows
+   PowerShell 5.1 AST/self-test passes positive `23` / negative `71`, but
+   production `-FinalizeCandidate` execution is PowerShell 7-only because the
+   publication contract includes directory ADS evidence. From the canonical
+   repository root, run exactly:
+
+   ```powershell
+   & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
+   $LASTEXITCODE
+   ```
+
+   Exit `0` means exact checkpoint `24402BFA...` and permits static checkpoint
+   replay only. Exit `2` means the known `6E115876...` result is reproducible and
+   requires review only. Exit `3` means a third hash and unstable generator output:
+   stop. Exit `4` means blocked/no accepted publication. Every outcome remains
+   `ProductionApproved=false` and
+   `onlineRuntimeQualificationPermitted=false`; perform no Download from this
+   classification.
 
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:

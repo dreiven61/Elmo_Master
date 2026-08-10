@@ -402,14 +402,35 @@ decision is therefore `ProductionApproved=false` and
 Do not rerun or alter the retained historical PID 480/TID 3396 checkpoint. The
 next artifact-classification action is one separate isolated Rebuild: start a
 new LASAL process, open the canonical `.lcp`, execute `Rebuild project` exactly
-once, wait for successful completion, and close the project and LASAL. If it does
-not complete successfully, stop classification and still close/exit. Do not
-Connect, Download, Reset, Restart, issue another Build/Rebuild, or open a method
-in that session. Exact `24402BFA...` permits static checkpoint replay but does
-not grant production approval. Exact `6E115876...` proves only reproducibility
-of opaque drift, not semantic equivalence or production approval. A third hash
-means unstable generator output; stop the transition and do not proceed to
-online or runtime qualification.
+once, wait for successful completion, and close the project and LASAL normally.
+If it does not complete successfully, stop classification and still close/exit.
+Do not manually Save, Build, issue another Rebuild, Connect, Download, Reset,
+Restart, use Find/Edit, or open a method or Network editor in that session. A
+load-time automatic restore may be accepted only when its bounded ordering is
+proved; its operator origin remains unproven. Do not repeat the completed manual
+exact-method smoke.
+
+Commit `111a773` supplies the fail-closed production finalizer at
+`test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
+physical 183,049 bytes / SHA-256
+`076B1A168FE958F8D960F6273532D6206C3431A98039E215C74003D0709C2A4C`.
+PowerShell 7 self-test passes positive `25` / negative `73`; Windows PowerShell
+5.1 AST/self-test passes positive `23` / negative `71`. Production
+`-FinalizeCandidate` remains PowerShell 7-only because the atomic publication
+contract includes directory ADS evidence. Run this exact command from the
+canonical repository root after normal LASAL exit:
+
+```powershell
+& pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
+$LASTEXITCODE
+```
+
+Exit `0` means exact checkpoint `24402BFA...` and static checkpoint replay only.
+Exit `2` means known `6E115876...` reproducibility/review only. Exit `3` means a
+third hash and unstable generator output: stop. Exit `4` means blocked/no accepted
+publication. All outcomes remain `ProductionApproved=false` and
+`onlineRuntimeQualificationPermitted=false`; no Download is permitted from this
+classification.
 
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
