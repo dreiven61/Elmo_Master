@@ -20,6 +20,18 @@ namespace LasalMotionControlLib.Tests
                 "Rpc.CallbackV2.OptionsCloneAndPreWireValidation",
                 OptionsCloneAndPreWireValidation);
             tests.Add(
+                "Rpc.CallbackV2.SessionInitTransientFailureRetriesSameSocket",
+                SessionInitTransientFailureRetriesSameSocket);
+            tests.Add(
+                "Rpc.CallbackV2.SessionInitPersistentFailureStopsAfterOneRetry",
+                SessionInitPersistentFailureStopsAfterOneRetry);
+            tests.Add(
+                "Rpc.CallbackV2.SessionInitDifferentFailureDoesNotRetry",
+                SessionInitDifferentFailureDoesNotRetry);
+            tests.Add(
+                "Rpc.CallbackV2.SessionInitReservedFailureDoesNotRetry",
+                SessionInitReservedFailureDoesNotRetry);
+            tests.Add(
                 "Rpc.CallbackV2.NegotiationEarlyTypedDispatch",
                 NegotiationEarlyTypedDispatch);
             tests.Add(
@@ -158,6 +170,130 @@ namespace LasalMotionControlLib.Tests
                 AssertEx.Equal(endpoint, connection.CallbackLocalEndPoint);
 
                 connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void SessionInitTransientFailureRetriesSameSocket()
+        {
+            using (var server = new FakeRpcServer(
+                InitShortFailureStep(-1),
+                InitStep(),
+                V2Step(0x111u, 0x222u),
+                CloseStep()))
+            using (var connection = new LMCConnection(
+                V2Options(() => FirstCookie)))
+            {
+                connection.RpcInitConnection(
+                    "127.0.0.1",
+                    server.Port,
+                    "127.0.0.1",
+                    0,
+                    1u);
+
+                AssertEx.True(connection.IsConnected);
+                AssertEx.Equal(1, server.AcceptedClientCount);
+                AssertEx.Equal(3, server.ReceivedRequests.Count);
+                AssertEx.Equal(
+                    (ushort)0x8080,
+                    TestFrame.ReadUInt16(server.ReceivedRequests[0], 0));
+                AssertEx.Equal(
+                    (ushort)0x8080,
+                    TestFrame.ReadUInt16(server.ReceivedRequests[1], 0));
+                AssertEx.Equal(
+                    (ushort)0x405C,
+                    TestFrame.ReadUInt16(server.ReceivedRequests[2], 0));
+                AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[0]);
+                AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[1]);
+                AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[2]);
+
+                connection.CloseConnection();
+                server.Verify();
+            }
+        }
+
+        private static void SessionInitPersistentFailureStopsAfterOneRetry()
+        {
+            using (var server = new FakeRpcServer(
+                InitShortFailureStep(-1),
+                InitShortFailureStep(-1)))
+            using (var connection = new LMCConnection(
+                V2Options(() => FirstCookie)))
+            {
+                var exception = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.RpcInitConnection(
+                        "127.0.0.1",
+                        server.Port,
+                        "127.0.0.1",
+                        0,
+                        1u));
+
+                AssertEx.Contains("Status=1", exception.Message);
+                AssertEx.Contains("ErrorId=-1", exception.Message);
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertEx.False(connection.IsConnected);
+                AssertEx.False(connection.IsCallbackListenerRunning);
+                AssertEx.Equal(1, server.AcceptedClientCount);
+                AssertEx.Equal(2, server.ReceivedRequests.Count);
+                AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[0]);
+                AssertEx.Equal(1, server.ReceivedRequestSessionOrdinals[1]);
+                server.Verify();
+            }
+        }
+
+        private static void SessionInitDifferentFailureDoesNotRetry()
+        {
+            using (var server = new FakeRpcServer(
+                InitShortFailureStep(-4)))
+            using (var connection = new LMCConnection(
+                V2Options(() => FirstCookie)))
+            {
+                var exception = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.RpcInitConnection(
+                        "127.0.0.1",
+                        server.Port,
+                        "127.0.0.1",
+                        0,
+                        1u));
+
+                AssertEx.Contains("Status=1", exception.Message);
+                AssertEx.Contains("ErrorId=-4", exception.Message);
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertEx.False(connection.IsConnected);
+                AssertEx.False(connection.IsCallbackListenerRunning);
+                AssertEx.Equal(1, server.AcceptedClientCount);
+                AssertEx.Equal(1, server.ReceivedRequests.Count);
+                server.Verify();
+            }
+        }
+
+        private static void SessionInitReservedFailureDoesNotRetry()
+        {
+            using (var server = new FakeRpcServer(
+                new FakeRpcStep(
+                    0x8080,
+                    TestFrame.Response(
+                        1,
+                        TestFrame.Hex("01 00 FF FF"),
+                        1))))
+            using (var connection = new LMCConnection(
+                V2Options(() => FirstCookie)))
+            {
+                var exception = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.RpcInitConnection(
+                        "127.0.0.1",
+                        server.Port,
+                        "127.0.0.1",
+                        0,
+                        1u));
+
+                AssertEx.Contains("Status=1", exception.Message);
+                AssertEx.Contains("ErrorId=-1", exception.Message);
+                AssertEx.Equal(LMCConnectionState.Faulted, connection.State);
+                AssertEx.False(connection.IsConnected);
+                AssertEx.False(connection.IsCallbackListenerRunning);
+                AssertEx.Equal(1, server.AcceptedClientCount);
+                AssertEx.Equal(1, server.ReceivedRequests.Count);
                 server.Verify();
             }
         }
@@ -958,6 +1094,16 @@ namespace LasalMotionControlLib.Tests
             return new FakeRpcStep(
                 0x8080,
                 TestFrame.Response(0, payload));
+        }
+
+        private static FakeRpcStep InitShortFailureStep(short errorId)
+        {
+            var payload = new byte[4];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteInt16(payload, 2, errorId);
+            return new FakeRpcStep(
+                0x8080,
+                TestFrame.Response(1, payload));
         }
 
         private static FakeRpcStep V2Step(

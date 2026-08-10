@@ -110,6 +110,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.StaleD5StatusCompletionPreservesNewerOwnership",
                 CallbackV2StaleD5StatusCompletionPreservesNewerOwnership);
             tests.Add(
+                "Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession",
+                CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession);
+            tests.Add(
                 "Wpf.Diagnostics.InvalidPiAndBulkRowsHideStaleRaw",
                 InvalidPiAndBulkRowsHideStaleRaw);
             tests.Add(
@@ -141,6 +144,114 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.Recorder.SemanticJournalConflictKeepsJournalUsable",
                 SemanticJournalConflictKeepsJournalUsable);
             RegisterGroupEnableWaitTests(tests);
+        }
+
+        private static void
+            CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession()
+        {
+            var steps = new List<FakeRpcStep>
+            {
+                SessionInitShortFailureStep(),
+                SessionInitShortFailureStep(),
+                new FakeRpcStep(0, null)
+                {
+                    RequireClientDisconnectBeforeRequest = true,
+                    ContinueWithNextClientAfterDisconnect = true
+                }
+            };
+            steps.AddRange(CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology));
+            steps.Add(CloseStep());
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                "Connect failed",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextConnectionState.Text,
+                                "Disconnected",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextCallbackState.Text,
+                                "Stopped",
+                                StringComparison.Ordinal)
+                            && window.ButtonConnect.IsEnabled
+                            && GetPrivateField(window, "connection") == null,
+                        "The WPF first connection failure did not return to a clean reconnectable state.");
+
+                    AssertEx.Contains(
+                        "RPC session init failed. Status=1, ErrorId=-1.",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        1,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        1,
+                        0x405D));
+
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                "Connect completed",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextConnectionState.Text,
+                                "Connected",
+                                StringComparison.Ordinal)
+                            && window.TextCallbackState.Text.StartsWith(
+                                "Listening ",
+                                StringComparison.Ordinal)
+                            && window.ButtonCloseConnection.IsEnabled,
+                        "The WPF manual reconnect did not establish a fresh RPC and callback session.");
+
+                    var reconnected = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(reconnected);
+                    AssertEx.True(reconnected.IsConnected);
+                    AssertEx.True(reconnected.IsRpcInitialized);
+                    AssertEx.True(reconnected.IsCallbackListenerRunning);
+                    AssertEx.Equal(2, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
         }
 
         private static void SemanticJournalConflictKeepsJournalUsable()
@@ -6076,6 +6187,15 @@ namespace LasalApiWpfTestApp.SmokeTests
             var payload = new byte[24];
             TestFrame.WriteUInt32(payload, 0, 64);
             return new FakeRpcStep(0x8080, TestFrame.Response(0, payload));
+        }
+
+        private static FakeRpcStep SessionInitShortFailureStep()
+        {
+            return new FakeRpcStep(
+                0x8080,
+                TestFrame.Response(
+                    1,
+                    TestFrame.Hex("01 00 FF FF")));
         }
 
         private static FakeRpcStep CallbackStep()

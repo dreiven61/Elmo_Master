@@ -21,6 +21,9 @@ namespace LasalMotionControlLib.Tests
             tests.Add("Rpc.Callback.ReentrantCloseConnectionStopsListener", ReentrantCallbackCloseConnectionStopsListener);
             tests.Add("Rpc.Callback.ReentrantDisposeStopsListener", ReentrantCallbackDisposeStopsListener);
             tests.Add("Rpc.Failure.InitStatusCleansUp", InitStatusFailureCleansUp);
+            tests.Add(
+                "Rpc.Failure.InitShortErrorPreservedWithoutLegacyRetry",
+                InitShortErrorPreservedWithoutLegacyRetry);
             tests.Add("Rpc.Failure.MalformedInitShapeCleansUp", MalformedInitShapeCleansUp);
             tests.Add("Rpc.Failure.CallbackAckCleansUp", CallbackAckFailureCleansUp);
             tests.Add("Rpc.Failure.MalformedCallbackAckCleansUp", MalformedCallbackAckCleansUp);
@@ -580,6 +583,33 @@ namespace LasalMotionControlLib.Tests
                         LMCConnection.DefaultEventMask));
 
                 AssertEx.Contains("Status=7", exception.Message);
+                AssertConnectionClosed(connection);
+                server.Verify();
+            }
+        }
+
+        private static void InitShortErrorPreservedWithoutLegacyRetry()
+        {
+            using (var server = new FakeRpcServer(
+                new FakeRpcStep(
+                    0x8080,
+                    TestFrame.Response(
+                        1,
+                        TestFrame.Hex("01 00 FF FF")))))
+            using (var connection = new LMCConnection())
+            {
+                var exception = AssertEx.Throws<InvalidOperationException>(
+                    () => connection.RpcInitConnection(
+                        "127.0.0.1",
+                        server.Port,
+                        "127.0.0.1",
+                        0,
+                        LMCConnection.DefaultEventMask));
+
+                AssertEx.Contains("Status=1", exception.Message);
+                AssertEx.Contains("ErrorId=-1", exception.Message);
+                AssertEx.Equal(1, server.AcceptedClientCount);
+                AssertEx.Equal(1, server.ReceivedRequests.Count);
                 AssertConnectionClosed(connection);
                 server.Verify();
             }

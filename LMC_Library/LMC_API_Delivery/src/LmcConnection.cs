@@ -57,6 +57,7 @@ namespace LasalMotionControlLib
         private const int GroupReadActualPositionPayloadLength = 68;
         private const int GroupMembersInfoPayloadLength = 1350;
         private const int RpcSessionInitPayloadLength = 24;
+        private const int RpcSessionInitTransientRetryDelayMilliseconds = 20;
         private const int MaximumGroupMemberCount = 16;
         private const int GroupMemberNameLength = 80;
         private const int LookupDiagnosticRawByteLimit = 128;
@@ -594,13 +595,9 @@ namespace LasalMotionControlLib
                     ConnectWithTimeout(openingClient, parsedRemoteAddress, remotePort);
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    RpcSessionInitResponse = Parse(
-                        ExchangeCore(
-                            LMC_Frame.RpcSessionInit(),
-                            openingClient,
-                            true,
-                            cancellationToken,
-                            AnySessionGeneration));
+                    RpcSessionInitResponse = ExchangeRpcSessionInit(
+                        openingClient,
+                        cancellationToken);
                     EnsureSuccess("RPC session init", RpcSessionInitResponse);
                     EnsureExactPayloadLength(
                         RpcSessionInitResponse,
@@ -1447,6 +1444,53 @@ namespace LasalMotionControlLib
             }
 
             return response;
+        }
+
+        private LMC_Response ExchangeRpcSessionInit(
+            TcpClient openingClient,
+            CancellationToken cancellationToken)
+        {
+            var response = ParseAcknowledgement(
+                ExchangeCore(
+                    LMC_Frame.RpcSessionInit(),
+                    openingClient,
+                    true,
+                    cancellationToken,
+                    AnySessionGeneration));
+
+            if (!ShouldRetryRpcSessionInit(response))
+            {
+                return response;
+            }
+
+            if (cancellationToken.WaitHandle.WaitOne(
+                RpcSessionInitTransientRetryDelayMilliseconds))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return ParseAcknowledgement(
+                ExchangeCore(
+                    LMC_Frame.RpcSessionInit(),
+                    openingClient,
+                    true,
+                    cancellationToken,
+                    AnySessionGeneration));
+        }
+
+        private bool ShouldRetryRpcSessionInit(LMC_Response response)
+        {
+            return options.CallbackRegistrationMode
+                    == LMCCallbackRegistrationMode.Version2WakeHint
+                && response != null
+                && response.IsFrameValid
+                && response.HeaderStatus == 1
+                && response.HeaderReserved == 0
+                && response.PayloadLength == ShortAcknowledgementPayloadLength
+                && response.HasCommandResult
+                && response.CommandStatus == 1
+                && response.ErrorId == -1;
         }
 
         internal static LMC_Response ParseCommandAcknowledgement(
