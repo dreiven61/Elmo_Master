@@ -283,6 +283,231 @@ function Copy-LmcDevelopmentExample {
     return $destinationProject
 }
 
+function Get-LmcLasalValidationInputFiles {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot
+    )
+
+    $repository = [System.IO.Path]::GetFullPath(
+        $RepositoryRoot).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $repository -PathType Container)) {
+        throw "Release repository root not found: $repository"
+    }
+
+    $projectRelativeRoot =
+        'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
+    $projectRoot = [System.IO.Path]::GetFullPath(
+        (Join-Path $repository $projectRelativeRoot.Replace('/', '\')))
+    if (-not (Test-Path -LiteralPath $projectRoot -PathType Container)) {
+        throw "Canonical LASAL project directory not found: $projectRoot"
+    }
+    $currentProjectPath = Get-Item -LiteralPath $projectRoot -Force
+    while ($true) {
+        if (Test-LmcDistributionReparsePoint -Item $currentProjectPath) {
+            throw (
+                'LASAL validation input path traverses a reparse point: ' +
+                $projectRoot)
+        }
+        if ($currentProjectPath.FullName.Equals(
+            $repository,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $currentProjectPath = $currentProjectPath.Parent
+        if ($null -eq $currentProjectPath) {
+            throw "LASAL validation input path escaped the repository: $projectRoot"
+        }
+    }
+    Assert-LmcDistributionTreeHasNoReparsePoints `
+        -Root $projectRoot `
+        -Context 'LASAL validation input tree'
+    $inventoryRoots = @(
+        "$projectRelativeRoot/Class",
+        "$projectRelativeRoot/Network",
+        "$projectRelativeRoot/Include",
+        "$projectRelativeRoot/Source")
+    $projectDefinitionRelativePath =
+        "$projectRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcp"
+    $projectDatabaseRelativePath =
+        "$projectRelativeRoot/Elmo_EtherCAT_Test_4Axis.lcb"
+    $networkRelativeRoot = "$projectRelativeRoot/Network"
+    $pathSpecs = @(
+        $inventoryRoots +
+        $projectDefinitionRelativePath +
+        $projectDatabaseRelativePath)
+    $relevantExtensions = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($extension in @(
+        '.st', '.h', '.c', '.cpp', '.lcb', '.lcn', '.lcp', '.xml')) {
+        $null = $relevantExtensions.Add($extension)
+    }
+
+    function Invoke-LmcLasalGitInventoryQuery {
+        param(
+            [string[]]$QueryArguments
+        )
+
+        $gitArguments = @(
+            '-c', 'core.quotepath=false',
+            '-C', $repository,
+            'ls-files') + @($QueryArguments) + @('--') + $pathSpecs
+        $queryOutput = @(& git @gitArguments 2>&1)
+        $queryExitCode = $LASTEXITCODE
+        if ($queryExitCode -ne 0) {
+            throw (
+                'Git LASAL release input query failed with exit code ' +
+                "${queryExitCode}: $($queryOutput -join [Environment]::NewLine)")
+        }
+        return @($queryOutput | ForEach-Object { [string]$_ })
+    }
+
+    function Resolve-LmcLasalInventoryPath {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$RelativePath
+        )
+
+        $normalized = $RelativePath.Replace('\', '/')
+        if ([string]::IsNullOrWhiteSpace($normalized) -or
+            [System.IO.Path]::IsPathRooted($normalized)) {
+            throw "Git returned an invalid LASAL release input path: $RelativePath"
+        }
+        $fullPath = [System.IO.Path]::GetFullPath(
+            (Join-Path $repository $normalized.Replace('/', '\')))
+        if (-not $fullPath.StartsWith(
+            $repository + '\',
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Git LASAL release input escaped the repository: $RelativePath"
+        }
+        return [pscustomobject]@{
+            RelativePath = $normalized
+            FullPath = $fullPath
+        }
+    }
+
+    function Test-LmcLasalInventoryPathRelevant {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$RelativePath
+        )
+
+        if ($RelativePath.Equals(
+            $projectDefinitionRelativePath,
+            [System.StringComparison]::OrdinalIgnoreCase) -or
+            $RelativePath.Equals(
+            $projectDatabaseRelativePath,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+        $underInventoryRoot = $false
+        foreach ($inventoryRoot in $inventoryRoots) {
+            if ($RelativePath.StartsWith(
+                $inventoryRoot + '/',
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+                $underInventoryRoot = $true
+                break
+            }
+        }
+        if (-not $underInventoryRoot) {
+            return $false
+        }
+        return $relevantExtensions.Contains(
+            [System.IO.Path]::GetExtension($RelativePath))
+    }
+
+    $inventoryFiles = New-Object `
+        'System.Collections.Generic.Dictionary[string,string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    $projectDefinitionTracked = $false
+    $projectDatabaseTracked = $false
+    foreach ($trackedPath in @(Invoke-LmcLasalGitInventoryQuery)) {
+        $resolved = Resolve-LmcLasalInventoryPath -RelativePath $trackedPath
+        $trackedNetworkPath = $resolved.RelativePath.StartsWith(
+            $networkRelativeRoot + '/',
+            [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $trackedNetworkPath -and
+            -not (Test-LmcLasalInventoryPathRelevant `
+                -RelativePath $resolved.RelativePath)) {
+            continue
+        }
+        if (-not (Test-Path -LiteralPath $resolved.FullPath -PathType Leaf)) {
+            throw "Tracked LASAL release input not found: $($resolved.FullPath)"
+        }
+        $inventoryFiles[$resolved.RelativePath] = $resolved.FullPath
+        if ($resolved.RelativePath.Equals(
+            $projectDefinitionRelativePath,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            $projectDefinitionTracked = $true
+        }
+        elseif ($resolved.RelativePath.Equals(
+            $projectDatabaseRelativePath,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            $projectDatabaseTracked = $true
+        }
+    }
+    if (-not $projectDefinitionTracked) {
+        throw (
+            'Tracked LASAL project definition input not found: ' +
+            $projectDefinitionRelativePath)
+    }
+    if (-not $projectDatabaseTracked) {
+        throw (
+            'Tracked LASAL project database input not found: ' +
+            $projectDatabaseRelativePath)
+    }
+    if ($inventoryFiles.Count -eq 0) {
+        throw 'Git returned no tracked LASAL validation inputs.'
+    }
+
+    $networkRoot = Join-Path $repository `
+        $networkRelativeRoot.Replace('/', '\')
+    if (-not (Test-Path -LiteralPath $networkRoot -PathType Container)) {
+        throw "Canonical LASAL Network directory not found: $networkRoot"
+    }
+    foreach ($networkFile in @(
+        Get-ChildItem -LiteralPath $networkRoot -Recurse -Force -File |
+            Sort-Object FullName)) {
+        $fullNetworkPath = [System.IO.Path]::GetFullPath(
+            $networkFile.FullName)
+        if (-not $fullNetworkPath.StartsWith(
+            $repository + '\',
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw (
+                'LASAL Network validation input escaped the repository: ' +
+                $fullNetworkPath)
+        }
+        $relativeNetworkPath = $fullNetworkPath.Substring(
+            $repository.Length + 1).Replace('\', '/')
+        $inventoryFiles[$relativeNetworkPath] = $fullNetworkPath
+    }
+
+    $untrackedRelevant = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($queryArguments in @(
+        @('--others', '--exclude-standard'),
+        @('--others', '--ignored', '--exclude-standard'))) {
+        foreach ($untrackedPath in @(
+            Invoke-LmcLasalGitInventoryQuery `
+                -QueryArguments $queryArguments)) {
+            $resolved = Resolve-LmcLasalInventoryPath `
+                -RelativePath $untrackedPath
+            if (Test-LmcLasalInventoryPathRelevant `
+                -RelativePath $resolved.RelativePath) {
+                $null = $untrackedRelevant.Add($resolved.RelativePath)
+            }
+        }
+    }
+    if ($untrackedRelevant.Count -ne 0) {
+        $inventory = @($untrackedRelevant | Sort-Object) -join ', '
+        throw "Untracked LASAL validation input is not allowed: $inventory"
+    }
+
+    return @($inventoryFiles.Values | Sort-Object)
+}
+
 function Get-LmcReleaseInputFiles {
     $files = New-Object `
         'System.Collections.Generic.HashSet[string]' `
@@ -311,15 +536,12 @@ function Get-LmcReleaseInputFiles {
         (Join-Path $PSScriptRoot 'ReleaseManifest.ps1'),
         (Join-Path $PSScriptRoot 'API_USER_MANUAL_KO.md'),
         (Join-Path $RepositoryRoot `
-            'LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt'),
-        (Join-Path $RepositoryRoot `
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCDiagnosticsService\LMCDiagnosticsService.st'),
-        (Join-Path $RepositoryRoot `
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\LMCSdoExecutor\LMCSdoExecutor.st'),
-        (Join-Path $RepositoryRoot `
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Class\TCPMotionInterface\TCPMotionInterface.st'),
-        (Join-Path $RepositoryRoot `
-            'Lasal_PRG\Elmo_EtherCAT_Test_4Axis\Network\ConfigObjects.st'))) {
+            'LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt'))) {
+        Add-InputFile -Path $path
+    }
+
+    foreach ($path in @(Get-LmcLasalValidationInputFiles `
+        -RepositoryRoot $RepositoryRoot)) {
         Add-InputFile -Path $path
     }
 

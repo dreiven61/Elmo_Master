@@ -88,6 +88,45 @@ function Write-TestFile {
         [System.Text.Encoding]::ASCII.GetBytes($Content))
 }
 
+function Get-LasalValidationFixtureFingerprint {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot
+    )
+
+    $repository = [System.IO.Path]::GetFullPath(
+        $RepositoryRoot).TrimEnd('\')
+    $repositoryPrefix = $repository + '\'
+    $records = @()
+    foreach ($file in @(Get-LmcLasalValidationInputFiles `
+        -RepositoryRoot $repository)) {
+        $fullPath = [System.IO.Path]::GetFullPath($file)
+        if (-not $fullPath.StartsWith(
+            $repositoryPrefix,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Fixture LASAL input escaped its repository: $fullPath"
+        }
+        $relativePath = $fullPath.Substring(
+            $repositoryPrefix.Length).Replace('\', '/')
+        $item = Get-Item -LiteralPath $fullPath
+        $hash = (Get-FileHash `
+            -LiteralPath $fullPath `
+            -Algorithm SHA256).Hash.ToUpperInvariant()
+        $records += "$relativePath|$($item.Length)|$hash"
+    }
+    $canonical = ($records -join "`n") + "`n"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString(
+            $sha.ComputeHash(
+                [System.Text.Encoding]::UTF8.GetBytes($canonical)))).
+            Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function New-ExampleSolutionFixture {
     param(
         [Parameter(Mandatory = $true)]
@@ -284,6 +323,16 @@ function Remove-TestRootSafely {
     Assert-LmcDistributionTreeHasNoReparsePoints `
         -Root $fullPath `
         -Context 'Test cleanup tree'
+    foreach ($file in @(
+        Get-ChildItem -LiteralPath $fullPath -Recurse -Force -File)) {
+        $attributes = [System.IO.File]::GetAttributes($file.FullName)
+        if (($attributes -band [System.IO.FileAttributes]::ReadOnly) -ne 0) {
+            [System.IO.File]::SetAttributes(
+                $file.FullName,
+                [System.IO.FileAttributes](
+                    $attributes -bxor [System.IO.FileAttributes]::ReadOnly))
+        }
+    }
     [System.IO.Directory]::Delete($fullPath, $true)
 }
 
@@ -583,6 +632,50 @@ Global
         -Expected 0 `
         -Actual @($builderParseErrors).Count `
         -Message 'Release builder has PowerShell parser errors.'
+    $lasalInputInventoryFunctions = @($builderAst.FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Get-LmcLasalValidationInputFiles'
+        },
+        $true))
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $lasalInputInventoryFunctions.Count `
+        -Message 'Release builder LASAL input inventory function count drifted.'
+    . ([scriptblock]::Create(
+        $lasalInputInventoryFunctions[0].Extent.Text))
+    $releaseInputFunctions = @($builderAst.FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Get-LmcReleaseInputFiles'
+        },
+        $true))
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $releaseInputFunctions.Count `
+        -Message 'Release builder aggregate input function count drifted.'
+    $lasalInventoryCalls = @($releaseInputFunctions[0].FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -ceq
+                    'Get-LmcLasalValidationInputFiles'
+        },
+        $true))
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $lasalInventoryCalls.Count `
+        -Message (
+            'Release builder does not bind exactly one LASAL validation ' +
+            'inventory into the aggregate fingerprint.')
+    Assert-True `
+        -Condition ($lasalInventoryCalls[0].Extent.Text -match
+            '(?is)-RepositoryRoot\s+\$RepositoryRoot\b') `
+        -Message (
+            'Release builder LASAL validation inventory is not bound to the ' +
+            'selected repository root.')
     $msbuildFunctions = @($builderAst.FindAll(
         {
             param($node)
@@ -757,6 +850,409 @@ Global
         -Message (
             'Release builder final identity helper is not bound to the exact ' +
             'staged Run path and tested SHA.')
+
+    # The release fingerprint binds every tracked LASAL validation input and
+    # every physical Network aggregate input. Source-like untracked files are
+    # rejected; build-only artifacts outside that aggregate remain excluded.
+    $lasalInventoryRepository = Join-Path $script:TestRoot `
+        'lasal-validation-input-repository'
+    $lasalProjectRelativeRoot =
+        'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
+    $lasalProjectRoot = Join-Path $lasalInventoryRepository `
+        $lasalProjectRelativeRoot.Replace('/', '\')
+    $lasalTrackedFixtureContent = [ordered]@{
+        'Elmo_EtherCAT_Test_4Axis.lcp' = '<Project />'
+        'Elmo_EtherCAT_Test_4Axis.lcb' = 'project-database-v1'
+        'Class/LMCControlCommandService/LMCControlCommandService.st' =
+            'FUNCTION GLOBAL LMCControlCommandService::Run'
+        'Class/Classes.lcb' = 'class-database-v1'
+        'Class/LMCDiagnosticsService/LMCDiagnosticsService.st' =
+            'FUNCTION GLOBAL LMCDiagnosticsService::Run'
+        'Network/Networks.lcb' = 'network-database-v1'
+        'Network/Comm_Network/Comm_Network.lcn' = '<Network />'
+        'Network/ConfigObjects.st' = 'FUNCTION GLOBAL CONFIG_TABLES'
+        'Network/Eni.xml' = '<EtherCATConfig />'
+        'Network/VerifierInventory.dat' = 'tracked-network-opaque-v1'
+        'Include/global.h' = '#define FIXTURE_GLOBAL 1'
+        'Source/interfaces/lsl_st_tcp_user.h' =
+            '#define FIXTURE_TCP_USER 1'
+    }
+    Write-TestFile `
+        -Path (Join-Path $lasalInventoryRepository '.gitignore') `
+        -Content @'
+*.lba
+*.lob
+Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
+'@
+    foreach ($fixtureInput in
+        $lasalTrackedFixtureContent.GetEnumerator()) {
+        Write-TestFile `
+            -Path (Join-Path $lasalProjectRoot `
+                $fixtureInput.Key.Replace('/', '\')) `
+            -Content $fixtureInput.Value
+    }
+    $gitOutput = @(& git -C $lasalInventoryRepository init --quiet 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Fixture git init failed: $($gitOutput -join [Environment]::NewLine)"
+    }
+    $gitOutput = @(& git -c core.autocrlf=false `
+        -C $lasalInventoryRepository add -- `
+        '.gitignore' $lasalProjectRelativeRoot 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Fixture git add failed: $($gitOutput -join [Environment]::NewLine)"
+    }
+    $ignoredBuildOutput = Join-Path $lasalProjectRoot `
+        'Class/bin/Elmo_EtherCAT_Test_4Axis.lba'
+    $irrelevantUntrackedIcon = Join-Path $lasalProjectRoot `
+        'Class/Tool.ico'
+    Write-TestFile -Path $ignoredBuildOutput -Content 'ignored-build-output-v1'
+    Write-TestFile -Path $irrelevantUntrackedIcon -Content 'untracked-icon-v1'
+
+    $lasalInventoryFiles = @(Get-LmcLasalValidationInputFiles `
+        -RepositoryRoot $lasalInventoryRepository)
+    $lasalInventoryPrefix =
+        [System.IO.Path]::GetFullPath($lasalInventoryRepository).TrimEnd('\') +
+        '\'
+    $lasalInventoryRelativeFiles = @($lasalInventoryFiles |
+        ForEach-Object {
+            $_.Substring($lasalInventoryPrefix.Length).Replace('\', '/')
+        })
+    Assert-Equal `
+        -Expected $lasalTrackedFixtureContent.Count `
+        -Actual $lasalInventoryRelativeFiles.Count `
+        -Message 'LASAL release input inventory count drifted.'
+    foreach ($expectedRelativePath in $lasalTrackedFixtureContent.Keys) {
+        $expectedRepositoryRelativePath =
+            "$lasalProjectRelativeRoot/$expectedRelativePath"
+        Assert-True `
+            -Condition ($lasalInventoryRelativeFiles -ccontains
+                $expectedRepositoryRelativePath) `
+            -Message (
+                'LASAL release input inventory omitted tracked input ' +
+                $expectedRepositoryRelativePath)
+    }
+    Assert-True `
+        -Condition ($lasalInventoryFiles -notcontains $ignoredBuildOutput) `
+        -Message 'LASAL release input inventory bound an ignored .lba output.'
+    Assert-True `
+        -Condition ($lasalInventoryFiles -notcontains $irrelevantUntrackedIcon) `
+        -Message 'LASAL release input inventory bound an untracked icon.'
+
+    $lasalFingerprintBeforeIgnoredMutation =
+        Get-LasalValidationFixtureFingerprint `
+            -RepositoryRoot $lasalInventoryRepository
+    Write-TestFile `
+        -Path $ignoredBuildOutput `
+        -Content 'ignored-build-output-v2'
+    Assert-Equal `
+        -Expected $lasalFingerprintBeforeIgnoredMutation `
+        -Actual (Get-LasalValidationFixtureFingerprint `
+            -RepositoryRoot $lasalInventoryRepository) `
+        -Message 'An ignored .lba build output changed the release fingerprint.'
+
+    $seededNetworkRelativeOutputs = @(
+        'Network/Comm_Network/ONE_Comm_Network_Table.lba',
+        'Network/ConfigObjects.lba',
+        'Network/ConfigObjects.lob',
+        'Network/EtherCAT_Network/ONE_EtherCAT_Network_Table.lba',
+        'Network/HW_Network/ONE_HW_Network_Table.lba',
+        'Network/HW_Network/ONE_HW_Network_Table.lob',
+        'Network/Motion_Network/ONE_Motion_Network_Table.lba',
+        'Network/Motion_Network/ONE_Motion_Network_Table.lob')
+    $seededNetworkOutputs = @()
+    for ($seedIndex = 0;
+        $seedIndex -lt $seededNetworkRelativeOutputs.Count;
+        $seedIndex++) {
+        $seedPath = Join-Path $lasalProjectRoot `
+            $seededNetworkRelativeOutputs[$seedIndex].Replace('/', '\')
+        Write-TestFile `
+            -Path $seedPath `
+            -Content "seeded-network-output-$seedIndex"
+        $seededNetworkOutputs += $seedPath
+    }
+    $seededNetworkInventory = @(Get-LmcLasalValidationInputFiles `
+        -RepositoryRoot $lasalInventoryRepository)
+    Assert-Equal `
+        -Expected ($lasalTrackedFixtureContent.Count +
+            $seededNetworkOutputs.Count) `
+        -Actual $seededNetworkInventory.Count `
+        -Message 'Seeded FullNetwork physical input count drifted.'
+    foreach ($seededNetworkOutput in $seededNetworkOutputs) {
+        Assert-True `
+            -Condition ($seededNetworkInventory -contains
+                $seededNetworkOutput) `
+            -Message (
+                'Seeded FullNetwork inventory omitted ignored input ' +
+                $seededNetworkOutput)
+    }
+    $fixture = New-TestFixture -Name 'lasal_network_seeded_input_drift'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    $seededMutationOriginalBytes =
+        [System.IO.File]::ReadAllBytes($seededNetworkOutputs[0])
+    try {
+        Assert-Throws `
+            -Action {
+                Invoke-LmcDistributionCandidateTransaction `
+                    -CanonicalRoot $fixture.Canonical `
+                    -CandidatePath $fixture.Candidate `
+                    -PopulateAndValidate {
+                        param($stage)
+                        Populate-TestCandidate -Stage $stage
+                    } `
+                    -GetInputFingerprint {
+                        Get-LasalValidationFixtureFingerprint `
+                            -RepositoryRoot $lasalInventoryRepository
+                    } `
+                    -BeforePromotion {
+                        param($stage, $candidate)
+                        Write-TestFile `
+                            -Path $seededNetworkOutputs[0] `
+                            -Content 'seeded-network-output-mutated'
+                    }
+            } `
+            -ExpectedMessage (
+                'Distribution input fingerprint changed before promotion') |
+            Out-Null
+    }
+    finally {
+        [System.IO.File]::WriteAllBytes(
+            $seededNetworkOutputs[0],
+            $seededMutationOriginalBytes)
+    }
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Seeded ignored Network mutation promoted a candidate.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Seeded ignored Network mutation'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Seeded ignored Network mutation'
+    foreach ($seededNetworkOutput in $seededNetworkOutputs) {
+        [System.IO.File]::Delete($seededNetworkOutput)
+    }
+    Assert-Equal `
+        -Expected $lasalFingerprintBeforeIgnoredMutation `
+        -Actual (Get-LasalValidationFixtureFingerprint `
+            -RepositoryRoot $lasalInventoryRepository) `
+        -Message 'Removing seeded Network binaries did not restore pure-Git identity.'
+
+    foreach ($mutation in @(
+        [pscustomobject]@{
+            Name = 'control_service'
+            RelativePath =
+                'Class/LMCControlCommandService/LMCControlCommandService.st'
+        },
+        [pscustomobject]@{
+            Name = 'classes_database'
+            RelativePath = 'Class/Classes.lcb'
+        },
+        [pscustomobject]@{
+            Name = 'networks_database'
+            RelativePath = 'Network/Networks.lcb'
+        })) {
+        $fixture = New-TestFixture `
+            -Name ('lasal_input_drift_' + $mutation.Name)
+        $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+            -Root $fixture.Canonical
+        $mutationPath = Join-Path $lasalProjectRoot `
+            $mutation.RelativePath.Replace('/', '\')
+        $originalBytes = [System.IO.File]::ReadAllBytes($mutationPath)
+        try {
+            Assert-Throws `
+                -Action {
+                    Invoke-LmcDistributionCandidateTransaction `
+                        -CanonicalRoot $fixture.Canonical `
+                        -CandidatePath $fixture.Candidate `
+                        -PopulateAndValidate {
+                            param($stage)
+                            Populate-TestCandidate -Stage $stage
+                        } `
+                        -GetInputFingerprint {
+                            Get-LasalValidationFixtureFingerprint `
+                                -RepositoryRoot $lasalInventoryRepository
+                        } `
+                        -BeforePromotion {
+                            param($stage, $candidate)
+                            Write-TestFile `
+                                -Path $mutationPath `
+                                -Content ('mutated-after-populate-' +
+                                    $mutation.Name)
+                        }
+                } `
+                -ExpectedMessage (
+                    'Distribution input fingerprint changed before promotion') |
+                Out-Null
+        }
+        finally {
+            [System.IO.File]::WriteAllBytes($mutationPath, $originalBytes)
+        }
+        Assert-True `
+            -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+            -Message (
+                "$($mutation.Name) input drift promoted a candidate.")
+        Assert-CanonicalUnchanged `
+            -Before $canonicalBefore `
+            -Canonical $fixture.Canonical `
+            -Context "$($mutation.Name) input drift"
+        Assert-NoTransactionResidue `
+            -Fixture $fixture `
+            -Context "$($mutation.Name) input drift"
+    }
+
+    # A pure-Git Network snapshot has no ignored generated binaries. If one
+    # appears after validation, it is a new FullNetwork input and must prevent
+    # promotion even though Git still classifies it as ignored.
+    $fixture = New-TestFixture -Name 'lasal_network_ignored_input_appeared'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    $appearingNetworkOutput = Join-Path $lasalProjectRoot `
+        'Network/Comm_Network/ONE_Comm_Network_Table.lba'
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $appearingNetworkOutput)) `
+        -Message 'Ignored Network appearance fixture did not start absent.'
+    try {
+        Assert-Throws `
+            -Action {
+                Invoke-LmcDistributionCandidateTransaction `
+                    -CanonicalRoot $fixture.Canonical `
+                    -CandidatePath $fixture.Candidate `
+                    -PopulateAndValidate {
+                        param($stage)
+                        Populate-TestCandidate -Stage $stage
+                    } `
+                    -GetInputFingerprint {
+                        Get-LasalValidationFixtureFingerprint `
+                            -RepositoryRoot $lasalInventoryRepository
+                    } `
+                    -BeforePromotion {
+                        param($stage, $candidate)
+                        Write-TestFile `
+                            -Path $appearingNetworkOutput `
+                            -Content 'appeared-after-populate'
+                    }
+            } `
+            -ExpectedMessage (
+                'Distribution input fingerprint changed before promotion') |
+            Out-Null
+    }
+    finally {
+        if (Test-Path -LiteralPath $appearingNetworkOutput -PathType Leaf) {
+            [System.IO.File]::Delete($appearingNetworkOutput)
+        }
+    }
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Ignored Network input appearance promoted a candidate.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Ignored Network input appearance'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Ignored Network input appearance'
+
+    $untrackedSourcePath = Join-Path $lasalProjectRoot `
+        'Class/TestClass/TestClass.st'
+    Write-TestFile `
+        -Path $untrackedSourcePath `
+        -Content 'FUNCTION GLOBAL TestClass::Run'
+    Assert-Throws `
+        -Action {
+            Get-LmcLasalValidationInputFiles `
+                -RepositoryRoot $lasalInventoryRepository
+        } `
+        -ExpectedMessage 'Class/TestClass/TestClass.st' | Out-Null
+    [System.IO.File]::Delete($untrackedSourcePath)
+
+    $ignoredSourcePath = Join-Path $lasalProjectRoot `
+        'Class/IgnoredGenerated/IgnoredGenerated.st'
+    Write-TestFile `
+        -Path $ignoredSourcePath `
+        -Content 'FUNCTION GLOBAL IgnoredGenerated::Run'
+    Assert-Throws `
+        -Action {
+            Get-LmcLasalValidationInputFiles `
+                -RepositoryRoot $lasalInventoryRepository
+        } `
+        -ExpectedMessage (
+            'Class/IgnoredGenerated/IgnoredGenerated.st') | Out-Null
+    [System.IO.File]::Delete($ignoredSourcePath)
+
+    $trackedOpaqueNetworkPath = Join-Path $lasalProjectRoot `
+        'Network/VerifierInventory.dat'
+    $trackedOpaqueNetworkBytes =
+        [System.IO.File]::ReadAllBytes($trackedOpaqueNetworkPath)
+    try {
+        [System.IO.File]::Delete($trackedOpaqueNetworkPath)
+        Assert-Throws `
+            -Action {
+                Get-LmcLasalValidationInputFiles `
+                    -RepositoryRoot $lasalInventoryRepository
+            } `
+            -ExpectedMessage 'Tracked LASAL release input not found' | Out-Null
+    }
+    finally {
+        [System.IO.File]::WriteAllBytes(
+            $trackedOpaqueNetworkPath,
+            $trackedOpaqueNetworkBytes)
+    }
+
+    $lasalReparseTarget = Join-Path $script:TestRoot `
+        'lasal-validation-reparse-target'
+    $lasalReparseLink = Join-Path $lasalProjectRoot `
+        'Class/ReparseProbe'
+    Write-TestFile `
+        -Path (Join-Path $lasalReparseTarget 'sentinel.st') `
+        -Content 'FUNCTION GLOBAL ReparseSentinel::Run'
+    New-Item -ItemType Junction `
+        -Path $lasalReparseLink `
+        -Target $lasalReparseTarget | Out-Null
+    $script:TrackedReparsePaths.Add($lasalReparseLink)
+    Assert-Throws `
+        -Action {
+            Get-LmcLasalValidationInputFiles `
+                -RepositoryRoot $lasalInventoryRepository
+        } `
+        -ExpectedMessage (
+            'LASAL validation input tree contains a reparse point') | Out-Null
+    [System.IO.Directory]::Delete($lasalReparseLink)
+    Assert-True `
+        -Condition (Test-Path -LiteralPath (
+            Join-Path $lasalReparseTarget 'sentinel.st') -PathType Leaf) `
+        -Message 'LASAL input inventory reparse check followed its target.'
+
+    $lasalAncestorRepository = Join-Path $script:TestRoot `
+        'lasal-validation-reparse-ancestor-repository'
+    $lasalAncestorTarget = Join-Path $script:TestRoot `
+        'lasal-validation-reparse-ancestor-target'
+    $lasalAncestorLink = Join-Path $lasalAncestorRepository 'Lasal_PRG'
+    $lasalAncestorProject = Join-Path $lasalAncestorTarget `
+        'Elmo_EtherCAT_Test_4Axis'
+    Write-TestFile `
+        -Path (Join-Path $lasalAncestorProject 'Class/sentinel.st') `
+        -Content 'FUNCTION GLOBAL AncestorSentinel::Run'
+    New-Item -ItemType Directory `
+        -Path $lasalAncestorRepository -Force | Out-Null
+    New-Item -ItemType Junction `
+        -Path $lasalAncestorLink `
+        -Target $lasalAncestorTarget | Out-Null
+    $script:TrackedReparsePaths.Add($lasalAncestorLink)
+    Assert-Throws `
+        -Action {
+            Get-LmcLasalValidationInputFiles `
+                -RepositoryRoot $lasalAncestorRepository
+        } `
+        -ExpectedMessage (
+            'LASAL validation input path traverses a reparse point') | Out-Null
+    [System.IO.Directory]::Delete($lasalAncestorLink)
+    Assert-True `
+        -Condition (Test-Path -LiteralPath (
+            Join-Path $lasalAncestorProject 'Class/sentinel.st') `
+            -PathType Leaf) `
+        -Message 'LASAL input ancestry check followed its junction target.'
 
     # The helper executes only the exact staged Run EXE and binds its bytes.
     $gateRoot = Join-Path $script:TestRoot 'executable-relaunch-helper'
