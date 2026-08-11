@@ -589,6 +589,7 @@ function Invoke-LmcMSBuild {
         [Parameter(Mandatory = $true)]
         [string]$Target,
         [string]$Configuration = 'Release',
+        [string]$Platform = 'AnyCPU',
         [hashtable]$AdditionalProperties = @{}
     )
 
@@ -596,7 +597,7 @@ function Invoke-LmcMSBuild {
         $Project,
         "/t:$Target",
         "/p:Configuration=$Configuration",
-        '/p:Platform=AnyCPU',
+        "/p:Platform=$Platform",
         '/nologo',
         '/verbosity:minimal'
     )
@@ -780,9 +781,10 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
             -Destination (Join-Path $stagingRoot 'README.md') -Force
         Copy-Item -LiteralPath $distributionExampleReadmeTemplate `
             -Destination (Join-Path $exampleDirectory 'README.md') -Force
+        $candidateSolution = Join-Path $exampleDirectory `
+            'LasalApiWpfTestApp.sln'
         Copy-Item -LiteralPath $canonicalSolution `
-            -Destination (Join-Path $exampleDirectory `
-                'LasalApiWpfTestApp.sln') -Force
+            -Destination $candidateSolution -Force
         $stagedManualPdf = Join-Path $manualDirectory `
             'LASAL_Motion_Control_API_User_Manual_KO.pdf'
         $stagedManualDocx = Join-Path $manualDirectory `
@@ -808,6 +810,11 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
 
         $candidateProject = Copy-LmcDevelopmentExample `
             -DestinationRoot $exampleProjectRoot
+        $candidateSolutionContract =
+            Assert-LmcDistributionExampleSolutionContract `
+                -StagingRoot $stagingRoot `
+                -SolutionPath $candidateSolution `
+                -ProjectPath $candidateProject
 
         Invoke-LmcMSBuild -Project $testProject -Target 'RunTests' `
             -Configuration 'Debug'
@@ -827,10 +834,16 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         Copy-Item -LiteralPath $sourceDll `
             -Destination $distributionDll -Force
 
-        Invoke-LmcMSBuild -Project $candidateProject -Target 'Rebuild' `
-            -Configuration 'Debug'
-        Invoke-LmcMSBuild -Project $candidateProject -Target 'Rebuild' `
-            -Configuration 'Release'
+        Invoke-LmcMSBuild `
+            -Project $candidateSolutionContract.SolutionPath `
+            -Target 'Rebuild' `
+            -Configuration 'Debug' `
+            -Platform 'Any CPU'
+        Invoke-LmcMSBuild `
+            -Project $candidateSolutionContract.SolutionPath `
+            -Target 'Rebuild' `
+            -Configuration 'Release' `
+            -Platform 'Any CPU'
 
         $exampleOutput = Join-Path $exampleProjectRoot 'bin\Release'
         $exampleExe = Join-Path $exampleOutput `

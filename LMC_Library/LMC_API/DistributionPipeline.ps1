@@ -281,6 +281,204 @@ function Assert-LmcDistributionExecutableRelaunchIdentity {
     return $finalHash
 }
 
+function Assert-LmcDistributionExampleSolutionContract {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$SolutionPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath
+    )
+
+    $root = ConvertTo-LmcDistributionFullPath -Path $StagingRoot
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        throw "Staged example solution root was not found: $root"
+    }
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if (Test-LmcDistributionReparsePoint -Item $rootItem) {
+        throw "Staged example solution root must not be a reparse point: $root"
+    }
+
+    $expectedSolution = ConvertTo-LmcDistributionFullPath -Path (
+        Join-Path $root '02_Example_Program\LasalApiWpfTestApp.sln')
+    $expectedProject = ConvertTo-LmcDistributionFullPath -Path (
+        Join-Path $root (
+            '02_Example_Program\LasalApiWpfTestApp\' +
+            'LasalApiWpfTestApp.csproj'))
+    $solution = ConvertTo-LmcDistributionFullPath -Path $SolutionPath
+    $project = ConvertTo-LmcDistributionFullPath -Path $ProjectPath
+
+    foreach ($entry in @(
+        [pscustomobject]@{
+            Name = 'solution'
+            Actual = $solution
+            Expected = $expectedSolution
+        },
+        [pscustomobject]@{
+            Name = 'project'
+            Actual = $project
+            Expected = $expectedProject
+        })) {
+        if (-not $entry.Actual.Equals(
+                $entry.Expected,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Staged example $($entry.Name) path is invalid. expected=$($entry.Expected) actual=$($entry.Actual)"
+        }
+        if (-not (Test-Path -LiteralPath $entry.Actual -PathType Leaf)) {
+            throw "Staged example $($entry.Name) was not found: $($entry.Actual)"
+        }
+
+        $current = Get-Item -LiteralPath $entry.Actual -Force
+        while ($true) {
+            if (Test-LmcDistributionReparsePoint -Item $current) {
+                throw "Staged example $($entry.Name) traverses a reparse point: $($entry.Actual)"
+            }
+            if ($current.FullName.Equals(
+                    $root,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            if ($current -is [System.IO.FileInfo]) {
+                $current = $current.Directory
+            }
+            else {
+                $current = $current.Parent
+            }
+            if ($null -eq $current) {
+                throw "Staged example $($entry.Name) escaped its staging root: $($entry.Actual)"
+            }
+        }
+    }
+
+    try {
+        $projectXml = New-Object System.Xml.XmlDocument
+        $projectXml.PreserveWhitespace = $true
+        $projectXml.LoadXml([System.IO.File]::ReadAllText($project))
+    }
+    catch {
+        throw "Staged example project XML is invalid: $($_.Exception.Message)"
+    }
+    $projectGuidNodes = @($projectXml.SelectNodes(
+        "/*[local-name()='Project']/*[local-name()='PropertyGroup']/*[local-name()='ProjectGuid']"))
+    if ($projectGuidNodes.Count -ne 1) {
+        throw 'Staged example project must declare exactly one ProjectGuid.'
+    }
+    try {
+        $projectGuid = ([System.Guid]$projectGuidNodes[0].InnerText).
+            ToString('B').ToUpperInvariant()
+    }
+    catch {
+        throw 'Staged example project ProjectGuid is invalid.'
+    }
+
+    $solutionText = [System.IO.File]::ReadAllText($solution)
+    $projectDeclarationLines = @([regex]::Matches(
+        $solutionText,
+        '(?m)^[\t ]*Project\(.*$'))
+    if ($projectDeclarationLines.Count -ne 1) {
+        throw 'Staged example solution must contain exactly one project declaration.'
+    }
+    $projectDeclaration = [regex]::Match(
+        $projectDeclarationLines[0].Value,
+        '^[\t ]*Project\("(?<Type>\{[0-9A-Fa-f-]{36}\})"\)[\t ]*=[\t ]*"(?<Name>[^"]+)",[\t ]*"(?<Path>[^"]+)",[\t ]*"(?<Guid>\{[0-9A-Fa-f-]{36}\})"[\t ]*\r?$')
+    if (-not $projectDeclaration.Success) {
+        throw 'Staged example solution project declaration is invalid.'
+    }
+
+    try {
+        $solutionProjectType = ([System.Guid]::Parse(
+            $projectDeclaration.Groups['Type'].Value)).
+            ToString('B').ToUpperInvariant()
+        $solutionProjectGuid = ([System.Guid]::Parse(
+            $projectDeclaration.Groups['Guid'].Value)).
+            ToString('B').ToUpperInvariant()
+    }
+    catch {
+        throw 'Staged example solution project GUID is invalid.'
+    }
+    $expectedProjectType =
+        '{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}'
+    if (-not $solutionProjectType.Equals(
+            $expectedProjectType,
+            [System.StringComparison]::Ordinal)) {
+        throw 'Staged example solution project type must be the C# project type.'
+    }
+    if (-not $projectDeclaration.Groups['Name'].Value.Equals(
+            'LasalApiWpfTestApp',
+            [System.StringComparison]::Ordinal) -or
+        -not $projectDeclaration.Groups['Path'].Value.Equals(
+            'LasalApiWpfTestApp\LasalApiWpfTestApp.csproj',
+            [System.StringComparison]::Ordinal)) {
+        throw 'Staged example solution project path is invalid.'
+    }
+    if (-not $solutionProjectGuid.Equals(
+            $projectGuid,
+            [System.StringComparison]::Ordinal)) {
+        throw 'Staged example solution project GUID does not match the project file.'
+    }
+
+    function Get-ExactSolutionSectionLines {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Name,
+            [Parameter(Mandatory = $true)]
+            [ValidateSet('preSolution', 'postSolution')]
+            [string]$Phase
+        )
+
+        $sectionPattern = '(?ms)^[\t ]*GlobalSection\(' +
+            [regex]::Escape($Name) + '\)[\t ]*=[\t ]*' +
+            [regex]::Escape($Phase) + '[\t ]*\r?\n' +
+            '(?<Body>.*?)^[\t ]*EndGlobalSection[\t ]*\r?$'
+        $sectionMatches = @([regex]::Matches(
+            $solutionText,
+            $sectionPattern))
+        if ($sectionMatches.Count -ne 1) {
+            throw "Staged example solution must contain exactly one $Name section."
+        }
+        return @(
+            $sectionMatches[0].Groups['Body'].Value -split "`r`n|`n|`r" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                Sort-Object)
+    }
+
+    $actualSolutionConfigurations = @(Get-ExactSolutionSectionLines `
+        -Name 'SolutionConfigurationPlatforms' `
+        -Phase 'preSolution')
+    $expectedSolutionConfigurations = @(
+        'Debug|Any CPU = Debug|Any CPU',
+        'Release|Any CPU = Release|Any CPU') | Sort-Object
+    if (Compare-Object `
+            -ReferenceObject $expectedSolutionConfigurations `
+            -DifferenceObject $actualSolutionConfigurations) {
+        throw 'Staged example solution configuration contract is invalid.'
+    }
+
+    $actualProjectConfigurations = @(Get-ExactSolutionSectionLines `
+        -Name 'ProjectConfigurationPlatforms' `
+        -Phase 'postSolution')
+    $expectedProjectConfigurations = @(
+        "$projectGuid.Debug|Any CPU.ActiveCfg = Debug|Any CPU",
+        "$projectGuid.Debug|Any CPU.Build.0 = Debug|Any CPU",
+        "$projectGuid.Release|Any CPU.ActiveCfg = Release|Any CPU",
+        "$projectGuid.Release|Any CPU.Build.0 = Release|Any CPU") |
+        Sort-Object
+    if (Compare-Object `
+            -ReferenceObject $expectedProjectConfigurations `
+            -DifferenceObject $actualProjectConfigurations) {
+        throw 'Staged example solution project configuration contract is invalid.'
+    }
+
+    return [pscustomobject]@{
+        SolutionPath = $solution
+        ProjectPath = $project
+        ProjectGuid = $projectGuid
+    }
+}
+
 function Read-LmcDistributionLockedStreamBytes {
     param(
         [Parameter(Mandatory = $true)]

@@ -88,6 +88,62 @@ function Write-TestFile {
         [System.Text.Encoding]::ASCII.GetBytes($Content))
 }
 
+function New-ExampleSolutionFixture {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $fixtureRoot = Join-Path $script:TestRoot (
+        'example-solution-' + $Name)
+    $solutionPath = Join-Path $fixtureRoot (
+        '02_Example_Program\LasalApiWpfTestApp.sln')
+    $projectPath = Join-Path $fixtureRoot (
+        '02_Example_Program\LasalApiWpfTestApp\' +
+        'LasalApiWpfTestApp.csproj')
+    $projectGuid = '{337B4AB9-AFEC-4706-9DBB-4D78122DB2D2}'
+    $projectText = @'
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{337B4AB9-AFEC-4706-9DBB-4D78122DB2D2}</ProjectGuid>
+  </PropertyGroup>
+</Project>
+'@
+    $solutionText = @"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.33027.164
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LasalApiWpfTestApp", "LasalApiWpfTestApp\LasalApiWpfTestApp.csproj", "$projectGuid"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        ${projectGuid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        ${projectGuid}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        ${projectGuid}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        ${projectGuid}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(SolutionProperties) = preSolution
+        HideSolutionNode = FALSE
+    EndGlobalSection
+EndGlobal
+"@
+    $solutionText = $solutionText -replace "`r?`n", "`r`n"
+    Write-TestFile -Path $projectPath -Content $projectText
+    Write-TestFile -Path $solutionPath -Content $solutionText
+
+    return [pscustomobject]@{
+        Root = $fixtureRoot
+        Solution = $solutionPath
+        Project = $projectPath
+        ProjectGuid = $projectGuid
+    }
+}
+
 function New-TestFixture {
     param(
         [Parameter(Mandatory = $true)]
@@ -414,8 +470,108 @@ try {
             -Bytes $manualSnapshot.PdfBytes) `
         -Message 'Manual PDF snapshot changed with the original file.'
 
-    # The release builder must keep the exact Run copy/gate/manifest/final
-    # identity order inside the candidate transaction callback.
+    # The staged example solution is a one-project, two-configuration contract.
+    $validSolutionFixture = New-ExampleSolutionFixture -Name 'valid'
+    $validSolutionContract =
+        Assert-LmcDistributionExampleSolutionContract `
+            -StagingRoot $validSolutionFixture.Root `
+            -SolutionPath $validSolutionFixture.Solution `
+            -ProjectPath $validSolutionFixture.Project
+    Assert-Equal `
+        -Expected ([System.IO.Path]::GetFullPath(
+            $validSolutionFixture.Solution)) `
+        -Actual $validSolutionContract.SolutionPath `
+        -Message 'Valid solution contract returned the wrong solution path.'
+    Assert-Equal `
+        -Expected ([System.IO.Path]::GetFullPath(
+            $validSolutionFixture.Project)) `
+        -Actual $validSolutionContract.ProjectPath `
+        -Message 'Valid solution contract returned the wrong project path.'
+    Assert-Equal `
+        -Expected $validSolutionFixture.ProjectGuid `
+        -Actual $validSolutionContract.ProjectGuid `
+        -Message 'Valid solution contract returned the wrong project GUID.'
+
+    $wrongPathFixture = New-ExampleSolutionFixture -Name 'wrong-path'
+    $wrongPathText = [System.IO.File]::ReadAllText(
+        $wrongPathFixture.Solution).Replace(
+            'LasalApiWpfTestApp\LasalApiWpfTestApp.csproj',
+            'WrongProject\WrongProject.csproj')
+    Write-TestFile `
+        -Path $wrongPathFixture.Solution `
+        -Content $wrongPathText
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionExampleSolutionContract `
+                -StagingRoot $wrongPathFixture.Root `
+                -SolutionPath $wrongPathFixture.Solution `
+                -ProjectPath $wrongPathFixture.Project
+        } `
+        -ExpectedMessage 'solution project path is invalid' | Out-Null
+
+    $wrongGuidFixture = New-ExampleSolutionFixture -Name 'wrong-guid'
+    $wrongSolutionGuid = '{337B4AB9-AFEC-4706-9DBB-4D78122DB2D3}'
+    $wrongGuidText = [System.IO.File]::ReadAllText(
+        $wrongGuidFixture.Solution).Replace(
+            $wrongGuidFixture.ProjectGuid,
+            $wrongSolutionGuid)
+    Write-TestFile `
+        -Path $wrongGuidFixture.Solution `
+        -Content $wrongGuidText
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionExampleSolutionContract `
+                -StagingRoot $wrongGuidFixture.Root `
+                -SolutionPath $wrongGuidFixture.Solution `
+                -ProjectPath $wrongGuidFixture.Project
+        } `
+        -ExpectedMessage 'project GUID does not match' | Out-Null
+
+    $extraProjectFixture = New-ExampleSolutionFixture -Name 'extra-project'
+    $extraProjectText = [System.IO.File]::ReadAllText(
+        $extraProjectFixture.Solution) -replace '(?m)^Global\r?$', @'
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtraProject", "ExtraProject\ExtraProject.csproj", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Global
+'@
+    Write-TestFile `
+        -Path $extraProjectFixture.Solution `
+        -Content $extraProjectText
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionExampleSolutionContract `
+                -StagingRoot $extraProjectFixture.Root `
+                -SolutionPath $extraProjectFixture.Solution `
+                -ProjectPath $extraProjectFixture.Project
+        } `
+        -ExpectedMessage 'exactly one project declaration' | Out-Null
+
+    $missingConfigurationFixture =
+        New-ExampleSolutionFixture -Name 'missing-configuration'
+    $missingConfigurationLine =
+        $missingConfigurationFixture.ProjectGuid +
+        '.Release|Any CPU.Build.0 = Release|Any CPU'
+    $missingConfigurationText = [regex]::Replace(
+        [System.IO.File]::ReadAllText(
+            $missingConfigurationFixture.Solution),
+        '(?m)^[\t ]*' + [regex]::Escape($missingConfigurationLine) +
+            '[\t ]*(?:\r?\n|$)',
+        '')
+    Write-TestFile `
+        -Path $missingConfigurationFixture.Solution `
+        -Content $missingConfigurationText
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionExampleSolutionContract `
+                -StagingRoot $missingConfigurationFixture.Root `
+                -SolutionPath $missingConfigurationFixture.Solution `
+                -ProjectPath $missingConfigurationFixture.Project
+        } `
+        -ExpectedMessage 'project configuration contract is invalid' |
+        Out-Null
+
+    # The release builder must validate and build the exact staged solution
+    # before the Run copy/gate/manifest/final identity sequence.
     $builderPath = Join-Path $PSScriptRoot 'Build-LmcApiDistribution.ps1'
     $builderTokens = $null
     $builderParseErrors = $null
@@ -427,6 +583,24 @@ try {
         -Expected 0 `
         -Actual @($builderParseErrors).Count `
         -Message 'Release builder has PowerShell parser errors.'
+    $msbuildFunctions = @($builderAst.FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Invoke-LmcMSBuild'
+        },
+        $true))
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $msbuildFunctions.Count `
+        -Message 'Release builder MSBuild wrapper count drifted.'
+    Assert-True `
+        -Condition ($msbuildFunctions[0].Extent.Text -match (
+            '(?is)\[string\]\$Platform\s*=\s*''AnyCPU''.*?' +
+            '"/p:Platform=\$Platform"')) `
+        -Message (
+            'Release builder MSBuild wrapper no longer maps its Platform ' +
+            'parameter into the MSBuild command line.')
     $builderCommands = @($builderAst.FindAll(
         {
             param($node)
@@ -436,6 +610,17 @@ try {
     $transactionCommands = @($builderCommands | Where-Object {
             $_.GetCommandName() -ceq
                 'Invoke-LmcDistributionCandidateTransaction'
+        })
+    $solutionContractCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq
+                'Assert-LmcDistributionExampleSolutionContract'
+        })
+    $solutionBuildCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq 'Invoke-LmcMSBuild' -and
+            $_.Extent.Text -match (
+                '(?is)-Project\s+' +
+                '\$candidateSolutionContract\.SolutionPath\b.*?' +
+                "-Target\s+'Rebuild'")
         })
     $runCopyCommands = @($builderCommands | Where-Object {
             $_.GetCommandName() -ceq 'Copy-Item' -and
@@ -460,6 +645,10 @@ try {
         [pscustomobject]@{
             Name = 'candidate transaction'
             Commands = $transactionCommands
+        },
+        [pscustomobject]@{
+            Name = 'staged solution contract helper'
+            Commands = $solutionContractCommands
         },
         [pscustomobject]@{
             Name = 'Run EXE copy'
@@ -487,7 +676,16 @@ try {
             -Message (
                 "Release builder $($commandInventory.Name) command count drifted.")
     }
+    Assert-Equal `
+        -Expected 2 `
+        -Actual @($solutionBuildCommands).Count `
+        -Message 'Release builder exact staged solution build count drifted.'
+    $solutionBuildCommands = @($solutionBuildCommands |
+        Sort-Object { $_.Extent.StartOffset })
     $transactionCommand = $transactionCommands[0]
+    $solutionContractCommand = $solutionContractCommands[0]
+    $debugSolutionBuildCommand = $solutionBuildCommands[0]
+    $releaseSolutionBuildCommand = $solutionBuildCommands[1]
     $runCopyCommand = $runCopyCommands[0]
     $gateCommand = $gateCommands[0]
     $semanticCommand = $semanticCommands[0]
@@ -496,6 +694,12 @@ try {
     Assert-True `
         -Condition (
             $transactionCommand.Extent.StartOffset -lt
+                $solutionContractCommand.Extent.StartOffset -and
+            $solutionContractCommand.Extent.EndOffset -lt
+                $debugSolutionBuildCommand.Extent.StartOffset -and
+            $debugSolutionBuildCommand.Extent.EndOffset -lt
+                $releaseSolutionBuildCommand.Extent.StartOffset -and
+            $releaseSolutionBuildCommand.Extent.EndOffset -lt
                 $runCopyCommand.Extent.StartOffset -and
             $runCopyCommand.Extent.EndOffset -lt
                 $gateCommand.Extent.StartOffset -and
@@ -508,9 +712,32 @@ try {
             $finalIdentityCommand.Extent.EndOffset -lt
                 $transactionCommand.Extent.EndOffset) `
         -Message (
-            'Release builder order must remain transaction -> Run copy -> ' +
-            'EXE gate -> semantic policy -> manifest -> final EXE identity ' +
-            '-> transaction completion.')
+            'Release builder order must remain transaction -> solution ' +
+            'contract -> Debug solution build -> Release solution build -> ' +
+            'Run copy -> EXE gate -> semantic policy -> manifest -> final ' +
+            'EXE identity -> transaction completion.')
+    Assert-True `
+        -Condition ($solutionContractCommand.Extent.Text -match (
+            '(?is)-StagingRoot\s+\$stagingRoot\b.*?' +
+            '-SolutionPath\s+\$candidateSolution\b.*?' +
+            '-ProjectPath\s+\$candidateProject\b')) `
+        -Message (
+            'Release builder solution helper is not bound to the exact ' +
+            'staging root, staged solution, and staged project.')
+    Assert-True `
+        -Condition ($debugSolutionBuildCommand.Extent.Text -match (
+            '(?is)-Project\s+' +
+            '\$candidateSolutionContract\.SolutionPath\b.*?' +
+            "-Target\s+'Rebuild'.*?-Configuration\s+'Debug'.*?" +
+            "-Platform\s+'Any CPU'")) `
+        -Message 'Release builder does not rebuild the staged Debug solution.'
+    Assert-True `
+        -Condition ($releaseSolutionBuildCommand.Extent.Text -match (
+            '(?is)-Project\s+' +
+            '\$candidateSolutionContract\.SolutionPath\b.*?' +
+            "-Target\s+'Rebuild'.*?-Configuration\s+'Release'.*?" +
+            "-Platform\s+'Any CPU'")) `
+        -Message 'Release builder does not rebuild the staged Release solution.'
     Assert-True `
         -Condition ($gateCommand.Extent.Text -match (
             '(?is)-StagingRoot\s+\$stagingRoot\b.*?' +
