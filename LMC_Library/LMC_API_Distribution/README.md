@@ -5,15 +5,18 @@
 
 이 배포 패키지는 다음 세 번호 폴더와 최상위 검증 manifest로 구성된다.
 
-> **Preview 경고:** 이 패키지는 개발·통합 시험용이며 production 승인본이
-> 아니다. current source의 PC 시험과 LASAL 정적 계약은 통과했지만 실제 PLC
-> command E2E와 packet 재캡처는 `0/25`다. `Close`, `Dispose`, cancellation은
-> motion Stop이 아니다. 장비에서 E-stop, HW/SW limit, UNIT, Home/Reference와
-> 이동 범위를 별도로 승인한 뒤 사용한다. DLL은 strong-name/AuthentiCode 서명이 없다.
+> **Preview 경고:** 이 패키지는 개발·통합 시험용 preview이며 production 승인본이
+> 아니다. current PC 시험과 LASAL source/정적 계약은 current PLC 또는 hardware
+> 검증이 아니다. 새 PLC download, safety chain 승인, command capture와 최종 physical
+> readback을 완료하기 전에는 production에 사용하지 않는다. 성공 ACK는 command
+> 수락일 뿐 완료가 아니므로 typed status와 최종 위치/상태를 확인한다. `Close`,
+> `Dispose`, timeout과 cancellation은 motion Stop이 아니다. 장비에서 E-stop,
+> HW/SW limit, UNIT, Home/Reference와 이동 범위를 별도로 승인한 뒤 사용한다.
+> DLL은 strong-name/AuthentiCode 서명이 없다.
 
-> **Manual 출판 상태:** 포함된 DOCX/PDF는 문서 버전 `1.0`이다. 이 README의
-> preview, `0/25`, safe-stop과 group read 제한이 아직 manual 본문에 모두
-> 재출판되지 않았으므로 상충하면 이 README의 제한을 우선한다.
+> **Manual 출판 상태:** 포함된 DOCX/PDF는 current source 계약과 맞춘 문서 버전
+> `2.3-candidate`다. 이 tracked canonical release-input 승격은 full Distribution
+> PASS 또는 production 승인을 뜻하지 않는다.
 
 | 번호 | 폴더 | 내용 |
 |---:|---|---|
@@ -30,6 +33,21 @@
 DLL은 단위를 자동 변환하지 않는다. 호출자가 물리값을 PLC application UNIT으로
 변환해 DINT로 전달한다. 연결 종료는 motion Stop이 아니므로 상태 확인과 정지 절차는
 사용설명서의 호출 순서를 따른다.
+
+## Preview 기능 범위
+
+- 유일하게 source 승인된 SDO Write target은 Axis 1 Gold UI[24], exact
+  `Slave 1 / 0x2F00:24 / Int32 / 4 bytes`다. Axis 2..4와 모든 비승인 target은
+  차단된다.
+- 수동 Write는 같은 current connection/session의 `DiagnosticsBuild`, `BootId`,
+  `MapRevision`과 exact target을 고정하고 baseline, pre-write guard, Write,
+  guarded readback의 서로 다른 four-ticket same-value qualification을 통과해야 한다.
+  identity drift나 disconnect는 proof를 폐기하며 결과가 불명확한 Write를 자동
+  재전송하지 않는다.
+- Axis 1 UI[24]의 실제 미사용 여부, current PLC capability bit 9, EtherCAT mailbox
+  mutation과 physical readback은 아직 검증되지 않았다.
+- PI Write, D4 Double Recorder, dynamic capability bits 15..17과 digital output
+  command `0x7E23`은 이 preview에서 활성화되지 않는다.
 
 ## 전달 폴더 청결성
 

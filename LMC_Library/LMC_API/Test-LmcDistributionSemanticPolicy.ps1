@@ -95,6 +95,30 @@ function Set-DistributionSemanticPolicyFixtureText {
         $script:DistributionSemanticPolicyUtf8)
 }
 
+function Copy-DistributionSemanticPolicyReadmeTemplates {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CandidateRoot
+    )
+
+    $templates = [ordered]@{
+        'DistributionREADME.md' = 'README.md'
+        'DistributionExampleREADME.md' = '02_Example_Program\README.md'
+    }
+    foreach ($entry in $templates.GetEnumerator()) {
+        $sourcePath = Join-Path $PSScriptRoot ([string]$entry.Key)
+        $destinationPath = Join-Path $CandidateRoot ([string]$entry.Value)
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw ('Distribution README template was not found: {0}' -f $sourcePath)
+        }
+        $destinationDirectory = Split-Path -Parent $destinationPath
+        if (-not (Test-Path -LiteralPath $destinationDirectory -PathType Container)) {
+            $null = New-Item -ItemType Directory -Path $destinationDirectory -Force
+        }
+        [System.IO.File]::Copy($sourcePath, $destinationPath, $true)
+    }
+}
+
 function Get-DistributionSemanticPolicyFixtureManualText {
     return @'
 LASAL Motion Control API 0.9.1-preview is not production approved and is a production NO-GO.
@@ -302,9 +326,7 @@ var closeSafety = "No Stop command is sent automatically";
         }
     }
 
-    $readme = 'LASAL Motion Control API 0.9.1-preview is not production approved; production NO-GO.'
-    Write-DistributionSemanticPolicyFixtureFile -Path (Join-Path $candidateRoot 'README.md') -Text $readme
-    Write-DistributionSemanticPolicyFixtureFile -Path (Join-Path $candidateRoot '02_Example_Program\README.md') -Text $readme
+    Copy-DistributionSemanticPolicyReadmeTemplates -CandidateRoot $candidateRoot
     Write-DistributionSemanticPolicyFixtureFile -Path (Join-Path $candidateRoot '03_API_User_Manual\LASAL_Motion_Control_API_User_Manual_KO.docx') -Text 'provider fixture'
     Write-DistributionSemanticPolicyFixtureFile -Path (Join-Path $candidateRoot '03_API_User_Manual\LASAL_Motion_Control_API_User_Manual_KO.pdf') -Text 'provider fixture'
 
@@ -451,13 +473,8 @@ try {
         }
         [System.IO.File]::Copy($sourcePath, $destinationPath, $true)
     }
-    $actualReadme = 'LASAL Motion Control API 0.9.1-preview is not production approved; production NO-GO.'
-    Write-DistributionSemanticPolicyFixtureFile `
-        -Path (Join-Path $actualCandidateRoot 'README.md') `
-        -Text $actualReadme
-    Write-DistributionSemanticPolicyFixtureFile `
-        -Path (Join-Path $actualCandidateRoot '02_Example_Program\README.md') `
-        -Text $actualReadme
+    Copy-DistributionSemanticPolicyReadmeTemplates `
+        -CandidateRoot $actualCandidateRoot
     Write-DistributionSemanticPolicyFixtureFile `
         -Path (Join-Path $actualCandidateRoot '03_API_User_Manual\LASAL_Motion_Control_API_User_Manual_KO.docx') `
         -Text 'provider fixture'
@@ -762,6 +779,19 @@ SDO Write gate is OFF and the approved target count is zero.
     Assert-DistributionSemanticPolicyBlocker -ExpectedBlocker 'PREVIEW_PRODUCTION_NO_GO' -Action {
         Invoke-DistributionSemanticPolicyFixture -Fixture $fixture -ManualText $driftText
     }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'preview_example_readme'
+    Set-DistributionSemanticPolicyFixtureText `
+        -Path (Join-Path $fixture.CandidateRoot '02_Example_Program\README.md') `
+        -OldText 'This example remains preview software and is not production approved.' `
+        -NewText 'This example uses the packaged public API.'
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'PREVIEW_PRODUCTION_NO_GO' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture -Fixture $fixture
+        }
 
     $fixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'ack'
     $driftText = $fixture.ManualText.Replace(
