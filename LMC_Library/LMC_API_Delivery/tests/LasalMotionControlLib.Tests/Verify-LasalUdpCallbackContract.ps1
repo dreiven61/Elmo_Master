@@ -292,6 +292,9 @@ $ExpectedTerminalWakeLayout = [ordered]@{
         CleanCheckoutCount = 23
         CleanCheckoutSha256 =
             '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
+        PureGitCheckoutCount = 15
+        PureGitCheckoutSha256 =
+            '239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
@@ -352,6 +355,9 @@ $TerminalWakeLayoutSelfTestOracle = [ordered]@{
         CleanCheckoutCount = 23
         CleanCheckoutSha256 =
             '0AA5BD15701BB05C689C883AC69829D90CDFCB48E836D24776A1105A460A4751'
+        PureGitCheckoutCount = 15
+        PureGitCheckoutSha256 =
+            '239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22'
     }
     TrackedNetwork = [ordered]@{
         Count = 15
@@ -1383,7 +1389,7 @@ function Get-FunctionRecords {
         }
         else {
             $endRegex = [regex]::new(
-                '(?im)^[ \t]*END_FUNCTION[ \t]*$')
+                '(?im)^[ \t]*END_FUNCTION[ \t]*\r?$')
             $endMatch = $endRegex.Match(
                 $Text,
                 $match.Index + $match.Length)
@@ -2006,6 +2012,60 @@ function Assert-DerivedCandidateExactFunctionContract {
                     } else {
                         "DerivedCandidate $name complete function token stream drifted."
                     }))
+        }
+    }
+}
+
+function Assert-DerivedFunctionParserCrossEolSelfTest {
+    $canonicalSource = ConvertTo-CanonicalLf -Text (
+        New-SyntheticTerminalWakeDerivedSource)
+    $recordsByEol = [ordered]@{}
+    foreach ($entry in @(
+            [pscustomobject]@{
+                Name = 'LF'
+                Source = $canonicalSource
+            },
+            [pscustomobject]@{
+                Name = 'CRLF'
+                Source = $canonicalSource.Replace("`n", "`r`n")
+            })) {
+        $records = @(Get-FunctionRecords `
+                -Text $entry.Source -Kind Implementation)
+        Assert-ExactInventory `
+            -Actual @($records.Name) `
+            -Expected $ImplementationFunctionNames `
+            -InventoryOwner (
+                "synthetic derived $($entry.Name) function parser")
+        foreach ($record in $records) {
+            if ([regex]::Matches(
+                    $record.Block,
+                    '(?im)^[ \t]*FUNCTION\b').Count -ne 1 -or
+                [regex]::Matches(
+                    $record.Block,
+                    '(?im)^[ \t]*END_FUNCTION[ \t]*\r?$').Count -ne 1) {
+                Throw-UdpCallbackBlocker (
+                    "synthetic derived $($entry.Name) $($record.Name) " +
+                        'function boundary is not exact.')
+            }
+        }
+        Assert-DerivedCandidateExactFunctionContract `
+            -Implementations $records `
+            -TerminalWakeBroker
+        $recordsByEol[$entry.Name] = $records
+    }
+
+    for ($index = 0; $index -lt $ImplementationFunctionNames.Count; $index++) {
+        $lfTokens = Get-CommentInsensitiveTokenStream `
+            -Text $recordsByEol.LF[$index].Block
+        $crLfTokens = Get-CommentInsensitiveTokenStream `
+            -Text $recordsByEol.CRLF[$index].Block
+        if (-not [string]::Equals(
+                $lfTokens,
+                $crLfTokens,
+                [StringComparison]::Ordinal)) {
+            Throw-UdpCallbackBlocker (
+                "synthetic derived $($ImplementationFunctionNames[$index]) " +
+                    'LF/CRLF token equivalence drifted.')
         }
     }
 }
@@ -5778,7 +5838,9 @@ function Get-TerminalWakeLayoutProjection {
             'Count',
             'Sha256',
             'CleanCheckoutCount',
-            'CleanCheckoutSha256')
+            'CleanCheckoutSha256',
+            'PureGitCheckoutCount',
+            'PureGitCheckoutSha256')
         TrackedNetwork = @(
             'Count',
             'Sha256',
@@ -5831,16 +5893,29 @@ function Test-TerminalWakeNetworkAggregateIdentity {
         [Collections.IDictionary]$Expected
     )
 
+    $accepted = [Collections.Generic.List[object]]::new()
+    $accepted.Add([pscustomobject]@{
+            Count = [long]$Expected.Count
+            Sha256 = [string]$Expected.Sha256
+        })
+    $accepted.Add([pscustomobject]@{
+            Count = [long]$Expected.CleanCheckoutCount
+            Sha256 = [string]$Expected.CleanCheckoutSha256
+        })
+    $hasPureGitCount = $Expected.Contains('PureGitCheckoutCount')
+    $hasPureGitSha256 = $Expected.Contains('PureGitCheckoutSha256')
+    if ($hasPureGitCount -ne $hasPureGitSha256) {
+        Throw-UdpCallbackBlocker (
+            'Gate D pure Git checkout Network identity is incomplete.')
+    }
+    if ($hasPureGitCount) {
+        $accepted.Add([pscustomobject]@{
+                Count = [long]$Expected.PureGitCheckoutCount
+                Sha256 = [string]$Expected.PureGitCheckoutSha256
+            })
+    }
     $matches = @(
-        @(
-            [pscustomobject]@{
-                Count = [long]$Expected.Count
-                Sha256 = [string]$Expected.Sha256
-            },
-            [pscustomobject]@{
-                Count = [long]$Expected.CleanCheckoutCount
-                Sha256 = [string]$Expected.CleanCheckoutSha256
-            }) | Where-Object {
+        $accepted.ToArray() | Where-Object {
                 ($ActualCount -eq $_.Count) -and
                 ($ActualSha256 -ceq $_.Sha256)
             })
@@ -11001,6 +11076,7 @@ function Get-UdpCallbackSenderEvidenceToken {
 
 function Invoke-UdpCallbackVerifierSelfTest {
     Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
+    Assert-DerivedFunctionParserCrossEolSelfTest
 
     $selfTestRoot = [IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..\..\..'))
@@ -11228,6 +11304,19 @@ function Invoke-UdpCallbackVerifierSelfTest {
     $cleanCheckoutNetworkPositive.TrackedNetworkSha256 =
         $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutSha256
     Assert-TerminalWakeLayoutContract -Snapshot $cleanCheckoutNetworkPositive
+
+    $pureGitCheckoutNetworkPositive =
+        New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+    $pureGitCheckoutNetworkPositive.FullNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.PureGitCheckoutCount
+    $pureGitCheckoutNetworkPositive.FullNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.FullNetwork.PureGitCheckoutSha256
+    $pureGitCheckoutNetworkPositive.TrackedNetworkCount =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutCount
+    $pureGitCheckoutNetworkPositive.TrackedNetworkSha256 =
+        $TerminalWakeLayoutSelfTestOracle.TrackedNetwork.CleanCheckoutSha256
+    Assert-TerminalWakeLayoutContract `
+        -Snapshot $pureGitCheckoutNetworkPositive
 
     $gateCSenderToken = Get-UdpCallbackSenderEvidenceToken `
         -State DerivedCandidate `
@@ -11486,6 +11575,90 @@ END_STRUCT;
     }
 
     $negativeCount = 0
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D pure Git Network missing tracked subset' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount =
+                $ExpectedTerminalWakeLayout.FullNetwork.PureGitCheckoutCount
+            $s.FullNetworkSha256 =
+                $ExpectedTerminalWakeLayout.FullNetwork.PureGitCheckoutSha256
+            $s.TrackedNetworkCount = 14
+            $s.TrackedNetworkSha256 =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D seeded Network partial generated subset' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount = 22
+            $s.FullNetworkSha256 =
+                $ExpectedTerminalWakeLayout.FullNetwork.CleanCheckoutSha256
+            $s.TrackedNetworkCount =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D seeded Network generated file corrupt' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount = 23
+            $s.FullNetworkSha256 = Get-TextSha256 `
+                -Text 'seeded-network-corrupt-generated-file'
+            $s.TrackedNetworkCount =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D seeded Network extra ignored generated file' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount = 24
+            $s.FullNetworkSha256 = Get-TextSha256 `
+                -Text 'seeded-network-extra-ignored-generated-file'
+            $s.TrackedNetworkCount =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D pure Git Network full identity corrupt' -Action {
+            $s = New-TerminalWakePhysicalLayoutFixture -SenderEolStyle LF
+            $s.FullNetworkCount = 15
+            $s.FullNetworkSha256 = Get-TextSha256 `
+                -Text 'pure-git-network-full-identity-corrupt'
+            $s.TrackedNetworkCount =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutCount
+            $s.TrackedNetworkSha256 =
+                $ExpectedTerminalWakeLayout.TrackedNetwork.CleanCheckoutSha256
+            Assert-TerminalWakeLayoutContract -Snapshot $s
+        }
+    $negativeCount += Assert-UdpCallbackNegativeFixture `
+        -Name 'Gate D CRLF CyWork END_FUNCTION boundary missing' -Action {
+            $source = (ConvertTo-CanonicalLf -Text (
+                    New-SyntheticTerminalWakeDerivedSource)).Replace(
+                "`n",
+                "`r`n")
+            $old =
+                "    CriticalSection_UDP.SectionStop();`r`n" +
+                "END_FUNCTION`r`n`r`n" +
+                'FUNCTION GLOBAL LMCUdpCallbackSender::ArmEndpoint'
+            $new =
+                "    CriticalSection_UDP.SectionStop();`r`n" +
+                "END_FUNCTIOX`r`n`r`n" +
+                'FUNCTION GLOBAL LMCUdpCallbackSender::ArmEndpoint'
+            if ((Get-OrdinalCount -Text $source -Needle $old) -ne 1) {
+                throw 'Gate D CRLF CyWork boundary mutation anchor drifted.'
+            }
+            $records = @(Get-FunctionRecords `
+                    -Text $source.Replace($old, $new) `
+                    -Kind Implementation)
+            Assert-DerivedCandidateExactFunctionContract `
+                -Implementations $records `
+                -TerminalWakeBroker
+        }
     $negativeCount += Assert-UdpCallbackNegativeFixture `
         -Name 'Gate D expected layout single-sided pin drift' -Action {
             $savedExpectedSenderCanonicalSha256 =
