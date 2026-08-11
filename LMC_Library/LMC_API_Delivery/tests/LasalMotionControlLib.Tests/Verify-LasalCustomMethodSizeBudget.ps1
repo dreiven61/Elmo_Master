@@ -41,9 +41,9 @@ $BaselineDebt = @(
     [pscustomobject]@{
         ClassName = 'LMCControlCommandService'
         MethodName = 'ReserveAxisOwnership'
-        RawBytes = 79880
-        LFBytes = 77732
-        CRLFBytes = 79881
+        RawBytes = 77731
+        LFBytes = 77731
+        CRLFBytes = 79879
     },
     [pscustomobject]@{
         ClassName = 'LMCRecorderStore'
@@ -55,9 +55,9 @@ $BaselineDebt = @(
     [pscustomobject]@{
         ClassName = 'LMCEcatInputLatch'
         MethodName = 'RtWork'
-        RawBytes = 73392
-        LFBytes = 71906
-        CRLFBytes = 73766
+        RawBytes = 72907
+        LFBytes = 71437
+        CRLFBytes = 73287
     }
 )
 
@@ -483,26 +483,56 @@ function Invoke-SelfTest {
     $testCount++
     Write-Output "SELFTEST $testCount PASS retired publish debt rejection"
 
-    $growthInventory = @(
-        New-TestInventoryEntry `
-            -ClassName $reserveBaseline.ClassName `
-            -MethodName $reserveBaseline.MethodName `
-            -RawBytes ($reserveBaseline.RawBytes + 1) `
-            -LFBytes $reserveBaseline.LFBytes `
-            -CRLFBytes $reserveBaseline.CRLFBytes)
-    Assert-SelfTestThrows `
-        -Action {
-            [void](Assert-MethodSizeBudget `
-                    -Inventory $growthInventory `
-                    -Owner 'self-test baseline growth')
-        } `
-        -ExpectedText 'baseline debt LMCControlCommandService::ReserveAxisOwnership grew' `
-        -Name 'baseline growth'
-    $testCount++
-    Write-Output "SELFTEST $testCount PASS baseline growth rejection"
+    $baselineGrowthDimensions = @(
+        [pscustomobject]@{
+            Name = 'raw'
+            RawDelta = 1
+            LFDelta = 0
+            CRLFDelta = 0
+        },
+        [pscustomobject]@{
+            Name = 'LF'
+            RawDelta = 0
+            LFDelta = 1
+            CRLFDelta = 0
+        },
+        [pscustomobject]@{
+            Name = 'CRLF'
+            RawDelta = 0
+            LFDelta = 0
+            CRLFDelta = 1
+        })
+    foreach ($baseline in $BaselineDebt) {
+        $baselineKey = Get-MethodKey `
+            -ClassName $baseline.ClassName `
+            -MethodName $baseline.MethodName
+        foreach ($dimension in $baselineGrowthDimensions) {
+            $growthInventory = @(
+                New-TestInventoryEntry `
+                    -ClassName $baseline.ClassName `
+                    -MethodName $baseline.MethodName `
+                    -RawBytes ($baseline.RawBytes + $dimension.RawDelta) `
+                    -LFBytes ($baseline.LFBytes + $dimension.LFDelta) `
+                    -CRLFBytes ($baseline.CRLFBytes + $dimension.CRLFDelta))
+            Assert-SelfTestThrows `
+                -Action {
+                    [void](Assert-MethodSizeBudget `
+                            -Inventory $growthInventory `
+                            -Owner (
+                                'self-test baseline growth ' +
+                                $baselineKey + ' ' + $dimension.Name))
+                } `
+                -ExpectedText ("baseline debt $baselineKey grew") `
+                -Name ("baseline growth $baselineKey $($dimension.Name)")
+            $testCount++
+            Write-Output (
+                "SELFTEST $testCount PASS baseline growth rejection " +
+                "$baselineKey $($dimension.Name)")
+        }
+    }
 
-    if ($testCount -ne 8) {
-        throw "Method-size verifier self-test count is $testCount, expected 8."
+    if ($testCount -ne 16) {
+        throw "Method-size verifier self-test count is $testCount, expected 16."
     }
     Write-Output "PASS: method-size verifier self-test $testCount/$testCount."
 }
