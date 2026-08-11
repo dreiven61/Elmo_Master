@@ -1,3 +1,17 @@
+if ($null -eq (Get-Command `
+        -Name 'Assert-LmcDistributionToolchainManifestBinding' `
+        -CommandType Function `
+        -ErrorAction SilentlyContinue)) {
+    $provenanceImplementation = Join-Path $PSScriptRoot `
+        'DistributionToolchainProvenance.ps1'
+    if (-not (Test-Path `
+            -LiteralPath $provenanceImplementation `
+            -PathType Leaf)) {
+        throw "Distribution toolchain provenance implementation not found: $provenanceImplementation"
+    }
+    . $provenanceImplementation
+}
+
 function Assert-LmcReleaseManifestSafeText {
     [CmdletBinding()]
     param(
@@ -216,7 +230,17 @@ function Get-LmcReleaseManifestArtifactRecords {
         throw 'The distribution does not contain any manifestable artifacts.'
     }
 
-    return @($records | Sort-Object -Property RelativePath)
+    $recordByPath = New-Object `
+        'System.Collections.Generic.Dictionary[string,object]' `
+        ([System.StringComparer]::Ordinal)
+    foreach ($record in $records) {
+        $recordByPath.Add($record.RelativePath, $record)
+    }
+    [string[]]$ordinalPaths = @($recordByPath.Keys)
+    [System.Array]::Sort(
+        $ordinalPaths,
+        [System.StringComparer]::Ordinal)
+    return @($ordinalPaths | ForEach-Object { $recordByPath[$_] })
 }
 
 function Get-LmcReleaseManifestContent {
@@ -245,7 +269,24 @@ function Get-LmcReleaseManifestContent {
         [string]$SemanticPolicySha256,
         [Parameter(Mandatory = $true)]
         [ValidateSet('PASS')]
-        [string]$SemanticPolicyResult
+        [string]$SemanticPolicyResult,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolchainSha256,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolchainRecords,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$ToolingPreflightResult,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightRunCount,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightDigest,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightFileCount,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolingPreflightHostRecords,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightSha256
     )
 
     if ($SourceCommit -notmatch '^[0-9a-fA-F]{40}$') {
@@ -262,6 +303,18 @@ function Get-LmcReleaseManifestContent {
         [System.StringComparison]::Ordinal)) {
         throw 'Semantic policy result must be exactly PASS.'
     }
+    $validatedToolchainRecords = @(
+        Assert-LmcDistributionToolchainManifestBinding `
+            -Records $ToolchainRecords `
+            -Sha256 $ToolchainSha256)
+    $validatedPreflight = `
+        Assert-LmcDistributionToolingPreflightManifestBinding `
+            -Result $ToolingPreflightResult `
+            -RunCount $ToolingPreflightRunCount `
+            -ToolingDigest $ToolingPreflightDigest `
+            -HostRecords $ToolingPreflightHostRecords `
+            -Sha256 $ToolingPreflightSha256 `
+            -ToolingFileCount $ToolingPreflightFileCount
     foreach ($version in @($AssemblyVersion, $FileVersion, $ProductVersion)) {
         if ($version -notmatch '^[0-9A-Za-z][0-9A-Za-z.+-]*$') {
             throw "Release version contains an unsupported value: $version"
@@ -302,10 +355,16 @@ function Get-LmcReleaseManifestContent {
     $lines = @(
         '# LASAL Motion Control API Release Manifest',
         '',
-        '- Manifest schema: `2`',
+        '- Manifest schema: `3`',
         "- Source commit: ``$($SourceCommit.ToLowerInvariant())``",
         "- Worktree state: ``$WorktreeState``",
         "- Release input tree SHA-256: ``$($InputTreeSha256.ToUpperInvariant())``",
+        "- Release toolchain SHA-256: ``$($ToolchainSha256.ToUpperInvariant())``",
+        "- Tooling preflight result: ``$($validatedPreflight.Result)``",
+        "- Tooling preflight run count: ``$($validatedPreflight.RunCount)``",
+        "- Tooling preflight digest: ``$($validatedPreflight.ToolingDigest)``",
+        "- Tooling preflight file count: ``$($validatedPreflight.ToolingFileCount)``",
+        "- Tooling preflight attestation SHA-256: ``$($validatedPreflight.Sha256)``",
         "- Semantic policy SHA-256: ``$($SemanticPolicySha256.ToUpperInvariant())``",
         "- Semantic policy result: ``$SemanticPolicyResult``",
         '- Configuration: `Release`',
@@ -317,6 +376,28 @@ function Get-LmcReleaseManifestContent {
         "- Canonical DLL SHA-256: ``$canonicalDllHash``",
         '',
         '> `dirty-preview` identifies an uncommitted integration build and is not a production approval.',
+        '',
+        '## Tooling preflight hosts',
+        '',
+        '| Host | Edition | Major | Version | Executable SHA-256 |',
+        '|---|---|---:|---|---|'
+    )
+    foreach ($hostRecord in $validatedPreflight.HostRecords) {
+        $hostParts = @($hostRecord -split '\|')
+        $lines += "| ``$($hostParts[0])`` | ``$($hostParts[1])`` | $($hostParts[2]) | ``$($hostParts[3])`` | ``$($hostParts[4])`` |"
+    }
+    $lines += @(
+        '',
+        '## Release toolchain',
+        '',
+        '| Logical role | Version | Identity SHA-256 |',
+        '|---|---|---|'
+    )
+    foreach ($toolchainRecord in $validatedToolchainRecords) {
+        $toolchainParts = @($toolchainRecord -split '\|')
+        $lines += "| ``$($toolchainParts[0])`` | ``$($toolchainParts[1])`` | ``$($toolchainParts[2])`` |"
+    }
+    $lines += @(
         '',
         '## Artifacts',
         '',
@@ -359,7 +440,24 @@ function Test-LmcReleaseManifest {
         [string]$SemanticPolicySha256,
         [Parameter(Mandatory = $true)]
         [ValidateSet('PASS')]
-        [string]$SemanticPolicyResult
+        [string]$SemanticPolicyResult,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolchainSha256,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolchainRecords,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$ToolingPreflightResult,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightRunCount,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightDigest,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightFileCount,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolingPreflightHostRecords,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightSha256
     )
 
     $root = Get-LmcReleaseManifestRoot -DistributionRoot $DistributionRoot
@@ -411,7 +509,24 @@ function Write-LmcReleaseManifestAtomic {
         [string]$SemanticPolicySha256,
         [Parameter(Mandatory = $true)]
         [ValidateSet('PASS')]
-        [string]$SemanticPolicyResult
+        [string]$SemanticPolicyResult,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolchainSha256,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolchainRecords,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PASS')]
+        [string]$ToolingPreflightResult,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightRunCount,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightDigest,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightFileCount,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ToolingPreflightHostRecords,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolingPreflightSha256
     )
 
     $root = Get-LmcReleaseManifestRoot -DistributionRoot $DistributionRoot

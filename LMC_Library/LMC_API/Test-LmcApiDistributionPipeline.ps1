@@ -19,6 +19,19 @@ if (-not (Test-Path -LiteralPath $toolingHostParity -PathType Leaf)) {
 }
 . $toolingHostParity
 
+$toolchainProvenance = Join-Path $PSScriptRoot `
+    'DistributionToolchainProvenance.ps1'
+if (-not (Test-Path -LiteralPath $toolchainProvenance -PathType Leaf)) {
+    throw "Distribution toolchain provenance implementation not found: $toolchainProvenance"
+}
+. $toolchainProvenance
+
+$script:TestGitPath = [string](@(Get-Command `
+    -Name 'git' `
+    -CommandType Application `
+    -All `
+    -ErrorAction Stop)[0].Source)
+
 $script:Passed = 0
 $script:TrackedReparsePaths = New-Object `
     'System.Collections.Generic.List[string]'
@@ -108,7 +121,8 @@ function Get-LasalValidationFixtureFingerprint {
     $repositoryPrefix = $repository + '\'
     $records = @()
     foreach ($file in @(Get-LmcLasalValidationInputFiles `
-        -RepositoryRoot $repository)) {
+        -RepositoryRoot $repository `
+        -GitPath $script:TestGitPath)) {
         $fullPath = [System.IO.Path]::GetFullPath($file)
         if (-not $fullPath.StartsWith(
             $repositoryPrefix,
@@ -391,9 +405,11 @@ try {
             -BuilderText $builderText) `
         -Message 'Current builder tooling-preflight order was rejected.'
     $requiredInventoryOccurrences = @{
+        'DistributionToolchainProvenance.ps1' = 2
         'Test-LmcDistributionToolingHostParity.ps1' = 2
         'Test-LmcApiDistributionPipeline.ps1' = 1
         'Test-LmcDistributionSemanticPolicy.ps1' = 1
+        'Test-LmcDistributionToolchainProvenance.ps1' = 1
         'Test-LmcReleaseManifest.ps1' = 1
     }
     foreach ($requiredInventoryName in @(
@@ -424,13 +440,23 @@ try {
                 '$selectedToolingSnapshot = if ($null -eq $preparedInputs)') -and
             $builderText.Contains('$toolingPreflight')) `
         -Message 'Builder does not select the preflight snapshot for the second fingerprint call.'
+    Assert-True `
+        -Condition ([regex]::Matches(
+                $builderText,
+                'Get-LmcDistributionReleaseToolchainSnapshot').Count -ge 3 -and
+            $builderText.Contains(
+                '-ToolchainSha256 $selectedToolchain.ToolchainSha256') -and
+            $builderText.Contains(
+                '-ToolingPreflightSha256')) `
+        -Message 'Builder transaction fingerprint does not bind re-resolved toolchain and preflight provenance.'
 
     $orderedBuilderFixture = @'
 Invoke-LmcDistributionToolingHostParityPreflight -RepositoryRoot $RepositoryRoot
 $canonicalDistribution = 'canonical'
 $null = Resolve-LmcDistributionManualInputs
-$vswhere = 'vswhere'
-$pythonCandidates = @()
+$null = Get-LmcDistributionReleaseToolchainSnapshot
+$null = Get-LmcDistributionReleaseToolchainSnapshot
+$null = Get-LmcDistributionReleaseToolchainSnapshot
 if ([string]::IsNullOrWhiteSpace($CandidatePath)) { $CandidatePath = 'candidate' }
 $null = Invoke-LmcDistributionCandidateTransaction
 '@
@@ -642,6 +668,28 @@ $null = Invoke-LmcDistributionCandidateTransaction
             (((Get-Item -LiteralPath $resolvedPhysicalPwsh.Path).Attributes -band
                 [System.IO.FileAttributes]::ReparsePoint) -eq 0)) `
         -Message 'Host resolver accepted the zero-byte/reparse AppExecutionAlias.'
+    Assert-Equal `
+        -Expected (Get-FileHash `
+            -LiteralPath $resolvedPhysicalPwsh.Path `
+            -Algorithm SHA256).Hash.ToUpperInvariant() `
+        -Actual $resolvedPhysicalPwsh.ExecutableSha256 `
+        -Message 'Host resolver did not snapshot the exact executable SHA-256.'
+    $hostHashGuard = Join-Path $script:TestRoot 'host-hash-guard.exe'
+    Write-TestFile -Path $hostHashGuard -Content 'host-v1'
+    $hostHashSnapshot = [pscustomobject]@{
+        Label = 'Fixture'
+        Path = $hostHashGuard
+        ExecutableSha256 = (Get-FileHash `
+            -LiteralPath $hostHashGuard `
+            -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
+    Write-TestFile -Path $hostHashGuard -Content 'host-v2'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionPowerShellHostExecutableCurrent `
+                -HostIdentity $hostHashSnapshot
+        } `
+        -ExpectedMessage 'changed during preflight' | Out-Null
 
     $snapshotParityCommand = @"
 `$ProgressPreference = 'SilentlyContinue'
@@ -696,12 +744,12 @@ foreach (`$record in `$snapshot.Records) {
         $snapshotOrdinalPaths,
         [System.StringComparer]::Ordinal)
     Assert-True `
-        -Condition ($snapshotRecordLines.Count -eq 92 -and
-            $snapshotParityLines.Count -eq 93 -and
+        -Condition ($snapshotRecordLines.Count -eq 94 -and
+            $snapshotParityLines.Count -eq 95 -and
             $snapshotParityLines[-1] -match '^DIGEST\|[0-9A-F]{64}$' -and
             (($snapshotRelativePaths -join "`n") -ceq
                 ($snapshotOrdinalPaths -join "`n"))) `
-        -Message 'Cross-host production snapshot is not exact 92-record ordinal canonical data.'
+        -Message 'Cross-host production snapshot is not exact 94-record ordinal canonical data.'
 
     $ambiguousRoot = Join-Path $script:TestRoot 'ambiguous-hosts'
     New-Item -ItemType Directory -Path $ambiguousRoot -Force |
@@ -910,7 +958,7 @@ for ($i = 0; $i -lt 4096; $i++) {
             ('^LMC_TOOLING_MODULE_PATH ' + [regex]::Escape($moduleNonce) +
                 ' ' + [regex]::Escape((ConvertTo-LmcDistributionBase64 `
                     -Text (Join-Path $PSHOME 'Modules'))) + '$')
-            '^TOTAL 56, PASSED 56, FAILED 0$')
+            '^TOTAL 94, PASSED 94, FAILED 0$')
     Assert-True `
         -Condition ($poisonedModuleResult.StandardOutput -notmatch
             'LMC_USER_MODULE_POISON') `
@@ -1008,6 +1056,125 @@ for ($i = 0; $i -lt 4096; $i++) {
     Assert-NoTransactionResidue `
         -Fixture $fixture `
         -Context 'Post-populate tooling drift'
+
+    # A release-tool byte mutation after population changes the composite
+    # provenance fingerprint before promotion and leaves no publish residue.
+    $toolchainFixtureRoot = Join-Path $script:TestRoot `
+        'transaction-toolchain'
+    $toolchainRoles = @(
+        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
+        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+    $toolchainDescriptors = @()
+    $toolchainIndex = 0
+    foreach ($toolchainRole in $toolchainRoles) {
+        $toolchainPath = Join-Path $toolchainFixtureRoot `
+            ("$toolchainRole.bin")
+        Write-TestFile `
+            -Path $toolchainPath `
+            -Content ("$toolchainRole-v1")
+        $toolchainDescriptors += [pscustomobject]@{
+            Role = $toolchainRole
+            Version = "1.0.$toolchainIndex"
+            Path = $toolchainPath
+        }
+        $toolchainIndex++
+    }
+    $toolchainAttestation = [pscustomobject]@{
+        Result = 'PASS'
+        HostCount = 2
+        SuiteCount = 6
+        RunCount = 12
+        ToolingDigest = ('D4' * 32)
+        ToolingFileCount = 94
+        Hosts = @(
+            [pscustomobject]@{
+                Label = 'PS5'
+                Edition = 'Desktop'
+                Major = 5
+                Version = '5.1.19041.5608'
+                Path = [System.Diagnostics.Process]::GetCurrentProcess().
+                    MainModule.FileName
+                ExecutableSha256 = (Get-FileHash `
+                    -LiteralPath ([System.Diagnostics.Process]::
+                        GetCurrentProcess().MainModule.FileName) `
+                    -Algorithm SHA256).Hash.ToUpperInvariant()
+            },
+            [pscustomobject]@{
+                Label = 'PS7'
+                Edition = 'Core'
+                Major = 7
+                Version = '7.6.4'
+                Path = [System.Diagnostics.Process]::GetCurrentProcess().
+                    MainModule.FileName
+                ExecutableSha256 = (Get-FileHash `
+                    -LiteralPath ([System.Diagnostics.Process]::
+                        GetCurrentProcess().MainModule.FileName) `
+                    -Algorithm SHA256).Hash.ToUpperInvariant()
+            })
+    }
+    $preparedToolchain = New-LmcDistributionToolchainSnapshot `
+        -Descriptors $toolchainDescriptors `
+        -ToolingPreflight $toolchainAttestation
+    $driftedToolPath = @($toolchainDescriptors | Where-Object {
+        $_.Role -ceq 'MSBuild'
+    })[0].Path
+    $fixture = New-TestFixture -Name 'toolchain_post_populate_drift'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    $toolchainDriftObservation = [pscustomobject]@{
+        FingerprintCalls = 0
+        PromotionValidations = 0
+    }
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionCandidateTransaction `
+                -CanonicalRoot $fixture.Canonical `
+                -CandidatePath $fixture.Candidate `
+                -PrepareInputs { $preparedToolchain } `
+                -GetInputFingerprint {
+                    param($prepared)
+                    $toolchainDriftObservation.FingerprintCalls++
+                    $currentToolchain = if ($null -eq $prepared) {
+                        New-LmcDistributionToolchainSnapshot `
+                            -Descriptors $toolchainDescriptors `
+                            -ToolingPreflight $toolchainAttestation
+                    }
+                    else {
+                        $prepared
+                    }
+                    $currentToolchain.ToolchainSha256
+                } `
+                -PopulateAndValidate {
+                    param($stage)
+                    Populate-TestCandidate -Stage $stage
+                    Write-TestFile `
+                        -Path $driftedToolPath `
+                        -Content 'MSBuild-v2'
+                } `
+                -ValidatePreparedInputs {
+                    $toolchainDriftObservation.PromotionValidations++
+                }
+        } `
+        -ExpectedMessage 'input fingerprint changed before promotion' |
+        Out-Null
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Post-populate toolchain drift published a candidate.'
+    Assert-Equal `
+        -Expected 2 `
+        -Actual $toolchainDriftObservation.FingerprintCalls `
+        -Message 'Post-populate toolchain drift did not reach fingerprint call two.'
+    Assert-Equal `
+        -Expected 0 `
+        -Actual $toolchainDriftObservation.PromotionValidations `
+        -Message 'Post-populate toolchain drift reached promotion validation.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Post-populate toolchain drift'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Post-populate toolchain drift'
 
     # Manual inputs default to canonical files or accept one explicit pair.
     $manualFixtureRoot = Join-Path $script:TestRoot 'manual-inputs'
@@ -1341,6 +1508,12 @@ Global
         -Message (
             'Release builder LASAL validation inventory is not bound to the ' +
             'selected repository root.')
+    Assert-True `
+        -Condition ($lasalInventoryCalls[0].Extent.Text -match
+            '(?is)-GitPath\s+\$GitPath\b') `
+        -Message (
+            'Release builder LASAL Git inventory is not bound to the ' +
+            'selected provenance Git executable.')
     $msbuildFunctions = @($builderAst.FindAll(
         {
             param($node)
@@ -1359,12 +1532,152 @@ Global
         -Message (
             'Release builder MSBuild wrapper no longer maps its Platform ' +
             'parameter into the MSBuild command line.')
+    Assert-True `
+        -Condition ($msbuildFunctions[0].Extent.Text -match
+            '(?is)\[string\]\$MSBuildPath\b.*?&\s+\$MSBuildPath\s+@arguments') `
+        -Message 'Release builder MSBuild wrapper does not execute the provenance-selected path.'
+    foreach ($compilerPropertyEvidence in @(
+            '"/p:CscToolPath=$compilerDirectory"',
+            '"/p:CscToolExe=$([System.IO.Path]::GetFileName($compilerPath))"',
+            '"/p:RoslynTargetsPath=$compilerDirectory"',
+            '"/p:CSharpCoreTargetsPath=$compilerCoreTargets"',
+            "'/p:UseSharedCompilation=false'")) {
+        Assert-True `
+            -Condition $msbuildFunctions[0].Extent.Text.Contains(
+                $compilerPropertyEvidence) `
+            -Message (
+                'Release builder MSBuild wrapper is missing pinned compiler ' +
+                "evidence: $compilerPropertyEvidence")
+    }
+    Assert-True `
+        -Condition ($msbuildFunctions[0].Extent.Text -match
+            '(?is)StringComparer\]::OrdinalIgnoreCase.*?' +
+            'MSBuild compiler property override is forbidden') `
+        -Message 'Release builder does not reject case-variant compiler overrides.'
+    $compilerBindingFunctions = @($builderAst.FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Assert-LmcMSBuildCompilerBinding'
+        },
+        $true))
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $compilerBindingFunctions.Count `
+        -Message 'Release builder compiler binding gate count drifted.'
+    . ([scriptblock]::Create($msbuildFunctions[0].Extent.Text))
+    . ([scriptblock]::Create($compilerBindingFunctions[0].Extent.Text))
+
+    $fakeCompilerRoot = Join-Path $script:TestRoot 'fake-compiler'
+    $fakeCompiler = Join-Path $fakeCompilerRoot 'csc.exe'
+    Write-TestFile -Path $fakeCompiler -Content 'fake-csc'
+    Write-TestFile `
+        -Path (Join-Path $fakeCompilerRoot 'Microsoft.CSharp.Core.targets') `
+        -Content '<Project />'
+    Assert-Throws `
+        -Action {
+            Invoke-LmcMSBuild `
+                -MSBuildPath (Join-Path $script:TestRoot 'unused-msbuild.exe') `
+                -CSharpCompilerPath $fakeCompiler `
+                -Project 'unused.proj' `
+                -Target 'Unused' `
+                -AdditionalProperties @{
+                    csctoolpath = 'C:\alternate\compiler'
+                }
+        } `
+        -ExpectedMessage 'compiler property override is forbidden' |
+        Out-Null
+    $duplicateProperties = New-Object `
+        System.Collections.Hashtable `
+        ([System.StringComparer]::Ordinal)
+    $duplicateProperties.Add('ProbeProperty', 'one')
+    $duplicateProperties.Add('probeproperty', 'two')
+    Assert-Throws `
+        -Action {
+            Invoke-LmcMSBuild `
+                -MSBuildPath (Join-Path $script:TestRoot 'unused-msbuild.exe') `
+                -CSharpCompilerPath $fakeCompiler `
+                -Project 'unused.proj' `
+                -Target 'Unused' `
+                -AdditionalProperties $duplicateProperties
+        } `
+        -ExpectedMessage 'duplicated by case' |
+        Out-Null
+
+    $actualVsWhere = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path (Join-Path ${env:ProgramFiles(x86)} `
+            'Microsoft Visual Studio\Installer\vswhere.exe') `
+        -Context 'pipeline compiler-binding vswhere'
+    $actualMSBuildResult = Invoke-LmcDistributionToolchainProcess `
+        -ExecutablePath $actualVsWhere `
+        -Arguments @(
+            '-latest', '-products', '*',
+            '-requires', 'Microsoft.Component.MSBuild',
+            '-find', 'MSBuild\**\Bin\MSBuild.exe') `
+        -WorkingDirectory $script:TestRoot
+    Assert-Equal `
+        -Expected 0 `
+        -Actual $actualMSBuildResult.ExitCode `
+        -Message 'Actual MSBuild compiler-binding discovery failed.'
+    $actualMSBuildLines = @(
+        $actualMSBuildResult.StandardOutput -split "`r?`n" |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $actualMSBuildLines.Count `
+        -Message 'Actual MSBuild compiler-binding discovery was ambiguous.'
+    $actualMSBuild = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path ([string]$actualMSBuildLines[0]).Trim() `
+        -Context 'pipeline compiler-binding MSBuild'
+    $actualCompiler = Resolve-LmcDistributionCSharpCompiler `
+        -MSBuildPath $actualMSBuild `
+        -WorkingDirectory $script:TestRoot
+    Assert-LmcMSBuildCompilerBinding `
+        -MSBuildPath $actualMSBuild `
+        -CSharpCompilerPath $actualCompiler.Path `
+        -ProbeRoot $script:TestRoot `
+        -Projects @(
+            (Join-Path $PSScriptRoot `
+                '..\LMC_API_Delivery\src\LasalMotionControlLib.csproj'))
+    Assert-Equal `
+        -Expected 0 `
+        -Actual @(Get-ChildItem `
+            -LiteralPath $script:TestRoot `
+            -Directory `
+            -Filter '.lmc-msbuild-binding-*').Count `
+        -Message 'MSBuild compiler-binding diagnostic left probe residue.'
+    Assert-True `
+        -Condition ($builderText.Contains(
+                'ToolingPreflightFileCount =') -and
+            $builderText.Contains('ToolingPreflightHostRecords =') -and
+            $builderText.Contains('ToolchainRecords =')) `
+        -Message 'Release builder schema-3 manifest binding is incomplete.'
     $builderCommands = @($builderAst.FindAll(
         {
             param($node)
             $node -is [System.Management.Automation.Language.CommandAst]
         },
         $true))
+    $allMSBuildCommands = @($builderCommands | Where-Object {
+        $_.GetCommandName() -ceq 'Invoke-LmcMSBuild'
+    })
+    Assert-Equal `
+        -Expected 10 `
+        -Actual $allMSBuildCommands.Count `
+        -Message 'Release builder MSBuild invocation count drifted.'
+    foreach ($msbuildCommand in $allMSBuildCommands) {
+        Assert-True `
+            -Condition ($msbuildCommand.Extent.Text -match
+                '(?is)-CSharpCompilerPath\s+\$(?:compilerPath|releaseCSharpCompiler)\b') `
+            -Message 'An MSBuild invocation bypasses the provenance compiler path.'
+    }
+    $compilerBindingCommands = @($builderCommands | Where-Object {
+        $_.GetCommandName() -ceq 'Assert-LmcMSBuildCompilerBinding'
+    })
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $compilerBindingCommands.Count `
+        -Message 'Release builder compiler binding gate invocation count drifted.'
     $transactionCommands = @($builderCommands | Where-Object {
             $_.GetCommandName() -ceq
                 'Invoke-LmcDistributionCandidateTransaction'
@@ -1574,7 +1887,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
     Write-TestFile -Path $irrelevantUntrackedIcon -Content 'untracked-icon-v1'
 
     $lasalInventoryFiles = @(Get-LmcLasalValidationInputFiles `
-        -RepositoryRoot $lasalInventoryRepository)
+        -RepositoryRoot $lasalInventoryRepository `
+        -GitPath $script:TestGitPath)
     $lasalInventoryPrefix =
         [System.IO.Path]::GetFullPath($lasalInventoryRepository).TrimEnd('\') +
         '\'
@@ -1636,7 +1950,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
         $seededNetworkOutputs += $seedPath
     }
     $seededNetworkInventory = @(Get-LmcLasalValidationInputFiles `
-        -RepositoryRoot $lasalInventoryRepository)
+        -RepositoryRoot $lasalInventoryRepository `
+        -GitPath $script:TestGitPath)
     Assert-Equal `
         -Expected ($lasalTrackedFixtureContent.Count +
             $seededNetworkOutputs.Count) `
@@ -1827,7 +2142,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
     Assert-Throws `
         -Action {
             Get-LmcLasalValidationInputFiles `
-                -RepositoryRoot $lasalInventoryRepository
+                -RepositoryRoot $lasalInventoryRepository `
+                -GitPath $script:TestGitPath
         } `
         -ExpectedMessage 'Class/TestClass/TestClass.st' | Out-Null
     [System.IO.File]::Delete($untrackedSourcePath)
@@ -1840,7 +2156,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
     Assert-Throws `
         -Action {
             Get-LmcLasalValidationInputFiles `
-                -RepositoryRoot $lasalInventoryRepository
+                -RepositoryRoot $lasalInventoryRepository `
+                -GitPath $script:TestGitPath
         } `
         -ExpectedMessage (
             'Class/IgnoredGenerated/IgnoredGenerated.st') | Out-Null
@@ -1855,7 +2172,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
         Assert-Throws `
             -Action {
                 Get-LmcLasalValidationInputFiles `
-                    -RepositoryRoot $lasalInventoryRepository
+                    -RepositoryRoot $lasalInventoryRepository `
+                    -GitPath $script:TestGitPath
             } `
             -ExpectedMessage 'Tracked LASAL release input not found' | Out-Null
     }
@@ -1879,7 +2197,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
     Assert-Throws `
         -Action {
             Get-LmcLasalValidationInputFiles `
-                -RepositoryRoot $lasalInventoryRepository
+                -RepositoryRoot $lasalInventoryRepository `
+                -GitPath $script:TestGitPath
         } `
         -ExpectedMessage (
             'LASAL validation input tree contains a reparse point') | Out-Null
@@ -1908,7 +2227,8 @@ Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/IgnoredGenerated/
     Assert-Throws `
         -Action {
             Get-LmcLasalValidationInputFiles `
-                -RepositoryRoot $lasalAncestorRepository
+                -RepositoryRoot $lasalAncestorRepository `
+                -GitPath $script:TestGitPath
         } `
         -ExpectedMessage (
             'LASAL validation input path traverses a reparse point') | Out-Null

@@ -547,6 +547,9 @@ function Resolve-LmcDistributionPowerShellHost {
                 Version = $identity.Version
                 PowerShellHome = $identity.PowerShellHome
                 ModulePath = $identity.ModulePath
+                ExecutableSha256 = (Get-FileHash `
+                    -LiteralPath $path `
+                    -Algorithm SHA256).Hash.ToUpperInvariant()
             }
         }
         catch {
@@ -562,6 +565,33 @@ function Resolve-LmcDistributionPowerShellHost {
     return $validated[0]
 }
 
+function Assert-LmcDistributionPowerShellHostExecutableCurrent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$HostIdentity
+    )
+
+    if ($HostIdentity.PSObject.Properties.Name -notcontains 'Path' -or
+        $HostIdentity.PSObject.Properties.Name -notcontains
+            'ExecutableSha256' -or
+        [string]$HostIdentity.ExecutableSha256 -notmatch
+            '^[0-9A-F]{64}$') {
+        throw 'Distribution PowerShell host executable snapshot is malformed.'
+    }
+    if (-not (Test-Path -LiteralPath $HostIdentity.Path -PathType Leaf)) {
+        throw "Distribution PowerShell host executable disappeared: $($HostIdentity.Label)"
+    }
+    $currentSha256 = (Get-FileHash `
+        -LiteralPath $HostIdentity.Path `
+        -Algorithm SHA256).Hash.ToUpperInvariant()
+    if (-not $currentSha256.Equals(
+            $HostIdentity.ExecutableSha256,
+            [System.StringComparison]::Ordinal)) {
+        throw "Distribution PowerShell host executable changed during preflight: $($HostIdentity.Label)"
+    }
+    return $true
+}
+
 function Get-LmcDistributionToolingSuiteSpecifications {
     param(
         [Parameter(Mandatory = $true)]
@@ -574,8 +604,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'Pipeline'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 245 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 245 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 284 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 284 distribution pipeline assertions'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -590,8 +620,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'ReleaseManifest'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 56, PASSED 56, FAILED 0$'
-            EvidenceLine = 'TOTAL 56, PASSED 56, FAILED 0'
+            EvidencePattern = '^TOTAL 94, PASSED 94, FAILED 0$'
+            EvidenceLine = 'TOTAL 94, PASSED 94, FAILED 0'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -640,8 +670,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         Pipeline = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 245 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 245 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 284 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 284 distribution pipeline assertions'
             WorkerTerminates = $false
         }
         SemanticPolicy = @{
@@ -654,8 +684,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         ReleaseManifest = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 56, PASSED 56, FAILED 0$'
-            EvidenceLine = 'TOTAL 56, PASSED 56, FAILED 0'
+            EvidencePattern = '^TOTAL 94, PASSED 94, FAILED 0$'
+            EvidenceLine = 'TOTAL 94, PASSED 94, FAILED 0'
             WorkerTerminates = $false
         }
         MethodSize = @{
@@ -722,10 +752,12 @@ function Get-LmcDistributionToolingRelativePaths {
         'LMC_Library/LMC_API/Build-LmcApiDistribution.ps1',
         'LMC_Library/LMC_API/DistributionPipeline.ps1',
         'LMC_Library/LMC_API/DistributionSemanticPolicy.ps1',
+        'LMC_Library/LMC_API/DistributionToolchainProvenance.ps1',
         'LMC_Library/LMC_API/ReleaseManifest.ps1',
         'LMC_Library/LMC_API/Test-LmcDistributionToolingHostParity.ps1',
         'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1',
         'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1',
+        'LMC_Library/LMC_API/Test-LmcDistributionToolchainProvenance.ps1',
         'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1',
         'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalContract.ps1',
         'LMC_Library/LMC_API_Delivery/tests/LasalMotionControlLib.Tests/Verify-LasalCustomMethodSizeBudget.ps1',
@@ -911,10 +943,18 @@ function Assert-LmcDistributionBuilderPreflightOrder {
             throw "Distribution builder tooling preflight must precede $commandName."
         }
     }
+    $toolchainCalls = @($commands | Where-Object {
+            $_.GetCommandName() -ceq
+                'Get-LmcDistributionReleaseToolchainSnapshot'
+        })
+    if ($toolchainCalls.Count -lt 3 -or
+        @($toolchainCalls | Where-Object {
+            $_.Extent.StartOffset -le $preflightOffset
+        }).Count -ne 0) {
+        throw 'Distribution builder tooling preflight must precede every release toolchain resolution.'
+    }
     foreach ($marker in @(
             '$canonicalDistribution =',
-            '$vswhere =',
-            '$pythonCandidates =',
             'if ([string]::IsNullOrWhiteSpace($CandidatePath))')) {
         $offset = $BuilderText.IndexOf(
             $marker,
@@ -1094,6 +1134,8 @@ function Invoke-LmcDistributionToolingHostParityPreflight {
     $preflightPath = $script:LmcDistributionToolingPreflightPath
     $runCount = 0
     foreach ($hostSpecification in @($windowsPowerShell, $powerShell)) {
+        Assert-LmcDistributionPowerShellHostExecutableCurrent `
+            -HostIdentity $hostSpecification | Out-Null
         foreach ($suite in $specifications) {
             Assert-LmcDistributionMonitoredFileSnapshot `
                 -RepositoryRoot $root `
@@ -1140,6 +1182,8 @@ function Invoke-LmcDistributionToolingHostParityPreflight {
             Assert-LmcDistributionMonitoredFileSnapshot `
                 -RepositoryRoot $root `
                 -ExpectedSnapshot $before | Out-Null
+            Assert-LmcDistributionPowerShellHostExecutableCurrent `
+                -HostIdentity $hostSpecification | Out-Null
             $runCount++
             Write-Host (
                 'PASS LMC.DistributionToolingHostParity ' +
@@ -1154,6 +1198,10 @@ function Invoke-LmcDistributionToolingHostParityPreflight {
     $after = Assert-LmcDistributionMonitoredFileSnapshot `
         -RepositoryRoot $root `
         -ExpectedSnapshot $before
+    foreach ($hostSpecification in @($windowsPowerShell, $powerShell)) {
+        Assert-LmcDistributionPowerShellHostExecutableCurrent `
+            -HostIdentity $hostSpecification | Out-Null
+    }
     Write-Host (
         'PASS LMC.DistributionToolingHostParity 12/12 ' +
         '(PS5=6/6; PS7=6/6) ' +

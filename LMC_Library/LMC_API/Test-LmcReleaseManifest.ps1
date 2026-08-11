@@ -112,6 +112,13 @@ try {
     Write-TestBytes `
         -Path (Join-Path $distribution 'README.md') `
         -Bytes ([System.Text.Encoding]::UTF8.GetBytes('fixture readme'))
+    Write-TestBytes `
+        -Path (Join-Path $distribution 'artifact-Z.txt') `
+        -Bytes ([System.Text.Encoding]::ASCII.GetBytes('ordinal-z'))
+    $ordinalLateName = 'artifact-' + [char]0x00E4 + '.txt'
+    Write-TestBytes `
+        -Path (Join-Path $distribution $ordinalLateName) `
+        -Bytes ([System.Text.Encoding]::ASCII.GetBytes('ordinal-late'))
 
     Invoke-FixtureGit -Arguments @('init', '--quiet') | Out-Null
     Invoke-FixtureGit -Arguments @(
@@ -125,6 +132,46 @@ try {
     $commitOutput = @(Invoke-FixtureGit -Arguments @('rev-parse', 'HEAD'))
     $sourceCommit = ([string]$commitOutput[0]).Trim()
 
+    $toolchainRoles = @(
+        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
+        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+    $toolchainRecords = @()
+    for ($toolIndex = 0; $toolIndex -lt $toolchainRoles.Count; $toolIndex++) {
+        $toolchainRecords += (
+            $toolchainRoles[$toolIndex] + '|1.0.' + $toolIndex + '|' +
+            ('{0:X2}' -f ($toolIndex + 1)) * 32)
+    }
+    [string[]]$toolchainRecords = @($toolchainRecords)
+    [System.Array]::Sort(
+        $toolchainRecords,
+        [System.StringComparer]::Ordinal)
+    $toolchainCanonical = ($toolchainRecords -join "`n") + "`n"
+    $toolchainSha256 = Get-LmcDistributionProvenanceTextSha256 `
+        -Text $toolchainCanonical
+    $toolingPreflightDigest = 'C3' * 32
+    $toolingPreflightHosts = @(
+        ('PS5|Desktop|5|5.1.19041.5608|' + ('11' * 32)),
+        ('PS7|Core|7|7.6.4|' + ('22' * 32)))
+    $toolingPreflightFileCount = 94
+    $toolingPreflight = `
+        Assert-LmcDistributionToolingPreflightManifestBinding `
+            -Result 'PASS' `
+            -RunCount 12 `
+            -ToolingDigest $toolingPreflightDigest `
+            -HostRecords $toolingPreflightHosts `
+            -ToolingFileCount $toolingPreflightFileCount `
+            -Sha256 (Get-LmcDistributionProvenanceTextSha256 `
+                -Text ((@(
+                    'Result|PASS',
+                    'HostCount|2',
+                    'SuiteCount|6',
+                    'RunCount|12',
+                    "ToolingDigest|$toolingPreflightDigest",
+                    "ToolingFileCount|$toolingPreflightFileCount",
+                    ('Host|PS5|Desktop|5|5.1.19041.5608|' +
+                        ('11' * 32)),
+                    ('Host|PS7|Core|7|7.6.4|' +
+                        ('22' * 32))) -join "`n") + "`n"))
     $parameters = @{
         DistributionRoot = $distribution
         CanonicalDllPath = $canonicalDll
@@ -134,6 +181,14 @@ try {
         InputTreeSha256 = ('A1' * 32)
         SemanticPolicySha256 = ('B2' * 32)
         SemanticPolicyResult = 'PASS'
+        ToolchainSha256 = $toolchainSha256
+        ToolchainRecords = $toolchainRecords
+        ToolingPreflightResult = 'PASS'
+        ToolingPreflightRunCount = 12
+        ToolingPreflightDigest = $toolingPreflightDigest
+        ToolingPreflightFileCount = $toolingPreflightFileCount
+        ToolingPreflightHostRecords = $toolingPreflightHosts
+        ToolingPreflightSha256 = $toolingPreflight.Sha256
         AssemblyVersion = '0.9.1.0'
         FileVersion = '0.9.1.0'
         ProductVersion = '0.9.1-preview'
@@ -148,7 +203,15 @@ try {
         foreach ($parameterName in @(
             'InputTreeSha256',
             'SemanticPolicySha256',
-            'SemanticPolicyResult')) {
+            'SemanticPolicyResult',
+            'ToolchainSha256',
+            'ToolchainRecords',
+            'ToolingPreflightResult',
+            'ToolingPreflightRunCount',
+            'ToolingPreflightDigest',
+            'ToolingPreflightFileCount',
+            'ToolingPreflightHostRecords',
+            'ToolingPreflightSha256')) {
             $parameter = $command.Parameters[$parameterName]
             $mandatoryAttributes = @(
                 $parameter.Attributes |
@@ -209,12 +272,25 @@ try {
 
     $manifestText = [System.IO.File]::ReadAllText($manifestPath)
     foreach ($requiredText in @(
-        'Manifest schema: `2`',
+        'Manifest schema: `3`',
         "Source commit: ``$sourceCommit``",
         'Worktree state: `clean`',
         ('Release input tree SHA-256: `' + ('A1' * 32) + '`'),
         ('Semantic policy SHA-256: `' + ('B2' * 32) + '`'),
         'Semantic policy result: `PASS`',
+        ('Release toolchain SHA-256: `' + $toolchainSha256 + '`'),
+        'Tooling preflight result: `PASS`',
+        'Tooling preflight run count: `12`',
+        ('Tooling preflight digest: `' + $toolingPreflightDigest + '`'),
+        ('Tooling preflight file count: `' +
+            $toolingPreflightFileCount + '`'),
+        ('Tooling preflight attestation SHA-256: `' +
+            $toolingPreflight.Sha256 + '`'),
+        '`CSharpCompiler`',
+        '`PythonDocx`',
+        '`PyPdf`',
+        '`PS5`',
+        '`PS7`',
         'Assembly version: `0.9.1.0`',
         'File version: `0.9.1.0`',
         'Product version: `0.9.1-preview`',
@@ -230,6 +306,44 @@ try {
     Assert-True `
         -Condition (-not $manifestText.Contains($fixtureRoot)) `
         -Message 'Manifest leaked the absolute fixture path.'
+    Assert-True `
+        -Condition ($manifestText.IndexOf(
+                '`artifact-Z.txt`',
+                [System.StringComparison]::Ordinal) -lt
+            $manifestText.IndexOf(
+                ('`' + $ordinalLateName + '`'),
+                [System.StringComparison]::Ordinal)) `
+        -Message 'Artifact records are not ordered with ordinal comparison.'
+    $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture =
+            [System.Globalization.CultureInfo]::GetCultureInfo('tr-TR')
+        $turkishContent = Get-LmcReleaseManifestContent @parameters
+    }
+    finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture =
+            $originalCulture
+    }
+    Assert-True `
+        -Condition $turkishContent.Equals(
+            (Get-LmcReleaseManifestContent @parameters),
+            [System.StringComparison]::Ordinal) `
+        -Message 'Schema-3 manifest bytes changed with current culture.'
+    $deterministicParameters = @{}
+    foreach ($parameterKey in $parameters.Keys) {
+        $deterministicParameters[$parameterKey] = $parameters[$parameterKey]
+    }
+    $deterministicParameters.SourceCommit = '0' * 40
+    $deterministicContent = Get-LmcReleaseManifestContent `
+        @deterministicParameters
+    $deterministicSha256 = Get-LmcDistributionProvenanceTextSha256 `
+        -Text $deterministicContent
+    Assert-True `
+        -Condition ($deterministicSha256 -ceq
+            'DBE0BFF4B843D0AC78BBA99347A36CB67573BE098AF6AF50127E06C2CB320E25') `
+        -Message (
+            'Schema-3 deterministic fixture hash drifted; actual=' +
+            $deterministicSha256)
 
     Assert-True `
         -Condition ((Get-LmcReleaseManifestWorktreeState `

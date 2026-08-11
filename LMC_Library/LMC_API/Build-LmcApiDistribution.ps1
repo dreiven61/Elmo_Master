@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 foreach ($implementationName in @(
+    'DistributionToolchainProvenance.ps1',
     'ReleaseManifest.ps1',
     'DistributionPipeline.ps1',
     'DistributionSemanticPolicy.ps1',
@@ -299,7 +300,9 @@ function Copy-LmcDevelopmentExample {
 function Get-LmcLasalValidationInputFiles {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$RepositoryRoot
+        [string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$GitPath
     )
 
     $repository = [System.IO.Path]::GetFullPath(
@@ -366,7 +369,7 @@ function Get-LmcLasalValidationInputFiles {
             '-c', 'core.quotepath=false',
             '-C', $repository,
             'ls-files') + @($QueryArguments) + @('--') + $pathSpecs
-        $queryOutput = @(& git @gitArguments 2>&1)
+        $queryOutput = @(& $GitPath @gitArguments 2>&1)
         $queryExitCode = $LASTEXITCODE
         if ($queryExitCode -ne 0) {
             throw (
@@ -524,6 +527,11 @@ function Get-LmcLasalValidationInputFiles {
 }
 
 function Get-LmcReleaseInputFiles {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$GitPath
+    )
+
     $files = New-Object `
         'System.Collections.Generic.HashSet[string]' `
         ([System.StringComparer]::OrdinalIgnoreCase)
@@ -548,6 +556,8 @@ function Get-LmcReleaseInputFiles {
         (Join-Path $PSScriptRoot 'Build-LmcApiDistribution.ps1'),
         (Join-Path $PSScriptRoot 'DistributionPipeline.ps1'),
         (Join-Path $PSScriptRoot 'DistributionSemanticPolicy.ps1'),
+        (Join-Path $PSScriptRoot `
+            'DistributionToolchainProvenance.ps1'),
         (Join-Path $PSScriptRoot 'ReleaseManifest.ps1'),
         (Join-Path $PSScriptRoot `
             'Test-LmcDistributionToolingHostParity.ps1'),
@@ -555,6 +565,8 @@ function Get-LmcReleaseInputFiles {
             'Test-LmcApiDistributionPipeline.ps1'),
         (Join-Path $PSScriptRoot `
             'Test-LmcDistributionSemanticPolicy.ps1'),
+        (Join-Path $PSScriptRoot `
+            'Test-LmcDistributionToolchainProvenance.ps1'),
         (Join-Path $PSScriptRoot 'Test-LmcReleaseManifest.ps1'),
         (Join-Path $PSScriptRoot 'API_USER_MANUAL_KO.md'),
         (Join-Path $RepositoryRoot `
@@ -563,7 +575,8 @@ function Get-LmcReleaseInputFiles {
     }
 
     foreach ($path in @(Get-LmcLasalValidationInputFiles `
-        -RepositoryRoot $RepositoryRoot)) {
+        -RepositoryRoot $RepositoryRoot `
+        -GitPath $GitPath)) {
         Add-InputFile -Path $path
     }
 
@@ -601,7 +614,10 @@ function Get-LmcReleaseInputTreeSha256 {
 
         [Parameter(Mandatory = $true)]
         [ValidatePattern('^[0-9A-F]{64}$')]
-        [string]$ValidatedToolingDigest
+        [string]$ValidatedToolingDigest,
+
+        [Parameter(Mandatory = $true)]
+        [string]$GitPath
     )
 
     if ($null -eq $ManualInputSnapshot) {
@@ -611,7 +627,8 @@ function Get-LmcReleaseInputTreeSha256 {
             -DocxPath $manualDocxInput
         return Get-LmcReleaseInputTreeSha256 `
             -ManualInputSnapshot $liveManualSnapshot `
-            -ValidatedToolingDigest $ValidatedToolingDigest
+            -ValidatedToolingDigest $ValidatedToolingDigest `
+            -GitPath $GitPath
     }
     else {
         foreach ($propertyName in @(
@@ -650,7 +667,7 @@ function Get-LmcReleaseInputTreeSha256 {
 
     $repositoryPrefix = $RepositoryRoot.TrimEnd('\') + '\'
     $records = @()
-    foreach ($file in @(Get-LmcReleaseInputFiles)) {
+    foreach ($file in @(Get-LmcReleaseInputFiles -GitPath $GitPath)) {
         if (-not $file.StartsWith(
             $repositoryPrefix,
             [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -687,6 +704,27 @@ function Get-LmcReleaseInputTreeSha256 {
     finally {
         $sha.Dispose()
     }
+}
+
+function Get-LmcReleaseTransactionFingerprint {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[0-9A-F]{64}$')]
+        [string]$InputTreeSha256,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[0-9A-F]{64}$')]
+        [string]$ToolchainSha256,
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[0-9A-F]{64}$')]
+        [string]$ToolingPreflightSha256
+    )
+
+    $canonical = @(
+        "InputTree|$InputTreeSha256",
+        "Toolchain|$ToolchainSha256",
+        "ToolingPreflight|$ToolingPreflightSha256") -join "`n"
+    return Get-LmcDistributionProvenanceTextSha256 `
+        -Text ($canonical + "`n")
 }
 
 function Remove-LmcCandidateBuildOutputs {
@@ -799,62 +837,73 @@ function Assert-LmcCandidateNoInternalReferences {
     }
 }
 
-$vswhere = Join-Path ${env:ProgramFiles(x86)} `
-    'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
-    throw 'vswhere.exe was not found. Install Visual Studio Build Tools.'
-}
-$msbuild = & $vswhere -latest -products * `
-    -requires Microsoft.Component.MSBuild `
-    -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-if ([string]::IsNullOrWhiteSpace($msbuild)) {
-    throw 'MSBuild.exe was not found.'
-}
-
-$pythonCandidates = @()
-$bundledPython = Join-Path $env:USERPROFILE `
-    '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-if (Test-Path -LiteralPath $bundledPython -PathType Leaf) {
-    $pythonCandidates += $bundledPython
-}
-$pythonCommand = Get-Command python -ErrorAction SilentlyContinue |
-    Select-Object -First 1
-if ($null -ne $pythonCommand) {
-    $pythonCandidates += $pythonCommand.Source
-}
-$python = $null
-foreach ($candidate in @($pythonCandidates | Select-Object -Unique)) {
-    & $candidate -c 'import docx, pypdf' 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        $python = $candidate
-        break
-    }
-}
-if ([string]::IsNullOrWhiteSpace($python)) {
-    throw 'A compatible Python with python-docx and pypdf was not found.'
-}
-
 function Invoke-LmcMSBuild {
     param(
+        [Parameter(Mandatory = $true)]
+        [string]$MSBuildPath,
+        [Parameter(Mandatory = $true)]
+        [string]$CSharpCompilerPath,
         [Parameter(Mandatory = $true)]
         [string]$Project,
         [Parameter(Mandatory = $true)]
         [string]$Target,
         [string]$Configuration = 'Release',
         [string]$Platform = 'AnyCPU',
-        [hashtable]$AdditionalProperties = @{}
+        [hashtable]$AdditionalProperties = @{},
+        [string]$CompilerBindingTargetsPath
     )
 
+    $compilerPath = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path $CSharpCompilerPath `
+        -Context 'release MSBuild C# compiler'
+    $compilerDirectory = Split-Path -Parent $compilerPath
+    $compilerCoreTargets = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path (Join-Path $compilerDirectory `
+            'Microsoft.CSharp.Core.targets') `
+        -Context 'release MSBuild C# core targets'
     $arguments = @(
         $Project,
         "/t:$Target",
         "/p:Configuration=$Configuration",
         "/p:Platform=$Platform",
+        "/p:CscToolPath=$compilerDirectory",
+        "/p:CscToolExe=$([System.IO.Path]::GetFileName($compilerPath))",
+        "/p:RoslynTargetsPath=$compilerDirectory",
+        "/p:CSharpCoreTargetsPath=$compilerCoreTargets",
+        '/p:UseSharedCompilation=false',
         '/nologo',
         '/verbosity:minimal'
     )
-    foreach ($propertyName in @(
-        $AdditionalProperties.Keys | Sort-Object)) {
+    if (-not [string]::IsNullOrWhiteSpace($CompilerBindingTargetsPath)) {
+        $bindingTargets = Resolve-LmcDistributionProvenancePhysicalFile `
+            -Path $CompilerBindingTargetsPath `
+            -Context 'release MSBuild compiler binding targets'
+        $arguments += "/p:CustomAfterMicrosoftCSharpTargets=$bindingTargets"
+    }
+    $reservedCompilerProperties = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($reservedCompilerProperty in @(
+            'CscToolPath', 'CscToolExe', 'RoslynTargetsPath',
+            'CSharpCoreTargetsPath', 'UseSharedCompilation',
+            'CustomAfterMicrosoftCSharpTargets')) {
+        $null = $reservedCompilerProperties.Add($reservedCompilerProperty)
+    }
+    $propertyNames = [string[]]@($AdditionalProperties.Keys | ForEach-Object {
+        [string]$_
+    })
+    $propertyNameSet = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($propertyName in $propertyNames) {
+        if (-not $propertyNameSet.Add($propertyName)) {
+            throw "MSBuild property name is duplicated by case: $propertyName"
+        }
+    }
+    [System.Array]::Sort(
+        $propertyNames,
+        [System.StringComparer]::Ordinal)
+    foreach ($propertyName in $propertyNames) {
         if ([string]::IsNullOrWhiteSpace([string]$propertyName) -or
             ([string]$propertyName) -notmatch '^[A-Za-z][A-Za-z0-9_]*$') {
             throw "Invalid MSBuild property name: $propertyName"
@@ -863,21 +912,149 @@ function Invoke-LmcMSBuild {
         if ([string]::IsNullOrWhiteSpace($propertyValue)) {
             throw "MSBuild property value is empty: $propertyName"
         }
+        if ($reservedCompilerProperties.Contains(
+                [string]$propertyName)) {
+            throw "MSBuild compiler property override is forbidden: $propertyName"
+        }
         $arguments += "/p:$propertyName=$propertyValue"
     }
 
-    & $msbuild @arguments
+    & $MSBuildPath @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "MSBuild failed: $Project target=$Target configuration=$Configuration"
     }
 }
 
+function Assert-LmcMSBuildCompilerBinding {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$MSBuildPath,
+        [Parameter(Mandatory = $true)]
+        [string]$CSharpCompilerPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ProbeRoot,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Projects
+    )
+
+    $compilerPath = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path $CSharpCompilerPath `
+        -Context 'release MSBuild binding compiler'
+    $compilerDirectory = Split-Path -Parent $compilerPath
+    $compilerExe = [System.IO.Path]::GetFileName($compilerPath)
+    $compilerCoreTargets = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path (Join-Path $compilerDirectory `
+            'Microsoft.CSharp.Core.targets') `
+        -Context 'release MSBuild binding core targets'
+    $physicalProbeRoot = Resolve-LmcDistributionProvenancePhysicalDirectory `
+        -Path $ProbeRoot `
+        -Context 'release MSBuild binding probe root'
+    $probeName = '.lmc-msbuild-binding-' +
+        [System.Guid]::NewGuid().ToString('N')
+    $probeDirectory = [System.IO.Path]::GetFullPath(
+        (Join-Path $physicalProbeRoot $probeName))
+    if (-not $probeDirectory.StartsWith(
+            $physicalProbeRoot.TrimEnd('\') + '\',
+            [System.StringComparison]::OrdinalIgnoreCase) -or
+        [System.IO.Path]::GetFileName($probeDirectory) -notmatch
+            '^\.lmc-msbuild-binding-[0-9a-f]{32}$' -or
+        (Test-Path -LiteralPath $probeDirectory)) {
+        throw 'Release MSBuild compiler binding probe path is unsafe.'
+    }
+
+    $probeTargets = Join-Path $probeDirectory 'CompilerBinding.targets'
+    $probeOutput = Join-Path $probeDirectory 'binding.txt'
+    $probeTemplate = @'
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="VerifyLmcCompilerBinding">
+    <Error Condition="'$(CscToolPath)' != '{0}'" Text="CscToolPath was not provenance-pinned." />
+    <Error Condition="'$(CscToolExe)' != '{1}'" Text="CscToolExe was not provenance-pinned." />
+    <Error Condition="'$(RoslynTargetsPath)' != '{0}'" Text="RoslynTargetsPath was not provenance-pinned." />
+    <Error Condition="'$(CSharpCoreTargetsPath)' != '{2}'" Text="CSharpCoreTargetsPath was not provenance-pinned." />
+    <Error Condition="'$(UseSharedCompilation)' != 'false'" Text="UseSharedCompilation was not disabled." />
+    <WriteLinesToFile File="$(ProbeOutputPath)" Overwrite="false" Lines="$(MSBuildProjectFullPath)|$(CscToolPath)|$(CscToolExe)|$(RoslynTargetsPath)|$(CSharpCoreTargetsPath)|$(UseSharedCompilation)" />
+  </Target>
+</Project>
+'@
+    $probeText = [string]::Format(
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        $probeTemplate,
+        [System.Security.SecurityElement]::Escape($compilerDirectory),
+        [System.Security.SecurityElement]::Escape($compilerExe),
+        [System.Security.SecurityElement]::Escape($compilerCoreTargets))
+    try {
+        New-Item -ItemType Directory -Path $probeDirectory | Out-Null
+        [System.IO.File]::WriteAllText(
+            $probeTargets,
+            $probeText,
+            (New-Object System.Text.UTF8Encoding($false)))
+        $projectSet = New-Object `
+            'System.Collections.Generic.HashSet[string]' `
+            ([System.StringComparer]::OrdinalIgnoreCase)
+        $physicalProjects = @()
+        foreach ($project in @($Projects)) {
+            $physicalProject = Resolve-LmcDistributionProvenancePhysicalFile `
+                -Path $project `
+                -Context 'release MSBuild compiler binding project'
+            if (-not $projectSet.Add($physicalProject)) {
+                throw 'Release MSBuild compiler binding project is duplicated.'
+            }
+            $physicalProjects += $physicalProject
+        }
+        if ($physicalProjects.Count -eq 0) {
+            throw 'Release MSBuild compiler binding project inventory is empty.'
+        }
+        foreach ($physicalProject in $physicalProjects) {
+            Invoke-LmcMSBuild `
+                -MSBuildPath $MSBuildPath `
+                -CSharpCompilerPath $compilerPath `
+                -Project $physicalProject `
+                -Target 'VerifyLmcCompilerBinding' `
+                -AdditionalProperties @{
+                    ProbeOutputPath = $probeOutput
+                } `
+                -CompilerBindingTargetsPath $probeTargets
+        }
+        if (-not (Test-Path -LiteralPath $probeOutput -PathType Leaf)) {
+            throw 'MSBuild compiler binding probe emitted no evidence.'
+        }
+        $evidenceLines = @(
+            [System.IO.File]::ReadAllLines($probeOutput) | Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_)
+            })
+        if ($evidenceLines.Count -ne $physicalProjects.Count) {
+            throw 'MSBuild compiler binding probe evidence count is invalid.'
+        }
+        for ($index = 0; $index -lt $physicalProjects.Count; $index++) {
+            $expected = @(
+                $physicalProjects[$index],
+                $compilerDirectory,
+                $compilerExe,
+                $compilerDirectory,
+                $compilerCoreTargets,
+                'false') -join '|'
+            if (-not ([string]$evidenceLines[$index]).Equals(
+                    $expected,
+                    [System.StringComparison]::Ordinal)) {
+                throw 'MSBuild compiler binding probe evidence did not match the attested compiler.'
+            }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $probeDirectory -PathType Container) {
+            [System.IO.Directory]::Delete($probeDirectory, $true)
+        }
+    }
+}
+
 function Get-LmcReleaseBuildMetadata {
     param(
+        [Parameter(Mandatory = $true)]
+        [string]$GitPath,
         [string[]]$IgnoredRootPaths = @()
     )
 
-    $gitStatus = @(& git -C $RepositoryRoot status `
+    $gitStatus = @(& $GitPath -C $RepositoryRoot status `
         --porcelain=v1 --untracked-files=all)
     if ($LASTEXITCODE -ne 0) {
         throw 'Unable to read Git status.'
@@ -937,7 +1114,7 @@ function Get-LmcReleaseBuildMetadata {
         -AllowDirty:$AllowDirty
 
     $sourceCommitOutput = @(
-        & git -C $RepositoryRoot rev-parse --verify HEAD)
+        & $GitPath -C $RepositoryRoot rev-parse --verify HEAD)
     if ($LASTEXITCODE -ne 0 -or $sourceCommitOutput.Count -ne 1) {
         throw 'Unable to resolve the source commit for the release manifest.'
     }
@@ -951,11 +1128,15 @@ function New-LmcReleasePreparedInputs {
     Assert-LmcDistributionMonitoredFileSnapshot `
         -RepositoryRoot $RepositoryRoot `
         -ExpectedSnapshot $toolingPreflight | Out-Null
+    $preparedToolchain = Get-LmcDistributionReleaseToolchainSnapshot `
+        -RepositoryRoot $RepositoryRoot `
+        -ToolingPreflight $toolingPreflight
     $preparedInputs = New-LmcDistributionManualInputSnapshot `
         -RepositoryRoot $RepositoryRoot `
         -PdfPath $manualPdfInput `
         -DocxPath $manualDocxInput
-    $metadata = Get-LmcReleaseBuildMetadata
+    $metadata = Get-LmcReleaseBuildMetadata `
+        -GitPath $preparedToolchain.RuntimePaths.Git
     $preparedInputs | Add-Member -MemberType NoteProperty `
         -Name SourceCommit -Value $metadata.SourceCommit
     $preparedInputs | Add-Member -MemberType NoteProperty `
@@ -966,6 +1147,16 @@ function New-LmcReleasePreparedInputs {
     $preparedInputs | Add-Member -MemberType NoteProperty `
         -Name ValidatedToolingSnapshot `
         -Value $toolingPreflight
+    $preparedInputs | Add-Member -MemberType NoteProperty `
+        -Name ToolchainSnapshot `
+        -Value $preparedToolchain
+    $inputTreeSha256 = Get-LmcReleaseInputTreeSha256 `
+        -ManualInputSnapshot $preparedInputs `
+        -ValidatedToolingDigest $toolingPreflight.ToolingDigest `
+        -GitPath $preparedToolchain.RuntimePaths.Git
+    $preparedInputs | Add-Member -MemberType NoteProperty `
+        -Name InputTreeSha256 `
+        -Value $inputTreeSha256
     return $preparedInputs
 }
 
@@ -977,7 +1168,19 @@ function Assert-LmcReleasePreparedMetadataCurrent {
         [string]$StagingRoot
     )
 
+    $currentToolchain = Get-LmcDistributionReleaseToolchainSnapshot `
+        -RepositoryRoot $RepositoryRoot `
+        -ToolingPreflight $toolingPreflight
+    if (-not $PreparedInputs.ToolchainSnapshot.ToolchainSha256.Equals(
+            $currentToolchain.ToolchainSha256,
+            [System.StringComparison]::Ordinal) -or
+        -not $PreparedInputs.ToolchainSnapshot.ToolingPreflightSha256.Equals(
+            $currentToolchain.ToolingPreflightSha256,
+            [System.StringComparison]::Ordinal)) {
+        throw "Release toolchain provenance changed before promotion. expected=$($PreparedInputs.ToolchainSnapshot.ToolchainSha256) actual=$($currentToolchain.ToolchainSha256)"
+    }
     $current = Get-LmcReleaseBuildMetadata `
+        -GitPath $currentToolchain.RuntimePaths.Git `
         -IgnoredRootPaths @($StagingRoot)
     if (-not [string]::Equals(
             $PreparedInputs.SourceCommit,
@@ -1028,10 +1231,30 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
             -RepositoryRoot $RepositoryRoot `
             -ExpectedSnapshot $selectedToolingSnapshot |
             Out-Null
-        Get-LmcReleaseInputTreeSha256 `
+        $selectedToolchain = if ($null -eq $preparedInputs) {
+            Get-LmcDistributionReleaseToolchainSnapshot `
+                -RepositoryRoot $RepositoryRoot `
+                -ToolingPreflight $toolingPreflight
+        }
+        else {
+            $preparedInputs.ToolchainSnapshot
+        }
+        $inputTreeSha256 = Get-LmcReleaseInputTreeSha256 `
             -ManualInputSnapshot $preparedInputs `
             -ValidatedToolingDigest `
-                $selectedToolingSnapshot.Digest
+                $selectedToolingSnapshot.Digest `
+            -GitPath $selectedToolchain.RuntimePaths.Git
+        if ($null -ne $preparedInputs -and
+            -not $preparedInputs.InputTreeSha256.Equals(
+                $inputTreeSha256,
+                [System.StringComparison]::Ordinal)) {
+            throw 'Prepared release input tree changed before transaction fingerprinting.'
+        }
+        Get-LmcReleaseTransactionFingerprint `
+            -InputTreeSha256 $inputTreeSha256 `
+            -ToolchainSha256 $selectedToolchain.ToolchainSha256 `
+            -ToolingPreflightSha256 `
+                $selectedToolchain.ToolingPreflightSha256
     } `
     -ValidatePreparedInputs {
         param($preparedInputs, $stagingRoot)
@@ -1040,7 +1263,14 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
             -StagingRoot $stagingRoot
     } `
     -PopulateAndValidate {
-        param($stagingRoot, $transactionInputTreeSha256, $preparedInputs)
+        param($stagingRoot, $transactionInputFingerprint, $preparedInputs)
+
+        $releaseMSBuild = `
+            $preparedInputs.ToolchainSnapshot.RuntimePaths.MSBuild
+        $releaseCSharpCompiler = `
+            $preparedInputs.ToolchainSnapshot.RuntimePaths.CSharpCompiler
+        $releasePython = `
+            $preparedInputs.ToolchainSnapshot.RuntimePaths.Python
 
         $apiDirectory = Join-Path $stagingRoot '01_API'
         $exampleDirectory = Join-Path $stagingRoot '02_Example_Program'
@@ -1097,17 +1327,40 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 -SolutionPath $candidateSolution `
                 -ProjectPath $candidateProject
 
-        Invoke-LmcMSBuild -Project $testProject -Target 'RunTests' `
+        Assert-LmcMSBuildCompilerBinding `
+            -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -ProbeRoot $stagingRoot `
+            -Projects @(
+                $testProject,
+                $wpfSmokeProject,
+                $libraryProject,
+                $candidateProject)
+        $buildSummary.MSBuildCompilerBindingGate = 'PASS'
+
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $testProject -Target 'RunTests' `
             -Configuration 'Debug'
-        Invoke-LmcMSBuild -Project $testProject -Target 'RunTests' `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $testProject -Target 'RunTests' `
             -Configuration 'Release'
-        Invoke-LmcMSBuild -Project $testProject `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $testProject `
             -Target 'RunLasalNetworkContract' -Configuration 'Release'
-        Invoke-LmcMSBuild -Project $wpfSmokeProject `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $wpfSmokeProject `
             -Target 'RunWpfSmokeTests' -Configuration 'Debug'
-        Invoke-LmcMSBuild -Project $wpfSmokeProject `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $wpfSmokeProject `
             -Target 'RunWpfSmokeTests' -Configuration 'Release'
-        Invoke-LmcMSBuild -Project $libraryProject -Target 'Rebuild' `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
+            -Project $libraryProject -Target 'Rebuild' `
             -Configuration 'Release'
 
         $distributionDll = Join-Path $apiDirectory `
@@ -1115,12 +1368,14 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         Copy-Item -LiteralPath $sourceDll `
             -Destination $distributionDll -Force
 
-        Invoke-LmcMSBuild `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
             -Project $candidateSolutionContract.SolutionPath `
             -Target 'Rebuild' `
             -Configuration 'Debug' `
             -Platform 'Any CPU'
-        Invoke-LmcMSBuild `
+        Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+            -CSharpCompilerPath $releaseCSharpCompiler `
             -Project $candidateSolutionContract.SolutionPath `
             -Target 'Rebuild' `
             -Configuration 'Release' `
@@ -1153,7 +1408,9 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 -ExecutablePath $runExampleExe `
                 -GateAction {
                     param($testedExecutable)
-                    Invoke-LmcMSBuild -Project $wpfSmokeProject `
+                    Invoke-LmcMSBuild -MSBuildPath $releaseMSBuild `
+                        -CSharpCompilerPath $releaseCSharpCompiler `
+                        -Project $wpfSmokeProject `
                         -Target 'RunWpfExecutableRelaunchTest' `
                         -Configuration 'Release' `
                         -AdditionalProperties @{
@@ -1162,7 +1419,7 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 }
         $buildSummary.ExecutableRelaunchGate = 'PASS'
 
-        $manualPageCountOutput = @(& $python -c `
+        $manualPageCountOutput = @(& $releasePython -c `
             'from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))' `
             (Join-Path $manualDirectory `
                 'LASAL_Motion_Control_API_User_Manual_KO.pdf'))
@@ -1173,7 +1430,7 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         }
         $manualDocxValidationCode =
             "from docx import Document; import sys; d=Document(sys.argv[1]); h=sum(1 for p in d.paragraphs if p.style.name.startswith('Heading ')); assert h >= 30 and len(d.tables) >= 45 and 'LASAL Motion Control API' in d.core_properties.title"
-        & $python -c $manualDocxValidationCode `
+        & $releasePython -c $manualDocxValidationCode `
             (Join-Path $manualDirectory `
                 'LASAL_Motion_Control_API_User_Manual_KO.docx')
         if ($LASTEXITCODE -ne 0) {
@@ -1183,7 +1440,7 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         $policyResult = Test-LmcDistributionSemanticPolicy `
             -RepositoryRoot $RepositoryRoot `
             -CandidateRoot $stagingRoot `
-            -PythonPath $python
+            -PythonPath $releasePython
         if ($policyResult.Result -ne 'PASS' -or
             $policyResult.PolicySha256 -notmatch '^[0-9A-Fa-f]{64}$') {
             throw 'Semantic policy preflight returned an invalid result.'
@@ -1231,7 +1488,23 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
             AssemblyVersion = $assemblyVersion
             FileVersion = $fileVersion
             ProductVersion = $productVersion
-            InputTreeSha256 = $transactionInputTreeSha256
+            InputTreeSha256 = $preparedInputs.InputTreeSha256
+            ToolchainSha256 = `
+                $preparedInputs.ToolchainSnapshot.ToolchainSha256
+            ToolchainRecords = @(
+                $preparedInputs.ToolchainSnapshot.Records)
+            ToolingPreflightResult = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightResult
+            ToolingPreflightRunCount = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightRunCount
+            ToolingPreflightDigest = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightDigest
+            ToolingPreflightFileCount = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightFileCount
+            ToolingPreflightHostRecords = @(
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightHostRecords)
+            ToolingPreflightSha256 = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightSha256
             SemanticPolicySha256 = $policyResult.PolicySha256
             SemanticPolicyResult = $policyResult.Result
         }
@@ -1256,6 +1529,11 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         $buildSummary.SemanticCheckCount = $policyResult.CheckCount
         $buildSummary.SourceCommit = $preparedInputs.SourceCommit
         $buildSummary.WorktreeState = $preparedInputs.WorktreeState
+        $buildSummary.InputTreeSha256 = $preparedInputs.InputTreeSha256
+        $buildSummary.ToolchainSha256 = `
+            $preparedInputs.ToolchainSnapshot.ToolchainSha256
+        $buildSummary.ToolingPreflightSha256 = `
+            $preparedInputs.ToolchainSnapshot.ToolingPreflightSha256
         $buildSummary.ManualPageCount = `
             [int]$manualPageCountOutput[-1]
     }
@@ -1267,7 +1545,10 @@ Write-Host "Manual DOCX input: $manualDocxInput"
 Write-Host "Transaction committed: $($transaction.Committed)"
 Write-Host "Source commit: $($buildSummary.SourceCommit)"
 Write-Host "Worktree state: $($buildSummary.WorktreeState)"
-Write-Host "Release input tree SHA256: $($transaction.InputFingerprint)"
+Write-Host "Release input tree SHA256: $($buildSummary.InputTreeSha256)"
+Write-Host "Release transaction fingerprint: $($transaction.InputFingerprint)"
+Write-Host "Release toolchain SHA256: $($buildSummary.ToolchainSha256)"
+Write-Host "Tooling preflight attestation SHA256: $($buildSummary.ToolingPreflightSha256)"
 Write-Host "Semantic policy: PASS ($($buildSummary.SemanticCheckCount) checks)"
 Write-Host "Semantic policy SHA256: $($buildSummary.SemanticPolicySha256)"
 Write-Host "Release manifest SHA256: $($buildSummary.ManifestSha256)"
