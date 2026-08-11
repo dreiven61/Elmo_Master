@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..\..\..\..'),
+    [string]$RepositoryRoot,
     [switch]$RunSelfTest
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = Join-Path $PSScriptRoot '..\..\..\..'
+}
 
 $MethodSizeLimitBytes = 32768
 $StrictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
@@ -48,16 +52,16 @@ $BaselineDebt = @(
     [pscustomobject]@{
         ClassName = 'LMCRecorderStore'
         MethodName = 'HandleRequest'
-        RawBytes = 75829
-        LFBytes = 75249
-        CRLFBytes = 77210
+        RawBytes = 75248
+        LFBytes = 75248
+        CRLFBytes = 77208
     },
     [pscustomobject]@{
         ClassName = 'LMCEcatInputLatch'
         MethodName = 'RtWork'
-        RawBytes = 72907
-        LFBytes = 71437
-        CRLFBytes = 73287
+        RawBytes = 71436
+        LFBytes = 71436
+        CRLFBytes = 73285
     }
 )
 
@@ -97,6 +101,11 @@ function Get-LasalFunctionInventory {
         [string]$RelativePath
     )
 
+    # Git stores these sources as LF, while LASAL IDE may leave a mixed-EOL
+    # working tree. Parse and measure one canonical LF representation so the
+    # debt ratchet is checkout-stable. CRLFBytes below still models the
+    # conservative all-CRLF physical representation accepted by LASAL IDE.
+    $canonicalSourceText = $SourceText.Replace("`r`n", "`n").Replace("`r", "`n")
     $escapedClassName = [regex]::Escape($ClassName)
     $methodNamePattern = (
         '(?<MethodName>(?:@[A-Za-z_][A-Za-z0-9_]*|' +
@@ -107,21 +116,21 @@ function Get-LasalFunctionInventory {
     $exactHeaderPattern = (
         '(?im)^[ \t]*FUNCTION[ \t]+' + $modifierPattern +
         '(?<QualifiedName>' + $escapedClassName + '::' +
-        $methodNamePattern + ')[ \t]*\r?$')
+        $methodNamePattern + ')[ \t]*$')
     $blockPattern = (
         '(?ims)^[ \t]*FUNCTION[ \t]+' + $modifierPattern +
         '(?<QualifiedName>' + $escapedClassName + '::' +
-        $methodNamePattern + ')[ \t]*\r?$' +
-        '.*?^[ \t]*END_FUNCTION[ \t]*\r?$')
+        $methodNamePattern + ')[ \t]*$' +
+        '.*?^[ \t]*END_FUNCTION[ \t]*$')
     $broadHeaderPattern = (
         '(?im)^[ \t]*FUNCTION\b[^\r\n]*' +
         $escapedClassName + '::[^\r\n]*')
-    $endPattern = '(?im)^[ \t]*END_FUNCTION[ \t]*\r?$'
+    $endPattern = '(?im)^[ \t]*END_FUNCTION[ \t]*$'
 
-    $broadHeaders = [regex]::Matches($SourceText, $broadHeaderPattern)
-    $exactHeaders = [regex]::Matches($SourceText, $exactHeaderPattern)
-    $endMarkers = [regex]::Matches($SourceText, $endPattern)
-    $blocks = [regex]::Matches($SourceText, $blockPattern)
+    $broadHeaders = [regex]::Matches($canonicalSourceText, $broadHeaderPattern)
+    $exactHeaders = [regex]::Matches($canonicalSourceText, $exactHeaderPattern)
+    $endMarkers = [regex]::Matches($canonicalSourceText, $endPattern)
+    $blocks = [regex]::Matches($canonicalSourceText, $blockPattern)
 
     if ($broadHeaders.Count -ne $exactHeaders.Count) {
         throw (
@@ -314,7 +323,7 @@ function Assert-SelfTestThrows {
 
 function Invoke-SelfTest {
     $testCount = 0
-    $fixtureText = [string]::Join("`r`n", @(
+    $fixtureLines = @(
             'FUNCTION GLOBAL TAB FixtureClass::@CT_',
             'END_FUNCTION',
             '',
@@ -326,7 +335,8 @@ function Invoke-SelfTest {
             '',
             'FUNCTION GLOBAL FixtureClass::Run',
             'END_FUNCTION',
-            ''))
+            '')
+    $fixtureText = [string]::Join("`r`n", $fixtureLines)
     $parsed = @(Get-LasalFunctionInventory `
             -SourceText $fixtureText `
             -ClassName 'FixtureClass' `
@@ -342,8 +352,38 @@ function Invoke-SelfTest {
             throw "Self-test parser identity drifted at index $index."
         }
     }
+    $lfParsed = @(Get-LasalFunctionInventory `
+            -SourceText ([string]::Join("`n", $fixtureLines)) `
+            -ClassName 'FixtureClass' `
+            -RelativePath 'self-test-lf.st')
+    $mixedFixtureText = $fixtureText.Replace(
+        "END_FUNCTION`r`n`r`nFUNCTION FixtureClass::@STD",
+        "END_FUNCTION`n`nFUNCTION FixtureClass::@STD")
+    $mixedParsed = @(Get-LasalFunctionInventory `
+            -SourceText $mixedFixtureText `
+            -ClassName 'FixtureClass' `
+            -RelativePath 'self-test-mixed.st')
+    foreach ($portableInventory in @($lfParsed, $mixedParsed)) {
+        if ($portableInventory.Count -ne $parsed.Count) {
+            throw 'Self-test parser EOL inventory count drifted.'
+        }
+        for ($index = 0; $index -lt $parsed.Count; $index++) {
+            if ($portableInventory[$index].QualifiedName -cne
+                    $parsed[$index].QualifiedName -or
+                $portableInventory[$index].RawBytes -ne
+                    $parsed[$index].RawBytes -or
+                $portableInventory[$index].LFBytes -ne
+                    $parsed[$index].LFBytes -or
+                $portableInventory[$index].CRLFBytes -ne
+                    $parsed[$index].CRLFBytes) {
+                throw "Self-test parser EOL dimensions drifted at index $index."
+            }
+        }
+    }
     $testCount++
-    Write-Output "SELFTEST $testCount PASS exact header/block/name inventory"
+    Write-Output (
+        "SELFTEST $testCount PASS exact header/block/name and EOL-portable " +
+        'inventory')
 
     $reserveBaseline = $BaselineDebt | Where-Object {
         $_.ClassName -ceq 'LMCControlCommandService' -and
