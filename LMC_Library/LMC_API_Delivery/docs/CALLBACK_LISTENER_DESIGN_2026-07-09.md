@@ -14,6 +14,10 @@ Gate D broker and PC reconnect observability evidence: 2026-08-10
 
 Bounded WPF fresh-session recovery evidence (`14ccf58`): 2026-08-11
 
+Actual executable relaunch gate evidence (`cbf2548`): 2026-08-11
+
+PowerShell 5.1 verifier compatibility evidence (`ad4af91`): 2026-08-11
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -178,7 +182,7 @@ After session replacement begins, any initialization failure closes the new
 command socket and callback listener and records `LastInitializationException`.
 
 The SDK's one 20 ms retry is confined to the same `LMCConnection`/TCP socket.
-Current WPF commit `14ccf58` adds one application-level fresh-session retry only
+WPF policy commit `14ccf58` adds one application-level fresh-session retry only
 when an initial or in-process Connect's first candidate reports `Outcome=Failed`,
 `AttemptCount=2`,
 `CanonicalRetryUsed=true`, both ACKs are the exact canonical `-1` envelope, and
@@ -282,14 +286,14 @@ generation, and the same-session `CallbackV2StatisticsChanged` snapshot event;
 `ad7c8b1` fences queued old-session WPF actions. Commit `af4ab63` historically
 proved that a non-canonical short ACK with `ErrorId=0` retries zero times,
 performs full listener/TCP/WPF cleanup, and that the next manual Connect uses a
-fresh socket. Current `14ccf58` adds the exact bounded WPF fresh-session policy
+fresh socket. Policy commit `14ccf58` adds the exact bounded WPF fresh-session policy
 described above for persistent canonical `-1` only.
 The WPF displays the requested tuple as `RequestedCallback` and the actual UDP
 endpoint as `BoundCallback`, or `not-bound` when init failed before bind, together
 with the accepted version-2 registration fence and receiver decision counters.
 Current SDK Debug/Release direct suites pass `1133/1133`. The `af4ab63` WPF
-Release `335/335` is historical; current `14ccf58` Debug/Release Rebuild passes,
-full smoke passes `339/339`, reconnect targeted tests pass `6/6`, and an independent
+Release `335/335` is historical; current `cbf2548` Debug/Release Rebuild passes,
+the unchanged full smoke passes `339/339`, reconnect targeted tests pass `6/6`, and an independent
 callback/reconnect review passes `9/9` with no P0/P1. Startup records
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, and `SdkBuildUtc`; the
 topology marker remains V5. This is bounded PC recovery/observability evidence,
@@ -297,11 +301,49 @@ not a PLC disarm fix or callback runtime proof.
 
 The fixed 100 ms backoff is not PLC slot/FSM readiness evidence. A canonical
 wire `-1` does not distinguish internal disarm `-8`/`-9` from lifecycle or
-ownership rejection. The fake restart uses a new `MainWindow` in the same test
-process against the same server/port with immediate reaccept; it is not evidence
-of EXE relaunch, named-mutex behavior, PLC cleanup, or runtime recovery. Local PC
-cleanup does not prove PLC disarm success, and no private PLC state is
+ownership rejection. The historical `14ccf58` fake restart uses a new
+`MainWindow` in the same test process and remains a distinct regression.
+
+The separate `cbf2548` actual-executable gate passes `1/1` in both Debug and
+Release. Its parent finds the supplied actual example EXE's PID/HWND and sends external
+`WM_SYSCOMMAND/SC_CLOSE`. The first process receives an exact `-1` close ACK,
+completes bounded local cleanup, and exits. A live contender exits `2` with zero
+TCP sessions, while the same exact EXE started after owner exit reacquires the
+default named mutex. The successor's first TCP candidate receives two exact `-1`
+`0x8080` responses and sends neither `0x405C` nor `0x405D`; its fresh candidate
+then completes init and registration. The exact loopback total is three TCP
+sessions and 28 requests, partitioned `(13,2,13)`. A malformed probe exits `64`
+with zero owned-temp writes and zero TCP sessions. EXE, SDK DLL, and optional
+configuration path/length/SHA-256 identities are unchanged before and after.
+This proves only the PC process, default-mutex, local-cleanup, and fake-wire
+contract. It does not prove PLC cleanup/disarm/readiness, the adequacy of the
+fixed 100 ms backoff, MotionLib/axis state, or the user's live PLC relaunch case.
+Local PC cleanup does not prove PLC disarm success, and no private PLC state is
 force-cleared.
+
+The distribution script now runs this gate immediately after copying the
+binary-reference EXE/DLL into candidate `Run` and before manifest creation. It
+requires tested/final EXE hash equality before transaction completion. A
+standalone binary-reference temp candidate
+(`ProjectReference=0`, no config) passed with EXE SHA-256
+`829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79` and SDK SHA-256
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`. The full
+distribution attempt did not reach that step. The earlier verifier stop was a
+PowerShell 5.1 tooling incompatibility at `Verify-LasalContract.ps1:7571`:
+`$macroMatches[-1]` returns the last Match under pwsh7 but null under powershell
+5.1, producing `lastMacroEnd=0` and a false macro-to-custom drift. It is unrelated
+to PLC source, Classes, or `cbf2548`, and the transaction left zero residue. A
+later pwsh7 focused `-AxisOwnershipReserveVerifierSelfTestOnly` run passed exit
+`0`, rejecting `62/62` negative fixtures and accepting the comment-only fixture
+in 64.3 seconds. Compatibility commit `ad4af91` changes only the verifier's PS5.1
+negative-index accesses; targeted PS5/PS7 Publish and Reserve self-tests pass.
+After the fix, PS5.1 Release `RunLasalContract` and `RunLasalNetworkContract`
+passed the modified boundary and then exited `1` after 177.7 and 174.9 seconds,
+respectively, at the existing intentional `LASAL.UdpCallbackContract blocker:
+Classes.lcb sanctioned Gate D identity drifted`. The user's current `Classes.lcb`
+was not modified. The full distribution prerequisite therefore remains stopped,
+and the script did not reach the new executable gate or manifest. Neither the
+full distribution nor its manifest passed.
 
 Commit `bff3bc7` accounts for the 16-test SDK increase with the exact standalone
 runner mode `callback-ownership-wire`. The mode defaults to a zero-network
@@ -1796,9 +1838,10 @@ also preserve the exact attempt/ACK/outcome and same-session receiver decision
 after cleanup/UI dispatch. `af4ab63` additionally preserves the requested and
 actual/not-bound callback endpoints and proves zero retry/full cleanup/fresh
 manual socket for a non-canonical `ErrorId=0` short ACK. Current SDK
-Debug/Release direct result is `1133/1133`; current `14ccf58` WPF Debug/Release
-Rebuild passes and full smoke is `339/339`, with targeted `6/6` and independent
-callback/reconnect `9/9` evidence.
+Debug/Release direct result is `1133/1133`; current `cbf2548` WPF Debug/Release
+Rebuild passes and full smoke remains `339/339`, with targeted `6/6`, independent
+callback/reconnect `9/9`, and separate actual-EXE relaunch `1/1` per configuration
+evidence.
 The D5
 event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
 D source now contains the one-attempt broker

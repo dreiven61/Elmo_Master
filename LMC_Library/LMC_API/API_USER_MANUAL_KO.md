@@ -1,6 +1,6 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 2.2-candidate
+문서 버전: 2.3-candidate
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
 발행일: 2026-08-11
@@ -24,6 +24,7 @@
 | 2.0-candidate | 2026-07-31 | Axis1-only SDO Write identity-pinned four-ticket gate, stale recovery retirement, single-instance 실행과 transactional Distribution candidate 경계 추가 |
 | 2.1-candidate | 2026-08-04 | LMC Home current-position-zero start/outcome/retirement, DS402 Home gate 상태와 TW19/TW20 encoder maintenance 계약 추가 |
 | 2.2-candidate | 2026-08-11 | `14ccf58` exact canonical `-1` bounded fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증 경계 추가 |
+| 2.3-candidate | 2026-08-11 | `cbf2548` actual EXE X 종료/재실행, default mutex 재획득, fresh-TCP wire와 binary identity gate, `ad4af91` PS5.1 verifier compatibility 및 배포 검증 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
@@ -41,7 +42,7 @@ reference는 아니다.
 > PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 
 > **출판 후보 상태:** 이 Markdown은 2026-08-11 current development source용
-> `2.2-candidate` 원본이다. 여기서 생성한 `output/doc` DOCX와 `output/pdf` PDF는 semantic 및
+> `2.3-candidate` 원본이다. 여기서 생성한 `output/doc` DOCX와 `output/pdf` PDF는 semantic 및
 > 레이아웃 검토용 후보이며 production 승인본이 아니다. canonical Distribution DOCX/PDF는
 > 여전히 Axis1 SDO Write와 stale recovery retirement 이전의 `1.9` gate-off snapshot이다.
 > current PLC live proof, release-scope 승인과 후보 독립 검토가 끝나기 전에는 canonical을
@@ -288,7 +289,7 @@ canonical init failure만 20 ms 뒤 같은 TCP socket에서 `0x8080`을 한 번 
 첫/마지막 response를 cleanup 뒤에도 보존한다. legacy, `ErrorId=0`/다른 error,
 nonzero reserved와 malformed response는 SDK retry가 없다.
 
-SDK 자체는 새 TCP connection을 자동으로 만들지 않는다. 개발 WPF current commit
+SDK 자체는 새 TCP connection을 자동으로 만들지 않는다. 개발 WPF policy commit
 `14ccf58`의 `RPC_INIT_FRESH_TCP_ONCE_V1` policy만 초기 또는 동일 프로세스 내 후속
 Connect에서 첫 candidate가 두 exact `-1` ACK로 `Outcome=Failed`, `AttemptCount=2`,
 `CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때 failed connection을
@@ -335,10 +336,41 @@ close transport 오류가 있어도 local cleanup 뒤 `RpcCloseResponse`와
 postcondition이 완성되지 않으면 종료를 취소한다. startup log에는
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`가 있으며 topology
 marker V5는 유지된다. Current 검증은 SDK Debug/Release direct `1133/1133`, WPF
-Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6` PASS이고 독립
-callback/reconnect review는 `9/9`, P0/P1 없음이다. Fake restart는 같은 test
-process/server/port의 새 `MainWindow`와 immediate reaccept이므로 EXE relaunch, named
-mutex, PLC cleanup 또는 runtime proof가 아니다.
+Debug/Release Rebuild PASS, 기존 full smoke `339/339`, reconnect targeted `6/6` PASS이고
+독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. Historical fake restart는 같은
+test process의 새 `MainWindow`를 사용하는 별도 회귀다.
+
+Current executable-gate commit `cbf2548`의 별도 actual-EXE relaunch gate도 Debug/Release
+각각 `1/1` PASS했다. Runner가 실제 EXE PID/HWND에 외부
+`WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X close를 실행하고, `0x405D` exact `-1` 뒤
+bounded cleanup/process exit를 확인한다. live owner 중 contender는 default mutex에서 exit
+`2`, TCP session `0`이고 owner exit 뒤 같은 exact EXE successor가 mutex를 재획득한다.
+Successor의 첫 candidate는 `0x8080` exact `-1` 두 번과 `0x405C/0x405D` 0회, fresh
+candidate는 init/registration/close 성공이다. 전체 fake-RPC session/request는
+`3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned temp write `0`, TCP session
+`0`이고 EXE/SDK DLL/optional config identity는 시험 전후 동일하다.
+
+이 gate는 PC loopback process/default-mutex/local-cleanup/wire 증거다. PLC
+cleanup/disarm/readiness, fixed 100 ms의 PLC 적정성, MotionLib/축 상태 또는 사용자 PLC의
+실제 종료 후 재접속을 증명하지 않는다. PC cleanup은 PLC disarm 성공이 아니며 private PLC
+state를 force-clear하지 않는다.
+
+배포 script는 candidate `Run` copy 직후, manifest 전에 actual-EXE gate를 실행하고
+transaction 완료 전에 tested/final EXE SHA-256 equality를 요구한다. 별도
+binary-reference temp candidate(`ProjectReference=0`, config absent)는 gate를 PASS했고 EXE
+SHA-256은 `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다. Full
+Distribution 첫 attempt는 gate보다 앞선 `Verify-LasalContract.ps1:7571`
+`$macroMatches[-1]`의 PowerShell 5.1 비호환 tooling bug에서 중단됐고 transaction residue는
+`0`이다. PLC/source/Classes/`cbf2548` blocker가 아니다. 후속 pwsh7 focused verifier-only는
+exit `0`, negative fixture `62/62` reject와 comment-only fixture accept를 64.3초에
+PASS했다. Compatibility commit `ad4af91`은 verifier의 PS5.1 negative-index 접근만
+수정했고 targeted PS5/PS7 Publish+Reserve를 PASS했다. 수정 뒤 PS5.1 Release
+`RunLasalContract`/`RunLasalNetworkContract`는 해당 경계를 통과한 다음 각각
+177.7초/174.9초에 기존 intentional `LASAL.UdpCallbackContract blocker: Classes.lcb
+sanctioned Gate D identity drifted`로 exit `1`이었다. 사용자 current `Classes.lcb`는
+수정하지 않았다. 따라서 full Distribution prerequisite가 STOP이고 new EXE gate/manifest에
+도달하지 않아 Distribution/manifest/publish PASS는 아니다.
 
 ## 2.5 Safety transport preemption
 

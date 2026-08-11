@@ -80,7 +80,7 @@ commit한다. exact duplicate는 idempotent이고 다른 re-registration은 기�
 `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞을 때 20 ms
 cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. 두 번째도
 실패하면 `Faulted`와 TCP/UDP cleanup으로 끝나며, 다른 ErrorId/nonzero
-reserved/malformed response는 SDK zero-retry다. Current `14ccf58` WPF는 초기 및 동일
+reserved/malformed response는 SDK zero-retry다. Policy commit `14ccf58` WPF는 초기 및 동일
 프로세스 내 후속 Connect 모두에서 첫 candidate의 두 exact canonical `-1` 응답이
 `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback이 아직
 시작되지 않은 경우에만 candidate를 retire/`Dispose`한다. 100 ms 뒤 정확히 하나의 새
@@ -255,11 +255,26 @@ process restart는 `RecoveryRequired`로 승격한다. exact reconnect와 Load G
 fail-closed하고 Reset을 자동 replay하지 않는다.
 
 `af4ab63` SDK Debug/Release `1117/1117`과 WPF Release `335/335`는 historical
-snapshot이다. Current `14ccf58`은 SDK Debug/Release direct runner 각각 `1133/1133`,
-WPF Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`을
-PASS했다. 독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. Fake restart는 같은
-test process/server/port의 새 `MainWindow`와 immediate reaccept를 사용했으므로 EXE
-relaunch, named mutex, PLC cleanup 또는 runtime 완료 증거가 아니다.
+snapshot이다. Current executable-gate commit `cbf2548`은 SDK Debug/Release direct runner
+각각 `1133/1133`, WPF Debug/Release Rebuild PASS, 기존 full smoke `339/339`, reconnect
+targeted `6/6`을 PASS했다. 독립 callback/reconnect review는 `9/9`, P0/P1 없음이다.
+별도 actual-EXE relaunch gate도 Debug/Release 각각 `1/1` PASS했다. 실제 PID/HWND에 외부
+`WM_SYSCOMMAND/SC_CLOSE`를 보낸 owner는 `0x405D` exact `-1` 뒤 종료되고, 같은 EXE
+successor가 default named mutex를 재획득한다. Successor의 첫 session은 exact `-1`
+`0x8080` 두 번과 `0x405C/0x405D` 0회, fresh session은 init/registration 성공이며 전체
+session/request는 `3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned root/write `0`,
+TCP session `0`이고, live-mutex contender는 exit `2`, TCP session `0`, exact
+`MUTEX_BUSY` report `1`개다. EXE/DLL/optional config identity도 시험 전후
+동일하다. 이는 PC loopback process/mutex/wire 증거일 뿐 PLC cleanup/disarm/readiness나
+실제 사용자 PLC 재접속 완료 증거가 아니다. Historical same-process 새-`MainWindow`
+smoke는 그대로 보존한다.
+
+후속 배포 verifier compatibility commit `ad4af91`은 API/wire mapping을 바꾸지 않는다.
+Targeted PS5/PS7 Publish+Reserve는 PASS했고, PS5.1 Release `RunLasalContract`와
+`RunLasalNetworkContract`는 수정 지점을 통과한 뒤 기존 intentional `Classes.lcb sanctioned
+Gate D identity drifted` STOP에서 각각 177.7초/174.9초, exit `1`이었다. 사용자 current
+`Classes.lcb`는 수정하지 않았으며 full Distribution의 new actual-EXE gate/manifest에는
+도달하지 않았다.
 
 Axis Reset UI는 Begin에서 `0x2024` ACK와 accepted continuation을 live-command gate 반환 전에
 저장한다. Resume은 gate 밖에서 `0x2028`의 successful `AxisErrorId == 0`을 기본 3회 연속

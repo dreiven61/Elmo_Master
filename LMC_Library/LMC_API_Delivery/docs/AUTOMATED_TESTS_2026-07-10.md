@@ -2,7 +2,8 @@
 
 작성일: 2026-07-10
 
-최종 결과 재확인: 2026-08-11 (`14ccf58`)
+최종 결과 재확인: 2026-08-11 (`cbf2548`; verifier compatibility `ad4af91`;
+reconnect policy `14ccf58`)
 
 ## 구성
 
@@ -275,11 +276,26 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 실행하려면 target을 `/t:RunTests`로 바꾼다. 제거된 legacy
 `LasalMotionControlLibTestApp`은 이 target에 포함하지 않는다.
 
-현재 결과:
+실제 WPF EXE 종료/재실행 gate는 full smoke와 분리되어 있으며 exact EXE path가
+필수다.
 
-- `RunLasalContract`/`RunLasalNetworkContract`: current `Phase5TransportClean /
-  IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`와 dormant Admin `0x7D12`
-  SourceOnly/full PASS. valid request는 `InvalidState/detail 10`, capability bit 3 OFF,
+```powershell
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe' `
+  'LMC_Library\LasalApiWpfTestApp\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj' `
+  /t:RunWpfExecutableRelaunchTest /p:Configuration=Release /p:Platform=AnyCPU `
+  /p:WpfExecutableRelaunchExe='<absolute-path-to-LasalMotionControlApiExample.exe>' /nologo
+```
+
+이 target은 actual EXE의 제한된 loopback probe mode만 사용한다. 일반 사용자 journal이나
+PLC endpoint를 사용하지 않는다.
+
+현재 결과와 historical contract coverage:
+
+- `RunLasalContract`/`RunLasalNetworkContract`: historical `GateDVisualLayout` checkpoint에서
+  `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`와 dormant Admin
+  `0x7D12` SourceOnly/full coverage가 PASS했다. Current `ad4af91` exact 결과는 아래 기록처럼
+  current `Classes.lcb` sanctioned Gate D identity STOP이다. Historical valid request는
+  `InvalidState/detail 10`, capability bit 3 OFF,
   native SetPosition call 0을 12개 negative source fixture와 함께 고정한다. LASAL IDE
   Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`과 `LMCEcatInputLatch`,
   `LMCDiagnosticsService`, `TCPMotionInterface` direct exact-method
@@ -295,8 +311,9 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   historical checkpoint 자체는 current PLC download/runtime 증거가 아니다.
 - 신규 dormant `0x7D13` LASAL source/static contract는 exact 56/32-byte frame,
   recipe 1/2, capability bit 4 OFF, valid request `InvalidState/detail 10`, physical reference
-  input source 부재와 native `MoveReference` call 0을 검사 대상으로 추가했고 current
-  SourceOnly/full이 PASS했다.
+  input source 부재와 native `MoveReference` call 0을 검사 대상으로 추가했고 historical
+  checkpoint의 SourceOnly/full coverage가 PASS했다. Current target outcome은 아래
+  `ad4af91` Gate D STOP 기록이 우선한다.
 - 2026-08-10 Gate D source/static checkpoint는
   `Verify-LasalUdpCallbackContract.ps1` self-test `288/288`, 실제
   `TerminalWakeBrokerCandidate` tree에서 exit 0의 `CAPTURE` 판정을 냈다. 실제
@@ -727,7 +744,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 - commit `bff3bc7`은 standalone runner에 exact mode `callback-ownership-wire`와
   전용 회귀 16개를 추가했다. 기본 호출과 `--dry-run`은 network access 없이
   `all` 또는 지정한 `gd-n10a`, `gd-n13-candidate`, `gd-n14-candidate` 계획만 출력한다.
-  Current `14ccf58` SDK Debug/Release direct `RunPcTests`는 각각 `1133/1133`
+  Current `cbf2548` SDK Debug/Release direct `RunPcTests`는 각각 `1133/1133`
   PASS다. `bff3bc7` 당시 독립 reviewer의 Release 재실행도 `1133/1133`이었고, 그
   commit에서 WPF source가 바뀌지 않은 채 재실행한 `335/335`는 historical checkpoint다.
   live parser는 `--execute-live`, exact case-sensitive
@@ -757,12 +774,15 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `INCOMPLETE_WITHOUT_PCAP_AND_PLC_WATCH`를 고정한다. 따라서 16 tests와 tool PASS는
   PC-only wire 계약이다. reviewed rebaseline, exact downloaded checkpoint, site maintenance,
   correlated pcap과 PLC Watch 없이는 PLC qualification 또는 runtime PASS가 아니다.
-- `RunLasalContract`:
-  current `PASS LASAL.StaticContract.SourceOnly` (Admin read, `0x7D22`와 dormant
+- `RunLasalContract` historical successful-checkpoint coverage(current exact 결과는 아래
+  `ad4af91` Gate D STOP 기록이 우선함):
+  `PASS LASAL.StaticContract.SourceOnly` (Admin read, `0x7D22`와 dormant
   `0x7D12/0x7D13`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,
   Axis 1 exact D5 Write active, Axis 2..4/비승인 D5 Write와 D4 Double·extended fail-closed wire)다.
-- `RunLasalNetworkContract`: `PASS LASAL.StaticContract`; `LMCDiagnosticsService` constructor의
+- `RunLasalNetworkContract` historical successful-checkpoint coverage(current exact 결과는
+  아래 `ad4af91` Gate D STOP 기록이 우선함): `PASS LASAL.StaticContract`;
+  `LMCDiagnosticsService` constructor의
   38-state 이름/타입, 37개 scalar, 24-entry Bulk array,
   no-control-flow/final-`C_OK` exact gate와
   `LMCRecorderStore` constructor exact 초기화/publish-last negative fixture,
@@ -782,7 +802,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   고정한다. 두 회귀 모두 요청값 `RequestedCallback=127.0.0.1:0`을 보존한다. 실패
   evidence는 `BoundCallback=not-bound`, 성공 evidence는 실제 양수 ephemeral endpoint를
   `BoundCallback`으로 보존한다.
-  Current `14ccf58`은 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect
+  Reconnect policy `14ccf58`은 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect
   targeted filter `6/6`을 PASS했다. 독립 callback/reconnect filter도 `9/9`, P0/P1
   없음이다. 초기 및 동일 프로세스 내 후속 Connect에서 첫 candidate가 exact canonical `-1`을
   두 번 받아 `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고
@@ -800,10 +820,24 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   startup evidence는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`,
   `SdkBuildUtc`를 기록하고 topology marker V5는 유지한다.
   100 ms는 PLC readiness proof가 아니고 wire `-1`은 internal disarm `-8`/`-9`와 다른
-  lifecycle/ownership rejection을 구분하지 못한다. Fake restart는 같은 process에서 새
-  `MainWindow`가 같은 server/port에 immediate reaccept한 것으로 EXE relaunch/named mutex,
-  PLC cleanup/disarm 또는 runtime proof가 아니다. PC local cleanup은 PLC disarm 성공이
-  아니며 private state를 force-clear하지 않는다.
+  lifecycle/ownership rejection을 구분하지 못한다. 이 historical fake restart는 같은
+  process의 새 `MainWindow`를 사용한 회귀로 계속 보존한다.
+  Current `cbf2548` 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
+  Runner는 actual PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X close,
+  close ACK exact `-1` 뒤 process exit, 같은 exact EXE successor의 default named mutex
+  재획득을 확인한다. Successor의 첫 TCP candidate는 `0x8080` exact `-1` 두 번,
+  `0x405C/0x405D` 0회이고 fresh candidate는 init/registration/close를 성공한다. Exact
+  fake-RPC session/request는 `3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned
+  temp write `0`, TCP session `0`이고 live owner 중 mutex contender는 exit `2`, TCP
+  session `0`이다. EXE/DLL/optional config의 path/length/SHA-256은 전후 동일하다.
+  Development Debug EXE/DLL SHA-256은 각각
+  `62B2AB41B90024C8CD07328927EED5D325471EC0E6666F1C5E0DD66521F62A99` /
+  `E64B49E2F7532B23886288B263985E4A906F30840CCFCB088197BE936877C621`, Release는
+  `BB91C40C4D60AEB7FB9959A8A3E4F8877490BDBE719F968CAA9F454A3D24ACB5` /
+  `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다.
+  이 gate도 PC loopback process/mutex/wire 증거뿐이다. PLC cleanup/disarm/readiness,
+  100 ms runtime 적정성, MotionLib/축 상태나 사용자 PLC 재접속은 검증하지 않는다. PC local
+  cleanup은 PLC disarm 성공이 아니며 private state를 force-clear하지 않는다.
   `Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi`는 old-session
   statistics action을 Dispatcher에 먼저 queue한 뒤 connection을 교체하고, action 처리 후에도
   replacement의 네 counter가 0, last decision이 `None`, summary가 `rejected=0`, active owner가
@@ -878,14 +912,36 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   lookup-only/mutation 0회, exact Disable resolve와 identity 응답 중 safety reservation의
   durable recovery 보존을 검사한다. 이 항목은 deterministic
   PC/fake-TCP와 WPF smoke 증거이지 PLC runtime 검증이 아니다.
-- `BuildDistributionExampleApp`: binary-reference distribution example build PASS
-- full distribution preview pipeline: manifest `56/56`, semantic policy `28/28`/15 checks,
+- `BuildDistributionExampleApp`: historical binary-reference distribution example build PASS
+- 2026-07-31 historical full distribution preview pipeline: manifest `56/56`, semantic policy `28/28`/15 checks,
   transaction/manual snapshot/provenance `86/86` PASS. temporary standalone example Debug/Release
   build, forbidden internal-reference scan, cleanup과 DLL hash identity를 포함한다.
   검토한 `2.0-candidate` DOCX/PDF exact bytes를 사용한 실제 sibling
   `LMC_API_Distribution_candidate_20260731_manual_2_0_provenance`도 schema 2 manifest와
   semantic preflight를 통과했다. 이 결과는 `dirty-preview` PC/package 증거이며 canonical
   승격이나 PLC/runtime/production 승인이 아니다.
+- Current `cbf2548`에서 `Build-LmcApiDistribution.ps1`은 candidate `Run`에
+  binary-reference EXE/DLL을 복사한 직후, manifest 전에 actual-EXE gate를 호출하고,
+  이후 transaction 완료 전 tested EXE와 final EXE SHA-256 equality를 다시 검사한다.
+  별도 temp binary-reference candidate는 `ProjectReference=0`, optional config absent 상태로 gate
+  `1/1` PASS했다. EXE SHA-256은
+  `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
+  `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이고 전후 identity도
+  같았다. 그러나 current full Distribution attempt는 SDK Debug `1133/1133` 뒤 기존
+  `Verify-LasalContract.ps1:7571` `$macroMatches[-1]`의 PowerShell 5.1 비호환 tooling
+  bug에서 중단되어 script의 copy 직후 gate와 manifest 단계에 도달하지 않았다. pwsh7은
+  last Match를 반환하지만 powershell 5.1은 null을 반환해 `lastMacroEnd=0`과 false
+  macro-to-custom drift를 만들었다. PLC/source/Classes/`cbf2548` blocker가 아니다.
+  Transaction residue는 `0`이다. 후속 pwsh7 focused
+  `-AxisOwnershipReserveVerifierSelfTestOnly`는 exit `0`, negative fixture `62/62` reject와
+  comment-only fixture accept를 64.3초에 PASS했다. Compatibility commit `ad4af91`은 exact
+  한 verifier file의 PS5.1 negative-index 접근만 수정했고 targeted PS5/PS7 Publish+Reserve를
+  PASS했다. 수정 뒤 PS5.1 Release `RunLasalContract`는 해당 macro 경계를 통과한 다음
+  177.7초에, `RunLasalNetworkContract`는 174.9초에 기존 intentional
+  `LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned Gate D identity drifted`로 각각
+  exit `1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution
+  prerequisite가 STOP이고 script의 new EXE gate/manifest에는 도달하지 않아 full
+  Distribution, manifest 또는 candidate publish PASS로 기록하지 않는다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

@@ -2,7 +2,8 @@
 
 Date: 2026-08-10
 
-PC reconnect amendment: 2026-08-11 (`14ccf58`)
+PC reconnect amendment: 2026-08-11 (`14ccf58` policy, `cbf2548` actual-EXE gate,
+`ad4af91` PS5.1 verifier compatibility)
 
 ## Evidence boundary
 
@@ -168,7 +169,7 @@ PC reconnect correction commit `66b5cf2` preserves the exact short-failure
 retries `0x8080` once on the same socket. Legacy and other failures do not retry.
 Commit `af4ab63` historically fixes the non-canonical short-ACK `ErrorId=0` case
 at one `0x8080`, full listener/TCP/WPF cleanup, and a fresh socket for the next
-manual Connect. Current `14ccf58` adds `RPC_INIT_FRESH_TCP_ONCE_V1`: if an initial
+manual Connect. Policy commit `14ccf58` adds `RPC_INIT_FRESH_TCP_ONCE_V1`: if an initial
 or in-process Connect candidate receives both exact canonical `-1` failures with
 `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true` and no RPC/callback
 start, WPF retires/disposes it, waits a fixed 100 ms, and opens exactly one fresh
@@ -178,8 +179,8 @@ retry. One Connect is bounded to two TCP sockets/four `0x8080`; `0x405C` is sent
 only after init success. Connect succeeds only after the registration ACK
 succeeds; a `0x405C` failure is terminal and receives no outer retry.
 
-Current PC evidence is SDK Debug/Release direct `1133/1133`, WPF Debug/Release
-Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`, and independent
+Current `cbf2548` PC evidence is SDK Debug/Release direct `1133/1133`, WPF Debug/Release
+Rebuild PASS, unchanged full smoke `339/339`, reconnect targeted `6/6`, and independent
 callback/reconnect `9/9` with no P0/P1. The prior `af4ab63` WPF `335/335` remains
 a historical checkpoint. The GUI retains the RPC-init
 attempt count, canonical-retry decision, and final ACK evidence after cleanup,
@@ -195,10 +196,45 @@ PLC `RpcCallbackLastDisarmResult`, or PLC producer/sender counters. Negative PLC
 disarm preservation remains intentional and fail-closed; do not force-clear the
 callback tuple. The fixed 100 ms is PC backoff, not PLC slot/FSM-readiness proof.
 A wire `-1` may represent internal disarm `-8`/`-9` or another
-lifecycle/ownership rejection. Fake restart evidence uses a new `MainWindow` in
-the same test process against the same server/port with immediate reaccept; it is
-not EXE relaunch, named-mutex, PLC cleanup, or runtime proof. PC local cleanup
-does not prove PLC disarm success.
+lifecycle/ownership rejection. Historical fake restart evidence uses a new
+`MainWindow` in the same test process and remains a separate regression.
+
+The separate actual-EXE relaunch gate passes `1/1` in both Debug and Release. It
+finds the supplied actual example EXE PID/HWND and sends external
+`WM_SYSCOMMAND/SC_CLOSE`. The owner observes exact `0x405D` `-1`, completes local
+cleanup, and exits. A live contender exits `2` with zero TCP sessions; after owner
+exit, the same exact EXE successor reacquires the default named mutex. Its first
+TCP candidate receives two exact `-1` `0x8080` ACKs and sends no `0x405C/0x405D`;
+its fresh candidate completes init and registration. The exact loopback total is
+three sessions and 28 requests, partitioned `(13,2,13)`. Malformed probe arguments
+exit `64` with zero owned-temp writes and zero TCP sessions. EXE, SDK DLL, and
+optional configuration identities remain byte-identical before and after.
+This is PC process/mutex/fake-wire evidence only. It is not PLC cleanup, disarm,
+slot/FSM readiness, 100 ms timing, MotionLib/axis-state, or live user-relaunch
+proof. PC local cleanup does not prove PLC disarm success.
+
+The distribution build now calls this gate after candidate `Run` copy and before
+manifest creation and requires tested/final EXE hash equality before transaction
+completion. A standalone
+binary-reference temp candidate (`ProjectReference=0`, no config) passed, with EXE
+SHA-256 `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79` and SDK
+SHA-256 `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`. The full
+distribution attempt did not reach the gate because of a PowerShell 5.1 verifier
+tooling incompatibility at `Verify-LasalContract.ps1:7571`. The expression
+`$macroMatches[-1]` returns the last Match under pwsh7 but null under powershell
+5.1, causing `lastMacroEnd=0` and a false macro-to-custom drift. This is unrelated
+to PLC source, Classes, or `cbf2548`, and transaction residue was zero. A later
+pwsh7 focused AxisOwnershipReserve verifier self-test passed exit `0`, rejecting
+`62/62` negative fixtures and accepting the comment-only fixture in 64.3 seconds.
+Compatibility commit `ad4af91` changes only the verifier's PS5.1 negative-index
+accesses; targeted PS5/PS7 Publish and Reserve self-tests pass. After the fix,
+PS5.1 Release `RunLasalContract` and `RunLasalNetworkContract` passed the modified
+boundary and then exited `1` after 177.7 and 174.9 seconds, respectively, at the
+existing intentional `LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned
+Gate D identity drifted`. The user's current `Classes.lcb` was not modified. The
+full distribution prerequisite remains stopped and the script did not reach the
+new executable gate or manifest, so neither a distribution gate nor manifest PASS
+is claimed.
 
 Before formal Gate D runtime qualification, preserve this sequence/evidence split:
 
@@ -585,7 +621,8 @@ Download. Its request allowlist is only exact `0x8080`, fixed version-2 `0x405C`
 the current authoritative owner. The 16 new harness tests brought the SDK Release
 result to `1133/1133`; an independent reviewer repeated that Release
 `RunPcTests` result and the then-current WPF Release `335/335`. Current
-`14ccf58` WPF Debug/Release Rebuild passes and full smoke is `339/339`. Harness
+`cbf2548` WPF Debug/Release Rebuild passes, full smoke remains `339/339`, and the
+separate actual-EXE relaunch target passes `1/1` per configuration. Harness
 `RETRY_COUNT=0` is a separate raw-wire policy and is not the WPF outer retry.
 
 Before reviewed rebaseline, the following are the only authorized harness

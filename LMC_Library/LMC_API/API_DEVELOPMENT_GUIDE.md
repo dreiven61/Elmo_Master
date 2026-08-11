@@ -1,7 +1,8 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
-- 문서 버전: `2.6`
-- 작성 기준: `2026-08-11` / current reconnect commit `14ccf58`
+- 문서 버전: `2.7`
+- 작성 기준: `2026-08-11` / executable gate `cbf2548`, verifier compatibility
+  `ad4af91`, reconnect policy `14ccf58`
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
 - diagnostics/admin/release/reconnect 기준: 2026-08-11 current source
@@ -19,11 +20,13 @@ SDO Write와 stale recovery retirement가 들어가기 전 gate-off Distribution
 각 기능에서 sync/async signature를 함께 보여 주지만 두 메서드가 내부적으로 같은
 transport와 command를 공유한다는 사실은 설명하지 않는다.
 현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
-버전 `2.2-candidate`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
+버전 `2.3-candidate`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
 > **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-08-11 current
-> `14ccf58`은 PC 자동 시험 Debug/Release direct runner 각각 1133/1133, WPF
-> Debug/Release Rebuild PASS, full smoke 339/339과 reconnect targeted 6/6을 통과했다.
+> `cbf2548`은 PC 자동 시험 Debug/Release direct runner 각각 1133/1133, WPF
+> Debug/Release Rebuild PASS, 기존 full smoke 339/339과 reconnect targeted 6/6을 통과했다.
+> 별도 actual-EXE relaunch gate도 Debug/Release 각각 1/1 PASS했지만 PC loopback 증거이며
+> 실제 PLC cleanup/disarm/readiness나 사용자 PLC 재접속 완료 증거가 아니다.
 > 2026-07-31 LASAL checkpoint는 `ExpectedSdoWriteAxis=1`의
 > `IntegratedReadOwnerDormant` SourceOnly/full 정적 계약, fresh IDE Rebuild/Link
 > `0 errors / 20 warnings`와 3-class implementation smoke를 통과했다.
@@ -653,7 +656,7 @@ Group/Axis handle 생성
 
 SDK의 exact canonical v2 init failure만 같은 TCP socket에서 20 ms 뒤 `0x8080`을 한 번
 재시도한다. `LastRpcSessionInitializationEvidence`는 outcome, attempt count, canonical retry,
-첫/마지막 ACK를 cleanup 뒤에도 보존한다. Current WPF `14ccf58`은 초기 또는 동일 프로세스
+첫/마지막 ACK를 cleanup 뒤에도 보존한다. WPF policy `14ccf58`은 초기 또는 동일 프로세스
 내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로 `Outcome=Failed`, `AttemptCount=2`,
 `CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때만 100 ms 뒤 fresh
 `LMCConnection`/TCP 하나를 연다. 두 번째 candidate 실패,
@@ -995,10 +998,21 @@ disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`/`LastClose
 진단용으로 남는다. X는 postcondition 미완료 시 취소되고 strict Close 버튼은 cleanup 뒤
 close 오류를 다시 throw한다. startup identity는
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 topology
-marker V5를 유지한다. 100 ms PC backoff와 fake immediate reaccept는 PLC readiness/cleanup
-proof가 아니다. wire `-1`의 내부 원인은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership
-rejection일 수 있고 PC cleanup은 PLC disarm 성공이 아니다. private state를 force-clear하지
-않는다.
+marker V5를 유지한다.
+
+Current `cbf2548`의 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
+Parent runner가 실제 EXE PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X
+close를 실행하고, `0x405D` exact `-1` 뒤 bounded cleanup/process exit를 확인한다. live
+owner 중 contender는 default mutex에서 exit `2`/TCP `0`이고, owner exit 뒤 같은 exact
+EXE successor가 mutex를 재획득한다. Successor의 첫 TCP candidate는 `0x8080` exact
+`-1` 두 번과 `0x405C/0x405D` 0회, fresh candidate는 init/registration/close 성공이며
+전체 session/request는 `3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned temp
+write `0`, TCP `0`이다. EXE/SDK DLL/optional config identity는 시험 전후 동일하다.
+
+100 ms PC backoff와 loopback immediate reaccept는 PLC readiness/cleanup proof가 아니다.
+wire `-1`의 내부 원인은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수
+있고 PC cleanup은 PLC disarm 성공이 아니다. 실제 MotionLib/축 상태와 사용자 PLC에서 X
+종료 후 동일 EXE 재접속은 아직 검증하지 않았다. private state를 force-clear하지 않는다.
 
 `ConnectionStateChanged` handler도 library thread에서 직접 실행되며 UI marshal을 하지 않는다.
 handler 예외는 connection 동작에 전파되지 않도록 무시된다.
@@ -1032,10 +1046,10 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics/admin 합계 | current `14ccf58` Debug/Release direct 각 1133/1133 PASS; 2026-07-31 baseline 1042/1042 |
-| 개발 WPF | current `14ccf58` Debug/Release Rebuild PASS; full smoke 339/339, reconnect targeted 6/6 PASS; 2026-07-31 baseline 297/297 |
-| LASAL SourceOnly static contract | `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS |
-| LASAL full static contract | `IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS; generated metadata, topology network와 same-peer transport 구조 동기화 확인 |
+| PC request/parser/fake-RPC/diagnostics/admin 합계 | current `cbf2548` Debug/Release direct 각 1133/1133 PASS; 2026-07-31 baseline 1042/1042 |
+| 개발 WPF | current `cbf2548` Debug/Release Rebuild PASS; 기존 full smoke 339/339, reconnect targeted 6/6, 별도 actual-EXE relaunch Debug/Release 각 1/1 PASS; 2026-07-31 baseline 297/297 |
+| LASAL SourceOnly static contract | historical `GateDVisualLayout` checkpoint에서 `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1` PASS; current `ad4af91` PS5.1 `RunLasalContract`는 verifier compatibility 경계를 통과한 뒤 current `Classes.lcb` sanctioned Gate D identity STOP에서 exit 1 |
+| LASAL full static contract | historical checkpoint에서 `IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1` PASS 및 generated metadata/topology/same-peer 구조 동기화 확인; current `ad4af91` PS5.1 `RunLasalNetworkContract`는 같은 Gate D identity STOP에서 exit 1 |
 | LASAL IDE rebuild/link | current Axis 1 gate-on source `0 errors / 20 warnings`, Linker Done; PLC download는 미실시 |
 | implementation smoke | `LMCEcatInputLatch`, `LMCDiagnosticsService`, `TCPMotionInterface` direct implementation open 성공; current PID 신규 `CInvalidArgException` 0건 |
 | LASAL diagnostics command contract | capability-advertised active 24 + dormant read-owner `0x7E13/0x7E22` 2 / handled 32; reserved D5 2와 dormant D4 4 포함 |
@@ -1049,10 +1063,11 @@ E-stop/drive safety chain이 반드시 필요하다.
 | core/priority/jitter | 미검증 |
 
 독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. PC 시험은 serializer, parser,
-loopback TCP/UDP lifecycle을 검증한다. restart case는 같은 test process/server/port에서 새
-`MainWindow`와 immediate reaccept를 사용하며 EXE relaunch/named mutex 증거가 아니다. 실제
-MotionLib 상태 전이, PLC session cleanup, EtherCAT, Axis hardware와 PLC task 배치를 검증하지
-않는다.
+loopback TCP/UDP lifecycle을 검증한다. Historical restart case는 같은 test process의 새
+`MainWindow`이고, 별도 actual-EXE gate가 process exit/default mutex reacquire/fresh TCP와
+binary identity를 추가로 검증한다. 어느 쪽도 실제 MotionLib 상태 전이, PLC session
+cleanup/disarm/readiness, EtherCAT, Axis hardware와 PLC task 배치 또는 사용자 PLC 재접속을
+검증하지 않는다.
 
 ### 16.2 현재 주요 위험
 
@@ -1204,11 +1219,13 @@ rename한다.
 3. SDK Debug/Release test와 LASAL network/static contract PASS
 4. 개발 WPF Debug/Release smoke PASS
 5. binary-reference candidate example Debug/Release build PASS
-6. candidate WPF source set/content와 current 개발 project exact 일치
-7. SDK/LASAL/WPF/DINT/README/DOCX/PDF 15-check semantic policy PASS
-8. source/API/runtime DLL byte identity PASS
-9. `bin/obj/.vs`, Reports, captures와 내부 source path 부재
-10. schema 2 manifest atomic write와 즉시 재검증 PASS
+6. candidate `Run` copy 직후, manifest 전 actual-EXE relaunch gate PASS
+7. candidate WPF source set/content와 current 개발 project exact 일치
+8. SDK/LASAL/WPF/DINT/README/DOCX/PDF 15-check semantic policy PASS
+9. source/API/runtime DLL byte identity PASS
+10. `bin/obj/.vs`, Reports, captures와 내부 source path 부재
+11. schema 2 manifest atomic write와 즉시 재검증 PASS
+12. tested EXE/final EXE SHA-256 equality PASS 뒤 transaction completion
 
 transaction은 sibling `FileShare.None` lock, staging seal, input/canonical drift 검사를 사용한다.
 commit 전 실패는 검증된 staging만 제거한다. canonical과 이미 commit된 candidate는 자동으로
@@ -1235,6 +1252,25 @@ release input tree SHA-256, semantic policy SHA-256/result와 package 파일별 
 four-ticket same-value proof와 Axis 2~4 차단을 아직 설명하지 않기 때문이다. candidate는
 생성되지 않았고 canonical tree hash는 전후 동일했으며 staging/lock residue는 0이었다.
 이것은 release fail-closed 검증이지 PLC/live proof가 아니다.
+
+Current `cbf2548`에서 별도 temp binary-reference candidate(`ProjectReference=0`, config
+absent)는 actual-EXE gate를 PASS했다. EXE SHA-256은
+`829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이고 전후 identity는
+같았다. 그러나 2026-08-11 full Distribution 첫 attempt는 gate보다 앞선
+`Verify-LasalContract.ps1:7571` `$macroMatches[-1]`의 PowerShell 5.1 비호환 tooling bug에서
+중단됐다. pwsh7은 last Match를 반환하지만 powershell 5.1은 null을 반환해
+`lastMacroEnd=0`과 false macro-to-custom drift를 만들었다. PLC/source/Classes/`cbf2548`
+blocker가 아니며 transaction residue는 `0`이다. 후속 pwsh7 focused
+`-AxisOwnershipReserveVerifierSelfTestOnly`는 exit `0`, negative fixture `62/62` reject와
+comment-only fixture accept를 64.3초에 PASS했다. Compatibility commit `ad4af91`은
+verifier 한 파일의 PS5.1 negative-index 접근만 수정했고 targeted PS5/PS7 Publish+Reserve를
+PASS했다. 수정 뒤 PS5.1 Release `RunLasalContract`/`RunLasalNetworkContract`는 해당
+경계를 통과한 다음 각각 177.7초/174.9초에 기존 intentional
+`LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned Gate D identity drifted`로 exit
+`1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution
+prerequisite가 STOP이고 new EXE gate/manifest에 도달하지 않아 full Distribution, actual
+candidate gate, manifest 또는 publish PASS로 기록하지 않는다.
 
 단위 회귀는 다음처럼 실행한다.
 

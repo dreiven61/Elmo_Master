@@ -78,7 +78,7 @@ endpoint tuple을 commit한다. exact duplicate는 멱등 성공하지만 event 
 wire capture는 별도다.
 
 SDK는 canonical v2 `0x8080` short failure만 같은 TCP socket에서 20 ms 뒤 한 번
-재시도한다. Current WPF commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect에서
+재시도한다. WPF policy commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect에서
 그 두 시도가 모두 exact `-1`로 실패하고 `Outcome=Failed`, `AttemptCount=2`,
 `CanonicalRetryUsed=true`, RPC/callback 미시작인
 경우에만 failed candidate를 retire/`Dispose`한다. 100 ms 뒤 새
@@ -101,14 +101,45 @@ disconnected postcondition을 사용한다. close response/exception은 진단�
 postcondition 미완료 시 취소되고 strict Close 버튼은 close 실패 시 cleanup 뒤 그 오류를
 다시 throw한다.
 startup identity는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`,
-`SdkBuildUtc`를 기록하고 topology marker V5는 유지한다. 100 ms와 fake same-process
-server reaccept는 PLC readiness/cleanup/runtime proof가 아니고 PC cleanup도 PLC disarm
-성공이 아니다. private PLC state를 force-clear하지 않는다.
+`SdkBuildUtc`를 기록하고 topology marker V5는 유지한다. Historical same-process
+새-`MainWindow` smoke는 유지한다. Current executable-gate commit `cbf2548`은 별도
+loopback-only probe를 supplied actual example EXE process로 실행한다. Malformed probe는 default
+mutex, journal과 network 전에 exit `64`/temp write `0`/TCP `0`으로 닫고, live owner 중
+동일 EXE contender는 default named mutex에서 exit `2`/TCP `0`으로 닫는다. Runner는 실제
+owner PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 X 경로를 실행하고, `0x405D`
+exact `-1` 뒤 process exit와 같은 EXE successor의 default mutex 재획득을 요구한다.
+Successor의 session 2는 `0x8080` exact `-1` 두 번 뒤 registration/close 없이 폐기하고,
+session 3에서 fresh init/registration/close를 성공한다. 전체 wire는 TCP session/request
+`3/28 (13,2,13)`이며 EXE/SDK DLL/optional config identity는 시험 전후 같아야 한다.
 
-Current `14ccf58` 검증은 SDK Debug/Release direct `1133/1133`, WPF Debug/Release
-Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6` PASS다. 독립
-callback/reconnect review는 `9/9`, P0/P1 없음이다. 새-window smoke는 같은 test
-process와 같은 server/port에서 즉시 reaccept하므로 EXE relaunch/named mutex 증거가 아니다.
+`Build-LmcApiDistribution.ps1`은 binary-reference candidate EXE/DLL을 candidate `Run`에
+복사한 직후, manifest 작성 전에 `RunWpfExecutableRelaunchTest`를 실행하고, 이후
+transaction 완료 전 tested EXE SHA-256과 최종 EXE SHA-256 equality를 다시 확인하도록
+fail-closed한다. 다만 2026-08-11
+full Distribution 첫 실행은 그 단계보다 앞선 `Verify-LasalContract.ps1:7571`의
+PowerShell 5.1 `MatchCollection[-1]` 비호환 tooling bug로 중단됐고 transaction residue는
+`0`이다. pwsh7에서는 last Match를 반환하지만 powershell 5.1에서는 null이 되어
+`lastMacroEnd=0`과 false macro-to-custom drift를 만들었다. 이는 PLC/source/Classes 또는
+`cbf2548` 결함이 아니다. Compatibility commit `ad4af91`은 verifier 한 파일만 PS5.1과
+동일 의미로 수정했고 targeted PS5/PS7 Publish+Reserve self-test는 PASS했다. pwsh7 Reserve
+run은 exit `0`, negative fixture `62/62` reject와 comment-only fixture accept를 64.3초에
+PASS했다. 수정 뒤 PS5.1 Release `RunLasalContract`와 `RunLasalNetworkContract`는 해당
+macro 경계를 통과한 다음 각각 177.7초/174.9초에 기존 intentional
+`LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned Gate D identity drifted`에서
+exit `1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution의
+prerequisite가 STOP이고 script의 new EXE gate/manifest 단계에는 도달하지 않았으므로
+candidate gate/manifest 또는 full Distribution PASS로 기록할 수 없다. 별도로 만든
+binary-reference temp candidate(`ProjectReference=0`, config absent)는 actual-EXE gate
+`1/1`을 PASS했고 EXE SHA-256은
+`829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다.
+
+Current `cbf2548` 검증은 SDK Debug/Release direct `1133/1133`, WPF Debug/Release
+Rebuild PASS, 기존 full smoke `339/339`, reconnect targeted `6/6` PASS다. 별도 actual-EXE
+relaunch gate도 Debug/Release 각각 `1/1` PASS했고 독립 callback/reconnect review는 `9/9`,
+P0/P1 없음이다. 이 결과는 PC loopback process/mutex/wire 증거다. fixed 100 ms, local
+cleanup과 EXE 재실행은 PLC readiness/cleanup/disarm/runtime, 실제 MotionLib/축 상태 또는
+사용자 PLC 재접속 성공을 증명하지 않는다. private PLC state를 force-clear하지 않는다.
 
 `GetSignalCatalog[Async]`가 반환한 immutable Catalog는 diagnostics owner와 connection session
 generation에 bind된다. alias PI Read, Bulk builder 생성/Configure와 PI Write submit은 unbound,
@@ -487,8 +518,8 @@ var raw = checked((int)Math.Round(
   ACK도 session-bound priority publication을 거쳐 drain 후 `ResultDiscarded`된다. accepted
   Submit은 exact ticket/BootId/MapRevision evidence를 보존하며 Cancel ACK는 stale success로
   적용하지 않는다. current SDK Debug/Release direct runner는 각각 1133/1133 PASS했고
-  WPF Debug/Release Rebuild도 PASS했다. WPF full smoke는 339/339이며 PLC/runtime 안전
-  증거는 별도다.
+  WPF Debug/Release Rebuild도 PASS했다. WPF full smoke는 339/339, 별도 actual-EXE
+  relaunch gate는 Debug/Release 각각 1/1이며 PLC/runtime 안전 증거는 별도다.
 - Relative move도 absolute와 같은 motion-uncertain tracking을 사용한다. valid Admin
   rejection만 local tracking을 해제하고 timeout, malformed response 또는 연결 손실은
   상태가 불확실하므로 Stop/PowerOff recovery 경로를 유지한다.

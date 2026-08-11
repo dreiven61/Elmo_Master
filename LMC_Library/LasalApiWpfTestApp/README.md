@@ -62,7 +62,7 @@ ErrorId, nonzero reserved, malformed response는 재시도하지 않는다. 따�
 connection을 정리한다. 이 동작은 PLC의 지속적인 callback disarm result `-8`/`-9`를
 수정하는 것이 아니다.
 
-Current commit `14ccf58`의 WPF policy는 초기 및 동일 프로세스 내 후속 Connect가 만든 candidate
+Policy commit `14ccf58`의 WPF policy는 초기 및 동일 프로세스 내 후속 Connect가 만든 candidate
 모두에 `RPC_INIT_FRESH_TCP_ONCE_V1`을 적용한다. 첫 `LMCConnection`에서 두 canonical
 `-1` ACK가 모두 돌아와 `Outcome=Failed`, `AttemptCount=2`,
 `CanonicalRetryUsed=true`이고 RPC/callback registration이 시작되지 않은 exact 경우에만
@@ -83,11 +83,23 @@ version-2 등록에서는 BootId,
 SessionEpoch, cookie, listener generation, expected source와 event mask를 표시하고, PC
 receiver의 accepted/rejected/duplicate/out-of-order 누계와 마지막 decision/protocol error를
 표시한다. `af4ab63`의 SDK `1117/1117`, WPF `335/335`는 historical snapshot이다.
-Current `14ccf58`은 SDK Debug/Release direct runner 각각 `1133/1133`, WPF
+Current executable-gate commit `cbf2548`은 `14ccf58` policy를 유지한다. SDK
+Debug/Release direct runner 각각 `1133/1133`, WPF
 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`을 PASS했다.
 독립 callback/reconnect review도 `9/9`, P0/P1 없음이다. startup identity는
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 함께 기록하며
 topology marker는 계속 `CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5`다.
+
+별도 actual-EXE relaunch gate는 Debug/Release에서 각각 `1/1` PASS했다. Runner가 실제
+`LasalMotionControlApiExample.exe`의 PID/HWND를 찾고 외부에서
+`WM_SYSCOMMAND/SC_CLOSE`를 보내므로 첫 프로세스는 일반 창 X 종료 경로를 탄다. 첫
+프로세스의 `0x405D` exact `-1` ACK 뒤에도 bounded local cleanup과 process exit를
+완료하고, 같은 EXE를 다시 실행한 successor가 default named mutex를 재획득한다. successor의
+첫 TCP candidate는 `0x8080` exact `-1` 두 번 뒤 `0x405C/0x405D` 없이 폐기되고, fresh
+candidate가 `0x8080 -> 0x405C`로 연결된다. 전체 fake-RPC wire는 정확히 TCP session/request
+`3/28 (13,2,13)`이다. malformed probe는 exit `64`, owned temp write `0`, TCP session
+`0`이고 live owner 중 contender는 exit `2`, TCP session `0`이다. EXE, SDK DLL과 optional
+config의 path/length/SHA-256은 시험 전후 동일해야 한다.
 
 내부 connection replacement와 창 X 종료는 공용 bounded cleanup을 사용해 최대 두 번의
 `Dispose` 뒤 `Disconnected`, `IsConnected=false`, `IsRpcInitialized=false`, callback
@@ -96,12 +108,22 @@ listener stopped, callback endpoint null을 모두 요구한다. 이전 connecti
 postcondition을 만들지 못하면 종료를 취소한다. 명시적 Close 버튼은 local cleanup을
 완료한 뒤에도 RPC close 오류를 호출자에게 다시 throw하는 strict 동작을 유지한다.
 
-위 결과는 PC측 fake-server 증거다. 100 ms는 고정 PC backoff이지 PLC slot/FSM readiness
+위 결과는 PC측 loopback fake-server 증거다. 100 ms는 고정 PC backoff이지 PLC slot/FSM readiness
 시간의 증명이 아니다. wire의 canonical `-1`은 내부 disarm `-8`/`-9`뿐 아니라 다른
-lifecycle/ownership rejection일 수도 있다. restart smoke도 같은 test process와 같은
-server/port에서 새 `MainWindow`를 만들고 server가 disconnect 직후 즉시 reaccept한
-것이므로 EXE relaunch, named mutex, PLC cleanup 또는 runtime proof가 아니다. PC local
-cleanup은 PLC disarm 성공을 뜻하지 않으며 private PLC state를 force-clear하지 않는다.
+lifecycle/ownership rejection일 수도 있다. Historical `14ccf58` restart smoke는 같은 test
+process의 새 `MainWindow`만 사용했다. `cbf2548` gate는 실제 EXE 종료/재실행과 default named
+mutex 재획득까지 추가로 증명하지만 PLC cleanup/disarm/readiness, 100 ms runtime 적정성,
+MotionLib/축 상태 전이는 증명하지 않는다. PC local cleanup은 PLC disarm 성공을 뜻하지
+않으며 private PLC state를 force-clear하지 않는다. 사용자 PLC에서 X 종료 후 같은 예제
+EXE를 다시 실행해 Connect하는 실기 재시험은 아직 남아 있다.
+
+배포 verifier compatibility commit `ad4af91`은 WPF/SDK/wire를 바꾸지 않는다. Targeted
+PS5/PS7 Publish+Reserve는 PASS했고, 수정 뒤 PS5.1 Release `RunLasalContract`와
+`RunLasalNetworkContract`는 수정 지점을 통과한 다음 각각 177.7초/174.9초에 기존
+intentional `Classes.lcb sanctioned Gate D identity drifted` STOP으로 exit `1`이었다.
+사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution은 new actual-EXE
+gate/manifest에 도달하지 않았고 PASS가 아니다. 위 standalone/development actual-EXE gate
+PASS와 별도 경계다.
 
 `LMCCallbackWakeHintEventArgs`에는 typed non-authoritative wake와 session provenance가
 있다. EventType 1은 `DiagnosticsOperationTerminalAvailable`, EventId는 nonzero D5
@@ -207,8 +229,9 @@ MSBuild.exe .\LasalApiWpfTestApp.SmokeTests\LasalApiWpfTestApp.SmokeTests.csproj
 
 2026-08-10 `f337fec`/`ad7c8b1` Release 스냅샷은 smoke `334/334` PASS였다.
 2026-08-11 `af4ab63` historical VS2019 MSBuild Release rebuild는 경고 0, 오류 0이고
-smoke는 `335/335` PASS였다. Current `14ccf58`은 Debug/Release Rebuild PASS, full smoke
-`339/339`, reconnect targeted `6/6`을 PASS했다.
+smoke는 `335/335` PASS였다. Current `cbf2548`은 Debug/Release Rebuild PASS, 기존 full
+smoke `339/339`와 reconnect targeted `6/6`을 그대로 PASS했고, 별도 actual-EXE relaunch
+gate도 Debug/Release 각각 `1/1` PASS했다.
 Connect 뒤 bit 14만 광고된 7-node
 topology가 자동으로 7행/CREVIS 3행을 표시하고 bit 15~17 live 버튼은 비활성인 경로,
 초기 bit 14 OFF에서 자동 topology 요청 없이 실패 상태를 표시한 뒤 수동 Load가 capability를
@@ -740,8 +763,8 @@ journal을 arm한다. 성공 결과와 accepted-result preemption의 exact lease
 route와 같이 열리도록 분리했다. 현재 네 proof/route gate는 모두 `false`다.
 
 `af4ab63` WPF actual-control Release `335/335`는 historical snapshot이다. Current
-`14ccf58` actual-control smoke는 VS2019 MSBuild Debug/Release에서 각각 `339/339`
-PASS다. Admin capability/axis/group과
+`cbf2548` actual-control smoke는 VS2019 MSBuild Debug/Release에서 각각 `339/339`, 별도
+actual-EXE relaunch gate는 각각 `1/1` PASS다. Admin capability/axis/group과
 Drive mode/non-atomic status의 exact fake-RPC, non-default axis lookup/AxisInfo payload 및 typed 표시,
 CREVIS 자동 7행/3행 표시,
 초기 bit 14 OFF 뒤 수동 Load CREVIS 복구, live capability-off 버튼 차단과 capability downgrade

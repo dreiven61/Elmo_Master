@@ -10,6 +10,10 @@ PC reconnect evidence 및 callback receiver observability 갱신: 2026-08-10
 
 WPF bounded fresh-session recovery 갱신 (`14ccf58`): 2026-08-11
 
+실제 EXE 종료/재실행 gate 갱신 (`cbf2548`): 2026-08-11
+
+PowerShell 5.1 verifier compatibility 갱신 (`ad4af91`): 2026-08-11
+
 ## 결론
 
 RPC 연결은 단순 TCP connect가 아니다. 현재 사용 순서는 아래와 같다.
@@ -86,7 +90,7 @@ Commit `af4ab63`의 historical WPF 회귀는 나머지 필드는 같고 `ErrorId
 non-canonical short ACK가 canonical retry를 사용하지 않고 `0x8080` 1회에서 끝나는
 것과, cleanup 뒤 다음 수동 Connect가 새 TCP socket/session을 쓰는 것을 고정한다.
 
-Current `14ccf58`은 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate에서 두 exact canonical
+Policy commit `14ccf58`은 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate에서 두 exact canonical
 `-1` ACK가 모두 돌아와 `Outcome=Failed`, `AttemptCount=2`,
 `CanonicalRetryUsed=true`이고 RPC/callback registration이 시작되지 않은 경우만 failed
 `LMCConnection`을 retire/`Dispose`한다. fixed 100 ms 뒤 새 `LMCConnection`/TCP를 정확히
@@ -104,10 +108,45 @@ disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`와 `LastCl
 marker V5를 유지한다.
 
 100 ms는 PC fixed backoff이지 PLC readiness/timing proof가 아니다. canonical wire `-1`은
-internal disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다. Fake restart는
-같은 test process/server/port의 새 `MainWindow`와 immediate reaccept를 사용하므로 EXE
-relaunch/named mutex나 PLC cleanup/runtime proof가 아니다. PC cleanup은 PLC disarm 성공이
-아니며 private PLC state를 force-clear하지 않는다.
+internal disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다. Historical
+fake restart는 같은 test process의 새 `MainWindow`를 쓰는 별도 회귀로 유지한다.
+
+Current `cbf2548` actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다. Parent
+runner가 supplied actual example EXE의 PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 첫
+process의 X close를 실행한다. 그 process는 `0x405D` exact `-1` ACK 뒤 bounded local
+cleanup과 exit를 완료한다. live owner 중 contender는 default named mutex에서 exit `2`, TCP
+session `0`이고, owner exit 뒤 같은 exact EXE successor는 mutex를 재획득한다. Successor의
+첫 TCP candidate는 `0x8080` exact `-1` 두 번 뒤 `0x405C/0x405D` 없이 폐기되고 fresh
+candidate가 init/registration을 성공한다. 전체 exact fake wire는 session/request
+`3/28 (13,2,13)`이다. malformed probe는 mutex/journal/network 전에 exit `64`, owned temp
+write `0`, TCP session `0`이다. EXE, SDK DLL과 optional config의 path/length/SHA-256도
+시험 전후 동일하다.
+
+이 결과는 PC loopback process/default-mutex/local-cleanup/wire 증거다. PLC
+cleanup/disarm/readiness, fixed 100 ms의 PLC 적정성, MotionLib/축 상태 또는 사용자 PLC의
+실제 종료 후 재접속을 증명하지 않는다. PC cleanup은 PLC disarm 성공이 아니며 private PLC
+state를 force-clear하지 않는다.
+
+Distribution build는 binary-reference candidate `Run` copy 직후, manifest 전에 이 gate를
+호출하고 이후 transaction 완료 전에 tested/final EXE SHA-256 equality를 검사한다. 별도
+temp candidate는
+`ProjectReference=0`, config absent 상태로 gate를 PASS했고 EXE SHA-256은
+`829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다. Full
+Distribution 첫 attempt는 `Verify-LasalContract.ps1:7571`의
+`$macroMatches[-1]` PowerShell 5.1 비호환 tooling bug에서 중단되어 gate/manifest 단계에
+도달하지 않았고 transaction residue는 `0`이다. pwsh7에서는 last Match지만 powershell
+5.1에서는 null이 되어 `lastMacroEnd=0`과 false macro-to-custom drift를 만들었다. 이는
+PLC/source/Classes/`cbf2548` blocker가 아니다. 후속 pwsh7 focused
+`-AxisOwnershipReserveVerifierSelfTestOnly`는 exit `0`, negative fixture `62/62` reject와
+comment-only fixture accept를 64.3초에 PASS했다. Compatibility commit `ad4af91`은
+verifier의 PS5.1 negative-index 접근만 수정했고 targeted PS5/PS7 Publish+Reserve를
+PASS했다. 수정 뒤 PS5.1 Release `RunLasalContract`와 `RunLasalNetworkContract`는 해당
+경계를 통과한 다음 각각 177.7초/174.9초에 기존 intentional
+`LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned Gate D identity drifted`로 exit
+`1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution
+prerequisite가 STOP이고 new EXE gate/manifest에는 도달하지 않아 Distribution/manifest
+PASS는 아니다.
 
 Commit `f337fec`은 각 init 시도의 immutable
 `LMCRpcSessionInitializationEvidence`를 `LastRpcSessionInitializationEvidence`에
@@ -645,9 +684,10 @@ replacement UI를 바꾸지 못하는 회귀를 포함한다.
 commit `bff3bc7`의 PC-only raw-wire harness 16개가 추가된 current SDK Debug/Release
 direct suite는 각각 `1133/1133` PASS했고 당시 독립 reviewer Release 재실행도
 `1133/1133` PASS다. 그 commit에서 WPF code/test는 바뀌지 않았으며 당시 reviewer의
-Release `335/335`는 historical checkpoint다. Current `14ccf58` WPF Debug/Release
-Rebuild는 PASS했고 full smoke는 `339/339`, reconnect targeted는 `6/6`, 독립
-callback/reconnect review는 `9/9` PASS이고 P0/P1은 없다. exact runner mode
+Release `335/335`는 historical checkpoint다. Current `cbf2548` WPF Debug/Release
+Rebuild는 PASS했고 기존 full smoke는 `339/339`, reconnect targeted는 `6/6`, 독립
+callback/reconnect review는 `9/9` PASS이고 P0/P1은 없다. 별도 actual-EXE relaunch
+gate도 Debug/Release 각각 `1/1` PASS했다. exact runner mode
 `callback-ownership-wire`는 인자가 없거나 `--dry-run`이면 network에 연결하지 않고
 `all` 또는 `gd-n10a`/`gd-n13-candidate`/`gd-n14-candidate` 계획만 출력한다.
 

@@ -1885,7 +1885,8 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   capture-only/nonproduction decision.
 - PC reconnect correction commit 66b5cf2, observability/fence commits
   f337fec/ad7c8b1, historical display correction af4ab63, PC-only callback
-  ownership harness bff3bc7, and current WPF recovery commit 14ccf58 do not
+  ownership harness bff3bc7, WPF recovery policy commit 14ccf58, and actual-EXE
+  gate commit cbf2548 do not
   change a command ID, DINT offset, or TCP/UDP frame layout. Current Visual
   Studio 2019 Debug and Release LasalMotionControlLib.Tests direct runners report
   SDK 1133/1133 PASS (TOTAL 1133, PASSED 1133, FAILED 0).
@@ -1909,7 +1910,7 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   actual UDP endpoint or not-bound when initialization failed before bind. The
   immutable v2 statistics event preserves the current-session receiver decision
   and all four counters.
-  Current 14ccf58 WPF applies RPC_INIT_FRESH_TCP_ONCE_V1 only when an initial or
+  Policy commit 14ccf58 WPF applies RPC_INIT_FRESH_TCP_ONCE_V1 only when an initial or
   in-process Connect candidate has Outcome=Failed, AttemptCount=2,
   CanonicalRetryUsed=true, both exact -1 ACKs, and no RPC/callback start. It
   retires/disposes that LMCConnection, waits one fixed PC-side 100 ms, and opens
@@ -1929,12 +1930,22 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   button rethrows that failure after cleanup.
   The af4ab63 WPF Release 335/335 remains historical and includes persistent
   init-failure cleanup, ErrorId=0 zero-retry/manual fresh-session cleanup, and
-  stale queued-event fencing after UI dispatch. Current 14ccf58 WPF
+  stale queued-event fencing after UI dispatch. Current cbf2548 WPF
   Debug/Release Rebuild passes, full smoke reports 339/339, targeted reconnect 6/6,
-  and independent callback/reconnect 9/9 with no P0/P1. The fake restart creates
-  a new MainWindow in the same test process against the same server/port with
-  immediate reaccept; it is not EXE relaunch, named-mutex, PLC cleanup, or
-  runtime proof. Fixed 100 ms is not PLC slot/FSM readiness evidence. Wire -1
+  independent callback/reconnect 9/9 with no P0/P1, and the separate actual-EXE
+  relaunch gate passes 1/1 in both Debug and Release. The historical fake restart
+  creates a new MainWindow in the same test process and remains a separate
+  regression. The cbf2548 gate sends external WM_SYSCOMMAND/SC_CLOSE to the actual
+  PID/HWND, observes first-process close ACK -1 and exit, then starts the same exact
+  EXE and proves default named-mutex reacquisition. The successor's first TCP
+  candidate sends exactly two 0x8080 requests with -1 ACKs and no 0x405C/0x405D;
+  the fresh candidate completes init/registration. Total fake sessions/requests
+  are exactly 3/28 (13,2,13). Malformed arguments exit 64 with zero owned-temp
+  writes/TCP sessions; a live-owner contender exits 2 with zero TCP sessions.
+  EXE, SDK DLL, and optional configuration path/length/SHA-256 identities remain
+  unchanged before and after. These process/mutex/wire results are PC loopback
+  evidence, not PLC cleanup/disarm/readiness, MotionLib/axis state, or the user's
+  live PLC relaunch proof. Fixed 100 ms is not PLC slot/FSM readiness evidence. Wire -1
   does not distinguish internal disarm -8/-9 from lifecycle/ownership rejection;
   PC local cleanup does not prove PLC disarm success and no private PLC state is
   force-cleared.
@@ -2160,9 +2171,26 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   This incident evidence changes no RPC ID, DINT offset, request/response layout,
   UDP/TCP packet contract, LASAL production source, or wire behavior.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
-  opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec/ad7c8b1 and 14ccf58
+  opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec/ad7c8b1, 14ccf58, and cbf2548
   provide bounded same-socket SDK recovery, retained evidence, and one WPF
-  fresh-TCP application retry only. Prior successful
+  fresh-TCP application retry plus an actual-EXE process/mutex/identity gate only.
+  The distribution script places that gate after candidate Run copy and before
+  manifest creation, then requires tested/final EXE hash equality before
+  transaction completion. The 2026-08-11 full run stopped earlier at a PowerShell
+  5.1 verifier tooling bug: Verify-LasalContract.ps1:7571 uses
+  $macroMatches[-1], which is the last Match in pwsh7 but null in powershell 5.1,
+  causing lastMacroEnd=0 and a false macro-to-custom drift. PLC source, Classes,
+  and cbf2548 are unrelated, and transaction residue was zero. A later pwsh7
+  focused AxisOwnershipReserve verifier self-test passed exit 0 with 62/62
+  negative fixtures rejected and the comment-only fixture accepted. Compatibility
+  commit ad4af91 changes only the verifier's PS5.1 negative-index accesses, and
+  targeted PS5/PS7 Publish and Reserve self-tests pass. After the fix, PS5.1
+  Release RunLasalContract and RunLasalNetworkContract passed that boundary, then
+  exited 1 after 177.7 and 174.9 seconds at the existing intentional
+  LASAL.UdpCallbackContract blocker: Classes.lcb sanctioned Gate D identity
+  drifted. The user's current Classes.lcb was not modified. The full distribution
+  prerequisite remains stopped and the new executable gate/manifest was not
+  reached, so no distribution/manifest PASS is claimed. Prior successful
   Downloads, including post-STOP PID 26200, are not live UDP-to-TCP causal packet
   proof; that proof remains absent. Gate A/B/C historical
   static/build evidence and PC fake-peer tests are not PLC runtime proof.
