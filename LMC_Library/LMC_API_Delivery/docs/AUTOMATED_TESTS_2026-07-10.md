@@ -977,6 +977,24 @@ PLC endpoint를 사용하지 않는다.
   canonical snapshot SHA-256 `17310B7E386BE7FBC03E5D57AFA52CC3C5703F13561C8465E66F6325213A291F`
   (`76` records)와 manual hashes가 불변이었다. actual-EXE gate, manifest와 publish/final rename에는
   도달하지 않았고 LASAL IDE, PLC Download/runtime은 실행하지 않았다.
+- Commit `febb1b0`은 `Build-LmcApiDistribution.ps1`의 manual/canonical 경로 확정,
+  `vswhere`/Python 등 tool discovery와 transaction보다 먼저 mandatory dual-host tooling
+  preflight를 실행한다. Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245/245`,
+  SemanticPolicy `50/50` + policy check `18`, ReleaseManifest `56/56`, method-size `16/16`,
+  UDP callback `296/296`, Control `HandleRequest` `13/13`의 exact 6-suite를 PASS했다.
+  Worker는 poisoned inherited `PSModulePath` 대신 exact `$PSHOME\Modules`만 사용하고,
+  suite별 expected evidence 정확히 1개, exact terminal line, stderr 없음과 exit `0`을 요구한다.
+  Timeout은 해당 PID process tree에 `taskkill /T /F`를 적용한다. Final Windows PowerShell 5.1
+  parent run은 `802.8`초에 `PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6;
+  PS7=6/6) files=92
+  SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`를 반환했다.
+  92-file repository-relative path/length/SHA-256 ordinal digest는 transaction input tree와
+  prepared-input/promotion drift check에 묶였다. 이는 PC/tooling evidence일 뿐이며 full
+  Distribution은 Gate D STOP으로 actual-EXE/current manifest/publish 전에 멈춰 있다. LASAL IDE,
+  PLC Download/runtime은 실행하지 않았다. 다음 P0-D gap은 ReleaseManifest artifact의 ordinal cross-host
+  ordering과 schema 3 전환, 실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/
+  Python/`python-docx`/`pypdf`의 논리적 role/version/SHA-256 및 host-parity/toolchain hash
+  provenance다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

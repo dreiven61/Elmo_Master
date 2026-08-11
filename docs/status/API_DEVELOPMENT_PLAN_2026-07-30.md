@@ -38,6 +38,20 @@
 > 후속 `bf31030`은 exact LASAL validation input과 physical Network aggregate를 release
 > fingerprint에 묶고 PS5.1/PS7 pipeline `192/192`을 PASS했지만 Gate D STOP을 바꾸지 않는다.
 
+> **2026-08-12 release tooling override:** commit `febb1b0`은 manual/canonical 경로 확정,
+> `vswhere`/Python tool discovery와 transaction 전에 mandatory dual-host preflight를 실행한다.
+> Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245`, SemanticPolicy `50` + policy
+> check `18`, ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control
+> `HandleRequest` `13`의 exact 6-suite를 PASS했다. Final PS5.1 parent run은 `802.8`초에
+> `PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92
+> SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`를 반환했다.
+> Worker는 exact `$PSHOME\Modules`, expected evidence 1개, exact terminal, stderr 없음과 timeout
+> process-tree kill을 요구한다. 92-file ordinal digest는 transaction input과 promotion 전 drift
+> check에 묶였다. 이는 PC/tooling evidence이고 full Distribution은 Gate D STOP으로
+> actual-EXE/current manifest/publish 전에 멈춰 있으며 LASAL IDE/PLC Download/runtime은
+> 실행하지 않았다. ReleaseManifest artifact ordinal cross-host ordering, schema 3 전환과 실제 8-role
+> toolchain의 role/version/SHA-256 및 host-parity/toolchain hash provenance는 다음 P0-D gap이다.
+
 ## 목표
 
 1. 현재 active 53-command 범위를 동일 source hash에서 재현 가능하게 만든다.
@@ -56,7 +70,7 @@
 | M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory와 dormant read-owner source/static | fresh build cold download + raw/physical read qualification |
 | M3. Active motion/diagnostics qualification | **부분** | Single Axis runner 9/9과 whole-sequence durable journal/process-restart recovery, Group Enable durable accepted-once, Axis1 exact-session four-ticket/manual-Write gate PC PASS | current PLC Motion/Power/SDO live matrix |
 | M4. Gated advanced diagnostics/I/O | **선택/후속** | D4/PI off, topology read-owner dormant, Axis1 SDO Write source-active | 기능별 live 승인 |
-| M5. Product release | **historical dirty-preview PASS / current Gate D STOP** | 2026-07-31 `2.0-candidate` sibling/manifest PASS는 historical이다. Current tracked-clean detached `afdf6a3` + exact `2.3-candidate` manual build는 `-AllowDirty`/`dirty-preview` policy로 실행됐고 Debug `RunTests`의 unapproved Gate D physical snapshot ratchet에서 fail-closed했다. Candidate/manifest/publish는 없음 | reviewed Gate D physical snapshot transition + clean full candidate 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
+| M5. Product release | **historical dirty-preview PASS / current Gate D STOP** | 2026-07-31 `2.0-candidate` sibling/manifest PASS는 historical이다. Current tracked-clean detached `afdf6a3` + exact `2.3-candidate` manual build는 `-AllowDirty`/`dirty-preview` policy로 실행됐고 Debug `RunTests`의 unapproved Gate D physical snapshot ratchet에서 fail-closed했다. Candidate/manifest/publish는 없다. `febb1b0` mandatory PS5.1/PS7 tooling preflight `12/12`와 92-file digest binding은 PC/tooling PASS다. | reviewed Gate D physical snapshot transition + ReleaseManifest schema 3 ordinal cross-host artifact ordering/toolchain provenance + clean full candidate 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
 
 ## 우선순위 요약
 
@@ -65,7 +79,7 @@
 | **P0-A** | source freeze와 PC 회귀 안정화 | 동일 hash에서 SDK Debug/Release, WPF build/smoke 전량 PASS |
 | **P0-B** | LASAL full 정합과 IDE 적용 | SourceOnly/full PASS, Rebuild/Link, implementation smoke, log clean |
 | **P0-C** | current PLC download와 active 범위 qualification | safety readback, 25-command, D1~D5 승인 matrix와 증거 완결 |
-| **P0-D** | preview 범위/배포 정리 | advanced/상위 공백의 OFF 범위 승인, 원본 무변경 transactional candidate, semantic preflight, external manual, manifest/hash/provenance |
+| **P0-D** | preview 범위/배포 정리 | advanced/상위 공백의 OFF 범위 승인, mandatory dual-host tooling gate, 원본 무변경 transactional candidate, semantic preflight, external manual, schema 3 manifest/hash/toolchain provenance |
 | **P1** | dynamic CREVIS read/write와 선택적 advanced diagnostics | capability별 raw live + physical correlation 뒤 gate 활성 |
 | **P2** | 미구현 상위 API와 제품화 | 승인된 요구별 API/wire/LASAL/live/package DoD 통과 |
 
@@ -350,6 +364,15 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
    도달하지 않았다. Git tracked status는 clean이었지만 noncanonical manual 입력 때문에
    `-AllowDirty`/`dirty-preview` policy로 실행했다. Gate D reviewed transition 없이 우회하거나
    production PASS로 바꾸지 않는다.
+9. **[PC/tooling 구현·실행 PASS]** `febb1b0`은 manual/canonical/tool discovery/transaction 전
+   PS5.1/PS7 exact six-suite preflight를 강제했다. Final aggregate는 `12/12`, files `92`, SHA-256
+   `99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`이며 validated tooling
+   digest를 transaction input/promotion drift fence에 묶었다. 이 PASS는 Gate D나 PLC/runtime을
+   승인하지 않는다.
+10. **[다음 gap]** `ReleaseManifest` artifact의 PS5.1/PS7 ordinal cross-host ordering을 고정하고
+    manifest를 schema 3으로 올려 실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/
+    Python/`python-docx`/`pypdf`의 논리적 role/version/SHA-256과 host-parity/toolchain hash를
+    경로 노출 없이 기록하고 tamper/drift를 fail-closed한다.
 
 ## P1. Dynamic CREVIS와 advanced diagnostics
 
@@ -465,6 +488,9 @@ read-only P1-1을 먼저 완료한다.
 - [x] 원본 무변경 transaction, success-only rename, failure cleanup과 semantic policy 회귀 PASS
 - [x] historical external `2.0-candidate` DOCX/PDF exact bytes를 사용한 실제 sibling Distribution candidate와 semantic policy `15/15` PASS
 - [x] historical candidate cleanup, version/input hash/schema 2 manifest, canonical hash와 transaction residue 재확인
+- [x] current mandatory PS5.1/PS7 release tooling preflight `12/12`와 92-file ordinal digest transaction binding PASS
+- [ ] ReleaseManifest schema 3 artifact ordinal cross-host ordering과 actual toolchain role/version/SHA-256,
+  host-parity/toolchain hash provenance 고정
 - [ ] current exact `2.3-candidate` manual의 tracked-clean full Distribution PASS — `afdf6a3` 재실행은 `-AllowDirty`/`dirty-preview` policy였고 Gate D physical snapshot ratchet에서 STOP, candidate/actual-EXE/manifest/publish 없음
 - [ ] `git diff --check`와 `git diff --cached --check` PASS
 

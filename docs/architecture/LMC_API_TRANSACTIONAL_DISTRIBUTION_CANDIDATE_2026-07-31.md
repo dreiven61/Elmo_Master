@@ -21,6 +21,38 @@ publish했다. canonical Distribution은 전후 동일하다.
 이 결과는 PC release 경로의 fail-closed 증거다. current PLC download, Motion/Power 또는
 SDO Write live 실행 증거는 아니다.
 
+### 2026-08-12 current release-host preflight 보강
+
+위 candidate PASS와 `56/56`, `28/28`/15, `86/86` 수치는 2026-07-31 historical evidence다.
+Current commit `febb1b0`은 `Build-LmcApiDistribution.ps1`의 가장 앞에 mandatory dual-host
+tooling preflight를 추가했다. 이 gate는 manual/canonical 경로 확정, `vswhere`/Python 등
+mutable tool discovery와 transaction보다 먼저 실행된다.
+
+Windows PowerShell 5.1(Desktop)과 PowerShell 7(Core)은 각각 아래 exact 6-suite 계약을
+통과해야 한다.
+
+| suite | host별 current evidence |
+|---|---:|
+| Pipeline | `245` |
+| SemanticPolicy | `50`, policy check `18` |
+| ReleaseManifest | `56` |
+| method-size | `16` |
+| UDP callback | `296` |
+| Control `HandleRequest` | `13` |
+
+Worker는 poisoned inherited `PSModulePath` 대신 exact `$PSHOME\Modules`만 사용한다. 각 suite는
+expected evidence 정확히 1개, exact terminal line, stderr 없음과 exit `0`을 요구하며 timeout은
+해당 PID의 process tree를 `taskkill /T /F`로 종료한다. 최종 Windows PowerShell 5.1 parent
+실행은 `802.8`초에 다음 terminal을 반환했다.
+
+```text
+PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92 SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62
+```
+
+이 결과는 PC/tooling 검증이다. Full Distribution은 current Gate D STOP으로 actual-EXE,
+current manifest와 publish/final rename 전에 중단된 상태이며 LASAL IDE, PLC Download/runtime은
+실행하지 않았다.
+
 ## 2. 기존 결함
 
 이전 build 순서는 기존 Distribution의 DLL, 예제 EXE/DLL/config를 차례로 덮어쓴 뒤
@@ -39,6 +71,7 @@ SDO Write live 실행 증거는 아니다.
 | `LMC_Library/LMC_API/DistributionPipeline.ps1` | manual 경로/byte snapshot, canonical snapshot, exclusive lock, sibling staging, seal, drift 검사, success-only rename와 안전 cleanup |
 | `LMC_Library/LMC_API/DistributionSemanticPolicy.ps1` | SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 교차 검증 |
 | `LMC_Library/LMC_API/ReleaseManifest.ps1` | schema 2 manifest 생성과 재검증 |
+| `LMC_Library/LMC_API/Test-LmcDistributionToolingHostParity.ps1` | PS5.1/PS7 six-suite host parity, isolated module path, exact evidence/timeout와 monitored-file digest preflight |
 | `LMC_Library/LMC_API/DistributionREADME.md` | candidate 최상위 README 원본 |
 | `LMC_Library/LMC_API/DistributionExampleREADME.md` | binary-reference 예제 README 원본 |
 | `LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1` | transaction 성공/실패/경쟁/drift/cleanup 회귀 |
@@ -69,8 +102,17 @@ SDO Write live 실행 증거는 아니다.
 13. staged manual hash는 snapshot과 같아야 하며 promotion 직전 live input hash와
     `SourceCommit`/`WorktreeState`를 다시 확인한다. manifest는 callback이 받은 transaction
     baseline과 prepared Git metadata만 기록한다.
+14. manual/canonical 경로 확정, mutable tool discovery와 transaction 전에 dual-host tooling
+    preflight `12/12`가 먼저 PASS해야 한다.
+15. preflight 전후 92개 monitored file의 repository-relative path/length/SHA-256을 ordinal
+    정렬해 digest를 만들고 prepared input 작성과 promotion 전까지 같은 snapshot인지 확인한다.
+16. validated tooling digest를 input tree의 synthetic record에 포함해 preflight evidence와
+    transaction fingerprint를 연결한다.
 
 ## 5. candidate 내용과 검증 순서
+
+아래 candidate 조립 순서는 mandatory dual-host tooling preflight가 PASS하고 validated tooling
+snapshot을 반환한 뒤에만 시작한다.
 
 1. current SDK와 개발 WPF source를 입력으로 수집한다.
 2. 예제 project의 source 항목과 bytes를 current 개발 project와 exact 비교한다.
@@ -116,7 +158,7 @@ manifest 자체는 temporary file에 쓴 뒤 rename하며, 생성 직후 같은 
 
 ## 8. 검증 결과
 
-### 단위/정책 회귀
+### 단위/정책 회귀 (2026-07-31 historical)
 
 | 검증 | 결과 |
 |---|---:|
@@ -131,7 +173,23 @@ success, callback failure, seal tamper, input drift, occupied target, canonical 
 nested lock 경쟁과 cleanup 거부를 포함한다. 일반 성공/실패에서 canonical hash 불변,
 staging residue 0과 lock residue 0을 확인했다.
 
-### 실제 current input 전체 실행
+### 듀얼 호스트 release tooling preflight (2026-08-12 current)
+
+| 검증 | PS5.1 | PS7 |
+|---|---:|---:|
+| Pipeline | `245/245` | `245/245` |
+| SemanticPolicy | `50/50`, policy check `18` | `50/50`, policy check `18` |
+| ReleaseManifest | `56/56` | `56/56` |
+| method-size | `16/16` | `16/16` |
+| UDP callback | `296/296` | `296/296` |
+| Control `HandleRequest` | `13/13` | `13/13` |
+
+전체 결과는 `12/12`, monitored files는 `92`, ordinal digest는
+`99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`다. 이 snapshot은
+transaction input fingerprint에 포함되며 pre-transaction/prepared-input/promotion 경계에서
+재검증된다.
+
+### 2026-07-31 historical current input 전체 실행
 
 이번 dirty-preview 실제 실행은 검토한 비canonical manual pair와 존재하지 않는 sibling 경로를
 명시했다.
@@ -176,3 +234,11 @@ prepared metadata와 promotion 전 live 재검증으로 보강했다.
 4. 별도 승인 후에만 candidate를 정식 Distribution/배포 대상으로 승격한다.
 5. production 판정은 current PLC download, 안전 승인과 Motion/Power/SDO Write live proof가
    끝날 때까지 계속 NO-GO다.
+
+### 2026-08-12 current 남은 P0-D gap
+
+`ReleaseManifest` artifact의 PS5.1/PS7 ordinal cross-host ordering을 고정하고 manifest를 schema 3으로
+올려 실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/Python/`python-docx`/`pypdf`의
+논리적 role/version/SHA-256과 host-parity/toolchain hash를 경로 노출 없이 provenance로 묶는
+작업이 남아 있다. 이 gap과 Gate D를 닫기 전에는 full Distribution, current manifest 또는
+candidate publish PASS로 올리지 않는다.

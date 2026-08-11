@@ -8,6 +8,17 @@
   callback/reconnect review도 `9/9`, P0/P1 없음이다. `f337fec`/`ad7c8b1`의 WPF
   `334/334`와 `af4ab63`의 WPF `335/335`는 historical snapshot이다. PC-only callback
   ownership wire harness `bff3bc7`의 SDK 16개 회귀는 current `1133/1133`에 포함된다.
+- 2026-08-12 release tooling commit `febb1b0`은 manual/canonical 경로 확정,
+  `vswhere`/Python tool discovery와 transaction 전에 mandatory dual-host preflight를 실행한다.
+  Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245`, SemanticPolicy `50` + policy
+  check `18`, ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control
+  `HandleRequest` `13`의 exact 6-suite를 PASS했다. Final PS5.1 parent run은 `802.8`초에
+  `PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92
+  SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`를 반환했다.
+  Worker는 exact `$PSHOME\Modules`, expected evidence 1개, exact terminal, stderr 없음과
+  timeout process-tree kill을 요구한다. 92-file ordinal digest는 transaction input에 묶인다.
+  이 PASS는 PC/tooling 증거이며 current full Distribution의 Gate D STOP, actual-EXE/current
+  manifest/publish 미도달, LASAL IDE/PLC Download/runtime 미실행 상태를 바꾸지 않는다.
 - SDK는 exact canonical v2 `-1`만 같은 socket에서 20 ms 뒤 한 번 재시도한다.
   `14ccf58` WPF는 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로
   `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback
@@ -388,6 +399,7 @@
 | 상위 21개 요구사항 | active 17 + partial/dormant 2 + missing 2 | partial은 `HomeDS402` 목적의 LASAL-native `ReferenceAxis`와 `SetPosition`; missing은 `HomeDS402Ex`, `SetOpMode` |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
 | PC 자동 테스트 | current SDK Debug/Release 각각 1133/1133 PASS; 2026-07-31 baseline은 1042/1042 | 기존 fake-RPC, dormant Admin, recovery, SDO/DS402 계약에 더해 bounded `0x8080` reconnect correction, retained init evidence, immutable callback decision provenance와 PC-only GD-N10A/N13/N14 raw-wire harness 16개를 포함한다. PLC 통합과 별도다. |
+| Distribution tooling host parity | current `febb1b0`: PS5.1/PS7 exact six-suite `12/12`, monitored files `92`, SHA-256 `99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62` | manual/canonical/tool discovery/transaction 전 mandatory gate이며 isolated `$PSHOME\Modules`, exact evidence/stderr/terminal/timeout과 ordinal snapshot binding을 검증한다. PC/tooling evidence만 PASS다. Full Distribution은 Gate D STOP이고 actual-EXE/current manifest/publish 및 LASAL IDE/PLC Download/runtime은 미실행이다. ReleaseManifest artifact ordinal cross-host ordering, schema 3 전환과 8-role toolchain role/version/SHA-256 및 host-parity/toolchain hash provenance는 다음 P0-D gap이다. |
 | Axis SetPosition | SDK/wire/LASAL dormant fail-closed | request 28 bytes, response 36 bytes, expected-position CAS와 one-shot prepare를 구현했다. capability bit 3 OFF, native call 0, WPF 미노출이며 전용 durable journal/unified ownership/task·max-jump·`IsReferenced` 정책과 PLC proof 전 활성화 금지 |
 | Axis Reference | SDK/wire/LASAL dormant fail-closed | `0x7D13`, request 56-byte frame/48-byte payload, response 32-byte frame/24-byte payload, recipe 1/2와 positive `MaxTravel`/`TimeoutMs`를 고정했다. capability bit 4 OFF, native `MoveReference` call 0, WPF 미노출이고 start ACK는 완료가 아니다. physical reference input 연결과 IDE/download/live proof 전 활성화 금지 |
 | Stop/PowerOff send priority | SDK opt-in generation coordinator와 WPF shared integration, exact-generation post-ACK monitor reservation 구현 | stale ordinary/compound follow-up zero-wire와 SDO `NotAttempted`, qualification `ABORTED`는 deterministic PC 계약; in-flight RPC 취소, PLC/runtime 정지 순서와 safety certification은 범위 밖 |

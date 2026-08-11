@@ -55,6 +55,28 @@ seeded ignored `.lba/.lob` 8개도 실제 존재하면 지문에 포함되고, p
 ignored Network 파일이 나타나거나 Control source, `Classes.lcb`, `Networks.lcb`가 검증 뒤
 바뀌면 promotion 전에 fail-closed한다. PS5.1/PS7 pipeline fixture는 각각 `192/192` PASS다.
 
+위 `192/192`은 `bf31030` 시점의 historical pipeline 수치다. Current commit `febb1b0`은
+manual/canonical 경로 확정, `vswhere`/Python 등 tool discovery와 transaction 시작보다 먼저
+mandatory dual-host release tooling preflight를 실행한다. Windows PowerShell 5.1(Desktop)과
+PowerShell 7(Core)은 각각 Pipeline `245`, SemanticPolicy `50` + policy check `18`,
+ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control `HandleRequest` `13`의
+동일한 6개 suite를 통과해야 한다. Worker는 inherited `PSModulePath`를 사용하지 않고 exact
+`$PSHOME\Modules`만 사용하며, suite별 expected evidence 정확히 1개, exact terminal line,
+stderr 없음과 exit `0`을 요구한다. Timeout이면 해당 PID의 process tree를 `taskkill /T /F`로
+종료한다.
+
+최종 Windows PowerShell 5.1 parent 실행은 `802.8`초에 다음 terminal을 반환했다.
+
+```text
+PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92 SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62
+```
+
+92개 monitored file의 repository-relative path/length/SHA-256을 ordinal 정렬한 digest는
+transaction input tree에 `@validated-tooling-preflight` record로 묶이고, prepared input 작성과
+promotion 전까지 재확인된다. 이 PASS는 PC/tooling host parity와 fail-closed 경계 증거일 뿐이다.
+Current full Distribution은 여전히 Gate D STOP이며 actual-EXE/current manifest/publish에
+도달하지 않았고 LASAL IDE, PLC Download/runtime도 실행하지 않았다.
+
 Current `2.3-candidate` DOCX/PDF는 검토용 입력일 뿐이다. Clean detached
 `afdf6a3`에서 두 exact manual을 명시한 full Distribution build를 실제 실행했지만 약
 `214`초 뒤 첫 Debug `RunTests` 내부 LASAL 계약에서 `TerminalWakeBrokerCandidate`에
@@ -86,6 +108,8 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
 - `DistributionSemanticPolicy.ps1`: SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 preflight;
   DOCX와 PDF 각각에 `2.3-candidate`, bounded reconnect/actual-EXE PC-only 경계와 preview
   release 안전 경고를 요구한다
+- `Test-LmcDistributionToolingHostParity.ps1`: Windows PowerShell 5.1/PowerShell 7의
+  mandatory six-suite host parity, isolated module path, exact evidence와 monitored-file digest gate
 - `Test-LmcApiDistributionPipeline.ps1`, `Test-LmcDistributionSemanticPolicy.ps1`,
   `Test-LmcReleaseManifest.ps1`: release 경로 회귀
 - `Generate-ApiUserManual.py`: 초기 PDF 초안 생성기
@@ -94,6 +118,10 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
 - `../LMC_API_Delivery/docs`: 기능별 설계 및 구현 기록
 
 ## 배포 원칙
+
+아래 build 단계에 들어가기 전에 dual-host release tooling preflight를 반드시 먼저 실행한다.
+Manual/canonical 선택, mutable tool discovery와 transaction은 이 preflight가 exact `12/12`와
+validated tooling digest를 반환한 뒤에만 시작한다.
 
 1. `LMC_API_Delivery/src`에서 Release DLL을 새로 빌드한다.
 2. `LMC_API_Distribution/01_API`의 DLL만 외부 배포 기준으로 사용한다.
@@ -111,6 +139,10 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
    제거하고 canonical과 이미 publish된 candidate는 자동 삭제하지 않는다.
 8. schema 2 manifest에는 release input tree hash와 semantic policy hash/result를 포함한다.
    외부 DOCX/PDF가 current scope와 다르면 candidate finalize를 차단한다.
+9. ReleaseManifest artifact의 ordinal cross-host ordering을 고정하고 manifest를 schema 3으로 올려
+   실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/Python/`python-docx`/`pypdf`의
+   논리적 role/version/SHA-256과 host-parity/toolchain hash를 경로 노출 없이 기록하는
+   작업은 다음 P0-D gap이다.
 
 개발 중 dirty-tree fail-path를 확인할 때만 `-AllowDirty`와 명시적인 빈 sibling path를 쓴다.
 정식 candidate는 clean tree에서 다음처럼 생성한다.
