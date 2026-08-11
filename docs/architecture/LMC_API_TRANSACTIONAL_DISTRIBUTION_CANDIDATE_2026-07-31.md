@@ -4,7 +4,9 @@
 - 대상: `main@6537bcf1bf0fdb338a934b63891fc9ee110aecad` + 현재 working tree
 - 상태: 2026-07-31 비canonical `2.0-candidate` finalize는 historical PASS. Current는
   `3c63dea` 13-role closure, `bcc6a9c` canonical `2.3-candidate` release input,
-  `f304e8b` preview README policy까지 PASS했지만 full Distribution은 재실행하지 않음
+  `f304e8b` preview README policy, `978597b` release-input docs, `d4204b4` exact tracked
+  Gate D static approval, `5d5aebe` current canonical manual까지 완료했지만 post-approval full
+  Distribution은 실행하지 않음
 - production 판정: **NO-GO**
 
 ## 1. 결론
@@ -51,9 +53,9 @@ expected evidence 정확히 1개, exact terminal line, stderr 없음과 exit `0`
 PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92 SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62
 ```
 
-이 결과는 PC/tooling 검증이다. Full Distribution은 current Gate D STOP으로 actual-EXE,
-current manifest와 publish/final rename 전에 중단된 상태이며 LASAL IDE, PLC Download/runtime은
-실행하지 않았다.
+이 historical 결과는 PC/tooling 검증이다. 당시 full Distribution은 Gate D STOP으로
+actual-EXE, current manifest와 publish/final rename 전에 중단됐으며 LASAL IDE, PLC
+Download/runtime은 실행하지 않았다.
 
 ### 2026-08-12 schema 3/bounded toolchain provenance historical predecessor
 
@@ -140,7 +142,7 @@ path는 fail-closed한다. 따라서 미로드 `pycparser`와 unrelated `site-pa
 Toolchain probe, semantic document extraction, PDF validation, DOCX validation의 네 Python 실행
 path는 모두 `-B`를 강제한다.
 
-### 2026-08-12 canonical 2.3 manual promotion
+### 2026-08-12 initial canonical 2.3 manual promotion
 
 Commit `bcc6a9c`는 reviewed `2.3-candidate` pair를 tracked canonical release input으로
 승격했다.
@@ -166,10 +168,33 @@ Commit `f304e8b`는 canonical package/example README에 preview/production NO-GO
 
 Canonical source snapshot direct semantic run은 manual/README policy를 지난 뒤
 `CANDIDATE_WPF_SOURCE_SET`에서 멈췄다. 이는 freshly assembled staged candidate가 아니므로 full
-Distribution 또는 current candidate PASS가 아니다. Canonical promotion 뒤 full Distribution,
-current generated schema 3 candidate, actual EXE와 publish는 다시 실행하거나 생성하지 않았다.
-LASAL IDE, PLC, Download/runtime도 실행하지 않았고 reviewed Gate D STOP/production NO-GO는
-그대로다.
+Distribution 또는 current candidate PASS가 아니다.
+
+### 2026-08-12 exact tracked Gate D approval과 current manual
+
+Commit `978597b`는 `3c63dea` active closure, `bcc6a9c` initial canonical manual과 `f304e8b`
+README policy를 release-input documentation baseline으로 기록했다. Commit `d4204b4`는 기존
+source/generated/network/layout exact 검사를 모두 통과한 clean tracked `Classes.lcb`
+8,549,773 bytes / SHA-256
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+`TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`,
+`NeedsRebaseline=false`로 승인했다. PS5.1/PS7 verifier self-test는 각각 `296/296`, clean detached
+tracked tuple의 SourceOnly는 두 host에서 PASS했다. Main working tree 사용자 `Classes.lcb`
+SHA-256 `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 exact
+sanctioned identity drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
+
+Commit `5d5aebe`는 이 Gate D 경계를 반영한 current canonical manual을 게시했다.
+
+| artifact | size | SHA-256 |
+|---|---:|---|
+| Markdown | `94,108` | `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022` |
+| DOCX | `92,229` | `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46` |
+| PDF | `1,003,309` | `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0` |
+
+`bcc6a9c`의 이전 size/hash와 validation/visual/manual-policy 결과는 initial promotion historical
+evidence로 보존한다. Exact tracked Gate D static 승인 뒤 clean full Distribution, current
+generated schema 3 candidate, full-build actual EXE gate, manifest와 publish는 실행하거나 생성하지
+않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았고 production NO-GO는 그대로다.
 
 ## 2. 기존 결함
 
@@ -379,8 +404,8 @@ prepared metadata와 promotion 전 live 재검증으로 보강했다.
 ## 9. 남은 작업
 
 1. 대규모 working tree를 목적별로 commit하고 clean checkout에서 같은 gate를 재현한다.
-2. reviewed Gate D 후 clean source baseline에서 canonical `2.3-candidate` pair를 default로
-   resolve한 candidate와 schema 3 manifest를 처음 생성하고 독립 검토한다.
+2. `d4204b4` exact tracked Gate D 승인과 `5d5aebe` current canonical pair를 포함한 clean source
+   baseline에서 candidate와 schema 3 manifest를 처음 생성하고 독립 검토한다.
 3. binary-reference 예제 실행과 excluded-file/package hash를 별도 reviewer가 재확인한다.
 4. 별도 승인 후에만 candidate를 정식 Distribution/배포 대상으로 승격한다.
 5. production 판정은 current PLC download, 안전 승인과 Motion/Power/SDO Write live proof가
@@ -398,8 +423,10 @@ re-resolution을 구현하고 PS5.1/PS7 exact `14/14`를 PASS했다. 따라서 a
 완료됐다. Direct semantic run의 `CANDIDATE_WPF_SOURCE_SET` STOP은 canonical source snapshot을
 candidate로 검사한 결과이며 fresh staged candidate/full Distribution 증거가 아니다.
 
-Current full Distribution은 last reviewed Gate D STOP 뒤 다시 실행하지 않았고 actual EXE,
-schema 3 manifest와 candidate publish는 생성하지 않았다. Reviewed Gate D physical snapshot
-ratchet 뒤 clean full Distribution에서 freshly staged WPF source set을 포함한 전체 gate를
-실행하고 그때 생성된 schema 3 manifest/candidate를 독립 검토한다. LASAL IDE, PLC,
-Download/runtime은 이 PC/tooling·문서 입력 작업에서 실행하지 않았다.
+Historical full Distribution은 당시 승인되지 않은 Gate D에서 STOP했다. `d4204b4`가 exact
+tracked `24402BFA...` static snapshot을 승인하고 `5d5aebe`가 current canonical manual을 게시했지만
+그 뒤 full/network static target과 clean full Distribution은 실행하지 않았다. 따라서 full-build
+actual EXE gate, schema 3 manifest와 candidate publish도 생성하지 않았다. Clean full
+Distribution에서 freshly staged WPF source set을 포함한 전체 gate를 실행하고 그때 생성된 schema 3
+manifest/candidate를 독립 검토한다. LASAL IDE, PLC, Download/runtime은 이 PC/tooling·문서 입력
+작업에서 실행하지 않았다.

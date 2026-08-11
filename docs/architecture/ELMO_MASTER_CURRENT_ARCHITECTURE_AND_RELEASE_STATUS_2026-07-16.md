@@ -17,8 +17,9 @@
   SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`를 반환했다.
   Worker는 exact `$PSHOME\Modules`, expected evidence 1개, exact terminal, stderr 없음과
   timeout process-tree kill을 요구한다. 92-file ordinal digest는 transaction input에 묶인다.
-  이 PASS는 PC/tooling 증거이며 current full Distribution의 Gate D STOP, actual-EXE/current
-  manifest/publish 미도달, LASAL IDE/PLC Download/runtime 미실행 상태를 바꾸지 않는다.
+  이 historical PASS는 당시 PC/tooling 증거이며 그 시점 full Distribution의 Gate D STOP,
+  actual-EXE/current manifest/publish 미도달, LASAL IDE/PLC Download/runtime 미실행 상태를
+  바꾸지 않았다.
 - 2026-08-12 historical release tooling predecessor commit `39c3e6f`는 artifact ordinal ordering과
   ReleaseManifest schema 3, 절대경로 없는 exact 8-role `role|version|SHA-256`를 구현했다.
   Git은 actual core executable, C# compiler는 선택된 Roslyn/csc 전체 inventory를 해시하고
@@ -72,10 +73,28 @@
   ToolchainProvenance `84/84`를 PASS했다. Canonical source snapshot direct semantic run은
   `CANDIDATE_WPF_SOURCE_SET`에서 멈췄지만 fresh staged candidate가 아니므로 full Distribution
   또는 current candidate PASS가 아니다.
-- 위 current 결과는 PC/tooling 및 release-input 문서 증거다. Canonical promotion 뒤 full
-  Distribution/current generated schema 3 candidate/actual EXE/publish는 다시 실행하거나
-  생성하지 않았다. LASAL IDE/PLC/Download/runtime도 실행하지 않았고 reviewed Gate D STOP과
-  production NO-GO는 그대로다.
+- 2026-08-12 `978597b`는 위 active closure, initial canonical manual과 README policy를 current
+  release-input documentation baseline으로 기록했다.
+- 2026-08-12 `d4204b4`는 기존 source/generated/network/layout exact 검사를 모두 통과한 clean
+  tracked `Classes.lcb` 8,549,773 bytes / SHA-256
+  `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+  `TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`,
+  `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 verifier self-test는 각각 `296/296`, clean
+  detached tracked tuple의 SourceOnly는 두 host에서 PASS했다. Main working tree 사용자
+  `Classes.lcb` SHA-256 `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는
+  exact sanctioned identity drift로 계속 reject된다. Post-approval full/network static target은
+  실행하지 않았다.
+- 2026-08-12 `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은
+  `94,108` bytes / SHA-256
+  `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`
+  bytes / SHA-256 `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`, PDF는
+  `1,003,309` bytes / SHA-256
+  `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`이다. `bcc6a9c`의
+  이전 size/hash와 검토 결과는 initial promotion historical evidence로 보존한다.
+- 위 current 결과는 PC/tooling 및 release-input 문서 증거다. Exact tracked Gate D static 승인
+  뒤 full/network static target과 clean full Distribution/current generated schema 3
+  candidate/full-build actual EXE gate/manifest/publish는 실행하거나 생성하지 않았다. LASAL
+  IDE/PLC/Download/runtime도 실행하지 않았고 production NO-GO는 그대로다.
 - SDK는 exact canonical v2 `-1`만 같은 socket에서 20 ms 뒤 한 번 재시도한다.
   `14ccf58` WPF는 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로
   `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback
@@ -105,11 +124,11 @@
   isolated Rebuild는 제3 hash `99014DD9...`를 생성했다. Commit `b2019db`는 그
   exact 8-file bundle을 보존하고 current validator `c48e403`은 committed bundle을
   PASS했지만 finalizer 판정은 `UNSTABLE_THIRD_CLASSES_HASH_STOP`, exit `3`이다.
-  Gate D는 계속 `ProductionApproved=false`, `staticReplayPermitted=false`,
-  `onlineRuntimeQualificationPermitted=false`이며 PC fake-peer/GUI/raw-wire evidence와
-  bundle integrity PASS는 PLC causal packet proof가 아니다. `bff3bc7`의 live mode도
-  실제 PLC에 실행하지 않았고 reviewed rebaseline, exact downloaded checkpoint, pcap과
-  PLC Watch 전에는 승인되지 않는다.
+  이 `6E115876...`/`99014DD9...` historical artifact는 계속 `ProductionApproved=false`,
+  `staticReplayPermitted=false`, `onlineRuntimeQualificationPermitted=false`다. `d4204b4`는 별도
+  clean tracked `24402BFA...` exact tuple만 PC/static 승인했으며 mismatched artifact, PLC
+  causal packet 또는 runtime을 승인하지 않는다. `bff3bc7`의 live mode도 실제 PLC에 실행하지
+  않았고 exact downloaded checkpoint, pcap과 PLC Watch 전에는 runtime 승인으로 볼 수 없다.
   Commit `998e7132c0892788db79a0868c5b129fb20edd96`의 pinned triad analyzer
   `Compare-LasalClassesVolatilityTriad.ps1`은 139,073 bytes / SHA-256
   `E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663` /
@@ -456,7 +475,7 @@
 | 상위 21개 요구사항 | active 17 + partial/dormant 2 + missing 2 | partial은 `HomeDS402` 목적의 LASAL-native `ReferenceAxis`와 `SetPosition`; missing은 `HomeDS402Ex`, `SetOpMode` |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
 | PC 자동 테스트 | current SDK Debug/Release 각각 1133/1133 PASS; 2026-07-31 baseline은 1042/1042 | 기존 fake-RPC, dormant Admin, recovery, SDO/DS402 계약에 더해 bounded `0x8080` reconnect correction, retained init evidence, immutable callback decision provenance와 PC-only GD-N10A/N13/N14 raw-wire harness 16개를 포함한다. PLC 통합과 별도다. |
-| Distribution tooling / canonical release input | `3c63dea`: PS5.1/PS7 exact seven-suite `14/14`(`7/7` each), monitored files `94`, SHA-256 `F687FDE9198C9F0CDF8AB4106FAB0C3B5059DF49B55C8E9B34DEC99859CDB4CA`; attestation/toolchain SHA-256 `FBAD123C4E3DEC4E9018885559E1645A69E47E69DE0E83D1116F8581D27B787D` / `91E56793F99B5D17D9325D425308179FB780161CFFD9D29613653737C2D6F7EB`. `bcc6a9c`: reviewed canonical `2.3-candidate` pair. `f304e8b`: preview README policy. | Pathless 13-role schema 3 snapshot이 active owner exact seven을 묶는다. Exact file counts는 CSharp 108, Git/MSBuild/PowerShell 1씩, PyPdf 117, Python 2489, cffi 53, cryptography 195, docx 221, lxml 208, Pillow 219, typing_extensions 7, VsWhere 1이다. `bcc6a9c` focused 양 host는 pipeline `291`, semantic `52` + check `18`, manifest `108`; `f304e8b`는 semantic `53` + check `18`, pipeline `291`, provenance `84`를 PASS했다. Canonical source snapshot direct semantic은 `CANDIDATE_WPF_SOURCE_SET` STOP이며 fresh candidate가 아니다. `1b9be6a`/`4867096`의 8-role 결과는 historical predecessor다. Full Distribution/current schema 3 candidate/actual EXE/publish는 재실행하지 않았고 Gate D STOP, LASAL IDE/PLC/Download/runtime 미실행 상태다. |
+| Distribution tooling / canonical release input | `3c63dea`: PS5.1/PS7 exact seven-suite `14/14`(`7/7` each), monitored files `94`, SHA-256 `F687FDE9198C9F0CDF8AB4106FAB0C3B5059DF49B55C8E9B34DEC99859CDB4CA`; attestation/toolchain SHA-256 `FBAD123C4E3DEC4E9018885559E1645A69E47E69DE0E83D1116F8581D27B787D` / `91E56793F99B5D17D9325D425308179FB780161CFFD9D29613653737C2D6F7EB`. `bcc6a9c`: initial reviewed canonical pair. `f304e8b`: preview README policy. `978597b`: release-input docs. `d4204b4`: exact tracked Gate D approval. `5d5aebe`: current canonical manual. | Pathless 13-role schema 3 snapshot이 active owner exact seven을 묶는다. `bcc6a9c` focused 양 host는 pipeline `291`, semantic `52` + check `18`, manifest `108`; `f304e8b`는 semantic `53` + check `18`, pipeline `291`, provenance `84`를 PASS했다. `d4204b4` clean tracked `24402BFA...` tuple은 PS5.1/PS7 self-test 각 `296/296`과 SourceOnly를 PASS해 PC/static 승인됐고 main working tree 사용자 `13EA5823...`는 계속 reject된다. `5d5aebe` current DOCX/PDF는 `92,229` / `1,003,309` bytes, SHA-256 `57D17650...` / `83A57CC4...`다. Canonical source snapshot direct semantic은 `CANDIDATE_WPF_SOURCE_SET` STOP이며 fresh candidate가 아니다. Post-approval full/network static, clean full Distribution/current schema 3 candidate/full-build actual EXE gate/manifest/publish와 LASAL IDE/PLC/Download/runtime은 미실행이다. |
 | Axis SetPosition | SDK/wire/LASAL dormant fail-closed | request 28 bytes, response 36 bytes, expected-position CAS와 one-shot prepare를 구현했다. capability bit 3 OFF, native call 0, WPF 미노출이며 전용 durable journal/unified ownership/task·max-jump·`IsReferenced` 정책과 PLC proof 전 활성화 금지 |
 | Axis Reference | SDK/wire/LASAL dormant fail-closed | `0x7D13`, request 56-byte frame/48-byte payload, response 32-byte frame/24-byte payload, recipe 1/2와 positive `MaxTravel`/`TimeoutMs`를 고정했다. capability bit 4 OFF, native `MoveReference` call 0, WPF 미노출이고 start ACK는 완료가 아니다. physical reference input 연결과 IDE/download/live proof 전 활성화 금지 |
 | Stop/PowerOff send priority | SDK opt-in generation coordinator와 WPF shared integration, exact-generation post-ACK monitor reservation 구현 | stale ordinary/compound follow-up zero-wire와 SDO `NotAttempted`, qualification `ABORTED`는 deterministic PC 계약; in-flight RPC 취소, PLC/runtime 정지 순서와 safety certification은 범위 밖 |
@@ -473,8 +492,8 @@
 | 개발 WPF | D5와 topology/CREVIS read, guarded output-write UI, D4 qualification/cleanup/reconnect/config-only manual Configure adapter 및 durable Axis/motion/Group Power/Group Enable/Group Reset recovery 포함. `af4ab63` Release 335/335는 historical이고 current `cbf2548` Debug/Release Rebuild는 PASS, full smoke는 339/339 PASS | reconnect targeted 6/6, 독립 callback/reconnect 9/9, actual-EXE relaunch Debug/Release 각 1/1, P0/P1 없음이다. startup은 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`, topology marker V5를 기록한다. historical fake restart는 same-process 새 MainWindow이고 actual-EXE gate는 SC_CLOSE/process exit/default mutex successor/fresh TCP/binary identity를 검증한다. 둘 다 PLC cleanup/disarm/readiness/실축 또는 사용자 PLC 재접속 증거가 아니다. Single Axis live qualification, actual PLC SDO Write/D5 scenario와 실제 축/Group recovery는 별도다. 2026-07-31 Debug/Release baseline은 297/297이다. |
 | 개발 WPF callback override 및 PC wire harness 2026-08-11 | `af4ab63` historical evidence panel/fresh-manual-socket 뒤 `14ccf58`이 persistent canonical `-1`에만 fresh `LMCConnection`/TCP outer retry 1회를 추가했고 `cbf2548`이 actual EXE relaunch gate를 추가했다. `bff3bc7`은 retry 0회의 exact `0x8080/0x405C/0x405D` GD-N10A/N13/N14 PC-only harness와 16개 회귀를 제공한다. SDK current Debug/Release direct `1133/1133`, WPF current Debug/Release Rebuild PASS, full smoke `339/339`, actual-EXE gate 각 `1/1`이다. | actual-EXE gate wire는 session/request `3/28 (13,2,13)`이며 malformed exit 64/TCP 0, contender exit 2/TCP 0과 pre/post binary identity를 검증한다. 고정 100 ms는 PLC readiness/timing proof가 아니며 wire `-1`은 internal disarm `-8`/`-9`와 lifecycle/ownership rejection을 구분하지 못한다. `RequestedCallback`은 입력 tuple이고 `BoundCallback`은 실제 endpoint 또는 `not-bound`다. stale/old wake는 retained ticket/UI/counter/`0x7E03`을 바꾸지 않는다. wire harness 및 WPF PASS도 PC 관측일 뿐 reviewed rebaseline, exact downloaded checkpoint, pcap과 PLC Watch 없이는 PLC callback/runtime proof가 아니다. |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery, D5 contention exact Busy/recovery, timeout/drain, queued-cancel one-shot/race/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
-| LASAL SourceOnly 정적 계약 | historical `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | historical checkpoint는 `Phase5TransportClean / IntegratedReadOwnerDormant`, external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. Current `d735446`의 Control `HandleRequest` whole-method fence는 PS5.1/PS7 `13/13` PASS다. Current `d6ddf05` method-size ratchet은 main mixed-EOL/clean detached와 PS5.1/PS7에서 동일한 inventory `101/98/3`, self-test `16/16`과 exact current baseline을 PASS했다. Current `afdf6a3` UDP verifier도 PS5.1/PS7 `296/296`을 PASS하지만 default SourceOnly는 승인된 physical snapshot ratchet이 없는 `TerminalWakeBrokerCandidate`를 계속 fail-closed한다. 이 focused/static PASS들은 current Gate D STOP이나 PLC/runtime 상태를 승인하지 않는다. |
-| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated frozen historical artifact `99014DD9...`, post-STOP current artifact `13EA5823...`로 generator identity가 안정적이지 않다. `b2019db`의 exact 990 bundle은 `c48e403` validator를 PASS했지만 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`이다. Current 13EA comparison도 `_AxisBase` boundary drift 때문에 exit `3`, changed byte/run/owner `90/57/35`다. Pinned triad의 A/B/C changed byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`; structural candidate/volatile/stable은 `157/66/91`이다. Historical corpus는 canonical occurrence/unique/topology `22/20/9`, H/H+C/H+C+B unique `20/21/22`, full records/marker `2,501/814`다. Exact-other varying tail `87/227/31/202`, marker `95/282/34/369`이고 adjacent common partition은 `2,378=1,155+538+685`, added/removed `18/2`, candidate tail/marker/both `55/97/386`이다. B는 committed oracle, C는 committed `b2019db`에서만 왔으며 mutable current `Classes.lcb`와 local `bd47dd96...`는 historical analyzer input이 아니다. D의 57 changed slot은 marker/tail `30/27`이고, D를 unaccepted diagnostic으로 더한 union만 volatile/stable `71/86`이다. Bounded stateless record-local hypothesis `20`개는 claim scope 안에서만 refute됐다. Field meaning은 unclassified이고 semantic equivalence는 증명되지 않았다. Historical corpus/triad publication trust boundary는 `NON_ADVERSARIAL_WORKSPACE`이고 `handleRelativeCreationUsed=false`, `concurrentParentReplacementResistance=false`다. `ProductionApproved=false`, `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`, rebaseline permitted false다. focused/C78 current verification은 계속 실패하며 finalizer/Rebuild/Download 반복·runtime qualification·future artifact acceptance·normalization·hash-only rebaseline은 금지다. |
+| LASAL SourceOnly 정적 계약 | historical `GateDVisualLayout` PASS; current exact tracked tuple PASS / main dirty reject | Historical checkpoint의 `Phase5TransportClean / IntegratedReadOwnerDormant`와 기존 method-size/Control fence 증거는 보존한다. `d4204b4`는 모든 exact 검사를 통과한 clean tracked `Classes.lcb=24402BFA...` tuple만 `ProductionApproved=true`, `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 verifier self-test는 각각 `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. Main working tree 사용자 `13EA5823...`는 exact sanctioned identity drift로 계속 reject된다. 이 PC/static 승인은 PLC/runtime proof가 아니다. |
+| LASAL full static 계약 | historical `GateDVisualLayout` PASS; post-approval full/network 미실행 | Checkpoint `Classes.lcb=24402BFA...`만 `d4204b4`의 exact tracked static approval 대상이다. First post-commit `6E115876...`, isolated frozen historical `99014DD9...`, main working tree `13EA5823...`와 future hash는 승인되지 않는다. `13EA...` comparator는 `_AxisBase` boundary drift, exit `3`, changed byte/run/owner `90/57/35`다. Pinned triad/corpus의 historical `ProductionApproved=false`, semantic-equivalence 미증명과 finalizer STOP은 mismatched artifact에 계속 적용된다. `d4204b4` 뒤 full/network static target은 실행하지 않았고 finalizer/Rebuild/Download 반복, runtime qualification, normalization과 hash-only rebaseline은 금지다. |
 | D5 executor 초기화 | constructor declaration/implementation, generated `@STD`, state/buffer 초기화와 Idle publish 계약 PASS | Axis1 `ExpectedSdoWriteAxis=1` static과 IDE build는 PASS했다. actual Busy/Write/runtime 원인은 PLC에서 별도 검증한다. |
 | LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; later callback exact-method smoke와 isolated one-Rebuild/no-Connect/no-Download session 완료 | Frozen isolated Rebuild의 `Classes.lcb=99014DD9...`는 exit `3` STOP bundle이다. Post-STOP PID 26200은 Rebuild/Connect/282-LBA Download/PLC link를 성공했고 PID 21016은 Connect/Reset/Restart를 성공했지만 current `13EA5823...`와 Download는 exact byte-bound가 아니라 `TIME_CORRELATION_ONLY`다. 각 Load phase의 exact `DriveComL2.h E0015` 1건, C78/C81 warning debt, reviewed transition, exact downloaded artifact와 PLC/runtime qualification은 별도다. |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static/current IDE build 완료 | dormant `0x7D12/0x7D13`의 current IDE build/download/live와 새 `0x2047` PLC download/ACK timing 및 invalid/stale/fault는 별도 |
@@ -1055,9 +1074,20 @@ pure-Git Network aggregate `15` /
 `239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22`와 tracked
 aggregate `15` /
 `6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38`을 exact
-허용했으며 기존 seeded tuple은 유지했다. Explicit `-AllowDerivedCapture`와 exact expected
+허용했으며 기존 seeded tuple은 유지했다. Pre-approval explicit `-AllowDerivedCapture`와 exact expected
 state를 함께 준 focused run만 `CAPTURE`, `ProductionApproved=false`,
 `NeedsRebaseline=true`를 반환하며 default production invocation은 계속 STOP한다.
+
+Commit `d4204b4`는 이 승인 경계만 좁게 갱신했다. 기존 exact 검사를 모두 통과한 clean tracked
+`Classes.lcb` 8,549,773 bytes / SHA-256
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+`TerminalWakeBrokerCandidate`만 `ProductionApproved=true`, `NeedsRebaseline=false`다. Current
+verifier는 572,974 bytes / SHA-256
+`F036B9B3F2D3E173D38BFB6CBBAB05EC4F877CCDF9B972E95C6ED35B7DE34E37`이고 PS5.1/PS7
+self-test는 각각 `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. Main working tree
+사용자 `Classes.lcb` SHA-256
+`13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 sanctioned identity
+drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
 
 먼저 `88f1c57`, `d735446`, `afdf6a3`이 포함된 clean detached `afdf6a3`에서 exact
 `2.3-candidate` DOCX/PDF를 명시해 full build를 실행했고 약 `214`초 뒤 승인되지 않은 physical
@@ -1076,7 +1106,7 @@ PC/build 증거이며 LASAL IDE, PLC Download/runtime, production 승인 또는 
 배포 script의 cleanup과 manifest 검증이 끝난 뒤 세 번호 폴더, README와 manifest만
 전달한다.
 
-Commit `bcc6a9c`는 별도 검토한 외부 DOCX/PDF `2.3-candidate`를 tracked canonical
+Commit `bcc6a9c`는 별도 검토한 외부 DOCX/PDF `2.3-candidate`를 initial tracked canonical
 release-input baseline으로 승격했다.
 
 - Canonical DOCX:
@@ -1110,11 +1140,25 @@ logic은 바꾸지 않았다. PS5.1/PS7은 각각 SemanticPolicy `53/53` + polic
 run은 manual/README policy 뒤 `CANDIDATE_WPF_SOURCE_SET`에서 멈췄지만 fresh staged candidate가
 아니므로 full Distribution/candidate PASS가 아니다.
 
-Canonical 승격·문서 policy·레이아웃 PASS는 full Distribution PASS가 아니다. 승격 뒤 full
-Distribution/current generated schema 3 candidate/actual EXE/publish는 다시 실행하거나 생성하지
+Commit `978597b`는 `3c63dea` active closure, `bcc6a9c` initial canonical manual과 `f304e8b`
+README policy를 current release-input documentation baseline으로 기록했다. 뒤이은 `d4204b4`는
+위 exact tracked Gate D PC/static 경계를 승인했고 `5d5aebe`는 그 경계를 반영한 current canonical
+manual을 게시했다.
+
+- Current Markdown: `94,108` bytes / SHA-256
+  `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`
+- Current canonical DOCX: `92,229` bytes / SHA-256
+  `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`
+- Current canonical PDF: `1,003,309` bytes / SHA-256
+  `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`
+
+`bcc6a9c`의 이전 size/hash와 validation/visual/manual-policy 결과는 initial promotion historical
+evidence로 보존한다. Canonical 승격·문서 policy·Gate D static approval은 full Distribution
+PASS가 아니다. Gate D 승인 뒤 full/network static target과 clean full Distribution/current
+generated schema 3 candidate/full-build actual EXE gate/manifest/publish는 실행하거나 생성하지
 않았다. Current PLC live proof와 release-scope 승인도 남았고 LASAL IDE/PLC/Download/runtime은
-실행하지 않았다. 따라서 `2.3-candidate` canonical release input을 production 승인 매뉴얼로
-전달하지 않는다.
+실행하지 않았다. 따라서 current `2.3-candidate` canonical release input을 production 승인
+매뉴얼로 전달하지 않는다.
 
 ## 9. 2026-07-16 감사와 2026-07-20 D0 검증 결과(과거 snapshot)
 
@@ -1719,19 +1763,22 @@ download를 마치기 전에는 Phase 5 구현 완료나 production 승인을 �
   mutex successor/fresh TCP와 pre/post binary identity를 PASS했다. 100 ms와 loopback fake
   reaccept는 PLC readiness/disarm/runtime 또는 사용자 PLC 재접속 proof가 아니다.
   PC suite에는 GD-N10A/N13/N14 raw-wire harness 16개도 포함되지만 actual PLC live 실행은 없다. Historical
-  post-commit Rebuild/Download의 `Classes.lcb=6E115876...`, isolated frozen historical
-  `99014DD9...`, post-STOP current `13EA5823...`가 모두 sequence-4 `24402BFA...`와
-  다르다. `b2019db`는 990 bundle을 보존했지만 validator PASS 후에도 exit `3` STOP이다.
+  `d4204b4`는 clean tracked sequence-4 `Classes.lcb=24402BFA...` exact tuple만 PC/static
+  승인했고 PS5.1/PS7 self-test 각 `296/296`과 clean detached SourceOnly가 PASS했다. Main
+  working tree 사용자 `13EA5823...`는 계속 reject된다. Post-approval full/network static은
+  실행하지 않았다. Historical post-commit Rebuild/Download의 `6E115876...`, isolated frozen
+  `99014DD9...`도 tracked 승인 tuple과 다르며 `b2019db` 990 bundle은 validator PASS 후에도
+  exit `3` STOP이다.
   Incident commit `5319352d...`의 PID 26200 Download는 성공했지만 current 13EA와 exact
-  byte-bound가 아니라 `TIME_CORRELATION_ONLY`다. Reviewed transition 전 runtime은
-  exploratory이며 exact 32/20 registration,
+  byte-bound가 아니라 `TIME_CORRELATION_ONLY`다. Exact tracked static approval은 이 runtime을
+  승인하지 않는다. Exact 32/20 registration,
   52-byte UDP와 causal `0x7E03`, disarm/reconnect 및 negative network matrix는 미검증이다
 
 - `0x7E11/0x7E12`와 bit 14의 static 7-entry wire는 `Test2`에서 확인했고
   pre-callback/pre-`0x7D12`/pre-`0x7D13` Rebuild/Link도 PASS했다. Later frozen isolated
-  Rebuild와 post-STOP Rebuild/Download가 존재하지만 identity instability로 STOP이며,
-  accepted artifact의 PLC cold download/runtime provenance는 없다. Finalizer/Rebuild/Download를
-  반복하지 않고 vendor semantics 또는 separately reviewed protocol을 먼저 확정한다.
+  Rebuild와 post-STOP Rebuild/Download artifact는 exact tracked approval 대상이 아니며 accepted
+  artifact의 PLC cold download/runtime provenance도 없다. Finalizer/Rebuild/Download를 반복하지
+  않고 exact artifact/download binding과 runtime qualification을 별도로 확보한다.
   `0x7E13/0x7E22`, 464-byte coherent snapshot과 CREVIS read-owner client/network는
   source/static과 pre-callback/pre-`0x7D12`/pre-`0x7D13` IDE build까지 완료됐지만 bits 15/16은 OFF이고 PLC live는 없다. `0x7E23`
   PLC route/handler는 없고 bit 17도 OFF다

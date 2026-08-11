@@ -293,8 +293,9 @@ PLC endpoint를 사용하지 않는다.
 
 - `RunLasalContract`/`RunLasalNetworkContract`: historical `GateDVisualLayout` checkpoint에서
   `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`와 dormant Admin
-  `0x7D12` SourceOnly/full coverage가 PASS했다. Current `ad4af91` exact 결과는 아래 기록처럼
-  current `Classes.lcb` sanctioned Gate D identity STOP이다. Historical valid request는
+  `0x7D12` SourceOnly/full coverage가 PASS했다. `ad4af91` exact STOP은 아래 기록의
+  pre-approval historical 결과다. Latest `d4204b4` clean tracked SourceOnly 결과가 우선하며 main
+  working tree 사용자 `Classes.lcb`는 별도 exact identity reject 상태다. Historical valid request는
   `InvalidState/detail 10`, capability bit 3 OFF,
   native SetPosition call 0을 12개 negative source fixture와 함께 고정한다. LASAL IDE
   Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`과 `LMCEcatInputLatch`,
@@ -312,8 +313,8 @@ PLC endpoint를 사용하지 않는다.
 - 신규 dormant `0x7D13` LASAL source/static contract는 exact 56/32-byte frame,
   recipe 1/2, capability bit 4 OFF, valid request `InvalidState/detail 10`, physical reference
   input source 부재와 native `MoveReference` call 0을 검사 대상으로 추가했고 historical
-  checkpoint의 SourceOnly/full coverage가 PASS했다. Current target outcome은 아래
-  `ad4af91` Gate D STOP 기록이 우선한다.
+  checkpoint의 SourceOnly/full coverage가 PASS했다. Latest target outcome은 아래
+  `d4204b4` exact tracked approval과 main dirty rejection 기록이 우선한다.
 - 2026-08-10 Gate D source/static checkpoint는
   `Verify-LasalUdpCallbackContract.ps1` self-test `288/288`, 실제
   `TerminalWakeBrokerCandidate` tree에서 exit 0의 `CAPTURE` 판정을 냈다. 실제
@@ -351,7 +352,7 @@ PLC endpoint를 사용하지 않는다.
   changeset이며 production approval을 의미하지 않는다. 그 changeset 당시 main
   worktree의 formal gate는 `Classes.lcb=6E115876...` 대 checkpoint
   `24402BFA...` 차이 하나 때문에 실패했다.
-- Commit `afdf6a3`의 checkout-safe current UDP verifier physical SHA-256은
+- Pre-approval commit `afdf6a3`의 checkout-safe UDP verifier physical SHA-256은
   `A6244374803C622A7F115C21A30039C38A4FA4297AD2D0C4A1B47518515A0DE5`이고 PS5.1/PS7
   self-test가 각각 `296/296` PASS했다. Derived function parser는 LF/CRLF에서 exact function
   inventory와 lexical token equivalence를 함께 검사한다. Pure-Git Network aggregate
@@ -362,6 +363,16 @@ PLC endpoint를 사용하지 않는다.
   `-ExpectedState TerminalWakeBrokerCandidate -AllowDerivedCapture` focused run만 `CAPTURE`,
   `ProductionApproved=false`, `NeedsRebaseline=true`를 반환한다. 기본 production invocation은
   approved physical snapshot ratchet이 없으면 계속 blocker를 반환한다.
+- Commit `d4204b4`의 current verifier는 572,974 bytes / SHA-256
+  `F036B9B3F2D3E173D38BFB6CBBAB05EC4F877CCDF9B972E95C6ED35B7DE34E37`이다. 기존
+  source/generated/network/layout exact 검사를 모두 통과한 clean tracked
+  `TerminalWakeBrokerCandidate`의 `Classes.lcb` 8,549,773 bytes / SHA-256
+  `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861` tuple만
+  `ProductionApproved=true`, `NeedsRebaseline=false`로 승인한다. PS5.1/PS7 self-test는 각각
+  `296/296`, clean detached SourceOnly `Phase5TransportClean / IntegratedReadOwnerDormant`는 두
+  host에서 PASS했다. Main working tree 사용자 `Classes.lcb` SHA-256
+  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 exact sanctioned
+  identity drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와
@@ -455,8 +466,9 @@ PLC endpoint를 사용하지 않는다.
   `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`로
   manifest의 `24402BFA...`와 달랐고 focused `VerifyCurrent`와 C78
   input-equivalence는 당시 실패했다. Frozen historical `99014DD9...` artifact와
-  post-STOP current `13EA5823...` artifact에서도 gate는 계속 실패한다. Reviewed
-  transition 전 runtime 관측은 exploratory이며 production approval이 아니다.
+  post-STOP current `13EA5823...` artifact에서도 gate는 계속 실패한다. `d4204b4`의 static
+  approval은 exact tracked `24402BFA...`만 허용하며 이 mismatched artifact와 당시 runtime
+  관측을 승인하지 않는다.
 - commit `7038445`는 `6E115876...`-start baseline과 exact reversible
   `24402BFA... -> 6E115876...` binary patch를 production source 변경 없이 보존한다.
   commit `79f03d36f89c34b26325666a4a3eddb9306c4674`의 fail-closed 비교기는
@@ -785,14 +797,14 @@ PLC endpoint를 사용하지 않는다.
   `INCOMPLETE_WITHOUT_PCAP_AND_PLC_WATCH`를 고정한다. 따라서 16 tests와 tool PASS는
   PC-only wire 계약이다. reviewed rebaseline, exact downloaded checkpoint, site maintenance,
   correlated pcap과 PLC Watch 없이는 PLC qualification 또는 runtime PASS가 아니다.
-- `RunLasalContract` historical successful-checkpoint coverage(current exact 결과는 아래
-  `ad4af91` Gate D STOP 기록이 우선함):
+- `RunLasalContract` historical successful-checkpoint coverage(latest clean tracked 결과는 아래
+  `d4204b4` SourceOnly PASS 기록이 우선함):
   `PASS LASAL.StaticContract.SourceOnly` (Admin read, `0x7D22`와 dormant
   `0x7D12/0x7D13`, 9축, CyWork-only, D1~D3와 D4
   single-bank Ring/Trigger 및 D5 general-inline SDO Read active source,
   Axis 1 exact D5 Write active, Axis 2..4/비승인 D5 Write와 D4 Double·extended fail-closed wire)다.
-- `RunLasalNetworkContract` historical successful-checkpoint coverage(current exact 결과는
-  아래 `ad4af91` Gate D STOP 기록이 우선함): `PASS LASAL.StaticContract`;
+- `RunLasalNetworkContract` historical successful-checkpoint coverage(post-approval full/network
+  target은 미실행): `PASS LASAL.StaticContract`;
   `LMCDiagnosticsService` constructor의
   38-state 이름/타입, 37개 scalar, 24-entry Bulk array,
   no-control-flow/final-`C_OK` exact gate와
@@ -938,7 +950,7 @@ PLC endpoint를 사용하지 않는다.
   `1/1` PASS했다. EXE SHA-256은
   `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
   `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이고 전후 identity도
-  같았다. 그러나 current full Distribution attempt는 SDK Debug `1133/1133` 뒤 기존
+  같았다. 그러나 2026-08-11 historical full Distribution attempt는 SDK Debug `1133/1133` 뒤 기존
   `Verify-LasalContract.ps1:7571` `$macroMatches[-1]`의 PowerShell 5.1 비호환 tooling
   bug에서 중단되어 script의 copy 직후 gate와 manifest 단계에 도달하지 않았다. pwsh7은
   last Match를 반환하지만 powershell 5.1은 null을 반환해 `lastMacroEnd=0`과 false
@@ -989,8 +1001,8 @@ PLC endpoint를 사용하지 않는다.
   PS7=6/6) files=92
   SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`를 반환했다.
   92-file repository-relative path/length/SHA-256 ordinal digest는 transaction input tree와
-  prepared-input/promotion drift check에 묶였다. 이는 PC/tooling evidence일 뿐이며 full
-  Distribution은 Gate D STOP으로 actual-EXE/current manifest/publish 전에 멈춰 있다. LASAL IDE,
+  prepared-input/promotion drift check에 묶였다. 이는 PC/tooling predecessor evidence일 뿐이며
+  당시 full Distribution은 Gate D STOP으로 actual-EXE/current manifest/publish 전에 멈췄다. LASAL IDE,
   PLC Download/runtime은 실행하지 않았다. 이 92-file evidence는 아래 current 94-file/schema 3
   보강의 historical predecessor로 보존한다.
 - Historical predecessor commit `39c3e6f`는 ReleaseManifest artifact의 PS5.1/PS7 ordinal ordering을 고정하고
@@ -1060,12 +1072,26 @@ PLC endpoint를 사용하지 않는다.
   SDO 안전 범위를 맞추고 semantic regression을 한 case 늘렸다. Production template와 build
   logic은 바꾸지 않았다. PS5.1/PS7은 각각 SemanticPolicy `53/53` + policy check `18`,
   Pipeline `291/291`, ToolchainProvenance `84/84`를 PASS했다.
+- Commit `978597b`는 위 active closure, initial canonical manual과 README policy를 current
+  release-input documentation baseline으로 기록했다.
+- Commit `d4204b4`는 모든 기존 exact 검사를 통과한 clean tracked `Classes.lcb`
+  `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861` tuple만 PC/static
+  `ProductionApproved=true`, `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 self-test는 각각
+  `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. Main working tree 사용자
+  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 계속 reject된다.
+- Commit `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은
+  `94,108` bytes / SHA-256
+  `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`
+  bytes / SHA-256 `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`, PDF는
+  `1,003,309` bytes / SHA-256
+  `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`이다. `bcc6a9c`의
+  이전 hash와 검토 결과는 initial promotion historical evidence다.
 - 위 결과는 PC/tooling 및 release-input 문서 증거다. Canonical source snapshot direct semantic
   run은 manual/README policy를 지난 뒤 `CANDIDATE_WPF_SOURCE_SET`에서 멈췄지만 fresh staged
   candidate가 아니므로 full Distribution 또는 current candidate PASS가 아니다. Canonical
-  promotion 뒤 full Distribution/current generated schema 3 candidate/actual EXE/publish는 다시
-  실행하거나 생성하지 않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았고 reviewed
-  Gate D STOP과 production NO-GO는 그대로다.
+  tracked Gate D static 승인 뒤 full/network static target과 clean full Distribution/current
+  generated schema 3 candidate/full-build actual EXE gate/manifest/publish는 실행하거나 생성하지
+  않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았고 production NO-GO는 그대로다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

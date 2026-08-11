@@ -326,10 +326,13 @@
 id="lasalmotioncontrollib-내부-코드-및-실행-구조-설명서">LasalMotionControlLib
 내부 코드 및 실행 구조 설명서</h1>
 <ul>
-<li>문서 버전: <code>2.8</code></li>
+<li>문서 버전: <code>2.9</code></li>
 <li>작성 기준: <code>2026-08-12</code> / active dependency closure
-<code>3c63dea</code>, canonical manual promotion <code>bcc6a9c</code>,
-preview README policy <code>f304e8b</code></li>
+<code>3c63dea</code>, initial canonical manual promotion
+<code>bcc6a9c</code>, preview README policy <code>f304e8b</code>,
+release-input documentation <code>978597b</code>, exact tracked Gate D
+approval <code>d4204b4</code>, current canonical manual
+<code>5d5aebe</code></li>
 <li>적용 API: <code>LasalMotionControlLib 0.9.1-preview</code></li>
 <li>motion baseline branch/commit: <code>main</code> /
 <code>f9bc88a7f78dab5214186689198414fa9a203a32</code></li>
@@ -391,12 +394,26 @@ closure는 dual-host mandatory aggregate <code>14/14</code>를 PASS했다.
 <code>bcc6a9c</code>는 검토한 <code>2.3-candidate</code> DOCX/PDF를
 canonical release input으로 승격했고 <code>f304e8b</code>는
 package/example README의 preview NO-GO 정책을 semantic regression에
-고정했다. 이 결과는 PC/tooling 및 문서 입력 증거다. Last full
-Distribution은 reviewed Gate D에서 STOP했고, 승격 뒤 full
-Distribution/current schema 3 candidate/actual EXE/publish와 LASAL
-IDE/PLC/Download/runtime은 다시 실행하지 않았다. 아래 설명에서
-<code>구현됨</code>은 current source에 경로가 존재한다는 뜻이며 실기
-완료를 뜻하지 않는다.</p>
+고정했으며 <code>978597b</code>는 이 release-input baseline을
+문서화했다. Historical last full Distribution은 당시 승인되지 않은 Gate
+D에서 STOP했다. 이후 <code>d4204b4</code>는 모든
+source/generated/network/layout exact 검사를 통과한 clean tracked
+<code>Classes.lcb</code> 8,549,773 bytes / SHA-256
+<code>24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861</code>
+<code>TerminalWakeBrokerCandidate</code>만 PC/static
+<code>ProductionApproved=true</code>,
+<code>NeedsRebaseline=false</code>로 승인했다. PS5.1/PS7 verifier
+self-test는 각각 <code>296/296</code>, clean detached tracked tuple의
+SourceOnly는 두 host에서 PASS했다. Main working tree의 사용자
+<code>Classes.lcb</code> SHA-256
+<code>13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9</code>는
+sanctioned identity drift로 계속 reject된다. <code>5d5aebe</code>는 이
+경계를 반영한 current canonical manual을 게시했다. Gate D 승인 뒤
+full/network static target과 clean full Distribution, current schema 3
+candidate, full-build actual EXE gate, manifest, publish 및 LASAL
+IDE/PLC/Download/runtime은 실행하지 않았다. Production NO-GO는 유지된다.
+아래 설명에서 <code>구현됨</code>은 current source에 경로가 존재한다는
+뜻이며 실기 완료를 뜻하지 않는다.</p>
 </blockquote>
 <h2 id="먼저-바로잡아야-할-핵심-오해">1. 먼저 바로잡아야 할 핵심
 오해</h2>
@@ -2439,20 +2456,21 @@ Debug/Release 각 1/1 PASS; 2026-07-31 baseline 297/297</td>
 </tr>
 <tr>
 <td>LASAL SourceOnly static contract</td>
-<td>historical <code>GateDVisualLayout</code> checkpoint에서
-<code>Phase5TransportClean / IntegratedReadOwnerDormant</code>,
-<code>ExpectedSdoWriteAxis=1</code> PASS; current <code>ad4af91</code>
-PS5.1 <code>RunLasalContract</code>는 verifier compatibility 경계를
-통과한 뒤 current <code>Classes.lcb</code> sanctioned Gate D identity
-STOP에서 exit 1</td>
+<td>historical <code>GateDVisualLayout</code> checkpoint PASS. Current
+<code>d4204b4</code> clean detached tracked <code>24402BFA...</code>
+tuple은 PS5.1/PS7 self-test 각 <code>296/296</code>과 SourceOnly를
+PASS하고 <code>ProductionApproved=true</code>,
+<code>NeedsRebaseline=false</code>다. Main working tree 사용자
+<code>13EA5823...</code>는 exact sanctioned identity drift로 계속
+reject된다.</td>
 </tr>
 <tr>
 <td>LASAL full static contract</td>
 <td>historical checkpoint에서 <code>IntegratedReadOwnerDormant</code>,
 <code>ExpectedSdoWriteAxis=1</code> PASS 및 generated
-metadata/topology/same-peer 구조 동기화 확인; current
-<code>ad4af91</code> PS5.1 <code>RunLasalNetworkContract</code>는 같은
-Gate D identity STOP에서 exit 1</td>
+metadata/topology/same-peer 구조 동기화 확인. <code>ad4af91</code>
+STOP은 pre-approval historical evidence이며 <code>d4204b4</code> 승인 뒤
+full/network static target은 다시 실행하지 않았다.</td>
 </tr>
 <tr>
 <td>LASAL IDE rebuild/link</td>
@@ -2788,15 +2806,40 @@ preview/production NO-GO와 current SDO 안전 범위를 semantic policy에
 각각 SemanticPolicy <code>53/53</code> + policy check <code>18</code>,
 Pipeline <code>291/291</code>, ToolchainProvenance <code>84/84</code>를
 PASS했다.</li>
+<li><code>978597b</code>는 위 active closure, initial canonical manual과
+README policy를 current release-input documentation baseline으로
+기록했다.</li>
+<li><code>d4204b4</code>는 verifier의 승인 경계만 좁게 변경했다. 기존
+검사를 모두 통과한 clean tracked
+<code>TerminalWakeBrokerCandidate</code>의 <code>Classes.lcb</code>
+8,549,773 bytes /
+<code>24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861</code>
+exact tuple만 <code>ProductionApproved=true</code>,
+<code>NeedsRebaseline=false</code>다. PS5.1/PS7 self-test는 각각
+<code>296/296</code>, clean detached SourceOnly는 두 host에서 PASS했다.
+Main working tree 사용자
+<code>13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9</code>는
+계속 reject된다. 이 승인은 <code>6E115876...</code>,
+<code>99014DD9...</code>, future hash 또는 PLC/runtime을 승인하지
+않는다.</li>
+<li><code>5d5aebe</code>는 Gate D 경계를 반영한 current canonical
+manual을 게시했다. Markdown은 <code>94,108</code> bytes /
+<code>D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022</code>,
+DOCX는 <code>92,229</code> bytes /
+<code>57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46</code>,
+PDF는 <code>1,003,309</code> bytes /
+<code>83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0</code>이다.
+<code>bcc6a9c</code>의 이전 size/hash와 검토 결과는 initial promotion
+historical evidence로 보존한다.</li>
 </ul>
 <p>Canonical source snapshot direct semantic run은 manual/README
 policy를 지난 뒤 <code>CANDIDATE_WPF_SOURCE_SET</code>에서 멈췄다. 이는
 freshly assembled staged candidate가 아니므로 full Distribution이나
-current candidate PASS가 아니다. Canonical manual 승격 뒤 full
-Distribution, current generated schema 3 candidate, actual EXE와
-publish는 다시 실행하거나 생성하지 않았다. LASAL IDE, PLC,
-Download/runtime도 실행하지 않았고 Gate D STOP/production NO-GO는
-그대로다.</p>
+current candidate PASS가 아니다. Exact tracked Gate D static approval 뒤
+full/network static target과 clean full Distribution, current generated
+schema 3 candidate, full-build actual EXE gate, manifest와 publish는
+실행하거나 생성하지 않았다. LASAL IDE, PLC, Download/runtime도 실행하지
+않았고 production NO-GO는 그대로다.</p>
 <p>단위 회귀는 다음처럼 실행한다.</p>
 <div class="sourceCode" id="cb18"><pre
 class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>powershell<span class="op">.</span><span class="fu">exe</span> <span class="op">-</span>NoProfile <span class="op">-</span>ExecutionPolicy Bypass `</span>

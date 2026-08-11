@@ -15,12 +15,13 @@
 - PC 자동 테스트: current SDK Debug/Release direct 각 1133/1133 PASS
 - 개발 WPF: Debug/Release Rebuild PASS, full smoke 각 339/339 PASS, supplied actual
   example EXE relaunch gate 각 1/1 PASS
-- LASAL 정적 계약: historical `GateDVisualLayout` checkpoint는 PASS했지만 current
-  `ad4af91` PS5.1 SourceOnly/full target은 verifier compatibility 경계를 통과한 뒤
-  `Classes.lcb` sanctioned Gate D identity drift에서 exit 1 STOP
-- LASAL IDE: historical Rebuild/Link와 implementation smoke 증거는 보존한다. current
-  artifact는 reviewed transition 전 finalizer/Rebuild/Download를 반복하지 않으며 PLC/runtime
-  qualification도 완료로 보지 않는다
+- LASAL 정적 계약: historical `GateDVisualLayout` checkpoint와 pre-approval STOP evidence를
+  보존한다. Current `d4204b4` clean detached tracked `24402BFA...` tuple은 PS5.1/PS7 verifier
+  self-test 각 `296/296`과 SourceOnly를 PASS하고 `ProductionApproved=true`,
+  `NeedsRebaseline=false`다. Main working tree 사용자 `13EA5823...`는 exact sanctioned identity
+  drift로 계속 reject되며 post-approval full/network static target은 실행하지 않았다
+- LASAL IDE: historical Rebuild/Link와 implementation smoke 증거는 보존한다. Exact tracked
+  Gate D static 승인은 LASAL IDE build, PLC Download/runtime 또는 main dirty artifact 승인이 아니다
 - 기존 motion/group PLC E2E/Wireshark 재캡처: 대표 subset은 과거 PASS, 전체 25-command matrix 미완료
 - diagnostics source: D1~D3, D4 single-bank Ring/Trigger, D5 general-inline SDO Read와
   Axis 1 exact `0x2F00:24 Int32/4` SDO Write 활성(`CapabilityBits=0x0000633F`, MaxSDO=4).
@@ -142,7 +143,8 @@ Toolchain probe, semantic document extraction, PDF validation, DOCX validation�
 
 이는 PC/tooling 증거일 뿐이다. Last full Distribution은 reviewed Gate D의 승인되지 않은
 `TerminalWakeBrokerCandidate` physical snapshot ratchet에서 STOP했고 actual EXE, current
-generated schema 3 candidate manifest와 publish에 도달하지 않았다.
+generated schema 3 candidate manifest와 publish에 도달하지 않았다. 이 문장은
+`d4204b4` 전 historical run 결과다.
 
 Commit `bcc6a9c`는 독립 검토한 `2.3-candidate` DOCX/PDF를 tracked canonical release input으로
 승격했다. DOCX는 `91,103` bytes / SHA-256
@@ -163,10 +165,27 @@ PASS했다. Production template와 build logic은 바꾸지 않았다. Canonical
 이 snapshot은 fresh staged candidate가 아니므로 current full Distribution 또는 candidate PASS가
 아니다.
 
-따라서 canonical manual 승격 뒤 full Distribution, current generated schema 3 candidate,
-actual EXE와 publish는 다시 실행하거나 생성하지 않았다. LASAL IDE, PLC, Download/runtime도
-실행하지 않았다. Gate D STOP과 production NO-GO는 그대로이며 reviewed Gate D physical snapshot
-ratchet 뒤 clean full Distribution에서 fresh candidate의 WPF source set부터 다시 검증해야 한다.
+Commit `978597b`는 위 active closure, initial canonical manual과 README policy를 current
+release-input documentation baseline으로 기록했다. Commit `d4204b4`는 모든 기존 exact 검사를
+통과한 clean tracked `Classes.lcb` 8,549,773 bytes / SHA-256
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+`TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`, `NeedsRebaseline=false`로
+승인했다. PS5.1/PS7 self-test는 각각 `296/296`, clean detached SourceOnly는 두 host에서
+PASS했다. Main working tree 사용자 `Classes.lcb` SHA-256
+`13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 계속 reject된다.
+
+Commit `5d5aebe`는 이 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은
+`94,108` bytes / SHA-256
+`D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`
+bytes / SHA-256 `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`, PDF는
+`1,003,309` bytes / SHA-256
+`83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`이다. `bcc6a9c`의
+이전 size/hash와 검토 결과는 initial promotion historical evidence로 보존한다.
+
+Exact tracked Gate D static 승인 뒤 full/network static target과 clean full Distribution,
+current generated schema 3 candidate, full-build actual EXE gate, manifest와 publish는 실행하거나
+생성하지 않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았다. Production NO-GO는
+그대로이며 clean full Distribution에서 fresh candidate의 WPF source set부터 다시 검증해야 한다.
 
 ## 내부 문서
 
@@ -229,10 +248,13 @@ validated tooling digest를 반환한 뒤에만 시작한다.
     provenance와 promotion drift fence를 구현했다. Active package `.pyc`는 유지하고 base
     `Scripts`/`site-packages`, `pycparser`, unrelated package는 제외하며 ownerless 경계를
     fail-closed한다.
-12. Canonical manual/README policy를 갱신한 뒤에도 full Distribution을 다시 실행하지 않아
-    current generated schema 3 candidate manifest, actual EXE와 publish는 생성하지 않았다.
-    Canonical source snapshot의 `CANDIDATE_WPF_SOURCE_SET` STOP은 fresh candidate가 아니다.
-    Reviewed Gate D physical snapshot ratchet 뒤 clean full Distribution에서 전체 gate를 실행한다.
+12. `d4204b4`는 exact clean tracked `24402BFA...` Gate D physical snapshot ratchet을 승인했다.
+    Main working tree 사용자 `13EA5823...`는 계속 reject되며 post-approval full/network static은
+    실행하지 않았다.
+13. `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. 이후에도 clean full
+    Distribution을 실행하지 않아 current generated schema 3 candidate manifest, full-build actual
+    EXE gate와 publish는 생성하지 않았다. Canonical source snapshot의
+    `CANDIDATE_WPF_SOURCE_SET` STOP은 fresh candidate가 아니다.
 
 개발 중 dirty-tree fail-path를 확인할 때만 `-AllowDirty`와 명시적인 빈 sibling path를 쓴다.
 정식 candidate는 clean tree에서 다음처럼 생성한다.
@@ -250,9 +272,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ## 2.3-candidate canonical 외부 매뉴얼 baseline
 
 Current Markdown에서 편집용 DOCX를 생성하고, Microsoft Word에서 목차와 페이지 번호를
-갱신해 저장한 **같은 DOCX**에서 PDF를 export했다. 검토 완료 pair는 `bcc6a9c`에서 tracked
-canonical release input으로 승격했다. 아래 생성 명령은 초안 재생성용이며 release build가
-canonical 문서를 자동 생성하거나 덮어쓰지 않는다.
+갱신해 저장한 **같은 DOCX**에서 PDF를 export했다. Initial 검토 완료 pair는 `bcc6a9c`에서
+tracked canonical release input으로 승격했고 `5d5aebe`가 Gate D 경계를 반영한 current pair를
+게시했다. 아래 생성 명령은 초안 재생성용이며 release build가 canonical 문서를 자동 생성하거나
+덮어쓰지 않는다.
 
 ```powershell
 python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
@@ -263,18 +286,20 @@ python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
 Current canonical 경로와 exact bytes는 다음과 같다.
 
 - `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`:
-  `91,103` bytes, SHA-256
-  `F3DC33521A8DB623641FA07A2C1B161009BCF3F01622DC037442A9726900F8DD`
+  `92,229` bytes, SHA-256
+  `57D17650D1F24E9350830E784EFE94E00CB1A89CB126CD9A05865580A9708B46`
 - `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.pdf`:
-  `1,002,300` bytes, SHA-256
-  `317A87FC42EF5A845202FFDB384C3AC23247C1B7A73530488C96FF0D805D2880`
+  `1,003,309` bytes, SHA-256
+  `83A57CC4B15D4E0BA4E0D9A54FD044C82A131168D16B36F2694F76AF098232E0`
 
-Word/OpenXML validation error는 `0`, PDF는 A4 `43`쪽, DOCX heading `66`/table `109`이며 모든
-font가 embedded됐다. 전체 43쪽 렌더 검수에서 clipping/overlap/blank/tofu는 없었다.
+`bcc6a9c` initial pair의 Word/OpenXML validation error `0`, A4 PDF `43`쪽, DOCX heading
+`66`/table `109`, all-font embedding과 전 페이지 visual defect `0`은 historical 검토 결과다.
+위 current exact bytes는 `5d5aebe`가 게시한 tracked artifacts다.
 
-두 문서는 `Test-LmcDistributionManualReleasePolicy -DocxText -PdfText` exact `3/3`을
-통과했다. Clean detached `bcc6a9c`에서 default resolver canonical 선택/worktree clean/manual
-policy `3/3`을 확인했으므로 clean candidate는 manual override 없이 실행한다.
+Initial pair는 `Test-LmcDistributionManualReleasePolicy -DocxText -PdfText` exact `3/3`을
+통과했고 clean detached `bcc6a9c`에서 default resolver canonical 선택/worktree clean/manual
+policy `3/3`을 확인했다. Current `5d5aebe` pair도 canonical 경로에 있으므로 clean candidate는
+manual override 없이 이 tracked input을 resolve해야 한다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
@@ -282,5 +307,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -RepositoryRoot C:\work\Elmo\Elmo_Master
 ```
 
-Canonical promotion 뒤 full Distribution은 다시 실행하지 않았다. 이 baseline은 production
-승인이 아니며 reviewed Gate D와 clean full Distribution이 남아 있다.
+Exact tracked Gate D static 승인은 `d4204b4`에서 완료됐지만 그 뒤 full/network static과 clean
+full Distribution은 실행하지 않았다. 이 baseline은 production 승인이 아니며 clean full
+Distribution과 PLC/runtime Definition of Done이 남아 있다.
