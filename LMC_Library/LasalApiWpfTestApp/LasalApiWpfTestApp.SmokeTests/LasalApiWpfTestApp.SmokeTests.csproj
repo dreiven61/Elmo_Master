@@ -65,6 +65,7 @@
     <Compile Include="WpfConfiguredTopologyEvidenceTests.cs" />
     <Compile Include="WpfTopologyIoLiveEvidenceTests.cs" />
     <Compile Include="WpfMutationRecoveryProcessTests.cs" />
+    <Compile Include="WpfExecutableRelaunchIntegrationTests.cs" />
     <Compile Include="..\..\LMC_API_Delivery\tests\LasalMotionControlLib.Tests\AssertEx.cs">
       <Link>Support\AssertEx.cs</Link>
     </Compile>
@@ -87,6 +88,12 @@
   </ItemGroup>
   <Target Name="RunWpfSmokeTests" DependsOnTargets="Build">
     <Exec Command="&quot;$(TargetPath)&quot;" />
+  </Target>
+  <Target Name="RunWpfExecutableRelaunchTest" DependsOnTargets="Build">
+    <Error
+      Condition="'$(WpfExecutableRelaunchExe)' == ''"
+      Text="WpfExecutableRelaunchExe is required." />
+    <Exec Command="&quot;$(TargetPath)&quot; --wpf-executable-relaunch &quot;$(WpfExecutableRelaunchExe)&quot;" />
   </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

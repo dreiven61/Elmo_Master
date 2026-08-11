@@ -12,6 +12,11 @@ namespace LasalApiWpfTestApp.SmokeTests
         [STAThread]
         private static int Main(string[] args)
         {
+            if (WpfExecutableRelaunchIntegrationTests.IsInvocation(args))
+            {
+                return WpfExecutableRelaunchIntegrationTests.Run(args);
+            }
+
             var dispatcher = Dispatcher.CurrentDispatcher;
             SynchronizationContext.SetSynchronizationContext(
                 new DispatcherSynchronizationContext(dispatcher));

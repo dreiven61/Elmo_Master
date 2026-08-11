@@ -588,12 +588,32 @@ function Invoke-LmcMSBuild {
         [string]$Project,
         [Parameter(Mandatory = $true)]
         [string]$Target,
-        [string]$Configuration = 'Release'
+        [string]$Configuration = 'Release',
+        [hashtable]$AdditionalProperties = @{}
     )
 
-    & $msbuild $Project "/t:$Target" `
-        "/p:Configuration=$Configuration" '/p:Platform=AnyCPU' `
-        '/nologo' '/verbosity:minimal'
+    $arguments = @(
+        $Project,
+        "/t:$Target",
+        "/p:Configuration=$Configuration",
+        '/p:Platform=AnyCPU',
+        '/nologo',
+        '/verbosity:minimal'
+    )
+    foreach ($propertyName in @(
+        $AdditionalProperties.Keys | Sort-Object)) {
+        if ([string]::IsNullOrWhiteSpace([string]$propertyName) -or
+            ([string]$propertyName) -notmatch '^[A-Za-z][A-Za-z0-9_]*$') {
+            throw "Invalid MSBuild property name: $propertyName"
+        }
+        $propertyValue = [string]$AdditionalProperties[$propertyName]
+        if ([string]::IsNullOrWhiteSpace($propertyValue)) {
+            throw "MSBuild property value is empty: $propertyName"
+        }
+        $arguments += "/p:$propertyName=$propertyValue"
+    }
+
+    & $msbuild @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "MSBuild failed: $Project target=$Target configuration=$Configuration"
     }
@@ -831,6 +851,19 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 -Destination $runDirectory -Force
         }
 
+        $runExampleExe = Join-Path $runDirectory `
+            'LasalMotionControlApiExample.exe'
+        Invoke-LmcMSBuild -Project $wpfSmokeProject `
+            -Target 'RunWpfExecutableRelaunchTest' `
+            -Configuration 'Release' `
+            -AdditionalProperties @{
+                WpfExecutableRelaunchExe = $runExampleExe
+            }
+        $buildSummary.ExecutableRelaunchGate = 'PASS'
+        $buildSummary.ExecutableRelaunchTestedExeSha256 = (
+            Get-FileHash -LiteralPath $runExampleExe `
+                -Algorithm SHA256).Hash
+
         $manualPageCountOutput = @(& $python -c `
             'from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))' `
             (Join-Path $manualDirectory `
@@ -916,6 +949,12 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 (Join-Path $runDirectory `
                     'LasalMotionControlApiExample.exe') `
                 -Algorithm SHA256).Hash
+        if (-not [string]::Equals(
+                $buildSummary.ExampleExeSha256,
+                $buildSummary.ExecutableRelaunchTestedExeSha256,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The final example EXE bytes do not match the executable relaunch gate input.'
+        }
         $buildSummary.ManifestSha256 = (
             Get-FileHash -LiteralPath $manifestPath `
                 -Algorithm SHA256).Hash
@@ -941,4 +980,6 @@ Write-Host "Semantic policy SHA256: $($buildSummary.SemanticPolicySha256)"
 Write-Host "Release manifest SHA256: $($buildSummary.ManifestSha256)"
 Write-Host "DLL SHA256: $($buildSummary.DllSha256)"
 Write-Host "Example EXE SHA256: $($buildSummary.ExampleExeSha256)"
+Write-Host "Executable relaunch gate: $($buildSummary.ExecutableRelaunchGate)"
+Write-Host "Executable relaunch tested EXE SHA256: $($buildSummary.ExecutableRelaunchTestedExeSha256)"
 Write-Host "Manual pages: $($buildSummary.ManualPageCount)"
