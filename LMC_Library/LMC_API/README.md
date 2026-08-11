@@ -55,27 +55,71 @@ seeded ignored `.lba/.lob` 8개도 실제 존재하면 지문에 포함되고, p
 ignored Network 파일이 나타나거나 Control source, `Classes.lcb`, `Networks.lcb`가 검증 뒤
 바뀌면 promotion 전에 fail-closed한다. PS5.1/PS7 pipeline fixture는 각각 `192/192` PASS다.
 
-위 `192/192`은 `bf31030` 시점의 historical pipeline 수치다. Current commit `febb1b0`은
-manual/canonical 경로 확정, `vswhere`/Python 등 tool discovery와 transaction 시작보다 먼저
-mandatory dual-host release tooling preflight를 실행한다. Windows PowerShell 5.1(Desktop)과
-PowerShell 7(Core)은 각각 Pipeline `245`, SemanticPolicy `50` + policy check `18`,
-ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control `HandleRequest` `13`의
-동일한 6개 suite를 통과해야 한다. Worker는 inherited `PSModulePath`를 사용하지 않고 exact
-`$PSHOME\Modules`만 사용하며, suite별 expected evidence 정확히 1개, exact terminal line,
-stderr 없음과 exit `0`을 요구한다. Timeout이면 해당 PID의 process tree를 `taskkill /T /F`로
-종료한다.
-
-최종 Windows PowerShell 5.1 parent 실행은 `802.8`초에 다음 terminal을 반환했다.
+위 `192/192`은 `bf31030` 시점의 historical pipeline 수치다. Historical predecessor
+commit `febb1b0`은 manual/canonical 경로 확정, `vswhere`/Python 등 tool discovery와
+transaction 시작보다 먼저 mandatory dual-host release tooling preflight를 실행하도록
+고정했다. Windows PowerShell 5.1(Desktop)과 PowerShell 7(Core)은 각각 Pipeline
+`245`, SemanticPolicy `50` + policy check `18`, ReleaseManifest `56`, method-size `16`, UDP
+callback `296`, Control `HandleRequest` `13`의 동일한 6개 suite를 통과했다. Worker는
+inherited `PSModulePath`를 사용하지 않고 exact `$PSHOME\Modules`만 사용하며, suite별
+expected evidence 정확히 1개, exact terminal line, stderr 없음과 exit `0`을 요구한다.
+Timeout이면 해당 PID의 process tree를 `taskkill /T /F`로 종료한다. 이 predecessor의 최종
+Windows PowerShell 5.1 parent 실행은 `802.8`초에 다음 terminal을 반환했다.
 
 ```text
 PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=92 SHA256=99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62
 ```
 
-92개 monitored file의 repository-relative path/length/SHA-256을 ordinal 정렬한 digest는
-transaction input tree에 `@validated-tooling-preflight` record로 묶이고, prepared input 작성과
-promotion 전까지 재확인된다. 이 PASS는 PC/tooling host parity와 fail-closed 경계 증거일 뿐이다.
-Current full Distribution은 여전히 Gate D STOP이며 actual-EXE/current manifest/publish에
-도달하지 않았고 LASAL IDE, PLC Download/runtime도 실행하지 않았다.
+Predecessor의 92개 monitored file repository-relative path/length/SHA-256 ordinal digest는
+transaction input tree와 promotion drift fence에 묶였다.
+
+Historical predecessor commit `39c3e6f`는 이 gate를 schema 3/toolchain provenance까지
+확장했다. Artifact는
+ordinal ordering으로 고정하고, manifest에는 절대경로 없는 exact 8-role
+`role|version|SHA-256` record를 사용한다. Git은 실제 core executable, C# compiler는 선택된
+Roslyn/csc 전체 inventory를 해시한다. 네 개 실제 `.csproj`에 `CscToolPath`, `CscToolExe`,
+`RoslynTargetsPath`, `CSharpCoreTargetsPath`, `UseSharedCompilation`의 다섯 property를 강제하고
+`UseSharedCompilation=false`를 실행 증거로 확인한다. Python은 base runtime inventory와
+`python-docx` 221개, `pypdf` 117개 distribution inventory를 독립 역할로 묶는다. PS5.1/PS7
+preflight host executable SHA-256 attestation과 toolchain snapshot은 prepared input에 묶이고,
+promotion 직전 실제 경로를 다시 resolve/hash해 드리프트를 fail-closed한다.
+이 predecessor의 Windows PowerShell 5.1 parent 실행은 `808.553`초에 다음을 반환했다.
+
+```text
+PASS LMC.DistributionToolingHostParity 12/12 (PS5=6/6; PS7=6/6) files=94 SHA256=C25A61055F83B7F171B5FFB7A4F6B821CBC5642EDB2614A9E6D95C7BFBE9F543
+```
+
+Host-parity attestation SHA-256은
+`A83A038227732EE777F0CDDB1549158633DC0E438B2464200A6EC1ABE0A78215`, toolchain SHA-256은
+`9EC464FA97755C202D8DF895767889228169678C16364B21507BAC7A5BDE419D`다. Mandatory aggregate는
+호스트별 exact 6-suite/`12/12`로 ToolchainProvenance test를 실행하지 않고 파일만
+monitored inventory에 포함한다. 별도 focused PS5.1/PS7에서 각각 provenance `44/44`,
+manifest `94/94`, pipeline `284/284`를 PASS했다.
+
+Current commit `1b9be6a`는 ToolchainProvenance를 host별 일곱 번째 mandatory child suite로
+통합했다. Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `286`, SemanticPolicy
+`50` + policy check `18`, ReleaseManifest `100`, ToolchainProvenance `49`, method-size `16`,
+UDP callback `296`, Control `HandleRequest` `13`을 별도 worker에서 통과해야 한다. 최종
+Windows PowerShell 5.1 parent 실행은 `831331ms`에 다음을 반환했다.
+
+```text
+PASS LMC.DistributionToolingHostParity 14/14 (PS5=7/7; PS7=7/7) files=94 SHA256=F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8
+```
+
+Current host-parity attestation SHA-256은
+`CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36`, toolchain SHA-256은
+`C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이다. 별도 focused
+PS5.1/PS7도 각각 ToolchainProvenance `49/49`, ReleaseManifest `100/100`, Pipeline
+`286/286`을 PASS했다. Current 8-role 범위는 active Python dependency closure 전체를
+묶지 않는다. 다음 PC-only gap은 actual workload의 external exact 5개인 `lxml`,
+`typing_extensions`, `cryptography`, Pillow, cffi의 active dependency closure를 deterministic
+inventory/promotion drift fence에 묶는 것이다. cffi의 `_cffi_backend`는 실제 로드됐고
+`pycparser`는 미로드이므로, 둘을 혼동하지 않고 unrelated `site-packages`도 제외한다. 이는
+PC/tooling 증거일 뿐이다.
+Current full Distribution은 여전히 reviewed Gate D STOP으로 actual EXE, current schema 3
+manifest, publish 전에 멈춘다.
+생성된 current schema 3 candidate manifest는 없고 LASAL IDE, PLC, Download/runtime도 실행하지
+않았다.
 
 Current `2.3-candidate` DOCX/PDF는 검토용 입력일 뿐이다. Clean detached
 `afdf6a3`에서 두 exact manual을 명시한 full Distribution build를 실제 실행했지만 약
@@ -108,8 +152,10 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
 - `DistributionSemanticPolicy.ps1`: SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 preflight;
   DOCX와 PDF 각각에 `2.3-candidate`, bounded reconnect/actual-EXE PC-only 경계와 preview
   release 안전 경고를 요구한다
+- `DistributionToolchainProvenance.ps1`: release host/Git/vswhere/MSBuild/Roslyn/Python package의
+  pathless 8-role version/SHA-256 snapshot, host attestation 및 promotion re-resolution gate
 - `Test-LmcDistributionToolingHostParity.ps1`: Windows PowerShell 5.1/PowerShell 7의
-  mandatory six-suite host parity, isolated module path, exact evidence와 monitored-file digest gate
+  mandatory seven-suite host parity, isolated module path, exact evidence와 monitored-file digest gate
 - `Test-LmcApiDistributionPipeline.ps1`, `Test-LmcDistributionSemanticPolicy.ps1`,
   `Test-LmcReleaseManifest.ps1`: release 경로 회귀
 - `Generate-ApiUserManual.py`: 초기 PDF 초안 생성기
@@ -120,7 +166,7 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
 ## 배포 원칙
 
 아래 build 단계에 들어가기 전에 dual-host release tooling preflight를 반드시 먼저 실행한다.
-Manual/canonical 선택, mutable tool discovery와 transaction은 이 preflight가 exact `12/12`와
+Manual/canonical 선택, mutable tool discovery와 transaction은 이 preflight가 exact `14/14`와
 validated tooling digest를 반환한 뒤에만 시작한다.
 
 1. `LMC_API_Delivery/src`에서 Release DLL을 새로 빌드한다.
@@ -137,12 +183,20 @@ validated tooling digest를 반환한 뒤에만 시작한다.
 7. release build는 같은 volume의 `.LMC_API_Distribution.stage.*`에서 모든 검증을 끝낸 뒤
    존재하지 않는 `LMC_API_Distribution_candidate_*`로 한 번만 rename한다. 실패 시 staging만
    제거하고 canonical과 이미 publish된 candidate는 자동 삭제하지 않는다.
-8. schema 2 manifest에는 release input tree hash와 semantic policy hash/result를 포함한다.
-   외부 DOCX/PDF가 current scope와 다르면 candidate finalize를 차단한다.
-9. ReleaseManifest artifact의 ordinal cross-host ordering을 고정하고 manifest를 schema 3으로 올려
-   실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/Python/`python-docx`/`pypdf`의
-   논리적 role/version/SHA-256과 host-parity/toolchain hash를 경로 노출 없이 기록하는
-   작업은 다음 P0-D gap이다.
+8. schema 3 manifest는 release input tree와 semantic policy hash/result, ordinal artifact records,
+   exact 8-role toolchain records/SHA-256, PS5.1/PS7 executable SHA-256 attestation을 포함한다.
+   외부 DOCX/PDF가 current scope와 다르거나 promotion 직전 toolchain re-resolution이 다르면
+   candidate finalize를 차단한다.
+9. Historical predecessor `39c3e6f`은 schema 3과 bounded 8-role provenance를 구현했지만
+   mandatory aggregate에는 ToolchainProvenance를 실행하지 않았다.
+10. Current `1b9be6a`는 ToolchainProvenance `49`를 host별 일곱 번째 mandatory suite로
+    통합해 PS5.1/PS7 aggregate `14/14`를 PASS했다.
+11. 다음 external exact 5개 `lxml`, `typing_extensions`, `cryptography`, Pillow, cffi의
+    deterministic active dependency closure provenance와 promotion drift를 묶는다. 실제 로드된
+    cffi `_cffi_backend`는 포함하고, 미로드 `pycparser`와 unrelated `site-packages`는 제외한다.
+12. Gate D가 해제되지 않아 current candidate/manifest/publish는 생성하지 않았다.
+    남은 Python provenance 범위와 reviewed Gate D를 모두 닫은 후 clean full Distribution을
+    실행한다.
 
 개발 중 dirty-tree fail-path를 확인할 때만 `-AllowDirty`와 명시적인 빈 sibling path를 쓴다.
 정식 candidate는 clean tree에서 다음처럼 생성한다.

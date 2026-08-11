@@ -977,7 +977,7 @@ PLC endpoint를 사용하지 않는다.
   canonical snapshot SHA-256 `17310B7E386BE7FBC03E5D57AFA52CC3C5703F13561C8465E66F6325213A291F`
   (`76` records)와 manual hashes가 불변이었다. actual-EXE gate, manifest와 publish/final rename에는
   도달하지 않았고 LASAL IDE, PLC Download/runtime은 실행하지 않았다.
-- Commit `febb1b0`은 `Build-LmcApiDistribution.ps1`의 manual/canonical 경로 확정,
+- Historical predecessor commit `febb1b0`은 `Build-LmcApiDistribution.ps1`의 manual/canonical 경로 확정,
   `vswhere`/Python 등 tool discovery와 transaction보다 먼저 mandatory dual-host tooling
   preflight를 실행한다. Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245/245`,
   SemanticPolicy `50/50` + policy check `18`, ReleaseManifest `56/56`, method-size `16/16`,
@@ -991,10 +991,47 @@ PLC endpoint를 사용하지 않는다.
   92-file repository-relative path/length/SHA-256 ordinal digest는 transaction input tree와
   prepared-input/promotion drift check에 묶였다. 이는 PC/tooling evidence일 뿐이며 full
   Distribution은 Gate D STOP으로 actual-EXE/current manifest/publish 전에 멈춰 있다. LASAL IDE,
-  PLC Download/runtime은 실행하지 않았다. 다음 P0-D gap은 ReleaseManifest artifact의 ordinal cross-host
-  ordering과 schema 3 전환, 실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/
-  Python/`python-docx`/`pypdf`의 논리적 role/version/SHA-256 및 host-parity/toolchain hash
-  provenance다.
+  PLC Download/runtime은 실행하지 않았다. 이 92-file evidence는 아래 current 94-file/schema 3
+  보강의 historical predecessor로 보존한다.
+- Historical predecessor commit `39c3e6f`는 ReleaseManifest artifact의 PS5.1/PS7 ordinal ordering을 고정하고
+  schema 3으로 올렸다. Manifest record는 절대경로 없는 8-role
+  `role|version|SHA-256`로 구성된다. Git은 실제 core executable, C# compiler는 선택된
+  Roslyn/csc 전체 inventory를 해시한다. SDK test/WPF smoke/SDK library/staged example의
+  네 실제 `.csproj`에 `CscToolPath`, `CscToolExe`, `RoslynTargetsPath`,
+  `CSharpCoreTargetsPath`, `UseSharedCompilation`의 다섯 property를 강제하고
+  `UseSharedCompilation=false`를 실행 증거로 확인한다. Python은 `site-packages`를
+  제외한 base runtime, `python-docx` 221개, `pypdf` 117개 distribution inventory를
+  독립 role로 묶는다. PS5.1/PS7 executable SHA-256 host attestation과 toolchain snapshot은
+  transaction fingerprint에 묶이고 promotion 직전 physical re-resolution/hash drift를 fail-closed한다.
+  Final PS5.1-parent aggregate는 `808.553`초에 `12/12`, files `94`, digest
+  `C25A61055F83B7F171B5FFB7A4F6B821CBC5642EDB2614A9E6D95C7BFBE9F543`을 PASS했다.
+  Host attestation SHA-256은
+  `A83A038227732EE777F0CDDB1549158633DC0E438B2464200A6EC1ABE0A78215`, toolchain
+  SHA-256은 `9EC464FA97755C202D8DF895767889228169678C16364B21507BAC7A5BDE419D`다.
+  Mandatory aggregate는 호스트별 exact six suite/`12/12`로 ToolchainProvenance test를 실행하지
+  않고 파일만 monitored inventory에 포함한다. 별도 focused PS5.1/PS7은 각각
+  provenance `44/44`, manifest `94/94`, pipeline `284/284`를 PASS했다. 이 94-file/schema 3
+  결과는 아래 current mandatory seventh-suite gate의 historical predecessor로 보존한다.
+- Commit `1b9be6a`는 ToolchainProvenance를 host별 일곱 번째 mandatory child suite로
+  통합했다. Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `286/286`,
+  SemanticPolicy `50/50` + policy check `18`, ReleaseManifest `100/100`,
+  ToolchainProvenance `49/49`, method-size `16/16`, UDP callback `296/296`, Control
+  `HandleRequest` `13/13`을 통과했다. Final PS5.1-parent aggregate는 `831331ms`에
+  `PASS LMC.DistributionToolingHostParity 14/14 (PS5=7/7; PS7=7/7) files=94
+  SHA256=F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8`을 반환했다.
+  Host attestation SHA-256은
+  `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36`, toolchain
+  SHA-256은 `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이다.
+  별도 focused PS5.1/PS7도 각각 ToolchainProvenance `49/49`, ReleaseManifest `100/100`,
+  Pipeline `286/286`을 PASS했다. Current 8-role 범위는 actual workload의 external exact 5개
+  `lxml`/`typing_extensions`/`cryptography`/Pillow/cffi active Python dependency closure를
+  포함하지 않으므로 P0-D toolchain provenance 전체 완료가 아니다. 다음 PC-only gap은 이
+  exact 5개의 deterministic provenance와 promotion drift fence다. 실제 로드된 cffi
+  `_cffi_backend`는 포함하고, 미로드 `pycparser`와 unrelated `site-packages`는 제외한다. 이는
+  PC/tooling 증거이며 full Distribution은 reviewed Gate D
+  STOP으로 actual EXE, current schema 3 manifest, publish 전에 멈춰 있다. 생성된 current
+  schema 3 candidate manifest는 없고 LASAL IDE, PLC, Download/runtime도 실행하지 않았다.
+  이 gap과 reviewed Gate D를 모두 닫은 후 clean full Distribution을 실행한다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

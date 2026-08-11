@@ -8,7 +8,7 @@
   callback/reconnect review도 `9/9`, P0/P1 없음이다. `f337fec`/`ad7c8b1`의 WPF
   `334/334`와 `af4ab63`의 WPF `335/335`는 historical snapshot이다. PC-only callback
   ownership wire harness `bff3bc7`의 SDK 16개 회귀는 current `1133/1133`에 포함된다.
-- 2026-08-12 release tooling commit `febb1b0`은 manual/canonical 경로 확정,
+- 2026-08-12 historical release tooling predecessor commit `febb1b0`은 manual/canonical 경로 확정,
   `vswhere`/Python tool discovery와 transaction 전에 mandatory dual-host preflight를 실행한다.
   Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245`, SemanticPolicy `50` + policy
   check `18`, ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control
@@ -19,6 +19,37 @@
   timeout process-tree kill을 요구한다. 92-file ordinal digest는 transaction input에 묶인다.
   이 PASS는 PC/tooling 증거이며 current full Distribution의 Gate D STOP, actual-EXE/current
   manifest/publish 미도달, LASAL IDE/PLC Download/runtime 미실행 상태를 바꾸지 않는다.
+- 2026-08-12 historical release tooling predecessor commit `39c3e6f`는 artifact ordinal ordering과
+  ReleaseManifest schema 3, 절대경로 없는 exact 8-role `role|version|SHA-256`를 구현했다.
+  Git은 actual core executable, C# compiler는 선택된 Roslyn/csc 전체 inventory를 해시하고
+  네 실제 `.csproj`에 다섯 compiler property를 강제하며
+  `UseSharedCompilation=false`를 증거로 확인한다. Python base runtime과
+  `python-docx` 221개/`pypdf` 117개 inventory, PS5.1/PS7 executable SHA-256 attestation을
+  독립적으로 묶었다. Final PS5.1-parent `12/12`은 `808.553`초, files `94`, digest
+  `C25A61055F83B7F171B5FFB7A4F6B821CBC5642EDB2614A9E6D95C7BFBE9F543`이고 attestation/toolchain
+  SHA-256은 각각 `A83A038227732EE777F0CDDB1549158633DC0E438B2464200A6EC1ABE0A78215` /
+  `9EC464FA97755C202D8DF895767889228169678C16364B21507BAC7A5BDE419D`다. Mandatory aggregate는
+  호스트별 exact six suite/`12/12`로 ToolchainProvenance test를 실행하지 않고 파일만
+  monitored inventory에 포함한다. 두 host 별도 focused에서 provenance `44/44`, manifest
+  `94/94`, pipeline `284/284`를 확인했다. Promotion 직전 physical re-resolution/hash drift는
+  fail-closed한다.
+- 2026-08-12 current release tooling commit `1b9be6a`는 ToolchainProvenance를 host별
+  일곱 번째 mandatory child suite로 통합했다. PS5.1/PS7은 각각 Pipeline `286`,
+  SemanticPolicy `50` + policy check `18`, ReleaseManifest `100`, ToolchainProvenance `49`,
+  method-size `16`, UDP callback `296`, Control `HandleRequest` `13`을 통과한다. Final
+  PS5.1-parent aggregate는 `831331ms`, exact `14/14`(`PS5=7/7`, `PS7=7/7`), files `94`,
+  digest `F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8`이다.
+  Attestation/toolchain SHA-256은 각각
+  `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36` /
+  `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이다. 두 host 별도
+  focused도 provenance `49/49`, manifest `100/100`, pipeline `286/286`을 PASS했다. 이는
+  PC/tooling 증거이며 full Distribution은 reviewed Gate D STOP으로 actual EXE/current schema 3
+  manifest/publish 전에 멈춰 있다. 생성된 current schema 3 candidate manifest는 없고 LASAL
+  IDE/PLC/Download/runtime도 실행하지 않았다. Current 8-role 범위는 actual workload의
+  external exact 5개 `lxml`/`typing_extensions`/`cryptography`/Pillow/cffi active Python
+  dependency closure를 묶지 않으므로 P0-D provenance 전체 종료가 아니다. 다음 PC-only
+  gap은 이 exact 5개의 deterministic provenance/promotion drift다. 실제 로드된 cffi
+  `_cffi_backend`는 포함하고, 미로드 `pycparser`와 unrelated `site-packages`는 제외한다.
 - SDK는 exact canonical v2 `-1`만 같은 socket에서 20 ms 뒤 한 번 재시도한다.
   `14ccf58` WPF는 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로
   `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback
@@ -399,7 +430,7 @@
 | 상위 21개 요구사항 | active 17 + partial/dormant 2 + missing 2 | partial은 `HomeDS402` 목적의 LASAL-native `ReferenceAxis`와 `SetPosition`; missing은 `HomeDS402Ex`, `SetOpMode` |
 | CyWork service-executed axis/group control·read·motion command | 18개 | 축 8 + 그룹 10; Admin motion `0x7D22`는 별도, metadata lookup 제외 |
 | PC 자동 테스트 | current SDK Debug/Release 각각 1133/1133 PASS; 2026-07-31 baseline은 1042/1042 | 기존 fake-RPC, dormant Admin, recovery, SDO/DS402 계약에 더해 bounded `0x8080` reconnect correction, retained init evidence, immutable callback decision provenance와 PC-only GD-N10A/N13/N14 raw-wire harness 16개를 포함한다. PLC 통합과 별도다. |
-| Distribution tooling host parity | current `febb1b0`: PS5.1/PS7 exact six-suite `12/12`, monitored files `92`, SHA-256 `99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62` | manual/canonical/tool discovery/transaction 전 mandatory gate이며 isolated `$PSHOME\Modules`, exact evidence/stderr/terminal/timeout과 ordinal snapshot binding을 검증한다. PC/tooling evidence만 PASS다. Full Distribution은 Gate D STOP이고 actual-EXE/current manifest/publish 및 LASAL IDE/PLC Download/runtime은 미실행이다. ReleaseManifest artifact ordinal cross-host ordering, schema 3 전환과 8-role toolchain role/version/SHA-256 및 host-parity/toolchain hash provenance는 다음 P0-D gap이다. |
+| Distribution tooling host parity / provenance | current `1b9be6a`: PS5.1/PS7 exact seven-suite `14/14`(`7/7` each), elapsed `831331ms`, monitored files `94`, SHA-256 `F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8`; attestation/toolchain SHA-256 `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36` / `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18` | manual/canonical/tool discovery/transaction 전 mandatory gate가 ToolchainProvenance를 별도 child suite로 실행한다. Pathless 8-role record, schema 3 ordinal artifact, actual Git core, full Roslyn/csc inventory, forced 5-property compiler binding/`UseSharedCompilation=false` on four real projects, Python base + docx 221/pypdf 117 inventories, promotion physical re-resolution을 fail-closed로 검증한다. `39c3e6f`의 94-file `12/12`와 별도 provenance `44/44`는 predecessor evidence다. Current focused는 두 host 각각 provenance `49/49`, manifest `100/100`, pipeline `286/286`이다. 다음 gap은 external exact 5개 `lxml`/`typing_extensions`/`cryptography`/Pillow/cffi closure provenance/promotion drift다. Loaded cffi `_cffi_backend`는 포함하고 unloaded `pycparser`와 unrelated `site-packages`는 제외한다. PC/tooling evidence만 PASS이며 full Distribution은 reviewed Gate D STOP으로 actual EXE/schema 3 manifest/publish 전에 멈춰 있다. LASAL IDE/PLC/Download/runtime은 미실행이다. |
 | Axis SetPosition | SDK/wire/LASAL dormant fail-closed | request 28 bytes, response 36 bytes, expected-position CAS와 one-shot prepare를 구현했다. capability bit 3 OFF, native call 0, WPF 미노출이며 전용 durable journal/unified ownership/task·max-jump·`IsReferenced` 정책과 PLC proof 전 활성화 금지 |
 | Axis Reference | SDK/wire/LASAL dormant fail-closed | `0x7D13`, request 56-byte frame/48-byte payload, response 32-byte frame/24-byte payload, recipe 1/2와 positive `MaxTravel`/`TimeoutMs`를 고정했다. capability bit 4 OFF, native `MoveReference` call 0, WPF 미노출이고 start ACK는 완료가 아니다. physical reference input 연결과 IDE/download/live proof 전 활성화 금지 |
 | Stop/PowerOff send priority | SDK opt-in generation coordinator와 WPF shared integration, exact-generation post-ACK monitor reservation 구현 | stale ordinary/compound follow-up zero-wire와 SDO `NotAttempted`, qualification `ABORTED`는 deterministic PC 계약; in-flight RPC 취소, PLC/runtime 정지 순서와 safety certification은 범위 밖 |

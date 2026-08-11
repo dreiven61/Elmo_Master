@@ -38,7 +38,7 @@
 > 후속 `bf31030`은 exact LASAL validation input과 physical Network aggregate를 release
 > fingerprint에 묶고 PS5.1/PS7 pipeline `192/192`을 PASS했지만 Gate D STOP을 바꾸지 않는다.
 
-> **2026-08-12 release tooling override:** commit `febb1b0`은 manual/canonical 경로 확정,
+> **2026-08-12 release tooling predecessor:** commit `febb1b0`은 manual/canonical 경로 확정,
 > `vswhere`/Python tool discovery와 transaction 전에 mandatory dual-host preflight를 실행한다.
 > Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245`, SemanticPolicy `50` + policy
 > check `18`, ReleaseManifest `56`, method-size `16`, UDP callback `296`, Control
@@ -49,8 +49,48 @@
 > process-tree kill을 요구한다. 92-file ordinal digest는 transaction input과 promotion 전 drift
 > check에 묶였다. 이는 PC/tooling evidence이고 full Distribution은 Gate D STOP으로
 > actual-EXE/current manifest/publish 전에 멈춰 있으며 LASAL IDE/PLC Download/runtime은
-> 실행하지 않았다. ReleaseManifest artifact ordinal cross-host ordering, schema 3 전환과 실제 8-role
-> toolchain의 role/version/SHA-256 및 host-parity/toolchain hash provenance는 다음 P0-D gap이다.
+> 실행하지 않았다. 이 `12/12`/92-file digest는 아래 current 94-file/schema 3 보강의
+> historical predecessor evidence로 보존한다.
+>
+> **2026-08-12 toolchain provenance predecessor:** commit `39c3e6f`는 artifact ordinal
+> ordering, ReleaseManifest schema 3과 절대경로 없는 exact 8-role
+> `role|version|SHA-256`를 구현했다. Git은 actual core executable, C# compiler는 선택된
+> Roslyn/csc 전체 inventory를 해시한다. SDK test, WPF smoke, SDK library, staged example의
+> 네 실제 `.csproj`에 `CscToolPath`, `CscToolExe`, `RoslynTargetsPath`,
+> `CSharpCoreTargetsPath`, `UseSharedCompilation`의 다섯 compiler property를 강제하고
+> `UseSharedCompilation=false`를 실행 증거로 확인한다. Python은 base runtime과
+> `python-docx` 221개/`pypdf` 117개 distribution inventory를 독립 role로 묶는다.
+> PS5.1/PS7 executable SHA-256 attestation과 toolchain snapshot은 transaction fingerprint에
+> 묶이고 promotion 직전 physical re-resolution/hash drift를 fail-closed한다. Final PS5.1-parent
+> aggregate는 `808.553`초에 `12/12`, files `94`, digest
+> `C25A61055F83B7F171B5FFB7A4F6B821CBC5642EDB2614A9E6D95C7BFBE9F543`을 PASS했다.
+> Attestation/toolchain SHA-256은 각각
+> `A83A038227732EE777F0CDDB1549158633DC0E438B2464200A6EC1ABE0A78215` /
+> `9EC464FA97755C202D8DF895767889228169678C16364B21507BAC7A5BDE419D`다. Mandatory aggregate는
+> 호스트별 exact six suite/`12/12`로 ToolchainProvenance test를 실행하지 않고 파일만
+> monitored inventory에 포함한다. 별도 focused PS5.1/PS7은 각각 provenance `44/44`,
+> manifest `94/94`, pipeline `284/284`를 PASS했다. 이 결과는 아래 mandatory seventh-suite
+> current gate의 historical predecessor evidence다.
+>
+> **2026-08-12 current mandatory provenance override:** commit `1b9be6a`는
+> ToolchainProvenance를 host별 일곱 번째 mandatory child suite로 통합했다. PS5.1/PS7은
+> 각각 Pipeline `286`, SemanticPolicy `50` + policy check `18`, ReleaseManifest `100`,
+> ToolchainProvenance `49`, method-size `16`, UDP callback `296`, Control `HandleRequest` `13`을
+> 통과한다. Final PS5.1-parent aggregate는 `831331ms`에
+> `PASS LMC.DistributionToolingHostParity 14/14 (PS5=7/7; PS7=7/7) files=94
+> SHA256=F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8`을 반환했다.
+> Attestation/toolchain SHA-256은 각각
+> `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36` /
+> `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이다. 별도 focused
+> PS5.1/PS7도 각각 provenance `49/49`, manifest `100/100`, pipeline `286/286`을 PASS했다.
+> 이는 PC/tooling 증거이며 full Distribution은 reviewed Gate D STOP으로 actual EXE,
+> current schema 3 manifest, publish 전에 멈춰 있다. 생성된 current schema 3 candidate
+> manifest는 없고 LASAL IDE, PLC, Download/runtime도 실행하지 않았다. Current 8-role
+> 범위는 actual workload의 external exact 5개 `lxml`, `typing_extensions`, `cryptography`,
+> Pillow, cffi active Python dependency closure를 묶지 않으므로 P0-D toolchain provenance
+> 전체 종료가 아니다. 다음 PC-only gap은 이 exact 5개의 deterministic provenance와
+> promotion drift fence다. 실제 로드된 cffi `_cffi_backend`는 포함하고, 미로드
+> `pycparser`와 unrelated `site-packages`는 제외한다.
 
 ## 목표
 
@@ -70,7 +110,7 @@
 | M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory와 dormant read-owner source/static | fresh build cold download + raw/physical read qualification |
 | M3. Active motion/diagnostics qualification | **부분** | Single Axis runner 9/9과 whole-sequence durable journal/process-restart recovery, Group Enable durable accepted-once, Axis1 exact-session four-ticket/manual-Write gate PC PASS | current PLC Motion/Power/SDO live matrix |
 | M4. Gated advanced diagnostics/I/O | **선택/후속** | D4/PI off, topology read-owner dormant, Axis1 SDO Write source-active | 기능별 live 승인 |
-| M5. Product release | **historical dirty-preview PASS / current Gate D STOP** | 2026-07-31 `2.0-candidate` sibling/manifest PASS는 historical이다. Current tracked-clean detached `afdf6a3` + exact `2.3-candidate` manual build는 `-AllowDirty`/`dirty-preview` policy로 실행됐고 Debug `RunTests`의 unapproved Gate D physical snapshot ratchet에서 fail-closed했다. Candidate/manifest/publish는 없다. `febb1b0` mandatory PS5.1/PS7 tooling preflight `12/12`와 92-file digest binding은 PC/tooling PASS다. | reviewed Gate D physical snapshot transition + ReleaseManifest schema 3 ordinal cross-host artifact ordering/toolchain provenance + clean full candidate 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
+| M5. Product release | **historical dirty-preview PASS / current Gate D STOP** | 2026-07-31 `2.0-candidate` sibling/manifest PASS는 historical이다. Current tracked-clean detached `afdf6a3` + exact `2.3-candidate` manual build는 `-AllowDirty`/`dirty-preview` policy로 실행됐고 Debug `RunTests`의 unapproved Gate D physical snapshot ratchet에서 fail-closed했다. Candidate/manifest/publish는 없다. `39c3e6f`의 files `94`/aggregate `12/12`/별도 provenance `44/44`는 predecessor evidence다. Current `1b9be6a` mandatory seven-suite는 files `94`, aggregate `14/14`, 두 host focused provenance `49/49`/manifest `100/100`/pipeline `286/286` PC/tooling PASS다. Active Python dependency closure는 미포함이다. | deterministic active Python dependency-closure provenance/promotion drift + reviewed Gate D physical snapshot transition + clean full Distribution/schema 3 candidate 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
 
 ## 우선순위 요약
 
@@ -364,15 +404,37 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
    도달하지 않았다. Git tracked status는 clean이었지만 noncanonical manual 입력 때문에
    `-AllowDirty`/`dirty-preview` policy로 실행했다. Gate D reviewed transition 없이 우회하거나
    production PASS로 바꾸지 않는다.
-9. **[PC/tooling 구현·실행 PASS]** `febb1b0`은 manual/canonical/tool discovery/transaction 전
+9. **[PC/tooling historical predecessor PASS]** `febb1b0`은 manual/canonical/tool discovery/transaction 전
    PS5.1/PS7 exact six-suite preflight를 강제했다. Final aggregate는 `12/12`, files `92`, SHA-256
    `99D6D27101C126D7D03018763067A2D8A2C02B7FBFF41450641822488305DC62`이며 validated tooling
    digest를 transaction input/promotion drift fence에 묶었다. 이 PASS는 Gate D나 PLC/runtime을
    승인하지 않는다.
-10. **[다음 gap]** `ReleaseManifest` artifact의 PS5.1/PS7 ordinal cross-host ordering을 고정하고
-    manifest를 schema 3으로 올려 실제 release PowerShell/Git/`vswhere`/MSBuild/C# compiler/
-    Python/`python-docx`/`pypdf`의 논리적 role/version/SHA-256과 host-parity/toolchain hash를
-    경로 노출 없이 기록하고 tamper/drift를 fail-closed한다.
+10. **[PC/tooling historical predecessor PASS]** `39c3e6f`는 `ReleaseManifest` artifact의 PS5.1/PS7
+    ordinal ordering을 고정하고 schema 3, actual release PowerShell/Git core/`vswhere`/MSBuild/
+    full Roslyn-csc/Python base/`python-docx`/`pypdf`의 pathless 8-role version/SHA-256와
+    host attestation/toolchain hash를 구현했다. 네 real `.csproj`에 5-property compiler binding과
+    `UseSharedCompilation=false`를 강제했고 Python package inventory는 221/117 files다. Promotion 직전
+    physical re-resolution/hash drift를 fail-closed했다. Final PS5.1-parent mandatory six-suite
+    aggregate는 `12/12`/files `94`를 PASS했다. 이 aggregate에 포함되지 않는 focused
+    provenance `44/44`은 manifest `94/94`, pipeline `284/284`와 함께 PS5.1/PS7에서
+    별도 실행했다. 이 단계는 current mandatory gate의 predecessor다.
+11. **[PC/tooling 구현·실행 PASS]** `1b9be6a`는 ToolchainProvenance를 host별 일곱 번째
+    mandatory child suite로 통합했다. Final PS5.1-parent aggregate는 `831331ms`, exact
+    `14/14`(`PS5=7/7`, `PS7=7/7`), files `94`, digest
+    `F2B6DE0D9A595983D94D9E0B58B62BDE4B3FAFBE7F24EE1B6114354C3E7848D8`이다.
+    Attestation/toolchain SHA-256은 `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36` /
+    `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이며 양 host focused
+    provenance `49/49`, manifest `100/100`, pipeline `286/286`도 PASS했다. 이 단계는
+    PC/tooling PASS며 reviewed Gate D와 full Distribution을 대체하지 않는다.
+12. **[다음 PC-only gap]** current 8-role 범위에서 빠진 external exact 5개 `lxml`,
+    `typing_extensions`, `cryptography`, Pillow, cffi의 deterministic active dependency
+    closure를 provenance/promotion re-resolution에 묶는다. 실제 로드된 cffi
+    `_cffi_backend`는 포함하고, 미로드 `pycparser`와 unrelated `site-packages`는 제외한다.
+    이 gap을 닫기 전에 P0-D toolchain provenance 전체 완료를 선언하지 않는다.
+13. **[다음 release gate]** 위 PC-only gap과 reviewed Gate D를 모두 닫은 후 clean full
+    Distribution을 실행하고 그때 생성된 schema 3 manifest/candidate를 독립 검토한다.
+    Current `1b9be6a` PC/tooling 실행은 actual EXE/current schema 3 manifest/publish에 도달하지
+    않았다.
 
 ## P1. Dynamic CREVIS와 advanced diagnostics
 
@@ -488,9 +550,20 @@ read-only P1-1을 먼저 완료한다.
 - [x] 원본 무변경 transaction, success-only rename, failure cleanup과 semantic policy 회귀 PASS
 - [x] historical external `2.0-candidate` DOCX/PDF exact bytes를 사용한 실제 sibling Distribution candidate와 semantic policy `15/15` PASS
 - [x] historical candidate cleanup, version/input hash/schema 2 manifest, canonical hash와 transaction residue 재확인
-- [x] current mandatory PS5.1/PS7 release tooling preflight `12/12`와 92-file ordinal digest transaction binding PASS
-- [ ] ReleaseManifest schema 3 artifact ordinal cross-host ordering과 actual toolchain role/version/SHA-256,
-  host-parity/toolchain hash provenance 고정
+- [x] historical `febb1b0` mandatory PS5.1/PS7 release tooling preflight `12/12`와 92-file ordinal
+  digest transaction binding PASS
+- [x] historical predecessor `39c3e6f` ReleaseManifest schema 3 artifact ordinal cross-host ordering, pathless 8-role
+  actual toolchain role/version/SHA-256, PS5.1/PS7 executable attestation와 promotion re-resolution 고정;
+  aggregate `12/12` files `94`, separately executed focused provenance `44/44`, manifest `94/94`,
+  pipeline `284/284`
+- [x] current `1b9be6a` ToolchainProvenance를 host별 일곱 번째 mandatory suite로 통합;
+  aggregate `14/14`(`7/7` each), files `94`, focused provenance `49/49`, manifest `100/100`,
+  pipeline `286/286` PASS
+- [ ] external exact 5개 `lxml`/`typing_extensions`/`cryptography`/Pillow/cffi deterministic
+  active Python dependency closure provenance와 promotion drift fence 고정; loaded
+  `_cffi_backend`는 포함, unloaded `pycparser`와 unrelated `site-packages`는 제외
+- [ ] reviewed Gate D 후 clean full Distribution에서 실제 schema 3 candidate manifest 생성·독립
+  검토 — current PC/tooling PASS는 manifest/candidate를 생성하지 않음
 - [ ] current exact `2.3-candidate` manual의 tracked-clean full Distribution PASS — `afdf6a3` 재실행은 `-AllowDirty`/`dirty-preview` policy였고 Gate D physical snapshot ratchet에서 STOP, candidate/actual-EXE/manifest/publish 없음
 - [ ] `git diff --check`와 `git diff --cached --check` PASS
 
