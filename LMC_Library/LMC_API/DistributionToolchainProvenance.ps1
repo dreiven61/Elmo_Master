@@ -395,7 +395,7 @@ function Get-LmcDistributionInstalledPackageDigest {
     }
 }
 
-function ConvertTo-LmcDistributionProcessArgument {
+function ConvertTo-LmcDistributionToolchainProcessArgument {
     param([AllowEmptyString()][string]$Value)
 
     if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') {
@@ -450,7 +450,7 @@ function Invoke-LmcDistributionToolchainProcess {
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $executable
     $startInfo.Arguments = (@($Arguments | ForEach-Object {
-        ConvertTo-LmcDistributionProcessArgument -Value ([string]$_)
+        ConvertTo-LmcDistributionToolchainProcessArgument -Value ([string]$_)
     }) -join ' ')
     $startInfo.WorkingDirectory = $working
     $startInfo.UseShellExecute = $false

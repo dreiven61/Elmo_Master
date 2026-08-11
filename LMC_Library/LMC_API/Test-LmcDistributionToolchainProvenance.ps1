@@ -11,6 +11,13 @@ if (-not (Test-Path -LiteralPath $implementation -PathType Leaf)) {
 }
 . $implementation
 
+$toolingHostParity = Join-Path $PSScriptRoot `
+    'Test-LmcDistributionToolingHostParity.ps1'
+if (-not (Test-Path -LiteralPath $toolingHostParity -PathType Leaf)) {
+    throw "Distribution tooling host-parity implementation not found: $toolingHostParity"
+}
+. $toolingHostParity
+
 $script:Passed = 0
 $script:TrackedReparsePaths = New-Object `
     'System.Collections.Generic.List[string]'
