@@ -3,7 +3,7 @@
 문서 버전: 2.3-candidate
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-발행일: 2026-08-11
+발행일: 2026-08-12
 
 \pagebreak
 
@@ -24,7 +24,7 @@
 | 2.0-candidate | 2026-07-31 | Axis1-only SDO Write identity-pinned four-ticket gate, stale recovery retirement, single-instance 실행과 transactional Distribution candidate 경계 추가 |
 | 2.1-candidate | 2026-08-04 | LMC Home current-position-zero start/outcome/retirement, DS402 Home gate 상태와 TW19/TW20 encoder maintenance 계약 추가 |
 | 2.2-candidate | 2026-08-11 | `14ccf58` exact canonical `-1` bounded fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증 경계 추가 |
-| 2.3-candidate | 2026-08-11 | `cbf2548` actual EXE X 종료/재실행, default mutex 재획득, fresh-TCP wire와 binary identity gate, `ad4af91` PS5.1 verifier compatibility 및 배포 검증 경계 추가 |
+| 2.3-candidate | 2026-08-12 | `cbf2548` actual EXE X 종료/재실행과 binary identity gate, `3c63dea` 13-role active Python dependency closure, canonical tracked release-input baseline 승격 및 배포 검증 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
@@ -32,10 +32,12 @@ reference는 아니다.
 
 > **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-30
 > historical checkpoint의 SourceOnly/full static과 fresh IDE Rebuild/Link는 PASS했다.
-> Current `ad4af91` PS5.1 contract는 verifier compatibility 경계를 통과했지만 current
-> `Classes.lcb` sanctioned Gate D identity drift에서 fail-closed STOP했으며 full Distribution도
-> PASS가 아니다. 동일 source hash의 commit/clean-checkout release baseline, current PLC
-> download와 전체 PLC matrix는 아직 닫히지 않았다.
+> 최신 clean detached full Distribution은 `bf31030`의 Debug `RunTests`에서 승인되지 않은
+> `TerminalWakeBrokerCandidate` physical snapshot ratchet로 fail-closed STOP했고 candidate,
+> actual EXE, manifest와 publish는 생성하지 않았다. Current `3c63dea`의 PS5.1/PS7 mandatory
+> tooling gate `14/14`와 13-role active Python dependency closure는 PC-only PASS지만 full
+> Distribution은 다시 실행하지 않았다. 동일 source hash의 commit/clean-checkout release
+> baseline, current PLC download와 전체 PLC matrix는 아직 닫히지 않았다.
 > `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
 > `Dispose`, timeout과 cancellation은 PLC motion Stop이나 safe-stop을 보내지 않는다.
@@ -48,12 +50,13 @@ reference는 아니다.
 > Admin `0x7D00/10/20/22`는 source/static과 current LASAL IDE build까지 완료했지만
 > PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 
-> **출판 후보 상태:** 이 Markdown은 2026-08-11 current development source용
-> `2.3-candidate` 원본이다. 여기서 생성한 `output/doc` DOCX와 `output/pdf` PDF는 semantic 및
-> 레이아웃 검토용 후보이며 production 승인본이 아니다. canonical Distribution DOCX/PDF는
-> 여전히 Axis1 SDO Write와 stale recovery retirement 이전의 `1.9` gate-off snapshot이다.
-> current PLC live proof, release-scope 승인과 후보 독립 검토가 끝나기 전에는 canonical을
-> 덮어쓰거나 이 후보를 production 배포 매뉴얼로 간주하지 않는다.
+> **canonical release-input 상태:** 이 Markdown은 2026-08-12 current development source용
+> `2.3-candidate` 원본이다. canonical Distribution DOCX/PDF는 이 원본에서 생성하고 독립
+> 검토한 `2.3-candidate`와 동일한 tracked release-input baseline이다. 이 전환은 clean release
+> candidate 생성을 위한 입력 승격일 뿐 production 승인, current PLC live proof 또는 full
+> Distribution PASS가 아니다. reviewed Gate D physical snapshot ratchet, clean detached checkout의
+> full Distribution과 release-scope 승인이 끝나기 전에는 canonical `2.3-candidate`를 production
+> 배포 매뉴얼로 간주하지 않는다.
 
 \toc
 
