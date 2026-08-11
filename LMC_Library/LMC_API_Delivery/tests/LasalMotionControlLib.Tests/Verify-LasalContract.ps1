@@ -2651,14 +2651,17 @@ function Assert-LasalAxisOwnershipPublishMutationFences {
             "($($allMacroInventory.Count)/165, " +
             "$($joinedMacroInventory.Length)/6175, $macroInventorySha256).")
     }
-    if (($macroMatches.Count -eq 0) -or
-        ($macroMatches[-1].Index -ge
-            $firstCustomImplementationMatch.Index)) {
+    if ($macroMatches.Count -lt 1) {
+        throw "$blocker macro definition inventory is empty."
+    }
+    $lastMacroMatch = $macroMatches[$macroMatches.Count - 1]
+    if ($lastMacroMatch.Index -ge
+        $firstCustomImplementationMatch.Index) {
         throw "$blocker macro definitions escaped the pre-implementation region."
     }
     if (($lexicalPublishMatches[0].Index -le
             $firstCustomImplementationMatch.Index) -or
-        ($lexicalPublishMatches[0].Index -le $macroMatches[-1].Index)) {
+        ($lexicalPublishMatches[0].Index -le $lastMacroMatch.Index)) {
         throw "$blocker qualified publish implementation moved before its prerequisites."
     }
     foreach ($constant in $constantContracts.GetEnumerator()) {
@@ -5443,8 +5446,9 @@ function Assert-LasalAxisOwnershipPublishTcpFinalContract {
     if ($endVars.Count -lt 1) {
         throw "$Owner CyWork has no declaration terminator."
     }
+    $lastEndVar = $endVars[$endVars.Count - 1]
     $cyBody = $cyWork.Substring(
-        $endVars[-1].Index + $endVars[-1].Length)
+        $lastEndVar.Index + $lastEndVar.Length)
     $phase2 = Get-LasalAxisOwnershipPublishImmediateIfBranch `
         -ConsumerWindow $cyBody `
         -ConditionPattern (
@@ -5700,8 +5704,10 @@ function Assert-LasalAxisOwnershipPublishTcpFinalContract {
     if ($responseEndVars.Count -lt 1) {
         throw "$Owner Response has no declaration terminator."
     }
+    $lastResponseEndVar =
+        $responseEndVars[$responseEndVars.Count - 1]
     $responseBody = $response.Substring(
-        $responseEndVars[-1].Index + $responseEndVars[-1].Length)
+        $lastResponseEndVar.Index + $lastResponseEndVar.Length)
     $responseGuard = Get-LasalAxisOwnershipPublishImmediateIfBranch `
         -ConsumerWindow $responseBody `
         -ConditionPattern (
@@ -7540,12 +7546,15 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
             $reserveHeaderIndex = $headerIndex
         }
     }
-    if (($macroMatches.Count -eq 0) -or
-        (-not $firstCustomImplementationMatch.Success) -or
+    if ($macroMatches.Count -lt 1) {
+        throw "$blocker macro definition inventory is empty."
+    }
+    $lastMacroMatch = $macroMatches[$macroMatches.Count - 1]
+    if ((-not $firstCustomImplementationMatch.Success) -or
         ($reserveHeaderIndex -le 0) -or
         ($reserveHeaderIndex -ge ($implementationHeaders.Count - 1)) -or
         ($implementationHeaders[$reserveHeaderIndex].Index -le
-            $macroMatches[-1].Index) -or
+            $lastMacroMatch.Index) -or
         ($implementationHeaders[$reserveHeaderIndex].Index -le
             $firstCustomImplementationMatch.Index) -or
         ($implementationHeaders[$reserveHeaderIndex - 1].Groups['Name'].Value -cne
@@ -7568,7 +7577,7 @@ function Assert-LasalAxisOwnershipReserveMutationFences {
     }
     $firstCustomHeaderEvent =
         $implementationStructureMatches[$firstCustomHeaderIndex * 2]
-    $lastMacroEnd = $macroMatches[-1].Index + $macroMatches[-1].Length
+    $lastMacroEnd = $lastMacroMatch.Index + $lastMacroMatch.Length
     if (($lastMacroEnd -gt $firstCustomHeaderEvent.Index) -or
         ($controlScan.Substring(
             $lastMacroEnd,
