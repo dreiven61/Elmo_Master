@@ -224,8 +224,9 @@ five contract-scoped `TCPMotionInterface` lifecycle bodies. Gate B1
 `DerivedDeclaration`, Gate B2 `DerivedWired`, and Gate C `DerivedCandidate` have
 their own committed physical checkpoint manifests. The sequence-4 manifest
 captured `TerminalWakeBrokerCandidate` with `ProductionApproved=false` and
-`NeedsRebaseline=true`; the current generated `Classes.lcb` has since drifted and
-does not pass focused/C78 current-tree verification.
+`NeedsRebaseline=true`. The later isolated `Classes.lcb=99014DD9...` third hash is
+preserved in commit `b2019db`; its validator PASS does not change the finalizer
+exit `3` STOP, and focused/C78 current-tree verification still fails.
 
 The Gate D source contains the four-state one-attempt Diagnostics receipt, two
 ordered `TCPMotionInterface` broker invocations, one exact production-path
@@ -393,9 +394,9 @@ capture tool separately retains the old `HistoricalGateD` pin while freezing
 the new current pin; its self-test passes positive `50` / negative `99`, and
 revalidation of the actual sequence-4 manifest passes. These support-tool and
 retained-evidence changes are kept in a separate tooling/evidence changeset and
-do not approve production use. On the current main worktree, the formal current
-gate still fails only because `Classes.lcb` is `6E115876...` rather than the
-checkpoint `24402BFA...`.
+do not approve production use. At that post-commit checkpoint, the formal gate
+failed because `Classes.lcb` was `6E115876...` rather than checkpoint
+`24402BFA...`; the later `99014DD9...` third hash remains a current STOP/FAIL.
 
 The trust-anchor tools were then committed at `bb5fd93`. Commit `5543579`
 atomically committed the sequence-4 manifest
@@ -459,15 +460,24 @@ and `Networks.lcb` is 242,363 bytes /
 LASAL process count was zero before finalization. This is a third Classes hash;
 do not repeat the Rebuild or completed manual exact-method smoke.
 
-Current fix commit `fa2a456` supplies the fail-closed production finalizer at
+The finalizer revision that produced the `b2019db` bundle is historical commit
+`fa2a456` at
 `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
 physical 187,443 bytes / SHA-256
-`1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`.
+`1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`,
+Git blob `5495e5636462d8aa67e13abb70c310a1ee8f9e67`. Its historical
 PowerShell 7 self-test passes positive `26` / negative `76`; Windows PowerShell
-5.1 AST/self-test passes positive `24` / negative `74`. Production
-`-FinalizeCandidate` remains PowerShell 7-only because the atomic publication
-contract includes directory ADS evidence. Run this exact command from the
-canonical repository root after normal LASAL exit:
+5.1 AST/self-test passes positive `24` / negative `74`. The manifest retains this
+producer tuple.
+
+Current commit `29811c4` is the future-run process-exit fix, physical 188,693
+bytes / SHA-256
+`817E1A416C1484E1AE897140B2C56D8A7DDDF1F4158AC7DED2B59F28C5050116`.
+Its PowerShell 7 self-test passes positive `27` / negative `77`; status output is
+kept out of the success pipeline and exactly one `System.Int32` `{0,2,3}` is
+required. Production remains PowerShell 7-only because the atomic publication
+contract includes directory ADS evidence. The following is a future-candidate
+command reference, not permission to rerun the `b2019db` bundle:
 
 ```powershell
 & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
@@ -488,15 +498,19 @@ finalizer and reached its atomic-publish named-identity recheck. It then exited
 stage was cleaned. Commit `fa2a456` replaces that lookup with exact-case
 `IDictionary`/`PSCustomObject` access and adds production-shape ordered-report
 tests. This is a tooling failure, not an accepted exit `3` result. The frozen log
-and generated outputs remain the classification inputs, so rerun only the fixed
-finalizer; do not repeat the Rebuild. Until a bundle is published there is
-nothing to validate, stage, Download, approve, or use as runtime evidence.
+and generated outputs remained the classification inputs, so one finalizer-only
+rerun was made without repeating the Rebuild. `fa2a456` published the bundle with
+manifest disposition `UNSTABLE_THIRD_CLASSES_HASH_STOP` and exit `3`; its old
+`Write-Output` status plus returned integer made the host process incorrectly
+return `0`. Commit `29811c4` fixes that future process-exit path without changing
+or republishing the historical bundle. Do not rerun the finalizer or Rebuild.
 
 The finalizer may accept at most one exact load-only `DriveComL2.h` `E0015`
 record. Any different or additional error stops classification. If finalizer exit
 `0`, `2`, or `3` publishes
 `candidate_finalization_gate_d_rebaseline_6e115876`, do not delete or overwrite
-the directory and do not rerun the finalizer. Its exact inventory is
+the directory and do not rerun the finalizer. Commit `b2019db` now preserves its
+exact inventory:
 `.finalizer-owner.json`, `Classes.post-rebuild.snapshot.lcb`,
 `Networks.post-rebuild.snapshot.lcb`,
 `derived_build_transcript_gate_d_rebaseline_6e115876.txt`,
@@ -505,20 +519,38 @@ the directory and do not rerun the finalizer. Its exact inventory is
 `classes_lcb_gate_d_rebuild_candidate.comparison.json`, and
 `classes_lcb_gate_d_rebuild_candidate.finalization.json`.
 
-Initial commit `531abdd`, with its current finalizer pin updated by `fa2a456`,
-supplies the read-only bundle validator at
+The read-only bundle validator originated at `531abdd`; its current commit is
+`c48e403` at
 `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
-physical 180,538 bytes / SHA-256
-`A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`.
-PowerShell 7 AST/self-test passes positive `1` / negative `27`; Windows PowerShell
+physical 189,867 bytes / SHA-256
+`DB8B046DF00900140E1AB97B83EF1E7AD13EFB44AC2768EE54B219160D8CE6B0`.
+PowerShell 7 self-test passes positive `5` / negative `32`; Windows PowerShell
 5.1 AST passes, while PS5 production exits `4` before any bundle evidence read.
-Production verification is PowerShell 7-only. Run exactly from the canonical
-repository root before any Git commit:
+Production verification is PowerShell 7-only. For a future bundle, run exactly
+from the canonical repository root before its Git commit; the same read-only
+command was rerun successfully after commit `b2019db` for committed-tree replay:
 
 ```powershell
 & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
 $LASTEXITCODE
 ```
+
+The initial validator rejected the two legitimate repeated
+`Open Network Editor for 'Comm_Network'` restoration records by command text;
+`29811c4` instead binds each occurrence to its raw `commandLineIndex`. A second
+validator defect compared checkout physical identities directly with historical
+Git blobs, failing on the converter CRLF tuple and the C78 verifier mixed-EOL
+tuple. `c48e403` adds exact path/physical bytes/SHA/blob-OID/canonical-LF bridges
+for only those two historical files and does not relax EOL checks generally. The
+bundle remained byte-unchanged, and current production verification returns exit
+`0` on the committed `b2019db` bundle.
+
+The complete manifest records `Classes.lcb=99014DD9...`, unchanged
+`Networks.lcb=C307547E...`, finalizer exit `3`, and all nonapproval/no-runtime
+flags. The checkpoint comparison is `96` changed bytes / `52` runs / `34`
+changed opaque owners with zero unmapped runs; all four Gate D target and both
+protected dependency records are exact. That is not semantic equivalence and
+does not permit Download or hash-only rebaseline.
 
 Validator exit `0` proves current bundle integrity only. It neither approves the
 candidate nor proves a past atomic move, complete-manifest written-last ordering,
@@ -1566,9 +1598,11 @@ transcript passes `VerifyBuild`; PID 7288 remains historical only. The later
 three-method exact Implementation UI check is
 `manual-attested`. Its separate automated method-smoke JSON/log artifact is still
 pending and nonblocking. PID 34656 subsequently rebuilt and downloaded after
-`5543579`, but its regenerated `Classes.lcb` hash is `6E115876...`, not the
-manifest's `24402BFA...`; current focused/C78 verification fails and any runtime
-result is exploratory until rebaseline.
+`5543579`; that historical regenerated hash was `6E115876...`, not the manifest's
+`24402BFA...`. The later isolated artifact is `99014DD9...` and its exact
+`b2019db` bundle is validator-PASS but finalizer exit `3` STOP. Current focused/C78
+verification still fails and any runtime result remains exploratory until a
+reviewed rebaseline.
 
 ## Files and test status
 
@@ -1603,7 +1637,9 @@ physical manifest and the exact seven production paths listed above. The
 manifest records `TerminalWakeBrokerCandidate`, `ProductionApproved=false`, and
 `NeedsRebaseline=true`; it is not production approval. The current generated
 `Classes.lcb` is `99014DD9...`, so it no longer matches the manifest-bound
-`24402BFA...` and current focused/C78 verification fails.
+`24402BFA...`. Commit `b2019db` preserves the nonapproval STOP bundle and
+`c48e403` validates its integrity, but current focused/C78 verification still
+fails.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
 `CallbackProtocolTests.cs`, `CallbackSessionFencingTests.cs`,
 `CallbackV2ConnectionTests.cs`, the response-envelope tests in

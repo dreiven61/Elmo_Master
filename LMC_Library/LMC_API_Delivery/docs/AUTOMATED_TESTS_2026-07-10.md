@@ -331,9 +331,9 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   checkpoint capture tool은 기존 `HistoricalGateD` pin을 보존하면서 current pin을 별도로
   고정했고 self-test positive `50` / negative `99`, actual sequence-4 manifest revalidation이
   PASS했다. 이 support-tool/evidence 변경은 production 변경과 분리된 tooling/evidence
-  changeset이며 production approval을 의미하지 않는다. 현재 main worktree의 formal current
-  gate는 `Classes.lcb=6E115876...` 대 checkpoint `24402BFA...` 차이 하나 때문에 계속
-  실패한다.
+  changeset이며 production approval을 의미하지 않는다. 그 changeset 당시 main
+  worktree의 formal gate는 `Classes.lcb=6E115876...` 대 checkpoint
+  `24402BFA...` 차이 하나 때문에 실패했다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와
@@ -423,11 +423,12 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 - `5543579` 뒤 LASAL PID 34656은 C78/ARM Rebuild에서 변경된 세 class compile,
   `Compiler Done`, `Linker Done`, command success를 기록했다. 이어진 Download는
   `Download Ok`, `Project successfully loaded`였고 이후 Reset/Restart와 project loaded도
-  성공했다. 그러나 regenerated current `Classes.lcb`는 8,549,773 bytes, SHA-256
+  성공했다. 그러나 그 session의 regenerated `Classes.lcb`는 8,549,773 bytes, SHA-256
   `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`로
-  manifest의 `24402BFA...`와 다르다. focused `VerifyCurrent`와 C78 input-equivalence는
-  현재 실패한다. Rebaseline 전 runtime 관측은 exploratory이며 production approval이
-  아니다.
+  manifest의 `24402BFA...`와 달랐고 focused `VerifyCurrent`와 C78
+  input-equivalence는 당시 실패했다. Later `99014DD9...` artifact에서도 현재
+  gate는 계속 실패한다. Rebaseline 전 runtime 관측은 exploratory이며
+  production approval이 아니다.
 - commit `7038445`는 `6E115876...`-start baseline과 exact reversible
   `24402BFA... -> 6E115876...` binary patch를 production source 변경 없이 보존한다.
   commit `79f03d36f89c34b26325666a4a3eddb9306c4674`의 fail-closed 비교기는
@@ -457,14 +458,21 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`이고
   finalization 전 LASAL process는 0개였다. 이는 제3 Classes hash 분류 입력이며
   Rebuild와 이미 완료한 manual exact-method smoke를 반복하지 않는다.
-- current fix commit `fa2a456`의 production finalizer는
+- `b2019db` bundle의 historical producer는 `fa2a456` revision의
   `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Finalize-LasalClassesRebuildCandidate.ps1`,
   physical 187,443 bytes / SHA-256
-  `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`다.
-  PowerShell 7 self-test positive `26` / negative `76`, Windows PowerShell 5.1
-  AST/self-test positive `24` / negative `74`가 PASS한다. 다만 directory ADS evidence를
-  publication contract에 포함하므로 production `-FinalizeCandidate`는 PowerShell 7에서만
-  실행한다. canonical repository root에서 exact command는 다음과 같다.
+  `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`,
+  Git blob `5495e5636462d8aa67e13abb70c310a1ee8f9e67`이다. 당시 PowerShell 7
+  self-test positive `26` / negative `76`, Windows PowerShell 5.1 AST/self-test
+  positive `24` / negative `74`가 PASS했다. Published manifest의 producer tuple은
+  이 역사 identity로 유지한다.
+- current future-run fix `29811c4`의 finalizer는 physical 188,693 bytes / SHA-256
+  `817E1A416C1484E1AE897140B2C56D8A7DDDF1F4158AC7DED2B59F28C5050116`이고
+  PowerShell 7 self-test positive `27` / negative `77`가 PASS한다. Status를
+  `Console.Out`으로 분리하고 final result를 exact `System.Int32` `{0,2,3}`으로 제한해
+  process exit `3`을 보존한다. Directory ADS evidence 때문에 production은 계속
+  PowerShell 7-only다. 아래는 future candidate용 exact command이며 `b2019db` bundle에는
+  다시 실행하지 않는다.
 
   ```powershell
   & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
@@ -482,14 +490,23 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `PSObject.Properties[...].Value`로 읽은 버그 때문에 exit `4`로 중단됐다. bundle은
   publish되지 않았고 exact-owned stage cleanup은 완료됐다. `fa2a456`은 exact-case
   `IDictionary`/`PSCustomObject` accessor와 production-shape ordered-report 회귀를
-  추가했다. 이 exit `4`는 accepted exit `3` 판정이 아니다. frozen log와 outputs가
-  그대로이므로 Rebuild가 아니라 fixed finalizer만 다시 실행한다. publish 전에는
-  validator 입력, Download, approval 또는 runtime evidence가 없다.
-- initial `531abdd` validator의 current `fa2a456` pin은
+  추가했다. 이 exit `4`는 accepted exit `3` 판정이 아니다. Frozen log와 outputs가
+  그대로였기 때문에 Rebuild 없이 finalizer만 한 번 다시 실행했고, `fa2a456`은 bundle을
+  publish했다. Manifest는 `UNSTABLE_THIRD_CLASSES_HASH_STOP`, exit `3`을 정확히
+  기록했지만 status `Write-Output`과 반환 integer가 success pipeline에서 배열이 되어 host
+  process는 잘못 `0`을 반환했다. `29811c4`가 이 future exit-code bug를 고쳤으며 historical
+  bundle을 변경하거나 republish하지 않는다. Finalizer와 Rebuild는 더 실행하지 않는다.
+- Commit `b2019db`는 published exact 8-file directory를 한 commit으로 보존한다. Manifest는
+  `Classes.lcb=99014DD9...`, `Networks.lcb=C307547E...`, exit `3`,
+  `ProductionApproved=false`, `staticReplayPermitted=false`,
+  `onlineRuntimeQualificationPermitted=false`다. Checkpoint comparison은 changed
+  byte/run/opaque-owner `96/52/34`, unmapped run `0`, Gate D target 4개와 protected
+  dependency 2개 exact를 기록한다. 이는 semantic equivalence 또는 Download 근거가 아니다.
+- initial `531abdd`에서 시작한 validator의 current commit `c48e403`은
   `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Verify-LasalClassesRebuildFinalizationBundle.ps1`,
-  physical 180,538 bytes / SHA-256
-  `A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`다.
-  PowerShell 7 AST/self-test positive `1` / negative `27`, Windows PowerShell 5.1
+  physical 189,867 bytes / SHA-256
+  `DB8B046DF00900140E1AB97B83EF1E7AD13EFB44AC2768EE54B219160D8CE6B0`다.
+  PowerShell 7 self-test positive `5` / negative `32`, Windows PowerShell 5.1
   AST가 PASS한다. PS5 production은 bundle evidence를 읽기 전에 exit `4`이므로 production
   `-VerifyBundle`은 PowerShell 7-only다. finalizer exit `0`/`2`/`3`이
   `candidate_finalization_gate_d_rebaseline_6e115876`를 publish한 뒤 그 directory를
@@ -507,6 +524,14 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
   $LASTEXITCODE
   ```
+
+  Earlier validator는 동일 command text의 두 정상 load-restoration record를 중복으로
+  오판했다. `29811c4`는 raw `commandLineIndex` identity로 이를 교정했다. 다음에는 historical
+  converter의 CRLF physical tuple과 Git LF blob, C78 verifier의 mixed-EOL physical tuple과
+  Git LF blob을 같은 raw tuple로 오판했다. `c48e403`은 그 두 exact path에만
+  physical bytes/SHA/blob OID/canonical-LF dual tuple을 적용하며 broad EOL relaxation은
+  하지 않는다. Bundle은 두 validator fix 동안 byte-unchanged였고 current validator는
+  committed `b2019db` bundle에서 exit `0` PASS했다.
 
   validator exit `0`은 현재 bundle integrity/cross-file contract만 증명한다. 과거 atomic
   move, complete manifest written-last ordering, PLC/runtime 또는 approval을 증명하지 않는다.

@@ -11,12 +11,16 @@
   `LMCConnection`은 exact `0x8080` attempt/retry/ACK/outcome
   evidence와 current-session v2 receiver decision snapshot을 공개한다. LASAL Gate D
   source에는 one-attempt D5 terminal receipt/broker와 `PublishEvent` candidate가 있고
-  post-commit C78 Rebuild/Download도 수행됐다. 다만 regenerated `Classes.lcb`
-  `6E115876...`가 sequence-4 manifest의 `24402BFA...`와 달라 reviewed rebaseline
-  전 PLC 결과는 exploratory다. Gate D는 계속 `ProductionApproved=false`,
-  `NeedsRebaseline=true`이며 PC fake-peer/GUI/raw-wire evidence는 PLC causal packet proof가
-  아니다. `bff3bc7`의 live mode도 실제 PLC에 실행하지 않았고 reviewed rebaseline,
-  exact downloaded checkpoint, pcap과 PLC Watch 전에는 승인되지 않는다.
+  post-commit C78 Rebuild/Download도 수행됐다. 그때의 `Classes.lcb=6E115876...`는
+  sequence-4 manifest의 `24402BFA...`와 달랐고, 이후 별도 no-Connect/no-Download
+  isolated Rebuild는 제3 hash `99014DD9...`를 생성했다. Commit `b2019db`는 그
+  exact 8-file bundle을 보존하고 current validator `c48e403`은 committed bundle을
+  PASS했지만 finalizer 판정은 `UNSTABLE_THIRD_CLASSES_HASH_STOP`, exit `3`이다.
+  Gate D는 계속 `ProductionApproved=false`, `staticReplayPermitted=false`,
+  `onlineRuntimeQualificationPermitted=false`이며 PC fake-peer/GUI/raw-wire evidence와
+  bundle integrity PASS는 PLC causal packet proof가 아니다. `bff3bc7`의 live mode도
+  실제 PLC에 실행하지 않았고 reviewed rebaseline, exact downloaded checkpoint, pcap과
+  PLC Watch 전에는 승인되지 않는다.
   Dispatcher에 늦게 도착한 stale/old wake는 diagnostic ignored log를 남길 수 있지만
   retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 못한다.
 - 2026-07-31 current override: `main@6537bcf` + working tree에서 SDK Debug/Release
@@ -276,7 +280,7 @@
 | 현재 개발·실기 진단 WPF | `LMC_Library/LasalApiWpfTestApp` | canonical API source ProjectReference 사용 |
 | 외부 배포 예제 | `LMC_Library/LMC_API_Distribution` | 내부 PLC 시험 종료 전 동결; 현재 완료 기준에서 제외 |
 | 현재 PLC source | `Lasal_PRG/Elmo_EtherCAT_Test_4Axis` | canonical tracked LASAL project |
-| current configured EtherCAT source | GL-9086 physical index 0 + Elmo physical index 1..4 | working source/ENI/network와 pre-callback/pre-`0x7D12`/pre-`0x7D13` LASAL IDE build 확인; current overall source rebuild와 PLC download/live는 미검증 |
+| current configured EtherCAT source | GL-9086 physical index 0 + Elmo physical index 1..4 | working source/ENI/network와 pre-callback/pre-`0x7D12`/pre-`0x7D13` LASAL IDE build를 확인했다. Callback source의 later isolated Rebuild는 `99014DD9...` STOP bundle로 보존됐지만 Connect/Download가 없었으므로 그 exact artifact의 PLC download/live는 미검증이다. |
 | single-axis 범위 | descriptor `1..9` | 축 1~4 physical, 축 5~9 simulated |
 | Cartesian group move/lock | X/Y/Z/U 축 1~4 | 9축 group interpolation이 아님 |
 | 기존 motion/group command | 25개 | 캡처 기반 23 + local motion extension 2 |
@@ -301,15 +305,15 @@
 | Axis Stop exact-once stable Standstill | SDK Begin이 `0x2022`를 정확히 1회 보내 accepted continuation과 process-local axis mutation generation을 게시하고 Resume은 `0x2028`의 `IsSuccess && IsStandstill`만 기본 3회 연속 확인. compound facade는 두 단계를 한 total deadline으로 조합 | WPF는 command-before journal과 accepted observer를 사용한다. accepted restart는 exact endpoint/D0/axis와 final live D0 뒤 status-only로 resolve한다. active Reset takeover는 predecessor를 원자 보존하고 pinned old-session transport를 RPC Close 없이 abort한 뒤 새 connection object에서 identity를 확인해 Stop을 1회 보낸다. pre-wire/NACK는 pending Reset만 복원하고 완료된 Reset은 재활성화하지 않는다. 완료된 Reset 뒤 Stop NACK는 final D0 physical identity가 일치할 때만 resolve하고 실패/mismatch는 exact Stop/predecessor를 `RecoveryRequired`로 보존한다. post-write uncertainty는 Stop recovery 유지, Motion+Stop은 Motion -> Stop 순으로 resolve한다. 실제 PLC/축/packet/물리 정지는 별도 |
 | Axis Reset accepted-once completion | Begin이 `0x2024`를 정확히 1회 보내고 accepted continuation을 session/send-priority publication 안에서 설치하며 Resume은 `0x2028`의 successful `AxisErrorId==0`만 기본 3회 연속 확인. compound는 한 elapsed total deadline 공유 | valid NACK는 exact latest mutation reservation을 rollback하고 기존 proof를 보존한다. WPF durable Accepted는 process restart 뒤 command 0/status 3으로 복구하며 final live D0를 재검증한다. observer 저장 실패는 same-session exact pending으로 Resume하고, takeover session mismatch는 current transport를 보존한 채 stale pending을 폐기한다. LASAL AxisErrorId-clear 관찰이며 DS402 Fault bit/`0x603F`/실제 encoder recovery는 별도 |
 | Drive DS402 Fault/error diagnostics | `ReadDriveStatus[Async]`의 실제 SDO `0x6041:0` bit 3을 `HasDs402Fault`로 분리하고 `GetDriveErrorCode[Async]`가 `0x603F:0 UInt16/2`를 한 D5 ticket으로 읽음 | 새 opcode/LASAL 구조 없이 기존 `0x7E50/0x7E03`과 capability/identity gate 재사용. `0x2028 StatusWord=0`, LASAL AxisErrorId, DS402 Fault와 `0x603F`를 별도 관측하며 실제 Reset 전후 drive/pcap 증거는 대기 |
-| RPC connection/callback ownership | client/metadata/callback/state cleanup을 connection lifetime generation에 귀속하고 `ConnectionStateChanged` 안의 same-instance lifecycle 재진입을 sync/async 모두 즉시 거부. `0x405C` legacy 12/4는 current valid TCP peer만 허용하고 explicit v2 32/20은 BootId/SessionEpoch/cookie/sequence fence를 설치한다. `CurrentSessionGeneration`, retained init evidence와 immutable v2 decision snapshot이 PC provenance를 제공한다. | mismatch re-registration은 기존 tuple을 보존한다. `66b5cf2`는 exact `ErrorId=-1` canonical v2 short failure만 같은 socket에서 한 번 재시도하고 `f337fec`/`ad7c8b1`은 cleanup/UI dispatch 뒤 evidence를 보존·fence한다. `af4ab63`은 `ErrorId=0` short ACK의 zero-retry/full cleanup과 다음 수동 Connect의 새 socket을 고정하고 요청 tuple을 `RequestedCallback`, 실제 UDP bind를 `BoundCallback` 또는 `not-bound`로 구분한다. `bff3bc7`은 GD-N10A/N13/N14를 위한 fail-closed PC raw-wire harness를 제공하지만 actual PLC live 실행은 없다. Gate D sender/broker candidate와 post-commit Rebuild/Download는 존재하지만 current `Classes.lcb` drift와 live 32/20 registration, 52-byte UDP, causal `0x7E03` packet proof가 남아 있다. |
+| RPC connection/callback ownership | client/metadata/callback/state cleanup을 connection lifetime generation에 귀속하고 `ConnectionStateChanged` 안의 same-instance lifecycle 재진입을 sync/async 모두 즉시 거부. `0x405C` legacy 12/4는 current valid TCP peer만 허용하고 explicit v2 32/20은 BootId/SessionEpoch/cookie/sequence fence를 설치한다. `CurrentSessionGeneration`, retained init evidence와 immutable v2 decision snapshot이 PC provenance를 제공한다. | mismatch re-registration은 기존 tuple을 보존한다. `66b5cf2`는 exact `ErrorId=-1` canonical v2 short failure만 같은 socket에서 한 번 재시도하고 `f337fec`/`ad7c8b1`은 cleanup/UI dispatch 뒤 evidence를 보존·fence한다. `af4ab63`은 `ErrorId=0` short ACK의 zero-retry/full cleanup과 다음 수동 Connect의 새 socket을 고정하고 요청 tuple을 `RequestedCallback`, 실제 UDP bind를 `BoundCallback` 또는 `not-bound`로 구분한다. `bff3bc7`은 GD-N10A/N13/N14를 위한 fail-closed PC raw-wire harness를 제공하지만 actual PLC live 실행은 없다. Gate D sender/broker candidate와 historical post-commit Rebuild/Download는 존재한다. Later `99014DD9...` isolated artifact는 `b2019db` bundle과 validator PASS로 보존됐지만 exit `3` STOP이며 live 32/20 registration, 52-byte UDP, causal `0x7E03` packet proof가 남아 있다. |
 | TCP same-peer takeover | `TCPIPServer1 : TCPIPServer`, port 4000, `MaxConnections=2`, stable RPC owner 1 | 동일 IPv4 candidate가 inherited server FSM에 old socket shutdown을 요청하고 queue/receive/RPC/session을 새 owner로 교체. 외부 테스트 프로젝트 PLC runtime PASS를 마스터 source에 반영했고 current master Rebuild/Link까지 PASS했으나 master PLC download와 다른-IP/fault/soak는 대기 |
 | 개발 WPF | D5와 topology/CREVIS read, guarded output-write UI, D4 qualification/cleanup/reconnect/config-only manual Configure adapter 및 durable Axis/motion/Group Power/Group Enable/Group Reset recovery 포함 Release build PASS; `af4ab63` current actual-control smoke 335/335 PASS | VS2019 MSBuild Release 검증이다. 기존 fake-RPC/process recovery에 callback reconnect/evidence와 stale Dispatcher replacement-session 회귀를 포함한다. Single Axis live qualification, actual PLC SDO Write/D5 scenario와 실제 축/Group recovery는 별도다. 2026-07-31 Debug/Release baseline은 297/297이다. |
 | 개발 WPF callback override 및 PC wire harness 2026-08-11 | `af4ab63` 기준 RPC init attempt/retry/ACK/outcome, 요청/실제 callback endpoint 구분, accepted v2 registration fence, immutable receiver decision/counter evidence panel과 stale dispatcher fence를 추가했다. `bff3bc7`은 retry 0회의 exact `0x8080/0x405C/0x405D` GD-N10A/N13/N14 PC-only harness와 16개 회귀를 추가했다. SDK current Release `1133/1133`, WPF current Release `335/335` PASS다. | `ErrorId=0` non-canonical short ACK는 재시도 0회, listener/TCP cleanup과 다음 수동 Connect의 새 socket을 요구한다. `RequestedCallback`은 입력 tuple이고 `BoundCallback`은 실제 endpoint 또는 `not-bound`다. stale/old wake는 diagnostic ignored log를 남길 수 있지만 retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 않는다. wire harness PASS도 PC 관측일 뿐이며 reviewed rebaseline, exact downloaded checkpoint, pcap과 PLC Watch 없이는 PLC callback/runtime proof가 아니다. |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery, D5 contention exact Busy/recovery, timeout/drain, queued-cancel one-shot/race/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | `Phase5TransportClean / IntegratedReadOwnerDormant` PASS | current external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. |
-| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree FAIL | checkpoint generated `Classes.lcb`와 Network 계약은 일치했지만 post-commit Rebuild가 `Classes.lcb`를 `24402BFA...`에서 `6E115876...`로 바꿔 focused/C78 current verification이 실패한다. reviewed rebaseline 전 runtime 결과는 exploratory다. |
+| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated current artifact `99014DD9...`로 generator identity가 안정적이지 않다. `b2019db`의 exact bundle은 `96` changed bytes / `52` runs / `34` opaque owners를 기록하고 `c48e403` validator를 PASS했지만 finalizer exit `3`, `ProductionApproved=false`다. focused/C78 current verification은 계속 실패하며 Download·runtime qualification·hash-only rebaseline은 금지다. |
 | D5 executor 초기화 | constructor declaration/implementation, generated `@STD`, state/buffer 초기화와 Idle publish 계약 PASS | Axis1 `ExpectedSdoWriteAxis=1` static과 IDE build는 PASS했다. actual Busy/Write/runtime 원인은 PLC에서 별도 검증한다. |
-| LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; changed-class implementation smoke와 신규 `CInvalidArgException=0` PASS | current `0x405C` ownership+`0x7D12`+`0x7D13` 편집의 fresh Save/Rebuild/Link/smoke, `DriveComL2.h` open/load-time 설치 정합과 C78/C81 warning debt, current PLC download/runtime은 별도 |
+| LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; later callback exact-method smoke와 isolated one-Rebuild/no-Connect/no-Download session 완료 | isolated Rebuild의 compile/link/normal-exit는 증거화됐지만 `Classes.lcb=99014DD9...` exit `3` STOP이다. `DriveComL2.h` load-only `E0015` 1건은 bounded classification에서만 허용됐고 C78/C81 warning debt, reviewed rebaseline, current PLC download/runtime은 별도다. |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static/current IDE build 완료 | dormant `0x7D12/0x7D13`의 current IDE build/download/live와 새 `0x2047` PLC download/ACK timing 및 invalid/stale/fault는 별도 |
 | 기존 motion/group PLC E2E·재캡처 | 25-command 전체 matrix 미완료 | 기존 subset capture PASS; true Buffered/stop-first code/build 완료, live packet은 별도 |
 | diagnostics PLC 시험 matrix | D1 Catalog/4 PI, D2 4-entry Bulk, D5 general-inline 1/2/4-byte와 same-BootId TypeMismatch recovery capture PASS | Bulk/Recorder soak, Bulk operator partial/recovery와 Recorder reconnect/adopt code/build만 완료; live soak/fault/reconnect/adopt와 D5 나머지 fault는 별도 |
@@ -1464,14 +1468,17 @@ download를 마치기 전에는 Phase 5 구현 완료나 production 승인을 �
   `af4ab63`/`bff3bc7` 기준 SDK `1133/1133`과 WPF Release `335/335`가 PASS했다. WPF 결과에는 old-session
   statistics Dispatcher action의 replacement-session 무변경 회귀와 non-canonical
   `ErrorId=0` short ACK의 zero-retry/full-cleanup/fresh-manual-socket 회귀가 포함된다.
-  PC suite에는 GD-N10A/N13/N14 raw-wire harness 16개도 포함되지만 actual PLC live 실행은 없다. Post-commit
-  Rebuild/Download도 수행됐지만 current `Classes.lcb`가 sequence-4 manifest identity에서
-  drift했다. Reviewed rebaseline 전 runtime은 exploratory이며 exact 32/20 registration,
+  PC suite에는 GD-N10A/N13/N14 raw-wire harness 16개도 포함되지만 actual PLC live 실행은 없다. Historical
+  post-commit Rebuild/Download의 `Classes.lcb=6E115876...`와 later isolated Rebuild의
+  `99014DD9...` 제3 hash가 모두 sequence-4 `24402BFA...`와 다르다. `b2019db`는
+  990 bundle을 보존했지만 validator PASS 후에도 exit `3` STOP이다. Reviewed rebaseline 전
+  runtime은 exploratory이며 exact 32/20 registration,
   52-byte UDP와 causal `0x7E03`, disarm/reconnect 및 negative network matrix는 미검증이다
 
 - `0x7E11/0x7E12`와 bit 14의 static 7-entry wire는 `Test2`에서 확인했고
-  pre-callback/pre-`0x7D12`/pre-`0x7D13` Rebuild/Link도 PASS했다. 다만 current overall source의 IDE build와
-  PLC cold download/runtime provenance는 없다.
+  pre-callback/pre-`0x7D12`/pre-`0x7D13` Rebuild/Link도 PASS했다. Later current-project
+  isolated Rebuild는 완료됐지만 identity instability로 STOP이며, accepted artifact의 PLC cold
+  download/runtime provenance는 없다.
   `0x7E13/0x7E22`, 464-byte coherent snapshot과 CREVIS read-owner client/network는
   source/static과 pre-callback/pre-`0x7D12`/pre-`0x7D13` IDE build까지 완료됐지만 bits 15/16은 OFF이고 PLC live는 없다. `0x7E23`
   PLC route/handler는 없고 bit 17도 OFF다

@@ -2016,17 +2016,37 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   LMCDiagnosticsService, LMCUdpCallbackSender, and TCPMotionInterface, and
   reported Compiler Done, Linker Done, and success. Download then reported
   Download Ok and Project successfully loaded; a later Reset/Restart also
-  succeeded and loaded the project again. The regenerated current Classes.lcb is
-  8,549,773 bytes /
+  succeeded and loaded the project again. That historical regenerated Classes.lcb
+  was 8,549,773 bytes /
   6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712,
   not the checkpoint-bound 24402BFA... identity. Focused VerifyCurrent and C78
-  input-equivalence therefore fail. Byte comparison finds 99 changed bytes in
+  input-equivalence therefore failed. Byte comparison found 99 changed bytes in
   58 contiguous runs across 36 opaque vendor class records. The four Gate D
   class records and protected dependency records are byte-exact, but the
   changed vendor fields and generator checksum semantics are undefined. This
   does not prove semantic equivalence, so 6E115876... must not be normalized,
   allowlisted, or pinned from that observation alone. Runtime observations from
   this drifted artifact are exploratory, not formal qualification.
+  A later isolated one-Rebuild/no-Connect/no-Download classification produced a
+  third Classes identity, 8,549,773 bytes /
+  99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD,
+  while Networks.lcb remained 242,363 bytes /
+  C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F.
+  Commit b2019db preserves the exact eight-file bundle. Its manifest disposition
+  is UNSTABLE_THIRD_CLASSES_HASH_STOP with exit 3,
+  ProductionApproved=false, staticReplayPermitted=false, and
+  onlineRuntimeQualificationPermitted=false. The checkpoint comparison records
+  96 changed bytes, 52 runs, 34 changed opaque owners, zero unmapped runs, and
+  exact Gate D target 4/protected dependency 2 records. This is still not
+  semantic equivalence.
+  The bundle retains its historical fa2a456 producer identity. Commit 29811c4 is
+  a future-run-only process-exit fix and must not republish this evidence. The
+  validator's duplicate restoration-command rejection was corrected by exact
+  commandLineIndex identity, and c48e403 added exact dual physical/Git identities
+  only for the historical converter and mixed-EOL C78 verifier. It does not allow
+  broad EOL normalization. The current c48e403 validator passed the committed
+  b2019db bundle, proving bundle integrity only. Focused VerifyCurrent/C78 remains
+  failed; no Download, runtime qualification, or hash-only rebaseline is allowed.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
   opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec provide bounded PC
   reconnect and retained receiver/initialization evidence only. The successful

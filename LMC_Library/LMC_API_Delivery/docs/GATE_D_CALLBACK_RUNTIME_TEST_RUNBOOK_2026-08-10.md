@@ -238,15 +238,26 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    Do not repeat this Rebuild or the already completed manual exact-method smoke.
    The run classifies generator output only; it does not replace PID 480 and is
    not PLC runtime proof.
-6. After normal LASAL exit, run the current fail-closed finalizer fixed in
-   `fa2a456` (initial finalizer commit `111a773`):
-   `Finalize-LasalClassesRebuildCandidate.ps1`, physical 187,443 bytes, SHA-256
-   `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`.
-   PowerShell 7 self-test passes positive `26` / negative `76`; Windows
-   PowerShell 5.1 AST/self-test passes positive `24` / negative `74`, but
-   production `-FinalizeCandidate` execution is PowerShell 7-only because the
-   publication contract includes directory ADS evidence. From the canonical
-   repository root, run exactly:
+6. The finalizer originated at `111a773`; the revision that produced the
+   now-committed bundle was `fa2a456` of
+   `Finalize-LasalClassesRebuildCandidate.ps1`, physical 187,443
+   bytes / SHA-256
+   `1551A121D49C3C3169B0DADA45B4EEAAFDD8F8636425E470D1A6840159CBC0D5`
+   (Git blob `5495e5636462d8aa67e13abb70c310a1ee8f9e67`). Its historical
+   PowerShell 7 self-test was positive `26` / negative `76`; Windows PowerShell
+   5.1 AST/self-test was positive `24` / negative `74`. The published manifest
+   intentionally retains that producer tuple.
+
+   Commit `29811c4` is the current future-run exit-code fix: physical 188,693
+   bytes / SHA-256
+   `817E1A416C1484E1AE897140B2C56D8A7DDDF1F4158AC7DED2B59F28C5050116`,
+   with PowerShell 7 self-test positive `27` / negative `77`. It sends the
+   status line directly to `Console.Out`, requires exactly one `System.Int32`
+   result in `{0,2,3}`, and therefore preserves exit `3` at process level. It
+   is for a future candidate only: do not rerun it against the `b2019db`
+   bundle. Production `-FinalizeCandidate` remains PowerShell 7-only because
+   the publication contract includes directory ADS evidence. The exact future-run
+   command from the canonical repository root is:
 
    ```powershell
    & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Finalize-LasalClassesRebuildCandidate.ps1 -FinalizeCandidate -RepositoryRoot (Get-Location).Path
@@ -271,11 +282,16 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    staging directory was cleaned. Commit `fa2a456` adds exact-case
    `IDictionary`/`PSCustomObject` access and production-shape regression tests.
    This failed attempt is not an accepted exit `3` result. Because the frozen log
-   and generated outputs are unchanged, rerun only the fixed finalizer; do not
-   repeat the isolated Rebuild. Until publication there is no bundle to validate,
-   stage, commit, Download, or use as runtime evidence.
-7. When finalizer exit `0`, `2`, or `3` has published
-   `candidate_finalization_gate_d_rebaseline_6e115876`, freeze that directory.
+   and generated outputs were unchanged, one finalizer-only rerun was permitted
+   without repeating the isolated Rebuild. That `fa2a456` rerun published the
+   bundle with manifest disposition `UNSTABLE_THIRD_CLASSES_HASH_STOP` and
+   manifest exit `3`, but the old `Write-Output` status line joined the returned
+   integer on the success pipeline and the host process incorrectly returned
+   `0`. Commit `29811c4` fixes that future process-exit bug; it does not change or
+   republish the historical bundle. No further finalizer or Rebuild run is
+   permitted for this evidence.
+7. Commit `b2019db` atomically preserves the exact published directory
+   `candidate_finalization_gate_d_rebaseline_6e115876`. Freeze that directory.
    Do not delete or overwrite any member and do not rerun the finalizer. The exact
    eight-file inventory is:
 
@@ -288,12 +304,21 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    - `classes_lcb_gate_d_rebuild_candidate.comparison.json`
    - `classes_lcb_gate_d_rebuild_candidate.finalization.json`
 
-8. Before committing that directory, run the current fail-closed bundle validator
-   pinned in `fa2a456` (initial validator commit `531abdd`):
-   `Verify-LasalClassesRebuildFinalizationBundle.ps1`, physical 180,538 bytes,
+   The complete manifest records `Classes.lcb=99014DD9...`, unchanged
+   `Networks.lcb=C307547E...`, finalizer exit `3`,
+   `ProductionApproved=false`, `staticReplayPermitted=false`, and
+   `onlineRuntimeQualificationPermitted=false`. Its checkpoint comparison records
+   `96` changed bytes, `52` contiguous runs, `34` changed opaque owners, zero
+   unmapped runs, and exact equality for all four Gate D target records and both
+   protected dependency records. That bounded equality is not semantic
+   equivalence and does not permit Download or hash-only rebaseline.
+
+8. The fail-closed bundle validator originated at `531abdd`; its current commit is
+   `c48e403`
+   (`Verify-LasalClassesRebuildFinalizationBundle.ps1`), physical 189,867 bytes /
    SHA-256
-   `A232D4DCC0FDC07E091856E1594B700E0069D9298CC6D371EB863391D6A4BD46`.
-   PowerShell 7 AST and self-test pass positive `1` / negative `27`.
+   `DB8B046DF00900140E1AB97B83EF1E7AD13EFB44AC2768EE54B219160D8CE6B0`.
+   PowerShell 7 self-test passes positive `5` / negative `32`.
    Windows PowerShell 5.1 AST passes, but production verification exits `4`
    before reading any bundle evidence. Production verification is PowerShell
    7-only. From the canonical repository root, run exactly:
@@ -302,6 +327,16 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    & pwsh.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Verify-LasalClassesRebuildFinalizationBundle.ps1 -VerifyBundle -RepositoryRoot (Get-Location).Path
    $LASTEXITCODE
    ```
+
+   The earlier validator first rejected the two legitimate repeated
+   `Open Network Editor for 'Comm_Network'` restoration records by command text;
+   `29811c4` binds them by distinct raw `commandLineIndex` values instead. It then
+   rejected the historical converter and mixed-EOL C78 verifier physical tuples
+   against their canonical Git blobs; `c48e403` adds exact path/physical
+   bytes/SHA/blob-OID/canonical-LF dual-tuple bridges for only those two files,
+   without broad EOL relaxation. The bundle stayed byte-unchanged through both
+   validator fixes. The current validator returned exit `0` on the committed
+   `b2019db` bundle.
 
    Validator exit `0` proves only the current eight-file bundle integrity and
    cross-file contract. It does not approve production, prove a past atomic move
