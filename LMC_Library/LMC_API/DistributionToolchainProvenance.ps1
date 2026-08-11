@@ -466,11 +466,11 @@ function Assert-LmcDistributionToolingPreflightAttestation {
     }
     if ([string]$Attestation.Result -cne 'PASS' -or
         [int]$Attestation.HostCount -ne 2 -or
-        [int]$Attestation.SuiteCount -ne 6 -or
-        [int]$Attestation.RunCount -ne 12 -or
+        [int]$Attestation.SuiteCount -ne 7 -or
+        [int]$Attestation.RunCount -ne 14 -or
         [int]$Attestation.ToolingFileCount -le 0 -or
         [string]$Attestation.ToolingDigest -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw 'Tooling preflight attestation is not an exact 12/12 PASS.'
+        throw 'Tooling preflight attestation is not an exact 14/14 PASS.'
     }
     $hosts = @($Attestation.Hosts)
     if ($hosts.Count -ne 2) {
@@ -524,8 +524,8 @@ function Assert-LmcDistributionToolingPreflightAttestation {
     $canonicalLines = @(
         'Result|PASS',
         'HostCount|2',
-        'SuiteCount|6',
-        'RunCount|12',
+        'SuiteCount|7',
+        'RunCount|14',
         "ToolingDigest|$digest",
         "ToolingFileCount|$([int]$Attestation.ToolingFileCount)")
     foreach ($hostRecord in $hostRecords) {
@@ -535,8 +535,8 @@ function Assert-LmcDistributionToolingPreflightAttestation {
     return [pscustomobject]@{
         Result = 'PASS'
         HostCount = 2
-        SuiteCount = 6
-        RunCount = 12
+        SuiteCount = 7
+        RunCount = 14
         ToolingDigest = $digest
         ToolingFileCount = [int]$Attestation.ToolingFileCount
         HostRecords = @($hostRecords)
@@ -549,6 +549,8 @@ function Assert-LmcDistributionToolingPreflightManifestBinding {
         [Parameter(Mandatory = $true)]
         [ValidateSet('PASS')]
         [string]$Result,
+        [Parameter(Mandatory = $true)]
+        [int]$SuiteCount,
         [Parameter(Mandatory = $true)]
         [int]$RunCount,
         [Parameter(Mandatory = $true)]
@@ -592,17 +594,18 @@ function Assert-LmcDistributionToolingPreflightManifestBinding {
         $validatedHostRecords[1] -notmatch '^PS7\|') {
         throw 'Tooling preflight manifest host identities are missing or duplicated.'
     }
-    if ($Result -cne 'PASS' -or $RunCount -ne 12 -or
+    if ($Result -cne 'PASS' -or $SuiteCount -ne 7 -or
+        $RunCount -ne 14 -or
         $ToolingFileCount -le 0 -or
         $ToolingDigest -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw 'Tooling preflight manifest binding is not an exact 12/12 PASS.'
+        throw 'Tooling preflight manifest binding is not an exact 14/14 PASS.'
     }
     $digest = $ToolingDigest.ToUpperInvariant()
     $canonicalLines = @(
         'Result|PASS',
         'HostCount|2',
-        'SuiteCount|6',
-        'RunCount|12',
+        'SuiteCount|7',
+        'RunCount|14',
         "ToolingDigest|$digest",
         "ToolingFileCount|$ToolingFileCount")
     foreach ($hostRecord in $validatedHostRecords) {
@@ -618,8 +621,8 @@ function Assert-LmcDistributionToolingPreflightManifestBinding {
     return [pscustomobject]@{
         Result = 'PASS'
         HostCount = 2
-        SuiteCount = 6
-        RunCount = 12
+        SuiteCount = 7
+        RunCount = 14
         ToolingDigest = $digest
         ToolingFileCount = $ToolingFileCount
         HostRecords = @($validatedHostRecords)
@@ -762,6 +765,7 @@ function New-LmcDistributionToolchainSnapshot {
         RuntimePaths = [pscustomobject]$runtimePaths
         InventoryFileCounts = [pscustomobject]$inventoryFileCounts
         ToolingPreflightResult = $preflight.Result
+        ToolingPreflightSuiteCount = $preflight.SuiteCount
         ToolingPreflightRunCount = $preflight.RunCount
         ToolingPreflightDigest = $preflight.ToolingDigest
         ToolingPreflightFileCount = $preflight.ToolingFileCount

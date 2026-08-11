@@ -34,12 +34,14 @@ else {
 $toolingPreflight = Invoke-LmcDistributionToolingHostParityPreflight `
     -RepositoryRoot $RepositoryRoot
 if ($toolingPreflight.Result -cne 'PASS' -or
-    $toolingPreflight.RunCount -ne 12 -or
+    $toolingPreflight.HostCount -ne 2 -or
+    $toolingPreflight.SuiteCount -ne 7 -or
+    $toolingPreflight.RunCount -ne 14 -or
     $toolingPreflight.ToolingDigest -notmatch '^[0-9A-F]{64}$') {
     throw 'Distribution tooling host-parity preflight returned an invalid result.'
 }
 Write-Host (
-    'PASS: bounded distribution tooling host parity 12/12; ' +
+    'PASS: bounded distribution tooling host parity 14/14; ' +
     "files=$($toolingPreflight.ToolingFileCount); " +
     "SHA256=$($toolingPreflight.ToolingDigest)")
 
@@ -1495,6 +1497,8 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 $preparedInputs.ToolchainSnapshot.Records)
             ToolingPreflightResult = `
                 $preparedInputs.ToolchainSnapshot.ToolingPreflightResult
+            ToolingPreflightSuiteCount = `
+                $preparedInputs.ToolchainSnapshot.ToolingPreflightSuiteCount
             ToolingPreflightRunCount = `
                 $preparedInputs.ToolchainSnapshot.ToolingPreflightRunCount
             ToolingPreflightDigest = `

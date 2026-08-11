@@ -82,7 +82,11 @@ function Write-FixtureFile {
 }
 
 function New-FixtureAttestation {
-    param([string]$Result = 'PASS', [int]$RunCount = 12)
+    param(
+        [string]$Result = 'PASS',
+        [int]$SuiteCount = 7,
+        [int]$RunCount = 14
+    )
 
     $physicalHost = [System.Diagnostics.Process]::GetCurrentProcess().
         MainModule.FileName
@@ -105,7 +109,7 @@ function New-FixtureAttestation {
     return [pscustomobject]@{
         Result = $Result
         HostCount = 2
-        SuiteCount = 6
+        SuiteCount = $SuiteCount
         RunCount = $RunCount
         ToolingDigest = ('A1' * 32)
         ToolingFileCount = 94
@@ -195,6 +199,8 @@ try {
     Assert-True `
         -Condition ($snapshot.ToolingPreflightSha256 -match '^[0-9A-F]{64}$') `
         -Message 'Fixture preflight attestation digest is malformed.'
+    Assert-Equal -Expected 7 -Actual $snapshot.ToolingPreflightSuiteCount `
+        -Message 'Fixture preflight suite count did not preserve 7/7 per host.'
     Assert-True `
         -Condition ((@($snapshot.Records | Where-Object {
             $_ -match '(?i)([A-Z]:[\\/]|\\\\|/Users/|/home/|/work/)'
@@ -224,13 +230,16 @@ try {
     $manifestAttestation = `
         Assert-LmcDistributionToolingPreflightManifestBinding `
             -Result $snapshot.ToolingPreflightResult `
+            -SuiteCount $snapshot.ToolingPreflightSuiteCount `
             -RunCount $snapshot.ToolingPreflightRunCount `
             -ToolingDigest $snapshot.ToolingPreflightDigest `
             -HostRecords $snapshot.ToolingPreflightHostRecords `
             -Sha256 $snapshot.ToolingPreflightSha256 `
             -ToolingFileCount $snapshot.ToolingPreflightFileCount
-    Assert-Equal -Expected 12 -Actual $manifestAttestation.RunCount `
-        -Message 'Manifest preflight binding did not preserve 12/12.'
+    Assert-Equal -Expected 7 -Actual $manifestAttestation.SuiteCount `
+        -Message 'Manifest preflight binding did not preserve seven suites.'
+    Assert-Equal -Expected 14 -Actual $manifestAttestation.RunCount `
+        -Message 'Manifest preflight binding did not preserve 14/14.'
 
     $null = Assert-LmcDistributionInvokingPowerShellHostBound `
         -ToolingPreflight $attestation
@@ -512,15 +521,49 @@ try {
                 -ToolingPreflight (New-FixtureAttestation `
                     -Result 'FAIL')
         } `
-        -ExpectedMessage 'not an exact 12/12 PASS'
+        -ExpectedMessage 'not an exact 14/14 PASS'
     Assert-Throws `
         -Action {
             New-LmcDistributionToolchainSnapshot `
                 -Descriptors $descriptors `
                 -ToolingPreflight (New-FixtureAttestation `
-                    -RunCount 11)
+                    -SuiteCount 6 `
+                    -RunCount 12)
         } `
-        -ExpectedMessage 'not an exact 12/12 PASS'
+        -ExpectedMessage 'not an exact 14/14 PASS'
+    Assert-Throws `
+        -Action {
+            New-LmcDistributionToolchainSnapshot `
+                -Descriptors $descriptors `
+                -ToolingPreflight (New-FixtureAttestation `
+                    -SuiteCount 7 `
+                    -RunCount 13)
+        } `
+        -ExpectedMessage 'not an exact 14/14 PASS'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingPreflightManifestBinding `
+                -Result 'PASS' `
+                -SuiteCount 6 `
+                -RunCount 12 `
+                -ToolingDigest $snapshot.ToolingPreflightDigest `
+                -HostRecords $snapshot.ToolingPreflightHostRecords `
+                -Sha256 $snapshot.ToolingPreflightSha256 `
+                -ToolingFileCount $snapshot.ToolingPreflightFileCount
+        } `
+        -ExpectedMessage 'not an exact 14/14 PASS'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingPreflightManifestBinding `
+                -Result 'PASS' `
+                -SuiteCount 7 `
+                -RunCount 13 `
+                -ToolingDigest $snapshot.ToolingPreflightDigest `
+                -HostRecords $snapshot.ToolingPreflightHostRecords `
+                -Sha256 $snapshot.ToolingPreflightSha256 `
+                -ToolingFileCount $snapshot.ToolingPreflightFileCount
+        } `
+        -ExpectedMessage 'not an exact 14/14 PASS'
 
     $duplicateHostAttestation = New-FixtureAttestation
     $duplicateHostAttestation.Hosts = @(

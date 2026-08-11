@@ -11,6 +11,7 @@ param(
         'Pipeline',
         'SemanticPolicy',
         'ReleaseManifest',
+        'ToolchainProvenance',
         'MethodSize',
         'UdpCallback',
         'ControlHandleRequest')]
@@ -604,8 +605,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'Pipeline'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 284 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 284 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 286 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 286 distribution pipeline assertions'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -620,8 +621,16 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'ReleaseManifest'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 94, PASSED 94, FAILED 0$'
-            EvidenceLine = 'TOTAL 94, PASSED 94, FAILED 0'
+            EvidencePattern = '^TOTAL 100, PASSED 100, FAILED 0$'
+            EvidenceLine = 'TOTAL 100, PASSED 100, FAILED 0'
+            WorkerTerminates = $false
+        },
+        [pscustomobject]@{
+            Id = 'ToolchainProvenance'
+            RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionToolchainProvenance.ps1'
+            TimeoutSeconds = 180
+            EvidencePattern = '^PASS: 49 distribution toolchain provenance assertions$'
+            EvidenceLine = 'PASS: 49 distribution toolchain provenance assertions'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -661,6 +670,7 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         'Pipeline',
         'SemanticPolicy',
         'ReleaseManifest',
+        'ToolchainProvenance',
         'MethodSize',
         'UdpCallback',
         'ControlHandleRequest')
@@ -670,8 +680,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         Pipeline = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 284 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 284 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 286 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 286 distribution pipeline assertions'
             WorkerTerminates = $false
         }
         SemanticPolicy = @{
@@ -684,8 +694,15 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         ReleaseManifest = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 94, PASSED 94, FAILED 0$'
-            EvidenceLine = 'TOTAL 94, PASSED 94, FAILED 0'
+            EvidencePattern = '^TOTAL 100, PASSED 100, FAILED 0$'
+            EvidenceLine = 'TOTAL 100, PASSED 100, FAILED 0'
+            WorkerTerminates = $false
+        }
+        ToolchainProvenance = @{
+            RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionToolchainProvenance.ps1'
+            TimeoutSeconds = 180
+            EvidencePattern = '^PASS: 49 distribution toolchain provenance assertions$'
+            EvidenceLine = 'PASS: 49 distribution toolchain provenance assertions'
             WorkerTerminates = $false
         }
         MethodSize = @{
@@ -1054,6 +1071,9 @@ function Invoke-LmcDistributionToolingWorker {
         'ReleaseManifest' {
             & $suitePath
         }
+        'ToolchainProvenance' {
+            & $suitePath
+        }
         'MethodSize' {
             & $suitePath -RunSelfTest
         }
@@ -1192,8 +1212,8 @@ function Invoke-LmcDistributionToolingHostParityPreflight {
                 "elapsedMs=$($result.ElapsedMilliseconds)")
         }
     }
-    if ($runCount -ne 12) {
-        throw "Distribution tooling host parity was vacuous: $runCount/12."
+    if ($runCount -ne 14) {
+        throw "Distribution tooling host parity was vacuous: $runCount/14."
     }
     $after = Assert-LmcDistributionMonitoredFileSnapshot `
         -RepositoryRoot $root `
@@ -1203,13 +1223,13 @@ function Invoke-LmcDistributionToolingHostParityPreflight {
             -HostIdentity $hostSpecification | Out-Null
     }
     Write-Host (
-        'PASS LMC.DistributionToolingHostParity 12/12 ' +
-        '(PS5=6/6; PS7=6/6) ' +
+        'PASS LMC.DistributionToolingHostParity 14/14 ' +
+        '(PS5=7/7; PS7=7/7) ' +
         "files=$($after.FileCount) SHA256=$($after.Digest)")
     return [pscustomobject]@{
         Result = 'PASS'
         HostCount = 2
-        SuiteCount = 6
+        SuiteCount = 7
         RunCount = $runCount
         ToolingDigest = $after.Digest
         ToolingFileCount = $after.FileCount

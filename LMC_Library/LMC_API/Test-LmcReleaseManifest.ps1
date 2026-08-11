@@ -156,7 +156,8 @@ try {
     $toolingPreflight = `
         Assert-LmcDistributionToolingPreflightManifestBinding `
             -Result 'PASS' `
-            -RunCount 12 `
+            -SuiteCount 7 `
+            -RunCount 14 `
             -ToolingDigest $toolingPreflightDigest `
             -HostRecords $toolingPreflightHosts `
             -ToolingFileCount $toolingPreflightFileCount `
@@ -164,8 +165,8 @@ try {
                 -Text ((@(
                     'Result|PASS',
                     'HostCount|2',
-                    'SuiteCount|6',
-                    'RunCount|12',
+                    'SuiteCount|7',
+                    'RunCount|14',
                     "ToolingDigest|$toolingPreflightDigest",
                     "ToolingFileCount|$toolingPreflightFileCount",
                     ('Host|PS5|Desktop|5|5.1.19041.5608|' +
@@ -184,7 +185,8 @@ try {
         ToolchainSha256 = $toolchainSha256
         ToolchainRecords = $toolchainRecords
         ToolingPreflightResult = 'PASS'
-        ToolingPreflightRunCount = 12
+        ToolingPreflightSuiteCount = 7
+        ToolingPreflightRunCount = 14
         ToolingPreflightDigest = $toolingPreflightDigest
         ToolingPreflightFileCount = $toolingPreflightFileCount
         ToolingPreflightHostRecords = $toolingPreflightHosts
@@ -207,6 +209,7 @@ try {
             'ToolchainSha256',
             'ToolchainRecords',
             'ToolingPreflightResult',
+            'ToolingPreflightSuiteCount',
             'ToolingPreflightRunCount',
             'ToolingPreflightDigest',
             'ToolingPreflightFileCount',
@@ -280,7 +283,8 @@ try {
         'Semantic policy result: `PASS`',
         ('Release toolchain SHA-256: `' + $toolchainSha256 + '`'),
         'Tooling preflight result: `PASS`',
-        'Tooling preflight run count: `12`',
+        'Tooling preflight suite count: `7`',
+        'Tooling preflight run count: `14`',
         ('Tooling preflight digest: `' + $toolingPreflightDigest + '`'),
         ('Tooling preflight file count: `' +
             $toolingPreflightFileCount + '`'),
@@ -340,7 +344,7 @@ try {
         -Text $deterministicContent
     Assert-True `
         -Condition ($deterministicSha256 -ceq
-            'DBE0BFF4B843D0AC78BBA99347A36CB67573BE098AF6AF50127E06C2CB320E25') `
+            'FC4E1BD192498EC1045B0A847B1A75A2C57ED02144D6852A0DA9793D99AD4B5E') `
         -Message (
             'Schema-3 deterministic fixture hash drifted; actual=' +
             $deterministicSha256)
@@ -394,6 +398,24 @@ try {
             Write-LmcReleaseManifestAtomic @lowercaseSemanticPolicyResultParameters
         } `
         -ExpectedMessage 'Semantic policy result must be exactly PASS'
+
+    $legacySixOfTwelveParameters = $parameters.Clone()
+    $legacySixOfTwelveParameters.ToolingPreflightSuiteCount = 6
+    $legacySixOfTwelveParameters.ToolingPreflightRunCount = 12
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @legacySixOfTwelveParameters
+        } `
+        -ExpectedMessage 'not an exact 14/14 PASS'
+
+    $incompleteSevenOfThirteenParameters = $parameters.Clone()
+    $incompleteSevenOfThirteenParameters.ToolingPreflightSuiteCount = 7
+    $incompleteSevenOfThirteenParameters.ToolingPreflightRunCount = 13
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @incompleteSevenOfThirteenParameters
+        } `
+        -ExpectedMessage 'not an exact 14/14 PASS'
 
     $generatedGuid = '0123456789abcdef0123456789abcdef'
     $generatedOnlyStatus = @(

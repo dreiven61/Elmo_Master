@@ -278,6 +278,8 @@ function Get-LmcReleaseManifestContent {
         [ValidateSet('PASS')]
         [string]$ToolingPreflightResult,
         [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightSuiteCount,
+        [Parameter(Mandatory = $true)]
         [int]$ToolingPreflightRunCount,
         [Parameter(Mandatory = $true)]
         [string]$ToolingPreflightDigest,
@@ -310,6 +312,7 @@ function Get-LmcReleaseManifestContent {
     $validatedPreflight = `
         Assert-LmcDistributionToolingPreflightManifestBinding `
             -Result $ToolingPreflightResult `
+            -SuiteCount $ToolingPreflightSuiteCount `
             -RunCount $ToolingPreflightRunCount `
             -ToolingDigest $ToolingPreflightDigest `
             -HostRecords $ToolingPreflightHostRecords `
@@ -361,6 +364,7 @@ function Get-LmcReleaseManifestContent {
         "- Release input tree SHA-256: ``$($InputTreeSha256.ToUpperInvariant())``",
         "- Release toolchain SHA-256: ``$($ToolchainSha256.ToUpperInvariant())``",
         "- Tooling preflight result: ``$($validatedPreflight.Result)``",
+        "- Tooling preflight suite count: ``$($validatedPreflight.SuiteCount)``",
         "- Tooling preflight run count: ``$($validatedPreflight.RunCount)``",
         "- Tooling preflight digest: ``$($validatedPreflight.ToolingDigest)``",
         "- Tooling preflight file count: ``$($validatedPreflight.ToolingFileCount)``",
@@ -449,6 +453,8 @@ function Test-LmcReleaseManifest {
         [ValidateSet('PASS')]
         [string]$ToolingPreflightResult,
         [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightSuiteCount,
+        [Parameter(Mandatory = $true)]
         [int]$ToolingPreflightRunCount,
         [Parameter(Mandatory = $true)]
         [string]$ToolingPreflightDigest,
@@ -517,6 +523,8 @@ function Write-LmcReleaseManifestAtomic {
         [Parameter(Mandatory = $true)]
         [ValidateSet('PASS')]
         [string]$ToolingPreflightResult,
+        [Parameter(Mandatory = $true)]
+        [int]$ToolingPreflightSuiteCount,
         [Parameter(Mandatory = $true)]
         [int]$ToolingPreflightRunCount,
         [Parameter(Mandatory = $true)]

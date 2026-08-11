@@ -492,13 +492,14 @@ $null = Invoke-LmcDistributionCandidateTransaction
     Assert-LmcDistributionToolingSuiteSpecifications `
         -Specifications $suiteSpecifications
     Assert-Equal `
-        -Expected 6 `
+        -Expected 7 `
         -Actual $suiteSpecifications.Count `
         -Message 'Dual-host tooling suite inventory is not exact.'
     $expectedTimeouts = @{
         Pipeline = 300
         SemanticPolicy = 120
         ReleaseManifest = 120
+        ToolchainProvenance = 180
         MethodSize = 180
         UdpCallback = 900
         ControlHandleRequest = 180
@@ -515,20 +516,28 @@ $null = Invoke-LmcDistributionCandidateTransaction
         $suiteSpecifications[2],
         $suiteSpecifications[3],
         $suiteSpecifications[4],
-        $suiteSpecifications[5])
+        $suiteSpecifications[5],
+        $suiteSpecifications[6])
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
                 -Specifications $reorderedSpecifications
         } `
         -ExpectedMessage 'suite order' | Out-Null
+    $omittedToolchainSpecifications = @(
+        $suiteSpecifications | Where-Object {
+            $_.Id -cne 'ToolchainProvenance'
+        })
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $omittedToolchainSpecifications
+        } `
+        -ExpectedMessage 'suite count drifted' | Out-Null
     $duplicateSpecifications = @(
-        $suiteSpecifications[0],
-        $suiteSpecifications[1],
-        $suiteSpecifications[2],
-        $suiteSpecifications[3],
-        $suiteSpecifications[4],
-        $suiteSpecifications[0])
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $duplicateSpecifications[4] = $suiteSpecifications[3].PSObject.Copy()
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
@@ -546,22 +555,22 @@ $null = Invoke-LmcDistributionCandidateTransaction
                 -Specifications $recursiveSpecifications
         } `
         -ExpectedMessage 'recursion is forbidden' | Out-Null
-    $pathDriftSpecifications = @(
+    $replacementToolchainSpecifications = @(
         $suiteSpecifications |
             ForEach-Object { $_.PSObject.Copy() })
-    $pathDriftSpecifications[0].RelativePath =
-        'LMC_Library/LMC_API/Test-AlternatePipeline.ps1'
+    $replacementToolchainSpecifications[3].RelativePath =
+        'LMC_Library/LMC_API/Test-AlternateToolchainProvenance.ps1'
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
-                -Specifications $pathDriftSpecifications
+                -Specifications $replacementToolchainSpecifications
         } `
         -ExpectedMessage 'exact contract drifted' | Out-Null
     $evidenceDriftSpecifications = @(
         $suiteSpecifications |
             ForEach-Object { $_.PSObject.Copy() })
-    $evidenceDriftSpecifications[0].EvidencePattern =
-        '^PASS: [0-9]+ distribution pipeline assertions$'
+    $evidenceDriftSpecifications[3].EvidencePattern =
+        '^PASS: [0-9]+ distribution toolchain provenance assertions$'
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
@@ -571,8 +580,8 @@ $null = Invoke-LmcDistributionCandidateTransaction
     $evidenceLineDriftSpecifications = @(
         $suiteSpecifications |
             ForEach-Object { $_.PSObject.Copy() })
-    $evidenceLineDriftSpecifications[0].EvidenceLine =
-        'PASS: non-exact pipeline assertions'
+    $evidenceLineDriftSpecifications[3].EvidenceLine =
+        'PASS: non-exact toolchain provenance assertions'
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
@@ -582,7 +591,7 @@ $null = Invoke-LmcDistributionCandidateTransaction
     $timeoutDriftSpecifications = @(
         $suiteSpecifications |
             ForEach-Object { $_.PSObject.Copy() })
-    $timeoutDriftSpecifications[0].TimeoutSeconds = 301
+    $timeoutDriftSpecifications[3].TimeoutSeconds = 181
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
@@ -592,7 +601,7 @@ $null = Invoke-LmcDistributionCandidateTransaction
     $terminationDriftSpecifications = @(
         $suiteSpecifications |
             ForEach-Object { $_.PSObject.Copy() })
-    $terminationDriftSpecifications[0].WorkerTerminates = $true
+    $terminationDriftSpecifications[3].WorkerTerminates = $true
     Assert-Throws `
         -Action {
             Assert-LmcDistributionToolingSuiteSpecifications `
@@ -789,19 +798,21 @@ foreach (`$record in `$snapshot.Records) {
     # redirected-stream draining are all independently non-vacuous.
     $fixtureMarker = 'LMC_FIXTURE_' +
         [System.Guid]::NewGuid().ToString('N')
+    $toolchainNonzeroEvidence =
+        'PASS: 49 distribution toolchain provenance assertions'
     $nonzeroResult = Invoke-LmcDistributionRawPowerShellProcess `
         -ExecutablePath $currentHostExecutable `
         -Arguments (ConvertTo-TestEncodedPowerShellArguments `
-            -Command "Write-Output '$fixtureMarker'; exit 7") `
+            -Command "Write-Output '$toolchainNonzeroEvidence'; exit 7") `
         -WorkingDirectory $repositoryRoot `
         -TimeoutSeconds 30
     Assert-Throws `
         -Action {
             Assert-LmcDistributionProcessResult `
                 -Result $nonzeroResult `
-                -ExpectedTerminalLine $fixtureMarker `
+                -ExpectedTerminalLine $toolchainNonzeroEvidence `
                 -ExpectedEvidencePatterns @(
-                    '^' + [regex]::Escape($fixtureMarker) + '$')
+                    '^' + [regex]::Escape($toolchainNonzeroEvidence) + '$')
         } `
         -ExpectedMessage 'exited abnormally' | Out-Null
 
@@ -816,7 +827,8 @@ foreach (`$record in `$snapshot.Records) {
             Assert-LmcDistributionProcessResult `
                 -Result $noEvidenceResult `
                 -ExpectedTerminalLine $fixtureMarker `
-                -ExpectedEvidencePatterns @('^REQUIRED_NONVACUOUS_EVIDENCE$')
+                -ExpectedEvidencePatterns @(
+                    '^PASS: 49 distribution toolchain provenance assertions$')
         } `
         -ExpectedMessage 'evidence occurrence drifted' | Out-Null
 
@@ -958,7 +970,7 @@ for ($i = 0; $i -lt 4096; $i++) {
             ('^LMC_TOOLING_MODULE_PATH ' + [regex]::Escape($moduleNonce) +
                 ' ' + [regex]::Escape((ConvertTo-LmcDistributionBase64 `
                     -Text (Join-Path $PSHOME 'Modules'))) + '$')
-            '^TOTAL 94, PASSED 94, FAILED 0$')
+            '^TOTAL 100, PASSED 100, FAILED 0$')
     Assert-True `
         -Condition ($poisonedModuleResult.StandardOutput -notmatch
             'LMC_USER_MODULE_POISON') `
@@ -1082,8 +1094,8 @@ for ($i = 0; $i -lt 4096; $i++) {
     $toolchainAttestation = [pscustomobject]@{
         Result = 'PASS'
         HostCount = 2
-        SuiteCount = 6
-        RunCount = 12
+        SuiteCount = 7
+        RunCount = 14
         ToolingDigest = ('D4' * 32)
         ToolingFileCount = 94
         Hosts = @(
@@ -1649,6 +1661,7 @@ Global
     Assert-True `
         -Condition ($builderText.Contains(
                 'ToolingPreflightFileCount =') -and
+            $builderText.Contains('ToolingPreflightSuiteCount =') -and
             $builderText.Contains('ToolingPreflightHostRecords =') -and
             $builderText.Contains('ToolchainRecords =')) `
         -Message 'Release builder schema-3 manifest binding is incomplete.'
