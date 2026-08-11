@@ -12,6 +12,8 @@ Gate B1/B2 and Gate C candidate evidence: 2026-08-08
 
 Gate D broker and PC reconnect observability evidence: 2026-08-10
 
+Bounded WPF fresh-session recovery evidence (`14ccf58`): 2026-08-11
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -175,16 +177,39 @@ version-2 receiver decision, including duplicate and out-of-order decisions.
 After session replacement begins, any initialization failure closes the new
 command socket and callback listener and records `LastInitializationException`.
 
+The SDK's one 20 ms retry is confined to the same `LMCConnection`/TCP socket.
+Current WPF commit `14ccf58` adds one application-level fresh-session retry only
+when an initial or in-process Connect's first candidate reports `Outcome=Failed`,
+`AttemptCount=2`,
+`CanonicalRetryUsed=true`, both ACKs are the exact canonical `-1` envelope, and
+RPC/callback registration never started. It retires/disposes that candidate,
+waits a fixed PC-side 100 ms, and creates exactly one new `LMCConnection` and TCP
+socket. The second candidate failure is terminal. ErrorId 0/other errors,
+malformed/transport/cancellation failures, and callback-stage failures receive no
+outer retry. One WPF Connect is bounded to two TCP sockets and four `0x8080`
+requests; `0x405C` is sent only after successful init. Connect succeeds only
+after a successful registration response; a `0x405C` failure is terminal and
+receives no WPF outer retry.
+
 ### Close
 
-`CloseConnection()` and `Dispose()` perform this order:
+Strict `CloseConnection[Async]` attempts this order on an initialized connection:
 
 1. Send `0x405D` on the command TCP socket if possible and validate its ACK.
 2. Close the command TCP socket.
 3. Stop the callback listener.
-4. Clear connection state and cached handshake responses.
+4. Clear active connection state while retaining close diagnostics.
 
 A nonzero close ACK is preserved and reported to the caller after local cleanup.
+`Dispose` does not rethrow a captured close protocol/transport failure after its
+local cleanup path, but a failed or uninitialized candidate may have no valid
+close stage and therefore send no `0x405D`.
+The WPF's internal replacement and window-X shutdown share a bounded cleanup that
+tries `Dispose` at most twice and requires the complete local disconnected
+postcondition. `RpcCloseResponse` and `LastCloseException` remain on the retired
+connection for diagnostics. Window X is cancelled if the postcondition cannot be
+reached. The explicit Close button remains strict and rethrows the close failure
+after cleanup.
 
 ### Reconnect
 
@@ -254,23 +279,37 @@ socket after a 20 ms cancellation-aware delay; legacy, malformed, nonzero
 reserved, and other-error responses do not retry. Commit `f337fec` adds the
 retained `LMCRpcSessionInitializationEvidence`, the public current session
 generation, and the same-session `CallbackV2StatisticsChanged` snapshot event;
-`ad7c8b1` fences queued old-session WPF actions. Commit `af4ab63` proves that a
-non-canonical short ACK with `ErrorId=0` retries zero times, performs full
-listener/TCP/WPF cleanup, and that the next manual Connect uses a fresh socket.
+`ad7c8b1` fences queued old-session WPF actions. Commit `af4ab63` historically
+proved that a non-canonical short ACK with `ErrorId=0` retries zero times,
+performs full listener/TCP/WPF cleanup, and that the next manual Connect uses a
+fresh socket. Current `14ccf58` adds the exact bounded WPF fresh-session policy
+described above for persistent canonical `-1` only.
 The WPF displays the requested tuple as `RequestedCallback` and the actual UDP
 endpoint as `BoundCallback`, or `not-bound` when init failed before bind, together
 with the accepted version-2 registration fence and receiver decision counters.
-The current Release SDK suite passes `1133/1133`. The current WPF Release smoke
-suite passes `335/335`, including the deterministic stale-dispatcher
-replacement-session and non-canonical failure recovery regressions.
-This is bounded PC recovery/observability evidence, not a PLC disarm fix or
-callback runtime proof.
+Current SDK Debug/Release direct suites pass `1133/1133`. The `af4ab63` WPF
+Release `335/335` is historical; current `14ccf58` Debug/Release Rebuild passes,
+full smoke passes `339/339`, reconnect targeted tests pass `6/6`, and an independent
+callback/reconnect review passes `9/9` with no P0/P1. Startup records
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, and `SdkBuildUtc`; the
+topology marker remains V5. This is bounded PC recovery/observability evidence,
+not a PLC disarm fix or callback runtime proof.
+
+The fixed 100 ms backoff is not PLC slot/FSM readiness evidence. A canonical
+wire `-1` does not distinguish internal disarm `-8`/`-9` from lifecycle or
+ownership rejection. The fake restart uses a new `MainWindow` in the same test
+process against the same server/port with immediate reaccept; it is not evidence
+of EXE relaunch, named-mutex behavior, PLC cleanup, or runtime recovery. Local PC
+cleanup does not prove PLC disarm success, and no private PLC state is
+force-cleared.
 
 Commit `bff3bc7` accounts for the 16-test SDK increase with the exact standalone
 runner mode `callback-ownership-wire`. The mode defaults to a zero-network
 dry-run and can print plans for `gd-n10a`, `gd-n13-candidate`, and
 `gd-n14-candidate`. An independent reviewer repeated the current Release
-`RunPcTests` target at `1133/1133` and Release `RunWpfSmokeTests` at `335/335`.
+`RunPcTests` target at `1133/1133` and the then-current Release
+`RunWpfSmokeTests` at historical `335/335`. The harness `RETRY_COUNT=0` is its
+own raw-wire policy and is not the WPF fresh-session policy.
 The tool is deliberately
 limited to byte-exact `0x8080`, fixed version-2 `0x405C` (mask `1`, maximum `52`,
 nonzero cookie, zero flags/reserved), and authoritative-owner `0x405D`, with
@@ -1756,9 +1795,11 @@ retry. The retained initialization evidence and immutable v2 statistics event
 also preserve the exact attempt/ACK/outcome and same-session receiver decision
 after cleanup/UI dispatch. `af4ab63` additionally preserves the requested and
 actual/not-bound callback endpoints and proves zero retry/full cleanup/fresh
-manual socket for a non-canonical `ErrorId=0` short ACK. Current Release SDK
-result is `1133/1133`; the current WPF Release result is `335/335`, including the
-deterministic stale-dispatcher replacement-session regression. The D5
+manual socket for a non-canonical `ErrorId=0` short ACK. Current SDK
+Debug/Release direct result is `1133/1133`; current `14ccf58` WPF Debug/Release
+Rebuild passes and full smoke is `339/339`, with targeted `6/6` and independent
+callback/reconnect `9/9` evidence.
+The D5
 event-to-authoritative-query mapping and opt-in WPF consumer now exist. The Gate
 D source now contains the one-attempt broker
 and one production-path candidate `PublishEvent(...)` call. Static focused/general

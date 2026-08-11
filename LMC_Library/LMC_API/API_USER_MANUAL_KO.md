@@ -1,9 +1,9 @@
 # LASAL Motion Control API 기능 설명서
 
-문서 버전: 2.1-candidate
+문서 버전: 2.2-candidate
 적용 API: LasalMotionControlLib 0.9.1-preview
 대상 환경: Windows, .NET Framework 4.8
-발행일: 2026-08-04
+발행일: 2026-08-11
 
 \pagebreak
 
@@ -23,6 +23,7 @@
 | 1.9 | 2026-07-30 | 신규 wait/resume, drive error read와 D0~D5/Recorder/Topology API를 반영하고 current 지원 상태와 완료 판정 경계 추가 |
 | 2.0-candidate | 2026-07-31 | Axis1-only SDO Write identity-pinned four-ticket gate, stale recovery retirement, single-instance 실행과 transactional Distribution candidate 경계 추가 |
 | 2.1-candidate | 2026-08-04 | LMC Home current-position-zero start/outcome/retirement, DS402 Home gate 상태와 TW19/TW20 encoder maintenance 계약 추가 |
+| 2.2-candidate | 2026-08-11 | `14ccf58` exact canonical `-1` bounded fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
@@ -39,8 +40,8 @@ reference는 아니다.
 > Admin `0x7D00/10/20/22`는 source/static과 current LASAL IDE build까지 완료했지만
 > PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 
-> **출판 후보 상태:** 이 Markdown은 2026-08-04 current development source용
-> `2.1-candidate` 원본이다. 여기서 생성한 `output/doc` DOCX와 `output/pdf` PDF는 semantic 및
+> **출판 후보 상태:** 이 Markdown은 2026-08-11 current development source용
+> `2.2-candidate` 원본이다. 여기서 생성한 `output/doc` DOCX와 `output/pdf` PDF는 semantic 및
 > 레이아웃 검토용 후보이며 production 승인본이 아니다. canonical Distribution DOCX/PDF는
 > 여전히 Axis1 SDO Write와 stale recovery retirement 이전의 `1.9` gate-off snapshot이다.
 > current PLC live proof, release-scope 승인과 후보 독립 검토가 끝나기 전에는 canonical을
@@ -229,6 +230,8 @@ Connection timeout과 callback 검증 값을 설정한다.
 | `SendTimeoutMilliseconds` | `int` | ms | 3000 |
 | `CallbackThreadJoinTimeoutMilliseconds` | `int` | ms | 500 |
 | `ValidateCallbackSourceAddress` | `bool` | - | `true` |
+| `CallbackRegistrationMode` | `LMCCallbackRegistrationMode` | - | `LegacyRaw` |
+| `CallbackRequestedMaxDatagramBytes` | `int` | bytes | 512 |
 | `SendPriorityCoordinator` | `LMCSendPriorityCoordinator` | - | 선택적 PC-side safety send coordination |
 
 ## 2.3 RpcInitConnection
@@ -277,6 +280,28 @@ public Task RpcInitConnectionAsync(
 | `void` | 동기 초기화 완료 |
 | `Task` | 비동기 초기화 작업 |
 
+library default `LegacyRaw`는 callback registration 12-byte request/4-byte ACK를 사용한다.
+명시적 `Version2WakeHint`는 32/20과 strict 52-byte typed wake를 사용한다. 이 mode에서
+outer `Status=1`, `HeaderReserved=0`, payload 4, command `Status=1`, `ErrorId=-1`인 exact
+canonical init failure만 20 ms 뒤 같은 TCP socket에서 `0x8080`을 한 번 더 보낸다.
+`LastRpcSessionInitializationEvidence`는 `Outcome`, `AttemptCount`, `CanonicalRetryUsed`,
+첫/마지막 response를 cleanup 뒤에도 보존한다. legacy, `ErrorId=0`/다른 error,
+nonzero reserved와 malformed response는 SDK retry가 없다.
+
+SDK 자체는 새 TCP connection을 자동으로 만들지 않는다. 개발 WPF current commit
+`14ccf58`의 `RPC_INIT_FRESH_TCP_ONCE_V1` policy만 초기 또는 동일 프로세스 내 후속
+Connect에서 첫 candidate가 두 exact `-1` ACK로 `Outcome=Failed`, `AttemptCount=2`,
+`CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때 failed connection을
+retire/`Dispose`한다. 100 ms 뒤 새 `LMCConnection`/TCP를 하나만 열며 두 번째 candidate
+실패는 terminal이다. `ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation 또는
+callback-stage 실패에는 WPF outer retry가 없다. UI operation 하나의 상한은 TCP 2개,
+`0x8080` 4회이며 `0x405C`는 init 성공 뒤에만 나간다. 정상 registration ACK까지 받아야
+Connect가 성공하며 `0x405C` 실패는 terminal이고 WPF outer retry가 없다.
+
+100 ms는 PC fixed backoff이지 PLC readiness 증거가 아니다. canonical wire `-1`만으로
+내부 disarm `-8`/`-9`와 다른 lifecycle/ownership rejection을 구분할 수 없다. PC cleanup은
+PLC disarm 성공을 뜻하지 않으며 private PLC state를 force-clear하지 않는다.
+
 ## 2.4 CloseConnection
 
 RPC connection과 local TCP/UDP resource를 닫는다.
@@ -297,7 +322,23 @@ public void Dispose()
 | `Task` | 비동기 종료 작업 |
 
 `CloseConnection`, `CloseConnectionAsync`와 `Dispose`는 Axis/Group Stop 또는 Power Off를
-보내지 않는다. 정상 RPC close `0x405D`와 local socket/resource 정리만 수행한다.
+보내지 않는다. strict `CloseConnection[Async]`는 초기화된 연결에서 가능한 경우 RPC close
+`0x405D`를 시도한 뒤 local socket/resource를 정리한다. `Dispose`는 캡처한 close
+protocol/transport 오류를 local cleanup 경로 뒤 다시 throw하지 않지만,
+failed/uninitialized candidate에서는 `0x405D`가 나가지 않을 수 있다. nonzero close ACK나
+close transport 오류가 있어도 local cleanup 뒤 `RpcCloseResponse`와
+`LastCloseException`을 확인할 수 있다. strict `CloseConnection[Async]`는 cleanup 뒤에도
+오류를 호출자에게 전달한다.
+
+개발 WPF의 내부 replacement와 창 X는 공용 최대 2회 `Dispose` cleanup 후
+`Disconnected`, TCP/RPC/callback 정지와 endpoint null을 모두 요구한다. X는 이
+postcondition이 완성되지 않으면 종료를 취소한다. startup log에는
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`가 있으며 topology
+marker V5는 유지된다. Current 검증은 SDK Debug/Release direct `1133/1133`, WPF
+Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6` PASS이고 독립
+callback/reconnect review는 `9/9`, P0/P1 없음이다. Fake restart는 같은 test
+process/server/port의 새 `MainWindow`와 immediate reaccept이므로 EXE relaunch, named
+mutex, PLC cleanup 또는 runtime proof가 아니다.
 
 ## 2.5 Safety transport preemption
 

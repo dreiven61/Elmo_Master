@@ -1,10 +1,10 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
-- 문서 버전: `2.5`
-- 작성 기준: `2026-07-31`
+- 문서 버전: `2.6`
+- 작성 기준: `2026-08-11` / current reconnect commit `14ccf58`
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
-- diagnostics/admin/release 기준: 2026-07-31 current source
+- diagnostics/admin/release/reconnect 기준: 2026-08-11 current source
 - 대상 독자: C# API, LASAL TCP adapter, MotionLib 연결과 배포 패키지를 유지보수하는 개발자
 
 이 문서는 공개 API의 signature와 인자를 다시 나열하는 문서가 아니다. 사용자 코드에서
@@ -19,13 +19,14 @@ SDO Write와 stale recovery retirement가 들어가기 전 gate-off Distribution
 각 기능에서 sync/async signature를 함께 보여 주지만 두 메서드가 내부적으로 같은
 transport와 command를 공유한다는 사실은 설명하지 않는다.
 현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
-버전 `1.9`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
+버전 `2.2-candidate`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
-> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-31 current
-> source는 PC 자동 시험 Debug/Release 1042/1042, WPF Debug/Release actual-control smoke
-> 297/297, `ExpectedSdoWriteAxis=1`의 `IntegratedReadOwnerDormant` LASAL SourceOnly/full
-> 정적 계약과 fresh IDE Rebuild/Link `0 errors / 20 warnings` 및 3-class implementation
-> smoke를 통과했다.
+> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-08-11 current
+> `14ccf58`은 PC 자동 시험 Debug/Release direct runner 각각 1133/1133, WPF
+> Debug/Release Rebuild PASS, full smoke 339/339과 reconnect targeted 6/6을 통과했다.
+> 2026-07-31 LASAL checkpoint는 `ExpectedSdoWriteAxis=1`의
+> `IntegratedReadOwnerDormant` SourceOnly/full 정적 계약, fresh IDE Rebuild/Link
+> `0 errors / 20 warnings`와 3-class implementation smoke를 통과했다.
 > `Classes.lcb`의 general `TryStartRead`와 SDO executor declaration도 현재 source와 동기화되어 있다.
 > legacy `0x13F` PLC capture의 `0x1000:0` UInt32 4-byte SDO Read는 BootId 5에서 축 1~4
 > 모두 Completed/Success를 반환했다. 과거 BootId 6의 `0x213F` 캡처에서는 executor
@@ -54,7 +55,7 @@ transport와 command를 공유한다는 사실은 설명하지 않는다.
 | 여러 async API를 동시에 호출하면 TCP request도 병렬 처리된다 | connection의 단일 `sync` gate 때문에 request/response가 한 건씩 직렬 처리된다. |
 | response를 request ID로 매칭한다 | request ID와 pending-response map이 없다. gate를 잡은 호출이 바로 다음 response를 직접 읽는다. |
 | `LMC_Response.IsSuccess == true`면 이동 또는 Power 전이가 완료됐다 | 대부분의 ACK는 명령 접수 또는 MotionLib method의 즉시 반환 결과다. 완료는 status/position polling으로 확인한다. |
-| callback 등록이 있으므로 motion-complete event도 구현됐다 | PC raw UDP listener와 PLC endpoint 등록만 있다. PLC event sender와 typed payload schema는 없다. |
+| callback 등록이 있으므로 motion-complete event까지 실기 검증됐다 | legacy raw listener와 opt-in version-2 typed wake 수신, Gate D one-attempt sender/broker candidate까지 구현됐다. typed wake는 D5 terminal 가능성을 알리는 non-authoritative hint이며 live 52-byte UDP와 causal TCP `0x7E03` capture는 아직 없다. |
 | cancellation, timeout, `CloseConnection`, `Dispose`가 축을 정지시킨다 | motion Stop을 보내지 않는다. in-flight cancellation은 TCP transport를 폐기할 수 있다. |
 
 가장 중요한 한 문장으로 요약하면 다음과 같다.
@@ -210,8 +211,10 @@ field를 보존하는 typed API를 사용한다.
 4. 지정한 local IPv4에 ephemeral TCP endpoint를 만들고 PLC에 연결한다.
 5. `0x8080` session-init을 보내고 정확한 24-byte payload를 검증한다.
 6. local UDP callback listener를 bind한다.
-7. 실제 bind된 UDP port, event mask, local IPv4로 `0x405C`를 보낸다.
-8. 정확한 4-byte ACK가 성공하면 `Connected`로 전이한다.
+7. 실제 bind된 UDP port, event mask, local IPv4로 `0x405C`를 보낸다. 기본
+   `LegacyRaw`는 12-byte request를, 명시적 `Version2WakeHint`는 32-byte request를 사용한다.
+8. legacy의 정확한 4-byte ACK 또는 version 2의 정확한 20-byte response가 성공해야
+   `Connected`로 전이한다. callback registration 실패는 terminal이며 WPF outer retry 대상이 아니다.
 
 ```mermaid
 sequenceDiagram
@@ -226,8 +229,8 @@ sequenceDiagram
     Conn->>PLC: 0x8080 SessionInit
     PLC-->>Conn: payload 24 bytes
     Conn->>UDP: bind local callback socket
-    Conn->>PLC: 0x405C mask + actual UDP port + IPv4
-    PLC-->>Conn: ACK payload 4 bytes
+    Conn->>PLC: 0x405C legacy 12 bytes or v2 32 bytes
+    PLC-->>Conn: successful legacy 4-byte ACK or v2 20-byte response
     Conn-->>App: State = Connected
 ```
 
@@ -240,6 +243,8 @@ sequenceDiagram
 | Receive timeout | 3000 ms | synchronous `NetworkStream.Read` 기반 |
 | Callback thread join | 500 ms | listener 종료 시 background thread join |
 | Callback source validation | `true` | controller IPv4가 다르면 datagram 폐기 |
+| Callback registration mode | `LegacyRaw` | 명시적 `Version2WakeHint`에서만 32/20 typed 계약 사용 |
+| Callback requested max datagram | 512 bytes | version 2 요청값, 허용 범위 `52..512` |
 
 ### 5.2 상태와 fault
 
@@ -251,8 +256,12 @@ sequenceDiagram
 | `Closing` | close ACK와 local cleanup 진행 중 |
 | `Faulted` | timeout, transport 오류 또는 in-flight cancellation로 stream 신뢰 상실 |
 
-자동 retry와 자동 reconnect는 없다. `Faulted` 이후 애플리케이션이 다시
-`RpcInitConnection[Async]`를 수행해야 한다.
+일반적이거나 무제한인 자동 retry/reconnect는 없다. SDK가 자동으로 수행하는 예외는
+명시적 version 2의 exact canonical `-1` session-init failure를 같은 TCP socket에서
+20 ms 뒤 한 번 재시도하는 것뿐이며, SDK 자체는 새 TCP를 만들지 않는다. 개발 WPF만 초기
+또는 동일 프로세스 내 후속 Connect의 첫 candidate에서 두 exact `-1`과 RPC/callback
+미시작 증거가 모두 맞을 때 100 ms 뒤 fresh TCP를 정확히 한 번 더 연다. 그 밖의
+`Faulted` 상태에서는 애플리케이션이 명시적으로 새 연결을 시작해야 한다.
 
 ### 5.3 Axis/Group handle과 generation
 
@@ -513,7 +522,9 @@ stale queue entry는 실행하지 않는다.
 1. `0x8080` session init
 2. `0x405C` callback endpoint registration
 
-callback event sender가 아직 없더라도 registration은 현재 PLC session gate의 일부다.
+Gate D source에 one-attempt sender/broker와 production-path candidate caller가 있더라도,
+승인된 exact downloaded producer와 live callback 증거는 아직 없다. registration은 현재
+PLC session gate의 일부다.
 protocol header에 session ID는 없고 socket과 local `SessionEpoch`가 session을 구분한다.
 
 ## 10. MotionLib와 realtime 경계
@@ -634,11 +645,22 @@ Group/Axis handle 생성
 | Public/API 단계 | Command | Request/Success payload | PLC 동작 |
 |---|---:|---:|---|
 | `RpcInitConnection[Async]` 내부 | `0x8080` | 1 / 24 | socket을 RPC session으로 지정 |
-| 동일 초기화 내부 | `0x405C` | 12 / 4 | callback mask/port/IPv4 저장 |
+| 동일 초기화 내부 | `0x405C` | legacy 12 / 4, explicit v2 32 / 20 | callback mask/port/IPv4 또는 v2 fence 저장 |
 | `CloseConnection[Async]` | `0x405D` | 1 / 4 | ACK 후 session state/epoch 정리 |
 | `LMCSingleAxis` 생성 | `0x103C` | 80 / 6 | 실제 object name -> descriptor `1..9` |
 | Axis 생성 2단계 | `0x202B` | 12 / 8 | payload 길이와 descriptor `1..9`만 확인; mode/enable 값과 client 연결은 재검증하지 않음 |
 | `LMCGroupAxis` 생성 | `0x1042` | 80 / 6 | Robot name -> descriptor `0x0100` |
+
+SDK의 exact canonical v2 init failure만 같은 TCP socket에서 20 ms 뒤 `0x8080`을 한 번
+재시도한다. `LastRpcSessionInitializationEvidence`는 outcome, attempt count, canonical retry,
+첫/마지막 ACK를 cleanup 뒤에도 보존한다. Current WPF `14ccf58`은 초기 또는 동일 프로세스
+내 후속 Connect의 첫 candidate가 두 exact `-1` ACK로 `Outcome=Failed`, `AttemptCount=2`,
+`CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때만 100 ms 뒤 fresh
+`LMCConnection`/TCP 하나를 연다. 두 번째 candidate 실패,
+`ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation/callback-stage failure에는 outer
+retry가 없다. 한 UI Connect의 최대치는 TCP 2개/`0x8080` 4회이고 `0x405C`는 init 성공
+뒤에만 전송된다. 정상 registration response까지 성공해야 Connect가 완료되며 `0x405C`
+실패는 terminal이고 WPF outer retry 대상이 아니다.
 
 ### 12.2 Single Axis
 
@@ -949,7 +971,9 @@ SourceVersion을 가진다. 숫자 충돌 가능성 때문에 domain을 생략�
 
 ## 14. Callback 구현과 현재 한계
 
-PC에는 별도 background UDP listener thread가 있다.
+PC에는 별도 background UDP listener thread가 있다. Library default는 legacy raw
+12/4이고 explicit `Version2WakeHint`는 32/20 registration과 strict typed 52-byte wake를
+사용한다.
 
 - local IPv4/port에 `UdpClient` bind
 - 기본적으로 controller source IPv4 검증
@@ -958,10 +982,23 @@ PC에는 별도 background UDP listener thread가 있다.
 - `CallbackReceived` handler는 listener thread에서 직접 호출
 - handler 예외는 `CallbackListenerError`로 전달
 - WPF UI update는 애플리케이션이 Dispatcher로 marshal
+- typed v2 wake는 source/session/BootId/cookie/sequence fence를 통과해도
+  non-authoritative이며 exact retained D5 ticket의 TCP `0x7E03` 결과만 UI state를 바꿈
 
-PLC `0x405C` handler는 event mask, port와 IPv4를 저장하고 ACK한다. 현재 canonical source에는
-해당 endpoint로 UDP datagram을 보내는 typed event sender가 없다. 따라서 callback은
-motion-complete, fault 또는 Recorder event 계약으로 사용할 수 없다.
+PLC `0x405C` handler는 event mask, port와 IPv4를 validate-then-commit하고 ACK한다. Gate D
+source에는 D5 terminal one-attempt broker와 production-path candidate `PublishEvent(...)`
+caller가 있다. 그러나 live 52-byte UDP와 causal `0x7E03` packet, reviewed production
+approval이 없으므로 callback runtime PASS로 취급하지 않는다.
+
+WPF 내부 replacement와 창 X는 공용 cleanup에서 최대 두 번 `Dispose`한 뒤 complete local
+disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`/`LastCloseException`은
+진단용으로 남는다. X는 postcondition 미완료 시 취소되고 strict Close 버튼은 cleanup 뒤
+close 오류를 다시 throw한다. startup identity는
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 topology
+marker V5를 유지한다. 100 ms PC backoff와 fake immediate reaccept는 PLC readiness/cleanup
+proof가 아니다. wire `-1`의 내부 원인은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership
+rejection일 수 있고 PC cleanup은 PLC disarm 성공이 아니다. private state를 force-clear하지
+않는다.
 
 `ConnectionStateChanged` handler도 library thread에서 직접 실행되며 UI marshal을 하지 않는다.
 handler 예외는 connection 동작에 전파되지 않도록 무시된다.
@@ -995,8 +1032,8 @@ E-stop/drive safety chain이 반드시 필요하다.
 
 | 항목 | 상태 |
 |---|---|
-| PC request/parser/fake-RPC/diagnostics/admin 합계 | current Debug/Release 각 1042/1042 PASS |
-| 개발 WPF | current Debug/Release build와 actual-control smoke 각 297/297 PASS |
+| PC request/parser/fake-RPC/diagnostics/admin 합계 | current `14ccf58` Debug/Release direct 각 1133/1133 PASS; 2026-07-31 baseline 1042/1042 |
+| 개발 WPF | current `14ccf58` Debug/Release Rebuild PASS; full smoke 339/339, reconnect targeted 6/6 PASS; 2026-07-31 baseline 297/297 |
 | LASAL SourceOnly static contract | `Phase5TransportClean / IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS |
 | LASAL full static contract | `IntegratedReadOwnerDormant`, `ExpectedSdoWriteAxis=1`로 PASS; generated metadata, topology network와 same-peer transport 구조 동기화 확인 |
 | LASAL IDE rebuild/link | current Axis 1 gate-on source `0 errors / 20 warnings`, Linker Done; PLC download는 미실시 |
@@ -1011,8 +1048,11 @@ E-stop/drive safety chain이 반드시 필요하다.
 | actual TCP/UDP recapture | D5 PC-PLC TCP capture 확보; 기존 motion/group 미검증 |
 | core/priority/jitter | 미검증 |
 
-PC 시험은 serializer, parser, loopback TCP/UDP lifecycle을 검증한다. 실제 MotionLib 상태 전이,
-EtherCAT, Axis hardware와 PLC task 배치를 검증하지 않는다.
+독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. PC 시험은 serializer, parser,
+loopback TCP/UDP lifecycle을 검증한다. restart case는 같은 test process/server/port에서 새
+`MainWindow`와 immediate reaccept를 사용하며 EXE relaunch/named mutex 증거가 아니다. 실제
+MotionLib 상태 전이, PLC session cleanup, EtherCAT, Axis hardware와 PLC task 배치를 검증하지
+않는다.
 
 ### 16.2 현재 주요 위험
 
@@ -1024,7 +1064,8 @@ EtherCAT, Axis hardware와 PLC task 배치를 검증하지 않는다.
 4. `_TCPIPServer` base가 OS receive의 short-read를 어떻게 보장하는지 실기/매뉴얼 확인이 필요하다.
 5. `RobotPowerOn/Off/Lock/UnLock` legacy writable server channel은 queue/session을 우회해
    Robot method를 직접 호출한다. 외부 연결 금지 또는 제거가 필요하다.
-6. callback endpoint 등록은 필수지만 event sender가 없다.
+6. callback sender/broker candidate는 있으나 exact downloaded artifact와 live UDP/TCP causal
+   capture가 없어 runtime/production 승인이 아니다.
 7. TCP port 4000, one connection 구조에 authentication, encryption과 multi-PC motion-owner
    arbitration이 없다.
 8. C# reader는 command별 상한을 적용하기 전에 response header의 `UInt16` payload length를

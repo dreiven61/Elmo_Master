@@ -2,7 +2,7 @@
 
 작성일: 2026-07-10
 
-최종 결과 재확인: 2026-07-31
+최종 결과 재확인: 2026-08-11 (`14ccf58`)
 
 ## 구성
 
@@ -727,9 +727,9 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
 - commit `bff3bc7`은 standalone runner에 exact mode `callback-ownership-wire`와
   전용 회귀 16개를 추가했다. 기본 호출과 `--dry-run`은 network access 없이
   `all` 또는 지정한 `gd-n10a`, `gd-n13-candidate`, `gd-n14-candidate` 계획만 출력한다.
-  current VS2019 Release `RunPcTests`는 `1133/1133` PASS했고 독립 reviewer 재실행도
-  `1133/1133` PASS다. WPF production/test source는 이 commit에서 바뀌지 않았으며,
-  독립 reviewer의 Release `RunWpfSmokeTests` 재실행도 `335/335` PASS다.
+  Current `14ccf58` SDK Debug/Release direct `RunPcTests`는 각각 `1133/1133`
+  PASS다. `bff3bc7` 당시 독립 reviewer의 Release 재실행도 `1133/1133`이었고, 그
+  commit에서 WPF source가 바뀌지 않은 채 재실행한 `335/335`는 historical checkpoint다.
   live parser는 `--execute-live`, exact case-sensitive
   `--confirm PLC-CALLBACK-OWNERSHIP`, concrete `--scenario`(`all` 금지), explicit
   `--host`/`--owner-local`/`--candidate-local` IPv4, 세 40/64-hex Git object로 구성한 declared
@@ -770,8 +770,8 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   4축 executor network와 generated metadata 포함
 - `BuildSimpleExampleApp`: D5 runner 포함 `LMC_Library/LasalApiWpfTestApp`의
   `f337fec`/`ad7c8b1` 2026-08-10 Release 스냅샷은 `334/334` PASS였다.
-  2026-08-11 `af4ab63` current Release는 VS2019 MSBuild 16.11.6.22506 Rebuild
-  warning 0/error 0이고 full smoke runner `335/335` PASS다.
+  2026-08-11 `af4ab63` historical Release는 VS2019 MSBuild 16.11.6.22506 Rebuild
+  warning 0/error 0이고 full smoke runner `335/335` PASS였다.
   `Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession`은 첫
   Connect의 exact short failure 2회 뒤 `Disconnected`/`Stopped`, Connect 재활성,
   내부 connection 제거와 session-1의 `0x405C`/`0x405D` zero-wire를 확인하고, 다음 수동
@@ -782,6 +782,28 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   고정한다. 두 회귀 모두 요청값 `RequestedCallback=127.0.0.1:0`을 보존한다. 실패
   evidence는 `BoundCallback=not-bound`, 성공 evidence는 실제 양수 ephemeral endpoint를
   `BoundCallback`으로 보존한다.
+  Current `14ccf58`은 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect
+  targeted filter `6/6`을 PASS했다. 독립 callback/reconnect filter도 `9/9`, P0/P1
+  없음이다. 초기 및 동일 프로세스 내 후속 Connect에서 첫 candidate가 exact canonical `-1`을
+  두 번 받아 `Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고
+  RPC/callback 미시작인 경우만 `RPC_INIT_FRESH_TCP_ONCE_V1`이 그 candidate를
+  retire/`Dispose`한다. fixed 100 ms 뒤 fresh `LMCConnection`/TCP를 정확히 한 번 열고
+  두 번째 candidate 실패는 terminal이다. `ErrorId=0`, 다른 ErrorId,
+  malformed/transport/cancellation/callback-stage failure는 outer retry가 없다. 사용자
+  operation 하나의 상한은 TCP 2개/`0x8080` 4회이고 `0x405C`는 init 성공 뒤에만 나간다.
+  정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고
+  outer retry가 없다.
+  내부 replacement와 창 X의 공용 cleanup은 최대 두 번 `Dispose` 후 complete local
+  disconnected postcondition을 요구하고 old `RpcCloseResponse`/`LastCloseException`을
+  보존한다. X는 미완료 시 취소되며 strict Close 버튼은 close 실패 시 cleanup 뒤 그
+  오류를 throw한다.
+  startup evidence는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`,
+  `SdkBuildUtc`를 기록하고 topology marker V5는 유지한다.
+  100 ms는 PLC readiness proof가 아니고 wire `-1`은 internal disarm `-8`/`-9`와 다른
+  lifecycle/ownership rejection을 구분하지 못한다. Fake restart는 같은 process에서 새
+  `MainWindow`가 같은 server/port에 immediate reaccept한 것으로 EXE relaunch/named mutex,
+  PLC cleanup/disarm 또는 runtime proof가 아니다. PC local cleanup은 PLC disarm 성공이
+  아니며 private state를 force-clear하지 않는다.
   `Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi`는 old-session
   statistics action을 Dispatcher에 먼저 queue한 뒤 connection을 교체하고, action 처리 후에도
   replacement의 네 counter가 0, last decision이 `None`, summary가 `rejected=0`, active owner가

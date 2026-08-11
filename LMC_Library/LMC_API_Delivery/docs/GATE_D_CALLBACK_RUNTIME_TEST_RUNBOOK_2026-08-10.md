@@ -2,6 +2,8 @@
 
 Date: 2026-08-10
 
+PC reconnect amendment: 2026-08-11 (`14ccf58`)
+
 ## Evidence boundary
 
 Gate D adds a non-authoritative UDP wake for a terminal D5 operation. UDP never
@@ -163,11 +165,23 @@ nor a formal checkpoint, transition, or approval.
 
 PC reconnect correction commit `66b5cf2` preserves the exact short-failure
 `ErrorId=-1` and only for the canonical v2 failure envelope waits 20 ms and
-retries `0x8080` once
-on the same socket. Legacy and other failures do not retry. Commit `af4ab63`
-also fixes the non-canonical short-ACK `ErrorId=0` case at one `0x8080`, full
-listener/TCP/WPF cleanup, and a fresh socket for the next manual Connect. Current
-Release PC evidence is SDK `1133/1133` and WPF `335/335`. The GUI retains the RPC-init
+retries `0x8080` once on the same socket. Legacy and other failures do not retry.
+Commit `af4ab63` historically fixes the non-canonical short-ACK `ErrorId=0` case
+at one `0x8080`, full listener/TCP/WPF cleanup, and a fresh socket for the next
+manual Connect. Current `14ccf58` adds `RPC_INIT_FRESH_TCP_ONCE_V1`: if an initial
+or in-process Connect candidate receives both exact canonical `-1` failures with
+`Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true` and no RPC/callback
+start, WPF retires/disposes it, waits a fixed 100 ms, and opens exactly one fresh
+`LMCConnection`/TCP. The second candidate failure is terminal. ErrorId 0/other,
+malformed/transport/cancellation, and callback-stage failures receive no outer
+retry. One Connect is bounded to two TCP sockets/four `0x8080`; `0x405C` is sent
+only after init success. Connect succeeds only after the registration ACK
+succeeds; a `0x405C` failure is terminal and receives no outer retry.
+
+Current PC evidence is SDK Debug/Release direct `1133/1133`, WPF Debug/Release
+Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`, and independent
+callback/reconnect `9/9` with no P0/P1. The prior `af4ab63` WPF `335/335` remains
+a historical checkpoint. The GUI retains the RPC-init
 attempt count, canonical-retry decision, and final ACK evidence after cleanup,
 labels the configured tuple `RequestedCallback`, records the actual UDP endpoint
 as `BoundCallback` or `not-bound`, and displays the accepted version-2 BootId,
@@ -179,7 +193,12 @@ counters, last decision, or listener summary. These values are PC-side evidence
 only; they do not replace the pcap,
 PLC `RpcCallbackLastDisarmResult`, or PLC producer/sender counters. Negative PLC
 disarm preservation remains intentional and fail-closed; do not force-clear the
-callback tuple.
+callback tuple. The fixed 100 ms is PC backoff, not PLC slot/FSM-readiness proof.
+A wire `-1` may represent internal disarm `-8`/`-9` or another
+lifecycle/ownership rejection. Fake restart evidence uses a new `MainWindow` in
+the same test process against the same server/port with immediate reaccept; it is
+not EXE relaunch, named-mutex, PLC cleanup, or runtime proof. PC local cleanup
+does not prove PLC disarm success.
 
 Before formal Gate D runtime qualification, preserve this sequence/evidence split:
 
@@ -563,10 +582,11 @@ a PC raw-wire harness, defaults to dry-run, retries zero times, and has no input
 surface for arbitrary commands or payloads, downgrade, write, motion, reset, or
 Download. Its request allowlist is only exact `0x8080`, fixed version-2 `0x405C`
 (mask `1`, maximum `52`, nonzero cookie, flags/reserved zero), and `0x405D` from
-the current authoritative owner. The 16 new harness tests bring the current
-Release SDK result to `1133/1133`; an independent reviewer repeated the Release
-`RunPcTests` target with the same result and repeated Release `RunWpfSmokeTests`
-at `335/335`.
+the current authoritative owner. The 16 new harness tests brought the SDK Release
+result to `1133/1133`; an independent reviewer repeated that Release
+`RunPcTests` result and the then-current WPF Release `335/335`. Current
+`14ccf58` WPF Debug/Release Rebuild passes and full smoke is `339/339`. Harness
+`RETRY_COUNT=0` is a separate raw-wire policy and is not the WPF outer retry.
 
 Before reviewed rebaseline, the following are the only authorized harness
 commands. They are exact **DRY-RUN** examples and open no network connection:
@@ -781,6 +801,12 @@ approved site plan freezes the drive mode during this case.
    the WPF connection label alone.
 4. Submit a new low-level `0x6061:0 Int8/1` read.
 
+If the GUI automatically uses its fresh-session retry, capture
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`, topology
+marker V5, both TCP lifetimes and every `0x8080`/`0x405C`. The automatic PC path
+does not replace this PLC reconnect/session-fence proof. Do not force a private
+PLC word to manufacture the canonical failure.
+
 PASS requires the new ticket to complete normally through the new callback
 tuple. Replaying a previous-session packet is a separate PC fake or approved
 proxy case: it must be rejected by the listener/session fence and must not
@@ -828,6 +854,12 @@ operation outcome.
 1. Connect and verify an armed version-2 callback tuple.
 2. With no intentionally pending D5 ticket, press WPF `Close` once.
 3. Capture the TCP `0x405D` exchange and the subsequent connection teardown.
+
+The explicit Close button is strict: if close fails, it completes local cleanup
+and then reports the close error. Internal replacement and window X instead share a maximum
+two-`Dispose` cleanup and require the complete local disconnected postcondition;
+they retain `RpcCloseResponse`/`LastCloseException`, and X cancels if cleanup is
+incomplete. These PC postconditions are not evidence of PLC disarm.
 
 PASS requires `RpcCallbackLastDisarmResult` to be `0` (matched clear) or `1`
 (already disarmed/empty), the RPC callback tuple to be cleared, sender

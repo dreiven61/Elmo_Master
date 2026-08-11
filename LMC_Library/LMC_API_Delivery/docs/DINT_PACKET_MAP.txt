@@ -1883,37 +1883,65 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   run passed in 233.562 s with that wrapper hash unchanged before and after.
   This is full SourceOnly consumer evidence only and does not change the
   capture-only/nonproduction decision.
-- PC reconnect correction commit 66b5cf2, observability commit f337fec, display
-  correction af4ab63, and PC-only callback ownership harness bff3bc7 are
-  covered by Visual Studio 2019 MSBuild 16.11.6 Debug and Release builds of
-  LasalMotionControlLib.Tests. Each current custom runner reported SDK 1133/1133
-  PASS (TOTAL 1133, PASSED 1133, FAILED 0). Callback coverage now
-  includes the codec, InitialV2WakeHint, session fencing, exact opt-in 32/20
-  negotiation, gated early-datagram delivery, strict source/provenance/policy/
-  sequence rejection, fixed-buffer oversized rejection, typed-only dispatch,
-  endpoint evidence immutability, join-timeout gate ownership, handler-failure
-  continuation, reentrant-close invalidation, safety-detach provenance, no
-  downgrade, reconnect invalidation, exact short-failure ErrorId=-1 parsing, and
-  the one permitted same-socket v2 session-init retry. Only the exact outer
-  Status=1/HeaderReserved=0/payload=4/command Status=1/ErrorId=-1 envelope in
-  explicit Version2WakeHint waits 20 ms and retries once; legacy and all other
-  envelopes retry zero times. In particular, the otherwise same short ACK with
-  ErrorId=0 is non-canonical: it sends one 0x8080, performs full cleanup, and a
-  later manual Connect uses a fresh TCP socket/session. The retained
-  initialization evidence preserves the
-  attempt count, retry decision, first/final ACK, and outcome after cleanup. The
-  WPF evidence labels the configured tuple RequestedCallback and the actual UDP
-  endpoint BoundCallback; a failure before bind records BoundCallback=not-bound.
-  immutable v2 statistics event preserves the matching receiver decision and all
-  four counters for the current session. The current WPF Release smoke runner
-  reports 335/335 PASS at af4ab63, including canonical persistent-init-failure
-  cleanup, ErrorId=0 non-canonical zero-retry cleanup, manual reconnect on a new
-  session, and stale queued event fencing after UI dispatch. The 16 ownership
-  harness regressions constrain GD-N10A/N13/N14 to exact 0x8080, version-2
-  0x405C, and authoritative-owner 0x405D flows with zero retry and fail-closed
-  peer-retirement/close classification. The harness defaults to zero-network
-  dry-run; its live mode has not been executed against the PLC. This is PC
-  fake-peer/raw-wire evidence, not PLC runtime or packet-capture proof.
+- PC reconnect correction commit 66b5cf2, observability/fence commits
+  f337fec/ad7c8b1, historical display correction af4ab63, PC-only callback
+  ownership harness bff3bc7, and current WPF recovery commit 14ccf58 do not
+  change a command ID, DINT offset, or TCP/UDP frame layout. Current Visual
+  Studio 2019 Debug and Release LasalMotionControlLib.Tests direct runners report
+  SDK 1133/1133 PASS (TOTAL 1133, PASSED 1133, FAILED 0).
+  Callback coverage includes the codec, InitialV2WakeHint, session fencing,
+  exact opt-in 32/20 negotiation, gated early-datagram delivery, strict source/
+  provenance/policy/sequence rejection, fixed-buffer oversized rejection,
+  typed-only dispatch, endpoint evidence immutability, join-timeout gate
+  ownership, handler-failure continuation, reentrant-close invalidation,
+  safety-detach provenance, no downgrade, reconnect invalidation, exact
+  short-failure ErrorId=-1 parsing, and the one permitted same-socket v2
+  session-init retry.
+  Only the exact outer Status=1/HeaderReserved=0/payload=4/command
+  Status=1/ErrorId=-1 envelope in explicit Version2WakeHint waits 20 ms and
+  retries 0x8080 once on the same socket. Legacy and every other envelope retry
+  zero times. LastRpcSessionInitializationEvidence retains the attempt count,
+  canonical retry, first/final ACK, and outcome after cleanup.
+  The otherwise identical short ACK with ErrorId=0 is non-canonical: the SDK
+  sends one 0x8080 and performs full cleanup. The historical af4ab63 WPF
+  regression proves that a later manual Connect uses a fresh TCP socket/session.
+  RequestedCallback preserves the configured tuple; BoundCallback preserves the
+  actual UDP endpoint or not-bound when initialization failed before bind. The
+  immutable v2 statistics event preserves the current-session receiver decision
+  and all four counters.
+  Current 14ccf58 WPF applies RPC_INIT_FRESH_TCP_ONCE_V1 only when an initial or
+  in-process Connect candidate has Outcome=Failed, AttemptCount=2,
+  CanonicalRetryUsed=true, both exact -1 ACKs, and no RPC/callback start. It
+  retires/disposes that LMCConnection, waits one fixed PC-side 100 ms, and opens
+  exactly one fresh LMCConnection/TCP. The second candidate failure is terminal.
+  ErrorId=0/other, malformed/transport/cancellation, and callback-stage failures
+  receive no outer retry. One UI Connect is bounded to two TCP sockets and four
+  0x8080 requests; 0x405C is sent only after init success. Connect succeeds only
+  after a successful registration ACK; a 0x405C failure is terminal and receives
+  no outer retry.
+  WPF startup records ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1, SdkPath, and
+  SdkBuildUtc. The existing topology marker remains
+  CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5; V5 is a GUI/test
+  identity and does not alter this packet map or EtherCAT topology revision.
+  Internal replacement and window X use a shared maximum-two-Dispose local
+  cleanup and retain RpcCloseResponse/LastCloseException. X cancels if the full
+  disconnected postcondition is incomplete; if close fails, the strict Close
+  button rethrows that failure after cleanup.
+  The af4ab63 WPF Release 335/335 remains historical and includes persistent
+  init-failure cleanup, ErrorId=0 zero-retry/manual fresh-session cleanup, and
+  stale queued-event fencing after UI dispatch. Current 14ccf58 WPF
+  Debug/Release Rebuild passes, full smoke reports 339/339, targeted reconnect 6/6,
+  and independent callback/reconnect 9/9 with no P0/P1. The fake restart creates
+  a new MainWindow in the same test process against the same server/port with
+  immediate reaccept; it is not EXE relaunch, named-mutex, PLC cleanup, or
+  runtime proof. Fixed 100 ms is not PLC slot/FSM readiness evidence. Wire -1
+  does not distinguish internal disarm -8/-9 from lifecycle/ownership rejection;
+  PC local cleanup does not prove PLC disarm success and no private PLC state is
+  force-cleared.
+  The 16 ownership harness regressions remain a separate RETRY_COUNT=0 raw-wire
+  policy for GD-N10A/N13/N14 exact 0x8080/version-2 0x405C/authoritative-owner
+  0x405D flows. Its live mode has not been executed against the PLC. All of this
+  is PC fake-peer/raw-wire evidence, not PLC runtime or packet-capture proof.
 - The Gate C LASAL Save/Rebuild completed 128 compile lines, Compiler/Linker
   completion, zero errors, and a UI summary of 76 warnings. The relevant log
   contained no ERROR, FATAL, CInvalidArgException, or failed record. The 21 new
@@ -2132,8 +2160,9 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   This incident evidence changes no RPC ID, DINT offset, request/response layout,
   UDP/TCP packet contract, LASAL production source, or wire behavior.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
-  opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec provide bounded PC
-  reconnect and retained receiver/initialization evidence only. Prior successful
+  opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec/ad7c8b1 and 14ccf58
+  provide bounded same-socket SDK recovery, retained evidence, and one WPF
+  fresh-TCP application retry only. Prior successful
   Downloads, including post-STOP PID 26200, are not live UDP-to-TCP causal packet
   proof; that proof remains absent. Gate A/B/C historical
   static/build evidence and PC fake-peer tests are not PLC runtime proof.

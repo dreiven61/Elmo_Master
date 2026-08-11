@@ -120,7 +120,7 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner current Debug/Release 검증: 각각 1117/1117 PASS. fake-RPC request/session
+- C# 자동 테스트 runner current Debug/Release 검증: 각각 1133/1133 PASS. fake-RPC request/session
   atomic append와 stable snapshot 회귀, Axis/Group sync/async typed lookup의
   exact 6-byte/nonzero descriptor, structured failure와 raw 방어 복사 회귀에 더해 topology/I/O read-only raw qualifier의
   옵션/allowlist/mutation 차단/dormant capability/dry-run/fake 17-request sequence와
@@ -173,9 +173,10 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   IDE에서 생성했고, `LMCEcatInputLatch`의 464-byte seqlock snapshot과
   `LMCDiagnosticsService`의 `0x7E13/0x7E22` handler를 external source implementation으로 완성했다.
   default checkpoint는 read-owner 구현과 bit 15~17 OFF, `0x7E23` 부재를 함께 검증한다.
-- 개발 WPF example `af4ab63` current Release rebuild: 경고 0, 오류 0. actual-control startup
-  smoke는 VS2019 MSBuild Release에서 335/335 PASS다. 이번 tranche에서는 Debug
-  build/smoke를 다시 실행하지 않았다. Admin capability/axis/group와 Drive mode/non-atomic status를
+- 개발 WPF example의 `af4ab63` Release rebuild/actual-control `335/335`는 historical
+  snapshot이다. Current `14ccf58`은 Debug/Release Rebuild PASS, full smoke
+  `339/339`, reconnect targeted `6/6`을 PASS했고 독립 callback/reconnect review는
+  `9/9`, P0/P1 없음이다. Admin capability/axis/group와 Drive mode/non-atomic status를
   exact fake-RPC 및 non-default axis lookup/AxisInfo payload로 검증한다. D5
   abort/contention/timeout/queued-cancel/abrupt-disconnect 버튼의 capability/idle/interlock gate, typed v2 SDO
   restart recovery의 capability-off zero-wire, 잠긴 D4 journal fail-closed와 active D4
@@ -819,8 +820,8 @@ request를 failure context로 보존하고, `CancelOperation`은 실행됐을 �
   accepted Resume 실패의 cleanup은 exact pending continuation만 재사용하며 새 `0x2085`를 자동
   전송하지 않는다. fake-RPC는 외부 Power Off 선점에서 Stop 1회/Power Off 1회/status 4회, accepted
   status failure 뒤 cleanup에서 Stop 1회/status 4회를 확인했다. 이는 PLC packet 또는 정지 성능
-  proof가 아니다. current SDK Debug/Release runner는 callback-v2 회귀를 포함해
-  각각 1117/1117 PASS했고,
+  proof가 아니다. current SDK Debug/Release direct runner는 callback-v2 회귀를 포함해
+  각각 1133/1133 PASS했고,
   이 값을 PLC runtime proof로 확대하지 않는다.
 
 public `GroupEnableAndWaitForLockedStandbyAsync`는 동일 connection session과 group
@@ -888,7 +889,9 @@ ticket이나 terminal state를 만들지 않는다. 이미 Submit 응답으로 �
 ticket의 connection/session/BootId/TicketId가 모두 일치할 때만 generation-pinned
 `GetOperationStatusAsync` (`0x7E03`)를 실행하며, 오직 TCP 응답만 상태를 갱신한다. tracked
 LASAL handler는 `CurrentPeerValid`, exact TCP-peer IPv4와 port `1..65535`를 모두
-확인한다. production PLC `PublishEvent` caller와 live callback packet 증거는 아직 없다.
+확인한다. Gate D source에는 one-attempt broker와 production-path candidate
+`PublishEvent(...)` caller가 있지만 live callback packet/causal TCP 증거와 production
+approval은 아직 없다.
 다중 PC의 읽기 공유·motion owner 정책은 LASAL session/ownership 계층에서
 구현해야 한다.
 
@@ -940,13 +943,25 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
   `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞으면 20 ms
   cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. persistent
   second failure는 `Faulted` cleanup, 다른 ErrorId/nonzero reserved/malformed response와
-  legacy mode는 zero-retry다. `af4ab63`은 같은 short ACK의 non-canonical `ErrorId=0`이
-  `0x8080` 1회, full listener/TCP/WPF cleanup으로 끝나고 다음 수동 Connect가 새 TCP
-  socket/session을 쓰는 것을 고정한다. 이는 PLC의 persistent disarm result `-8`/`-9` root fix가
-  아니다.
-- WPF 회귀는 canonical persistent failure와 non-canonical `ErrorId=0` 첫 failure가 모두
-  `Disconnected`/`Stopped`, Connect 재활성, 내부 connection 제거 상태로 복귀하고, 다음
-  수동 Connect가 새 TCP session에서 `0x8080 -> 0x405C`로 성공하는 것을 검증한다.
+  legacy mode는 zero-retry다. `af4ab63`의 non-canonical `ErrorId=0` zero-retry/manual
+  reconnect는 historical regression이다.
+- Current WPF commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect의 첫 candidate가 두
+  exact canonical `-1` ACK 뒤 `Outcome=Failed`, `AttemptCount=2`,
+  `CanonicalRetryUsed=true`이고 RPC/callback 미시작일 때만 failed candidate를
+  retire/`Dispose`한다. 100 ms 뒤 하나의 새 `LMCConnection`/TCP를 열고, 두 번째
+  candidate도 실패하면 terminal로 끝낸다. `ErrorId=0`, 다른 ErrorId,
+  malformed/transport/cancellation 또는 callback-stage failure는 WPF outer retry가 없다.
+  한 UI operation의 상한은 TCP 2개/`0x8080` 4회이며 `0x405C`는 init 성공 뒤에만 나간다.
+  정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고 outer
+  retry가 없다.
+- 내부 replacement와 창 X는 공용 bounded cleanup에서 최대 두 번 `Dispose`하고 complete
+  local disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`와
+  `LastCloseException`은 보존한다. X는 cleanup 미완료 시 취소되며 strict Close 버튼은 local
+  cleanup 뒤 close 오류를 다시 throw한다.
+- startup은 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`와 기존
+  topology marker V5를 기록한다. 고정 100 ms는 PLC readiness/timing proof가 아니고 wire
+  canonical `-1`은 disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다.
+  PC cleanup은 PLC disarm 성공을 뜻하지 않으며 private PLC state를 force-clear하지 않는다.
 - WPF RPC-init evidence는 입력 tuple을 `RequestedCallback`, 실제 UDP endpoint를
   `BoundCallback`으로 구분한다. init 실패 전 bind가 없으면 `not-bound`를 기록한다.
 - `LMCCallbackEventArgs`는 legacy raw provenance를 제공한다.
@@ -954,7 +969,10 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
   `MatchesD5OperationTerminalTicket`을 제공한다. 이 matcher는 retained ticket과 exact
   current connection/session/DiagnosticsBootId/TicketId만 상관시키며 ticket을 합성하지
   않는다.
-- `CloseConnection`/`Dispose`는 캡처 기반 close frame(`0x405D`)을 송신
+- strict `CloseConnection[Async]`는 초기화된 연결에서 가능한 경우 캡처 기반 close
+  frame(`0x405D`)을 시도한 뒤 local cleanup을 완료한다. `Dispose`는 캡처한 close
+  protocol/transport 오류를 local cleanup 경로 뒤 다시 throw하지 않지만,
+  failed/uninitialized candidate에서는 `0x405D`가 나가지 않을 수 있다.
 - 연결 timeout, state event, 초기화/transport/close 오류 분리, callback
   source-address 검증과 취소 가능한 async API를 제공
 - timeout/전송 오류와 in-flight 취소는 오염된 transport를 폐기하고
@@ -1054,9 +1072,12 @@ axis RT thread와 같은 core 배치, PLC jitter를 확인하기 전까지 produ
 Home/encoder-maintenance 계약 포함), `RunLasalContract`(tracked LASAL
 source static checks), `RunTests`(두 검증과 개발 WPF test app build) target으로
 분리돼 있다. 개발 WPF의 실제 컨트롤/fake RPC 회귀는 별도
-`LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests` target이며 current Release는
-`af4ab63` 기준 VS2019 MSBuild 335/335 PASS다. 이번 tranche에서는 Debug smoke를 다시 실행하지
-않았다. Admin/Drive read-only 탭의 exact request/typed UI와 one-click bounded SDO Read의 typed/raw terminal 표시, accepted-timeout/cancel
+`LasalApiWpfTestApp.SmokeTests.csproj /t:RunWpfSmokeTests` target이다. `af4ab63`
+Release `335/335`는 historical snapshot이고 current `14ccf58`은 VS2019 MSBuild
+Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6` PASS다.
+독립 callback/reconnect `9/9` review에서 P0/P1은 없었다. Fake restart는 같은 test
+process/server/port의 새 `MainWindow`와 immediate reaccept를 사용했으므로 EXE relaunch,
+named mutex, PLC cleanup 또는 runtime proof가 아니다. Admin/Drive read-only 탭의 exact request/typed UI와 one-click bounded SDO Read의 typed/raw terminal 표시, accepted-timeout/cancel
 ticket과 last-status 보존/수동 Refresh 복구, pre-accept cancel 및 capability-off zero-wire,
   terminal failure guard 해제, SDO Write의 current-session same-value proof 선행 gate와
   비모달 immutable arm/편집 시 re-arm/exact second-click consume,

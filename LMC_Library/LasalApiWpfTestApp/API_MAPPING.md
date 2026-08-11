@@ -80,13 +80,16 @@ commit한다. exact duplicate는 idempotent이고 다른 re-registration은 기�
 `HeaderReserved=0`, payload 4 bytes와 이 exact command error가 모두 맞을 때 20 ms
 cancellation-aware 대기 뒤 같은 TCP socket으로 init을 한 번 더 시도한다. 두 번째도
 실패하면 `Faulted`와 TCP/UDP cleanup으로 끝나며, 다른 ErrorId/nonzero
-reserved/malformed response는 zero-retry다. `af4ab63`은 같은 short ACK의
-`ErrorId=0`이 `0x8080` 1회, full cleanup으로 끝나고 다음 수동 Connect가 새 TCP
-socket/session을 쓰는 것을 고정한다. 이 bounded retry는 PLC의 persistent
-callback disarm `-8`/`-9` root fix가 아니다.
-WPF 회귀는 canonical persistent failure와 non-canonical `ErrorId=0` 첫 failure가 모두
-`Disconnected`/`Stopped`, Connect 재활성, 내부 connection 제거로 끝나고 다음 수동
-Connect가 새 TCP session에서 성공하는 것을 검증한다.
+reserved/malformed response는 SDK zero-retry다. Current `14ccf58` WPF는 초기 및 동일
+프로세스 내 후속 Connect 모두에서 첫 candidate의 두 exact canonical `-1` 응답이
+`Outcome=Failed`, `AttemptCount=2`, `CanonicalRetryUsed=true`이고 RPC/callback이 아직
+시작되지 않은 경우에만 candidate를 retire/`Dispose`한다. 100 ms 뒤 정확히 하나의 새
+`LMCConnection`/TCP를 열며 두 번째 candidate 실패는 terminal이다. `ErrorId=0`, 다른
+ErrorId, malformed/transport/cancellation 또는 callback-stage 실패는 WPF outer retry
+대상이 아니다. 사용자 Connect 한 번당 최대 TCP 2개/`0x8080` 4회이며 `0x405C`는 init
+성공 뒤에만 전송된다. 정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C`
+실패는 terminal이고 outer retry가 없다. 이는 PLC의 persistent callback disarm `-8`/`-9`
+root fix가 아니다.
 
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
 ACK를 Active/Retired evidence로 보존한다. 입력 tuple은 `RequestedCallback`, 실제 UDP
@@ -98,14 +101,23 @@ accepted/rejected/duplicate/out-of-order 누계, 마지막 decision/protocol err
 counter를 대체하지 않는다. `0x8080` wire response에는 PLC의 `-8`/`-9` disarm 원인이
 포함되지 않는다.
 
+내부 replacement와 창 X는 공용 최대 2회 `Dispose` cleanup을 사용하고 complete local
+disconnected postcondition을 요구한다. `RpcCloseResponse`/`LastCloseException`은 이전
+connection에 남는다. X는 postcondition 미완료 시 취소되고, 명시적 Close 버튼은 cleanup
+뒤에도 close 오류를 throw한다. startup은
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 기존
+topology marker V5를 유지한다. 100 ms는 PC fixed backoff일 뿐 PLC readiness 증거가
+아니며 PC cleanup은 PLC disarm 성공 또는 force-clear를 뜻하지 않는다.
+
 Typed wake는 listener가 소유한 connection과 positive session generation에 귀속된다. WPF는
 dispatcher queue에서 active connection identity와 `BelongsToCurrentSession(connection)`,
 retained ticket의 `BelongsToCurrentSession(connection)`, exact DiagnosticsBootId와 nonzero
 TicketId를 다시 확인한다. EventType 1은 `DiagnosticsOperationTerminalAvailable`만 뜻한다.
 조건이 맞을 때만 retained ticket으로 generation-pinned `0x7E03`을 조회하고, 성공한 TCP
 response만 기존 terminal/journal UI path에 반영한다. UDP에서 ticket을 합성하거나
-OperationKind/state를 추론하지 않는다. PLC production publisher와 실제 callback capture는
-아직 없다.
+OperationKind/state를 추론하지 않는다. Gate D source에는 sender/broker와
+production-path candidate `PublishEvent(...)` caller가 있지만, 승인된 exact downloaded
+publisher와 실제 callback capture는 아직 없다.
 
 이 WPF가 생성하거나 reconnect하는 모든 `LMCConnection`에는 하나의
 `LMCSendPriorityCoordinator`를 주입한다. Axis/Group Stop과 Power Off는 app send gate를
@@ -242,9 +254,12 @@ process restart는 `RecoveryRequired`로 승격한다. exact reconnect와 Load G
 `0x20D2`를 1회 검증하고 Resume은 `0x2045`/`0x2028`만 보낸다. mismatch는 record를 유지한 채
 fail-closed하고 Reset을 자동 replay하지 않는다.
 
-`af4ab63` current 통합 변경은 SDK Debug/Release runner가 각각 1117/1117, WPF Release
-smoke가 335/335 PASS다. WPF Debug smoke는 다시 실행하지 않았으며 PLC/runtime 완료 증거는
-별도다.
+`af4ab63` SDK Debug/Release `1117/1117`과 WPF Release `335/335`는 historical
+snapshot이다. Current `14ccf58`은 SDK Debug/Release direct runner 각각 `1133/1133`,
+WPF Debug/Release Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6`을
+PASS했다. 독립 callback/reconnect review는 `9/9`, P0/P1 없음이다. Fake restart는 같은
+test process/server/port의 새 `MainWindow`와 immediate reaccept를 사용했으므로 EXE
+relaunch, named mutex, PLC cleanup 또는 runtime 완료 증거가 아니다.
 
 Axis Reset UI는 Begin에서 `0x2024` ACK와 accepted continuation을 live-command gate 반환 전에
 저장한다. Resume은 gate 밖에서 `0x2028`의 successful `AxisErrorId == 0`을 기본 3회 연속

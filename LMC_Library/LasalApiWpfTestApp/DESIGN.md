@@ -68,21 +68,47 @@ WPF 프로젝트는 `../LMC_API_Delivery/src/LasalMotionControlLib.csproj`를
 축과 그룹 object는 이름 lookup으로 얻은 reference를 보관한다. 연결을 닫거나
 재연결하면 기존 object를 즉시 폐기하고 다시 Load해야 한다.
 
-callback registration은 기존 `0x405C` 12-byte payload와 4-byte ACK를 유지한다. tracked
-LASAL interface는 `CurrentPeerValid`, requested callback IPv4와 TCP peer의 exact match,
-port `1..65535`를 모두 확인한 다음에만 최초 endpoint tuple을 commit한다. exact duplicate는
-멱등 성공하지만 event mask/port/IP가 다른 re-registration은 실패하고 기존 tuple을 보존한다.
-설치된 SIGMATEK `GetBroadCastData.st`는 IPv4 UDINT를 LSB부터 SHR 8/16/24 순으로
-octet에 복원하므로 현재 peer 비교의 정적 byte-order 근거가 된다. target PLC의 compile,
-download와 wire capture는 별도다.
+callback registration의 library default는 legacy `0x405C` 12-byte payload/4-byte ACK다.
+이 WPF는 `Version2WakeHint`를 명시해 32-byte request/20-byte response와 strict 52-byte
+`LMC2` typed wake를 사용한다. tracked LASAL interface는 `CurrentPeerValid`, requested
+callback IPv4와 TCP peer의 exact match, port `1..65535`를 모두 확인한 다음에만 최초
+endpoint tuple을 commit한다. exact duplicate는 멱등 성공하지만 event mask/port/IP가
+다른 re-registration은 실패하고 기존 tuple을 보존한다. 설치된 SIGMATEK
+`GetBroadCastData.st`의 LSB-first 복원이 peer 비교 byte-order의 정적 근거이며 target PLC
+wire capture는 별도다.
 
-SDK `LMCCallbackEventArgs`는 defensive-copy raw payload와 함께 `SessionGeneration`,
-`BelongsTo`, `BelongsToCurrentSession`을 제공한다. UI handler는 callback을 dispatcher에
-queue한 뒤에도 active `LMCConnection` identity와 current session을 다시 대조한다. 둘 중
-하나라도 다르면 raw log와 UI update를 수행하지 않는다. 따라서 old listener에서 이미
-수신됐지만 reconnect 뒤 UI queue가 실행된 callback도 새 session 증거로 표시되지 않는다.
-이 provenance는 typed callback이 아니다. 실제 datagram capture와 승인 schema가 없으므로
-LASAL event sender와 typed parser는 계속 제외한다.
+SDK는 canonical v2 `0x8080` short failure만 같은 TCP socket에서 20 ms 뒤 한 번
+재시도한다. Current WPF commit `14ccf58`은 초기 또는 동일 프로세스 내 후속 Connect에서
+그 두 시도가 모두 exact `-1`로 실패하고 `Outcome=Failed`, `AttemptCount=2`,
+`CanonicalRetryUsed=true`, RPC/callback 미시작인
+경우에만 failed candidate를 retire/`Dispose`한다. 100 ms 뒤 새
+`LMCConnection`/TCP를 정확히 한 번 열고 두 번째 candidate 실패를 terminal로 처리한다.
+`ErrorId=0`, 다른 ErrorId, malformed/transport/cancellation/callback-stage 실패는 outer
+retry 대상이 아니다. 한 UI Connect의 최대치는 TCP 2개/`0x8080` 4회이며 `0x405C`는
+init 성공 뒤에만 전송된다. 정상 registration ACK까지 받아야 Connect가 성공하며
+`0x405C` 실패는 terminal이고 outer retry가 없다.
+
+SDK `LMCCallbackEventArgs`의 raw provenance와
+`LMCCallbackWakeHintEventArgs`/`CallbackWakeHintReceived`의 typed non-authoritative
+provenance는 모두 current session에 bind된다. UI handler는 dispatcher 실행 시 active
+`LMCConnection`, session, BootId와 retained D5 TicketId를 다시 대조하고 exact match일
+때만 authoritative TCP `0x7E03`을 single-flight로 조회한다. old/stale wake는 새 UI나
+operation state를 바꾸지 않는다. Gate D source에는 one-attempt broker와 production-path
+candidate `PublishEvent(...)`가 있지만 live 52-byte UDP와 causal TCP capture는 미완료다.
+
+내부 replacement와 창 X는 공용 최대 2회 `Dispose` cleanup과 complete local
+disconnected postcondition을 사용한다. close response/exception은 진단용으로 보존하며 X는
+postcondition 미완료 시 취소되고 strict Close 버튼은 close 실패 시 cleanup 뒤 그 오류를
+다시 throw한다.
+startup identity는 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`,
+`SdkBuildUtc`를 기록하고 topology marker V5는 유지한다. 100 ms와 fake same-process
+server reaccept는 PLC readiness/cleanup/runtime proof가 아니고 PC cleanup도 PLC disarm
+성공이 아니다. private PLC state를 force-clear하지 않는다.
+
+Current `14ccf58` 검증은 SDK Debug/Release direct `1133/1133`, WPF Debug/Release
+Rebuild PASS, full smoke `339/339`, reconnect targeted `6/6` PASS다. 독립
+callback/reconnect review는 `9/9`, P0/P1 없음이다. 새-window smoke는 같은 test
+process와 같은 server/port에서 즉시 reaccept하므로 EXE relaunch/named mutex 증거가 아니다.
 
 `GetSignalCatalog[Async]`가 반환한 immutable Catalog는 diagnostics owner와 connection session
 generation에 bind된다. alias PI Read, Bulk builder 생성/Configure와 PI Write submit은 unbound,
@@ -460,8 +486,9 @@ var raw = checked((int)Math.Round(
   `GroupMoveLinearRelative`와 D5 `SubmitSdo`/`CancelOperation`의 지연
   ACK도 session-bound priority publication을 거쳐 drain 후 `ResultDiscarded`된다. accepted
   Submit은 exact ticket/BootId/MapRevision evidence를 보존하며 Cancel ACK는 stale success로
-  적용하지 않는다. current Debug/Release build/test는 SDK 각각 1082/1082,
-  WPF 각각 330/330 PASS이며 PLC/runtime 안전 증거는 별도다.
+  적용하지 않는다. current SDK Debug/Release direct runner는 각각 1133/1133 PASS했고
+  WPF Debug/Release Rebuild도 PASS했다. WPF full smoke는 339/339이며 PLC/runtime 안전
+  증거는 별도다.
 - Relative move도 absolute와 같은 motion-uncertain tracking을 사용한다. valid Admin
   rejection만 local tracking을 해제하고 timeout, malformed response 또는 연결 손실은
   상태가 불확실하므로 Stop/PowerOff recovery 경로를 유지한다.
@@ -1001,8 +1028,8 @@ application/SDK 계약이다. 실제 PLC scheduler, EtherCAT 반응, 물리 정�
 ### 6.9 검증 경계
 
 Qualification UI와 assertion/cleanup 코드는 구현돼 있고 C# build와 정적 계약으로
-검사할 수 있다. 별도 STA actual-control smoke의 current Debug/Release build/test는
-각각 330/330 PASS다. Admin
+검사할 수 있다. current WPF Debug/Release Rebuild는 PASS했고 별도 STA actual-control
+full smoke는 339/339 PASS다. Admin
 capability/axis/group read와 Drive mode/non-atomic status를 exact request, non-default axis
 lookup/AxisInfo payload 및 typed UI로 고정한다. 실제 Connect
 event, fake RPC의 bit-14-only 7-node topology, CREVIS 3행 렌더, 초기 bit 14 OFF 뒤 수동
@@ -1099,9 +1126,12 @@ D5 abort/recovery는 해당 PLC build를 다운로드한 실물 장비에서
 
 ## 7. callback 범위
 
-Connect가 callback listener와 endpoint 등록까지 처리한다. 수신 payload는 시각,
-remote endpoint, 길이와 최대 48-byte hex preview로 기록한다. PLC event sender와
-typed callback payload가 정의되기 전에는 motion complete 신호로 해석하지 않는다.
+Connect가 callback listener와 endpoint 등록까지 처리한다. legacy raw payload는 시각,
+remote endpoint, 길이와 최대 48-byte hex preview로 기록한다. current WPF의 version-2
+typed wake는 non-authoritative hint이며, exact retained ticket의 TCP `0x7E03` 결과만
+terminal state로 반영한다. Gate D source에 sender/broker와 production-path candidate
+caller가 있어도 exact downloaded producer와 live UDP/TCP causal capture가 없으므로
+motion-complete 또는 production runtime 증거로 해석하지 않는다.
 
 ## 8. 검증 기준
 

@@ -8,6 +8,8 @@ Version 2 wake-hint transport 및 D5 의미 계약 갱신: 2026-08-08
 
 PC reconnect evidence 및 callback receiver observability 갱신: 2026-08-10
 
+WPF bounded fresh-session recovery 갱신 (`14ccf58`): 2026-08-11
+
 ## 결론
 
 RPC 연결은 단순 TCP connect가 아니다. 현재 사용 순서는 아래와 같다.
@@ -72,19 +74,40 @@ Commit `66b5cf2`의 reconnect correction은 명시적 `Version2WakeHint`에서�
 valid, outer `Status=1`,
 `HeaderReserved=0`, payload length `4`, command `Status=1`, `ErrorId=-1`인 exact
 envelope에 한해 20 ms cancellation-aware 대기 뒤 같은 TCP socket으로 `0x8080`을
-한 번 더 전송한다. 두 번째도 실패하면 즉시 연결/listener를 정리하고 `Faulted`로
-끝낸다. legacy mode, 다른 ErrorId, nonzero reserved, malformed frame은 재시도하지
+한 번 더 전송한다. 두 번째도 실패하면 해당 SDK connection instance가 연결/listener를
+정리하고 `Faulted`로 끝난다. legacy mode, 다른 ErrorId, nonzero reserved, malformed frame은 재시도하지
 않고 기존 실패/cleanup 경로를 따른다. 이 bounded PC recovery는 callback sender
 준비 직후의 일시 상태만 흡수하며, PLC에서 계속 발생하는 disarm result `-8`/`-9`의
 원인을 고치거나 숨기는 동작이 아니다. negative disarm 때 callback tuple을 보존해
 다음 init이 같은 fence를 재시도하게 하는 PLC 계약은 의도된 fail-closed 동작이다.
 PLC force-clear로 우회하지 않는다.
 
-Commit `af4ab63`의 WPF 회귀는 나머지 필드는 같고 `ErrorId=0`인 non-canonical
-short ACK가 canonical retry를 사용하지 않고 `0x8080` 1회에서 끝나는 것을 고정한다.
-실패 뒤 listener/TCP/WPF connection은 모두 정리되고 UI는
-`Disconnected`/`Stopped`와 재활성 Connect를 표시한다. 다음 수동 Connect는 새 TCP
-socket/session에서 `0x8080 -> 0x405C`로 성공해야 한다.
+Commit `af4ab63`의 historical WPF 회귀는 나머지 필드는 같고 `ErrorId=0`인
+non-canonical short ACK가 canonical retry를 사용하지 않고 `0x8080` 1회에서 끝나는
+것과, cleanup 뒤 다음 수동 Connect가 새 TCP socket/session을 쓰는 것을 고정한다.
+
+Current `14ccf58`은 초기 및 동일 프로세스 내 후속 Connect의 첫 candidate에서 두 exact canonical
+`-1` ACK가 모두 돌아와 `Outcome=Failed`, `AttemptCount=2`,
+`CanonicalRetryUsed=true`이고 RPC/callback registration이 시작되지 않은 경우만 failed
+`LMCConnection`을 retire/`Dispose`한다. fixed 100 ms 뒤 새 `LMCConnection`/TCP를 정확히
+한 번 열며 두 번째 candidate 실패는 terminal이다. `ErrorId=0`, 다른 ErrorId,
+malformed/transport/cancellation 또는 callback-stage failure에는 WPF outer retry가 없다.
+한 UI Connect의 상한은 TCP 2개/`0x8080` 4회이고 `0x405C`는 init 성공 뒤에만 나간다.
+정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고
+WPF outer retry가 없다.
+
+내부 replacement와 창 X는 공용 최대 2회 `Dispose` cleanup 뒤 complete local
+disconnected postcondition을 요구한다. 이전 `RpcCloseResponse`와 `LastCloseException`은
+보존한다. X는 postcondition 미완료 시 종료를 취소하고 명시적 Close 버튼은 local cleanup
+뒤에도 close 오류를 throw한다. startup identity는
+`ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 topology
+marker V5를 유지한다.
+
+100 ms는 PC fixed backoff이지 PLC readiness/timing proof가 아니다. canonical wire `-1`은
+internal disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다. Fake restart는
+같은 test process/server/port의 새 `MainWindow`와 immediate reaccept를 사용하므로 EXE
+relaunch/named mutex나 PLC cleanup/runtime proof가 아니다. PC cleanup은 PLC disarm 성공이
+아니며 private PLC state를 force-clear하지 않는다.
 
 Commit `f337fec`은 각 init 시도의 immutable
 `LMCRpcSessionInitializationEvidence`를 `LastRpcSessionInitializationEvidence`에
@@ -176,7 +199,8 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
 - UDP listener를 `0x405C`보다 먼저 개방
 - remote/local address를 구체적인 IPv4 주소로 조기 검증
 - callback port `0`을 사용하면 실제 할당된 ephemeral port를 등록
-- `0x405C`의 4-byte ACK를 status/error로 파싱
+- `0x405C`의 legacy 4-byte ACK 또는 explicit version-2 20-byte response를 mode별
+  status/error 및 accepted fence로 파싱
 - 등록 성공 후 실제 callback port와 event mask를 public state에 저장
 - `LMCConnectionOptions`로 connect/read/send/callback join timeout 설정
 - `ConnectionStateChanged`와
@@ -565,6 +589,14 @@ qualification은 없다.
 19. unknown/stale/wrong BootId ticket, busy duplicate와 query failure는 drop/log하고
     manual polling fallback을 보존하는지 확인
 20. legacy default mode의 12/4-byte request/ACK와 raw callback 동작이 그대로인지 확인
+21. 초기/동일 프로세스 내 후속 WPF Connect의 exact persistent `-1`에서 TCP 최대 2개와
+    `0x8080` 최대 4회, second outer failure terminal, success-init 뒤에만 `0x405C`가
+    나가고 정상 registration ACK 뒤에만 Connect가 성공하는지 확인
+22. ErrorId 0/other, malformed/transport/cancellation/callback-stage failure가 fresh-TCP
+    outer retry를 사용하지 않는지 확인
+23. 내부 replacement와 X가 최대 2회 Dispose로 complete local postcondition을 만들고
+    close diagnostics를 보존하는지, strict Close는 close 실패 시 cleanup 뒤 그 오류를
+    throw하며 X는 cleanup 미완료 시 취소되는지 확인
 
 Version 2 sender Candidate의 이전 IDE Rebuild/Link checkpoint는 완료됐다. 현재 Gate D
 broker declaration과 source, production-path candidate call site도 반영됐고 위의 C78
@@ -604,16 +636,18 @@ failure의 `ErrorId=-1` 보존과 legacy zero-retry, v2 same-socket
 init evidence 보존, cancellation의 두 번째 `0x8080` 차단, current-session v2 decision
 snapshot과 dispatcher 뒤 stale-event 거부를 고정한다. 이는 fake TCP server 기반 PC
 계약이며 PLC의 persistent disarm `-8`/`-9` 원인이나 live reconnect 성공 증거가 아니다.
-`af4ab63` 기준 현행 WPF Release smoke runner는 `335/335` PASS다. 이 run은 canonical
+`af4ab63` historical WPF Release smoke runner는 `335/335` PASS였다. 이 run은 canonical
 persistent init failure cleanup, non-canonical `ErrorId=0`의 zero-retry/full cleanup,
 cleanup 뒤 수동 Connect가 새 session/socket을 사용하는 회귀, `RequestedCallback`과
 actual `BoundCallback`/`not-bound` evidence panel, old-session 통계 Dispatcher action이
 replacement UI를 바꾸지 못하는 회귀를 포함한다.
 
-commit `bff3bc7`의 PC-only raw-wire harness 16개가 추가된 current Release SDK suite는
-`1133/1133` PASS했고 독립 reviewer 재실행도 `1133/1133` PASS다. WPF code/test는 이
-commit에서 바뀌지 않았으며 독립 reviewer의 Release `RunWpfSmokeTests` 재실행도
-`335/335` PASS다. exact runner mode
+commit `bff3bc7`의 PC-only raw-wire harness 16개가 추가된 current SDK Debug/Release
+direct suite는 각각 `1133/1133` PASS했고 당시 독립 reviewer Release 재실행도
+`1133/1133` PASS다. 그 commit에서 WPF code/test는 바뀌지 않았으며 당시 reviewer의
+Release `335/335`는 historical checkpoint다. Current `14ccf58` WPF Debug/Release
+Rebuild는 PASS했고 full smoke는 `339/339`, reconnect targeted는 `6/6`, 독립
+callback/reconnect review는 `9/9` PASS이고 P0/P1은 없다. exact runner mode
 `callback-ownership-wire`는 인자가 없거나 `--dry-run`이면 network에 연결하지 않고
 `all` 또는 `gd-n10a`/`gd-n13-candidate`/`gd-n14-candidate` 계획만 출력한다.
 
