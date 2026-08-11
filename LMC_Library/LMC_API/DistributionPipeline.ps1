@@ -157,6 +157,130 @@ function Get-LmcDistributionBytesSha256 {
     }
 }
 
+function Resolve-LmcDistributionRunExampleExecutable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [string]$Context = 'Executable relaunch gate input'
+    )
+
+    $root = ConvertTo-LmcDistributionFullPath -Path $StagingRoot
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        throw "$Context staging root was not found: $root"
+    }
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if (Test-LmcDistributionReparsePoint -Item $rootItem) {
+        throw "$Context staging root must not be a reparse point: $root"
+    }
+
+    $expected = ConvertTo-LmcDistributionFullPath -Path (
+        Join-Path $root (
+            '02_Example_Program\Run\LasalMotionControlApiExample.exe'))
+    $actual = ConvertTo-LmcDistributionFullPath -Path $ExecutablePath
+    if (-not $actual.Equals(
+            $expected,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "$Context path must be the exact staged Run EXE. expected=$expected actual=$actual"
+    }
+    if (-not (Test-Path -LiteralPath $actual -PathType Leaf)) {
+        throw "$Context was not found: $actual"
+    }
+
+    $current = Get-Item -LiteralPath $actual -Force
+    while ($true) {
+        if (Test-LmcDistributionReparsePoint -Item $current) {
+            throw "$Context traverses a reparse point: $actual"
+        }
+        if ($current.FullName.Equals(
+                $root,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        if ($current -is [System.IO.FileInfo]) {
+            $current = $current.Directory
+        }
+        else {
+            $current = $current.Parent
+        }
+        if ($null -eq $current) {
+            throw "$Context escaped its staging root: $actual"
+        }
+    }
+
+    return $actual
+}
+
+function Invoke-LmcDistributionExecutableRelaunchGate {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$GateAction
+    )
+
+    $resolvedExecutable = Resolve-LmcDistributionRunExampleExecutable `
+        -StagingRoot $StagingRoot `
+        -ExecutablePath $ExecutablePath
+    $beforeHash = (Get-FileHash `
+        -LiteralPath $resolvedExecutable `
+        -Algorithm SHA256).Hash.ToUpperInvariant()
+
+    & $GateAction $resolvedExecutable | Out-Null
+
+    $resolvedAfterGate = Resolve-LmcDistributionRunExampleExecutable `
+        -StagingRoot $StagingRoot `
+        -ExecutablePath $ExecutablePath `
+        -Context 'Executable relaunch gate output'
+    $afterHash = (Get-FileHash `
+        -LiteralPath $resolvedAfterGate `
+        -Algorithm SHA256).Hash.ToUpperInvariant()
+    if (-not [string]::Equals(
+            $beforeHash,
+            $afterHash,
+            [System.StringComparison]::Ordinal)) {
+        throw "The staged example EXE changed while the executable relaunch gate ran. before=$beforeHash after=$afterHash"
+    }
+
+    return $beforeHash
+}
+
+function Assert-LmcDistributionExecutableRelaunchIdentity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$TestedSha256
+    )
+
+    if ($TestedSha256 -cnotmatch '^[0-9A-F]{64}$') {
+        throw 'Executable relaunch tested SHA256 must be exactly 64 uppercase hexadecimal characters.'
+    }
+    $resolvedExecutable = Resolve-LmcDistributionRunExampleExecutable `
+        -StagingRoot $StagingRoot `
+        -ExecutablePath $ExecutablePath `
+        -Context 'Final executable relaunch identity input'
+    $finalHash = (Get-FileHash `
+        -LiteralPath $resolvedExecutable `
+        -Algorithm SHA256).Hash.ToUpperInvariant()
+    if (-not [string]::Equals(
+            $TestedSha256,
+            $finalHash,
+            [System.StringComparison]::Ordinal)) {
+        throw "The final example EXE bytes do not match the executable relaunch gate input. tested=$TestedSha256 final=$finalHash"
+    }
+
+    return $finalHash
+}
+
 function Read-LmcDistributionLockedStreamBytes {
     param(
         [Parameter(Mandatory = $true)]

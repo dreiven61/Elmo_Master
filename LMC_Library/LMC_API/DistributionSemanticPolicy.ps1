@@ -49,6 +49,18 @@ function Get-LmcDistributionSemanticPolicyText {
             Statement = 'D4 Double-bank operation and capability bit 6 remain disabled.'
         },
         [pscustomobject]@{
+            Name = 'MANUAL_RECONNECT_SCOPE'
+            Statement = 'Both external manuals describe the bounded RPC_INIT_FRESH_TCP_ONCE_V1 same-socket and one-fresh-TCP policy, the actual-EXE X-close/process/mutex/wire gate, its PC-only boundary, and standalone-versus-full-Distribution result.'
+        },
+        [pscustomobject]@{
+            Name = 'MANUAL_RELEASE_WARNING_SCOPE'
+            Statement = 'Both external manuals retain the unfinished motion/diagnostics matrices, explicit safe-stop and machine-safety prerequisites, and unsigned strong-name/AuthentiCode warnings.'
+        },
+        [pscustomobject]@{
+            Name = 'MANUAL_VERSION_SCOPE'
+            Statement = 'Both external manuals identify the current document revision as 2.3-candidate.'
+        },
+        [pscustomobject]@{
             Name = 'PI_WRITE_DISABLED'
             Statement = 'PI Write remains disabled and the SDK PI Write allowlist remains empty.'
         },
@@ -252,6 +264,180 @@ function Get-LmcDistributionPolicyMissingPatterns {
         }
     }
     return $missing.ToArray()
+}
+
+function Get-LmcDistributionPolicyMatchingPatterns {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Patterns
+    )
+
+    $matching = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($pattern in $Patterns) {
+        if ([System.Text.RegularExpressions.Regex]::IsMatch(
+            $Text,
+            $pattern,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+                [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
+            [void]$matching.Add($pattern)
+        }
+    }
+    return $matching.ToArray()
+}
+
+function Test-LmcDistributionManualReleasePolicy {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DocxText,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PdfText
+    )
+
+    $checkCount = 0
+
+    $manualVersionPatterns = @(
+        '(Manual\s+revision|Document\s+revision|\uBB38\uC11C\s+\uBC84\uC804)\s*[:\uFF1A]?\s*2\.3-candidate(?![0-9])'
+    )
+    $docxMissingVersionPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $DocxText `
+            -Patterns $manualVersionPatterns)
+    $pdfMissingVersionPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $PdfText `
+            -Patterns $manualVersionPatterns)
+    Assert-LmcDistributionSemanticPolicy `
+        -Condition (($docxMissingVersionPatterns.Count -eq 0) -and
+            ($pdfMissingVersionPatterns.Count -eq 0)) `
+        -Blocker 'MANUAL_VERSION_SCOPE' `
+        -Message ('Both candidate DOCX and PDF must identify document revision 2.3-candidate. DOCX missing: {0}; PDF missing: {1}' -f
+            ($docxMissingVersionPatterns -join ', '),
+            ($pdfMissingVersionPatterns -join ', '))
+    $checkCount++
+
+    $manualReconnectPatterns = @(
+        'RPC_INIT_FRESH_TCP_ONCE_V1',
+        '(accepts\s+only.{0,100}exact\s+canonical.{0,40}(?:ErrorId\s*=?\s*)?-1.{0,120}two\s+same[- ]socket\s+attempts|exact\s+canonical\s+init\s+failure\s*\uB9CC.{0,100}20\s*ms.{0,100}\uAC19\uC740\s+TCP\s+socket\s*\uC5D0\uC11C.{0,100}\uD55C\s+\uBC88\s+\uB354)',
+        '(then\s+exactly\s+one\s+fresh[- ]?TCP|100\s*ms.{0,120}\uC0C8.{0,50}(LMCConnection|TCP).{0,100}\uD558\uB098\uB9CC)',
+        '(second.{0,50}candidate.{0,80}(failure\s+is|fails?\s+and\s+is)\s+terminal|\uB450\s+\uBC88\uC9F8.{0,50}candidate.{0,40}\uC2E4\uD328\uB294\s+terminal)',
+        '((one\s+UI\s+operation|UI\s+operation\s+one).{0,100}(TCP\s*(2|two)|two\s+TCP).{0,100}0x8080.{0,40}(4|four)|UI\s+operation\s+\uD558\uB098.{0,80}\uC0C1\uD55C\uC740\s+TCP\s*2\s*\uAC1C.{0,80}0x8080\s*4\s*\uD68C)',
+        'actual[- ]?EXE',
+        'SC_CLOSE',
+        'actual[- ]?EXE.{0,120}(\bX\b|window.{0,20}close|\uCC3D.{0,12}X|X.{0,12}(\uC885\uB8CC|\uB2EB\uAE30))',
+        'process.{0,30}(exit|\uC885\uB8CC)',
+        '(default.{0,40}(named\s+)?mutex.{0,120}(reacquir|\uC7AC\uD68D\uB4DD)|mutex.{0,120}(reacquir|\uC7AC\uD68D\uB4DD)|(reacquir|\uC7AC\uD68D\uB4DD).{0,120}default.{0,40}(named\s+)?mutex)',
+        '3\s*/\s*28\s*\(\s*13\s*,\s*2\s*,\s*13\s*\)',
+        '(PC[- ]?loopback[- ]?only|PC\s+loopback.{0,40}(only|local)|PC.{0,40}\uB8E8\uD504\uBC31)',
+        '(PLC.{0,240}(cleanup|disarm|readiness).{0,160}(is\s+not\s+proven|are\s+not\s+proven|does\s+not\s+prove|\uC99D\uBA85\uD558\uC9C0\s+\uC54A\uB294\uB2E4|\uC99D\uAC70\uAC00\s+\uC544\uB2C8\uB2E4)|does\s+not\s+prove.{0,120}PLC.{0,120}(cleanup|disarm|readiness))',
+        '(standalone|binary[- ]reference|\uBCC4\uB3C4.{0,80}(candidate|gate|\uD6C4\uBCF4)).{0,240}PASS',
+        'full\s+Distribution.{0,600}(STOP|is\s+not\s+PASS|did\s+not.{0,40}PASS|PASS.{0,20}(\uAC00\s+\uC544\uB2C8|\uAC00\s+\uC544\uB2D8)|\uB3C4\uB2EC\uD558\uC9C0)'
+    )
+    $docxMissingReconnectPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $DocxText `
+            -Patterns $manualReconnectPatterns)
+    $pdfMissingReconnectPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $PdfText `
+            -Patterns $manualReconnectPatterns)
+    $manualReconnectConflictPatterns = @(
+        'actual[- ]?EXE.{0,240}(?<!does not )(?<!do not )(?<!not )(?:prove[sd]?|verif(?:y|ies|ied)|demonstrat(?:e|es|ed)).{0,120}\bPLC\b',
+        '\bPLC\b.{0,160}(cleanup|readiness).{0,120}(is|are|was|were).{0,30}(?<!not )(?<!un)(proven|verified).{0,160}actual[- ]?EXE',
+        'actual[- ]?EXE.{0,240}\bPLC\b.{0,120}(\uC99D\uBA85\uD55C\uB2E4|\uC785\uC99D\uD55C\uB2E4|\uAC80\uC99D\uD55C\uB2E4)',
+        '(exact\s+canonical.{0,160}(?:ErrorId\s*=?\s*)?-1|(?:ErrorId\s*=?\s*)?-1.{0,160}exact\s+canonical).{0,120}(not.{0,30}required|no\s+longer\s+required|optional|unnecessary|may\s+be\s+ignored|need\s+not|\uD544\uC218.{0,24}(\uC544\uB2C8|\uC544\uB2D8)|\uC120\uD0DD|\uBD88\uD544\uC694)',
+        '(fresh[- ]?TCP.{0,140}(more\s+than\s+one|multiple|unbounded|any\s+number|two\s+or\s+more|2\s+or\s+more|\uBCF5\uC218|\uC5EC\uB7EC|\uB450\s*\uAC1C\s*\uC774\uC0C1|2\uD68C\s*\uC774\uC0C1)|(more\s+than\s+one|multiple|unbounded|any\s+number|two\s+or\s+more|\uBCF5\uC218|\uC5EC\uB7EC).{0,100}fresh[- ]?TCP)',
+        '((same[- ]socket|same.{0,24}TCP|\uAC19\uC740.{0,24}(TCP|socket)|\uB3D9\uC77C.{0,24}(TCP|socket)).{0,140}(more\s+than\s+two|three\s+or\s+more|unbounded|any\s+number|\uC138\s*\uBC88\s*\uC774\uC0C1|\uBB34\uC81C\uD55C).{0,80}(attempt|retry|\uC2DC\uB3C4))',
+        '(same[- ]socket|same.{0,24}TCP).{0,100}(two|2).{0,60}attempts?.{0,80}(not\s+a\s+limit|no\s+limit)',
+        '(SC_CLOSE|process.{0,30}exit|default.{0,40}(named\s+)?mutex.{0,100}reacquir).{0,120}(not.{0,30}required|optional|unnecessary|may\s+be\s+skipped|need\s+not)',
+        'full\s+Distribution\s+(is|was|has\s+been|returned)\s+(a\s+)?PASS(?:ED)?\b',
+        'full\s+Distribution.{0,240}PASS(\uC774\uB2E4|\uD588\uB2E4|\uC600\uB2E4|\uB85C\s+\uD655\uC778)'
+    )
+    $docxReconnectConflicts = @(
+        Get-LmcDistributionPolicyMatchingPatterns `
+            -Text $DocxText `
+            -Patterns $manualReconnectConflictPatterns)
+    $pdfReconnectConflicts = @(
+        Get-LmcDistributionPolicyMatchingPatterns `
+            -Text $PdfText `
+            -Patterns $manualReconnectConflictPatterns)
+    Assert-LmcDistributionSemanticPolicy `
+        -Condition (($docxMissingReconnectPatterns.Count -eq 0) -and
+            ($pdfMissingReconnectPatterns.Count -eq 0) -and
+            ($docxReconnectConflicts.Count -eq 0) -and
+            ($pdfReconnectConflicts.Count -eq 0)) `
+        -Blocker 'MANUAL_RECONNECT_SCOPE' `
+        -Message ('Both candidate DOCX and PDF must retain the bounded reconnect/actual-EXE contract without contradictory scope or PLC-proof claims. DOCX missing: {0}; PDF missing: {1}; DOCX conflicts: {2}; PDF conflicts: {3}' -f
+            ($docxMissingReconnectPatterns -join ', '),
+            ($pdfMissingReconnectPatterns -join ', '),
+            ($docxReconnectConflicts -join ', '),
+            ($pdfReconnectConflicts -join ', '))
+    $checkCount++
+
+    $manualReleaseWarningPatterns = @(
+        '25[- ]?command.{0,50}(matrix|\uB9E4\uD2B8\uB9AD\uC2A4).{0,60}(remains\s+(unfinished|incomplete)|is\s+not\s+(complete|finished)|\uC544\uC9C1\s+\uC644\uB8CC\uB418\uC9C0\s+\uC54A\uC558\uB2E4|\uBBF8\uC644\uB8CC)',
+        'D1\s*/\s*D2\s*/\s*D5.{0,180}fault\s*/?\s*soak.{0,180}D3\s*/\s*D4.{0,180}(remain(s)?\s+(unfinished|incomplete)|are\s+not\s+(complete|finished)|\uC644\uB8CC\uB85C\s+\uD655\uB300\s+\uD574\uC11D\uD558\uC9C0\s+\uC54A\uB294\uB2E4)',
+        '(Close(Connection)?|Close).{0,120}Dispose.{0,120}(cancel(?:lation)?|\uCDE8\uC18C).{0,140}(do\s+not\s+send.{0,50}(motion\s+)?Stop|(motion\s+)?Stop.{0,40}\uBCF4\uB0B4\uC9C0\s+\uC54A\uB294\uB2E4)',
+        '(use\s+an?\s+explicit\s+safe[- ]?stop|explicit\s+safe[- ]?stop.{0,80}(required|procedure|must)|explicit\s+safe[- ]?stop.{0,80}\uBCC4\uB3C4\s+\uC2B9\uC778)',
+        '(Before\s+motion.{0,80}verify.{0,120}E[- ]?stop.{0,80}(hardware|HW).{0,30}(software|SW).{0,30}limits?.{0,80}UNIT.{0,80}Home|E[- ]?stop.{0,100}HW\s*/\s*SW\s+limit.{0,100}UNIT.{0,80}Home(?:/Reference)?.{0,120}\uBCC4\uB3C4\s+\uC2B9\uC778)',
+        '(DLL\s+is\s+unsigned.{0,120}(neither|no).{0,80}strong[- ]?name.{0,80}AuthentiCode|DLL.{0,120}strong[- ]?name.{0,80}AuthentiCode.{0,80}\uC11C\uBA85\uC774\s+\uC5C6)'
+    )
+    $docxMissingReleaseWarningPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $DocxText `
+            -Patterns $manualReleaseWarningPatterns)
+    $pdfMissingReleaseWarningPatterns = @(
+        Get-LmcDistributionPolicyMissingPatterns `
+            -Text $PdfText `
+            -Patterns $manualReleaseWarningPatterns)
+    $manualReleaseWarningConflictPatterns = @(
+        '25[- ]?command.{0,140}(matrix.{0,40})?(is|was|has\s+been|remains|no\s+longer\s+unfinished)?\s*\b(complete|finished|validated|qualified|fully\s+covered)\b',
+        '25.{0,50}(command|\uBA85\uB839).{0,140}\uC644\uB8CC(\uB410\uB2E4|\uB418\uC5C8\uB2E4|\uC774\uB2E4|\uD568)',
+        'D1\s*/\s*D2\s*/\s*D5.{0,140}fault\s*/?\s*soak.{0,180}\b(complete|finished|validated|qualified|fully\s+covered)\b',
+        'D1\s*/\s*D2\s*/\s*D5.{0,140}fault\s*/?\s*soak.{0,120}\uC644\uB8CC(\uB410\uB2E4|\uB418\uC5C8\uB2E4|\uC774\uB2E4|\uD568)',
+        'D3\s*/\s*D4.{0,140}runtime.{0,180}\b(complete|finished|validated|qualified|fully\s+covered)\b',
+        'D3\s*/\s*D4.{0,140}runtime.{0,120}\uC644\uB8CC(\uB410\uB2E4|\uB418\uC5C8\uB2E4|\uC774\uB2E4|\uD568)',
+        '\bClose\b.{0,100}(is|acts\s+as|provides|performs).{0,50}(a\s+)?safe[- ]?stop',
+        '\bClose\b.{0,100}(constitutes|equals|becomes).{0,50}(the\s+|a\s+)?safe[- ]?stop',
+        '\bClose\b.{0,100}\uC548\uC804.{0,30}(Stop|\uC815\uC9C0)(\uC774\uB2E4|\uC784|\uB85C\s+\uB3D9\uC791)',
+        '(Close|Dispose|cancel(?:lation)?).{0,120}(automatically|always).{0,60}(sends?\s+(a\s+)?(?:motion\s+)?Stop|stops?\s+motion)',
+        '(E[- ]?stop|emergency\s+stop|(HW|hardware)\s*/?\s*(SW|software).{0,20}limits?|\bUNIT\b|\bHome\b).{0,180}(not.{0,30}required|unnecessary|optional|may\s+be\s+skipped|need\s+not|\uBD88\uD544\uC694|\uC120\uD0DD)',
+        '(not.{0,30}required|unnecessary|may\s+be\s+skipped|need\s+not|\uBD88\uD544\uC694).{0,120}(E[- ]?stop|limits?|\bUNIT\b|\bHome\b)',
+        '(E[- ]?stop|limits?|\bUNIT\b|\bHome\b).{0,160}(can|may)\s+be\s+omitted',
+        '\bDLL\b.{0,140}\b(is|was|has\s+been)\b.{0,70}\bsigned\b',
+        '\bDLL\b.{0,140}(valid|approved).{0,40}(strong[- ]?name|AuthentiCode).{0,40}(signature|signing)',
+        '\bDLL\b.{0,140}(no\s+longer\s+unsigned|strong[- ]?name.{0,60}AuthentiCode.{0,60}(enabled|present))',
+        '\bDLL\b.{0,140}(strong[- ]?name|AuthentiCode).{0,50}(\uC11C\uBA85\uB428|\uC11C\uBA85\uB418\uC5C8|\uC11C\uBA85\s*\uC644\uB8CC)'
+    )
+    $docxReleaseWarningConflicts = @(
+        Get-LmcDistributionPolicyMatchingPatterns `
+            -Text $DocxText `
+            -Patterns $manualReleaseWarningConflictPatterns)
+    $pdfReleaseWarningConflicts = @(
+        Get-LmcDistributionPolicyMatchingPatterns `
+            -Text $PdfText `
+            -Patterns $manualReleaseWarningConflictPatterns)
+    Assert-LmcDistributionSemanticPolicy `
+        -Condition (($docxMissingReleaseWarningPatterns.Count -eq 0) -and
+            ($pdfMissingReleaseWarningPatterns.Count -eq 0) -and
+            ($docxReleaseWarningConflicts.Count -eq 0) -and
+            ($pdfReleaseWarningConflicts.Count -eq 0)) `
+        -Blocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Message ('Both candidate DOCX and PDF must retain the complete release-warning scope without contradictory approval claims. DOCX missing: {0}; PDF missing: {1}; DOCX conflicts: {2}; PDF conflicts: {3}' -f
+            ($docxMissingReleaseWarningPatterns -join ', '),
+            ($pdfMissingReleaseWarningPatterns -join ', '),
+            ($docxReleaseWarningConflicts -join ', '),
+            ($pdfReleaseWarningConflicts -join ', '))
+    $checkCount++
+
+    return [pscustomobject]@{
+        Result = 'PASS'
+        CheckCount = $checkCount
+    }
 }
 
 function Get-LmcDistributionPolicyProjectItems {
@@ -508,6 +694,11 @@ function Test-LmcDistributionSemanticPolicy {
         -Blocker 'PLC_LIVE_UNVERIFIED' `
         -Message 'The DINT map and both manuals must keep current PLC live proof explicitly unverified.'
     $checkCount++
+
+    $manualReleasePolicyResult = Test-LmcDistributionManualReleasePolicy `
+        -DocxText $docxText `
+        -PdfText $pdfText
+    $checkCount += [int]$manualReleasePolicyResult.CheckCount
 
     $sdkSdoPatterns = @(
         'SdoWriteEnabled\s*=\s*true',

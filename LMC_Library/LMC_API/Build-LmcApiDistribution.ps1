@@ -853,16 +853,20 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
 
         $runExampleExe = Join-Path $runDirectory `
             'LasalMotionControlApiExample.exe'
-        Invoke-LmcMSBuild -Project $wpfSmokeProject `
-            -Target 'RunWpfExecutableRelaunchTest' `
-            -Configuration 'Release' `
-            -AdditionalProperties @{
-                WpfExecutableRelaunchExe = $runExampleExe
-            }
+        $buildSummary.ExecutableRelaunchTestedExeSha256 =
+            Invoke-LmcDistributionExecutableRelaunchGate `
+                -StagingRoot $stagingRoot `
+                -ExecutablePath $runExampleExe `
+                -GateAction {
+                    param($testedExecutable)
+                    Invoke-LmcMSBuild -Project $wpfSmokeProject `
+                        -Target 'RunWpfExecutableRelaunchTest' `
+                        -Configuration 'Release' `
+                        -AdditionalProperties @{
+                            WpfExecutableRelaunchExe = $testedExecutable
+                        }
+                }
         $buildSummary.ExecutableRelaunchGate = 'PASS'
-        $buildSummary.ExecutableRelaunchTestedExeSha256 = (
-            Get-FileHash -LiteralPath $runExampleExe `
-                -Algorithm SHA256).Hash
 
         $manualPageCountOutput = @(& $python -c `
             'from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))' `
@@ -944,17 +948,12 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
             -ManifestExpected
 
         $buildSummary.DllSha256 = $distributionHash
-        $buildSummary.ExampleExeSha256 = (
-            Get-FileHash -LiteralPath `
-                (Join-Path $runDirectory `
-                    'LasalMotionControlApiExample.exe') `
-                -Algorithm SHA256).Hash
-        if (-not [string]::Equals(
-                $buildSummary.ExampleExeSha256,
-                $buildSummary.ExecutableRelaunchTestedExeSha256,
-                [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The final example EXE bytes do not match the executable relaunch gate input.'
-        }
+        $buildSummary.ExampleExeSha256 =
+            Assert-LmcDistributionExecutableRelaunchIdentity `
+                -StagingRoot $stagingRoot `
+                -ExecutablePath $runExampleExe `
+                -TestedSha256 (
+                    $buildSummary.ExecutableRelaunchTestedExeSha256)
         $buildSummary.ManifestSha256 = (
             Get-FileHash -LiteralPath $manifestPath `
                 -Algorithm SHA256).Hash

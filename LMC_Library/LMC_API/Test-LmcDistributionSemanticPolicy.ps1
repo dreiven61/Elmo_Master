@@ -98,30 +98,67 @@ function Set-DistributionSemanticPolicyFixtureText {
 function Get-DistributionSemanticPolicyFixtureManualText {
     return @'
 LASAL Motion Control API 0.9.1-preview is not production approved and is a production NO-GO.
+Manual revision: 2.3-candidate.
 The only manual SDO Write target is Axis 1 exact 0x2F00:24, Gold UI[24], Int32, DataLength=4, four-byte data.
 Axis 2 through 4 and every other target remain blocked.
 Manual SDO Write is identity-pinned to the current session, DiagnosticsBuild, BootId, MapRevision, and exact target.
 The four-ticket same-value qualification must pass before manual SDO Write.
 A success ACK is request acceptance, not completion; poll terminal state and status.
-Close and Cancel do not send a PLC motion Stop.
+Close, Dispose, and cancellation do not send a PLC motion Stop; use an explicit safe-stop procedure.
 Raw DINT UNIT conversion is performed by caller code.
 Current PLC live SDO Write is not proven and remains unverified.
+RPC_INIT_FRESH_TCP_ONCE_V1 accepts only the exact canonical ErrorId=-1 result for two same-socket attempts, then exactly one fresh TCP connection.
+The second candidate failure is terminal; one UI operation is bounded to TCP 2 and 0x8080 4 requests.
+The actual-EXE gate sends external WM_SYSCOMMAND/SC_CLOSE for the window X close, waits for process exit, and requires the successor to reacquire the default named mutex.
+The fake-RPC wire total is 3/28 (13,2,13).
+The actual-EXE gate is PC-loopback-only; PLC cleanup, disarm, and readiness are not proven.
+The standalone binary-reference candidate gate is PASS; full Distribution did not reach the gate and is not PASS.
+The motion/group 25-command matrix remains unfinished.
+D1/D2/D5 fault/soak and D3/D4 runtime remain unfinished.
+Before motion, verify the E-stop, hardware/software limits, UNIT, and Home.
+The DLL is unsigned and has neither strong-name nor Authenticode signing.
 '@
 }
 
 function New-DistributionSemanticPolicyDocumentProvider {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Text
+        [string]$Text,
+
+        [string]$DocxText,
+
+        [string]$PdfText
     )
 
-    $capturedText = $Text
+    if (-not $PSBoundParameters.ContainsKey('DocxText')) {
+        $DocxText = $Text
+    }
+    if (-not $PSBoundParameters.ContainsKey('PdfText')) {
+        $PdfText = $Text
+    }
+    if ([string]::IsNullOrWhiteSpace($DocxText) -or
+        [string]::IsNullOrWhiteSpace($PdfText)) {
+        throw 'Both DOCX and PDF provider text are required.'
+    }
+
+    $capturedDocxText = $DocxText
+    $capturedPdfText = $PdfText
     return ({
         param($Path)
         if ([string]::IsNullOrWhiteSpace([string]$Path)) {
             throw 'Document path was not supplied.'
         }
-        return $capturedText
+        $extension = [System.IO.Path]::GetExtension([string]$Path)
+        if ($extension.Equals(
+            '.docx',
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $capturedDocxText
+        }
+        if ($extension.Equals(
+            '.pdf',
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $capturedPdfText
+        }
+        throw ('Unexpected document extension: {0}' -f $extension)
     }).GetNewClosure()
 }
 
@@ -290,13 +327,25 @@ function Invoke-DistributionSemanticPolicyFixture {
         [Parameter(Mandatory = $true)]
         [psobject]$Fixture,
 
-        [string]$ManualText
+        [string]$ManualText,
+
+        [string]$DocxText,
+
+        [string]$PdfText
     )
 
-    if ([string]::IsNullOrEmpty($ManualText)) {
+    if (-not $PSBoundParameters.ContainsKey('ManualText')) {
         $ManualText = [string]$Fixture.ManualText
     }
-    $provider = New-DistributionSemanticPolicyDocumentProvider -Text $ManualText
+    if (-not $PSBoundParameters.ContainsKey('DocxText')) {
+        $DocxText = $ManualText
+    }
+    if (-not $PSBoundParameters.ContainsKey('PdfText')) {
+        $PdfText = $ManualText
+    }
+    $provider = New-DistributionSemanticPolicyDocumentProvider `
+        -DocxText $DocxText `
+        -PdfText $PdfText
     return Test-LmcDistributionSemanticPolicy `
         -RepositoryRoot $Fixture.RepositoryRoot `
         -CandidateRoot $Fixture.CandidateRoot `
@@ -319,8 +368,8 @@ try {
         -Condition ([regex]::IsMatch($passResult.PolicySha256, '^[0-9A-F]{64}$')) `
         -Message 'PolicySha256 is not 64 uppercase hexadecimal characters.'
     Assert-DistributionSemanticPolicyTest `
-        -Condition ($passResult.CheckCount -ge 15) `
-        -Message 'PASS fixture returned an unexpectedly low CheckCount.'
+        -Condition ($passResult.CheckCount -eq 18) `
+        -Message 'PASS fixture did not return the exact 18 policy checks.'
 
     $secondPassResult = Invoke-DistributionSemanticPolicyFixture -Fixture $passFixture
     Assert-DistributionSemanticPolicyTest `
@@ -330,6 +379,31 @@ try {
         -Condition ((Get-LmcDistributionSemanticPolicySha256) -ceq
             (Get-LmcDistributionSemanticPolicySha256)) `
         -Message 'Canonical policy hash is not deterministic.'
+    $canonicalPolicyText = Get-LmcDistributionSemanticPolicyText
+    Assert-DistributionSemanticPolicyTest `
+        -Condition (Test-LmcDistributionPolicyPatterns `
+            -Text $canonicalPolicyText `
+            -Patterns @(
+                '(?:^|\n)MANUAL_RECONNECT_SCOPE=',
+                '(?:^|\n)MANUAL_RELEASE_WARNING_SCOPE=',
+                '(?:^|\n)MANUAL_VERSION_SCOPE=')) `
+        -Message 'Canonical policy text is missing a new manual policy definition.'
+    $manualReleasePassResult = Test-LmcDistributionManualReleasePolicy `
+        -DocxText $passFixture.ManualText `
+        -PdfText $passFixture.ManualText
+    Assert-DistributionSemanticPolicyTest `
+        -Condition (($manualReleasePassResult.Result -ceq 'PASS') -and
+            ($manualReleasePassResult.CheckCount -eq 3)) `
+        -Message 'Direct manual release-policy helper did not return exact 3/3 PASS.'
+    $manualReleaseNonPassText = $passFixture.ManualText +
+        "`nFull Distribution is not PASS."
+    $manualReleaseNonPassResult = Test-LmcDistributionManualReleasePolicy `
+        -DocxText $manualReleaseNonPassText `
+        -PdfText $manualReleaseNonPassText
+    Assert-DistributionSemanticPolicyTest `
+        -Condition (($manualReleaseNonPassResult.Result -ceq 'PASS') -and
+            ($manualReleaseNonPassResult.CheckCount -eq 3)) `
+        -Message 'Explicit full Distribution non-PASS wording was rejected.'
 
     $actualRepositoryRoot = [System.IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..'))
@@ -382,6 +456,262 @@ try {
             ($actualSourceResult.CheckCount -eq $passResult.CheckCount)) `
         -Message 'Actual current SDK/LASAL/WPF/DINT source contract did not pass with a synchronized candidate and canonical manual.'
 
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_version_docx'
+    $driftText = $fixture.ManualText.Replace(
+        '2.3-candidate',
+        '2.2-candidate')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_VERSION_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_version_pdf'
+    $driftText = $fixture.ManualText.Replace(
+        '2.3-candidate',
+        '2.2-candidate')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_VERSION_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_version_history_only'
+    $driftText = $fixture.ManualText.Replace(
+        'Manual revision: 2.3-candidate.',
+        "Manual revision: 2.4.`nRevision history includes 2.3-candidate.")
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_VERSION_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_docx'
+    $driftText = $fixture.ManualText.Replace(
+        'RPC_INIT_FRESH_TCP_ONCE_V1',
+        'LEGACY_RECONNECT_POLICY')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_docx_semantic_reversal'
+    $driftText = $fixture.ManualText +
+        "`nThe exact canonical ErrorId=-1 is no longer required; two same-socket attempts are not a limit."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_pdf_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nThe actual-EXE gate proves PLC cleanup and readiness."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_docx_minus_one_optional'
+    $driftText = $fixture.ManualText +
+        "`nThe exact canonical ErrorId=-1 result is not required."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_pdf_multiple_fresh_tcp'
+    $driftText = $fixture.ManualText +
+        "`nThe fresh TCP policy permits more than one fresh TCP connection."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_reconnect_docx_full_distribution_pass'
+    $driftText = $fixture.ManualText +
+        "`nFull Distribution is PASS."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RECONNECT_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_docx_matrix'
+    $driftText = $fixture.ManualText.Replace(
+        'The motion/group 25-command matrix remains unfinished.',
+        'Motion APIs are documented.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_pdf_semantic_reversal'
+    $driftText = $fixture.ManualText +
+        "`nThe 25-command matrix is no longer unfinished and is qualified. D1/D2/D5 fault/soak and D3/D4 runtime are qualified. Close constitutes the safe-stop. E-stop, limits, UNIT, and Home can be omitted. The DLL is no longer unsigned; strong-name and Authenticode are enabled."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_pdf_matrix_complete'
+    $driftText = $fixture.ManualText +
+        "`nThe motion/group 25-command matrix is complete; D1/D2/D5 fault/soak and D3/D4 runtime are complete."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_docx_close_safe_stop_overclaim'
+    $driftText = $fixture.ManualText +
+        "`nClose is a safe-stop."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_pdf_safety_unnecessary'
+    $driftText = $fixture.ManualText +
+        "`nE-stop, hardware/software limits, UNIT, and Home checks are unnecessary."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_docx_dll_signed'
+    $driftText = $fixture.ManualText +
+        "`nThe DLL is strong-name and Authenticode signed."
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_pdf_diagnostics'
+    $driftText = $fixture.ManualText.Replace(
+        'D1/D2/D5 fault/soak and D3/D4 runtime remain unfinished.',
+        'Diagnostics are documented.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_docx_safe_stop'
+    $driftText = $fixture.ManualText.Replace(
+        'Close, Dispose, and cancellation do not send a PLC motion Stop; use an explicit safe-stop procedure.',
+        'Close and cancellation do not send a PLC motion Stop.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_pdf_machine_safety'
+    $driftText = $fixture.ManualText.Replace(
+        'Before motion, verify the E-stop, hardware/software limits, UNIT, and Home.',
+        'Before motion, review the machine instructions.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -PdfText $driftText
+        }
+
+    $fixture = New-DistributionSemanticPolicyFixture `
+        -BasePath $temporaryBase `
+        -Name 'manual_release_docx_signing'
+    $driftText = $fixture.ManualText.Replace(
+        'The DLL is unsigned and has neither strong-name nor Authenticode signing.',
+        'DLL signing information is omitted.')
+    Assert-DistributionSemanticPolicyBlocker `
+        -ExpectedBlocker 'MANUAL_RELEASE_WARNING_SCOPE' `
+        -Action {
+            Invoke-DistributionSemanticPolicyFixture `
+                -Fixture $fixture `
+                -DocxText $driftText
+        }
+
     $fixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'manual_scope'
     $staleManual = @'
 LASAL Motion Control API 0.9.1-preview is not production approved.
@@ -432,7 +762,7 @@ SDO Write gate is OFF and the approved target count is zero.
 
     $fixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'close_cancel'
     $driftText = $fixture.ManualText.Replace(
-        'Close and Cancel do not send a PLC motion Stop.',
+        'Close, Dispose, and cancellation do not send a PLC motion Stop; use an explicit safe-stop procedure.',
         'Connection lifecycle behavior is documented elsewhere.')
     Assert-DistributionSemanticPolicyBlocker -ExpectedBlocker 'CLOSE_CANCEL_NOT_STOP' -Action {
         Invoke-DistributionSemanticPolicyFixture -Fixture $fixture -ManualText $driftText
@@ -468,6 +798,9 @@ SDO Write gate is OFF and the approved target count is zero.
     $driftText = $fixture.ManualText.Replace(
         'Current PLC live SDO Write is not proven and remains unverified.',
         'Current PLC SDO Write is available.')
+    $driftText = $driftText.Replace(
+        'The actual-EXE gate is PC-loopback-only; PLC cleanup, disarm, and readiness are not proven.',
+        'The actual-EXE gate is PC-loopback-only.')
     Assert-DistributionSemanticPolicyBlocker -ExpectedBlocker 'PLC_LIVE_UNVERIFIED' -Action {
         Invoke-DistributionSemanticPolicyFixture -Fixture $fixture -ManualText $driftText
     }

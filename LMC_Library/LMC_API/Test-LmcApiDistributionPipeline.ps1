@@ -414,6 +414,231 @@ try {
             -Bytes $manualSnapshot.PdfBytes) `
         -Message 'Manual PDF snapshot changed with the original file.'
 
+    # The release builder must keep the exact Run copy/gate/manifest/final
+    # identity order inside the candidate transaction callback.
+    $builderPath = Join-Path $PSScriptRoot 'Build-LmcApiDistribution.ps1'
+    $builderTokens = $null
+    $builderParseErrors = $null
+    $builderAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $builderPath,
+        [ref]$builderTokens,
+        [ref]$builderParseErrors)
+    Assert-Equal `
+        -Expected 0 `
+        -Actual @($builderParseErrors).Count `
+        -Message 'Release builder has PowerShell parser errors.'
+    $builderCommands = @($builderAst.FindAll(
+        {
+            param($node)
+            $node -is [System.Management.Automation.Language.CommandAst]
+        },
+        $true))
+    $transactionCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq
+                'Invoke-LmcDistributionCandidateTransaction'
+        })
+    $runCopyCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq 'Copy-Item' -and
+            $_.Extent.Text -match
+                '(?is)-LiteralPath\s+\$exampleExe\b.*?-Destination\s+\$runDirectory\b'
+        })
+    $gateCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq
+                'Invoke-LmcDistributionExecutableRelaunchGate'
+        })
+    $semanticCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq 'Test-LmcDistributionSemanticPolicy'
+        })
+    $manifestCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq 'Write-LmcReleaseManifestAtomic'
+        })
+    $finalIdentityCommands = @($builderCommands | Where-Object {
+            $_.GetCommandName() -ceq
+                'Assert-LmcDistributionExecutableRelaunchIdentity'
+        })
+    foreach ($commandInventory in @(
+        [pscustomobject]@{
+            Name = 'candidate transaction'
+            Commands = $transactionCommands
+        },
+        [pscustomobject]@{
+            Name = 'Run EXE copy'
+            Commands = $runCopyCommands
+        },
+        [pscustomobject]@{
+            Name = 'executable relaunch gate helper'
+            Commands = $gateCommands
+        },
+        [pscustomobject]@{
+            Name = 'semantic policy'
+            Commands = $semanticCommands
+        },
+        [pscustomobject]@{
+            Name = 'manifest writer'
+            Commands = $manifestCommands
+        },
+        [pscustomobject]@{
+            Name = 'final executable identity helper'
+            Commands = $finalIdentityCommands
+        })) {
+        Assert-Equal `
+            -Expected 1 `
+            -Actual @($commandInventory.Commands).Count `
+            -Message (
+                "Release builder $($commandInventory.Name) command count drifted.")
+    }
+    $transactionCommand = $transactionCommands[0]
+    $runCopyCommand = $runCopyCommands[0]
+    $gateCommand = $gateCommands[0]
+    $semanticCommand = $semanticCommands[0]
+    $manifestCommand = $manifestCommands[0]
+    $finalIdentityCommand = $finalIdentityCommands[0]
+    Assert-True `
+        -Condition (
+            $transactionCommand.Extent.StartOffset -lt
+                $runCopyCommand.Extent.StartOffset -and
+            $runCopyCommand.Extent.EndOffset -lt
+                $gateCommand.Extent.StartOffset -and
+            $gateCommand.Extent.EndOffset -lt
+                $semanticCommand.Extent.StartOffset -and
+            $semanticCommand.Extent.EndOffset -lt
+                $manifestCommand.Extent.StartOffset -and
+            $manifestCommand.Extent.EndOffset -lt
+                $finalIdentityCommand.Extent.StartOffset -and
+            $finalIdentityCommand.Extent.EndOffset -lt
+                $transactionCommand.Extent.EndOffset) `
+        -Message (
+            'Release builder order must remain transaction -> Run copy -> ' +
+            'EXE gate -> semantic policy -> manifest -> final EXE identity ' +
+            '-> transaction completion.')
+    Assert-True `
+        -Condition ($gateCommand.Extent.Text -match (
+            '(?is)-StagingRoot\s+\$stagingRoot\b.*?' +
+            '-ExecutablePath\s+\$runExampleExe\b.*?' +
+            '-GateAction\s*\{.*?' +
+            "-Target\s+'RunWpfExecutableRelaunchTest'.*?" +
+            'WpfExecutableRelaunchExe\s*=\s*\$testedExecutable\b')) `
+        -Message (
+            'Release builder gate helper no longer invokes the actual-EXE ' +
+            'relaunch target with the exact staged Run path.')
+    Assert-True `
+        -Condition ($finalIdentityCommand.Extent.Text -match (
+            '(?is)-StagingRoot\s+\$stagingRoot\b.*?' +
+            '-ExecutablePath\s+\$runExampleExe\b.*?' +
+            '-TestedSha256\s*\(\s*' +
+            '\$buildSummary\.ExecutableRelaunchTestedExeSha256\s*\)')) `
+        -Message (
+            'Release builder final identity helper is not bound to the exact ' +
+            'staged Run path and tested SHA.')
+
+    # The helper executes only the exact staged Run EXE and binds its bytes.
+    $gateRoot = Join-Path $script:TestRoot 'executable-relaunch-helper'
+    $gateExecutable = Join-Path $gateRoot (
+        '02_Example_Program/Run/LasalMotionControlApiExample.exe')
+    Write-TestFile -Path $gateExecutable -Content 'tested-executable-v1'
+    $expectedGateHash = (Get-FileHash `
+        -LiteralPath $gateExecutable `
+        -Algorithm SHA256).Hash.ToUpperInvariant()
+    $gateObservation = [pscustomobject]@{
+        Calls = 0
+        Path = $null
+    }
+    $testedGateHash = Invoke-LmcDistributionExecutableRelaunchGate `
+        -StagingRoot $gateRoot `
+        -ExecutablePath $gateExecutable `
+        -GateAction {
+            param($testedExecutable)
+            $gateObservation.Calls += 1
+            $gateObservation.Path = $testedExecutable
+            'gate-output-must-not-escape-the-helper'
+        }
+    Assert-Equal `
+        -Expected $expectedGateHash `
+        -Actual $testedGateHash `
+        -Message 'Executable relaunch gate did not return the exact tested SHA.'
+    Assert-Equal `
+        -Expected 1 `
+        -Actual $gateObservation.Calls `
+        -Message 'Executable relaunch gate action did not run exactly once.'
+    Assert-Equal `
+        -Expected ([System.IO.Path]::GetFullPath($gateExecutable)) `
+        -Actual $gateObservation.Path `
+        -Message 'Executable relaunch gate action received the wrong EXE path.'
+    Assert-Equal `
+        -Expected $expectedGateHash `
+        -Actual (Assert-LmcDistributionExecutableRelaunchIdentity `
+            -StagingRoot $gateRoot `
+            -ExecutablePath $gateExecutable `
+            -TestedSha256 $testedGateHash) `
+        -Message 'Final executable identity did not return the exact SHA.'
+
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionExecutableRelaunchGate `
+                -StagingRoot $gateRoot `
+                -ExecutablePath $gateExecutable `
+                -GateAction {
+                    throw 'fixture executable relaunch gate failed'
+                }
+        } `
+        -ExpectedMessage 'fixture executable relaunch gate failed' | Out-Null
+
+    $missingGateRoot = Join-Path $script:TestRoot `
+        'executable-relaunch-missing'
+    New-Item -ItemType Directory -Path $missingGateRoot -Force | Out-Null
+    $missingGateExecutable = Join-Path $missingGateRoot (
+        '02_Example_Program/Run/LasalMotionControlApiExample.exe')
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionExecutableRelaunchGate `
+                -StagingRoot $missingGateRoot `
+                -ExecutablePath $missingGateExecutable `
+                -GateAction { }
+        } `
+        -ExpectedMessage 'Executable relaunch gate input was not found' |
+        Out-Null
+
+    $wrongGateExecutable = Join-Path $gateRoot (
+        '02_Example_Program/Run/WrongExample.exe')
+    Write-TestFile -Path $wrongGateExecutable -Content 'wrong-executable'
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionExecutableRelaunchGate `
+                -StagingRoot $gateRoot `
+                -ExecutablePath $wrongGateExecutable `
+                -GateAction { }
+        } `
+        -ExpectedMessage 'path must be the exact staged Run EXE' | Out-Null
+
+    Write-TestFile -Path $gateExecutable -Content 'mutated-after-gate'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionExecutableRelaunchIdentity `
+                -StagingRoot $gateRoot `
+                -ExecutablePath $gateExecutable `
+                -TestedSha256 $testedGateHash
+        } `
+        -ExpectedMessage (
+            'final example EXE bytes do not match the executable relaunch gate input') |
+        Out-Null
+
+    Write-TestFile -Path $gateExecutable -Content 'tested-executable-v1'
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionExecutableRelaunchGate `
+                -StagingRoot $gateRoot `
+                -ExecutablePath $gateExecutable `
+                -GateAction {
+                    param($testedExecutable)
+                    Write-TestFile `
+                        -Path $testedExecutable `
+                        -Content 'mutated-during-gate'
+                }
+        } `
+        -ExpectedMessage (
+            'staged example EXE changed while the executable relaunch gate ran') |
+        Out-Null
+
     # Snapshot coverage includes file content, hidden files, and empty directories.
     $fixture = New-TestFixture -Name 'snapshot'
     $snapshotBaseline = Get-LmcDistributionTreeSnapshot `
@@ -616,6 +841,94 @@ try {
     Assert-NoTransactionResidue `
         -Fixture $fixture `
         -Context 'Callback failure'
+
+    # An actual-EXE gate failure remains inside PopulateAndValidate, so the
+    # transaction removes staging without publishing or touching canonical.
+    $fixture = New-TestFixture -Name 'executable_gate_failure'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionCandidateTransaction `
+                -CanonicalRoot $fixture.Canonical `
+                -CandidatePath $fixture.Candidate `
+                -PopulateAndValidate {
+                    param($stage)
+                    Populate-TestCandidate -Stage $stage
+                    $stageExecutable = Join-Path $stage (
+                        '02_Example_Program/Run/' +
+                        'LasalMotionControlApiExample.exe')
+                    Write-TestFile `
+                        -Path $stageExecutable `
+                        -Content 'transaction-gate-executable'
+                    Invoke-LmcDistributionExecutableRelaunchGate `
+                        -StagingRoot $stage `
+                        -ExecutablePath $stageExecutable `
+                        -GateAction {
+                            throw 'transaction executable gate failed'
+                        } | Out-Null
+                } `
+                -GetInputFingerprint { 'input-v1' }
+        } `
+        -ExpectedMessage 'transaction executable gate failed' | Out-Null
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Executable gate failure published a candidate.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Executable gate failure'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Executable gate failure'
+
+    # A mutation after a successful gate must fail the final identity check
+    # before the candidate transaction can seal or promote the stage.
+    $fixture = New-TestFixture -Name 'executable_identity_mutation'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionCandidateTransaction `
+                -CanonicalRoot $fixture.Canonical `
+                -CandidatePath $fixture.Candidate `
+                -PopulateAndValidate {
+                    param($stage)
+                    Populate-TestCandidate -Stage $stage
+                    $stageExecutable = Join-Path $stage (
+                        '02_Example_Program/Run/' +
+                        'LasalMotionControlApiExample.exe')
+                    Write-TestFile `
+                        -Path $stageExecutable `
+                        -Content 'transaction-tested-executable'
+                    $transactionTestedSha =
+                        Invoke-LmcDistributionExecutableRelaunchGate `
+                            -StagingRoot $stage `
+                            -ExecutablePath $stageExecutable `
+                            -GateAction { }
+                    Write-TestFile `
+                        -Path $stageExecutable `
+                        -Content 'transaction-mutated-executable'
+                    Assert-LmcDistributionExecutableRelaunchIdentity `
+                        -StagingRoot $stage `
+                        -ExecutablePath $stageExecutable `
+                        -TestedSha256 $transactionTestedSha | Out-Null
+                } `
+                -GetInputFingerprint { 'input-v1' }
+        } `
+        -ExpectedMessage (
+            'final example EXE bytes do not match the executable relaunch gate input') |
+        Out-Null
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Executable identity mutation published a candidate.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Executable identity mutation'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Executable identity mutation'
 
     # Candidate bytes changed after validation must fail before Directory.Move.
     $fixture = New-TestFixture -Name 'tamper'
