@@ -72,6 +72,7 @@ test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/bounded_
 test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/derived_build_transcript*.txt -text -eol -whitespace
 test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/classes_lcb_gate_d_rebuild_*.binary.patch -text -eol -whitespace
 test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/classes_lcb_gate_d_rebuild_*.manifest.json -text -eol -whitespace
+test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesVolatilityTriad.ps1 text eol=lf
 test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/candidate_finalization_gate_d_rebaseline_6e115876/** -text -eol -whitespace
 
 # Preserve generated Codex apply_patch artifacts byte-for-byte, including LF and indentation.
