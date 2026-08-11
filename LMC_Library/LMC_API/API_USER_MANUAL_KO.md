@@ -24,7 +24,7 @@
 | 2.0-candidate | 2026-07-31 | Axis1-only SDO Write identity-pinned four-ticket gate, stale recovery retirement, single-instance 실행과 transactional Distribution candidate 경계 추가 |
 | 2.1-candidate | 2026-08-04 | LMC Home current-position-zero start/outcome/retirement, DS402 Home gate 상태와 TW19/TW20 encoder maintenance 계약 추가 |
 | 2.2-candidate | 2026-08-11 | `14ccf58` exact canonical `-1` bounded fresh-TCP reconnect, complete local cleanup, startup identity와 PC 검증 경계 추가 |
-| 2.3-candidate | 2026-08-12 | `cbf2548` actual EXE X 종료/재실행과 binary identity gate, `3c63dea` 13-role active Python dependency closure, canonical tracked release-input baseline 승격 및 배포 검증 경계 추가 |
+| 2.3-candidate | 2026-08-12 | `cbf2548` actual EXE X 종료/재실행과 binary identity gate, `3c63dea` 13-role active Python dependency closure, `d4204b4` exact Gate D PC/static snapshot 승인 및 canonical tracked release-input 경계 추가 |
 
 이 문서는 `LasalMotionControlLib.dll`의 API 기능과 호출 인자, UNIT, 반환값을
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
@@ -32,12 +32,17 @@ reference는 아니다.
 
 > **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-30
 > historical checkpoint의 SourceOnly/full static과 fresh IDE Rebuild/Link는 PASS했다.
-> 최신 clean detached full Distribution은 `bf31030`의 Debug `RunTests`에서 승인되지 않은
-> `TerminalWakeBrokerCandidate` physical snapshot ratchet로 fail-closed STOP했고 candidate,
-> actual EXE, manifest와 publish는 생성하지 않았다. Current `3c63dea`의 PS5.1/PS7 mandatory
-> tooling gate `14/14`와 13-role active Python dependency closure는 PC-only PASS지만 full
-> Distribution은 다시 실행하지 않았다. 동일 source hash의 commit/clean-checkout release
-> baseline, current PLC download와 전체 PLC matrix는 아직 닫히지 않았다.
+> `d4204b4`는 clean tracked `Classes.lcb` exact physical snapshot(8,549,773 bytes,
+> SHA-256 `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`)의
+> `TerminalWakeBrokerCandidate`만 PC/static `ProductionApproved=true`,
+> `NeedsRebaseline=false`로 승인했다. Verifier selftest는 PS5.1/PS7 각각 `296/296`,
+> `Verify-LasalContract.ps1 -SourceOnly`는 두 host에서
+> `Phase5TransportClean`/`IntegratedReadOwnerDormant` checkpoint로 PASS했다. Main worktree의
+> 사용자 `Classes.lcb`(8,549,773 bytes, SHA-256
+> `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`)는 exact identity
+> drift로 계속 reject된다. 이 ratchet 뒤 clean full Distribution은 아직 실행하지 않았으므로
+> current schema 3 candidate, actual EXE, manifest와 publish는 생성하거나 검증하지 않았다.
+> LASAL IDE build, PLC Download와 runtime proof도 수행하지 않았다.
 > `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
 > `Dispose`, timeout과 cancellation은 PLC motion Stop이나 safe-stop을 보내지 않는다.
@@ -52,9 +57,10 @@ reference는 아니다.
 
 > **canonical release-input 상태:** 이 Markdown은 2026-08-12 current development source용
 > `2.3-candidate` 원본이다. canonical Distribution DOCX/PDF는 이 원본에서 생성하고 독립
-> 검토한 `2.3-candidate`와 동일한 tracked release-input baseline이다. 이 전환은 clean release
-> candidate 생성을 위한 입력 승격일 뿐 production 승인, current PLC live proof 또는 full
-> Distribution PASS가 아니다. reviewed Gate D physical snapshot ratchet, clean detached checkout의
+> 검토한 `2.3-candidate`와 동일한 tracked release-input baseline이다. `d4204b4`의 Gate D 승인은
+> 위 exact clean tracked snapshot의 PC/static 경계만 닫으며 main worktree identity drift는
+> 승인하지 않는다. 이 전환은 clean release candidate 생성을 위한 입력 승격일 뿐 production
+> 승인, current PLC live proof 또는 full Distribution PASS가 아니다. Clean detached checkout의
 > full Distribution과 release-scope 승인이 끝나기 전에는 canonical `2.3-candidate`를 production
 > 배포 매뉴얼로 간주하지 않는다.
 
@@ -369,7 +375,7 @@ state를 force-clear하지 않는다.
 transaction 완료 전에 tested/final EXE SHA-256 equality를 요구한다. 별도
 binary-reference temp candidate(`ProjectReference=0`, config absent)는 gate를 PASS했고 EXE
 SHA-256은 `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
-`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다. Full
+`7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이었다. Historical full
 Distribution 첫 attempt는 gate보다 앞선 `Verify-LasalContract.ps1:7571`
 `$macroMatches[-1]`의 PowerShell 5.1 비호환 tooling bug에서 중단됐고 transaction residue는
 `0`이다. PLC/source/Classes/`cbf2548` blocker가 아니다. 후속 pwsh7 focused verifier-only는
@@ -378,9 +384,18 @@ PASS했다. Compatibility commit `ad4af91`은 verifier의 PS5.1 negative-index �
 수정했고 targeted PS5/PS7 Publish+Reserve를 PASS했다. 수정 뒤 PS5.1 Release
 `RunLasalContract`/`RunLasalNetworkContract`는 해당 경계를 통과한 다음 각각
 177.7초/174.9초에 기존 intentional `LASAL.UdpCallbackContract blocker: Classes.lcb
-sanctioned Gate D identity drifted`로 exit `1`이었다. 사용자 current `Classes.lcb`는
-수정하지 않았다. 따라서 full Distribution prerequisite가 STOP이고 new EXE gate/manifest에
-도달하지 않아 Distribution/manifest/publish PASS는 아니다.
+sanctioned Gate D identity drifted`로 exit `1`이었다.
+
+`d4204b4`는 clean tracked `Classes.lcb`의 8,549,773-byte exact SHA-256
+`24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`
+`TerminalWakeBrokerCandidate`만 `ProductionApproved=true`, `NeedsRebaseline=false`로
+승인했다. Selftest PS5.1/PS7 `296/296`과 두 host의 SourceOnly
+`Phase5TransportClean`/`IntegratedReadOwnerDormant` checkpoint는 PASS했다. 반면 수정하지 않은
+main worktree 사용자 `Classes.lcb` SHA-256
+`13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 sanctioned identity
+drift로 계속 reject된다. Ratchet 뒤 clean full Distribution은 아직 실행하지 않아 STOP이며,
+current schema 3 candidate, actual EXE, manifest와 publish PASS가 아니다. LASAL IDE build,
+PLC Download와 runtime도 검증하지 않았다.
 
 ## 2.5 Safety transport preemption
 
