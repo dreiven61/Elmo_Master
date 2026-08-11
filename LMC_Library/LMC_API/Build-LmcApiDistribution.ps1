@@ -13,7 +13,8 @@ Set-StrictMode -Version Latest
 foreach ($implementationName in @(
     'ReleaseManifest.ps1',
     'DistributionPipeline.ps1',
-    'DistributionSemanticPolicy.ps1')) {
+    'DistributionSemanticPolicy.ps1',
+    'Test-LmcDistributionToolingHostParity.ps1')) {
     $implementationPath = Join-Path $PSScriptRoot $implementationName
     if (-not (Test-Path -LiteralPath $implementationPath -PathType Leaf)) {
         throw "Distribution implementation not found: $implementationPath"
@@ -28,6 +29,18 @@ if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
 else {
     $RepositoryRoot = [System.IO.Path]::GetFullPath($RepositoryRoot)
 }
+
+$toolingPreflight = Invoke-LmcDistributionToolingHostParityPreflight `
+    -RepositoryRoot $RepositoryRoot
+if ($toolingPreflight.Result -cne 'PASS' -or
+    $toolingPreflight.RunCount -ne 12 -or
+    $toolingPreflight.ToolingDigest -notmatch '^[0-9A-F]{64}$') {
+    throw 'Distribution tooling host-parity preflight returned an invalid result.'
+}
+Write-Host (
+    'PASS: bounded distribution tooling host parity 12/12; ' +
+    "files=$($toolingPreflight.ToolingFileCount); " +
+    "SHA256=$($toolingPreflight.ToolingDigest)")
 
 $libraryProject = Join-Path $RepositoryRoot `
     'LMC_Library\LMC_API_Delivery\src\LasalMotionControlLib.csproj'
@@ -505,7 +518,9 @@ function Get-LmcLasalValidationInputFiles {
         throw "Untracked LASAL validation input is not allowed: $inventory"
     }
 
-    return @($inventoryFiles.Values | Sort-Object)
+    return @(Get-LmcDistributionOrdinalSortedUniqueStrings `
+        -Values @($inventoryFiles.Values) `
+        -IgnoreCaseForUniqueness)
 }
 
 function Get-LmcReleaseInputFiles {
@@ -534,6 +549,13 @@ function Get-LmcReleaseInputFiles {
         (Join-Path $PSScriptRoot 'DistributionPipeline.ps1'),
         (Join-Path $PSScriptRoot 'DistributionSemanticPolicy.ps1'),
         (Join-Path $PSScriptRoot 'ReleaseManifest.ps1'),
+        (Join-Path $PSScriptRoot `
+            'Test-LmcDistributionToolingHostParity.ps1'),
+        (Join-Path $PSScriptRoot `
+            'Test-LmcApiDistributionPipeline.ps1'),
+        (Join-Path $PSScriptRoot `
+            'Test-LmcDistributionSemanticPolicy.ps1'),
+        (Join-Path $PSScriptRoot 'Test-LmcReleaseManifest.ps1'),
         (Join-Path $PSScriptRoot 'API_USER_MANUAL_KO.md'),
         (Join-Path $RepositoryRoot `
             'LMC_Library\LMC_API_Delivery\docs\DINT_PACKET_MAP.txt'))) {
@@ -567,13 +589,19 @@ function Get-LmcReleaseInputFiles {
         }
     }
 
-    return @($files | Sort-Object)
+    return @(Get-LmcDistributionOrdinalSortedUniqueStrings `
+        -Values @($files) `
+        -IgnoreCaseForUniqueness)
 }
 
 function Get-LmcReleaseInputTreeSha256 {
     param(
         [AllowNull()]
-        [object]$ManualInputSnapshot
+        [object]$ManualInputSnapshot,
+
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[0-9A-F]{64}$')]
+        [string]$ValidatedToolingDigest
     )
 
     if ($null -eq $ManualInputSnapshot) {
@@ -582,7 +610,8 @@ function Get-LmcReleaseInputTreeSha256 {
             -PdfPath $manualPdfInput `
             -DocxPath $manualDocxInput
         return Get-LmcReleaseInputTreeSha256 `
-            -ManualInputSnapshot $liveManualSnapshot
+            -ManualInputSnapshot $liveManualSnapshot `
+            -ValidatedToolingDigest $ValidatedToolingDigest
     }
     else {
         foreach ($propertyName in @(
@@ -647,6 +676,7 @@ function Get-LmcReleaseInputTreeSha256 {
         }
         $records += "$relative|$length|$($hash.ToUpperInvariant())"
     }
+    $records += "@validated-tooling-preflight|$ValidatedToolingDigest"
     $canonical = ($records -join "`n") + "`n"
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
@@ -918,6 +948,9 @@ function Get-LmcReleaseBuildMetadata {
 }
 
 function New-LmcReleasePreparedInputs {
+    Assert-LmcDistributionMonitoredFileSnapshot `
+        -RepositoryRoot $RepositoryRoot `
+        -ExpectedSnapshot $toolingPreflight | Out-Null
     $preparedInputs = New-LmcDistributionManualInputSnapshot `
         -RepositoryRoot $RepositoryRoot `
         -PdfPath $manualPdfInput `
@@ -927,6 +960,12 @@ function New-LmcReleasePreparedInputs {
         -Name SourceCommit -Value $metadata.SourceCommit
     $preparedInputs | Add-Member -MemberType NoteProperty `
         -Name WorktreeState -Value $metadata.WorktreeState
+    $preparedInputs | Add-Member -MemberType NoteProperty `
+        -Name ValidatedToolingDigest `
+        -Value $toolingPreflight.ToolingDigest
+    $preparedInputs | Add-Member -MemberType NoteProperty `
+        -Name ValidatedToolingSnapshot `
+        -Value $toolingPreflight
     return $preparedInputs
 }
 
@@ -950,7 +989,15 @@ function Assert-LmcReleasePreparedMetadataCurrent {
             [System.StringComparison]::Ordinal)) {
         throw "Release Git metadata changed before promotion. expectedCommit=$($PreparedInputs.SourceCommit) actualCommit=$($current.SourceCommit) expectedState=$($PreparedInputs.WorktreeState) actualState=$($current.WorktreeState)"
     }
+    Assert-LmcDistributionMonitoredFileSnapshot `
+        -RepositoryRoot $RepositoryRoot `
+        -ExpectedSnapshot $PreparedInputs.ValidatedToolingSnapshot |
+        Out-Null
 }
+
+Assert-LmcDistributionMonitoredFileSnapshot `
+    -RepositoryRoot $RepositoryRoot `
+    -ExpectedSnapshot $toolingPreflight | Out-Null
 
 if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
     $releaseId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' +
@@ -971,8 +1018,20 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
     } `
     -GetInputFingerprint {
         param($preparedInputs)
+        $selectedToolingSnapshot = if ($null -eq $preparedInputs) {
+            $toolingPreflight
+        }
+        else {
+            $preparedInputs.ValidatedToolingSnapshot
+        }
+        Assert-LmcDistributionMonitoredFileSnapshot `
+            -RepositoryRoot $RepositoryRoot `
+            -ExpectedSnapshot $selectedToolingSnapshot |
+            Out-Null
         Get-LmcReleaseInputTreeSha256 `
-            -ManualInputSnapshot $preparedInputs
+            -ManualInputSnapshot $preparedInputs `
+            -ValidatedToolingDigest `
+                $selectedToolingSnapshot.Digest
     } `
     -ValidatePreparedInputs {
         param($preparedInputs, $stagingRoot)

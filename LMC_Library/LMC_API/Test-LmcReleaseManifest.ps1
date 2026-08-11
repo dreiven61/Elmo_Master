@@ -271,7 +271,7 @@ try {
         -Action {
             Write-LmcReleaseManifestAtomic @invalidSemanticPolicyResultParameters
         } `
-        -ExpectedMessage 'does not belong to the set'
+        -ExpectedMessage 'SemanticPolicyResult'
 
     $lowercaseSemanticPolicyResultParameters = $parameters.Clone()
     $lowercaseSemanticPolicyResultParameters.SemanticPolicyResult = 'pass'

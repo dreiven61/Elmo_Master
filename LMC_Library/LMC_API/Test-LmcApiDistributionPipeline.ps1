@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param()
 
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
 $implementation = Join-Path $PSScriptRoot 'DistributionPipeline.ps1'
@@ -9,6 +11,13 @@ if (-not (Test-Path -LiteralPath $implementation -PathType Leaf)) {
     throw "Distribution pipeline implementation not found: $implementation"
 }
 . $implementation
+
+$toolingHostParity = Join-Path $PSScriptRoot `
+    'Test-LmcDistributionToolingHostParity.ps1'
+if (-not (Test-Path -LiteralPath $toolingHostParity -PathType Leaf)) {
+    throw "Distribution tooling host-parity implementation not found: $toolingHostParity"
+}
+. $toolingHostParity
 
 $script:Passed = 0
 $script:TrackedReparsePaths = New-Object `
@@ -336,6 +345,32 @@ function Remove-TestRootSafely {
     [System.IO.Directory]::Delete($fullPath, $true)
 }
 
+function Get-CurrentTestPowerShellExecutable {
+    if ($PSVersionTable.PSEdition -ceq 'Desktop') {
+        return Join-Path $env:WINDIR `
+            'System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+    return Join-Path $PSHOME 'pwsh.exe'
+}
+
+function ConvertTo-TestEncodedPowerShellArguments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Command
+    )
+
+    $isolatedCommand =
+        '$ProgressPreference = ''SilentlyContinue''; ' + $Command
+    $encoded = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($isolatedCommand))
+    return @(
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-EncodedCommand', $encoded)
+}
+
 $systemTemp = [System.IO.Path]::GetFullPath(
     [System.IO.Path]::GetTempPath()).TrimEnd('\')
 $script:TestRoot = Join-Path $systemTemp (
@@ -343,6 +378,636 @@ $script:TestRoot = Join-Path $systemTemp (
 
 try {
     New-Item -ItemType Directory -Path $script:TestRoot | Out-Null
+
+    # The dual-host tooling gate is exact, non-recursive, and ordered before
+    # every canonical/manual/tool-discovery or transaction operation.
+    $repositoryRoot = [System.IO.Path]::GetFullPath(
+        (Join-Path $PSScriptRoot '..\..'))
+    $builderPath = Join-Path $PSScriptRoot `
+        'Build-LmcApiDistribution.ps1'
+    $builderText = [System.IO.File]::ReadAllText($builderPath)
+    Assert-True `
+        -Condition (Assert-LmcDistributionBuilderPreflightOrder `
+            -BuilderText $builderText) `
+        -Message 'Current builder tooling-preflight order was rejected.'
+    $requiredInventoryOccurrences = @{
+        'Test-LmcDistributionToolingHostParity.ps1' = 2
+        'Test-LmcApiDistributionPipeline.ps1' = 1
+        'Test-LmcDistributionSemanticPolicy.ps1' = 1
+        'Test-LmcReleaseManifest.ps1' = 1
+    }
+    foreach ($requiredInventoryName in @(
+            $requiredInventoryOccurrences.Keys | Sort-Object)) {
+        Assert-Equal `
+            -Expected $requiredInventoryOccurrences[$requiredInventoryName] `
+            -Actual ([regex]::Matches(
+                $builderText,
+                [regex]::Escape("'$requiredInventoryName'"))).Count `
+            -Message "Builder release-input inventory does not pin $requiredInventoryName."
+    }
+    Assert-True `
+        -Condition ($builderText.Contains(
+                '@validated-tooling-preflight|$ValidatedToolingDigest')) `
+        -Message 'Builder input-tree fingerprint does not bind the validated tooling digest.'
+    Assert-True `
+        -Condition ([regex]::Matches(
+                $builderText,
+                'Get-LmcDistributionOrdinalSortedUniqueStrings').Count -eq 2) `
+        -Message 'Builder release-input path inventories are not both ordinal-canonicalized.'
+    Assert-True `
+        -Condition ([regex]::Matches(
+                $builderText,
+                'Assert-LmcDistributionMonitoredFileSnapshot').Count -ge 4) `
+        -Message 'Builder does not reassert tooling bytes across both transaction gaps.'
+    Assert-True `
+        -Condition ($builderText.Contains(
+                '$selectedToolingSnapshot = if ($null -eq $preparedInputs)') -and
+            $builderText.Contains('$toolingPreflight')) `
+        -Message 'Builder does not select the preflight snapshot for the second fingerprint call.'
+
+    $orderedBuilderFixture = @'
+Invoke-LmcDistributionToolingHostParityPreflight -RepositoryRoot $RepositoryRoot
+$canonicalDistribution = 'canonical'
+$null = Resolve-LmcDistributionManualInputs
+$vswhere = 'vswhere'
+$pythonCandidates = @()
+if ([string]::IsNullOrWhiteSpace($CandidatePath)) { $CandidatePath = 'candidate' }
+$null = Invoke-LmcDistributionCandidateTransaction
+'@
+    Assert-True `
+        -Condition (Assert-LmcDistributionBuilderPreflightOrder `
+            -BuilderText $orderedBuilderFixture) `
+        -Message 'Ordered builder fixture was rejected.'
+    $latePreflightFixture = $orderedBuilderFixture.Replace(
+        'Invoke-LmcDistributionToolingHostParityPreflight -RepositoryRoot $RepositoryRoot',
+        '').Replace(
+        '$null = Invoke-LmcDistributionCandidateTransaction',
+        "$null = Invoke-LmcDistributionCandidateTransaction`n" +
+        'Invoke-LmcDistributionToolingHostParityPreflight -RepositoryRoot $RepositoryRoot')
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionBuilderPreflightOrder `
+                -BuilderText $latePreflightFixture
+        } `
+        -ExpectedMessage 'must precede' | Out-Null
+    $duplicatePreflightFixture =
+        $orderedBuilderFixture + "`n" +
+        'Invoke-LmcDistributionToolingHostParityPreflight -RepositoryRoot $RepositoryRoot'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionBuilderPreflightOrder `
+                -BuilderText $duplicatePreflightFixture
+        } `
+        -ExpectedMessage 'exactly once' | Out-Null
+
+    $suiteSpecifications = @(
+        Get-LmcDistributionToolingSuiteSpecifications `
+            -RepositoryRoot $repositoryRoot)
+    Assert-LmcDistributionToolingSuiteSpecifications `
+        -Specifications $suiteSpecifications
+    Assert-Equal `
+        -Expected 6 `
+        -Actual $suiteSpecifications.Count `
+        -Message 'Dual-host tooling suite inventory is not exact.'
+    $expectedTimeouts = @{
+        Pipeline = 300
+        SemanticPolicy = 120
+        ReleaseManifest = 120
+        MethodSize = 180
+        UdpCallback = 900
+        ControlHandleRequest = 180
+    }
+    foreach ($suiteSpecification in $suiteSpecifications) {
+        Assert-Equal `
+            -Expected $expectedTimeouts[$suiteSpecification.Id] `
+            -Actual $suiteSpecification.TimeoutSeconds `
+            -Message "Tooling timeout map drifted for $($suiteSpecification.Id)."
+    }
+    $reorderedSpecifications = @(
+        $suiteSpecifications[1],
+        $suiteSpecifications[0],
+        $suiteSpecifications[2],
+        $suiteSpecifications[3],
+        $suiteSpecifications[4],
+        $suiteSpecifications[5])
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $reorderedSpecifications
+        } `
+        -ExpectedMessage 'suite order' | Out-Null
+    $duplicateSpecifications = @(
+        $suiteSpecifications[0],
+        $suiteSpecifications[1],
+        $suiteSpecifications[2],
+        $suiteSpecifications[3],
+        $suiteSpecifications[4],
+        $suiteSpecifications[0])
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $duplicateSpecifications
+        } `
+        -ExpectedMessage 'duplicated' | Out-Null
+    $recursiveSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $recursiveSpecifications[0].RelativePath =
+        'LMC_Library/LMC_API/Build-LmcApiDistribution.ps1'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $recursiveSpecifications
+        } `
+        -ExpectedMessage 'recursion is forbidden' | Out-Null
+    $pathDriftSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $pathDriftSpecifications[0].RelativePath =
+        'LMC_Library/LMC_API/Test-AlternatePipeline.ps1'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $pathDriftSpecifications
+        } `
+        -ExpectedMessage 'exact contract drifted' | Out-Null
+    $evidenceDriftSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $evidenceDriftSpecifications[0].EvidencePattern =
+        '^PASS: [0-9]+ distribution pipeline assertions$'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $evidenceDriftSpecifications
+        } `
+        -ExpectedMessage 'exact contract drifted' | Out-Null
+    $evidenceLineDriftSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $evidenceLineDriftSpecifications[0].EvidenceLine =
+        'PASS: non-exact pipeline assertions'
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $evidenceLineDriftSpecifications
+        } `
+        -ExpectedMessage 'exact contract drifted' | Out-Null
+    $timeoutDriftSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $timeoutDriftSpecifications[0].TimeoutSeconds = 301
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $timeoutDriftSpecifications
+        } `
+        -ExpectedMessage 'exact contract drifted' | Out-Null
+    $terminationDriftSpecifications = @(
+        $suiteSpecifications |
+            ForEach-Object { $_.PSObject.Copy() })
+    $terminationDriftSpecifications[0].WorkerTerminates = $true
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionToolingSuiteSpecifications `
+                -Specifications $terminationDriftSpecifications
+        } `
+        -ExpectedMessage 'exact contract drifted' | Out-Null
+
+    # Host discovery rejects missing/spoofed/ambiguous executables while
+    # accepting the normal real-pwsh plus zero-byte AppExecutionAlias set.
+    Assert-Throws `
+        -Action {
+            Resolve-LmcDistributionPowerShellHost `
+                -Name 'MissingFixture' `
+                -CandidatePaths @(
+                    (Join-Path $script:TestRoot 'missing-powershell.exe')) `
+                -WorkingDirectory $repositoryRoot `
+                -ExpectedEdition 'Core' `
+                -MinimumMajor 7 `
+                -MaximumMajor ([int]::MaxValue)
+        } `
+        -ExpectedMessage 'was not found as a physical executable' | Out-Null
+
+    $currentHostExecutable = Get-CurrentTestPowerShellExecutable
+    $spoofEdition = if ($PSVersionTable.PSEdition -ceq 'Desktop') {
+        'Core'
+    }
+    else {
+        'Desktop'
+    }
+    $spoofMinimum = if ($spoofEdition -ceq 'Core') { 7 } else { 5 }
+    $spoofMaximum = if ($spoofEdition -ceq 'Core') {
+        [int]::MaxValue
+    }
+    else {
+        5
+    }
+    Assert-Throws `
+        -Action {
+            Resolve-LmcDistributionPowerShellHost `
+                -Name 'SpoofFixture' `
+                -CandidatePaths @($currentHostExecutable) `
+                -WorkingDirectory $repositoryRoot `
+                -ExpectedEdition $spoofEdition `
+                -MinimumMajor $spoofMinimum `
+                -MaximumMajor $spoofMaximum
+        } `
+        -ExpectedMessage 'identity was not accepted' | Out-Null
+
+    $pwshCandidates = @(
+        Get-Command pwsh.exe -CommandType Application -All `
+            -ErrorAction SilentlyContinue |
+            ForEach-Object { [string]$_.Source })
+    $structuralProbe = {
+        param($path, $working, $edition, $minimum, $maximum)
+        [pscustomobject]@{
+            Edition = 'Core'
+            Major = 7
+            Version = '7.fixture'
+            PowerShellHome = Split-Path -Parent $path
+            ModulePath = Join-Path (Split-Path -Parent $path) 'Modules'
+        }
+    }
+    $resolvedPhysicalPwsh = Resolve-LmcDistributionPowerShellHost `
+        -Name 'AliasFilterFixture' `
+        -CandidatePaths $pwshCandidates `
+        -WorkingDirectory $repositoryRoot `
+        -ExpectedEdition 'Core' `
+        -MinimumMajor 7 `
+        -MaximumMajor ([int]::MaxValue) `
+        -IdentityProbe $structuralProbe
+    Assert-True `
+        -Condition ((Get-Item -LiteralPath $resolvedPhysicalPwsh.Path).Length -gt 0 -and
+            (((Get-Item -LiteralPath $resolvedPhysicalPwsh.Path).Attributes -band
+                [System.IO.FileAttributes]::ReparsePoint) -eq 0)) `
+        -Message 'Host resolver accepted the zero-byte/reparse AppExecutionAlias.'
+
+    $snapshotParityCommand = @"
+`$ProgressPreference = 'SilentlyContinue'
+`$env:PSModulePath = [IO.Path]::Combine(`$PSHOME, 'Modules')
+. '$($toolingHostParity.Replace("'", "''"))'
+`$snapshot = Get-LmcDistributionMonitoredFileSnapshot -RepositoryRoot '$($repositoryRoot.Replace("'", "''"))'
+foreach (`$record in `$snapshot.Records) {
+    [Console]::Out.WriteLine('RECORD|' + `$record)
+}
+[Console]::Out.WriteLine('DIGEST|' + `$snapshot.Digest)
+"@
+    $snapshotParityArguments = ConvertTo-TestEncodedPowerShellArguments `
+        -Command $snapshotParityCommand
+    $snapshotPs5 = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath (Join-Path $env:WINDIR `
+            'System32\WindowsPowerShell\v1.0\powershell.exe') `
+        -Arguments $snapshotParityArguments `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 60 `
+        -RemoveEnvironmentVariables @('PSModulePath') `
+        -EnvironmentOverrides @{ PSModulePath = 'LMC_SORT_POISON_PS5' }
+    $snapshotPs7 = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $resolvedPhysicalPwsh.Path `
+        -Arguments $snapshotParityArguments `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 60 `
+        -RemoveEnvironmentVariables @('PSModulePath') `
+        -EnvironmentOverrides @{ PSModulePath = 'LMC_SORT_POISON_PS7' }
+    Assert-True `
+        -Condition ($snapshotPs5.ExitCode -eq 0 -and
+            $snapshotPs7.ExitCode -eq 0 -and
+            [string]::IsNullOrWhiteSpace($snapshotPs5.StandardError) -and
+            [string]::IsNullOrWhiteSpace($snapshotPs7.StandardError)) `
+        -Message 'Cross-host production snapshot fixture did not exit cleanly.'
+    $snapshotPs5Text = $snapshotPs5.StandardOutput.Replace(
+        "`r`n", "`n").TrimEnd("`n")
+    $snapshotPs7Text = $snapshotPs7.StandardOutput.Replace(
+        "`r`n", "`n").TrimEnd("`n")
+    Assert-Equal `
+        -Expected $snapshotPs5Text `
+        -Actual $snapshotPs7Text `
+        -Message 'PS5/PS7 production snapshot records or digest bytes drifted.'
+    $snapshotParityLines = @($snapshotPs5Text -split "`n")
+    $snapshotRecordLines = @($snapshotParityLines | Where-Object {
+            $_.StartsWith('RECORD|', [System.StringComparison]::Ordinal)
+        })
+    $snapshotRelativePaths = [string[]]@(
+        $snapshotRecordLines |
+            ForEach-Object { (($_ -split '\|', 4)[1]) })
+    [string[]]$snapshotOrdinalPaths = @($snapshotRelativePaths)
+    [System.Array]::Sort(
+        $snapshotOrdinalPaths,
+        [System.StringComparer]::Ordinal)
+    Assert-True `
+        -Condition ($snapshotRecordLines.Count -eq 92 -and
+            $snapshotParityLines.Count -eq 93 -and
+            $snapshotParityLines[-1] -match '^DIGEST\|[0-9A-F]{64}$' -and
+            (($snapshotRelativePaths -join "`n") -ceq
+                ($snapshotOrdinalPaths -join "`n"))) `
+        -Message 'Cross-host production snapshot is not exact 92-record ordinal canonical data.'
+
+    $ambiguousRoot = Join-Path $script:TestRoot 'ambiguous-hosts'
+    New-Item -ItemType Directory -Path $ambiguousRoot -Force |
+        Out-Null
+    $ambiguousA = Join-Path $ambiguousRoot 'host-a.exe'
+    $ambiguousB = Join-Path $ambiguousRoot 'host-b.exe'
+    Copy-Item -LiteralPath $currentHostExecutable `
+        -Destination $ambiguousA -Force
+    Copy-Item -LiteralPath $currentHostExecutable `
+        -Destination $ambiguousB -Force
+    $currentEdition = [string]$PSVersionTable.PSEdition
+    $currentMajor = [int]$PSVersionTable.PSVersion.Major
+    $ambiguousProbe = {
+        param($path, $working, $edition, $minimum, $maximum)
+        [pscustomobject]@{
+            Edition = $currentEdition
+            Major = $currentMajor
+            Version = [string]$PSVersionTable.PSVersion
+            PowerShellHome = $PSHOME
+            ModulePath = Join-Path $PSHOME 'Modules'
+        }
+    }
+    Assert-Throws `
+        -Action {
+            Resolve-LmcDistributionPowerShellHost `
+                -Name 'AmbiguousFixture' `
+                -CandidatePaths @($ambiguousA, $ambiguousB) `
+                -WorkingDirectory $repositoryRoot `
+                -ExpectedEdition $currentEdition `
+                -MinimumMajor $currentMajor `
+                -MaximumMajor $currentMajor `
+                -IdentityProbe $ambiguousProbe
+        } `
+        -ExpectedMessage 'resolution is ambiguous' | Out-Null
+
+    # Exit code, terminal line, required evidence, timeout/tree kill, and
+    # redirected-stream draining are all independently non-vacuous.
+    $fixtureMarker = 'LMC_FIXTURE_' +
+        [System.Guid]::NewGuid().ToString('N')
+    $nonzeroResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command "Write-Output '$fixtureMarker'; exit 7") `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionProcessResult `
+                -Result $nonzeroResult `
+                -ExpectedTerminalLine $fixtureMarker `
+                -ExpectedEvidencePatterns @(
+                    '^' + [regex]::Escape($fixtureMarker) + '$')
+        } `
+        -ExpectedMessage 'exited abnormally' | Out-Null
+
+    $noEvidenceResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command "Write-Output '$fixtureMarker'") `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionProcessResult `
+                -Result $noEvidenceResult `
+                -ExpectedTerminalLine $fixtureMarker `
+                -ExpectedEvidencePatterns @('^REQUIRED_NONVACUOUS_EVIDENCE$')
+        } `
+        -ExpectedMessage 'evidence occurrence drifted' | Out-Null
+
+    $duplicateEvidenceTerminal = 'LMC_DUPLICATE_TERMINAL_PASS'
+    $duplicateEvidenceResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command (
+                "Write-Output '$fixtureMarker'; " +
+                "Write-Output '$fixtureMarker'; " +
+                "Write-Output '$duplicateEvidenceTerminal'")) `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionProcessResult `
+                -Result $duplicateEvidenceResult `
+                -ExpectedTerminalLine $duplicateEvidenceTerminal `
+                -ExpectedEvidencePatterns @(
+                    '^' + [regex]::Escape($fixtureMarker) + '$')
+        } `
+        -ExpectedMessage 'count=2' | Out-Null
+
+    $tamperedTerminalResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command (
+                "Write-Output '$fixtureMarker'; " +
+                "Write-Output 'TAMPER_AFTER_PASS'")) `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionProcessResult `
+                -Result $tamperedTerminalResult `
+                -ExpectedTerminalLine $fixtureMarker `
+                -ExpectedEvidencePatterns @(
+                    '^' + [regex]::Escape($fixtureMarker) + '$')
+        } `
+        -ExpectedMessage 'terminal evidence drifted' | Out-Null
+
+    $timeoutPidPath = Join-Path $script:TestRoot 'timeout-child.pid'
+    $timeoutCommand =
+        "[IO.File]::WriteAllText('$($timeoutPidPath.Replace("'", "''"))',[string]`$PID);" +
+        '[System.Threading.Thread]::Sleep(5000)'
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionRawPowerShellProcess `
+                -ExecutablePath $currentHostExecutable `
+                -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+                    -Command $timeoutCommand) `
+                -WorkingDirectory $repositoryRoot `
+                -TimeoutSeconds 1
+        } `
+        -ExpectedMessage 'timed out after 1 seconds' | Out-Null
+    $timedOutProcessId = [int]([System.IO.File]::ReadAllText(
+        $timeoutPidPath))
+    $timedOutProcessGone = $false
+    try {
+        $null = [System.Diagnostics.Process]::GetProcessById(
+            $timedOutProcessId)
+    }
+    catch {
+        $timedOutProcessGone = $true
+    }
+    Assert-True `
+        -Condition $timedOutProcessGone `
+        -Message 'Timeout fixture left its exact child process alive.'
+
+    $stderrResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command (
+                "[Console]::Error.WriteLine('UNEXPECTED_STDERR');" +
+                "Write-Output '$fixtureMarker'")) `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionProcessResult `
+                -Result $stderrResult `
+                -ExpectedTerminalLine $fixtureMarker `
+                -ExpectedEvidencePatterns @(
+                    '^' + [regex]::Escape($fixtureMarker) + '$')
+        } `
+        -ExpectedMessage 'wrote stderr' | Out-Null
+
+    $largeOutputCommand = @'
+$chunk = 'x' * 256
+for ($i = 0; $i -lt 4096; $i++) {
+    [Console]::Out.WriteLine($chunk)
+    [Console]::Error.WriteLine($chunk)
+}
+[Console]::Out.WriteLine('LMC_LARGE_OUTPUT_PASS')
+'@
+    $largeOutputResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments (ConvertTo-TestEncodedPowerShellArguments `
+            -Command $largeOutputCommand) `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-LmcDistributionProcessResult `
+        -Result $largeOutputResult `
+        -ExpectedTerminalLine 'LMC_LARGE_OUTPUT_PASS' `
+        -ExpectedEvidencePatterns @('^LMC_LARGE_OUTPUT_PASS$') `
+        -AllowStandardError
+    Assert-True `
+        -Condition ($largeOutputResult.StandardOutput.Length -gt 1000000 -and
+            $largeOutputResult.StandardError.Length -gt 1000000) `
+        -Message 'Large-output fixture did not exercise both redirected streams.'
+
+    # A poisoned inherited PSModulePath cannot reach the suite: the internal
+    # worker resets it to the validated host's exact PSHOME\Modules first.
+    $moduleNonce = [System.Guid]::NewGuid().ToString('N')
+    $workerArguments = @(
+        '-NoLogo', '-NoProfile', '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $toolingHostParity,
+        '-WorkerSuite', 'ReleaseManifest',
+        '-WorkerRepositoryRootBase64',
+            (ConvertTo-LmcDistributionBase64 -Text $repositoryRoot),
+        '-WorkerPowerShellHomeBase64',
+            (ConvertTo-LmcDistributionBase64 -Text $PSHOME),
+        '-WorkerNonce', $moduleNonce)
+    $poisonedModuleResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments $workerArguments `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 120 `
+        -RemoveEnvironmentVariables @('PSModulePath') `
+        -EnvironmentOverrides @{
+            PSModulePath = "LMC_USER_MODULE_POISON_$moduleNonce"
+        }
+    Assert-LmcDistributionProcessResult `
+        -Result $poisonedModuleResult `
+        -ExpectedTerminalLine (
+            "PASS LMC.DistributionToolingWorker ReleaseManifest $moduleNonce") `
+        -ExpectedEvidencePatterns @(
+            ('^LMC_TOOLING_MODULE_PATH ' + [regex]::Escape($moduleNonce) +
+                ' ' + [regex]::Escape((ConvertTo-LmcDistributionBase64 `
+                    -Text (Join-Path $PSHOME 'Modules'))) + '$')
+            '^TOTAL 56, PASSED 56, FAILED 0$')
+    Assert-True `
+        -Condition ($poisonedModuleResult.StandardOutput -notmatch
+            'LMC_USER_MODULE_POISON') `
+        -Message 'Poisoned parent PSModulePath leaked into worker evidence.'
+
+    $noOperationResult = Invoke-LmcDistributionRawPowerShellProcess `
+        -ExecutablePath $currentHostExecutable `
+        -Arguments @(
+            '-NoLogo', '-NoProfile', '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', $toolingHostParity) `
+        -WorkingDirectory $repositoryRoot `
+        -TimeoutSeconds 30
+    Assert-True `
+        -Condition ($noOperationResult.ExitCode -ne 0 -and
+            $noOperationResult.StandardOutput -notmatch
+                '(?m)^PASS LMC\.DistributionToolingHostParity') `
+        -Message 'Direct no-operation tooling invocation exited vacuously with PASS.'
+
+    # The validated-byte snapshot blocks both the pre-fingerprint gap and the
+    # post-populate/pre-promotion gap without touching a canonical package.
+    $toolingGuard = Join-Path $script:TestRoot 'tooling-guard.ps1'
+    Write-TestFile -Path $toolingGuard -Content 'guard-v1'
+    $guardRelative = 'tooling-guard.ps1'
+    $guardSnapshot = Get-LmcDistributionMonitoredFileSnapshot `
+        -RepositoryRoot $script:TestRoot `
+        -RelativePaths @($guardRelative)
+    Write-TestFile -Path $toolingGuard -Content 'guard-v2'
+    $preFingerprintCallbackCount = 0
+    Assert-Throws `
+        -Action {
+            Assert-LmcDistributionMonitoredFileSnapshot `
+                -RepositoryRoot $script:TestRoot `
+                -ExpectedSnapshot $guardSnapshot `
+                -RelativePaths @($guardRelative) | Out-Null
+            $preFingerprintCallbackCount++
+        } `
+        -ExpectedMessage 'monitored bytes changed after validation' | Out-Null
+    Assert-Equal `
+        -Expected 0 `
+        -Actual $preFingerprintCallbackCount `
+        -Message 'Pre-fingerprint mutation reached a transaction callback.'
+
+    Write-TestFile -Path $toolingGuard -Content 'guard-v1'
+    $guardSnapshot = Get-LmcDistributionMonitoredFileSnapshot `
+        -RepositoryRoot $script:TestRoot `
+        -RelativePaths @($guardRelative)
+    $fixture = New-TestFixture -Name 'tooling_post_populate_drift'
+    $canonicalBefore = Get-LmcDistributionTreeSnapshot `
+        -Root $fixture.Canonical
+    $toolingGapObservation = [pscustomobject]@{
+        FingerprintCalls = 0
+        PromotionValidations = 0
+    }
+    Assert-Throws `
+        -Action {
+            Invoke-LmcDistributionCandidateTransaction `
+                -CanonicalRoot $fixture.Canonical `
+                -CandidatePath $fixture.Candidate `
+                -PrepareInputs { $guardSnapshot } `
+                -GetInputFingerprint {
+                    $toolingGapObservation.FingerprintCalls++
+                    Assert-LmcDistributionMonitoredFileSnapshot `
+                        -RepositoryRoot $script:TestRoot `
+                        -ExpectedSnapshot $guardSnapshot `
+                        -RelativePaths @($guardRelative) | Out-Null
+                    'tooling-guard-v1'
+                } `
+                -PopulateAndValidate {
+                    param($stage)
+                    Populate-TestCandidate -Stage $stage
+                    Write-TestFile -Path $toolingGuard -Content 'guard-v2'
+                } `
+                -ValidatePreparedInputs {
+                    $toolingGapObservation.PromotionValidations++
+                }
+        } `
+        -ExpectedMessage 'monitored bytes changed after validation' | Out-Null
+    Write-TestFile -Path $toolingGuard -Content 'guard-v1'
+    Assert-True `
+        -Condition (-not (Test-Path -LiteralPath $fixture.Candidate)) `
+        -Message 'Post-populate tooling drift published a candidate.'
+    Assert-Equal `
+        -Expected 2 `
+        -Actual $toolingGapObservation.FingerprintCalls `
+        -Message 'Post-populate tooling drift did not reach exact fingerprint call two.'
+    Assert-Equal `
+        -Expected 0 `
+        -Actual $toolingGapObservation.PromotionValidations `
+        -Message 'Post-populate tooling drift reached promotion validation.'
+    Assert-CanonicalUnchanged `
+        -Before $canonicalBefore `
+        -Canonical $fixture.Canonical `
+        -Context 'Post-populate tooling drift'
+    Assert-NoTransactionResidue `
+        -Fixture $fixture `
+        -Context 'Post-populate tooling drift'
 
     # Manual inputs default to canonical files or accept one explicit pair.
     $manualFixtureRoot = Join-Path $script:TestRoot 'manual-inputs'
