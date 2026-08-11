@@ -3179,7 +3179,7 @@ END_FUNCTION
 }
 
 function Get-ExpectedTerminalWakePublishBlock {
-    return @'
+    $source = @'
 FUNCTION TCPMotionInterface::PublishD5TerminalWake
 	VAR
 		ticketId : UDINT;
@@ -3236,6 +3236,7 @@ FUNCTION TCPMotionInterface::PublishD5TerminalWake
 
 END_FUNCTION
 '@
+    return ConvertTo-CanonicalLf -Text $source
 }
 
 function Assert-ExactTerminalWakeFunctionBlock {
@@ -3557,7 +3558,7 @@ function Assert-TcpGateBBodyBaseline {
 }
 
 function Get-ExpectedTcpDisarmHelperExecutable {
-    return @'
+    $source = @'
 Result := 1;
 IF (RpcCallbackProtocolVersion <> 2) OR
    (RpcCallbackRegistered = FALSE) THEN
@@ -3588,6 +3589,7 @@ IF (Result = 0) OR (Result = 1) THEN
   RpcCallbackCookieHi := 0;
 END_IF;
 '@
+    return ConvertTo-CanonicalLf -Text $source
 }
 
 function Assert-TcpGateCContract {
@@ -8475,7 +8477,7 @@ function New-SyntheticClassesDatabase {
 }
 
 function New-SyntheticDerivedSource {
-    return @'
+    $source = @'
 //{{LSL_DEFINES
 #ifndef LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE
 #define LMC_UDP_CALLBACK_ENABLE_LEGACY_FIXTURE 0
@@ -9142,6 +9144,7 @@ FUNCTION LMCUdpCallbackSender::FenceMatches
     Matches := ActiveEndpoint.Armed AND (ActiveEndpoint.SessionEpoch = ExpectedSessionEpoch) AND (ActiveEndpoint.CookieLo = ExpectedCookieLo) AND (ActiveEndpoint.CookieHi = ExpectedCookieHi);
 END_FUNCTION
 '@
+    return ConvertTo-CanonicalLf -Text $source
 }
 
 function New-SyntheticTerminalWakeDerivedSource {
@@ -9286,7 +9289,7 @@ function Add-SyntheticTcpDisarmFenceToFunction {
 }
 
 function Get-SyntheticGateCRpcLifecycleFunction {
-    return @'
+    $source = @'
 FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
 	VAR
 		callbackEventMask : UDINT;
@@ -9510,6 +9513,7 @@ FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
 
 END_FUNCTION
 '@
+    return ConvertTo-CanonicalLf -Text $source
 }
 
 function New-SyntheticGateCTcpSource {
@@ -9854,6 +9858,7 @@ TO_UDINT(6), (10)$UDINT, 4194303$DINT, //LMCUDPCALLBACKSENDER1
 (0)$UDINT, //LMCUDPCALLBACKSENDER1
 END_FUNCTION
 '@
+    $table = ConvertTo-CanonicalLf -Text $table
     if ($State -ceq 'DerivedCandidate') {
         $table = $table.Replace(
             "#define OBJECTS_CONFIG`n",
@@ -10034,7 +10039,9 @@ function New-SyntheticConfigObjects {
     param(
         [Parameter(Mandatory = $true)]
         [ValidateSet('Absent', 'VendorImported', 'DerivedDeclaration', 'DerivedWired', 'DerivedCandidate')]
-        [string]$State
+        [string]$State,
+        [AllowEmptyString()]
+        [string]$SourceText
     )
 
     if ($State -ceq 'Absent') {
@@ -10046,10 +10053,16 @@ function New-SyntheticConfigObjects {
             [string]::Join("`n", $rows) + "`nEND_FUNCTION"
     }
 
-    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
-    $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
-    $source = [IO.File]::ReadAllText($path, $Utf8)
+    if ($PSBoundParameters.ContainsKey('SourceText')) {
+        $source = $SourceText
+    }
+    else {
+        $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+        $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
+        $source = [IO.File]::ReadAllText($path, $Utf8)
+    }
     $canonical = ConvertTo-CanonicalLf -Text $source
+    $source = $canonical.Replace("`n", "`r`n")
     $senderRowPattern =
         '(?m)^0\$UINT, 0, 0, "LMCUDPCALLBACKSENDER",[ \t]*\n'
     $senderRows = @([regex]::Matches($canonical, $senderRowPattern))
@@ -10066,6 +10079,57 @@ function New-SyntheticConfigObjects {
         return $source.Replace('00120$UINT', '00119$UINT')
     }
     return $source
+}
+
+function Assert-SyntheticConfigObjectsCrossEolSelfTest {
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\..'))
+    $path = Join-Path $root $ConfigObjectsRelativePath.Replace('/', '\')
+    $live = [IO.File]::ReadAllText($path, $Utf8)
+    $canonical = ConvertTo-CanonicalLf -Text $live
+    if (-not $canonical.Contains("`n")) {
+        throw 'synthetic ConfigObjects cross-EOL fixture has no line break.'
+    }
+
+    $inputByEol = @{
+        LF = $canonical
+        CRLF = $canonical.Replace("`n", "`r`n")
+    }
+    if ($inputByEol.LF -ceq $inputByEol.CRLF) {
+        throw 'synthetic ConfigObjects cross-EOL inputs are not distinct.'
+    }
+
+    $vendorByEol = @{}
+    foreach ($eolStyle in @('LF', 'CRLF')) {
+        $vendor = New-SyntheticConfigObjects `
+            -State VendorImported `
+            -SourceText $inputByEol[$eolStyle]
+        $rawBytes = $Utf8.GetBytes($vendor)
+        $canonicalVendor = ConvertTo-CanonicalLf -Text $vendor
+        $canonicalBytes = $Utf8.GetBytes($canonicalVendor)
+        if (($rawBytes.Count -ne $ExpectedVendorImportedConfigObjectsBytes) -or
+            ((Get-BytesSha256 -Bytes $rawBytes) -cne
+                $ExpectedVendorImportedConfigObjectsSha256)) {
+            throw (
+                "synthetic ConfigObjects $eolStyle raw identity drifted.")
+        }
+        if (($canonicalBytes.Count -ne
+                $ExpectedVendorImportedConfigObjectsCanonicalLfBytes) -or
+            ((Get-BytesSha256 -Bytes $canonicalBytes) -cne
+                $ExpectedVendorImportedConfigObjectsCanonicalLfSha256)) {
+            throw (
+                "synthetic ConfigObjects $eolStyle canonical identity drifted.")
+        }
+        $withoutCrLf = $vendor.Replace("`r`n", '')
+        if ($withoutCrLf.Contains("`r") -or
+            $withoutCrLf.Contains("`n")) {
+            throw (
+                "synthetic ConfigObjects $eolStyle output is not fixed CRLF.")
+        }
+        $vendorByEol[$eolStyle] = $vendor
+    }
+    if ($vendorByEol.LF -cne $vendorByEol.CRLF) {
+        throw 'synthetic ConfigObjects LF/CRLF outputs are not identical.'
+    }
 }
 
 function New-SyntheticGeneratedIncludes {
@@ -11082,6 +11146,7 @@ function Get-UdpCallbackSenderEvidenceToken {
 function Invoke-UdpCallbackVerifierSelfTest {
     Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
     Assert-DerivedFunctionParserCrossEolSelfTest
+    Assert-SyntheticConfigObjectsCrossEolSelfTest
 
     $selfTestRoot = [IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..\..\..'))
