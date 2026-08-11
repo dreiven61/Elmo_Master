@@ -221,12 +221,13 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    Rebuild/Download and later Reset/Restart, while that Rebuild changed
    `Classes.lcb` from manifest identity `24402BFA...` to `6E115876...`. Do not
    rerun Download merely to repeat this step, and do not rebaseline the opaque
-   99-byte vendor-record drift by hash alone. First reproduce the checkpoint
-   identity or complete a separate reviewed strict-evidence transition; then
-   collect fresh BootId, counter deltas, WPF log, and packet trace for formal
-   qualification.
-5. The required new isolated artifact-classification session has completed from
-   a new LASAL process and the canonical `.lcp`. Its bounded log contains one
+   99-byte vendor-record drift by hash alone. Under the current STOP, do not
+   attempt another reproduction Rebuild. First obtain vendor field semantics or
+   complete a separate reviewed strict-evidence protocol that explicitly permits
+   the transition; only then collect fresh BootId, counter deltas, WPF log, and
+   packet trace for formal qualification.
+5. The frozen historical isolated artifact-classification session has completed
+   from a new LASAL process and the canonical `.lcp`. Its bounded log contains one
    successful `Rebuild project`, normal close/exit, and no Connect or Download.
    The frozen inputs are `Lasal2.log` 9,554,717 bytes / SHA-256
    `25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`,
@@ -461,6 +462,48 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
     failed and finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` remains the
     controlling STOP.
 
+11. Post-STOP incident evidence commit
+    `5319352dbe389038b56f00cdaccf7cc14a80bf64` preserves these exact four
+    artifacts:
+
+    - `LASAL_POST_STOP_13EA_DOWNLOAD_INCIDENT_2026-08-11.md`, 9,773 bytes /
+      SHA-256
+      `7299D2FF74CBD7986AAEEA1FAA42F6B592D5C531FAF5C2CDB524D400A128DD51`
+    - `bounded_lasal2_delta_post_stop_13ea_download.manifest.json`, 4,679 bytes /
+      SHA-256
+      `BD9A72E76BC3526B9546001E8EB75E89F88BDB01B99D3AF4637CF969DF0930E1`
+    - `bounded_lasal2_delta_post_stop_13ea_download.raw.txt`, 1,490,589 bytes /
+      SHA-256
+      `CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C`
+    - `classes_lcb_post_stop_13ea5823.comparison.json`, 50,060 bytes / SHA-256
+      `DBC54235BDB505D9E7A198B3DCFA2CBD63F8AAC19728D1349FDC46DD5FA6CEC5`
+
+    The incident capture observed current `Classes.lcb` at 8,549,773 bytes /
+    SHA-256
+    `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`,
+    unchanged `Networks.lcb` at 242,363 bytes / SHA-256
+    `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`,
+    and the appended `Lasal2.log` at 11,045,306 bytes / SHA-256
+    `CEC2256AA0B7B02E2938C8E294C94CFD4A8EAE96C436BF318B16E28369367051`.
+    PID 26200 performed successful C78/ARM Rebuild, Connect, 282-LBA Download,
+    PLC link, and normal exit; PID 21016 later performed Connect, standalone
+    Reset/Restart, and normal exit with no Rebuild or Download. Action origin is
+    unproven. The `13EA...` file has only `TIME_CORRELATION_ONLY` with the
+    Download because no pre-Download Classes hash or downloaded-payload hash
+    manifest was captured.
+
+    The checkpoint comparison exits `3` with
+    `REJECTED_BOUNDARY_OR_CONTRACT_DRIFT`: changed byte/run/owner `90/57/35`,
+    unmapped run `0`, Gate D targets `4/4` exact, protected dependencies `2/2`
+    exact, and non-exact first-special `_AxisBase`. All changes occupy 30
+    marker-follower plus 27 owner-end-minus-48 slots. Adding this unaccepted
+    diagnostic observation changes only the diagnostic volatile/stable union to
+    `71/86`; it does not modify the committed A/B/C `66/91` triad. The immutable
+    `b2019db` 990 bundle remains frozen. Do not append the incident to that
+    bundle or repeat the finalizer, Rebuild, or Download. Production approval,
+    reviewed rebaseline, exact artifact-to-Download binding, and PLC/runtime
+    qualification all remain absent.
+
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:
 
@@ -492,9 +535,10 @@ was moved into `Assert-LasalDs402OwnerReceiptProviderMutationFences`, after whic
 Windows PowerShell 5.1 and PowerShell 7 AST checks and strict self-test `67/67`
 passed before the successful rerun.
 
-Any callback run while current `Classes.lcb` remains outside the sequence-4
-identity is exploratory evidence and must be labelled as such. The current
-decision remains `ProductionApproved=false` and `NeedsRebaseline=true`.
+At the incident capture, current `Classes.lcb=13EA5823...` remained outside the
+sequence-4 identity. Any callback run against that unaccepted identity is
+exploratory evidence and must be labelled as such. The current decision remains
+`ProductionApproved=false` and `NeedsRebaseline=true`.
 
 Those decision flags are release/evidence metadata, not a runtime feature gate.
 The broker is executable behind its session/BootId fences after Download, and

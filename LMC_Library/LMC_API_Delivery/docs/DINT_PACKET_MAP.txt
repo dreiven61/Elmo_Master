@@ -2101,11 +2101,41 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   Focused/C78 failure, finalizer exit 3 STOP, and the no-Rebuild-repeat rule are
   unchanged. This historical evidence changes no RPC ID, DINT offset, request or
   response layout, UDP/TCP packet contract, LASAL production source, or wire behavior.
+  Post-STOP incident evidence commit
+  5319352dbe389038b56f00cdaccf7cc14a80bf64 preserves exact
+  LASAL_POST_STOP_13EA_DOWNLOAD_INCIDENT_2026-08-11.md at 9,773 bytes / SHA-256
+  7299D2FF74CBD7986AAEEA1FAA42F6B592D5C531FAF5C2CDB524D400A128DD51,
+  bounded_lasal2_delta_post_stop_13ea_download.manifest.json at 4,679 bytes /
+  BD9A72E76BC3526B9546001E8EB75E89F88BDB01B99D3AF4637CF969DF0930E1,
+  bounded_lasal2_delta_post_stop_13ea_download.raw.txt at 1,490,589 bytes /
+  CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C,
+  and classes_lcb_post_stop_13ea5823.comparison.json at 50,060 bytes /
+  DBC54235BDB505D9E7A198B3DCFA2CBD63F8AAC19728D1349FDC46DD5FA6CEC5.
+  At capture, current Classes.lcb was 8,549,773 bytes /
+  13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9,
+  Networks.lcb remained 242,363 bytes / C307547E..., and the appended
+  Lasal2.log was 11,045,306 bytes / CEC2256A.... PID 26200 completed a C78/ARM
+  Rebuild, Connect, 282-LBA Download, PLC link, and normal exit. PID 21016 later
+  completed Connect and standalone Reset/Restart with no Rebuild or Download.
+  Action origin is unproven. No pre-Download Classes hash or downloaded-payload
+  hash manifest was captured, so the 13EA... association with the Download is
+  TIME_CORRELATION_ONLY, not exact artifact-to-Download binding.
+  The checkpoint comparator exits 3 with REJECTED_BOUNDARY_OR_CONTRACT_DRIFT:
+  changed byte/run/owner 90/57/35, unmapped runs 0, Gate D targets 4/4 exact,
+  protected dependencies 2/2 exact, and non-exact first-special _AxisBase. The
+  changed slots partition into 30 marker followers and 27 owner-end-minus-48
+  slots. Adding D only as an unaccepted diagnostic observation changes the
+  volatile/stable union to 71/86; the committed A/B/C 66/91 triad is unchanged.
+  The b2019db 990 bundle remains immutable historical evidence. Do not rerun its
+  finalizer or repeat Rebuild/Download. Production approval, reviewed rebaseline,
+  exact artifact-to-Download binding, and PLC/runtime qualification remain absent.
+  This incident evidence changes no RPC ID, DINT offset, request/response layout,
+  UDP/TCP packet contract, LASAL production source, or wire behavior.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
   opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec provide bounded PC
-  reconnect and retained receiver/initialization evidence only. The successful
-  first Download is not live
-  UDP-to-TCP causal packet proof; that proof remains absent. Gate A/B/C historical
+  reconnect and retained receiver/initialization evidence only. Prior successful
+  Downloads, including post-STOP PID 26200, are not live UDP-to-TCP causal packet
+  proof; that proof remains absent. Gate A/B/C historical
   static/build evidence and PC fake-peer tests are not PLC runtime proof.
   PID 480/TID 3396 has completed and passed the GateDVisualLayout
   derived-transcript one-Rebuild build gate. Its lack of method-specific UI
@@ -2130,9 +2160,12 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   Class/TCPMotionInterface/TCPMotionInterface.st,
   Class/_UDPTransceiver/_UDPTransceiver.st,
   Network/Comm_Network/Comm_Network.lcn, and Network/Networks.lcb. The
-  post-commit PID 34656 Rebuild/Download has occurred, but its Classes.lcb drift
-  must be reviewed and rebaselined before formal callback qualification. Do not
-  treat the 24402BFA... manifest as matching the current tree.
+  post-commit PID 34656 Rebuild/Download and post-STOP PID 26200
+  Rebuild/Connect/Download have occurred. The latter is only time-correlated with
+  current Classes.lcb=13EA5823... and does not bind exact downloaded bytes. The
+  Classes drift requires a separately reviewed transition before formal callback
+  qualification. Do not treat the 24402BFA... manifest as matching the current
+  tree or any successful Download as causal callback proof.
 
 MoveCircle scope:
 - The current public C# API has no MoveCircle method.

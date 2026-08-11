@@ -426,9 +426,9 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   성공했다. 그러나 그 session의 regenerated `Classes.lcb`는 8,549,773 bytes, SHA-256
   `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`로
   manifest의 `24402BFA...`와 달랐고 focused `VerifyCurrent`와 C78
-  input-equivalence는 당시 실패했다. Later `99014DD9...` artifact에서도 현재
-  gate는 계속 실패한다. Rebaseline 전 runtime 관측은 exploratory이며
-  production approval이 아니다.
+  input-equivalence는 당시 실패했다. Frozen historical `99014DD9...` artifact와
+  post-STOP current `13EA5823...` artifact에서도 gate는 계속 실패한다. Reviewed
+  transition 전 runtime 관측은 exploratory이며 production approval이 아니다.
 - commit `7038445`는 `6E115876...`-start baseline과 exact reversible
   `24402BFA... -> 6E115876...` binary patch를 production source 변경 없이 보존한다.
   commit `79f03d36f89c34b26325666a4a3eddb9306c4674`의 fail-closed 비교기는
@@ -452,7 +452,7 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   classification은 새 LASAL process와 canonical `.lcp`에서 `Rebuild project` 정확히 1회,
   정상 close/exit, Connect/Download 0회로 완료됐다. frozen `Lasal2.log`는 9,554,717 bytes /
   SHA-256 `25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`,
-  current `Classes.lcb`는 8,549,773 bytes /
+  그 isolated classification의 frozen `Classes.lcb` snapshot은 8,549,773 bytes /
   `99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`,
   `Networks.lcb`는 242,363 bytes /
   `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`이고
@@ -605,6 +605,32 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `rebaselinePermitted=false`, Download/runtime false,
   `requiresReviewedTransition=true`를 바꾸지 않는다. Focused/C78 FAIL,
   finalizer exit `3` STOP, Rebuild 반복 금지는 그대로다.
+- Post-STOP incident evidence commit
+  `5319352dbe389038b56f00cdaccf7cc14a80bf64`는 exact 네 artifact를 보존한다:
+  `LASAL_POST_STOP_13EA_DOWNLOAD_INCIDENT_2026-08-11.md` 9,773 bytes / SHA-256
+  `7299D2FF74CBD7986AAEEA1FAA42F6B592D5C531FAF5C2CDB524D400A128DD51`,
+  `bounded_lasal2_delta_post_stop_13ea_download.manifest.json` 4,679 bytes /
+  `BD9A72E76BC3526B9546001E8EB75E89F88BDB01B99D3AF4637CF969DF0930E1`,
+  `bounded_lasal2_delta_post_stop_13ea_download.raw.txt` 1,490,589 bytes /
+  `CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C`,
+  `classes_lcb_post_stop_13ea5823.comparison.json` 50,060 bytes /
+  `DBC54235BDB505D9E7A198B3DCFA2CBD63F8AAC19728D1349FDC46DD5FA6CEC5`다.
+  Capture 시 current `Classes.lcb`는 8,549,773 bytes /
+  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`,
+  `Networks.lcb`는 unchanged 242,363 bytes / `C307547E...`, appended
+  `Lasal2.log`는 11,045,306 bytes / `CEC2256A...`다. PID 26200은 C78/ARM
+  Rebuild, Connect, 282-LBA Download와 PLC link를 성공했고 PID 21016은 이후
+  Connect/standalone Reset/Restart를 성공했지만 Rebuild/Download는 없었다. Action
+  origin은 unproven이고 pre-Download Classes hash 또는 downloaded-payload hash
+  manifest가 없어 `13EA...`와 Download의 관계는 `TIME_CORRELATION_ONLY`다.
+  Checkpoint comparator는 `_AxisBase` boundary drift 때문에 exit `3`
+  `REJECTED_BOUNDARY_OR_CONTRACT_DRIFT`, changed byte/run/owner `90/57/35`,
+  unmapped `0`, Gate D `4/4`와 protected `2/2` exact를 기록한다. 변경 slot은
+  marker/tail `30/27`; D를 unaccepted diagnostic으로 더한 volatile/stable union만
+  `71/86`이며 committed A/B/C `66/91`은 그대로다. `b2019db` 990 bundle은 immutable
+  historical
+  evidence이고 finalizer/Rebuild/Download를 반복하지 않는다. Approval, reviewed
+  rebaseline, exact artifact-to-Download binding과 PLC/runtime qualification은 없다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
   당시 Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각

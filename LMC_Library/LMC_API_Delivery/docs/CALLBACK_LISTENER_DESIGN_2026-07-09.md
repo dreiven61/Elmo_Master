@@ -225,8 +225,9 @@ five contract-scoped `TCPMotionInterface` lifecycle bodies. Gate B1
 their own committed physical checkpoint manifests. The sequence-4 manifest
 captured `TerminalWakeBrokerCandidate` with `ProductionApproved=false` and
 `NeedsRebaseline=true`. The later isolated `Classes.lcb=99014DD9...` third hash is
-preserved in commit `b2019db`; its validator PASS does not change the finalizer
-exit `3` STOP, and focused/C78 current-tree verification still fails.
+frozen historical evidence preserved in commit `b2019db`; its validator PASS does
+not change the finalizer exit `3` STOP. The post-STOP current artifact is
+`13EA5823...`, and focused/C78 current-tree verification still fails.
 
 The Gate D source contains the four-state one-attempt Diagnostics receipt, two
 ordered `TCPMotionInterface` broker invocations, one exact production-path
@@ -396,7 +397,8 @@ revalidation of the actual sequence-4 manifest passes. These support-tool and
 retained-evidence changes are kept in a separate tooling/evidence changeset and
 do not approve production use. At that post-commit checkpoint, the formal gate
 failed because `Classes.lcb` was `6E115876...` rather than checkpoint
-`24402BFA...`; the later `99014DD9...` third hash remains a current STOP/FAIL.
+`24402BFA...`; the frozen `99014DD9...` third hash and post-STOP current
+`13EA5823...` artifact both remain STOP/FAIL.
 
 The trust-anchor tools were then committed at `bb5fd93`. Commit `5543579`
 atomically committed the sequence-4 manifest
@@ -453,7 +455,7 @@ separate isolated classification has completed from a new LASAL process and the
 canonical `.lcp`: one successful `Rebuild project`, normal close/exit, and no
 Connect or Download. The frozen `Lasal2.log` is 9,554,717 bytes / SHA-256
 `25F6A3FA913FD2BF57117C19D0C4489399F5A4FD296CF86C1508AEA07BA02A8C`;
-current `Classes.lcb` is 8,549,773 bytes /
+that isolated classification's frozen `Classes.lcb` snapshot is 8,549,773 bytes /
 `99014DD95A5580381D2D3A46C03D98EB38B6B7A81DBC78E302CBBA22FEFCFCFD`,
 and `Networks.lcb` is 242,363 bytes /
 `C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F`.
@@ -625,6 +627,35 @@ normalization, or rebaseline rule. `ProductionApproved=false`,
 `SemanticEquivalenceProven=false`, `rebaselinePermitted=false`, Download/runtime
 remain false, and `requiresReviewedTransition=true`; focused/C78 failure and
 finalizer exit `3` STOP remain controlling.
+
+Post-STOP incident evidence commit
+`5319352dbe389038b56f00cdaccf7cc14a80bf64` preserves exact
+`LASAL_POST_STOP_13EA_DOWNLOAD_INCIDENT_2026-08-11.md` at 9,773 bytes / SHA-256
+`7299D2FF74CBD7986AAEEA1FAA42F6B592D5C531FAF5C2CDB524D400A128DD51`,
+`bounded_lasal2_delta_post_stop_13ea_download.manifest.json` at 4,679 bytes /
+`BD9A72E76BC3526B9546001E8EB75E89F88BDB01B99D3AF4637CF969DF0930E1`,
+`bounded_lasal2_delta_post_stop_13ea_download.raw.txt` at 1,490,589 bytes /
+`CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C`,
+and `classes_lcb_post_stop_13ea5823.comparison.json` at 50,060 bytes /
+`DBC54235BDB505D9E7A198B3DCFA2CBD63F8AAC19728D1349FDC46DD5FA6CEC5`.
+The capture observed current `Classes.lcb` at 8,549,773 bytes /
+`13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`,
+unchanged `Networks.lcb` at 242,363 bytes / `C307547E...`, and appended
+`Lasal2.log` at 11,045,306 bytes / `CEC2256A...`. PID 26200 completed C78/ARM
+Rebuild, Connect, 282-LBA Download and PLC link; PID 21016 later completed
+Connect and standalone Reset/Restart with no Rebuild or Download. Action origin
+is unproven, and without a pre-Download Classes hash or downloaded-payload hash
+manifest the `13EA...` association is `TIME_CORRELATION_ONLY`.
+
+The checkpoint comparator exits `3` with
+`REJECTED_BOUNDARY_OR_CONTRACT_DRIFT`: changed byte/run/owner `90/57/35`, zero
+unmapped runs, Gate D records `4/4` exact, protected dependencies `2/2` exact,
+and non-exact first-special `_AxisBase`. The 57 changed slots divide into 30
+marker followers and 27 owner-end-minus-48 slots. Adding D only as an unaccepted
+diagnostic observation gives volatile/stable union `71/86`; the committed A/B/C
+triad remains `66/91`. The immutable `b2019db` 990 bundle is unchanged. Do not
+rerun its finalizer or repeat Rebuild/Download. There is no approval, reviewed
+rebaseline, exact artifact-to-Download binding, or PLC/runtime qualification.
 
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
@@ -1663,10 +1694,12 @@ three-method exact Implementation UI check is
 `manual-attested`. Its separate automated method-smoke JSON/log artifact is still
 pending and nonblocking. PID 34656 subsequently rebuilt and downloaded after
 `5543579`; that historical regenerated hash was `6E115876...`, not the manifest's
-`24402BFA...`. The later isolated artifact is `99014DD9...` and its exact
-`b2019db` bundle is validator-PASS but finalizer exit `3` STOP. Current focused/C78
-verification still fails and any runtime result remains exploratory until a
-reviewed rebaseline.
+`24402BFA...`. The later isolated historical artifact is `99014DD9...` and its
+exact `b2019db` bundle is validator-PASS but finalizer exit `3` STOP. Post-STOP
+incident commit `5319352d...` records current `13EA5823...`, a later successful
+Download with only `TIME_CORRELATION_ONLY` artifact association, and no approval.
+Current focused/C78 verification still fails and any runtime result remains
+exploratory until a reviewed transition.
 
 ## Files and test status
 
@@ -1700,10 +1733,10 @@ candidate are committed in `9d0b8c9` and `70c08ea`. Trust-anchor commit
 physical manifest and the exact seven production paths listed above. The
 manifest records `TerminalWakeBrokerCandidate`, `ProductionApproved=false`, and
 `NeedsRebaseline=true`; it is not production approval. The current generated
-`Classes.lcb` is `99014DD9...`, so it no longer matches the manifest-bound
-`24402BFA...`. Commit `b2019db` preserves the nonapproval STOP bundle and
-`c48e403` validates its integrity, but current focused/C78 verification still
-fails.
+`Classes.lcb` observed by incident commit `5319352d...` is `13EA5823...`, so it
+does not match the manifest-bound `24402BFA...`. Commit `b2019db` preserves the
+frozen historical `99014DD9...` nonapproval STOP bundle and `c48e403` validates
+its integrity, but current focused/C78 verification still fails.
 `LmcCallbackProtocol.cs`, `LmcCallbackModels.cs`,
 `CallbackProtocolTests.cs`, `CallbackSessionFencingTests.cs`,
 `CallbackV2ConnectionTests.cs`, the response-envelope tests in
@@ -1738,9 +1771,12 @@ log with no online action, and its derived transcript
 passes `VerifyBuild`. The later three-method Implementation UI check is
 `manual-attested`; its separate automated JSON/log artifact remains pending. The
 physical sequence-4 checkpoint and post-commit PID 34656 Rebuild/Download now
-exist, but current `Classes.lcb` drift invalidates focused/C78 equivalence. A
-reviewed rebaseline plus live UDP receiver/dispatch and causal packet proof remain
-required; pre-rebaseline runtime evidence is exploratory.
+exist. Post-STOP PID 26200 also completed Rebuild/Connect/Download and PID 21016
+completed Connect/Reset/Restart, but current `Classes.lcb=13EA5823...` drift still
+invalidates focused/C78 equivalence and is only time-correlated with that
+Download. A reviewed transition plus exact downloaded-artifact provenance, live
+UDP receiver/dispatch, and causal packet proof remain required; current runtime
+evidence is exploratory.
 
 Minimum acceptance matrix:
 
