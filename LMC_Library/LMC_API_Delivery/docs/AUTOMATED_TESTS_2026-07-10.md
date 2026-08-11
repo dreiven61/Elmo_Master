@@ -351,6 +351,17 @@ PLC endpoint를 사용하지 않는다.
   changeset이며 production approval을 의미하지 않는다. 그 changeset 당시 main
   worktree의 formal gate는 `Classes.lcb=6E115876...` 대 checkpoint
   `24402BFA...` 차이 하나 때문에 실패했다.
+- Commit `afdf6a3`의 checkout-safe current UDP verifier physical SHA-256은
+  `A6244374803C622A7F115C21A30039C38A4FA4297AD2D0C4A1B47518515A0DE5`이고 PS5.1/PS7
+  self-test가 각각 `296/296` PASS했다. Derived function parser는 LF/CRLF에서 exact function
+  inventory와 lexical token equivalence를 함께 검사한다. Pure-Git Network aggregate
+  `15` / `239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22`와
+  tracked aggregate `15` /
+  `6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38`을 exact
+  checkout tuple로 추가했고 기존 seeded/clean-checkout tuple은 제거하지 않았다. Explicit
+  `-ExpectedState TerminalWakeBrokerCandidate -AllowDerivedCapture` focused run만 `CAPTURE`,
+  `ProductionApproved=false`, `NeedsRebaseline=true`를 반환한다. 기본 production invocation은
+  approved physical snapshot ratchet이 없으면 계속 blocker를 반환한다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와
@@ -942,6 +953,30 @@ PLC endpoint를 사용하지 않는다.
   exit `1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution
   prerequisite가 STOP이고 script의 new EXE gate/manifest에는 도달하지 않아 full
   Distribution, manifest 또는 candidate publish PASS로 기록하지 않는다.
+- Commit `88f1c57`은 staged `LasalApiWpfTestApp.sln`의 exact C# project 1개,
+  project-file GUID 일치, Debug/Release `Any CPU`의 `ActiveCfg`/`Build.0`을 검사하고 동일
+  solution을 Debug와 Release로 Rebuild한 뒤에만 `Run` copy/gate를 실행한다.
+  `Test-LmcApiDistributionPipeline.ps1`은 PS5.1/PS7 모두 `129/129` PASS다. Commit
+  `bf31030`은 release input fingerprint를 exact root `.lcp/.lcb`, tracked
+  Class/Include/Source와 tracked+physical Network 전체로 확장했다. ignored seeded Network
+  `.lba/.lob` 8개를 포함한 5개 post-populate drift 시나리오는 candidate 미생성, canonical
+  hash 불변, stage/lock residue `0`으로 fail-closed했고 PS5.1/PS7 pipeline은 각각
+  `192/192` PASS했다. Commit
+  `d735446`의 Control `HandleRequest` focused verifier는 PS5.1/PS7 `13/13` PASS다. 후속
+  `d6ddf05`는 method-size parser를 checkout/EOL-stable하게 고쳐 main mixed-EOL과 clean
+  detached의 current scan을 동일한 `101/98/3`으로 만들었고 exact-current-baseline self-test는
+  PS5.1/PS7 `16/16` PASS다. 먼저 `88f1c57`, `d735446`, `afdf6a3`이 포함된 clean detached
+  `afdf6a3`에서 exact `2.3-candidate` manuals로 full Distribution build를 실행했고 약 `214`초
+  뒤 첫 Debug `RunTests`의 no-approved-ratchet Gate D STOP을 확인했다. 후속 `d6ddf05`와
+  `bf31030`까지 포함한 clean detached `bf31030`에서 direct Windows PowerShell로 다시 실행한
+  결과도 exit `1`, `214.415`초에 같은 Debug `RunTests` wrapper에서 중단됐다. Direct focused
+  `Verify-LasalUdpCallbackContract.ps1 -VerifyCurrent`는 exit `1`, `10.320`초에
+  `TerminalWakeBrokerCandidate is structurally valid but has no approved physical snapshot ratchet`
+  blocker를 반환했다. 두 실행은 tracked clean이지만 noncanonical manual 입력 때문에
+  `-AllowDirty`/`dirty-preview` policy였다. Latest run의 sibling candidate/stage/lock은 없고
+  canonical snapshot SHA-256 `17310B7E386BE7FBC03E5D57AFA52CC3C5703F13561C8465E66F6325213A291F`
+  (`76` records)와 manual hashes가 불변이었다. actual-EXE gate, manifest와 publish/final rename에는
+  도달하지 않았고 LASAL IDE, PLC Download/runtime은 실행하지 않았다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

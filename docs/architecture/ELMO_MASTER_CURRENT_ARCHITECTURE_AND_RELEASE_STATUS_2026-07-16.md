@@ -404,7 +404,7 @@
 | 개발 WPF | D5와 topology/CREVIS read, guarded output-write UI, D4 qualification/cleanup/reconnect/config-only manual Configure adapter 및 durable Axis/motion/Group Power/Group Enable/Group Reset recovery 포함. `af4ab63` Release 335/335는 historical이고 current `cbf2548` Debug/Release Rebuild는 PASS, full smoke는 339/339 PASS | reconnect targeted 6/6, 독립 callback/reconnect 9/9, actual-EXE relaunch Debug/Release 각 1/1, P0/P1 없음이다. startup은 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`, topology marker V5를 기록한다. historical fake restart는 same-process 새 MainWindow이고 actual-EXE gate는 SC_CLOSE/process exit/default mutex successor/fresh TCP/binary identity를 검증한다. 둘 다 PLC cleanup/disarm/readiness/실축 또는 사용자 PLC 재접속 증거가 아니다. Single Axis live qualification, actual PLC SDO Write/D5 scenario와 실제 축/Group recovery는 별도다. 2026-07-31 Debug/Release baseline은 297/297이다. |
 | 개발 WPF callback override 및 PC wire harness 2026-08-11 | `af4ab63` historical evidence panel/fresh-manual-socket 뒤 `14ccf58`이 persistent canonical `-1`에만 fresh `LMCConnection`/TCP outer retry 1회를 추가했고 `cbf2548`이 actual EXE relaunch gate를 추가했다. `bff3bc7`은 retry 0회의 exact `0x8080/0x405C/0x405D` GD-N10A/N13/N14 PC-only harness와 16개 회귀를 제공한다. SDK current Debug/Release direct `1133/1133`, WPF current Debug/Release Rebuild PASS, full smoke `339/339`, actual-EXE gate 각 `1/1`이다. | actual-EXE gate wire는 session/request `3/28 (13,2,13)`이며 malformed exit 64/TCP 0, contender exit 2/TCP 0과 pre/post binary identity를 검증한다. 고정 100 ms는 PLC readiness/timing proof가 아니며 wire `-1`은 internal disarm `-8`/`-9`와 lifecycle/ownership rejection을 구분하지 못한다. `RequestedCallback`은 입력 tuple이고 `BoundCallback`은 실제 endpoint 또는 `not-bound`다. stale/old wake는 retained ticket/UI/counter/`0x7E03`을 바꾸지 않는다. wire harness 및 WPF PASS도 PC 관측일 뿐 reviewed rebaseline, exact downloaded checkpoint, pcap과 PLC Watch 없이는 PLC callback/runtime proof가 아니다. |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery, D5 contention exact Busy/recovery, timeout/drain, queued-cancel one-shot/race/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
-| LASAL SourceOnly 정적 계약 | historical `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | historical checkpoint는 `Phase5TransportClean / IntegratedReadOwnerDormant`, external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. Current `ad4af91` PS5.1 `RunLasalContract`는 verifier compatibility 경계를 통과한 뒤 current `Classes.lcb` sanctioned Gate D identity drift에서 exit `1`로 fail-closed했다. |
+| LASAL SourceOnly 정적 계약 | historical `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | historical checkpoint는 `Phase5TransportClean / IntegratedReadOwnerDormant`, external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. Current `d735446`의 Control `HandleRequest` whole-method fence는 PS5.1/PS7 `13/13` PASS다. Current `d6ddf05` method-size ratchet은 main mixed-EOL/clean detached와 PS5.1/PS7에서 동일한 inventory `101/98/3`, self-test `16/16`과 exact current baseline을 PASS했다. Current `afdf6a3` UDP verifier도 PS5.1/PS7 `296/296`을 PASS하지만 default SourceOnly는 승인된 physical snapshot ratchet이 없는 `TerminalWakeBrokerCandidate`를 계속 fail-closed한다. 이 focused/static PASS들은 current Gate D STOP이나 PLC/runtime 상태를 승인하지 않는다. |
 | LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated frozen historical artifact `99014DD9...`, post-STOP current artifact `13EA5823...`로 generator identity가 안정적이지 않다. `b2019db`의 exact 990 bundle은 `c48e403` validator를 PASS했지만 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`이다. Current 13EA comparison도 `_AxisBase` boundary drift 때문에 exit `3`, changed byte/run/owner `90/57/35`다. Pinned triad의 A/B/C changed byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`; structural candidate/volatile/stable은 `157/66/91`이다. Historical corpus는 canonical occurrence/unique/topology `22/20/9`, H/H+C/H+C+B unique `20/21/22`, full records/marker `2,501/814`다. Exact-other varying tail `87/227/31/202`, marker `95/282/34/369`이고 adjacent common partition은 `2,378=1,155+538+685`, added/removed `18/2`, candidate tail/marker/both `55/97/386`이다. B는 committed oracle, C는 committed `b2019db`에서만 왔으며 mutable current `Classes.lcb`와 local `bd47dd96...`는 historical analyzer input이 아니다. D의 57 changed slot은 marker/tail `30/27`이고, D를 unaccepted diagnostic으로 더한 union만 volatile/stable `71/86`이다. Bounded stateless record-local hypothesis `20`개는 claim scope 안에서만 refute됐다. Field meaning은 unclassified이고 semantic equivalence는 증명되지 않았다. Historical corpus/triad publication trust boundary는 `NON_ADVERSARIAL_WORKSPACE`이고 `handleRelativeCreationUsed=false`, `concurrentParentReplacementResistance=false`다. `ProductionApproved=false`, `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`, rebaseline permitted false다. focused/C78 current verification은 계속 실패하며 finalizer/Rebuild/Download 반복·runtime qualification·future artifact acceptance·normalization·hash-only rebaseline은 금지다. |
 | D5 executor 초기화 | constructor declaration/implementation, generated `@STD`, state/buffer 초기화와 Idle publish 계약 PASS | Axis1 `ExpectedSdoWriteAxis=1` static과 IDE build는 PASS했다. actual Busy/Write/runtime 원인은 PLC에서 별도 검증한다. |
 | LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; later callback exact-method smoke와 isolated one-Rebuild/no-Connect/no-Download session 완료 | Frozen isolated Rebuild의 `Classes.lcb=99014DD9...`는 exit `3` STOP bundle이다. Post-STOP PID 26200은 Rebuild/Connect/282-LBA Download/PLC link를 성공했고 PID 21016은 Connect/Reset/Restart를 성공했지만 current `13EA5823...`와 Download는 exact byte-bound가 아니라 `TIME_CORRELATION_ONLY`다. 각 Load phase의 exact `DriveComL2.h E0015` 1건, C78/C81 warning debt, reviewed transition, exact downloaded artifact와 PLC/runtime qualification은 별도다. |
@@ -970,6 +970,37 @@ PS5/PS7 Publish+Reserve를 PASS했다. 수정 뒤 PS5.1 Release
 sanctioned Gate D identity drifted`로 exit `1`이었다. 사용자 current `Classes.lcb`는
 수정하지 않았다. 따라서 full Distribution prerequisite가 STOP이고 script의 new EXE
 gate/manifest에 도달하지 않아 current Distribution gate/manifest/candidate publish PASS는
+아니다.
+
+후속 commit `88f1c57`은 staged `LasalApiWpfTestApp.sln`에 exact C# project 1개,
+project-file GUID 일치, Debug/Release `Any CPU`의 exact `ActiveCfg`/`Build.0`만 허용하고
+동일 solution을 Debug/Release로 실제 Rebuild한 뒤에만 `Run`과 actual-EXE gate로 진행하게
+했다. Commit `bf31030`은 release `InputTreeSha256`을 exact project `.lcp/.lcb`, tracked
+Class/Include/Source와 tracked+physical Network 전체에 묶었다. seeded ignored `.lba/.lob`
+8개를 포함한 post-populate mutation/appearance fixture는 promotion을 차단하고 candidate,
+canonical과 transaction residue 불변을 보존했으며 PS5.1/PS7 pipeline은 각각 `192/192`
+PASS했다. Commit `afdf6a3`의 checkout-safe UDP verifier physical SHA-256은
+`A6244374803C622A7F115C21A30039C38A4FA4297AD2D0C4A1B47518515A0DE5`이고 PS5.1/PS7
+self-test는 각각 `296/296` PASS다. CRLF derived function boundary parser 회귀를 닫고
+pure-Git Network aggregate `15` /
+`239F71DC2BD04491582735AB424BCFB71E87BC3E88F2D7F0BEC21C592363FA22`와 tracked
+aggregate `15` /
+`6FF1BDAED41EE9F2AE017891BBF23CACBFA0FB510BEF07EAA4C7619DDA49DA38`을 exact
+허용했으며 기존 seeded tuple은 유지했다. Explicit `-AllowDerivedCapture`와 exact expected
+state를 함께 준 focused run만 `CAPTURE`, `ProductionApproved=false`,
+`NeedsRebaseline=true`를 반환하며 default production invocation은 계속 STOP한다.
+
+먼저 `88f1c57`, `d735446`, `afdf6a3`이 포함된 clean detached `afdf6a3`에서 exact
+`2.3-candidate` DOCX/PDF를 명시해 full build를 실행했고 약 `214`초 뒤 승인되지 않은 physical
+snapshot ratchet에서 STOP했다. 후속 `d6ddf05`와 `bf31030`까지 포함한 clean detached
+`bf31030` direct Windows PowerShell 재실행도 exit `1`, `214.415`초에 첫 Debug `RunTests`
+wrapper에서 같은 STOP으로 끝났다. Direct focused verifier는 exit `1`, `10.320`초에
+`TerminalWakeBrokerCandidate is structurally valid but has no approved physical snapshot ratchet`
+blocker를 확인했다. 두 실행은 Git tracked clean이지만 noncanonical manual 입력 때문에
+`-AllowDirty`/`dirty-preview` policy였다. Latest sibling candidate, stage와 lock residue는 없고
+canonical snapshot 및 manual hashes는 불변이며 actual-EXE gate, manifest와 publish/final
+rename은 실행되지 않았다. 이 결과는 checkout portability와 transaction STOP을 확인한
+PC/build 증거이며 LASAL IDE, PLC Download/runtime, production 승인 또는 Gate D 해제 증거가
 아니다.
 
 빌드한 working tree에는 ignored `bin/obj`가 생길 수 있다. 그대로 압축하지 말고

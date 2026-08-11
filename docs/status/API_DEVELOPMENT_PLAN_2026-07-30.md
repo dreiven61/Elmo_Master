@@ -22,6 +22,22 @@
 > 이 계획은 새 기능 수를 늘리는 것보다 현재 구현을 재현 가능한 source baseline으로 고정하고,
 > LASAL/PLC 증거를 닫는 것을 먼저 둔다. PC/static PASS와 PLC/runtime PASS를 합치지 않는다.
 
+> **2026-08-11 current release override:** `88f1c57`은 staged example solution의 exact
+> one-project/GUID/Debug+Release `Any CPU` 계약과 두 configuration Rebuild를 고정했고,
+> `d735446`은 Control `HandleRequest` whole-method fence PS5.1/PS7 `13/13`을 고정했다.
+> `d6ddf05`는 method-size parser를 checkout/EOL-stable하게 고쳐 main mixed-EOL과 clean
+> detached에서 동일한 inventory `101/98/3`, self-test `16/16`을 고정했다. `afdf6a3` UDP verifier는 PS5.1/PS7
+> `296/296`을 PASS하지만 default production invocation은 승인된 physical snapshot ratchet이
+> 없는 `TerminalWakeBrokerCandidate`에서 계속 STOP한다. Clean detached `afdf6a3` full
+> Distribution은 약 `214`초 뒤 같은 gate에서 중단됐다. 후속 `d6ddf05`/`bf31030`까지 포함한
+> clean detached `bf31030` direct Windows PowerShell 재실행도 exit `1`, `214.415`초 뒤 같은
+> Debug `RunTests` STOP이었고 focused verifier는 `10.320`초에 no-approved-ratchet blocker를
+> 확인했다. 두 실행은 tracked clean이지만 noncanonical manual 때문에 `-AllowDirty`/
+> `dirty-preview` policy였다. Candidate, stage/lock, actual-EXE/manifest/publish 증거는 생성되지
+> 않았으며 canonical/manual hashes는 불변이고 LASAL IDE/PLC Download/runtime은 실행하지 않았다.
+> 후속 `bf31030`은 exact LASAL validation input과 physical Network aggregate를 release
+> fingerprint에 묶고 PS5.1/PS7 pipeline `192/192`을 PASS했지만 Gate D STOP을 바꾸지 않는다.
+
 ## 목표
 
 1. 현재 active 53-command 범위를 동일 source hash에서 재현 가능하게 만든다.
@@ -40,7 +56,7 @@
 | M2. PLC read-only/safety baseline | **부분** | 기존 일부 capture, topology static inventory와 dormant read-owner source/static | fresh build cold download + raw/physical read qualification |
 | M3. Active motion/diagnostics qualification | **부분** | Single Axis runner 9/9과 whole-sequence durable journal/process-restart recovery, Group Enable durable accepted-once, Axis1 exact-session four-ticket/manual-Write gate PC PASS | current PLC Motion/Power/SDO live matrix |
 | M4. Gated advanced diagnostics/I/O | **선택/후속** | D4/PI off, topology read-owner dormant, Axis1 SDO Write source-active | 기능별 live 승인 |
-| M5. Product release | **dirty-preview candidate PASS / 대기** | `2.0-candidate` manual과 schema 2 manifest를 포함한 sibling candidate 실제 생성, canonical 무변경 | clean baseline 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
+| M5. Product release | **historical dirty-preview PASS / current Gate D STOP** | 2026-07-31 `2.0-candidate` sibling/manifest PASS는 historical이다. Current tracked-clean detached `afdf6a3` + exact `2.3-candidate` manual build는 `-AllowDirty`/`dirty-preview` policy로 실행됐고 Debug `RunTests`의 unapproved Gate D physical snapshot ratchet에서 fail-closed했다. Candidate/manifest/publish는 없음 | reviewed Gate D physical snapshot transition + clean full candidate 재현 + M3 active scope DoD + M4/상위 공백 명시적 제외 승인 |
 
 ## 우선순위 요약
 
@@ -327,7 +343,13 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
    SHA-256을 기록하고 즉시 재검증했다. noncanonical manual은 `-AllowDirty`와
    `dirty-preview`를 강제하고 transaction-locked byte snapshot/metadata를 manifest baseline에 묶는다.
 7. **[구현/fixture 86/86 및 실제 PASS]** 임시 `bin/obj/.vs`, Reports와 captures를 candidate에서 제외한다.
-8. **[대기]** final package를 목적별 commit 뒤 clean checkout에서 재검증한다.
+8. **[clean detached 실행/STOP]** `88f1c57`, `d735446`, `afdf6a3` 뒤 clean detached
+   `afdf6a3`에서 exact `2.3-candidate` DOCX/PDF로 full build를 실행했다. 약 `214`초 뒤 첫
+   Debug `RunTests` 내부 `TerminalWakeBrokerCandidate`의 승인된 physical snapshot ratchet
+   부재로 중단됐고 sibling candidate, actual-EXE gate, manifest와 publish/final rename에는
+   도달하지 않았다. Git tracked status는 clean이었지만 noncanonical manual 입력 때문에
+   `-AllowDirty`/`dirty-preview` policy로 실행했다. Gate D reviewed transition 없이 우회하거나
+   production PASS로 바꾸지 않는다.
 
 ## P1. Dynamic CREVIS와 advanced diagnostics
 
@@ -439,10 +461,11 @@ read-only P1-1을 먼저 완료한다.
 - [ ] callback endpoint ownership source/PC 계약의 current PLC duplicate/mismatch capture 완료;
   typed sender/parser와 multi-PC control은 승인 schema/owner 정책 전까지 명시적 범위 제외
 - [ ] M4 advanced 기능과 상위 요구 공백을 구현하거나 항목별 명시적 범위 제외
-- [x] external `2.0-candidate` DOCX/PDF의 preview/안전/UNIT/polling 및 Axis1 SDO scope 갱신·전 페이지 검토
+- [x] historical external `2.0-candidate` DOCX/PDF의 preview/안전/UNIT/polling 및 Axis1 SDO scope 갱신·전 페이지 검토
 - [x] 원본 무변경 transaction, success-only rename, failure cleanup과 semantic policy 회귀 PASS
-- [x] external DOCX/PDF exact bytes를 사용한 실제 sibling Distribution candidate와 semantic policy `15/15` PASS
-- [x] candidate cleanup, version/input hash/schema 2 manifest, canonical hash와 transaction residue 재확인
+- [x] historical external `2.0-candidate` DOCX/PDF exact bytes를 사용한 실제 sibling Distribution candidate와 semantic policy `15/15` PASS
+- [x] historical candidate cleanup, version/input hash/schema 2 manifest, canonical hash와 transaction residue 재확인
+- [ ] current exact `2.3-candidate` manual의 tracked-clean full Distribution PASS — `afdf6a3` 재실행은 `-AllowDirty`/`dirty-preview` policy였고 Gate D physical snapshot ratchet에서 STOP, candidate/actual-EXE/manifest/publish 없음
 - [ ] `git diff --check`와 `git diff --cached --check` PASS
 
 ## 문서 갱신 규칙

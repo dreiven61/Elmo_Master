@@ -300,17 +300,21 @@ DS402 receipt split 뒤 당시 inventory는 `95/90/5`가 됐다. retired receipt
 `PublishAxisOwnership`도 raw/LF/all-CRLF `26265/26265/26996`으로 일반 `<32768` gate에
 들어왔다. 따라서 historical debt 7개 중 아래 3개만 baseline으로 남긴다.
 
-| Class | Method | current raw | current LF | current all-CRLF |
+| Class | Method | canonical raw | canonical LF | all-CRLF upper projection |
 |---|---|---:|---:|---:|
 | `LMCControlCommandService` | `ReserveAxisOwnership` | 77731 | 77731 | 79879 |
-| `LMCRecorderStore` | `HandleRequest` | 75829 | 75249 | 77210 |
-| `LMCEcatInputLatch` | `RtWork` | 72907 | 71437 | 73287 |
+| `LMCRecorderStore` | `HandleRequest` | 75248 | 75248 | 77208 |
+| `LMCEcatInputLatch` | `RtWork` | 71436 | 71436 | 73285 |
 
 Current inventory는 six classes / methods/under-limit/debt `101/98/3`이고 PS5.1과 PS7
-current scan이 동일하다. self-test는 `8/8` PASS하며 retired `PublishAxisOwnership`의 raw,
-LF, all-CRLF 각 차원이 exact `32768`에 닿는 세 fixture를 모두 신규 debt로 거부한다. 이
-ratchet은 retired method가 다시 32 KiB debt로 돌아가는 것을 막는 PC 정적 계약일 뿐
-LASAL compile, generated metadata 또는 PLC runtime 증거가 아니다.
+current scan이 동일하다. Commit `d6ddf05`는 source를 canonical LF로 한 번 정규화한 뒤
+method block을 parse/measure하고 all-CRLF 물리 상한을 별도로 투영해 main mixed-EOL과 clean
+detached checkout이 위 exact tuple을 동일하게 내도록 고쳤다. 이 tuple을 baseline으로 다시
+고정해 historical larger baseline과 terminal-CR capture가 허용하던 증가 여유를 제거했다.
+각 debt와 크기 차원마다 `current+1`을 거부하는 9개 음성 fixture와 retired
+receipt/rollback/publish 재발 fixture를 포함한 self-test는 PS5.1과 PS7 모두 `16/16` PASS다.
+이 ratchet은 current debt의 1-byte 증가와 retired method의 32 KiB debt 복귀를 막는 PC 정적
+계약일 뿐 LASAL compile, generated metadata 또는 PLC runtime 증거가 아니다.
 
 2026-08-05 `ReserveAxisOwnership`의 미선언 `preemptRecordBase` 5곳을 같은 function에 이미 선언된
 `probeRecordBase`로 교정한 직후 당시 `LMCControlCommandService.st` SHA-256은
@@ -1157,10 +1161,20 @@ three-pragma/macro/preprocessor inventory와 comment/string masking도 함께 �
 - corruption latch write exact `9`개, lease/preempt/live/axis/group magic-last publication과 최종 output
   singleton/order를 고정
 - focused reserve fixture `62/62` reject, comment-only positive fixture accept
-- ownership aggregate `271/271` reject. `HandleRequest` 자체의 균형 잡힌 body-only semantic 변경은
-  Reserve ABI/body/top-level availability를 바꾸지 않으므로 이 fence의 의도적 비범위다. 이를 동결하려면
-  별도 `HandleRequest` semantic/lexical fence가 필요하다.
-- latest integrated five-waiver
+- ownership aggregate `271/271` reject. Reserve fence만으로는 `HandleRequest`의 균형 잡힌
+  body-only semantic 변경을 잡지 못한다는 이 historical 비범위는 commit `d735446`의 별도
+  whole-method fence로 닫았다. Current `LMCControlCommandService.st`는 `594938` bytes,
+  SHA-256
+  `8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`이고,
+  qualified `HandleRequest` block은 raw/LF/all-CRLF `31821/31821/32670` bytes,
+  SHA-256
+  `F2AE58382DB5050541F277E33E63FAEF158FF4B577C741760866BA634D856BE2`다.
+  exact route/ABI, local/call/mutation inventory, response envelope와 control-flow,
+  ownership validate/commit/publish/rollback/quarantine 및 final cleanup을 semantic/lexical
+  token으로 고정한다. Focused verifier는 PS5.1과 PS7 모두 음성 fixture `13/13`을 거부하고
+  comment-only fixture를 허용했다. 이는 PC source-static fence이며 LASAL IDE compile,
+  generated binary, PLC download/runtime 증거가 아니다.
+- historical pre-split integrated five-waiver
   `-SourceOnly -ExpectedSdoWriteAxis 1` PASS; six classes / `93` methods / under-limit `86` /
   unchanged baseline debt `7`, size self-test `5/5` PASS
 

@@ -45,8 +45,27 @@
 `../LMC_API_Distribution`도 current source를 재조립한 패키지가 아니다. manifest와 내부
 파일은 일관되지만 Axis1 SDO Write, stale recovery retirement와 actual-EXE reconnect gate가
 없는 `1.9` gate-off snapshot이다. `Build-LmcApiDistribution.ps1`은 이 폴더를 직접 덮어쓰지
-않고 별도 sibling candidate만 생성한다. Current `2.3-candidate` DOCX/PDF는 검토용 입력일
-뿐이며, current Gate D STOP 때문에 full Distribution build와 candidate publish는 PASS가 아니다.
+않고 별도 sibling candidate만 생성한다. Commit `88f1c57`부터 staging의
+`LasalApiWpfTestApp.sln`은 exact C# project 1개, project GUID 일치와 Debug/Release
+`Any CPU`의 `ActiveCfg`/`Build.0`만 허용하고, 같은 solution을 Debug와 Release로 모두
+Rebuild한 뒤에만 `Run` 복사와 actual-EXE gate로 진행한다.
+Commit `bf31030`은 transaction의 `InputTreeSha256` 범위를 exact project `.lcp/.lcb`,
+tracked Class/Include/Source 검증 입력과 tracked+physical Network 전체로 넓혔다. 따라서
+seeded ignored `.lba/.lob` 8개도 실제 존재하면 지문에 포함되고, pure-Git checkout에서 새
+ignored Network 파일이 나타나거나 Control source, `Classes.lcb`, `Networks.lcb`가 검증 뒤
+바뀌면 promotion 전에 fail-closed한다. PS5.1/PS7 pipeline fixture는 각각 `192/192` PASS다.
+
+Current `2.3-candidate` DOCX/PDF는 검토용 입력일 뿐이다. Clean detached
+`afdf6a3`에서 두 exact manual을 명시한 full Distribution build를 실제 실행했지만 약
+`214`초 뒤 첫 Debug `RunTests` 내부 LASAL 계약에서 `TerminalWakeBrokerCandidate`에
+승인된 physical snapshot ratchet이 없다는 current Gate D STOP으로 중단됐다. Git tracked
+status는 clean이었지만 noncanonical manual 입력 때문에 `-AllowDirty`를 명시한
+`dirty-preview` policy run이었다. 후속 `d6ddf05`와 `bf31030`까지 포함한 clean detached
+`bf31030` direct Windows PowerShell 재실행도 `214.415`초 뒤 같은 Debug `RunTests` STOP으로
+끝났고 focused verifier는 `10.320`초에 같은 no-approved-ratchet blocker를 확인했다. Sibling
+candidate, stage와 lock residue는 없고 canonical tracked state는 불변이며 actual-EXE gate,
+manifest와 publish/final rename에는 도달하지 않았다. 따라서 current full Distribution
+build와 candidate publish는 PASS가 아니고 Gate D STOP은 그대로다.
 current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰거나 정식 배포로
 동기화하지 않는다.
 
@@ -62,7 +81,8 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
   배포 준비 전 소스/문서/바이너리 리뷰 결과
 - [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md): 사용자 매뉴얼 초기 초안용 Markdown
 - `Build-LmcApiDistribution.ps1`: canonical 무변경 transactional candidate build
-- `DistributionPipeline.ps1`: staging/lock/seal/drift/success-only rename 구현
+- `DistributionPipeline.ps1`: staging/lock/seal/drift/success-only rename과 staged example
+  solution의 exact one-project/GUID/Debug+Release `Any CPU` 계약 구현
 - `DistributionSemanticPolicy.ps1`: SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 preflight;
   DOCX와 PDF 각각에 `2.3-candidate`, bounded reconnect/actual-EXE PC-only 경계와 preview
   release 안전 경고를 요구한다
@@ -82,8 +102,8 @@ current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰�
 4. 외부 문서는 `03_API_User_Manual`의 열람용 PDF와 편집용 DOCX를 사용한다.
    사용자가 편집한 DOCX와 그 DOCX에서 내보낸 PDF가 배포 기준이다. Markdown과
    생성 스크립트는 초기 초안 제작용이며 배포 빌드에서 문서를 덮어쓰지 않는다.
-5. PC 테스트, LASAL 정적 계약, 배포 예제 Debug/Release 빌드와 SHA-256을
-   모두 확인한다.
+5. PC 테스트, LASAL 정적 계약, 배포 예제 solution의 exact one-project/GUID/configuration과
+   solution Debug/Release Rebuild 및 최종 EXE/DLL SHA-256을 모두 확인한다.
 6. LASAL IDE/PLC 검증이 끝나기 전에는 `production`, `validated` 또는
    `release approved`라고 표기하지 않는다.
 7. release build는 같은 volume의 `.LMC_API_Distribution.stage.*`에서 모든 검증을 끝낸 뒤
@@ -130,13 +150,16 @@ Word 저장 후 DOCX Office 2016-targeted OpenXmlValidator는 `0`, PDF는 A4 `43
 clipping/overlap/blank/tofu가 없고 embedded/subset font `8/8`이다.
 
 두 문서는 `Test-LmcDistributionManualReleasePolicy -DocxText -PdfText`의 exact 3/3을
-통과해야 한다. Clean-tree release 재개 시에만 아래처럼 두 경로를 명시적으로 전달한다.
-현재 Gate D STOP에서는 이 명령을 실행해 PASS를 주장하지 않는다.
+통과해야 한다. 이 noncanonical 검토본으로 tracked-clean preview를 재개할 때는 아래처럼
+`-AllowDirty`와 두 경로를 명시적으로 전달한다. `afdf6a3` clean detached 재실행은 이 입력으로
+시작했지만 위 Gate D physical snapshot ratchet에서 fail-closed STOP했고 full package/candidate
+publish PASS를 주장하지 않는다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File LMC_Library\LMC_API\Build-LmcApiDistribution.ps1 `
   -RepositoryRoot C:\work\Elmo\Elmo_Master `
+  -AllowDirty `
   -ManualDocxPath output\doc\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx `
   -ManualPdfPath output\pdf\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.pdf
 ```
