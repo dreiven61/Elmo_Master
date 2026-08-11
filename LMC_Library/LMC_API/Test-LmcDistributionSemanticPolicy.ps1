@@ -359,6 +359,26 @@ $temporaryBase = Join-Path ([System.IO.Path]::GetTempPath()) (
 try {
     $null = New-Item -ItemType Directory -Path $temporaryBase
 
+    $semanticPolicyPath = Join-Path $PSScriptRoot `
+        'DistributionSemanticPolicy.ps1'
+    $semanticPolicyText = [System.IO.File]::ReadAllText(
+        $semanticPolicyPath)
+    $semanticPythonNoBytecodePattern =
+        '(?m)\$encodedOutput\s*=\s*&\s*\$PythonPath\s+-B\s+-c\b'
+    Assert-DistributionSemanticPolicyTest `
+        -Condition ([regex]::Matches(
+            $semanticPolicyText,
+            $semanticPythonNoBytecodePattern).Count -eq 1) `
+        -Message 'Semantic document extraction does not force Python -B before -c.'
+    $semanticPolicyWithoutNoBytecode = $semanticPolicyText.Replace(
+        '$PythonPath -B -c',
+        '$PythonPath -c')
+    Assert-DistributionSemanticPolicyTest `
+        -Condition ([regex]::Matches(
+            $semanticPolicyWithoutNoBytecode,
+            $semanticPythonNoBytecodePattern).Count -eq 0) `
+        -Message 'Semantic document extraction -B mutation control was vacuous.'
+
     $passFixture = New-DistributionSemanticPolicyFixture -BasePath $temporaryBase -Name 'pass'
     $passResult = Invoke-DistributionSemanticPolicyFixture -Fixture $passFixture
     Assert-DistributionSemanticPolicyTest `

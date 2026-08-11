@@ -192,7 +192,7 @@ text = '\n'.join(parts)
 sys.stdout.write(base64.b64encode(text.encode('utf-8')).decode('ascii'))
 '@
         try {
-            $encodedOutput = & $PythonPath -c $pythonCode $Path 2>&1
+            $encodedOutput = & $PythonPath -B -c $pythonCode $Path 2>&1
             $exitCode = $LASTEXITCODE
         }
         catch {

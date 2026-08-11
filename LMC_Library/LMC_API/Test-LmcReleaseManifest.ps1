@@ -134,7 +134,9 @@ try {
 
     $toolchainRoles = @(
         'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
-        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+        'PyPdf', 'Python', 'PythonCffi', 'PythonCryptography',
+        'PythonDocx', 'PythonLxml', 'PythonPillow',
+        'PythonTypingExtensions', 'VsWhere')
     $toolchainRecords = @()
     for ($toolIndex = 0; $toolIndex -lt $toolchainRoles.Count; $toolIndex++) {
         $toolchainRecords += (
@@ -291,7 +293,12 @@ try {
         ('Tooling preflight attestation SHA-256: `' +
             $toolingPreflight.Sha256 + '`'),
         '`CSharpCompiler`',
+        '`PythonCffi`',
+        '`PythonCryptography`',
         '`PythonDocx`',
+        '`PythonLxml`',
+        '`PythonPillow`',
+        '`PythonTypingExtensions`',
         '`PyPdf`',
         '`PS5`',
         '`PS7`',
@@ -344,7 +351,7 @@ try {
         -Text $deterministicContent
     Assert-True `
         -Condition ($deterministicSha256 -ceq
-            'FC4E1BD192498EC1045B0A847B1A75A2C57ED02144D6852A0DA9793D99AD4B5E') `
+            '27157DE4B036E4DF1CB3C936C8FDA489C28B7DE134B3E84C4CB9876E5C1B1FC3') `
         -Message (
             'Schema-3 deterministic fixture hash drifted; actual=' +
             $deterministicSha256)
@@ -398,6 +405,60 @@ try {
             Write-LmcReleaseManifestAtomic @lowercaseSemanticPolicyResultParameters
         } `
         -ExpectedMessage 'Semantic policy result must be exactly PASS'
+
+    $oldEightRoles = @(
+        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
+        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+    $oldEightToolchainParameters = $parameters.Clone()
+    $oldEightToolchainParameters.ToolchainRecords = @(
+        $toolchainRecords | Where-Object {
+            $recordRole = (@($_ -split '\|'))[0]
+            $oldEightRoles -ccontains $recordRole
+        })
+    $oldEightToolchainParameters.ToolchainSha256 = `
+        Get-LmcDistributionProvenanceTextSha256 `
+            -Text ((@($oldEightToolchainParameters.ToolchainRecords) `
+                -join "`n") + "`n")
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @oldEightToolchainParameters
+        } `
+        -ExpectedMessage 'exactly thirteen records'
+
+    $missingDependencyParameters = $parameters.Clone()
+    $missingDependencyParameters.ToolchainRecords = @(
+        $toolchainRecords | Where-Object {
+            $_ -notmatch '^PythonCffi\|'
+        })
+    $missingDependencyParameters.ToolchainSha256 = `
+        Get-LmcDistributionProvenanceTextSha256 `
+            -Text ((@($missingDependencyParameters.ToolchainRecords) `
+                -join "`n") + "`n")
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @missingDependencyParameters
+        } `
+        -ExpectedMessage 'exactly thirteen records'
+
+    $duplicateDependencyParameters = $parameters.Clone()
+    $duplicateDependencyRecords = @($toolchainRecords | Where-Object {
+        $_ -notmatch '^PythonPillow\|'
+    }) + @('PythonCffi|9.9.9|' + ('EE' * 32))
+    [string[]]$duplicateDependencyRecords = @(
+        $duplicateDependencyRecords)
+    [System.Array]::Sort(
+        $duplicateDependencyRecords,
+        [System.StringComparer]::Ordinal)
+    $duplicateDependencyParameters.ToolchainRecords = `
+        $duplicateDependencyRecords
+    $duplicateDependencyParameters.ToolchainSha256 = `
+        Get-LmcDistributionProvenanceTextSha256 `
+            -Text (($duplicateDependencyRecords -join "`n") + "`n")
+    Assert-Throws `
+        -Action {
+            Write-LmcReleaseManifestAtomic @duplicateDependencyParameters
+        } `
+        -ExpectedMessage 'role is missing: PythonPillow'
 
     $legacySixOfTwelveParameters = $parameters.Clone()
     $legacySixOfTwelveParameters.ToolingPreflightSuiteCount = 6

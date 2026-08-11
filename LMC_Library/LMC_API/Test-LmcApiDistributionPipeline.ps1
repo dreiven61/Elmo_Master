@@ -400,6 +400,52 @@ try {
     $builderPath = Join-Path $PSScriptRoot `
         'Build-LmcApiDistribution.ps1'
     $builderText = [System.IO.File]::ReadAllText($builderPath)
+    $releasePythonInvocationPattern =
+        '(?m)&\s+\$releasePython\b'
+    $releasePythonNoBytecodePattern =
+        '(?m)&\s+\$releasePython\s+-B\s+-c\b'
+    Assert-Equal `
+        -Expected 2 `
+        -Actual ([regex]::Matches(
+            $builderText,
+            $releasePythonInvocationPattern)).Count `
+        -Message 'Release builder Python validation invocation count drifted.'
+    Assert-Equal `
+        -Expected 2 `
+        -Actual ([regex]::Matches(
+            $builderText,
+            $releasePythonNoBytecodePattern)).Count `
+        -Message 'Release builder Python validation does not force -B before -c.'
+    $builderWithoutNoBytecode = $builderText.Replace(
+        '$releasePython -B -c',
+        '$releasePython -c')
+    Assert-Equal `
+        -Expected 0 `
+        -Actual ([regex]::Matches(
+            $builderWithoutNoBytecode,
+            $releasePythonNoBytecodePattern)).Count `
+        -Message 'Release builder -B mutation control was vacuous.'
+
+    $provenancePath = Join-Path $PSScriptRoot `
+        'DistributionToolchainProvenance.ps1'
+    $provenanceText = [System.IO.File]::ReadAllText($provenancePath)
+    $provenanceNoBytecodePattern =
+        '(?s)-Arguments\s+@\(\s*''-B''\s*,\s*''-c''\s*,\s*\$probeCode\s*\)'
+    Assert-Equal `
+        -Expected 1 `
+        -Actual ([regex]::Matches(
+            $provenanceText,
+            $provenanceNoBytecodePattern)).Count `
+        -Message 'Python provenance workload probe does not force -B before -c.'
+    $provenanceWithoutNoBytecode = $provenanceText.Replace(
+        '@(''-B'', ''-c'', $probeCode)',
+        '@(''-c'', $probeCode)')
+    Assert-Equal `
+        -Expected 0 `
+        -Actual ([regex]::Matches(
+            $provenanceWithoutNoBytecode,
+            $provenanceNoBytecodePattern)).Count `
+        -Message 'Python provenance -B mutation control was vacuous.'
     Assert-True `
         -Condition (Assert-LmcDistributionBuilderPreflightOrder `
             -BuilderText $builderText) `
@@ -799,7 +845,7 @@ foreach (`$record in `$snapshot.Records) {
     $fixtureMarker = 'LMC_FIXTURE_' +
         [System.Guid]::NewGuid().ToString('N')
     $toolchainNonzeroEvidence =
-        'PASS: 49 distribution toolchain provenance assertions'
+        'PASS: 84 distribution toolchain provenance assertions'
     $nonzeroResult = Invoke-LmcDistributionRawPowerShellProcess `
         -ExecutablePath $currentHostExecutable `
         -Arguments (ConvertTo-TestEncodedPowerShellArguments `
@@ -828,7 +874,7 @@ foreach (`$record in `$snapshot.Records) {
                 -Result $noEvidenceResult `
                 -ExpectedTerminalLine $fixtureMarker `
                 -ExpectedEvidencePatterns @(
-                    '^PASS: 49 distribution toolchain provenance assertions$')
+                    '^PASS: 84 distribution toolchain provenance assertions$')
         } `
         -ExpectedMessage 'evidence occurrence drifted' | Out-Null
 
@@ -970,7 +1016,7 @@ for ($i = 0; $i -lt 4096; $i++) {
             ('^LMC_TOOLING_MODULE_PATH ' + [regex]::Escape($moduleNonce) +
                 ' ' + [regex]::Escape((ConvertTo-LmcDistributionBase64 `
                     -Text (Join-Path $PSHOME 'Modules'))) + '$')
-            '^TOTAL 100, PASSED 100, FAILED 0$')
+            '^TOTAL 108, PASSED 108, FAILED 0$')
     Assert-True `
         -Condition ($poisonedModuleResult.StandardOutput -notmatch
             'LMC_USER_MODULE_POISON') `
@@ -1069,25 +1115,55 @@ for ($i = 0; $i -lt 4096; $i++) {
         -Fixture $fixture `
         -Context 'Post-populate tooling drift'
 
-    # A release-tool byte mutation after population changes the composite
-    # provenance fingerprint before promotion and leaves no publish residue.
+    # An active Python dependency byte mutation after population changes the
+    # composite provenance fingerprint before promotion and leaves no residue.
     $toolchainFixtureRoot = Join-Path $script:TestRoot `
         'transaction-toolchain'
-    $toolchainRoles = @(
-        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
-        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+    $toolchainRoles = @(Get-LmcDistributionExpectedToolchainRoles)
+    $toolchainInventoryRoles = @(
+        Get-LmcDistributionInventoryRequiredRoles)
     $toolchainDescriptors = @()
     $toolchainIndex = 0
     foreach ($toolchainRole in $toolchainRoles) {
-        $toolchainPath = Join-Path $toolchainFixtureRoot `
-            ("$toolchainRole.bin")
-        Write-TestFile `
-            -Path $toolchainPath `
-            -Content ("$toolchainRole-v1")
-        $toolchainDescriptors += [pscustomobject]@{
-            Role = $toolchainRole
-            Version = "1.0.$toolchainIndex"
-            Path = $toolchainPath
+        if ($toolchainInventoryRoles -ccontains $toolchainRole) {
+            $toolchainDistributionRoot = Join-Path `
+                $toolchainFixtureRoot `
+                ("inventory-$toolchainRole")
+            $toolchainModuleRelative = "$toolchainRole.bin"
+            $toolchainSecondaryRelative = `
+                "$toolchainRole-secondary.bin"
+            $toolchainPath = Join-Path `
+                $toolchainDistributionRoot `
+                $toolchainModuleRelative
+            Write-TestFile `
+                -Path $toolchainPath `
+                -Content ("$toolchainRole-v1")
+            Write-TestFile `
+                -Path (Join-Path `
+                    $toolchainDistributionRoot `
+                    $toolchainSecondaryRelative) `
+                -Content ("$toolchainRole-secondary-v1")
+            $toolchainDescriptors += [pscustomobject]@{
+                Role = $toolchainRole
+                Version = "1.0.$toolchainIndex"
+                Path = $toolchainPath
+                DistributionRoot = $toolchainDistributionRoot
+                DistributionFiles = @(
+                    $toolchainModuleRelative,
+                    $toolchainSecondaryRelative)
+            }
+        }
+        else {
+            $toolchainPath = Join-Path $toolchainFixtureRoot `
+                ("$toolchainRole.bin")
+            Write-TestFile `
+                -Path $toolchainPath `
+                -Content ("$toolchainRole-v1")
+            $toolchainDescriptors += [pscustomobject]@{
+                Role = $toolchainRole
+                Version = "1.0.$toolchainIndex"
+                Path = $toolchainPath
+            }
         }
         $toolchainIndex++
     }
@@ -1127,9 +1203,13 @@ for ($i = 0; $i -lt 4096; $i++) {
     $preparedToolchain = New-LmcDistributionToolchainSnapshot `
         -Descriptors $toolchainDescriptors `
         -ToolingPreflight $toolchainAttestation
-    $driftedToolPath = @($toolchainDescriptors | Where-Object {
-        $_.Role -ceq 'MSBuild'
-    })[0].Path
+    $driftedDependencyDescriptor = @(
+        $toolchainDescriptors | Where-Object {
+            $_.Role -ceq 'PythonCffi'
+        })[0]
+    $driftedToolPath = Join-Path `
+        $driftedDependencyDescriptor.DistributionRoot `
+        $driftedDependencyDescriptor.DistributionFiles[1]
     $fixture = New-TestFixture -Name 'toolchain_post_populate_drift'
     $canonicalBefore = Get-LmcDistributionTreeSnapshot `
         -Root $fixture.Canonical
@@ -1161,7 +1241,7 @@ for ($i = 0; $i -lt 4096; $i++) {
                     Populate-TestCandidate -Stage $stage
                     Write-TestFile `
                         -Path $driftedToolPath `
-                        -Content 'MSBuild-v2'
+                        -Content 'PythonCffi-secondary-v2'
                 } `
                 -ValidatePreparedInputs {
                     $toolchainDriftObservation.PromotionValidations++

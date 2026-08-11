@@ -1421,7 +1421,7 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
                 }
         $buildSummary.ExecutableRelaunchGate = 'PASS'
 
-        $manualPageCountOutput = @(& $releasePython -c `
+        $manualPageCountOutput = @(& $releasePython -B -c `
             'from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))' `
             (Join-Path $manualDirectory `
                 'LASAL_Motion_Control_API_User_Manual_KO.pdf'))
@@ -1432,7 +1432,7 @@ $transaction = Invoke-LmcDistributionCandidateTransaction `
         }
         $manualDocxValidationCode =
             "from docx import Document; import sys; d=Document(sys.argv[1]); h=sum(1 for p in d.paragraphs if p.style.name.startswith('Heading ')); assert h >= 30 and len(d.tables) >= 45 and 'LASAL Motion Control API' in d.core_properties.title"
-        & $releasePython -c $manualDocxValidationCode `
+        & $releasePython -B -c $manualDocxValidationCode `
             (Join-Path $manualDirectory `
                 'LASAL_Motion_Control_API_User_Manual_KO.docx')
         if ($LASTEXITCODE -ne 0) {

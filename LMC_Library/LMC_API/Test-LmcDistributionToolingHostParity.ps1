@@ -605,32 +605,32 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'Pipeline'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 286 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 286 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 291 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 291 distribution pipeline assertions'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
             Id = 'SemanticPolicy'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 50 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 50 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
             Id = 'ReleaseManifest'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 100, PASSED 100, FAILED 0$'
-            EvidenceLine = 'TOTAL 100, PASSED 100, FAILED 0'
+            EvidencePattern = '^TOTAL 108, PASSED 108, FAILED 0$'
+            EvidenceLine = 'TOTAL 108, PASSED 108, FAILED 0'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
             Id = 'ToolchainProvenance'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionToolchainProvenance.ps1'
             TimeoutSeconds = 180
-            EvidencePattern = '^PASS: 49 distribution toolchain provenance assertions$'
-            EvidenceLine = 'PASS: 49 distribution toolchain provenance assertions'
+            EvidencePattern = '^PASS: 84 distribution toolchain provenance assertions$'
+            EvidenceLine = 'PASS: 84 distribution toolchain provenance assertions'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -680,29 +680,29 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         Pipeline = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcApiDistributionPipeline.ps1'
             TimeoutSeconds = 300
-            EvidencePattern = '^PASS: 286 distribution pipeline assertions$'
-            EvidenceLine = 'PASS: 286 distribution pipeline assertions'
+            EvidencePattern = '^PASS: 291 distribution pipeline assertions$'
+            EvidenceLine = 'PASS: 291 distribution pipeline assertions'
             WorkerTerminates = $false
         }
         SemanticPolicy = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 50 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 50 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
             WorkerTerminates = $false
         }
         ReleaseManifest = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcReleaseManifest.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^TOTAL 100, PASSED 100, FAILED 0$'
-            EvidenceLine = 'TOTAL 100, PASSED 100, FAILED 0'
+            EvidencePattern = '^TOTAL 108, PASSED 108, FAILED 0$'
+            EvidenceLine = 'TOTAL 108, PASSED 108, FAILED 0'
             WorkerTerminates = $false
         }
         ToolchainProvenance = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionToolchainProvenance.ps1'
             TimeoutSeconds = 180
-            EvidencePattern = '^PASS: 49 distribution toolchain provenance assertions$'
-            EvidenceLine = 'PASS: 49 distribution toolchain provenance assertions'
+            EvidencePattern = '^PASS: 84 distribution toolchain provenance assertions$'
+            EvidenceLine = 'PASS: 84 distribution toolchain provenance assertions'
             WorkerTerminates = $false
         }
         MethodSize = @{
@@ -1058,14 +1058,14 @@ function Invoke-LmcDistributionToolingWorker {
             $semanticResult = @(& $suitePath)
             if ($semanticResult.Count -ne 1 -or
                 $semanticResult[0].Result -cne 'PASS' -or
-                $semanticResult[0].TestCount -ne 50 -or
+                $semanticResult[0].TestCount -ne 52 -or
                 $semanticResult[0].PolicyCheckCount -ne 18 -or
                 $semanticResult[0].PolicySha256 -cne
                     'AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769') {
                 throw 'Distribution semantic-policy suite result drifted.'
             }
             Write-Output (
-                'PASS LMC.DistributionSemanticPolicy.Tests 50 ' +
+                'PASS LMC.DistributionSemanticPolicy.Tests 52 ' +
                 $semanticResult[0].PolicySha256 + ' 18')
         }
         'ReleaseManifest' {

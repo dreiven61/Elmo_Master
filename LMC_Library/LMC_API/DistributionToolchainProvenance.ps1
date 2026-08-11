@@ -1,5 +1,74 @@
 Set-StrictMode -Version Latest
 
+function Get-LmcDistributionExpectedToolchainRoles {
+    return @(
+        'CSharpCompiler',
+        'Git',
+        'MSBuild',
+        'PowerShell',
+        'PyPdf',
+        'Python',
+        'PythonCffi',
+        'PythonCryptography',
+        'PythonDocx',
+        'PythonLxml',
+        'PythonPillow',
+        'PythonTypingExtensions',
+        'VsWhere')
+}
+
+function Get-LmcDistributionInventoryRequiredRoles {
+    return @(
+        'CSharpCompiler',
+        'PyPdf',
+        'Python',
+        'PythonCffi',
+        'PythonCryptography',
+        'PythonDocx',
+        'PythonLxml',
+        'PythonPillow',
+        'PythonTypingExtensions')
+}
+
+function Get-LmcDistributionPythonPackageContracts {
+    return @(
+        [pscustomobject]@{
+            Role = 'PythonCffi'
+            Distribution = 'cffi'
+            Module = '_cffi_backend'
+        },
+        [pscustomobject]@{
+            Role = 'PythonCryptography'
+            Distribution = 'cryptography'
+            Module = 'cryptography'
+        },
+        [pscustomobject]@{
+            Role = 'PythonLxml'
+            Distribution = 'lxml'
+            Module = 'lxml'
+        },
+        [pscustomobject]@{
+            Role = 'PythonPillow'
+            Distribution = 'pillow'
+            Module = 'PIL'
+        },
+        [pscustomobject]@{
+            Role = 'PythonTypingExtensions'
+            Distribution = 'typing-extensions'
+            Module = 'typing_extensions'
+        },
+        [pscustomobject]@{
+            Role = 'PythonDocx'
+            Distribution = 'python-docx'
+            Module = 'docx'
+        },
+        [pscustomobject]@{
+            Role = 'PyPdf'
+            Distribution = 'pypdf'
+            Module = 'pypdf'
+        })
+}
+
 function Get-LmcDistributionProvenanceOrdinalStrings {
     param(
         [AllowNull()]
@@ -675,17 +744,11 @@ function New-LmcDistributionToolchainSnapshot {
         [object]$ToolingPreflight
     )
 
-    $expectedRoles = @(
-        'CSharpCompiler',
-        'Git',
-        'MSBuild',
-        'PowerShell',
-        'PyPdf',
-        'Python',
-        'PythonDocx',
-        'VsWhere')
+    $expectedRoles = @(Get-LmcDistributionExpectedToolchainRoles)
+    $inventoryRequiredRoles = @(
+        Get-LmcDistributionInventoryRequiredRoles)
     if ($Descriptors.Count -ne $expectedRoles.Count) {
-        throw "Release toolchain descriptor count must be 8; actual=$($Descriptors.Count)."
+        throw "Release toolchain descriptor count must be 13; actual=$($Descriptors.Count)."
     }
     $byRole = @{}
     $records = @()
@@ -716,15 +779,14 @@ function New-LmcDistributionToolchainSnapshot {
                 'DistributionRoot' -or
             $descriptor.PSObject.Properties.Name -contains
                 'DistributionFiles'
+        $requiresDistributionInventory =
+            $inventoryRequiredRoles -ccontains $role
         if ($hasDistributionInventory) {
             if ($descriptor.PSObject.Properties.Name -notcontains
                     'DistributionRoot' -or
                 $descriptor.PSObject.Properties.Name -notcontains
                     'DistributionFiles' -or
-                ($role -cne 'CSharpCompiler' -and
-                    $role -cne 'Python' -and
-                    $role -cne 'PythonDocx' -and
-                    $role -cne 'PyPdf')) {
+                -not $requiresDistributionInventory) {
                 throw "Release toolchain $role distribution inventory is incomplete or unexpected."
             }
             $packageDigest = Get-LmcDistributionInstalledPackageDigest `
@@ -736,6 +798,9 @@ function New-LmcDistributionToolchainSnapshot {
             $inventoryFileCounts[$role] = $packageDigest.FileCount
         }
         else {
+            if ($requiresDistributionInventory) {
+                throw "Release toolchain $role distribution inventory is required."
+            }
             $hash = (Get-FileHash `
                 -LiteralPath $physicalPath `
                 -Algorithm SHA256).Hash.ToUpperInvariant()
@@ -782,11 +847,9 @@ function Assert-LmcDistributionToolchainManifestBinding {
         [string]$Sha256
     )
 
-    $expectedRoles = @(
-        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
-        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
-    if ($Records.Count -ne 8) {
-        throw 'Release toolchain manifest must contain exactly eight records.'
+    $expectedRoles = @(Get-LmcDistributionExpectedToolchainRoles)
+    if ($Records.Count -ne 13) {
+        throw 'Release toolchain manifest must contain exactly thirteen records.'
     }
     $validated = @()
     foreach ($record in @($Records)) {
@@ -943,6 +1006,311 @@ function Resolve-LmcDistributionCSharpCompiler {
     }
 }
 
+function ConvertTo-LmcDistributionPythonRootRelativeFiles {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$DistributionLocation,
+        [Parameter(Mandatory = $true)]
+        [string[]]$MetadataFiles,
+        [Parameter(Mandatory = $true)]
+        [string]$Context
+    )
+
+    $root = Resolve-LmcDistributionProvenancePhysicalDirectory `
+        -Path $PythonRoot `
+        -Context "$Context Python root"
+    $rootPrefix = $root + '\'
+    $location = Resolve-LmcDistributionProvenancePhysicalDirectory `
+        -Path $DistributionLocation `
+        -Context "$Context metadata location"
+    if (-not $location.Equals(
+            $root,
+            [System.StringComparison]::OrdinalIgnoreCase) -and
+        -not $location.StartsWith(
+            $rootPrefix,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "$Context metadata location escaped the Python root."
+    }
+    if ($MetadataFiles.Count -eq 0) {
+        throw "$Context metadata inventory is empty."
+    }
+    $relativeFiles = @()
+    foreach ($rawFile in @($MetadataFiles)) {
+        $metadataFile = [string]$rawFile
+        if ([string]::IsNullOrWhiteSpace($metadataFile) -or
+            [System.IO.Path]::IsPathRooted($metadataFile) -or
+            $metadataFile.IndexOfAny(
+                [char[]]@('|', "`r", "`n")) -ge 0) {
+            throw "$Context metadata inventory path is malformed: $metadataFile"
+        }
+        $physical = [System.IO.Path]::GetFullPath(
+            (Join-Path $location $metadataFile.Replace('/', '\')))
+        if (-not $physical.StartsWith(
+                $rootPrefix,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "$Context metadata inventory escaped the Python root: $metadataFile"
+        }
+        $relativeFiles += $physical.Substring(
+            $root.Length + 1).Replace('\', '/')
+    }
+    return @(Get-LmcDistributionProvenanceOrdinalStrings `
+        -Values $relativeFiles `
+        -IgnoreCaseForUniqueness)
+}
+
+function Assert-LmcDistributionPythonOwnerlessModuleEvidence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$OwnerlessModules,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PythonRoot
+    )
+
+    $root = Resolve-LmcDistributionProvenancePhysicalDirectory `
+        -Path $PythonRoot `
+        -Context 'Python ownerless module runtime'
+    $rootPrefix = $root + '\'
+
+    $seenNames = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::Ordinal)
+    foreach ($module in @($OwnerlessModules)) {
+        foreach ($propertyName in @('Name', 'Origin', 'Paths')) {
+            if ($module.PSObject.Properties.Name -notcontains
+                    $propertyName) {
+                throw "Python ownerless module evidence is missing $propertyName."
+            }
+        }
+        $name = [string]$module.Name
+        if ($name -notmatch '^[A-Za-z_][A-Za-z0-9_.]*$' -or
+            -not $seenNames.Add($name)) {
+            throw "Python ownerless module name is malformed or duplicated: $name"
+        }
+        $origin = [string]$module.Origin
+        $paths = @(
+            Get-LmcDistributionProvenanceOrdinalStrings `
+                -Values @($module.Paths | ForEach-Object {
+                    [string]$_
+                }) `
+                -IgnoreCaseForUniqueness)
+        if ($origin -ceq 'built-in' -or $origin -ceq 'frozen') {
+            if ($paths.Count -ne 0) {
+                throw "Python built-in/frozen module has physical paths: $name"
+            }
+            continue
+        }
+
+        if ($paths.Count -eq 0) {
+            $isCryptographySynthetic =
+                $name -ceq '_openssl' -or
+                $name -ceq '_openssl.lib' -or
+                $name -ceq 'cython_runtime' -or
+                $name -match '^_cython_[0-9]+(?:_[0-9]+)+$'
+            $isRuntimeSynthetic = $name -in @(
+                'pyexpat.errors',
+                'pyexpat.model',
+                'xml.parsers.expat.errors',
+                'xml.parsers.expat.model')
+            if (-not [string]::IsNullOrEmpty($origin) -or
+                (-not $isCryptographySynthetic -and
+                    -not $isRuntimeSynthetic)) {
+                throw "Python ownerless module has an unexpected no-origin contract: $name"
+            }
+            continue
+        }
+
+        if (-not [string]::IsNullOrEmpty($origin) -and
+            $origin -ne 'namespace' -and
+            -not [System.IO.Path]::IsPathRooted($origin)) {
+            throw "Python ownerless module origin is malformed: $name"
+        }
+        foreach ($rawPath in $paths) {
+            if (-not [System.IO.Path]::IsPathRooted($rawPath)) {
+                throw "Python ownerless module path is not absolute: $name"
+            }
+            $fullPath = [System.IO.Path]::GetFullPath($rawPath)
+            if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+                $physical = Resolve-LmcDistributionProvenancePhysicalFile `
+                    -Path $fullPath `
+                    -Context "Python ownerless module $name"
+            }
+            elseif (Test-Path -LiteralPath $fullPath -PathType Container) {
+                $physical = Resolve-LmcDistributionProvenancePhysicalDirectory `
+                    -Path $fullPath `
+                    -Context "Python ownerless module $name"
+            }
+            else {
+                throw "Python ownerless module path was not found: $name"
+            }
+            if ($physical.Equals(
+                    $root,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                $relative = ''
+            }
+            elseif ($physical.StartsWith(
+                    $rootPrefix,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                $relative = $physical.Substring(
+                    $root.Length + 1).Replace('\', '/')
+            }
+            else {
+                throw "Python ownerless module escaped the runtime root: $name"
+            }
+            if ($relative.Equals(
+                    'Scripts',
+                    [System.StringComparison]::OrdinalIgnoreCase) -or
+                $relative.StartsWith(
+                    'Scripts/',
+                    [System.StringComparison]::OrdinalIgnoreCase) -or
+                $relative.Equals(
+                    'Lib/site-packages',
+                    [System.StringComparison]::OrdinalIgnoreCase) -or
+                $relative.StartsWith(
+                    'Lib/site-packages/',
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Python ownerless module used an excluded runtime path: $name"
+            }
+        }
+    }
+}
+
+function ConvertTo-LmcDistributionPythonDescriptorsFromEvidence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Evidence,
+        [Parameter(Mandatory = $true)]
+        [string]$CandidatePath
+    )
+
+    foreach ($propertyName in @(
+            'Executable', 'PythonVersion', 'BasePrefix',
+            'ActiveOwners', 'OwnerlessModules', 'Packages')) {
+        if ($Evidence.PSObject.Properties.Name -notcontains
+                $propertyName) {
+            throw "Python provenance evidence is missing $propertyName."
+        }
+    }
+    $candidate = Resolve-LmcDistributionProvenancePhysicalFile `
+        -Path $CandidatePath `
+        -Context 'Python evidence candidate'
+    $reportedExecutable = [System.IO.Path]::GetFullPath(
+        [string]$Evidence.Executable)
+    if (-not $reportedExecutable.Equals(
+            $candidate,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Python reported a different executable path.'
+    }
+    $pythonVersion = [string]$Evidence.PythonVersion
+    Assert-LmcDistributionProvenanceSafeToken `
+        -Value $pythonVersion `
+        -Context 'Python provenance version'
+    $pythonRoot = Resolve-LmcDistributionProvenancePhysicalDirectory `
+        -Path ([string]$Evidence.BasePrefix) `
+        -Context 'Python runtime distribution'
+
+    $contracts = @(Get-LmcDistributionPythonPackageContracts)
+    $expectedOwners = @(
+        Get-LmcDistributionProvenanceOrdinalStrings `
+            -Values @($contracts | ForEach-Object {
+                $_.Distribution
+            }))
+    $activeOwners = @(
+        Get-LmcDistributionProvenanceOrdinalStrings `
+            -Values @($Evidence.ActiveOwners | ForEach-Object {
+                [string]$_
+            }))
+    if (($activeOwners -join "`n") -cne
+            ($expectedOwners -join "`n")) {
+        throw 'Python active distribution owner set is not exact.'
+    }
+
+    $packageEvidence = @($Evidence.Packages)
+    if ($packageEvidence.Count -ne $contracts.Count) {
+        throw 'Python active package evidence count is not exact.'
+    }
+    $contractByRole = @{}
+    foreach ($contract in $contracts) {
+        $contractByRole[[string]$contract.Role] = $contract
+    }
+    $packageDescriptors = @()
+    $observedRoles = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([System.StringComparer]::Ordinal)
+    foreach ($package in $packageEvidence) {
+        foreach ($propertyName in @(
+                'Role', 'Distribution', 'Version', 'Module',
+                'ModulePath', 'DistributionLocation',
+                'DistributionFiles')) {
+            if ($package.PSObject.Properties.Name -notcontains
+                    $propertyName) {
+                throw "Python active package evidence is missing $propertyName."
+            }
+        }
+        $role = [string]$package.Role
+        if (-not $contractByRole.ContainsKey($role) -or
+            -not $observedRoles.Add($role)) {
+            throw "Python active package role is unexpected or duplicated: $role"
+        }
+        $contract = $contractByRole[$role]
+        if ([string]$package.Distribution -cne
+                [string]$contract.Distribution -or
+            [string]$package.Module -cne
+                [string]$contract.Module) {
+            throw "Python active package ownership is invalid: $role"
+        }
+        $version = [string]$package.Version
+        Assert-LmcDistributionProvenanceSafeToken `
+            -Value $version `
+            -Context "Python $role version"
+        $modulePath = Resolve-LmcDistributionProvenancePhysicalFile `
+            -Path ([string]$package.ModulePath) `
+            -Context "Python $role imported module"
+        $distributionFiles = @(
+            ConvertTo-LmcDistributionPythonRootRelativeFiles `
+                -PythonRoot $pythonRoot `
+                -DistributionLocation `
+                    ([string]$package.DistributionLocation) `
+                -MetadataFiles ([string[]]@(
+                    $package.DistributionFiles | ForEach-Object {
+                        [string]$_
+                    })) `
+                -Context "Python $role")
+        $packageDescriptors += [pscustomobject]@{
+            Role = $role
+            Version = $version
+            Path = $modulePath
+            DistributionRoot = $pythonRoot
+            DistributionFiles = [string[]]$distributionFiles
+        }
+    }
+    foreach ($contract in $contracts) {
+        if (-not $observedRoles.Contains([string]$contract.Role)) {
+            throw "Python active package role is missing: $($contract.Role)"
+        }
+    }
+    Assert-LmcDistributionPythonOwnerlessModuleEvidence `
+        -OwnerlessModules @($Evidence.OwnerlessModules) `
+        -PythonRoot $pythonRoot
+    $pythonFiles = @(Get-LmcDistributionPhysicalInventoryFiles `
+        -Root $pythonRoot `
+        -Context 'Python runtime distribution' `
+        -ExcludedRelativePrefixes @(
+            'Lib/site-packages',
+            'Scripts'))
+    return @(
+        [pscustomobject]@{
+            Role = 'Python'
+            Version = $pythonVersion
+            Path = $candidate
+            DistributionRoot = $pythonRoot
+            DistributionFiles = [string[]]$pythonFiles
+        }) + $packageDescriptors
+}
+
 function Resolve-LmcDistributionPythonDescriptors {
     param(
         [Parameter(Mandatory = $true)]
@@ -975,99 +1343,208 @@ function Resolve-LmcDistributionPythonDescriptors {
         throw 'No physical Python candidate was found.'
     }
     $probeCode = @'
-import base64, importlib.metadata as m, json, sys
-import docx, pypdf
-e=lambda s:base64.b64encode(str(s).encode("utf-8")).decode("ascii")
-d=lambda n:m.distribution(n)
-f=lambda x:json.dumps([str(v) for v in x.files],separators=(",",":"))
-print("LMC_PY|"+"|".join([e(sys.executable),e(sys.version.split()[0]),e(docx.__version__),e(d("python-docx").version),e(docx.__file__),e(d("python-docx").locate_file("")),e(f(d("python-docx"))),e(pypdf.__version__),e(d("pypdf").version),e(pypdf.__file__),e(d("pypdf").locate_file("")),e(f(d("pypdf"))),e(sys.base_prefix)]))
+import base64
+import importlib.metadata as metadata
+import json
+import os
+import re
+import sys
+
+baseline_modules = set(sys.modules)
+from docx import Document
+from pypdf import PdfReader
+workload_modules = set(sys.modules) - baseline_modules
+
+canonicalize = lambda value: re.sub(r"[-_.]+", "-", str(value)).lower()
+physical_owners = {}
+for installed_distribution in metadata.distributions():
+    installed_name = installed_distribution.metadata.get("Name")
+    installed_files = installed_distribution.files
+    if not installed_name or not installed_files:
+        continue
+    canonical_name = canonicalize(installed_name)
+    for installed_file in installed_files:
+        physical_file = os.path.normcase(
+            os.path.abspath(
+                str(installed_distribution.locate_file(installed_file))
+            )
+        )
+        physical_owners.setdefault(physical_file, set()).add(canonical_name)
+
+active_owners = set()
+ownerless_modules = []
+for module_name in sorted(workload_modules):
+    module = sys.modules.get(module_name)
+    module_file = getattr(module, "__file__", None)
+    module_owners = set()
+    if module_file:
+        module_owners.update(
+            physical_owners.get(
+                os.path.normcase(os.path.abspath(str(module_file))),
+                (),
+            )
+        )
+    if module_owners:
+        active_owners.update(module_owners)
+        continue
+
+    module_spec = getattr(module, "__spec__", None)
+    module_origin = getattr(module_spec, "origin", None)
+    module_paths = []
+    if module_file:
+        module_paths.append(str(module_file))
+    module_search_paths = getattr(module, "__path__", None)
+    if module_search_paths is not None:
+        module_paths.extend(str(value) for value in module_search_paths)
+    if (
+        module_origin
+        and module_origin not in ("built-in", "frozen", "namespace")
+        and os.path.isabs(str(module_origin))
+    ):
+        module_paths.append(str(module_origin))
+    ownerless_modules.append(
+        {
+            "Name": module_name,
+            "Origin": "" if module_origin is None else str(module_origin),
+            "Paths": sorted(set(module_paths)),
+        }
+    )
+
+contracts = (
+    ("PythonCffi", "cffi", "_cffi_backend"),
+    ("PythonCryptography", "cryptography", "cryptography"),
+    ("PythonLxml", "lxml", "lxml"),
+    ("PythonPillow", "pillow", "PIL"),
+    ("PythonTypingExtensions", "typing-extensions", "typing_extensions"),
+    ("PythonDocx", "python-docx", "docx"),
+    ("PyPdf", "pypdf", "pypdf"),
+)
+expected_owners = {distribution for _, distribution, _ in contracts}
+if active_owners != expected_owners:
+    mismatch_payload = {
+        "Expected": sorted(expected_owners),
+        "Actual": sorted(active_owners),
+    }
+    mismatch_encoded = base64.b64encode(
+        json.dumps(mismatch_payload, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    print("LMC_PY_OWNER_MISMATCH|" + mismatch_encoded)
+    sys.exit(0)
+
+packages = []
+for role, distribution_name, module_name in contracts:
+    module = sys.modules.get(module_name)
+    if module is None or not getattr(module, "__file__", None):
+        raise RuntimeError("active module is missing: " + module_name)
+    module_owners = physical_owners.get(
+        os.path.normcase(os.path.abspath(str(module.__file__))),
+        set(),
+    )
+    if module_owners != {distribution_name}:
+        raise RuntimeError(
+            "active module ownership mismatch: "
+            + module_name
+            + "="
+            + ",".join(sorted(module_owners))
+        )
+    distribution = metadata.distribution(distribution_name)
+    version = str(distribution.version)
+    module_version = getattr(module, "__version__", None)
+    if module_version is not None and str(module_version) != version:
+        raise RuntimeError(
+            "module and distribution versions differ: " + distribution_name
+        )
+    distribution_files = distribution.files
+    if not distribution_files:
+        raise RuntimeError(
+            "distribution file inventory is empty: " + distribution_name
+        )
+    packages.append(
+        {
+            "Role": role,
+            "Distribution": distribution_name,
+            "Version": version,
+            "Module": module_name,
+            "ModulePath": str(module.__file__),
+            "DistributionLocation": str(distribution.locate_file("")),
+            "DistributionFiles": [str(value) for value in distribution_files],
+        }
+    )
+
+payload = {
+    "Executable": sys.executable,
+    "PythonVersion": sys.version.split()[0],
+    "BasePrefix": sys.base_prefix,
+    "ActiveOwners": sorted(active_owners),
+    "OwnerlessModules": ownerless_modules,
+    "Packages": packages,
+}
+encoded = base64.b64encode(
+    json.dumps(payload, separators=(",", ":")).encode("utf-8")
+).decode("ascii")
+print("LMC_PY|" + encoded)
 '@.Trim()
     $rejections = @()
     foreach ($candidate in $orderedCandidates) {
         try {
             $line = Get-LmcDistributionToolchainProbeLine `
                 -ExecutablePath $candidate `
-                -Arguments @('-c', $probeCode) `
+                -Arguments @('-B', '-c', $probeCode) `
                 -WorkingDirectory $WorkingDirectory `
                 -Context 'Python'
             $parts = @($line -split '\|')
-            if ($parts.Count -ne 14 -or $parts[0] -cne 'LMC_PY') {
-                throw 'Python provenance evidence is malformed.'
-            }
-            $decoded = @()
-            for ($index = 1; $index -lt $parts.Count; $index++) {
+            if ($parts.Count -eq 2 -and
+                $parts[0] -ceq 'LMC_PY_OWNER_MISMATCH') {
                 try {
-                    $decoded += [System.Text.Encoding]::UTF8.GetString(
-                        [System.Convert]::FromBase64String($parts[$index]))
+                    $mismatchJson = [System.Text.Encoding]::UTF8.GetString(
+                        [System.Convert]::FromBase64String($parts[1]))
+                    $mismatch = ConvertFrom-Json -InputObject $mismatchJson
+                    if ($mismatch.PSObject.Properties.Name -notcontains
+                            'Expected' -or
+                        $mismatch.PSObject.Properties.Name -notcontains
+                            'Actual') {
+                        throw 'missing owner fields'
+                    }
+                    $expectedMismatchOwners = @(
+                        Get-LmcDistributionProvenanceOrdinalStrings `
+                            -Values @($mismatch.Expected | ForEach-Object {
+                                [string]$_
+                            }))
+                    $actualMismatchOwners = @(
+                        Get-LmcDistributionProvenanceOrdinalStrings `
+                            -Values @($mismatch.Actual | ForEach-Object {
+                                [string]$_
+                            }))
+                    foreach ($owner in @(
+                            $expectedMismatchOwners +
+                            $actualMismatchOwners)) {
+                        Assert-LmcDistributionProvenanceSafeToken `
+                            -Value $owner `
+                            -Context 'Python active distribution owner'
+                    }
                 }
                 catch {
-                    throw 'Python provenance evidence contains invalid base64.'
+                    throw 'Python owner mismatch evidence is malformed.'
                 }
+                throw (
+                    'Python active distribution owner set mismatch: ' +
+                    'expected=' + ($expectedMismatchOwners -join ',') +
+                    ' actual=' + ($actualMismatchOwners -join ','))
             }
-            $reportedExecutable = [System.IO.Path]::GetFullPath($decoded[0])
-            if (-not $reportedExecutable.Equals(
-                    $candidate,
-                    [System.StringComparison]::OrdinalIgnoreCase)) {
-                throw 'Python reported a different executable path.'
+            if ($parts.Count -ne 2 -or $parts[0] -cne 'LMC_PY') {
+                throw 'Python provenance evidence is malformed.'
             }
-            if ($decoded[2] -cne $decoded[3]) {
-                throw 'python-docx module and distribution versions differ.'
+            try {
+                $decoded = [System.Text.Encoding]::UTF8.GetString(
+                    [System.Convert]::FromBase64String($parts[1]))
+                $evidence = ConvertFrom-Json -InputObject $decoded
             }
-            if ($decoded[7] -cne $decoded[8]) {
-                throw 'pypdf module and distribution versions differ.'
+            catch {
+                throw 'Python provenance evidence contains invalid base64 or JSON.'
             }
-            foreach ($version in @($decoded[1], $decoded[2], $decoded[7])) {
-                Assert-LmcDistributionProvenanceSafeToken `
-                    -Value $version `
-                    -Context 'Python provenance version'
-            }
-            $docxPath = Resolve-LmcDistributionProvenancePhysicalFile `
-                -Path $decoded[4] `
-                -Context 'python-docx imported module'
-            $docxParsedFiles = ConvertFrom-Json `
-                -InputObject $decoded[6]
-            $docxFiles = @()
-            foreach ($docxParsedFile in $docxParsedFiles) {
-                $docxFiles += [string]$docxParsedFile
-            }
-            $pypdfPath = Resolve-LmcDistributionProvenancePhysicalFile `
-                -Path $decoded[9] `
-                -Context 'pypdf imported module'
-            $pypdfParsedFiles = ConvertFrom-Json `
-                -InputObject $decoded[11]
-            $pypdfFiles = @()
-            foreach ($pypdfParsedFile in $pypdfParsedFiles) {
-                $pypdfFiles += [string]$pypdfParsedFile
-            }
-            $pythonRoot = Resolve-LmcDistributionProvenancePhysicalDirectory `
-                -Path $decoded[12] `
-                -Context 'Python runtime distribution'
-            $pythonFiles = @(Get-LmcDistributionPhysicalInventoryFiles `
-                -Root $pythonRoot `
-                -Context 'Python runtime distribution' `
-                -ExcludedRelativePrefixes @('Lib/site-packages'))
-            return @(
-                [pscustomobject]@{
-                    Role = 'Python'
-                    Version = $decoded[1]
-                    Path = $candidate
-                    DistributionRoot = $pythonRoot
-                    DistributionFiles = [string[]]$pythonFiles
-                },
-                [pscustomobject]@{
-                    Role = 'PythonDocx'
-                    Version = $decoded[2]
-                    Path = $docxPath
-                    DistributionRoot = $decoded[5]
-                    DistributionFiles = [string[]]$docxFiles
-                },
-                [pscustomobject]@{
-                    Role = 'PyPdf'
-                    Version = $decoded[7]
-                    Path = $pypdfPath
-                    DistributionRoot = $decoded[10]
-                    DistributionFiles = [string[]]$pypdfFiles
-                })
+            return @(ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $evidence `
+                -CandidatePath $candidate)
         }
         catch {
             $rejections += $_.Exception.Message

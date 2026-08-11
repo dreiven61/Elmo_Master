@@ -136,22 +136,135 @@ function New-FixtureAttestation {
 function New-FixtureDescriptors {
     param([Parameter(Mandatory = $true)][string]$Root)
 
-    $roles = @(
-        'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
-        'PyPdf', 'Python', 'PythonDocx', 'VsWhere')
+    $roles = @(Get-LmcDistributionExpectedToolchainRoles)
+    $inventoryRequiredRoles = @(
+        Get-LmcDistributionInventoryRequiredRoles)
+    $pythonRoot = Join-Path $Root 'python-runtime'
     $descriptors = @()
     $index = 0
     foreach ($role in $roles) {
-        $path = Join-Path $Root ("$role.bin")
-        Write-FixtureFile -Path $path -Content ("fixture-$role-v1")
-        $descriptors += [pscustomobject]@{
-            Role = $role
-            Version = "1.0.$index"
-            Path = $path
+        if ($inventoryRequiredRoles -ccontains $role) {
+            if ($role -ceq 'CSharpCompiler') {
+                $distributionRoot = Join-Path $Root 'inventory-CSharpCompiler'
+                $moduleRelative = 'CSharpCompiler.bin'
+                $secondaryRelative = 'CSharpCompiler-secondary.bin'
+            }
+            elseif ($role -ceq 'Python') {
+                $distributionRoot = $pythonRoot
+                $moduleRelative = 'python.exe'
+                $secondaryRelative = 'Lib/core.py'
+            }
+            else {
+                $distributionRoot = $pythonRoot
+                $moduleRelative = if ($role -ceq 'PythonCryptography') {
+                    'Lib/site-packages/cryptography/__init__.py'
+                }
+                else {
+                    "Lib/site-packages/$role/$role.bin"
+                }
+                $secondaryRelative = if ($role -ceq 'PythonCffi') {
+                    'Scripts/cffi-gen-src.exe'
+                }
+                elseif ($role -ceq 'PythonLxml') {
+                    'Lib/site-packages/PythonLxml/__pycache__/lxml.fixture.pyc'
+                }
+                else {
+                    "Lib/site-packages/$role/$role-secondary.bin"
+                }
+            }
+            $path = Join-Path $distributionRoot $moduleRelative
+            Write-FixtureFile `
+                -Path $path `
+                -Content ("fixture-$role-v1")
+            Write-FixtureFile `
+                -Path (Join-Path $distributionRoot $secondaryRelative) `
+                -Content ("fixture-$role-secondary-v1")
+            $descriptors += [pscustomobject]@{
+                Role = $role
+                Version = "1.0.$index"
+                Path = $path
+                DistributionRoot = $distributionRoot
+                DistributionFiles = @(
+                    $moduleRelative,
+                    $secondaryRelative)
+            }
+        }
+        else {
+            $path = Join-Path $Root ("$role.bin")
+            Write-FixtureFile -Path $path -Content ("fixture-$role-v1")
+            $descriptors += [pscustomobject]@{
+                Role = $role
+                Version = "1.0.$index"
+                Path = $path
+            }
         }
         $index++
     }
     return @($descriptors)
+}
+
+function Copy-FixtureDescriptors {
+    param([Parameter(Mandatory = $true)][object[]]$Descriptors)
+
+    return @($Descriptors | ForEach-Object {
+        $copy = [ordered]@{
+            Role = $_.Role
+            Version = $_.Version
+            Path = $_.Path
+        }
+        if ($_.PSObject.Properties.Name -contains 'DistributionRoot') {
+            $copy.DistributionRoot = $_.DistributionRoot
+            $copy.DistributionFiles = [string[]]@($_.DistributionFiles)
+        }
+        [pscustomobject]$copy
+    })
+}
+
+function New-FixturePythonEvidence {
+    param([Parameter(Mandatory = $true)][object[]]$Descriptors)
+
+    $contracts = @(Get-LmcDistributionPythonPackageContracts)
+    $python = @($Descriptors | Where-Object {
+        $_.Role -ceq 'Python'
+    })[0]
+    $packages = @()
+    foreach ($contract in $contracts) {
+        $descriptor = @($Descriptors | Where-Object {
+            $_.Role -ceq $contract.Role
+        })[0]
+        $packages += [pscustomobject]@{
+            Role = $contract.Role
+            Distribution = $contract.Distribution
+            Version = $descriptor.Version
+            Module = $contract.Module
+            ModulePath = $descriptor.Path
+            DistributionLocation = Join-Path `
+                $python.DistributionRoot `
+                'Lib\site-packages'
+            DistributionFiles = [string[]]@(
+                $descriptor.DistributionFiles | ForEach-Object {
+                    $relative = ([string]$_).Replace('\', '/')
+                    if ($relative.StartsWith(
+                            'Lib/site-packages/',
+                            [System.StringComparison]::Ordinal)) {
+                        $relative.Substring('Lib/site-packages/'.Length)
+                    }
+                    else {
+                        '../../' + $relative
+                    }
+                })
+        }
+    }
+    return [pscustomobject]@{
+        Executable = $python.Path
+        PythonVersion = $python.Version
+        BasePrefix = $python.DistributionRoot
+        ActiveOwners = [string[]]@($contracts | ForEach-Object {
+            $_.Distribution
+        })
+        OwnerlessModules = @()
+        Packages = @($packages)
+    }
 }
 
 function Remove-FixtureRoot {
@@ -191,7 +304,7 @@ try {
 
     Assert-Equal -Expected 'PASS' -Actual $snapshot.Result `
         -Message 'Fixture toolchain snapshot did not pass.'
-    Assert-Equal -Expected 8 -Actual $snapshot.RecordCount `
+    Assert-Equal -Expected 13 -Actual $snapshot.RecordCount `
         -Message 'Fixture toolchain snapshot role count drifted.'
     Assert-True `
         -Condition ($snapshot.ToolchainSha256 -match '^[0-9A-F]{64}$') `
@@ -225,8 +338,8 @@ try {
         Assert-LmcDistributionToolchainManifestBinding `
             -Records $snapshot.Records `
             -Sha256 $snapshot.ToolchainSha256)
-    Assert-Equal -Expected 8 -Actual $manifestRecords.Count `
-        -Message 'Manifest toolchain binding did not preserve eight roles.'
+    Assert-Equal -Expected 13 -Actual $manifestRecords.Count `
+        -Message 'Manifest toolchain binding did not preserve thirteen roles.'
     $manifestAttestation = `
         Assert-LmcDistributionToolingPreflightManifestBinding `
             -Result $snapshot.ToolingPreflightResult `
@@ -266,12 +379,26 @@ try {
     Assert-Throws `
         -Action {
             New-LmcDistributionToolchainSnapshot `
-                -Descriptors @($descriptors | Select-Object -First 7) `
+                -Descriptors @($descriptors | Select-Object -First 12) `
                 -ToolingPreflight $attestation
         } `
-        -ExpectedMessage 'descriptor count must be 8'
+        -ExpectedMessage 'descriptor count must be 13'
 
-    $duplicateDescriptors = @($descriptors | Select-Object -First 7) +
+    $oldEightRoleDescriptors = @($descriptors | Where-Object {
+        @(
+            'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell',
+            'PyPdf', 'Python', 'PythonDocx', 'VsWhere') -ccontains
+            $_.Role
+    })
+    Assert-Throws `
+        -Action {
+            New-LmcDistributionToolchainSnapshot `
+                -Descriptors $oldEightRoleDescriptors `
+                -ToolingPreflight $attestation
+        } `
+        -ExpectedMessage 'descriptor count must be 13'
+
+    $duplicateDescriptors = @($descriptors | Select-Object -First 12) +
         @($descriptors[0])
     Assert-Throws `
         -Action {
@@ -281,13 +408,8 @@ try {
         } `
         -ExpectedMessage 'logical role is duplicated'
 
-    $malformedDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    $malformedDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $malformedDescriptors[0].Version = 'C:\leaked\compiler'
     Assert-Throws `
         -Action {
@@ -297,13 +419,8 @@ try {
         } `
         -ExpectedMessage 'malformed or contains a path'
 
-    $missingDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    $missingDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $missingDescriptors[0].Path = Join-Path $fixtureRoot 'missing.bin'
     Assert-Throws `
         -Action {
@@ -313,27 +430,346 @@ try {
         } `
         -ExpectedMessage 'file was not found'
 
+    foreach ($inventoryRequiredRole in @(
+            Get-LmcDistributionInventoryRequiredRoles)) {
+        $missingInventoryDescriptors = @(
+            Copy-FixtureDescriptors -Descriptors $descriptors)
+        $missingInventoryDescriptor = @(
+            $missingInventoryDescriptors | Where-Object {
+                $_.Role -ceq $inventoryRequiredRole
+            })[0]
+        $missingInventoryDescriptor.PSObject.Properties.Remove(
+            'DistributionRoot')
+        $missingInventoryDescriptor.PSObject.Properties.Remove(
+            'DistributionFiles')
+        Assert-Throws `
+            -Action {
+                New-LmcDistributionToolchainSnapshot `
+                    -Descriptors $missingInventoryDescriptors `
+                    -ToolingPreflight $attestation
+            } `
+            -ExpectedMessage 'distribution inventory is required'
+    }
+
+    $unexpectedInventoryDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
+    $unexpectedInventoryDescriptor = @(
+        $unexpectedInventoryDescriptors | Where-Object {
+            $_.Role -ceq 'Git'
+        })[0]
+    $unexpectedInventoryDescriptor | Add-Member `
+        -MemberType NoteProperty `
+        -Name DistributionRoot `
+        -Value $fixtureRoot
+    $unexpectedInventoryDescriptor | Add-Member `
+        -MemberType NoteProperty `
+        -Name DistributionFiles `
+        -Value @([System.IO.Path]::GetFileName(
+            $unexpectedInventoryDescriptor.Path))
+    Assert-Throws `
+        -Action {
+            New-LmcDistributionToolchainSnapshot `
+                -Descriptors $unexpectedInventoryDescriptors `
+                -ToolingPreflight $attestation
+        } `
+        -ExpectedMessage 'inventory is incomplete or unexpected'
+
+    $fixturePythonRoot = @($descriptors | Where-Object {
+        $_.Role -ceq 'Python'
+    })[0].DistributionRoot
+    $fixturePythonScriptsUnrelated = Join-Path `
+        $fixturePythonRoot `
+        'Scripts\unrelated.exe'
+    Write-FixtureFile `
+        -Path $fixturePythonScriptsUnrelated `
+        -Content 'scripts-unrelated-v1'
+    $pythonEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $parsedPythonDescriptors = @(
+        ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+            -Evidence $pythonEvidence `
+            -CandidatePath $pythonEvidence.Executable)
+    Assert-Equal -Expected 8 -Actual $parsedPythonDescriptors.Count `
+        -Message 'Exact active Python package evidence did not produce eight descriptors.'
+    Assert-True `
+        -Condition ($parsedPythonDescriptors.Role -ccontains 'PythonCffi' -and
+            @($parsedPythonDescriptors | Where-Object {
+                $_.Role -ceq 'PythonCffi'
+            })[0].Path.EndsWith(
+                'PythonCffi.bin',
+                [System.StringComparison]::Ordinal) -and
+            @($parsedPythonDescriptors | Where-Object {
+                $_.Role -ceq 'PythonCffi'
+            })[0].DistributionFiles -ccontains
+                'Scripts/cffi-gen-src.exe') `
+        -Message 'cffi backend or root-relative Scripts inventory was not bound.'
+    Assert-True `
+        -Condition (@($parsedPythonDescriptors | Where-Object {
+            $_.Role -ceq 'PythonLxml'
+        })[0].DistributionFiles -ccontains
+            'Lib/site-packages/PythonLxml/__pycache__/lxml.fixture.pyc') `
+        -Message 'Active dependency pyc inventory was not retained.'
+
+    $ownerlessStdlibPath = Join-Path $fixturePythonRoot `
+        'Lib\ownerless_stdlib.py'
+    Write-FixtureFile `
+        -Path $ownerlessStdlibPath `
+        -Content 'ownerless-stdlib-v1'
+    $validOwnerlessEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $validOwnerlessEvidence.OwnerlessModules = @(
+        [pscustomobject]@{
+            Name = '_fixture_builtin'
+            Origin = 'built-in'
+            Paths = @()
+        },
+        [pscustomobject]@{
+            Name = 'fixture_stdlib'
+            Origin = $ownerlessStdlibPath
+            Paths = @($ownerlessStdlibPath)
+        },
+        [pscustomobject]@{
+            Name = '_openssl'
+            Origin = ''
+            Paths = @()
+        },
+        [pscustomobject]@{
+            Name = '_openssl.lib'
+            Origin = ''
+            Paths = @()
+        },
+        [pscustomobject]@{
+            Name = 'cython_runtime'
+            Origin = ''
+            Paths = @()
+        },
+        [pscustomobject]@{
+            Name = '_cython_9_12_3'
+            Origin = ''
+            Paths = @()
+        },
+        [pscustomobject]@{
+            Name = 'pyexpat.errors'
+            Origin = ''
+            Paths = @()
+        })
+    Assert-Equal `
+        -Expected 8 `
+        -Actual @(ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+            -Evidence $validOwnerlessEvidence `
+            -CandidatePath $validOwnerlessEvidence.Executable).Count `
+        -Message 'Validated runtime and narrow synthetic ownerless modules were rejected.'
+
+    $ownerlessSitePackagesPath = Join-Path $fixturePythonRoot `
+        'Lib\site-packages\unowned_namespace'
+    Write-FixtureFile `
+        -Path (Join-Path $ownerlessSitePackagesPath '__init__.py') `
+        -Content 'unowned-site-packages-v1'
+    $ownerlessSitePackagesEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $ownerlessSitePackagesEvidence.OwnerlessModules = @(
+        [pscustomobject]@{
+            Name = 'unowned_namespace'
+            Origin = ''
+            Paths = @($ownerlessSitePackagesPath)
+        })
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $ownerlessSitePackagesEvidence `
+                -CandidatePath $ownerlessSitePackagesEvidence.Executable
+        } `
+        -ExpectedMessage 'excluded runtime path'
+
+    $ownerlessExternalPath = Join-Path $fixtureRoot `
+        'external-pythonpath\unowned_namespace'
+    Write-FixtureFile `
+        -Path (Join-Path $ownerlessExternalPath '__init__.py') `
+        -Content 'unowned-external-v1'
+    $ownerlessExternalEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $ownerlessExternalEvidence.OwnerlessModules = @(
+        [pscustomobject]@{
+            Name = 'external_namespace'
+            Origin = ''
+            Paths = @($ownerlessExternalPath)
+        })
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $ownerlessExternalEvidence `
+                -CandidatePath $ownerlessExternalEvidence.Executable
+        } `
+        -ExpectedMessage 'escaped the runtime root'
+
+    $unexpectedNoOriginEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $unexpectedNoOriginEvidence.OwnerlessModules = @(
+        [pscustomobject]@{
+            Name = 'unexpected_no_origin'
+            Origin = ''
+            Paths = @()
+        })
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $unexpectedNoOriginEvidence `
+                -CandidatePath $unexpectedNoOriginEvidence.Executable
+        } `
+        -ExpectedMessage 'unexpected no-origin contract'
+
+    $parsedFullDescriptors = @($descriptors | Where-Object {
+        @(
+            'CSharpCompiler', 'Git', 'MSBuild', 'PowerShell', 'VsWhere') `
+            -ccontains $_.Role
+    }) + $parsedPythonDescriptors
+    $parsedBeforeUnrelatedScripts = `
+        New-LmcDistributionToolchainSnapshot `
+            -Descriptors $parsedFullDescriptors `
+            -ToolingPreflight $attestation
+    Write-FixtureFile `
+        -Path $fixturePythonScriptsUnrelated `
+        -Content 'scripts-unrelated-v2'
+    $parsedAfterUnrelatedScripts = `
+        New-LmcDistributionToolchainSnapshot `
+            -Descriptors $parsedFullDescriptors `
+            -ToolingPreflight $attestation
+    Assert-Equal `
+        -Expected $parsedBeforeUnrelatedScripts.ToolchainSha256 `
+        -Actual $parsedAfterUnrelatedScripts.ToolchainSha256 `
+        -Message 'Unrelated Python Scripts entrypoint changed provenance.'
+    Write-FixtureFile `
+        -Path $fixturePythonScriptsUnrelated `
+        -Content 'scripts-unrelated-v1'
+
+    $escapeInventoryEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $escapeCffiPackage = @(
+        $escapeInventoryEvidence.Packages | Where-Object {
+            $_.Role -ceq 'PythonCffi'
+        })[0]
+    $escapeCffiPackage.DistributionFiles = @(
+        $escapeCffiPackage.DistributionFiles) + @('../../../escape.bin')
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $escapeInventoryEvidence `
+                -CandidatePath $escapeInventoryEvidence.Executable
+        } `
+        -ExpectedMessage 'escaped the Python root'
+
+    $metadataReparseTarget = Join-Path $fixtureRoot `
+        'metadata-reparse-target'
+    $metadataReparseLink = Join-Path `
+        $fixturePythonRoot `
+        'metadata-reparse-link'
+    Write-FixtureFile `
+        -Path (Join-Path $metadataReparseTarget 'module.bin') `
+        -Content 'metadata-reparse'
+    New-Item -ItemType Junction `
+        -Path $metadataReparseLink `
+        -Target $metadataReparseTarget | Out-Null
+    $script:TrackedReparsePaths.Add($metadataReparseLink)
+    $metadataReparseEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    @($metadataReparseEvidence.Packages | Where-Object {
+        $_.Role -ceq 'PythonCffi'
+    })[0].DistributionLocation = $metadataReparseLink
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $metadataReparseEvidence `
+                -CandidatePath $metadataReparseEvidence.Executable
+        } `
+        -ExpectedMessage 'contains a reparse point'
+
+    $missingOwnerEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $missingOwnerEvidence.ActiveOwners = @(
+        $missingOwnerEvidence.ActiveOwners | Where-Object {
+            $_ -cne 'cffi'
+        })
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $missingOwnerEvidence `
+                -CandidatePath $missingOwnerEvidence.Executable
+        } `
+        -ExpectedMessage 'owner set is not exact'
+
+    $duplicateOwnerEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $duplicateOwnerEvidence.ActiveOwners = @(
+        $duplicateOwnerEvidence.ActiveOwners) + @('cffi')
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $duplicateOwnerEvidence `
+                -CandidatePath $duplicateOwnerEvidence.Executable
+        } `
+        -ExpectedMessage 'value is duplicated'
+
+    $startupOwnerEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $startupOwnerEvidence.ActiveOwners = @(
+        $startupOwnerEvidence.ActiveOwners) + @('setuptools')
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $startupOwnerEvidence `
+                -CandidatePath $startupOwnerEvidence.Executable
+        } `
+        -ExpectedMessage 'owner set is not exact'
+
+    $ownershipEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    @($ownershipEvidence.Packages | Where-Object {
+        $_.Role -ceq 'PythonCffi'
+    })[0].Distribution = 'pycparser'
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $ownershipEvidence `
+                -CandidatePath $ownershipEvidence.Executable
+        } `
+        -ExpectedMessage 'ownership is invalid'
+
+    $extraPackageEvidence = New-FixturePythonEvidence `
+        -Descriptors $descriptors
+    $extraPackageEvidence.Packages = @(
+        $extraPackageEvidence.Packages) + @(
+        [pscustomobject]@{
+            Role = 'PythonPycparser'
+            Distribution = 'pycparser'
+            Version = '3.0'
+            Module = 'pycparser'
+            ModulePath = $descriptors[0].Path
+            DistributionLocation = $fixtureRoot
+            DistributionFiles = @(
+                [System.IO.Path]::GetFileName($descriptors[0].Path))
+        })
+    Assert-Throws `
+        -Action {
+            ConvertTo-LmcDistributionPythonDescriptorsFromEvidence `
+                -Evidence $extraPackageEvidence `
+                -CandidatePath $extraPackageEvidence.Executable
+        } `
+        -ExpectedMessage 'package evidence count is not exact'
+
     $roslynRoot = Join-Path $fixtureRoot 'roslyn-toolset'
     $roslynCompiler = Join-Path $roslynRoot 'csc.exe'
     $roslynSecondary = Join-Path $roslynRoot 'Microsoft.CodeAnalysis.dll'
     Write-FixtureFile -Path $roslynCompiler -Content 'compiler-v1'
     Write-FixtureFile -Path $roslynSecondary -Content 'compiler-task-v1'
-    $roslynDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    $roslynDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $roslynDescriptor = @($roslynDescriptors | Where-Object {
         $_.Role -ceq 'CSharpCompiler'
     })[0]
     $roslynDescriptor.Path = $roslynCompiler
-    $roslynDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionRoot -Value $roslynRoot
-    $roslynDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionFiles -Value @(
-            'csc.exe', 'Microsoft.CodeAnalysis.dll')
+    $roslynDescriptor.DistributionRoot = $roslynRoot
+    $roslynDescriptor.DistributionFiles = @(
+        'csc.exe', 'Microsoft.CodeAnalysis.dll')
     $roslynBefore = New-LmcDistributionToolchainSnapshot `
         -Descriptors $roslynDescriptors `
         -ToolingPreflight $attestation
@@ -388,24 +824,26 @@ try {
     $pythonStdlib = Join-Path $pythonRoot 'Lib\core.py'
     $pythonExcluded = Join-Path $pythonRoot `
         'Lib\site-packages\unrelated.py'
+    $pythonPycparser = Join-Path $pythonRoot `
+        'Lib\site-packages\pycparser\__init__.py'
+    $pythonStartupSetuptools = Join-Path $pythonRoot `
+        'Lib\site-packages\_distutils_hack\__init__.py'
     Write-FixtureFile -Path $pythonExecutable -Content 'python-runtime-v1'
     Write-FixtureFile -Path $pythonStdlib -Content 'stdlib-v1'
     Write-FixtureFile -Path $pythonExcluded -Content 'excluded-v1'
-    $pythonDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    Write-FixtureFile -Path $pythonPycparser -Content 'pycparser-v1'
+    Write-FixtureFile `
+        -Path $pythonStartupSetuptools `
+        -Content 'setuptools-startup-v1'
+    $pythonDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $pythonDescriptor = @($pythonDescriptors | Where-Object {
         $_.Role -ceq 'Python'
     })[0]
     $pythonDescriptor.Path = $pythonExecutable
-    $pythonDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionRoot -Value $pythonRoot
-    $pythonDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionFiles -Value @('python.exe', 'Lib/core.py')
+    $pythonDescriptor.DistributionRoot = $pythonRoot
+    $pythonDescriptor.DistributionFiles = @(
+        'python.exe', 'Lib/core.py')
     $pythonBefore = New-LmcDistributionToolchainSnapshot `
         -Descriptors $pythonDescriptors `
         -ToolingPreflight $attestation
@@ -419,13 +857,17 @@ try {
         -Message 'Secondary Python runtime drift was not bound.'
     Write-FixtureFile -Path $pythonStdlib -Content 'stdlib-v1'
     Write-FixtureFile -Path $pythonExcluded -Content 'excluded-v2'
+    Write-FixtureFile -Path $pythonPycparser -Content 'pycparser-v2'
+    Write-FixtureFile `
+        -Path $pythonStartupSetuptools `
+        -Content 'setuptools-startup-v2'
     $pythonAfterExcluded = New-LmcDistributionToolchainSnapshot `
         -Descriptors $pythonDescriptors `
         -ToolingPreflight $attestation
     Assert-Equal `
         -Expected $pythonBefore.ToolchainSha256 `
         -Actual $pythonAfterExcluded.ToolchainSha256 `
-        -Message 'Excluded third-party Python bytes changed runtime provenance.'
+        -Message 'Unrelated, pycparser, or startup setuptools bytes changed runtime provenance.'
 
     $reparseTarget = Join-Path $fixtureRoot 'reparse-target'
     $reparseLink = Join-Path $fixtureRoot 'reparse-link'
@@ -436,13 +878,8 @@ try {
         -Path $reparseLink `
         -Target $reparseTarget | Out-Null
     $script:TrackedReparsePaths.Add($reparseLink)
-    $reparseDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    $reparseDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $powerShellDescriptor = @($reparseDescriptors | Where-Object {
         $_.Role -ceq 'PowerShell'
     })[0]
@@ -460,22 +897,15 @@ try {
     $packageSecondary = Join-Path $packageRoot 'docx\api.py'
     Write-FixtureFile -Path $packageModule -Content 'module-v1'
     Write-FixtureFile -Path $packageSecondary -Content 'secondary-v1'
-    $packageDescriptors = @($descriptors | ForEach-Object {
-        [pscustomobject]@{
-            Role = $_.Role
-            Version = $_.Version
-            Path = $_.Path
-        }
-    })
+    $packageDescriptors = @(
+        Copy-FixtureDescriptors -Descriptors $descriptors)
     $packageDescriptor = @($packageDescriptors | Where-Object {
         $_.Role -ceq 'PythonDocx'
     })[0]
     $packageDescriptor.Path = $packageModule
-    $packageDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionRoot -Value $packageRoot
-    $packageDescriptor | Add-Member -MemberType NoteProperty `
-        -Name DistributionFiles -Value @(
-            'docx/__init__.py', 'docx/api.py')
+    $packageDescriptor.DistributionRoot = $packageRoot
+    $packageDescriptor.DistributionFiles = @(
+        'docx/__init__.py', 'docx/api.py')
     $packageBefore = New-LmcDistributionToolchainSnapshot `
         -Descriptors $packageDescriptors `
         -ToolingPreflight $attestation
@@ -513,6 +943,48 @@ try {
                 -ToolingPreflight $attestation
         } `
         -ExpectedMessage 'malformed or duplicated'
+
+    foreach ($dependencyRole in @(
+            'PythonCffi',
+            'PythonCryptography',
+            'PythonLxml',
+            'PythonPillow',
+            'PythonTypingExtensions')) {
+        $dependencyDescriptors = @(
+            Copy-FixtureDescriptors -Descriptors $descriptors)
+        $dependencyDescriptor = @(
+            $dependencyDescriptors | Where-Object {
+                $_.Role -ceq $dependencyRole
+            })[0]
+        $dependencySecondaryRelative = @(
+            $dependencyDescriptor.DistributionFiles | Where-Object {
+                -not ([System.IO.Path]::GetFullPath(
+                    (Join-Path $dependencyDescriptor.DistributionRoot $_))).
+                    Equals(
+                        [System.IO.Path]::GetFullPath(
+                            $dependencyDescriptor.Path),
+                        [System.StringComparison]::OrdinalIgnoreCase)
+            })[0]
+        $dependencySecondaryPath = Join-Path `
+            $dependencyDescriptor.DistributionRoot `
+            $dependencySecondaryRelative
+        $dependencyBefore = New-LmcDistributionToolchainSnapshot `
+            -Descriptors $dependencyDescriptors `
+            -ToolingPreflight $attestation
+        Write-FixtureFile `
+            -Path $dependencySecondaryPath `
+            -Content ("fixture-$dependencyRole-secondary-v2")
+        $dependencyAfter = New-LmcDistributionToolchainSnapshot `
+            -Descriptors $dependencyDescriptors `
+            -ToolingPreflight $attestation
+        Assert-True `
+            -Condition ($dependencyBefore.ToolchainSha256 -cne
+                $dependencyAfter.ToolchainSha256) `
+            -Message "$dependencyRole secondary byte drift was not bound."
+        Write-FixtureFile `
+            -Path $dependencySecondaryPath `
+            -Content ("fixture-$dependencyRole-secondary-v1")
+    }
 
     Assert-Throws `
         -Action {
@@ -623,7 +1095,7 @@ try {
         -ToolingPreflight $attestation
     Assert-Equal -Expected 'PASS' -Actual $production.Result `
         -Message 'Production release toolchain did not resolve.'
-    Assert-Equal -Expected 8 -Actual $production.RecordCount `
+    Assert-Equal -Expected 13 -Actual $production.RecordCount `
         -Message 'Production release toolchain role count drifted.'
     Assert-True `
         -Condition ((@($production.Records | Where-Object {
@@ -656,17 +1128,90 @@ try {
     Assert-True `
         -Condition ($production.InventoryFileCounts.Python -gt 1) `
         -Message 'Python runtime provenance did not bind multiple physical files.'
+    $productionPythonPackageRoles = @(
+        'PyPdf',
+        'PythonCffi',
+        'PythonCryptography',
+        'PythonDocx',
+        'PythonLxml',
+        'PythonPillow',
+        'PythonTypingExtensions')
     Assert-True `
-        -Condition ($production.InventoryFileCounts.PythonDocx -gt 1 -and
-            $production.InventoryFileCounts.PyPdf -gt 1) `
-        -Message 'Imported Python distributions were not fully inventoried.'
+        -Condition (@($productionPythonPackageRoles | Where-Object {
+            [int]$production.InventoryFileCounts.$_ -le 1
+        }).Count -eq 0) `
+        -Message 'Active Python distributions were not fully inventoried.'
     Assert-True `
-        -Condition ($production.Records -match '^PythonDocx\|' -and
-            $production.Records -match '^PyPdf\|') `
-        -Message 'Imported Python package provenance is missing.'
+        -Condition (@($productionPythonPackageRoles | Where-Object {
+            $role = $_
+            @($production.Records | Where-Object {
+                $_ -match ('^' + [regex]::Escape($role) + '\|')
+            }).Count -ne 1
+        }).Count -eq 0) `
+        -Message 'Active Python package provenance is incomplete.'
+    Assert-True `
+        -Condition (@($production.Records | Where-Object {
+            $_ -match '^Python(Pycparser|Setuptools)\|'
+        }).Count -eq 0) `
+        -Message 'Execution-unreached or startup-only packages entered provenance.'
+
+    $legacyMetadataPython = $null
+    foreach ($pythonCommand in @(Get-Command `
+            -Name 'python' `
+            -CommandType Application `
+            -All `
+            -ErrorAction SilentlyContinue)) {
+        try {
+            $pythonCommandPath = `
+                Resolve-LmcDistributionProvenancePhysicalFile `
+                    -Path ([string]$pythonCommand.Source) `
+                    -Context 'legacy metadata Python candidate'
+            $metadataCapability = `
+                Get-LmcDistributionToolchainProbeLine `
+                    -ExecutablePath $pythonCommandPath `
+                    -Arguments @(
+                        '-B', '-c',
+                        ('import importlib.metadata as m; ' +
+                            'print("LEGACY" if not hasattr(m, ' +
+                            '"packages_distributions") else "MODERN")')) `
+                    -WorkingDirectory $fixtureRoot `
+                    -Context 'Python metadata compatibility'
+            if ($metadataCapability -ceq 'LEGACY') {
+                $legacyMetadataPython = $pythonCommandPath
+                break
+            }
+        }
+        catch {
+            continue
+        }
+    }
+    Assert-True `
+        -Condition (-not [System.IO.File]::ReadAllText(
+            $implementation).Contains('packages_distributions(')) `
+        -Message 'Python provenance silently requires the post-3.8 packages_distributions API.'
+    $legacyRejection = ''
+    if (-not [string]::IsNullOrWhiteSpace($legacyMetadataPython)) {
+        try {
+            Resolve-LmcDistributionPythonDescriptors `
+                -CandidatePaths @($legacyMetadataPython) `
+                -WorkingDirectory $fixtureRoot | Out-Null
+        }
+        catch {
+            $legacyRejection = $_.Exception.Message
+        }
+    }
+    Assert-True `
+        -Condition ([string]::IsNullOrWhiteSpace($legacyMetadataPython) -or
+            $legacyRejection.Contains(
+                'active distribution owner set mismatch')) `
+        -Message 'Legacy Python was not rejected by the exact owner-set contract.'
+    Assert-True `
+        -Condition ([string]::IsNullOrWhiteSpace($legacyMetadataPython) -or
+            $legacyRejection.Contains('numpy')) `
+        -Message 'Legacy Python controlled rejection did not identify extra numpy ownership.'
     $pythonImportEvidence = Get-LmcDistributionToolchainProbeLine `
         -ExecutablePath $production.RuntimePaths.Python `
-        -Arguments @('-c', 'import docx, pypdf; print("READY")') `
+        -Arguments @('-B', '-c', 'import docx, pypdf; print("READY")') `
         -WorkingDirectory $fixtureRoot `
         -Context 'post-snapshot Python import'
     Assert-Equal -Expected 'READY' -Actual $pythonImportEvidence `
