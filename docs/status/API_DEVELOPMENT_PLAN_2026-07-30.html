@@ -300,6 +300,19 @@
       <strong>계획 기준:</strong> <code>main@6537bcf</code> + 2026-07-31 current dirty working tree입니다.
       source가 실시간 변경 중이므로 첫 작업은 기능 추가가 아니라 source freeze와 동일-hash 재검증입니다.
     </aside>
+    <aside class="alert">
+      <strong>2026-08-12 current release-input override:</strong>
+      <code>3c63dea</code>는 13-role active Python dependency closure와 dual-host mandatory
+      <code>14/14</code>를 PASS했습니다. <code>bcc6a9c</code>는 reviewed
+      <code>2.3-candidate</code> DOCX/PDF를 tracked canonical release input으로 승격했고,
+      clean detached default resolver/worktree clean/manual policy <code>3/3</code>을 확인했습니다.
+      <code>f304e8b</code>는 canonical package/example README의 preview/production NO-GO를
+      semantic regression에 고정해 양 host semantic <code>53</code> + check <code>18</code>,
+      pipeline <code>291</code>, provenance <code>84</code>를 PASS했습니다. Canonical source
+      snapshot direct semantic은 <code>CANDIDATE_WPF_SOURCE_SET</code>에서 멈췄지만 fresh staged
+      candidate가 아닙니다. Promotion 뒤 full Distribution/current schema 3 candidate/actual
+      EXE/publish와 LASAL IDE/PLC/Download/runtime은 실행하지 않았고 Gate D STOP은 유지됩니다.
+    </aside>
 
     <div class="goal">
       <article class="goal-main">
@@ -323,7 +336,7 @@
         <article class="mile partial"><div class="num">M2</div><h3>PLC safety/read-only baseline</h3><p>안전 chain, UNIT/task, capability, topology와 readback 정합</p><span class="badge b-partial">부분</span></article>
         <article class="mile partial"><div class="num">M3</div><h3>Active qualification</h3><p>25-command motion/group와 D1~D5 fault/soak/recovery evidence</p><span class="badge b-partial">부분</span></article>
         <article class="mile queued"><div class="num">M4</div><h3>Optional advanced scope</h3><p>이번 release에서 명시 제외 가능. 승인된 dynamic CREVIS/D4/Write만 M3 뒤 진행</p><span class="badge b-queued">선택/후속</span></article>
-        <article class="mile queued"><div class="num">M5</div><h3>Product release</h3><p>historical dirty-preview candidate PASS, Group Reset 반영 새 candidate와 clean baseline/M3/M4 승인 대기</p><span class="badge b-queued">재생성 / 대기</span></article>
+        <article class="mile queued"><div class="num">M5</div><h3>Product release</h3><p>13-role tooling과 canonical 2.3 manual/README policy는 준비됐습니다. Reviewed Gate D 뒤 clean full Distribution에서 fresh WPF source set, actual EXE와 schema 3 candidate를 재검증해야 합니다.</p><span class="badge b-queued">Gate D / full build 대기</span></article>
       </div>
     </section>
 
@@ -333,7 +346,7 @@
         <article class="priority p0"><h3>P0-A · Baseline / PC gate</h3><p>source freeze 후 SDK Debug/Release와 WPF build/smoke를 동일 hash에서 전량 통과</p></article>
         <article class="priority p0"><h3>P0-B · LASAL current integration</h3><p>마지막 static PASS 뒤 callback+0x7D12+0x7D13 current source의 fresh IDE build/smoke, PLC download와 provenance</p></article>
         <article class="priority p0"><h3>P0-C · Active PLC qualification</h3><p>안전 승인, 25-command, D1~D5 live matrix와 pcap/QTEST/PLC log</p></article>
-        <article class="priority p0"><h3>P0-D · Preview release 정리</h3><p>exact-byte manual과 schema 2 manifest의 당시 dirty-preview candidate PASS. Group Reset 변경 반영 새 candidate, clean checkout 재현과 독립 승격 검토 대기</p></article>
+        <article class="priority p0"><h3>P0-D · Preview release 정리</h3><p>13-role provenance, reviewed canonical 2.3 manual과 preview README policy PASS. Gate D 뒤 clean full Distribution/current schema 3 candidate 생성과 독립 검토 대기</p></article>
         <article class="priority p1"><h3>P1 · Dynamic I/O / advanced diagnostics</h3><p>read-only → raw live → physical correlation 순서로 capability 활성</p></article>
         <article class="priority p2"><h3>P2 · 신규 API / 제품화</h3><p>dormant ReferenceAxis와 SetPosition은 안전 활성 DoD 뒤에만 열고, 실제 미구현 HomeDS402Ex와 SetOpMode는 별도 command DoD로 구현한다</p></article>
       </div>
@@ -352,8 +365,9 @@
         <article><h3>Current PLC cold download</h3><p>source/network/unit/task, BootId/MapRevision, configured 7-entry topology를 readback합니다.</p></article>
         <article><h3>Safety/read-only gate</h3><p>E-stop, limit, UNIT/reference, owner를 승인한 뒤 capability/status/position/drive/topology를 먼저 확인합니다.</p></article>
         <article><h3>Motion과 diagnostics qualification</h3><p>작은 motion부터 25-command, D1/D2 fault·soak, Recorder, D5 recovery 순으로 진행합니다.</p></article>
-        <article><h3>Transactional release 경로 · 완료</h3><p>canonical 무변경 sibling staging, locked manual snapshot, Git metadata drift 검출, success-only rename과 schema 2 manifest를 구현했습니다. manifest 56/56, semantic 28/28, transaction 86/86을 PASS했습니다.</p></article>
-        <article><h3>External manual과 이전 candidate · historical dirty-preview PASS</h3><p>Axis1 exact target/identity/four-ticket와 Axis2~4 차단을 반영한 검수 DOCX/PDF exact bytes로 당시 semantic 15/15와 schema 2 manifest를 통과했습니다. 이후 Group Reset source 변경을 반영한 새 candidate를 clean tree에서 재현해야 합니다.</p></article>
+        <article><h3>Transactional release 경로 · historical + current tooling PASS</h3><p>2026-07-31 canonical 무변경 sibling staging/schema 2 candidate는 historical evidence입니다. <code>39c3e6f</code>가 schema 3 ordinal artifact와 pathless provenance를 구현했고, <code>1b9be6a</code>가 provenance suite를 mandatory gate에 포함했습니다. Current <code>3c63dea</code>는 active Python dependency closure를 pathless 13-role provenance로 확장해 mandatory <code>14/14</code>, files <code>94</code>를 PASS했습니다.</p></article>
+        <article><h3>Canonical 2.3 manual · release input 준비 완료</h3><p><code>bcc6a9c</code>는 reviewed DOCX <code>91,103</code> bytes / <code>F3DC33521A8DB623641FA07A2C1B161009BCF3F01622DC037442A9726900F8DD</code>와 PDF <code>1,002,300</code> bytes / <code>317A87FC42EF5A845202FFDB384C3AC23247C1B7A73530488C96FF0D805D2880</code>를 tracked canonical input으로 승격했습니다. OpenXML error 0, A4 43쪽, heading 66, table 109, all fonts embedded, visual defect 0과 manual policy 3/3을 확인했습니다.</p></article>
+        <article><h3>Preview README policy · current PASS</h3><p><code>f304e8b</code>는 package/example README의 production NO-GO와 SDO 안전 범위를 고정했습니다. Production template/build logic은 불변입니다. Direct semantic의 <code>CANDIDATE_WPF_SOURCE_SET</code> STOP은 canonical source snapshot 결과이며 fresh candidate/full build PASS가 아닙니다.</p></article>
       </div>
       <div class="gate-box"><strong>P0 출구:</strong> 동일 hash PC gate + SourceOnly/full + IDE build/smoke + topology-inventory report + same-peer 경계 + current PLC active matrix + 성능 gate가 모두 PASS해야 합니다.</div>
 
@@ -529,7 +543,10 @@ if ($taskBefore -ne $taskAfter) { throw "Working tree changed during qualificati
         <li>M4 advanced, 상위 요구 공백, callback/ownership을 구현하거나 항목별 명시적 제외</li>
         <li class="done">원본 무변경 transaction, success-only rename, failure cleanup과 semantic policy 회귀 PASS</li>
         <li class="done">external manual의 preview/안전/UNIT/polling/Axis1-only SDO Write 계약 갱신·전 페이지 검토</li>
-        <li>Group Reset 변경을 반영한 새 Distribution candidate, semantic preflight, version/input hash/manifest 재확인</li>
+        <li class="done"><code>3c63dea</code> 13-role active Python owner provenance와 promotion drift fence, dual-host mandatory <code>14/14</code> PASS</li>
+        <li class="done"><code>bcc6a9c</code> reviewed <code>2.3-candidate</code> DOCX/PDF tracked canonical release input 승격, clean detached resolver/worktree/manual policy 확인</li>
+        <li class="done"><code>f304e8b</code> canonical package/example README preview NO-GO policy와 양 host semantic <code>53</code> + check <code>18</code> PASS</li>
+        <li>Reviewed Gate D 뒤 clean full Distribution에서 fresh WPF source set, actual EXE와 current schema 3 candidate/manifest 생성·독립 검토</li>
         <li><code>git diff --check</code>와 <code>git diff --cached --check</code> PASS</li>
       </ul>
     </section>

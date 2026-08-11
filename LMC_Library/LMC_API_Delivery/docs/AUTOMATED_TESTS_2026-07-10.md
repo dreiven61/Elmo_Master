@@ -1012,8 +1012,10 @@ PLC endpoint를 사용하지 않는다.
   않고 파일만 monitored inventory에 포함한다. 별도 focused PS5.1/PS7은 각각
   provenance `44/44`, manifest `94/94`, pipeline `284/284`를 PASS했다. 이 94-file/schema 3
   결과는 아래 current mandatory seventh-suite gate의 historical predecessor로 보존한다.
-- Commit `1b9be6a`는 ToolchainProvenance를 host별 일곱 번째 mandatory child suite로
-  통합했다. Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `286/286`,
+- Historical implementation commit `1b9be6a`가 ToolchainProvenance를 host별 일곱 번째
+  mandatory child suite로 통합했고 documentation commit `4867096`이 그 증거를 기록했다.
+  둘은 current 13-role gate의 8-role predecessor다. Windows PowerShell 5.1과 PowerShell 7은
+  각각 Pipeline `286/286`,
   SemanticPolicy `50/50` + policy check `18`, ReleaseManifest `100/100`,
   ToolchainProvenance `49/49`, method-size `16/16`, UDP callback `296/296`, Control
   `HandleRequest` `13/13`을 통과했다. Final PS5.1-parent aggregate는 `831331ms`에
@@ -1023,15 +1025,47 @@ PLC endpoint를 사용하지 않는다.
   `CE3D330EE2198070A48D923B43DB33A5E9177D9B4A147B3F46D1772027B34B36`, toolchain
   SHA-256은 `C3219FED42CD96590BAC56A25702599763284D117DBC0A680CE92AB0F8C15A18`이다.
   별도 focused PS5.1/PS7도 각각 ToolchainProvenance `49/49`, ReleaseManifest `100/100`,
-  Pipeline `286/286`을 PASS했다. Current 8-role 범위는 actual workload의 external exact 5개
-  `lxml`/`typing_extensions`/`cryptography`/Pillow/cffi active Python dependency closure를
-  포함하지 않으므로 P0-D toolchain provenance 전체 완료가 아니다. 다음 PC-only gap은 이
-  exact 5개의 deterministic provenance와 promotion drift fence다. 실제 로드된 cffi
-  `_cffi_backend`는 포함하고, 미로드 `pycparser`와 unrelated `site-packages`는 제외한다. 이는
-  PC/tooling 증거이며 full Distribution은 reviewed Gate D
-  STOP으로 actual EXE, current schema 3 manifest, publish 전에 멈춰 있다. 생성된 current
-  schema 3 candidate manifest는 없고 LASAL IDE, PLC, Download/runtime도 실행하지 않았다.
-  이 gap과 reviewed Gate D를 모두 닫은 후 clean full Distribution을 실행한다.
+  Pipeline `286/286`을 PASS했다.
+- Current commit `3c63dea`는 actual DOCX/PDF workload의 exact seven root package owner를
+  schema 3 pathless 13-role provenance와 promotion drift fence에 묶었다. Final PS5.1-parent
+  aggregate는 `PASS LMC.DistributionToolingHostParity 14/14 (PS5=7/7; PS7=7/7) files=94
+  SHA256=F687FDE9198C9F0CDF8AB4106FAB0C3B5059DF49B55C8E9B34DEC99859CDB4CA`를 반환했다.
+  Host attestation/toolchain SHA-256은 각각
+  `FBAD123C4E3DEC4E9018885559E1645A69E47E69DE0E83D1116F8581D27B787D` /
+  `91E56793F99B5D17D9325D425308179FB780161CFFD9D29613653737C2D6F7EB`이다. 두 host
+  focused 결과는 각각 ToolchainProvenance `84/84`, ReleaseManifest `108/108`, Pipeline
+  `291/291`, SemanticPolicy `52/52` + policy check `18`이다. Exact inventory는
+  `CSharpCompiler=108`, `Git=1`, `MSBuild=1`, `PowerShell=1`, `PyPdf=117`, `Python=2489`,
+  `PythonCffi=53`, `PythonCryptography=195`, `PythonDocx=221`, `PythonLxml=208`,
+  `PythonPillow=219`, `PythonTypingExtensions=7`, `VsWhere=1`이다.
+- Active owner set은 cffi/cryptography/lxml/pillow/typing-extensions/python-docx/pypdf exact
+  seven이다. cffi metadata의 `Scripts` entrypoint는 Python root-relative path로 normalize한다.
+  Base `Python` inventory에서는 `Scripts`/`Lib/site-packages`를 제외하고 package-owner
+  inventory로 exact file을 다시 포함하며 active `.pyc`는 보존한다. Ownerless module은
+  bounded built-in/frozen/runtime-root/synthetic 계약만 허용하고 `Scripts`, `site-packages`,
+  runtime 외부 path는 fail-closed한다. 미로드 `pycparser`와 unrelated package는 제외한다.
+  Toolchain probe, semantic extraction, PDF validation, DOCX validation의 네 Python 실행 path는
+  모두 `-B`를 강제한다.
+- Commit `bcc6a9c`는 reviewed `2.3-candidate` pair를 tracked canonical release input으로
+  승격했다. DOCX는 `91,103` bytes / SHA-256
+  `F3DC33521A8DB623641FA07A2C1B161009BCF3F01622DC037442A9726900F8DD`, PDF는
+  `1,002,300` bytes / SHA-256
+  `317A87FC42EF5A845202FFDB384C3AC23247C1B7A73530488C96FF0D805D2880`이다. Word/OpenXML
+  validation error `0`, A4 PDF `43`쪽, DOCX heading `66`/table `109`, all fonts embedded와
+  43-page visual defect `0`을 확인했고 extracted-text manual policy는 `3/3` PASS했다. 두 host
+  focused Pipeline `291/291`, SemanticPolicy `52/52` + policy check `18`, ReleaseManifest
+  `108/108`도 PASS했다. Clean detached `bcc6a9c`에서 default resolver canonical 선택,
+  worktree clean과 manual policy `3/3`을 다시 확인했다.
+- Commit `f304e8b`는 canonical package/example README에 preview/production NO-GO와 current
+  SDO 안전 범위를 맞추고 semantic regression을 한 case 늘렸다. Production template와 build
+  logic은 바꾸지 않았다. PS5.1/PS7은 각각 SemanticPolicy `53/53` + policy check `18`,
+  Pipeline `291/291`, ToolchainProvenance `84/84`를 PASS했다.
+- 위 결과는 PC/tooling 및 release-input 문서 증거다. Canonical source snapshot direct semantic
+  run은 manual/README policy를 지난 뒤 `CANDIDATE_WPF_SOURCE_SET`에서 멈췄지만 fresh staged
+  candidate가 아니므로 full Distribution 또는 current candidate PASS가 아니다. Canonical
+  promotion 뒤 full Distribution/current generated schema 3 candidate/actual EXE/publish는 다시
+  실행하거나 생성하지 않았다. LASAL IDE, PLC, Download/runtime도 실행하지 않았고 reviewed
+  Gate D STOP과 production NO-GO는 그대로다.
 
 target을 분리했기 때문에 PC C# 실패와 LASAL static source contract 실패를
 구분할 수 있다. 자동 테스트 통과는 serializer/parser/connection lifecycle와

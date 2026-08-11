@@ -1,11 +1,11 @@
 # LasalMotionControlLib 내부 코드 및 실행 구조 설명서
 
-- 문서 버전: `2.7`
-- 작성 기준: `2026-08-11` / executable gate `cbf2548`, verifier compatibility
-  `ad4af91`, reconnect policy `14ccf58`
+- 문서 버전: `2.8`
+- 작성 기준: `2026-08-12` / active dependency closure `3c63dea`, canonical manual
+  promotion `bcc6a9c`, preview README policy `f304e8b`
 - 적용 API: `LasalMotionControlLib 0.9.1-preview`
 - motion baseline branch/commit: `main` / `f9bc88a7f78dab5214186689198414fa9a203a32`
-- diagnostics/admin/release/reconnect 기준: 2026-08-11 current source
+- diagnostics/admin/release/reconnect 기준: 2026-08-12 current source
 - 대상 독자: C# API, LASAL TCP adapter, MotionLib 연결과 배포 패키지를 유지보수하는 개발자
 
 이 문서는 공개 API의 signature와 인자를 다시 나열하는 문서가 아니다. 사용자 코드에서
@@ -13,16 +13,15 @@
 `_LMCRobotBase` 호출과 response parser를 거쳐 결과로 돌아오는 실제 구현 경로를
 설명한다.
 
-검토 대상인 Distribution DOCX
+Tracked canonical Distribution DOCX
 `LMC_Library/LMC_API_Distribution/03_API_User_Manual/LASAL_Motion_Control_API_User_Manual_KO.docx`
-와 PDF의 표지 버전은 `1.9`지만 current source와 같은 내용이 아니다. 두 artifact는 Axis1
-SDO Write와 stale recovery retirement가 들어가기 전 gate-off Distribution snapshot이다.
+와 PDF는 독립 검토한 문서 버전 `2.3-candidate` release-input baseline이다.
 각 기능에서 sync/async signature를 함께 보여 주지만 두 메서드가 내부적으로 같은
 transport와 command를 공유한다는 사실은 설명하지 않는다.
 현재 내부 사용자 매뉴얼 원본은 [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md) 문서
 버전 `2.3-candidate`다. 이 문서는 그 사용자 매뉴얼을 대체하지 않고 구현 이해와 유지보수를 보완한다.
 
-> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-08-11 current
+> **상태 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-08-11 implementation checkpoint
 > `cbf2548`은 PC 자동 시험 Debug/Release direct runner 각각 1133/1133, WPF
 > Debug/Release Rebuild PASS, 기존 full smoke 339/339과 reconnect targeted 6/6을 통과했다.
 > 별도 actual-EXE relaunch gate도 Debug/Release 각각 1/1 PASS했지만 PC loopback 증거이며
@@ -47,6 +46,12 @@ transport와 command를 공유한다는 사실은 설명하지 않는다.
 > PC-local error catalog와 Phase 2 `0x7D22 GroupMoveLinearRelative`는 source와
 > 자동/정적 시험까지 구현했고 current LASAL IDE Rebuild/Link도 PASS했다. PLC download와
 > 실물 값/UNIT/relative-motion 검증은 아직 수행하지 않았다.
+> 2026-08-12 `3c63dea`의 13-role active Python dependency closure는 dual-host mandatory
+> aggregate `14/14`를 PASS했다. `bcc6a9c`는 검토한 `2.3-candidate` DOCX/PDF를 canonical
+> release input으로 승격했고 `f304e8b`는 package/example README의 preview NO-GO 정책을
+> semantic regression에 고정했다. 이 결과는 PC/tooling 및 문서 입력 증거다. Last full
+> Distribution은 reviewed Gate D에서 STOP했고, 승격 뒤 full Distribution/current schema 3
+> candidate/actual EXE/publish와 LASAL IDE/PLC/Download/runtime은 다시 실행하지 않았다.
 > 아래 설명에서 `구현됨`은 current source에 경로가 존재한다는 뜻이며 실기 완료를 뜻하지 않는다.
 
 ## 1. 먼저 바로잡아야 할 핵심 오해
@@ -1221,10 +1226,10 @@ rename한다.
 5. binary-reference candidate example Debug/Release build PASS
 6. candidate `Run` copy 직후, manifest 전 actual-EXE relaunch gate PASS
 7. candidate WPF source set/content와 current 개발 project exact 일치
-8. SDK/LASAL/WPF/DINT/README/DOCX/PDF 15-check semantic policy PASS
+8. SDK/LASAL/WPF/DINT/README/DOCX/PDF current 18-check semantic policy PASS
 9. source/API/runtime DLL byte identity PASS
 10. `bin/obj/.vs`, Reports, captures와 내부 source path 부재
-11. schema 2 manifest atomic write와 즉시 재검증 PASS
+11. schema 3 ordinal artifact/toolchain manifest atomic write와 즉시 재검증 PASS
 12. tested EXE/final EXE SHA-256 equality PASS 뒤 transaction completion
 
 transaction은 sibling `FileShare.None` lock, staging seal, input/canonical drift 검사를 사용한다.
@@ -1242,18 +1247,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 `-AllowDirty`는 개발 fail-path 검증용이며 production candidate에는 사용하지 않는다.
 `-CandidatePath`를 지정할 때는 canonical의 존재하지 않는 direct sibling이어야 한다.
 
-schema 2 `RELEASE_MANIFEST.md`는 source commit/worktree state, assembly/file/product version,
-release input tree SHA-256, semantic policy SHA-256/result와 package 파일별 size/SHA-256을
-기록한다.
+schema 3 `RELEASE_MANIFEST.md`는 source commit/worktree state, assembly/file/product version,
+release input tree SHA-256, semantic policy SHA-256/result, ordinal package artifact와 pathless
+13-role toolchain version/SHA-256, PS5.1/PS7 executable attestation을 기록한다. Promotion
+직전 toolchain physical re-resolution이 prepared snapshot과 다르면 fail-closed한다.
 
-2026-07-31 current input 전체 실행은 build/test와 DOCX 구조 검사를 통과한 뒤
+2026-07-31 historical input 전체 실행은 build/test와 DOCX 구조 검사를 통과한 뒤
 `MANUAL_SDO_WRITE_SCOPE`에서 차단됐다. 외부 DOCX/PDF가 Axis 1 exact
 `0x2F00:24 Int32/4`, current-session `DiagnosticsBuild`/`BootId`/`MapRevision`/target identity,
 four-ticket same-value proof와 Axis 2~4 차단을 아직 설명하지 않기 때문이다. candidate는
 생성되지 않았고 canonical tree hash는 전후 동일했으며 staging/lock residue는 0이었다.
 이것은 release fail-closed 검증이지 PLC/live proof가 아니다.
 
-Current `cbf2548`에서 별도 temp binary-reference candidate(`ProjectReference=0`, config
+Historical `cbf2548`에서 별도 temp binary-reference candidate(`ProjectReference=0`, config
 absent)는 actual-EXE gate를 PASS했다. EXE SHA-256은
 `829AC3314E1B5113696DFA06E64418A95C305035335F73DEB4404449CF910F79`, SDK SHA-256은
 `7D179781BCE9EB2FE6DB071C3D45F085A5BC127F9DBD0E15300E38A6181A7ED8`이고 전후 identity는
@@ -1271,6 +1277,38 @@ PASS했다. 수정 뒤 PS5.1 Release `RunLasalContract`/`RunLasalNetworkContract
 `1`이었다. 사용자 current `Classes.lcb`는 수정하지 않았다. 따라서 full Distribution
 prerequisite가 STOP이고 new EXE gate/manifest에 도달하지 않아 full Distribution, actual
 candidate gate, manifest 또는 publish PASS로 기록하지 않는다.
+
+2026-08-12 current release tooling과 manual baseline은 다음과 같다.
+
+- `3c63dea`는 actual DOCX/PDF workload의 exact seven active package owner를 pathless 13-role
+  provenance와 promotion re-resolution에 묶었다. PS5.1-parent mandatory aggregate는 exact
+  `14/14`(`7/7` each), monitored files `94`, digest
+  `F687FDE9198C9F0CDF8AB4106FAB0C3B5059DF49B55C8E9B34DEC99859CDB4CA`다.
+  Attestation/toolchain SHA-256은
+  `FBAD123C4E3DEC4E9018885559E1645A69E47E69DE0E83D1116F8581D27B787D` /
+  `91E56793F99B5D17D9325D425308179FB780161CFFD9D29613653737C2D6F7EB`이다. 두 host
+  focused는 provenance `84/84`, manifest `108/108`, pipeline `291/291`, semantic
+  `52/52` + policy check `18`을 PASS했다.
+- `bcc6a9c`는 reviewed `2.3-candidate` pair를 tracked canonical release input으로 승격했다.
+  DOCX는 `91,103` bytes /
+  `F3DC33521A8DB623641FA07A2C1B161009BCF3F01622DC037442A9726900F8DD`, PDF는
+  `1,002,300` bytes /
+  `317A87FC42EF5A845202FFDB384C3AC23247C1B7A73530488C96FF0D805D2880`이다. Word/OpenXML
+  validation error `0`, A4 PDF `43`쪽, heading `66`, table `109`, all fonts embedded, 43-page
+  visual defect `0`, extracted-text manual policy `3/3`을 확인했다. PS5.1/PS7 focused
+  Pipeline `291/291`, SemanticPolicy `52/52` + policy check `18`, ReleaseManifest `108/108`을
+  PASS했다. Clean detached `bcc6a9c`에서 default resolver가 canonical pair를 선택하고
+  worktree state clean/manual policy `3/3`임을 확인했다.
+- `f304e8b`는 canonical package/example README의 preview/production NO-GO와 current SDO
+  안전 범위를 semantic policy에 고정했다. Production template와 build logic은 바꾸지 않았다.
+  PS5.1/PS7은 각각 SemanticPolicy `53/53` + policy check `18`, Pipeline `291/291`,
+  ToolchainProvenance `84/84`를 PASS했다.
+
+Canonical source snapshot direct semantic run은 manual/README policy를 지난 뒤
+`CANDIDATE_WPF_SOURCE_SET`에서 멈췄다. 이는 freshly assembled staged candidate가 아니므로 full
+Distribution이나 current candidate PASS가 아니다. Canonical manual 승격 뒤 full Distribution,
+current generated schema 3 candidate, actual EXE와 publish는 다시 실행하거나 생성하지 않았다.
+LASAL IDE, PLC, Download/runtime도 실행하지 않았고 Gate D STOP/production NO-GO는 그대로다.
 
 단위 회귀는 다음처럼 실행한다.
 
