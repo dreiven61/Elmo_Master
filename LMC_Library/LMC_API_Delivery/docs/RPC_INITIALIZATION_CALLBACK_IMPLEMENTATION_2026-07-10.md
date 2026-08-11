@@ -469,6 +469,34 @@ timestamps, process session state 6개 implicit input은 모두 `UNPROVEN`이고
 STOP이다. Download, runtime qualification, future artifact acceptance, normalization,
 hash-only rebaseline은 허용되지 않는다.
 
+Commit `731a01e428bdc9282edbf727f1d76a7a63cd24a3`의 pinned historical
+`Analyze-LasalClassesHistoricalSlotCorpus.ps1` analyzer는 physical 156,472 bytes /
+SHA-256 `90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080` /
+Git blob `30379ef2a50e093bbb28d768b9df77d091199de6`이고 PS7 self-test positive
+`12` / negative `18`, PS5 delegated positive `5` / negative `1`이 PASS했다.
+Evidence commit `43a85319905fbb5a42418b4b1ef9cd364c0bf44d`는 schema
+`LasalClassesHistoricalSlotCorpusEvidence/v1` report를 physical 157,999 bytes /
+SHA-256 `F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A` /
+Git blob `edad859d03ac0c33f21ca42996a377dda3ee7b79`로 보존한다.
+
+Canonical selector는 occurrence/unique/topology `22/20/9`, H/H+C/H+C+B unique는
+`20/21/22`다. Full layer는 records/marker samples `2,501/814`이고 exact-other
+varying tail은 `87 groups/227 samples/31 owners/202 unequal pairs`, marker는
+`95/282/34/369`다. Adjacent transition `21`개의 common `2,378`은 raw identical
+`1,155`, candidate-only `538`, outside-target `685`로 나뉘며 added/removed는
+`18/2`, candidate tail/marker/both는 `55/97/386`이다. B는 committed oracle에서
+복원하고 C는 committed `b2019db` snapshot을 사용하며 mutable current
+`Classes.lcb`와 local `bd47dd96...`는 읽지 않는다. Bounded stateless
+record-local hypothesis `20`개의 refutation은 exact claim scope에만 유효하고 field
+meaning은 unclassified다.
+
+이 commit들은 분석 도구와 역사적 evidence만 추가했다. RPC command ID, request/response
+layout, callback registration, UDP datagram, TCP `0x7E03`, LASAL production source와 wire
+behavior는 변경하지 않았다. 따라서 `ProductionApproved=false`,
+`SemanticEquivalenceProven=false`, `rebaselinePermitted=false`, Download/runtime false,
+`requiresReviewedTransition=true`이고 focused/C78 FAIL, finalizer exit `3` STOP 및
+Rebuild 반복 금지는 유지된다.
+
 초기 production 의미는 D5 operation terminal availability다. Event mask bit 1,
 `EventType=1`, delivery class 0, payload 0, nonzero `EventId=TicketId`이며
 `ProducerSessionEpoch=OwnerSessionEpoch`다. UDP는 polling latency를 줄이는 hint일

@@ -48,6 +48,27 @@
   `rebaselinePermitted=false`를 유지하며 Download, runtime qualification, future artifact
   acceptance, normalization, hash-only rebaseline을 허용하지 않는다. Focused/C78 FAIL과
   finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` STOP은 유지된다.
+  Commit `731a01e428bdc9282edbf727f1d76a7a63cd24a3`의 pinned historical corpus
+  analyzer `Analyze-LasalClassesHistoricalSlotCorpus.ps1`은 156,472 bytes / SHA-256
+  `90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080` / blob
+  `30379ef2a50e093bbb28d768b9df77d091199de6`이고 PS7 positive `12` / negative
+  `18`, PS5 delegated positive `5` / negative `1` self-test가 PASS했다. Evidence
+  commit `43a85319905fbb5a42418b4b1ef9cd364c0bf44d`는 schema
+  `LasalClassesHistoricalSlotCorpusEvidence/v1`의 157,999-byte report를 SHA-256
+  `F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A` / blob
+  `edad859d03ac0c33f21ca42996a377dda3ee7b79`로 보존한다. Canonical history는
+  occurrence/unique/topology `22/20/9`, H/H+C/H+C+B unique는 `20/21/22`다. Full
+  layer records/marker는 `2,501/814`; exact-other varying tail은
+  `87/227/31/202`, marker는 `95/282/34/369`이고 adjacent common `2,378`은 raw
+  identical/candidate-only/outside-target `1,155/538/685`, added/removed `18/2`,
+  candidate tail/marker/both `55/97/386`이다. B는 committed oracle에서 복원하고 C는
+  committed `b2019db`만 사용하며 mutable current `Classes.lcb`와 local
+  `bd47dd96...`는 입력이 아니다. Bounded stateless record-local hypothesis `20`개는
+  claim scope 안에서만 refute됐고 field meaning은 unclassified다. 이 historical
+  diagnostic도 `ProductionApproved=false`, `SemanticEquivalenceProven=false`,
+  `rebaselinePermitted=false`, Download/runtime false,
+  `requiresReviewedTransition=true`이며 focused/C78 FAIL, finalizer exit `3` STOP과
+  Rebuild 반복 금지를 바꾸지 않는다.
   Dispatcher에 늦게 도착한 stale/old wake는 diagnostic ignored log를 남길 수 있지만
   retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 못한다.
 - 2026-07-31 current override: `main@6537bcf` + working tree에서 SDK Debug/Release
@@ -338,7 +359,7 @@
 | 개발 WPF callback override 및 PC wire harness 2026-08-11 | `af4ab63` 기준 RPC init attempt/retry/ACK/outcome, 요청/실제 callback endpoint 구분, accepted v2 registration fence, immutable receiver decision/counter evidence panel과 stale dispatcher fence를 추가했다. `bff3bc7`은 retry 0회의 exact `0x8080/0x405C/0x405D` GD-N10A/N13/N14 PC-only harness와 16개 회귀를 추가했다. SDK current Release `1133/1133`, WPF current Release `335/335` PASS다. | `ErrorId=0` non-canonical short ACK는 재시도 0회, listener/TCP cleanup과 다음 수동 Connect의 새 socket을 요구한다. `RequestedCallback`은 입력 tuple이고 `BoundCallback`은 실제 endpoint 또는 `not-bound`다. stale/old wake는 diagnostic ignored log를 남길 수 있지만 retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 않는다. wire harness PASS도 PC 관측일 뿐이며 reviewed rebaseline, exact downloaded checkpoint, pcap과 PLC Watch 없이는 PLC callback/runtime proof가 아니다. |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery, D5 contention exact Busy/recovery, timeout/drain, queued-cancel one-shot/race/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | `Phase5TransportClean / IntegratedReadOwnerDormant` PASS | current external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. |
-| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated current artifact `99014DD9...`로 generator identity가 안정적이지 않다. `b2019db`의 exact bundle은 `c48e403` validator를 PASS했지만 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`이다. Pinned triad의 A/B/C changed byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`; structural candidate/volatile/stable은 `157/66/91`이다. Changed offset은 두 fixed 16-bit slot family에 모두 매핑되지만 field meaning은 unclassified이고 990 repeatability와 generator input equivalence는 증명되지 않았다. Trust boundary는 non-adversarial workspace이며 handle-relative create/concurrent-parent replacement resistance가 없다. `ProductionApproved=false`, `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`, rebaseline permitted false다. focused/C78 current verification은 계속 실패하며 Download·runtime qualification·future artifact acceptance·normalization·hash-only rebaseline은 금지다. |
+| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated current artifact `99014DD9...`로 generator identity가 안정적이지 않다. `b2019db`의 exact bundle은 `c48e403` validator를 PASS했지만 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`이다. Pinned triad의 A/B/C changed byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`; structural candidate/volatile/stable은 `157/66/91`이다. Historical corpus는 canonical occurrence/unique/topology `22/20/9`, H/H+C/H+C+B unique `20/21/22`, full records/marker `2,501/814`다. Exact-other varying tail `87/227/31/202`, marker `95/282/34/369`이고 adjacent common partition은 `2,378=1,155+538+685`, added/removed `18/2`, candidate tail/marker/both `55/97/386`이다. B는 committed oracle, C는 committed `b2019db`에서만 왔으며 current `Classes.lcb`와 local `bd47dd96...`는 읽지 않았다. Bounded stateless record-local hypothesis `20`개는 claim scope 안에서만 refute됐다. Field meaning은 unclassified이고 semantic equivalence는 증명되지 않았다. Historical corpus/triad publication trust boundary는 `NON_ADVERSARIAL_WORKSPACE`이고 `handleRelativeCreationUsed=false`, `concurrentParentReplacementResistance=false`다. `ProductionApproved=false`, `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`, rebaseline permitted false다. focused/C78 current verification은 계속 실패하며 Rebuild 반복·Download·runtime qualification·future artifact acceptance·normalization·hash-only rebaseline은 금지다. |
 | D5 executor 초기화 | constructor declaration/implementation, generated `@STD`, state/buffer 초기화와 Idle publish 계약 PASS | Axis1 `ExpectedSdoWriteAxis=1` static과 IDE build는 PASS했다. actual Busy/Write/runtime 원인은 PLC에서 별도 검증한다. |
 | LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; later callback exact-method smoke와 isolated one-Rebuild/no-Connect/no-Download session 완료 | isolated Rebuild의 compile/link/normal-exit는 증거화됐지만 `Classes.lcb=99014DD9...` exit `3` STOP이다. `DriveComL2.h` load-only `E0015` 1건은 bounded classification에서만 허용됐고 C78/C81 warning debt, reviewed rebaseline, current PLC download/runtime은 별도다. |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static/current IDE build 완료 | dormant `0x7D12/0x7D13`의 current IDE build/download/live와 새 `0x2047` PLC download/ACK timing 및 invalid/stale/fault는 별도 |

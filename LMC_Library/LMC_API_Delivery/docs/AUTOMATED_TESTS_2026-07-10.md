@@ -578,6 +578,33 @@ PC C# test, LASAL source static contract와 현재 WPF example build를 순서�
   `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` STOP이다. Download, runtime
   qualification, normalization, future artifact acceptance와 hash-only rebaseline은
   모두 금지다.
+- pinned historical slot-corpus analyzer commit
+  `731a01e428bdc9282edbf727f1d76a7a63cd24a3`의
+  `Analyze-LasalClassesHistoricalSlotCorpus.ps1`은 physical 156,472 bytes / SHA-256
+  `90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080` / Git blob
+  `30379ef2a50e093bbb28d768b9df77d091199de6`이고 PS7 self-test positive `12` /
+  negative `18`, PS5 delegated positive `5` / negative `1`이 PASS한다. Evidence
+  commit `43a85319905fbb5a42418b4b1ef9cd364c0bf44d`의 schema
+  `LasalClassesHistoricalSlotCorpusEvidence/v1` report는 physical 157,999 bytes /
+  SHA-256 `F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A` /
+  Git blob `edad859d03ac0c33f21ca42996a377dda3ee7b79`다.
+
+  Canonical first-parent selector는 occurrence `22`개 / unique artifact `20`개 /
+  topology `9`개이고 H/H+C/H+C+B unique는 `20/21/22`다. Full layer `2,501`
+  records / `814` marker samples에서 exact-other varying tail은
+  `87 groups/227 samples/31 owners/202 unequal pairs`, marker는
+  `95/282/34/369`다. Mainline adjacent `21`개 transition의 common `2,378`은 raw
+  identical `1,155` + candidate-only `538` + outside-target `685`이며 added/removed는
+  `18/2`, candidate partition은 tail/marker/both `55/97/386`이다. B는 committed
+  oracle에서 복원하고 C는 committed `b2019db` snapshot만 읽으므로 mutable current
+  `Classes.lcb`와 local `bd47dd96...` object를 사용하지 않는다.
+
+  Exact-other counterexample은 bounded stateless record-local hypothesis `20`개만
+  claim scope 안에서 refute한다. Field meaning은 계속 unclassified다. 이 historical
+  diagnostic은 `ProductionApproved=false`, `SemanticEquivalenceProven=false`,
+  `rebaselinePermitted=false`, Download/runtime false,
+  `requiresReviewedTransition=true`를 바꾸지 않는다. Focused/C78 FAIL,
+  finalizer exit `3` STOP, Rebuild 반복 금지는 그대로다.
 - PC reconnect correction commit `66b5cf2`를 포함한 `RunPcTests` 대상의 2026-08-10
   당시 Debug/Release PC suite는 Visual Studio 2019
   MSBuild 16.11.6에서 warning 0/error 0이고 standalone runner가 각각

@@ -598,6 +598,34 @@ permit Download, runtime qualification, future-artifact acceptance,
 normalization, or hash-only rebaseline. Focused/C78 still fails, and finalizer
 `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` remains the controlling STOP.
 
+Commit `731a01e428bdc9282edbf727f1d76a7a63cd24a3` adds the pinned historical
+`Analyze-LasalClassesHistoricalSlotCorpus.ps1` analyzer, physical 156,472 bytes /
+SHA-256 `90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080` /
+Git blob `30379ef2a50e093bbb28d768b9df77d091199de6`; its PS7 self-test passes
+positive `12` / negative `18` and PS5 delegated self-test passes positive `5` /
+negative `1`. Evidence commit `43a85319905fbb5a42418b4b1ef9cd364c0bf44d`
+preserves schema `LasalClassesHistoricalSlotCorpusEvidence/v1`, physical 157,999
+bytes / SHA-256
+`F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A` / Git blob
+`edad859d03ac0c33f21ca42996a377dda3ee7b79`.
+
+This design evidence is historical and diagnostic only. Its canonical selector
+has `22` occurrences / `20` unique artifacts / `9` topologies; H/H+C/H+C+B has
+`20/21/22` unique artifacts. In the full `2,501`-record / `814`-marker layer,
+exact-other varying tail contexts are `87/227/31/202` for groups/samples/owners/
+unequal pairs and marker contexts are `95/282/34/369`. The `21` adjacent
+transitions partition `2,378` common records into `1,155` raw-identical, `538`
+candidate-only, and `685` outside-target changes, with added/removed `18/2` and
+tail/marker/both candidate changes `55/97/386`. B is reconstructed from a
+committed oracle and C comes from committed `b2019db`; mutable current
+`Classes.lcb` and local `bd47dd96...` are not inputs. The `20` bounded stateless
+record-local hypotheses are refuted only inside that claim scope. Field meaning
+remains unclassified, so the corpus cannot define a callback acceptance,
+normalization, or rebaseline rule. `ProductionApproved=false`,
+`SemanticEquivalenceProven=false`, `rebaselinePermitted=false`, Download/runtime
+remain false, and `requiresReviewedTransition=true`; focused/C78 failure and
+finalizer exit `3` STOP remain controlling.
+
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
 to Object Network Server/Client rows and is not applicable to these class method

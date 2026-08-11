@@ -404,6 +404,63 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    hash-only rebaseline. It does not change focused/C78 failure or the finalizer
    `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` STOP.
 
+10. Commit `731a01e428bdc9282edbf727f1d76a7a63cd24a3` adds the pinned historical
+    slot-corpus analyzer
+    `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Analyze-LasalClassesHistoricalSlotCorpus.ps1`,
+    physical 156,472 bytes / SHA-256
+    `90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080` /
+    Git blob `30379ef2a50e093bbb28d768b9df77d091199de6`. PowerShell 7 self-test
+    passes positive `12` / negative `18`; Windows PowerShell 5.1 passes positive
+    `5` / negative `1` with delegated analysis. Evidence commit
+    `43a85319905fbb5a42418b4b1ef9cd364c0bf44d` preserves exact report
+    `classes_lcb_historical_slot_corpus_bd9dcb0c_55435791_99014dd9_6e115876.analysis.json`,
+    schema `LasalClassesHistoricalSlotCorpusEvidence/v1`, physical 157,999 bytes /
+    SHA-256
+    `F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A` /
+    Git blob `edad859d03ac0c33f21ca42996a377dda3ee7b79`.
+
+    The canonical selector is bounded to the first-parent, oldest-to-newest
+    history of
+    `Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb` through anchor
+    `55435791f6e91c9dcb4e06dcd25a11d77b382da7`. It contains `22` occurrences,
+    `20` unique artifacts, and `9` ordered owner/source-path topologies. The
+    canonical-history, history-plus-C, and history-plus-C-plus-B layers contain
+    `20`, `21`, and `22` unique artifacts. C is read only from the committed
+    `b2019db3af5a9990d2e0fe0afd0f02cbfbfaff53` bundle snapshot; B is reconstructed
+    from the committed oracle. The analyzer does not read mutable current
+    `Classes.lcb` or require the local `bd47dd96...` object.
+
+    The full history-plus-C-plus-B layer contains `2,501` records and `814`
+    marker samples across the same `9` topologies. With exactly the current
+    target 16-bit word zeroed for a diagnostic context key, while the other
+    target family remains unmasked, tail contexts have `87` varying groups /
+    `227` samples / `31` owners / `202` unequal pairs; marker contexts have `95`
+    varying groups / `282` samples / `34` owners / `369` unequal pairs. This
+    target-word masking is diagnostic only and is not an acceptance rule.
+
+    Across the `21` occurrence-preserving adjacent mainline transitions, `2,378`
+    common owner records partition exactly into `1,155` raw-identical records,
+    `538` candidate-only changes, and `685` outside-target changes; `18` owners
+    were added and `2` removed. The `538` candidate-only changes partition into
+    tail-only `55`, marker-only `97`, and both-family `386` records.
+
+    Exact-other-bytes counterexamples refute `20` bounded hypotheses only in the
+    declared scope: fixed stateless functions of the target-zeroed record-local
+    input. They do not refute an artifact-hash seed, timestamp/session/filesystem
+    input, or LASAL internal state. `fieldMeaning` remains
+    `UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT`.
+
+    Publication remains bounded to `NON_ADVERSARIAL_WORKSPACE` with
+    `handleRelativeCreationUsed=false` and
+    `concurrentParentReplacementResistance=false`. The historical diagnostic
+    therefore keeps `ProductionApproved=false`,
+    `SemanticEquivalenceProven=false`, `rebaselinePermitted=false`,
+    `downloadPermitted=false`, `runtimeQualificationPermitted=false`, and
+    `requiresReviewedTransition=true`. It does not authorize normalization,
+    future-artifact acceptance, another Rebuild, or Download. Focused/C78 remains
+    failed and finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` remains the
+    controlling STOP.
+
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:
 

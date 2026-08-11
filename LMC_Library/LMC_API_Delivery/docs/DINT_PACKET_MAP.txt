@@ -2079,6 +2079,28 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   Download, runtime qualification, future-artifact acceptance, normalization, or
   hash-only rebaseline. Focused/C78 remains failed, and finalizer
   UNSTABLE_THIRD_CLASSES_HASH_STOP exit 3 remains the controlling STOP.
+  Commit 731a01e428bdc9282edbf727f1d76a7a63cd24a3 adds pinned historical
+  Analyze-LasalClassesHistoricalSlotCorpus.ps1, 156,472 bytes / SHA-256
+  90BDD86EFC9C5032788C2603755A3560CC2871672E638935C4CD955B705EA080 / Git blob
+  30379ef2a50e093bbb28d768b9df77d091199de6; PS7 self-test is 12 positive / 18
+  negative and PS5 delegated is 5 positive / 1 negative. Evidence commit
+  43a85319905fbb5a42418b4b1ef9cd364c0bf44d preserves schema
+  LasalClassesHistoricalSlotCorpusEvidence/v1, 157,999 bytes / SHA-256
+  F306022CECD6C71BB7EA2B3DF309556A2621821B6C2CD287BC3FFFF4FA5A1B6A / Git blob
+  edad859d03ac0c33f21ca42996a377dda3ee7b79. Canonical occurrence/unique/topology
+  is 22/20/9 and H/H+C/H+C+B unique is 20/21/22; the full 2,501-record/814-marker
+  layer has exact-other varying tail 87/227/31/202 and marker 95/282/34/369 for
+  groups/samples/owners/unequal pairs. The 21 adjacent transitions partition
+  2,378 common records as raw-identical/candidate-only/outside-target
+  1,155/538/685, with added/removed 18/2 and candidate tail/marker/both
+  55/97/386. B is reconstructed from a committed oracle and C is committed
+  b2019db; mutable current Classes.lcb and local bd47dd96... are not inputs. The
+  20 stateless record-local hypotheses are refuted only within the bounded claim
+  scope, field meaning remains unclassified, and all approval/rebaseline/
+  Download/runtime flags remain false with requiresReviewedTransition=true.
+  Focused/C78 failure, finalizer exit 3 STOP, and the no-Rebuild-repeat rule are
+  unchanged. This historical evidence changes no RPC ID, DINT offset, request or
+  response layout, UDP/TCP packet contract, LASAL production source, or wire behavior.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
   opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec provide bounded PC
   reconnect and retained receiver/initialization evidence only. The successful
