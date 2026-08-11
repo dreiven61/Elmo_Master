@@ -562,6 +562,42 @@ semantics and forbids hash-only rebaseline; exit `3`/`4` means stop. Every branc
 remains no-Download, `ProductionApproved=false`, and
 `onlineRuntimeQualificationPermitted=false`.
 
+Commit `998e7132c0892788db79a0868c5b129fb20edd96` adds the pinned historical
+`Compare-LasalClassesVolatilityTriad.ps1` analyzer, physical 139,073 bytes /
+SHA-256 `E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663` /
+Git blob `a7dd4dba67e30c4adc80549a1d9b6a4d1acb6bce`. Its PowerShell 7 self-test
+passes positive `7` / negative `16`; Windows PowerShell 5.1 passes positive `3`
+/ negative `2` through delegated analysis. Evidence commit
+`e7c812ad7cfc6ef2162ed1197dc615e2aebe45db` preserves exact report
+`classes_lcb_gate_d_rebuild_triad_24402bfa_6e115876_99014dd9.volatility.json`,
+schema `LasalClassesVolatilityTriadEvidence/v1`, physical 29,412 bytes / SHA-256
+`09C76BB3BC313642C3012A915C14C022EDF75965A8A431B87F26B463005489DC` /
+Git blob `3c4411e26493043b80828a5355bdc8b621457e09`.
+
+The pinned A/B/C `24402BFA...` / `6E115876...` / `99014DD9...` pairwise
+changed byte/run/owner counts are `99/58/36`, `96/52/34`, and `105/61/36`.
+The `157` structural candidates contain `66` observed volatile 16-bit slots and
+`91` stable candidates. Every changed offset maps to one of two fixed 16-bit slot
+families: `35` marker-followers and `31` owner-end-minus-48 slots. The candidate
+table SHA-256 is
+`AD8A7FC5D6CB2277819FF28A7B7994C0FD6EAFBE6940419159662B8EFE83924D`; the
+volatile-slot table SHA-256 is
+`9D12A54145C409AC257F011C88F782108BCB3D73E9EDCCD8D2653A387F0F193C`.
+This proves fixed structure, not field semantics: `fieldMeaning` remains
+`UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT`, and `99014DD9...`
+repeatability is not proven.
+
+LASAL executable/compiler, vendor library set, generator cache state, filesystem
+timestamps, and process session state are six `UNPROVEN` implicit inputs, so
+`allGeneratorInputsEquivalent=false`. The report declares
+`NON_ADVERSARIAL_WORKSPACE`, `handleRelativeCreationUsed=false`, and
+`concurrentParentReplacementResistance=false`. Analyzer diagnostic exit `2`
+therefore leaves `ProductionApproved=false`, `SemanticEquivalenceProven=false`,
+`requiresReviewedTransition=true`, and `rebaselinePermitted=false`. It does not
+permit Download, runtime qualification, future-artifact acceptance,
+normalization, or hash-only rebaseline. Focused/C78 still fails, and finalizer
+`UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` remains the controlling STOP.
+
 PID 480 contains no method-specific UI proof; that remains a fact about the
 isolated Rebuild session. `Find in Implementation` applies only
 to Object Network Server/Client rows and is not applicable to these class method

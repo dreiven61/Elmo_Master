@@ -21,6 +21,33 @@
   bundle integrity PASS는 PLC causal packet proof가 아니다. `bff3bc7`의 live mode도
   실제 PLC에 실행하지 않았고 reviewed rebaseline, exact downloaded checkpoint, pcap과
   PLC Watch 전에는 승인되지 않는다.
+  Commit `998e7132c0892788db79a0868c5b129fb20edd96`의 pinned triad analyzer
+  `Compare-LasalClassesVolatilityTriad.ps1`은 139,073 bytes / SHA-256
+  `E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663` /
+  blob `a7dd4dba67e30c4adc80549a1d9b6a4d1acb6bce`이고 PS7 self-test positive `7` /
+  negative `16`, PS5 delegated positive `3` / negative `2`가 PASS했다. Evidence commit
+  `e7c812ad7cfc6ef2162ed1197dc615e2aebe45db`는 schema
+  `LasalClassesVolatilityTriadEvidence/v1`의 29,412-byte report
+  `classes_lcb_gate_d_rebuild_triad_24402bfa_6e115876_99014dd9.volatility.json`을
+  SHA-256 `09C76BB3BC313642C3012A915C14C022EDF75965A8A431B87F26B463005489DC` /
+  blob `3c4411e26493043b80828a5355bdc8b621457e09`로 보존한다.
+  A/B/C pairwise changed byte/run/owner는 `99/58/36`, `96/52/34`,
+  `105/61/36`이다. Structural candidate `157`개는 volatile 16-bit slot `66`개와
+  stable candidate `91`개로 나뉘고, 모든 changed offset은 marker-follower `35`개와
+  owner-end-minus-48 `31`개의 fixed slot에 매핑된다. Candidate/volatile-slot table
+  SHA-256은 각각
+  `AD8A7FC5D6CB2277819FF28A7B7994C0FD6EAFBE6940419159662B8EFE83924D`와
+  `9D12A54145C409AC257F011C88F782108BCB3D73E9EDCCD8D2653A387F0F193C`다.
+  Field meaning은 `UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT`이며
+  `99014DD9...` 반복성은 증명되지 않았다. LASAL executable/compiler, vendor library,
+  cache, filesystem timestamp, process session의 implicit input 6개가 `UNPROVEN`이므로
+  `allGeneratorInputsEquivalent=false`다. Publication trust는
+  `NON_ADVERSARIAL_WORKSPACE`이고 `handleRelativeCreationUsed=false`,
+  `concurrentParentReplacementResistance=false`다. 따라서 analyzer exit `2`도 `ProductionApproved=false`,
+  `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`,
+  `rebaselinePermitted=false`를 유지하며 Download, runtime qualification, future artifact
+  acceptance, normalization, hash-only rebaseline을 허용하지 않는다. Focused/C78 FAIL과
+  finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` STOP은 유지된다.
   Dispatcher에 늦게 도착한 stale/old wake는 diagnostic ignored log를 남길 수 있지만
   retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 못한다.
 - 2026-07-31 current override: `main@6537bcf` + working tree에서 SDK Debug/Release
@@ -311,7 +338,7 @@
 | 개발 WPF callback override 및 PC wire harness 2026-08-11 | `af4ab63` 기준 RPC init attempt/retry/ACK/outcome, 요청/실제 callback endpoint 구분, accepted v2 registration fence, immutable receiver decision/counter evidence panel과 stale dispatcher fence를 추가했다. `bff3bc7`은 retry 0회의 exact `0x8080/0x405C/0x405D` GD-N10A/N13/N14 PC-only harness와 16개 회귀를 추가했다. SDK current Release `1133/1133`, WPF current Release `335/335` PASS다. | `ErrorId=0` non-canonical short ACK는 재시도 0회, listener/TCP cleanup과 다음 수동 Connect의 새 socket을 요구한다. `RequestedCallback`은 입력 tuple이고 `BoundCallback`은 실제 endpoint 또는 `not-bound`다. stale/old wake는 diagnostic ignored log를 남길 수 있지만 retained ticket, operation summary/state, callback counter 또는 `0x7E03`을 바꾸지 않는다. wire harness PASS도 PC 관측일 뿐이며 reviewed rebaseline, exact downloaded checkpoint, pcap과 PLC Watch 없이는 PLC callback/runtime proof가 아니다. |
 | qualification 자동화 | Group/Bulk/Recorder, read-only D5 abort/recovery, D5 contention exact Busy/recovery, timeout/drain, queued-cancel one-shot/race/recovery와 `0x2045` 10,000-call runner code/build PASS. D5는 submit outcome/BootId·MapRevision quarantine, 순수 scope policy, multi-evidence two-ticket recovery proof, unresolved mutation gate와 15~120초 cleanup 포함 | 신규 runner의 PLC live packet 미검증; PC API RPC elapsed는 PLC dispatch/jitter/overrun 증거가 아님 |
 | LASAL SourceOnly 정적 계약 | `Phase5TransportClean / IntegratedReadOwnerDormant` PASS | current external `.st/.lcp/.lcn`, same-peer owner 교체·격리, 464-byte coherent snapshot, `0x7E11/12/13/22` route, CREVIS read-owner와 dormant Admin `0x7D12/0x7D13` source 계약을 포함한다. |
-| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated current artifact `99014DD9...`로 generator identity가 안정적이지 않다. `b2019db`의 exact bundle은 `96` changed bytes / `52` runs / `34` opaque owners를 기록하고 `c48e403` validator를 PASS했지만 finalizer exit `3`, `ProductionApproved=false`다. focused/C78 current verification은 계속 실패하며 Download·runtime qualification·hash-only rebaseline은 금지다. |
+| LASAL full static 계약 | `GateDVisualLayout` checkpoint PASS; current tree STOP/FAIL | checkpoint `Classes.lcb=24402BFA...`, first post-commit artifact `6E115876...`, isolated current artifact `99014DD9...`로 generator identity가 안정적이지 않다. `b2019db`의 exact bundle은 `c48e403` validator를 PASS했지만 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`이다. Pinned triad의 A/B/C changed byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`; structural candidate/volatile/stable은 `157/66/91`이다. Changed offset은 두 fixed 16-bit slot family에 모두 매핑되지만 field meaning은 unclassified이고 990 repeatability와 generator input equivalence는 증명되지 않았다. Trust boundary는 non-adversarial workspace이며 handle-relative create/concurrent-parent replacement resistance가 없다. `ProductionApproved=false`, `SemanticEquivalenceProven=false`, `requiresReviewedTransition=true`, rebaseline permitted false다. focused/C78 current verification은 계속 실패하며 Download·runtime qualification·future artifact acceptance·normalization·hash-only rebaseline은 금지다. |
 | D5 executor 초기화 | constructor declaration/implementation, generated `@STD`, state/buffer 초기화와 Idle publish 계약 PASS | Axis1 `ExpectedSdoWriteAxis=1` static과 IDE build는 PASS했다. actual Busy/Write/runtime 원인은 PLC에서 별도 검증한다. |
 | LASAL IDE | 2026-07-30 pre-callback/pre-`0x7D12`/pre-`0x7D13` checkpoint fresh reload Rebuild/Link `0 error(s), 20 warning(s)`, Linker `Done`; later callback exact-method smoke와 isolated one-Rebuild/no-Connect/no-Download session 완료 | isolated Rebuild의 compile/link/normal-exit는 증거화됐지만 `Classes.lcb=99014DD9...` exit `3` STOP이다. `DriveComL2.h` load-only `E0015` 1건은 bounded classification에서만 허용됐고 C78/C81 warning debt, reviewed rebaseline, current PLC download/runtime은 별도다. |
 | Admin IDE/PLC | `0x7D00/10/20/22` live happy-path capture PASS; `0x2047` source/static/current IDE build 완료 | dormant `0x7D12/0x7D13`의 current IDE build/download/live와 새 `0x2047` PLC download/ACK timing 및 invalid/stale/fault는 별도 |

@@ -2047,6 +2047,38 @@ Dormant LMCUdpCallbackSender Gate B/C contract:
   broad EOL normalization. The current c48e403 validator passed the committed
   b2019db bundle, proving bundle integrity only. Focused VerifyCurrent/C78 remains
   failed; no Download, runtime qualification, or hash-only rebaseline is allowed.
+  Commit 998e7132c0892788db79a0868c5b129fb20edd96 adds the pinned historical
+  Compare-LasalClassesVolatilityTriad.ps1 analyzer: 139,073 bytes, SHA-256
+  E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663, Git blob
+  a7dd4dba67e30c4adc80549a1d9b6a4d1acb6bce. PowerShell 7 self-test is
+  positive 7 / negative 16; Windows PowerShell 5.1 is positive 3 / negative 2
+  with delegated analysis. Evidence commit
+  e7c812ad7cfc6ef2162ed1197dc615e2aebe45db preserves exact report
+  classes_lcb_gate_d_rebuild_triad_24402bfa_6e115876_99014dd9.volatility.json,
+  schema LasalClassesVolatilityTriadEvidence/v1, 29,412 bytes, SHA-256
+  09C76BB3BC313642C3012A915C14C022EDF75965A8A431B87F26B463005489DC,
+  Git blob 3c4411e26493043b80828a5355bdc8b621457e09.
+  For pinned A/B/C 24402BFA... / 6E115876... / 99014DD9..., pairwise changed
+  byte/run/owner counts are 99/58/36, 96/52/34, and 105/61/36. The 157
+  structural candidates contain 66 observed volatile 16-bit slots and 91 stable
+  candidates. Every changed offset maps to one of two fixed 16-bit slot families:
+  35 marker-followers and 31 owner-end-minus-48 slots. Candidate-table SHA-256 is
+  AD8A7FC5D6CB2277819FF28A7B7994C0FD6EAFBE6940419159662B8EFE83924D; volatile-slot
+  table SHA-256 is
+  9D12A54145C409AC257F011C88F782108BCB3D73E9EDCCD8D2653A387F0F193C.
+  This proves fixed slot structure only. Field meaning remains
+  UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT, and 99014DD9... repeatability
+  is not proven.
+  LASAL executable, LASAL compiler, vendor library set, generator cache state,
+  filesystem timestamps, and process session state are six UNPROVEN implicit
+  inputs; allGeneratorInputsEquivalent=false. Publication is bounded to
+  NON_ADVERSARIAL_WORKSPACE, handleRelativeCreationUsed=false, and
+  concurrentParentReplacementResistance=false. Analyzer diagnostic exit 2 keeps
+  ProductionApproved=false, SemanticEquivalenceProven=false,
+  requiresReviewedTransition=true, and rebaselinePermitted=false. It permits no
+  Download, runtime qualification, future-artifact acceptance, normalization, or
+  hash-only rebaseline. Focused/C78 remains failed, and finalizer
+  UNSTABLE_THIRD_CLASSES_HASH_STOP exit 3 remains the controlling STOP.
   LmcConnection keeps legacy 12/4 as its library default and provides explicit
   opt-in 32/20 typed wake hints. Commits 66b5cf2/f337fec provide bounded PC
   reconnect and retained receiver/initialization evidence only. The successful

@@ -433,6 +433,42 @@ atomic move, complete manifest written-last ordering, PLC/runtime 또는 approva
 중지다. 전부 no-Download, `ProductionApproved=false`,
 `onlineRuntimeQualificationPermitted=false`다.
 
+Commit `998e7132c0892788db79a0868c5b129fb20edd96`의 pinned historical
+`Compare-LasalClassesVolatilityTriad.ps1` analyzer는 physical 139,073 bytes /
+SHA-256 `E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663` /
+Git blob `a7dd4dba67e30c4adc80549a1d9b6a4d1acb6bce`다. PowerShell 7 self-test
+positive `7` / negative `16`, Windows PowerShell 5.1 positive `3` / negative `2`
+delegated가 PASS했다. Evidence commit
+`e7c812ad7cfc6ef2162ed1197dc615e2aebe45db`는 schema
+`LasalClassesVolatilityTriadEvidence/v1`의 exact report
+`classes_lcb_gate_d_rebuild_triad_24402bfa_6e115876_99014dd9.volatility.json`을
+physical 29,412 bytes / SHA-256
+`09C76BB3BC313642C3012A915C14C022EDF75965A8A431B87F26B463005489DC` /
+Git blob `3c4411e26493043b80828a5355bdc8b621457e09`로 보존한다.
+
+Pinned A/B/C `24402BFA...` / `6E115876...` / `99014DD9...` pairwise changed
+byte/run/owner는 `99/58/36`, `96/52/34`, `105/61/36`이다. Structural candidate
+`157`개 중 observed volatile 16-bit slot은 `66`개, stable candidate는 `91`개다.
+Changed offset 전체가 marker-follower `35`개와 owner-end-minus-48 `31`개의 두 fixed
+16-bit slot family에 정확히 매핑된다. Candidate table SHA-256은
+`AD8A7FC5D6CB2277819FF28A7B7994C0FD6EAFBE6940419159662B8EFE83924D`,
+volatile-slot table SHA-256은
+`9D12A54145C409AC257F011C88F782108BCB3D73E9EDCCD8D2653A387F0F193C`다.
+이 결과는 fixed slot structure만 증명한다. Field meaning은
+`UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT`이고 `99014DD9...` 반복성은
+증명되지 않았다.
+
+LASAL executable/compiler, vendor library set, generator cache state, filesystem
+timestamps, process session state 6개 implicit input은 모두 `UNPROVEN`이고
+`allGeneratorInputsEquivalent=false`다. Publication은
+`NON_ADVERSARIAL_WORKSPACE`, `handleRelativeCreationUsed=false`,
+`concurrentParentReplacementResistance=false` 경계다. Analyzer diagnostic exit `2`는
+`ProductionApproved=false`, `SemanticEquivalenceProven=false`,
+`requiresReviewedTransition=true`, `rebaselinePermitted=false`를 유지한다. Focused/C78는
+계속 FAIL이고 finalizer `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3`가 controlling
+STOP이다. Download, runtime qualification, future artifact acceptance, normalization,
+hash-only rebaseline은 허용되지 않는다.
+
 초기 production 의미는 D5 operation terminal availability다. Event mask bit 1,
 `EventType=1`, delivery class 0, payload 0, nonzero `EventId=TicketId`이며
 `ProducerSessionEpoch=OwnerSessionEpoch`다. UDP는 polling latency를 줄이는 hint일

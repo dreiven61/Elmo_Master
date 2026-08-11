@@ -355,6 +355,55 @@ Before formal Gate D runtime qualification, preserve this sequence/evidence spli
    `onlineRuntimeQualificationPermitted=false`. Validator exit `0` never changes
    the finalizer classification or these decision flags.
 
+9. Commit `998e7132c0892788db79a0868c5b129fb20edd96` adds the pinned historical
+   triad analyzer
+   `test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesVolatilityTriad.ps1`,
+   physical 139,073 bytes / SHA-256
+   `E3E2C586C62379339EECFD8038189D9959C655CD206A4E894B846A2D79783663` /
+   Git blob `a7dd4dba67e30c4adc80549a1d9b6a4d1acb6bce`. PowerShell 7 self-test
+   passes positive `7` / negative `16`; Windows PowerShell 5.1 passes positive
+   `3` / negative `2` by delegating the analysis core to PowerShell 7. For an
+   explicit read-only stdout replay, run only:
+
+   ```powershell
+   pwsh -NoProfile -File '.\test\Reports_Lasal\C78_20260810_udp_callback_gate_d_rebaseline_6e115876\Compare-LasalClassesVolatilityTriad.ps1' -AnalyzePinnedTriad
+   ```
+
+   The report is already committed; the command above intentionally produces
+   stdout only and is not permission to recreate or overwrite it. Commit
+   `e7c812ad7cfc6ef2162ed1197dc615e2aebe45db` preserves exact report
+   `classes_lcb_gate_d_rebuild_triad_24402bfa_6e115876_99014dd9.volatility.json`,
+   schema `LasalClassesVolatilityTriadEvidence/v1`, physical 29,412 bytes /
+   SHA-256
+   `09C76BB3BC313642C3012A915C14C022EDF75965A8A431B87F26B463005489DC` /
+   Git blob `3c4411e26493043b80828a5355bdc8b621457e09`.
+
+   The analyzer's diagnostic exit `2` compares only pinned A/B/C identities
+   `24402BFA...` / `6E115876...` / `99014DD9...`. Pairwise changed
+   byte/run/owner counts are respectively `99/58/36`, `96/52/34`, and
+   `105/61/36`. Across `157` structural candidates, `66` observed volatile
+   16-bit slots and `91` stable candidates were found. All changed offsets map
+   to two fixed 16-bit slot families: `35` marker-followers and `31` owner-end
+   minus 48 slots. The candidate table SHA-256 is
+   `AD8A7FC5D6CB2277819FF28A7B7994C0FD6EAFBE6940419159662B8EFE83924D`;
+   the volatile-slot table SHA-256 is
+   `9D12A54145C409AC257F011C88F782108BCB3D73E9EDCCD8D2653A387F0F193C`.
+   This proves a fixed slot structure only. Field meaning remains
+   `UNCLASSIFIED_OPAQUE_BYTES_IN_GENERATED_ARTIFACT`, and repeatability of
+   `99014DD9...` is not proven.
+
+   The six implicit inputs LASAL executable, LASAL compiler, vendor library set,
+   generator cache state, filesystem timestamps, and process session state are
+   all `UNPROVEN`; `allGeneratorInputsEquivalent=false`. Report publication is
+   explicitly bounded to `NON_ADVERSARIAL_WORKSPACE` with
+   `handleRelativeCreationUsed=false` and
+   `concurrentParentReplacementResistance=false`. Therefore the triad keeps
+   `ProductionApproved=false`, `SemanticEquivalenceProven=false`,
+   `requiresReviewedTransition=true`, `rebaselinePermitted=false`, and no Download,
+   runtime qualification, future-artifact acceptance, normalization decision, or
+   hash-only rebaseline. It does not change focused/C78 failure or the finalizer
+   `UNSTABLE_THIRD_CLASSES_HASH_STOP` exit `3` STOP.
+
 The retained pre-drift C78 evidence was replayed from the canonical repository
 root with:
 
