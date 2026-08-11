@@ -12,13 +12,15 @@
 - 개발용 WPF 예제: `../LasalApiWpfTestApp`
 - 정식 배포 폴더: `../LMC_API_Distribution`
 - LASAL 어댑터: `../../Lasal_PRG/Elmo_EtherCAT_Test_4Axis`
-- PC 자동 테스트: Debug/Release 각 1042/1042 PASS
-- 개발 WPF: Debug/Release build와 actual-control smoke 각 297/297 PASS
-- LASAL 정적 계약: `ExpectedSdoWriteAxis=1` SourceOnly/full static PASS;
-  `Classes.lcb` declaration과 current source 동기화 확인
-- LASAL IDE: current Axis 1 gate-on source Rebuild/Link `0 errors / 20 warnings`,
-  Linker Done; executor/service implementation smoke와 신규 `CInvalidArgException=0` PASS.
-  current PLC download는 미실시
+- PC 자동 테스트: current SDK Debug/Release direct 각 1133/1133 PASS
+- 개발 WPF: Debug/Release Rebuild PASS, full smoke 각 339/339 PASS, supplied actual
+  example EXE relaunch gate 각 1/1 PASS
+- LASAL 정적 계약: historical `GateDVisualLayout` checkpoint는 PASS했지만 current
+  `ad4af91` PS5.1 SourceOnly/full target은 verifier compatibility 경계를 통과한 뒤
+  `Classes.lcb` sanctioned Gate D identity drift에서 exit 1 STOP
+- LASAL IDE: historical Rebuild/Link와 implementation smoke 증거는 보존한다. current
+  artifact는 reviewed transition 전 finalizer/Rebuild/Download를 반복하지 않으며 PLC/runtime
+  qualification도 완료로 보지 않는다
 - 기존 motion/group PLC E2E/Wireshark 재캡처: 대표 subset은 과거 PASS, 전체 25-command matrix 미완료
 - diagnostics source: D1~D3, D4 single-bank Ring/Trigger, D5 general-inline SDO Read와
   Axis 1 exact `0x2F00:24 Int32/4` SDO Write 활성(`CapabilityBits=0x0000633F`, MaxSDO=4).
@@ -41,11 +43,11 @@
 근거이며 외부 배포 대상이 아니다.
 
 `../LMC_API_Distribution`도 current source를 재조립한 패키지가 아니다. manifest와 내부
-파일은 일관되지만 Axis1 SDO Write, stale recovery retirement와 single-instance 보호가 없는
-이전 gate-off snapshot이다. `Build-LmcApiDistribution.ps1`은 이 폴더를 직접 덮어쓰지 않고
-별도 sibling candidate만 생성한다. 2026-07-31 실제 current build는 기존 DOCX/PDF의 stale
-SDO Write 설명을 `MANUAL_SDO_WRITE_SCOPE`로 차단해 candidate를 만들지 않았고 canonical
-tree hash는 전후 동일했다. current PLC live proof와 release-scope 승인 전에는 정식 배포로
+파일은 일관되지만 Axis1 SDO Write, stale recovery retirement와 actual-EXE reconnect gate가
+없는 `1.9` gate-off snapshot이다. `Build-LmcApiDistribution.ps1`은 이 폴더를 직접 덮어쓰지
+않고 별도 sibling candidate만 생성한다. Current `2.3-candidate` DOCX/PDF는 검토용 입력일
+뿐이며, current Gate D STOP 때문에 full Distribution build와 candidate publish는 PASS가 아니다.
+current PLC live proof와 release-scope 승인 전에는 canonical을 덮어쓰거나 정식 배포로
 동기화하지 않는다.
 
 ## 내부 문서
@@ -61,7 +63,9 @@ tree hash는 전후 동일했다. current PLC live proof와 release-scope 승인
 - [API_USER_MANUAL_KO.md](API_USER_MANUAL_KO.md): 사용자 매뉴얼 초기 초안용 Markdown
 - `Build-LmcApiDistribution.ps1`: canonical 무변경 transactional candidate build
 - `DistributionPipeline.ps1`: staging/lock/seal/drift/success-only rename 구현
-- `DistributionSemanticPolicy.ps1`: SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 preflight
+- `DistributionSemanticPolicy.ps1`: SDK/LASAL/WPF/DINT/README/DOCX/PDF 의미 preflight;
+  DOCX와 PDF 각각에 `2.3-candidate`, bounded reconnect/actual-EXE PC-only 경계와 preview
+  release 안전 경고를 요구한다
 - `Test-LmcApiDistributionPipeline.ps1`, `Test-LmcDistributionSemanticPolicy.ps1`,
   `Test-LmcReleaseManifest.ps1`: release 경로 회귀
 - `Generate-ApiUserManual.py`: 초기 PDF 초안 생성기
@@ -100,3 +104,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 세부 불변 조건과 2026-07-31 검증 결과는
 [transactional Distribution candidate 설계](../../docs/architecture/LMC_API_TRANSACTIONAL_DISTRIBUTION_CANDIDATE_2026-07-31.md)를
 참조한다.
+
+## 2.3-candidate 외부 매뉴얼 검토 절차
+
+Canonical Distribution의 `1.9` DOCX/PDF는 수정하지 않는다. Current Markdown에서 편집용
+DOCX를 생성하고, Microsoft Word에서 목차와 페이지 번호를 갱신해 저장한 **같은 DOCX**에서
+PDF를 export한다.
+
+```powershell
+python LMC_Library\LMC_API\Generate-ApiUserManualDocx.py `
+  --source LMC_Library\LMC_API\API_USER_MANUAL_KO.md `
+  --output output\doc\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx
+```
+
+검토 후보 경로는 다음 둘이다.
+
+- `output/doc/LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx`:
+  `93238` bytes, SHA-256
+  `A23211A5F530736E6BDC8746DCA1DF4556C47E08524828A7ADB70DC8C91C3182`
+- `output/pdf/LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.pdf`:
+  `1013620` bytes, SHA-256
+  `9E82A467C1BEC2FC3FE20AF1EE8D1332C66D07617CAB2D512C744357C5C28E70`
+
+Word 저장 후 DOCX Office 2016-targeted OpenXmlValidator는 `0`, PDF는 A4 `43`쪽이며 전체 렌더 검수에서
+clipping/overlap/blank/tofu가 없고 embedded/subset font `8/8`이다.
+
+두 문서는 `Test-LmcDistributionManualReleasePolicy -DocxText -PdfText`의 exact 3/3을
+통과해야 한다. Clean-tree release 재개 시에만 아래처럼 두 경로를 명시적으로 전달한다.
+현재 Gate D STOP에서는 이 명령을 실행해 PASS를 주장하지 않는다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File LMC_Library\LMC_API\Build-LmcApiDistribution.ps1 `
+  -RepositoryRoot C:\work\Elmo\Elmo_Master `
+  -ManualDocxPath output\doc\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx `
+  -ManualPdfPath output\pdf\LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.pdf
+```

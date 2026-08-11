@@ -30,14 +30,21 @@
 설명하는 빠른 참조다. 모든 공개 diagnostic event/property를 열거한 완전한 API
 reference는 아니다.
 
-> **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. PC 시험과
-> LASAL source 구현 범위가 넓어졌고 2026-07-30 current SourceOnly/full static과 fresh IDE
-> Rebuild/Link는 PASS했다. 그러나 동일 source hash의 commit/clean-checkout release baseline,
-> current PLC download와 전체 PLC matrix는 아직 닫히지 않았다.
+> **Preview/안전 경고:** `0.9.1-preview`는 production 승인본이 아니다. 2026-07-30
+> historical checkpoint의 SourceOnly/full static과 fresh IDE Rebuild/Link는 PASS했다.
+> Current `ad4af91` PS5.1 contract는 verifier compatibility 경계를 통과했지만 current
+> `Classes.lcb` sanctioned Gate D identity drift에서 fail-closed STOP했으며 full Distribution도
+> PASS가 아니다. 동일 source hash의 commit/clean-checkout release baseline, current PLC
+> download와 전체 PLC matrix는 아직 닫히지 않았다.
 > `LMC_Response.IsSuccess`는 frame과 command 수락 결과이지 motion, power 전이,
 > Stop 완료가 아니다. typed status/position을 polling한다. `CloseConnection`,
-> `Dispose`, timeout과 cancellation은 Stop을 보내지 않는다. 실제 장비에서는 E-stop,
-> HW/SW limit, UNIT, Home/Reference와 이동 범위를 별도로 승인한다.
+> `Dispose`, timeout과 cancellation은 PLC motion Stop이나 safe-stop을 보내지 않는다.
+> Motion/Group 전체 25-command PLC matrix는 아직 완료되지 않았다. Admin/Group relative/
+> Stop/PowerOff와 D1 Catalog/PI, D2 Bulk, D5 axis 1..4의 기존 happy path를 D1/D2/D5
+> fault/soak 또는 D3/D4 runtime/reconnect-adopt 완료로 확대 해석하지 않는다.
+> 실제 장비에서는 E-stop과 HW/SW limit, UNIT, Home/Reference, 이동 범위와 explicit
+> safe-stop을 장비별로 별도 승인한다. 배포 DLL은 strong-name 및
+> AuthentiCode 서명이 없으므로 승인된 package manifest와 SHA-256으로 출처를 확인한다.
 > Admin `0x7D00/10/20/22`는 source/static과 current LASAL IDE build까지 완료했지만
 > PLC download와 실물 parameter 값/UNIT/relative motion은 아직 검증하지 않았다.
 

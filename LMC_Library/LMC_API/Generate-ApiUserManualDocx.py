@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -153,10 +154,59 @@ def configure_styles(document: Document) -> None:
     heading_2.paragraph_format.space_after = Pt(4)
     heading_2.paragraph_format.keep_with_next = True
 
+    heading_3 = styles["Heading 3"]
+    set_style_font(heading_3, BODY_FONT, 10.5, MID_BLUE, True)
+    heading_3.paragraph_format.space_before = Pt(7)
+    heading_3.paragraph_format.space_after = Pt(3)
+    heading_3.paragraph_format.keep_with_next = True
+
     toc_heading = styles.add_style("Manual TOC Heading", 1)
     set_style_font(toc_heading, BODY_FONT, 19, BLUE, True)
     toc_heading.paragraph_format.space_after = Pt(12)
     toc_heading.paragraph_format.page_break_before = True
+
+    # Word expands the TOC field with the built-in TOC 1/TOC 2 paragraph
+    # styles.  Pin compact styles here so a normal field refresh does not leave
+    # a single orphan entry on a third TOC page.
+    for name, size, indent, bold in (
+        ("TOC 1", 9.5, 0, True),
+        ("TOC 2", 8.8, 4, False),
+    ):
+        try:
+            toc_style = styles[name]
+        except KeyError:
+            toc_style = styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+        style_element = toc_style._element
+        style_element.attrib.pop(qn("w:customStyle"), None)
+        style_name = style_element.find(qn("w:name"))
+        if style_name is not None:
+            style_name.set(qn("w:val"), name.lower())
+        # CT_Style child order is schema-significant.  Insert each new
+        # metadata element before its first legal successor instead of using a
+        # fixed index, which would reverse the nodes and leave an invalid DOCX
+        # until Word happened to repair it on save.
+        metadata = (
+            ("basedOn", "Normal", ("next", "link", "autoRedefine", "hidden", "uiPriority", "semiHidden", "unhideWhenUsed", "qFormat", "locked", "personal", "personalCompose", "personalReply", "rsid", "pPr", "rPr")),
+            ("next", "Normal", ("link", "autoRedefine", "hidden", "uiPriority", "semiHidden", "unhideWhenUsed", "qFormat", "locked", "personal", "personalCompose", "personalReply", "rsid", "pPr", "rPr")),
+            ("uiPriority", "39", ("semiHidden", "unhideWhenUsed", "qFormat", "locked", "personal", "personalCompose", "personalReply", "rsid", "pPr", "rPr")),
+            ("semiHidden", None, ("unhideWhenUsed", "qFormat", "locked", "personal", "personalCompose", "personalReply", "rsid", "pPr", "rPr")),
+            ("unhideWhenUsed", None, ("qFormat", "locked", "personal", "personalCompose", "personalReply", "rsid", "pPr", "rPr")),
+        )
+        for tag, value, successors in metadata:
+            node = style_element.find(qn(f"w:{tag}"))
+            if node is None:
+                node = OxmlElement(f"w:{tag}")
+                style_element.insert_element_before(
+                    node,
+                    *(f"w:{successor}" for successor in successors),
+                )
+            if value is not None:
+                node.set(qn("w:val"), value)
+        set_style_font(toc_style, BODY_FONT, size, DARK, bold)
+        toc_style.paragraph_format.left_indent = Mm(indent)
+        toc_style.paragraph_format.space_before = Pt(0)
+        toc_style.paragraph_format.space_after = Pt(0)
+        toc_style.paragraph_format.line_spacing = 1.0
 
     note = styles.add_style("Manual Note", 1)
     set_style_font(note, BODY_FONT, 8, MID_GRAY)
@@ -506,7 +556,7 @@ def add_body(document: Document, source: Path) -> None:
             add_callout(document, " ".join(callout_lines))
             continue
 
-        heading = re.match(r"^(#{1,2})\s+(.+)$", stripped)
+        heading = re.match(r"^(#{1,3})\s+(.+)$", stripped)
         if heading:
             flush_paragraph()
             level = len(heading.group(1))

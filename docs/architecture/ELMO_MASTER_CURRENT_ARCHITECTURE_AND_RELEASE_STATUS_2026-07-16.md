@@ -976,10 +976,23 @@ gate/manifest에 도달하지 않아 current Distribution gate/manifest/candidat
 배포 script의 cleanup과 manifest 검증이 끝난 뒤 세 번호 폴더, README와 manifest만
 전달한다.
 
-외부 DOCX/PDF는 적용 API `0.9.1-preview` 표기는 맞지만 문서 버전은 아직
-`1.9` gate-off snapshot이다. 내부 Markdown 원본은 current `2.3-candidate`이므로 현재
-안전·계약 보완과 actual-EXE gate 경계가 외부 manual에 출판되지 않았다. 외부 문서에는
-특히 다음 release 경고가 부족하다.
+Canonical Distribution의 외부 DOCX/PDF는 적용 API `0.9.1-preview` 표기는 맞지만 문서
+버전은 아직 `1.9` gate-off snapshot이다. 내부 Markdown 원본에서 별도 검토용
+`2.3-candidate`를 생성했으며 canonical 파일은 덮어쓰지 않았다.
+
+- DOCX `output/doc/LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.docx`:
+  `93238` bytes, SHA-256
+  `A23211A5F530736E6BDC8746DCA1DF4556C47E08524828A7ADB70DC8C91C3182`
+- PDF `output/pdf/LASAL_Motion_Control_API_User_Manual_KO_2.3-candidate.pdf`:
+  `1013620` bytes, SHA-256
+  `9E82A467C1BEC2FC3FE20AF1EE8D1332C66D07617CAB2D512C744357C5C28E70`
+- Word-normalized DOCX Office 2016-targeted OpenXmlValidator `0`, Word-export PDF A4 `43`쪽, 전체 렌더
+  clipping/overlap/blank/tofu `0`, embedded/subset font `8/8`
+- 실제 DOCX/PDF 추출 text의 `Test-LmcDistributionManualReleasePolicy`는 PS5.1/PS7 모두
+  exact `3/3` PASS
+
+이 후보는 current 안전·계약 보완과 actual-EXE gate 경계를 포함하고 다음 release 경고를
+명시한다.
 
 - motion/group 전체 25-command matrix는 미완료지만 2026-07-23 Admin/group relative/
   Stop/PowerOff, D1 Catalog/PI, D2 Bulk와 D5 axis 1~4 happy path는 PASS했다. D3/D4 runtime,
@@ -988,7 +1001,10 @@ gate/manifest에 도달하지 않아 current Distribution gate/manifest/candidat
 - E-stop, software/hardware limit, UNIT, Home 확인 필요
 - DLL strong-name/AuthentiCode 서명 없음
 
-현재 외부 전달 전에는 이 경고를 별도 승인 문서로 보완하거나 DOCX/PDF를 개정해야 한다.
+후보 생성·문서 policy·레이아웃 PASS는 full Distribution PASS가 아니다. Current Gate D
+`Classes.lcb` identity STOP 때문에 release builder는 new EXE gate/manifest/publish에 도달하지
+않았고, current PLC live proof와 release-scope 승인도 남았다. 따라서 `2.3-candidate`를
+canonical `1.9`에 덮어쓰거나 production 외부 문서로 전달하지 않는다.
 
 ## 9. 2026-07-16 감사와 2026-07-20 D0 검증 결과(과거 snapshot)
 
