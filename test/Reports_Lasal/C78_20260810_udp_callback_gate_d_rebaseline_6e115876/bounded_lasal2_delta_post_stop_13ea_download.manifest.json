@@ -1,0 +1,124 @@
+{
+  "schema": "LasalPostStopDownloadIncident/v1",
+  "capturedAtUtc": "2026-08-11T05:05:10.5170563Z",
+  "repositoryHeadObserved": "f27bb44b27d1a1c03c64fda8a7e5a195a17bf1f6",
+  "lasalProcessCount": 0,
+  "sourceLog": {
+    "displayPath": "%TEMP%\\Lasal2.log",
+    "bytes": 11045306,
+    "sha256": "CEC2256AA0B7B02E2938C8E294C94CFD4A8EAE96C436BF318B16E28369367051",
+    "lastWriteUtc": "2026-08-11T01:36:40.0591253Z",
+    "startOffset": 9554717,
+    "endOffsetExclusive": 11045306,
+    "boundedBytes": 1490589,
+    "boundedSha256": "CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C"
+  },
+  "rawEvidence": {
+    "fileName": "bounded_lasal2_delta_post_stop_13ea_download.raw.txt",
+    "bytes": 1490589,
+    "sha256": "CAA408D3997182495023DBC1FA9719462447D2F822C459990CE4BECB6EA4E69C",
+    "encoding": "opaque byte-preserving records; ASCII-compatible plus 28 literal 0xB5 bytes",
+    "lineEnding": "CRLF",
+    "lineCount": 16994,
+    "sourceLineStart": 109927,
+    "sourceLineEnd": 126920,
+    "firstRecord": "[10:27:45 (INFO) Application] Log File is ok",
+    "lastRecord": "[10:36:40 P:21016 T:13888 (INFO) GUI] ...LC2 exit done."
+  },
+  "outputsObserved": {
+    "classes": {
+      "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Class/Classes.lcb",
+      "bytes": 8549773,
+      "sha256": "13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9",
+      "lastWriteUtc": "2026-08-11T01:28:33.0778381Z"
+    },
+    "networks": {
+      "relativePath": "Lasal_PRG/Elmo_EtherCAT_Test_4Axis/Network/Networks.lcb",
+      "bytes": 242363,
+      "sha256": "C307547E097655AAE75BF1E8505B2A0C9DBFC998B3AF5BDD391BD8109604C23F",
+      "lastWriteUtc": "2026-08-10T04:10:48.9244985Z",
+      "preservedPostRebuildSnapshotByteExact": true
+    }
+  },
+  "sessions": [
+    {
+      "pid": 26200,
+      "sourceLineStart": 109928,
+      "sourceLineEnd": 119001,
+      "loadSucceeded": true,
+      "loadPhaseE0015Count": 1,
+      "rebuildSucceeded": true,
+      "rebuildSucceededLocalTime": "2026-08-11T10:28:33+09:00",
+      "connectSucceeded": true,
+      "downloadSucceeded": true,
+      "downloadedLbaCount": 282,
+      "plcLinkingSucceeded": true,
+      "normalLasalExit": true
+    },
+    {
+      "pid": 21016,
+      "sourceLineStart": 119003,
+      "sourceLineEnd": 126920,
+      "loadSucceeded": true,
+      "loadPhaseE0015Count": 1,
+      "rebuildOccurred": false,
+      "connectSucceeded": true,
+      "standaloneResetSucceeded": true,
+      "standaloneRestartSucceeded": true,
+      "downloadOccurred": false,
+      "normalLasalExit": true
+    }
+  ],
+  "comparison": {
+    "fileName": "classes_lcb_post_stop_13ea5823.comparison.json",
+    "bytes": 50060,
+    "sha256": "DBC54235BDB505D9E7A198B3DCFA2CBD63F8AAC19728D1349FDC46DD5FA6CEC5",
+    "producer": {
+      "relativePath": "test/Reports_Lasal/C78_20260810_udp_callback_gate_d_rebaseline_6e115876/Compare-LasalClassesArtifact.ps1",
+      "bytes": 79592,
+      "sha256": "B91BFB5AFE131F0ECB3F23DC00373BEC7FC91B2C37CF626D128E912F633EBBA4",
+      "blobOid": "b90cf244bb7479b6a0d5da85750389785ccfe90e",
+      "lastPathCommit": "79f03d36f89c34b26325666a4a3eddb9306c4674",
+      "scopedHeadCleanAtCapture": true,
+      "physicalSnapshotEqualsHeadBlob": true,
+      "executingBytesAuthenticated": false,
+      "producerTrustBoundary": "NON_ADVERSARIAL_WORKSPACE"
+    },
+    "exitCode": 3,
+    "disposition": "REJECTED_BOUNDARY_OR_CONTRACT_DRIFT",
+    "changedBytes": 90,
+    "contiguousRuns": 57,
+    "changedOwners": 35,
+    "unmappedRuns": 0,
+    "gateDTargetRecordCount": 4,
+    "gateDTargetRecordsAllExact": true,
+    "protectedDependencyRecordCount": 2,
+    "protectedDependencyRecordsAllExact": true,
+    "firstSpecialAxisBaseExact": false,
+    "candidateDiffPreviewReconstructionByteExact": true,
+    "reconstructedCandidateBlobOid": "4db7cf0d32c0cbd8ee53aacce28ea56048ca0674"
+  },
+  "bindingAssessment": {
+    "exactClassesHashCapturedBeforeDownload": false,
+    "classesLcbListedAsDownloaded": false,
+    "networksLcbListedAsDownloaded": false,
+    "downloadedLbaHashManifestCaptured": false,
+    "exactArtifactToDownloadBinding": false,
+    "operatorOriginProven": false,
+    "actionOrigin": "UNPROVEN",
+    "association": "TIME_CORRELATION_ONLY"
+  },
+  "decision": {
+    "incidentEvidenceOnly": true,
+    "acceptedAsIsolatedRebuildEvidence": false,
+    "appendToB2019dbBundlePermitted": false,
+    "rerunOldFinalizerPermitted": false,
+    "repeatRebuildPermitted": false,
+    "repeatDownloadPermitted": false,
+    "productionApproved": false,
+    "semanticEquivalenceProven": false,
+    "rebaselinePermitted": false,
+    "requiresReviewedTransition": true,
+    "onlineRuntimeQualificationPermitted": false
+  }
+}
