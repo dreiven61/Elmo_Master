@@ -613,8 +613,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'SemanticPolicy'
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -687,8 +687,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         SemanticPolicy = @{
             RelativePath = 'LMC_Library/LMC_API/Test-LmcDistributionSemanticPolicy.ps1'
             TimeoutSeconds = 120
-            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
-            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 52 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
+            EvidencePattern = '^PASS LMC\.DistributionSemanticPolicy\.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18$'
+            EvidenceLine = 'PASS LMC.DistributionSemanticPolicy.Tests 53 AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769 18'
             WorkerTerminates = $false
         }
         ReleaseManifest = @{
@@ -1058,14 +1058,14 @@ function Invoke-LmcDistributionToolingWorker {
             $semanticResult = @(& $suitePath)
             if ($semanticResult.Count -ne 1 -or
                 $semanticResult[0].Result -cne 'PASS' -or
-                $semanticResult[0].TestCount -ne 52 -or
+                $semanticResult[0].TestCount -ne 53 -or
                 $semanticResult[0].PolicyCheckCount -ne 18 -or
                 $semanticResult[0].PolicySha256 -cne
                     'AE26EF45A5A7D7C4A0D6C3C04DE3D3C4C7A6EB27BF5303142064BBE75D388769') {
                 throw 'Distribution semantic-policy suite result drifted.'
             }
             Write-Output (
-                'PASS LMC.DistributionSemanticPolicy.Tests 52 ' +
+                'PASS LMC.DistributionSemanticPolicy.Tests 53 ' +
                 $semanticResult[0].PolicySha256 + ' 18')
         }
         'ReleaseManifest' {
