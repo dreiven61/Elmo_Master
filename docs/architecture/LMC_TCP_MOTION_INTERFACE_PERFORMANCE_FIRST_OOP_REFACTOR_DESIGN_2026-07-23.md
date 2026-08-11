@@ -292,12 +292,28 @@ pre-split 초과 method는 아래 7개만 baseline debt로 인정하되,
 direct self-test는 baseline shrink/removal 허용과 exact-threshold 신규 debt/baseline growth 거부를
 포함해 `5/5`를 통과한다. pre-split tree는 six classes, `93` methods, under-limit `86`,
 baseline debt `7`이었다. Section 8.2의 preemption-cleanup split 뒤 `94/88/6`, Section 8.3의
-DS402 receipt split 뒤 current inventory는 `95/90/5`가 됐다. retired receipt debt 재발 fixture를
-추가한 current self-test는 `6/6` PASS다. 전체 `Verify-LasalContract.ps1`도 이 ratchet을 호출하므로
+DS402 receipt split 뒤 당시 inventory는 `95/90/5`가 됐다. retired receipt debt 재발 fixture를
+추가한 당시 self-test는 `6/6` PASS다. 전체 `Verify-LasalContract.ps1`도 이 ratchet을 호출하므로
 별도 실행 누락으로 size gate를 우회할 수 없다.
 
+2026-08-11 current roll-up에서는 cleanup, receipt, rollback에 이어
+`PublishAxisOwnership`도 raw/LF/all-CRLF `26265/26265/26996`으로 일반 `<32768` gate에
+들어왔다. 따라서 historical debt 7개 중 아래 3개만 baseline으로 남긴다.
+
+| Class | Method | current raw | current LF | current all-CRLF |
+|---|---|---:|---:|---:|
+| `LMCControlCommandService` | `ReserveAxisOwnership` | 77731 | 77731 | 79879 |
+| `LMCRecorderStore` | `HandleRequest` | 75829 | 75249 | 77210 |
+| `LMCEcatInputLatch` | `RtWork` | 72907 | 71437 | 73287 |
+
+Current inventory는 six classes / methods/under-limit/debt `101/98/3`이고 PS5.1과 PS7
+current scan이 동일하다. self-test는 `8/8` PASS하며 retired `PublishAxisOwnership`의 raw,
+LF, all-CRLF 각 차원이 exact `32768`에 닿는 세 fixture를 모두 신규 debt로 거부한다. 이
+ratchet은 retired method가 다시 32 KiB debt로 돌아가는 것을 막는 PC 정적 계약일 뿐
+LASAL compile, generated metadata 또는 PLC runtime 증거가 아니다.
+
 2026-08-05 `ReserveAxisOwnership`의 미선언 `preemptRecordBase` 5곳을 같은 function에 이미 선언된
-`probeRecordBase`로 교정한 뒤 current `LMCControlCommandService.st` SHA-256은
+`probeRecordBase`로 교정한 직후 당시 `LMCControlCommandService.st` SHA-256은
 `C976CD364010EEFDFDDA8D7BC6D7655293DAD221FBEC908D50E5805CE4AFF072`다. 이 교정은 public ABI,
 local 수, 호출과 write 순서를 바꾸지 않고 debt baseline만 세 차원에서 각각 10 bytes 줄였다.
 아래 8.2~8.5의 whole-source planned SHA와 reverse-inline target
@@ -1019,7 +1035,7 @@ all-CRLF expected projection `611837` bytes / SHA-256
 - decision helper: `24708` bytes,
   `75804F7C0681D51416E75C55D54038162E71768EAFF00C4057F8200D138FC377`
 
-세 method는 모두 `32768` bytes 미만이다. current custom method inventory는 `98/95/3`
+세 method는 모두 `32768` bytes 미만이다. 해당 2026-08-07 tranche의 custom method inventory는 `98/95/3`
 (전체/under-limit/baseline debt)이다. post-build generated/project/Network ratchet은 다음과 같다.
 
 - `Classes.lcb`: `8434505` bytes / SHA-256
@@ -1057,15 +1073,39 @@ current 승인값으로 사용하지 않는다.
 
 ### 8.6 post-C78 ownership reservation split plan
 
-이 절은 **미적용 계획**이다. 2026-08-05 P0 교정 뒤 current
+이 절은 **미적용 계획**이다. 2026-08-05 P0 교정 직후 당시
 `ReserveAxisOwnership`의 public ABI와 실행 의미를 전용 semantic/structural fence로 먼저 고정했다.
 LASAL generated declaration, Network와 Section 17의 hidden channel 1개 + private helper 8개 handoff는
 변경하지 않았다. Section 17 external inspection, default SourceOnly와 C78 baseline이 닫히기 전에는 아래
 두 helper를 IDE에 선언하거나 tracked source에 적용하지 않는다.
 
+2026-08-11 current pre-split handoff는 다음 값으로 2026-08-05 snapshot을 대체한다.
+
+- `LMCControlCommandService.st`: `594938` bytes, `31` methods, SHA-256
+  `8715896406D3B99185C40FBE9C2F0E29170C2D57E1E58792515172EBDDC81E65`
+- `ReserveAxisOwnership`: raw/LF/all-CRLF `77731/77731/79879`, raw block SHA-256
+  `37968C3AE00433485E35A49B1F10CBF5FEE0AEA47891D729F93627C103385A03`
+- focused PS5.1/PS7 reserve fixture `62/62` PASS
+- local/mutation/result inventory SHA-256
+  `55ACBC2438AE68FAE362C479F4B9EB2ADD3F416180DBE863AD78729BE9F4DFF1` /
+  `BBBDA2CFB2BD1763D08D26EC7AF10E0CC18D0A57DEF34A91461B1ABA56869361` /
+  `5F438EDB025A88529A2C14326DCC1FEDE9D19ED44A56FAC3645E4B7AF8AF1154`
+- whole-method semantic/lexical SHA-256은 각각
+  `9E0A14511F49B47D174CECC978749BAE5C8B4D42D5E934A020BEC2158322C85E` /
+  `F13EDA75E7EFF379D407E88EC5CE2C37BA3445A3FED0C7D59B3DB9C53517246F`
+- 두 planned private helper 이름은 current class declaration과 implementation에 `0`건이며
+  외부 편집기로 generated declaration을 만들지 않는다.
+
+다음 적용 tranche의 선행조건은 clean tracked source와 reviewed Gate D transition을 먼저
+확보하고 LASAL IDE에서 두 private method declaration을 생성·저장하는 것이다. 그 직후 저장된
+source/generated ABI를 다시 pin하고 current body에서 extraction/call map/reverse-inline proof를
+재계산한다. 현재 dirty `Classes.lcb`와 exit `3` STOP 상태에서는 IDE Save/Rebuild/Download 또는
+implementation-only split을 수행하지 않는다.
+
 P0 교정은 function 안에서 선언되지 않은 `preemptRecordBase` 5개 참조를 이미 선언되어 같은 record
 base 의미로 사용되는 `probeRecordBase`로 바꾼 것이다. public/class ABI, local 수, call/write/result 순서는
-변하지 않았다. 교정 뒤 current 값은 다음과 같다.
+변하지 않았다. 교정 직후 2026-08-05 snapshot 값은 다음과 같으며 위 current handoff가 이를
+대체한다.
 
 - `LMCControlCommandService.st` SHA-256
   `C976CD364010EEFDFDDA8D7BC6D7655293DAD221FBEC908D50E5805CE4AFF072`
@@ -1093,7 +1133,8 @@ ReserveAxisOwnership
   Result : DINT
 ```
 
-pre-split fence는 class/implementation의 exact thirteen-input/one-output ABI, qualified Control
+아래 pre-split fence 수치는 2026-08-05 snapshot의 설계 근거다. Current 적용 시에는 위 current
+hash를 입력으로 다시 산출한다. fence는 class/implementation의 exact thirteen-input/one-output ABI, qualified Control
 implementation header 26개와 모든 lexical `END_FUNCTION` token의 strict alternating order를 고정한다.
 따라서 function을 macro 앞, 가짜 이웃 사이, 다른 function 내부로 옮기거나 orphan 종료 token을 남기는
 relocation을 허용하지 않는다. shared publish closure를 재사용해 exact class block, generated table,
@@ -1133,7 +1174,7 @@ current production caller는 모두 `TCPMotionInterface` 안의 exact 세 곳이
 3. ordinary Axis/Group path는 음수만 거부하고 `0/+1/+2`를 repeated-safety helper에 전달한다. `+1`은
    native ACK 없이 종료하고 `+2`는 PowerOff escalation을 한 번 수행하는 current policy다.
 
-한 helper만으로는 current all-CRLF `79881` bytes를 두 method ceiling 아래로 나눌 수 없다. helper 한
+한 helper만으로는 2026-08-05 snapshot의 all-CRLF `79881` bytes를 두 method ceiling 아래로 나눌 수 없다. helper 한
 개의 이론적 수용량보다 추출해야 할 body가 overhead 전부터 `14347` bytes 크다. post-C78 minimum은
 아래 **private helper 두 개**다. 둘 다 `GLOBAL` 또는 `VIRTUAL GLOBAL`로 만들지 않는다.
 
@@ -1199,7 +1240,7 @@ PrepareAxisOwnershipReserveDecision
 `preemptRecordBase` 식별자를 도입하지 않는다. helper 출력 pointer capacity/alias는 LASAL ABI가 별도로
 보장하지 않으므로 adapter가 exact local address만 전달하는 one-call contract로 고정한다.
 
-current 교정 source를 대상으로 한 in-memory 계획 크기와 reverse proof는 다음과 같다.
+2026-08-05 교정 source를 대상으로 한 in-memory 계획 크기와 reverse proof는 다음과 같다.
 
 - surface extraction lines `2549..3244`: raw/LF/all-CRLF `25718/25022/25718`, SHA-256
   `6DFC99CA7F5DA568F3877F46740FB81B9D83C8F1DC38B6BC8F5E1AD48042DA83`
@@ -1218,9 +1259,9 @@ current 교정 source를 대상으로 한 in-memory 계획 크기와 reverse pro
 - planned whole Control source SHA-256
   `88EFF5F607AB415834F9C9A86741D77CF2DCBBE69A73CFEB9B09B6EEF40A94C6`
 
-두 helper declaration/local/call-map을 제거하고 두 원 block을 reverse-inline하면 current Control source
+두 helper declaration/local/call-map을 제거하고 두 원 block을 reverse-inline하면 당시 Control source
 SHA-256 `C976CD364010EEFDFDDA8D7BC6D7655293DAD221FBEC908D50E5805CE4AFF072`를 byte-exact 복원한다.
-실제 split 뒤에는 public adapter + 두 private helper의 합성 read/write/call/result inventory,
+이 planned sizes/hashes는 current source에 적용할 값이 아니다. 실제 split 뒤에는 public adapter + 두 private helper의 합성 read/write/call/result inventory,
 one-call dominance, persistent first-write dominance, pointer target singleton과 reverse-inline proof를 새로
 승인하고 baseline debt를 제거한다.
 

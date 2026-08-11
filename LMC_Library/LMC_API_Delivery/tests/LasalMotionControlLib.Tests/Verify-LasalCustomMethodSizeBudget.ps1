@@ -46,13 +46,6 @@ $BaselineDebt = @(
         CRLFBytes = 79881
     },
     [pscustomobject]@{
-        ClassName = 'LMCControlCommandService'
-        MethodName = 'PublishAxisOwnership'
-        RawBytes = 65118
-        LFBytes = 63444
-        CRLFBytes = 65119
-    },
-    [pscustomobject]@{
         ClassName = 'LMCRecorderStore'
         MethodName = 'HandleRequest'
         RawBytes = 75829
@@ -206,8 +199,8 @@ function Get-BaselineDebtIndex {
         }
         $index[$key] = $entry
     }
-    if ($index.Count -ne 4) {
-        throw "Method-size baseline count is $($index.Count), expected exactly 4."
+    if ($index.Count -ne 3) {
+        throw "Method-size baseline count is $($index.Count), expected exactly 3."
     }
     return $index
 }
@@ -446,6 +439,50 @@ function Invoke-SelfTest {
     $testCount++
     Write-Output "SELFTEST $testCount PASS retired rollback debt rejection"
 
+    $retiredPublishBoundaryCases = @(
+        [pscustomobject]@{
+            Name = 'raw'
+            RawBytes = $MethodSizeLimitBytes
+            LFBytes = $MethodSizeLimitBytes - 1
+            CRLFBytes = $MethodSizeLimitBytes - 1
+        },
+        [pscustomobject]@{
+            Name = 'LF'
+            RawBytes = $MethodSizeLimitBytes - 1
+            LFBytes = $MethodSizeLimitBytes
+            CRLFBytes = $MethodSizeLimitBytes - 1
+        },
+        [pscustomobject]@{
+            Name = 'CRLF'
+            RawBytes = $MethodSizeLimitBytes - 1
+            LFBytes = $MethodSizeLimitBytes - 1
+            CRLFBytes = $MethodSizeLimitBytes
+        })
+    foreach ($boundaryCase in $retiredPublishBoundaryCases) {
+        $retiredPublishDebtInventory = @(
+            New-TestInventoryEntry `
+                -ClassName 'LMCControlCommandService' `
+                -MethodName 'PublishAxisOwnership' `
+                -RawBytes $boundaryCase.RawBytes `
+                -LFBytes $boundaryCase.LFBytes `
+                -CRLFBytes $boundaryCase.CRLFBytes)
+        Assert-SelfTestThrows `
+            -Action {
+                [void](Assert-MethodSizeBudget `
+                        -Inventory $retiredPublishDebtInventory `
+                        -Owner (
+                            'self-test retired publish debt ' +
+                            $boundaryCase.Name))
+            } `
+            -ExpectedText (
+                'new debt LMCControlCommandService::PublishAxisOwnership') `
+            -Name (
+                'retired publish debt recurrence ' +
+                $boundaryCase.Name)
+    }
+    $testCount++
+    Write-Output "SELFTEST $testCount PASS retired publish debt rejection"
+
     $growthInventory = @(
         New-TestInventoryEntry `
             -ClassName $reserveBaseline.ClassName `
@@ -464,6 +501,9 @@ function Invoke-SelfTest {
     $testCount++
     Write-Output "SELFTEST $testCount PASS baseline growth rejection"
 
+    if ($testCount -ne 8) {
+        throw "Method-size verifier self-test count is $testCount, expected 8."
+    }
     Write-Output "PASS: method-size verifier self-test $testCount/$testCount."
 }
 
