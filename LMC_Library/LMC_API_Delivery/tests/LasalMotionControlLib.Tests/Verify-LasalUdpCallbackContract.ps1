@@ -38,6 +38,7 @@ $Owner = 'LASAL.UdpCallbackContract'
 $Utf8 = [Text.UTF8Encoding]::new($false, $true)
 $Latin1 = [Text.Encoding]::GetEncoding(28591)
 $DerivedCandidateApproved = $true
+$TerminalWakeBrokerExactPhysicalSnapshotApproved = $true
 
 $TargetRootRelativePath = 'Lasal_PRG/Elmo_EtherCAT_Test_4Axis'
 $TransceiverRelativePath =
@@ -7419,12 +7420,16 @@ function Assert-LasalUdpCallbackStateContract {
         }
     }
 
+    $productionApproved =
+        ($state -in @('Absent', 'VendorImported')) -or
+        (($state -ceq 'TerminalWakeBrokerCandidate') -and
+            $TerminalWakeBrokerExactPhysicalSnapshotApproved)
     return [pscustomobject]@{
         State = $state
         VendorPairExact = ($state -cne 'Absent')
         ProtectedDependenciesExact = $true
-        ProductionApproved = -not $derivedState
-        NeedsRebaseline = $derivedState
+        ProductionApproved = $productionApproved
+        NeedsRebaseline = -not $productionApproved
         DerivedContractChecked = ($state -in @(
                 'DerivedDeclaration',
                 'DerivedWired',
@@ -11225,7 +11230,10 @@ function Invoke-UdpCallbackVerifierSelfTest {
             throw "UDP callback positive fixture state drifted: $($positive.State)"
         }
         $expectedProductionApproval =
-            $positive.State -in @('Absent', 'VendorImported')
+            $positive.State -in @(
+                'Absent',
+                'VendorImported',
+                'TerminalWakeBrokerCandidate')
         if ($result.ProductionApproved -ne $expectedProductionApproval -or
             $result.NeedsRebaseline -eq $expectedProductionApproval) {
             throw (
