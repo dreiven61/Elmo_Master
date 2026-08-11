@@ -15,8 +15,11 @@ namespace LasalMotionControlApiExample
     {
         private const int MinimumGroupMotionMonitorMilliseconds = 15000;
         private const int MaximumGroupMotionMonitorMilliseconds = 600000;
+        private const int ReconnectFreshSessionRetryDelayMilliseconds = 100;
         private const string TopologyUiFeatureMarker =
             "CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5";
+        private const string ReconnectPolicyMarker =
+            "RPC_INIT_FRESH_TCP_ONCE_V1";
         private static readonly PlcUnitOption[] PlcUnitOptions =
         {
             new PlcUnitOption("None / raw DINT (no conversion)", "raw", 1, true),
@@ -339,6 +342,9 @@ namespace LasalMotionControlApiExample
                 : assembly.GetName().Version.ToString();
             var buildTimeUtc = System.IO.File.GetLastWriteTimeUtc(
                 executablePath);
+            var sdkPath = typeof(LMCConnection).Assembly.Location;
+            var sdkBuildTimeUtc = System.IO.File.GetLastWriteTimeUtc(
+                sdkPath);
 
             Title = "LASAL Motion Control API Example v"
                 + version
@@ -354,6 +360,14 @@ namespace LasalMotionControlApiExample
                     CultureInfo.InvariantCulture)
                 + ", Feature="
                 + TopologyUiFeatureMarker
+                + ", ReconnectPolicy="
+                + ReconnectPolicyMarker
+                + ", SdkPath="
+                + sdkPath
+                + ", SdkBuildUtc="
+                + sdkBuildTimeUtc.ToString(
+                    "yyyy-MM-dd HH:mm:ss 'UTC'",
+                    CultureInfo.InvariantCulture)
                 + ".");
         }
 
@@ -564,70 +578,120 @@ namespace LasalMotionControlApiExample
                     }
 
                     var connectionAttempt = ++rpcConnectionAttemptSerial;
-                    lastRpcInitializationRetired = false;
-                    lastRpcInitializationEvidence =
-                        FormatRpcInitializationEvidence(
-                            connectionAttempt,
-                            "Connecting",
-                            remoteIp,
-                            remotePort,
-                            localIp,
-                            callbackPort,
-                            null,
-                            null);
-                    var newConnection = CreateCoordinatedConnection();
-                    AttachConnection(newConnection);
-                    connection = newConnection;
-                    ClearLoadedObjects();
-                    UpdateUiState();
-
-                    try
+                    var freshSessionRetryUsed = false;
+                    string freshSessionRetryFirstFailureEvidence = null;
+                    LMCConnection newConnection;
+                    while (true)
                     {
-                        await newConnection.RpcInitConnectionAsync(
-                            remoteIp,
-                            remotePort,
-                            localIp,
-                            callbackPort,
-                            1u,
-                            CancellationToken.None);
-                        lastRpcInitializationEvidence =
-                            FormatRpcInitializationEvidence(
-                                connectionAttempt,
-                                "Connected",
-                                remoteIp,
-                                remotePort,
-                                localIp,
-                                callbackPort,
-                                newConnection,
-                                null);
                         lastRpcInitializationRetired = false;
-                        RememberConnectedRemoteEndpoint(
-                            remoteIp,
-                            remotePort);
-                    }
-                    catch (Exception error)
-                    {
                         lastRpcInitializationEvidence =
-                            FormatRpcInitializationEvidence(
-                                connectionAttempt,
-                                "Failed",
-                                remoteIp,
-                                remotePort,
-                                localIp,
-                                callbackPort,
-                                newConnection,
-                                error);
-                        lastRpcInitializationRetired = true;
-                        if (ReferenceEquals(connection, newConnection))
-                        {
-                            connection = null;
-                        }
-
-                        DetachConnection(newConnection);
-                        newConnection.Dispose();
+                            AppendFreshSessionRetryEvidence(
+                                FormatRpcInitializationEvidence(
+                                    connectionAttempt,
+                                    "Connecting",
+                                    remoteIp,
+                                    remotePort,
+                                    localIp,
+                                    callbackPort,
+                                    null,
+                                    null),
+                                freshSessionRetryUsed,
+                                freshSessionRetryFirstFailureEvidence);
+                        newConnection = CreateCoordinatedConnection();
+                        AttachConnection(newConnection);
+                        connection = newConnection;
                         ClearLoadedObjects();
                         UpdateUiState();
-                        throw;
+
+                        try
+                        {
+                            await newConnection.RpcInitConnectionAsync(
+                                remoteIp,
+                                remotePort,
+                                localIp,
+                                callbackPort,
+                                1u,
+                                CancellationToken.None);
+                            lastRpcInitializationEvidence =
+                                AppendFreshSessionRetryEvidence(
+                                    FormatRpcInitializationEvidence(
+                                        connectionAttempt,
+                                        "Connected",
+                                        remoteIp,
+                                        remotePort,
+                                        localIp,
+                                        callbackPort,
+                                        newConnection,
+                                        null),
+                                    freshSessionRetryUsed,
+                                    freshSessionRetryFirstFailureEvidence);
+                            lastRpcInitializationRetired = false;
+                            RememberConnectedRemoteEndpoint(
+                                remoteIp,
+                                remotePort);
+                            break;
+                        }
+                        catch (Exception error)
+                        {
+                            var failedInitializationEvidence =
+                                FormatRpcInitializationEvidence(
+                                    connectionAttempt,
+                                    "Failed",
+                                    remoteIp,
+                                    remotePort,
+                                    localIp,
+                                    callbackPort,
+                                    newConnection,
+                                    error);
+                            var useFreshSessionRetry =
+                                !freshSessionRetryUsed
+                                && IsExactPersistentSessionInitMinusOneFailure(
+                                    newConnection);
+
+                            if (ReferenceEquals(connection, newConnection))
+                            {
+                                connection = null;
+                            }
+
+                            DetachConnection(newConnection);
+                            newConnection.Dispose();
+                            ClearLoadedObjects();
+
+                            if (useFreshSessionRetry)
+                            {
+                                freshSessionRetryUsed = true;
+                                freshSessionRetryFirstFailureEvidence =
+                                    failedInitializationEvidence;
+                                lastRpcInitializationEvidence =
+                                    AppendFreshSessionRetryScheduledEvidence(
+                                        failedInitializationEvidence,
+                                        freshSessionRetryFirstFailureEvidence);
+                                lastRpcInitializationRetired = true;
+                                WriteLog(
+                                    "RPC init returned the exact persistent "
+                                    + "ErrorId=-1 failure after the SDK same-socket retry. "
+                                    + "The failed TCP session was retired; one fresh TCP "
+                                    + "session retry will start after "
+                                    + ReconnectFreshSessionRetryDelayMilliseconds
+                                        .ToString(CultureInfo.InvariantCulture)
+                                    + " ms. FreshSessionFirstFailure={"
+                                    + failedInitializationEvidence
+                                    + "}");
+                                UpdateUiState();
+                                await Task.Delay(
+                                    ReconnectFreshSessionRetryDelayMilliseconds);
+                                continue;
+                            }
+
+                            lastRpcInitializationEvidence =
+                                AppendFreshSessionRetryEvidence(
+                                    failedInitializationEvidence,
+                                    freshSessionRetryUsed,
+                                    freshSessionRetryFirstFailureEvidence);
+                            lastRpcInitializationRetired = true;
+                            UpdateUiState();
+                            throw;
+                        }
                     }
 
                     WriteLog(
@@ -5314,27 +5378,41 @@ namespace LasalMotionControlApiExample
             }
 
             Exception closeError = null;
-            try
+            if (reportCloseError)
             {
-                await currentConnection.CloseConnectionAsync(
-                    CancellationToken.None);
-            }
-            catch (Exception error)
-            {
-                closeError = error;
-            }
-            finally
-            {
-                if (ReferenceEquals(connection, currentConnection))
+                try
                 {
-                    connection = null;
+                    await currentConnection.CloseConnectionAsync(
+                        CancellationToken.None);
                 }
-
-                DetachConnection(currentConnection);
-                currentConnection.Dispose();
-                ClearLoadedObjects();
-                UpdateUiState();
+                catch (Exception error)
+                {
+                    closeError = error;
+                }
             }
+            else
+            {
+                await EnsureCompleteLocalConnectionCleanupAsync(
+                    currentConnection,
+                    "Connection replacement cleanup");
+                closeError = currentConnection.LastCloseException;
+            }
+
+            if (!HasCompleteLocalConnectionCleanup(currentConnection))
+            {
+                await EnsureCompleteLocalConnectionCleanupAsync(
+                    currentConnection,
+                    "Explicit connection cleanup fallback");
+            }
+
+            if (ReferenceEquals(connection, currentConnection))
+            {
+                connection = null;
+            }
+
+            DetachConnection(currentConnection);
+            ClearLoadedObjects();
+            UpdateUiState();
 
             if (closeError == null)
             {
@@ -5346,7 +5424,15 @@ namespace LasalMotionControlApiExample
                 throw closeError;
             }
 
-            WriteLog("Connection cleanup warning: " + closeError.Message);
+            WriteLog(
+                "Connection cleanup warning retained after local cleanup. "
+                + "Response={"
+                + FormatRpcSessionInitResponse(
+                    currentConnection.RpcCloseResponse)
+                + "}, Failure="
+                + closeError.GetType().Name
+                + ": "
+                + closeError.Message);
         }
 
         private RecoveryConnectionIdentityMismatchException
@@ -9147,6 +9233,126 @@ namespace LasalMotionControlApiExample
             return evidence;
         }
 
+        private static bool IsExactPersistentSessionInitMinusOneFailure(
+            LMCConnection observedConnection)
+        {
+            if (observedConnection == null
+                || observedConnection.IsRpcInitialized
+                || observedConnection.IsCallbackListenerRunning
+                || observedConnection.CallbackLocalEndPoint != null
+                || observedConnection.RpcCallbackRegistrationResponse != null
+                || observedConnection.RpcCallbackRegistrationV2Response != null)
+            {
+                return false;
+            }
+
+            var initialization = observedConnection
+                .LastRpcSessionInitializationEvidence;
+            return initialization != null
+                && initialization.Outcome
+                    == LMCRpcSessionInitializationOutcome.Failed
+                && initialization.AttemptCount == 2
+                && initialization.CanonicalRetryUsed
+                && IsExactSessionInitMinusOneFailure(
+                    initialization.FirstFailureResponse)
+                && IsExactSessionInitMinusOneFailure(
+                    initialization.LastReceivedResponse);
+        }
+
+        private static bool HasCompleteLocalConnectionCleanup(
+            LMCConnection observedConnection)
+        {
+            return observedConnection != null
+                && observedConnection.State
+                    == LMCConnectionState.Disconnected
+                && !observedConnection.IsConnected
+                && !observedConnection.IsRpcInitialized
+                && !observedConnection.IsCallbackListenerRunning
+                && observedConnection.CallbackLocalEndPoint == null;
+        }
+
+        private async Task EnsureCompleteLocalConnectionCleanupAsync(
+            LMCConnection observedConnection,
+            string operation)
+        {
+            Exception lastUnexpectedError = null;
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                try
+                {
+                    await Task.Run(() => observedConnection.Dispose());
+                }
+                catch (Exception error)
+                {
+                    lastUnexpectedError = error;
+                    WriteLog(
+                        operation
+                        + " Dispose attempt "
+                        + attempt.ToString(CultureInfo.InvariantCulture)
+                        + " warning: "
+                        + error.Message);
+                }
+
+                if (HasCompleteLocalConnectionCleanup(observedConnection))
+                {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException(
+                operation
+                + " did not reach the complete disconnected postcondition "
+                + "after two bounded Dispose attempts.",
+                lastUnexpectedError);
+        }
+
+        private static bool IsExactSessionInitMinusOneFailure(
+            LMC_Response response)
+        {
+            return response != null
+                && response.IsFrameValid
+                && response.HeaderStatus == 1
+                && response.HeaderReserved == 0
+                && response.PayloadLength == 4
+                && response.HasCommandResult
+                && response.CommandStatus == 1
+                && response.ErrorId == -1;
+        }
+
+        private static string AppendFreshSessionRetryEvidence(
+            string evidence,
+            bool freshSessionRetryUsed,
+            string firstFailureEvidence)
+        {
+            if (!freshSessionRetryUsed)
+            {
+                return evidence;
+            }
+
+            return evidence
+                + ", FreshSessionRetry=Used"
+                + ", FreshSessionRetryDelayMs="
+                + ReconnectFreshSessionRetryDelayMilliseconds.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", FreshSessionFirstFailure={"
+                + firstFailureEvidence
+                + "}";
+        }
+
+        private static string AppendFreshSessionRetryScheduledEvidence(
+            string evidence,
+            string firstFailureEvidence)
+        {
+            return evidence
+                + ", FreshSessionRetry=Scheduled"
+                + ", FreshSessionRetryDelayMs="
+                + ReconnectFreshSessionRetryDelayMilliseconds.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", FreshSessionFirstFailure={"
+                + firstFailureEvidence
+                + "}";
+        }
+
         private static string FormatRpcSessionInitResponse(
             LMC_Response response)
         {
@@ -9498,32 +9704,51 @@ namespace LasalMotionControlApiExample
 
             shutdownInProgress = true;
             var currentConnection = connection;
-            connection = null;
-            ClearLoadedObjects();
 
             if (currentConnection != null)
             {
-                DetachConnection(currentConnection);
                 try
                 {
-                    await currentConnection.CloseConnectionAsync(
-                        CancellationToken.None);
+                    await EnsureCompleteLocalConnectionCleanupAsync(
+                        currentConnection,
+                        "Window shutdown cleanup");
                 }
-                catch (Exception closeError)
+                catch (Exception cleanupError)
                 {
-                    WriteLog("Shutdown close warning: " + closeError.Message);
+                    shutdownInProgress = false;
+                    UpdateUiState();
+                    WriteLog(
+                        "Window close cancelled: "
+                        + cleanupError.Message);
+                    return;
                 }
 
-                try
+                if (currentConnection.LastCloseException != null)
                 {
-                    currentConnection.Dispose();
+                    WriteLog(
+                        "Shutdown RPC close warning retained after local cleanup. "
+                        + "Response={"
+                        + FormatRpcSessionInitResponse(
+                            currentConnection.RpcCloseResponse)
+                        + "}, Failure="
+                        + currentConnection.LastCloseException
+                            .GetType().Name
+                        + ": "
+                        + currentConnection.LastCloseException.Message);
                 }
-                catch (Exception disposeError)
+
+                if (ReferenceEquals(connection, currentConnection))
                 {
-                    WriteLog("Shutdown dispose warning: " + disposeError.Message);
+                    connection = null;
                 }
+
+                DetachConnection(currentConnection);
             }
 
+            ClearLoadedObjects();
+            shutdownInProgress = false;
+            UpdateUiState();
+            shutdownInProgress = true;
             allowWindowClose = true;
             _ = Dispatcher.BeginInvoke(
                 DispatcherPriority.Normal,

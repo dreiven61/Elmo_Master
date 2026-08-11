@@ -110,11 +110,23 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.StaleD5StatusCompletionPreservesNewerOwnership",
                 CallbackV2StaleD5StatusCompletionPreservesNewerOwnership);
             tests.Add(
-                "Wpf.CallbackV2.PersistentInitFailureCleansUpAndManualReconnectUsesNewSession",
-                CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession);
+                "Wpf.CallbackV2.ShutdownCloseMinusOneThenInitialFreshSessionRetrySucceeds",
+                CallbackV2ShutdownCloseMinusOneThenInitialFreshSessionRetrySucceeds);
+            tests.Add(
+                "Wpf.CallbackV2.InitialSecondPersistentMinusOneFailureStopsBounded",
+                CallbackV2InitialSecondPersistentMinusOneFailureStopsBounded);
             tests.Add(
                 "Wpf.CallbackV2.ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession",
                 CallbackV2ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession);
+            tests.Add(
+                "Wpf.CallbackV2.ReconnectPersistentMinusOneUsesOneFreshSessionRetry",
+                CallbackV2ReconnectPersistentMinusOneUsesOneFreshSessionRetry);
+            tests.Add(
+                "Wpf.CallbackV2.ReconnectSecondPersistentMinusOneFailureStopsBounded",
+                CallbackV2ReconnectSecondPersistentMinusOneFailureStopsBounded);
+            tests.Add(
+                "Wpf.CallbackV2.ReconnectErrorZeroDoesNotUseFreshSessionRetry",
+                CallbackV2ReconnectErrorZeroDoesNotUseFreshSessionRetry);
             tests.Add(
                 "Wpf.CallbackV2.QueuedOldSessionStatisticsCannotMutateReplacementUi",
                 CallbackV2QueuedOldSessionStatisticsCannotMutateReplacementUi);
@@ -153,17 +165,243 @@ namespace LasalApiWpfTestApp.SmokeTests
         }
 
         private static void
-            CallbackV2PersistentInitFailureCleansUpAndManualReconnectUsesNewSession()
+            CallbackV2ShutdownCloseMinusOneThenInitialFreshSessionRetrySucceeds()
         {
-            VerifyCallbackV2InitFailureCleanupAndManualReconnect(
-                new[]
+            var steps = CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology);
+            steps.Add(CloseShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.AddRange(CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology));
+            steps.Add(CloseStep());
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
                 {
-                    SessionInitShortFailureStep(-1),
-                    SessionInitShortFailureStep(-1)
-                },
-                2,
-                true,
-                -1);
+                    window = CreateWindow(
+                        journalDirectory,
+                        server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The WPF setup connection did not complete before the shutdown close smoke.");
+
+                    var shutdownConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(shutdownConnection);
+                    window.Close();
+                    WaitUntil(
+                        () => !window.IsLoaded,
+                        "Window.Close did not complete after the RPC close ErrorId=-1 response.");
+                    AssertEx.True(
+                        GetPrivateField(window, "connection") == null,
+                        "Window close retained the local LMCConnection after the close ACK failure.");
+                    AssertEx.Equal(
+                        LMCConnectionState.Disconnected,
+                        shutdownConnection.State);
+                    AssertEx.False(shutdownConnection.IsConnected);
+                    AssertEx.False(shutdownConnection.IsRpcInitialized);
+                    AssertEx.False(
+                        shutdownConnection.IsCallbackListenerRunning);
+                    AssertEx.True(
+                        shutdownConnection.CallbackLocalEndPoint == null,
+                        "Window close retained the callback endpoint after local cleanup.");
+                    AssertEx.NotNull(shutdownConnection.LastCloseException);
+                    AssertEx.NotNull(shutdownConnection.RpcCloseResponse);
+                    AssertEx.True(
+                        shutdownConnection.RpcCloseResponse.IsFrameValid);
+                    AssertEx.Equal(
+                        (ushort)1,
+                        shutdownConnection.RpcCloseResponse.HeaderStatus);
+                    AssertEx.Equal(
+                        0u,
+                        shutdownConnection.RpcCloseResponse.HeaderReserved);
+                    AssertEx.Equal(
+                        (ushort)4,
+                        shutdownConnection.RpcCloseResponse.PayloadLength);
+                    AssertEx.True(
+                        shutdownConnection.RpcCloseResponse.HasCommandResult);
+                    AssertEx.Equal(
+                        (ushort)1,
+                        shutdownConnection.RpcCloseResponse.CommandStatus);
+                    AssertEx.Equal(
+                        (short)-1,
+                        shutdownConnection.RpcCloseResponse.ErrorId);
+                    AssertEx.Contains(
+                        "Shutdown RPC close warning retained after local cleanup.",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "SdkPath=",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "LasalMotionControlLib.dll, SdkBuildUtc=",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "HeaderStatus=1, HeaderReserved=0, PayloadLength=4, HasCommandResult=True, CommandStatus=1, ErrorId=-1",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405D));
+                    window = null;
+
+                    window = CreateWindow(
+                        journalDirectory,
+                        server.Port);
+                    var connectClickCount = 0;
+                    connectClickCount++;
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => window.TextRpcInitialization.Text.IndexOf(
+                                "FreshSessionRetry=Scheduled",
+                                StringComparison.Ordinal) >= 0,
+                        "The restarted first Connect did not expose scheduled fresh-session evidence.");
+                    WaitForConnectCompleted(
+                        window,
+                        "The restarted first Connect did not recover on one fresh TCP session.");
+
+                    AssertEx.Equal(1, connectClickCount);
+                    AssertEx.Equal(
+                        1,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"));
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=1, Outcome=Connected",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionFirstFailure={Attempt=1, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    var completedEvidence =
+                        window.TextRpcInitialization.Text;
+                    PumpDispatcherOnce();
+                    PumpDispatcherOnce();
+                    AssertEx.False((bool)GetPrivateField(
+                        window,
+                        "lastRpcInitializationRetired"));
+                    AssertEx.Equal(
+                        completedEvidence,
+                        window.TextRpcInitialization.Text);
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405D));
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2InitialSecondPersistentMinusOneFailureStopsBounded()
+        {
+            var steps = new[]
+            {
+                SessionInitShortFailureStep(-1),
+                SessionInitShortFailureStep(-1),
+                ClientDisconnectBoundaryStep(true),
+                SessionInitShortFailureStep(-1),
+                SessionInitShortFailureStep(-1),
+                ClientDisconnectBoundaryStep(false)
+            };
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "The restarted first Connect did not stop after its one fresh candidate also failed.");
+
+                    AssertEx.Equal(
+                        1,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"));
+                    AssertEx.Equal(2, server.AcceptedClientCount);
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        1,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=1, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Current=Retired",
+                        window.TextRpcInitialization.Text);
+                    server.Verify();
+                    AssertEx.Equal(
+                        2,
+                        server.AcceptedClientCount,
+                        "The initial Connect opened an unbounded third TCP session.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
         }
 
         private static void
@@ -381,6 +619,348 @@ namespace LasalApiWpfTestApp.SmokeTests
                 CloseWindowBestEffort(window);
                 DeleteJournalDirectory(journalDirectory);
             }
+        }
+
+        private static void
+            CallbackV2ReconnectPersistentMinusOneUsesOneFreshSessionRetry()
+        {
+            var steps = CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology);
+            steps.Add(CloseShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.AddRange(CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology));
+            steps.Add(CloseStep());
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The WPF initial connection did not complete before the reconnect retry smoke.");
+
+                    var initialConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(initialConnection);
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+
+                    var reconnectClickCount = 0;
+                    reconnectClickCount++;
+                    Click(window.ButtonConnect);
+                    WaitUntil(
+                        () => window.TextRpcInitialization.Text.IndexOf(
+                                "FreshSessionRetry=Scheduled",
+                                StringComparison.Ordinal) >= 0,
+                        "The reconnect did not expose the scheduled fresh-session retry evidence.");
+                    WaitForConnectCompleted(
+                        window,
+                        "One reconnect click did not recover on one fresh TCP session retry.");
+
+                    var recoveredConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(recoveredConnection);
+                    AssertEx.False(
+                        ReferenceEquals(initialConnection, recoveredConnection),
+                        "The reconnect retained the initial LMCConnection instance.");
+                    AssertEx.Equal(
+                        LMCConnectionState.Disconnected,
+                        initialConnection.State);
+                    AssertEx.False(initialConnection.IsConnected);
+                    AssertEx.False(initialConnection.IsRpcInitialized);
+                    AssertEx.False(
+                        initialConnection.IsCallbackListenerRunning);
+                    AssertEx.True(
+                        initialConnection.CallbackLocalEndPoint == null,
+                        "Connection replacement retained the old callback endpoint.");
+                    AssertEx.NotNull(initialConnection.LastCloseException);
+                    AssertEx.Equal(1, reconnectClickCount);
+                    AssertEx.Equal(
+                        2,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"),
+                        "The fresh TCP retry was exposed as a second user Connect operation.");
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405D));
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=2, Outcome=Connected",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryDelayMs=100",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionFirstFailure={Attempt=2, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "0x8080Attempts=2, Retry=True, InitOutcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "HeaderStatus=1, HeaderReserved=0, PayloadLength=4, HasCommandResult=True, CommandStatus=1, ErrorId=-1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "one fresh TCP session retry will start after 100 ms",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "Connection cleanup warning retained after local cleanup.",
+                        window.TextExecutionLog.Text);
+                    var completedInitializationEvidence =
+                        window.TextRpcInitialization.Text;
+                    PumpDispatcherOnce();
+                    PumpDispatcherOnce();
+                    AssertEx.False(
+                        (bool)GetPrivateField(
+                            window,
+                            "lastRpcInitializationRetired"),
+                        "The successful fresh session remained marked as retired.");
+                    AssertEx.Equal(
+                        completedInitializationEvidence,
+                        window.TextRpcInitialization.Text,
+                        "Queued UI work overwrote the successful fresh-session evidence.");
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405D));
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2ReconnectSecondPersistentMinusOneFailureStopsBounded()
+        {
+            var steps = CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology);
+            steps.Add(CloseStep());
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(SessionInitShortFailureStep(-1));
+            steps.Add(ClientDisconnectBoundaryStep(false));
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The WPF initial connection did not complete before the bounded retry smoke.");
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "The second persistent reconnect failure did not stop in a clean bounded state.");
+
+                    AssertEx.Equal(
+                        2,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"));
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(2, CountCommandInSession(
+                        server,
+                        3,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        3,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        3,
+                        0x405D));
+                    AssertEx.Contains(
+                        "Attempt=2, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionFirstFailure={Attempt=2, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Current=Retired",
+                        window.TextRpcInitialization.Text);
+
+                    server.Verify();
+                    AssertEx.Equal(
+                        3,
+                        server.AcceptedClientCount,
+                        "The failed fresh candidate opened an unbounded fourth TCP session.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2ReconnectErrorZeroDoesNotUseFreshSessionRetry()
+        {
+            var steps = CreateConnectAndTopologySteps(
+                LMCDiagnosticCapability.EtherCATTopology);
+            steps.Add(CloseStep());
+            steps.Add(ClientDisconnectBoundaryStep(true));
+            steps.Add(SessionInitShortFailureStep(0));
+            steps.Add(ClientDisconnectBoundaryStep(false));
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The WPF initial connection did not complete before the ErrorId=0 reconnect smoke.");
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "The ErrorId=0 reconnect failure did not return to a clean state.");
+
+                    AssertEx.Equal(2, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                    AssertEx.Contains(
+                        "Attempt=2, Outcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "ErrorId=0",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.False(
+                        window.TextRpcInitialization.Text.IndexOf(
+                            "FreshSessionRetry=Used",
+                            StringComparison.Ordinal) >= 0,
+                        "ErrorId=0 incorrectly triggered a fresh TCP session retry.");
+
+                    server.Verify();
+                    AssertEx.Equal(
+                        2,
+                        server.AcceptedClientCount,
+                        "ErrorId=0 opened an ineligible fresh TCP session.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void WaitForConnectCompleted(
+            MainWindow window,
+            string failureMessage)
+        {
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Connect completed",
+                        StringComparison.Ordinal)
+                    && string.Equals(
+                        window.TextConnectionState.Text,
+                        "Connected",
+                        StringComparison.Ordinal)
+                    && window.ButtonCloseConnection.IsEnabled,
+                failureMessage);
+        }
+
+        private static void WaitForConnectFailedClean(
+            MainWindow window,
+            string failureMessage)
+        {
+            WaitUntil(
+                () => string.Equals(
+                        window.TextOperationState.Text,
+                        "Connect failed",
+                        StringComparison.Ordinal)
+                    && string.Equals(
+                        window.TextConnectionState.Text,
+                        "Disconnected",
+                        StringComparison.Ordinal)
+                    && string.Equals(
+                        window.TextCallbackState.Text,
+                        "Stopped",
+                        StringComparison.Ordinal)
+                    && window.ButtonConnect.IsEnabled
+                    && GetPrivateField(window, "connection") == null,
+                failureMessage);
         }
 
         private static void
@@ -6601,6 +7181,27 @@ namespace LasalApiWpfTestApp.SmokeTests
             return new FakeRpcStep(
                 0x405D,
                 TestFrame.Response(0, TestFrame.Hex("00 00 00 00")));
+        }
+
+        private static FakeRpcStep CloseShortFailureStep(short errorId)
+        {
+            var payload = new byte[4];
+            TestFrame.WriteUInt16(payload, 0, 1);
+            TestFrame.WriteInt16(payload, 2, errorId);
+            return new FakeRpcStep(
+                0x405D,
+                TestFrame.Response(1, payload));
+        }
+
+        private static FakeRpcStep ClientDisconnectBoundaryStep(
+            bool continueWithNextClient)
+        {
+            return new FakeRpcStep(0, null)
+            {
+                RequireClientDisconnectBeforeRequest = true,
+                ContinueWithNextClientAfterDisconnect =
+                    continueWithNextClient
+            };
         }
 
         private static FakeRpcStep CapabilitiesStep(
