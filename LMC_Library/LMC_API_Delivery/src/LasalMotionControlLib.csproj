@@ -42,6 +42,7 @@
     <Compile Include="LmcAdminSetAxisPositionOutcomeModels.cs" />
     <Compile Include="LmcAdminHomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeModels.cs" />
+    <Compile Include="LmcAdminDs402HomeExModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeModels.cs" />
     <Compile Include="LmcAdminDs402HomeOutcomeRetirementModels.cs" />
     <Compile Include="LmcAdmin.cs" />
