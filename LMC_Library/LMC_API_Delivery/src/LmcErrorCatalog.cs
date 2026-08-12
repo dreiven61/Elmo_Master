@@ -265,7 +265,7 @@ namespace LasalMotionControlLib
                 "Keep the durable recovery record unresolved and verify every persisted identity field.");
             AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeSlotOccupied,
                 "The SetAxisPosition retained intent slot is occupied by another unresolved request.",
-                "Resolve or retire the exact existing terminal record before preparing another mutation.");
+                "Query the exact terminal outcome, retire that generation successfully, resolve the matching durable journal record, and only then prepare another mutation.");
             AddAdmin(entries, LMCAdminDetailCode.SetPositionOutcomeStorageUnavailable,
                 "The SetAxisPosition retained outcome storage is unavailable.",
                 "Do not execute or replay SetAxisPosition until retained storage is healthy and advertised.");
