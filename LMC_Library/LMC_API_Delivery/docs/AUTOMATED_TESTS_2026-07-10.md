@@ -374,16 +374,62 @@ PLC endpoint를 사용하지 않는다.
   `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861` tuple만
   `ProductionApproved=true`, `NeedsRebaseline=false`로 승인한다. PS5.1/PS7 self-test는 각각
   `296/296`, clean detached SourceOnly `Phase5TransportClean / IntegratedReadOwnerDormant`는 두
-  host에서 PASS했다. Main working tree 사용자 `Classes.lcb` SHA-256
+  host에서 PASS했다. 당시 Main working tree 사용자 `Classes.lcb` SHA-256
   `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 exact sanctioned
-  identity drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
+  identity drift로 reject됐다. 당시 post-approval full/network static target은 실행하지 않았다.
 - 2026-08-12 owner-loss retirement 변경은 위 `d4204b4`/`296/296`을 historical evidence로
   남긴다. 새 focused verifier는 기존 negative fixture 9개를 그대로 복원·유지하고
   owner-loss 경계 negative fixture 9개를 추가하므로 self-test 계약은 `305/305`다.
   Windows PowerShell 5.1 long self-test는 exit `0`, `305/305` PASS,
   elapsed `238039 ms`였고 PowerShell 7은 exit `0`, `305/305` PASS,
-  elapsed `566196 ms`였다. 이 dual-host verifier 결과는 source/static 계약 증거이며
-  LASAL IDE build, PLC download와 runtime은 실행하지 않았다.
+  elapsed `566196 ms`였다. 이 dual-host verifier 결과는 source/static 계약 증거다. 이후 같은
+  source의 격리 LASAL incremental Build도 compile/link는 PASS했지만 generated artifact gate에서
+  STOP했으며 PLC Download/runtime은 실행하지 않았다.
+- 2026-08-12 `e3c9365` tree `47e6c141673d5bc29901a2604e377f849e50fe44`는 strict
+  `Auto` child-state parser를 `12/12` positive와 `15/15` fail-closed negative fixture로
+  검증했다. 승인 상태의 `PASS/ProductionApproved=true/NeedsRebaseline=false` tuple과
+  `vendor=` evidence tail을 exact로 묶고 모순 tuple을 거부한다. 같은 clean tree의 default
+  `Auto` SourceOnly는 PS5.1과 PS7에서 모두 `TerminalWakeBrokerCandidate`를 wrapper topology로
+  전파해 PASS했다. Full Distribution도 preflight `14/14`, files `94`, semantic policy `18`,
+  actual EXE relaunch와 candidate transaction을 PASS했다. Candidate는 `84` files /
+  `9,519,684` bytes이고 release manifest SHA-256은
+  `F94608C10E9BB1EEFE780D7323F5BB2DBC1BBB1E6CED1EFCBE6422B32165D710`이다. 이 결과에도
+  LASAL IDE build, PLC download와 live callback runtime은 포함되지 않는다.
+- 같은 날 main의 dirty `Classes.lcb`를 건드리지 않기 위해 exact input hash를 묶은 격리
+  worktree에 approved
+  `Classes.lcb` SHA-256
+  `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861`과 위 tree의 두
+  owner-loss `.st`를 배치하고 LASAL Class 2 `02.03.002`로 C78/ARM 프로젝트를 열었다.
+  load 단계의 자동 link/scan 결과가
+  `Done - 1 error(s), 6 warning(s)`였다. Exact error는 active `Hardware` library의
+  `_DriveMngBase/DriveComL2.h`를 `MotionLib/Include/global.h(15)`에서 읽지 못한 `E0015`이고,
+  warning 6개는 linked `MotionLib` class change/`ReducedClientDependency=false` 1개와 설치
+  library 5개(`Hardware`, `MotionLib`, `OS Interface`, `System`, `Tools`)의 `C82` 대 current
+  project/compiler `C78` 차이다. Repository의 tracked와 ignored project image 및 timestamp를
+  맞춘 exact input에서 load command는 succeeded로 끝나 project가 열렸다. Active tree에 없는
+  header를 다른 설치 세대에서 복사하지 않았다.
+- 같은 격리 session에서 source compiler 결과를 분리하기 위해 incremental `Build project`를
+  정확히 1회 실행했다. Build window는 22,798 bytes / 214 non-empty lines / SHA-256
+  `B7A1F6FAFB162A9CCCC6CA429F32EFB22A1016737F449B791EF13B7B73ED24C5`이고,
+  `LMCUdpCallbackSender.st`와 `TCPMotionInterface.st`를 모두 compile했다. 결과는
+  `Done - 0 error(s), 24 warning(s)`, `Compiler Done` 2회, `Linker Done` 1회,
+  `Last command succeeded (5317.3ms)`다. Source warning은 sender `W0070` 10건,
+  TCP `W0070` 13건 + `W0069` 1건이다. Result 뒤 current project C78 1건과 설치 library
+  C82/C78 5건이 추가되어 bounded log warning line은 30건이다. 새 `CInvalidArgException`,
+  Connect, Download는 0건이다.
+- Build 뒤 두 대상 ST, `Networks.lcb` `C307547E...`, project `.lcp` `C84DE...`는 불변이다.
+  Generated `TCPMotionInterface.lba`는 539,035 bytes /
+  `2A5AC668E540B0BC05B6F164ACA8DC5FBAEF22FF3320F8F463777A59F0D12AEF`,
+  `LMCUdpCallbackSender.lba`는 255,550 bytes /
+  `3D1CEE13AC95C125CBC46BD9AB267A8F8C483F281C5CC412C609FFC7A0EDAC33`이다.
+  반면 `Classes.lcb`는 approved 8,549,773 bytes / `24402BFA...`에서 8,549,824 bytes /
+  `5337BBAFE88DB10D47308ED2BED89F7B7C22BFE66D7CA739D3A872276DA308E5`로 51 bytes 증가했다.
+  Official comparator는 checkpoint `e3c9365` 대비 `REJECTED_BOUNDARY_OR_CONTRACT_DRIFT`, exit `3`,
+  Gate D target unequal, protected dependency equal로 판정했다. LASAL 종료 뒤 focused
+  `VerifyCurrent -ExpectedState Auto`도 `Classes.lcb sanctioned Gate D identity drifted`로 exit `1`이다.
+  Library 제거 prompt는 거부했고 `Close Project` succeeded, LASAL process 0을 확인한 뒤 격리
+  worktree만 제거했다. Compile/link PASS와 별개로 generated artifact는 승인되지 않았으며
+  Download는 금지다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와
@@ -477,7 +523,7 @@ PLC endpoint를 사용하지 않는다.
   `6E11587634F11848832FA0E8D6702FB0AFF3CB60376F34728E69B667AEE00712`로
   manifest의 `24402BFA...`와 달랐고 focused `VerifyCurrent`와 C78
   input-equivalence는 당시 실패했다. Frozen historical `99014DD9...` artifact와
-  post-STOP current `13EA5823...` artifact에서도 gate는 계속 실패한다. `d4204b4`의 static
+  post-STOP incident-time `13EA5823...` artifact에서도 gate는 계속 실패한다. `d4204b4`의 static
   approval은 exact tracked `24402BFA...`만 허용하며 이 mismatched artifact와 당시 runtime
   관측을 승인하지 않는다.
 - commit `7038445`는 `6E115876...`-start baseline과 exact reversible
@@ -869,8 +915,9 @@ PLC endpoint를 사용하지 않는다.
   100 ms는 PLC readiness proof가 아니고 wire `-1`은 internal disarm `-8`/`-9`와 다른
   lifecycle/ownership rejection을 구분하지 못한다. 이 historical fake restart는 같은
   process의 새 `MainWindow`를 사용한 회귀로 계속 보존한다.
-  2026-08-12 owner-loss retirement source에 대한 LASAL IDE build, PLC download와 PLC
-  runtime 재검증은 실행하지 않았다.
+  2026-08-12 owner-loss retirement source의 격리 LASAL incremental Build는 두 ST
+  compile/link를 `0 error(s), 24 warning(s)`로 PASS했다. Post-build `Classes.lcb=5337BBAF...`는
+  comparator exit `3`으로 거부됐고 PLC Download/runtime 재검증은 실행하지 않았다.
   Current `cbf2548` 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
   Runner는 actual PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X close,
   close ACK exact `-1` 뒤 process exit, 같은 exact EXE successor의 default named mutex
@@ -1103,8 +1150,8 @@ PLC endpoint를 사용하지 않는다.
 - Commit `d4204b4`는 모든 기존 exact 검사를 통과한 clean tracked `Classes.lcb`
   `24402BFA76F1989319381388D4354E1528052078BA08504CC5C967A6DE1AA861` tuple만 PC/static
   `ProductionApproved=true`, `NeedsRebaseline=false`로 승인했다. PS5.1/PS7 self-test는 각각
-  `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. Main working tree 사용자
-  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 계속 reject된다.
+  `296/296`, clean detached SourceOnly는 두 host에서 PASS했다. 당시 Main working tree 사용자
+  `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 reject됐다.
 - Commit `5d5aebe`는 Gate D 경계를 반영한 current canonical manual을 게시했다. Markdown은
   `94,108` bytes / SHA-256
   `D7DE1AF51A548AA7361614167D546A7057C8D03260CE92CFA9335964A611C022`, DOCX는 `92,229`

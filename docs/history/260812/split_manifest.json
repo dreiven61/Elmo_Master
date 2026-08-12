@@ -1,0 +1,368 @@
+{
+  "generatedAt": "2026-08-12T10:07:17.3901309+09:00",
+  "source": {
+    "path": "Elmo_Master_history_260812.md",
+    "bytes": 891291,
+    "lines": 9423,
+    "encoding": "UTF-8 without BOM",
+    "lineEndings": "CRLF",
+    "finalCrlf": true,
+    "sha256Before": "6EA8B87D25D4DD550194F3B1ADA5B465A432E6F0A441882AEAEB750552704A19",
+    "sha256After": "6EA8B87D25D4DD550194F3B1ADA5B465A432E6F0A441882AEAEB750552704A19",
+    "unchanged": true
+  },
+  "split": {
+    "chunkLineCount": 250,
+    "chunkCount": 38,
+    "totalChunkBytes": 891291.0,
+    "totalChunkLines": 9423.0,
+    "rejoinedBytes": 891291,
+    "rejoinedSha256": "6EA8B87D25D4DD550194F3B1ADA5B465A432E6F0A441882AEAEB750552704A19",
+    "byteRejoinMatchesSource": true,
+    "hashRejoinMatchesSource": true
+  },
+  "chunks": [
+    {
+      "part": 1,
+      "path": "Elmo_Master_history_260812_part_001_lines_00001_00250.md",
+      "startLine": 1,
+      "endLine": 250,
+      "lineCount": 250,
+      "bytes": 15703,
+      "sha256": "102755941302D06A4C6FA14B8177B74BB6D56352D328ABCD2758D15AF9A2EDB9"
+    },
+    {
+      "part": 2,
+      "path": "Elmo_Master_history_260812_part_002_lines_00251_00500.md",
+      "startLine": 251,
+      "endLine": 500,
+      "lineCount": 250,
+      "bytes": 8894,
+      "sha256": "14A530B0FC08B8E08A7D73C26F41CCE44A869C0969B4EE5EBC72C822C4E13C46"
+    },
+    {
+      "part": 3,
+      "path": "Elmo_Master_history_260812_part_003_lines_00501_00750.md",
+      "startLine": 501,
+      "endLine": 750,
+      "lineCount": 250,
+      "bytes": 9516,
+      "sha256": "9F2A8368EE06C542D4BAD6BBE1A5C2C9C796D51C0CC02A991529A8DCF16E5B0A"
+    },
+    {
+      "part": 4,
+      "path": "Elmo_Master_history_260812_part_004_lines_00751_01000.md",
+      "startLine": 751,
+      "endLine": 1000,
+      "lineCount": 250,
+      "bytes": 21602,
+      "sha256": "9E6D3B80ED56A54FE110BB3B99C64D142A0399BCAA41C9231445A61B2C14E544"
+    },
+    {
+      "part": 5,
+      "path": "Elmo_Master_history_260812_part_005_lines_01001_01250.md",
+      "startLine": 1001,
+      "endLine": 1250,
+      "lineCount": 250,
+      "bytes": 19194,
+      "sha256": "0AF308A14939E615564948411A47C3950ED1E04BF4FC95A0C221E6932CEF252B"
+    },
+    {
+      "part": 6,
+      "path": "Elmo_Master_history_260812_part_006_lines_01251_01500.md",
+      "startLine": 1251,
+      "endLine": 1500,
+      "lineCount": 250,
+      "bytes": 19429,
+      "sha256": "19E747C0F9490CF7549CE0181BEFB3D10315C01EDD8DAB1DE42C19D8597531BD"
+    },
+    {
+      "part": 7,
+      "path": "Elmo_Master_history_260812_part_007_lines_01501_01750.md",
+      "startLine": 1501,
+      "endLine": 1750,
+      "lineCount": 250,
+      "bytes": 18530,
+      "sha256": "8CE63FB478AFF49CD45F7B543E5C669122EB74AE02B1EA65AA84010EEEBDFC3A"
+    },
+    {
+      "part": 8,
+      "path": "Elmo_Master_history_260812_part_008_lines_01751_02000.md",
+      "startLine": 1751,
+      "endLine": 2000,
+      "lineCount": 250,
+      "bytes": 18885,
+      "sha256": "A546944ED2B43323C44481CEA38A48C8368239531B7875411DBE99D857C69491"
+    },
+    {
+      "part": 9,
+      "path": "Elmo_Master_history_260812_part_009_lines_02001_02250.md",
+      "startLine": 2001,
+      "endLine": 2250,
+      "lineCount": 250,
+      "bytes": 12086,
+      "sha256": "3993DEAFD7A72B98B8295A0236B4B407CE5C0DBF34ECAF7B80F54CF85875CB81"
+    },
+    {
+      "part": 10,
+      "path": "Elmo_Master_history_260812_part_010_lines_02251_02500.md",
+      "startLine": 2251,
+      "endLine": 2500,
+      "lineCount": 250,
+      "bytes": 22581,
+      "sha256": "5B7EFC94A596F221FAE4EA760F621ED000653EC87F182EFA1F7D6F2D88B23372"
+    },
+    {
+      "part": 11,
+      "path": "Elmo_Master_history_260812_part_011_lines_02501_02750.md",
+      "startLine": 2501,
+      "endLine": 2750,
+      "lineCount": 250,
+      "bytes": 22466,
+      "sha256": "EE8B73CBA9D5BC7E86FB1D481CBA124DFA8622BDE9ECDAD75098A091566C6D17"
+    },
+    {
+      "part": 12,
+      "path": "Elmo_Master_history_260812_part_012_lines_02751_03000.md",
+      "startLine": 2751,
+      "endLine": 3000,
+      "lineCount": 250,
+      "bytes": 27866,
+      "sha256": "E4C433966903B2FCF48989692E3AE5D5A83C62975CA219DE1756CD24FC528548"
+    },
+    {
+      "part": 13,
+      "path": "Elmo_Master_history_260812_part_013_lines_03001_03250.md",
+      "startLine": 3001,
+      "endLine": 3250,
+      "lineCount": 250,
+      "bytes": 22906,
+      "sha256": "453D6D6DEE583A946F0FFAD6F19511ECBC81FBEF56799E5A23C10334B8B396FE"
+    },
+    {
+      "part": 14,
+      "path": "Elmo_Master_history_260812_part_014_lines_03251_03500.md",
+      "startLine": 3251,
+      "endLine": 3500,
+      "lineCount": 250,
+      "bytes": 23310,
+      "sha256": "7211453FE043F8918F5FC1105983E1FDFD0B2285BD7A88A335AC1E49FA63D63A"
+    },
+    {
+      "part": 15,
+      "path": "Elmo_Master_history_260812_part_015_lines_03501_03750.md",
+      "startLine": 3501,
+      "endLine": 3750,
+      "lineCount": 250,
+      "bytes": 27768,
+      "sha256": "98675685AA990219F3A49F9C666316181A367E32B45DEC7233D0F4FEE176CE97"
+    },
+    {
+      "part": 16,
+      "path": "Elmo_Master_history_260812_part_016_lines_03751_04000.md",
+      "startLine": 3751,
+      "endLine": 4000,
+      "lineCount": 250,
+      "bytes": 38385,
+      "sha256": "B6A1BC79B8556DB819B7EEE034B6323CBB2070344D4819C7376ECCEF3C326A9E"
+    },
+    {
+      "part": 17,
+      "path": "Elmo_Master_history_260812_part_017_lines_04001_04250.md",
+      "startLine": 4001,
+      "endLine": 4250,
+      "lineCount": 250,
+      "bytes": 21325,
+      "sha256": "CEBFD71384F7C51BCDDAD11EF71521383061876903C17A0C8C20999B1A7946A3"
+    },
+    {
+      "part": 18,
+      "path": "Elmo_Master_history_260812_part_018_lines_04251_04500.md",
+      "startLine": 4251,
+      "endLine": 4500,
+      "lineCount": 250,
+      "bytes": 15844,
+      "sha256": "A62B7DDA8C76E6827756509DFE4214398244FA520DF4A556386D52D08F623C35"
+    },
+    {
+      "part": 19,
+      "path": "Elmo_Master_history_260812_part_019_lines_04501_04750.md",
+      "startLine": 4501,
+      "endLine": 4750,
+      "lineCount": 250,
+      "bytes": 20750,
+      "sha256": "FA1951E350D1824F862FECCDCE62377346515D9312BB179513347EC36E312CEF"
+    },
+    {
+      "part": 20,
+      "path": "Elmo_Master_history_260812_part_020_lines_04751_05000.md",
+      "startLine": 4751,
+      "endLine": 5000,
+      "lineCount": 250,
+      "bytes": 18622,
+      "sha256": "34956456474CD42CFB88750BA4AEAF58CAD2723AECA7D7482DE5EA0886DA2691"
+    },
+    {
+      "part": 21,
+      "path": "Elmo_Master_history_260812_part_021_lines_05001_05250.md",
+      "startLine": 5001,
+      "endLine": 5250,
+      "lineCount": 250,
+      "bytes": 45398,
+      "sha256": "D195E07A9E5D4685577D9AF83EA42A7EE0297F57D669E9A8198A2287FD2CB113"
+    },
+    {
+      "part": 22,
+      "path": "Elmo_Master_history_260812_part_022_lines_05251_05500.md",
+      "startLine": 5251,
+      "endLine": 5500,
+      "lineCount": 250,
+      "bytes": 30773,
+      "sha256": "277E6A6287F96EA8E5918436FFC87344BBEC0490249C6EB9D42540A9895936E0"
+    },
+    {
+      "part": 23,
+      "path": "Elmo_Master_history_260812_part_023_lines_05501_05750.md",
+      "startLine": 5501,
+      "endLine": 5750,
+      "lineCount": 250,
+      "bytes": 22887,
+      "sha256": "1E0BD3BD609496E40C53E464523B024260F28303454596F41E57BF0B9C229F5B"
+    },
+    {
+      "part": 24,
+      "path": "Elmo_Master_history_260812_part_024_lines_05751_06000.md",
+      "startLine": 5751,
+      "endLine": 6000,
+      "lineCount": 250,
+      "bytes": 27183,
+      "sha256": "7FB1F2365F65419CD70604955A493B292BACE1FF18AE0BFADAFB76F69EDCF49D"
+    },
+    {
+      "part": 25,
+      "path": "Elmo_Master_history_260812_part_025_lines_06001_06250.md",
+      "startLine": 6001,
+      "endLine": 6250,
+      "lineCount": 250,
+      "bytes": 30530,
+      "sha256": "14E3EB57998512FF95B843EBEDD519DBE8C8288FA5FBD954B737AD8C6274D03B"
+    },
+    {
+      "part": 26,
+      "path": "Elmo_Master_history_260812_part_026_lines_06251_06500.md",
+      "startLine": 6251,
+      "endLine": 6500,
+      "lineCount": 250,
+      "bytes": 31924,
+      "sha256": "5BB9F1E805C5E7D2AD33AF7C6C5F48BEC35DAE6F6315265E0DEBE605740A06B2"
+    },
+    {
+      "part": 27,
+      "path": "Elmo_Master_history_260812_part_027_lines_06501_06750.md",
+      "startLine": 6501,
+      "endLine": 6750,
+      "lineCount": 250,
+      "bytes": 26522,
+      "sha256": "86674C3B92C4E53C2962CD9575A0EF534DC643FCE87DCEE1F6A65AB3EF8CC56A"
+    },
+    {
+      "part": 28,
+      "path": "Elmo_Master_history_260812_part_028_lines_06751_07000.md",
+      "startLine": 6751,
+      "endLine": 7000,
+      "lineCount": 250,
+      "bytes": 25904,
+      "sha256": "E1E38FF1807D2C202D949DB1478D89A1A7D84A5330A656C4416647CFE00CF26F"
+    },
+    {
+      "part": 29,
+      "path": "Elmo_Master_history_260812_part_029_lines_07001_07250.md",
+      "startLine": 7001,
+      "endLine": 7250,
+      "lineCount": 250,
+      "bytes": 23333,
+      "sha256": "74973B94FE9F3A427F78AC2D00E3D2917742A5EAD4303726A17C44BF08F86A8F"
+    },
+    {
+      "part": 30,
+      "path": "Elmo_Master_history_260812_part_030_lines_07251_07500.md",
+      "startLine": 7251,
+      "endLine": 7500,
+      "lineCount": 250,
+      "bytes": 26377,
+      "sha256": "1771BBA259184AD36B4ACAE9A87A6F83ABC1F3E361A15AC409B546899A357AA6"
+    },
+    {
+      "part": 31,
+      "path": "Elmo_Master_history_260812_part_031_lines_07501_07750.md",
+      "startLine": 7501,
+      "endLine": 7750,
+      "lineCount": 250,
+      "bytes": 29002,
+      "sha256": "950D725CE7AD5D7B37F2160B7899C41058C65CE5EDC2FFF77EF693C06537B23D"
+    },
+    {
+      "part": 32,
+      "path": "Elmo_Master_history_260812_part_032_lines_07751_08000.md",
+      "startLine": 7751,
+      "endLine": 8000,
+      "lineCount": 250,
+      "bytes": 20908,
+      "sha256": "91962249DE1BBC767ECB3FACA5C122A7E6D93F6DBA99593F426BD27CDD6C2C8A"
+    },
+    {
+      "part": 33,
+      "path": "Elmo_Master_history_260812_part_033_lines_08001_08250.md",
+      "startLine": 8001,
+      "endLine": 8250,
+      "lineCount": 250,
+      "bytes": 19890,
+      "sha256": "41E24CD5F6098BBAC9B621A43F459EFF5C94C720B11E8F28DD8CF46E93835AB0"
+    },
+    {
+      "part": 34,
+      "path": "Elmo_Master_history_260812_part_034_lines_08251_08500.md",
+      "startLine": 8251,
+      "endLine": 8500,
+      "lineCount": 250,
+      "bytes": 18792,
+      "sha256": "557FE989A29A880C64FA06449E1FEA6E9112149F3808D2DE6958D96C7025E21E"
+    },
+    {
+      "part": 35,
+      "path": "Elmo_Master_history_260812_part_035_lines_08501_08750.md",
+      "startLine": 8501,
+      "endLine": 8750,
+      "lineCount": 250,
+      "bytes": 29102,
+      "sha256": "0DC98F8FE4DD246AA3C7B65D73AE7C428EBF1DC960B99AAA1DDFBDC90F5D62C6"
+    },
+    {
+      "part": 36,
+      "path": "Elmo_Master_history_260812_part_036_lines_08751_09000.md",
+      "startLine": 8751,
+      "endLine": 9000,
+      "lineCount": 250,
+      "bytes": 28855,
+      "sha256": "85CA6B848B8114C0ADD34D89511701DF5FBC00776E7782CD58873DB2A5567EDB"
+    },
+    {
+      "part": 37,
+      "path": "Elmo_Master_history_260812_part_037_lines_09001_09250.md",
+      "startLine": 9001,
+      "endLine": 9250,
+      "lineCount": 250,
+      "bytes": 32906,
+      "sha256": "811D8167B17CFBBFBAF907CAA771EFFD620F754C33A5482B2D8B875E08D6572E"
+    },
+    {
+      "part": 38,
+      "path": "Elmo_Master_history_260812_part_038_lines_09251_09423.md",
+      "startLine": 9251,
+      "endLine": 9423,
+      "lineCount": 173,
+      "bytes": 15343,
+      "sha256": "98310A187DF900D6D695AD117F69F97DC53D0B8FBA04A97B5FCFA07E5B43112F"
+    }
+  ]
+}

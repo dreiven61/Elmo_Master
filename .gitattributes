@@ -95,3 +95,7 @@ docs/history/Elmo_Master_history_260803_*.md binary
 docs/history/260803/Elmo_Master_history_260803_*_part_*.md binary
 docs/history/Elmo_Master_history_260805_*.md binary
 docs/history/260805/Elmo_Master_history_260805_*_part_*.md binary
+
+# Preserve the 260812 imported history and its exact CRLF chunk bytes.
+docs/history/Elmo_Master_history_260812.md binary
+docs/history/260812/Elmo_Master_history_260812_part_*.md binary
