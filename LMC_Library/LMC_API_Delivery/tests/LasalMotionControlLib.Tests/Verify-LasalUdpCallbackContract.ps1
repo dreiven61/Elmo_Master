@@ -3624,7 +3624,9 @@ ELSE
     ExpectedCookieHi := RpcCallbackCookieHi
   );
 END_IF;
-RpcCallbackLastDisarmResult := Result;
+IF RpcCallbackRegistered THEN
+  RpcCallbackLastDisarmResult := Result;
+END_IF;
 IF (Result = 0) OR (Result = 1) THEN
   RpcCallbackRegistered := FALSE;
   RpcCallbackEventMask := 0;
@@ -3656,6 +3658,7 @@ function Assert-TcpOwnerLossRetirementContract {
     $sourceCompact = [regex]::Replace($source, '\s+', '')
     $connCompact = [regex]::Replace($conn, '\s+', '')
     $retirementSequence =
+        'RpcCallbackLastDisarmResult:=1;' +
         'callbackDisarmResult:=DisarmRpcCallbackEndpoint();' +
         'if(callbackDisarmResult=-8)&' +
         'IsClientConnected(#CallbackSender)then' +
@@ -3666,7 +3669,16 @@ function Assert-TcpOwnerLossRetirementContract {
         'if(ownerLossRetireResult=0)|' +
         '(ownerLossRetireResult=1)then' +
         'callbackDisarmResult:=DisarmRpcCallbackEndpoint();' +
-        'end_if;end_if;SessionEpoch+=1;'
+        'if(callbackDisarmResult=0)|' +
+        '(callbackDisarmResult=1)then' +
+        'RpcCallbackLastDisarmResult:=-8;' +
+        'end_if;' +
+        'else' +
+        'RpcCallbackLastDisarmResult:=ownerLossRetireResult;' +
+        'end_if;' +
+        'elsifcallbackDisarmResult=-8then' +
+        'RpcCallbackLastDisarmResult:=-9;' +
+        'end_if;SessionEpoch+=1;'
     if ((Get-OrdinalCount `
                 -Text $connCompact `
                 -Needle $retirementSequence) -ne 2) {
@@ -3681,7 +3693,7 @@ function Assert-TcpOwnerLossRetirementContract {
                 -Needle 'ExpectedSessionEpoch:=0,ExpectedCookieLo:=0,ExpectedCookieHi:=0') -ne 2 -or
         (Get-OrdinalCount `
                 -Text $sourceCompact `
-                -Needle 'ownerLossRetireResult') -ne 7) {
+                -Needle 'ownerLossRetireResult') -ne 9) {
         Throw-UdpCallbackBlocker (
             'TCP owner-loss retirement call/declaration inventory drifted.')
     }
@@ -9467,6 +9479,7 @@ function Add-SyntheticTcpOwnerLossRetirementToConnSocketInfo {
         throw 'synthetic TCP owner-loss insertion count drifted.'
     }
     $replacement =
+        '${Indent}RpcCallbackLastDisarmResult := 1;' + "`n" +
         '${Indent}callbackDisarmResult := DisarmRpcCallbackEndpoint();' + "`n" +
         '${Indent}if (callbackDisarmResult = -8) &' + "`n" +
         '${Indent}   IsClientConnected(#CallbackSender) then' + "`n" +
@@ -9477,7 +9490,15 @@ function Add-SyntheticTcpOwnerLossRetirementToConnSocketInfo {
         '${Indent}  if (ownerLossRetireResult = 0) |' + "`n" +
         '${Indent}     (ownerLossRetireResult = 1) then' + "`n" +
         '${Indent}    callbackDisarmResult := DisarmRpcCallbackEndpoint();' + "`n" +
+        '${Indent}    if (callbackDisarmResult = 0) |' + "`n" +
+        '${Indent}       (callbackDisarmResult = 1) then' + "`n" +
+        '${Indent}      RpcCallbackLastDisarmResult := -8;' + "`n" +
+        '${Indent}    end_if;' + "`n" +
+        '${Indent}  else' + "`n" +
+        '${Indent}    RpcCallbackLastDisarmResult := ownerLossRetireResult;' + "`n" +
         '${Indent}  end_if;' + "`n" +
+        '${Indent}elsif callbackDisarmResult = -8 then' + "`n" +
+        '${Indent}  RpcCallbackLastDisarmResult := -9;' + "`n" +
         '${Indent}end_if;' + "`n" +
         '${Indent}SessionEpoch += 1;'
     return [regex]::Replace($block, $anchorPattern, $replacement)
@@ -11320,6 +11341,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         CookieLo = [uint32]51
         CookieHi = [uint32]61
         OwnerLossCallCount = 0
+        ForcedOwnerLossResult = $null
     }
     $tcp = [pscustomobject]@{
         CallbackSenderConnected = $true
@@ -11327,6 +11349,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         RpcCallbackSessionEpoch = [uint32]42
         RpcCallbackCookieLo = [uint32]52
         RpcCallbackCookieHi = [uint32]62
+        RpcCallbackLastDisarmResult = 0
         RpcInitialized = $false
         RpcSocket = 0
     }
@@ -11351,6 +11374,9 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         }
         if ($ownerLoss) {
             $sender.OwnerLossCallCount++
+            if ($null -ne $sender.ForcedOwnerLossResult) {
+                return [int]$sender.ForcedOwnerLossResult
+            }
         }
         $sender.Armed = $false
         $sender.Depth = 0
@@ -11360,16 +11386,22 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         return 0
     }
     $helper = {
+        $result = 1
         if (-not $tcp.RpcCallbackRegistered) {
-            return 1
+            $result = 1
         }
-        if (-not $tcp.CallbackSenderConnected) {
-            return -9
+        elseif (-not $tcp.CallbackSenderConnected) {
+            $result = -9
         }
-        $result = & $disarm `
-            $tcp.RpcCallbackSessionEpoch `
-            $tcp.RpcCallbackCookieLo `
-            $tcp.RpcCallbackCookieHi
+        else {
+            $result = & $disarm `
+                $tcp.RpcCallbackSessionEpoch `
+                $tcp.RpcCallbackCookieLo `
+                $tcp.RpcCallbackCookieHi
+        }
+        if ($tcp.RpcCallbackRegistered) {
+            $tcp.RpcCallbackLastDisarmResult = $result
+        }
         if (($result -eq 0) -or ($result -eq 1)) {
             $tcp.RpcCallbackRegistered = $false
             $tcp.RpcCallbackSessionEpoch = [uint32]0
@@ -11379,8 +11411,10 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         return $result
     }
 
+    $tcp.RpcCallbackLastDisarmResult = 1
     $exactResult = [int](& $helper)
     if (($exactResult -ne -8) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -8) -or
         (-not $sender.Armed) -or
         ($sender.Depth -ne 2) -or
         (-not $tcp.RpcCallbackRegistered)) {
@@ -11390,6 +11424,10 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         $retireResult = [int](& $disarm 0 0 0)
         if (($retireResult -eq 0) -or ($retireResult -eq 1)) {
             $confirmationResult = [int](& $helper)
+            if (($confirmationResult -eq 0) -or
+                ($confirmationResult -eq 1)) {
+                $tcp.RpcCallbackLastDisarmResult = -8
+            }
         }
     }
     if (($retireResult -ne 0) -or
@@ -11397,6 +11435,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
         ($sender.OwnerLossCallCount -ne 1) -or
         $sender.Armed -or
         ($sender.Depth -ne 0) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -8) -or
         $tcp.RpcCallbackRegistered -or
         ($tcp.RpcCallbackSessionEpoch -ne 0) -or
         ($tcp.RpcCallbackCookieLo -ne 0) -or
@@ -11405,8 +11444,9 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     }
 
     $nextInitDisarmResult = [int](& $helper)
-    if ($nextInitDisarmResult -ne 1) {
-        throw 'synthetic next RPC init remained blocked after owner-loss retirement.'
+    if (($nextInitDisarmResult -ne 1) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -8)) {
+        throw 'synthetic next RPC init did not preserve owner-loss evidence.'
     }
     $tcp.RpcSocket = 7001
     $tcp.RpcInitialized = $true
@@ -11426,6 +11466,7 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     $tcp.RpcCallbackCookieHi = [uint32]92
     $unavailableResult = [int](& $helper)
     if (($unavailableResult -ne -9) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -9) -or
         ($sender.OwnerLossCallCount -ne 1) -or
         (-not $sender.Armed) -or
         ($sender.Depth -ne 1) -or
@@ -11434,12 +11475,154 @@ function Assert-OwnerLossRetirementSyntheticLifecycle {
     }
 
     $tcp.CallbackSenderConnected = $true
-    $ordinaryMismatch = [int](& $disarm 73 83 93)
+    $sender.OwnerLossCallCount = 0
+    $ordinaryMismatch = [int](& $helper)
     if (($ordinaryMismatch -ne -8) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -8) -or
+        ($sender.OwnerLossCallCount -ne 0) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 1) -or
+        (-not $tcp.RpcCallbackRegistered)) {
+        throw 'synthetic ordinary helper mismatch mutated fenced state.'
+    }
+
+    $sender.SessionEpoch = [uint32]72
+    $sender.CookieLo = [uint32]82
+    $sender.CookieHi = [uint32]92
+    $cleanMatchedResult = [int](& $helper)
+    if (($cleanMatchedResult -ne 0) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne 0) -or
+        $sender.Armed -or
+        ($sender.Depth -ne 0) -or
+        $tcp.RpcCallbackRegistered -or
+        ($tcp.RpcCallbackSessionEpoch -ne 0) -or
+        ($tcp.RpcCallbackCookieLo -ne 0) -or
+        ($tcp.RpcCallbackCookieHi -ne 0)) {
+        throw 'synthetic clean matched disarm did not replace stale evidence.'
+    }
+
+    $sender.Armed = $true
+    $sender.Depth = 2
+    $sender.SessionEpoch = [uint32]101
+    $sender.CookieLo = [uint32]111
+    $sender.CookieHi = [uint32]121
+    $sender.OwnerLossCallCount = 0
+    $sender.ForcedOwnerLossResult = -9
+    $tcp.CallbackSenderConnected = $true
+    $tcp.RpcCallbackRegistered = $true
+    $tcp.RpcCallbackSessionEpoch = [uint32]102
+    $tcp.RpcCallbackCookieLo = [uint32]112
+    $tcp.RpcCallbackCookieHi = [uint32]122
+    $tcp.RpcCallbackLastDisarmResult = 1
+    $sentinelTriggerResult = [int](& $helper)
+    $sentinelFailureResult = [int](& $disarm 0 0 0)
+    if (($sentinelFailureResult -eq 0) -or
+        ($sentinelFailureResult -eq 1)) {
+        throw 'synthetic forced sentinel failure unexpectedly succeeded.'
+    }
+    $tcp.RpcCallbackLastDisarmResult = $sentinelFailureResult
+    if (($sentinelTriggerResult -ne -8) -or
+        ($sentinelFailureResult -ne -9) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -9) -or
         ($sender.OwnerLossCallCount -ne 1) -or
         (-not $sender.Armed) -or
-        ($sender.Depth -ne 1)) {
-        throw 'synthetic ordinary nonzero fence mismatch mutated sender state.'
+        ($sender.Depth -ne 2) -or
+        (-not $tcp.RpcCallbackRegistered)) {
+        throw 'synthetic sentinel failure was misclassified as retirement success.'
+    }
+
+    $sender.Armed = $true
+    $sender.Depth = 2
+    $sender.SessionEpoch = [uint32]131
+    $sender.CookieLo = [uint32]141
+    $sender.CookieHi = [uint32]151
+    $sender.OwnerLossCallCount = 0
+    $sender.ForcedOwnerLossResult = $null
+    $tcp.CallbackSenderConnected = $true
+    $tcp.RpcCallbackRegistered = $true
+    $tcp.RpcCallbackSessionEpoch = [uint32]132
+    $tcp.RpcCallbackCookieLo = [uint32]142
+    $tcp.RpcCallbackCookieHi = [uint32]152
+    $tcp.RpcCallbackLastDisarmResult = 1
+    $confirmationTriggerResult = [int](& $helper)
+    $confirmationSentinelResult = [int](& $disarm 0 0 0)
+    $tcp.CallbackSenderConnected = $false
+    $confirmationFailureResult = [int](& $helper)
+    if (($confirmationTriggerResult -ne -8) -or
+        ($confirmationSentinelResult -ne 0) -or
+        ($confirmationFailureResult -ne -9) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -9) -or
+        ($sender.OwnerLossCallCount -ne 1) -or
+        $sender.Armed -or
+        ($sender.Depth -ne 0) -or
+        (-not $tcp.RpcCallbackRegistered) -or
+        ($tcp.RpcCallbackSessionEpoch -ne 132) -or
+        ($tcp.RpcCallbackCookieLo -ne 142) -or
+        ($tcp.RpcCallbackCookieHi -ne 152)) {
+        throw 'synthetic confirmation failure was misclassified as full retirement.'
+    }
+
+    $sender.Armed = $true
+    $sender.Depth = 2
+    $sender.SessionEpoch = [uint32]201
+    $sender.CookieLo = [uint32]211
+    $sender.CookieHi = [uint32]221
+    $sender.OwnerLossCallCount = 0
+    $sender.ForcedOwnerLossResult = $null
+    $tcp.CallbackSenderConnected = $true
+    $tcp.RpcCallbackRegistered = $true
+    $tcp.RpcCallbackSessionEpoch = [uint32]202
+    $tcp.RpcCallbackCookieLo = [uint32]212
+    $tcp.RpcCallbackCookieHi = [uint32]222
+    $tcp.RpcCallbackLastDisarmResult = 1
+    $preSentinelDisconnectTrigger = [int](& $helper)
+    $tcp.CallbackSenderConnected = $false
+    if ($preSentinelDisconnectTrigger -eq -8) {
+        $tcp.RpcCallbackLastDisarmResult = -9
+    }
+    if (($preSentinelDisconnectTrigger -ne -8) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -9) -or
+        ($sender.OwnerLossCallCount -ne 0) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 2) -or
+        (-not $tcp.RpcCallbackRegistered)) {
+        throw 'synthetic pre-sentinel sender loss did not normalize to -9.'
+    }
+
+    $sender.Armed = $true
+    $sender.Depth = 2
+    $sender.SessionEpoch = [uint32]231
+    $sender.CookieLo = [uint32]241
+    $sender.CookieHi = [uint32]251
+    $sender.OwnerLossCallCount = 0
+    $sender.ForcedOwnerLossResult = $null
+    $tcp.CallbackSenderConnected = $true
+    $tcp.RpcCallbackRegistered = $true
+    $tcp.RpcCallbackSessionEpoch = [uint32]232
+    $tcp.RpcCallbackCookieLo = [uint32]242
+    $tcp.RpcCallbackCookieHi = [uint32]252
+    $tcp.RpcCallbackLastDisarmResult = 1
+    $mismatchedConfirmationTrigger = [int](& $helper)
+    $mismatchedConfirmationSentinel = [int](& $disarm 0 0 0)
+    $sender.Armed = $true
+    $sender.Depth = 1
+    $sender.SessionEpoch = [uint32]261
+    $sender.CookieLo = [uint32]271
+    $sender.CookieHi = [uint32]281
+    $mismatchedConfirmationResult = [int](& $helper)
+    if (($mismatchedConfirmationTrigger -ne -8) -or
+        ($mismatchedConfirmationSentinel -ne 0) -or
+        ($mismatchedConfirmationResult -ne -8) -or
+        ($tcp.RpcCallbackLastDisarmResult -ne -8) -or
+        ($sender.OwnerLossCallCount -ne 1) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 1) -or
+        ($sender.SessionEpoch -ne 261) -or
+        (-not $tcp.RpcCallbackRegistered) -or
+        ($tcp.RpcCallbackSessionEpoch -ne 232) -or
+        ($tcp.RpcCallbackCookieLo -ne 242) -or
+        ($tcp.RpcCallbackCookieHi -ne 252)) {
+        throw 'synthetic mismatched confirmation was misclassified as full retirement.'
     }
 }
 
@@ -13421,6 +13604,10 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             'ELSIF NOT IsClientConnected(#CallbackSender) THEN',
             'ELSIF FALSE THEN'),
         @(
+            'Gate C helper overwrites dormant owner-loss latch',
+            'IF RpcCallbackRegistered THEN',
+            'IF TRUE THEN'),
+        @(
             'Gate C helper clears on negative result',
             'IF (Result = 0) OR (Result = 1) THEN',
             'IF TRUE THEN'),
@@ -13433,6 +13620,26 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             'callbackDisarmResult := DisarmRpcCallbackEndpoint();',
             ("callbackDisarmResult := DisarmRpcCallbackEndpoint();`n" +
                 '        RpcCallbackRegistered := FALSE;')),
+        @(
+            'Gate C owner-loss boundary omits diagnostic reset',
+            'RpcCallbackLastDisarmResult := 1;',
+            'RpcCallbackLastDisarmResult := 0;'),
+        @(
+            'Gate C owner-loss success latch accepts failed confirmation',
+            '(callbackDisarmResult = 1) then',
+            '(callbackDisarmResult = -9) then'),
+        @(
+            'Gate C owner-loss success latch records noncanonical value',
+            'RpcCallbackLastDisarmResult := -8;',
+            'RpcCallbackLastDisarmResult := 1;'),
+        @(
+            'Gate C owner-loss sentinel failure hides actual result',
+            'RpcCallbackLastDisarmResult := ownerLossRetireResult;',
+            'RpcCallbackLastDisarmResult := -8;'),
+        @(
+            'Gate C disconnected owner-loss path hides failure',
+            'RpcCallbackLastDisarmResult := -9;',
+            'RpcCallbackLastDisarmResult := -8;'),
         @(
             'Gate C forced path advances before disarm',
             ("callbackDisarmResult := DisarmRpcCallbackEndpoint();`n" +

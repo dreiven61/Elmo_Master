@@ -16114,7 +16114,8 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
         $orderedStatements.Insert(
             $sessionEpochIndex,
             'RpcCallbackOwnerLossDisarm',
-            ('(?is)(?<![A-Za-z0-9_])callbackDisarmResult\s*:=\s*' +
+            ('(?is)(?<![A-Za-z0-9_])RpcCallbackLastDisarmResult\s*:=\s*1\s*;' +
+             '\s*callbackDisarmResult\s*:=\s*' +
              'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;' +
              '\s*if\s*\(\s*callbackDisarmResult\s*=\s*-8\s*\)\s*&' +
              '\s*IsClientConnected\s*\(\s*#\s*CallbackSender\s*\)' +
@@ -16125,9 +16126,18 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
              '\s*ExpectedCookieHi\s*:=\s*0\s*\)\s*;' +
              '\s*if\s*\(\s*ownerLossRetireResult\s*=\s*0\s*\)' +
              '\s*\|\s*\(\s*ownerLossRetireResult\s*=\s*1\s*\)' +
-             '\s*then\s*callbackDisarmResult\s*:=\s*' +
-             'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;' +
-             '\s*end_if\s*;\s*end_if\s*;'))
+              '\s*then\s*callbackDisarmResult\s*:=\s*' +
+              'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;' +
+              '\s*if\s*\(\s*callbackDisarmResult\s*=\s*0\s*\)' +
+              '\s*\|\s*\(\s*callbackDisarmResult\s*=\s*1\s*\)' +
+              '\s*then\s*RpcCallbackLastDisarmResult\s*:=\s*-8\s*;' +
+              '\s*end_if\s*;' +
+              '\s*else\s*RpcCallbackLastDisarmResult\s*:=\s*' +
+              'ownerLossRetireResult\s*;' +
+              '\s*end_if\s*;' +
+              '\s*elsif\s+callbackDisarmResult\s*=\s*-8\s+then' +
+              '\s*RpcCallbackLastDisarmResult\s*:=\s*-9\s*;' +
+              '\s*end_if\s*;'))
     }
 
     $lastStatementIndex = -1
@@ -43267,6 +43277,31 @@ if ($script:WrapperUdpCallbackCandidateExpected) {
                 $tcpFreshOwnerFixtureBlock,
                 '(callbackDisarmResult = -9)',
                 1)
+    $tcpFreshOwnerNegativeFixtures['OwnerLossSuccessLatchRemoved'] =
+        ([regex]::new(
+            ('(?i)RpcCallbackLastDisarmResult\s*:=\s*-8\s*;'))).Replace(
+                $tcpFreshOwnerFixtureBlock,
+                'RpcCallbackLastDisarmResult := 1;',
+                1)
+    $tcpFreshOwnerNegativeFixtures['OwnerLossBoundaryResetRemoved'] =
+        ([regex]::new(
+            ('(?i)RpcCallbackLastDisarmResult\s*:=\s*1\s*;'))).Replace(
+                $tcpFreshOwnerFixtureBlock,
+                'RpcCallbackLastDisarmResult := 0;',
+                1)
+    $tcpFreshOwnerNegativeFixtures['OwnerLossSentinelFailureHidden'] =
+        ([regex]::new(
+            ('(?i)RpcCallbackLastDisarmResult\s*:=\s*' +
+             'ownerLossRetireResult\s*;'))).Replace(
+                $tcpFreshOwnerFixtureBlock,
+                'RpcCallbackLastDisarmResult := -8;',
+                1)
+    $tcpFreshOwnerNegativeFixtures['OwnerLossDisconnectedFailureHidden'] =
+        ([regex]::new(
+            ('(?i)RpcCallbackLastDisarmResult\s*:=\s*-9\s*;'))).Replace(
+                $tcpFreshOwnerFixtureBlock,
+                'RpcCallbackLastDisarmResult := -8;',
+                1)
 }
 
 $tcpFreshOwnerNegativeFixtureCount = 0
@@ -43307,7 +43342,7 @@ foreach ($negativeFixture in
 }
 $expectedTcpFreshOwnerNegativeFixtureCount = if (
     $script:WrapperUdpCallbackCandidateExpected) {
-    12
+    16
 }
 else {
     11

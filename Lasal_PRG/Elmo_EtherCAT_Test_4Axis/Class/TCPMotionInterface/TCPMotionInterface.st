@@ -826,6 +826,8 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
         IngressDiscardSocket := 0;
 
 		// Preserve PendingClosedSessionEpoch until CyWork notifies Diagnostics.
+		// Reset the Watch latch before this exact owner-loss boundary.
+		RpcCallbackLastDisarmResult := 1;
 		callbackDisarmResult := DisarmRpcCallbackEndpoint();
 		if (callbackDisarmResult = -8) &
 		   IsClientConnected(#CallbackSender) then
@@ -836,7 +838,18 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		  if (ownerLossRetireResult = 0) |
 			 (ownerLossRetireResult = 1) then
 			callbackDisarmResult := DisarmRpcCallbackEndpoint();
+			if (callbackDisarmResult = 0) |
+			   (callbackDisarmResult = 1) then
+			  // Exact -8 means sentinel and confirmation both completed.
+			  RpcCallbackLastDisarmResult := -8;
+			end_if;
+		  else
+			// Preserve the actual sentinel failure for tuple-correlated evidence.
+			RpcCallbackLastDisarmResult := ownerLossRetireResult;
 		  end_if;
+		elsif callbackDisarmResult = -8 then
+		  // The sender link vanished before the sentinel could run.
+		  RpcCallbackLastDisarmResult := -9;
 		end_if;
 		SessionEpoch += 1;
         if SessionEpoch = 0 then
@@ -862,6 +875,8 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		if (SessionEpoch <> 0) & (PendingClosedSessionEpoch = 0) then
 		  PendingClosedSessionEpoch := SessionEpoch;
 		end_if;
+		// Reset the Watch latch before this exact owner-loss boundary.
+		RpcCallbackLastDisarmResult := 1;
 		callbackDisarmResult := DisarmRpcCallbackEndpoint();
 		if (callbackDisarmResult = -8) &
 		   IsClientConnected(#CallbackSender) then
@@ -872,7 +887,18 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		  if (ownerLossRetireResult = 0) |
 			 (ownerLossRetireResult = 1) then
 			callbackDisarmResult := DisarmRpcCallbackEndpoint();
+			if (callbackDisarmResult = 0) |
+			   (callbackDisarmResult = 1) then
+			  // Exact -8 means sentinel and confirmation both completed.
+			  RpcCallbackLastDisarmResult := -8;
+			end_if;
+		  else
+			// Preserve the actual sentinel failure for tuple-correlated evidence.
+			RpcCallbackLastDisarmResult := ownerLossRetireResult;
 		  end_if;
+		elsif callbackDisarmResult = -8 then
+		  // The sender link vanished before the sentinel could run.
+		  RpcCallbackLastDisarmResult := -9;
 		end_if;
 		SessionEpoch += 1;
         if SessionEpoch = 0 then
@@ -2653,7 +2679,10 @@ FUNCTION TCPMotionInterface::DisarmRpcCallbackEndpoint
 			ExpectedCookieHi := RpcCallbackCookieHi
 		);
 	END_IF;
-	RpcCallbackLastDisarmResult := Result;
+	// A dormant no-op must not overwrite completed owner-loss evidence.
+	IF RpcCallbackRegistered THEN
+		RpcCallbackLastDisarmResult := Result;
+	END_IF;
 	IF (Result = 0) OR (Result = 1) THEN
 		RpcCallbackRegistered := FALSE;
 		RpcCallbackEventMask := 0;
