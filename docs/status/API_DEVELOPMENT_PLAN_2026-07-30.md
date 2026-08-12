@@ -576,10 +576,19 @@ read-only P1-1을 먼저 완료한다.
      journal/no-auto-replay와 axis/group unified mutation ownership의 동시 연결, motion RT와
      task/core priority 정합, zero velocity/safe axis state, software limit, application-approved
      `SetPositionMaxJump>0`, `IsReferenced` 정책과 실제 PLC proof가 필요하다.
-3. `SetOpMode`
+3. `HomeDS402Ex`
+   - 2026-08-12에 engineering-unit typed 입력과 fail-fast 검증을 첫 구현 단위로
+     분리했다. 아직 command ID/wire, capability, LASAL route/state/store, WPF와
+     PLC 동작은 없으므로 `HomeDS402Ex` API는 계속 실제 미구현으로 분류한다.
+   - 기존 method 37 전용 `0x7D15/16/17`을 확장하지 않는다. method allowlist,
+     drive scaling, Home/limit/index/block 입력, travel/torque/watchdog와 mode/SDO
+     ownership을 승인한 뒤 별도 start/outcome/retire 계약으로 진행한다.
+   - 상세 경계는
+     [Axis DS402 Home Ex typed input 계약](../architecture/AXIS_DS402_HOME_EX_TYPED_INPUT_CONTRACT_2026-08-12.md)에 고정한다.
+4. `SetOpMode`
    - LMC가 DS402 mode를 소유할지 결정하고 dedicated state machine으로 구현
-4. 이후 semantic Axis/Group parameter write, Axis Override, 8-byte SDO Read, typed callback
-5. generic kinematics, MoveCircle, Profile Conditioning은 실제 요구 승인 후 별도 설계
+5. 이후 semantic Axis/Group parameter write, Axis Override, 8-byte SDO Read, typed callback
+6. generic kinematics, MoveCircle, Profile Conditioning은 실제 요구 승인 후 별도 설계
 
 모든 신규 command의 공통 DoD:
 
