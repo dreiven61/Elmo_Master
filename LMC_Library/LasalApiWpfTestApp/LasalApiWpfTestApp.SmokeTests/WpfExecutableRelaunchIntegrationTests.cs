@@ -493,7 +493,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Published MainWindow belongs to another process.");
 
             AssertEx.Contains(
-                "ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1",
+                "ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2",
                 report.ExecutionLogText);
             AssertEx.Contains("SdkPath=", report.ExecutionLogText);
             if (freshSessionRetryExpected)

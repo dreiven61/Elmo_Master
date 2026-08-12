@@ -122,6 +122,24 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.InitialSecondPersistentMinusOneFailureStopsBounded",
                 CallbackV2InitialSecondPersistentMinusOneFailureStopsBounded);
             tests.Add(
+                "Wpf.CallbackV2.PreResponseTransportCloseUsesOneDelayedFreshCandidate",
+                CallbackV2PreResponseTransportCloseUsesOneDelayedFreshCandidate);
+            tests.Add(
+                "Wpf.CallbackV2.SecondPreResponseTransportCloseStopsWithoutThirdCandidate",
+                CallbackV2SecondPreResponseTransportCloseStopsWithoutThirdCandidate);
+            tests.Add(
+                "Wpf.CallbackV2.CallbackStageTransportCloseDoesNotRetry",
+                CallbackV2CallbackStageTransportCloseDoesNotRetry);
+            tests.Add(
+                "Wpf.CallbackV2.ConnectBeforeInitTransportFailureDoesNotRetry",
+                CallbackV2ConnectBeforeInitTransportFailureDoesNotRetry);
+            tests.Add(
+                "Wpf.CallbackV2.MalformedInitResponseDoesNotRetry",
+                CallbackV2MalformedInitResponseDoesNotRetry);
+            tests.Add(
+                "Wpf.CallbackV2.PreResponseTransportExceptionAllowlistIsExact",
+                CallbackV2PreResponseTransportExceptionAllowlistIsExact);
+            tests.Add(
                 "Wpf.CallbackV2.ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession",
                 CallbackV2ErrorZeroInitFailureCleansUpAndManualReconnectUsesNewSession);
             tests.Add(
@@ -244,7 +262,7 @@ namespace LasalApiWpfTestApp.SmokeTests
                         "Shutdown RPC close warning retained after local cleanup.",
                         window.TextExecutionLog.Text);
                     AssertEx.Contains(
-                        "ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1",
+                        "ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V2",
                         window.TextExecutionLog.Text);
                     AssertEx.Contains(
                         "SdkPath=",
@@ -309,6 +327,12 @@ namespace LasalApiWpfTestApp.SmokeTests
                         window.TextRpcInitialization.Text);
                     AssertEx.Contains(
                         "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryReason=PersistentSessionInitMinusOne",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryDelayMs=100",
                         window.TextRpcInitialization.Text);
                     AssertEx.Contains(
                         "FreshSessionFirstFailure={Attempt=1, Outcome=Failed",
@@ -594,6 +618,512 @@ namespace LasalApiWpfTestApp.SmokeTests
                 CloseWindowBestEffort(window);
                 DeleteJournalDirectory(journalDirectory);
             }
+        }
+
+        private static void
+            CallbackV2PreResponseTransportCloseUsesOneDelayedFreshCandidate()
+        {
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            UdpClient callbackPortReservation = null;
+            try
+            {
+                callbackPortReservation = BindExclusiveLoopbackUdpPort(0);
+                var callbackPort = ((IPEndPoint)callbackPortReservation
+                    .Client.LocalEndPoint).Port;
+                var steps = CreateFixedPortConnectAndTopologySteps(
+                    LMCDiagnosticCapability.EtherCATTopology,
+                    callbackPort);
+                steps.Add(CloseStep());
+                steps.Add(ClientDisconnectBoundaryStep(true));
+                steps.Add(SessionInitPreResponseTransportCloseStep(true));
+                steps.AddRange(CreateFixedPortConnectAndTopologySteps(
+                    LMCDiagnosticCapability.EtherCATTopology,
+                    callbackPort));
+                steps.Add(CloseStep());
+
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    window.TextCallbackPort.Text = callbackPort.ToString(
+                        CultureInfo.InvariantCulture);
+                    var observedDelayMilliseconds = -1;
+                    window.FreshSessionRetryDelayAsyncOverride = delay =>
+                    {
+                        observedDelayMilliseconds = delay;
+                        return Task.CompletedTask;
+                    };
+                    callbackPortReservation.Dispose();
+                    callbackPortReservation = null;
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The fixed-port setup connection did not complete before the reconnect transport failure.");
+                    var firstConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(firstConnection);
+                    AssertFixedCallbackListener(
+                        firstConnection,
+                        callbackPort,
+                        "The fixed-port setup connection");
+
+                    Click(window.ButtonCloseConnection);
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                "Close Connection completed",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextConnectionState.Text,
+                                "Disconnected",
+                                StringComparison.Ordinal)
+                            && window.ButtonConnect.IsEnabled
+                            && GetPrivateField(window, "connection") == null,
+                        "Explicit Close did not retire the setup session before the reconnect transport failure.");
+                    AssertEx.Equal(
+                        LMCConnectionState.Disconnected,
+                        firstConnection.State);
+                    AssertEx.True(
+                        firstConnection.CallbackLocalEndPoint == null,
+                        "Explicit Close retained the fixed callback endpoint.");
+                    using (var rebindProbe =
+                        BindExclusiveLoopbackUdpPort(callbackPort))
+                    {
+                        AssertEx.Equal(
+                            callbackPort,
+                            ((IPEndPoint)rebindProbe.Client.LocalEndPoint).Port,
+                            "Explicit Close did not release the fixed callback UDP port.");
+                    }
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The same-window reconnect did not recover from its first pre-response transport close.");
+
+                    AssertEx.Equal(
+                        2,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"));
+                    AssertEx.Equal(
+                        1000,
+                        observedDelayMilliseconds,
+                        "The pre-response retry did not request the exact 1000 ms delay policy.");
+                    AssertEx.Equal(3, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405C));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405D));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=2, Outcome=Connected, CandidateOrdinal=2",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryReason=PreResponseTransportFailure",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryDelayMs=1000",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryFromCandidate=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryNextCandidate=2",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionFirstFailure={Attempt=2, Outcome=Failed, CandidateOrdinal=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "0x8080Attempts=1, Retry=False, InitOutcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "LastACK={none}",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Reason=PreResponseTransportFailure, CandidateOrdinal=1, NextCandidateOrdinal=2",
+                        window.TextExecutionLog.Text);
+                    AssertEx.Contains(
+                        "one fresh TCP session retry will start after 1000 ms",
+                        window.TextExecutionLog.Text);
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        3,
+                        0x405D));
+                }
+            }
+            finally
+            {
+                if (callbackPortReservation != null)
+                {
+                    callbackPortReservation.Dispose();
+                }
+
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2SecondPreResponseTransportCloseStopsWithoutThirdCandidate()
+        {
+            var steps = new[]
+            {
+                SessionInitPreResponseTransportCloseStep(true),
+                SessionInitPreResponseTransportCloseStep(false)
+            };
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    window.FreshSessionRetryDelayAsyncOverride = delay =>
+                        Task.CompletedTask;
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "The second pre-response transport close did not stop in a clean bounded state.");
+
+                    AssertEx.Equal(
+                        1,
+                        (int)GetPrivateField(
+                            window,
+                            "rpcConnectionAttemptSerial"));
+                    AssertEx.Equal(2, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x8080));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        1,
+                        0x405C));
+                    AssertEx.Equal(0, CountCommandInSession(
+                        server,
+                        2,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=1, Outcome=Failed, CandidateOrdinal=2",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryReason=PreResponseTransportFailure",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryDelayMs=1000",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryFromCandidate=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryNextCandidate=2",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionFirstFailure={Attempt=1, Outcome=Failed, CandidateOrdinal=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "Current=Retired",
+                        window.TextRpcInitialization.Text);
+
+                    server.Verify();
+                    AssertEx.Equal(
+                        2,
+                        server.AcceptedClientCount,
+                        "The second failed candidate opened an unbounded third TCP session.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void CallbackV2CallbackStageTransportCloseDoesNotRetry()
+        {
+            var callbackClose = new FakeRpcStep(0x405C, null)
+            {
+                CloseClientBeforeResponse = true
+            };
+            var steps = new[]
+            {
+                InitStep(),
+                callbackClose
+            };
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "The callback-stage transport close did not return to a clean non-retrying state.");
+
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405C));
+                    AssertEx.Contains(
+                        "Attempt=1, Outcome=Failed, CandidateOrdinal=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "0x8080Attempts=1, Retry=False, InitOutcome=Succeeded",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.False(
+                        window.TextRpcInitialization.Text.IndexOf(
+                            "FreshSessionRetry=",
+                            StringComparison.Ordinal) >= 0,
+                        "A callback-stage transport failure incorrectly used the pre-response retry budget.");
+
+                    server.Verify();
+                    AssertEx.Equal(
+                        1,
+                        server.AcceptedClientCount,
+                        "A callback-stage transport failure opened a second TCP candidate.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2ConnectBeforeInitTransportFailureDoesNotRetry()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var unavailablePort = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                window = CreateWindow(journalDirectory, unavailablePort);
+                var delayRequestCount = 0;
+                window.FreshSessionRetryDelayAsyncOverride = delay =>
+                {
+                    delayRequestCount++;
+                    return Task.CompletedTask;
+                };
+                Click(window.ButtonConnect);
+                WaitForConnectFailedClean(
+                    window,
+                    "A connect-before-init transport failure did not return to a clean non-retrying state.");
+
+                AssertEx.Equal(
+                    1,
+                    (int)GetPrivateField(
+                        window,
+                        "rpcConnectionAttemptSerial"));
+                AssertEx.Equal(
+                    0,
+                    delayRequestCount,
+                    "A transport failure before the 0x8080 request consumed the fresh-candidate retry budget.");
+                AssertEx.Contains(
+                    "Attempt=1, Outcome=Failed, CandidateOrdinal=1",
+                    window.TextRpcInitialization.Text);
+                AssertEx.Contains(
+                    "0x8080Attempts=0, Retry=False, InitOutcome=Failed",
+                    window.TextRpcInitialization.Text);
+                AssertEx.Contains(
+                    "LastACK={none}",
+                    window.TextRpcInitialization.Text);
+                AssertEx.False(
+                    window.TextRpcInitialization.Text.IndexOf(
+                        "FreshSessionRetry=",
+                        StringComparison.Ordinal) >= 0,
+                    "A connect-before-init failure incorrectly opened a fresh TCP candidate.");
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void CallbackV2MalformedInitResponseDoesNotRetry()
+        {
+            var malformedHeader = new byte[8];
+            TestFrame.WriteUInt16(malformedHeader, 2, ushort.MaxValue);
+            var steps = new[]
+            {
+                new FakeRpcStep(0x8080, malformedHeader)
+            };
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            try
+            {
+                using (var server = new FakeRpcServer(steps))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    var delayRequestCount = 0;
+                    window.FreshSessionRetryDelayAsyncOverride = delay =>
+                    {
+                        delayRequestCount++;
+                        return Task.CompletedTask;
+                    };
+                    Click(window.ButtonConnect);
+                    WaitForConnectFailedClean(
+                        window,
+                        "A malformed 0x8080 response did not return to a clean non-retrying state.");
+
+                    AssertEx.Equal(1, server.AcceptedClientCount);
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x8080));
+                    AssertEx.Equal(
+                        0,
+                        delayRequestCount,
+                        "A malformed 0x8080 response consumed the fresh-candidate retry budget.");
+                    AssertEx.Contains(
+                        "Attempt=1, Outcome=Failed, CandidateOrdinal=1",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "0x8080Attempts=1, Retry=False, InitOutcome=Failed",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "InitFailure=System.IO.InvalidDataException",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.False(
+                        window.TextRpcInitialization.Text.IndexOf(
+                            "FreshSessionRetry=",
+                            StringComparison.Ordinal) >= 0,
+                        "A malformed 0x8080 response incorrectly opened a fresh TCP candidate.");
+
+                    server.Verify();
+                    AssertEx.Equal(
+                        1,
+                        server.AcceptedClientCount,
+                        "A malformed 0x8080 response opened a second TCP candidate.");
+                }
+            }
+            finally
+            {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2PreResponseTransportExceptionAllowlistIsExact()
+        {
+            var predicate = typeof(MainWindow).GetMethod(
+                "IsEligiblePreResponseTransportException",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            AssertEx.NotNull(predicate);
+
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new EndOfStreamException(),
+                true);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new SocketException((int)SocketError.ConnectionReset),
+                true);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new TimeoutException("receive deadline"),
+                true);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new IOException(
+                    "wrapped socket",
+                    new SocketException((int)SocketError.ConnectionReset)),
+                true);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new IOException(
+                    "wrapped timeout",
+                    new TimeoutException("receive deadline")),
+                true);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new IOException("unclassified I/O failure"),
+                false);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new InvalidDataException(
+                    "malformed",
+                    new SocketException((int)SocketError.ConnectionReset)),
+                false);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new OperationCanceledException(),
+                false);
+            AssertPreResponseTransportExceptionEligibility(
+                predicate,
+                new ObjectDisposedException("transport"),
+                false);
+        }
+
+        private static void AssertPreResponseTransportExceptionEligibility(
+            MethodInfo predicate,
+            Exception failure,
+            bool expected)
+        {
+            var actual = (bool)predicate.Invoke(
+                null,
+                new object[] { failure });
+            AssertEx.Equal(
+                expected,
+                actual,
+                failure.GetType().FullName
+                    + " had an unexpected pre-response retry classification.");
         }
 
         private static void
@@ -912,6 +1442,9 @@ namespace LasalApiWpfTestApp.SmokeTests
                         window.TextRpcInitialization.Text);
                     AssertEx.Contains(
                         "FreshSessionRetry=Used",
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "FreshSessionRetryReason=PersistentSessionInitMinusOne",
                         window.TextRpcInitialization.Text);
                     AssertEx.Contains(
                         "FreshSessionRetryDelayMs=100",
@@ -7383,6 +7916,22 @@ namespace LasalApiWpfTestApp.SmokeTests
             return new FakeRpcStep(
                 0x8080,
                 TestFrame.Response(1, payload));
+        }
+
+        private static FakeRpcStep SessionInitPreResponseTransportCloseStep(
+            bool continueWithNextClient)
+        {
+            var step = new FakeRpcStep(0x8080, null);
+            if (continueWithNextClient)
+            {
+                step.CloseClientBeforeResponseAndContinue = true;
+            }
+            else
+            {
+                step.CloseClientBeforeResponse = true;
+            }
+
+            return step;
         }
 
         private static FakeRpcStep CallbackStep()

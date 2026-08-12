@@ -1,7 +1,9 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,11 +17,14 @@ namespace LasalMotionControlApiExample
     {
         private const int MinimumGroupMotionMonitorMilliseconds = 15000;
         private const int MaximumGroupMotionMonitorMilliseconds = 600000;
-        private const int ReconnectFreshSessionRetryDelayMilliseconds = 100;
+        private const int PersistentInitFailureFreshSessionRetryDelayMilliseconds =
+            100;
+        private const int PreResponseTransportFreshSessionRetryDelayMilliseconds =
+            1000;
         private const string TopologyUiFeatureMarker =
             "CREVIS_TOPOLOGY_AXIS1_UI24_SDO_WRITE_LIVE_AXIS_QUAL_V5";
         private const string ReconnectPolicyMarker =
-            "RPC_INIT_FRESH_TCP_ONCE_V1";
+            "RPC_INIT_FRESH_TCP_ONCE_V2";
         private static readonly PlcUnitOption[] PlcUnitOptions =
         {
             new PlcUnitOption("None / raw DINT (no conversion)", "raw", 1, true),
@@ -54,6 +59,11 @@ namespace LasalMotionControlApiExample
         internal Func<LMCSingleAxis, CancellationToken,
             Task<LMCAxisPowerOffWaitContinuation>>
             AxisPowerOffBeginAsyncOverride { get; set; }
+        internal Func<int, Task> FreshSessionRetryDelayAsyncOverride
+        {
+            get;
+            set;
+        }
         private LMCGroupStopWaitContinuation
             pendingGroupStopWaitContinuation;
         private bool operationRunning;
@@ -580,14 +590,19 @@ namespace LasalMotionControlApiExample
                     var connectionAttempt = ++rpcConnectionAttemptSerial;
                     var freshSessionRetryUsed = false;
                     string freshSessionRetryFirstFailureEvidence = null;
+                    string freshSessionRetryReason = null;
+                    var freshSessionRetryDelayMilliseconds = 0;
+                    var candidateOrdinal = 0;
                     LMCConnection newConnection;
                     while (true)
                     {
+                        candidateOrdinal++;
                         lastRpcInitializationRetired = false;
                         lastRpcInitializationEvidence =
                             AppendFreshSessionRetryEvidence(
                                 FormatRpcInitializationEvidence(
                                     connectionAttempt,
+                                    candidateOrdinal,
                                     "Connecting",
                                     remoteIp,
                                     remotePort,
@@ -596,6 +611,9 @@ namespace LasalMotionControlApiExample
                                     null,
                                     null),
                                 freshSessionRetryUsed,
+                                freshSessionRetryReason,
+                                freshSessionRetryDelayMilliseconds,
+                                candidateOrdinal,
                                 freshSessionRetryFirstFailureEvidence);
                         newConnection = CreateCoordinatedConnection();
                         AttachConnection(newConnection);
@@ -616,6 +634,7 @@ namespace LasalMotionControlApiExample
                                 AppendFreshSessionRetryEvidence(
                                     FormatRpcInitializationEvidence(
                                         connectionAttempt,
+                                        candidateOrdinal,
                                         "Connected",
                                         remoteIp,
                                         remotePort,
@@ -624,6 +643,9 @@ namespace LasalMotionControlApiExample
                                         newConnection,
                                         null),
                                     freshSessionRetryUsed,
+                                    freshSessionRetryReason,
+                                    freshSessionRetryDelayMilliseconds,
+                                    candidateOrdinal,
                                     freshSessionRetryFirstFailureEvidence);
                             lastRpcInitializationRetired = false;
                             RememberConnectedRemoteEndpoint(
@@ -636,6 +658,7 @@ namespace LasalMotionControlApiExample
                             var failedInitializationEvidence =
                                 FormatRpcInitializationEvidence(
                                     connectionAttempt,
+                                    candidateOrdinal,
                                     "Failed",
                                     remoteIp,
                                     remotePort,
@@ -643,10 +666,19 @@ namespace LasalMotionControlApiExample
                                     callbackPort,
                                     newConnection,
                                     error);
-                            var useFreshSessionRetry =
+                            var persistentInitFailureRetry =
                                 !freshSessionRetryUsed
                                 && IsExactPersistentSessionInitMinusOneFailure(
                                     newConnection);
+                            var preResponseTransportRetry =
+                                !freshSessionRetryUsed
+                                && !persistentInitFailureRetry
+                                && IsEligiblePreResponseTransportFailure(
+                                    newConnection,
+                                    error);
+                            var useFreshSessionRetry =
+                                persistentInitFailureRetry
+                                || preResponseTransportRetry;
 
                             if (ReferenceEquals(connection, newConnection))
                             {
@@ -660,34 +692,55 @@ namespace LasalMotionControlApiExample
                             if (useFreshSessionRetry)
                             {
                                 freshSessionRetryUsed = true;
+                                freshSessionRetryReason =
+                                    persistentInitFailureRetry
+                                        ? "PersistentSessionInitMinusOne"
+                                        : "PreResponseTransportFailure";
+                                freshSessionRetryDelayMilliseconds =
+                                    persistentInitFailureRetry
+                                        ? PersistentInitFailureFreshSessionRetryDelayMilliseconds
+                                        : PreResponseTransportFreshSessionRetryDelayMilliseconds;
                                 freshSessionRetryFirstFailureEvidence =
                                     failedInitializationEvidence;
                                 lastRpcInitializationEvidence =
                                     AppendFreshSessionRetryScheduledEvidence(
                                         failedInitializationEvidence,
+                                        freshSessionRetryReason,
+                                        freshSessionRetryDelayMilliseconds,
+                                        candidateOrdinal,
                                         freshSessionRetryFirstFailureEvidence);
                                 lastRpcInitializationRetired = true;
                                 WriteLog(
-                                    "RPC init returned the exact persistent "
-                                    + "ErrorId=-1 failure after the SDK same-socket retry. "
+                                    "RPC init fresh-session retry scheduled. Reason="
+                                    + freshSessionRetryReason
+                                    + ", CandidateOrdinal="
+                                    + candidateOrdinal.ToString(
+                                        CultureInfo.InvariantCulture)
+                                    + ", NextCandidateOrdinal="
+                                    + (candidateOrdinal + 1).ToString(
+                                        CultureInfo.InvariantCulture)
+                                    + ". "
                                     + "The failed TCP session was retired; one fresh TCP "
                                     + "session retry will start after "
-                                    + ReconnectFreshSessionRetryDelayMilliseconds
+                                    + freshSessionRetryDelayMilliseconds
                                         .ToString(CultureInfo.InvariantCulture)
                                     + " ms. FreshSessionFirstFailure={"
                                     + failedInitializationEvidence
                                     + "}");
                                 UpdateUiState();
-                                await Task.Delay(
-                                    ReconnectFreshSessionRetryDelayMilliseconds);
+                                await DelayBeforeFreshSessionRetryAsync(
+                                    freshSessionRetryDelayMilliseconds);
                                 continue;
                             }
 
                             lastRpcInitializationEvidence =
                                 AppendFreshSessionRetryEvidence(
-                                    failedInitializationEvidence,
-                                    freshSessionRetryUsed,
-                                    freshSessionRetryFirstFailureEvidence);
+                                failedInitializationEvidence,
+                                freshSessionRetryUsed,
+                                freshSessionRetryReason,
+                                freshSessionRetryDelayMilliseconds,
+                                candidateOrdinal,
+                                freshSessionRetryFirstFailureEvidence);
                             lastRpcInitializationRetired = true;
                             UpdateUiState();
                             throw;
@@ -9139,6 +9192,7 @@ namespace LasalMotionControlApiExample
 
         private static string FormatRpcInitializationEvidence(
             int connectionAttempt,
+            int candidateOrdinal,
             string outcome,
             string remoteIp,
             int remotePort,
@@ -9151,6 +9205,8 @@ namespace LasalMotionControlApiExample
                 + connectionAttempt.ToString(CultureInfo.InvariantCulture)
                 + ", Outcome="
                 + outcome
+                + ", CandidateOrdinal="
+                + candidateOrdinal.ToString(CultureInfo.InvariantCulture)
                 + ", Remote="
                 + remoteIp
                 + ":"
@@ -9259,6 +9315,67 @@ namespace LasalMotionControlApiExample
                     initialization.LastReceivedResponse);
         }
 
+        private static bool IsEligiblePreResponseTransportFailure(
+            LMCConnection observedConnection,
+            Exception failure)
+        {
+            if (observedConnection == null
+                || failure == null
+                || failure is OperationCanceledException
+                || failure is ObjectDisposedException
+                || observedConnection.IsRpcInitialized
+                || observedConnection.IsCallbackListenerRunning
+                || observedConnection.CallbackLocalEndPoint != null
+                || observedConnection.RpcSessionInitResponse != null
+                || observedConnection.RpcCallbackRegistrationResponse != null
+                || observedConnection.RpcCallbackRegistrationV2Response != null)
+            {
+                return false;
+            }
+
+            var initialization = observedConnection
+                .LastRpcSessionInitializationEvidence;
+            return initialization != null
+                && initialization.Outcome
+                    == LMCRpcSessionInitializationOutcome.Failed
+                && initialization.AttemptCount == 1
+                && !initialization.CanonicalRetryUsed
+                && initialization.FirstFailureResponse == null
+                && initialization.LastReceivedResponse == null
+                && IsEligiblePreResponseTransportException(failure);
+        }
+
+        private Task DelayBeforeFreshSessionRetryAsync(
+            int delayMilliseconds)
+        {
+            var delayOverride = FreshSessionRetryDelayAsyncOverride;
+            return delayOverride == null
+                ? Task.Delay(delayMilliseconds)
+                : delayOverride(delayMilliseconds);
+        }
+
+        private static bool IsEligiblePreResponseTransportException(
+            Exception failure)
+        {
+            if (failure is InvalidDataException)
+            {
+                return false;
+            }
+
+            if (failure is EndOfStreamException
+                || failure is SocketException
+                || failure is TimeoutException)
+            {
+                return true;
+            }
+
+            var ioFailure = failure as IOException;
+            return ioFailure != null
+                && ioFailure.InnerException != null
+                && IsEligiblePreResponseTransportException(
+                    ioFailure.InnerException);
+        }
+
         private static bool HasCompleteLocalConnectionCleanup(
             LMCConnection observedConnection)
         {
@@ -9322,6 +9439,9 @@ namespace LasalMotionControlApiExample
         private static string AppendFreshSessionRetryEvidence(
             string evidence,
             bool freshSessionRetryUsed,
+            string retryReason,
+            int retryDelayMilliseconds,
+            int currentCandidateOrdinal,
             string firstFailureEvidence)
         {
             if (!freshSessionRetryUsed)
@@ -9331,8 +9451,16 @@ namespace LasalMotionControlApiExample
 
             return evidence
                 + ", FreshSessionRetry=Used"
+                + ", FreshSessionRetryReason="
+                + retryReason
                 + ", FreshSessionRetryDelayMs="
-                + ReconnectFreshSessionRetryDelayMilliseconds.ToString(
+                + retryDelayMilliseconds.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", FreshSessionRetryFromCandidate="
+                + (currentCandidateOrdinal - 1).ToString(
+                    CultureInfo.InvariantCulture)
+                + ", FreshSessionRetryNextCandidate="
+                + currentCandidateOrdinal.ToString(
                     CultureInfo.InvariantCulture)
                 + ", FreshSessionFirstFailure={"
                 + firstFailureEvidence
@@ -9341,12 +9469,22 @@ namespace LasalMotionControlApiExample
 
         private static string AppendFreshSessionRetryScheduledEvidence(
             string evidence,
+            string retryReason,
+            int retryDelayMilliseconds,
+            int candidateOrdinal,
             string firstFailureEvidence)
         {
             return evidence
                 + ", FreshSessionRetry=Scheduled"
+                + ", FreshSessionRetryReason="
+                + retryReason
                 + ", FreshSessionRetryDelayMs="
-                + ReconnectFreshSessionRetryDelayMilliseconds.ToString(
+                + retryDelayMilliseconds.ToString(
+                    CultureInfo.InvariantCulture)
+                + ", FreshSessionRetryFromCandidate="
+                + candidateOrdinal.ToString(CultureInfo.InvariantCulture)
+                + ", FreshSessionRetryNextCandidate="
+                + (candidateOrdinal + 1).ToString(
                     CultureInfo.InvariantCulture)
                 + ", FreshSessionFirstFailure={"
                 + firstFailureEvidence
