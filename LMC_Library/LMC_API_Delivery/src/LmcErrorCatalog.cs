@@ -244,7 +244,7 @@ namespace LasalMotionControlLib
                 "Read the current position, verify the approved SetPositionMaxJump policy, and prepare a new one-shot intent without bypassing either check.");
             AddAdmin(entries, LMCAdminDetailCode.DiagnosticsBuildMismatch,
                 "The SetAxisPosition diagnostics build identity does not match the current PLC.",
-                "Do not replay the mutation; obtain fresh capabilities and resolve only through an exact retained outcome query.");
+                "Do not replay the mutation; obtain fresh capabilities, query the exact retained terminal outcome, and resolve the durable journal only after exact nonzero-generation retirement succeeds.");
             AddAdmin(entries, LMCAdminDetailCode.BootIdMismatch,
                 "The SetAxisPosition diagnostics BootId does not match the current PLC boot.",
                 "Treat the old outcome as unresolved and follow the durable recovery policy without inferring from current position.");

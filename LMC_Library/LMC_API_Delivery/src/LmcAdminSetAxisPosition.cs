@@ -388,6 +388,8 @@ namespace LasalMotionControlLib
             if (!capabilities.Supports(LMCAdminFeature.AxisSetPosition)
                 || !capabilities.Supports(
                     LMCAdminFeature.AxisSetPositionOutcomeRead)
+                || !capabilities.Supports(
+                    LMCAdminFeature.AxisSetPositionOutcomeRetirement)
                 || axisReference < 1
                 || axisReference > capabilities.PhysicalAxisCount)
             {

@@ -198,6 +198,7 @@ namespace LasalMotionControlLib
         internal const ushort RetireAxisDs402HomeOutcome = 0x7D17;
         internal const ushort ReadAxisHomeOutcome = 0x7D18;
         internal const ushort RetireAxisHomeOutcome = 0x7D19;
+        internal const ushort RetireAxisSetPositionOutcome = 0x7D1A;
         internal const ushort ReadGroupParameters = 0x7D20;
         internal const ushort GroupMoveLinearRelative = 0x7D22;
 

@@ -16635,8 +16635,8 @@ function Assert-LasalAdminSetAxisPositionContract {
     $capabilityBits = [Convert]::ToUInt32(
         $capabilityWrite.Groups['Hex'].Value,
         16)
-    if (($capabilityBits -band 0x00000028) -ne 0) {
-        throw "$Owner dormant SetPosition bits 3/5 were advertised before activation proof."
+    if (($capabilityBits -band 0x000000A8) -ne 0) {
+        throw "$Owner dormant SetPosition bits 3/5/7 were advertised before activation proof."
     }
 
     foreach ($requiredLocal in @(

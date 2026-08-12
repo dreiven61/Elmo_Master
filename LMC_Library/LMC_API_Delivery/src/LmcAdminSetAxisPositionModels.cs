@@ -107,8 +107,8 @@ namespace LasalMotionControlLib
     /// <summary>
     /// Durable, process-independent identity for one SetAxisPosition request.
     /// Persist these values before executing the prepared mutation. The key can
-    /// be reconstructed after restart and used only for an exact read-only
-    /// outcome query.
+    /// be reconstructed after restart and used for an exact read-only outcome
+    /// query, then for the separate nonzero-generation terminal retirement.
     /// </summary>
     public sealed class LMCAxisSetPositionRecoveryKey
         : IEquatable<LMCAxisSetPositionRecoveryKey>

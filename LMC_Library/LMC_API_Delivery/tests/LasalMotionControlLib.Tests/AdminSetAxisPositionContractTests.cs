@@ -326,7 +326,9 @@ namespace LasalMotionControlLib.Tests
                     CapabilitiesPayload(
                         GoldenRequestId,
                         LMCAdminFeature.AxisSetPosition
-                            | LMCAdminFeature.AxisSetPositionOutcomeRead,
+                            | LMCAdminFeature.AxisSetPositionOutcomeRead
+                            | LMCAdminFeature
+                                .AxisSetPositionOutcomeRetirement,
                         4)),
                 GoldenRequestId,
                 1);
@@ -335,6 +337,9 @@ namespace LasalMotionControlLib.Tests
             AssertEx.True(
                 capabilities.Supports(
                     LMCAdminFeature.AxisSetPositionOutcomeRead));
+            AssertEx.True(
+                capabilities.Supports(
+                    LMCAdminFeature.AxisSetPositionOutcomeRetirement));
 
             AssertEx.Throws<InvalidDataException>(
                 () => LMC_AdminParser.ParseCapabilities(
@@ -343,6 +348,19 @@ namespace LasalMotionControlLib.Tests
                         CapabilitiesPayload(
                             GoldenRequestId,
                             LMCAdminFeature.AxisSetPosition,
+                            4)),
+                    GoldenRequestId,
+                    1));
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            GoldenRequestId,
+                            LMCAdminFeature.AxisSetPosition
+                                | LMCAdminFeature
+                                    .AxisSetPositionOutcomeRead,
                             4)),
                     GoldenRequestId,
                     1));
@@ -360,6 +378,46 @@ namespace LasalMotionControlLib.Tests
                 outcomeOnly.Supports(
                     LMCAdminFeature.AxisSetPositionOutcomeRead));
 
+            var outcomeLifecycle = LMC_AdminParser.ParseCapabilities(
+                TestFrame.Response(
+                    0,
+                    CapabilitiesPayload(
+                        GoldenRequestId,
+                        LMCAdminFeature.AxisSetPositionOutcomeRead
+                            | LMCAdminFeature
+                                .AxisSetPositionOutcomeRetirement,
+                        4)),
+                GoldenRequestId,
+                1);
+            AssertEx.True(
+                outcomeLifecycle.Supports(
+                    LMCAdminFeature.AxisSetPositionOutcomeRetirement));
+
+            var retirementWithOldCatalog = CapabilitiesPayload(
+                GoldenRequestId,
+                LMCAdminFeature.AxisSetPositionOutcomeRead
+                    | LMCAdminFeature
+                        .AxisSetPositionOutcomeRetirement,
+                4);
+            TestFrame.WriteUInt16(retirementWithOldCatalog, 36, 1);
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(0, retirementWithOldCatalog),
+                    GoldenRequestId,
+                    1));
+
+            AssertEx.Throws<InvalidDataException>(
+                () => LMC_AdminParser.ParseCapabilities(
+                    TestFrame.Response(
+                        0,
+                        CapabilitiesPayload(
+                            GoldenRequestId,
+                            LMCAdminFeature
+                                .AxisSetPositionOutcomeRetirement,
+                            4)),
+                    GoldenRequestId,
+                    1));
+
             AssertEx.Throws<InvalidDataException>(
                 () => LMC_AdminParser.ParseCapabilities(
                     TestFrame.Response(
@@ -374,7 +432,8 @@ namespace LasalMotionControlLib.Tests
             var unknown = CapabilitiesPayload(
                 GoldenRequestId,
                 LMCAdminFeature.AxisSetPosition
-                    | LMCAdminFeature.AxisSetPositionOutcomeRead,
+                    | LMCAdminFeature.AxisSetPositionOutcomeRead
+                    | LMCAdminFeature.AxisSetPositionOutcomeRetirement,
                 4);
             TestFrame.WriteUInt32(unknown, 16, 1u << 31);
             AssertEx.Throws<InvalidDataException>(
@@ -1409,7 +1468,8 @@ namespace LasalMotionControlLib.Tests
             TestFrame.WriteUInt16(payload, 34, 3);
             var durableSetPositionFeatures =
                 LMCAdminFeature.AxisSetPosition
-                | LMCAdminFeature.AxisSetPositionOutcomeRead;
+                | LMCAdminFeature.AxisSetPositionOutcomeRead
+                | LMCAdminFeature.AxisSetPositionOutcomeRetirement;
             TestFrame.WriteUInt16(
                 payload,
                 36,
@@ -1433,7 +1493,8 @@ namespace LasalMotionControlLib.Tests
         {
             if ((features & LMCAdminFeature.AxisSetPosition) != 0)
             {
-                features |= LMCAdminFeature.AxisSetPositionOutcomeRead;
+                features |= LMCAdminFeature.AxisSetPositionOutcomeRead
+                    | LMCAdminFeature.AxisSetPositionOutcomeRetirement;
             }
 
             return new FakeRpcStep(

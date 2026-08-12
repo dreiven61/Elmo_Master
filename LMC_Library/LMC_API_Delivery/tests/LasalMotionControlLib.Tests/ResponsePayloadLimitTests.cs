@@ -46,6 +46,7 @@ namespace LasalMotionControlLib.Tests
                 { LMC_CommandId.ReadAxisParameter, 28 },
                 { LMC_CommandId.SetAxisPosition, 28 },
                 { LMC_CommandId.ReadAxisSetPositionOutcome, 84 },
+                { LMC_CommandId.RetireAxisSetPositionOutcome, 84 },
                 { LMC_CommandId.StartAxisHome, 24 },
                 { LMC_CommandId.StartAxisDs402Home, 24 },
                 { LMC_CommandId.ReadAxisDs402HomeOutcome, 92 },

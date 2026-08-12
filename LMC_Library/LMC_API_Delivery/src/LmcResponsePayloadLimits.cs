@@ -69,6 +69,7 @@ namespace LasalMotionControlLib
                     return LMC_AdminParser.SetAxisPositionResponsePayloadLength;
 
                 case LMC_CommandId.ReadAxisSetPositionOutcome:
+                case LMC_CommandId.RetireAxisSetPositionOutcome:
                     return LMC_AdminParser
                         .AxisSetPositionOutcomeResponsePayloadLength;
 

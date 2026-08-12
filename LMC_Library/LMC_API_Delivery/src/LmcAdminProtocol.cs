@@ -267,7 +267,8 @@ namespace LasalMotionControlLib
                 | LMCAdminFeature.AxisSetPosition
                 | LMCAdminFeature.AxisHome
                 | LMCAdminFeature.AxisSetPositionOutcomeRead
-                | LMCAdminFeature.AxisDs402Home;
+                | LMCAdminFeature.AxisDs402Home
+                | LMCAdminFeature.AxisSetPositionOutcomeRetirement;
             const uint knownAxisMask = 0x0000003Fu;
 
             if ((features & ~knownFeatures) != 0
@@ -292,6 +293,9 @@ namespace LasalMotionControlLib
                 || ((features & LMCAdminFeature.AxisSetPosition) != 0
                     && ((features
                             & LMCAdminFeature.AxisSetPositionOutcomeRead) == 0
+                        || (features
+                            & LMCAdminFeature
+                                .AxisSetPositionOutcomeRetirement) == 0
                         || physicalAxisCount == 0
                         || physicalAxisCount > 4
                         || errorCatalogVersion < 2))
@@ -302,6 +306,14 @@ namespace LasalMotionControlLib
                 || ((features
                         & LMCAdminFeature.AxisSetPositionOutcomeRead) != 0
                     && (physicalAxisCount == 0
+                        || physicalAxisCount > 4
+                        || errorCatalogVersion < 2))
+                || ((features
+                        & LMCAdminFeature
+                            .AxisSetPositionOutcomeRetirement) != 0
+                    && ((features
+                            & LMCAdminFeature.AxisSetPositionOutcomeRead) == 0
+                        || physicalAxisCount == 0
                         || physicalAxisCount > 4
                         || errorCatalogVersion < 2))
                 || ((features & LMCAdminFeature.AxisDs402Home) != 0

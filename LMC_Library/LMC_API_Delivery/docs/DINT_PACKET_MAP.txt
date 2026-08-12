@@ -1,5 +1,5 @@
 LMC DINT packet map
-Status 2026-08-07: delivery C# and the tracked canonical TCPMotionInterface have
+Status 2026-08-12: delivery C# and the tracked canonical TCPMotionInterface have
 request/public/handler paths for all 23 captured commands plus two project-local
 motion extensions, 0x204A and 0x204B. LASAL-local Admin v1 also defines
 0x7D22 GroupMoveLinearRelative. The 0x7D12 SetAxisPosition wire remains dormant.
@@ -8,8 +8,9 @@ The project-specific Home name is LMC_Home. Its dedicated durable triad is
 RetireLmcHomeOutcome. 0x7D13 is a 56-byte current-position-zero request. It
 contains no direction, search velocity, backoff, travel, Home-switch or
 limit-switch field and must not call MoveReference.
-The C# contract also reserves read-only 0x7D14 ReadAxisSetPositionOutcome; the
-current PLC has no retained store or route and does not advertise feature bit 5.
+The C# contract also reserves read-only 0x7D14 ReadAxisSetPositionOutcome and
+0x7D1A RetireAxisSetPositionOutcome; the current PLC has no retained store or
+route and does not advertise feature bit 5 or bit 7.
 The 0x7D15 StartAxisDs402Home, read-only 0x7D16
 ReadAxisDs402HomeOutcome, and idempotent 0x7D17
 RetireAxisDs402HomeOutcome contract accepts only DS402 method 37, Home offset 0,
@@ -244,8 +245,9 @@ NativeCommandRejected requires ErrorId=-6, AppliedPosition=0 and nonzero
 NativeCommandState; the SDK preserves that full bitfield in its typed rejection
 context. A positive/other ErrorId or any other contradictory
 correlated response is malformed/outcome-uncertain and faults the exact session.
-Current PLC FeatureBits stays 0x00000007, so bit 3 is not advertised. The current
-0x7D12 handler is intentionally fail-closed and calls no native SetPosition method.
+The tracked PLC source writes FeatureBits 0x00000017, so bit 3 is not advertised.
+The current 0x7D12 handler is intentionally fail-closed and calls no native
+SetPosition method.
 Activation requires an IDE-created two-bank retained outcome store, read-only
 0x7D14 exact query, separate terminal-retirement CAS, a separate
 application-approved SetPositionMaxJump, verified same-core/equal-or-lower-priority
@@ -289,10 +291,26 @@ Armed/Indeterminate, corrupt, or unavailable storage returns only the 16-byte co
 failure and never proves that the mutation was not dispatched. The query is
 read-only and never replays SetPosition.
 Feature bit 5 is AxisSetPositionOutcomeRead. It may be advertised before bit 3,
-but strict clients require bit 3 AxisSetPosition to imply bit 5. Details 16..24
-require ErrorCatalogVersion 2 in the paired activation. The current PLC remains
-FeatureBits 0x00000007, ErrorCatalogVersion 1, has no 0x7D14 route/store, and does
-not advertise either bit 3 or bit 5.
+and keeps its read-only meaning. Feature bit 7 is
+AxisSetPositionOutcomeRetirement and implies bit 5. Strict clients require bit 3
+AxisSetPosition to imply both bit 5 and bit 7. Details 16..24 require
+ErrorCatalogVersion 2 in the paired activation. The tracked PLC source writes
+FeatureBits 0x00000017 and ErrorCatalogVersion 5, has no 0x7D14/0x7D1A
+route/store, and does not advertise bit 3, bit 5, or bit 7. These are source
+facts, not proof of the image currently downloaded to a PLC.
+
+0x7D1A RetireAxisSetPositionOutcome, request payload 52 bytes,
+Reference=original physical axis 1..4:
+P8..P44 are byte-exact with the 0x7D14 recovery key request above.
+P48 RecordGeneration U32, nonzero.
+Only an exact terminal identity and generation may be retired. Armed or
+Indeterminate records cannot be cleared. Success returns the same exact 84-byte
+terminal snapshot as 0x7D14, with the retire request id in the common envelope.
+The PLC must retain an idempotent tombstone so a lost 0x7D1A response can be
+retried using the same key and generation without repeating SetPosition.
+Failures use the 16-byte common envelope and details 16..24. The current PLC has
+no 0x7D1A route, retained SetPosition store, or bit 7 advertisement, so this SDK
+contract is wire-dormant and cannot clear the WPF recovery journal.
 
 0x7D13 StartLmcHome, request payload 56 bytes, Reference=axis 1..4:
 P8  ExpectedDiagnosticsBuild U32, nonzero

@@ -12,7 +12,8 @@ namespace LasalMotionControlLib
         AxisSetPosition = 1u << 3,
         AxisHome = 1u << 4,
         AxisSetPositionOutcomeRead = 1u << 5,
-        AxisDs402Home = 1u << 6
+        AxisDs402Home = 1u << 6,
+        AxisSetPositionOutcomeRetirement = 1u << 7
     }
 
     public enum LMCAxisParameterKey : ushort

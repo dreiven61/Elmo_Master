@@ -139,10 +139,29 @@ namespace LasalMotionControlLib
                     expectedRecoveryKey);
             }
 
+            return ParseAxisSetPositionOutcomeSuccess(
+                transport,
+                response,
+                expectedRecoveryKey,
+                "ReadAxisSetPositionOutcome");
+        }
+
+        internal static LMCParsedAxisSetPositionOutcome
+            ParseAxisSetPositionOutcomeSuccess(
+                LMC_Response transport,
+                LMCAdminResponse response,
+                LMCAxisSetPositionRecoveryKey expectedRecoveryKey,
+                string operation)
+        {
+            if (expectedRecoveryKey == null)
+            {
+                throw new ArgumentNullException("expectedRecoveryKey");
+            }
+
             EnsurePayloadLength(
                 transport,
                 AxisSetPositionOutcomeResponsePayloadLength,
-                "ReadAxisSetPositionOutcome success");
+                operation + " success");
             var payload = transport.Payload;
             var recordState =
                 (LMCAxisSetPositionOutcomeRecordState)LMC_Frame.ReadUInt16(
@@ -187,7 +206,8 @@ namespace LasalMotionControlLib
                 || recordGeneration == 0)
             {
                 throw new InvalidDataException(
-                    "ReadAxisSetPositionOutcome terminal record does not exactly match the requested recovery key.");
+                    operation
+                    + " terminal record does not exactly match the requested recovery key.");
             }
 
             var validTerminalResult = recordState
@@ -209,7 +229,8 @@ namespace LasalMotionControlLib
             if (!validTerminalResult)
             {
                 throw new InvalidDataException(
-                    "ReadAxisSetPositionOutcome contains an invalid terminal SetAxisPosition result combination.");
+                    operation
+                    + " contains an invalid terminal SetAxisPosition result combination.");
             }
 
             return new LMCParsedAxisSetPositionOutcome(
