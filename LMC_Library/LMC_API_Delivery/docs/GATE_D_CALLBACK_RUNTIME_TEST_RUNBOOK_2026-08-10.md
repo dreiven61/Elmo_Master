@@ -5,6 +5,8 @@ Date: 2026-08-10
 PC reconnect amendment: 2026-08-11 (`14ccf58` policy, `cbf2548` actual-EXE gate,
 `ad4af91` PS5.1 verifier compatibility)
 
+Owner-loss callback retirement amendment: 2026-08-12
+
 ## Evidence boundary
 
 Gate D adds a non-authoritative UDP wake for a terminal D5 operation. UDP never
@@ -192,12 +194,18 @@ decision. The WPF total includes a deterministic old-session statistics action
 queued across connection replacement; it cannot alter the replacement owner,
 counters, last decision, or listener summary. These values are PC-side evidence
 only; they do not replace the pcap,
-PLC `RpcCallbackLastDisarmResult`, or PLC producer/sender counters. Negative PLC
-disarm preservation remains intentional and fail-closed; do not force-clear the
-callback tuple. The fixed 100 ms is PC backoff, not PLC slot/FSM-readiness proof.
-A wire `-1` may represent internal disarm `-8`/`-9` or another
-lifecycle/ownership rejection. Historical fake restart evidence uses a new
-`MainWindow` in the same test process and remains a separate regression.
+PLC `RpcCallbackLastDisarmResult`, or PLC producer/sender counters. Ordinary PLC
+negative disarm preservation remains intentional and fail-closed. The only
+source exception is exact `-8` after an accepted owner transition or definitive
+current-socket disconnect, where the internal `(0,0,0)` sender-retirement
+sentinel is followed by the ordinary helper confirmation. Result `-9`, a
+different-IP/unknown candidate, failed takeover, and a late retiring-old-socket
+disconnect must never use the sentinel. The fixed 100 ms is PC backoff, not PLC
+slot/FSM-readiness proof. A wire `-1` may represent internal disarm `-8`/`-9` or
+another lifecycle/ownership rejection and does not distinguish them. Historical
+fake restart evidence uses a new `MainWindow` in the same test process and
+remains a separate regression. The 2026-08-12 retirement source change has not
+been built in LASAL IDE, downloaded, or exercised on the PLC.
 
 The separate actual-EXE relaunch gate passes `1/1` in both Debug and Release. It
 finds the supplied actual example EXE PID/HWND and sends external
@@ -832,10 +840,12 @@ approved site plan freezes the drive mode during this case.
 ### GD-04 reconnect/session fence
 
 1. Complete GD-01.
-2. Close and reconnect the WPF application.
+2. In the same WPF window, record the configured fixed UDP callback port, press
+   explicit `Close`, wait for the complete local disconnected/listener-stopped
+   postcondition, and press `Connect` again without changing that port.
 3. Verify a new local `LMCConnection`, a new accepted callback SessionEpoch and
-   cookie, and a fresh successful `0x405C` registration. Do not infer these from
-   the WPF connection label alone.
+   cookie, the same requested/bound fixed UDP port, and a fresh successful
+   `0x405C` registration. Do not infer these from the WPF connection label alone.
 4. Submit a new low-level `0x6061:0 Int8/1` read.
 
 If the GUI automatically uses its fresh-session retry, capture
@@ -843,6 +853,24 @@ If the GUI automatically uses its fresh-session retry, capture
 marker V5, both TCP lifetimes and every `0x8080`/`0x405C`. The automatic PC path
 does not replace this PLC reconnect/session-fence proof. Do not force a private
 PLC word to manufacture the canonical failure.
+
+If explicit `0x405D` returns the generic `Status=1/ErrorId=-1`, preserve that
+failure as observed. It does not identify `-8` versus `-9`. Local cleanup may
+then cause a definitive current-socket disconnect; source permits retirement
+only from its exact `-8` branch. A `-9` result must remain fail-closed. Capture
+PLC Watch and pcap across Close, disconnect, and the next Connect. If the
+intermediate `-8` cannot be observed before the confirmation helper overwrites
+the diagnostic latch, classify that branch as unproven rather than inferring it
+from the successful PC port rebind or final result `1`.
+
+The two WPF regressions
+`Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds` and
+`Wpf.CallbackV2.ExplicitCloseMinusOneFixedPortThenReconnectSucceeds` cover the
+same-window fixed-port sequence against a loopback fake RPC/UDP peer. They prove
+PC listener cleanup, port reuse, new `LMCConnection` ownership, and the expected
+fake wire only. They do not prove PLC disarm, owner-loss retirement, or this
+GD-04 live result, and are not retroactively part of the historical `339/339`
+smoke count.
 
 PASS requires the new ticket to complete normally through the new callback
 tuple. Replaying a previous-session packet is a separate PC fake or approved
@@ -902,6 +930,14 @@ PASS requires `RpcCallbackLastDisarmResult` to be `0` (matched clear) or `1`
 (already disarmed/empty), the RPC callback tuple to be cleared, sender
 QueueDepth to be zero, and the WPF to show a stopped/disconnected listener.
 `DisarmClearedCount` increases only by the queue depth actually cleared.
+
+An exact `-8` returned to the ordinary `0x405D` handler is still a Close failure;
+the handler itself must not use the sentinel. If the ensuing definitive
+current-socket disconnect performs owner-loss retirement, the second ordinary
+helper confirmation may leave `RpcCallbackLastDisarmResult=1`. Record the failed
+Close ACK, disconnect boundary, sender/queue transition, and successful next
+registration as separate evidence. A `-9` result, different-IP candidate, or
+late old-socket disconnect must not clear the tuple or queue through retirement.
 
 Do not require Attempt or Rejected to increase on a clean close. CyWork may
 notify Diagnostics and clear/orphan the old ticket before the broker can claim

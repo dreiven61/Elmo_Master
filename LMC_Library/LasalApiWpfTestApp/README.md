@@ -74,6 +74,14 @@ callback-stage 실패에는 이 WPF outer retry를 적용하지 않는다. 따�
 정상 registration ACK까지 받아야 Connect가 성공하며 `0x405C` 실패는 terminal이고 outer
 retry가 없다.
 
+PLC source의 일반 `0x8080`/`0x405D` mismatch는 계속 fail-closed다. Internal
+owner-loss retirement는 accepted owner transition 또는 definitive current-socket
+disconnect에서 ordinary helper 결과가 정확히 `-8`일 때만 `(0,0,0)` sender sentinel을
+사용하고, sender 결과 `0/1` 뒤 ordinary helper를 다시 호출한다. `-9`, different-IP 또는
+unknown candidate, failed takeover와 late retiring-old disconnect에서는 retirement를
+실행하지 않는다. 이 source 변경은 아직 LASAL IDE build, PLC download 또는 PLC runtime
+재접속으로 검증하지 않았다.
+
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
 ACK를 Active/Retired evidence로 보존한다. `af4ab63`부터 입력 tuple은
 `RequestedCallback`, 실제 UDP endpoint는 `BoundCallback`으로 표시한다. init 실패 전
@@ -108,14 +116,23 @@ listener stopped, callback endpoint null을 모두 요구한다. 이전 connecti
 postcondition을 만들지 못하면 종료를 취소한다. 명시적 Close 버튼은 local cleanup을
 완료한 뒤에도 RPC close 오류를 호출자에게 다시 throw하는 strict 동작을 유지한다.
 
+두 WPF smoke
+`Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds`와
+`Wpf.CallbackV2.ExplicitCloseMinusOneFixedPortThenReconnectSucceeds`는 같은
+`MainWindow`에서 동일한 fixed UDP callback port를 사용해 explicit Close 후 Connect한다.
+정상 close ACK와 `ErrorId=-1` close ACK 각각에서 listener/TCP local cleanup, fixed-port
+재bind, 새 `LMCConnection`/TCP session과 두 번째 `0x8080 -> 0x405C`를 검사한다. 이들은
+loopback fake-RPC/UDP와 PC port lifetime 회귀이며 PLC disarm/retirement나 실제 사용자
+PLC reconnect 증거가 아니다. 기존 `339/339` historical count에 소급 포함시키지 않는다.
+
 위 결과는 PC측 loopback fake-server 증거다. 100 ms는 고정 PC backoff이지 PLC slot/FSM readiness
 시간의 증명이 아니다. wire의 canonical `-1`은 내부 disarm `-8`/`-9`뿐 아니라 다른
 lifecycle/ownership rejection일 수도 있다. Historical `14ccf58` restart smoke는 같은 test
 process의 새 `MainWindow`만 사용했다. `cbf2548` gate는 실제 EXE 종료/재실행과 default named
 mutex 재획득까지 추가로 증명하지만 PLC cleanup/disarm/readiness, 100 ms runtime 적정성,
 MotionLib/축 상태 전이는 증명하지 않는다. PC local cleanup은 PLC disarm 성공을 뜻하지
-않으며 private PLC state를 force-clear하지 않는다. 사용자 PLC에서 X 종료 후 같은 예제
-EXE를 다시 실행해 Connect하는 실기 재시험은 아직 남아 있다.
+않으며 internal PLC owner-loss retirement 실행을 증명하지 않는다. 사용자 PLC에서 X
+종료 후 같은 예제 EXE를 다시 실행해 Connect하는 실기 재시험은 아직 남아 있다.
 
 배포 verifier compatibility commit `ad4af91`은 WPF/SDK/wire를 바꾸지 않는다. Targeted
 PS5/PS7 Publish+Reserve는 PASS했고, 수정 뒤 PS5.1 Release `RunLasalContract`와

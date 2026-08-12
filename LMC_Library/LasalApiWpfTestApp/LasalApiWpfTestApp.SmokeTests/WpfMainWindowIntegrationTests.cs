@@ -113,6 +113,12 @@ namespace LasalApiWpfTestApp.SmokeTests
                 "Wpf.CallbackV2.ShutdownCloseMinusOneThenInitialFreshSessionRetrySucceeds",
                 CallbackV2ShutdownCloseMinusOneThenInitialFreshSessionRetrySucceeds);
             tests.Add(
+                "Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds",
+                CallbackV2ExplicitCloseFixedPortThenReconnectSucceeds);
+            tests.Add(
+                "Wpf.CallbackV2.ExplicitCloseMinusOneFixedPortThenReconnectSucceeds",
+                CallbackV2ExplicitCloseMinusOneFixedPortThenReconnectSucceeds);
+            tests.Add(
                 "Wpf.CallbackV2.InitialSecondPersistentMinusOneFailureStopsBounded",
                 CallbackV2InitialSecondPersistentMinusOneFailureStopsBounded);
             tests.Add(
@@ -330,6 +336,192 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
             finally
             {
+                CloseWindowBestEffort(window);
+                DeleteJournalDirectory(journalDirectory);
+            }
+        }
+
+        private static void
+            CallbackV2ExplicitCloseFixedPortThenReconnectSucceeds()
+        {
+            VerifyCallbackV2ExplicitCloseFixedPortThenReconnect(false);
+        }
+
+        private static void
+            CallbackV2ExplicitCloseMinusOneFixedPortThenReconnectSucceeds()
+        {
+            VerifyCallbackV2ExplicitCloseFixedPortThenReconnect(true);
+        }
+
+        private static void
+            VerifyCallbackV2ExplicitCloseFixedPortThenReconnect(
+            bool firstCloseFails)
+        {
+            var journalDirectory = CreateJournalDirectory();
+            MainWindow window = null;
+            UdpClient callbackPortReservation = null;
+            try
+            {
+                callbackPortReservation = BindExclusiveLoopbackUdpPort(0);
+                var callbackPort = ((IPEndPoint)callbackPortReservation
+                    .Client.LocalEndPoint).Port;
+                AssertEx.True(
+                    callbackPort > 0,
+                    "The fixed callback-port reservation returned port zero.");
+
+                var steps = CreateFixedPortConnectAndTopologySteps(
+                    LMCDiagnosticCapability.EtherCATTopology,
+                    callbackPort);
+                steps.Add(firstCloseFails
+                    ? CloseShortFailureStep(-1)
+                    : CloseStep());
+                steps.Add(ClientDisconnectBoundaryStep(true));
+                steps.AddRange(CreateFixedPortConnectAndTopologySteps(
+                    LMCDiagnosticCapability.EtherCATTopology,
+                    callbackPort));
+                steps.Add(CloseStep());
+
+                using (var server = new FakeRpcServer(steps.ToArray()))
+                {
+                    window = CreateWindow(journalDirectory, server.Port);
+                    window.TextCallbackPort.Text = callbackPort.ToString(
+                        CultureInfo.InvariantCulture);
+                    callbackPortReservation.Dispose();
+                    callbackPortReservation = null;
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The first fixed-port WPF connection did not complete.");
+
+                    var firstConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(firstConnection);
+                    AssertFixedCallbackListener(
+                        firstConnection,
+                        callbackPort,
+                        "The first fixed-port WPF connection");
+
+                    Click(window.ButtonCloseConnection);
+                    var expectedCloseOperationState = firstCloseFails
+                        ? "Close Connection failed"
+                        : "Close Connection completed";
+                    WaitUntil(
+                        () => string.Equals(
+                                window.TextOperationState.Text,
+                                expectedCloseOperationState,
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextConnectionState.Text,
+                                "Disconnected",
+                                StringComparison.Ordinal)
+                            && string.Equals(
+                                window.TextCallbackState.Text,
+                                "Stopped",
+                                StringComparison.Ordinal)
+                            && window.ButtonConnect.IsEnabled
+                            && GetPrivateField(window, "connection") == null,
+                        "Explicit Close did not leave the fixed callback port locally reusable.");
+
+                    AssertEx.Equal(
+                        LMCConnectionState.Disconnected,
+                        firstConnection.State);
+                    AssertEx.False(firstConnection.IsConnected);
+                    AssertEx.False(firstConnection.IsRpcInitialized);
+                    AssertEx.False(firstConnection.IsCallbackListenerRunning);
+                    AssertEx.True(
+                        firstConnection.CallbackLocalEndPoint == null,
+                        "Explicit Close retained the first fixed callback endpoint.");
+                    AssertEx.Equal(
+                        firstCloseFails,
+                        firstConnection.LastCloseException != null,
+                        "Explicit Close retained an unexpected close-error state.");
+                    if (firstCloseFails)
+                    {
+                        AssertEx.NotNull(firstConnection.RpcCloseResponse);
+                        AssertEx.Equal(
+                            (short)-1,
+                            firstConnection.RpcCloseResponse.ErrorId);
+                        AssertEx.Contains(
+                            "Close Connection FAILED:",
+                            window.TextExecutionLog.Text);
+                    }
+
+                    using (var rebindProbe =
+                        BindExclusiveLoopbackUdpPort(callbackPort))
+                    {
+                        AssertEx.Equal(
+                            callbackPort,
+                            ((IPEndPoint)rebindProbe.Client.LocalEndPoint).Port,
+                            "Explicit Close did not release the fixed callback UDP port.");
+                    }
+
+                    Click(window.ButtonConnect);
+                    WaitForConnectCompleted(
+                        window,
+                        "The second fixed-port WPF connection did not complete.");
+
+                    var secondConnection = GetPrivateField(
+                        window,
+                        "connection") as LMCConnection;
+                    AssertEx.NotNull(secondConnection);
+                    AssertEx.False(
+                        ReferenceEquals(firstConnection, secondConnection),
+                        "Explicit Close reconnect reused the retired LMCConnection instance.");
+                    AssertFixedCallbackListener(
+                        secondConnection,
+                        callbackPort,
+                        "The second fixed-port WPF connection");
+                    AssertEx.Equal(
+                        callbackPort.ToString(CultureInfo.InvariantCulture),
+                        window.TextCallbackPort.Text);
+                    AssertEx.Contains(
+                        "RequestedCallback=127.0.0.1:"
+                            + callbackPort.ToString(
+                                CultureInfo.InvariantCulture),
+                        window.TextRpcInitialization.Text);
+                    AssertEx.Contains(
+                        "BoundCallback=127.0.0.1:"
+                            + callbackPort.ToString(
+                                CultureInfo.InvariantCulture),
+                        window.TextRpcInitialization.Text);
+
+                    AssertEx.Equal(2, server.AcceptedClientCount);
+                    for (var sessionOrdinal = 1;
+                        sessionOrdinal <= 2;
+                        sessionOrdinal++)
+                    {
+                        AssertEx.Equal(1, CountCommandInSession(
+                            server,
+                            sessionOrdinal,
+                            0x8080));
+                        AssertEx.Equal(1, CountCommandInSession(
+                            server,
+                            sessionOrdinal,
+                            0x405C));
+                    }
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        1,
+                        0x405D));
+
+                    CloseConnectedWindow(window);
+                    window = null;
+                    server.Verify();
+                    AssertEx.Equal(1, CountCommandInSession(
+                        server,
+                        2,
+                        0x405D));
+                }
+            }
+            finally
+            {
+                if (callbackPortReservation != null)
+                {
+                    callbackPortReservation.Dispose();
+                }
+
                 CloseWindowBestEffort(window);
                 DeleteJournalDirectory(journalDirectory);
             }
@@ -6645,6 +6837,60 @@ namespace LasalApiWpfTestApp.SmokeTests
             }
 
             return steps;
+        }
+
+        private static List<FakeRpcStep>
+            CreateFixedPortConnectAndTopologySteps(
+            LMCDiagnosticCapability capabilities,
+            int callbackPort)
+        {
+            var steps = CreateConnectAndTopologySteps(capabilities);
+            var callbackStep = steps.Single(step => step.Command == 0x405C);
+            callbackStep.InspectRequest = request => AssertEx.Equal(
+                callbackPort,
+                TestFrame.ReadInt32(request, 12),
+                "The callback registration did not carry the fixed UDP port.");
+            return steps;
+        }
+
+        private static void AssertFixedCallbackListener(
+            LMCConnection connection,
+            int callbackPort,
+            string context)
+        {
+            AssertEx.True(connection.IsConnected, context + " is not connected.");
+            AssertEx.True(
+                connection.IsRpcInitialized,
+                context + " did not initialize RPC.");
+            AssertEx.True(
+                connection.IsCallbackListenerRunning,
+                context + " did not start the callback listener.");
+            var endpoint = connection.CallbackLocalEndPoint;
+            AssertEx.NotNull(endpoint);
+            AssertEx.Equal(
+                IPAddress.Loopback,
+                endpoint.Address,
+                context + " bound the callback listener to the wrong address.");
+            AssertEx.Equal(
+                callbackPort,
+                endpoint.Port,
+                context + " bound the callback listener to the wrong port.");
+        }
+
+        private static UdpClient BindExclusiveLoopbackUdpPort(int port)
+        {
+            var client = new UdpClient(AddressFamily.InterNetwork);
+            try
+            {
+                client.Client.ExclusiveAddressUse = true;
+                client.Client.Bind(new IPEndPoint(IPAddress.Loopback, port));
+                return client;
+            }
+            catch
+            {
+                client.Dispose();
+                throw;
+            }
         }
 
         private static List<FakeRpcStep>

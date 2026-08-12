@@ -257,13 +257,13 @@ $ExpectedTerminalWakeLayout = [ordered]@{
     }
     Sender = [ordered]@{
         Name = 'LMCUdpCallbackSender'
-        CanonicalLfBytes = 22727
+        CanonicalLfBytes = 22907
         CanonicalLfSha256 =
-            'A0AAA3451F9160B45FDE81E9B337EA9D55DCDCB366AA7504DA57C650EC060D89'
-        CodeGeneratorCrLfBytes = 23469
+            'F050CB537C292680CBE7CC0F217A7625902F3097DDDEA9E7860A4BAF91B3C28D'
+        CodeGeneratorCrLfBytes = 23655
         CodeGeneratorCrLfSha256 =
-            'C334A6C6960BA61529369D29C6DDA757A77AC809A6858661B8FEB6476F5CAE8F'
-        LineBreakCount = 742
+            '619EAF7D33208135D93D44FD4703FB385EA1115D1D1352825D6F055349C3C296'
+        LineBreakCount = 748
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
@@ -320,13 +320,13 @@ $TerminalWakeLayoutSelfTestOracle = [ordered]@{
     }
     Sender = [ordered]@{
         Name = 'LMCUdpCallbackSender'
-        CanonicalLfBytes = 22727
+        CanonicalLfBytes = 22907
         CanonicalLfSha256 =
-            'A0AAA3451F9160B45FDE81E9B337EA9D55DCDCB366AA7504DA57C650EC060D89'
-        CodeGeneratorCrLfBytes = 23469
+            'F050CB537C292680CBE7CC0F217A7625902F3097DDDEA9E7860A4BAF91B3C28D'
+        CodeGeneratorCrLfBytes = 23655
         CodeGeneratorCrLfSha256 =
-            'C334A6C6960BA61529369D29C6DDA757A77AC809A6858661B8FEB6476F5CAE8F'
-        LineBreakCount = 742
+            '619EAF7D33208135D93D44FD4703FB385EA1115D1D1352825D6F055349C3C296'
+        LineBreakCount = 748
         Objectsize = '(778,120)'
     }
     Classes = [ordered]@{
@@ -1974,6 +1974,51 @@ function Assert-DisarmClearedSaturatingAddPattern {
     }
 }
 
+function Assert-OwnerLossRetirementDisarmContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$DisarmBlock,
+        [Parameter(Mandatory = $true)][string]$ValidateBlock
+    )
+
+    $disarm = Get-LexicalScanText -Text $DisarmBlock
+    $compact = [regex]::Replace($disarm, '\s+', '')
+    Assert-OrderedTokens `
+        -Text $compact `
+        -Tokens @(
+            'ownerLossRetirement:BOOL;',
+            'ownerLossRetirement:=(ExpectedSessionEpoch=0)AND(ExpectedCookieLo=0)AND(ExpectedCookieHi=0);',
+            'IFNOTActiveEndpoint.ArmedAND(Depth=0)THENResult:=1;',
+            'ELSIF(ownerLossRetirement=FALSE)ANDNOTFenceMatches(',
+            'THENResult:=-8;',
+            'ELSEclearedDepth:=Depth;') `
+        -TokenOwner 'DisarmEndpoint owner-loss retirement sentinel'
+    if ((Get-OrdinalCount `
+                -Text $compact `
+                -Needle 'ownerLossRetirement') -ne 3 -or
+        (Get-OrdinalCount `
+                -Text $compact `
+                -Needle '(ExpectedSessionEpoch=0)AND(ExpectedCookieLo=0)AND(ExpectedCookieHi=0)') -ne 1) {
+        Throw-UdpCallbackBlocker (
+            'DisarmEndpoint owner-loss sentinel declaration/use is not exact.')
+    }
+
+    $validate = [regex]::Replace(
+        (Get-LexicalScanText -Text $ValidateBlock),
+        '\s+',
+        '')
+    foreach ($requiredInvalidEndpoint in @(
+            '(SessionEpoch=0)OR(BootId=0)',
+            '((CookieLoORCookieHi)=0)')) {
+        if ((Get-OrdinalCount `
+                    -Text $validate `
+                    -Needle $requiredInvalidEndpoint) -ne 1) {
+            Throw-UdpCallbackBlocker (
+                'ValidateEndpoint no longer reserves the all-zero owner-loss ' +
+                    "sentinel: $requiredInvalidEndpoint")
+        }
+    }
+}
+
 function Assert-DerivedCandidateExactFunctionContract {
     param(
         [Parameter(Mandatory = $true)][object[]]$Implementations,
@@ -1995,6 +2040,10 @@ function Assert-DerivedCandidateExactFunctionContract {
     foreach ($record in $Implementations) {
         $actualByName[$record.Name] = $record.Block
     }
+
+    Assert-OwnerLossRetirementDisarmContract `
+        -DisarmBlock $actualByName.DisarmEndpoint `
+        -ValidateBlock $actualByName.ValidateEndpoint
     $expectedByName = @{}
     foreach ($record in $expectedRecords) {
         $expectedByName[$record.Name] = $record.Block
@@ -2247,8 +2296,9 @@ function Assert-DerivedImplementationContract {
     Assert-OrderedTokens `
         -Text $disarmCompact `
         -Tokens @(
+            'ownerLossRetirement:=(ExpectedSessionEpoch=0)AND(ExpectedCookieLo=0)AND(ExpectedCookieHi=0);',
             'IFNOTActiveEndpoint.ArmedAND(Depth=0)THENResult:=1;',
-            'ELSIFNOTFenceMatches(',
+            'ELSIF(ownerLossRetirement=FALSE)ANDNOTFenceMatches(',
             'THENResult:=-8;',
             'ELSEclearedDepth:=Depth;',
             '_memset(dest:=#ActiveEndpoint,usByte:=0,cntr:=sizeof(ActiveEndpoint));',
@@ -2637,7 +2687,9 @@ function Assert-DerivedImplementationContract {
     Assert-OrderedTokens `
         -Text $byName.DisarmEndpoint `
         -Tokens @(
-            'ELSIF NOT FenceMatches(',
+            'ownerLossRetirement :=',
+            'ELSIF (ownerLossRetirement = FALSE) AND',
+            'NOT FenceMatches(',
             'Result := -8;',
             'clearedDepth := Depth;',
             '_memset(dest := #ActiveEndpoint, usByte := 0, cntr := sizeof(ActiveEndpoint));',
@@ -3592,6 +3644,101 @@ END_IF;
     return ConvertTo-CanonicalLf -Text $source
 }
 
+function Assert-TcpOwnerLossRetirementContract {
+    param(
+        [Parameter(Mandatory = $true)][string]$TcpSource,
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$Blocks
+    )
+
+    $source = Get-LexicalScanText -Text $TcpSource
+    $conn = Get-LexicalScanText -Text $Blocks.ConnSocketInfo
+    $sourceCompact = [regex]::Replace($source, '\s+', '')
+    $connCompact = [regex]::Replace($conn, '\s+', '')
+    $retirementSequence =
+        'callbackDisarmResult:=DisarmRpcCallbackEndpoint();' +
+        'if(callbackDisarmResult=-8)&' +
+        'IsClientConnected(#CallbackSender)then' +
+        'ownerLossRetireResult:=CallbackSender.DisarmEndpoint(' +
+        'ExpectedSessionEpoch:=0,' +
+        'ExpectedCookieLo:=0,' +
+        'ExpectedCookieHi:=0);' +
+        'if(ownerLossRetireResult=0)|' +
+        '(ownerLossRetireResult=1)then' +
+        'callbackDisarmResult:=DisarmRpcCallbackEndpoint();' +
+        'end_if;end_if;SessionEpoch+=1;'
+    if ((Get-OrdinalCount `
+                -Text $connCompact `
+                -Needle $retirementSequence) -ne 2) {
+        Throw-UdpCallbackBlocker (
+            'ConnSocketInfo owner-loss retirement sequence count is not 2.')
+    }
+    if ((Get-OrdinalCount `
+                -Text $sourceCompact `
+                -Needle 'CallbackSender.DisarmEndpoint(') -ne 3 -or
+        (Get-OrdinalCount `
+                -Text $sourceCompact `
+                -Needle 'ExpectedSessionEpoch:=0,ExpectedCookieLo:=0,ExpectedCookieHi:=0') -ne 2 -or
+        (Get-OrdinalCount `
+                -Text $sourceCompact `
+                -Needle 'ownerLossRetireResult') -ne 7) {
+        Throw-UdpCallbackBlocker (
+            'TCP owner-loss retirement call/declaration inventory drifted.')
+    }
+
+    foreach ($entry in $Blocks.GetEnumerator()) {
+        if ($entry.Key -ceq 'ConnSocketInfo') {
+            continue
+        }
+        $otherCompact = [regex]::Replace(
+            (Get-LexicalScanText -Text $entry.Value),
+            '\s+',
+            '')
+        if ($otherCompact.IndexOf(
+                'ExpectedSessionEpoch:=0,ExpectedCookieLo:=0,ExpectedCookieHi:=0',
+                [StringComparison]::Ordinal) -ge 0 -or
+            $otherCompact.IndexOf(
+                'ownerLossRetireResult',
+                [StringComparison]::Ordinal) -ge 0) {
+            Throw-UdpCallbackBlocker (
+                "Gate C $($entry.Key) contains forbidden owner-loss retirement.")
+        }
+    }
+
+    $firstRetirement = $connCompact.IndexOf(
+        $retirementSequence,
+        [StringComparison]::Ordinal)
+    $secondRetirement = $connCompact.IndexOf(
+        $retirementSequence,
+        $firstRetirement + $retirementSequence.Length,
+        [StringComparison]::Ordinal)
+    $candidateDecision = $connCompact.IndexOf(
+        'iftakeCandidate=FALSEthen',
+        [StringComparison]::Ordinal)
+    $ownerCommit = $connCompact.IndexOf(
+        'CurrentSock:=dSock;',
+        [StringComparison]::Ordinal)
+    $retiringDisconnect = $connCompact.IndexOf(
+        'ifRetiringSock=dSockthenRetiringSock:=0;end_if;',
+        [StringComparison]::Ordinal)
+    $currentDisconnect = $connCompact.IndexOf(
+        'ifCurrentSock=dSockthenCurrentSock:=0;',
+        [StringComparison]::Ordinal)
+    $postCurrentDisconnect = $connCompact.IndexOf(
+        'ifRpcSocket=dSockthen',
+        [StringComparison]::Ordinal)
+    if (($candidateDecision -lt 0) -or
+        ($firstRetirement -le $candidateDecision) -or
+        ($ownerCommit -le $firstRetirement) -or
+        ($retiringDisconnect -le $ownerCommit) -or
+        ($currentDisconnect -le $retiringDisconnect) -or
+        ($secondRetirement -le $currentDisconnect) -or
+        ($postCurrentDisconnect -le $secondRetirement)) {
+        Throw-UdpCallbackBlocker (
+            'TCP owner-loss retirement escaped accepted-owner/current-disconnect scopes.')
+    }
+}
+
 function Assert-TcpGateCContract {
     param([Parameter(Mandatory = $true)][string]$TcpSource)
 
@@ -3600,6 +3747,9 @@ function Assert-TcpGateCContract {
         $blocks[$name] = Get-TcpFunctionBlock `
             -TcpSource $TcpSource -FunctionName $name
     }
+    Assert-TcpOwnerLossRetirementContract `
+        -TcpSource $TcpSource `
+        -Blocks $blocks
     $expectedLocalVariableSections = [ordered]@{
         ConnSocketInfo = 1
         SendData = 1
@@ -3647,7 +3797,7 @@ function Assert-TcpGateCContract {
     }
 
     $expectedCalls = [ordered]@{
-        ConnSocketInfo = 2
+        ConnSocketInfo = 4
         SendData = 1
         HandleControlSafetyDrainPending = 1
         HandleRpcLifecycleCommands = 2
@@ -8830,12 +8980,18 @@ FUNCTION GLOBAL LMCUdpCallbackSender::DisarmEndpoint
     END_VAR
     VAR
         clearedDepth : UDINT;
+        ownerLossRetirement : BOOL;
     END_VAR
     CriticalSection_UDP.SectionStart();
     Result := -9;
+    ownerLossRetirement :=
+        (ExpectedSessionEpoch = 0) AND
+        (ExpectedCookieLo = 0) AND
+        (ExpectedCookieHi = 0);
     IF NOT ActiveEndpoint.Armed AND (Depth = 0) THEN
         Result := 1;
-    ELSIF NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN
+    ELSIF (ownerLossRetirement = FALSE) AND
+          NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN
         Result := -8;
     ELSE
         clearedDepth := Depth;
@@ -9288,6 +9444,45 @@ function Add-SyntheticTcpDisarmFenceToFunction {
     return $block
 }
 
+function Add-SyntheticTcpOwnerLossRetirementToConnSocketInfo {
+    param([Parameter(Mandatory = $true)][string]$FunctionBlock)
+
+    $block = ConvertTo-CanonicalLf -Text $FunctionBlock
+    $declaration = "`t`tcallbackDisarmResult : DINT;`n"
+    if ((Get-OrdinalCount -Text $block -Needle $declaration) -ne 1 -or
+        $block.IndexOf(
+            'ownerLossRetireResult',
+            [StringComparison]::Ordinal) -ge 0) {
+        throw 'synthetic TCP owner-loss declaration anchor drifted.'
+    }
+    $block = $block.Replace(
+        $declaration,
+        $declaration + "`t`townerLossRetireResult : DINT;`n")
+
+    $anchorPattern =
+        '(?m)^(?<Indent>[ \t]*)callbackDisarmResult[ \t]*:=[ \t]*' +
+            'DisarmRpcCallbackEndpoint\(\)[ \t]*;[ \t]*\n' +
+            '\k<Indent>SessionEpoch[ \t]*\+=[ \t]*1;[ \t]*$'
+    if ([regex]::Matches($block, $anchorPattern).Count -ne 2) {
+        throw 'synthetic TCP owner-loss insertion count drifted.'
+    }
+    $replacement =
+        '${Indent}callbackDisarmResult := DisarmRpcCallbackEndpoint();' + "`n" +
+        '${Indent}if (callbackDisarmResult = -8) &' + "`n" +
+        '${Indent}   IsClientConnected(#CallbackSender) then' + "`n" +
+        '${Indent}  ownerLossRetireResult := CallbackSender.DisarmEndpoint(' + "`n" +
+        '${Indent}    ExpectedSessionEpoch:=0,' + "`n" +
+        '${Indent}    ExpectedCookieLo:=0,' + "`n" +
+        '${Indent}    ExpectedCookieHi:=0);' + "`n" +
+        '${Indent}  if (ownerLossRetireResult = 0) |' + "`n" +
+        '${Indent}     (ownerLossRetireResult = 1) then' + "`n" +
+        '${Indent}    callbackDisarmResult := DisarmRpcCallbackEndpoint();' + "`n" +
+        '${Indent}  end_if;' + "`n" +
+        '${Indent}end_if;' + "`n" +
+        '${Indent}SessionEpoch += 1;'
+    return [regex]::Replace($block, $anchorPattern, $replacement)
+}
+
 function Get-SyntheticGateCRpcLifecycleFunction {
     $source = @'
 FUNCTION TCPMotionInterface::HandleRpcLifecycleCommands
@@ -9535,6 +9730,14 @@ function New-SyntheticGateCTcpSource {
             -FunctionName $entry.Key `
             -Replacement $replacement
     }
+    $connSocketInfo = Get-TcpFunctionBlock `
+        -TcpSource $source -FunctionName ConnSocketInfo
+    $source = Set-SyntheticTcpFunctionBlock `
+        -TcpSource $source `
+        -FunctionName ConnSocketInfo `
+        -Replacement (
+            Add-SyntheticTcpOwnerLossRetirementToConnSocketInfo `
+                -FunctionBlock $connSocketInfo)
     $source = Set-SyntheticTcpFunctionBlock `
         -TcpSource $source `
         -FunctionName HandleRpcLifecycleCommands `
@@ -11109,6 +11312,137 @@ function Assert-TerminalWakeLayoutIdentityNegativeFixture {
     }
 }
 
+function Assert-OwnerLossRetirementSyntheticLifecycle {
+    $sender = [pscustomobject]@{
+        Armed = $true
+        Depth = 2
+        SessionEpoch = [uint32]41
+        CookieLo = [uint32]51
+        CookieHi = [uint32]61
+        OwnerLossCallCount = 0
+    }
+    $tcp = [pscustomobject]@{
+        CallbackSenderConnected = $true
+        RpcCallbackRegistered = $true
+        RpcCallbackSessionEpoch = [uint32]42
+        RpcCallbackCookieLo = [uint32]52
+        RpcCallbackCookieHi = [uint32]62
+        RpcInitialized = $false
+        RpcSocket = 0
+    }
+    $disarm = {
+        param(
+            [uint32]$ExpectedSessionEpoch,
+            [uint32]$ExpectedCookieLo,
+            [uint32]$ExpectedCookieHi
+        )
+        $ownerLoss =
+            ($ExpectedSessionEpoch -eq 0) -and
+            ($ExpectedCookieLo -eq 0) -and
+            ($ExpectedCookieHi -eq 0)
+        if ((-not $sender.Armed) -and ($sender.Depth -eq 0)) {
+            return 1
+        }
+        if ((-not $ownerLoss) -and
+            (($sender.SessionEpoch -ne $ExpectedSessionEpoch) -or
+             ($sender.CookieLo -ne $ExpectedCookieLo) -or
+             ($sender.CookieHi -ne $ExpectedCookieHi))) {
+            return -8
+        }
+        if ($ownerLoss) {
+            $sender.OwnerLossCallCount++
+        }
+        $sender.Armed = $false
+        $sender.Depth = 0
+        $sender.SessionEpoch = [uint32]0
+        $sender.CookieLo = [uint32]0
+        $sender.CookieHi = [uint32]0
+        return 0
+    }
+    $helper = {
+        if (-not $tcp.RpcCallbackRegistered) {
+            return 1
+        }
+        if (-not $tcp.CallbackSenderConnected) {
+            return -9
+        }
+        $result = & $disarm `
+            $tcp.RpcCallbackSessionEpoch `
+            $tcp.RpcCallbackCookieLo `
+            $tcp.RpcCallbackCookieHi
+        if (($result -eq 0) -or ($result -eq 1)) {
+            $tcp.RpcCallbackRegistered = $false
+            $tcp.RpcCallbackSessionEpoch = [uint32]0
+            $tcp.RpcCallbackCookieLo = [uint32]0
+            $tcp.RpcCallbackCookieHi = [uint32]0
+        }
+        return $result
+    }
+
+    $exactResult = [int](& $helper)
+    if (($exactResult -ne -8) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 2) -or
+        (-not $tcp.RpcCallbackRegistered)) {
+        throw 'synthetic owner-loss exact fenced disarm did not preserve state.'
+    }
+    if (($exactResult -eq -8) -and $tcp.CallbackSenderConnected) {
+        $retireResult = [int](& $disarm 0 0 0)
+        if (($retireResult -eq 0) -or ($retireResult -eq 1)) {
+            $confirmationResult = [int](& $helper)
+        }
+    }
+    if (($retireResult -ne 0) -or
+        ($confirmationResult -ne 1) -or
+        ($sender.OwnerLossCallCount -ne 1) -or
+        $sender.Armed -or
+        ($sender.Depth -ne 0) -or
+        $tcp.RpcCallbackRegistered -or
+        ($tcp.RpcCallbackSessionEpoch -ne 0) -or
+        ($tcp.RpcCallbackCookieLo -ne 0) -or
+        ($tcp.RpcCallbackCookieHi -ne 0)) {
+        throw 'synthetic owner-loss retirement did not centrally clear both tuples.'
+    }
+
+    $nextInitDisarmResult = [int](& $helper)
+    if ($nextInitDisarmResult -ne 1) {
+        throw 'synthetic next RPC init remained blocked after owner-loss retirement.'
+    }
+    $tcp.RpcSocket = 7001
+    $tcp.RpcInitialized = $true
+    if (($tcp.RpcSocket -ne 7001) -or (-not $tcp.RpcInitialized)) {
+        throw 'synthetic next RPC init could not claim the fresh owner socket.'
+    }
+
+    $sender.Armed = $true
+    $sender.Depth = 1
+    $sender.SessionEpoch = [uint32]71
+    $sender.CookieLo = [uint32]81
+    $sender.CookieHi = [uint32]91
+    $tcp.CallbackSenderConnected = $false
+    $tcp.RpcCallbackRegistered = $true
+    $tcp.RpcCallbackSessionEpoch = [uint32]72
+    $tcp.RpcCallbackCookieLo = [uint32]82
+    $tcp.RpcCallbackCookieHi = [uint32]92
+    $unavailableResult = [int](& $helper)
+    if (($unavailableResult -ne -9) -or
+        ($sender.OwnerLossCallCount -ne 1) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 1) -or
+        (-not $tcp.RpcCallbackRegistered)) {
+        throw 'synthetic unavailable sender did not remain fail-closed.'
+    }
+
+    $tcp.CallbackSenderConnected = $true
+    $ordinaryMismatch = [int](& $disarm 73 83 93)
+    if (($ordinaryMismatch -ne -8) -or
+        ($sender.OwnerLossCallCount -ne 1) -or
+        (-not $sender.Armed) -or
+        ($sender.Depth -ne 1)) {
+        throw 'synthetic ordinary nonzero fence mismatch mutated sender state.'
+    }
+}
+
 function Get-UdpCallbackSenderEvidenceToken {
     param(
         [Parameter(Mandatory = $true)][string]$State,
@@ -11147,6 +11481,7 @@ function Invoke-UdpCallbackVerifierSelfTest {
     Assert-TerminalWakeLayoutConstantsMatchSelfTestOracle
     Assert-DerivedFunctionParserCrossEolSelfTest
     Assert-SyntheticConfigObjectsCrossEolSelfTest
+    Assert-OwnerLossRetirementSyntheticLifecycle
 
     $selfTestRoot = [IO.Path]::GetFullPath(
         (Join-Path $PSScriptRoot '..\..\..\..'))
@@ -12712,6 +13047,9 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             @('sender top-level bare token residue', '//{{LSL_DEFINES', "BROKEN_TOKEN;`n//{{LSL_DEFINES"),
             @('sender top-level stray control residue', '//{{LSL_DEFINES', "END_IF;`n//{{LSL_DEFINES"),
             @('sender unexpected TYPE span', '//{{LSL_DEFINES', "TYPE`nUnexpectedType : STRUCT Value : UDINT; END_STRUCT;`nEND_TYPE`n//{{LSL_DEFINES"),
+            @('owner-loss sentinel no longer requires all-zero triple', '(ExpectedSessionEpoch = 0) AND', '(ExpectedSessionEpoch = 0) OR'),
+            @('owner-loss stale fence guard removed', 'ELSIF (ownerLossRetirement = FALSE) AND', 'ELSIF TRUE AND'),
+            @('owner-loss sentinel collides with valid zero epoch', '(SessionEpoch = 0) OR (BootId = 0)', '(SessionEpoch < 0) OR (BootId = 0)'),
             @('sender unexpected CLASS span', '//{{LSL_DEFINES', "UnexpectedClass : CLASS`nEND_CLASS;`n//{{LSL_DEFINES"),
             @('sender error directive enclosure', '//{{LSL_DEFINES', "#error CORRUPT`n//{{LSL_DEFINES"),
             @('sender literal disabled enclosure', '//{{LSL_DEFINES', "#if 0`n//{{LSL_DEFINES`n#endif"),
@@ -12797,7 +13135,7 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             @('public Result outside domain', 'Result := -5;', 'Result := -10;'),
             @('duplicate Arm omits MaxDatagram fence', ' AND (ActiveEndpoint.MaxDatagramBytes = MaxDatagramBytes)', ''),
             @('invalid Arm mutates endpoint', "IF validateResult = -1 THEN`n        Result := -1;", "IF validateResult = -1 THEN`n        ActiveEndpoint.Armed := TRUE;`n        Result := -1;"),
-            @('stale Disarm mutates queue index', "ELSIF NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN`n        Result := -8;", "ELSIF NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN`n        WriteIndex := 1;`n        Result := -8;"),
+            @('stale Disarm mutates queue index', "ELSIF (ownerLossRetirement = FALSE) AND`n          NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN`n        Result := -8;", "ELSIF (ownerLossRetirement = FALSE) AND`n          NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN`n        WriteIndex := 1;`n        Result := -8;"),
             @('ErrorCallback state assignment drift', 'ErrorState := FSM_UDP;', 'ErrorState := _STATE_ERROR_UDP;'),
             @('ErrorCallback counter no saturation', 'IF TransportErrorCount.Read() <> 16#FFFFFFFF THEN', 'IF TRUE THEN'),
             @('disarm cleared count increments events not slots', 'DisarmClearedCount.Read() + clearedDepth', 'DisarmClearedCount.Read() + 1'),
@@ -13033,11 +13371,13 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
         -State DerivedCandidate `
         -Old ("`t`tactivePeerIPv4 `t: UDINT;`n" +
             "`t`tcallbackDisarmResult : DINT;`n" +
+            "`t`townerLossRetireResult : DINT;`n" +
             "`tEND_VAR") `
         -New ("`t`tactivePeerIPv4 `t: UDINT;`n" +
             "`tEND_VAR`n" +
             "`tVAR`n" +
             "`t`tcallbackDisarmResult : DINT;`n" +
+            "`t`townerLossRetireResult : DINT;`n" +
             "`tEND_VAR")
     $tcpGateCMutations = @(
         @(
@@ -13056,6 +13396,22 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
             'Gate C address operator split by whitespace',
             '#Sendbuf[0]',
             '# Sendbuf[0]'),
+        @(
+            'Gate C owner-loss accepts unavailable sender result',
+            '(callbackDisarmResult = -8)',
+            '(callbackDisarmResult = -9)'),
+        @(
+            'Gate C owner-loss accepts every negative result',
+            '(callbackDisarmResult = -8)',
+            '(callbackDisarmResult < 0)'),
+        @(
+            'Gate C owner-loss confirms unexpected negative result',
+            '(ownerLossRetireResult = 1)',
+            '(ownerLossRetireResult = -8)'),
+        @(
+            'Gate C owner-loss zero triple carries live epoch',
+            'ExpectedSessionEpoch:=0,',
+            'ExpectedSessionEpoch:=SessionEpoch,'),
         @(
             'Gate C helper ignores armed flag',
             '(RpcCallbackRegistered = FALSE)',
@@ -13100,9 +13456,24 @@ cSizeOfRXBuffer cSizeOfTXBuffer END_FUNCTION *)
                 "    IF (Payload = 1) AND (RequestBuf[8] = 0) AND`n" +
                 '       ((RpcInitialized = FALSE) OR (RpcSocket = CurrentSock)) THEN')),
         @(
+            'Gate C ordinary 0x8080 invokes owner-loss retirement',
+            ("IF (Payload = 1) AND (RequestBuf[8] = 0) AND`n" +
+                "       ((RpcInitialized = FALSE) OR (RpcSocket = CurrentSock)) THEN`n" +
+                '      callbackDisarmResult := DisarmRpcCallbackEndpoint();'),
+            ("IF (Payload = 1) AND (RequestBuf[8] = 0) AND`n" +
+                "       ((RpcInitialized = FALSE) OR (RpcSocket = CurrentSock)) THEN`n" +
+                "      callbackDisarmResult := DisarmRpcCallbackEndpoint();`n" +
+                "      ownerLossRetireResult := CallbackSender.DisarmEndpoint(`n" +
+                "        ExpectedSessionEpoch:=0, ExpectedCookieLo:=0,`n" +
+                '        ExpectedCookieHi:=0);')),
+        @(
             'Gate C non-owner legacy request locks shape',
             'IF (Payload = 12) AND (RpcInitialized = TRUE) AND',
             'IF Payload = 12 THEN'),
+        @(
+            'Gate C retiring old socket receives owner-loss retirement',
+            'if CurrentSock = dSock then',
+            'if RetiringSock = dSock then'),
         @(
             'Gate C non-owner v2 request locks shape',
             'ELSIF (Payload = 32) AND (RpcInitialized = TRUE) AND',

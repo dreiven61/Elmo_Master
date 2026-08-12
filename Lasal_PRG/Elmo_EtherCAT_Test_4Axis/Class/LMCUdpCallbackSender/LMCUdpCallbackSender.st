@@ -416,12 +416,18 @@ FUNCTION GLOBAL LMCUdpCallbackSender::DisarmEndpoint
 	END_VAR
 	VAR
 		clearedDepth : UDINT;
+		ownerLossRetirement : BOOL;
 	END_VAR
 	CriticalSection_UDP.SectionStart();
 	Result := -9;
+	ownerLossRetirement :=
+		(ExpectedSessionEpoch = 0) AND
+		(ExpectedCookieLo = 0) AND
+		(ExpectedCookieHi = 0);
 	IF NOT ActiveEndpoint.Armed AND (Depth = 0) THEN
 		Result := 1;
-	ELSIF NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN
+	ELSIF (ownerLossRetirement = FALSE) AND
+		  NOT FenceMatches(ExpectedSessionEpoch := ExpectedSessionEpoch, ExpectedCookieLo := ExpectedCookieLo, ExpectedCookieHi := ExpectedCookieHi) THEN
 		Result := -8;
 	ELSE
 		clearedDepth := Depth;

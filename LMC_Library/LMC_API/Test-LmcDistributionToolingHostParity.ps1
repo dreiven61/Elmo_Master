@@ -645,8 +645,8 @@ function Get-LmcDistributionToolingSuiteSpecifications {
             Id = 'UdpCallback'
             RelativePath = "$testRoot/Verify-LasalUdpCallbackContract.ps1"
             TimeoutSeconds = 900
-            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(296/296 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
-            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (296/296 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
+            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
+            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
             WorkerTerminates = $false
         },
         [pscustomobject]@{
@@ -715,8 +715,8 @@ function Assert-LmcDistributionToolingSuiteSpecifications {
         UdpCallback = @{
             RelativePath = "$testRoot/Verify-LasalUdpCallbackContract.ps1"
             TimeoutSeconds = 900
-            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(296/296 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
-            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (296/296 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
+            EvidencePattern = '^PASS LASAL\.UdpCallbackContract\.SelfTest \(305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted\)$'
+            EvidenceLine = 'PASS LASAL.UdpCallbackContract.SelfTest (305/305 negative fixtures rejected; Absent explicit, VendorImported, DerivedDeclaration, DerivedWired, corrected DerivedCandidate, and TerminalWakeBrokerCandidate positives accepted)'
             WorkerTerminates = $false
         }
         ControlHandleRequest = @{

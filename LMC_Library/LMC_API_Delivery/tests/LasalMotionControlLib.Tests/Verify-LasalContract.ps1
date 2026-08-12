@@ -85,6 +85,266 @@ $ErrorActionPreference = 'Stop'
 
 $udpCallbackVerifierPath = Join-Path `
     $PSScriptRoot 'Verify-LasalUdpCallbackContract.ps1'
+
+function ConvertFrom-LasalUdpCallbackCurrentOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Output,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$RequestedState
+    )
+
+    $blocker = 'LASAL UDP callback current-output parser blocker:'
+    $allowedRequestedStates = @(
+        'Auto',
+        'Absent',
+        'VendorImported',
+        'DerivedDeclaration',
+        'DerivedWired',
+        'DerivedCandidate',
+        'TerminalWakeBrokerCandidate')
+    if (-not ($allowedRequestedStates -ccontains $RequestedState)) {
+        throw "$blocker requested state is not exact: $RequestedState"
+    }
+    if (@($Output).Count -ne 1) {
+        throw (
+            "$blocker expected exactly one success-stream object; " +
+            "actual=$(@($Output).Count).")
+    }
+    if ($Output[0] -isnot [string]) {
+        throw "$blocker terminal output is not a string."
+    }
+    $terminalLine = [string]$Output[0]
+    if (($terminalLine.IndexOf("`r", [StringComparison]::Ordinal) -ge 0) -or
+        ($terminalLine.IndexOf("`n", [StringComparison]::Ordinal) -ge 0)) {
+        throw "$blocker terminal output is not exactly one line."
+    }
+    $terminalPattern =
+        '\A(?<Prefix>PASS|CAPTURE) ' +
+        'LASAL\.UdpCallbackContract\.Current ' +
+        '\(state=(?<State>Absent|VendorImported|DerivedDeclaration|' +
+        'DerivedWired|DerivedCandidate|TerminalWakeBrokerCandidate); ' +
+        'IDEClosed=true; ' +
+        'productionApproved=(?<ProductionApproved>True|False); ' +
+        'needsRebaseline=(?<NeedsRebaseline>True|False); ' +
+        '(?<Evidence>[^\r\n]+)\)\z'
+    $match = [regex]::Match(
+        $terminalLine,
+        $terminalPattern,
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if (-not $match.Success) {
+        throw "$blocker terminal line contract is malformed."
+    }
+    $observedState = $match.Groups['State'].Value
+    $productionApproved =
+        $match.Groups['ProductionApproved'].Value -ceq 'True'
+    $needsRebaseline =
+        $match.Groups['NeedsRebaseline'].Value -ceq 'True'
+    $expectedProductionApproved =
+        $observedState -in @(
+            'Absent',
+            'VendorImported',
+            'TerminalWakeBrokerCandidate')
+    $expectedPrefix = if ($expectedProductionApproved) { 'PASS' } else { 'CAPTURE' }
+    if (($match.Groups['Prefix'].Value -cne $expectedPrefix) -or
+        ($productionApproved -ne $expectedProductionApproved) -or
+        ($needsRebaseline -eq $expectedProductionApproved)) {
+        throw (
+            "$blocker state/prefix/approval tuple is inconsistent for " +
+            "$observedState.")
+    }
+    if (-not $match.Groups['Evidence'].Value.StartsWith(
+            'vendor=',
+            [StringComparison]::Ordinal)) {
+        throw "$blocker evidence tail does not start with vendor identity."
+    }
+    if (($RequestedState -cne 'Auto') -and
+        ($RequestedState -cne $observedState)) {
+        throw (
+            "$blocker requested state $RequestedState does not match " +
+            "observed state $observedState.")
+    }
+    return [pscustomobject]@{
+        State = $observedState
+        TerminalLine = $terminalLine
+    }
+}
+
+function Invoke-LasalUdpCallbackCurrentOutputParserSelfTest {
+    $stateFixtures = @(
+        [pscustomobject]@{ State = 'Absent'; Prefix = 'PASS' },
+        [pscustomobject]@{ State = 'VendorImported'; Prefix = 'PASS' },
+        [pscustomobject]@{
+            State = 'DerivedDeclaration'
+            Prefix = 'CAPTURE'
+        },
+        [pscustomobject]@{ State = 'DerivedWired'; Prefix = 'CAPTURE' },
+        [pscustomobject]@{ State = 'DerivedCandidate'; Prefix = 'CAPTURE' },
+        [pscustomobject]@{
+            State = 'TerminalWakeBrokerCandidate'
+            Prefix = 'PASS'
+        })
+    $positiveCount = 0
+    foreach ($fixture in $stateFixtures) {
+        $productionApproved = $fixture.Prefix -ceq 'PASS'
+        $terminalLine =
+            "$($fixture.Prefix) LASAL.UdpCallbackContract.Current " +
+            "(state=$($fixture.State); IDEClosed=true; " +
+            "productionApproved=$productionApproved; " +
+            "needsRebaseline=$(-not $productionApproved); vendor=exact)"
+        foreach ($requestedState in @('Auto', [string]$fixture.State)) {
+            $result = ConvertFrom-LasalUdpCallbackCurrentOutput `
+                -Output ([object[]]@($terminalLine)) `
+                -RequestedState $requestedState
+            if (($result.State -cne $fixture.State) -or
+                (-not [string]::Equals(
+                    $terminalLine,
+                    [string]$result.TerminalLine,
+                    [StringComparison]::Ordinal))) {
+                throw (
+                    'LASAL UDP callback current-output parser self-test ' +
+                    "positive drifted: $($fixture.State)/$requestedState")
+            }
+            $positiveCount++
+        }
+    }
+    if ($positiveCount -ne 12) {
+        throw (
+            'LASAL UDP callback current-output parser self-test positive ' +
+            "count drifted: $positiveCount/12.")
+    }
+
+    $validTerminal =
+        'PASS LASAL.UdpCallbackContract.Current ' +
+        '(state=TerminalWakeBrokerCandidate; IDEClosed=true; ' +
+        'productionApproved=True; needsRebaseline=False; vendor=exact)'
+    $negativeFixtures = @(
+        [pscustomobject]@{
+            Name = 'empty'
+            Output = [object[]]@()
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'duplicate'
+            Output = [object[]]@($validTerminal, $validTerminal)
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'valid plus extra'
+            Output = [object[]]@($validTerminal, 'EXTRA')
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'non-string'
+            Output = [object[]]@([pscustomobject]@{ Value = $validTerminal })
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'Auto output state'
+            Output = [object[]]@(
+                'PASS LASAL.UdpCallbackContract.Current ' +
+                '(state=Auto; IDEClosed=true; evidence=exact)')
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'unknown output state'
+            Output = [object[]]@(
+                'PASS LASAL.UdpCallbackContract.Current ' +
+                '(state=Unknown; IDEClosed=true; evidence=exact)')
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'case drift'
+            Output = [object[]]@($validTerminal.Replace(
+                'TerminalWakeBrokerCandidate',
+                'terminalWakeBrokerCandidate'))
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'malformed prefix'
+            Output = [object[]]@($validTerminal.Replace('PASS ', 'PASS: '))
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'embedded newline'
+            Output = [object[]]@($validTerminal + "`nEXTRA")
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'explicit mismatch'
+            Output = [object[]]@($validTerminal)
+            RequestedState = 'DerivedCandidate'
+        },
+        [pscustomobject]@{
+            Name = 'approved state capture prefix'
+            Output = [object[]]@($validTerminal.Replace('PASS ', 'CAPTURE '))
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'approved state false production approval'
+            Output = [object[]]@($validTerminal.Replace(
+                'productionApproved=True',
+                'productionApproved=False'))
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'approved state requires rebaseline'
+            Output = [object[]]@($validTerminal.Replace(
+                'needsRebaseline=False',
+                'needsRebaseline=True'))
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'unapproved state pass prefix'
+            Output = [object[]]@(
+                'PASS LASAL.UdpCallbackContract.Current ' +
+                '(state=DerivedCandidate; IDEClosed=true; ' +
+                'productionApproved=False; needsRebaseline=True; vendor=exact)')
+            RequestedState = 'Auto'
+        },
+        [pscustomobject]@{
+            Name = 'evidence tail without vendor identity'
+            Output = [object[]]@($validTerminal.Replace(
+                'vendor=exact',
+                'evidence=exact'))
+            RequestedState = 'Auto'
+        })
+    $negativeCount = 0
+    foreach ($fixture in $negativeFixtures) {
+        $message = $null
+        try {
+            $null = ConvertFrom-LasalUdpCallbackCurrentOutput `
+                -Output ([object[]]@($fixture.Output)) `
+                -RequestedState $fixture.RequestedState
+        }
+        catch {
+            $message = $_.Exception.Message
+        }
+        if ($null -eq $message) {
+            throw (
+                'LASAL UDP callback current-output parser self-test accepted ' +
+                "negative fixture: $($fixture.Name)")
+        }
+        if (-not $message.StartsWith(
+                'LASAL UDP callback current-output parser blocker:',
+                [StringComparison]::Ordinal)) {
+            throw (
+                'LASAL UDP callback current-output parser self-test fixture ' +
+                "$($fixture.Name) failed outside its blocker: $message")
+        }
+        $negativeCount++
+    }
+    if ($negativeCount -ne 15) {
+        throw (
+            'LASAL UDP callback current-output parser self-test negative ' +
+            "count drifted: $negativeCount/15.")
+    }
+}
+
+$null = Invoke-LasalUdpCallbackCurrentOutputParserSelfTest
 if ($UdpCallbackVerifierSelfTestOnly) {
     & $udpCallbackVerifierPath -RunSelfTest
     return
@@ -15853,9 +16113,21 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
         }
         $orderedStatements.Insert(
             $sessionEpochIndex,
-            'RpcCallbackDisarm',
-            ('(?i)(?<![A-Za-z0-9_])callbackDisarmResult\s*:=\s*' +
-             'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;'))
+            'RpcCallbackOwnerLossDisarm',
+            ('(?is)(?<![A-Za-z0-9_])callbackDisarmResult\s*:=\s*' +
+             'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;' +
+             '\s*if\s*\(\s*callbackDisarmResult\s*=\s*-8\s*\)\s*&' +
+             '\s*IsClientConnected\s*\(\s*#\s*CallbackSender\s*\)' +
+             '\s*then\s*ownerLossRetireResult\s*:=\s*' +
+             'CallbackSender\s*\.\s*DisarmEndpoint\s*\(' +
+             '\s*ExpectedSessionEpoch\s*:=\s*0\s*,' +
+             '\s*ExpectedCookieLo\s*:=\s*0\s*,' +
+             '\s*ExpectedCookieHi\s*:=\s*0\s*\)\s*;' +
+             '\s*if\s*\(\s*ownerLossRetireResult\s*=\s*0\s*\)' +
+             '\s*\|\s*\(\s*ownerLossRetireResult\s*=\s*1\s*\)' +
+             '\s*then\s*callbackDisarmResult\s*:=\s*' +
+             'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;' +
+             '\s*end_if\s*;\s*end_if\s*;'))
     }
 
     $lastStatementIndex = -1
@@ -15874,16 +16146,20 @@ function Assert-TCPMotionInterfaceFreshOwnerReset {
         $lastStatementIndex = $matches[0].Index
     }
 
-    $bodyWithoutCanonicalControlFlow =
-        ([regex]::new($orderedStatements['ActiveRequestPreserveOrZero'])).Replace(
-            $freshOwnerBody,
-            '',
-            1)
-    $bodyWithoutCanonicalControlFlow =
-        ([regex]::new($orderedStatements['SessionEpochAdvanceAndWrap'])).Replace(
-            $bodyWithoutCanonicalControlFlow,
-            '',
-            1)
+    $canonicalControlFlowStatements = @(
+        'ActiveRequestPreserveOrZero',
+        'SessionEpochAdvanceAndWrap')
+    if ($UdpCallbackCandidate) {
+        $canonicalControlFlowStatements += 'RpcCallbackOwnerLossDisarm'
+    }
+    $bodyWithoutCanonicalControlFlow = $freshOwnerBody
+    foreach ($statementName in $canonicalControlFlowStatements) {
+        $bodyWithoutCanonicalControlFlow =
+            ([regex]::new($orderedStatements[$statementName])).Replace(
+                $bodyWithoutCanonicalControlFlow,
+                '',
+                1)
+    }
     $unexpectedControlFlowPattern = (
         '(?i)(?<![A-Za-z0-9_])(?:IF|THEN|ELSIF|ELSE|END_IF|' +
         'CASE|OF|END_CASE|FOR|TO|BY|DO|END_FOR|WHILE|END_WHILE|' +
@@ -28432,7 +28708,13 @@ $udpCallbackVerifierArguments = @{
     ExpectedState = $UdpCallbackExpectedState
     AllowDerivedCapture = $AllowUdpCallbackDerivedCapture.IsPresent
 }
-& $udpCallbackVerifierPath @udpCallbackVerifierArguments
+$udpCallbackVerifierOutput = @(
+    & $udpCallbackVerifierPath @udpCallbackVerifierArguments)
+$udpCallbackCurrentOutput = ConvertFrom-LasalUdpCallbackCurrentOutput `
+    -Output $udpCallbackVerifierOutput `
+    -RequestedState ([string]$UdpCallbackExpectedState)
+Write-Output $udpCallbackCurrentOutput.TerminalLine
+$udpCallbackResolvedState = [string]$udpCallbackCurrentOutput.State
 $root = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $topologyIoIdeStructureReady =
     $TopologyIoCheckpoint -eq 'IdeStructureReady'
@@ -30132,7 +30414,7 @@ if ([string]::IsNullOrWhiteSpace($tcpMetadataChannelsBlock)) {
 
 Set-Variable `
     -Name 'WrapperUdpCallbackExpectedState' `
-    -Value ([string]$UdpCallbackExpectedState) `
+    -Value $udpCallbackResolvedState `
     -Option ReadOnly `
     -Scope Script
 Set-Variable `
@@ -42978,6 +43260,14 @@ $tcpFreshOwnerNegativeFixtures['EarlyReturn'] =
              [Environment]::NewLine +
              '${Indent}RETURN;'),
             1)
+if ($script:WrapperUdpCallbackCandidateExpected) {
+    $tcpFreshOwnerNegativeFixtures['OwnerLossAcceptsMinusNine'] =
+        ([regex]::new(
+            ('(?i)\(\s*callbackDisarmResult\s*=\s*-8\s*\)'))).Replace(
+                $tcpFreshOwnerFixtureBlock,
+                '(callbackDisarmResult = -9)',
+                1)
+}
 
 $tcpFreshOwnerNegativeFixtureCount = 0
 foreach ($negativeFixture in
@@ -43015,10 +43305,19 @@ foreach ($negativeFixture in
     }
     $tcpFreshOwnerNegativeFixtureCount++
 }
-if ($tcpFreshOwnerNegativeFixtureCount -ne 11) {
+$expectedTcpFreshOwnerNegativeFixtureCount = if (
+    $script:WrapperUdpCallbackCandidateExpected) {
+    12
+}
+else {
+    11
+}
+if ($tcpFreshOwnerNegativeFixtureCount -ne
+    $expectedTcpFreshOwnerNegativeFixtureCount) {
     throw (
         'TCPMotionInterface fresh-owner negative fixture count is ' +
-        "$tcpFreshOwnerNegativeFixtureCount, expected 11.")
+        "$tcpFreshOwnerNegativeFixtureCount, expected " +
+        "$expectedTcpFreshOwnerNegativeFixtureCount.")
 }
 
 if (-not $script:WrapperUdpCallbackCandidateExpected) {
@@ -43613,10 +43912,10 @@ if ($script:WrapperUdpCallbackCandidateExpected) {
         $st,
         ('(?i)callbackDisarmResult\s*:=\s*' +
          'DisarmRpcCallbackEndpoint\s*\(\s*\)\s*;')).Count
-    if ($callbackDisarmCallCount -ne 6) {
+    if ($callbackDisarmCallCount -ne 8) {
         throw (
             'TCPMotionInterface callback disarm call count is ' +
-            "$callbackDisarmCallCount, expected six Candidate lifecycle paths.")
+            "$callbackDisarmCallCount, expected eight Candidate lifecycle paths.")
     }
 }
 else {

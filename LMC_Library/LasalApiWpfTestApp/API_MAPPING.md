@@ -91,6 +91,14 @@ ErrorId, malformed/transport/cancellation 또는 callback-stage 실패는 WPF ou
 실패는 terminal이고 outer retry가 없다. 이는 PLC의 persistent callback disarm `-8`/`-9`
 root fix가 아니다.
 
+PLC source는 일반 `0x8080`/`0x405D` mismatch를 계속 fail-closed로 보존한다. 별도의
+internal owner-loss retirement는 accepted owner transition 또는
+`CurrentSock=dSock`인 definitive disconnect에서 ordinary helper가 정확히 `-8`을
+반환한 경우만 sender에 `(0,0,0)` sentinel을 전달하고, sender 결과 `0/1` 뒤 같은
+helper로 local tuple clear를 확인한다. `-9`, different-IP/unknown candidate, failed
+takeover와 late retiring-old disconnect는 이 경로를 사용할 수 없다. 이 source 변경은
+아직 LASAL IDE build, PLC download 또는 PLC runtime으로 검증하지 않았다.
+
 GUI는 connection cleanup 뒤에도 RPC init 시도 횟수, canonical retry 사용 여부와 마지막
 ACK를 Active/Retired evidence로 보존한다. 입력 tuple은 `RequestedCallback`, 실제 UDP
 endpoint는 `BoundCallback` 또는 init 전 bind 실패를 뜻하는 `not-bound`로 구분한다.
@@ -107,7 +115,8 @@ connection에 남는다. X는 postcondition 미완료 시 취소되고, 명시�
 뒤에도 close 오류를 throw한다. startup은
 `ReconnectPolicy=RPC_INIT_FRESH_TCP_ONCE_V1`, `SdkPath`, `SdkBuildUtc`를 기록하고 기존
 topology marker V5를 유지한다. 100 ms는 PC fixed backoff일 뿐 PLC readiness 증거가
-아니며 PC cleanup은 PLC disarm 성공 또는 force-clear를 뜻하지 않는다.
+아니며 PC cleanup 자체는 PLC disarm 성공 또는 internal owner-loss retirement를 뜻하지
+않는다.
 
 Typed wake는 listener가 소유한 connection과 positive session generation에 귀속된다. WPF는
 dispatcher queue에서 active connection identity와 `BelongsToCurrentSession(connection)`,
@@ -268,6 +277,16 @@ TCP session `0`이고, live-mutex contender는 exit `2`, TCP session `0`, exact
 동일하다. 이는 PC loopback process/mutex/wire 증거일 뿐 PLC cleanup/disarm/readiness나
 실제 사용자 PLC 재접속 완료 증거가 아니다. Historical same-process 새-`MainWindow`
 smoke는 그대로 보존한다.
+
+추가된
+`Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds`와
+`Wpf.CallbackV2.ExplicitCloseMinusOneFixedPortThenReconnectSucceeds`는 같은
+`MainWindow`에서 동일한 fixed UDP callback port로 explicit Close 후 Connect하는 두
+경로를 검사한다. 정상 close ACK와 `ErrorId=-1` close ACK 모두 local listener/TCP 정리,
+fixed-port 재bind, 새 `LMCConnection`/TCP session과 두 번째 `0x8080 -> 0x405C`를 요구한다.
+이는 loopback fake-RPC/UDP PC 증거이며 PLC의 `-8` retirement, `-9` fail-closed, socket
+takeover 또는 사용자 PLC 재접속 완료를 증명하지 않는다. 기존 `339/339` historical
+count에 소급 포함시키지 않는다.
 
 후속 배포 verifier compatibility commit `ad4af91`은 API/wire mapping을 바꾸지 않는다.
 Targeted PS5/PS7 Publish+Reserve는 PASS했고, PS5.1 Release `RunLasalContract`와

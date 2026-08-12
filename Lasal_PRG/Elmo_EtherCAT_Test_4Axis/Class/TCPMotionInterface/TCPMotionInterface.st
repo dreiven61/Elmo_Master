@@ -654,6 +654,7 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		candidatePeerIPv4 	: UDINT;
 		activePeerIPv4 	: UDINT;
 		callbackDisarmResult : DINT;
+		ownerLossRetireResult : DINT;
 	END_VAR
 
   case InfoPara1 of
@@ -826,6 +827,17 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 
 		// Preserve PendingClosedSessionEpoch until CyWork notifies Diagnostics.
 		callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		if (callbackDisarmResult = -8) &
+		   IsClientConnected(#CallbackSender) then
+		  ownerLossRetireResult := CallbackSender.DisarmEndpoint(
+			ExpectedSessionEpoch:=0,
+			ExpectedCookieLo:=0,
+			ExpectedCookieHi:=0);
+		  if (ownerLossRetireResult = 0) |
+			 (ownerLossRetireResult = 1) then
+			callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		  end_if;
+		end_if;
 		SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;
@@ -851,6 +863,17 @@ FUNCTION VIRTUAL GLOBAL TCPMotionInterface::ConnSocketInfo
 		  PendingClosedSessionEpoch := SessionEpoch;
 		end_if;
 		callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		if (callbackDisarmResult = -8) &
+		   IsClientConnected(#CallbackSender) then
+		  ownerLossRetireResult := CallbackSender.DisarmEndpoint(
+			ExpectedSessionEpoch:=0,
+			ExpectedCookieLo:=0,
+			ExpectedCookieHi:=0);
+		  if (ownerLossRetireResult = 0) |
+			 (ownerLossRetireResult = 1) then
+			callbackDisarmResult := DisarmRpcCallbackEndpoint();
+		  end_if;
+		end_if;
 		SessionEpoch += 1;
         if SessionEpoch = 0 then
           SessionEpoch := 1;

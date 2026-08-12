@@ -5,6 +5,8 @@
 최종 결과 재확인: 2026-08-11 (`cbf2548`; verifier compatibility `ad4af91`;
 reconnect policy `14ccf58`)
 
+Owner-loss retirement 및 fixed-port same-window 회귀 범위 갱신: 2026-08-12
+
 ## 구성
 
 외부 NuGet package가 없는 .NET Framework 4.8 console runner다.
@@ -61,6 +63,8 @@ reconnect policy `14ccf58`)
   socket/listener state cleanup
 - options clone/timeout validation과 invalid reconnect 시 기존 session 유지
 - close nonzero ACK 예외, response/error 보존과 local cleanup
+- 같은 WPF window와 같은 fixed UDP callback port에서 explicit Close 후 새
+  `LMCConnection`으로 Connect하는 정상 ACK/`ErrorId=-1` close 두 fake-RPC 회귀
 - receive timeout 뒤 transport 폐기, `Faulted` 전이와 재사용 차단
 - queued cancellation이 active RPC를 보존하고 in-flight cancellation은
   해당 transport만 폐기하는지 검증
@@ -373,6 +377,13 @@ PLC endpoint를 사용하지 않는다.
   host에서 PASS했다. Main working tree 사용자 `Classes.lcb` SHA-256
   `13EA5823DF0887D6042408E2A884E9F8DF50304443227353B9BDCA9AD2ECBFD9`는 exact sanctioned
   identity drift로 계속 reject된다. Post-approval full/network static target은 실행하지 않았다.
+- 2026-08-12 owner-loss retirement 변경은 위 `d4204b4`/`296/296`을 historical evidence로
+  남긴다. 새 focused verifier는 기존 negative fixture 9개를 그대로 복원·유지하고
+  owner-loss 경계 negative fixture 9개를 추가하므로 self-test 계약은 `305/305`다.
+  Windows PowerShell 5.1 long self-test는 exit `0`, `305/305` PASS,
+  elapsed `238039 ms`였고 PowerShell 7은 exit `0`, `305/305` PASS,
+  elapsed `566196 ms`였다. 이 dual-host verifier 결과는 source/static 계약 증거이며
+  LASAL IDE build, PLC download와 runtime은 실행하지 않았다.
 - exact `GateDVisualLayout` C78 `VerifyBuild ... -RunFullStatic` 재실행은 247.8초에
   exit `0`으로 끝났고,
   `PASS LASAL.StaticContract (Phase5TransportClean; ... diagnostics D1-D5 ...)`와
@@ -682,8 +693,12 @@ PLC endpoint를 사용하지 않는다.
   `0x8080 -> 0x8080 -> 0x405C`이며, persistent second failure는 `Faulted` cleanup,
   다른 ErrorId와 nonzero reserved는 zero-retry다. retry-delay cancellation은 두 번째
   request 전에 중단되고 `Cancelled` evidence와 첫 `-1` ACK를 보존한다. 이는 PLC의 지속적인 disarm result
-  `-8`/`-9` root fix가 아니다. negative disarm 때 tuple을 보존하고 다음 init이 같은
-  fence를 재시도하게 하는 PLC fail-closed 계약은 의도적이며 force-clear하지 않는다.
+  `-8`/`-9` root fix가 아니다. 일반 RPC/lifecycle negative disarm은 tuple을 보존하고
+  다음 init이 같은 fence를 재시도하는 PLC fail-closed 계약을 유지한다. PLC source의
+  별도 owner-loss retirement는 accepted owner transition 또는 definitive current-socket
+  disconnect에서 ordinary helper가 정확히 `-8`을 반환한 경우만 internal `(0,0,0)`
+  sentinel을 사용한다. `-9`, different-IP/unknown candidate, failed takeover와 late
+  retiring-old disconnect는 해당 경로를 사용할 수 없다.
   callback tranche A는
   `CallbackProtocol.InitialV2WakeHint.EventAndDeliveryPolicy`의 D5 terminal EventId
   zero/nonzero 경계와 `Rpc.CallbackV2.D5TerminalTicketCorrelation`의 exact
@@ -825,6 +840,15 @@ PLC endpoint를 사용하지 않는다.
   고정한다. 두 회귀 모두 요청값 `RequestedCallback=127.0.0.1:0`을 보존한다. 실패
   evidence는 `BoundCallback=not-bound`, 성공 evidence는 실제 양수 ephemeral endpoint를
   `BoundCallback`으로 보존한다.
+  `Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds`와
+  `Wpf.CallbackV2.ExplicitCloseMinusOneFixedPortThenReconnectSucceeds`는 같은
+  `MainWindow`에서 첫 version-2 connection이 사용한 fixed UDP port를 explicit Close 뒤
+  실제로 다시 bind할 수 있고, 두 번째 Connect가 새 `LMCConnection`/TCP session에서 같은
+  requested/bound port로 `0x8080 -> 0x405C`를 완료하는지 검사한다. 두 번째 회귀는 첫
+  `0x405D`의 `ErrorId=-1`과 `LastCloseException`을 보존하면서도 local listener/TCP cleanup을
+  완료하는 경계를 추가한다. 두 회귀는 loopback fake-RPC/UDP와 PC local-port 수명주기
+  증거일 뿐 PLC disarm, owner-loss sentinel, same-IP takeover 또는 live reconnect 증거가
+  아니다. 기존 `339/339` historical count에 소급 포함시키지 않는다.
   Reconnect policy `14ccf58`은 Debug/Release Rebuild PASS, full smoke `339/339`, reconnect
   targeted filter `6/6`을 PASS했다. 독립 callback/reconnect filter도 `9/9`, P0/P1
   없음이다. 초기 및 동일 프로세스 내 후속 Connect에서 첫 candidate가 exact canonical `-1`을
@@ -845,6 +869,8 @@ PLC endpoint를 사용하지 않는다.
   100 ms는 PLC readiness proof가 아니고 wire `-1`은 internal disarm `-8`/`-9`와 다른
   lifecycle/ownership rejection을 구분하지 못한다. 이 historical fake restart는 같은
   process의 새 `MainWindow`를 사용한 회귀로 계속 보존한다.
+  2026-08-12 owner-loss retirement source에 대한 LASAL IDE build, PLC download와 PLC
+  runtime 재검증은 실행하지 않았다.
   Current `cbf2548` 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
   Runner는 actual PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 owner의 X close,
   close ACK exact `-1` 뒤 process exit, 같은 exact EXE successor의 default named mutex

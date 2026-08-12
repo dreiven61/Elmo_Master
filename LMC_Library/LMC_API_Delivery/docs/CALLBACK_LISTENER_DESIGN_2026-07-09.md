@@ -18,6 +18,8 @@ Actual executable relaunch gate evidence (`cbf2548`): 2026-08-11
 
 PowerShell 5.1 verifier compatibility evidence (`ad4af91`): 2026-08-11
 
+Owner-loss callback retirement contract update: 2026-08-12
+
 ## Reason
 
 `RpcInitConnection` now sends the captured RPC callback registration frame
@@ -1347,7 +1349,7 @@ or publication is rejected with `-6` and does not mutate the endpoint or FIFO.
 For version-2 lifecycle integration, request validation and sender arming precede
 `RpcCallbackRegistered := TRUE` and the success response. If the connected
 sender does not return `0` or `1`, the registration tuple is not committed.
-Close, disconnect, failed initialization, and takeover pass the old
+Close, disconnect, failed initialization, and takeover first pass the old
 session/cookie fence to `DisarmEndpoint` before incrementing or clearing the TCP
 session fields. The `CallbackSender` client is optional at the class boundary so
 an import-only checkpoint can still load; a version-2 request fails closed when
@@ -1382,10 +1384,26 @@ returns `-9`, then forwards the exact stored session epoch and two cookie words.
 It records every result in `RpcCallbackLastDisarmResult`. Result `0` or `1`
 permits clearing the complete legacy and v2 TCP tuple; a negative result
 preserves the complete v2 tuple so a later initialization retries the same
-disarm and remains fail-closed. A repeated `0x8080` initialization does not
-report success when that retry fails. `RpcCallbackLastDisarmResult` is the
-diagnostic latch and is never part of the cleared tuple. This negative-disarm
-preservation is intentional. Do not add a PLC force-clear path to bypass it.
+disarm and remains fail-closed. A repeated `0x8080` initialization and explicit
+`0x405D` do not report success when that ordinary fenced retry fails.
+`RpcCallbackLastDisarmResult` is the diagnostic latch and is never part of the
+cleared tuple.
+
+The only exception is an internal owner-loss retirement. `DisarmEndpoint`
+reserves the exact all-zero expected tuple `(0,0,0)` for that internal call;
+`ValidateEndpoint` already rejects `SessionEpoch=0` and a zero cookie pair, so
+the sentinel cannot identify a valid armed endpoint. `TCPMotionInterface`
+may issue it only after the ordinary helper returns exactly `-8`, and only from
+an accepted owner transition or a definitive disconnect where
+`CurrentSock=dSock`. If the sentinel returns `0` or `1`, the interface calls the
+ordinary helper again so the helper remains the sole complete TCP-tuple clear.
+Result `-9` is never eligible. A different-IP or unknown candidate, a failed
+takeover request, and a delayed disconnect from `RetiringSock` cannot reach this
+path. All other negative disarms remain fail-closed and must not be bypassed.
+The 2026-08-12 source/test review found no contract defect in this bounded path,
+but no LASAL IDE build, PLC download, or PLC runtime reconnect was performed for
+the change. A generic wire `Status=1/ErrorId=-1` still cannot identify internal
+`-8` versus `-9`.
 
 `0x8080` validates its one-byte initialization shape and socket ownership
 before calling the disarm helper. The validation rejection itself does not
@@ -1696,12 +1714,14 @@ cleared or `SessionEpoch` is incremented. The verifier freezes all five
 canonical-LF function bodies independently.
 For voluntary repeated `0x8080` initialization and explicit `0x405D` close, a
 negative disarm produces the existing-shaped failure and does not clear the
-callback tuple or advance the session. Forced owner loss/takeover, direct-send
-failure, and safety-drain close still retire the TCP transport after calling the
-helper, but a negative result preserves the complete callback tuple so the next
-initialization must retry and cannot arm a different endpoint.
-This fail-closed preservation is intentional; PLC force-clear is not an allowed
-recovery action.
+callback tuple or advance the session. Forced direct-send and safety-drain
+paths also retain that ordinary fail-closed behavior. Only an accepted owner
+transition or definitive current-socket disconnect may recover an exact `-8`
+through the internal `(0,0,0)` retirement described above. The first ordinary
+fenced attempt, exact result check, sender retirement, successful `0/1` result,
+and second helper confirmation are all mandatory. Result `-9`, rejected
+different-IP/unknown candidates, and a late retiring-old-socket disconnect must
+leave that recovery path unreachable.
 Malformed or non-owner `0x8080` requests fail before the helper, so validation
 alone does not mutate callback state. If sending that failure frame itself
 fails, the normal forced partial-send quarantine still applies. A successful
@@ -1878,11 +1898,13 @@ Minimum acceptance matrix:
    pending and ready `IsOpen`, precreation while disarmed, pending arm commit,
    pending publish enqueue, and socket-failure publish with no mutation.
 6. A successful matched disarm during close, disconnect, failed initialization,
-   or same-peer takeover fences and clears the exact old queue. A negative
-   disarm preserves the callback tuple and queue debt so the next initialization
-   retries the same fence and fails closed until it succeeds. After a successful
-   reconnect, a delayed old-cookie/session/BootId datagram is rejected even at
-   the same IP and port.
+   or same-peer takeover fences and clears the exact old queue. An ordinary
+   negative disarm preserves the callback tuple and queue debt. Only exact `-8`
+   after an accepted owner transition or definitive current-socket disconnect
+   may use the internal `(0,0,0)` retirement; `-9`, different-IP rejection, and
+   late old-socket disconnect remain fail-closed. After a successful reconnect,
+   a delayed old-cookie/session/BootId datagram is rejected even at the same IP
+   and port.
 7. FIFO pressure proves strict eight-slot drop-new behavior. A sender `CyWork` invokes
    `SendData` no more than once; head-only `-4`
    handling retains three retries, drops on the fourth total failed attempt, and

@@ -14,6 +14,8 @@ WPF bounded fresh-session recovery 갱신 (`14ccf58`): 2026-08-11
 
 PowerShell 5.1 verifier compatibility 갱신 (`ad4af91`): 2026-08-11
 
+PLC owner-loss callback retirement 계약 갱신: 2026-08-12
+
 ## 결론
 
 RPC 연결은 단순 TCP connect가 아니다. 현재 사용 순서는 아래와 같다.
@@ -82,9 +84,10 @@ envelope에 한해 20 ms cancellation-aware 대기 뒤 같은 TCP socket으로 `
 정리하고 `Faulted`로 끝난다. legacy mode, 다른 ErrorId, nonzero reserved, malformed frame은 재시도하지
 않고 기존 실패/cleanup 경로를 따른다. 이 bounded PC recovery는 callback sender
 준비 직후의 일시 상태만 흡수하며, PLC에서 계속 발생하는 disarm result `-8`/`-9`의
-원인을 고치거나 숨기는 동작이 아니다. negative disarm 때 callback tuple을 보존해
-다음 init이 같은 fence를 재시도하게 하는 PLC 계약은 의도된 fail-closed 동작이다.
-PLC force-clear로 우회하지 않는다.
+원인을 고치거나 숨기는 동작이 아니다. 일반 `0x8080`/`0x405D`와 transport/safety
+경로의 negative disarm은 callback tuple을 보존하고 같은 fence를 재시도하는
+fail-closed 계약을 유지한다. 별도의 PLC owner-loss retirement는 아래의 확정된 두
+socket-owner 경로에서 exact `-8`만 처리하며, PC retry가 그 동작을 대신하지 않는다.
 
 Commit `af4ab63`의 historical WPF 회귀는 나머지 필드는 같고 `ErrorId=0`인
 non-canonical short ACK가 canonical retry를 사용하지 않고 `0x8080` 1회에서 끝나는
@@ -110,6 +113,18 @@ marker V5를 유지한다.
 100 ms는 PC fixed backoff이지 PLC readiness/timing proof가 아니다. canonical wire `-1`은
 internal disarm `-8`/`-9` 또는 다른 lifecycle/ownership rejection일 수 있다. Historical
 fake restart는 같은 test process의 새 `MainWindow`를 쓰는 별도 회귀로 유지한다.
+
+현재 LASAL source의 owner-loss retirement는 `LMCUdpCallbackSender.DisarmEndpoint`의
+exact internal sentinel `(ExpectedSessionEpoch, ExpectedCookieLo,
+ExpectedCookieHi)=(0,0,0)`을 사용한다. 유효 endpoint는 zero epoch와 양 cookie zero를
+허용하지 않는다. `TCPMotionInterface`는 먼저 저장된 nonzero fence로 일반 disarm을
+시도하고 결과가 정확히 `-8`일 때만, accepted owner transition 또는
+`CurrentSock=dSock`인 definitive disconnect에서 sentinel을 한 번 호출한다. Sentinel
+결과가 `0` 또는 `1`일 때만 일반 helper를 다시 호출해 local tuple을 정리한다.
+`-9`, 다른/미확인 peer candidate 거절, failed takeover, 새 owner 게시 뒤 도착한 old
+retiring socket disconnect에서는 sentinel을 호출하지 않는다. 이 source 변경에 대한
+LASAL IDE build, PLC download와 PLC runtime 재접속 검증은 2026-08-12 현재 실행하지
+않았다.
 
 Current `cbf2548` actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다. Parent
 runner가 supplied actual example EXE의 PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 첫
@@ -297,6 +312,9 @@ TCP와 UDP listener를 닫는다. LASAL은 ACK를 보내기 전에 session state
   re-registration rejection과 기존 tuple 보존
 - `0x405D` ACK 후 session/callback state 정리
 - socket disconnect 시 해당 RPC state 정리
+- accepted owner transition 또는 definitive current-socket disconnect에서 ordinary
+  disarm exact `-8`만 internal `(0,0,0)` sender retirement 후 helper로 재확인
+- 일반 `0x8080`/`0x405D` mismatch와 `-9`는 기존 tuple을 보존해 fail-closed
 
 현재 구현은 한 개의 stable active RPC owner만 허용한다. `MaxConnections=2`의
 두 번째 slot은 일반 다중-client 공유가 아니라 reconnect candidate용이다. 기존 owner가
