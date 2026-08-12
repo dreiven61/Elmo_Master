@@ -120,11 +120,21 @@ ExpectedCookieHi)=(0,0,0)`을 사용한다. 유효 endpoint는 zero epoch와 양
 허용하지 않는다. `TCPMotionInterface`는 먼저 저장된 nonzero fence로 일반 disarm을
 시도하고 결과가 정확히 `-8`일 때만, accepted owner transition 또는
 `CurrentSock=dSock`인 definitive disconnect에서 sentinel을 한 번 호출한다. Sentinel
-결과가 `0` 또는 `1`일 때만 일반 helper를 다시 호출해 local tuple을 정리한다.
+결과가 `0` 또는 `1`일 때만 일반 helper를 다시 호출해 local tuple을 정리한다. 각 허용
+경계는 먼저 `RpcCallbackLastDisarmResult=1`로 진단 latch를 reset한다. Sentinel과
+confirmation이 모두 `0/1`이면 tuple clear 뒤 latch를 `-8`로 다시 기록한다. 등록되지 않은
+후속 helper no-op 결과 `1`은 이 완료 증거를 덮지 않는다. Sentinel 실패는 실제 결과를
+남기고, 최초 `-8` 뒤 sender 연결이 사라지면 `-9`를 남긴다.
+
+최종 latch `-8`만으로 성공을 판정하면 안 된다. 최초 mismatch 또는 비정상 sentinel `-8`도
+같은 값을 남길 수 있으므로 accepted-owner/current-socket-disconnect 경계, old TCP/sender
+tuple과 QueueDepth clear 또는 fresh current-epoch tuple, 다음 callback 등록/수신을 함께
+확인해야 한다.
 `-9`, 다른/미확인 peer candidate 거절, failed takeover, 새 owner 게시 뒤 도착한 old
-retiring socket disconnect에서는 sentinel을 호출하지 않는다. 이 source 변경에 대한
-LASAL IDE build, PLC download와 PLC runtime 재접속 검증은 2026-08-12 현재 실행하지
-않았다.
+retiring socket disconnect에서는 sentinel을 호출하지 않는다. Predecessor `e3c9365`는 격리
+LASAL incremental compile/link를 통과했지만 generated `Classes.lcb=5337...`가 artifact
+comparator에서 거부됐다. 후속 commit `bbe8a8d`는 PS5.1/PS7 static self-test `311/311`만 통과했고 LASAL IDE
+build, sanctioned artifact, PLC download와 PLC runtime 재접속 검증은 아직 없다.
 
 Current `cbf2548` actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다. Parent
 runner가 supplied actual example EXE의 PID/HWND에 외부 `WM_SYSCOMMAND/SC_CLOSE`를 보내 첫

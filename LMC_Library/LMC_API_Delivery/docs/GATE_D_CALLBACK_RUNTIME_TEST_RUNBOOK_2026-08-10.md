@@ -204,8 +204,10 @@ disconnect must never use the sentinel. The fixed 100 ms is PC backoff, not PLC
 slot/FSM-readiness proof. A wire `-1` may represent internal disarm `-8`/`-9` or
 another lifecycle/ownership rejection and does not distinguish them. Historical
 fake restart evidence uses a new `MainWindow` in the same test process and
-remains a separate regression. The 2026-08-12 retirement source change has not
-been built in LASAL IDE, downloaded, or exercised on the PLC.
+remains a separate regression. The predecessor `e3c9365` source passed an
+isolated LASAL incremental compile/link, but follow-up Watch-latch commit
+`bbe8a8d` has not been built into a sanctioned artifact, downloaded, or
+exercised on the PLC.
 
 The separate actual-EXE relaunch gate passes `1/1` in both Debug and Release. It
 finds the supplied actual example EXE PID/HWND and sends external
@@ -857,11 +859,24 @@ PLC word to manufacture the canonical failure.
 If explicit `0x405D` returns the generic `Status=1/ErrorId=-1`, preserve that
 failure as observed. It does not identify `-8` versus `-9`. Local cleanup may
 then cause a definitive current-socket disconnect; source permits retirement
-only from its exact `-8` branch. A `-9` result must remain fail-closed. Capture
-PLC Watch and pcap across Close, disconnect, and the next Connect. If the
-intermediate `-8` cannot be observed before the confirmation helper overwrites
-the diagnostic latch, classify that branch as unproven rather than inferring it
-from the successful PC port rebind or final result `1`.
+only from its exact `-8` branch. A `-9` result must remain fail-closed. Before
+the event, record the latch, TCP/sender tuple, QueueDepth, current socket and
+SessionEpoch. The allowed boundary resets the latch to `1`; full sentinel plus
+confirmation success re-latches `-8` after tuple clear. Capture PLC Watch and
+pcap across Close, disconnect, and the next Connect.
+
+The boundary-start value `1` is a transient reset marker, not success evidence.
+A later allowed boundary may overwrite an earlier latch, so preserve one
+before/after Watch sequence per event.
+
+Do not accept `RpcCallbackLastDisarmResult=-8` alone. The initial mismatch or an
+unexpected sentinel `-8` can leave the same value while the old tuple/queue is
+still present. Exact owner-loss PASS requires the accepted-owner or definitive
+current-socket-disconnect boundary plus old TCP/sender tuple and queue clear (or
+a fresh current-epoch tuple), followed by successful callback registration and
+reception. A successful PC port rebind or generic wire `-1` is insufficient.
+This Watch-latch behavior is source commit `bbe8a8d`; its PS5.1/PS7 static
+self-tests pass `311/311`, but it has no sanctioned PLC image or live result.
 
 The two WPF regressions
 `Wpf.CallbackV2.ExplicitCloseFixedPortThenReconnectSucceeds` and
@@ -933,11 +948,13 @@ QueueDepth to be zero, and the WPF to show a stopped/disconnected listener.
 
 An exact `-8` returned to the ordinary `0x405D` handler is still a Close failure;
 the handler itself must not use the sentinel. If the ensuing definitive
-current-socket disconnect performs owner-loss retirement, the second ordinary
-helper confirmation may leave `RpcCallbackLastDisarmResult=1`. Record the failed
-Close ACK, disconnect boundary, sender/queue transition, and successful next
-registration as separate evidence. A `-9` result, different-IP candidate, or
-late old-socket disconnect must not clear the tuple or queue through retirement.
+current-socket disconnect completes owner-loss retirement, the boundary leaves
+`RpcCallbackLastDisarmResult=-8` after successful sentinel and confirmation.
+This is a distinct recovery case, not the clean-Close `0/1` PASS above. Record
+the failed Close ACK, before/after latch, disconnect boundary, old tuple/queue
+clear or fresh tuple, and successful next registration/reception as separate
+evidence. A `-9` result, different-IP candidate, failed sentinel/confirmation,
+or late old-socket disconnect must not be classified as retirement success.
 
 Do not require Attempt or Rejected to increase on a clean close. CyWork may
 notify Diagnostics and clear/orphan the old ticket before the broker can claim

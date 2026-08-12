@@ -1610,11 +1610,13 @@ TCP v2 fence storage/lifecycle declaration contract:
   sender only for ProtocolVersion=2 and Registered=TRUE; every other tuple
   returns 1 and clears residual TCP callback fields. Armed v2 requires
   IsClientConnected(#CallbackSender), otherwise returns -9, and forwards the
-  exact stored epoch/cookies. Every result is stored in
-  RpcCallbackLastDisarmResult. That diagnostic latch is retained and excluded
-  from the tuple clear. Only 0/1 clears the complete legacy+v2 TCP tuple;
-  every negative preserves the full v2 tuple, and repeated 0x8080 initialization
-  retries the same disarm and fails closed if it still cannot complete.
+  exact stored epoch/cookies. A result is stored in
+  RpcCallbackLastDisarmResult only while RpcCallbackRegistered is TRUE, so an
+  unregistered no-op result 1 does not overwrite completed owner-loss evidence.
+  That diagnostic latch is retained and excluded from the tuple clear. Only 0/1
+  clears the complete legacy+v2 TCP tuple; every negative preserves the full v2
+  tuple, and repeated 0x8080 initialization retries the same disarm and fails
+  closed if it still cannot complete.
 - V2 requires IsClientConnected(#Diagnostics), calls the current
   Diagnostics.GetDiagnosticsBootId(), and rejects zero before ArmEndpoint. The
   complete v2 tuple and RpcCallbackRegistered are committed before TCP SendData
@@ -1634,6 +1636,15 @@ TCP v2 fence storage/lifecycle declaration contract:
   safety-drain close still retire TCP after the helper call, but preserve the
   callback tuple on negative so the next initialization must retry it. This
   fail-closed preservation is intentional; no PLC force-clear bypass is allowed.
+- At the two exact owner-loss boundaries only, the latch is reset to 1 before
+  the ordinary helper. Exact -8 plus a connected sender permits one internal
+  all-zero expected-tuple sentinel. Sentinel 0/1 permits one confirmation helper;
+  confirmation 0/1 clears the TCP tuple and re-latches -8. Sentinel failure is
+  retained, and a sender-link loss before the sentinel records -9. Final -8 is
+  not standalone proof: bind it to the allowed socket boundary and a cleared old
+  TCP/sender tuple and queue, or to a fresh current-epoch tuple plus successful
+  callback registration/reception. No TCP request/response or UDP datagram bytes
+  change in this diagnostic-only follow-up (`bbe8a8d`).
 - 0x8080 validates the one-byte request and owning socket before calling the
   helper. The malformed/non-owner rejection itself does not disarm or mutate
   the callback tuple. Its failure frame still uses TCP SendData, so a partial

@@ -1381,13 +1381,14 @@ successful-commit/armed flag. The helper calls the sender only when
 has no armed sender endpoint: it returns `1` and clears the residual TCP tuple.
 For an armed v2 tuple it requires `IsClientConnected(#CallbackSender)` or
 returns `-9`, then forwards the exact stored session epoch and two cookie words.
-It records every result in `RpcCallbackLastDisarmResult`. Result `0` or `1`
-permits clearing the complete legacy and v2 TCP tuple; a negative result
-preserves the complete v2 tuple so a later initialization retries the same
-disarm and remains fail-closed. A repeated `0x8080` initialization and explicit
-`0x405D` do not report success when that ordinary fenced retry fails.
-`RpcCallbackLastDisarmResult` is the diagnostic latch and is never part of the
-cleared tuple.
+While `RpcCallbackRegistered=TRUE`, it records the result in
+`RpcCallbackLastDisarmResult`. An unregistered no-op still returns `1`, but does
+not overwrite completed owner-loss evidence. Result `0` or `1` permits clearing
+the complete legacy and v2 TCP tuple; a negative result preserves the complete
+v2 tuple so a later initialization retries the same disarm and remains
+fail-closed. A repeated `0x8080` initialization and explicit `0x405D` do not
+report success when that ordinary fenced retry fails. The diagnostic latch is
+never part of the cleared tuple.
 
 The only exception is an internal owner-loss retirement. `DisarmEndpoint`
 reserves the exact all-zero expected tuple `(0,0,0)` for that internal call;
@@ -1397,13 +1398,27 @@ may issue it only after the ordinary helper returns exactly `-8`, and only from
 an accepted owner transition or a definitive disconnect where
 `CurrentSock=dSock`. If the sentinel returns `0` or `1`, the interface calls the
 ordinary helper again so the helper remains the sole complete TCP-tuple clear.
-Result `-9` is never eligible. A different-IP or unknown candidate, a failed
-takeover request, and a delayed disconnect from `RetiringSock` cannot reach this
-path. All other negative disarms remain fail-closed and must not be bypassed.
-The 2026-08-12 source/test review found no contract defect in this bounded path,
-but no LASAL IDE build, PLC download, or PLC runtime reconnect was performed for
-the change. A generic wire `Status=1/ErrorId=-1` still cannot identify internal
-`-8` versus `-9`.
+Each allowed boundary resets the latch to `1` before the first helper call. If
+the sentinel and confirmation both return `0` or `1`, the boundary restores
+`RpcCallbackLastDisarmResult=-8` after the TCP tuple clear. An unexpected
+sentinel result is retained; loss of the sender link before the sentinel is
+normalized to `-9`; a negative confirmation remains negative.
+
+The latch value `-8` alone is not retirement proof: the initial mismatch and an
+unexpected sentinel `-8` can also leave that value. Runtime evidence must bind
+it to one allowed socket boundary and show either the old TCP/sender tuple and
+queue cleared or a fresh current-epoch tuple, followed by successful callback
+registration/reception. Result `-9` is never eligible. A different-IP or unknown
+candidate, a failed takeover request, and a delayed disconnect from
+`RetiringSock` cannot reach this path. All other negative disarms remain
+fail-closed and must not be bypassed.
+
+The predecessor `e3c9365` owner-loss source passed an isolated LASAL incremental
+compile/link, but its generated `Classes.lcb=5337...` was rejected by the
+artifact comparator. Follow-up commit `bbe8a8d` has PS5.1/PS7 static
+self-test `311/311` evidence only; it has no LASAL IDE build, sanctioned artifact, PLC
+download, or PLC runtime reconnect evidence. A generic wire
+`Status=1/ErrorId=-1` still cannot identify internal `-8` versus `-9`.
 
 `0x8080` validates its one-byte initialization shape and socket ownership
 before calling the disarm helper. The validation rejection itself does not

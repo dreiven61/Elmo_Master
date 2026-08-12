@@ -385,6 +385,19 @@ PLC endpoint를 사용하지 않는다.
   elapsed `566196 ms`였다. 이 dual-host verifier 결과는 source/static 계약 증거다. 이후 같은
   source의 격리 LASAL incremental Build도 compile/link는 PASS했지만 generated artifact gate에서
   STOP했으며 PLC Download/runtime은 실행하지 않았다.
+- Follow-up commit `bbe8a8d` reuses the existing
+  `RpcCallbackLastDisarmResult` field as a boundary-correlated owner-loss Watch
+  latch; it adds no declaration, TCP frame, or UDP datagram field. Each allowed
+  owner boundary resets the latch, and sentinel plus confirmation success
+  re-latches exact `-8` after tuple clear. A dormant helper no-op preserves that
+  evidence. Sentinel failure, pre-sentinel sender loss, confirmation `-9`,
+  confirmation mismatch `-8`, clean matched disarm, and ordinary mismatch are
+  modeled separately. The final PS5.1 and PS7 long self-tests both reject
+  `311/311` negative fixtures (elapsed `239.9 s` and `546.2 s`). Final `-8` alone
+  is never a runtime PASS; the allowed socket boundary, tuple/queue transition,
+  and next registration/reception are mandatory. During this verification,
+  `VerifyCurrent` was not forced past the user-owned LASAL WTR session (PID 41504), and this follow-up
+  has no LASAL build, sanctioned generated artifact, PLC Download, or live result.
 - 2026-08-12 `e3c9365` tree `47e6c141673d5bc29901a2604e377f849e50fe44`는 strict
   `Auto` child-state parser를 `12/12` positive와 `15/15` fail-closed negative fixture로
   검증했다. 승인 상태의 `PASS/ProductionApproved=true/NeedsRebaseline=false` tuple과
@@ -915,7 +928,7 @@ PLC endpoint를 사용하지 않는다.
   100 ms는 PLC readiness proof가 아니고 wire `-1`은 internal disarm `-8`/`-9`와 다른
   lifecycle/ownership rejection을 구분하지 못한다. 이 historical fake restart는 같은
   process의 새 `MainWindow`를 사용한 회귀로 계속 보존한다.
-  2026-08-12 owner-loss retirement source의 격리 LASAL incremental Build는 두 ST
+  2026-08-12 predecessor `e3c9365` owner-loss retirement source의 격리 LASAL incremental Build는 두 ST
   compile/link를 `0 error(s), 24 warning(s)`로 PASS했다. Post-build `Classes.lcb=5337BBAF...`는
   comparator exit `3`으로 거부됐고 PLC Download/runtime 재검증은 실행하지 않았다.
   Current `cbf2548` 별도 actual-EXE relaunch gate는 Debug/Release 각각 `1/1` PASS했다.
