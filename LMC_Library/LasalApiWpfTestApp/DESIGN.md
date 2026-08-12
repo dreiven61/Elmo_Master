@@ -287,10 +287,12 @@ Drive read는 선택한 physical reference와 현재 loaded axis가 일치하면
 이 탭에는 motion/write control을 추가하지 않는다. `0x7D12 SetAxisPosition`은 SDK
 wire/one-shot 계약과 PLC fail-closed parser만 존재하고 capability bit 3과 native mutation이
 꺼져 있다. SetPosition은 diagnostics identity와
-4 x U32 intent를 보존하는 독립 journal core와 SDK `0x7D14` exact read-only query 계약까지만
-구현한다. journal은 wire 전 Arm, 재시작 시 Armed를 RecoveryRequired로 보수 승격하고 자동
-replay하지 않지만, current PLC에는 bit 5, retained store/query route/terminal retirement가
-없다. journal을 MainWindow 초기화/dispatch/interlock에 단독 연결하지 않는다. PLC outcome
+4 x U32 intent를 보존하는 독립 journal core, SDK `0x7D14` exact read-only query와
+`0x7D1A` nonzero-generation terminal retirement 계약까지 구현한다. bit 5는 query-only,
+bit 7은 retirement 전용이다. journal은 wire 전 Arm, 재시작 시 Armed를
+RecoveryRequired로 보수 승격하고 자동 replay하지 않지만, current PLC에는 bit 5/7,
+retained store/query/retirement route가 없다. journal을 MainWindow
+초기화/dispatch/interlock에 단독 연결하지 않는다. PLC outcome
 store/query/retirement, unified ownership, authoritative max-jump와 task/core/priority,
 PLC proof가 끝나기 전에는 SetPosition 버튼을 추가하지 않는다.
 

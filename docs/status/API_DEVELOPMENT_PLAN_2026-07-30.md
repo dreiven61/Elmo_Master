@@ -38,6 +38,12 @@
 > 후속 `bf31030`은 exact LASAL validation input과 physical Network aggregate를 release
 > fingerprint에 묶고 PS5.1/PS7 pipeline `192/192`을 PASS했지만 Gate D STOP을 바꾸지 않는다.
 
+> **2026-08-12 SetPosition override:** SDK에 `0x7D1A
+> RetireAxisSetPositionOutcome` nonzero-generation CAS와 Admin bit 7 계약을 추가했다.
+> `bit 7 => bit 5`, `bit 3 => bit 5 + bit 7`이며 Debug/Release 1151/1151이 PASS했다.
+> PLC의 bit 3/5/7, retained store, `0x7D14/0x7D1A` route/tombstone과 WPF journal 연결은
+> 여전히 없으므로 아래 query-only/1042 수치는 역사적 snapshot으로만 읽는다.
+
 > **2026-08-12 release tooling predecessor:** commit `febb1b0`은 manual/canonical 경로 확정,
 > `vswhere`/Python tool discovery와 transaction 전에 mandatory dual-host preflight를 실행한다.
 > Windows PowerShell 5.1과 PowerShell 7은 각각 Pipeline `245`, SemanticPolicy `50` + policy
@@ -213,9 +219,11 @@
   DiagnosticsBuild/BootId/MapRevision, process/session을 넘어 유일한 4 x U32 client intent,
   expected actual-position CAS와 prepare-time one-shot을 함께 pin한다. `0x7D14`는 이 exact
   key의 terminal result만 읽는 56-byte read-only query와 92-byte success response 계약이다.
-  PLC capability bit 3/5는 OFF이고 raw valid `0x7D12`도 `InvalidState/detail 10`, native
+  `0x7D1A`는 같은 key와 nonzero generation의 60-byte exact retirement CAS 요청이며 성공은
+  같은 92-byte terminal snapshot을 반환한다. PLC capability bit 3/5/7은 OFF이고 raw valid
+  `0x7D12`도 `InvalidState/detail 10`, native
   SetPosition 0회로 닫힌다. retained two-bank store, query route, terminal retirement CAS는
-  LASAL IDE 구조 작업 전이라 source-active가 아니다. 독립 journal core를 UI에 arm하지 않고,
+  PC 계약만 있고 LASAL IDE 구조 작업 전이라 source-active가 아니다. 독립 journal core를 UI에 arm하지 않고,
   authoritative query·unified ownership과 함께 연결하기 전에는 WPF 실행 경로를 열지 않는다.
   `ActualPosition == Target`은 과거 성공 증거가 아니다.
 - Admin `0x7D13 StartAxisReference` dormant slice는 56-byte request/32-byte response 계약이다.
@@ -424,7 +432,7 @@ $taskPcTests = '.\LMC_Library\LMC_API_Delivery\tests\LasalMotionControlLib.Tests
 | Dynamic Health/DI | C#/WPF와 PLC `0x7E13/22` read-owner 구현, dormant static/IDE PASS | raw/physical proof 전 production 제외 | current PLC download, dormant raw qualifier, disconnect/recovery, 32-pattern physical correlation 뒤 bits 15/16 활성 |
 | Digital Output | C#/WPF guard, PLC route 없음 | P1 read-only 이후 | `0x7E23`, bit 17, RT single owner/CAS/readback/fault proof |
 | callback ownership / typed callback | `0x405C` wire 유지, exact TCP-peer/port validate-then-commit와 raw SDK session provenance/WPF stale-queue drop source 계약 구현; typed sender/parser 없음 | endpoint ownership은 유지하고 typed callback은 이번 release에서 명시적 제외 | current PLC duplicate/mismatch capture; typed 기능은 실제 payload/schema와 PLC event sender 승인 뒤 별도 |
-| SetPosition | 128-bit intent+diagnostics identity `0x7D12` SDK/wire와 LASAL dormant parser, read-only `0x7D14` SDK 계약, 독립 journal core; bit 3/5 OFF, query PLC route/store 없음, native call 0, WPF 미연결 | production에서 제외 유지 | IDE-created two-bank retained store/query/terminal retirement CAS, journal+unified axis/group mutation ownership 동시 연결, task/core priority, application-approved `SetPositionMaxJump>0`, `IsReferenced` 정책과 PLC proof |
+| SetPosition | 128-bit intent+diagnostics identity `0x7D12` SDK/wire와 LASAL dormant parser, read-only `0x7D14` 및 nonzero-generation CAS `0x7D1A` SDK 계약, 독립 journal core; bit 3/5/7 OFF, query/retirement PLC route/store 없음, native call 0, WPF 미연결 | production에서 제외 유지 | IDE-created two-bank retained store/query/terminal retirement tombstone, journal+unified axis/group mutation ownership 동시 연결, task/core priority, application-approved `SetPositionMaxJump>0`, `IsReferenced` 정책과 PLC proof |
 | ReferenceAxis | `0x7D13` SDK/wire/LASAL dormant fail-closed; 56-byte request/32-byte response, bit 4 OFF, native call 0, WPF 미노출; `HomeDS402` 적응 항목이지만 DS402 homing은 아님 | production에서 제외 유지 | physical reference input 배선/active level/debounce, recipe별 native mode, unified mutation ownership, mandatory PLC `MaxTravel`/`TimeoutMs` watchdog과 축별 bench proof |
 | 상위 실제 미구현 | `HomeDS402Ex`, `SetOpMode` 2개 | production 전 명시적 제외 승인 필수 | 별도 승인 시 dedicated command DoD로 구현 |
 
@@ -569,8 +577,9 @@ read-only P1-1을 먼저 완료한다.
    - `0x7D12`는 4 x U32 client intent와 fresh diagnostics identity를 포함하는 56-byte
      request로 갱신했고 LASAL dormant parser는 valid request도 `InvalidState/detail 10`,
      native `_LMCAxis.SetPosition` 0회로 닫는다.
-   - `0x7D14 ReadAxisSetPositionOutcome` SDK query와 독립 durable journal core는 구현하되,
-     PLC에는 아직 retained store/route/retirement가 없고 capability bit 3/5는 OFF다. journal을
+   - `0x7D14 ReadAxisSetPositionOutcome` SDK query, `0x7D1A` nonzero-generation retirement
+     CAS와 독립 durable journal core는 구현했지만, PLC에는 아직 retained
+     store/query/retirement route와 tombstone이 없고 capability bit 3/5/7은 OFF다. journal을
      MainWindow dispatch/interlock에 연결하거나 WPF 버튼을 노출하지 않는다.
    - 활성화 전 IDE-created two-bank store, exact read-only query와 terminal retirement CAS,
      journal/no-auto-replay와 axis/group unified mutation ownership의 동시 연결, motion RT와

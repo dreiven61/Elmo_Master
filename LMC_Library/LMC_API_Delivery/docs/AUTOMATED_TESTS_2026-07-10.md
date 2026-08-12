@@ -102,9 +102,13 @@ Owner-loss retirement 및 fixed-port same-window 회귀 범위 갱신: 2026-08-1
   없이 exact old session만 invalidate하고 newer reconnect를 보존하도록 강화했다.
 - Admin `0x7D14 ReadAxisSetPositionOutcome`은 restart-safe public recovery key, repeatable
   read-only 56-byte query, exact 92-byte terminal response, identity/intent/tuple echo와
-  Succeeded/Rejected 조합을 검증한다. capability bit 5는 bit 3과 독립적으로 읽기만 먼저
-  광고할 수 있지만 strict parser는 `bit 3 => bit 5`를 강제한다. current PLC는 bit 5와
-  route/store가 모두 OFF다.
+  Succeeded/Rejected 조합을 검증한다. `0x7D1A RetireAxisSetPositionOutcome`은 같은 exact
+  recovery key와 nonzero generation을 넣은 60-byte request, 동일 92-byte terminal snapshot,
+  lost-response exact retry와 malformed-generation session fault를 검증한다. capability bit 5는
+  query-only, bit 7은 retirement이며 strict parser는 `bit 7 => bit 5`,
+  `bit 3 => bit 5 + bit 7`을 강제한다. current PLC는 bit 3/5/7과 route/store가 모두 OFF다.
+  old ErrorCatalog와 operation-inapplicable detail도 fail-closed하며, 이 tranche를 포함한
+  2026-08-12 SDK Debug/Release 전체 회귀는 각각 `1151/1151` PASS다.
 - Admin `0x7D13 StartAxisReference` dormant 계약 시험 범위: exact 56-byte request
   frame/48-byte payload golden과 32-byte response frame/24-byte payload strict parser,
   recipe `1`/`2`, mandatory `MaxTravel>0`/`TimeoutMs>0`, typed start-ACK-only surface,

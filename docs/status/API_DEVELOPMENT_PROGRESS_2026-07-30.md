@@ -27,12 +27,19 @@
 > `dirty-preview`이며 목적별 commit, clean checkout과 새 candidate 재현 전에는 최종 release
 > baseline이 아니다.
 
+> **2026-08-12 SetPosition override:** SDK의 read-only `0x7D14`에 이어 `0x7D1A
+> RetireAxisSetPositionOutcome` nonzero-generation CAS와 Admin bit 7 계약을 추가했고,
+> Debug/Release 1151/1151이 PASS했다. PLC bit 3/5/7, retained store,
+> `0x7D14/0x7D1A` route/tombstone과 WPF journal 연결은 여전히 없으며, 아래 1042 수치와
+> query-only 설명은 2026-07-31 snapshot이다.
+
 ## 한 줄 결론
 
 **최신 Single Axis whole-sequence recovery, Group Enable/SDO/Group Reset과 dormant Admin
 SetPosition/Axis Reference를 포함한 current PC 회귀와 LASAL source/static은 PASS했다.
 SetPosition은 128-bit intent와 diagnostics identity를 포함하는 56-byte request로 갱신했고,
-`0x7D14` read-only outcome query SDK 계약과 독립 journal core를 추가하는 단계다.
+`0x7D14` read-only outcome query, `0x7D1A` nonzero-generation retirement CAS SDK 계약과
+독립 journal core까지 추가했다.
 callback+`0x7D12`+`0x7D13` current source의 fresh IDE build/smoke는 대기 중이다.
 하지만 current PLC download와 Motion/Power/Axis1-only SDO Write live 증거가 없어 production
 배포는 불가하다.** dirty-preview Distribution candidate는 실제 생성됐고, 현재 병목은 source
@@ -163,7 +170,7 @@ Axis1 manual SDO Write는 exact current-session four-ticket same-value proof 전
 | RPC/connection/lookup | 핵심 구현 | init/register/close, same-peer takeover source, `0x405C` exact-peer validate-then-commit, raw callback `SessionGeneration`/owner/current-session provenance와 WPF stale queued event drop | P0 ownership 변경의 master IDE/PLC capture와 fault/soak 미완료; typed PLC event sender/parser 없음 |
 | Single Axis 1..9 | 핵심 구현·PC 검증 부분 | Power/Reset/Stop, status/position, absolute/relative/velocity, accepted-once wait/recovery, exact-identity PowerOn -> Relative Move -> Stop -> PowerOff live runner와 cancel safe cleanup; `SetPosition`과 LASAL-native `ReferenceAxis` SDK/wire+dormant fail-closed contract | runner는 실제 전송 경로지만 current PLC/physical 1..4 실행·packet·안전 증거와 simulated 5..9 범위 승인 미완료; `HomeDS402Ex`/`SetOpMode` 없음; Reference bit 4 OFF/native call 0/physical ref input 없음, DS402 homing 아님; SetPosition bit 3 OFF/native call 0 |
 | Group X/Y/Z/U | 핵심 구현·PC 검증 부분 | member/status/power/lock, raw ACK-only Reset과 durable exact-restart stable member error-clear Reset, stop/position/linear abs·rel/fixed identity, Enable qualifier durable accepted-once | true Buffered, stop-first, `0x2047`/`0x2049` PLC live와 full matrix 미완료 |
-| Admin | active 4 + dormant mutation 2 + SDK-only outcome query 1 | capability, axis/group semantic read, group relative move; diagnostics identity+128-bit intent `0x7D12` 56/36-byte 계약, read-only `0x7D14` 56/92-byte terminal query 계약과 `0x7D13` Reference 56/32-byte 계약 | SetPosition bits 3/5와 Reference bit 4 OFF, native call 각각 0, WPF mutation 미노출; `0x7D14` PLC store/route/retirement, unified ownership, Reference physical input/PLC watchdog, general raw write/PLC invalid·stale·fault matrix 미완료 |
+| Admin | 2026-07-31 active/dormant snapshot + SDK-only SetPosition recovery 2 | capability, axis/group semantic read, group relative move; diagnostics identity+128-bit intent `0x7D12` 56/36-byte 계약, read-only `0x7D14` 56/92-byte terminal query와 `0x7D1A` 60/92-byte nonzero-generation retirement CAS SDK 계약 | SetPosition bits 3/5/7 OFF, native call 0, WPF mutation 미노출; `0x7D14/0x7D1A` PLC store/route/tombstone, unified ownership과 PLC invalid·stale·fault matrix 미완료 |
 | D1 Catalog/Health/PI | 구현·검증 부분 | Catalog, EtherCAT Health, PI Read | PLC fault/stale matrix와 live qualification 미완료 |
 | D2 Bulk | 구현·검증 부분 | Configure/Status/Snapshot/Release | exact 24-entry lifecycle, offline partial/recovery, soak 미완료 |
 | D3 Recorder | source/PC 완료·live 미검증 | Single/Ring/trigger/download/reconnect tooling | PLC runtime, hash/soak/reconnect-adopt 증거 없음 |
@@ -179,7 +186,8 @@ Axis1 manual SDO Write는 exact current-session four-ticket same-value proof 전
 - C# request/parser/fake-RPC 계약의 광범위한 자동 시험
 - Admin `0x7D00/10/20/22` happy path, diagnostics identity+128-bit intent를 고정한
   `0x7D12 SetAxisPosition` dormant/fail-closed request/parser/session 계약, SDK의 repeatable
-  read-only `0x7D14` exact terminal query 계약, `0x7D13 StartAxisReference` dormant 계약.
+  read-only `0x7D14` exact terminal query와 `0x7D1A` nonzero-generation retirement CAS 계약,
+  `0x7D13 StartAxisReference` dormant 계약.
   `0x7D13`은 LASAL-native reference이며 DS402 homing이 아니다. `0x7D12/13` capability는
   OFF/native call 0이고 `0x7D14`는 PLC route/store가 아직 없다. 현재 test count와
   SourceOnly/full static 결과는 아래 검증 결과를 기준으로 갱신한다.
@@ -241,7 +249,7 @@ Axis1 manual SDO Write는 exact current-session four-ticket same-value proof 전
 8. **SetPosition authoritative recovery의 PLC 저장소가 없다.** IDE-created two-bank
    retained store, `0x7D14` route, terminal retirement CAS와 crash-point/torn-write 시험을
    완료하고, journal과 unified mutation ownership을 같은 slice에서 WPF에 연결하기 전에는
-   capability bit 3/5와 실제 mutation을 열 수 없다.
+   capability bit 3/5/7과 실제 mutation을 열 수 없다.
 
 ## production 판정
 

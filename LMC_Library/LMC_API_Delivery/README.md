@@ -95,8 +95,10 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
     `InvalidState/detail 10`, native `_LMCAxis.SetPosition` 호출 0회
   - `0x7D15/0x7D16/0x7D17` DS402 Home: method 37 non-moving source가 있으나
     `LMC_DIAG_DS402_HOME_ENABLED=FALSE`, Admin capability bit 6 OFF
-- SDK-only Admin read-only recovery query: 1개
-  - `0x7D14 ReadAxisSetPositionOutcome`: capability bit 5와 PLC retained store/route 없음
+- SDK-only Admin SetPosition recovery contract: 2개
+  - `0x7D14 ReadAxisSetPositionOutcome`: read-only exact terminal query
+  - `0x7D1A RetireAxisSetPositionOutcome`: nonzero-generation exact retirement CAS
+  - capability bit 5/7과 PLC retained store/query/retirement route는 없음
 - 2026-07-31 command-count checkpoint는 active 53, dispatcher/wire 63, C# ID 65,
   요구사항 `D+E=40/65`, partial 포함 `52/65`였다. 이 역사적 집계는 이후 추가된
   `0x7D15..0x7D19`와 `0x7E53..0x7E55`를 포함하지 않으므로 current command count로
@@ -120,7 +122,9 @@ EtherCAT Health/Catalog/PI Read, Bulk Snapshot, Recorder v1, D4 single-bank
   `0x20A0`, `0x20A2`, `0x204A`, `0x204B`, `0x2047`, `0x2048`, `0x2045`, `0x2049`,
   `0x2085`, `0x20A4`, `0x2051`, `0x20E7`)
 - 기존 캡처 기반 23-command 공개 범위의 deterministic unsupported: 0개
-- C# 자동 테스트 runner current Debug/Release 검증: 각각 1133/1133 PASS. fake-RPC request/session
+- C# 자동 테스트 runner 2026-08-12 current Debug/Release 검증: 각각 1151/1151 PASS.
+  `0x7D1A` SetPosition terminal retirement의 exact key/generation CAS, lost-response retry,
+  strict detail allowlist와 session-fault 회귀를 포함한다. fake-RPC request/session
   atomic append와 stable snapshot 회귀, Axis/Group sync/async typed lookup의
   exact 6-byte/nonzero descriptor, structured failure와 raw 방어 복사 회귀에 더해 topology/I/O read-only raw qualifier의
   옵션/allowlist/mutation 차단/dormant capability/dry-run/fake 17-request sequence와
@@ -542,7 +546,8 @@ profile error는 기존 `GroupReadStatus` poll로 확인한다.
 Phase 2 도입 당시 `0x7D00 FeatureBits=0x00000007`은 새 DLL과 PLC source를 함께
 배포하는 계약이었다. current source는 LMC Home bit 4를 더한 `FeatureBits=0x00000017`이다.
 이전 DLL은 새 feature를 unknown으로 strict reject할 수 있으므로 PLC만 먼저 내려받지 않는다.
-bit 3 `AxisSetPosition`, bit 5 `AxisSetPositionOutcomeRead`, bit 6 `AxisDs402Home`은 OFF다.
+bit 3 `AxisSetPosition`, bit 5 `AxisSetPositionOutcomeRead`, bit 6 `AxisDs402Home`,
+bit 7 `AxisSetPositionOutcomeRetirement`는 OFF다.
 
 Admin `0x7D12 SetAxisPosition`은 활성 API가 아니라 bounded coordinate-correction을 위한
 dormant/fail-closed 계약이다. request는 56 bytes, response는 36 bytes이며 fresh
@@ -556,8 +561,10 @@ ErrorId 또는 applied/native 불변식 위반은 malformed response이므로 ou
 그 exact session을 fault시킨다. current LASAL은 valid raw request도 `InvalidState/detail 10`으로
 반환하며 native SetPosition을 호출하지 않는다. SDK의 `0x7D14`는 journal에서 복원한 exact
 key로 terminal outcome만 반복 조회하는 read-only API이고 SetPosition을 replay하지 않는다.
-current PLC에는 two-bank retained store, query route, terminal retirement CAS가 없으므로 bit 5도
-OFF다. 독립 durable journal core를 MainWindow에 arm하지 않으며, store/query/retirement,
+SDK의 `0x7D1A`는 그 exact key와 nonzero generation을 사용하며, paired PLC가 동일 terminal
+snapshot tombstone을 보존하는 CAS retirement 계약이다. current PLC에는 two-bank retained
+store, `0x7D14/0x7D1A` route와 tombstone이 없으므로 bit 5/7도 OFF다. 독립 durable journal
+core를 MainWindow에 arm하지 않으며, store/query/retirement,
 journal/no-auto-replay와 unified axis/group mutation ownership을 같은 slice에서 연결하고
 motion RT/task-core priority, application-approved `SetPositionMaxJump>0`, `IsReferenced` 정책과
 PLC proof를 완료하기 전에는 capability를 켜지 않는다.
@@ -826,8 +833,8 @@ request를 failure context로 보존하고, `CancelOperation`은 실행됐을 �
   accepted Resume 실패의 cleanup은 exact pending continuation만 재사용하며 새 `0x2085`를 자동
   전송하지 않는다. fake-RPC는 외부 Power Off 선점에서 Stop 1회/Power Off 1회/status 4회, accepted
   status failure 뒤 cleanup에서 Stop 1회/status 4회를 확인했다. 이는 PLC packet 또는 정지 성능
-  proof가 아니다. current SDK Debug/Release direct runner는 callback-v2 회귀를 포함해
-  각각 1133/1133 PASS했고,
+  proof가 아니다. 2026-08-12 current SDK Debug/Release direct runner는 callback-v2와
+  SetPosition retirement 회귀를 포함해 각각 1151/1151 PASS했고,
   이 값을 PLC runtime proof로 확대하지 않는다.
 
 public `GroupEnableAndWaitForLockedStandbyAsync`는 동일 connection session과 group

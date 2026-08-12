@@ -9,10 +9,12 @@ native `_LMCAXIS_SETPOSITION` enum을 받지 않고, application-unit actual pos
 destination을 함께 맞추는 semantic mode 한 개만 제공한다.
 
 현재 단계에서는 PC SDK의 wire/parser/one-shot 계약, durable intent identity,
-read-only outcome query 계약과 PLC의 dormant 요청 파싱 골격까지만 구현한다.
+read-only outcome query와 nonzero-generation terminal retirement CAS 계약, PLC의
+dormant 요청 파싱 골격까지만 구현한다.
 실제 `_LMCAxis.SetPosition()` 호출과 capability bit 3 광고는 아래 activation gate가
 모두 확인될 때까지 금지한다. outcome query용 capability bit 5도 PLC ledger와
-`0x7D14` route가 IDE에서 구성되기 전에는 광고하지 않는다.
+`0x7D14` route가 IDE에서 구성되기 전에는 광고하지 않으며, retirement용 bit 7도
+retained tombstone과 `0x7D1A` route가 함께 구성되기 전에는 광고하지 않는다.
 
 가장 중요한 제한은 다음 두 가지다.
 
@@ -271,10 +273,25 @@ Indeterminate record는 일반 retirement로 지우면 안 된다. 이 retiremen
 구현되지 않은 동안 bit 3은 계속 OFF다. 현재 source에는 store 선언과 `0x7D14` route가 없고,
 이를 추가하려면 LASAL IDE에서 class/channel/network 생성 구조를 맞춰야 한다.
 
+2026-08-12에 retirement의 PC wire/API 계약을 `0x7D1A
+RetireAxisSetPositionOutcome`으로 고정했다. 요청 payload는 `0x7D14`의 exact recovery key
+48 byte에 nonzero `RecordGeneration` U32를 붙인 52 byte이고, 성공 응답은 `0x7D14`와
+동일한 exact 84-byte terminal snapshot이다. exact terminal key+generation만 허용하며,
+paired PLC는 응답 상실 뒤 동일 요청을 재시도해도 mutation을 반복하지 않는 tombstone을
+보존해야 한다. `0x7D1A`는 SetPosition retirement 전용으로 예약하며 HomeDS402Ex가
+재사용하지 않는다.
+
+기존 bit 5 `AxisSetPositionOutcomeRead`의 read-only 의미는 확장하지 않는다. 새 bit 7
+`AxisSetPositionOutcomeRetirement`를 사용하고 `bit 7 => bit 5`, `bit 3 => bit 5 + bit 7`을
+강제한다. 이렇게 해야 과거 query-only bit 5 PLC를 새 SDK가 retire-capable로 오판하지
+않는다. current PLC는 bit 3/5/7 모두 OFF이고 `0x7D1A` route/store도 없으므로 이 PC
+계약 추가는 runtime 활성화나 journal resolve 권한이 아니다.
+
 PC journal core는 독립적으로 구현할 수 있지만 retained query 없이 WPF 초기화/dispatch/interlock에
 연결하면 안 된다. 연결 단계에서는 wire 전 durable Arm, response-loss 뒤 RecoveryRequired,
-exact terminal query 후 durable Resolve, 자동 replay 0회를 강제한다. old PLC identity의 record는
-현재 위치가 target이라는 이유나 generic operator 확인만으로 retire하지 않는다.
+exact terminal query로 generation을 고정한 뒤 `0x7D1A` retirement 성공을 확인해야만 durable
+Resolve하며, 자동 replay 0회를 강제한다. old PLC identity의 record는 현재 위치가 target이라는
+이유나 generic operator 확인만으로 retire하지 않는다.
 
 ## 6. 검증 기준
 
@@ -292,21 +309,24 @@ exact terminal query 후 durable Resolve, 자동 replay 0회를 강제한다. ol
 - reconnect/session 변경 뒤 prepared command replay 0회
 - 새 process에서 RequestId가 충돌해도 다른 intent id와 일치하지 않음
 - `0x7D14` exact 56-byte query와 84-byte terminal response parser
+- `0x7D1A` exact 60-byte retirement frame, 84-byte terminal snapshot, nonzero
+  generation CAS와 bit 7 dependency
 - NotFound/Indeterminate/corrupt/identity mismatch에서 journal resolve 0회
-- feature bit 5 독립 광고와 `bit 3 => bit 5` strict dependency
+- feature bit 5 독립 query 광고, `bit 7 => bit 5`와
+  `bit 3 => bit 5 + bit 7` strict dependency
 - Debug/Release 전체 회귀
 
 ### 6.2 LASAL source/static
 
 - `0x7D12` route와 exact 56-byte frame offset/length
-- capability bit 3과 bit 5 OFF
+- capability bit 3, bit 5와 bit 7 OFF
 - activation 전 native `SetPosition` call 0회
 - invalid length/schema/flags/request/reference/token이 mutation 0회
 - dormant 단계에서는 expected-actual 값에 관계없이 mutation 0회이며, activation 시
   PLC current actual과의 exact CAS negative matrix를 추가
 - `SWLIMWINDOW`를 jump cap으로 사용하지 않음
 - `_Edit` 프로젝트와 generated declaration/network 미수정
-- `0x7D14`와 retained store는 LASAL IDE 구조 작업 전 source-active로 간주하지 않음
+- `0x7D14`/`0x7D1A`와 retained store는 LASAL IDE 구조 작업 전 source-active로 간주하지 않음
 
 ### 6.3 IDE/PLC 활성화 전후
 

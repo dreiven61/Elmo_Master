@@ -1197,8 +1197,10 @@ Axis1 source gate와 fresh LASAL IDE Rebuild/Link는 반영됐지만 PLC downloa
 write command는 없다. `0x7D12 SetAxisPosition`은 SDK contract와 fail-closed PLC parser만
 있고 capability bit 3이 OFF이므로 화면에 노출하지 않는다. SetPosition은 diagnostics
 identity와 128-bit intent를 기록하는 독립 durable journal
-core 및 SDK `0x7D14` exact read-only query 계약까지만 추가했다. current PLC의 bit 5,
-retained store/query route/terminal retirement와 MainWindow dispatch/interlock 연결은 없다.
+core, SDK `0x7D14` exact read-only query와 `0x7D1A` nonzero-generation terminal
+retirement 계약까지 추가했다. bit 5는 query-only이고 bit 7은 retirement 전용이다.
+current PLC의 bit 5/7, retained store/query/retirement route와 MainWindow
+dispatch/interlock 연결은 없다.
 이들을 unified ownership과 같은 slice에서 연결한 뒤에만 활성화를 검토한다. SetPosition의
 authoritative max-jump, 공통 task/core/priority 및 PLC proof가 먼저다. LMC Home과 DS402
 Home/encoder-maintenance 상태는 위 별도 절을 따른다. `0x7D00/0x7D10/0x7D20`과 physical axis 1~4 drive read의
